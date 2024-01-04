@@ -4,5 +4,14 @@
 
 import { application } from "./application"
 
+import DisableController from "./disable_controller"
+application.register("disable", DisableController)
+
+import SearchFormController from "./search_form_controller";
+application.register("search-form", SearchFormController);
+
+import AddImagesController from "./add_images_controller";
+application.register("add-images", AddImagesController);
+
 import HelloController from "./hello_controller"
 application.register("hello", HelloController)

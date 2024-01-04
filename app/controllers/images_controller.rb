@@ -48,6 +48,12 @@ class ImagesController < ApplicationController
     end
   end
 
+  def generate
+    @image = Image.find(params[:id])
+    @image.create_image_doc
+    redirect_to image_url(@image)
+  end
+
   # DELETE /images/1 or /images/1.json
   def destroy
     @image.destroy!

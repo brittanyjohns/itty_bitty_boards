@@ -69,6 +69,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_01_04_130341) do
     t.bigint "documentable_id", null: false
     t.text "raw_text"
     t.text "processed_text"
+    t.boolean "current", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["documentable_type", "documentable_id"], name: "index_docs_on_documentable"

@@ -1,17 +1,8 @@
-<div id="<%= dom_id board_image %>">
-  <p>
-    <strong>Board:</strong>
-    <%= board_image.board_id %>
-  </p>
-
-  <p>
-    <strong>Image:</strong>
-    <%= board_image.image_id %>
-  </p>
-
-  <p>
-    <strong>Position:</strong>
-    <%= board_image.position %>
-  </p>
-
+<div class="text-center  border pt-2 pb-2">
+  <div id="<%= dom_id board_image %>" class="w-full cursor-pointer" data-controller='static-image' data-static-image-label="<%= board_image.label.upcase %>" data-static-image-target="wrapper" data-action="click->static-image#speak">
+    <div class="pl-3 pr-3 items-center text-center" id="<%= board_image.label %>">
+      <%= display_image_for(board_image.image) %>
+    </div>
+  </div>
+  <%= link_to board_image.label.upcase, board_image.image, class: "text-xl text-gray-600 ml-10", form_class: "" %>
 </div>

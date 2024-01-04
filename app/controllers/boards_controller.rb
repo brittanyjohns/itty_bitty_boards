@@ -1,5 +1,5 @@
 class BoardsController < ApplicationController
-  before_action :set_board, only: %i[ show edit update destroy ]
+  before_action :set_board, only: %i[ show edit update destroy build add_multiple_images associate_image remove_image ]
 
   # GET /boards or /boards.json
   def index
@@ -49,6 +49,57 @@ class BoardsController < ApplicationController
         format.json { render json: @board.errors, status: :unprocessable_entity }
       end
     end
+  end
+
+  def build
+    if params[:image_ids].present?
+      image_ids = params[:image_ids].split(",").map(&:to_i)
+      @image_ids_to_add = image_ids - @board.image_ids
+    end
+    if params[:query].present?
+      @query = params[:query]
+      @remaining_images = @board.remaining_images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(params[:page]).per(20)
+    else
+      @remaining_images = @board.remaining_images.order(label: :asc).page(params[:page]).per(20)
+    end
+
+    if turbo_frame_request?
+      render partial: "select_images", locals: { images: @remaining_images }
+    else
+      render :build
+    end
+  end
+
+  def add_multiple_images
+    if params[:image_ids].present?
+      @image_ids = params[:image_ids]
+      puts "\n\n****image_ids: #{@image_ids}\n\n"
+      @image_ids.each do |image_id|
+        @board.add_image(image_id)
+      end
+    else
+      puts "no image_ids"
+    end
+    redirect_back_or_to build_board_path(@board)
+  end
+
+  def associate_image
+    image = Image.find(params[:image_id])
+
+    unless @board.images.include?(image)
+      new_board_image = @board.board_images.new(image: image)
+      unless new_board_image.save
+        Rails.logger.debug "new_board_image.errors: #{new_board_image.errors.full_messages}"
+      end
+    end
+
+    redirect_back_or_to @board
+  end
+
+  def remove_image
+    image = Image.find(params[:image_id])
+    @board.images.delete(image)
+    redirect_back_or_to @board
   end
 
   # DELETE /boards/1 or /boards/1.json

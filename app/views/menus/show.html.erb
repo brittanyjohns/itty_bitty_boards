@@ -2,6 +2,10 @@
 
 <%= render @menu %>
 
+<% @menu.boards.each do |board| %>
+  <%= render board %>
+<% end %>
+
 <div>
   <%= link_to "Edit this menu", edit_menu_path(@menu) %> |
   <%= link_to "Back to menus", menus_path %>

@@ -47,6 +47,13 @@ class DocsController < ApplicationController
     end
   end
 
+  def mark_as_current
+    @doc = Doc.find(params[:id])
+    @doc.documentable.docs.update_all(current: false)
+    @doc.update(current: true)
+    redirect_back_or_to @doc.documentable
+  end
+
   # DELETE /docs/1 or /docs/1.json
   def destroy
     @doc.destroy!

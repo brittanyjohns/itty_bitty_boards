@@ -1,14 +1,16 @@
-<p style="color: green"><%= notice %></p>
-
-<%= render @image %>
+  <h1 class="text-2xl font-semibold">
+    <%= @image.label %>
+  </h1>
+  <div class="bg-gray-100 p-4 rounded-lg w-1/3">
+      <%= render "images/doc_form" %>
+  </div>
+  <%= generate_image_button(@image) %>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
 <% @image.docs.each do |doc| %>
   <%= render doc %>
 <% end %>
-
-
-<div class="flex justify-center p-4 border-2 border-gray-300 rounded-lg">
-  <%= render "images/doc_form" %>
+</div>
 <div>
   <%= link_to "Edit this image", edit_image_path(@image) %> |
   <%= link_to "Back to images", images_path %>

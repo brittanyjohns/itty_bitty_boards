@@ -1,4 +1,12 @@
-<div id="<%= dom_id doc %>">
- <%= image_tag doc.image if doc.image.attached? %>
-
+<div id="<%= dom_id doc %>" class="relative">
+<% if doc.persisted? %>
+    <% unless @image %>
+    <p class="absolute top-0 left-0 m-4 text-yellow-400 font-bold p-2 rounded">
+        <%= doc.label %>
+    </p>
+    <% end %>
+ <%= image_tag doc.image, class: "w-full" %>
+ <%= mark_as_current_button(doc) if doc.image.attached? %>
+ <%= remove_doc_button(doc) %>
+<% end %>
 </div>

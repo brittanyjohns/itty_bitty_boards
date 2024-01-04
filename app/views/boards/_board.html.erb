@@ -1,22 +1,18 @@
 <div id="<%= dom_id board %>">
   <p>
-    <strong>User:</strong>
-    <%= board.user_id %>
-  </p>
-
-  <p>
     <strong>Name:</strong>
     <%= board.name %>
   </p>
 
   <p>
     <strong>Parent:</strong>
-    <%= board.parent_id %>
+    <%= board.parent %>
   </p>
+  <%= link_to "Add more images", build_board_path(board), class: "rounded-lg py-3 px-5 bg-gray-100 font-medium" %>
 
-  <p>
-    <strong>Description:</strong>
-    <%= board.description %>
-  </p>
-
+  <p class="text-2xl font-semibold">Images:</p>
+  <% board.images.each do |image| %>
+  <p class="text-2xl font-semibold">IMG: <%= image.id%></p>
+    <%= render image %>
+  <% end %>
 </div>
