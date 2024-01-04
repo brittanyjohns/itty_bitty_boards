@@ -1,0 +1,32 @@
+<%= form_with(model: board_image) do |form| %>
+  <% if board_image.errors.any? %>
+    <div style="color: red">
+      <h2><%= pluralize(board_image.errors.count, "error") %> prohibited this board_image from being saved:</h2>
+
+      <ul>
+        <% board_image.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.label :board_id, style: "display: block" %>
+    <%= form.text_field :board_id %>
+  </div>
+
+  <div>
+    <%= form.label :image_id, style: "display: block" %>
+    <%= form.text_field :image_id %>
+  </div>
+
+  <div>
+    <%= form.label :position, style: "display: block" %>
+    <%= form.number_field :position %>
+  </div>
+
+  <div>
+    <%= form.submit %>
+  </div>
+<% end %>

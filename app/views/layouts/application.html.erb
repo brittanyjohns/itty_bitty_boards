@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>IttyBittyBoards</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+    <%= javascript_include_tag "application", "data-turbo-track": "reload", defer: true %>
+  </head>
+
+  <body class="bg-stone-50">
+    <%= render "layouts/navbar" %>
+    <%= render "layouts/notice" %>
+    <%= render "layouts/alert" %>
+    <div class="justify-center p-2 md:p-4">
+      <%= yield %>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+<%= form_with(model: @new_image_doc, local: true, data: { controller: "disable" }) do |form| %>
+  <% if @new_image_doc.errors.any? %>
+    <div style="color: red">
+      <h2><%= pluralize(@new_image_doc.errors.count, "error") %> prohibited this doc from being saved:</h2>
+
+      <ul>
+        <% @new_image_doc.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+    <div>
+        <%= form.label :image, style: "display: block" %>
+        <%= form.file_field :image %>
+    </div>
+    <%= form.hidden_field :documentable_type, value: @image.class %>
+    <%= form.hidden_field :documentable_id, value: @image.id %>
+  <div>
+        <%= form.submit "Save", class: "text-white shadow rounded-lg py-2 px-4 bg-green-700 font-medium text-center", data: { ocr_target: "submit_button", disable_target: "button", action: "click->disable#disableForm" } %>
+
+  </div>
+<% end %>

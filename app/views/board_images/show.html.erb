@@ -1,0 +1,10 @@
+<p style="color: green"><%= notice %></p>
+
+<%= render @board_image %>
+
+<div>
+  <%= link_to "Edit this board image", edit_board_image_path(@board_image) %> |
+  <%= link_to "Back to board images", board_images_path %>
+
+  <%= button_to "Destroy this board image", @board_image, method: :delete %>
+</div>
