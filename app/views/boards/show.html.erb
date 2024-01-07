@@ -1,5 +1,4 @@
-<p style="color: green"><%= notice %></p>
-
+<h1 class="mb-2 text-4xl font-bold text-gray-800"> <%= @board.name.blank? ? "no name" : @board.name %></h1>
 <%= render @board %>
 
 <div>

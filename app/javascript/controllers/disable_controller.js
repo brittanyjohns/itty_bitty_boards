@@ -7,7 +7,7 @@ export default class extends Controller {
 
   connect() {
     console.log("Connected to disable controller");
-    console.log(`buttonTarget: ${this.buttonTarget}`);
+    console.log(`buttonTarget: ${this.buttonTarget.value}`);
 
     if (!this.hasWithValue) {
       this.withValue = "Processing...";
@@ -15,15 +15,13 @@ export default class extends Controller {
   }
 
   disableForm = (e) => {
-    const button = this.buttonTarget;
+    console.log("disableForm");
+    console.log(e);
+    const button = this.buttonTarget || e.srcElement;
+    console.log(`button: ${button.value}`);
 
     button.disabled = true;
-    button.value = this.withValue;
+    button.textContent = this.withValue;
     this.element.requestSubmit();
   };
-
-  submitButtons() {
-    console.log("submitButtons");
-    return this.element.querySelectorAll("input[type='submit']");
-  }
 }

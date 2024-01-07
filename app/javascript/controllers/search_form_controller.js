@@ -21,8 +21,10 @@ export default class extends Controller {
     this.queryTarget.focus();
 
     clearTimeout(this.timeout);
+    this.queryTarget.focus();
+
     this.timeout = setTimeout(() => {
       this.element.requestSubmit();
-    }, 200);
+    }, 400);
   };
 }

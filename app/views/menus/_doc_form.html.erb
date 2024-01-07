@@ -1,0 +1,27 @@
+<%= form_with(model: @new_menu_doc, local: true, data: { controller: "image-parser disable" }) do |form| %>
+    <%= form.hidden_field :documentable_type, value: @menu.class %>
+    <%= form.hidden_field :documentable_id, value: @menu.id %>
+  <% if @new_menu_doc.errors.any? %>
+    <div style="color: red">
+      <h2><%= pluralize(@new_menu_doc.errors.count, "error") %> prohibited this doc from being saved:</h2>
+      <ul>
+        <% @new_menu_doc.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.hidden_field :raw_text, data: { image_parser_target: "image_description" }, class: "h-32 w-3/4 border-2" %>
+  </div>
+
+    <div class="mb-4">
+        <p class="text-xl font-semibold">Upload a menu image</p>
+        <%= form.file_field :image, data: { image_parser_target: "file", action: "change->image-parser#upload" } %>
+    </div>
+  <div class="mb-4">
+        <%= form.submit "Save", class: "text-white shadow rounded-lg py-2 px-4 bg-green-700 font-medium text-center", data: { image_parser_target: "submit_button", disable_target: "button", action: "click->disable#disableForm" } %>
+
+  </div>
+<% end %>

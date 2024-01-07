@@ -1,14 +1,10 @@
-<p style="color: green"><%= notice %></p>
+<h1 class="text-4xl font-bold text-blue-600 mb-6">Images</h1>
+<%= link_to "New Image", new_image_path, class: "text-lg text-white bg-blue-500 hover:bg-blue-700 font-medium py-2 px-4 rounded-md shadow" %>
+    <ul class="flex justify-center text-4xl font-bold" id="the-list" data-static-board-target="list"></ul>
+  <%= render "utils/search", search_path: images_path, show_user_images_only: true %>
 
-<h1>Images</h1>
-
-<div id="images">
+<div id="images" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mt-6">
   <% @images.each do |image| %>
     <%= render image %>
-    <p>
-      <%= link_to "Show this image", image %>
-    </p>
   <% end %>
 </div>
-
-<%= link_to "New image", new_image_path %>

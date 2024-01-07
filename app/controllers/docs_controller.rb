@@ -22,10 +22,16 @@ class DocsController < ApplicationController
   # POST /docs or /docs.json
   def create
     @doc = Doc.new(doc_params)
+    @documentable = @doc.documentable
+    @doc.image.attach(doc_params[:image]) if doc_params[:image]
 
     respond_to do |format|
       if @doc.save
-        format.html { redirect_to doc_url(@doc), notice: "Doc was successfully created." }
+        if @documentable.is_a?(Menu)
+          puts "**** Menu Doc - create_board_from_image **** \n"
+          @documentable.enhance_image_description(@doc)
+        end
+        format.html { redirect_to @doc.documentable, notice: "Doc was successfully created." }
         format.json { render :show, status: :created, location: @doc }
       else
         format.html { render :new, status: :unprocessable_entity }
@@ -56,10 +62,11 @@ class DocsController < ApplicationController
 
   # DELETE /docs/1 or /docs/1.json
   def destroy
+    documentable = @doc.documentable
     @doc.destroy!
 
     respond_to do |format|
-      format.html { redirect_to docs_url, notice: "Doc was successfully destroyed." }
+      format.html { redirect_to documentable, notice: "Doc was successfully destroyed." }
       format.json { head :no_content }
     end
   end
@@ -72,6 +79,6 @@ class DocsController < ApplicationController
 
     # Only allow a list of trusted parameters through.
     def doc_params
-      params.require(:doc).permit(:documentable_id, :documentable_type, :image)
+      params.require(:doc).permit(:documentable_id, :documentable_type, :image, :raw_text, :current)
     end
 end

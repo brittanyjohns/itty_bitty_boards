@@ -1,3 +1,17 @@
+# == Schema Information
+#
+# Table name: images
+#
+#  id                  :bigint           not null, primary key
+#  label               :string
+#  image_prompt        :text
+#  display_description :text
+#  private             :boolean
+#  user_id             :integer
+#  generate_image      :boolean          default(FALSE)
+#  created_at          :datetime         not null
+#  updated_at          :datetime         not null
+#
 class Image < ApplicationRecord
   has_many :docs, as: :documentable
 
@@ -10,7 +24,7 @@ class Image < ApplicationRecord
   end
 
   def display_image
-      if docs.current.any? && docs.current.first.image.attached?
+      if docs.current.any? && docs.current.first.image&.attached?
       docs.current.first.image
     else
       nil
@@ -18,11 +32,29 @@ class Image < ApplicationRecord
   end
 
   def prompt_to_send
-    image_prompt.empty? ? "#{prompt_for_label} #{label}" : image_prompt
+    image_prompt.blank? ? "#{prompt_for_label} #{label}" : image_prompt
   end
 
   def prompt_for_label
     "Generate an image of"
+  end
+
+  def start_generate_image_job(start_time = 0)
+    puts "start_generate_image_job: #{label}"
+
+    GenerateImageJob.perform_in(start_time.minutes, self.id)
+  end
+
+  def self.run_generate_image_job_for(images)
+    start_time = 0
+    images.each_slice(5) do |images_slice|
+      puts "start_time: #{start_time}"
+      puts "images_slice: #{images_slice.map(&:label)}"
+      images_slice.each do |image|
+        image.start_generate_image_job(start_time)
+      end
+      start_time += 2
+    end
   end
 
   def open_ai_opts

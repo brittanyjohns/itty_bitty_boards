@@ -1,0 +1,7 @@
+<%= link_to doc.board do %>
+<div id="<%= dom_id doc %>" class="relative">
+    <%= image_tag doc.image, class: "w-full" if doc.image.attached? %>
+    <%= mark_as_current_button(doc) if doc.image.attached? %>
+    <%= remove_doc_button(doc) %>
+</div>
+<% end %>

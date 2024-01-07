@@ -8,6 +8,8 @@ class MenusController < ApplicationController
 
   # GET /menus/1 or /menus/1.json
   def show
+    @new_menu_doc = Doc.new
+    @new_menu_doc.documentable = @menu
   end
 
   # GET /menus/new

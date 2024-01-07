@@ -62,7 +62,7 @@ class OpenAiClient
 
   def expected_json_schema
     {
-      "food": [
+      "menu_items": [
         {
           "name": "Chicken Tenders",
           "description": "Served with french fries and honey mustard sauce.",
@@ -73,13 +73,16 @@ class OpenAiClient
           "description": "Served with french fries.",
           "image_description": "Cheeseburger with french fries.",
         },
-      ],
-      "drinks": [
         {
           "name": "Milk",
         },
         {
           "name": "Apple Juice",
+          "image_description": "Apple juice in a cup.",
+        },
+        {
+          "name": "Ice Cream",
+          "description": "Vanilla ice cream with chocolate sauce.",
         },
       ],
     }

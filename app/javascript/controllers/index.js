@@ -4,14 +4,23 @@
 
 import { application } from "./application"
 
+import AddImagesController from "./add_images_controller"
+application.register("add-images", AddImagesController)
+
 import DisableController from "./disable_controller"
 application.register("disable", DisableController)
 
-import SearchFormController from "./search_form_controller";
-application.register("search-form", SearchFormController);
-
-import AddImagesController from "./add_images_controller";
-application.register("add-images", AddImagesController);
+import EnlargeController from "./enlarge_controller"
+application.register("enlarge", EnlargeController)
 
 import HelloController from "./hello_controller"
 application.register("hello", HelloController)
+
+import ImageParserController from "./image_parser_controller"
+application.register("image-parser", ImageParserController)
+
+import SearchFormController from "./search_form_controller"
+application.register("search-form", SearchFormController)
+
+import StaticImageController from "./static_image_controller"
+application.register("static-image", StaticImageController)

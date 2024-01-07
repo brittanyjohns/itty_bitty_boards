@@ -3,7 +3,21 @@ class ImagesController < ApplicationController
 
   # GET /images or /images.json
   def index
-    @images = Image.all
+    if params[:user_images_only] == "1"
+      @images = current_user.images.includes(:docs).page params[:page]
+    else
+      @images = Image.includes(:docs).searchable_images_for(current_user).order(created_at: :desc).page params[:page]
+    end
+    if params[:query].present?
+      @images = @images.searchable_images_for(current_user).where("label ILIKE ?", "%#{params[:query]}%").order(updated_at: :desc).page params[:page]
+    else
+      @images = @images.searchable_images_for(current_user).order(updated_at: :desc).page params[:page]
+    end
+    if turbo_frame_request?
+      render partial: "images", locals: { images: @images }
+    else
+      render :index
+    end
   end
 
   # GET /images/1 or /images/1.json
@@ -50,7 +64,8 @@ class ImagesController < ApplicationController
 
   def generate
     @image = Image.find(params[:id])
-    @image.create_image_doc
+    GenerateImageJob.perform_async(@image.id)
+    sleep 2
     redirect_to image_url(@image)
   end
 

@@ -1,14 +1,19 @@
-<p style="color: green"><%= notice %></p>
-
-<h1>Menus</h1>
-
-<div id="menus">
-  <% @menus.each do |menu| %>
-    <%= render menu %>
-    <p>
-      <%= link_to "Show this menu", menu %>
-    </p>
-  <% end %>
+<div class="mx-5 flex justify-around">
+  <h3 class="text-2xl font-bold text-blue-600 mb-4">My Menus</h3>
+  <%= link_to "New Menu", new_menu_path, class: "text-lg text-white bg-blue-500 hover:bg-blue-700 font-medium py-2 px-4 rounded-md shadow mb-6" %>
 </div>
+<div id="menus" class="p-10 w-1/2 mx-auto bg-white rounded-lg shadow-md">
+  <ul class="list-none p-0">
+    <% @menus.order(name: :asc).each do |menu| %>
+      <%# <li class="p-4 md:p-6 mb-4 flex justify-between items-center bg-gray-100 rounded-lg border border-gray-200 transform hover:scale-105 transition duration-150 ease-in-out">
+        <%= link_to "#{menu.name.blank? ? "no name" : menu.name}", menu, class: "text-lg md:text-xl font-medium text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out" %>
+      <%# </li> %>
+      <%= link_to menu do %>
+        <li class="p-4 md:p-6 mb-4 flex justify-between items-center bg-gray-100 rounded-lg border border-gray-200 transform hover:scale-105 transition duration-150 ease-in-out">
+          <%= menu.name.blank? ? "no name" : menu.name %>
+        </li>
+        <% end %>
 
-<%= link_to "New menu", new_menu_path %>
+    <% end %>
+  </ul>
+</div>

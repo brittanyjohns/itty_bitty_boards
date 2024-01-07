@@ -1,9 +1,9 @@
-<%= form_with(model: image) do |form| %>
+<%= form_with(model: image, class: "bg-white p-4 rounded-lg shadow-md") do |form| %>
   <% if image.errors.any? %>
-    <div style="color: red">
-      <h2><%= pluralize(image.errors.count, "error") %> prohibited this image from being saved:</h2>
+    <div class="bg-red-100 text-red-700 p-3 rounded">
+      <h2 class="font-bold"><%= pluralize(image.errors.count, "error") %> prohibited this image from being saved:</h2>
 
-      <ul>
+      <ul class="list-disc list-inside">
         <% image.errors.each do |error| %>
           <li><%= error.full_message %></li>
         <% end %>
@@ -11,27 +11,22 @@
     </div>
   <% end %>
 
-  <div>
-    <%= form.label :label, style: "display: block" %>
-    <%= form.text_field :label %>
+  <div class="my-4">
+    <%= form.label :label, class: "block text-gray-700 font-bold mb-2" %>
+    <%= form.text_field :label, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" %>
   </div>
 
-  <div>
-    <%= form.label :image_prompt, style: "display: block" %>
-    <%= form.text_area :image_prompt %>
+  <div class="my-4">
+    <%= form.label :image_prompt, class: "block text-gray-700 font-bold mb-2" %>
+    <%= form.text_area :image_prompt, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" %>
   </div>
 
-  <div>
-    <%= form.label :private, style: "display: block" %>
-    <%= form.check_box :private %>
+  <div class="my-4 flex items-center">
+    <%= form.label :private, class: "block text-gray-700 font-bold mr-2" %>
+    <%= form.check_box :private, class: "leading-tight" %>
   </div>
 
-  <div>
-    <%= form.label :user_id, style: "display: block" %>
-    <%= form.number_field :user_id %>
-  </div>
-
-  <div>
-    <%= form.submit %>
+  <div class="my-4">
+    <%= form.submit class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" %>
   </div>
 <% end %>

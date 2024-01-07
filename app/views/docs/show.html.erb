@@ -1,6 +1,17 @@
 <p style="color: green"><%= notice %></p>
+<%= @doc.inspect %>
+<div class="flex justify-around">
+  <div class=" bg-white p-4 rounded-lg shadow-md m-8">
+    <%= render @doc %>
+  </div>
 
-<%= render @doc %>
+  <div class="w-1/3  bg-white p-4 rounded-lg shadow-md m-8">
+    <p class="text-lg"> Processed text: <%= @doc.processed_text %></p>
+    <hr>
+    <p class="text-sm"> Raw text: <%= @doc.raw_text %></p>
+  </div>
+</div>
+<hr>
 
 <div>
   <%= link_to "Edit this doc", edit_doc_path(@doc) %> |

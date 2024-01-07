@@ -1,17 +1,6 @@
 <div id="<%= dom_id menu %>">
   <p>
-    <strong>User:</strong>
-    <%= menu.user_id %>
-  </p>
-
-  <p>
     <strong>Name:</strong>
-    <%= menu.name %>
+    <%= link_to menu.name, menu, class: 'font-weight-bold' %>
   </p>
-
-  <p>
-    <strong>Description:</strong>
-    <%= menu.description %>
-  </p>
-
 </div>

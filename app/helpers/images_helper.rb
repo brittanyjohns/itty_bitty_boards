@@ -12,7 +12,8 @@ module ImagesHelper
         str.html_safe
       end
       def generate_image_button(image)
-        button_to "#{icon("fa-regular", "image")} CREATE Image".html_safe, generate_image_path(image), class: "rounded-full", method: :post
+        button_to "Generate AI Image", generate_image_path(image), method: :post, class: "bg-green-600 hover:tbgext-green-700 p-3 m-2 rounded-lg text-white", 
+        form: {data: {controller: 'disable'}}, data: {disable_target: "button", action: "click->disable#disableForm"} 
       end
     
       def remove_image_button(board, image)

@@ -1,12 +1,10 @@
 <div id="<%= dom_id doc %>" class="relative">
-<% if doc.persisted? %>
     <% unless @image %>
-    <p class="absolute top-0 left-0 m-4 text-yellow-400 font-bold p-2 rounded">
+    <p class="absolute top-0 left-0 m-4 text-white font-bold p-2 rounded bg-black bg-opacity-70">
         <%= doc.label %>
     </p>
     <% end %>
- <%= image_tag doc.image, class: "w-full" %>
- <%= mark_as_current_button(doc) if doc.image.attached? %>
- <%= remove_doc_button(doc) %>
-<% end %>
+    <%= image_tag doc.image, class: "w-3/4 mx-auto" if doc.image.attached? %>
+    <%= mark_as_current_button(doc) if doc.image.attached? %>
+    <%= remove_doc_button(doc) if doc.persisted? %>
 </div>

@@ -30,13 +30,12 @@ module ImageHelper
     end
   end
 
-  def clarify_image_description
+  def clarify_image_description(raw_text)
     response = OpenAiClient.new(open_ai_opts).clarify_image_description(raw_text)
     if response
       puts "response: #{response}"
       response_text = response[:content]
       puts "response_text: #{response_text}"
-      self.image_description = response_text
     else
       Rails.logger.debug "*** ERROR - clarify_image_description *** \nDid not receive valid response. Response: #{response}\n"
     end
