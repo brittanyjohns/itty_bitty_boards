@@ -22,6 +22,7 @@ class DocsController < ApplicationController
   # POST /docs or /docs.json
   def create
     @doc = Doc.new(doc_params)
+    @doc.user = current_user
     @documentable = @doc.documentable
     @doc.image.attach(doc_params[:image]) if doc_params[:image]
 
@@ -29,7 +30,7 @@ class DocsController < ApplicationController
       if @doc.save
         if @documentable.is_a?(Menu)
           puts "**** Menu Doc - create_board_from_image **** \n"
-          @documentable.enhance_image_description(@doc)
+          @documentable.enhance_image_description
         end
         format.html { redirect_to @doc.documentable, notice: "Doc was successfully created." }
         format.json { render :show, status: :created, location: @doc }
