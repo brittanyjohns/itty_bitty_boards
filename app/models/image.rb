@@ -13,11 +13,12 @@
 #  updated_at          :datetime         not null
 #
 class Image < ApplicationRecord
+  belongs_to :user, optional: true
   has_many :docs, as: :documentable
 
   include ImageHelper
 
-  def create_image_doc
+  def create_image_doc(user_id = nil)
     new_doc_image = create_image
     self.image_prompt = prompt_to_send
     self.save!
@@ -58,7 +59,6 @@ class Image < ApplicationRecord
   end
 
   def open_ai_opts
-    puts "open_ai_opts: #{label}"
     puts "Sending prompt: #{prompt_to_send}"
     { prompt: prompt_to_send }
   end

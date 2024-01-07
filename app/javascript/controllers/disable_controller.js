@@ -15,10 +15,8 @@ export default class extends Controller {
   }
 
   disableForm = (e) => {
-    console.log("disableForm");
-    console.log(e);
     const button = this.buttonTarget || e.srcElement;
-    console.log(`button: ${button.value}`);
+    console.log(`disableForm - button: ${button.value}`);
 
     button.disabled = true;
     button.textContent = this.withValue;

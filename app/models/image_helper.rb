@@ -5,13 +5,14 @@ module ImageHelper
     open_ai_opts[:prompt] || name
   end
 
-  def save_image(url)
+  def save_image(url, user_id=nil)
     begin
       downloaded_image = URI.open(url,
                                   "User-Agent" => "Ruby/#{RUBY_VERSION}",
                                   "From" => "foo@bar.invalid",
                                   "Referer" => "http://www.ruby-lang.org/")
-      doc = self.docs.create!(raw_text: name_to_send)
+      user_id ||= self.user_id
+      doc = self.docs.create!(raw_text: name_to_send, user_id: user_id)
       doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.png")
     rescue => e
       puts "ImageHelper ERROR: #{e.inspect}"
@@ -20,11 +21,12 @@ module ImageHelper
     doc
   end
 
-  def create_image(image_type=nil)
-    Rails.logger.debug "**** create_image **** label: #{label}\n"
+  def create_image(user_id=nil)
+    user_id ||= self.user_id
+    Rails.logger.debug "**** create_image **** label: #{label} and user_id: #{user_id}"
     img_url = OpenAiClient.new(open_ai_opts).create_image
     if img_url
-      save_image(img_url)
+      save_image(img_url, user_id)
     else
       Rails.logger.debug "**** ERROR **** \nDid not receive valid response.\n"
     end

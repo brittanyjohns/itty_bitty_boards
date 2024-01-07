@@ -13,11 +13,11 @@
 #  board_id          :integer
 #
 class Doc < ApplicationRecord
+  belongs_to :user, optional: true
   belongs_to :documentable, polymorphic: true
   belongs_to :board, optional: true
   has_one_attached :image
 
-  # broadcasts_to ->(doc) { :doc_list }, inserts_by: :append, target: "#{self.documentable_id}_docs_list"
   before_save :update_current
   after_commit :update_doc_list
 
@@ -32,9 +32,11 @@ class Doc < ApplicationRecord
   end
 
   def update_current
-    if !documentable.docs.current.any?
+    @documentable = documentable
+    if !@documentable.docs.current.any?
       self.current = true
     end
+    # self.user_id = @documentable.user_id if @documentable.user_id && self.user_id.blank?
   end
 
   def update_doc_list

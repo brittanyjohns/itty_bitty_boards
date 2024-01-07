@@ -25,15 +25,21 @@ export default class extends Controller {
         this.image_descriptionTarget.value = text;
         this.submit_buttonTarget.disabled = false;
         this.submit_buttonTarget.value = "Save";
-
       });
     };
     reader.readAsArrayBuffer(file);
     this.submit_buttonTarget.disabled = false;
   }
 
-  submitButtons() {
+  submit(event) {
+    event.preventDefault();
     console.log("submitButtons");
-    return this.element.querySelectorAll("input[type='submit']");
+    this.submit_buttonTarget.disabled = true;
+    this.submit_buttonTarget.value = "Saving...";
+    clearTimeout(this.timeout);
+
+    this.timeout = setTimeout(() => {
+      this.element.requestSubmit();
+    }, 100);
   }
 }

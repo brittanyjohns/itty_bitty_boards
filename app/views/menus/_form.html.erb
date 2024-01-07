@@ -1,4 +1,4 @@
-<%= form_with(model: menu) do |form| %>
+<%= form_with(model: menu, data: { controller: "image-parser" }) do |form| %>
   <% if menu.errors.any? %>
     <div style="color: red">
       <h2><%= pluralize(menu.errors.count, "error") %> prohibited this menu from being saved:</h2>
@@ -10,23 +10,25 @@
       </ul>
     </div>
   <% end %>
-
   <div>
-    <%= form.label :user_id, style: "display: block" %>
-    <%= form.text_field :user_id %>
-  </div>
-
-  <div>
+    NAME
     <%= form.label :name, style: "display: block" %>
     <%= form.text_field :name %>
   </div>
+  <%= form.fields_for :docs do |doc_form| %>
 
-  <div>
-    <%= form.label :description, style: "display: block" %>
-    <%= form.text_area :description %>
+    <div>
+      <%= doc_form.hidden_field :user_id, value: current_user.id %>
+    <%= doc_form.hidden_field :raw_text, data: { image_parser_target: "image_description" }, class: "h-32 w-3/4 border-2" %>
   </div>
 
-  <div>
-    <%= form.submit %>
+    <div class="mb-4">
+        <p class="text-xl font-semibold">Upload a menu image</p>
+        <%= doc_form.file_field :image, data: { image_parser_target: "file", action: "change->image-parser#upload" } %>
+    </div>
+  <% end %>
+
+  <div class="mb-4">
+    <%= form.submit "Save", class: "text-white shadow rounded-lg py-2 px-4 bg-green-700 font-medium text-center", data: { image_parser_target: "submit_button", action: "change->image-parser#submit" } %>
   </div>
 <% end %>

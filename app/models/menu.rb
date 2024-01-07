@@ -14,9 +14,11 @@ class Menu < ApplicationRecord
   has_many :boards, as: :parent, dependent: :destroy
   has_many :docs, as: :documentable, dependent: :destroy
 
-include ImageHelper
+  include ImageHelper
 
-validates :name, presence: true
+  validates :name, presence: true
+
+  accepts_nested_attributes_for :docs
 
   def label
     name
@@ -75,13 +77,22 @@ validates :name, presence: true
     item_name
   end
 
-  def enhance_image_description(new_doc)
+  def run_image_description_job
+    puts "**** run_image_description_job **** \n"
+    EnhanceImageDescriptionJob.perform_async(self.id)
+  end
+    
+
+  def enhance_image_description
+    new_doc = self.docs.last
+    puts "NO NEW DOC FOUND\n" && return unless new_doc
     # return unless image_description
     puts "processed_text before: #{new_doc.processed_text}\n raw_text: #{new_doc.raw_text}\n"
 
     if !new_doc.raw_text.blank?
       new_doc.processed_text = clarify_image_description(new_doc.raw_text)
       new_doc.current = true
+      new_doc.user_id = self.user_id
       new_doc.save!
       self.description = new_doc.processed_text
       puts "Image description after: #{description}\n"

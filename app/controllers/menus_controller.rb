@@ -15,6 +15,7 @@ class MenusController < ApplicationController
   # GET /menus/new
   def new
     @menu = current_user.menus.new
+    @new_menu_doc = @menu.docs.new
   end
 
   # GET /menus/1/edit
@@ -25,9 +26,15 @@ class MenusController < ApplicationController
   def create
     @menu = current_user.menus.new(menu_params)
     @menu.user = current_user
+    doc_params = menu_params[:docs_attributes]["0"]
+    puts "doc_params: #{doc_params}\n"
+    # @doc = @menu.docs.new(doc_params)
+    puts "doc: #{@doc}\n"
+    # @doc.image.attach(doc_params[:image]) if doc_params[:image]
 
     respond_to do |format|
       if @menu.save
+        @menu.run_image_description_job
         format.html { redirect_to menu_url(@menu), notice: "Menu was successfully created." }
         format.json { render :show, status: :created, location: @menu }
       else
@@ -68,6 +75,6 @@ class MenusController < ApplicationController
 
     # Only allow a list of trusted parameters through.
     def menu_params
-      params.require(:menu).permit(:user_id, :name, :description)
+      params.require(:menu).permit(:user_id, :name, :description, docs_attributes: [:id, :raw_text, :image, :_destroy, :user_id])
     end
 end

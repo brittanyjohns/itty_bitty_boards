@@ -64,7 +64,7 @@ class ImagesController < ApplicationController
 
   def generate
     @image = Image.find(params[:id])
-    GenerateImageJob.perform_async(@image.id)
+    GenerateImageJob.perform_async(@image.id, current_user.id)
     sleep 2
     redirect_to image_url(@image)
   end
