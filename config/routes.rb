@@ -9,6 +9,7 @@ Rails.application.routes.draw do
   end
   resources :board_images
   resources :images do
+    post "find_or_create", on: :collection
     member do
       post "generate"
     end

@@ -1,14 +1,21 @@
 
-<div id="<%= dom_id board %>_images" class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-6 mt-6" data-conroller="enlarge">
-<%= render "modal", board: board %>
-<div class="border p-3 w-full">
-  <h3 class="text-xl font-bold text-gray-800 mb-3">
-    I would like:
-  </h3>
-<ul class="text-gray-800 text-xl font-bold mb-4 ml-5" id="the-list"></ul>
-</div>
 
+  <ul class="text-gray-800 text-xl font-bold mb-4 ml-5" id="the-list"></ul>
+<div  data-conroller="enlarge">
+<div id="<%= dom_id board %>_images" class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-6 mt-6">
+<% if board.parent_type == "Menu" %>
+  <%= render "boards/modal", board: board  %>
+  <div class="border p-3 w-full">
+    <h3 class="text-xl font-bold text-gray-800 mb-3">
+      I would like:
+    </h3>
+  </div>
+<% end %>
+<div class="border p-3 w-full">
+  <%= render "images/find_or_create", board: board %>
+</div>
   <% board.images.each do |image| %>
     <%= render image %>
   <% end %>
+</div>
 </div>

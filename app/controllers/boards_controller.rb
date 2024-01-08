@@ -3,7 +3,7 @@ class BoardsController < ApplicationController
 
   # GET /boards or /boards.json
   def index
-    @boards = Board.all
+    @boards = Board.all.order(created_at: :desc).page params[:page]
   end
 
   # GET /boards/1 or /boards/1.json
@@ -26,6 +26,8 @@ class BoardsController < ApplicationController
   def create
     @board = Board.new(board_params)
     @board.user = current_user
+    @board.parent_id = params[:parent_id] || current_user.id
+    @board.parent_type = params[:parent_type] || "User"
 
     respond_to do |format|
       if @board.save

@@ -22,6 +22,67 @@ class Doc < ApplicationRecord
   after_commit :update_doc_list
 
   scope :current, -> { where(current: true) }
+  scope :image_docs, -> { where(documentable_type: "Image") }
+  scope :menu_docs, -> { where(documentable_type: "Menu") }
+
+  def self.missing_image
+    self.where.missing(:image_attachment)
+  end
+
+  def self.with_attached_images
+    self.with_attached_image.all
+  end
+
+  def self.create_missing_images(max = 5)
+    count = 0
+    wait_time = 0
+    self.image_docs.missing_image.each do |doc|
+      doc.documentable.start_generate_image_job(wait_time)
+      count += 1
+      break if count >= max
+    end
+  end
+
+  def create_image
+    if documentable.is_a?(Image)
+      image = documentable
+    else
+      image = documentable.create_image
+    end
+    self.image.attach(io: File.open(image.file_path), filename: image.file_name)
+  end
+
+  def file_name
+    "#{label}.png"
+  end
+
+  def file_path
+    Rails.root.join("tmp", "images", file_name)
+  end
+
+  def image_url
+    image.attached? ? Rails.application.routes.url_helpers.rails_blob_url(image, only_path: true) : nil
+  end
+
+  def image_tag
+    image.attached? ? ActionController::Base.helpers.image_tag(image_url) : nil
+  end
+
+  def image_tag_with_label
+    image_tag ? "#{image_tag} #{label}" : label
+  end
+
+  def image_tag_with_label_and_link
+    image_tag ? "#{ActionController::Base.helpers.link_to(image_tag, image_url)} #{label}" : label
+  end
+
+  def image_tag_with_label_and_link_and_description
+    image_tag ? "#{ActionController::Base.helpers.link_to(image_tag, image_url)} #{label} #{display_description}" : label
+  end
+
+  def display_description
+    documentable.display_description
+  end
 
   def label
     documentable.label

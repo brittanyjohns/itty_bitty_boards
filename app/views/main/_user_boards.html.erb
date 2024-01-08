@@ -1,0 +1,16 @@
+<div class="mx-5 flex justify-around">
+  <h3 class="text-2xl font-bold text-blue-600 mb-4">My Boards</h3>
+  <%= link_to "New Board", new_board_path, class: "text-lg text-white bg-blue-500 hover:bg-blue-700 font-medium py-2 px-4 rounded-md shadow mb-6" %>
+</div>
+<div id="boards" class="p-10 w-1/2 mx-auto bg-white rounded-lg shadow-md">
+  <ul class="list-none p-0">
+    <% @boards.order(name: :asc).each do |board| %>
+      <%= link_to board do %>
+        <li class="p-4 md:p-6 mb-4 flex justify-between items-center bg-gray-100 rounded-lg border border-gray-200 transform hover:scale-105 transition duration-150 ease-in-out">
+          <%= board.name.blank? ? "no name" : board.name %>
+        </li>
+        <% end %>
+
+    <% end %>
+  </ul>
+</div>

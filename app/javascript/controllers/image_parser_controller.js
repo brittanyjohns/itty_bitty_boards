@@ -3,17 +3,13 @@ import Tesseract from "tesseract.js";
 
 // Connects to data-controller="image-parser"
 export default class extends Controller {
-  static targets = ["file", "image_description", "submit_button"];
+  static targets = ["file", "image_description"];
   connect() {
-    this.submit_buttonTarget.disabled = true;
-    console.log("Hello, OCR!!", this.submit_buttonTarget.value);
+    console.log("Hello from image_parser_controller.js");
   }
 
   upload(event) {
     event.preventDefault();
-    this.submit_buttonTarget.disabled = true;
-    this.submit_buttonTarget.value = "Parsing...";
-
 
     let file = this.fileTarget.files[0];
     let reader = new FileReader();
@@ -22,24 +18,14 @@ export default class extends Controller {
       Tesseract.recognize(event.target.result, "eng", {
         logger: (m) => console.log(m),
       }).then(({ data: { text } }) => {
+        //  set the value of the hidden field to the text
         this.image_descriptionTarget.value = text;
-        this.submit_buttonTarget.disabled = false;
-        this.submit_buttonTarget.value = "Save";
+
+        //  submit the form
+        this.element.requestSubmit();
+
       });
     };
     reader.readAsArrayBuffer(file);
-    this.submit_buttonTarget.disabled = false;
-  }
-
-  submit(event) {
-    event.preventDefault();
-    console.log("submitButtons");
-    this.submit_buttonTarget.disabled = true;
-    this.submit_buttonTarget.value = "Saving...";
-    clearTimeout(this.timeout);
-
-    this.timeout = setTimeout(() => {
-      this.element.requestSubmit();
-    }, 100);
   }
 }

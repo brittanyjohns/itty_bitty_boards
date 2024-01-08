@@ -1,6 +1,4 @@
-<h1>Main#index</h1>
-<p>Find me in app/views/main/index.html.erb</p>
-
-<div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 mt-6" id="current_user_docs_list">
-    <%= render partial: "docs/doc", collection: @docs %>
-</div>
+<h1 class="text-4xl font-bold text-blue-600 mb-6 text-center">
+    Welcome
+</h1>
+<%= render "user_boards" %>

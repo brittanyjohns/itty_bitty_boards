@@ -69,6 +69,22 @@ class ImagesController < ApplicationController
     redirect_to image_url(@image)
   end
 
+  def find_or_create
+    @image = Image.find_by(label: params[:label], private: false)
+    @found_image = @image
+    @image = Image.create(label: params[:label], private: false) unless @image
+    @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
+    @board.add_image(@image.id) if @board
+    puts "Adding image to board: #{@board}" if @board
+    if @found_image
+      notice = "Image found!"
+    else
+      notice = "Generating image..."
+      @image.start_generate_image_job 
+    end
+    redirect_back_or_to image_url(@image), notice: notice
+  end
+
   # DELETE /images/1 or /images/1.json
   def destroy
     @image.destroy!
