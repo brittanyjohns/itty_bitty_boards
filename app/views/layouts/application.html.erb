@@ -21,6 +21,17 @@
 
     <!-- from cdn -->
     <script src="https://unpkg.com/@material-tailwind/html@latest/scripts/dialog.js"></script>
+     <script>
+      // Simple JavaScript to toggle the mobile menu
+      document.addEventListener('DOMContentLoaded', () => {
+        const menuBtn = document.getElementById('menu-btn');
+        const menu = document.getElementById('menu');
+
+        menuBtn.addEventListener('click', () => {
+          menu.classList.toggle('hidden');
+        });
+      });
+    </script>
 
     <!-- stylesheet -->
     <%# <link
