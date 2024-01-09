@@ -10,6 +10,8 @@ class MenusController < ApplicationController
   def show
     @new_menu_doc = Doc.new
     @new_menu_doc.documentable = @menu
+    @board = @menu.boards.last
+    render "boards/show" unless current_user.admin?
   end
 
   # GET /menus/new

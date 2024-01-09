@@ -24,6 +24,12 @@ class OpenAiClient
     if response
       img_url = response.dig("data", 0, "url")
       puts "*** ERROR *** Invaild Image Response: #{response}" unless img_url
+      # {"error"=>{"code"=>"content_policy_violation", "message"=>"Your request was rejected as a result of our safety system. Your prompt may contain text that is not allowed by our safety system.", "param"=>nil, "type"=>"invalid_request_error"}}
+
+      if response.dig("error", "type") == "invalid_request_error"
+        puts "**** ERROR **** \n#{response.dig("error", "message")}\n"
+        throw "Invaild OpenAI Image Response"
+      end
     else
       puts "**** Client ERROR **** \nDid not receive valid response.\n#{response}"
     end

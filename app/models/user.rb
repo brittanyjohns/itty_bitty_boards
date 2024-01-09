@@ -29,7 +29,13 @@ class User < ApplicationRecord
          :recoverable, :rememberable, :validatable
 
   def admin?
-    role == 'admin'
+    # role == 'admin'
+    true
+  end
+
+  def can_edit?(model)
+    return true if admin?
+    model.user_id && model.user_id == id
   end
 
 end

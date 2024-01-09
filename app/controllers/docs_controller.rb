@@ -23,8 +23,9 @@ class DocsController < ApplicationController
   def create
     @doc = Doc.new(doc_params)
     @doc.user = current_user
-    @documentable = @doc.documentable
-    @doc.image.attach(doc_params[:image]) if doc_params[:image]
+    @documentable = @doc.documentable if @doc.documentable
+    puts "**** @documentable: #{@documentable}\n"
+    # @doc.image.attach(doc_params[:image]) if doc_params[:image]
 
     respond_to do |format|
       if @doc.save

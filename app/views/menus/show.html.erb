@@ -1,24 +1,31 @@
-<div class="relative w-full">
-  <h1 class="text-4xl font-bold text-blue-600 mb-6">
+<div class="relative w-full bg-blue-50 py-6">
+  <h1 class="text-4xl font-bold text-blue-600 mb-6 text-center">
     <%= @menu.name %>
   </h1>
 
-  <div class="p-4 border">
-      <div class="my-auto w-1/3  bg-white p-4 rounded-lg shadow-md m-4">
-        <% @menu.docs.each do |doc| %>
-        <p class="text-xl font-bold text-blue-600 mb-6">
-          <%= link_to doc.image.filename, doc %> <span class="text-sm text-gray-500">(<%= doc.created_at.strftime("%d/%m/%Y") %>)</span>
-        </p>
-          <%= render "menus/doc", doc: doc if doc.persisted? %>
-        <% end %>
-      </div>
+  <div class="mx-auto p-4 border rounded-lg shadow-lg bg-white max-w-4xl">
+    <div class="space-y-6">
+      <% @menu.docs.each do |doc| %>
+        <div class="bg-gray-100 p-4 rounded-lg shadow-md">
+          <p class="text-xl font-bold text-blue-600 mb-3">
+            <%= link_to doc.image.filename, doc %> <span class="text-sm text-gray-500">(<%= doc.created_at.strftime("%d/%m/%Y") %>)</span>
+          </p>
+          <%= link_to doc.board do %>
+            <div id="<%= dom_id doc %>" class="relative">
+              <%= image_tag doc.image, class: "w-full rounded-lg" if doc.image.attached? %>
+              <%= mark_as_current_button(doc) if doc.image.attached? %>
+              <%= remove_doc_button(doc) %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
   </div>
 
-
-  <div class="mt-6 flex justify-end">
+  <div class="mt-8 flex justify-center space-x-4">
     <%= button_to "Edit this menu", edit_menu_path(@menu), method: :get, class: "text-blue-500 hover:text-blue-700 font-medium py-2 px-4 rounded-md" %>
     <%= button_to "Back to menus", menus_path, method: :get, class: "text-blue-500 hover:text-blue-700 font-medium py-2 px-4 rounded-md" %>
     <%= button_to "Destroy this menu", @menu, method: :delete, class: "text-red-500 hover:text-red-700 font-medium py-2 px-4 rounded-md" %>
   </div>
 </div>
-<hr>
+<hr class="my-8">

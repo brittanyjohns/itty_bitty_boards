@@ -19,17 +19,32 @@ class Image < ApplicationRecord
   include ImageHelper
 
   def create_image_doc(user_id = nil)
-    new_doc_image = create_image
+    puts ">>>>>>>>> **** create_image_doc ****\n"
+    new_doc_image = create_image(self)
     self.image_prompt = prompt_to_send
     self.save!
   end
 
-  def display_image
-      if docs.current.any? && docs.current.first.image&.attached?
+  def display_image(user = nil)
+    if user
+      docs_for_user(user).current.first&.image
+    elsif docs.current.any? && docs.current.first.image&.attached?
       docs.current.first.image
     else
       nil
     end
+  end
+
+  def docs_for_user(user)
+    if user.admin?
+      docs
+    else
+      docs.where(user_id: [user.id, nil])
+    end
+  end
+
+  def current_doc_for_user(user)
+    docs_for_user(user).current.first
   end
 
   def prompt_to_send

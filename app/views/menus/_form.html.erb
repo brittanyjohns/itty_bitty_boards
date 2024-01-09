@@ -1,4 +1,4 @@
-<%= form_with(model: menu, data: { controller: "image-parser" }, class: "bg-white p-4 rounded-lg shadow-md") do |form| %>
+<%= form_with(model: menu, data: { controller: "image-parser" }, class: "bg-white p-4 rounded-lg shadow-md mx-auto max-w-lg") do |form| %>
   <% if menu.errors.any? %>
     <div class="bg-red-100 text-red-700 p-3 rounded">
       <h2 class="font-bold"><%= pluralize(menu.errors.count, "error") %> prohibited this menu from being saved:</h2>

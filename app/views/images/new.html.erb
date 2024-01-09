@@ -1,7 +1,7 @@
-<h1 class="text-3xl font-bold text-gray-800 mb-6">New Image</h1>
-
-<%= render "form", image: @image %>
-
-<div class="mt-6">
-  <%= link_to "Back to Images", images_path, class: "text-blue-600 hover:text-blue-800 underline" %>
+<div class="bg-blue-50 py-6 px-4 h-screen">
+  <h1 class="text-3xl font-bold text-blue-600 mb-6 text-center">New Image</h1>
+  <%= render "form", image: @image %>
+  <div class="mt-6 text-center">
+    <%= link_to "Back to Images", images_path, class: "text-blue-600 hover:text-blue-800 underline" %>
+  </div>
 </div>

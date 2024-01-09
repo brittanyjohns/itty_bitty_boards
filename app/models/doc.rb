@@ -11,6 +11,7 @@
 #  created_at        :datetime         not null
 #  updated_at        :datetime         not null
 #  board_id          :integer
+#  user_id           :integer
 #
 class Doc < ApplicationRecord
   belongs_to :user, optional: true
@@ -19,7 +20,7 @@ class Doc < ApplicationRecord
   has_one_attached :image
 
   before_save :update_current
-  after_commit :update_doc_list
+  # after_commit :update_doc_list
 
   scope :current, -> { where(current: true) }
   scope :image_docs, -> { where(documentable_type: "Image") }
@@ -52,33 +53,37 @@ class Doc < ApplicationRecord
     self.image.attach(io: File.open(image.file_path), filename: image.file_name)
   end
 
-  def file_name
-    "#{label}.png"
+  def for_user(user)
+    where(user_id: [user.id, nil])
   end
 
-  def file_path
-    Rails.root.join("tmp", "images", file_name)
-  end
+  # def file_name
+  #   "#{label}.png"
+  # end
 
-  def image_url
-    image.attached? ? Rails.application.routes.url_helpers.rails_blob_url(image, only_path: true) : nil
-  end
+  # def file_path
+  #   Rails.root.join("tmp", "images", file_name)
+  # end
 
-  def image_tag
-    image.attached? ? ActionController::Base.helpers.image_tag(image_url) : nil
-  end
+  # def image_url
+  #   image.attached? ? Rails.application.routes.url_helpers.rails_blob_url(image, only_path: true) : nil
+  # end
 
-  def image_tag_with_label
-    image_tag ? "#{image_tag} #{label}" : label
-  end
+  # def image_tag
+  #   image.attached? ? ActionController::Base.helpers.image_tag(image_url) : nil
+  # end
 
-  def image_tag_with_label_and_link
-    image_tag ? "#{ActionController::Base.helpers.link_to(image_tag, image_url)} #{label}" : label
-  end
+  # def image_tag_with_label
+  #   image_tag ? "#{image_tag} #{label}" : label
+  # end
 
-  def image_tag_with_label_and_link_and_description
-    image_tag ? "#{ActionController::Base.helpers.link_to(image_tag, image_url)} #{label} #{display_description}" : label
-  end
+  # def image_tag_with_label_and_link
+  #   image_tag ? "#{ActionController::Base.helpers.link_to(image_tag, image_url)} #{label}" : label
+  # end
+
+  # def image_tag_with_label_and_link_and_description
+  #   image_tag ? "#{ActionController::Base.helpers.link_to(image_tag, image_url)} #{label} #{display_description}" : label
+  # end
 
   def display_description
     documentable.display_description
@@ -101,7 +106,7 @@ class Doc < ApplicationRecord
   end
 
   def update_doc_list
-    broadcast_update_to(:doc_list, inserts_by: :append, target: "#{self.documentable_id}_docs_list", partial: "docs/doc", collection: documentable.docs)
+    broadcast_update_to(:doc_list, inserts_by: :append, target: "#{self.documentable_id}_docs_list", partial: "docs/doc", collection: documentable.docs, locals: { doc: self, viewing_user: self.user })
   end
     
 end

@@ -37,6 +37,7 @@ class ImagesController < ApplicationController
   # POST /images or /images.json
   def create
     @image = Image.new(image_params)
+    puts "\n\n****image_params: #{image_params}\n\n"
 
     respond_to do |format|
       if @image.save
@@ -74,6 +75,7 @@ class ImagesController < ApplicationController
     @found_image = @image
     @image = Image.create(label: params[:label], private: false) unless @image
     @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
+    puts "\nBoard: #{@board}\n\n"
     @board.add_image(@image.id) if @board
     puts "Adding image to board: #{@board}" if @board
     if @found_image
@@ -103,6 +105,6 @@ class ImagesController < ApplicationController
 
     # Only allow a list of trusted parameters through.
     def image_params
-      params.require(:image).permit(:label, :image_prompt, :private, :user_id)
+      params.require(:image).permit(:label, :image_prompt, :private, :user_id, :status, :error)
     end
 end

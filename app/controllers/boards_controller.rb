@@ -3,7 +3,11 @@ class BoardsController < ApplicationController
 
   # GET /boards or /boards.json
   def index
-    @boards = Board.all.order(created_at: :desc).page params[:page]
+    if current_user.admin?
+      @boards = Board.all.order(created_at: :desc).page params[:page]
+    else
+      @boards = current_user.boards.order(created_at: :desc).page params[:page]
+    end
   end
 
   # GET /boards/1 or /boards/1.json

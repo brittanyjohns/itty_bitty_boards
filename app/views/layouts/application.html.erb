@@ -1,42 +1,24 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>IttyBittyBoards</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <%= csrf_meta_tags %>
-    <%= csp_meta_tag %>
-
-    <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
-    <%= javascript_include_tag "application", "data-turbo-track": "reload", defer: true %>
-    <script src="https://kit.fontawesome.com/7747fb4a3a.js" crossorigin="anonymous"></script>
+      <title>IttyBittyBoards - Empowering Communication</title>
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <%= csrf_meta_tags %>
+      <%= csp_meta_tag %>
+      <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+      <%= javascript_include_tag "application", "data-turbo-track": "reload", defer: true %>
+      <script src="https://kit.fontawesome.com/7747fb4a3a.js" crossorigin="anonymous"></script>
   </head>
 
-  <body class="bg-stone-50">
-    <%= render "layouts/navbar" %>
-    <%= render "layouts/notice" %>
-    <%= render "layouts/alert" %>
-    <div class="justify-center p-2 md:p-4">
-      <%= yield %>
-    </div>
+  <body class="bg-stone-50 font-sans">
+      <%= render "layouts/navbar" %>
+      <%= render "layouts/notice" %>
+      <%= render "layouts/alert" %>
 
-    <!-- from cdn -->
-    <script src="https://unpkg.com/@material-tailwind/html@latest/scripts/dialog.js"></script>
-     <script>
-      // Simple JavaScript to toggle the mobile menu
-      document.addEventListener('DOMContentLoaded', () => {
-        const menuBtn = document.getElementById('menu-btn');
-        const menu = document.getElementById('menu');
+      <div class="container mx-auto px-4">
+          <%= yield %>
+      </div>
 
-        menuBtn.addEventListener('click', () => {
-          menu.classList.toggle('hidden');
-        });
-      });
-    </script>
-
-    <!-- stylesheet -->
-    <%# <link
-      rel="stylesheet"
-      href="https://unpkg.com/@material-tailwind/html@latest/styles/material-tailwind.css"
-    /> %>
+      <script src="https://unpkg.com/@material-tailwind/html@latest/scripts/dialog.js"></script>
   </body>
 </html>

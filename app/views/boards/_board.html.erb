@@ -1,9 +1,6 @@
 
 
-<div  data-conroller="enlarge">
-  <% if board.parent_type == "Menu" %>
-  <ul class="text-gray-800 text-xl font-bold mb-4 ml-5" id="the-list"></ul>
-  <% end %>
+
 <div id="<%= dom_id board %>_images" class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-6 mt-6">
 <% if board.parent_type == "Menu" %>
   <%= render "boards/modal", board: board  %>
@@ -20,5 +17,4 @@
   <% board.images.each do |image| %>
     <%= render image %>
   <% end %>
-</div>
 </div>

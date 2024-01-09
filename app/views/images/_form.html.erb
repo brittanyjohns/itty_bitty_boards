@@ -1,32 +1,38 @@
-<%= form_with(model: image, class: "bg-white p-4 rounded-lg shadow-md") do |form| %>
-  <% if image.errors.any? %>
-    <div class="bg-red-100 text-red-700 p-3 rounded">
-      <h2 class="font-bold"><%= pluralize(image.errors.count, "error") %> prohibited this image from being saved:</h2>
+  <%= form_with(model: image, class: "bg-white p-4 rounded-lg shadow-md mx-auto max-w-lg") do |form| %>
+    <% if image.errors.any? %>
+      <div class="bg-red-100 text-red-700 p-3 rounded mb-4">
+        <h2 class="font-bold"><%= pluralize(image.errors.count, "error") %> prohibited this image from being saved:</h2>
 
-      <ul class="list-disc list-inside">
-        <% image.errors.each do |error| %>
-          <li><%= error.full_message %></li>
-        <% end %>
-      </ul>
+        <ul class="list-disc list-inside">
+          <% image.errors.each do |error| %>
+            <li><%= error.full_message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <div class="my-4">
+      <%= form.label :label, class: "block text-gray-700 font-bold mb-2" %>
+      <%= form.text_field :label, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full" %>
+    </div>
+
+    <div class="my-4">
+      <%= form.label :image_prompt, class: "block text-gray-700 font-bold mb-2" %>
+      <%= form.text_area :image_prompt, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full" %>
+    </div>
+
+    <% if current_user.admin? %>
+    <div class="my-4 flex items-center">
+      <%= form.label :private, class: "block text-gray-700 font-bold mr-2" %>
+      <%= form.check_box :private, class: "leading-tight" %>
+    </div>
+    <div class="my-4 flex items-center">
+      <%= form.label :status, class: "block text-gray-700 font-bold mr-2" %>
+      <%= form.text_field :status, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full" %>
+    </div>
+    <% end %>
+
+    <div class="my-4">
+      <%= form.submit class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full" %>
     </div>
   <% end %>
-
-  <div class="my-4">
-    <%= form.label :label, class: "block text-gray-700 font-bold mb-2" %>
-    <%= form.text_field :label, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" %>
-  </div>
-
-  <div class="my-4">
-    <%= form.label :image_prompt, class: "block text-gray-700 font-bold mb-2" %>
-    <%= form.text_area :image_prompt, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" %>
-  </div>
-
-  <div class="my-4 flex items-center">
-    <%= form.label :private, class: "block text-gray-700 font-bold mr-2" %>
-    <%= form.check_box :private, class: "leading-tight" %>
-  </div>
-
-  <div class="my-4">
-    <%= form.submit class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" %>
-  </div>
-<% end %>
