@@ -1,8 +1,7 @@
 require 'sidekiq/web'
 
 Rails.application.routes.draw do
-  get 'users/index', as: :users
-  get 'users/show', as: :user
+  resources :users
   resources :menus
   resources :docs do
     member do

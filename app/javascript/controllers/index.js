@@ -22,6 +22,9 @@ application.register("navbar", NavbarController)
 import SearchFormController from "./search_form_controller"
 application.register("search-form", SearchFormController)
 
+import ShowController from "./show_controller"
+application.register("show", ShowController)
+
 import StaticImageController from "./static_image_controller"
 application.register("static-image", StaticImageController)
 

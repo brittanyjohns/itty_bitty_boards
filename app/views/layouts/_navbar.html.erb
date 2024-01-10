@@ -5,6 +5,7 @@
     </a>
     <div class="hidden md:flex items-center space-x-4 ml-4 md:ml-10">
       <% if user_signed_in? %>
+      <span class="text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Signed in as <%= current_user.email %></span>
         <%= link_to "Menus", menus_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
         <%= link_to "My Boards", boards_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
         <%= link_to "Users", users_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" if current_user.admin? %>

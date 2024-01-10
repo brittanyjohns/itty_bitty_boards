@@ -1,2 +1,14 @@
-<h1>Users#index</h1>
-<p>Find me in app/views/users/index.html.erb</p>
+<h1 class="text-4xl font-bold text-blue-600 mb-6">Users</h1>
+
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mt-6">
+  <% @users.each do |user| %>
+    <div class="text-center bg-white rounded-lg shadow-md overflow-hidden">
+      <div class="items-center text-center">
+        <%= link_to user.email, user %>
+      </div>
+      <p class="text-lg font-bold text-blue-600 mb-3 text-center">
+        <%= link_to user.name, user %>
+      </p>
+    </div>
+  <% end %>
+</div>

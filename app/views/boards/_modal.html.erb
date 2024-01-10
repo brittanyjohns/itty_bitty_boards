@@ -1,6 +1,6 @@
 <div>
   <div class="relative flex cursor-pointer flex-col overflow-hidden rounded-xl bg-white bg-clip-border text-gray-700 shadow-md transition-opacity hover:opacity-90" data-dialog-target="image-dialog">
-    <%= display_doc_image(board.docs.last, "h-full w-full object-contain object-center") if board.docs.last %>
+    <%= display_doc_image(board.docs.last, "h-fit w-fit object-contain object-center") if board.docs.last %>
   </div>
 
   <div data-dialog-backdrop="image-dialog" data-dialog-backdrop-close="true" class="pointer-events-none fixed inset-0 z-[999] grid h-screen w-screen place-items-center bg-black bg-opacity-60 opacity-0 backdrop-blur-sm transition-opacity duration-300">

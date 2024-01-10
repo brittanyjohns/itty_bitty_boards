@@ -30,7 +30,6 @@ class User < ApplicationRecord
 
   def admin?
     role == 'admin'
-    # true
   end
 
   def can_edit?(model)

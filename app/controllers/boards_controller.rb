@@ -12,6 +12,7 @@ class BoardsController < ApplicationController
 
   # GET /boards/1 or /boards/1.json
   def show
+    redirect_back_or_to root_url unless current_user.admin? || current_user.id == @board.user_id
   end
 
   # GET /boards/new

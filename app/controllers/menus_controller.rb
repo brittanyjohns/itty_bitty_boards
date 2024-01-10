@@ -8,6 +8,7 @@ class MenusController < ApplicationController
 
   # GET /menus/1 or /menus/1.json
   def show
+    redirect_back_or_to root_url unless current_user.admin? || current_user.id == @menu.user_id
     @new_menu_doc = Doc.new
     @new_menu_doc.documentable = @menu
     @board = @menu.boards.last

@@ -1,2 +1,9 @@
-<h1>Users#show</h1>
-<p>Find me in app/views/users/show.html.erb</p>
+<div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-screen pt-3">
+    <h1 class="text-4xl font-bold text-blue-600 mb-6">User #<%= @user.id %></h1>
+    <div class="items-center text-center">
+        <%= @user.email %>
+    </div>
+    <p class="text-lg font-bold text-blue-600 mb-3 text-center">
+        <%= @user.name || "unknown" %> - Admin: <%= @user.admin? ? "Yes" : "No" %>
+    </p>
+</div>
