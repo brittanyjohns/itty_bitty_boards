@@ -1,4 +1,6 @@
 class BoardsController < ApplicationController
+  before_action :authenticate_user!
+
   before_action :set_board, only: %i[ show edit update destroy build add_multiple_images associate_image remove_image ]
 
   # GET /boards or /boards.json

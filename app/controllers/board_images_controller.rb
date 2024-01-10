@@ -1,4 +1,6 @@
 class BoardImagesController < ApplicationController
+  before_action :authenticate_user!
+
   before_action :set_board_image, only: %i[ show edit update destroy ]
 
   # GET /board_images or /board_images.json

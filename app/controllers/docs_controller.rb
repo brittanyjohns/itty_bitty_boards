@@ -1,4 +1,6 @@
 class DocsController < ApplicationController
+  before_action :authenticate_user!
+
   before_action :set_doc, only: %i[ show edit update destroy ]
 
   # GET /docs or /docs.json
