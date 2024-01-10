@@ -1,7 +1,6 @@
 require 'sidekiq/web'
 
 Rails.application.routes.draw do
-  resources :users
   resources :menus
   resources :docs do
     member do
@@ -24,7 +23,10 @@ Rails.application.routes.draw do
       post "remove_image"
     end
   end
+  # Order matters here.  users needs to be below the devise_for :users
   devise_for :users
+  resources :users
+
   get 'main/index'
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
