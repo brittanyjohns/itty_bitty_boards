@@ -56,8 +56,8 @@ class DocsController < ApplicationController
   end
 
   def mark_as_current
-    @doc = Doc.find(params[:id])
-    @doc.documentable.docs.update_all(current: false)
+    @doc = Doc.for_user(current_user).find(params[:id])
+    @doc.documentable.docs_for_user(current_user).update_all(current: false)
     @doc.update(current: true)
     redirect_back_or_to @doc.documentable
   end

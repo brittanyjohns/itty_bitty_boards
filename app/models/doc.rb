@@ -14,13 +14,14 @@
 #  user_id           :integer
 #
 class Doc < ApplicationRecord
+  default_scope { includes(:image_attachment) }
   belongs_to :user, optional: true
   belongs_to :documentable, polymorphic: true
   belongs_to :board, optional: true
   has_one_attached :image
 
   before_save :update_current
-  # after_commit :update_doc_list
+  after_commit :update_doc_list
 
   scope :current, -> { where(current: true) }
   scope :image_docs, -> { where(documentable_type: "Image") }
@@ -53,8 +54,12 @@ class Doc < ApplicationRecord
     self.image.attach(io: File.open(image.file_path), filename: image.file_name)
   end
 
-  def for_user(user)
-    where(user_id: [user.id, nil])
+  def self.for_user(user)
+    user.admin? ? self.all : self.where(user_id: [user.id, nil])
+  end
+
+  def self.current_for_user(user)
+    for_user(user).current
   end
 
   # def file_name

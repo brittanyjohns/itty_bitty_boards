@@ -3,9 +3,15 @@ import Tesseract from "tesseract.js";
 
 // Connects to data-controller="image-parser"
 export default class extends Controller {
-  static targets = ["file", "image_description"];
+  static targets = ["file", "image_description", "name","sumbit_button", "please_wait"];
   connect() {
     console.log("Hello from image_parser_controller.js");
+    const currentUrl = window.location.href;
+    console.log(currentUrl);
+    if (!currentUrl.includes("edit")) {
+      this.sumbit_buttonTarget.classList.add("hidden");
+    }
+    console.log(this.sumbit_buttonTarget);
   }
 
   upload(event) {
@@ -15,6 +21,7 @@ export default class extends Controller {
     let reader = new FileReader();
 
     reader.onload = (event) => {
+      this.please_waitTarget.classList.remove("hidden");
       Tesseract.recognize(event.target.result, "eng", {
         logger: (m) => console.log(m),
       }).then(({ data: { text } }) => {
@@ -22,7 +29,13 @@ export default class extends Controller {
         this.image_descriptionTarget.value = text;
 
         //  submit the form
-        this.element.requestSubmit();
+        if (this.nameTarget.value) {
+          this.element.requestSubmit();
+        } else {
+          this.sumbit_buttonTarget.classList.remove("hidden");
+          alert("Please enter a name for the menu");
+        }
+
 
       });
     };

@@ -29,8 +29,8 @@ class User < ApplicationRecord
          :recoverable, :rememberable, :validatable
 
   def admin?
-    # role == 'admin'
-    true
+    role == 'admin'
+    # true
   end
 
   def can_edit?(model)

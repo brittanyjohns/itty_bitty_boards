@@ -4,10 +4,11 @@ class ImagesController < ApplicationController
   # GET /images or /images.json
   def index
     if params[:user_images_only] == "1"
-      @images = current_user.images.includes(:docs).page params[:page]
+      @images = current_user.images.includes(docs: :image_attachment).order(created_at: :desc).page params[:page]
     else
-      @images = Image.includes(:docs).searchable_images_for(current_user).order(created_at: :desc).page params[:page]
+      @images = Image.includes(docs: :image_attachment).searchable_images_for(current_user).order(created_at: :desc).page params[:page]
     end
+
     if params[:query].present?
       @images = @images.searchable_images_for(current_user).where("label ILIKE ?", "%#{params[:query]}%").order(updated_at: :desc).page params[:page]
     else
@@ -23,6 +24,7 @@ class ImagesController < ApplicationController
   # GET /images/1 or /images/1.json
   def show
     @new_image_doc = @image.docs.new
+    @image_docs = @image.docs.for_user(current_user)
   end
 
   # GET /images/new
@@ -37,6 +39,7 @@ class ImagesController < ApplicationController
   # POST /images or /images.json
   def create
     @image = Image.new(image_params)
+    @image.user = current_user
     puts "\n\n****image_params: #{image_params}\n\n"
 
     respond_to do |format|

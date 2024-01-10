@@ -13,21 +13,28 @@
 #  updated_at          :datetime         not null
 #
 class Image < ApplicationRecord
+  default_scope { includes(:docs) }
   belongs_to :user, optional: true
   has_many :docs, as: :documentable
+  has_many :board_images, dependent: :destroy
 
   include ImageHelper
 
   def create_image_doc(user_id = nil)
     puts ">>>>>>>>> **** create_image_doc ****\n"
-    new_doc_image = create_image(self)
+    new_doc_image = create_image(user_id)
     self.image_prompt = prompt_to_send
     self.save!
   end
 
   def display_image(user = nil)
     if user
-      docs_for_user(user).current.first&.image
+      img = docs_for_user(user).current.first&.image
+      if img
+        img
+      else
+        docs.current.first&.image
+      end
     elsif docs.current.any? && docs.current.first.image&.attached?
       docs.current.first.image
     else

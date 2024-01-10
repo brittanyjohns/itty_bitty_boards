@@ -24,5 +24,5 @@
 <div class="text-center my-4">
     <%= link_to "Edit this board", edit_board_path(@board), class: "text-lg text-blue-600 hover:underline" %> |
     <%= link_to "Back to boards", boards_path, class: "text-lg text-blue-600 hover:underline" %>
-    <%= button_to "Destroy this board", @board, method: :delete, class: "text-lg text-red-600 hover:underline" %>
+    <%= button_to "Destroy this board", @board, method: :delete, class: "text-lg text-red-600 hover:underline", data: { turbo_method: :delete, turbo_confirm: "Are you sure?"} %>
 </div>

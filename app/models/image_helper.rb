@@ -12,6 +12,7 @@ module ImageHelper
                                   "From" => "foo@bar.invalid",
                                   "Referer" => "http://www.ruby-lang.org/")
       user_id ||= self.user_id
+      puts "SETTING user_id: #{user_id}"
       doc = self.docs.create!(raw_text: name_to_send, user_id: user_id)
       doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.png")
     rescue => e

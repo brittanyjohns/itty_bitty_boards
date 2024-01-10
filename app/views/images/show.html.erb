@@ -39,7 +39,7 @@
   <%= turbo_stream_from :doc_list %>
   <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 mt-6" id="<%=@image.id%>_docs_list">
     <%# <%= render @image.docs_for_user(current_user), current_user: current_user %>
-    <% @image.docs.each do |doc| %>
+    <% @image_docs.each do |doc| %>
       <%= render "docs/doc", doc: doc, viewing_user: current_user %>
     <% end %>
   </div>
@@ -47,6 +47,6 @@
   <div class="mt-6 flex justify-center space-x-4">
     <%= button_to "Edit this image", edit_image_path(@image), method: :get, class: "text-blue-500 hover:text-blue-700 font-medium py-2 px-4 rounded-md" %>
     <%= button_to "Back to images", images_path, method: :get, class: "text-blue-500 hover:text-blue-700 font-medium py-2 px-4 rounded-md" %>
-    <%= button_to "Destroy this image", @image, method: :delete, class: "text-red-500 hover:text-red-700 font-medium py-2 px-4 rounded-md" %>
+    <%= button_to "Destroy this image", @image, method: :delete, class: "text-red-500 hover:text-red-700 font-medium py-2 px-4 rounded-md", data: { turbo_method: :delete, turbo_confirm: "Are you sure?"} %>
   </div>
 </div>
