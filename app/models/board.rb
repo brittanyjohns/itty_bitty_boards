@@ -22,14 +22,6 @@ class Board < ApplicationRecord
     Image.searchable_images_for(self.user).excluding(images)
   end
 
-  def for_user(user)
-    if user.admin?
-      all 
-    else
-      where(user_id: user.id)
-    end
-  end
-
   def words
     if parent_type == "Menu"
       ["please","thank you", "yes", "no", "and", "help"]

@@ -25,6 +25,8 @@ class ImagesController < ApplicationController
 
   # GET /images/1 or /images/1.json
   def show
+    @user_image_boards = @image.boards.where(user_id: current_user.id)
+    puts "\n\n****@user_image_boards: #{@user_image_boards}\n\n"
     @new_image_doc = @image.docs.new
     @status = @image.status
     if @image.finished?
@@ -85,9 +87,10 @@ class ImagesController < ApplicationController
   end
 
   def find_or_create
-    @image = Image.find_by(label: params[:label], private: false)
+    label = params[:label]&.downcase
+    @image = Image.find_by(label: label, private: false)
     @found_image = @image
-    @image = Image.create(label: params[:label], private: false) unless @image
+    @image = Image.create(label: label, private: false) unless @image
     @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
     puts "\nBoard: #{@board}\n\n"
     @board.add_image(@image.id) if @board

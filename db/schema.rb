@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_01_11_112318) do
+ActiveRecord::Schema[7.1].define(version: 2024_01_11_194805) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -100,6 +100,16 @@ ActiveRecord::Schema[7.1].define(version: 2024_01_11_112318) do
     t.index ["user_id"], name: "index_menus_on_user_id"
   end
 
+  create_table "user_docs", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "doc_id", null: false
+    t.integer "image_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["doc_id"], name: "index_user_docs_on_doc_id"
+    t.index ["user_id"], name: "index_user_docs_on_user_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
@@ -126,4 +136,6 @@ ActiveRecord::Schema[7.1].define(version: 2024_01_11_112318) do
   add_foreign_key "board_images", "images"
   add_foreign_key "boards", "users"
   add_foreign_key "menus", "users"
+  add_foreign_key "user_docs", "docs"
+  add_foreign_key "user_docs", "users"
 end

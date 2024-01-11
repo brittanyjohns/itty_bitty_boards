@@ -19,9 +19,10 @@ class Doc < ApplicationRecord
   belongs_to :documentable, polymorphic: true
   belongs_to :board, optional: true
   has_one_attached :image
+  has_many :user_docs, dependent: :destroy
 
   before_save :update_current
-  after_commit :update_doc_list
+  # after_commit :update_doc_list
 
   scope :current, -> { where(current: true) }
   scope :image_docs, -> { where(documentable_type: "Image") }
@@ -90,6 +91,10 @@ class Doc < ApplicationRecord
     if image? && @documentable&.status == "generating"
       @documentable.update(status: "finished")
     end
+  end
+
+  def is_a_favorite?(user)
+    UserDoc.where(user_id: user.id, doc_id: id).any?
   end
 
   def update_doc_list

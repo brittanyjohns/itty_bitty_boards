@@ -11,36 +11,44 @@
     <section>
         <div class="grid md:grid-cols-2 gap-4">
             <!-- Feature 1: Custom Communication Boards -->
-            <div class="bg-white rounded-lg shadow p-6">
-                <h2 class="font-semibold text-lg text-green-600">Create Custom Boards</h2>
-                <p class="text-sm text-gray-600 mt-2">
-                    Upload your images or choose from our library to create personalized communication boards.
-                </p>
-            </div>
+            <%= link_to demo_path do %>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="font-semibold text-lg text-green-600">Create Custom Boards</h2>
+                    <p class="text-sm text-gray-600 mt-2">
+                        Upload your images or choose from our library to create personalized communication boards.
+                    </p>
+                </div>
+            <% end %>
 
             <!-- Feature 2: AI-Generated Images -->
+            <%= link_to demo_path do %>
             <div class="bg-white rounded-lg shadow p-6">
                 <h2 class="font-semibold text-lg text-orange-500">AI-Generated Images</h2>
                 <p class="text-sm text-gray-600 mt-2">
                     Use AI to generate images that perfectly match your needs.
                 </p>
             </div>
+            <% end %>
 
             <!-- Feature 3: Menu-to-Board Conversion -->
+            <%= link_to demo_path do %>
             <div class="bg-white rounded-lg shadow p-6">
                 <h2 class="font-semibold text-lg text-blue-500">Menu-to-Board Conversion</h2>
                 <p class="text-sm text-gray-600 mt-2">
                     Snap a picture of a menu, and we’ll transform it into a communicative board for easy ordering.
                 </p>
             </div>
+            <% end %>
 
             <!-- Future Features Teaser -->
+            <%= link_to demo_path do %>
             <div class="bg-white rounded-lg shadow p-6">
                 <h2 class="font-semibold text-lg text-red-500">Exciting Features Coming Soon!</h2>
                 <p class="text-sm text-gray-600 mt-2">
                     Stay tuned for more innovative tools to support your child’s communication journey.
                 </p>
             </div>
+            <% end %>
         </div>
     </section>
 </main>

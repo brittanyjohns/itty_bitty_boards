@@ -36,12 +36,14 @@ class Image < ApplicationRecord
     status == "generating"
   end
 
-  def display_image(user = nil)
-    if user
-      img = docs_for_user(user).current.first&.image
+  def display_image(viewing_user = nil)
+    if viewing_user
+      img = viewing_user.display_doc_for_image(self)&.image
       if img
+        puts "DISPLAY IMAGE FOUND: #{img}\n"
         img
       else
+        puts "DISPLAY IMAGE NOT FOUND: #{docs.current.first&.image}\n"
         docs.current.first&.image
       end
     elsif docs.current.any? && docs.current.first.image&.attached?
@@ -60,7 +62,7 @@ class Image < ApplicationRecord
   end
 
   def current_doc_for_user(user)
-    docs_for_user(user).current.first
+    UserDoc.where(user_id: user.id, doc_id: docs.pluck(:id)).first&.doc
   end
 
   def prompt_to_send

@@ -27,9 +27,15 @@ class User < ApplicationRecord
   # :confirmable, :lockable, :timeoutable, :trackable and :omniauthable
   devise :database_authenticatable, :registerable,
          :recoverable, :rememberable, :validatable
+  has_many :user_docs, dependent: :destroy
+  has_many :favorite_docs, through: :user_docs, source: :doc
 
   def admin?
     role == 'admin'
+  end
+
+  def is_a_favorite?(doc)
+    favorite_docs.include?(doc)
   end
 
   def can_edit?(model)
@@ -43,6 +49,10 @@ class User < ApplicationRecord
 
   def add_tokens(amount)
     update(tokens: tokens + amount)
+  end
+
+  def display_doc_for_image(image)
+    favorite_docs.where(id: image.docs.pluck(:id)).first
   end
 
 end
