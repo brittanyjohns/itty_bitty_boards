@@ -26,7 +26,15 @@ class ImagesController < ApplicationController
   # GET /images/1 or /images/1.json
   def show
     @new_image_doc = @image.docs.new
-    @image_docs = @image.docs.for_user(current_user)
+    @status = @image.status
+    if @image.finished?
+      @ready_to_send = true
+    elsif @image.generating?
+      @ready_to_send = false
+    else
+      @ready_to_send = false
+    end
+    @image_docs = @image.docs.for_user(current_user).order(created_at: :desc)
   end
 
   # GET /images/new
@@ -72,7 +80,8 @@ class ImagesController < ApplicationController
     @image = Image.find(params[:id])
     GenerateImageJob.perform_async(@image.id, current_user.id)
     sleep 2
-    redirect_to image_url(@image)
+    current_user.remove_tokens(1)
+    redirect_to image_url(@image), notice: "Image generation started."
   end
 
   def find_or_create
@@ -85,6 +94,7 @@ class ImagesController < ApplicationController
     puts "Adding image to board: #{@board}" if @board
     if @found_image
       notice = "Image found!"
+      @found_image.update(status: "finished") unless @found_image.finished?
     else
       notice = "Generating image..."
       @image.start_generate_image_job 

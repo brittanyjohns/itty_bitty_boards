@@ -37,4 +37,12 @@ class User < ApplicationRecord
     model.user_id && model.user_id == id
   end
 
+  def remove_tokens(amount)
+    update(tokens: tokens - amount)
+  end
+
+  def add_tokens(amount)
+    update(tokens: tokens + amount)
+  end
+
 end

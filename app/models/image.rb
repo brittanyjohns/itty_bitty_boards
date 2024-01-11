@@ -17,6 +17,7 @@ class Image < ApplicationRecord
   belongs_to :user, optional: true
   has_many :docs, as: :documentable
   has_many :board_images, dependent: :destroy
+  has_many :boards, through: :board_images
 
   include ImageHelper
 
@@ -25,6 +26,14 @@ class Image < ApplicationRecord
     new_doc_image = create_image(user_id)
     self.image_prompt = prompt_to_send
     self.save!
+  end
+
+  def finished?
+    status == "finished"
+  end
+
+  def generating?
+    status == "generating"
   end
 
   def display_image(user = nil)
@@ -64,6 +73,7 @@ class Image < ApplicationRecord
 
   def start_generate_image_job(start_time = 0)
     puts "start_generate_image_job: #{label}"
+    self.update(status: "generating")
 
     GenerateImageJob.perform_in(start_time.minutes, id)
   end

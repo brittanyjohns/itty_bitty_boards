@@ -50,7 +50,6 @@ class Menu < ApplicationRecord
       item_name = menu_item_name(food["name"])
       puts "Finding or creating image for #{item_name}\n"
       image = Image.find_or_create_by!(label: item_name)
-      image.label = item_name
       unless food["image_description"].blank? || food["image_description"] == item_name
         image.image_prompt = food["image_description"]
       else
@@ -66,11 +65,13 @@ class Menu < ApplicationRecord
       # image.start_generate_image_job(start_time) unless image.display_image.attached?
     end
     images.each_slice(5) do |image_slice|
-      mintues_to_wait += 1
       image_slice.each do |image|
         image.start_generate_image_job(mintues_to_wait)
       end
+      mintues_to_wait += 1
     end
+    tokens_used = mintues_to_wait # one token per 5 images
+    self.user.remove_tokens(tokens_used)
   end
 
   def menu_item_name(item_name)

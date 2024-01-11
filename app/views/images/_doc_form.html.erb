@@ -1,4 +1,4 @@
-<%= form_with(model: @new_image_doc, local: true, data: { controller: "disable" }) do |form| %>
+<%= form_with(model: @new_image_doc, local: true) do |form| %>
     <%= form.hidden_field :documentable_type, value: @image.class %>
     <%= form.hidden_field :documentable_id, value: @image.id %>
   <% if @new_image_doc.errors.any? %>

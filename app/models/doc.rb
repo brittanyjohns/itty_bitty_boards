@@ -107,6 +107,9 @@ class Doc < ApplicationRecord
     if !@documentable.docs.current.any?
       self.current = true
     end
+    if @documentable&.status == "generating"
+      @documentable.update(status: "finished")
+    end
     # self.user_id = @documentable.user_id if @documentable.user_id && self.user_id.blank?
   end
 

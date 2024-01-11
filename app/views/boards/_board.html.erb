@@ -9,6 +9,11 @@
       I would like:
     </h3>
       <ul class="text-gray-800 text-xl font-bold mb-4 ml-5" id="the-list"></ul>
+      <ul class="text-gray-800 text-xl font-bold mb-4 ml-5" id="word-list">
+        <% board.words.each do |word| %>
+           <div class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= word.upcase %>" data-action="click->speak#speak">
+        <% end %>
+      </ul>
   </div>
 <% end %>
 <div class="border p-3 w-full">

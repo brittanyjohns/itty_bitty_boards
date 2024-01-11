@@ -6,6 +6,7 @@ export default class extends Controller {
 
   connect() {
     console.log("Connected to disable controller");
+    console.log(this.element);
 
     if (!this.hasWithValue) {
       this.withValue = "Processing...";

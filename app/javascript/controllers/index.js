@@ -25,6 +25,9 @@ application.register("search-form", SearchFormController)
 import ShowController from "./show_controller"
 application.register("show", ShowController)
 
+import SpeakController from "./speak_controller"
+application.register("speak", SpeakController)
+
 import StaticImageController from "./static_image_controller"
 application.register("static-image", StaticImageController)
 
