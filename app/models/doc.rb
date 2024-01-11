@@ -27,6 +27,14 @@ class Doc < ApplicationRecord
   scope :image_docs, -> { where(documentable_type: "Image") }
   scope :menu_docs, -> { where(documentable_type: "Menu") }
 
+  def menu?
+    documentable.is_a?(Menu)
+  end
+
+  def image?
+    documentable.is_a?(Image)
+  end
+
   def self.missing_image
     self.where.missing(:image_attachment)
   end
@@ -62,34 +70,6 @@ class Doc < ApplicationRecord
     for_user(user).current
   end
 
-  # def file_name
-  #   "#{label}.png"
-  # end
-
-  # def file_path
-  #   Rails.root.join("tmp", "images", file_name)
-  # end
-
-  # def image_url
-  #   image.attached? ? Rails.application.routes.url_helpers.rails_blob_url(image, only_path: true) : nil
-  # end
-
-  # def image_tag
-  #   image.attached? ? ActionController::Base.helpers.image_tag(image_url) : nil
-  # end
-
-  # def image_tag_with_label
-  #   image_tag ? "#{image_tag} #{label}" : label
-  # end
-
-  # def image_tag_with_label_and_link
-  #   image_tag ? "#{ActionController::Base.helpers.link_to(image_tag, image_url)} #{label}" : label
-  # end
-
-  # def image_tag_with_label_and_link_and_description
-  #   image_tag ? "#{ActionController::Base.helpers.link_to(image_tag, image_url)} #{label} #{display_description}" : label
-  # end
-
   def display_description
     documentable.display_description
   end
@@ -107,10 +87,9 @@ class Doc < ApplicationRecord
     if !@documentable.docs.current.any?
       self.current = true
     end
-    if @documentable&.status == "generating"
+    if image? && @documentable&.status == "generating"
       @documentable.update(status: "finished")
     end
-    # self.user_id = @documentable.user_id if @documentable.user_id && self.user_id.blank?
   end
 
   def update_doc_list

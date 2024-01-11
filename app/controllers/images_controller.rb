@@ -97,7 +97,9 @@ class ImagesController < ApplicationController
       @found_image.update(status: "finished") unless @found_image.finished?
     else
       notice = "Generating image..."
-      @image.start_generate_image_job 
+      GenerateImageJob.perform_async(@image.id, current_user.id)
+      sleep 2
+      current_user.remove_tokens(1)
     end
     redirect_back_or_to image_url(@image), notice: notice
   end

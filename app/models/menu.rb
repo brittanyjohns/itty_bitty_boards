@@ -66,6 +66,7 @@ class Menu < ApplicationRecord
     end
     images.each_slice(5) do |image_slice|
       image_slice.each do |image|
+        puts "Skipping #{image.label} because it already has an image.\n" && next if image.display_image.attached?
         image.start_generate_image_job(mintues_to_wait)
       end
       mintues_to_wait += 1
