@@ -12,7 +12,6 @@ export default class extends Controller {
   ];
   connect() {
     this.searchOutlet = document.querySelector("#image_ids");
-    console.log(`** this.searchOutlet ${this.searchOutlet.value}`);
 
     this.setInitialCheckboxes();
   }
@@ -41,7 +40,6 @@ export default class extends Controller {
   }
 
   toggleParent() {
-    console.log(`toggleParent`);
     if (this.imageTargets.map((x) => x.checked).includes(false)) {
       this.parentTarget.checked = false;
     } else {
@@ -51,14 +49,30 @@ export default class extends Controller {
   }
 
   toggleParent1 = (e) => {
-    this.eventCheckbox = e.target.children[2] ? e.target.children[2] : e.target;
-    this.eventCheckbox.checked = !this.eventCheckbox.checked;
-    e.target.classList.toggle("bg-green-200");
+    this.parent1Target = e.target;
+    console.log("this.parent1Target", this.parent1Target);
+
+    // this.eventCheckbox = e.target.children[2] ? e.target.children[2] : e.target;
+    // console.log("this.eventCheckbox", this.eventCheckbox);
+    let ck = this.parent1Target.querySelector('input[type="checkbox"]');
+    console.log("ck", ck);
+    if (!ck) {
+      this.parent1Target.parentElement.classList.toggle("bg-green-200");
+      ck = this.parent1Target.parentElement.querySelector('input[type="checkbox"]');
+    } else {
+      this.parent1Target.classList.toggle("bg-green-200");
+    }
+    console.log("ck", ck);
+    this.eventCheckbox = ck;
+    if (this.eventCheckbox) {
+      this.eventCheckbox.checked = !this.eventCheckbox.checked;
+    }
+    // this.eventCheckbox.checked = !this.eventCheckbox.checked;
+    // e.target.classList.toggle("bg-green-200");
     this.toggleParent();
   };
 
   toggleChildren() {
-    console.log(`toggleChildren`);
     if (this.parentTarget.checked) {
       this.imageTargets.map((x) => (x.checked = true));
     } else {
