@@ -80,10 +80,16 @@ class ImagesController < ApplicationController
 
   def generate
     @image = Image.find(params[:id])
-    GenerateImageJob.perform_async(@image.id, current_user.id)
+    if params[:image_prompt].present?
+      puts "Updating image_prompt to: #{params[:image_prompt]}\n"
+      # @image.update(image_prompt: params[:image_prompt])
+      @image.image_prompt = params[:image_prompt]
+    end
+    puts "PARAMS: #{params}\n "
+    GenerateImageJob.perform_async(@image.id, current_user.id, params[:image_prompt])
     sleep 2
     current_user.remove_tokens(1)
-    redirect_to image_url(@image), notice: "Image generation started."
+    render json: { status: "success", redirect_url: images_url, notice: "Image was successfully cropped & saved." } 
   end
 
   def find_or_create

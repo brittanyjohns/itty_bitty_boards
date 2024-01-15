@@ -60,11 +60,13 @@ class DocsController < ApplicationController
   def mark_as_current
     @doc = Doc.find(params[:id])
     if current_user.favorite_docs.include?(@doc)
-      user_doc = UserDoc.where(user_id: current_user.id, doc_id: @doc.id).first
-      user_doc.destroy!
+      puts "**** current_user.favorite_docs.include?(@doc) ****\n"
+      # UserDoc.where(user_id: current_user.id, image_id: @doc.documentable_id).destroy_all
+      user_doc = UserDoc.where(user_id: current_user.id, doc_id: @doc.id).destroy_all
+      # user_doc.destroy!
     else
-      UserDoc.create!(user: current_user, doc: @doc)
-      UserDoc.where(user_id: current_user.id, image_id: @doc.documentable_id).destroy_all if @doc.image?
+      puts "**** Not a favorite ****\n"
+      UserDoc.create!(user: current_user, doc: @doc, image_id: @doc.documentable_id)
     end
     redirect_back_or_to @doc.documentable
   end

@@ -8,7 +8,7 @@ class BoardsController < ApplicationController
     if current_user.admin?
       @boards = Board.all.order(created_at: :desc).page params[:page]
     else
-      @boards = current_user.boards.order(created_at: :desc).page params[:page]
+      @boards = current_user.boards.non_menus.order(created_at: :desc).page params[:page]
     end
   end
 

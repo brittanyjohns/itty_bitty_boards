@@ -17,6 +17,6 @@
     <%= form.file_field :image %>
   </div>
   <div class="mb-4">
-    <%= form.submit "Save", class: "text-white shadow rounded-lg py-2 px-4 bg-green-600 hover:bg-green-700 font-medium text-center", data: { ocr_target: "submit_button", disable_target: "button", action: "click->disable#disableForm" } %>
+    <%= form.submit "Save", class: "text-white shadow rounded-lg py-2 px-4 bg-green-600 hover:bg-green-700 font-medium text-center cursor-pointer", data: { ocr_target: "submit_button", disable_target: "button", action: "click->disable#disableForm" } %>
   </div>
 <% end %>

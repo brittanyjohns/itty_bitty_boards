@@ -1,10 +1,13 @@
-<h1 class="text-4xl font-bold text-blue-600 mb-6">Images</h1>
-<%= paginate @images %>
+<h1 class="text-4xl font-bold text-blue-600 my-3">Images</h1>
+<div class="flex justify-end items-center mb-4">
 <%= link_to "New Image", new_image_path, class: "text-lg text-white bg-blue-500 hover:bg-blue-700 font-medium py-2 px-4 rounded-md shadow" %>
+</div>
+<%= paginate @images %>
+
     <ul class="flex justify-center text-4xl font-bold" id="the-list" data-static-board-target="list"></ul>
   <%= render "utils/search", search_path: images_path, show_user_images_only: true %>
 
-<div id="images" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mt-6">
+<div id="images" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 my-6">
   <% @images.each do |image| %>
     <%= render image %>
   <% end %>

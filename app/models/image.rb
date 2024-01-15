@@ -13,6 +13,7 @@
 #  updated_at          :datetime         not null
 #
 class Image < ApplicationRecord
+  attr_accessor :temp_prompt
   default_scope { includes(:docs) }
   belongs_to :user, optional: true
   has_many :docs, as: :documentable
@@ -22,10 +23,8 @@ class Image < ApplicationRecord
   include ImageHelper
 
   def create_image_doc(user_id = nil)
-    puts ">>>>>>>>> **** create_image_doc ****\n"
     new_doc_image = create_image(user_id)
     self.image_prompt = prompt_to_send
-    self.save!
   end
 
   def finished?
@@ -40,10 +39,8 @@ class Image < ApplicationRecord
     if viewing_user
       img = viewing_user.display_doc_for_image(self)&.image
       if img
-        puts "DISPLAY IMAGE FOUND: #{img}\n"
         img
       else
-        puts "DISPLAY IMAGE NOT FOUND: #{docs.current.first&.image}\n"
         docs.current.first&.image
       end
     elsif docs.current.any? && docs.current.first.image&.attached?
@@ -66,6 +63,7 @@ class Image < ApplicationRecord
   end
 
   def prompt_to_send
+    return temp_prompt if temp_prompt.present?
     image_prompt.blank? ? "#{prompt_for_label} #{label}" : image_prompt
   end
 

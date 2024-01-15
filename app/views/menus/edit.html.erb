@@ -1,10 +1,15 @@
-<h1>Editing menu</h1>
+<h1 class="text-3xl font-bold text-blue-600 mb-6 mt-4 text-center">
+  Editing menu
+</h1>
 
 <%= render "form", menu: @menu %>
+<div class="mt-6 text-center">
+  <p class="text-gray-600 text-xs mb-2">Uploading a new image will replace the current image.</p>
+  <%= image_tag @doc.image, class: "sm:w-full md:w-1/3 rounded-lg mx-auto" if @doc&.image.attached? %>
+</div>
 
-<br>
-
-<div>
-  <%= link_to "Show this menu", @menu %> |
-  <%= link_to "Back to menus", menus_path %>
+<div class="mt-8 flex justify-center space-x-4">
+  <%= button_to "Show menu", menu_path(@menu), method: :get, class: "text-blue-500 hover:text-blue-700 font-medium py-2 px-4 rounded-md" %>
+  <%= button_to "Back to menus", menus_path, method: :get, class: "text-blue-500 hover:text-blue-700 font-medium py-2 px-4 rounded-md" %>
+  <%= button_to "Destroy menu", @menu, method: :delete, class: "text-red-500 hover:text-red-700 font-medium py-2 px-4 rounded-md", data: { turbo_method: :delete, turbo_confirm: "Are you sure?"} %>
 </div>

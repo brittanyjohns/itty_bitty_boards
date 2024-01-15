@@ -25,6 +25,7 @@ class MenusController < ApplicationController
 
   # GET /menus/1/edit
   def edit
+    @doc = @menu.docs.last
   end
 
   # POST /menus or /menus.json
@@ -40,6 +41,7 @@ class MenusController < ApplicationController
     respond_to do |format|
       if @menu.save
         @menu.run_image_description_job
+        format.turbo_stream
         format.html { redirect_to menu_url(@menu), notice: "Menu was successfully created." }
         format.json { render :show, status: :created, location: @menu }
       else

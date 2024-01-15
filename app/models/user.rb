@@ -39,6 +39,11 @@ class User < ApplicationRecord
   end
 
   def can_edit?(model)
+    return true if admin?
+    model.user_id && model.user_id == id
+  end
+
+  def can_favorite?(model)
     return true if admin? || !model.user_id
     model.user_id && model.user_id == id
   end

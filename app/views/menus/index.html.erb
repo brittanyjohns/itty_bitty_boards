@@ -1,18 +1,12 @@
 <div id="menus" class="border p-4 md:p-6 w-full bg-blue-50">
   <div class="flex justify-between items-center mb-4">
     <%= paginate @menus %>
-    <%= link_to "New Menu", new_menu_path, class: "py-2 px-4 bg-purple-600 text-white rounded-md text-lg hover:bg-purple-700 transition duration-150 ease-in-out" %>
+    <%= link_to "New menu",
+                new_menu_path,
+                class: "py-2 px-4 bg-purple-600 text-white rounded-md text-lg hover:bg-purple-700 transition duration-150 ease-in-out" %>
   </div>
   
-  <h3 class="text-2xl font-bold text-gray-800 mb-4">My Menus</h3>
+  <h3 class="text-2xl font-bold text-gray-800 mb-4">Menus</h3>
   
-  <ul class="list-none p-0">
-    <% @menus.order(name: :asc).each do |menu| %>
-      <%= link_to menu do %>
-        <li class="p-4 md:p-6 mb-4 flex justify-between items-center bg-white rounded-lg shadow border border-gray-200 transform hover:translate-y-1 transition duration-150 ease-in-out">
-          <span class="text-lg md:text-xl font-medium text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out"><%= menu.name %></span>
-        </li>
-      <% end %>
-    <% end %>
-  </ul>
+  <%= render @menus.order(name: :asc) %>
 </div>

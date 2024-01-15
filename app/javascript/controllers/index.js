@@ -10,6 +10,9 @@ application.register("add-images", AddImagesController)
 import DisableController from "./disable_controller"
 application.register("disable", DisableController)
 
+import GenerateImageController from "./generate_image_controller"
+application.register("generate-image", GenerateImageController)
+
 import HelloController from "./hello_controller"
 application.register("hello", HelloController)
 
@@ -30,6 +33,3 @@ application.register("speak", SpeakController)
 
 import StaticImageController from "./static_image_controller"
 application.register("static-image", StaticImageController)
-
-import WaitController from "./wait_controller"
-application.register("wait", WaitController)
