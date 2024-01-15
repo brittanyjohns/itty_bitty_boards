@@ -93,7 +93,7 @@ class ImagesController < ApplicationController
   end
 
   def find_or_create
-    label = params[:label]&.downcase
+    label = params[:label]&.downcase!
     @image = Image.find_by(label: label, user_id: current_user.id)
     @image = Image.find_by(label: label, private: false) unless @image
     @found_image = @image
