@@ -1,11 +1,11 @@
 <div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
-  <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label.downcase %>" data-action="click->speak#speak">
+  <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>" data-action="click->speak#speak">
     <div class="items-center text-center" id="<%= image.label %>">
       <%= display_image_for(image, current_user) %>
     </div>
   </div>
   <div class="relative">
-      <%= link_to image.label.upcase, image, class: "text-xl font-semibold text-gray-700 py-2 mt-2 block hover:text-blue-600 m-2" %>
+    <%= link_to image.label&.upcase, image, class: "text-xl font-semibold text-gray-700 py-2 mt-2 block hover:text-blue-600 m-2" %>
 
     <%= remove_image_button(@board, image) %>
   </div>

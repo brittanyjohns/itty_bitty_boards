@@ -22,6 +22,9 @@ application.register("image-parser", ImageParserController)
 import NavbarController from "./navbar_controller"
 application.register("navbar", NavbarController)
 
+import NoticeController from "./notice_controller"
+application.register("notice", NoticeController)
+
 import SearchFormController from "./search_form_controller"
 application.register("search-form", SearchFormController)
 
