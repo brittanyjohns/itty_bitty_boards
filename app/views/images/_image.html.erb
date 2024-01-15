@@ -4,5 +4,9 @@
       <%= display_image_for(image, current_user) %>
     </div>
   </div>
-  <%= link_to image.label.upcase, image, class: "text-xl font-semibold text-gray-700 py-2 mt-2 block hover:text-blue-600" %>
+  <div class="relative">
+      <%= link_to image.label.upcase, image, class: "text-xl font-semibold text-gray-700 py-2 mt-2 block hover:text-blue-600 m-2" %>
+
+    <%= remove_image_button(@board, image) %>
+  </div>
 </div>

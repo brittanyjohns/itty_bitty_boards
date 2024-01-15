@@ -94,13 +94,12 @@ class ImagesController < ApplicationController
 
   def find_or_create
     label = params[:label]&.downcase
-    @image = Image.find_by(label: label, private: false)
+    @image = Image.find_by(label: label, user_id: current_user.id)
+    @image = Image.find_by(label: label, private: false) unless @image
     @found_image = @image
     @image = Image.create(label: label, private: false) unless @image
     @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
-    puts "\nBoard: #{@board}\n\n"
     @board.add_image(@image.id) if @board
-    puts "Adding image to board: #{@board}" if @board
     if @found_image
       notice = "Image found!"
       @found_image.update(status: "finished") unless @found_image.finished?
