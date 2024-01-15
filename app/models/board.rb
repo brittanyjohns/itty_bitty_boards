@@ -26,7 +26,7 @@ class Board < ApplicationRecord
     if parent_type == "Menu"
       ["please","thank you", "yes", "no", "and", "help"]
     else
-      ["I", "want", "to play", "to watch", "to go", "to eat"]
+      ["I", "want", "to", "go", "a", "and", "yes", "no"]
     end
   end
 

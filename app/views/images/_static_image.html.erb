@@ -1,5 +1,5 @@
 <div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
-  <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label.downcase %>" data-action="click->speak#speak">
+  <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='static-image' data-static-image-label="<%= image.label.upcase %>" data-static-image-target="wrapper" data-action="click->static-image#speak">
     <div class="items-center text-center" id="<%= image.label %>">
       <%= display_image_for(image, current_user) %>
     </div>

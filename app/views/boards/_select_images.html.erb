@@ -1,0 +1,13 @@
+<div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+    <% images.each do |image| %>
+    <div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-full"  data-imageid="<%= image.id %>" data-action="click->add-images#toggleParent1" data-add-images-target="image1" id="<%= image.id %>">
+        <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer">
+            <div class="items-center text-center" id="<%= image.label %>">
+                <%= display_image_for(image, current_user) %>
+            </div>
+            <%= check_box_tag "image_ids[]", image.id, nil, { class: "hidden", data: { add_images_target: "image", action: "change->add-images#toggleParent", label: image.label }, multiple: true, form: :add_multiple_form } %>
+        </div>
+        <%= link_to image.label.upcase, image, class: "text-sm text-gray-700 py-2 block hover:text-blue-600" %>
+    </div>
+    <% end %>
+</div>

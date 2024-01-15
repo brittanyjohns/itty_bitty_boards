@@ -1,0 +1,14 @@
+<div id="<%= dom_id board %>_images" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
+    <%= render "boards/modal", board: board %>
+
+    <div class="border p-3 w-full">
+        <h3 class="text-lg font-bold text-gray-800 m-3">I would like:</h3>
+        <ul class="text-gray-800 font-semibold mb-4 pl-4" id="the-list"></ul>
+    </div>
+
+    <% board.images.each do |image| %>
+        <div class="text-center bg-white rounded-lg shadow-md overflow-hidden">
+            <%= render 'images/static_image', image: image %>
+        </div>
+    <% end %>
+</div>

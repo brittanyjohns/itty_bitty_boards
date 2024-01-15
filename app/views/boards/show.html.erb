@@ -1,8 +1,8 @@
-<div data-controller="show" class="mx-auto w-full mt-4">
+<div data-controller="speak" class="mx-auto w-full mt-4">
     <div class="flex justify-around">
-    <h1 class="text-center text-3xl md:text-4xl font-bold my-4 text-gray-800">
-        <%= @board.name.blank? ? "no name" : @board.name %>
-    </h1>
+        <h1 class="text-center text-3xl md:text-4xl font-bold my-4 text-gray-800">
+            <%= @board.name.blank? ? "no name" : @board.name %>
+        </h1>
         <%= content_tag(:button, "Add image", class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm", data: {action: "click->show#toggle"}) %>
     </div>
 
@@ -11,42 +11,38 @@
             <%= render "images/find_or_create", board: @board %>
         </div>
     </div>
-</div>
     <div class="flex flex-col justify-end mb-3">
-        <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-6 gap-2 p-2" id="word-list">
+        <div class="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-8 lg:grid-cols-8 gap-1 p-2" id="word-list">
         <% @board.words.each do |word| %>
-            <button class="bg-teal-300 text-md font-semibold flex justify-center items-center cursor-pointer px-2 py-1 md:px-4 md:py-3 border border-gray-300 rounded-md hover:bg-gray-100" data-controller='speak' data-speak-label="<%= word %>" data-action="click->speak#speak">
+            <button class="bg-teal-300 text-md font-semibold flex justify-center items-center cursor-pointer px-2 py-1 md:px-4 md:py-3 border border-gray-300 rounded-md hover:bg-gray-100"  data-controller='speak' data-speak-label="<%= word.downcase %>" data-action="click->speak#speak">
                 <%= word.upcase %>
             </button>
         <% end %>
         </div>
     </div>
 
-<div id="<%= dom_id @board %>_images" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
     <% if @board.parent_type == "Menu" %>
-        <%= render "boards/modal", board: @board %>
-    <% end %>
-
-    <div class="border p-3 w-full">
-        <% if @board.parent_type == "Menu" %>
-            <h3 class="text-lg font-bold text-gray-800 m-3">I would like:</h3>
-        <% else %>
-            <h3 class="text-lg font-bold text-gray-800 m-3">I would like to:</h3>
-        <% end %>
-        <ul class="text-gray-800 font-semibold mb-4 pl-4" id="the-list">
-        </ul>
-        
-    </div>
-
-    <% @board.images.each do |image| %>
-        <div class="text-center bg-white rounded-lg shadow-md overflow-hidden">
-            <%= render image %>
+        <%= render "boards/menu", board: @board %>
+    <% else %>
+    <div class="flex justify-between bg-white mb-3 rounded-lg shadow-md sm:w-full md:w-2/3 mx-auto">
+        <div class="" id="the-list"></div>
+        <div class="flex justify-end items-center">
+            <button class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#clear">Clear</button>
+            <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#speakList">Speak</button>
         </div>
-    <% end %>
-</div>
+    </div>
+    <div id="<%= dom_id @board %>_images" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        <% @board.images.each do |image| %>
+            <div class="text-center bg-white rounded-lg shadow-md overflow-hidden">
+                <%= render image %>
+            </div>
+        <% end %>
+    </div>
+<% end %>
 
 <div class="text-center my-4 py-5">
     <%= link_to "Edit this board", edit_board_path(@board), class: "text-lg text-blue-600 hover:underline" %> |
     <%= link_to "Back to boards", boards_path, class: "text-lg text-blue-600 hover:underline" %>
     <%= button_to "Destroy this board", @board, method: :delete, class: "text-lg text-red-600 hover:underline", data: { turbo_method: :delete, turbo_confirm: "Are you sure?"} %>
+</div>
 </div>
