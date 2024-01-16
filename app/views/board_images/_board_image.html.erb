@@ -4,5 +4,5 @@
       <%= display_image_for(board_image.image, current_user) %>
     </div>
   </div>
-  <%= link_to board_image.label.upcase, board_image, class: "text-sm text-gray-700 py-2 block hover:text-blue-600" %>
+  <%= link_to board_image.label&.upcase, board_image, class: "text-sm text-gray-700 py-2 block hover:text-blue-600" %>
 </div>

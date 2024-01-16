@@ -4,7 +4,7 @@ module ImagesHelper
       puts "display_image_for: #{image.label} - #{user_image}\n"
         str = ""
         if !user_image&.attached?
-          str += "<div class='w-100 h-100 text-gray-400 text-2xl font-bold grid justify-items-center items-center shadow mx-auto my-auto'><span class='mx-auto my-20'>#{image.label.upcase}</span></div>".html_safe
+          str += "<div class='w-100 h-100 text-gray-400 text-2xl font-bold grid justify-items-center items-center shadow mx-auto my-auto'><span class='mx-auto my-20'>#{image.label&.upcase}</span></div>".html_safe
         else
           str += image_tag(user_image.representation(resize_to_limit: [300, 300]).processed.url, class: "shadow mx-auto my-auto")
         end

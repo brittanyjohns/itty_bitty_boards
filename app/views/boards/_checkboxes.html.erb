@@ -10,7 +10,7 @@
     </div>
     <% @remaining_images.each do |image| %>
     <div class="grid sm:grid-cols-1 md:grid-cols-2 gap-2 p-3" data-imageid="<%= image.id %>" data-action="click->add-images#toggleParent1" data-add-images-target="image1" id="<%= image.id %>">
-        <span class="ml-2 text-xl text-gray-600 my-auto"><%= image.label.upcase %></span>
+        <span class="ml-2 text-xl text-gray-600 my-auto"><%= image.label&.upcase %></span>
         <%= display_image_for(image, current_user) %>
         <%= check_box_tag "image_ids[]", image.id, nil, { class: "hidden", data: { add_images_target: "image", action: "change->add-images#toggleParent", label: image.label }, multiple: true, form: :add_multiple_form } %>
     </div>

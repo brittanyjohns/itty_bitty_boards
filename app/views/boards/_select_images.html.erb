@@ -7,7 +7,7 @@
             </div>
             <%= check_box_tag "image_ids[]", image.id, nil, { class: "border p-3", data: { add_images_target: "image", action: "change->add-images#toggleParent", label: image.label }, multiple: true, form: :add_multiple_form } %>
         </div>
-        <%= link_to image.label.upcase, image, class: "text-sm text-gray-700 py-2 block hover:text-blue-600" %>
+        <%= link_to image.label&.upcase, image, class: "text-sm text-gray-700 py-2 block hover:text-blue-600" %>
     </div>
     <% end %>
 </div>
