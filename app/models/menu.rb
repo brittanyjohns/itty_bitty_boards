@@ -44,10 +44,16 @@ class Menu < ApplicationRecord
     puts "**** create_images_from_description **** \n"
     json_description = JSON.parse(description)
     images = []
+    new_images = []
     mintues_to_wait = 0
     json_description["menu_items"].each do |food|
       item_name = menu_item_name(food["name"])
-      image = Image.find_or_create_by!(label: item_name)
+      image = Image.find_by(label: item_name, user_id: self.user_id)
+      image = Image.find_by(label: item_name, private: false) unless image
+      new_image = Image.create(label: item_name, user_id: self.user_id) unless image
+      image = new_image if new_image
+
+
       unless food["image_description"].blank? || food["image_description"] == item_name
         image.image_prompt = food["image_description"]
       else
@@ -58,10 +64,11 @@ class Menu < ApplicationRecord
       image.save!
       board.add_image(image.id)
       images << image
+      new_images << new_image if new_image
 
       # image.start_generate_image_job(start_time) unless image.display_image.attached?
     end
-    images.each_slice(5) do |image_slice|
+    new_images.each_slice(5) do |image_slice|
       image_slice.each do |image|
         next if user.tokens < mintues_to_wait
         puts "\n user tokens: #{user.tokens}\n"

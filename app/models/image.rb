@@ -75,7 +75,7 @@ class Image < ApplicationRecord
     puts "start_generate_image_job: #{label}"
     self.update(status: "generating")
 
-    GenerateImageJob.perform_in(start_time.minutes, id)
+    GenerateImageJob.perform_in(start_time.minutes, id, user_id)
   end
 
   def self.run_generate_image_job_for(images)
