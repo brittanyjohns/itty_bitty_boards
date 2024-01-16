@@ -16,7 +16,7 @@ class OrderItemsController < ApplicationController
 
     if @order_item.save
       flash[:notice] = "You've added #{(number_to_add * @order_item.coin_value).to_i} tokens to your cart!"
-      redirect_to product_url(@order_item.product)
+      redirect_to carts_show_path
     elsif @order_item.errors
       error_messages = @order_item.errors.map { |error| "Error: #{error.code}: #{error.message}" }
       flash[:error] = error_messages

@@ -16,7 +16,7 @@ tokens = ProductCategory.find_or_create_by name: "tokens"
 # ProductCategory.create! name: "clothing & shoes"
 
 # Product.delete_all
-Product.find_or_create_by name: "10 tokens", price: 1, coin_value: 10, active: true, product_category: tokens
-Product.find_or_create_by name: "100 tokens", price: 10, coin_value: 100, active: true, product_category: tokens
-Product.find_or_create_by name: "200 tokens", price: 15, coin_value: 200, active: true, product_category: tokens
-Product.find_or_create_by name: "500 tokens", price: 20, coin_value: 500, active: true, product_category: tokens
+Product.find_or_create_by name: "5 tokens", price: 1, coin_value: 5, active: true, product_category: tokens
+# Product.find_or_create_by name: "100 tokens", price: 10, coin_value: 100, active: true, product_category: tokens
+# Product.find_or_create_by name: "200 tokens", price: 15, coin_value: 200, active: true, product_category: tokens
+# Product.find_or_create_by name: "500 tokens", price: 20, coin_value: 500, active: true, product_category: tokens
