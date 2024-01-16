@@ -28,9 +28,17 @@ export default class extends Controller {
         //  set the value of the hidden field to the text
         this.image_descriptionTarget.value = text;
 
+        
+
         //  submit the form
         if (this.nameTarget.value) {
+          console.log("submitting form");
           this.element.requestSubmit();
+            setTimeout(() => {
+            this.please_waitTarget.classList.add("hidden");
+            window.location.href = "/menus";
+          }
+          , 2000);
         } else {
           this.sumbit_buttonTarget.classList.remove("hidden");
           alert("Please enter a name for the menu");

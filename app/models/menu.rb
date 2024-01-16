@@ -46,9 +46,7 @@ class Menu < ApplicationRecord
     images = []
     mintues_to_wait = 0
     json_description["menu_items"].each do |food|
-      puts "food: #{food}\n"
       item_name = menu_item_name(food["name"])
-      puts "Finding or creating image for #{item_name}\n"
       image = Image.find_or_create_by!(label: item_name)
       unless food["image_description"].blank? || food["image_description"] == item_name
         image.image_prompt = food["image_description"]
@@ -56,7 +54,6 @@ class Menu < ApplicationRecord
         image.image_prompt = "Create an image of #{item_name}"
         image.image_prompt += " with #{food["description"]}" if food["description"]
       end
-      puts "\n\n\n***image.image_prompt: #{image.image_prompt}\n"
       image.private = false
       image.save!
       board.add_image(image.id)
@@ -66,13 +63,15 @@ class Menu < ApplicationRecord
     end
     images.each_slice(5) do |image_slice|
       image_slice.each do |image|
+        next if user.tokens < mintues_to_wait
+        puts "\n user tokens: #{user.tokens}\n"
         next if image.display_image && image.display_image.attached?
-        puts "Starting image job for #{image.label}\n"
         image.start_generate_image_job(mintues_to_wait)
+        mintues_to_wait += 1
       end
-      mintues_to_wait += 1
     end
-    tokens_used = mintues_to_wait # one token per 5 images
+    tokens_used = mintues_to_wait # one token per image
+    puts "**** tokens_used: #{tokens_used}\n"
     self.user.remove_tokens(tokens_used)
   end
 
@@ -80,12 +79,10 @@ class Menu < ApplicationRecord
     item_name.downcase!
     # Strip out any non-alphanumeric characters
     item_name.gsub(/[^a-z ]/i, '')
-    puts "item_name: #{item_name}\n"
     item_name
   end
 
   def run_image_description_job
-    puts "**** run_image_description_job **** \n"
     EnhanceImageDescriptionJob.perform_async(self.id)
   end
     
@@ -93,8 +90,6 @@ class Menu < ApplicationRecord
   def enhance_image_description
     new_doc = self.docs.last
     puts "NO NEW DOC FOUND\n" && return unless new_doc
-    # return unless image_description
-    puts "processed_text before: #{new_doc.processed_text}\n raw_text: #{new_doc.raw_text}\n"
 
     if !new_doc.raw_text.blank?
       new_doc.processed_text = clarify_image_description(new_doc.raw_text)
@@ -102,7 +97,6 @@ class Menu < ApplicationRecord
       new_doc.user_id = self.user_id
       new_doc.save!
       self.description = new_doc.processed_text
-      puts "Image description after: #{description}\n"
       puts "**** ERROR **** \nNo image description provided.\n" unless description
       self.save!
 

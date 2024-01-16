@@ -10,7 +10,7 @@
 
     <% board.images.each do |image| %>
         <div class="text-center bg-white rounded-lg shadow-md overflow-hidden">
-            <%= render 'images/static_image', image: image %>
+            <%= render 'images/static_image', image: image , board: board %>
         </div>
     <% end %>
 </div>

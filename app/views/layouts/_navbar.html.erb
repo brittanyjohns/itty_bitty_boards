@@ -13,15 +13,20 @@
       <%= link_to "Demos", demo_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium ml-5" %>
     </div>
     <div class="hidden md:flex items-center space-x-4 ml-4 md:ml-10">
-      <% if user_signed_in? %>
+      <% if user_signed_in? %> 
       <%= link_to shopping_cart_nav, carts_show_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
       <%= link_to coins_nav, products_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
-      <% if current_user.admin? %>
-      <span class="text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Signed in as <%= current_user.email %></span>
-      <span class="text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Tokens: <%= current_user.tokens %></span>
-      <% else %>
-      <span class="text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs font-light">Signed in as <%= current_user.email %><span class="p-1 bg-white text-blue-600 rounded-md ml-2"><%= current_user.tokens %></span></span>
-      <% end %>
+
+      <span class="text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs font-light">Signed in as <%= link_to current_user.email, current_user, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs font-light" %>
+      </span>
+      <div class="relative">
+        <div class="badge bg-blue-500 text-white rounded-full p-1 text-xs">
+          <%= current_user.tokens %>
+        </div>
+        <div class="tooltip absolute opacity-25 bg-blue-600 text-white text-xs rounded p-1">
+            You have <%= current_user.tokens %> tokens
+        </div>
+      </div>
       
         <%= link_to "Menus", menus_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
         <%= link_to "Boards", boards_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>

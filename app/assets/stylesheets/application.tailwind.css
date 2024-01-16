@@ -18,3 +18,15 @@
   @apply  px-3 py-2 rounded-md text-sm font-medium;
 }
 
+/* .badge:hover + .tooltip {
+  display: block;
+} */
+
+.tooltip {
+  transition: opacity 0.3s ease-in-out;
+  opacity: 0;
+}
+
+.badge:hover + .tooltip {
+  opacity: 100;
+}

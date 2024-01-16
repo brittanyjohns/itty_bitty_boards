@@ -93,8 +93,8 @@ class ImagesController < ApplicationController
   end
 
   def find_or_create
-    label = params[:label]&.downcase!
-    label = params[:image][:label]&.downcase! if params[:image].present? && params[:image][:label].present? && !label.present?
+    puts "PARAMS: #{params}\n"
+    label = params['label']&.downcase
     puts "LABEL: #{label}\n"
     @image = Image.find_by(label: label, user_id: current_user.id)
     @image = Image.find_by(label: label, private: false) unless @image
@@ -106,10 +106,12 @@ class ImagesController < ApplicationController
       notice = "Image found!"
       @found_image.update(status: "finished") unless @found_image.finished?
     else
-      notice = "Generating image..."
-      GenerateImageJob.perform_async(@image.id, current_user.id)
-      sleep 2
-      current_user.remove_tokens(1)
+      if current_user.tokens > 0
+        notice = "Generating image..."
+        GenerateImageJob.perform_async(@image.id, current_user.id)
+        sleep 2
+        current_user.remove_tokens(1)
+      end
     end
     redirect_back_or_to image_url(@image), notice: notice
   end

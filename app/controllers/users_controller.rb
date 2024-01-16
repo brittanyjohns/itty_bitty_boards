@@ -7,7 +7,7 @@ class UsersController < ApplicationController
   end
 
   def show
-    redirect_back_or_to root_url unless current_user.admin? || current_user.id == params[:id].to_i
+    # redirect_back_or_to root_url unless current_user.admin? || current_user.id == params[:id].to_i
     @user = User.find(params[:id])
   end
 end

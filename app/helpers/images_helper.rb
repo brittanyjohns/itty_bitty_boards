@@ -20,6 +20,7 @@ module ImagesHelper
       end
     
       def remove_image_button(board, image)
+        puts "remove_image_button: #{board} - #{image}\n"
         return unless board && image
         button_to "#{icon("fa-solid", "trash")}".html_safe, remove_image_board_path(board, image_id: image.id), class: "text-red-600 hover:text-red-700 py-1 px-1 rounded-full absolute bottom-0 right-0", method: :post
       end
