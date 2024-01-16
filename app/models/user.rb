@@ -32,6 +32,12 @@ class User < ApplicationRecord
   has_many :user_docs, dependent: :destroy
   has_many :favorite_docs, through: :user_docs, source: :doc
 
+  after_create :add_welcome_tokens
+
+  def add_welcome_tokens
+    add_tokens(10)
+  end
+
   def admin?
     role == 'admin'
   end
