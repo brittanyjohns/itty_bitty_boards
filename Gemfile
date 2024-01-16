@@ -113,3 +113,4 @@ gem "paddle", "~> 2.1"
 gem "receipts", "~> 2.0"
 
 gem "simple_form"
+gem "matrix", "~> 0.4.2"
