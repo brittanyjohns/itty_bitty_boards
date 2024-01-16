@@ -50,7 +50,7 @@ class Menu < ApplicationRecord
       item_name = menu_item_name(food["name"])
       image = Image.find_by(label: item_name, user_id: self.user_id)
       image = Image.find_by(label: item_name, private: false) unless image
-      new_image = Image.create(label: item_name, user_id: self.user_id) unless image
+      new_image = Image.create(label: item_name) unless image
       image = new_image if new_image
 
 
