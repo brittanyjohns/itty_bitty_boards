@@ -1,0 +1,10 @@
+<div class="mt-5 bg-white p-2">
+  <div class="border border-gray-200 rounded-lg">
+        <div class='row clearfix'>
+          <div class="order-content col-md-4">
+            <%= render 'orders/order', order: @current_order %>
+          </div>
+          <%= link_to 'PAY', payment_path, class: "btn btn-primary" %>
+
+  </div>
+</div>

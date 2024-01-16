@@ -6,6 +6,8 @@
       <%= csrf_meta_tags %>
       <%= csp_meta_tag %>
       <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+            <script src="https://js.stripe.com/v3/"></script>
+      <%= tag.meta name: "stripe-key", content: Pay::Stripe.public_key %>
       <%= javascript_include_tag "application", "data-turbo-track": "reload", defer: true %>
       <script src="https://kit.fontawesome.com/7747fb4a3a.js" crossorigin="anonymous"></script>
   </head>
@@ -20,5 +22,6 @@
       </div>
 
       <script src="https://unpkg.com/@material-tailwind/html@latest/scripts/dialog.js"></script>
+
   </body>
 </html>

@@ -19,10 +19,12 @@
 #  updated_at             :datetime         not null
 #
 class User < ApplicationRecord
+  pay_customer default_payment_processor: :stripe 
   has_many :boards
   has_many :menus
   has_many :images
   has_many :docs
+  has_many :orders
   # Include default devise modules. Others available are:
   # :confirmable, :lockable, :timeoutable, :trackable and :omniauthable
   devise :database_authenticatable, :registerable,

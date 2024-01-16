@@ -1,0 +1,9 @@
+<%= link_to order, class: "order" do %>
+  <h3 class="clearfix">Order ID: <%= order.id %> <%= order_status_badge(order) %></h3>
+  <p>User ID: <%= order.user.id%></p>
+  <p>Name: <%= order.user.name || 'Unknown' %></p>
+  <p>Email: <%= order.user.email %></p>
+  <hr>
+  <p>Total: <%= number_to_currency order.total %></p>
+  <p>Coins: <%= order.total_coin_value %></p>
+<% end %>

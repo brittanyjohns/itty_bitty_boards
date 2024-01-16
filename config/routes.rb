@@ -29,6 +29,18 @@ Rails.application.routes.draw do
 
   get 'main/index', as: :home
   get 'main/demo', as: :demo
+
+  get "charges/new"
+  get "checkouts/payment", as: :payment
+  get "carts/show"
+  get "billing/show", to: "billing#show", as: :billing
+  get "success", to: "checkouts#success", as: :success
+  get "cancel", to: "checkouts#cancel", as: :cancel
+  resources :order_items
+  resources :products
+  resources :checkouts, only: [:new, :create, :show]
+  resources :orders, only: [:index, :show]
+
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.

@@ -1,0 +1,58 @@
+/* custom.tailwind.css */
+
+/* Global Styles */
+@layer base {
+  body {
+    @apply bg-gray-200 text-gray-800 font-sans;
+  }
+  a {
+    @apply no-underline text-black;
+  }
+}
+
+/* Component Styles */
+@layer components {
+  .product-container, .new_product {
+    @apply font-sans text-xl m-6 outline-dashed outline-1 outline-black flex justify-center;
+  }
+
+  .cart-total {
+    @apply m-5;
+  }
+
+  .cart-row {
+    @apply pt-2.5 bg-beige;
+  }
+
+  .product-img-top {
+    @apply w-50 m-auto;
+  }
+
+  .shopping-cart, .order {
+    @apply p-4 m-1;
+  }
+
+  .welcome-headline {
+    @apply text-4xl font-bold text-gray-700;
+  }
+
+  .headline {
+    @apply pb-2.5;
+  }
+
+  .icon {
+    @apply mr-2.5 inline;
+  }
+
+  .job-list-item, .application-list-item {
+    @apply bg-gray-200 p-2.5 border-b border-black;
+  }
+
+  .job-list-item:hover {
+    @apply bg-orange-200 font-bold;
+  }
+
+  .padded-box, .padded {
+    @apply p-2.5;
+  }
+}

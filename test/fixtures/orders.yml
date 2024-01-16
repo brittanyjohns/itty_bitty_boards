@@ -1,0 +1,19 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  subtotal: 9.99
+  tax: 9.99
+  shipping: 9.99
+  total: 9.99
+  status: 1
+  user: one
+  total_coin_value: 1
+
+two:
+  subtotal: 9.99
+  tax: 9.99
+  shipping: 9.99
+  total: 9.99
+  status: 1
+  user: two
+  total_coin_value: 1

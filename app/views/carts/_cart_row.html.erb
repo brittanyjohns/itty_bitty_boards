@@ -1,0 +1,28 @@
+<div class="flex flex-wrap mb-3 bg-white p-4 rounded-lg shadow-md cart-row">
+  <div class="flex-1">
+    <div class="px-4">
+      <%= simple_form_for order_item, class: 'flex flex-col', remote: true do |f| %>
+        <div class="flex items-center mb-3">
+          <%= f.number_field :quantity, value: order_item.quantity.to_i, class: "form-input mr-2", min: 1 %>
+          <%= f.hidden_field :product_id, value: product.id %>
+          <div class="ml-2">
+            <%= f.submit "Update Quantity", class: "bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded" %>
+          </div>
+        </div>
+
+        <p class="text-gray-700">
+          Unit Price: <%= number_to_currency order_item.unit_price %> - Coin Value: <%= order_item.coin_value %>
+        </p>
+        <hr class="my-2">
+        <p class="text-gray-700">
+          Total Price: <%= number_to_currency order_item.total_price %> - Total Coin Value: <%= order_item.total_coin_value %>
+        </p>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="w-full md:w-1/6 flex flex-col items-center md:items-end">
+    <%= image_tag(product.image.variant(resize_to_fill: [192, 192]), class: "w-48 h-48 object-cover") if product.image.attached? %>
+    <%= button_to "Delete", order_item, {data: {confirm: "Are you sure you wish to delete the product '#{order_item.product.name}' from your cart?"}, method: :delete, remote: true, class: "mt-2 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded"} %>
+  </div>
+</div>

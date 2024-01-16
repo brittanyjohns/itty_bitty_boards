@@ -1,0 +1,13 @@
+<div class="container mx-auto px-4">
+  <div class="flex flex-wrap">
+    <div class="w-full md:w-2/3 md:mx-auto">
+      <div class="bg-white p-4 rounded-lg shadow-md shopping-cart">
+        <div class="text-center mt-4">
+          <h2 class="text-xl">Total: <%= number_to_currency(@current_order.total || @current_order.subtotal) %></h2>
+          <h2 class="text-xl">Coins: <%= @current_order.total_coin_value.to_i %></h2>
+        </div>
+      </div>
+      <%= render partial: "pay/stripe/checkout_button", locals: { session: @checkout_session, title: "Checkout" } %>
+    </div>
+  </div>
+</div>

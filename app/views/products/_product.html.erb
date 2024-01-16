@@ -1,0 +1,11 @@
+<div class="col">
+  <%= link_to product, class: "card" do %>
+    <%= image_tag(product.image.attached? ? product.image.variant(resize_to_fill: [192, 192]) : asset_path("coins.jpg"), class: "h-100 w-100") %>
+    <div class="card-body">
+      <p class="card-text"><%= product.name %></p>
+    </div>
+    <div class="card-footer text-muted">
+      <p class="card-text">Price: <%= number_to_currency(product.price) %></p>
+    </div>
+  <% end %>
+</div>

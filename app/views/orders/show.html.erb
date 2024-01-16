@@ -1,0 +1,9 @@
+<h2>Order Details</h2>
+<% @order.order_items.each do |order_item| %>
+  <div class='row'>
+    <div class='col-md-8'>
+      <%= render @order %>
+    </div>
+    <%= render order_item.product %>
+  </div>
+<% end %>

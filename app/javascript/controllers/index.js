@@ -36,3 +36,6 @@ application.register("speak", SpeakController)
 
 import StaticImageController from "./static_image_controller"
 application.register("static-image", StaticImageController)
+
+import StripeController from "./stripe_controller"
+application.register("stripe", StripeController)

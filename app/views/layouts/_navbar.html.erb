@@ -14,6 +14,8 @@
     </div>
     <div class="hidden md:flex items-center space-x-4 ml-4 md:ml-10">
       <% if user_signed_in? %>
+      <%= link_to shopping_cart_nav, carts_show_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
+      <%= link_to coins_nav, products_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
       <% if current_user.admin? %>
       <span class="text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Signed in as <%= current_user.email %></span>
       <span class="text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Tokens: <%= current_user.tokens %></span>

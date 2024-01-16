@@ -1,0 +1,28 @@
+
+<div class="bg-gray-100 font-sans">
+    <div class="wrapper container mx-auto p-4">
+        <div class="response container bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+            <div class="content">
+                <% if @result %>
+                    <h1 class="flex items-center font-bold text-xl mb-3">
+                        <div class="icon w-6 h-6 mr-2">
+                            <img src=<%= asset_path("#{@result[:icon]}.svg") %> alt="">
+                        </div>
+                        <%= @result[:header] %>
+                    </h1>
+                    <section>
+                        <p class="text-gray-700 text-base"><%= @result[:message] %></p>
+                    </section>
+                <% else %>
+                    <section>
+                        <p class="text-gray-700 text-base">Thank you for your purchase.</p>
+                    </section>
+                <% end %>
+            </div>
+        </div>
+
+        <div class="content bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+            <%= render 'orders/order', order: @order %>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,32 @@
+<% if !@order_item.nil? && @order_item.errors.any? %>
+  <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+    <ul>
+      <% @order_item.errors.full_messages.each do |msg| %>
+        <li><%= msg %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<% if @order_items.size == 0 %>
+  <p class="text-center">
+    There are no items in your shopping cart. Please <%= link_to "go back", products_path, class: "text-blue-500 hover:text-blue-700" %> and add some items to your cart.
+  </p>
+<% else %>
+  <div class="container mx-auto px-4">
+    <div class="flex flex-wrap">
+      <div class="w-full md:w-2/3 md:mx-auto">
+        <div class="bg-white p-4 rounded-lg shadow-md shopping-cart">
+          <% @order_items.each do |order_item| %>
+            <%= render 'carts/cart_row', product: order_item.product, order_item: order_item, show_total: true %>
+          <% end %>
+          <div class="text-center mt-4">
+            <h2 class="text-xl">Total: <%= number_to_currency(@current_order.total || @current_order.subtotal) %></h2>
+            <h2 class="text-xl">Coins: <%= @current_order.total_coin_value.to_i %></h2>
+          </div>
+        </div>
+        <%= render partial: "pay/stripe/checkout_button", locals: { session: @checkout_session, title: "Checkout" } %>
+      </div>
+    </div>
+  </div>
+<% end %>
