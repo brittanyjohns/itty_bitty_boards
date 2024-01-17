@@ -51,12 +51,12 @@ class User < ApplicationRecord
   def can_edit?(model)
     return false if model.respond_to?(:predefined) && model.predefined
     return true if admin?
-    model.user_id && model.user_id == id
+    model&.user_id && model&.user_id == id
   end
 
   def can_favorite?(model)
     return true if admin? || !model.user_id
-    model.user_id && model.user_id == id
+    model&.user_id && model&.user_id == id
   end
 
   def remove_tokens(amount)
