@@ -6,9 +6,10 @@ class ImagesController < ApplicationController
   # GET /images or /images.json
   def index
     if params[:user_images_only] == "1"
-      @images = current_user.images.includes(docs: :image_attachment).order(created_at: :desc).page params[:page]
+      @images = current_user.images.includes(docs: {image_attachment: :blob}).order(created_at: :desc).page params[:page]
+      # :image_attachment).order(created_at: :desc).page params[:page]
     else
-      @images = Image.includes(docs: :image_attachment).searchable_images_for(current_user).order(created_at: :desc).page params[:page]
+      @images = Image.includes(docs: {image_attachment: :blob}).searchable_images_for(current_user).order(created_at: :desc).page params[:page]
     end
 
     if params[:query].present?
@@ -93,9 +94,7 @@ class ImagesController < ApplicationController
   end
 
   def find_or_create
-    puts "PARAMS: #{params}\n"
     label = params['label']&.downcase
-    puts "LABEL: #{label}\n"
     @image = Image.find_by(label: label, user_id: current_user.id)
     @image = Image.find_by(label: label, private: false) unless @image
     @found_image = @image
@@ -111,6 +110,9 @@ class ImagesController < ApplicationController
         GenerateImageJob.perform_async(@image.id, current_user.id)
         sleep 2
         current_user.remove_tokens(1)
+        @board.add_to_cost(1) if @board
+      else
+        notice = "You don't have enough tokens to generate an image."
       end
     end
     redirect_back_or_to image_url(@image), notice: notice
@@ -129,7 +131,7 @@ class ImagesController < ApplicationController
   private
     # Use callbacks to share common setup or constraints between actions.
     def set_image
-      @image = Image.find(params[:id])
+      @image = Image.includes(docs: {image_attachment: :blob}).find(params[:id])
     end
 
     # Only allow a list of trusted parameters through.

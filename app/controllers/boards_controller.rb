@@ -15,8 +15,7 @@ class BoardsController < ApplicationController
 
   # GET /boards/1 or /boards/1.json
   def show
-
-    if current_user.admin? || current_user.id == @board.user_id
+    unless current_user.admin? || current_user.id == @board.user_id
       redirect_back_or_to root_url unless @board.predefined
     end
   end

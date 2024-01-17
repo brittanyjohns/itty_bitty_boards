@@ -80,6 +80,7 @@ class Menu < ApplicationRecord
     tokens_used = mintues_to_wait # one token per image
     puts "**** tokens_used: #{tokens_used}\n"
     self.user.remove_tokens(tokens_used)
+    board.add_to_cost(1) if board
   end
 
   def menu_item_name(item_name)

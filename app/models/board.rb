@@ -45,4 +45,9 @@ class Board < ApplicationRecord
       end
     end
   end
+
+  def add_to_cost(cost)
+    self.cost = self.cost.to_f + cost.to_f
+    save
+  end
 end

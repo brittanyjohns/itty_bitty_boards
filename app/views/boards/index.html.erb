@@ -10,9 +10,6 @@
       <%= link_to board do %>
         <li class="p-4 md:p-6 mb-4 flex justify-between items-center bg-white rounded-lg shadow border border-gray-200 transform hover:translate-y-1 transition duration-150 ease-in-out">
           <span class="text-lg md:text-xl font-medium text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out"><%= board.name %></span>
-          <% if current_user.admin? %>
-          <span class="text-sm text-gray-500"><%= board.user ? board.user.name || board.user.email : "unassigned" %></span>
-          <% end %>
         </li>
       <% end %>
     <% end %>
