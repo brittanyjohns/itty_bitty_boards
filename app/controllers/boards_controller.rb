@@ -5,11 +5,11 @@ class BoardsController < ApplicationController
 
   # GET /boards or /boards.json
   def index
-    @predefined_boards = Board.predefined.order(created_at: :desc).page params[:page]
+    @predefined_boards = Board.predefined.order(created_at: :desc)
     if current_user.admin?
-      @boards = Board.all.order(created_at: :desc).page params[:page]
+      @boards = Board.all.order(created_at: :desc)
     else
-      @boards = current_user.boards.non_menus.order(created_at: :desc).page params[:page]
+      @boards = current_user.boards.non_menus.order(created_at: :desc)
     end
   end
 
