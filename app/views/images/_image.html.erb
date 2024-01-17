@@ -7,6 +7,6 @@
   <div class="relative">
     <%= link_to image.label&.upcase, image, class: "text-xl font-semibold text-gray-700 py-2 mt-2 block hover:text-blue-600 m-2" %>
 
-    <%= remove_image_button(@board, image) %>
+    <%= remove_image_button(@board, image) if current_user.can_edit?(@board) %>
   </div>
 </div>

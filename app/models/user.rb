@@ -49,6 +49,7 @@ class User < ApplicationRecord
   end
 
   def can_edit?(model)
+    return false if model.respond_to?(:predefined) && model.predefined
     return true if admin?
     model.user_id && model.user_id == id
   end
