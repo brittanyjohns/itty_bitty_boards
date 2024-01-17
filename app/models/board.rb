@@ -21,6 +21,7 @@ class Board < ApplicationRecord
   scope :for_user, ->(user) { where(user: user) }
   scope :menus, -> { where(parent_type: "Menu") }
   scope :non_menus, -> { where.not(parent_type: "Menu") }
+  scope :predefined, -> { where(predefined: true) }
 
   def remaining_images
     Image.searchable_images_for(self.user).excluding(images)

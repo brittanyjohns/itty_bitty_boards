@@ -76,7 +76,7 @@ class Doc < ApplicationRecord
   end
 
   def label
-    documentable.label
+    documentable&.label || "Doc #{id}"
   end
 
   def menu_doc?

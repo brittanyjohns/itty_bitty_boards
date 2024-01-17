@@ -5,6 +5,7 @@ class BoardsController < ApplicationController
 
   # GET /boards or /boards.json
   def index
+    @predefined_boards = Board.predefined.order(created_at: :desc).page params[:page]
     if current_user.admin?
       @boards = Board.all.order(created_at: :desc).page params[:page]
     else
@@ -14,7 +15,10 @@ class BoardsController < ApplicationController
 
   # GET /boards/1 or /boards/1.json
   def show
-    redirect_back_or_to root_url unless current_user.admin? || current_user.id == @board.user_id
+
+    if current_user.admin? || current_user.id == @board.user_id
+      redirect_back_or_to root_url unless @board.predefined
+    end
   end
 
   # GET /boards/new

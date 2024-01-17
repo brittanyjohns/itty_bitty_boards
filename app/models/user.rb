@@ -32,6 +32,8 @@ class User < ApplicationRecord
   has_many :user_docs, dependent: :destroy
   has_many :favorite_docs, through: :user_docs, source: :doc
 
+  scope :admins, -> { where(role: 'admin') }
+
   after_create :add_welcome_tokens
 
   def add_welcome_tokens
