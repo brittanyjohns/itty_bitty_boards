@@ -32,6 +32,7 @@ class Menu < ApplicationRecord
     board = self.boards.new
     board.user = self.user
     board.name = self.name || "Board for Doc #{id}"
+    board.token_limit = token_limit
     board.description = new_doc.processed_text
     board.save!
     new_doc.update!(board_id: board.id)
@@ -45,7 +46,7 @@ class Menu < ApplicationRecord
     json_description = JSON.parse(description)
     images = []
     new_images = []
-    mintues_to_wait = 0
+    tokens_used = 0
     json_description["menu_items"].each do |food|
       item_name = menu_item_name(food["name"])
       image = Image.find_by(label: item_name, user_id: self.user_id)
@@ -70,17 +71,21 @@ class Menu < ApplicationRecord
     end
     new_images.each_slice(5) do |image_slice|
       image_slice.each do |image|
-        next if user.tokens < mintues_to_wait
-        puts "\n user tokens: #{user.tokens}\n"
-        next if image.display_image && image.display_image.attached?
-        image.start_generate_image_job(mintues_to_wait)
-        mintues_to_wait += 1
+        next unless should_generate_image(image, self.user, tokens_used)
+        image.start_generate_image_job(tokens_used)
+        tokens_used += 1
       end
     end
-    tokens_used = mintues_to_wait # one token per image
     puts "**** tokens_used: #{tokens_used}\n"
     self.user.remove_tokens(tokens_used)
     board.add_to_cost(1) if board
+  end
+
+  def should_generate_image(image, user, tokens_used)
+    return false if image.display_image && image.display_image.attached?
+    return false if user.tokens <= tokens_used
+    return false if token_limit <= tokens_used
+    true
   end
 
   def menu_item_name(item_name)

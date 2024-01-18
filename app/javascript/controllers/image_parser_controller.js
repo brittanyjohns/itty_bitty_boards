@@ -11,7 +11,6 @@ export default class extends Controller {
     if (!currentUrl.includes("edit")) {
       this.sumbit_buttonTarget.classList.add("hidden");
     }
-    console.log(this.sumbit_buttonTarget);
   }
 
   upload(event) {
@@ -27,18 +26,16 @@ export default class extends Controller {
       }).then(({ data: { text } }) => {
         //  set the value of the hidden field to the text
         this.image_descriptionTarget.value = text;
-
-        
-
         //  submit the form
         if (this.nameTarget.value) {
-          console.log("submitting form");
-          this.element.requestSubmit();
-            setTimeout(() => {
-            this.please_waitTarget.classList.add("hidden");
-            window.location.href = "/menus";
-          }
-          , 2000);
+          this.sumbit_buttonTarget.classList.remove("hidden");
+          // console.log("submitting form");
+          // this.element.requestSubmit();
+          //   setTimeout(() => {
+          //   this.please_waitTarget.classList.add("hidden");
+          //   window.location.href = "/menus";
+          // }
+          // , 2000);
         } else {
           this.sumbit_buttonTarget.classList.remove("hidden");
           alert("Please enter a name for the menu");

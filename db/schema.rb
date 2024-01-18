@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_01_17_021549) do
+ActiveRecord::Schema[7.1].define(version: 2024_01_17_221348) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -62,6 +62,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_01_17_021549) do
     t.datetime "updated_at", null: false
     t.integer "cost", default: 0
     t.boolean "predefined", default: false
+    t.integer "token_limit", default: 0
     t.index ["parent_type", "parent_id"], name: "index_boards_on_parent"
     t.index ["user_id"], name: "index_boards_on_user_id"
   end
@@ -99,6 +100,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_01_17_021549) do
     t.text "description"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "token_limit", default: 0
     t.index ["user_id"], name: "index_menus_on_user_id"
   end
 

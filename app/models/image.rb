@@ -13,6 +13,7 @@
 #  updated_at          :datetime         not null
 #
 class Image < ApplicationRecord
+  normalizes :label, with: -> label { label.downcase.strip }
   attr_accessor :temp_prompt
   default_scope { includes(:docs) }
   belongs_to :user, optional: true

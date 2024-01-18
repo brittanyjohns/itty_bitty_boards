@@ -1,4 +1,4 @@
-<%= form_with(model: menu, data: { controller: "image-parser" }, class: "bg-white p-4 rounded-lg shadow-md mx-auto max-w-lg") do |form| %>
+<%= form_with(model: menu, data: { controller: "image-parser" }, class: "bg-white p-4 rounded-lg shadow-md mx-auto max-w-lg text-center") do |form| %>
   <% if menu.errors.any? %>
     <div class="bg-red-100 text-red-700 p-3 rounded">
       <h2 class="font-bold"><%= pluralize(menu.errors.count, "error") %> prohibited this menu from being saved:</h2>
@@ -14,6 +14,15 @@
   <div class="mb-4">
     <%= form.label :name, class: "block text-gray-700 font-bold mb-2" %>
     <%= form.text_field :name, data: { image_parser_target: "name" }, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full" %>
+  </div>
+
+  <div class="mb-4">
+    <%= form.label :token_limit, class: "block text-gray-700 font-bold mb-2" %>
+    <%= form.number_field :token_limit, in: 0..20, step: 1, class: "form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50" %>
+    <p class="mt-2 text-md text-gray-500 font-semibold text-center">1 Token = 1 AI generated image</p>
+    <p class="text-xs text-gray-500 text-center">Limits the number of tokens used to create a board from this menu.
+      <br/>You can always generate images later or upload your own for FREE!
+    </p>
   </div>
   <hr/>
 

@@ -21,6 +21,6 @@ module DocsHelper
 
   def remove_doc_button(doc)
     # <%= button_to "Delete", doc, method: :delete, class: "absolute top-0 right-0 m-4 text-red-400 font-bold p-2 rounded" %>
-    button_to "#{icon("fa-solid", "trash")}".html_safe, doc, method: :delete, class: "absolute bottom-0 right-0 m-4 text-red-400 font-bold p-1 rounded bg-white"
+    button_to "#{icon("fa-solid", "trash")}".html_safe, doc, method: :delete, data: { confirm: "Are you sure?" }, class: "absolute bottom-0 right-0 m-4 text-red-400 font-bold p-1 rounded bg-white"
   end
 end
