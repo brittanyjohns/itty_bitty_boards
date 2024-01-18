@@ -23,6 +23,8 @@ class Image < ApplicationRecord
 
   include ImageHelper
 
+  scope :has_image_docs, -> { joins(:docs).where("docs.image_id = images.id") }
+
   def create_image_doc(user_id = nil)
     new_doc_image = create_image(user_id)
     self.image_prompt = prompt_to_send

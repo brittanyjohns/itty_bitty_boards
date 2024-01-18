@@ -20,12 +20,12 @@
           <% @order_items.each do |order_item| %>
             <%= render 'carts/cart_row', product: order_item.product, order_item: order_item, show_total: true %>
           <% end %>
-          <div class="text-center mt-4">
-            <h2 class="text-xl">Total: <%= number_to_currency(@current_order.total || @current_order.subtotal) %></h2>
+          <div class="relative justify-between mt-4 p-3">
             <h2 class="text-xl">Coins: <%= @current_order.total_coin_value.to_i %></h2>
+            <h2 class="text-xl">Total: <%= number_to_currency(@current_order.total || @current_order.subtotal) %></h2>
+              <%= render partial: "pay/stripe/checkout_button", locals: { session: @checkout_session, title: "Checkout" } %>
           </div>
         </div>
-        <%= render partial: "pay/stripe/checkout_button", locals: { session: @checkout_session, title: "Checkout" } %>
       </div>
     </div>
   </div>
