@@ -110,7 +110,11 @@ class Image < ApplicationRecord
   end
 
   def prompt_addition
-    image_type == "Menu" ? Menu::PROMPT_ADDITION : Image::PROMPT_ADDITION
+    if image_type == "Menu"
+      image_prompt.include?(Menu::PROMPT_ADDITION) ? "" : Menu::PROMPT_ADDITION
+    else
+      image_prompt.include?(PROMPT_ADDITION) ? "" : PROMPT_ADDITION
+    end
   end
 
   def self.searchable_menu_items_for(user = nil)
