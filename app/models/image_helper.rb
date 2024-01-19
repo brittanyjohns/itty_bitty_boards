@@ -5,7 +5,7 @@ module ImageHelper
     open_ai_opts[:prompt] || name
   end
 
-  def save_image(url, user_id=nil)
+  def save_image(url, user_id=nil, revised_prompt=nil)
     begin
       downloaded_image = URI.open(url,
                                   "User-Agent" => "Ruby/#{RUBY_VERSION}",
@@ -13,7 +13,8 @@ module ImageHelper
                                   "Referer" => "http://www.ruby-lang.org/")
       user_id ||= self.user_id
       puts "SETTING user_id: #{user_id}"
-      doc = self.docs.create!(raw_text: name_to_send, user_id: user_id)
+      doc = self.docs.create!(raw_text: name_to_send, user_id: user_id, processed_text: revised_prompt)
+      puts ">>>>doc: #{doc.inspect}"
       doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.png")
     rescue => e
       puts "ImageHelper ERROR: #{e.inspect}"
@@ -25,12 +26,17 @@ module ImageHelper
   def create_image(user_id=nil)
     user_id ||= self.user_id
     Rails.logger.debug "**** create_image **** label: #{label} and user_id: #{user_id}"
-    img_url = OpenAiClient.new(open_ai_opts).create_image
+    response = OpenAiClient.new(open_ai_opts).create_image
+    puts "RESpone from openai: #{response}"
+    img_url = response[:img_url]
+    revised_prompt = response[:revised_prompt]
+    puts "From image helper: #{img_url} - #{revised_prompt}"
     if img_url
-      save_image(img_url, user_id)
+      save_image(img_url, user_id, revised_prompt)
     else
       Rails.logger.debug "**** ERROR **** \nDid not receive valid response.\n"
     end
+
   end
 
   def clarify_image_description(raw_text)

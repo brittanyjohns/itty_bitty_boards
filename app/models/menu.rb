@@ -13,6 +13,8 @@ class Menu < ApplicationRecord
   belongs_to :user
   has_many :boards, as: :parent, dependent: :destroy
   has_many :docs, as: :documentable, dependent: :destroy
+  has_many :board_images, through: :boards
+  has_many :images, through: :board_images
 
   include ImageHelper
 
@@ -22,6 +24,12 @@ class Menu < ApplicationRecord
 
   def label
     name
+  end
+
+  def self.set_image_types
+    all.each do |menu|
+      menu.images.map { |i| i.update(image_type: "Menu") }
+    end
   end
 
   def doc_boards
@@ -51,6 +59,7 @@ class Menu < ApplicationRecord
       item_name = menu_item_name(food["name"])
       image = Image.find_by(label: item_name, user_id: self.user_id)
       image = Image.find_by(label: item_name, private: false) unless image
+      image = Image.find_by(label: item_name, private: nil) unless image
       new_image = Image.create(label: item_name) unless image
       image = new_image if new_image
 
@@ -61,7 +70,9 @@ class Menu < ApplicationRecord
         image.image_prompt = "Create an image of #{item_name}"
         image.image_prompt += " with #{food["description"]}" if food["description"]
       end
+      image.image_prompt += Image::PROMPT_ADDITION
       image.private = false
+      image.image_type = self.class.name
       image.save!
       board.add_image(image.id)
       images << image
@@ -72,7 +83,7 @@ class Menu < ApplicationRecord
     new_images.each_slice(5) do |image_slice|
       image_slice.each do |image|
         next unless should_generate_image(image, self.user, tokens_used)
-        image.start_generate_image_job(tokens_used)
+        image.start_generate_image_job(tokens_used, self.user_id)
         tokens_used += 1
       end
     end

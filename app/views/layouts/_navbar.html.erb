@@ -17,8 +17,7 @@
       <%= link_to shopping_cart_nav, carts_show_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
       <%= link_to coins_nav, products_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
 
-      <span class="text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs font-light">Signed in as <%= link_to current_user.email, current_user, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs font-light" %>
-      </span>
+      <span class="text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs font-light">Signed in as <%= link_to current_user.email, current_user, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs font-light" %></span>
       <div class="relative">
         <div class="badge bg-blue-500 text-white rounded-full p-1 text-xs">
           <%= current_user.tokens %>
@@ -49,6 +48,7 @@
   <div id="menu" class="hidden" data-navbar-target="menu">
 
     <% if user_signed_in? %>
+          <span class="text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs font-light">Signed in as <%= link_to current_user.email, current_user, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs font-light" %></span>
       <%= link_to "Boards", boards_path, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>
       <%= link_to "Menus", menus_path, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>
       <%= link_to "Images", images_path, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>

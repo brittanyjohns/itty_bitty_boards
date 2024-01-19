@@ -21,13 +21,18 @@ class Image < ApplicationRecord
   has_many :board_images, dependent: :destroy
   has_many :boards, through: :board_images
 
+  PROMPT_ADDITION = " as a simple kid's cartoon illustration"
+
   include ImageHelper
 
-  scope :has_image_docs, -> { joins(:docs).where("docs.image_id = images.id") }
+  scope :with_image_docs_for_user, -> (userId) { joins(:docs).where("docs.documentable_id = images.id AND docs.documentable_type = 'Image' AND docs.user_id = ?", userId) }
+  scope :menu_images, -> { where(image_type: "Menu") }
+  scope :non_menu_images, -> { where(image_type: nil) }
+  scope :public_img, -> { where(private: [false, nil]).or(Image.where(user_id: nil)) }
 
   def create_image_doc(user_id = nil)
-    new_doc_image = create_image(user_id)
-    self.image_prompt = prompt_to_send
+    response = create_image(user_id)
+    # self.image_prompt = prompt_to_send
   end
 
   def finished?
@@ -75,7 +80,7 @@ class Image < ApplicationRecord
   end
 
   def start_generate_image_job(start_time = 0, user_id_to_set = nil)
-    uuser_id_to_set ||= user_id
+    user_id_to_set ||= user_id
     puts "start_generate_image_job: #{label} - #{user_id_to_set}"
     self.update(status: "generating")
 
@@ -95,19 +100,28 @@ class Image < ApplicationRecord
   end
 
   def open_ai_opts
-    puts "Sending prompt: #{prompt_to_send}"
-    { prompt: prompt_to_send }
+    prompt = prompt_to_send + PROMPT_ADDITION
+    puts "Sending prompt: #{prompt}"
+    { prompt: prompt }
   end
 
   def speak_name
     label
   end
 
+  def self.searchable_menu_items_for(user = nil)
+    if user
+      Image.with_image_docs_for_user(user).menu_images.or(Image.with_image_docs_for_user(user).where(user_id: user.id)).distinct
+    else
+      Image.menu_images.public_img.distinct
+    end
+  end
+
   def self.searchable_images_for(user = nil)
     if user
-      Image.where(private: false).or(Image.where(user_id: user.id)).or(Image.where(user_id: nil))
+      Image.public_img.non_menu_images.with_image_docs_for_user(user).or(Image.non_menu_images.where(user_id: user.id)).distinct
     else
-      Image.where(private: false).or(Image.where(user_id: nil))
+      Image.public_img.non_menu_images.distinct
     end
   end
 end

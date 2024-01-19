@@ -6,16 +6,18 @@ class ImagesController < ApplicationController
   # GET /images or /images.json
   def index
     if params[:user_images_only] == "1"
-      @images = current_user.images.includes(docs: {image_attachment: :blob}).order(created_at: :desc).page params[:page]
-      # :image_attachment).order(created_at: :desc).page params[:page]
+      @images = Image.searchable_images_for(current_user).order(label: :asc).page params[:page]
     else
-      @images = Image.includes(docs: {image_attachment: :blob}).searchable_images_for(current_user).order(created_at: :desc).page params[:page]
+      @images = Image.searchable_images_for(nil).order(label: :asc).page params[:page]
+      if current_user.admin?
+        @images = Image.non_menu_images.order(label: :asc).page params[:page]
+      end
     end
 
     if params[:query].present?
-      @images = @images.searchable_images_for(current_user).where("label ILIKE ?", "%#{params[:query]}%").order(updated_at: :desc).page params[:page]
+      @images = @images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page params[:page]
     else
-      @images = @images.searchable_images_for(current_user).order(updated_at: :desc).page params[:page]
+      @images = @images.order(label: :asc).page params[:page]
     end
     if turbo_frame_request?
       render partial: "images", locals: { images: @images }
@@ -24,10 +26,31 @@ class ImagesController < ApplicationController
     end
   end
 
+  def menu
+    if params[:user_images_only] == "1"
+      @images = Image.searchable_menu_items_for(current_user).order(label: :asc).page params[:page]
+    else
+      @images = Image.searchable_menu_items_for(nil).order(label: :asc).page params[:page]
+      if current_user.admin?
+        @images = Image.menu_images.order(label: :asc).page params[:page]
+      end
+    end
+
+    if params[:query].present?
+      @images = @images.searchable_menu_items_for(current_user).where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page params[:page]
+    else
+      @images = @images.searchable_menu_items_for(current_user).order(label: :asc).page params[:page]
+    end
+    if turbo_frame_request?
+      render partial: "images", locals: { images: @images }
+    else
+      render :menu_images
+    end
+  end
+
   # GET /images/1 or /images/1.json
   def show
     @user_image_boards = @image.boards.where(user_id: current_user.id)
-    puts "\n\n****@user_image_boards: #{@user_image_boards}\n\n"
     @new_image_doc = @image.docs.new
     @status = @image.status
     if @image.finished?
@@ -53,7 +76,6 @@ class ImagesController < ApplicationController
   def create
     @image = Image.new(image_params)
     @image.user = current_user
-    puts "\n\n****image_params: #{image_params}\n\n"
 
     respond_to do |format|
       if @image.save
@@ -82,11 +104,8 @@ class ImagesController < ApplicationController
   def generate
     @image = Image.find(params[:id])
     if params[:image_prompt].present?
-      puts "Updating image_prompt to: #{params[:image_prompt]}\n"
-      # @image.update(image_prompt: params[:image_prompt])
       @image.image_prompt = params[:image_prompt]
     end
-    puts "PARAMS: #{params}\n "
     GenerateImageJob.perform_async(@image.id, current_user.id, params[:image_prompt])
     sleep 2
     current_user.remove_tokens(1)
@@ -94,28 +113,37 @@ class ImagesController < ApplicationController
   end
 
   def find_or_create
+    generate_image = params['generate_image'] == "1"
     label = params['label']&.downcase
     @image = Image.find_by(label: label, user_id: current_user.id)
-    @image = Image.find_by(label: label, private: false) unless @image
+    @image = Image.public_img.find_by(label: label) unless @image
     @found_image = @image
     @image = Image.create(label: label, private: false) unless @image
     @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
+
     @board.add_image(@image.id) if @board
     if @found_image
       notice = "Image found!"
       @found_image.update(status: "finished") unless @found_image.finished?
+      run_generate if generate_image
     else
-      if current_user.tokens > 0
+      if current_user.tokens > 0 && generate_image
         notice = "Generating image..."
-        GenerateImageJob.perform_async(@image.id, current_user.id)
-        sleep 2
-        current_user.remove_tokens(1)
-        @board.add_to_cost(1) if @board
+        run_generate
+      elsif !generate_image
+        notice = "Image created! Remember you can always upload your own image or generate one later."
       else
         notice = "You don't have enough tokens to generate an image."
       end
     end
     redirect_back_or_to image_url(@image), notice: notice
+  end
+
+  def run_generate
+    return if current_user.tokens < 1
+    GenerateImageJob.perform_async(@image.id, current_user.id)
+    current_user.remove_tokens(1)
+    @board.add_to_cost(1) if @board
   end
 
   # DELETE /images/1 or /images/1.json
@@ -131,7 +159,7 @@ class ImagesController < ApplicationController
   private
     # Use callbacks to share common setup or constraints between actions.
     def set_image
-      @image = Image.includes(docs: {image_attachment: :blob}).find(params[:id])
+      @image = Image.find(params[:id])
     end
 
     # Only allow a list of trusted parameters through.

@@ -1,14 +1,26 @@
-<p style="color: green"><%= notice %></p>
+  <div class="mt-6 sm: w-full bg-gray-100">
+    <h2 class="text-xl font-semibold text-gray-700">Your Documents</h2>
+    <table class="min-w-full mt-3">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">ID</th>
+          <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Document Name</th>
+          <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">User</th>
+          <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Created</th>
 
-<h1>Docs</h1>
-
-<div id="docs" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-  <% @docs.each do |doc| %>
-    <%= render doc %>
-    <p>
-      <%= link_to "Show this doc", doc %>
-    </p>
-  <% end %>
-</div>
-
-<%= link_to "New doc", new_doc_path %>
+          <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="text-gray-700">
+        <% @docs.order(created_at: :desc).each do |doc| %>
+          <tr class="border-b border-gray-200 hover:bg-gray-100">
+            <td class="text-left py-3 px-4"><%= doc.id %></td>
+            <td class="text-left py-3 px-4"><%= link_to doc.label, doc.documentable, class: "text-indigo-600 hover:text-indigo-900" %></td>
+            <td class="text-left py-3 px-4"><%= link_to doc.user.email, doc.user, class: "text-indigo-600 hover:text-indigo-900" if doc.user %></td>
+            <td class="text-left py-3 px-4"><%= time_ago_in_words(doc.created_at) %> ago</td>
+            <td class="text-right py-3 px-4"><%= link_to 'Delete', doc_path(doc), method: :delete, data: { confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>

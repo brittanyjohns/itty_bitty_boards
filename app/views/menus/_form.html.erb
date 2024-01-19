@@ -46,7 +46,7 @@
     </div>
   </div>
   <div class="mb-4 flex justify-end">
-    <%= form.submit "Save", class: "text-white bg-green-500 hover:bg-green-700 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline", data: { image_parser_target: "sumbit_button" } %>
-    <%= link_to "Cancel", menus_path, class: "text-red-500 hover:text-red-700 font-medium py-2 px-4 rounded-md" %>
+    <%= form.submit "Save", class: "text-white bg-green-500 hover:bg-green-700 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline cursor:pointer", data: { image_parser_target: "sumbit_button", action: "click->image-parser#submit" } %>
+    <%= link_to "Cancel", menus_path, class: "text-red-500 hover:text-red-700 font-medium py-2 px-4 rounded-md border" %>
   </div>
 <% end %>

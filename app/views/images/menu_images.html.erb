@@ -1,13 +1,13 @@
 
-<h1 class="text-4xl font-bold my-3">Board Images</h1>
+<h1 class="text-4xl font-bold my-3">Menu Items</h1>
 <%= render "shared_nav" %>
 <div class="w-full mx-auto overflow-clip">
 <%= paginate @images %>
 </div>
     <ul class="flex justify-center text-4xl font-bold" id="the-list" data-static-board-target="list"></ul>
-  <%= render "utils/search", search_path: images_path, show_user_images_only: true %>
+  <%= render "utils/search", search_path: menu_images_path, show_user_images_only: true %>
 
-<div id="images" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 my-6 pb-10">
+<div id="images" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 my-6">
   <% @images.each do |image| %>
     <%= render image %>
   <% end %>

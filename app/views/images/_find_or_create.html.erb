@@ -4,4 +4,8 @@
         <%= form.text_field :label, placeholder: "Find or Create an Image", class: "w-full py-2 px-3 rounded border focus:ring-2 focus:ring-orange-300 focus:outline-none" %>
         <%= form.submit "GO", class: "w-full sm:w-auto px-4 py-2 font-medium bg-green-300 rounded hover:bg-green-400 focus:ring-2 focus:ring-green-200" %>
     </div>
+    <div class="flex items-center space-x-2 justify-end <%= generate_image ? "" : "hidden" %>">
+      <%= form.check_box :generate_image, value: "1", checked: true, class: "form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500" %>
+      <%= form.label :generate_image, "Generate Image (1 token)", class: "text-sm font-medium text-gray-700" %>
+    </div>
 <% end %>

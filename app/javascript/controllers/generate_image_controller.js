@@ -35,7 +35,7 @@ export default class extends Controller {
           if (data.redirect_url) {
             this.waitNotice = document.querySelector("#pleaseWait");
             this.waitNotice.classList.remove("hidden");
-            setTimeout(() => window.location.reload(), 15000)
+            setTimeout(() => window.location.reload(), 20000)
             // window.location.href = data.redirect_url;
             // window.location.reload();
           } else {

@@ -1,4 +1,7 @@
-<%= form_with(url: generate_image_path(image), method: :post, data: { turbo: false, controller: 'generate-image', image_id: image.id }) do |form| %>
+<%= form_with(url: generate_image_path(image), method: :post, data: { turbo: false, controller: 'generate-image', image_id: image.id }, class: 'text-center') do |form| %>
         <%= form.text_area :image_prompt, value: image.image_prompt, placeholder: "Enter a prompt for your image", class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full", rows: 3, data: { generate_image_target: "image_prompt" } %>
         <%= form.submit "Generate AI Image", class: "w-full sm:w-auto px-4 py-2 font-medium bg-green-300 rounded hover:bg-green-400 focus:ring-2 focus:ring-green-200 cursor-pointer", data: { action: "click->generate-image#generate" } %>
 <% end %>
+<p class="text-center text-sm text-gray-400">
+   This will use 1 token. <br> Learn more about AI Image Generation <a href="https://openai.com/dall-e-3" target="_blank" class="text-blue-500 hover:text-blue-700">here</a>.
+</p>

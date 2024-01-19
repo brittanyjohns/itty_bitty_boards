@@ -8,12 +8,23 @@ export default class extends Controller {
     this.theList = document.querySelector("#the-list")
     console.log("this.theList: ", this.theList)
 
+    const processing = document.querySelector("#processing")
+    if (processing) {
+      console.log("processing: ", processing)
+      setTimeout(() => {
+        processing.classList.add("hidden")
+        window.location.reload()
+      }, 15000)
+    }
+
     if (notice) {
       setTimeout(() => {
         notice.classList.add("hidden")
       }, 3000)
     }
   }
+
+
 
   clearList() {
     console.log("Clearing list")

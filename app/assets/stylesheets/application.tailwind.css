@@ -8,7 +8,7 @@
 }
 
 .page {
-  @apply hover:text-gray-700 cursor-pointer bg-teal-700 hover:bg-teal-300 text-white px-3 py-2 rounded-md text-sm font-medium;
+  @apply hover:text-gray-700 cursor-pointer bg-teal-700 hover:bg-teal-300 text-white px-2 py-2 rounded-md text-sm font-medium;
 }
 .current {
   @apply bg-teal-300 text-gray-700 px-3 py-2 rounded-md text-sm font-medium;
@@ -17,6 +17,18 @@
 .page a {
   @apply  px-3 py-2 rounded-md text-sm font-medium;
 }
+
+/* .next {
+  @apply sm:text-red-600 hover:text-red-500;
+} */
+/* 
+.first {
+  @apply hidden;
+}
+
+.last {
+  @apply hidden;
+} */
 
 /* .badge:hover + .tooltip {
   display: block;

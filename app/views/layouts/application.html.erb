@@ -12,14 +12,15 @@
       <script src="https://kit.fontawesome.com/7747fb4a3a.js" crossorigin="anonymous"></script>
   </head>
 
-  <body class="min-h-screen bg-gradient-to-tr from-green-400 to-blue-500 font-mono" data-controller="notice">
+  <body class="relative min-h-screen bg-gradient-to-tr from-green-400 to-blue-500 font-mono" data-controller="notice">
       <%= render "layouts/navbar" %>
       <%= render "layouts/notice" %>
       <%= render "layouts/alert" %>
 
-      <div id="main-screen" class="container pl-5 pr-5 mb-10 pt-4 bg-slate-50 bg-opacity-50 min-h-screen mx-auto">
+      <div id="main-screen" class="container p-5 bg-slate-50 bg-opacity-50 mx-auto">
           <%= yield %>
       </div>
+      <%= render "layouts/footer" %>
 
       <script src="https://unpkg.com/@material-tailwind/html@latest/scripts/dialog.js"></script>
   </body>

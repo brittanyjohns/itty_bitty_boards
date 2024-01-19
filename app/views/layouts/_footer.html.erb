@@ -1,6 +1,10 @@
-<div class="border p-3 w-full absolute bottom-0">
-    <%= link_to "Edit this  board", edit_board_path(board) %> |
-    <%= link_to "Back to boards", boards_path %>
-    
-    <%= button_to "Destroy this board", board, method: :delete %>
+<div class="p-3 w-full absolute bottom-0 bg-black bg-opacity-80">
+    <div class="flex justify-between">
+        <div class="text-white">
+            <p>© <%= Date.today.year %></p>
+        </div>
+        <div class="text-white text-sm">
+            <p>Created by <a href="http://brittanyjohns.com" target="_blank" class="text-blue-500">Brittany Johns</a></p>
+        </div>
+    </div>
 </div>

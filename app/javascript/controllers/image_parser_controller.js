@@ -29,6 +29,7 @@ export default class extends Controller {
         //  submit the form
         if (this.nameTarget.value) {
           this.sumbit_buttonTarget.classList.remove("hidden");
+          this.please_waitTarget.classList.add("hidden");
           // console.log("submitting form");
           // this.element.requestSubmit();
           //   setTimeout(() => {
@@ -45,5 +46,17 @@ export default class extends Controller {
       });
     };
     reader.readAsArrayBuffer(file);
+  }
+
+  submit(event) {
+    event.preventDefault();
+    this.please_waitTarget.classList.remove("hidden");
+    console.log("submitting form");
+    this.element.requestSubmit();
+    setTimeout(() => {
+      this.please_waitTarget.classList.add("hidden");
+      window.location.href = "/menus";
+    }
+    , 2000);
   }
 }
