@@ -1,7 +1,6 @@
 module ImagesHelper
     def display_image_for(image, user)
       user_image = image.display_image(user)
-      puts "display_image_for: #{image.label} - #{user_image}\n"
         str = ""
         if !user_image&.attached?
           str += "<div class='w-100 h-100 text-gray-400 text-2xl font-bold grid justify-items-center items-center shadow mx-auto my-auto'><span class='mx-auto my-20'>#{image.label&.upcase}</span></div>".html_safe
@@ -20,7 +19,6 @@ module ImagesHelper
       end
     
       def remove_image_button(board, image)
-        puts "remove_image_button: #{board} - #{image}\n"
         return unless board && image
         button_to "#{icon("fa-solid", "trash")}".html_safe, remove_image_board_path(board, image_id: image.id), class: "text-red-600 hover:text-red-700 py-1 px-1 rounded-full absolute bottom-0 right-0", method: :post
       end
