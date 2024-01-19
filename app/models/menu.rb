@@ -16,6 +16,7 @@ class Menu < ApplicationRecord
   has_many :board_images, through: :boards
   has_many :images, through: :board_images
 
+  PROMPT_ADDITION = " Styled like a professional photo that would appear on a restaurant menu item for kids."
   include ImageHelper
 
   validates :name, presence: true
@@ -70,7 +71,7 @@ class Menu < ApplicationRecord
         image.image_prompt = "Create an image of #{item_name}"
         image.image_prompt += " with #{food["description"]}" if food["description"]
       end
-      image.image_prompt += Image::PROMPT_ADDITION
+      image.image_prompt += PROMPT_ADDITION
       image.private = false
       image.image_type = self.class.name
       image.save!

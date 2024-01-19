@@ -21,7 +21,7 @@ class Image < ApplicationRecord
   has_many :board_images, dependent: :destroy
   has_many :boards, through: :board_images
 
-  PROMPT_ADDITION = " as a simple kid's cartoon illustration"
+  PROMPT_ADDITION = " Styled as a simple cartoon illustration."
 
   include ImageHelper
 
@@ -100,13 +100,17 @@ class Image < ApplicationRecord
   end
 
   def open_ai_opts
-    prompt = prompt_to_send + PROMPT_ADDITION
+    prompt = prompt_to_send + prompt_addition
     puts "Sending prompt: #{prompt}"
     { prompt: prompt }
   end
 
   def speak_name
     label
+  end
+
+  def prompt_addition
+    image_type == "Menu" ? Menu::PROMPT_ADDITION : Image::PROMPT_ADDITION
   end
 
   def self.searchable_menu_items_for(user = nil)
