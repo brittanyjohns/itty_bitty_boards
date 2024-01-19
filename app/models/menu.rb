@@ -16,7 +16,7 @@ class Menu < ApplicationRecord
   has_many :board_images, through: :boards
   has_many :images, through: :board_images
 
-  PROMPT_ADDITION = " Styled like a professional photo that would appear on a restaurant menu item for kids."
+  PROMPT_ADDITION = " Style it like a professional photo that would appear on a real restaurant menu item."
   include ImageHelper
 
   validates :name, presence: true
