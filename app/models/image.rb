@@ -113,7 +113,8 @@ class Image < ApplicationRecord
     if image_type == "Menu"
       image_prompt.include?(Menu::PROMPT_ADDITION) ? "" : Menu::PROMPT_ADDITION
     else
-      image_prompt.include?(PROMPT_ADDITION) ? "" : PROMPT_ADDITION
+      # image_prompt.include?(PROMPT_ADDITION) ? "" : PROMPT_ADDITION
+      ""
     end
   end
 
