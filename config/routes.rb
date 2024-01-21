@@ -19,6 +19,7 @@ Rails.application.routes.draw do
   resources :boards do
     member do
       get "build"
+      post "clone"
       post "add_multiple_images"
       post "associate_image"
       post "remove_image"

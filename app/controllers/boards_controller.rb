@@ -124,6 +124,22 @@ class BoardsController < ApplicationController
     end
   end
 
+  def clone
+    @board = Board.find(params[:id])
+    @new_board = Board.new
+    @new_board.description = @board.description
+    @new_board.user = current_user
+    @new_board.parent_id = current_user.id
+    @new_board.parent_type = "User"
+    @new_board.predefined = false
+    @new_board.name = "Copy of " + @board.name
+    @board.images.each do |image|
+      @new_board.add_image(image.id)
+    end
+    @new_board.save!
+    redirect_to board_url(@new_board), notice: "Board was successfully cloned."
+  end
+
   private
     # Use callbacks to share common setup or constraints between actions.
     def set_board
