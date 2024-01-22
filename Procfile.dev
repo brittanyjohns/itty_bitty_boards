@@ -1,4 +1,4 @@
-web: env RUBY_DEBUG_OPEN=true bin/rails server
+web: env RUBY_DEBUG_OPEN=true bin/rails server -b 192.168.254.1
 redis: redis-server
 sidekiq: bundle exec sidekiq
 js: yarn build --watch

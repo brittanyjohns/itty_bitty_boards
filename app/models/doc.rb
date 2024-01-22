@@ -100,5 +100,8 @@ class Doc < ApplicationRecord
   def update_doc_list
     broadcast_update_to(:doc_list, inserts_by: :append, target: "#{self.documentable_id}_docs_list", partial: "docs/doc", collection: documentable.docs, locals: { doc: self, viewing_user: self.user })
   end
-    
+
+  def image_url
+   image.attached? ? image.url : ""
+  end
 end

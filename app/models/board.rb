@@ -17,6 +17,7 @@ class Board < ApplicationRecord
   has_many :board_images, dependent: :destroy
   has_many :images, through: :board_images
   has_many :docs
+  # has_many :image_docs, through: :images, source: :docs
 
   scope :for_user, ->(user) { where(user: user) }
   scope :menus, -> { where(parent_type: "Menu") }
@@ -26,6 +27,14 @@ class Board < ApplicationRecord
   def remaining_images
     Image.searchable_images_for(self.user).excluding(images)
   end
+
+  # def image_urls(user_id = nil)
+  #   if user_id
+  #     images.map { |image| image.image_url(user_id) }.compact
+  #   else
+  #     images.map { |image| image.image_url }.compact
+  #   end
+  # end
 
   def words
     if parent_type == "Menu"

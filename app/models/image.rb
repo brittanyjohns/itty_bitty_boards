@@ -32,7 +32,6 @@ class Image < ApplicationRecord
 
   def create_image_doc(user_id = nil)
     response = create_image(user_id)
-    # self.image_prompt = prompt_to_send
   end
 
   def finished?
@@ -54,8 +53,21 @@ class Image < ApplicationRecord
     elsif docs.current.any? && docs.current.first.image&.attached?
       docs.current.first.image
     else
-      nil
+      # REMOVE LATER
+      docs.first&.image
     end
+  end
+
+  def main_doc(viewing_user = nil)
+    if viewing_user
+      doc = viewing_user.display_doc_for_image(self)
+    else
+      doc = docs.current.first
+    end
+    unless doc
+      doc = docs.first
+    end
+    doc
   end
 
   def docs_for_user(user)

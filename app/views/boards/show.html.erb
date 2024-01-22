@@ -1,5 +1,6 @@
 <div data-controller="speak show" class="mx-auto w-full mt-4 pb-6">
     <div class="flex justify-around m-5">
+        <%= link_to 'Open in App', "ittybittyboards://boards/#{@board_id}", class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" %>
         <h1 class="text-center text-3xl md:text-4xl font-bold my-4 text-gray-800">
             <%= @board.name.titleize %>
         </h1>

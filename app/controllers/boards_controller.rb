@@ -3,18 +3,32 @@ class BoardsController < ApplicationController
 
   before_action :set_board, only: %i[ show edit update destroy build add_multiple_images associate_image remove_image ]
 
+  skip_before_action :authenticate_user!, only: %i[ index ]
+
   # GET /boards or /boards.json
   def index
+    puts "\n Request format: #{request.format}\n\n"
     @predefined_boards = Board.predefined.order(created_at: :desc)
-    if current_user.admin?
+    if !user_signed_in?
+      @boards = @predefined_boards
+    elsif current_user.admin?
       @boards = Board.all.order(created_at: :desc)
     else
       @boards = current_user.boards.non_menus.order(created_at: :desc)
     end
+
+    respond_to do |format|
+      format.html do
+        @boards = @boards.page(params[:page]).per(20)
+      end
+      format.json do
+        @boards = @boards
+      end
+    end
   end
 
   # GET /boards/1 or /boards/1.json
-  def show
+  def show    
     unless current_user.admin? || current_user.id == @board.user_id
       redirect_back_or_to root_url unless @board.predefined
     end

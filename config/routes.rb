@@ -1,6 +1,10 @@
 require 'sidekiq/web'
 
 Rails.application.routes.draw do
+  namespace :api do
+    get 'boards', to: 'boards#index'
+    get 'boards/:id', to: 'boards#show'
+  end
   resources :menus
   resources :docs do
     member do
