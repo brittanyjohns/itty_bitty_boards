@@ -1,6 +1,6 @@
 <div data-controller="speak pwa" class="mx-auto w-full mt-4 pb-6">
     <%= link_to "Back", board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" %>
-        <%= button_tag "<i class='fas fa-expand'></i> Enter Fullscreen".html_safe, class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm", data: {action: "click->pwa#fullscreen", pwa_target: "button"} %>
+        <%= button_tag "<i class='fas fa-expand'></i>".html_safe, class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm", data: {action: "click->pwa#fullscreen", pwa_target: "button"} %>
     <div class="flex flex-col justify-end mb-3">
         <div class="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-8 lg:grid-cols-8 gap-1 p-2 mx-auto" id="word-list">
         <% @board.words.each do |word| %>
@@ -29,12 +29,4 @@
         <% end %>
     </div>
 <% end %>
-
-<% if current_user.can_edit?(@board) %>
-    <div class="flex justify-end items-center mb-4">
-        <%= link_to "Edit", edit_board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" %>
-        <%= button_to "Delete", @board, method: :delete, data: { turbo_confirm: "Are you sure?" }, class: "bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" %>
-    </div>
-<% end %>
-
 </div>
