@@ -21,7 +21,7 @@ export default class extends Controller {
   }
 
   removeFromList() {
-    const listItems = this.thelistOutlet.querySelectorAll("div");
+    const listItems = this.thelistOutlet.querySelectorAll("li");
     listItems.forEach((item) => {
       if (item.innerText === this.label) {
         item.remove();
@@ -35,8 +35,9 @@ export default class extends Controller {
   }
 
   speakList() {
-    const listItems = this.thelistOutlet.querySelectorAll("div");
-    // console.log(listItems.join(" "));
+    console.log("SPEAKING LIST");
+    const listItems = this.thelistOutlet.querySelectorAll("li");
+    console.log(listItems);
     const items = [];
     listItems.forEach((item) => {
       items.push(item.innerText);

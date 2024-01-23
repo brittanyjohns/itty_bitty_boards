@@ -4,9 +4,16 @@
       <%= display_image_for(image, current_user) %>
     </div>
   </div>
+  <% if current_page?(action: 'fullscreen') %>
+  <div class="relative text-wrap">
+    <p class="text-sm font-semibold text-gray-700 py-1 mt-2 block hover:text-blue-600 m-1"><%= image.label&.upcase %></p>
+    </div>
+    <% else %>
   <div class="relative text-wrap">
     <%= link_to image.label&.upcase, image, class: "text-md font-semibold text-gray-700 py-1 mt-2 block hover:text-blue-600 m-1" %>
 
     <%= remove_image_button(@board, image) if current_user.can_edit?(@board) %>
   </div>
+  <% end %>
+
 </div>

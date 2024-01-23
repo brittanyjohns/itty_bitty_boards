@@ -25,6 +25,9 @@ application.register("navbar", NavbarController)
 import NoticeController from "./notice_controller"
 application.register("notice", NoticeController)
 
+import PwaController from "./pwa_controller"
+application.register("pwa", PwaController)
+
 import SearchFormController from "./search_form_controller"
 application.register("search-form", SearchFormController)
 

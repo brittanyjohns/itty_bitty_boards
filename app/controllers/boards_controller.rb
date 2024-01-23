@@ -1,7 +1,8 @@
 class BoardsController < ApplicationController
   before_action :authenticate_user!
 
-  before_action :set_board, only: %i[ show edit update destroy build add_multiple_images associate_image remove_image ]
+  before_action :set_board, only: %i[ show edit update destroy build add_multiple_images associate_image remove_image fullscreen ]
+  layout "fullscreen", only: [:fullscreen]
 
   # GET /boards or /boards.json
   def index
@@ -18,6 +19,9 @@ class BoardsController < ApplicationController
     unless current_user.admin? || current_user.id == @board.user_id
       redirect_back_or_to root_url unless @board.predefined
     end
+  end
+
+  def fullscreen
   end
 
   # GET /boards/new
@@ -125,7 +129,7 @@ class BoardsController < ApplicationController
   end
 
   def clone
-    @board = Board.find(params[:id])
+    @board = Board.icludes(:images).find(params[:id])
     @new_board = Board.new
     @new_board.description = @board.description
     @new_board.user = current_user
