@@ -58,6 +58,10 @@ class Image < ApplicationRecord
     end
   end
 
+  def display_label
+    label&.upcase&.truncate(27, separator: ' ')
+  end
+
   def docs_for_user(user)
     if user.admin?
       docs

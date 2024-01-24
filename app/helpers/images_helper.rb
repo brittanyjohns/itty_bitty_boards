@@ -3,7 +3,7 @@ module ImagesHelper
       user_image = image.display_image(user)
         str = ""
         if !user_image&.attached?
-          str += "<div class='text-purple-400 text-sm font-bold'><span class='align-middle'>#{image.label&.upcase}</span></div>".html_safe
+          str += "<div class='w-100 h-100 px-2 text-gray-400 text-md font-bold grid justify-items-center items-center shadow mx-auto my-auto'><span class='mx-auto my-20'>#{image.label&.upcase.truncate(27, separator: ' ')}</span></div>".html_safe
         else
           str += image_tag(user_image.representation(resize_to_limit: [300, 300]).processed.url, class: "shadow mx-auto my-auto")
         end
