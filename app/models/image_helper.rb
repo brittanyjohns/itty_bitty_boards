@@ -16,6 +16,7 @@ module ImageHelper
       doc = self.docs.create!(raw_text: name_to_send, user_id: user_id, processed_text: revised_prompt)
       puts ">>>>doc: #{doc.inspect}"
       doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.png")
+      self.update(status: "finished")
     rescue => e
       puts "ImageHelper ERROR: #{e.inspect}"
       raise e

@@ -35,6 +35,10 @@ class Image < ApplicationRecord
     # self.image_prompt = prompt_to_send
   end
 
+  def menu?
+    image_type == "Menu"
+  end
+
   def finished?
     status == "finished"
   end
@@ -48,7 +52,7 @@ class Image < ApplicationRecord
       puts "label: #{label} - #{images.count}"
       # Skip the first image (which we want to keep) and destroy the rest
       images.drop(1).each(&:destroy)
-      
+
     end
   end
 
@@ -95,8 +99,6 @@ class Image < ApplicationRecord
   def start_generate_image_job(start_time = 0, user_id_to_set = nil)
     user_id_to_set ||= user_id
     puts "start_generate_image_job: #{label} - #{user_id_to_set}"
-    self.update(status: "generating")
-
     GenerateImageJob.perform_in(start_time.minutes, id, user_id_to_set)
   end
 

@@ -14,7 +14,14 @@ class GenerateImageJob
     end
     begin
       image.create_image_doc(user_id)
-      
+      puts "CREATE IMAGE: #{image.inspect}\n"
+      if image.menu? && image.image_prompt.include?(Menu::PROMPT_ADDITION)
+        puts "**** Updating image_prompt **** \n"
+        image.display_description = image.image_prompt
+        image.image_prompt = image.image_prompt.gsub(Menu::PROMPT_ADDITION, "")
+        puts "\n\nUPDATED IMAGE: #{image.inspect}\n\n"
+        image.save!
+      end
     rescue => e
       puts "**** ERROR **** \n#{e.message}\n"
       image.update(status: "error", error: e.message)

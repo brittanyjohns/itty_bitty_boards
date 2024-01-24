@@ -85,11 +85,9 @@ class Doc < ApplicationRecord
 
   def update_current
     @documentable = documentable
+    puts "**** update_current **** \n"
     if !@documentable.docs.current.any?
       self.current = true
-    end
-    if image? && @documentable&.status == "generating"
-      @documentable.update(status: "finished")
     end
   end
 

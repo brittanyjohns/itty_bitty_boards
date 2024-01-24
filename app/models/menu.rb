@@ -16,7 +16,7 @@ class Menu < ApplicationRecord
   has_many :board_images, through: :boards
   has_many :images, through: :board_images
 
-  PROMPT_ADDITION = " The dish should be presented in a hearty, family-style manner, looking fresh and appetizing on a simple, clean wooden table with an uncluttered background. The lighting should be natural and warm, enhancing the appeal of the food and creating a welcoming atmosphere. Ensure the image looks realistic, like an actual photograph from a family restaurant's menu."
+  PROMPT_ADDITION = " The dish should be presented looking fresh and appetizing on a simple, uncluttered background. The lighting should be natural and warm, enhancing the appeal of the food and creating a welcoming atmosphere. Ensure the image looks realistic, like an actual photograph from a family restaurant's menu."
   include ImageHelper
 
   validates :name, presence: true
@@ -73,6 +73,7 @@ class Menu < ApplicationRecord
       end
       image.private = false
       image.image_type = self.class.name
+      image.display_description = image.image_prompt
       image.save!
       image.image_prompt += PROMPT_ADDITION
       board.add_image(image.id)
