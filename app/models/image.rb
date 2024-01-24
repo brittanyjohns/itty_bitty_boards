@@ -43,6 +43,15 @@ class Image < ApplicationRecord
     status == "generating"
   end
 
+  def self.destroy_duplicate_images
+    Image.all.group_by(&:label).each do |label, images|
+      puts "label: #{label} - #{images.count}"
+      # Skip the first image (which we want to keep) and destroy the rest
+      images.drop(1).each(&:destroy)
+      
+    end
+  end
+
   def display_image(viewing_user = nil)
     if viewing_user
       img = viewing_user.display_doc_for_image(self)&.image
