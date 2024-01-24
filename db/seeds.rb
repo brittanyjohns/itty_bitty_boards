@@ -31,7 +31,7 @@ admin_user = User.admins.first
 # • Play - common children toys and creativity items
 # • Say Hello To - mom, dad, grandparents
 new_images = []
-feeling_board = Board.create!(name: "Feelings", description: "How are you feeling today?", predefined: true, parent: parent_resource, user: admin_user)
+feeling_board = Board.find_or_create_by!(name: "Feelings", description: "How are you feeling today?", predefined: true, parent: parent_resource, user: admin_user)
 feeling_images = [
     { label: "Happy", image_prompt: "Create an image of happy" },
     { label: "Sad", image_prompt: "Create an image of sad" },
@@ -50,7 +50,7 @@ feeling_images = [
 ]
 
 feeling_images.each do |image|
-    i = Image.create!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_images.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
     new_images << i
     feeling_board.add_image(i.id)
 end
@@ -58,7 +58,7 @@ end
 puts "Created #{feeling_images.count} feeling images"
 
 # Create an Eating Board
-eating_board = Board.create!(name: "Eat", description: "What would you like to eat?", predefined: true, predefined: true, parent: parent_resource, user: admin_user)
+eating_board = Board.find_or_create_by!(name: "Eat", description: "What would you like to eat?", predefined: true, predefined: true, parent: parent_resource, user: admin_user)
 
 # Images for Eating Board
 eating_images = [
@@ -75,12 +75,12 @@ eating_images = [
 ]
 
 eating_images.each do |image|
-    i = Image.create!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_images.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
     new_images << i
     eating_board.add_image(i.id)
 end
 puts "Created #{eating_images.count} eating images"
-drinking_board = Board.create!(name: "Drink", description: "What would you like to drink?", predefined: true, predefined: true, parent: parent_resource, user: admin_user)
+drinking_board = Board.find_or_create_by!(name: "Drink", description: "What would you like to drink?", predefined: true, predefined: true, parent: parent_resource, user: admin_user)
 
 drinking_images = [
     { label: "Water", image_prompt: "Create an image of a glass of water" },
@@ -96,12 +96,12 @@ drinking_images = [
 ]
 
 drinking_images.each do |image|
-    i = Image.create!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_images.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
     new_images << i
     drinking_board.add_image(i.id)
 end
 puts "Created #{drinking_images.count} drinking images"
-play_board = Board.create!(name: "Play", description: "What would you like to play with?", predefined: true, predefined: true, parent: parent_resource, user: admin_user)
+play_board = Board.find_or_create_by!(name: "Play", description: "What would you like to play with?", predefined: true, predefined: true, parent: parent_resource, user: admin_user)
 
 play_images = [
     { label: "Doll", image_prompt: "Create an image of a doll" },
@@ -117,12 +117,12 @@ play_images = [
 ]
 
 play_images.each do |image|
-    i = Image.create!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_images.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
     new_images << i
     play_board.add_image(i.id)
 end
 puts "Created #{play_images.count} play images"
-greetings_board = Board.create!(name: "Say Hello To", description: "Who would you like to say hello to?", predefined: true, predefined: true, parent: parent_resource, user: admin_user)
+greetings_board = Board.find_or_create_by!(name: "Say Hello To", description: "Who would you like to say hello to?", predefined: true, predefined: true, parent: parent_resource, user: admin_user)
 
 greetings_images = [
     { label: "Mom", image_prompt: "Create an image representing mom" },
@@ -138,7 +138,7 @@ greetings_images = [
 ]
 
 greetings_images.each do |image|
-i = Image.create!(label: image[:label], image_prompt: image[:image_prompt])
+i = Image.public_images.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
 new_images << i
 greetings_board.add_image(i.id)
 end
@@ -151,7 +151,7 @@ top_five_boards = [
   "Places to Go"
 ]
 
-daily_routine_board = Board.create!(name: "Daily Routines", description: "What is your daily routine?", predefined: true, parent: parent_resource, user: admin_user)
+daily_routine_board = Board.find_or_create_by!(name: "Daily Routines", description: "What is your daily routine?", predefined: true, parent: parent_resource, user: admin_user)
 
 # Images for Daily Routines Board
 daily_routine_images = [
@@ -163,13 +163,13 @@ daily_routine_images = [
 ]
 
 daily_routine_images.each do |image|
-    i = Image.create!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_images.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
     new_images << i
     daily_routine_board.add_image(i.id)
 end
 puts "Created #{daily_routine_images.count} daily routine images"
 
-school_activities_board = Board.create!(name: "School Activities", description: "What do you do at school?", predefined: true, parent: parent_resource, user: admin_user)
+school_activities_board = Board.find_or_create_by!(name: "School Activities", description: "What do you do at school?", predefined: true, parent: parent_resource, user: admin_user)
 # Images for School Activities Board
 school_activities_images = [
     { label: "Reading", image_prompt: "Create an image of reading a book" },
@@ -180,13 +180,13 @@ school_activities_images = [
 ]
 
 school_activities_images.each do |image|
-    i = Image.create!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_images.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
     new_images << i
     school_activities_board.add_image(i.id)
 end
 puts "Created #{school_activities_images.count} school activities images"
 
-outdoor_activities_board = Board.create!(name: "Outdoor Activities", description: "What do you do outside?", predefined: true, parent: parent_resource, user: admin_user)
+outdoor_activities_board = Board.find_or_create_by!(name: "Outdoor Activities", description: "What do you do outside?", predefined: true, parent: parent_resource, user: admin_user)
 # Images for Outdoor Activities Board
 outdoor_activities_images = [
     { label: "Playing in the Park", image_prompt: "Create an image of playing in the park" },
@@ -197,13 +197,13 @@ outdoor_activities_images = [
     ]
 
 outdoor_activities_images.each do |image|
-    i = Image.create!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_images.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
     new_images << i
     outdoor_activities_board.add_image(i.id)
 end
 puts "Created #{outdoor_activities_images.count} outdoor activities images"
 
-places_to_go_board = Board.create!(name: "Places to Go", description: "Where would you like to go?", predefined: true, parent: parent_resource, user: admin_user)
+places_to_go_board = Board.find_or_create_by!(name: "Places to Go", description: "Where would you like to go?", predefined: true, parent: parent_resource, user: admin_user)
 places_to_go_images = [
     { label: "Supermarket", image_prompt: "Create an image of a supermarket" },
     { label: "Doctor's Office", image_prompt: "Create an image of a doctor's office" },
@@ -213,12 +213,12 @@ places_to_go_images = [
 ]
 
 places_to_go_images.each do |image|
-    i = Image.create!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_images.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
     new_images << i
     places_to_go_board.add_image(i.id)
 end
 puts "Created #{places_to_go_images.count} places to go images"
 
-puts "Running generate image job for #{new_images.count} new images"
-Image.run_generate_image_job_for(new_images)
-puts "Finished running generate image job for #{new_images.count} new images"
+# puts "Running generate image job for #{new_images.count} new images"
+# Image.run_generate_image_job_for(new_images)
+# puts "Finished running generate image job for #{new_images.count} new images"
