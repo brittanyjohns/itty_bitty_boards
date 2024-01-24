@@ -63,8 +63,12 @@ class Doc < ApplicationRecord
     self.image.attach(io: File.open(image.file_path), filename: image.file_name)
   end
 
+  def self.admin_default_id
+    User.where(role: 'admin').first&.id || 1
+  end
+
   def self.for_user(user)
-    user.admin? ? self.all : self.where(user_id: [user.id, nil])
+    user.admin? ? self.all : self.where(user_id: [user.id, nil, admin_default_id])
   end
 
   def self.current_for_user(user)

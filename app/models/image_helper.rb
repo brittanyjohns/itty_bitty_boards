@@ -17,6 +17,7 @@ module ImageHelper
       puts ">>>>doc: #{doc.inspect}"
       doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.png")
       self.update(status: "finished")
+      puts "updated status to finished"
     rescue => e
       puts "ImageHelper ERROR: #{e.inspect}"
       raise e

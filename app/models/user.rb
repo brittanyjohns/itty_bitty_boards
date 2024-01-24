@@ -30,7 +30,7 @@ class User < ApplicationRecord
   devise :database_authenticatable, :registerable,
          :recoverable, :rememberable, :validatable
   has_many :user_docs, dependent: :destroy
-  has_many :favorite_docs, through: :user_docs, source: :doc
+  has_many :favorite_docs, through: :user_docs, class_name: 'Doc', source: :doc
 
   scope :admins, -> { where(role: 'admin') }
 
@@ -43,6 +43,10 @@ class User < ApplicationRecord
   def admin?
     role == 'admin'
   end
+
+  # def favorite_docs
+  #   user_docs.includes(:doc).map(&:doc)
+  # end
 
   def is_a_favorite?(doc)
     favorite_docs.include?(doc)
