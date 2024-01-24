@@ -19,7 +19,7 @@ class OpenAiClient
   end
 
   def create_image
-    response = openai_client.images.generate(parameters: { prompt: @prompt, model: "dall-e-3", style: 'vivid'} )
+    response = openai_client.images.generate(parameters: { prompt: @prompt, model: "dall-e-3", style: 'natural'} )
     puts "\n\nRESPONSE: #{response}\n\n"
     if response
       img_url = response.dig("data", 0, "url")
@@ -48,7 +48,7 @@ class OpenAiClient
     @messages = [{ role: "user", content: [{ type: "text", text: "Please parse the following text from a kid's menu and form a clear list of the food and beverage options ONLY.
     Create a short image description for each item based on the name and description.
     The NAME of the food or beverage is the most important part. Ensure that the name is accurate.
-    The description is optional.
+    The description is optional. If no description is provided, then try to create a description based on the name.
     Respond as json. 
     Here is an EXAMPLE RESPONSE: #{expected_json_schema}\n
     This is the text to parse: #{strip_image_description(image_description)}\n\n" }] }]

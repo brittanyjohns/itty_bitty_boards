@@ -15,7 +15,14 @@
             <%= link_to board do %>
               <span class="text-lg md:text-xl font-medium text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out"><%= board.name %></span>
             <% end %>
-            <%= button_to "Clone", clone_board_path(board), method: :post, class: "bg-blue-500 hover:bg-blue-700 text-white font-light py-1 px-2 m-1 rounded-full text-sm" %>
+            <div class="relative">
+              <div class="badge">
+            <%= button_to copy_nav, clone_board_path(board), method: :post, class: "text-blue-600 hover:text-blue-200 px-3 py-2 rounded-md text-sm font-medium" %>
+              </div>
+              <div class="tooltip absolute opacity-25 bg-blue-600 text-white text-xs rounded p-1">
+                  Copy
+              </div>
+            </div>
           </li>
       <% end %>
     </ul>
@@ -30,7 +37,14 @@
             <%= link_to board do %>
               <span class="text-lg md:text-xl font-medium text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out"><%= board.name %></span>
             <% end %>
-            <%= button_to "Clone", clone_board_path(board), method: :post, class: "bg-blue-500 hover:bg-blue-700 text-white font-light py-1 px-2 m-1 rounded-full text-sm" %>
+            <div class="relative">
+              <div class="badge">
+            <%= button_to copy_nav, clone_board_path(board), method: :post, class: "text-blue-600 hover:text-blue-200 px-3 py-2 rounded-md text-sm font-medium" %>
+              </div>
+              <div class="tooltip absolute opacity-25 bg-blue-600 text-white text-xs rounded p-1">
+                  Copy
+              </div>
+            </div>
             <% if current_user.admin? %>
             <span class="text-sm text-gray-500"><%= board.user ? board.user.name || board.user.email : "unassigned" %></span>
             <% end %>

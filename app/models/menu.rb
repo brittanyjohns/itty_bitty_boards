@@ -16,7 +16,7 @@ class Menu < ApplicationRecord
   has_many :board_images, through: :boards
   has_many :images, through: :board_images
 
-  PROMPT_ADDITION = " Style it like a professional photo that would appear on a real restaurant menu item."
+  PROMPT_ADDITION = " The dish should be presented in a hearty, family-style manner, looking fresh and appetizing on a simple, clean wooden table with an uncluttered background. The lighting should be natural and warm, enhancing the appeal of the food and creating a welcoming atmosphere. Ensure the image looks realistic, like an actual photograph from a family restaurant's menu."
   include ImageHelper
 
   validates :name, presence: true
@@ -68,13 +68,13 @@ class Menu < ApplicationRecord
       unless food["image_description"].blank? || food["image_description"] == item_name
         image.image_prompt = food["image_description"]
       else
-        image.image_prompt = "Create an image of #{item_name}"
+        image.image_prompt = "Create a high-resolution image of #{item_name}"
         image.image_prompt += " with #{food["description"]}" if food["description"]
       end
-      image.image_prompt += PROMPT_ADDITION
       image.private = false
       image.image_type = self.class.name
       image.save!
+      image.image_prompt += PROMPT_ADDITION
       board.add_image(image.id)
       images << image
       new_images << new_image if new_image
@@ -137,11 +137,10 @@ class Menu < ApplicationRecord
   end
 
   def prompt_to_send
-    description_prompt
+    image_prompt.blank? ? "#{prompt_for_label} #{label}" : image_prompt
   end
 
-  def description_prompt
-    "Please describe the food and drink options on this kid's restaurant menu."
+  def prompt_for_label
+    "Create a high-resolution image of"
   end
-
 end

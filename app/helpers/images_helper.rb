@@ -14,12 +14,12 @@ module ImagesHelper
       end
 
       def generate_image_button(image)
-        button_to "Generate AI Image", generate_image_path(image), method: :post, class: "bg-green-600 hover:tbgext-green-700 p-3 m-2 rounded-lg text-white", 
+        button_to "Generate AI Image", generate_image_path(image), method: :post, class: "bg-green-600 hover:text-green-700 p-3 m-2 rounded-lg text-white", 
         form: {data: {controller: 'disable'}}, data: {disable_target: "button", action: "click->disable#disableForm"} 
       end
     
       def remove_image_button(board, image)
         return unless board && image
-        button_to "#{icon("fa-solid", "trash")}".html_safe, remove_image_board_path(board, image_id: image.id), class: "text-red-600 hover:text-red-700 py-1 px-1 rounded-full absolute bottom-0 right-0 ml-1", method: :post
+        button_to "#{icon("fa-solid", "trash")}".html_safe, remove_image_board_path(board, image_id: image.id), class: "text-red-600 hover:text-red-700 py-1 px-1 rounded-full absolute bottom-0 right-0 m-2 mr-3", method: :post
       end
 end

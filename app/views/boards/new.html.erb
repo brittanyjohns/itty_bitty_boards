@@ -1,7 +1,7 @@
-
-<h1 class="text-4xl font-bold text-blue-600 mb-6 text-center">
-  New Board
-</h1>
-<div class="w-1/2 lg:w-1/3 mx-auto">
+<div class="bg-blue-50 md:w-2/3 p-5 h-screen mx-auto">
+  <h1 class="text-3xl font-bold text-blue-600 mb-6 text-center">New Board</h1>
   <%= render "form", board: @board %>
+  <div class="mt-6 text-center">
+    <%= link_to "Back to Boards", boards_path, class: "text-blue-600 hover:text-blue-800 underline" %>
+  </div>
 </div>
