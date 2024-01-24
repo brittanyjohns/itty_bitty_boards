@@ -7,12 +7,13 @@ Rails.application.routes.draw do
       patch "mark_as_current"
     end
   end
-  resources :board_images
+  # resources :board_images
   resources :images do
     get "menu", on: :collection
     post "find_or_create", on: :collection
     member do
       post "generate"
+      post "add_to_board"
     end
   end
 

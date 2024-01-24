@@ -139,6 +139,13 @@ class ImagesController < ApplicationController
     redirect_back_or_to image_url(@image), notice: notice
   end
 
+  def add_to_board
+    @image = Image.find(params[:id])
+    @board = Board.find(params[:board_id])
+    @board.add_image(@image.id)
+    redirect_back_or_to image_url(@image), notice: "Image added to board."
+  end
+
   def run_generate
     return if current_user.tokens < 1
     GenerateImageJob.perform_async(@image.id, current_user.id)

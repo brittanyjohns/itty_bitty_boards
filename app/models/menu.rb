@@ -79,8 +79,6 @@ class Menu < ApplicationRecord
       board.add_image(image.id)
       images << image
       new_images << new_image if new_image
-
-      # image.start_generate_image_job(start_time) unless image.display_image.attached?
     end
     new_images.each_slice(5) do |image_slice|
       image_slice.each do |image|
@@ -91,7 +89,7 @@ class Menu < ApplicationRecord
     end
     puts "**** tokens_used: #{tokens_used}\n"
     self.user.remove_tokens(tokens_used)
-    board.add_to_cost(1) if board
+    board.add_to_cost(tokens_used) if board
   end
 
   def should_generate_image(image, user, tokens_used)

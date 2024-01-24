@@ -115,7 +115,7 @@ class Image < ApplicationRecord
   end
 
   def open_ai_opts
-    prompt = prompt_to_send + prompt_addition
+    prompt = prompt_to_send
     puts "Sending prompt: #{prompt}"
     { prompt: prompt }
   end
