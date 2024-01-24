@@ -19,7 +19,7 @@ class OpenAiClient
   end
 
   def create_image
-    response = openai_client.images.generate(parameters: { prompt: @prompt, model: "dall-e-3", style: 'natural'} )
+    response = openai_client.images.generate(parameters: { prompt: @prompt, model: "dall-e-3", style: 'vivid'} )
     puts "\n\nRESPONSE: #{response}\n\n"
     if response
       img_url = response.dig("data", 0, "url")
