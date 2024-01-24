@@ -129,7 +129,7 @@ class BoardsController < ApplicationController
   end
 
   def clone
-    @board = Board.icludes(:images).find(params[:id])
+    @board = Board.includes(:images).find(params[:id])
     @new_board = Board.new
     @new_board.description = @board.description
     @new_board.user = current_user

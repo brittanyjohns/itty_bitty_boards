@@ -1,10 +1,10 @@
-<div id="<%= dom_id board %>_images" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
+<div id="<%= dom_id board %>_images" class="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-5 gap-1">
     <%= render "boards/modal", board: board %>
 
     <div class="relative border p-3 w-full bg-white rounded-lg shadow-md overflow-hidden">
-        <h3 class="text-lg font-bold text-gray-800 m-3">I would like:</h3>
+        <h3 class="text-sm font-bold text-gray-800 m-3">I would like:</h3>
         <ul class="text-gray-800 font-semibold mb-4 pl-4" id="the-list"></ul>
-        <%= button_tag "Clear", class: "absolute bottom-0 right-0 bg-blue-500 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-full mt-2 sm:mt-3", data: { action: "click->notice#clearList" } %>
+        <%= button_tag "Clear", class: "absolute bottom-0 right-0 bg-blue-500 hover:bg-blue-700 text-white font-semibold py-1 px-2 rounded-full mt-2 sm:mt-3 text-xs", data: { action: "click->notice#clearList" } %>
             
     </div>
 

@@ -1,18 +1,18 @@
 <div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
-  <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='static-image' data-static-image-label="<%= image.label&.upcase %>" data-static-image-target="wrapper" data-action="click->static-image#speak">
-    <div class="items-center text-center" id="<%= image.label %>">
+  <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer flex" data-controller='static-image' data-static-image-label="<%= image.label&.upcase %>" data-static-image-target="wrapper" data-action="click->static-image#speak">
+    <div class="m-auto" id="<%= image.label %>">
       <%= display_image_for(image, current_user) %>
     </div>
   </div>
 
   <% if action_name == "fullscreen" %>
   
-  <div class="relative text-wrap">
-    <p class="text-sm font-semibold text-gray-700 py-1 mt-2 block m-1"><%= image.label&.upcase %></p>
-    </div>
+  <div class="flex">
+    <p class="text-xs font-semibold text-gray-700 m-auto mt-2"><%= image.label&.upcase %></p>
+  </div>
     <% else %>
   <div class="relative text-wrap">
-    <%= link_to image.label&.upcase, image, class: "text-md font-semibold text-gray-700 py-1 mt-2 block hover:text-blue-600 m-1" %>
+    <%= link_to image.label&.upcase, image, class: "text-sm font-semibold text-gray-700 py-1 mt-2 block hover:text-blue-600 m-1" %>
 
     <%= remove_image_button(@board, image) if current_user.can_edit?(@board) %>
   </div>

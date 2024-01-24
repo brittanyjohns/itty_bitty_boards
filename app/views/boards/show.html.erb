@@ -1,10 +1,9 @@
 <div data-controller="speak show" class="mx-auto w-full mt-4 pb-6">
-    <%= link_to "Fullscreen", fullscreen_board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" %>
-    <div class="flex justify-around m-5">
-        <h1 class="text-center text-3xl md:text-4xl font-bold my-2 text-gray-800">
+    <%= link_to "Fullscreen", fullscreen_board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-2 px-4 m-1 rounded-md text-sm" %>
+    <div class="flex justify-around m-1 p-1">
+        <h1 class="text-center text-2xl md:text-3xl font-bold my-2 text-gray-800">
             <%= @board.name.titleize %>
         </h1>
-        <%= button_to "Clone", clone_board_path(@board), method: :post, class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-2 px-3 m-1 rounded-full text-sm" %>
         <%= content_tag(:button, "Add image", class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm", data: {action: "click->show#toggle"}) if current_user.can_edit?(@board) %>
     </div>
 
@@ -16,7 +15,7 @@
     <div class="flex flex-col justify-end mb-3">
         <div class="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-8 lg:grid-cols-8 gap-1 p-2 mx-auto" id="word-list">
         <% @board.words.each do |word| %>
-            <button class="bg-teal-300 text-md font-semibold flex justify-center items-center cursor-pointer px-2 py-1 md:px-4 md:py-3 border border-gray-300 rounded-md hover:bg-gray-100"  data-controller='speak' data-speak-label="<%= word.downcase %>" data-action="click->speak#speak">
+            <button class="bg-teal-300 text-sm font-medium flex justify-center items-center cursor-pointer px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-100"  data-controller='speak' data-speak-label="<%= word.downcase %>" data-action="click->speak#speak">
                 <%= word&.upcase %>
             </button>
         <% end %>
@@ -33,7 +32,7 @@
             <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#speakList">Speak</button>
         </div>
     </div>
-    <div id="<%= dom_id @board %>_images" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 p-5">
+    <div id="<%= dom_id @board %>_images" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 gap-1 p-2 text-sm">
         <% @board.images.each do |image| %>
             <div class="text-center bg-white rounded-lg shadow-md overflow-hidden">
                 <%= render image %>

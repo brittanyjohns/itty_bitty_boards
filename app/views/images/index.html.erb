@@ -7,7 +7,7 @@
     <ul class="flex justify-center text-4xl font-bold" id="the-list" data-static-board-target="list"></ul>
   <%= render "utils/search", search_path: images_path, show_user_images_only: true %>
 
-<div id="images" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 my-6 pb-10">
+<div id="images" class="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 my-6 pb-10">
   <% @images.each do |image| %>
     <%= render image %>
   <% end %>
