@@ -137,7 +137,7 @@ class Menu < ApplicationRecord
   end
 
   def prompt_to_send
-    image_prompt.blank? ? "#{prompt_for_label} #{label}" : image_prompt
+    name.blank? ? "Create a menu" : "Create a menu for #{name}"
   end
 
   def prompt_for_label
