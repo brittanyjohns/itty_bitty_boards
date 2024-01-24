@@ -219,6 +219,6 @@ places_to_go_images.each do |image|
 end
 puts "Created #{places_to_go_images.count} places to go images"
 
-# puts "Running generate image job for #{new_images.count} new images"
-# Image.run_generate_image_job_for(new_images)
-# puts "Finished running generate image job for #{new_images.count} new images"
+puts "Running generate image job for #{new_images.count} new images"
+Image.run_generate_image_job_for(new_images)
+puts "Finished running generate image job for #{new_images.count} new images"
