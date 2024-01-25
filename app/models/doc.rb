@@ -21,15 +21,27 @@ class Doc < ApplicationRecord
   has_one_attached :image
   has_many :user_docs, dependent: :destroy
 
-  before_save :update_current
-  # after_commit :update_doc_list
+  after_create :update_user_docs, if: :user_id
 
   scope :current, -> { where(current: true) }
   scope :image_docs, -> { where(documentable_type: "Image") }
   scope :menu_docs, -> { where(documentable_type: "Menu") }
 
+  # def self.with_no_user_docs_for(user_id)
+  #   includes(:user_docs).
+  #     references(:user_docs).
+  #     where.not(user_docs: { user_id: user_id })
+  # end
+
   def menu?
     documentable.is_a?(Menu)
+  end
+
+  def update_user_docs
+    return unless user_id
+    if image?
+      user_docs.where(user_id: user_id, image_id: documentable_id).first_or_create
+    end
   end
 
   def image?

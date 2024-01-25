@@ -1,7 +1,11 @@
 require 'sidekiq/web'
 
 Rails.application.routes.draw do
-  resources :menus
+  resources :menus do
+    member do
+      post "rerun"
+    end
+  end
   resources :docs do
     member do
       patch "mark_as_current"

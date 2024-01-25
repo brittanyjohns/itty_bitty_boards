@@ -29,6 +29,7 @@ class Image < ApplicationRecord
   scope :menu_images, -> { where(image_type: "Menu") }
   scope :non_menu_images, -> { where(image_type: nil) }
   scope :public_img, -> { where(private: [false, nil]).or(Image.where(user_id: nil)) }
+  scope :without_docs_for_user, -> (user) { includes(:docs).merge(Doc.without_docs_for_user(user)) }
 
   def create_image_doc(user_id = nil)
     response = create_image(user_id)
@@ -54,6 +55,10 @@ class Image < ApplicationRecord
       images.drop(1).each(&:destroy)
 
     end
+  end
+
+  def doc_exists_for_user?(user)
+    docs.where(user_id: user.id).any?
   end
 
   def display_image(viewing_user = nil)

@@ -34,6 +34,8 @@ module ImageHelper
     revised_prompt = response[:revised_prompt]
     puts "From image helper: #{img_url} - #{revised_prompt}"
     if img_url
+      puts "**** SAVING IMAGE **** \n"
+      puts "self: #{self.inspect}\n\n#{self.persisted?}\n\n"
       save_image(img_url, user_id, revised_prompt)
     else
       Rails.logger.debug "**** ERROR **** \nDid not receive valid response.\n"

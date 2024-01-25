@@ -76,9 +76,12 @@ class ImagesController < ApplicationController
   def create
     @image = Image.new(image_params)
     @image.user = current_user
+    @image.private = true
 
     respond_to do |format|
       if @image.save
+        @doc = @mage.docs.last
+        UserDoc.create(user_id: current_user.id, doc_id: @doc.id, image_id: @image.id)
         format.html { redirect_to image_url(@image), notice: "Image was successfully created." }
         format.json { render :show, status: :created, location: @image }
       else

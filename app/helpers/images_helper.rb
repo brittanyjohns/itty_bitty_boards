@@ -20,10 +20,22 @@ module ImagesHelper
     
       def remove_image_button(board, image)
         return unless board && image
-        button_to "#{icon("fa-solid", "trash")}".html_safe, remove_image_board_path(board, image_id: image.id), class: "text-red-600 hover:text-red-700 py-1 px-1 rounded-full absolute bottom-0 right-0 m-2 mr-3", method: :post
+        button_to "#{icon("fa-solid", "trash")}".html_safe, remove_image_board_path(board, image_id: image.id), class: "text-red-600 hover:text-red-700 py-1 px-1 rounded-full absolute bottom-0 right-0 m-1 mr-2", method: :post
       end
 
       def loading_spinner
         "<div class='flex justify-center mb-5 p-6 rounded-full text-green-600 p-2'><span class='animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-600'></span> <span class='ml-2 my-auto'>Generating image...</span></div>".html_safe
+      end
+
+      def print_image_info(image)
+        str = ""
+        str += "<div class='text-sm text-gray-500 bg-gray-100 p-2 rounded-lg shadow w-64'>"
+        str += "<div>id: #{image.id}</div>"
+        str += "<div>status: #{image.status}</div>"
+        str += "<div>user_id: #{image.user_id}</div>"
+        str += "<div>created_at: #{image.created_at}</div>"
+        str += "<div>updated_at: #{image.updated_at}</div>"
+        str += "</div>"
+        str.html_safe
       end
 end

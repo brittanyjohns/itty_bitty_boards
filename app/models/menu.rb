@@ -50,6 +50,28 @@ class Menu < ApplicationRecord
     board
   end
 
+  def rerun_image_description_job
+    puts "**** rerun_image_description_job **** \n"
+    @user = self.user
+    board = self.boards.last
+    tokens_used = 0
+    total_cost = board.cost || 0
+    puts "**** board: #{board.name}\n"
+    puts "Total cost: #{total_cost}\n"
+    board.images.each_slice(5) do |image_slice|
+      puts "**** image_slice: #{image_slice.map(&:label)}\n"
+      image_slice.each do |image|
+        next unless should_generate_image(image, @user, tokens_used, total_cost)
+        image.start_generate_image_job(tokens_used, @user.id)
+        tokens_used += 1
+        total_cost += 1
+      end
+    end
+    puts "**** tokens_used: #{tokens_used}\ntotal_cost: #{total_cost}\n"
+    @user.remove_tokens(tokens_used)
+    board.add_to_cost(tokens_used) if board
+  end
+
   def create_images_from_description(board)
     puts "**** create_images_from_description **** \n"
     json_description = JSON.parse(description)
@@ -92,10 +114,10 @@ class Menu < ApplicationRecord
     board.add_to_cost(tokens_used) if board
   end
 
-  def should_generate_image(image, user, tokens_used)
-    return false if image.display_image && image.display_image.attached?
+  def should_generate_image(image, user, tokens_used, total_cost = 0)
+    return false if image.doc_exists_for_user?(user)
     return false if user.tokens <= tokens_used
-    return false if token_limit <= tokens_used
+    return false if token_limit <= total_cost
     true
   end
 

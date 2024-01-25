@@ -2,9 +2,9 @@
     <%= render "boards/modal", board: board %>
 
     <div class="relative border p-3 w-full bg-white rounded-lg shadow-md overflow-hidden">
-        <h3 class="text-sm font-bold text-gray-800 m-3">I would like:</h3>
-        <ul class="text-gray-800 font-semibold mb-4 pl-4" id="the-list"></ul>
-        <%= button_tag "Clear", class: "absolute bottom-0 right-0 bg-blue-500 hover:bg-blue-700 text-white font-semibold py-1 px-2 rounded-full mt-2 sm:mt-3 text-xs", data: { action: "click->notice#clearList" } %>
+        <h3 class="text-xs font-semibold text-gray-800 m-3">I would like:</h3>
+        <ul class="text-gray-800 font-light mb-4 pl-4" id="the-list"></ul>
+        <%= button_tag "Clear", class: "absolute bottom-0 right-0 bg-blue-500 hover:bg-blue-700 text-white py-1 px-2 rounded-full mt-2 sm:mt-3 text-xs", data: { action: "click->notice#clearList" } %>
             
     </div>
     <% board.images.each do |image| %>

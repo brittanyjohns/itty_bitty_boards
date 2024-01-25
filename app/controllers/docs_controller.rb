@@ -34,6 +34,10 @@ class DocsController < ApplicationController
         if @documentable.is_a?(Menu)
           puts "**** Menu Doc - create_board_from_image **** \n"
           @documentable.enhance_image_description
+        else
+          @image = @documentable
+          puts "**** Image Doc - create USER DOC **** #{@image.inspect}\n"
+          UserDoc.create(user_id: current_user.id, doc_id: @doc.id, image_id: @image.id)
         end
         format.html { redirect_to @doc.documentable, notice: "Doc was successfully created." }
         format.json { render :show, status: :created, location: @doc }

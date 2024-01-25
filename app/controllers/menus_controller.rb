@@ -10,11 +10,9 @@ class MenusController < ApplicationController
 
   # GET /menus/1 or /menus/1.json
   def show
-    redirect_back_or_to root_url unless current_user.admin? || current_user.id == @menu.user_id
     @new_menu_doc = Doc.new
     @new_menu_doc.documentable = @menu
     @board = @menu.boards.last
-    # render "boards/show" unless current_user.admin?
   end
 
   # GET /menus/new
@@ -28,15 +26,29 @@ class MenusController < ApplicationController
     @doc = @menu.docs.last
   end
 
+  def rerun
+    @menu = Menu.find(params[:id])
+    @board = @menu.boards.last
+    unless @board
+      redirect_to menu_url(@menu), notice: "No board found for this menu."
+      return
+    end
+    if current_user.tokens < 1
+      redirect_to menu_url(@menu), notice: "Not enough tokens to re-run image description job."
+      return
+    end
+    if @board.cost >= @menu.token_limit
+      redirect_to menu_url(@menu), notice: "This menu has already used all of its tokens."
+      return
+    end
+    @menu.rerun_image_description_job
+    redirect_to menu_url(@menu), notice: "Re-running image description job."
+  end
+
   # POST /menus or /menus.json
   def create
     @menu = current_user.menus.new(menu_params)
     @menu.user = current_user
-    doc_params = menu_params[:docs_attributes]["0"]
-    puts "doc_params: #{doc_params}\n"
-    # @doc = @menu.docs.new(doc_params)
-    puts "doc: #{@doc}\n"
-    # @doc.image.attach(doc_params[:image]) if doc_params[:image]
 
     respond_to do |format|
       if @menu.save
@@ -53,6 +65,10 @@ class MenusController < ApplicationController
 
   # PATCH/PUT /menus/1 or /menus/1.json
   def update
+    unless current_user.admin? || current_user.id == @menu.user_id
+      redirect_to root_url, notice: "You are not authorized to edit this menu."
+      return
+    end
     respond_to do |format|
       if @menu.update(menu_params)
         format.html { redirect_to menu_url(@menu), notice: "Menu was successfully updated." }

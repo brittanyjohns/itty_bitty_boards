@@ -17,7 +17,6 @@ class Board < ApplicationRecord
   has_many :board_images, dependent: :destroy
   has_many :images, through: :board_images
   has_many :docs
-
   scope :for_user, ->(user) { where(user: user) }
   scope :menus, -> { where(parent_type: "Menu") }
   scope :non_menus, -> { where.not(parent_type: "Menu") }
@@ -33,6 +32,14 @@ class Board < ApplicationRecord
     else
       ["I", "want", "to", "go", "a", "and", "yes", "no"]
     end
+  end
+
+  def image_docs
+    images.map(&:docs).flatten
+  end
+
+  def image_docs_for_user(user)
+    image_docs.select { |doc| doc.user_id == user.id }
   end
 
   def add_image(image_id)
