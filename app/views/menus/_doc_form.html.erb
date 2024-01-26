@@ -1,4 +1,4 @@
-<%= form_with(model: @new_menu_doc, local: true, data: { controller: "image-parser disable" }) do |form| %>
+<%= form_with(model: @new_menu_doc, local: true, data: { controller: "image-parser" }) do |form| %>
     <%= form.hidden_field :documentable_type, value: @menu.class %>
     <%= form.hidden_field :documentable_id, value: @menu.id %>
   <% if @new_menu_doc.errors.any? %>
@@ -21,6 +21,6 @@
         <%= form.file_field :image, data: { image_parser_target: "file", action: "change->image-parser#upload" } %>
     </div>
   <div class="mb-4">
-        <%= form.submit "Save", class: "text-white shadow rounded-lg py-2 px-4 bg-green-700 font-medium text-center", data: { image_parser_target: "submit_button", disable_target: "button", action: "click->disable#disableForm" } %>
+        <%= form.submit "Save", class: "text-white shadow rounded-lg py-2 px-4 bg-green-700 font-medium text-center", data: { image_parser_target: "submit_button" } %>
   </div>
 <% end %>

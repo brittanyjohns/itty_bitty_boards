@@ -56,12 +56,10 @@ class Menu < ApplicationRecord
     board = self.boards.last
     tokens_used = 0
     total_cost = board.cost || 0
-    puts "**** board: #{board.name}\n"
-    puts "Total cost: #{total_cost}\n"
+
     minutes_to_wait = 0
     board.images.each_slice(5) do |image_slice|
       minutes_to_wait += 1
-      puts "**** image_slice: #{image_slice.map(&:label)}\n"
       image_slice.each do |image|
         next unless should_generate_image(image, @user, tokens_used, total_cost)
         image.start_generate_image_job(minutes_to_wait, @user.id)
@@ -112,6 +110,7 @@ class Menu < ApplicationRecord
         next unless should_generate_image(image, self.user, tokens_used, total_cost)
         image.start_generate_image_job(minutes_to_wait, self.user_id)
         tokens_used += 1
+        total_cost += 1
       end
     end
     puts "**** tokens_used: #{tokens_used}\n"

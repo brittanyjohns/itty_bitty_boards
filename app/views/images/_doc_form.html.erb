@@ -1,4 +1,4 @@
-<%= form_with(model: @new_image_doc, local: true) do |form| %>
+<%= form_with(model: @new_image_doc, local: true, data: {controller: "disable"}) do |form| %>
     <%= form.hidden_field :documentable_type, value: @image.class %>
     <%= form.hidden_field :documentable_id, value: @image.id %>
   <% if @new_image_doc.errors.any? %>
@@ -14,9 +14,9 @@
   <% end %>
   <div class="mb-4">
     <p class="text-xl font-semibold">Upload an Image</p>
-    <%= form.file_field :image %>
+    <%= form.file_field :image, data: { action: "change->disable-parser#upload" } %>
   </div>
   <div class="mb-4">
-    <%= form.submit "Save", class: "text-white shadow rounded-lg py-2 px-4 bg-green-600 hover:bg-green-700 font-medium text-center cursor-pointer", data: { ocr_target: "submit_button", disable_target: "button", action: "click->disable#disableForm" } %>
+    <%= form.submit "Save", disabled: true, class: "text-white shadow rounded-lg py-2 px-4 bg-green-600 hover:bg-green-700 font-medium text-center cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed", data: { disable_target: "button", action: "click->disable#disableForm" } %>
   </div>
 <% end %>

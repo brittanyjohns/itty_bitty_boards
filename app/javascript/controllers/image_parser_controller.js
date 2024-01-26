@@ -30,15 +30,10 @@ export default class extends Controller {
         if (this.nameTarget.value) {
           this.sumbit_buttonTarget.classList.remove("hidden");
           this.please_waitTarget.classList.add("hidden");
-          // console.log("submitting form");
-          // this.element.requestSubmit();
-          //   setTimeout(() => {
-          //   this.please_waitTarget.classList.add("hidden");
-          //   window.location.href = "/menus";
-          // }
-          // , 2000);
+
         } else {
           this.sumbit_buttonTarget.classList.remove("hidden");
+          this.please_waitTarget.classList.add("hidden");
           alert("Please enter a name for the menu");
         }
 
@@ -51,12 +46,6 @@ export default class extends Controller {
   submit(event) {
     event.preventDefault();
     this.please_waitTarget.classList.remove("hidden");
-    console.log("submitting form");
-    this.element.requestSubmit();
-    setTimeout(() => {
-      this.please_waitTarget.classList.add("hidden");
-      window.location.href = "/menus";
-    }
-    , 2000);
+    this.element.submit();
   }
 }
