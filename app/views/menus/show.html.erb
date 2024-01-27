@@ -1,4 +1,7 @@
 <div class="relative w-full bg-blue-50 py-6">
+  <% if @menu.doc_boards.empty? %>
+    <p id="processing" class="text-md md:text-xl font-medium text-green-800">Processing...</p>
+  <% end %>
   <h1 class="text-4xl font-bold text-blue-600 mb-6 text-center">
     <%= @menu.name.titleize %>
   </h1>

@@ -1,6 +1,6 @@
 {
-    "name": "My PWA",
-    "short_name": "PWA",
+    "name": "Itty Bitty Boards",
+    "short_name": "IttyBittyBoards",
     "start_url": "/",
     "display": "standalone",
     "orientation": "portrait",
@@ -8,21 +8,16 @@
     "theme_color": "#000000",
     "icons": [
       {
-        "src": "icons/tmp_flame.png",
-        "sizes": "840x859",
+        "src": "icons/round_itty_bitty_logo_1.png",
+        "sizes": "1024x1024",
         "type": "image/png"
       }
     ],
     "screenshots": [
       {
-        "src": "screenshot1.jpg",
-        "sizes": "800x600",
-        "type": "image/jpeg"
-      },
-      {
-        "src": "screenshot2.jpg",
-        "sizes": "800x600",
-        "type": "image/jpeg"
+        "src": "screenshots/main_screen_IPhoneSE.png",
+        "sizes": "750x1334",
+        "type": "image/png"
       }
     ]
   }
