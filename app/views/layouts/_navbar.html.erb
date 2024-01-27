@@ -1,6 +1,8 @@
 <nav class="bg-stone-800 shadow-lg" data-controller="navbar">
-   <div class="flex items-center justify-between px-4 py-3 md:py-4 md:px-6">
+   <div class="flex items-center justify-between px-4 py-1 md:py-2 md:px-6">
     <div>
+          <%= image_tag "round_itty_bitty_logo_1.png", class: "h-20 w-20 inline" %>
+
       <% if user_signed_in? %>
       <%= link_to boards_path, class: "text-white font-bold text-2xl" do %>
         <span class="text-lg">Itty</span><span class="text-xl">Bitty</span>Boards
@@ -10,7 +12,6 @@
         <span class="text-lg">Itty</span><span class="text-xl">Bitty</span>Boards
       <% end %>
       <% end %>
-      <%= link_to "Demos", demo_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium ml-5" %>
     </div>
     <div class="hidden md:flex items-center space-x-4 ml-4 md:ml-10">
       <% if user_signed_in? %> 
@@ -54,8 +55,10 @@
       <%= link_to "Boards", boards_path, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>
       <%= link_to "Menus", menus_path, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>
       <%= link_to "Images", images_path, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>
+      <%= link_to "Demos", demo_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium ml-5" %>
       <%= button_to "Logout", destroy_user_session_path, method: :delete, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white", form_class: "inline-block" %>
     <% else %>
+      <%= link_to "Demos", demo_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium ml-5" %>
       <%= link_to "Sign up", new_user_registration_path, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>
       <%= link_to "Login", new_user_session_path, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>
     <% end %>

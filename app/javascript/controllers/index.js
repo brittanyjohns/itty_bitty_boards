@@ -25,6 +25,12 @@ application.register("navbar", NavbarController)
 import NoticeController from "./notice_controller"
 application.register("notice", NoticeController)
 
+import Pwa__FormController from "./pwa/form_controller"
+application.register("pwa--form", Pwa__FormController)
+
+import Pwa__SyncController from "./pwa/sync_controller"
+application.register("pwa--sync", Pwa__SyncController)
+
 import PwaController from "./pwa_controller"
 application.register("pwa", PwaController)
 
