@@ -36,6 +36,12 @@ class User < ApplicationRecord
 
   after_create :add_welcome_tokens
 
+  DEFAULT_ADMIN_ID = 1
+
+  def self.default_admin
+    User.find(DEFAULT_ADMIN_ID)
+  end
+
   def add_welcome_tokens
     add_tokens(10)
   end
@@ -53,13 +59,19 @@ class User < ApplicationRecord
   end
 
   def can_edit?(model)
+    puts "can_edit? #{model.inspect}"
+    return false unless model
     return false if model.respond_to?(:predefined) && model.predefined
     return true if admin?
+    puts "model.user_id: #{model.user_id}- not admin"
+    return true if !model.user_id
+    return true if model.user_id == DEFAULT_ADMIN_ID
     model&.user_id && model&.user_id == id
   end
 
   def can_favorite?(model)
     return true if admin? || !model.user_id
+    return true if model.user_id == DEFAULT_ADMIN_ID
     model&.user_id && model&.user_id == id
   end
 

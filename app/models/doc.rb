@@ -76,7 +76,7 @@ class Doc < ApplicationRecord
   end
 
   def self.admin_default_id
-    User.where(role: 'admin').first&.id || 1
+    User::DEFAULT_ADMIN_ID
   end
 
   def self.for_user(user)
@@ -101,7 +101,6 @@ class Doc < ApplicationRecord
 
   def update_current
     @documentable = documentable
-    puts "**** update_current **** \n"
     if !@documentable.docs.current.any?
       self.current = true
     end

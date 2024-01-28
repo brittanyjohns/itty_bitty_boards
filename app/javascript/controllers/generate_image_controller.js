@@ -6,16 +6,19 @@ export default class extends Controller {
   connect() {
     console.log("Hello, GenerateImageController!", this.element);
     this.image_id = this.element.dataset.imageId;
+    this.button = document.querySelector("#generateButton");
   }
 
   generate(event) {
     event.preventDefault();
+    this.button.disabled = true;
     console.log("Generate image");
     this.imagePrompt = this.image_promptTarget.value;
     this.submit();
   }
 
   submit() {
+    console.log("Submit");
     fetch(`/images/${this.image_id}/generate`, {
       method: "POST",
       headers: {

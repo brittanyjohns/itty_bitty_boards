@@ -25,7 +25,8 @@ class Image < ApplicationRecord
 
   include ImageHelper
 
-  scope :with_image_docs_for_user, -> (userId) { joins(:docs).where("docs.documentable_id = images.id AND docs.documentable_type = 'Image' AND docs.user_id = ?", userId) }
+  # scope :with_image_docs_for_user, -> (userId) { joins(:docs).where("docs.documentable_id = images.id AND docs.documentable_type = 'Image' AND docs.user_id = ?", userId) }
+  scope :with_image_docs_for_user, -> (user) { includes(:docs).merge(Doc.for_user(user)).where("docs.documentable_type = 'Image'") }
   scope :menu_images, -> { where(image_type: "Menu") }
   scope :non_menu_images, -> { where(image_type: nil) }
   scope :public_img, -> { where(private: [false, nil]).or(Image.where(user_id: nil)) }
@@ -83,7 +84,7 @@ class Image < ApplicationRecord
     if user.admin?
       docs
     else
-      docs.where(user_id: [user.id, nil])
+      docs.fo
     end
   end
 
