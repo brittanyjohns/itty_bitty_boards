@@ -82,6 +82,7 @@ class User < ApplicationRecord
   end
 
   def display_doc_for_image(image)
+    puts "display_doc_for_image: #{image.inspect}"
     favorite_docs.where(id: image.docs.pluck(:id)).first
   end
 

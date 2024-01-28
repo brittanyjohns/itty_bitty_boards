@@ -67,7 +67,7 @@ class Image < ApplicationRecord
       if img
         img
       else
-        nil
+        docs.current.first&.image
       end
     elsif docs.current.any? && docs.current.first.image&.attached?
       docs.current.first.image
