@@ -45,6 +45,7 @@ Rails.application.routes.draw do
   get 'main/demo', as: :demo
   get 'main/about', as: :about
   get 'main/contact', as: :contact
+  get 'main/welcome', as: :welcome
   get 'main/faq', as: :faq
   get "boards", to: "boards#index", as: :user_root
 
