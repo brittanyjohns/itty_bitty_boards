@@ -63,13 +63,11 @@ class User < ApplicationRecord
     return false unless model
     return false if model.respond_to?(:predefined) && model.predefined
     return true if admin?
-    puts "model.user_id: #{model.user_id}- not admin"
-    return true if !model.user_id
-    return true if model.user_id == DEFAULT_ADMIN_ID
     model&.user_id && model&.user_id == id
   end
 
   def can_favorite?(model)
+    return false unless model
     return true if admin? || !model.user_id
     return true if model.user_id == DEFAULT_ADMIN_ID
     model&.user_id && model&.user_id == id

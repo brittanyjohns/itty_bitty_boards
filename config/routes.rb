@@ -42,7 +42,7 @@ Rails.application.routes.draw do
   get 'main/about', as: :about
   get 'main/contact', as: :contact
   get 'main/faq', as: :faq
-  get 'main/welcome', as: :user_root
+  get "boards", to: "boards#index", as: :user_root
 
   get "charges/new"
   get "checkouts/payment", as: :payment

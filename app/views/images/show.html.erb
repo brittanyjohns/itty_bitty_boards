@@ -2,7 +2,7 @@
   <h1 class="text-2xl md:text-3xl font-bold text-blue-600 m-1 text-center">
     <%= @image.label&.titleize %>
   </h1>
-  <%= print_image_info(@image) %>
+  <%= print_image_info(@image) if current_user.admin? %>
   <div class="text-center my-2 py-3">
     <% @user_image_boards.each do |board| %>
       <%= link_to "Back to #{board.name&.upcase} Board", board_path(board), class: "text-xl font-bold text-blue-600 hover:underline block m-3" %>
@@ -13,7 +13,7 @@
     <% if current_user.boards.any? %>
     <%= form_with url: add_to_board_image_path(@image), method: :post, class: "inline-block" do |f| %>
       <%= f.hidden_field :image_id, value: @image.id %>
-      <%= f.collection_select :board_id, current_user.boards, :id, :name, {prompt: "Select a board"}, class: "inline-block" %>
+      <%= f.collection_select :board_id, current_user.boards, :id, :name, {prompt: "Select a board"}, class: "inline-block w-5/6 m-1" %>
       <%= f.submit "Add to board", class: "inline-block text-white bg-blue-500 hover:bg-blue-700 font-bold py-2 px-4 rounded" %>
     <% end %>
     <% else %>
@@ -73,8 +73,6 @@
 </div>
 
   <div class="mt-6 flex justify-center space-x-4">
-        <%= @image.status%>
-
     <%= button_to "Edit this image", edit_image_path(@image), method: :get, class: "text-blue-500 hover:text-blue-700 font-medium py-2 px-4 rounded-md" if current_user.can_edit?(@image) %>
     <%= button_to "Back to images", images_path, method: :get, class: "text-blue-500 hover:text-blue-700 font-medium py-2 px-4 rounded-md" %>
     <%= button_to "Destroy this image", @image, method: :delete, class: "text-red-500 hover:text-red-700 font-medium py-2 px-4 rounded-md", data: { turbo_method: :delete, turbo_confirm: "Are you sure?"} if current_user.can_edit?(@image) %>
