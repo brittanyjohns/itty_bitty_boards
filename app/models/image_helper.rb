@@ -12,12 +12,9 @@ module ImageHelper
                                   "From" => "foo@bar.invalid",
                                   "Referer" => "http://www.ruby-lang.org/")
       user_id ||= self.user_id
-      puts "SETTING user_id: #{user_id}"
       doc = self.docs.create!(raw_text: name_to_send, user_id: user_id, processed_text: revised_prompt)
-      puts ">>>>doc: #{doc.inspect}"
       doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.png")
       self.update(status: "finished")
-      puts "updated status to finished"
     rescue => e
       puts "ImageHelper ERROR: #{e.inspect}"
       raise e
@@ -41,9 +38,7 @@ module ImageHelper
   def clarify_image_description(raw_text)
     response = OpenAiClient.new(open_ai_opts).clarify_image_description(raw_text)
     if response
-      puts "response: #{response}"
       response_text = response[:content]
-      puts "response_text: #{response_text}"
     else
       Rails.logger.error "*** ERROR - clarify_image_description *** \nDid not receive valid response. Response: #{response}\n"
     end

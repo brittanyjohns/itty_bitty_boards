@@ -25,17 +25,7 @@ class CheckoutsController < ApplicationController
     # amount = params["amount"] # In production you should not take amounts directly from clients
     nonce = params["payment_method_nonce"]
 
-      quantity = @amount.to_i
-      puts "quantity: #{quantity}"
-
-      # Stripe.api_key = ENV['STRIPE_PRIVATE_KEY']
-      # puts "Stripe.api_key: #{Stripe.api_key}"
-      
-    # Make sure the user's payment processor is Stripe
-    # current_user.set_payment_processor :stripe
-    # current_user.payment_processor.payment_method_token = params[:payment_method_token]
-    # # One-time payments (https://stripe.com/docs/payments/accept-a-payment)
-    # @checkout_session = current_user.payment_processor.charge(amount: @amount, currency: "usd", description: "One-time payment for #{current_user.email}")
+    quantity = @amount.to_i
     session = Stripe::Checkout::Session.create({
       line_items: [{
         # Provide the exact Price ID (e.g. pr_1234) of the product you want to sell
@@ -46,7 +36,6 @@ class CheckoutsController < ApplicationController
       success_url: YOUR_DOMAIN + '/success',
       cancel_url: YOUR_DOMAIN + '/cancel',
     })
-    puts "session: #{session.inspect}"
     result = session
     if result
       @current_order.placed!

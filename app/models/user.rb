@@ -59,7 +59,6 @@ class User < ApplicationRecord
   end
 
   def can_edit?(model)
-    puts "can_edit? #{model.inspect}"
     return false unless model
     return false if model.respond_to?(:predefined) && model.predefined
     return true if admin?
@@ -82,7 +81,6 @@ class User < ApplicationRecord
   end
 
   def display_doc_for_image(image)
-    puts "display_doc_for_image: #{image.inspect}"
     favorite_docs.where(id: image.docs.pluck(:id)).first
   end
 

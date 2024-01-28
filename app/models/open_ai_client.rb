@@ -51,7 +51,6 @@ class OpenAiClient
     Respond as json. 
     Here is an EXAMPLE RESPONSE: #{expected_json_schema}\n
     This is the text to parse: #{strip_image_description(image_description)}\n\n" }] }]
-    puts "Sending to model: #{@model}\n"
     response = create_chat
     puts "*** ERROR *** Invaild Image Description Response: #{response}" unless response
     response
@@ -60,7 +59,6 @@ class OpenAiClient
   def strip_image_description(image_description)
     puts "Missing image description.\n" && return unless image_description
     stripped_description = image_description.gsub(/[^a-z ]/i, '')
-    puts "Stripped image description: #{stripped_description}\n"
     stripped_description
   end
 
@@ -106,7 +104,6 @@ class OpenAiClient
 
   def create_chat
     puts "**** ERROR **** \nNo messages provided.\n" unless @messages
-    puts "Messages: #{@messages}\n"
     opts = {
       model: TURBO_MODEL, # Required.
       messages: @messages, # Required.
@@ -119,7 +116,6 @@ class OpenAiClient
     rescue => e
       puts "**** ERROR **** \n#{e.message}\n"
     end
-    puts response.dig("choices", 0, "message", "content")
     if response
       @role = response.dig("choices", 0, "message", "role")
       @content = response.dig("choices", 0, "message", "content")

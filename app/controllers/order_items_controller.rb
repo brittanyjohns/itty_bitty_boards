@@ -3,8 +3,6 @@ class OrderItemsController < ApplicationController
     product_id = params[:order_item][:product_id]
     number_to_add = params[:order_item][:quantity].to_i
 
-    puts "***\nCREATE\n***\n#{product_id}\n#{number_to_add}\n***\n"
-
     if user_session['order_id']
       @order_item = OrderItem.where("product_id = ? AND order_id = ?", product_id, user_session['order_id']).first
     end
@@ -31,7 +29,6 @@ class OrderItemsController < ApplicationController
   end
 
   def update
-    puts "***\nUPDATE\n***"
     @order = current_order
     @order_item = @order.order_items.find(params[:id])
     @order_item.update(order_item_params)
@@ -40,7 +37,6 @@ class OrderItemsController < ApplicationController
   end
 
   def destroy
-    puts "***\nDESTORY\n***"
     @order = current_order
     @order_item = @order.order_items.find(params[:id])
     @order_item.destroy

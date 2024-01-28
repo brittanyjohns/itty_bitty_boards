@@ -51,7 +51,6 @@ class Menu < ApplicationRecord
   end
 
   def rerun_image_description_job
-    puts "**** rerun_image_description_job **** \n"
     @user = self.user
     board = self.boards.last
     tokens_used = 0
@@ -67,13 +66,11 @@ class Menu < ApplicationRecord
         total_cost += 1
       end
     end
-    puts "**** tokens_used: #{tokens_used}\ntotal_cost: #{total_cost}\n"
     @user.remove_tokens(tokens_used)
     board.add_to_cost(tokens_used) if board
   end
 
   def create_images_from_description(board)
-    puts "**** create_images_from_description **** \n"
     json_description = JSON.parse(description)
     images = []
     new_images = []
@@ -113,7 +110,6 @@ class Menu < ApplicationRecord
         total_cost += 1
       end
     end
-    puts "**** tokens_used: #{tokens_used}\n"
     self.user.remove_tokens(tokens_used)
     board.add_to_cost(tokens_used) if board
   end

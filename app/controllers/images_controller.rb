@@ -109,6 +109,7 @@ class ImagesController < ApplicationController
     if params[:image_prompt].present?
       @image.image_prompt = params[:image_prompt]
     end
+    @image.update(status: "generating")
     GenerateImageJob.perform_async(@image.id, current_user.id, params[:image_prompt])
     sleep 2
     current_user.remove_tokens(1)
@@ -151,6 +152,7 @@ class ImagesController < ApplicationController
 
   def run_generate
     return if current_user.tokens < 1
+    @image.update(status: "generating")
     GenerateImageJob.perform_async(@image.id, current_user.id)
     current_user.remove_tokens(1)
     @board.add_to_cost(1) if @board

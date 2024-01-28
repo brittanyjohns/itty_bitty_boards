@@ -89,7 +89,6 @@ class BoardsController < ApplicationController
   def add_multiple_images
     if params[:image_ids].present?
       @image_ids = params[:image_ids]
-      puts "\n\n****image_ids: #{@image_ids}\n\n"
       @image_ids.each do |image_id|
         @board.add_image(image_id)
       end
