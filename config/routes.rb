@@ -35,7 +35,11 @@ Rails.application.routes.draw do
   end
   # Order matters here.  users needs to be below the devise_for :users
   devise_for :users
-  resources :users
+  resources :users do
+    member do
+      delete "remove_user_doc"
+    end
+  end
 
   get 'main/index', as: :home
   get 'main/demo', as: :demo

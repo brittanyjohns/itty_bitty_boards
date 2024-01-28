@@ -10,4 +10,10 @@ class UsersController < ApplicationController
     # redirect_back_or_to root_url unless current_user.admin? || current_user.id == params[:id].to_i
     @user = User.find(params[:id])
   end
+
+  def remove_user_doc
+    @user_doc = UserDoc.find(params[:id])
+    @user_doc.destroy
+    redirect_back_or_to root_url
+  end
 end

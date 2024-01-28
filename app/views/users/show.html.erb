@@ -1,4 +1,4 @@
-<div class="container mx-auto p-3 bg-white rounded-lg shadow-xl mb-6">
+<div class="container mx-auto p-3 bg-white rounded-lg shadow-xl mb-6 pb-6">
   <div class="flex justify-between items-center border-b pb-4">
     <h1 class="text-2xl font-semibold text-gray-800">User Profile</h1>
     <%= link_to 'Edit Profile', edit_user_registration_path, class: "text-indigo-600 hover:text-indigo-900 font-semibold" %>
@@ -9,6 +9,26 @@
     <p class="text-gray-600 mt-2">Email: <%= @user.email %></p>
     <p class="text-gray-600">Token Balance: <%= @user.tokens %> Tokens</p>
     <%= link_to 'Purchase More Tokens', products_path, class: "mt-3 inline-block bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-700 transition duration-300" %>
+  </div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div class="my-6 max-h-screen overflow-scroll">
+    <h2 class="text-xl font-semibold text-gray-700">Your Images</h2>
+    <table class="table-auto w-full mt-2">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Document Name</th>
+          <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="text-gray-700">
+        <% @user.images.order(created_at: :desc).each do |image| %>
+          <tr class="border-b border-gray-200 hover:bg-gray-100">
+            <td class="text-left py-3 px-4"><%= doc.id %>: <%= link_to image.label, image, class: "text-indigo-600 hover:text-indigo-900" %></td>
+            <td class="text-right py-3 px-4"><%= link_to 'Delete', image_path(image), method: :delete, data: { confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
   </div>
 
   <div class="my-6 max-h-screen overflow-scroll">
@@ -21,15 +41,15 @@
         </tr>
       </thead>
       <tbody class="text-gray-700">
-        <% @user.docs.order(created_at: :desc).each do |doc| %>
+        <% @user.user_docs.order(created_at: :desc).each do |user_doc| %>
           <tr class="border-b border-gray-200 hover:bg-gray-100">
-            <td class="text-left py-3 px-4"><%= doc.id %>: <%= link_to doc.label, doc.documentable, class: "text-indigo-600 hover:text-indigo-900" %></td>
-            <td class="text-right py-3 px-4"><%= link_to 'Delete', doc_path(doc), method: :delete, data: { confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
+            <td class="text-left py-3 px-4"><%= user_doc.id %>: <%= link_to user_doc.doc.label, user_doc.doc.documentable, class: "text-indigo-600 hover:text-indigo-900" %></td>
+            <td class="text-right py-3 px-4"><%= link_to 'Delete', remove_user_doc_user_path(user_doc), method: :delete, data: { confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
           </tr>
         <% end %>
       </tbody>
     </table>
   </div>
-
+</div>
   <!-- Add additional profile elements as needed -->
 </div>
