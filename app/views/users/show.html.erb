@@ -23,7 +23,7 @@
       <tbody class="text-gray-700">
         <% @user.images.order(created_at: :desc).each do |image| %>
           <tr class="border-b border-gray-200 hover:bg-gray-100">
-            <td class="text-left py-3 px-4"><%= doc.id %>: <%= link_to image.label, image, class: "text-indigo-600 hover:text-indigo-900" %></td>
+            <td class="text-left py-3 px-4"><%= image.id %>: <%= link_to image.label, image, class: "text-indigo-600 hover:text-indigo-900" %></td>
             <td class="text-right py-3 px-4"><%= link_to 'Delete', image_path(image), method: :delete, data: { confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
           </tr>
         <% end %>
