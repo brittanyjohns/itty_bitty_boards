@@ -22,6 +22,12 @@ class Board < ApplicationRecord
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :predefined, -> { where(predefined: true) }
 
+  before_save :set_number_of_columns, unless: :number_of_columns?
+
+  def set_number_of_columns
+    self.number_of_columns = 4
+  end
+
   def remaining_images
     Image.searchable_images_for(self.user).excluding(images)
   end
