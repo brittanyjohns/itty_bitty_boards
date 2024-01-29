@@ -57,4 +57,8 @@ class Board < ApplicationRecord
     self.cost = self.cost.to_f + cost.to_f
     save
   end
+
+  def self.grid_sizes
+    ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+  end
 end

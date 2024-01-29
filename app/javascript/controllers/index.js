@@ -13,6 +13,9 @@ application.register("disable", DisableController)
 import GenerateImageController from "./generate_image_controller"
 application.register("generate-image", GenerateImageController)
 
+import GridController from "./grid_controller"
+application.register("grid", GridController)
+
 import HelloController from "./hello_controller"
 application.register("hello", HelloController)
 

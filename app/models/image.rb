@@ -61,6 +61,10 @@ class Image < ApplicationRecord
     docs.where(user_id: user.id).any?
   end
 
+  def label_param
+    label&.gsub(" ", "+")
+  end
+
   def display_image(viewing_user = nil)
     if viewing_user
       img = viewing_user.display_doc_for_image(self)&.image

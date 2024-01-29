@@ -31,6 +31,7 @@ Rails.application.routes.draw do
       post "add_multiple_images"
       post "associate_image"
       post "remove_image"
+      post "update_grid"
     end
   end
   # Order matters here.  users needs to be below the devise_for :users

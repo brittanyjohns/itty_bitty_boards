@@ -1,16 +1,19 @@
-<%= link_to "Back", board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" %>
-<%= button_tag "<i class='fas fa-expand'></i>".html_safe, class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm", data: {action: "click->pwa#fullscreen", pwa_target: "button"} %>
-<div data-controller="speak pwa" class="mx-auto w-full mt-4 pb-3">
+<div data-controller="speak grid" class="mx-auto w-full mt-4 pb-3">
+    <%= link_to "Back", board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-2 m-1 mt-2 rounded-full text-sm" %>
+    <div class="flex justify-end mr-2">
+    <%= select_tag "credit_card", options_for_select(Board.grid_sizes, @board.number_of_columns.to_s), class: "bg-white border border-gray-300 rounded-md shadow-sm py-1 px-1 inline-block w-100 sm:text-sm sm:leading-5 flex justify-center", data: { grid_target: "number_of_columns", action: "change->grid#changeGrid" } %>
+    </div>
+    <h1 class="text-2xl font-bold text-center text-gray-900 dark:text-white"><%= @board.name %> <%= @board.number_of_columns %></h1>
     <div class="flex flex-col justify-end mb-3">
-        <div class="grid grid-cols-6 gap-1 p-2 mx-auto" id="word-list">
+        <div class="grid grid-cols-4 gap-1 p-2 mx-auto" id="word-list">
         <% @board.words.each do |word| %>
-            <button class="bg-teal-300 text-sm font-medium flex justify-center items-center cursor-pointer p-1 border border-gray-300 rounded-md hover:bg-gray-100"  data-controller='speak' data-speak-label="<%= word.downcase %>" data-action="click->speak#speak">
+            <button class="bg-teal-300 text-sm font-medium flex justify-center items-center cursor-pointer p-2 border border-gray-300 rounded-md hover:bg-gray-100"  data-controller='speak' data-speak-label="<%= word.downcase %>" data-action="click->speak#speak">
                 <%= word&.upcase %>
             </button>
         <% end %>
         </div>
     </div>
-
+ 
     <% if @board.parent_type == "Menu" %>
         <%= render "boards/menu", board: @board %>
     <% else %>
@@ -21,10 +24,19 @@
             <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#speakList">Speak</button>
         </div>
     </div>
-    <div id="<%= dom_id @board %>_images" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-2 p-2">
+    <div id="<%= dom_id @board %>_images" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-1 p-2" data-grid-target="grid">
         <% @board.images.each do |image| %>
-            <div class="text-center bg-white rounded-lg shadow-md overflow-hidden">
-                <%= render image %>
+            <div class="text-center bg-white rounded-md shadow-md overflow-hidden h-50">
+                <div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
+                    <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>" data-action="click->speak#speak">
+                        <div class="relative items-center text-center" id="<%= image.label %>">
+                        <p class="absolute bottom-0 left-0 m-1 text-white font-light p-1 text-xs rounded bg-black bg-opacity-70">
+                            <%= image.label %>
+                        </p>
+                        <%= display_image_for(image, current_user) %>
+                        </div>
+                    </div>
+                </div>
             </div>
         <% end %>
     </div>
