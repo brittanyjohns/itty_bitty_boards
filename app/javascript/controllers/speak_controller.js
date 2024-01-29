@@ -5,7 +5,9 @@ export default class extends Controller {
   connect() {
     this.label = this.data.get("label");
     this.thelistOutlet = document.querySelector("#the-list");
+    this.isAMenu = document.querySelector("#menu-info");
   }
+
   speak(event) {
     event.preventDefault();
     const utterance = new SpeechSynthesisUtterance(this.label);
@@ -38,7 +40,10 @@ export default class extends Controller {
     console.log("SPEAKING LIST");
     const listItems = this.thelistOutlet.querySelectorAll("li");
     console.log(listItems);
-    const items = [];
+    let items = [];
+    if (this.isAMenu) {
+      items.push("I would like to order:");
+    }
     listItems.forEach((item) => {
       items.push(item.innerText);
     });
