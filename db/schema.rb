@@ -63,7 +63,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_01_29_194632) do
     t.integer "cost", default: 0
     t.boolean "predefined", default: false
     t.integer "token_limit", default: 0
-    t.integer "number_of_columns"
+    t.integer "number_of_columns", default: 4
     t.index ["parent_type", "parent_id"], name: "index_boards_on_parent"
     t.index ["user_id"], name: "index_boards_on_user_id"
   end
