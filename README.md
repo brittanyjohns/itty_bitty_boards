@@ -1,24 +1,38 @@
-# README
+# Itty Bitty Boards
+## Empowering communication through the power of AI
 
-This README would normally document whatever steps are necessary to get the
-application up and running.
+* Ruby version: 2.6.3
 
-Things you may want to cover:
+* System dependencies: 
+  - postgresql
+  - redis
+  - imagemagick
+  - ffmpeg
 
-* Ruby version
+* Environment Variables:
+    - `AWS_ACCESS_KEY_ID` - AWS Access Key ID
+    - `AWS_SECRET_ACCESS_KEY` - AWS Secret Access Key
+    - `AWS_REGION` - AWS Region
+    - `OPENAI_ACCESS_TOKEN` - OpenAI Access Token
+    - `OPENAI_ORGANIZATION` - OpenAI Organization (optional)
+    - `STRIPE_PUBLIC_KEY` - Stripe Public Key
+    - `STRIPE_PRIVATE_KEY` - Stripe Private Key
+    - `STRIPE_SIGNING_SECRET` - Stripe Signing Secret
 
-* System dependencies
+* Database creation:
+    - `rails db:create`
+    - `rails db:migrate`
 
-* Configuration
+* Database initialization:
+    - `rails db:seed`
 
-* Database creation
+* How to run the test suite:
+    - WIP
 
-* Database initialization
+* Services (job queues, cache servers, search engines, etc.):
+    - `redis-server`
+    - `bundle exec sidekiq`
 
-* How to run the test suite
+* Deployment instructions:
+    Deployed to Hatchbox.io
 
-* Services (job queues, cache servers, search engines, etc.)
-
-* Deployment instructions
-
-* ...

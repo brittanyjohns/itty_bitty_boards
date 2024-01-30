@@ -14,4 +14,8 @@ module ProductsHelper
   def copy_nav
     "<i class='fa-solid fa-copy fa-lg'></i>".html_safe
   end
+
+  def home_nav
+    "<i class='fa-solid fa-home fa-lg'></i>".html_safe
+  end
 end

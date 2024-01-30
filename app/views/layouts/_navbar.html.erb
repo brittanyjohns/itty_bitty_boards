@@ -1,7 +1,9 @@
 <nav class="bg-stone-800 shadow-lg w-full" data-controller="navbar">
    <div class="flex items-center justify-between px-4 py-1 md:py-2 md:px-6">
     <div>
-          <%= image_tag "round_itty_bitty_logo_2.png", class: "h-20 w-20 inline" %>
+      <%= link_to root_path do %>
+          <%= image_tag "round_itty_bitty_logo_2.png", class: "h-20 w-20 inline my-1 mr-1" %>
+      <% end %>
 
       <% if user_signed_in? %>
       <%= link_to boards_path, class: "text-white font-bold text-2xl" do %>
@@ -14,7 +16,13 @@
       <% end %>
     </div>
     <div class="hidden md:flex items-center space-x-4 ml-4 md:ml-10">
-      <% if user_signed_in? %> 
+      <% if user_signed_in? %>
+      <%= link_to "Menus", menus_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
+        <%= link_to "Boards", boards_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
+        <%= link_to "Users", users_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" if current_user.admin? %>
+        <%= link_to "New Image", new_image_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
+        <%= link_to "Image Library", images_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
+      <%= link_to home_nav, root_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
       <%= link_to shopping_cart_nav, carts_show_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
       <%= link_to coins_nav, products_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
       <%= link_to user_nav, current_user, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs" %>
@@ -27,12 +35,6 @@
             You have <%= current_user.tokens %> tokens
         </div>
       </div>
-      
-        <%= link_to "Menus", menus_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
-        <%= link_to "Boards", boards_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
-        <%= link_to "Users", users_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" if current_user.admin? %>
-        <%= link_to "New Image", new_image_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
-        <%= link_to "Image Library", images_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
         <%= button_to "Logout", destroy_user_session_path, method: :delete, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium", form_class: "inline-block" %>
       <% else %>
         <%= link_to "Sign up", new_user_registration_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium" %>
