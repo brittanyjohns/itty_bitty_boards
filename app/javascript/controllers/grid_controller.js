@@ -10,7 +10,7 @@ export default class extends Controller {
 
   changeGrid() {
     this.gridTarget.style.gridTemplateColumns = `repeat(${this.number_of_columnsTarget.value}, 1fr)`
-    if (!this.isPredifined) {
+    if (this.isPredifined == "false") {
       this.updateBoard()
     }
   }
