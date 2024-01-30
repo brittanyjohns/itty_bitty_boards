@@ -57,6 +57,20 @@ class DocsController < ApplicationController
     end
   end
 
+  def move
+    @doc = Doc.find(params[:id])
+    unless current_user&.can_edit?(@doc)
+      redirect_back_or_to root_url, notice: "You do not have permission to edit this doc."
+    end
+    if params[:documentable_type] == "Image"
+      @image = Image.find(params[:documentable_id])
+      @doc.update(documentable_id: @image.id, documentable_type: "Image")
+      redirect_to @image
+    else
+      puts "**** ERROR ****"
+    end
+  end
+
   def mark_as_current
     @doc = Doc.find(params[:id])
     doc_id = @doc.id

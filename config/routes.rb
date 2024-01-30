@@ -11,6 +11,7 @@ Rails.application.routes.draw do
   resources :docs do
     member do
       patch "mark_as_current"
+      post "move"
     end
   end
   # resources :board_images

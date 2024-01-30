@@ -10,6 +10,8 @@ rr    <p class="text-sm mb-3">Documentable Title: <%= @doc.label %></p>
     <p class="text-sm mb-3">Created at: <%= time_ago_in_words(@doc.created_at) %> ago</p>
     <p class="text-sm mb-3">Updated at: <%= time_ago_in_words(@doc.updated_at) %> ago</p>
     <hr>
+    <%= render "move", doc: @doc if current_user.can_edit?(@doc) %>
+
   </div>
 
   <div class="bg-white p-4 rounded-lg shadow-md m-8">
