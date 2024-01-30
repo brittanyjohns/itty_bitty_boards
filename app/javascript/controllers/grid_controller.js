@@ -4,21 +4,20 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static targets = [ "number_of_columns", "grid" ]
   connect() {
-    console.log("Grid controller connected", this.number_of_columnsTarget.value)
+    this.isPredifined = this.element.dataset.predefined
     this.gridTarget.style.gridTemplateColumns = `repeat(${this.number_of_columnsTarget.value}, 1fr)`
   }
 
   changeGrid() {
-    console.log("Grid controller connected", this.number_of_columnsTarget.value)
     this.gridTarget.style.gridTemplateColumns = `repeat(${this.number_of_columnsTarget.value}, 1fr)`
-    // this.gridTarget.style.gridTemplateRows = `repeat(${this.number_of_columnsTarget.value}, 1fr)`
-    this.updateBoard()
+    if (!this.isPredifined) {
+      this.updateBoard()
+    }
   }
 
   updateBoard() {
     const currentUrl = window.location.href;
     const boardId = currentUrl.split("/")[4];
-    console.log("boardId", boardId)
     fetch(`/boards/${boardId}/update_grid`, {
       method: 'POST',
       headers: {
