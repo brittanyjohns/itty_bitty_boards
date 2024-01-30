@@ -13,7 +13,6 @@ class GenerateImageJob
     begin
       image.create_image_doc(user_id)
       if image.menu? && image.image_prompt.include?(Menu::PROMPT_ADDITION)
-        image.display_description = image.image_prompt
         image.image_prompt = image.image_prompt.gsub(Menu::PROMPT_ADDITION, "")
         image.save!
       end

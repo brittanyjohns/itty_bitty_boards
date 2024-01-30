@@ -106,9 +106,6 @@ class ImagesController < ApplicationController
 
   def generate
     @image = Image.find(params[:id])
-    if params[:image_prompt].present?
-      @image.image_prompt = params[:image_prompt]
-    end
     @image.update(status: "generating")
     GenerateImageJob.perform_async(@image.id, current_user.id, params[:image_prompt])
     sleep 2
