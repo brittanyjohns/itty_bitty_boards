@@ -152,6 +152,7 @@ class ImagesController < ApplicationController
     limit = current_user.admin? ? 10 : 1
     # @image.generate_matching_symbol(limit)
     GetSymbolsJob.perform_async([@image.id], limit)
+    sleep 1
     redirect_back_or_to image_url(@image), notice: "Creating #{limit} #{'symbol'.pluralize(limit)} for image '#{@image.label}'."
   end
 

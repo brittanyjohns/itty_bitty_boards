@@ -25,7 +25,7 @@ module ImagesHelper
       end
 
       def loading_spinner
-        "<div class='flex justify-center mb-5 p-6 rounded-full text-green-600 p-2'><span class='animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-600'></span> <span class='ml-2 my-auto'>Generating image...</span></div>".html_safe
+        "<div class='flex justify-center mb-5 p-6 rounded-full text-green-600 p-2 loading_spinner'><span class='animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-600'></span> <span class='ml-2 my-auto'>Generating image...</span></div>".html_safe
       end
 
       def print_image_info(image)

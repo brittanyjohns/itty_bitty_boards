@@ -3,8 +3,13 @@ import { Controller } from "@hotwired/stimulus"
 // Connects to data-controller="opensymbols"
 export default class extends Controller {
   connect() {
-    console.log("Hello, opensymbols!", this.element)
     this.getAccessSecret()
+    this.isLoading = document.querySelector(".loading_spinner")
+    this.waitNotice = document.querySelector("#pleaseWait");
+    if (this.isLoading != null) {
+      this.notifyAndReload
+    }
+
   }
 
   getAccessSecret() {
@@ -17,9 +22,13 @@ export default class extends Controller {
     })
     .then(response => response.json())
     .then(data => {
-      console.log("access secret set")
-
-      console.log(data)
+      console.log("Done.")
     })
+  }
+
+  notifyAndReload() {
+    this.waitNotice.classList.remove("hidden");
+    setTimeout(() => window.location.reload(), 4000)
+    
   }
 }

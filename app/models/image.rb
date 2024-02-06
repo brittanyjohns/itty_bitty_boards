@@ -63,7 +63,9 @@ class Image < ApplicationRecord
           puts "Symbol already exists: #{existing_symbol&.id} Or not an image: #{symbol["extension"]}"
           next
         end
+        puts "after existing_symbol check===>: #{symbol}"
         break if count >= limit
+        puts "Creating new symbol - COUNT: #{count}"
         new_symbol =
         OpenSymbol.create!(
           name: symbol["name"],
@@ -83,12 +85,16 @@ class Image < ApplicationRecord
           extension: symbol["extension"],
           enabled: symbol["enabled"]
         )
-        downloaded_image = new_symbol.get_downloaded_image        
+        puts "Created new symbol: #{new_symbol.id}"
+        downloaded_image = new_symbol.get_downloaded_image
+        puts "Downloaded Image: #{downloaded_image.inspect}"
         new_image_doc = self.docs.create!(raw_text: new_symbol.name.parameterize, processed_text: new_symbol.search_string, source_type: "OpenSymbol")
         new_image_doc.image.attach(io: downloaded_image, filename: "#{new_symbol.name.parameterize}-symbol-#{new_symbol.id}.#{new_symbol.extension}")
 
         count += 1
       end
+      puts "Created #{count} symbols"
+      symbols
     end
   end
 
