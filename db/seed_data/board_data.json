@@ -1,0 +1,79 @@
+{
+    "Basic Needs": [
+        "Yes",
+        "No",
+        "More",
+        "Stop",
+        "Help",
+        "Eat",
+        "Drink",
+        "Bathroom"
+    ],
+    "Social Interaction": [
+        "Hello/Hi",
+        "Goodbye",
+        "Please",
+        "Thank you",
+        "Sorry",
+        "I love you",
+        "My name is",
+        "How are you?"
+    ],
+    "Feelings/Emotions": [
+        "Happy",
+        "Sad",
+        "Angry",
+        "Tired",
+        "Sick",
+        "Scared",
+        "Excited",
+        "Surprised"
+    ],
+    "Questions": [
+        "Who?",
+        "What?",
+        "Where?",
+        "When?",
+        "Why?",
+        "How?"
+    ],
+    "Common Verbs": [
+        "Go",
+        "Come",
+        "Sit",
+        "Stand",
+        "Play",
+        "Sleep",
+        "Look",
+        "Want"
+    ],
+    "Descriptive Words/Adjectives": [
+        "Big",
+        "Small",
+        "Hot",
+        "Cold",
+        "Good",
+        "Bad",
+        "Pretty",
+        "Ugly"
+    ],
+    "Objects and Everyday Items": [
+        "Food",
+        "Water",
+        "Clothes",
+        "Shoes",
+        "Phone",
+        "Home",
+        "School",
+        "Toy"
+    ],
+    "Time Concepts": [
+        "Now",
+        "Later",
+        "Morning",
+        "Night",
+        "Today",
+        "Tomorrow",
+        "Yesterday"
+    ]
+}

@@ -49,6 +49,7 @@ class Board < ApplicationRecord
   end
 
   def add_image(image_id)
+    puts "adding image #{image_id} to board #{id}"
     if image_ids.include?(image_id.to_i)
       puts "image already added"
     else

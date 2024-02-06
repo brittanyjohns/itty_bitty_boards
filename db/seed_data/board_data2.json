@@ -1,0 +1,114 @@
+{
+  "Colors": [
+    "Red",
+    "Blue",
+    "Green",
+    "Yellow",
+    "Orange",
+    "Purple",
+    "Black",
+    "White"
+  ],
+  "Numbers": [
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+    "Ten"
+  ],
+  "Directions/Positions": [
+    "Up",
+    "Down",
+    "Left",
+    "Right",
+    "In",
+    "Out",
+    "On",
+    "Off"
+  ],
+  "Family and People": [
+    "Mom",
+    "Dad",
+    "Brother",
+    "Sister",
+    "Friend",
+    "Teacher",
+    "Student",
+    "Baby"
+  ],
+  "Animals": [
+    "Dog",
+    "Cat",
+    "Bird",
+    "Fish",
+    "Horse",
+    "Cow",
+    "Sheep",
+    "Chicken"
+  ],
+  "Food and Drink": [
+    "Apple",
+    "Banana",
+    "Cookie",
+    "Juice",
+    "Milk",
+    "Water",
+    "Bread",
+    "Cheese"
+  ],
+  "School and Activities": [
+    "Read",
+    "Write",
+    "Draw",
+    "Paint",
+    "Sing",
+    "Dance",
+    "Play",
+    "Learn"
+  ],
+  "Body Parts": [
+    "Head",
+    "Eyes",
+    "Ears",
+    "Mouth",
+    "Nose",
+    "Hand",
+    "Feet",
+    "Stomach"
+  ],
+  "Clothing": [
+    "Shirt",
+    "Pants",
+    "Dress",
+    "Shoes",
+    "Hat",
+    "Coat",
+    "Socks",
+    "Gloves"
+  ],
+  "Outdoor and Nature": [
+    "Sun",
+    "Moon",
+    "Star",
+    "Tree",
+    "Flower",
+    "Grass",
+    "Rock",
+    "Water"
+  ],
+  "Transportation": [
+    "Car",
+    "Bus",
+    "Bike",
+    "Plane",
+    "Train",
+    "Boat",
+    "Truck",
+    "Walk"
+  ]
+}
