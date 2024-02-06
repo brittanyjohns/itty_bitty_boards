@@ -1,7 +1,7 @@
 module SeedHelper
 
     def parent_resource
-        PredefinedResource.first
+        @parent_resource ||= ParentResource.first
     end
 
     def admin_user

@@ -57,6 +57,7 @@ class Image < ApplicationRecord
       puts "Found symbols...#{symbols.count}"
       puts "Limiting to #{limit} symbols"
       count = 0
+      begin
       symbols.each do |symbol|
         existing_symbol = OpenSymbol.find_by(original_os_id: symbol["id"], name: symbol["name"]&.downcase)
         if existing_symbol || OpenSymbol::IMAGE_EXTENSIONS.exclude?(symbol["extension"])
@@ -95,6 +96,9 @@ class Image < ApplicationRecord
       end
       puts "Created #{count} symbols"
       symbols
+      rescue => e
+        puts "Error creating symbols: #{e.message}\n\n#{e.backtrace.join("\n")}"
+      end
     end
   end
 
