@@ -1,7 +1,7 @@
 class OpenSymbol < ApplicationRecord
     has_many :docs, as: :documentable, dependent: :destroy
 
-    after_save :set_image, unless: :has_matching_image?
+    # after_save :set_image, unless: :has_matching_image?
 
     def set_image
         if !self.image_url.blank?
