@@ -6,6 +6,8 @@
   <div class="bg-white p-4 rounded-lg shadow-md m-8">
     <h3 class="text-lg font-semibold">Doc Info:</h3>
 rr    <p class="text-sm mb-3">Documentable Title: <%= @doc.label %></p>
+rr    <p class="text-sm mb-3">Current? <%= @doc.current? %></p>
+
     <p class="text-sm mb-3"> User: <%= @doc.user&.email || "NONE" %></p>
     <p class="text-sm mb-3">Created at: <%= time_ago_in_words(@doc.created_at) %> ago</p>
     <p class="text-sm mb-3">Updated at: <%= time_ago_in_words(@doc.updated_at) %> ago</p>

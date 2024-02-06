@@ -77,6 +77,7 @@ class DocsController < ApplicationController
     if current_user.user_docs.where(image_id: @doc.documentable_id).exists?
       current_user.user_docs.where(image_id: @doc.documentable_id).destroy_all
     end
+    @doc.update(current: true) unless @doc.current
     UserDoc.find_or_create_by(user_id: current_user.id, doc_id: doc_id, image_id: @doc.documentable_id)
     redirect_back_or_to @doc.documentable
   end
