@@ -17,7 +17,7 @@ class Image < ApplicationRecord
   attr_accessor :temp_prompt
   default_scope { includes(:docs) }
   belongs_to :user, optional: true
-  has_many :docs, as: :documentable
+  has_many :docs, as: :documentable, dependent: :destroy
   has_many :board_images, dependent: :destroy
   has_many :boards, through: :board_images
 

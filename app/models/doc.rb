@@ -28,6 +28,7 @@ class Doc < ApplicationRecord
   scope :menu_docs, -> { where(documentable_type: "Menu") }
   scope :created_yesterday, -> { where("created_at > ?", 1.day.ago) }
 
+
   # def self.with_no_user_docs_for(user_id)
   #   includes(:user_docs).
   #     references(:user_docs).
@@ -35,12 +36,20 @@ class Doc < ApplicationRecord
   # end
 
   def self.update_source_types
+    missing_documentable = []
     self.all.each do |doc|
+      if doc.documentable.nil?
+        missing_documentable << doc
+        puts "Doc #{doc.id} has no documentable"
+        doc.destroy
+        next
+      end
       doc.update(source_type: "OpenAI")
     end
     self.created_yesterday.each do |doc|
       doc.update(source_type: "OpenSymbol")
     end
+    puts "Missing documentable: #{missing_documentable.count}\n#{missing_documentable.inspect}"
   end
 
   def menu?
