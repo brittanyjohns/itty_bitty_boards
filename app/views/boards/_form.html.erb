@@ -19,6 +19,12 @@
     <%= form.label :description, class: "block text-gray-700 font-bold mb-2" %>
     <%= form.text_area :description, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full" %>
   </div>
+  <% if current_user.admin? %>
+    <div class="mb-4">
+      <%= form.check_box :predefined, class: "form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500" %>
+      <%= form.label :predefined, "Predefined", class: "text-sm font-medium text-gray-700" %>
+    </div>
+  <% end %>
 
   <div class="mb-4 flex justify-end">
     <%= form.submit "Save", class: "text-white bg-green-500 hover:bg-green-700 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" %> 
