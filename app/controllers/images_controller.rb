@@ -149,7 +149,8 @@ class ImagesController < ApplicationController
 
   def create_symbol
     @image = Image.find(params[:id])
-    @image.generate_matching_symbol
+    limit = current_user.admin? ? 10 : 1
+    @image.generate_matching_symbol(limit)
     redirect_back_or_to image_url(@image), notice: "Symbol created."
   end
 

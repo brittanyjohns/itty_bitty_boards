@@ -34,8 +34,8 @@
     <div class="w-full md:w-1/4 p-4 text-center">
       <h2 class="text-xl font-semibold my-6">OR</h2>
       <div class="">
-        <%= button_to "Create Symbols", create_symbol_image_path(@image), class: "text-white bg-blue-500 hover:bg-blue-700 font-bold py-2 px-4 rounded" %>
-        <%= @image.generating? ? loading_spinner : ""%>
+        <%= button_to "Create Symbol", create_symbol_image_path(@image), class: "text-white bg-blue-500 hover:bg-blue-700 font-bold py-2 px-4 rounded" %>
+        <%= @image.generating? ? loading_spinner : "" %>
       </div>
       <%= link_to image_path(@image), class: "text-center text-xs mt-2 hidden", id: "pleaseWait" do %>
       <div class="bg-green-500 p-6 rounded-lg text-white mb-3">

@@ -48,14 +48,13 @@ class Image < ApplicationRecord
     status == "generating"
   end
 
-  def generate_matching_symbol
+  def generate_matching_symbol(limit = 1)
     query = label&.downcase
     response = OpenSymbol.generate_symbol(query)
 
     if response
       symbols = JSON.parse(response)
       puts "Found symbols...#{symbols.count}"
-      limit = 3
       puts "Limiting to #{limit} symbols"
       count = 0
       symbols.each do |symbol|
