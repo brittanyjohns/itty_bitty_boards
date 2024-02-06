@@ -2,7 +2,13 @@
   <h1 class="text-2xl md:text-3xl font-bold text-blue-600 m-1 text-center">
     <%= @image.label&.titleize %>
   </h1>
-  <%= print_image_info(@image) if current_user.admin? %>
+  <% if current_user.admin? %>
+  <div class="flex justify-between">
+      <%= link_to "Previous Image", image_path(@image.id - 1), class: "text-blue-500 hover:text-blue-700 font-medium py-2 px-4 rounded-md" %>
+      <%= print_image_info(@image)  %>
+      <%= link_to "Next Image", image_path(@image.id + 1), class: "text-blue-500 hover:text-blue-700 font-medium py-2 px-4 rounded-md" %>
+  </div>
+  <% end %>
   <div class="text-center my-2 py-3">
     <% @user_image_boards.each do |board| %>
       <%= link_to "Back to #{board.name&.upcase} Board", board_path(board), class: "text-xl font-bold text-blue-600 hover:underline block m-3" %>
