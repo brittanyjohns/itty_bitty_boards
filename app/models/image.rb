@@ -84,7 +84,7 @@ class Image < ApplicationRecord
           enabled: symbol["enabled"]
         )
         downloaded_image = new_symbol.get_downloaded_image        
-        new_image_doc = self.docs.create!(raw_text: new_symbol.name.parameterize, processed_text: new_symbol.search_string)
+        new_image_doc = self.docs.create!(raw_text: new_symbol.name.parameterize, processed_text: new_symbol.search_string, source_type: "OpenSymbol")
         new_image_doc.image.attach(io: downloaded_image, filename: "#{new_symbol.name.parameterize}-symbol-#{new_symbol.id}.#{new_symbol.extension}")
 
         count += 1
@@ -127,14 +127,6 @@ class Image < ApplicationRecord
 
   def display_label
     label&.upcase&.truncate(27, separator: ' ')
-  end
-
-  def docs_for_user(user)
-    if user.admin?
-      docs
-    else
-      docs.fo
-    end
   end
 
   def current_doc_for_user(user)

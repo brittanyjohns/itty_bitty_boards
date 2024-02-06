@@ -81,10 +81,10 @@ class OpenSymbol < ApplicationRecord
         downloaded_image = get_downloaded_image
         puts "Downloaded Image: #{downloaded_image.inspect}"
         if matching_image
-            new_image_doc = matching_image.docs.create!(raw_text: self.name.parameterize, processed_text: self.search_string)
+            new_image_doc = matching_image.docs.create!(raw_text: self.name.parameterize, processed_text: self.search_string, source_type: "OpenSymbol")
         else
             new_image = Image.create!(label: self.label, private: false)
-            new_image_doc = new_image.docs.create!(raw_text: self.name.parameterize, processed_text: self.search_string)
+            new_image_doc = new_image.docs.create!(raw_text: self.name.parameterize, processed_text: self.search_string, source_type: "OpenSymbol")
         end
         new_image_doc.image.attach(io: downloaded_image, filename: "#{self.name.parameterize}-symbol-#{self.id}.#{self.extension}")
 
@@ -116,7 +116,7 @@ class OpenSymbol < ApplicationRecord
         return if !image_extension?
         begin
             downloaded_image = get_downloaded_image
-            doc = self.docs.create!(raw_text: self.name.parameterize, processed_text: self.search_string)
+            doc = self.docs.create!(raw_text: self.name.parameterize, processed_text: self.search_string, source_type: "OpenSymbol")
             doc.image.attach(io: downloaded_image, filename: "#{self.name.parameterize}-symbol-#{self.id}.#{self.extension}")
         rescue => e
             puts "OpenSymbol ERROR: #{e.inspect}"
