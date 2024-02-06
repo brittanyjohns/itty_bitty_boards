@@ -8,6 +8,7 @@ Rails.application.configure do
   logger.formatter = config.log_formatter
   config.logger = ActiveSupport::TaggedLogging.new(logger)
   config.log_level = :debug
+  config.log_file_size = 50.megabytes
   # Settings specified here will take precedence over those in config/application.rb.
 
   # In the development environment your application's code is reloaded any time
