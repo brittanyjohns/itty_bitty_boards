@@ -59,7 +59,7 @@ class Image < ApplicationRecord
       count = 0
       begin
       symbols.each do |symbol|
-        existing_symbol = OpenSymbol.find_by(original_os_id: symbol["id"], name: symbol["name"]&.downcase)
+        existing_symbol = OpenSymbol.find_by(original_os_id: symbol["id"])
         if existing_symbol || OpenSymbol::IMAGE_EXTENSIONS.exclude?(symbol["extension"])
           puts "Symbol already exists: #{existing_symbol&.id} Or not an image: #{symbol["extension"]}"
           next

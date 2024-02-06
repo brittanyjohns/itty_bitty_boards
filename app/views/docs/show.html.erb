@@ -8,6 +8,13 @@
      <%= @doc.source_type %>
 rr    <p class="text-sm mb-3">Documentable Title: <%= @doc.label %></p>
 rr    <p class="text-sm mb-3">Current? <%= @doc.current? %></p>
+    <p class="text-sm mb-3">Source: <%= @doc.source_type %></p>
+    <p class="text-sm mb-3">matching_open_symbols: </p>
+    <% @doc.matching_open_symbols.order(original_os_id: :asc).each do |symbol| %>
+    <%= link_to symbol do %>
+      <p class="text-sm mb-3"> <%= symbol.id %> <%= symbol.original_os_id %></p>
+      <% end %>
+    <% end %>
 
     <p class="text-sm mb-3"> User: <%= @doc.user&.email || "NONE" %></p>
     <p class="text-sm mb-3">Created at: <%= time_ago_in_words(@doc.created_at) %> ago</p>

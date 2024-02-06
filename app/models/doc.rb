@@ -27,6 +27,7 @@ class Doc < ApplicationRecord
   scope :image_docs, -> { where(documentable_type: "Image") }
   scope :menu_docs, -> { where(documentable_type: "Menu") }
   scope :created_yesterday, -> { where("created_at > ?", 1.day.ago) }
+  scope :created_today, -> { where("created_at > ?", 1.day.ago) }
 
   # def self.with_no_user_docs_for(user_id)
   #   includes(:user_docs).
@@ -122,6 +123,10 @@ class Doc < ApplicationRecord
     if !@documentable.docs.current.any?
       self.current = true
     end
+  end
+
+  def matching_open_symbols
+    OpenSymbol.where("label ILIKE ?", "%#{label}%")
   end
 
   def is_a_favorite?(user)
