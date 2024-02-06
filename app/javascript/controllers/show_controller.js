@@ -9,5 +9,6 @@ export default class extends Controller {
   toggle(event) {
     event.preventDefault();
     this.targetTarget.classList.toggle("hidden");
+    this.targetTarget.querySelectorAll("input")[2].focus();
   }
 }
