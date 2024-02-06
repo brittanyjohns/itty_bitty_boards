@@ -1,6 +1,16 @@
 require 'sidekiq/web'
 
 Rails.application.routes.draw do
+  resources :open_symbols do
+    collection do
+      get "search"
+    end
+    member do
+      post "save_image"
+      post "make_image"
+    end
+  end
+  get "/token" => "application#token"
   get "/service-worker.js" => "service_worker#service_worker"
   get "/manifest.json" => "service_worker#manifest"
   resources :menus do
@@ -21,6 +31,7 @@ Rails.application.routes.draw do
     member do
       post "generate"
       post "add_to_board"
+      post "create_symbol"
     end
   end
 

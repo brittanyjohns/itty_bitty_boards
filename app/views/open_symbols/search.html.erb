@@ -1,0 +1,16 @@
+<div class="py-4"  data-controller="opensymbols">
+  <%= params %>
+<h1>OpenSymbols#search</h1>
+
+<div class="border p-4">
+<% @symbols.each do |symbol| %>
+<%= link_to open_symbol_path(symbol) do %>
+  <div class="open-symbol flex justify-between items-center">
+        <p class="text-md font-light mb-6"><%= symbol.original_os_id %></p>
+    <p class="text-md font-light mb-6"><%= symbol.label %></p>
+    <p class="text-md font-light mb-6"><%= symbol.name %></p>
+  </div>
+  <% end %>
+<% end %>
+</div>
+</div>

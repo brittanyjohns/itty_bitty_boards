@@ -1,6 +1,6 @@
 source "https://rubygems.org"
 
-ruby "3.1.1"
+ruby "3.3.0"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 7.1.2"
@@ -114,3 +114,5 @@ gem "receipts", "~> 2.0"
 
 gem "simple_form"
 gem "matrix", "~> 0.4.2"
+
+gem "http"

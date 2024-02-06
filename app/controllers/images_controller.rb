@@ -147,6 +147,12 @@ class ImagesController < ApplicationController
     redirect_back_or_to image_url(@image), notice: "Image added to board."
   end
 
+  def create_symbol
+    @image = Image.find(params[:id])
+    @image.generate_matching_symbol
+    redirect_back_or_to image_url(@image), notice: "Symbol created."
+  end
+
   def run_generate
     return if current_user.tokens < 1
     @image.update(status: "generating")

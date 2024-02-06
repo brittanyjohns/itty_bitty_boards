@@ -48,6 +48,51 @@ class Image < ApplicationRecord
     status == "generating"
   end
 
+  def generate_matching_symbol
+    query = label&.downcase
+    response = OpenSymbol.generate_symbol(query)
+
+    if response
+      symbols = JSON.parse(response)
+      puts "Found symbols...#{symbols.count}"
+      limit = 3
+      puts "Limiting to #{limit} symbols"
+      count = 0
+      symbols.each do |symbol|
+        existing_symbol = OpenSymbol.find_by(original_os_id: symbol["id"], name: symbol["name"]&.downcase)
+        if existing_symbol || OpenSymbol::IMAGE_EXTENSIONS.exclude?(symbol["extension"])
+          puts "Symbol already exists: #{existing_symbol&.id} Or not an image: #{symbol["extension"]}"
+          next
+        end
+        break if count >= limit
+        new_symbol =
+        OpenSymbol.create!(
+          name: symbol["name"],
+          image_url: symbol["image_url"],
+          label: query,
+          search_string: symbol["search_string"],
+          symbol_key: symbol["symbol_key"],
+          locale: symbol["locale"],
+          license_url: symbol["license_url"],
+          license: symbol["license"],
+          original_os_id: symbol["id"],
+          repo_key: symbol["repo_key"],
+          unsafe_result: symbol["unsafe_result"],
+          protected_symbol: symbol["protected_symbol"],
+          use_score: symbol["use_score"],
+          relevance: symbol["relevance"],
+          extension: symbol["extension"],
+          enabled: symbol["enabled"]
+        )
+        downloaded_image = new_symbol.get_downloaded_image        
+        new_image_doc = self.docs.create!(raw_text: new_symbol.name.parameterize, processed_text: new_symbol.search_string)
+        new_image_doc.image.attach(io: downloaded_image, filename: "#{new_symbol.name.parameterize}-symbol-#{new_symbol.id}.#{new_symbol.extension}")
+
+        count += 1
+      end
+    end
+  end
+
   def self.destroy_duplicate_images
     Image.all.group_by(&:label).each do |label, images|
       puts "label: #{label} - #{images.count}"
@@ -69,15 +114,16 @@ class Image < ApplicationRecord
     if viewing_user
       img = viewing_user.display_doc_for_image(self)&.image
       if img
-        img
-      else
-        docs.current.first&.image
+        return img
       end
-    elsif docs.current.any? && docs.current.first.image&.attached?
-      docs.current.first.image
-    else
-      nil
     end
+    if docs.current.any? && docs.current.last.image&.attached?
+      return docs.current.last.image
+    end
+    if docs.any? && docs.last.image&.attached?
+      return docs.last.image
+    end
+    nil
   end
 
   def display_label

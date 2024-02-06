@@ -1,0 +1,19 @@
+<h1><%= @symbol.name %>><%= @symbol.label %></h1>
+<p><%= @symbol.extension %>
+<%  if @symbol.image&.attached? && @symbol.image.representable? %>
+<%= image_tag(@symbol.image.representation(resize_to_limit: [300, 300]).processed.url) %>
+<p> Image Saved: <%= link_to @symbol.image.filename, @symbol.image_doc  %></p>
+<%= button_to "Make Image", make_image_open_symbol_path(@symbol), method: :post if @symbol.image_extension? %>
+<% else %>
+
+
+<%= image_tag @symbol.image_url, class: "w-1/4" %>
+<%= button_to "Save Image", save_image_open_symbol_path(@symbol), method: :post if @symbol.image_extension? %>
+<% end %>
+
+<%= link_to "Back", open_symbols_path %>
+<%= link_to "IMAGE", @symbol.matching_image if  @symbol.matching_image %>
+
+<p><%= search_string_list @symbol.search_string %></p>
+
+ <%= @symbol.inspect %>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_01_29_194632) do
+ActiveRecord::Schema[7.1].define(version: 2024_02_05_123913) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -105,6 +105,32 @@ ActiveRecord::Schema[7.1].define(version: 2024_01_29_194632) do
     t.datetime "updated_at", null: false
     t.integer "token_limit", default: 0
     t.index ["user_id"], name: "index_menus_on_user_id"
+  end
+
+  create_table "open_symbols", force: :cascade do |t|
+    t.string "label"
+    t.string "image_url"
+    t.string "search_string"
+    t.string "symbol_key"
+    t.string "name"
+    t.string "locale"
+    t.string "license_url"
+    t.string "license"
+    t.integer "original_os_id"
+    t.string "repo_key"
+    t.string "unsafe_result"
+    t.string "protected_symbol"
+    t.string "use_score"
+    t.string "relevance"
+    t.string "extension"
+    t.boolean "enabled"
+    t.string "author"
+    t.string "author_url"
+    t.string "source_url"
+    t.string "details_url"
+    t.string "hc"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "order_items", force: :cascade do |t|

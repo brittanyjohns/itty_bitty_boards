@@ -1,8 +1,9 @@
 module ImagesHelper
     def display_image_for(image, user)
       user_image = image.display_image(user)
+      puts "#{image.label} - user_image: #{user_image.inspect}"
         str = ""
-        if !user_image&.attached?
+        if !user_image
           str += image_tag("https://via.placeholder.com/300x300.png?text=#{image.label_param}", class: "shadow mx-auto my-auto h-fit")
           # str += "<div class='w-100 h-100 px-2 text-gray-400 text-md font-bold grid justify-items-center items-center shadow mx-auto my-auto'><span class='mx-auto my-auto'>#{image.label&.upcase.truncate(27, separator: ' ')}</span> #{image.generating? ? loading_spinner : ""}</div>".html_safe
         else

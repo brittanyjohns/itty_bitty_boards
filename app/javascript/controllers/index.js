@@ -28,6 +28,9 @@ application.register("navbar", NavbarController)
 import NoticeController from "./notice_controller"
 application.register("notice", NoticeController)
 
+import OpensymbolsController from "./opensymbols_controller"
+application.register("opensymbols", OpensymbolsController)
+
 import Pwa__FormController from "./pwa/form_controller"
 application.register("pwa--form", Pwa__FormController)
 
