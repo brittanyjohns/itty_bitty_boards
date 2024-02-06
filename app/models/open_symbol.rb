@@ -46,9 +46,7 @@ class OpenSymbol < ApplicationRecord
         # make post request to get token
         response = post_open_symbols_token(open_symbol_access_token)
         if response.code == "200"
-          puts "200 OK response"
           response_body = JSON.parse(response.body)
-          puts "response_body: #{response_body.inspect}"
           @open_symbol_id_token = response_body["access_token"]
         else
           puts "ERROR response: #{response.inspect}"

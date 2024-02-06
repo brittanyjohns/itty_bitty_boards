@@ -30,6 +30,7 @@
     <div class="mb-4">
       <%= doc_form.hidden_field :user_id, value: current_user.id %>
       <%= doc_form.hidden_field :raw_text, data: { image_parser_target: "image_description" }, class: "hidden" %>
+      <%= doc_form.hidden_field :source_type, value: "User" %>
     </div>
 
     <div class="mb-4 text-center">

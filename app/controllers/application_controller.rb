@@ -32,6 +32,8 @@ class ApplicationController < ActionController::Base
 
     def token
       @open_symbol_id_token = OpenSymbol.get_token
+      puts "Token: #{@open_symbol_id_token}"
+      @open_symbol_id_token
     end
 
     # def generate_symbol(query)

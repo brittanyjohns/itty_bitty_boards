@@ -50,7 +50,7 @@ feeling_images = [
 ]
 
 feeling_images.each do |image|
-    i = Image.public_img.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_img.find_or_create_by!(label: image[:label].downcase, image_prompt: image[:image_prompt])
     new_images << i
     feeling_board.add_image(i.id)
 end
@@ -75,7 +75,7 @@ eating_images = [
 ]
 
 eating_images.each do |image|
-    i = Image.public_img.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_img.find_or_create_by!(label: image[:label].downcase, image_prompt: image[:image_prompt])
     new_images << i
     eating_board.add_image(i.id)
 end
@@ -96,7 +96,7 @@ drinking_images = [
 ]
 
 drinking_images.each do |image|
-    i = Image.public_img.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_img.find_or_create_by!(label: image[:label].downcase, image_prompt: image[:image_prompt])
     new_images << i
     drinking_board.add_image(i.id)
 end
@@ -117,7 +117,7 @@ play_images = [
 ]
 
 play_images.each do |image|
-    i = Image.public_img.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_img.find_or_create_by!(label: image[:label].downcase, image_prompt: image[:image_prompt])
     new_images << i
     play_board.add_image(i.id)
 end
@@ -138,7 +138,7 @@ greetings_images = [
 ]
 
 greetings_images.each do |image|
-i = Image.public_img.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
+i = Image.public_img.find_or_create_by!(label: image[:label].downcase, image_prompt: image[:image_prompt])
 new_images << i
 greetings_board.add_image(i.id)
 end
@@ -163,7 +163,7 @@ daily_routine_images = [
 ]
 
 daily_routine_images.each do |image|
-    i = Image.public_img.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_img.find_or_create_by!(label: image[:label].downcase, image_prompt: image[:image_prompt])
     new_images << i
     daily_routine_board.add_image(i.id)
 end
@@ -180,7 +180,7 @@ school_activities_images = [
 ]
 
 school_activities_images.each do |image|
-    i = Image.public_img.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_img.find_or_create_by!(label: image[:label].downcase, image_prompt: image[:image_prompt])
     new_images << i
     school_activities_board.add_image(i.id)
 end
@@ -197,7 +197,7 @@ outdoor_activities_images = [
     ]
 
 outdoor_activities_images.each do |image|
-    i = Image.public_img.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_img.find_or_create_by!(label: image[:label].downcase, image_prompt: image[:image_prompt])
     new_images << i
     outdoor_activities_board.add_image(i.id)
 end
@@ -213,12 +213,12 @@ places_to_go_images = [
 ]
 
 places_to_go_images.each do |image|
-    i = Image.public_img.find_or_create_by!(label: image[:label], image_prompt: image[:image_prompt])
+    i = Image.public_img.find_or_create_by!(label: image[:label].downcase, image_prompt: image[:image_prompt])
     new_images << i
     places_to_go_board.add_image(i.id)
 end
 puts "Created #{places_to_go_images.count} places to go images"
 
 puts "Running generate image job for #{new_images.count} new images"
-Image.run_generate_image_job_for(new_images)
+# Image.run_generate_image_job_for(new_images)
 puts "Finished running generate image job for #{new_images.count} new images"

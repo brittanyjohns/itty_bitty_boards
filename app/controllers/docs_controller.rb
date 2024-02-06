@@ -101,6 +101,6 @@ class DocsController < ApplicationController
 
     # Only allow a list of trusted parameters through.
     def doc_params
-      params.require(:doc).permit(:documentable_id, :documentable_type, :image, :raw_text, :current, :board_id, :user_id)
+      params.require(:doc).permit(:documentable_id, :documentable_type, :image, :raw_text, :current, :board_id, :user_id, :source_type)
     end
 end

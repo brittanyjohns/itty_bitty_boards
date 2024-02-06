@@ -150,8 +150,9 @@ class ImagesController < ApplicationController
   def create_symbol
     @image = Image.find(params[:id])
     limit = current_user.admin? ? 10 : 1
-    @image.generate_matching_symbol(limit)
-    redirect_back_or_to image_url(@image), notice: "Symbol created."
+    # @image.generate_matching_symbol(limit)
+    GetSymbolsJob.perform_async([@image.id], limit)
+    redirect_back_or_to image_url(@image), notice: "Creating #{limit} #{'symbol'.pluralize(limit)} for image '#{@image.label}'."
   end
 
   def run_generate

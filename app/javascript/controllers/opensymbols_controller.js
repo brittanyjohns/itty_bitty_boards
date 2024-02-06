@@ -4,12 +4,22 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   connect() {
     console.log("Hello, opensymbols!", this.element)
-
+    this.getAccessSecret()
   }
 
-  queryForSymbols() {
-    console.log("queryForSymbols")
-    const query = this.element.querySelector("input").value
-    console.log("query", query)
+  getAccessSecret() {
+    fetch("/token", {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').getAttribute("content")
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log("access secret set")
+
+      console.log(data)
+    })
   }
 }

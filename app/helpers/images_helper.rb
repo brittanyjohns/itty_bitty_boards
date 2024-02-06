@@ -1,7 +1,6 @@
 module ImagesHelper
     def display_image_for(image, user)
       user_image = image.display_image(user)
-      puts "#{image.label} - user_image: #{user_image.inspect}"
         str = ""
         if !user_image
           str += image_tag("https://via.placeholder.com/300x300.png?text=#{image.label_param}", class: "shadow mx-auto my-auto h-fit")
@@ -35,6 +34,10 @@ module ImagesHelper
         str += "<div>id: #{image.id}</div>"
         str += "<div>status: #{image.status}</div>"
         str += "<div>user_id: #{image.user_id}</div>"
+        str += "<div>label: #{image.label}</div>"
+        str += "<div>private: #{image.private}</div>"
+        str += "<div>docs: #{image.docs.count}</div>"
+        str += "<div>type: #{image.image_type}</div>"
         str += "<div>created_at: #{image.created_at}</div>"
         str += "<div>updated_at: #{image.updated_at}</div>"
         str += "</div>"

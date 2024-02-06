@@ -28,7 +28,6 @@ class Doc < ApplicationRecord
   scope :menu_docs, -> { where(documentable_type: "Menu") }
   scope :created_yesterday, -> { where("created_at > ?", 1.day.ago) }
 
-
   # def self.with_no_user_docs_for(user_id)
   #   includes(:user_docs).
   #     references(:user_docs).

@@ -1,4 +1,4 @@
-<div class="mx-auto w-full mt-4 pb-6">
+<div class="mx-auto w-full mt-4 pb-6" data-controller="opensymbols">
   <h1 class="text-2xl md:text-3xl font-bold text-blue-600 m-1 text-center">
     <%= @image.label&.titleize %>
   </h1>
@@ -71,7 +71,6 @@
     </div>
   </div>
 
-  <%= turbo_stream_from :doc_list %>
   <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1 mt-6" id="<%=@image.id%>_docs_list">
     <% @image_docs.each do |doc| %>
       <%= render "docs/doc", doc: doc, viewing_user: current_user %>
