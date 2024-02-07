@@ -112,7 +112,7 @@ class Image < ApplicationRecord
           puts "SKIP COUNT: #{skipped_count} - SYMBOLS COUNT: #{symbols_count}"
           puts "Not creating symbol image for #{symbol_name}\n - symbol_name_like_label?: #{symbol_name_like_label?(symbol_name)}\n  - doc_text_matches?: #{doc_text_matches(symbol_name)}"
         end
-        if skipped_count >= stop_limit
+        if (skipped_count + count) >= stop_limit
           puts "Skipped all symbols"
           self.update(open_symbol_status: "skipped")
           break
