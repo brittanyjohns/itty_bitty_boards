@@ -1,0 +1,115 @@
+{
+    "Colors": [
+      "Turquoise",
+      "Magenta",
+      "Gold",
+      "Silver",
+      "Teal",
+      "Lavender",
+      "Maroon",
+      "Tan"
+    ],
+    "Numbers": [
+      "Eleven",
+      "Twelve",
+      "Thirteen",
+      "Fourteen",
+      "Fifteen",
+      "Sixteen",
+      "Seventeen",
+      "Eighteen",
+      "Nineteen",
+      "Twenty"
+    ],
+    "Directions/Positions": [
+      "Above",
+      "Below",
+      "Beside",
+      "Between",
+      "Near",
+      "Far",
+      "Inside",
+      "Outside"
+    ],
+    "Family and People": [
+      "Grandma",
+      "Grandpa",
+      "Uncle",
+      "Aunt",
+      "Cousin",
+      "Neighbor",
+      "Coach",
+      "Nurse"
+    ],
+    "Animals": [
+      "Elephant",
+      "Giraffe",
+      "Monkey",
+      "Lion",
+      "Tiger",
+      "Bear",
+      "Frog",
+      "Duck"
+    ],
+    "Food and Drink": [
+      "Pizza",
+      "Sandwich",
+      "Carrot",
+      "Chicken",
+      "Ice cream",
+      "Coffee",
+      "Tea",
+      "Soup"
+    ],
+    "School and Activities": [
+      "Count",
+      "Spell",
+      "Sing",
+      "Jump",
+      "Run",
+      "Swim",
+      "Ride",
+      "Build"
+    ],
+    "Body Parts": [
+      "Arm",
+      "Leg",
+      "Back",
+      "Neck",
+      "Shoulder",
+      "Knee",
+      "Toe",
+      "Finger"
+    ],
+    "Clothing": [
+      "Jacket",
+      "Sweater",
+      "Scarf",
+      "Belt",
+      "Boots",
+      "Sandals",
+      "Cap",
+      "Sunglasses"
+    ],
+    "Outdoor and Nature": [
+      "Cloud",
+      "Rain",
+      "Snow",
+      "Mountain",
+      "Beach",
+      "River",
+      "Forest",
+      "Desert"
+    ],
+    "Transportation": [
+      "Scooter",
+      "Skateboard",
+      "Hoverboard",
+      "Ferry",
+      "Subway",
+      "Motorcycle",
+      "Helicopter",
+      "Yacht"
+    ]
+  }
+  
