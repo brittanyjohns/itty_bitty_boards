@@ -110,7 +110,7 @@ class Image < ApplicationRecord
         else
           skipped_count += 1
           puts "SKIP COUNT: #{skipped_count} - SYMBOLS COUNT: #{symbols_count}"
-          puts "Not creating symbol image for #{symbol_name}\n - symbol_name_like_label?: #{symbol_name_like_label?(symbol_name)}\n  - doc_text_includes?: #{doc_text_includes(symbol_name)}"
+          puts "Not creating symbol image for #{symbol_name}\n - symbol_name_like_label?: #{symbol_name_like_label?(symbol_name)}\n  - doc_text_matches?: #{doc_text_matches(symbol_name)}"
         end
         if skipped_count >= stop_limit
           puts "Skipped all symbols"
@@ -128,17 +128,22 @@ class Image < ApplicationRecord
 
   def should_create_symbol_image?(symbol_name)
     return false if symbol_name.blank?
-    symbol_name_like_label?(symbol_name) && !doc_text_includes(symbol_name)
+    symbol_name_like_label?(symbol_name) && !doc_text_matches(symbol_name)
   end
 
   def symbol_name_like_label?(symbol_name)
     return false if symbol_name.blank?
-    symbol_name.split("-").any? { |word| label.downcase.include?(word) }
+    result = false
+    label.split(" ").each do |label_word|
+      result = symbol_name.split("-").any? { |word| label_word.downcase.include?(word) }
+      break if result
+    end
+    result
   end
 
-  def doc_text_includes(symbol_name)
+  def doc_text_matches(symbol_name)
     return false if symbol_name.blank?
-    docs.any? { |doc| doc.raw_text.include?(symbol_name) }
+    docs.any? { |doc| doc.raw_text === symbol_name }
   end
 
   def self.destroy_duplicate_images
