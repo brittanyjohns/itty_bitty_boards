@@ -30,6 +30,7 @@ class Image < ApplicationRecord
   scope :menu_images, -> { where(image_type: "Menu") }
   scope :non_menu_images, -> { where(image_type: nil) }
   scope :public_img, -> { where(private: [false, nil]).or(Image.where(user_id: nil)) }
+  scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
 
   def create_image_doc(user_id = nil)
     response = create_image(user_id)
@@ -48,22 +49,35 @@ class Image < ApplicationRecord
     status == "generating"
   end
 
+  def get_stop_limit(symbols_count)
+    return symbols_count if symbols_count <= 25
+    if docs.count > 25
+      25
+    else
+      50
+    end
+  end
+
   def generate_matching_symbol(limit = 1)
+    return if open_symbol_status == "skipped"
     query = label&.downcase
     response = OpenSymbol.generate_symbol(query)
 
     if response
       symbols = JSON.parse(response)
-      puts "Found symbols...#{symbols.count}"
+      symbols_count = symbols.count
+      puts "Found symbols...#{symbols_count}"
       puts "Limiting to #{limit} symbols"
       count = 0
+      skipped_count = 0
+      stop_limit = get_stop_limit(symbols_count)
       begin
       symbols.each do |symbol|
         existing_symbol = OpenSymbol.find_by(original_os_id: symbol["id"])
         if existing_symbol || OpenSymbol::IMAGE_EXTENSIONS.exclude?(symbol["extension"])
           puts "Symbol already exists: #{existing_symbol&.id} Or not an image: #{symbol["extension"]}"
-          next
-        end
+          new_symbol = existing_symbol
+        else
         puts "after existing_symbol check===>: #{symbol}"
         break if count >= limit
         puts "Creating new symbol - COUNT: #{count}"
@@ -86,13 +100,23 @@ class Image < ApplicationRecord
           extension: symbol["extension"],
           enabled: symbol["enabled"]
         )
-        puts "Created new symbol: #{new_symbol.id}"
-        downloaded_image = new_symbol.get_downloaded_image
-        puts "Downloaded Image: #{downloaded_image.inspect}"
-        new_image_doc = self.docs.create!(raw_text: new_symbol.name.parameterize, processed_text: new_symbol.search_string, source_type: "OpenSymbol")
-        new_image_doc.image.attach(io: downloaded_image, filename: "#{new_symbol.name.parameterize}-symbol-#{new_symbol.id}.#{new_symbol.extension}")
-
-        count += 1
+        end
+        symbol_name = new_symbol.name.parameterize if new_symbol
+        if new_symbol && should_create_symbol_image?(symbol_name)
+          count += 1
+          downloaded_image = new_symbol.get_downloaded_image
+          new_image_doc = self.docs.create!(raw_text: symbol_name, processed_text: new_symbol.search_string, source_type: "OpenSymbol")
+          new_image_doc.image.attach(io: downloaded_image, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{new_symbol.extension}")
+        else
+          skipped_count += 1
+          puts "SKIP COUNT: #{skipped_count} - SYMBOLS COUNT: #{symbols_count}"
+          puts "Not creating symbol image for #{symbol_name}\n - symbol_name_like_label?: #{symbol_name_like_label?(symbol_name)}\n  - doc_text_includes?: #{doc_text_includes(symbol_name)}"
+        end
+        if skipped_count >= stop_limit
+          puts "Skipped all symbols"
+          self.update(open_symbol_status: "skipped")
+          break
+        end
       end
       puts "Created #{count} symbols"
       symbols
@@ -100,6 +124,21 @@ class Image < ApplicationRecord
         puts "Error creating symbols: #{e.message}\n\n#{e.backtrace.join("\n")}"
       end
     end
+  end
+
+  def should_create_symbol_image?(symbol_name)
+    return false if symbol_name.blank?
+    symbol_name_like_label?(symbol_name) && !doc_text_includes(symbol_name)
+  end
+
+  def symbol_name_like_label?(symbol_name)
+    return false if symbol_name.blank?
+    symbol_name.split("-").any? { |word| label.downcase.include?(word) }
+  end
+
+  def doc_text_includes(symbol_name)
+    return false if symbol_name.blank?
+    docs.any? { |doc| doc.raw_text.include?(symbol_name) }
   end
 
   def self.destroy_duplicate_images

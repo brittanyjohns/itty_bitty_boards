@@ -26,6 +26,7 @@ module SeedHelper
             end
         end
         @new_images = new_images
+        new_images.map(&:id)
     end
 
     def json_data(prefix, filename)
@@ -35,11 +36,21 @@ module SeedHelper
     end
 
     def run_all
-        seed_boards_from_file('Default', 1)
-        seed_boards_from_file('Default', 2)
-        seed_boards_from_file('Default', 3)
-        seed_boards_from_file('Routines', 1)
-        seed_boards_from_file('Scenarios', 1)
+        default1_ids = seed_boards_from_file('Default', 1)
+        GetSymbolsJob.perform_async(default1_ids, 8)
+        sleep 3
+        default2_ids = seed_boards_from_file('Default', 2)
+        GetSymbolsJob.perform_in(1.minutes, default2_ids, 8)
+        sleep 3
+        default3_ids = seed_boards_from_file('Default', 3)
+        GetSymbolsJob.perform_in(2.minutes, default3_ids, 8)
+        sleep 3
+        routines1_ids = seed_boards_from_file('Routines', 1)
+        GetSymbolsJob.perform_in(3.minutes, routines1_ids, 8)
+        sleep 3
+        scenarios1_ids = seed_boards_from_file('Scenarios', 1)
+        GetSymbolsJob.perform_in(4.minutes, scenarios1_ids, 8)
+        puts "\n\nSeeding complete\n\n"
     end
 
 

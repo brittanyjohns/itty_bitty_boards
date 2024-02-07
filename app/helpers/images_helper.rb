@@ -33,6 +33,7 @@ module ImagesHelper
         str += "<div class='text-sm text-gray-500 bg-gray-100 p-2 rounded-lg shadow w-64'>"
         str += "<div>id: #{image.id}</div>"
         str += "<div>status: #{image.status}</div>"
+        str += "<div>open symbol status: #{image.open_symbol_status}</div>"
         str += "<div>user_id: #{image.user_id}</div>"
         str += "<div>label: #{image.label}</div>"
         str += "<div>private: #{image.private}</div>"
