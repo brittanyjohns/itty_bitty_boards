@@ -28,7 +28,7 @@ class Doc < ApplicationRecord
   scope :menu_docs, -> { where(documentable_type: "Menu") }
   scope :created_yesterday, -> { where("created_at > ?", 1.day.ago) }
   scope :created_today, -> { where("created_at > ?", 1.day.ago) }
-  scope :hidden, -> { where.not(deleted_at: nil) }
+  scope :hidden, -> { unscope(:where).where.not(deleted_at: nil) }
   scope :not_hidden, -> { where(deleted_at: nil) }
 
   # def self.with_no_user_docs_for(user_id)

@@ -6,21 +6,16 @@
   <div class="bg-white p-4 rounded-lg shadow-md m-8">
     <h3 class="text-lg font-semibold">Doc Info:</h3>
      <%= @doc.source_type %>
-rr    <p class="text-sm mb-3">Documentable Title: <%= @doc.label %></p>
-rr    <p class="text-sm mb-3">Current? <%= @doc.current? %></p>
+    <p class="text-4xl mb-3">Documentable Title: <%= @doc.label %></p>
+    <p class="text-3xl mb-3">Processed Text: <%= @doc.processed %></p>
+    <hr>
     <p class="text-sm mb-3">Source: <%= @doc.source_type %></p>
-    <p class="text-sm mb-3">matching_open_symbols: </p>
-    <% @doc.matching_open_symbols.order(original_os_id: :asc).each do |symbol| %>
-    <%= link_to symbol do %>
-      <p class="text-sm mb-3"> <%= symbol.id %> <%= symbol.original_os_id %> === <%= symbol.name %>
-      <% end %>
-    <% end %>
-
     <p class="text-sm mb-3"> User: <%= @doc.user&.email || "NONE" %></p>
     <p class="text-sm mb-3">Created at: <%= time_ago_in_words(@doc.created_at) %> ago</p>
     <p class="text-sm mb-3">Updated at: <%= time_ago_in_words(@doc.updated_at) %> ago</p>
     <hr>
-    <%= render "move", doc: @doc if current_user.can_edit?(@doc) %>
+        <%= render "move", doc: @doc if current_user.can_edit?(@doc) %>
+    <%= render "find_or_create", doc: @doc, generate_image: true if current_user.can_edit?(@doc) %>
 
   </div>
 

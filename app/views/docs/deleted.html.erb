@@ -1,10 +1,10 @@
   <div class="mt-6 sm: w-full bg-gray-100">
-    <%= render "shared_nav" %>
+        <%= render "shared_nav" %>
 
       <%= render "utils/search", search_path: docs_path, show_user_images_only: true %>
     <%= paginate @docs %>
 
-    <h2 class="text-xl font-semibold text-gray-700">Your Documents</h2>
+    <h2 class="text-xl font-semibold text-gray-700">Deleted</h2>
     <table class="min-w-full mt-3">
       <thead class="bg-gray-100">
         <tr>
@@ -22,7 +22,7 @@
         <% @docs.order(created_at: :desc).each do |doc| %>
           <tr class="border-b border-gray-200 hover:bg-gray-100">
             <td class="text-left py-3 px-4"><%= doc.id %></td>
-            <td class="text-left py-3 px-4"><%= doc.documentable_type %> <%= link_to doc.label, doc.documentable, class: "text-indigo-600 hover:text-indigo-900" %></td>
+            <td class="text-left py-3 px-4"><%= doc.documentable_type %> <%= doc.label %> </td>
             <td class="text-left py-3 px-4"><%= link_to doc.processed, doc %> </td>
             <td class="text-left py-3 px-4"><%= link_to doc.user.email, doc.user, class: "text-indigo-600 hover:text-indigo-900" if doc.user %></td>
             <td class="text-left py-3 px-4"><%= time_ago_in_words(doc.created_at) %> ago</td>

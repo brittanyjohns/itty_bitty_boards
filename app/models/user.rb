@@ -54,6 +54,10 @@ class User < ApplicationRecord
   #   user_docs.includes(:doc).map(&:doc)
   # end
 
+  def all_available_images
+    Image.where(user_id: [id, nil]).order(label: :desc)
+  end
+
   def is_a_favorite?(doc)
     favorite_docs.include?(doc)
   end

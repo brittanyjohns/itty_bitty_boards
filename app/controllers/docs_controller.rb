@@ -5,7 +5,7 @@ class DocsController < ApplicationController
 
   # GET /docs or /docs.json
   def index
-    @docs = Doc.all.order(created_at: :desc).page params[:page]
+    @docs = Doc.image_docs.order(created_at: :desc).page params[:page]
     search_param = params[:query]&.strip
     puts "search_param: #{search_param}"
     if params[:query].present?
@@ -20,8 +20,18 @@ class DocsController < ApplicationController
     end
   end
 
+  def find_or_create_image
+    @doc = Doc.unscoped.find(params[:id])
+    @label = params[:label]
+    puts "Processing #{@label} for doc id #{@doc.id}"
+
+    @image = Image.find_or_create_by(label: @label, user_id: current_user.id)
+    @doc.update!(documentable_id: @image.id, documentable_type: "Image", deleted_at: nil)
+    redirect_to @image
+  end
+
   def deleted
-    @docs = Doc.deleted
+    @docs = Doc.hidden.order(created_at: :desc).page params[:page]
   end
 
   # GET /docs/1 or /docs/1.json
@@ -113,7 +123,7 @@ class DocsController < ApplicationController
   private
     # Use callbacks to share common setup or constraints between actions.
     def set_doc
-      @doc = Doc.find(params[:id])
+      @doc = Doc.unscoped.find(params[:id])
     end
 
     # Only allow a list of trusted parameters through.
