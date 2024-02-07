@@ -52,6 +52,4 @@ module SeedHelper
         GetSymbolsJob.perform_in(4.minutes, scenarios1_ids, 10)
         puts "\n\nSeeding complete\n\n"
     end
-
-
 end

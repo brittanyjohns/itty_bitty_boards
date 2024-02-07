@@ -14,7 +14,7 @@
 #  user_id           :integer
 #
 class Doc < ApplicationRecord
-  default_scope { includes(:image_attachment) }
+  default_scope { where(deleted_at: nil) }
   belongs_to :user, optional: true
   belongs_to :documentable, polymorphic: true
   belongs_to :board, optional: true
@@ -28,12 +28,18 @@ class Doc < ApplicationRecord
   scope :menu_docs, -> { where(documentable_type: "Menu") }
   scope :created_yesterday, -> { where("created_at > ?", 1.day.ago) }
   scope :created_today, -> { where("created_at > ?", 1.day.ago) }
+  scope :hidden, -> { where.not(deleted_at: nil) }
+  scope :not_hidden, -> { where(deleted_at: nil) }
 
   # def self.with_no_user_docs_for(user_id)
   #   includes(:user_docs).
   #     references(:user_docs).
   #     where.not(user_docs: { user_id: user_id })
   # end
+
+  def hide!
+    update(deleted_at: Time.now)
+  end
 
   def self.update_source_types
     missing_documentable = []

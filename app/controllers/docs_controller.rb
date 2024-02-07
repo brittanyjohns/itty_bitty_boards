@@ -85,7 +85,8 @@ class DocsController < ApplicationController
   # DELETE /docs/1 or /docs/1.json
   def destroy
     documentable = @doc.documentable
-    @doc.destroy!
+    # @doc.destroy!
+    @doc.hide!
 
     respond_to do |format|
       format.html { redirect_to documentable, notice: "Doc was successfully destroyed." }

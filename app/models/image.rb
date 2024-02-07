@@ -31,6 +31,7 @@ class Image < ApplicationRecord
   scope :non_menu_images, -> { where(image_type: nil) }
   scope :public_img, -> { where(private: [false, nil]).or(Image.where(user_id: nil)) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
+  scope :skipped, -> { where(open_symbol_status: "skipped") }
 
   def create_image_doc(user_id = nil)
     response = create_image(user_id)
@@ -143,7 +144,7 @@ class Image < ApplicationRecord
 
   def doc_text_matches(symbol_name)
     return false if symbol_name.blank?
-    docs.any? { |doc| doc.raw_text === symbol_name }
+    docs.unscoped.any? { |doc| doc.raw_text === symbol_name }
   end
 
   def self.destroy_duplicate_images

@@ -12,3 +12,42 @@
     </div>
   <% end %>
 </div>
+
+<div class="flex justify-center mt-6">
+  <%# Print Image totals %>
+  <p class="text-center text-gray-600 text-sm">
+    Total Images: <%= Image.count %>
+  </p>
+  <p class="text-center text-gray-600 text-sm ml-4">
+    Total Skipped Images: <%= Image.skipped.count %>
+  </p>
+</div>
+<div class="flex justify-center mt-6">
+  <%# Print OpenSymbol totals %>
+  <p class="text-center text-gray-600 text-sm">
+    Total OpenSymbols: <%= OpenSymbol.count %>
+  </p>
+  <p class="text-center text-gray-600 text-sm ml-4">
+    Total Skipped OpenSymbols: <%= OpenSymbol.count %>
+  </p>
+</div>
+<div class="flex justify-center mt-6">
+  <%# Print Doc totals %>
+  <p class="text-center text-gray-600 text-sm ml-4">
+    Total Docs: <%= Doc.count %>
+  </p>
+  <p class="text-center text-gray-600 text-sm ml-4">
+    Doc Sources: <%= Doc.distinct.pluck(:source_type).join(', ') %>
+  </p>
+  </div>
+<div class="flex justify-center mt-6">
+  <p class="text-center text-gray-600 text-sm">
+    Total Menu Docs: <%= Doc.menu_docs.count %>
+  </p>
+  <p class="text-center text-gray-600 text-sm ml-4">
+    Total Image Docs: <%= Doc.image_docs.count %>
+  </p>
+  <p class="text-center text-gray-600 text-sm ml-4">
+    Total Docs today: <%= Doc.created_today.count %>
+  </p>
+</div>
