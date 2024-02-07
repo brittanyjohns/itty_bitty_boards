@@ -37,19 +37,19 @@ module SeedHelper
 
     def run_all
         default1_ids = seed_boards_from_file('Default', 1)
-        GetSymbolsJob.perform_async(default1_ids, 8)
+        GetSymbolsJob.perform_async(default1_ids, 10)
         sleep 3
         default2_ids = seed_boards_from_file('Default', 2)
-        GetSymbolsJob.perform_in(1.minutes, default2_ids, 8)
+        GetSymbolsJob.perform_in(1.minutes, default2_ids, 10)
         sleep 3
         default3_ids = seed_boards_from_file('Default', 3)
-        GetSymbolsJob.perform_in(2.minutes, default3_ids, 8)
+        GetSymbolsJob.perform_in(2.minutes, default3_ids, 10)
         sleep 3
         routines1_ids = seed_boards_from_file('Routines', 1)
-        GetSymbolsJob.perform_in(3.minutes, routines1_ids, 8)
+        GetSymbolsJob.perform_in(3.minutes, routines1_ids, 10)
         sleep 3
         scenarios1_ids = seed_boards_from_file('Scenarios', 1)
-        GetSymbolsJob.perform_in(4.minutes, scenarios1_ids, 8)
+        GetSymbolsJob.perform_in(4.minutes, scenarios1_ids, 10)
         puts "\n\nSeeding complete\n\n"
     end
 
