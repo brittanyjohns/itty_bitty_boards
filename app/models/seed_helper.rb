@@ -1,7 +1,7 @@
 module SeedHelper
 
-    def parent_resource
-        @parent_resource ||= ParentResource.first
+    def predefined_resource
+        @predefined_resource ||= PredefinedResource.first
     end
 
     def admin_user
@@ -12,8 +12,8 @@ module SeedHelper
         board_data = json_data(filename)
         new_images = []
         board_data.each do |category, words|
-            puts "Creating board for #{category} - parent_resource: #{parent_resource.id} - admin_user: #{admin_user.id}"
-            board = Board.find_or_create_by!(name: category, parent: parent_resource, user_id: admin_user.id)
+            puts "Creating board for #{category} - predefined_resource: #{predefined_resource.id} - admin_user: #{admin_user.id}"
+            board = Board.find_or_create_by!(name: category, parent: predefined_resource, user_id: admin_user.id)
             words.each do |word|
                 puts "Creating image for #{word}"
                 image = Image.public_img.find_or_create_by!(label: word.downcase)

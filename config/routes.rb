@@ -55,6 +55,7 @@ Rails.application.routes.draw do
   end
 
   get 'main/index', as: :home
+  get 'main/predefined/:id', to: 'main#show_predefined', as: :show_predefined
   get 'main/demo', as: :demo
   get 'main/about', as: :about
   get 'main/contact', as: :contact

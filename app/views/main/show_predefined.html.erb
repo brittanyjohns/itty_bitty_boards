@@ -1,0 +1,51 @@
+<div data-controller="speak show grid" class="mx-auto w-full mt-4 pb-6" data-predefined="<%= @board.predefined %>">
+    <h1 class="text-center text-2xl md:text-3xl font-bold my-2 text-gray-800">
+        <%= @board.name.titleize %>
+    </h1>
+    <div class="flex justify-around mt-3">
+        <%= link_to "Sign Up to Customize", new_user_registration_path, class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full text-sm" %>
+    <div class="flex justify-center items-center">
+        <%= label_tag "number_of_columns", "Number of Columns", class: "text-sm font-medium text-gray-700 mr-2" %>
+        <%= select_tag "number_of_columns", options_for_select(Board.grid_sizes, @board.number_of_columns.to_s), class: "bg-white border border-gray-300 rounded-md shadow-sm py-1 px-1 block w-100 sm:text-sm sm:leading-5 m-1", data: { grid_target: "number_of_columns", action: "change->grid#changeGrid" } %>
+    </div>
+
+    </div>
+
+    <div class="flex flex-col justify-end mb-3">
+        <div class="grid grid-cols-8 gap-1 p-2 mx-auto" id="word-list">
+        <% @board.words.each do |word| %>
+            <button class="bg-teal-300 text-xs md:text-sm font-light flex justify-center items-center cursor-pointer px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-100"  data-controller='speak' data-speak-label="<%= word.downcase %>" data-action="click->speak#speak">
+                <%= word&.upcase %>
+            </button>
+        <% end %>
+        </div>
+    </div>
+
+    <% if @board.parent_type == "Menu" %>
+    <%# Nothing right now %>
+    <% else %>
+    <div class="flex justify-between bg-white mb-3 rounded-lg shadow-md sm:w-full md:w-2/3 mx-auto">
+        <ul class="flex flex-wrap items-center justify-center text-gray-900 dark:text-white" id="the-list"></ul>
+        <div class="flex justify-end items-center">
+            <button class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 m-2 rounded-full text-sm" data-action="click->speak#clear">Clear</button>
+            <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#speakList">Speak</button>
+        </div>
+    </div>
+    <div id="<%= dom_id @board %>_images" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 gap-1 p-2 text-sm" data-grid-target="grid">
+        <% @board.images.each do |image| %>
+            <div class="text-center bg-white rounded-lg shadow-md overflow-hidden">
+                <div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
+                    <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>" data-action="click->speak#speak">
+                        <div class="items-center text-center" id="<%= image.label %>">
+                        <%= display_image_for(image, current_user) %>
+                        </div>
+                    </div>
+                    <div class="relative text-wrap">
+                        <p class="text-sm font-semibold text-gray-700 py-1 mt-2 block m-1"><%= image.display_label %></p>
+                    </div>
+                </div>
+            </div>
+        <% end %>
+    </div>
+<% end %>
+</div>

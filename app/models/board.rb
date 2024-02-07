@@ -32,6 +32,10 @@ class Board < ApplicationRecord
     Image.searchable_images_for(self.user).excluding(images)
   end
 
+  def display_image
+    images.order(updated_at: :desc).first
+  end
+
   def words
     if parent_type == "Menu"
       ["please","thank you", "yes", "no", "and", "help"]
