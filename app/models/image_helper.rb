@@ -12,7 +12,7 @@ module ImageHelper
                                   "From" => "foo@bar.invalid",
                                   "Referer" => "http://www.ruby-lang.org/")
       user_id ||= self.user_id
-      doc = self.docs.create!(raw_text: name_to_send, user_id: user_id, processed_text: revised_prompt, source_type: "OpenAI")
+      doc = self.docs.create!(raw: name_to_send, user_id: user_id, processed: revised_prompt, source_type: "OpenAI")
       doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.png")
       self.update(status: "finished")
     rescue => e
@@ -35,8 +35,8 @@ module ImageHelper
 
   end
 
-  def clarify_image_description(raw_text)
-    response = OpenAiClient.new(open_ai_opts).clarify_image_description(raw_text)
+  def clarify_image_description(raw)
+    response = OpenAiClient.new(open_ai_opts).clarify_image_description(raw)
     if response
       response_text = response[:content]
     else

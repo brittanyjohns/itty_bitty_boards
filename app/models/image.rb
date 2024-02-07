@@ -106,7 +106,7 @@ class Image < ApplicationRecord
         if new_symbol && should_create_symbol_image?(symbol_name)
           count += 1
           downloaded_image = new_symbol.get_downloaded_image
-          new_image_doc = self.docs.create!(raw_text: symbol_name, processed_text: new_symbol.search_string, source_type: "OpenSymbol")
+          new_image_doc = self.docs.create!(processed: symbol_name, raw: new_symbol.search_string, source_type: "OpenSymbol")
           new_image_doc.image.attach(io: downloaded_image, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{new_symbol.extension}")
         else
           skipped_count += 1
@@ -144,7 +144,7 @@ class Image < ApplicationRecord
 
   def doc_text_matches(symbol_name)
     return false if symbol_name.blank?
-    docs.unscoped.any? { |doc| doc.raw_text === symbol_name }
+    docs.unscoped.any? { |doc| doc.processed === symbol_name }
   end
 
   def self.destroy_duplicate_images

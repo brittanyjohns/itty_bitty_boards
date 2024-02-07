@@ -1,4 +1,4 @@
-<div id="<%= dom_id doc %>" class="relative">
+<div id="<%= dom_id doc %>" class="relative bg-white rounded-lg shadow-md overflow-hidden">
     <% if viewing_user&.can_edit?(doc) %>
     <p class="absolute top-0 left-0 m-4 text-white font-bold p-2 rounded bg-black bg-opacity-70">
         <%= link_to "View Doc", doc_path(doc), class: "text-white" %>

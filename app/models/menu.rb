@@ -42,7 +42,7 @@ class Menu < ApplicationRecord
     board.user = self.user
     board.name = self.name || "Board for Doc #{id}"
     board.token_limit = token_limit
-    board.description = new_doc.processed_text
+    board.description = new_doc.processed
     board.save!
     new_doc.update!(board_id: board.id)
 
@@ -137,12 +137,12 @@ class Menu < ApplicationRecord
     new_doc = self.docs.last
     puts "NO NEW DOC FOUND\n" && return unless new_doc
 
-    if !new_doc.raw_text.blank?
-      new_doc.processed_text = clarify_image_description(new_doc.raw_text)
+    if !new_doc.raw.blank?
+      new_doc.processed = clarify_image_description(new_doc.raw)
       new_doc.current = true
       new_doc.user_id = self.user_id
       new_doc.save!
-      self.description = new_doc.processed_text
+      self.description = new_doc.processed
       puts "**** ERROR **** \nNo image description provided.\n" unless description
       self.save!
 

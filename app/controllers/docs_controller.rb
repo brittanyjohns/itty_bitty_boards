@@ -5,7 +5,23 @@ class DocsController < ApplicationController
 
   # GET /docs or /docs.json
   def index
-    @docs = Doc.all
+    @docs = Doc.all.order(created_at: :desc).page params[:page]
+    search_param = params[:query]&.strip
+    puts "search_param: #{search_param}"
+    if params[:query].present?
+      @docs = @docs.where("raw ILIKE ?", "%#{search_param}%").order(raw: :asc).page params[:page]
+    else
+      @docs = @docs.order(raw: :asc).page params[:page]
+    end
+    if turbo_frame_request?
+      render partial: "docs", locals: { docs: @docs }
+    else
+      render :index
+    end
+  end
+
+  def deleted
+    @docs = Doc.deleted
   end
 
   # GET /docs/1 or /docs/1.json
@@ -102,6 +118,6 @@ class DocsController < ApplicationController
 
     # Only allow a list of trusted parameters through.
     def doc_params
-      params.require(:doc).permit(:documentable_id, :documentable_type, :image, :raw_text, :current, :board_id, :user_id, :source_type)
+      params.require(:doc).permit(:documentable_id, :documentable_type, :image, :raw, :current, :board_id, :user_id, :source_type)
     end
 end

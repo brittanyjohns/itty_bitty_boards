@@ -5,8 +5,8 @@
 #  id                :bigint           not null, primary key
 #  documentable_type :string           not null
 #  documentable_id   :bigint           not null
-#  raw_text          :text
-#  processed_text    :text
+#  raw               :text
+#  processed         :text
 #  current           :boolean          default(FALSE)
 #  created_at        :datetime         not null
 #  updated_at        :datetime         not null

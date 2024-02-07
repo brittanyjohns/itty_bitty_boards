@@ -19,6 +19,9 @@ Rails.application.routes.draw do
     end
   end
   resources :docs do
+    collection do
+      get "deleted"
+    end
     member do
       patch "mark_as_current"
       post "move"
