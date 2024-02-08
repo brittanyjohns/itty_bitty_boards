@@ -1,72 +1,52 @@
 
-<div class="font-sans">
-<!-- Fullscreen Background Image -->
-<div class="min-h-96 bg-cover bg-center hero_main1" style="background-image: url(<%= asset_path 'hero_main1.webp' %>);">
-    <div class="py-10 bg-black bg-opacity-50 flex flex-col justify-center items-center text-center">
-        <h1 class="text-5xl font-bold text-white">Empower Your Child's Communication</h1>
-        <p class="mt-4 text-lg text-white">
-            Discover the simplicity of Itty Bitty Boards.
-        </p>
-        <div class="mt-6 space-x-2">
-            <%= link_to demo_path, class: "inline-block bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg" do %>
-                Learn More
-            <% end %>
-            <%= link_to faq_path, class: "inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg" do %>
-                FAQs
-            <% end %>
-            <%= link_to new_user_registration_path, class: "inline-block bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg" do %>
-                Get Started
-            <% end %>
-        </div>
-    </div>
-</div>
 
-<div class="grid grid-col-1 md:grid-cols-2 gap-4">
-
-<!-- How It Works Section -->
-<section class="col-span-1 py-8 bg-white">
-    <div class="container mx-auto px-4">
-        <h2 class="text-4xl font-bold text-center mb-8">How It Works</h2>
-        <div class="grid md:grid-cols-3 gap-4">
-            <% 3.times do |step| %>
-                <div class="text-center">
-                    <%= image_tag "round_itty_bitty_logo_1.png", alt: "Step #{step + 1}", class: "mx-auto h-20 w-20" %>
-                    <h3 class="mt-4 font-semibold text-xl text-purple-600">Step <%= step + 1 %>: <%= ['Create a Board', 'Print or Use Digitally', 'Communicate'][step] %></h3>
-                    <p class="mt-2 text-md text-gray-600">
-                        <%= ['Upload your images or choose from our library to create personalized communication boards.', 
-                        'Print your board or use it digitally on a tablet or smartphone.', 
-                        'Use the board to communicate with your child, and watch their confidence grow.'][step] %>
-                    </p>
-                </div>
-            <% end %>
-        </div>
-    </div>
-</section>
-<!-- Features Section -->
-<section class="row-span-2 py-8 bg-white">
-    <div class="container mx-auto px-4">
-        <h2 class="text-4xl font-bold text-center">Features</h2>
-        <div class="grid md:grid-cols-2 lg:grid-cols-2 gap-8 mt-8">
-            <% ['Custom Boards', 'AI-Generated Images', 'Menu Conversion', 'More Coming Soon'].each_with_index do |feature, index| %>
-            <%= link_to faq_path do %>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <%= image_tag "feature_#{index + 1}.webp", alt: "#{feature}", class: "h-50 w-full object-cover rounded-md" %>
-                    <h3 class="mt-4 font-semibold text-lg text-purple-600"><%= feature %></h3>
-                    <p class="mt-2 text-md text-gray-600">
-                        <%= ['Create personalized communication boards with ease.', 'Leverage AI for perfect image matches.', 'Convert menus into communicative boards instantly.', 'Stay tuned for innovative communication tools.'][index] %>
-                    </p>
-                </div>
+<div class="container p-4 bg-white bg-opacity-50 mx-auto shadow-lg">
+    <!-- Hero Section -->
+    <div class="hero_main1 bg-cover bg-center min-h-48 md:min-h-96" style="background-image: url('/assets/hero_main1.webp');">
+        <div class="flex flex-col justify-center items-center text-center py-10 bg-black bg-opacity-50">
+            <h1 class="text-2xl md:text-5xl font-bold text-white">Empower Your Child's Communication</h1>
+            <p class="mt-4 text-sm md:text-lg text-white">Discover the simplicity of Itty Bitty Boards.</p>
+            <!-- Buttons -->
+            <div class="mt-6 space-x-2">
+                <%= link_to demo_path, class: "inline-block bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg" do %>
+                    Learn More
                 <% end %>
-            <% end %>
+                <%= link_to faq_path, class: "inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg" do %>
+                    FAQs
+                <% end %>
+                <%= link_to new_user_registration_path, class: "inline-block bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg" do %>
+                    Get Started
+                <% end %>
+            </div>
         </div>
     </div>
-</section>
 
-
-    <!-- Predefined Boards Section -->
-<section class="col-span-1 py-8 bg-gray-50">
-    <div class="container mx-auto px-4">
-        <h2 class="text-3xl font-bold text-center">Ready to Get Started?</h2>
+    <!-- Content Sections -->
+    <div class="mt-4">
+        <!-- Adjust grid for mobile -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Sections: How It Works, Features, etc. -->
+            <!-- How It Works Section -->
+            <section class="col-span-1 py-8 bg-white">
+                <div class="container mx-auto px-4">
+                    <h2 class="text-4xl font-bold text-center mb-8">How It Works</h2>
+                    <div class="grid md:grid-cols-3 gap-4">
+                        <% 3.times do |step| %>
+                            <div class="text-center">
+                                <%= image_tag "round_itty_bitty_logo_1.png", alt: "Step #{step + 1}", class: "mx-auto h-20 w-20" %>
+                                <h3 class="mt-4 font-semibold text-xl text-purple-600">Step <%= step + 1 %>: <%= ['Create a Board', 'Print or Use Digitally', 'Communicate'][step] %></h3>
+                                <p class="mt-2 text-md text-gray-600">
+                                    <%= ['Upload your images or choose from our library to create personalized communication boards.', 
+                                    'Print your board or use it digitally on a tablet or smartphone.', 
+                                    'Use the board to communicate with your child, and watch their confidence grow.'][step] %>
+                                </p>
+                            </div>
+                        <% end %>
+                    </div>
+                </div>
+                    <!-- Predefined Boards Section with Horizontal Scrolling -->
+    <div class="p-8 bg-white mt-8 border-t-2">
+        <h2 class="text-xl md:text-3xl font-bold text-center">Ready to Get Started?</h2>
         <p class="text-lg text-gray-600 my-4 text-center">
             Choose from our library of predefined boards to get started.
         </p>
@@ -75,28 +55,48 @@
                 Take a look at our basic boards to get started. No sign-up required!
             </p>            
         </div>
-
+        <!-- Horizontal scrolling list for predefined boards -->
         <div class="flex overflow-x-auto py-2 space-x-2">
-    <% @predefined_boards.order(name: :asc).each do |board| %>
-        <%= link_to show_predefined_path(board), class: "min-w-max p-3 flex-shrink-0 flex justify-center items-center bg-white rounded-lg shadow-sm hover:shadow-lg transition-shadow duration-150 ease-in-out" do %>
-            <div class="text-center">
-                <h3 class="font-semibold text-lg text-blue-600"><%= board.name %></h3>
-                <%= display_image_for(board.display_image, current_user) if board.display_image %>
-            </div>
-        <% end %>
-    <% end %>
-</div>
-
+            <!-- Boards -->
+            <% @predefined_boards.order(name: :asc).each do |board| %>
+                <%= link_to show_predefined_path(board), class: "min-w-max p-3 flex-shrink-0 flex justify-center items-center bg-white rounded-lg shadow-sm hover:shadow-lg transition-shadow duration-150 ease-in-out" do %>
+                    <div class="text-center">
+                        <h3 class="font-semibold text-lg text-blue-600"><%= board.name %></h3>
+                        <%= display_image_for(board.display_image, current_user) if board.display_image %>
+                    </div>
+                <% end %>
+            <% end %>
+        </div>
         <%= link_to new_user_registration_path, class: "grow text-center" do %>
             <p class="text-2xl text-center mx-auto my-auto  shadow px-5 py-8">
                 Want to create your own? Sign up to get started.
             </p>
         <% end %>
     </div>
-</section>
-
-</div>
-
+            </section>
+            <!-- Features Section -->
+            <section class="row-span-1 py-8 bg-white">
+                <div class="container mx-auto px-4">
+                    <h2 class="text-4xl font-bold text-center">Features</h2>
+                    <div class="grid md:grid-cols-2 lg:grid-cols-2 gap-8 mt-8">
+                        <% ['Custom Boards', 'AI-Generated Images', 'Menu Conversion', 'More Coming Soon'].each_with_index do |feature, index| %>
+                        <%= link_to faq_path do %>
+                            <div class="bg-white rounded-lg shadow p-6 text-center">
+                                <%= image_tag "feature_#{index + 1}.webp", alt: "#{feature}", class: "h-40 object-cover rounded-md mx-auto" %>
+                                <h3 class="mt-4 font-semibold text-lg text-purple-600"><%= feature %></h3>
+                                <p class="mt-2 text-md text-gray-600">
+                                    <%= ['Create personalized communication boards with ease.', 'Leverage AI for perfect image matches.', 'Convert menus into communicative boards instantly.', 'Stay tuned for innovative communication tools.'][index] %>
+                                </p>
+                            </div>
+                            <% end %>
+                        <% end %>
+                    </div>
+                </div>
+                
+            </section>
+            
+        </div>
+    </div>
 
 
 </div>

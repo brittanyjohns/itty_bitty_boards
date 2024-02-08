@@ -55,4 +55,9 @@
   .padded-box, .padded {
     @apply p-2.5;
   }
+  .hero_main1 {
+    background-image: url('../images/hero_main1.webp');
+  }
+  
+
 }
