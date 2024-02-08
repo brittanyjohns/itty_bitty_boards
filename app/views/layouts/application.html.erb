@@ -15,7 +15,7 @@
       <link rel="manifest" crossorigin="use-credentials" href="/manifest.json" />
   </head>
 
-  <body class="bg-gradient-to-r from-blue-50 to-indigo-100 min-h-screen" data-controller="notice">
+  <body class="bg-gradient-to-r from-blue-50 to-indigo-100 min-h-screen" data-controller="notice tooltip">
       <%= render "layouts/navbar" %>
       <%= render "layouts/notice" %>
       <%= render "layouts/alert" %>
@@ -26,5 +26,11 @@
       <%= render "layouts/footer" %>
 
       <script src="https://unpkg.com/@material-tailwind/html@latest/scripts/dialog.js"></script>
+      <script src="https://unpkg.com/@popperjs/core@2/dist/umd/popper.min.js"></script>
+<script src="https://unpkg.com/tippy.js@6/dist/tippy-bundle.umd.js"></script>
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/tippy.js@6/animations/scale.css"
+/>
   </body>
 </html>

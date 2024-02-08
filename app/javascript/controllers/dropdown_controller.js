@@ -6,7 +6,8 @@ export default class extends Controller {
   connect() {
     console.log('connected to dropdown controller')
   }
-  toggle() {
+  toggle(e) {
+    console.log('toggling dropdown', e)
     console.log('toggling dropdown', this.contentTarget)
     this.contentTarget.classList.toggle('hidden')
   }

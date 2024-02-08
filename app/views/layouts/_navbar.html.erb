@@ -9,18 +9,21 @@
       <div class="relative hidden md:flex items-center space-x-6 text-white">
         <!-- Authentication and navigation links -->
         <% if user_signed_in? %>
-          <%= button_tag "New", class: "hover:text-blue-300", data: { action: "click->dropdown#toggle" } %>
-
-          <%= link_to "Menus", menus_path, class: "hover:text-blue-300" %>
-          <%= link_to "Boards", boards_path, class: "hover:text-blue-300" %>
+          <%= button_tag "<i class='fas fa-plus'></i>".html_safe, class: "hover:text-blue-300", data: { action: "click->dropdown#toggle", "tippy-content": "Create something new" } %>
+          <%= link_to home_nav, boards_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+          <%= link_to shopping_cart_nav, carts_show_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+          <%= link_to coins_nav, products_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+          <%= link_to user_nav, current_user, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs" %>
+          <div class="relative">
+            <div class="badge bg-blue-500 text-white rounded-full p-1 text-xs" data-action="mouseover->tooltip#mouse" data-tooltip="You have <%= current_user.tokens %> tokens">
+              <%= current_user.tokens %>
+            </div>
+          </div>
           <!-- Conditional admin links -->
           <%= link_to "Users", users_path, class: "hover:text-blue-300" if current_user.admin? %>
           <%= link_to "Docs", docs_path, class: "hover:text-blue-300" if current_user.admin? %>
           <%= link_to "Images", images_path, class: "hover:text-blue-300" %>
           <!-- User tokens and logout -->
-          <span class="bg-blue-600 py-1 px-3 rounded-full text-xs font-medium">
-            <%= current_user.tokens %> tokens
-          </span>
           <%= button_to "Logout", destroy_user_session_path, method: :delete, class: "hover:text-blue-300", form_class: "ml-4" %>
         <% else %>
           <%= link_to "Sign up", new_user_registration_path, class: "hover:text-blue-300" %>

@@ -57,3 +57,6 @@ application.register("static-image", StaticImageController)
 
 import StripeController from "./stripe_controller"
 application.register("stripe", StripeController)
+
+import TooltipController from "./tooltip_controller"
+application.register("tooltip", TooltipController)

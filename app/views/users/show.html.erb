@@ -1,7 +1,17 @@
 <div class="container mx-auto p-3 bg-white rounded-lg shadow-xl mb-6 pb-6">
   <div class="flex justify-between items-center border-b pb-4">
-    <h1 class="text-2xl font-semibold text-gray-800">User Profile</h1>
     <%= link_to 'Edit Profile', edit_user_registration_path, class: "text-indigo-600 hover:text-indigo-900 font-semibold" %>
+        <h1 class="text-2xl font-semibold text-gray-800">User Profile</h1>
+
+    <%= link_to welcome_path, class: "inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg" do %>
+        Welcome Info
+    <% end %>
+  </div>
+  <div class="flex justify-around items-center border-b p-2">
+    <%= link_to "Menus", menus_path, class: "hover:text-blue-300 my-auto px-5" %>
+        <%= link_to "Boards", boards_path, class: "hover:text-blue-300 my-auto px-5" %>
+
+    <%= link_to "Images", images_path, class: "hover:text-blue-300 my-auto px-5" %> 
   </div>
 
   <div class="mt-6">
@@ -12,7 +22,7 @@
   </div>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
   <div class="my-6 max-h-screen overflow-scroll">
-    <h2 class="text-xl font-semibold text-gray-700">Your Images</h2>
+    <h2 class="text-xl font-semibold text-gray-700">Your Boards</h2>
     <table class="table-auto w-full mt-2">
       <thead class="bg-gray-100">
         <tr>
@@ -21,10 +31,10 @@
         </tr>
       </thead>
       <tbody class="text-gray-700">
-        <% @user.images.order(created_at: :desc).each do |image| %>
+        <% @user.boards.order(created_at: :desc).each do |board| %>
           <tr class="border-b border-gray-200 hover:bg-gray-100">
-            <td class="text-left py-3 px-4"><%= image.id %>: <%= link_to image.label, image, class: "text-indigo-600 hover:text-indigo-900" %></td>
-            <td class="text-right py-3 px-4"><%= link_to 'Delete', image_path(image), method: :delete, data: { confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
+            <td class="text-left py-3 px-4"><%= board.id %>: <%= link_to board.name, board, class: "text-indigo-600 hover:text-indigo-900" %></td>
+            <td class="text-right py-3 px-4"><%= link_to 'Delete', board_path(board), method: :delete, data: { confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
           </tr>
         <% end %>
       </tbody>
@@ -32,7 +42,7 @@
   </div>
 
   <div class="my-6 max-h-screen overflow-scroll">
-    <h2 class="text-xl font-semibold text-gray-700">Your Documents</h2>
+    <h2 class="text-xl font-semibold text-gray-700">Your Menus</h2>
     <table class="table-auto w-full mt-2">
       <thead class="bg-gray-100">
         <tr>
@@ -41,7 +51,7 @@
         </tr>
       </thead>
       <tbody class="text-gray-700">
-        <% @user.user_docs.order(created_at: :desc).each do |user_doc| %>
+        <% @user.menus.order(created_at: :desc).each do |user_doc| %>
           <tr class="border-b border-gray-200 hover:bg-gray-100">
             <td class="text-left py-3 px-4"><%= user_doc.id %>: <%= link_to user_doc.doc.label, user_doc.doc.documentable, class: "text-indigo-600 hover:text-indigo-900" %></td>
             <td class="text-right py-3 px-4"><%= link_to 'Delete', remove_user_doc_user_path(user_doc), method: :delete, data: { confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
