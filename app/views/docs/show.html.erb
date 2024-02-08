@@ -15,7 +15,6 @@
     <p class="text-sm mb-3">Updated at: <%= time_ago_in_words(@doc.updated_at) %> ago</p>
     <hr>
         <%= render "move", doc: @doc if current_user.can_edit?(@doc) %>
-    <%= render "find_or_create", doc: @doc, generate_image: true if current_user.can_edit?(@doc) %>
 
   </div>
 

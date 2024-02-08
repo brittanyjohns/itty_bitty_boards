@@ -76,8 +76,13 @@ class Menu < ApplicationRecord
     new_images = []
     tokens_used = 0
     json_description["menu_items"].each do |food|
-      if food["name"].blank? || food["image_description"].include?("Unknown")
-        puts "No name or image description for food item\n"
+      if food["name"].blank? || food["image_description"].blank?
+        puts "Blank name or image description for #{food.inspect}"
+        next
+      end
+      if food["image_description"]&.downcase&.include?("unknown")
+        puts "Unknown image description for #{food["name"]}"
+        puts food.inspect
         next
       end
       item_name = menu_item_name(food["name"])

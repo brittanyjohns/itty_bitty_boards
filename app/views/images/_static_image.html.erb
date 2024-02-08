@@ -9,6 +9,7 @@
       <p class="text-xs font-semibold text-gray-700 py-1 block m-2 mr-3"><%= image.display_label %></p>
       <% else %>
       <%= link_to image.display_label, image, class: "text-xs font-semibold text-gray-700 py-1 block hover:text-blue-600 m-2 mr-3" %>
+      <%= image.generating? ? loading_spinner : "" %>
       <%= remove_image_button(@board, image) if current_user.can_edit?(@board) %>
     <% end %>
     </div>

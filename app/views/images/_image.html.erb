@@ -12,7 +12,7 @@
   <div class="relative text-wrap">
     <%= button_to "Create Symbols ", create_symbol_image_path(image), class: "text-white bg-blue-500 hover:bg-blue-700 font-bold py-2 px-4 rounded" if current_user.admin? && image.open_symbol_status == "active" %>
     <%= link_to image.display_label, image, class: "text-xl font-semibold text-gray-700 py-1 mt-2 block hover:text-blue-600 m-1" %>
-
+    <%= image.generating? ? loading_spinner : "" %>
     <%= remove_image_button(@board, image) if current_user.can_edit?(@board) %>
   </div>
   <% end %>
