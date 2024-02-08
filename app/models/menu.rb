@@ -76,6 +76,10 @@ class Menu < ApplicationRecord
     new_images = []
     tokens_used = 0
     json_description["menu_items"].each do |food|
+      if food["name"].blank? || food["image_description"].include?("Unknown")
+        puts "No name or image description for food item\n"
+        next
+      end
       item_name = menu_item_name(food["name"])
       image = Image.find_by(label: item_name, user_id: self.user_id)
       image = Image.find_by(label: item_name, private: false) unless image
