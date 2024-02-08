@@ -1,55 +1,48 @@
-<nav class="bg-gray-900 px-6 py-4 shadow-lg" data-controller="navbar">
-  <div class="max-w-7xl mx-auto flex justify-between items-center">
-    <%= link_to root_path, class: "flex items-center" do %>
-      <%= image_tag "round_itty_bitty_logo_2.png", alt: "logo", class: "h-12 w-12" %>
-      <h1 class="text-white text-3xl font-bold ml-2">IttyBittyBoards</h1>
-    <% end %>
-
-    <div class="hidden md:flex items-center space-x-6 text-white">
-      <!-- Authentication and navigation links -->
-      <% if user_signed_in? %>
-        <%= link_to "Menus", menus_path, class: "hover:text-blue-300" %>
-        <%= link_to "Boards", boards_path, class: "hover:text-blue-300" %>
-        <!-- Conditional admin links -->
-        <%= link_to "Users", users_path, class: "hover:text-blue-300" if current_user.admin? %>
-        <%= link_to "Docs", docs_path, class: "hover:text-blue-300" if current_user.admin? %>
-        <%= link_to "New Image", new_image_path, class: "hover:text-blue-300" %>
-        <%= link_to "Image", images_path, class: "hover:text-blue-300" %>
-        <!-- User tokens and logout -->
-        <span class="bg-blue-600 py-1 px-3 rounded-full text-xs font-medium">
-          <%= current_user.tokens %> tokens
-        </span>
-        <%= button_to "Logout", destroy_user_session_path, method: :delete, class: "hover:text-blue-300", form_class: "ml-4" %>
-      <% else %>
-        <%= link_to "Sign up", new_user_registration_path, class: "hover:text-blue-300" %>
-        <%= link_to "Login", new_user_session_path, class: "hover:text-blue-300" %>
+<div data-controller="navbar dropdown">
+  <nav class="bg-gray-900 px-6 py-4 shadow-lg">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+      <%= link_to root_path, class: "flex items-center" do %>
+        <%= image_tag "round_itty_bitty_logo_2.png", alt: "logo", class: "h-12 w-12" %>
+        <h1 class="text-white text-3xl font-bold ml-2">IttyBittyBoards</h1>
       <% end %>
+
+      <div class="relative hidden md:flex items-center space-x-6 text-white">
+        <!-- Authentication and navigation links -->
+        <% if user_signed_in? %>
+          <%= button_tag "New", class: "hover:text-blue-300", data: { action: "click->dropdown#toggle" } %>
+
+          <%= link_to "Menus", menus_path, class: "hover:text-blue-300" %>
+          <%= link_to "Boards", boards_path, class: "hover:text-blue-300" %>
+          <!-- Conditional admin links -->
+          <%= link_to "Users", users_path, class: "hover:text-blue-300" if current_user.admin? %>
+          <%= link_to "Docs", docs_path, class: "hover:text-blue-300" if current_user.admin? %>
+          <%= link_to "Images", images_path, class: "hover:text-blue-300" %>
+          <!-- User tokens and logout -->
+          <span class="bg-blue-600 py-1 px-3 rounded-full text-xs font-medium">
+            <%= current_user.tokens %> tokens
+          </span>
+          <%= button_to "Logout", destroy_user_session_path, method: :delete, class: "hover:text-blue-300", form_class: "ml-4" %>
+        <% else %>
+          <%= link_to "Sign up", new_user_registration_path, class: "hover:text-blue-300" %>
+          <%= link_to "Login", new_user_session_path, class: "hover:text-blue-300" %>
+        <% end %>
+
+        <!-- Dropdown Menu -->
+        <div id="new_dropdown" class="hidden absolute top-full mt-2 w-48 bg-blue-400 rounded shadow-lg z-50" data-dropdown-target="content">
+          <% if user_signed_in? %>
+            <%= link_to "New Image", new_image_path, class: "block px-4 py-2 text-sm text-white hover:bg-blue-700" %>
+            <%= link_to "New Board", new_board_path, class: "block px-4 py-2 text-sm text-white hover:bg-blue-700" %>
+            <%= link_to "New Menu", new_menu_path, class: "block px-4 py-2 text-sm text-white hover:bg-blue-700" %>
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Hamburger menu for mobile -->
+      <button class="md:hidden focus:outline-none focus:ring-2 focus:ring-blue-300" data-action="click->navbar#toggle">
+        <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+        </svg>
+      </button>
     </div>
-
-    <!-- Hamburger menu for mobile -->
-    <button id="menu-btn" class="md:hidden focus:outline-none focus:ring-2 focus:ring-blue-300" data-action="click->navbar#toggle">
-      <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
-      </svg>
-    </button>
-  </div>
-
-  <!-- Mobile menu -->
-  <div id="menu" class="hidden md:hidden" data-navbar-target="menu">
-
-    <% if user_signed_in? %>
-      <%= link_to shopping_cart_nav, carts_show_path, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>
-      <%= link_to coins_nav, products_path, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>
-      <%= link_to user_nav, current_user, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>
-      <%= link_to "Boards", boards_path, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>
-      <%= link_to "Menus", menus_path, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>
-      <%= link_to "Images", images_path, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>
-      <%= link_to "Demos", demo_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium ml-5" %>
-      <%= button_to "Logout", destroy_user_session_path, method: :delete, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white", form_class: "inline-block" %>
-    <% else %>
-      <%= link_to "Demos", demo_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm font-medium ml-5" %>
-      <%= link_to "Sign up", new_user_registration_path, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>
-      <%= link_to "Login", new_user_session_path, class: "block px-4 py-2 text-sm text-blue-200 hover:bg-blue-700 hover:text-white" %>
-    <% end %>
-  </div>
-</nav>
+  </nav>
+</div>

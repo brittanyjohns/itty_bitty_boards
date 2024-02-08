@@ -10,6 +10,9 @@ application.register("add-images", AddImagesController)
 import DisableController from "./disable_controller"
 application.register("disable", DisableController)
 
+import DropdownController from "./dropdown_controller"
+application.register("dropdown", DropdownController)
+
 import GenerateImageController from "./generate_image_controller"
 application.register("generate-image", GenerateImageController)
 
