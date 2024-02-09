@@ -23,12 +23,16 @@
 
     <% if current_user.admin? %>
     <div class="my-4 flex items-center">
-      <%= form.label :private, class: "block text-gray-700 font-bold mr-2" %>
-      <%= form.check_box :private, class: "leading-tight" %>
-    </div>
-    <div class="my-4 flex items-center">
       <%= form.label :status, class: "block text-gray-700 font-bold mr-2" %>
       <%= form.text_field :status, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full" %>
+    </div>
+    <div class="my-4 flex flex-col items-center">
+      <%= form.label :open_symbol_status, "Symbol status", class: "block text-gray-700 font-bold mr-2" %>
+      <%= form.select :open_symbol_status, Image.open_symbol_statuses, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full" %>
+    </div>
+    <div class="my-4 flex flex-col items-center">
+      <%= form.label :private, class: "block text-gray-700 font-bold mr-2" %>
+      <%= form.check_box :private, class: "leading-tight" %>
     </div>
     <% end %>
 

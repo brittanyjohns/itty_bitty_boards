@@ -59,6 +59,10 @@ class Image < ApplicationRecord
     end
   end
 
+  def self.open_symbol_statuses
+    ["active", "skipped"]
+  end
+
   def generate_matching_symbol(limit = 1)
     return if open_symbol_status == "skipped"
     query = label&.downcase
@@ -110,8 +114,6 @@ class Image < ApplicationRecord
           new_image_doc.image.attach(io: downloaded_image, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{new_symbol.extension}")
         else
           skipped_count += 1
-          puts "SKIP COUNT: #{skipped_count} - SYMBOLS COUNT: #{symbols_count}"
-          puts "Not creating symbol image for #{symbol_name}\n - symbol_name_like_label?: #{symbol_name_like_label?(symbol_name)}\n  - doc_text_matches?: #{doc_text_matches(symbol_name)}"
         end
         if (skipped_count + count) >= stop_limit
           puts "Skipped all symbols"
@@ -119,7 +121,7 @@ class Image < ApplicationRecord
           break
         end
       end
-      puts "Created #{count} symbols"
+      puts "Created #{count} symbols. Skipped #{skipped_count} symbols"
       symbols
       rescue => e
         puts "Error creating symbols: #{e.message}\n\n#{e.backtrace.join("\n")}"

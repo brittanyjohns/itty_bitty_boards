@@ -50,9 +50,9 @@ class User < ApplicationRecord
     role == 'admin'
   end
 
-  # def favorite_docs
-  #   user_docs.includes(:doc).map(&:doc)
-  # end
+  def non_menu_boards
+    boards.non_menus.order(name: :asc)
+  end
 
   def all_available_images
     Image.where(user_id: [id, nil]).order(label: :desc)
