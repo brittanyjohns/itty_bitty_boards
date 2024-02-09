@@ -4,18 +4,18 @@
 /* @import "custom.tailwind.css"; */
 
 .pagination {
-  @apply bg-white px-4 py-3 m-2 flex items-center justify-between border-t border-b border-gray-200 sm:px-6 w-full rounded-lg;
+  @apply bg-white px-3 py-2 m-2 flex items-center justify-between border-t border-b border-gray-200 sm:px-6 w-full rounded-lg;
 }
 
 .page {
-  @apply hover:text-gray-700 cursor-pointer bg-teal-700 hover:bg-teal-300 text-white px-2 py-2 rounded-md text-sm font-medium;
+  @apply hover:text-gray-700 cursor-pointer bg-teal-700 hover:bg-teal-300 text-white px-2 py-1 rounded-md text-sm font-medium;
 }
 .current {
-  @apply bg-teal-300 text-gray-700 px-3 py-2 rounded-md text-sm font-medium;
+  @apply bg-teal-300 text-gray-700 px-2 py-1 rounded-md text-sm font-medium;
 }
 
 .page a {
-  @apply  px-3 py-2 rounded-md text-sm font-medium;
+  @apply  px-2 py-1 rounded-md text-sm font-medium;
 }
 
 /* .next {
