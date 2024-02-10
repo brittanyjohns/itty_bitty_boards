@@ -9,9 +9,9 @@ class DocsController < ApplicationController
     search_param = params[:query]&.strip
     puts "search_param: #{search_param}"
     if params[:query].present?
-      @docs = @docs.where("raw ILIKE ?", "%#{search_param}%").order(raw: :asc).page params[:page]
+      @docs = @docs.where("processed ILIKE ?", "%#{search_param}%").order(processed: :asc).page params[:page]
     else
-      @docs = @docs.order(raw: :asc).page params[:page]
+      @docs = @docs.order(processed: :asc).page params[:page]
     end
     if turbo_frame_request?
       render partial: "docs", locals: { docs: @docs }
@@ -32,6 +32,18 @@ class DocsController < ApplicationController
 
   def deleted
     @docs = Doc.hidden.order(created_at: :desc).page params[:page]
+    search_param = params[:query]&.strip
+    puts "search_param: #{search_param}"
+    if params[:query].present?
+      @docs = @docs.where("processed ILIKE ?", "%#{search_param}%").order(processed: :asc).page params[:page]
+    else
+      @docs = @docs.order(processed: :asc).page params[:page]
+    end
+    if turbo_frame_request?
+      render partial: "docs", locals: { docs: @docs }
+    else
+      render :deleted
+    end
   end
 
   # GET /docs/1 or /docs/1.json

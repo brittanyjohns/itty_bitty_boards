@@ -1,28 +1,20 @@
-  <div class="mt-6 sm: w-full bg-gray-100">
+  <div class="mt-6 sm: w-5/6 mx-auto bg-gray-100 px-5">
         <%= render "shared_nav" %>
 
-      <%= render "utils/search", search_path: docs_path, show_user_images_only: true %>
+      <%= render "utils/search", search_path: deleted_docs_path, show_user_images_only: false %>
     <%= paginate @docs %>
 
-    <h2 class="text-xl font-semibold text-gray-700">Deleted</h2>
-    <table class="min-w-full mt-3">
-      <thead class="bg-gray-100">
-        <tr>
-          <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">ID</th>
-          <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600"> Image</th>
-          <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Text</th>
-          <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Actions</th>
-        </tr>
-      </thead>
-      <tbody class="text-gray-700">
+    <h2 class="text-2xl font-semibold text-gray-700">Deleted</h2>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         <% @docs.order(created_at: :desc).each do |doc| %>
-          <tr class="border-b border-gray-200 hover:bg-gray-100">
-            <td class="text-left py-3 px-4"><%= doc.documentable_type.downcase %>-<%= doc.id %></td>
-            <td class="text-left py-3 px-4"><%= image_tag doc.image, class: "h-52 w-52" if doc.image.attached? %></td>
-            <td class="text-left py-3 px-4"><%= link_to doc.processed, doc %> </td>
-            <td class="text-right py-3 px-4"><%= render "find_or_create", doc: doc, generate_image: false if current_user.can_edit?(doc) %></td>
-          </tr>
+          <div class="border-2">
+            <p class="text-center py-1 px-2"><%= doc.documentable_type.downcase %>-<%= doc.matching_open_symbols.count %></p>
+            <p class="text-center py-1 px-2"><%= image_tag doc.image, class: "h-52 w-52" if doc.image.attached? %></p>
+            <p class="text-center py-1 px-2"><%= link_to doc.processed, doc %> </p>
+            <p class="text-center py-1 px-2"><%= doc.matching_open_symbols.map { |s| link_to s.repo_key, s, class: "text-indigo-600 hover:text-indigo-900" }.join(", ").html_safe %></p>
+            <div class="w-5/6 text-center py-1 px-2 mx-auto"><%= render "find_or_create", doc: doc, generate_image: false if current_user.can_edit?(doc) %></div>
+          </div>
         <% end %>
-      </tbody>
+      </div>
     </table>
   </div>

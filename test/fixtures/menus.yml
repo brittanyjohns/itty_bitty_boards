@@ -8,6 +8,7 @@
 #  description :text
 #  created_at  :datetime         not null
 #  updated_at  :datetime         not null
+#  token_limit :integer          default(0)
 #
 
 one:

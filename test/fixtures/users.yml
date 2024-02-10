@@ -17,6 +17,8 @@
 #  role                   :string
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
+#  tokens                 :integer          default(0)
+#  stripe_customer_id     :string
 #
 
 # This model initially had no columns defined. If you add columns to the

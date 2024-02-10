@@ -3,23 +3,15 @@
 # Table name: orders
 #
 #  id               :bigint           not null, primary key
-#  shipping         :decimal(, )
-#  status           :integer          default("in_progress")
 #  subtotal         :decimal(, )
 #  tax              :decimal(, )
+#  shipping         :decimal(, )
 #  total            :decimal(, )
-#  total_coin_value :integer          default(0)
+#  status           :integer          default("in_progress")
+#  user_id          :bigint           not null
+#  total_coin_value :integer
 #  created_at       :datetime         not null
 #  updated_at       :datetime         not null
-#  user_id          :bigint           not null
-#
-# Indexes
-#
-#  index_orders_on_user_id  (user_id)
-#
-# Foreign Keys
-#
-#  fk_rails_...  (user_id => users.id)
 #
 class Order < ApplicationRecord
   belongs_to :user

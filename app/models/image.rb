@@ -11,6 +11,11 @@
 #  generate_image      :boolean          default(FALSE)
 #  created_at          :datetime         not null
 #  updated_at          :datetime         not null
+#  status              :string
+#  error               :string
+#  revised_prompt      :string
+#  image_type          :string
+#  open_symbol_status  :string           default("active")
 #
 class Image < ApplicationRecord
   normalizes :label, with: -> label { label.downcase.strip }

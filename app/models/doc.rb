@@ -5,13 +5,15 @@
 #  id                :bigint           not null, primary key
 #  documentable_type :string           not null
 #  documentable_id   :bigint           not null
-#  raw               :text
 #  processed         :text
+#  raw               :text
 #  current           :boolean          default(FALSE)
 #  created_at        :datetime         not null
 #  updated_at        :datetime         not null
 #  board_id          :integer
 #  user_id           :integer
+#  source_type       :string
+#  deleted_at        :datetime
 #
 class Doc < ApplicationRecord
   default_scope { where(deleted_at: nil) }
@@ -30,6 +32,8 @@ class Doc < ApplicationRecord
   scope :created_today, -> { where("created_at > ?", 1.day.ago) }
   scope :hidden, -> { unscope(:where).where.not(deleted_at: nil) }
   scope :not_hidden, -> { where(deleted_at: nil) }
+  scope :symbols, -> { where(source_type: "OpenSymbol") }
+  scope :ai_generated, -> { where(source_type: "OpenAI") }
 
   # def self.with_no_user_docs_for(user_id)
   #   includes(:user_docs).
@@ -132,7 +136,11 @@ class Doc < ApplicationRecord
   end
 
   def matching_open_symbols
-    OpenSymbol.where("label ILIKE ?", "%#{label}%")
+    OpenSymbol.where(search_string: raw)
+  end
+
+  def image_url
+    matching_open_symbols.first&.image_url
   end
 
   def is_a_favorite?(user)

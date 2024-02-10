@@ -17,6 +17,8 @@
 #  role                   :string
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
+#  tokens                 :integer          default(0)
+#  stripe_customer_id     :string
 #
 class User < ApplicationRecord
   pay_customer default_payment_processor: :stripe 
