@@ -21,7 +21,7 @@
         This image is currently being used in the following boards:
       </p>
       <% @user_image_boards.each do |board| %>
-        <%= link_to board.name.upcase, board_path(board), class: "text-base text-indigo-600 hover:underline p-2 border" %><br>
+        <%= link_to board.name.upcase, board_path(board), class: "text-indigo-600 hover:underline p-2 my-2" %>
       <% end %>
 
     <% if current_user.boards.any? %>
@@ -47,14 +47,13 @@
         <%= render "images/doc_form", image: @image %>
       </div>
 
-      <% if @image.generating? %>
-      <div class="">
-          <div class="p-4 max-w-md mx-auto bg-green-100 rounded-lg shadow-md">
-            <%= loading_spinner %>
-            <p>Please wait while we process your image...</p>
-          </div>
+      <div class="bg-green-500 p-6 rounded-lg text-white hidden mb-3" data-image-parser-target="please_wait" id="pleaseWait">
+        <p class="text-center">Please wait while we process your image...</p>
+        <div class="flex justify-center mt-4">
+          <span class="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-white">
+          </span>
+        </div>
       </div>
-      <% end %>
 
       <div class="border bg-indigo-400 p-3">
         <% if @image.status == "error" %>

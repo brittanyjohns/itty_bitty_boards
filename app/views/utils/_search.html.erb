@@ -5,7 +5,6 @@
     <%= form.submit "Search", class: "shrink-0 px-4 py-2 font-medium bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300" %>
     <%= link_to "Clear", search_path, class: "shrink-0 px-4 py-2 font-medium bg-gray-200 text-gray-700 rounded hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300" %>
     <% if show_user_images_only %>
-    <%=show_user_images_only%>
     <div class="flex items-center space-x-2 justify-end <%= show_user_images_only ? "" : "hidden" %>">
       <%= form.check_box :user_images_only, class: "form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500", data: { search_form_target: "userImagesOnly", action: "input->search-form#search" } %>
       <%= form.label :user_images_only, "Only my #{params["controller"]}", class: "text-sm font-medium text-gray-700" %>

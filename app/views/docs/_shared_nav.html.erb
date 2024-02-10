@@ -1,5 +1,8 @@
 <div class="felx justify-between">
     <%= link_to "Docs", docs_path, class: "text-lg text-white bg-blue-500 hover:bg-blue-700 font-medium py-2 px-4 rounded-md shadow" %>
+    <%= link_to "Symbols", docs_path(scope: "symbols"), class: "text-lg text-white bg-blue-500 hover:bg-blue-700 font-medium py-2 px-4 rounded-md shadow" %>
+    <%= link_to "AI Images", docs_path(scope: "ai_generated"), class: "text-lg text-white bg-blue-500 hover:bg-blue-700 font-medium py-2 px-4 rounded-md shadow" %>
+
     <%= link_to "Deleted Docs", deleted_docs_path, class: "text-lg text-white bg-blue-500 hover:bg-blue-700 font-medium py-2 px-4 rounded-md shadow" %>
 </div>
 

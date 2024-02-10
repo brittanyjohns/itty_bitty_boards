@@ -1,4 +1,4 @@
-  <div class="mt-6 sm: w-5/6 mx-auto bg-gray-100 px-5">
+  <div class="mt-6 sm: w-5/6 mx-auto px-5">
         <%= render "shared_nav" %>
 
       <%= render "utils/search", search_path: deleted_docs_path, show_user_images_only: false %>
@@ -8,11 +8,11 @@
       <div class="grid grid-cols-1 gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         <% @docs.order(created_at: :desc).each do |doc| %>
           <div class="border-2">
-            <p class="text-center py-1 px-2"><%= doc.documentable_type.downcase %>-<%= doc.matching_open_symbols.count %></p>
+            <p class="text-center py-1 px-2"><%= doc.documentable_type.downcase %></p>
             <p class="text-center py-1 px-2"><%= image_tag doc.image, class: "h-52 w-52" if doc.image.attached? %></p>
-            <p class="text-center py-1 px-2"><%= link_to doc.processed, doc %> </p>
-            <p class="text-center py-1 px-2"><%= doc.matching_open_symbols.map { |s| link_to s.repo_key, s, class: "text-indigo-600 hover:text-indigo-900" }.join(", ").html_safe %></p>
-            <div class="w-5/6 text-center py-1 px-2 mx-auto"><%= render "find_or_create", doc: doc, generate_image: false if current_user.can_edit?(doc) %></div>
+            <p class="text-center py-1 px-2"><%= link_to doc.processed&.truncate(25), doc %> </p>
+            <div class="w-7/8 text-center py-1 px-2 mx-auto"><%= render "find_or_create", doc: doc, generate_image: false if current_user.can_edit?(doc) %></div>
+            <div class="text-right py-1 px-2"><%= button_to 'Destroy', doc_path(doc, hard_delete: true), method: :delete, data: { turbo_confirm: 'Are you sure? This will perform a HARD DELETE and cannot be undone.' }, class: "text-red-600 hover:text-red-800" %><%= time_ago_in_words(doc.created_at) %> ago</div>
           </div>
         <% end %>
       </div>

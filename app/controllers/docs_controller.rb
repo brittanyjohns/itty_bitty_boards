@@ -5,7 +5,8 @@ class DocsController < ApplicationController
 
   # GET /docs or /docs.json
   def index
-    @docs = Doc.image_docs.order(created_at: :desc).page params[:page]
+    set_scoped_docs
+    # @docs = Doc.image_docs.order(created_at: :desc).page params[:page]
     search_param = params[:query]&.strip
     puts "search_param: #{search_param}"
     if params[:query].present?
@@ -123,16 +124,30 @@ class DocsController < ApplicationController
   # DELETE /docs/1 or /docs/1.json
   def destroy
     documentable = @doc.documentable
-    # @doc.destroy!
-    @doc.hide!
+    if params[:hard_delete]
+      @doc.destroy
+    else
+      @doc.hide!
+    end
 
     respond_to do |format|
-      format.html { redirect_to documentable, notice: "Doc was successfully destroyed." }
+      format.html { redirect_back_or_to documentable, notice: "Doc was successfully destroyed." }
       format.json { head :no_content }
     end
   end
 
   private
+
+    def set_scoped_docs
+      case params[:scope]
+      when "symbols"
+        @docs = Doc.symbols.order(created_at: :desc).page params[:page]
+      when "ai_generated"
+        @docs = Doc.ai_generated.order(created_at: :desc).page params[:page]
+      else
+        @docs = Doc.all.order(created_at: :desc).page params[:page]
+      end
+    end
     # Use callbacks to share common setup or constraints between actions.
     def set_doc
       @doc = Doc.unscoped.find(params[:id])

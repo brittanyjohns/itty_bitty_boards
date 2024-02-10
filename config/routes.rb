@@ -26,6 +26,7 @@ Rails.application.routes.draw do
       patch "mark_as_current"
       post "move"
       post "find_or_create_image"
+      delete "hard_delete"
     end
   end
   # resources :board_images

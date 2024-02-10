@@ -1,10 +1,10 @@
-  <div class="mt-6 sm: w-full bg-gray-100">
+  <div class="mt-6 sm:w-full h-full">
     <%= render "shared_nav" %>
 
       <%= render "utils/search", search_path: docs_path, show_user_images_only: true %>
     <%= paginate @docs %>
 
-    <h2 class="text-xl font-semibold text-gray-700">Your Documents</h2>
+    <h2 class="text-xl font-semibold text-center">Your <%= params['scope'] ? params['scope'].titleize : "Docs" %> <small class="text-sm text-gray-500">(<%= @docs.count %>)</small></h2>
     <table class="w-3/4 mt-4 mx-auto bg-white">
       <thead class="bg-gray-100">
         <tr>
@@ -18,23 +18,15 @@
         </tr>
       </thead>
       <tbody class="text-gray-700">
-        <% @docs.symbols.order(created_at: :desc).each do |doc| %>
+        <% @docs.order(created_at: :desc).each do |doc| %>
           <tr class="border-b border-gray-200 hover:bg-gray-100">
             <td class="text-left py-3 px-4"><%= doc.id %></td>
             <td class="text-left py-3 px-4"><%= link_to doc.label, doc.documentable, class: "text-indigo-600 hover:text-indigo-900" %></td>
-            <td class="text-left py-3 px-4"><%= link_to doc.processed, doc %> </td>
+            <td class="text-left py-3 px-4"><%= link_to doc.processed&.truncate(20), doc %> </td>
             <td class="text-left py-3 px-4"><%= image_tag doc.image, class: "w-20 h-20 mx-auto" if doc.image.attached? %></td>
-            <td class="text-right py-3 px-4"><%= link_to 'Delete', doc_path(doc), method: :delete, data: { confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %><br><%= time_ago_in_words(doc.created_at) %> ago</td>
+            <td class="text-right py-3 px-4"><%= button_to 'Delete', doc_path(doc), method: :delete, data: { turbo_confirm: 'Are you sure?.' }, class: "text-red-600 hover:text-red-800" %><br><%= time_ago_in_words(doc.created_at) %> ago</td>
           </tr>
         <% end %>
       </tbody>
     </table>
-  </div>
-
-  <div class="mt-8">
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      <% @docs.symbols.each do |doc| %>
-        <%= render "docs/doc", doc: doc, viewing_user: current_user %>
-      <% end %>
-    </div>
   </div>

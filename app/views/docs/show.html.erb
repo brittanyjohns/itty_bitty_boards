@@ -7,7 +7,7 @@
     <h3 class="text-lg font-semibold">Doc Info:</h3>
      <%= @doc.source_type %>
     <p class="text-4xl mb-3">Documentable Title: <%= @doc.label %></p>
-    <p class="text-3xl mb-3">Processed Text: <%= @doc.processed %></p>
+                <p class="text-center py-1 px-2"><%= @doc.matching_open_symbols.map { |s| link_to s.repo_key, s, class: "text-indigo-600 hover:text-indigo-900" }.join(", ").html_safe %></p>
     <hr>
     <p class="text-sm mb-3">Source: <%= @doc.source_type %></p>
     <p class="text-sm mb-3"> User: <%= @doc.user&.email || "NONE" %></p>
