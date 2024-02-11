@@ -1,6 +1,11 @@
 <div class="container mx-auto p-3 bg-white rounded-lg shadow-xl mb-6 pb-6">
   <div class="flex justify-between items-center border-b pb-4">
     <%= link_to 'Edit Profile', edit_user_registration_path, class: "text-indigo-600 hover:text-indigo-900 font-semibold" %>
+    <div class="relative">
+              <div class="badge bg-blue-500 text-white rounded-full p-1 text-xs" data-tippy-content="You have <%= current_user.tokens %> tokens">
+                <%= current_user.tokens %>
+              </div>
+            </div>
         <h1 class="text-2xl font-semibold text-gray-800">User Profile</h1>
 
     <%= link_to welcome_path, class: "inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg" do %>
@@ -34,7 +39,7 @@
         <% @user.boards.non_menus.order(created_at: :desc).each do |board| %>
           <tr class="border-b border-gray-200 hover:bg-gray-100">
             <td class="text-left py-3 px-4"><%= board.id %>: <%= link_to board.name, board, class: "text-indigo-600 hover:text-indigo-900" %></td>
-            <td class="text-right py-3 px-4"><%= link_to 'Delete', board_path(board), method: :delete, data: { confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
+            <td class="text-right py-3 px-4"><%= link_to trash_nav, board_path(board), method: :delete, data: { confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
           </tr>
         <% end %>
       </tbody>
@@ -54,7 +59,7 @@
         <% @user.menus.order(created_at: :desc).each do |menu| %>
           <tr class="border-b border-gray-200 hover:bg-gray-100">
             <td class="text-left py-3 px-4"><%= menu.id %>: <%= link_to menu.name, menu, class: "text-indigo-600 hover:text-indigo-900" %></td>
-            <td class="text-right py-3 px-4"><%= link_to 'Delete', menu, method: :delete, data: { turbo_confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
+            <td class="text-right py-3 px-4"><%= link_to trash_nav, menu, method: :delete, data: { turbo_confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
           </tr>
         <% end %>
       </tbody>

@@ -13,18 +13,14 @@
           <%= link_to home_nav, root_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
                         <%= link_to board_nav, boards_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
           <%= link_to menu_nav, menus_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+          <%= link_to image_nav, images_path, class: "hover:text-blue-300" %>
           <%= link_to shopping_cart_nav, carts_show_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" unless current_order && current_order.order_items.empty? %>
           <%= link_to coins_nav, products_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
-          <%= link_to user_nav, current_user, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs" %>
-          <div class="relative">
-            <div class="badge bg-blue-500 text-white rounded-full p-1 text-xs" data-action="mouseover->tooltip#mouse" data-tooltip="You have <%= current_user.tokens %> tokens">
-              <%= current_user.tokens %>
-            </div>
-          </div>
+          <%= link_to user_nav, current_user, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs", data: { tippy_content: "Your Account"} %>
+          
           <!-- Conditional admin links -->
           <%= link_to "Users", users_path, class: "hover:text-blue-300" if current_user.admin? %>
           <%= link_to "Docs", docs_path, class: "hover:text-blue-300" if current_user.admin? %>
-          <%= link_to image_nav, images_path, class: "hover:text-blue-300" %>
           <!-- User tokens and logout -->
           <%= button_to "Logout", destroy_user_session_path, method: :delete, class: "hover:text-blue-300", form_class: "ml-4" %>
         <% else %>
@@ -64,7 +60,7 @@
               <%= link_to "Docs", docs_path, class: "hover:text-blue-300" if current_user.admin? %>
               <%= link_to image_nav, images_path, class: "hover:text-blue-300" %>
               <!-- User tokens and logout -->
-              <%= link_to shopping_cart_nav, carts_show_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+              <%= link_to shopping_cart_nav, carts_show_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm"  unless current_order && current_order.order_items.empty? %>
               <%= link_to coins_nav, products_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
               <%= button_to "Logout", destroy_user_session_path, method: :delete, class: "hover:text-blue-300", form_class: "ml-4" %>
             <% else %>

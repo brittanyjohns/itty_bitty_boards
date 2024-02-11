@@ -8,7 +8,7 @@ module IconHelper
     end
 
     def user_nav(tooltip_text = "Dashboard")
-        "<i class='fa-solid fa-user fa-lg' data-action='mouseover->tooltip#mouse', data-tooltip='#{tooltip_text}' }></i>".html_safe
+        "<i class='fa-solid fa-user fa-lg'}></i>".html_safe
     end
 
     def copy_nav(tooltip_text = "Copy")
@@ -28,6 +28,14 @@ module IconHelper
     end
 
     def board_nav(tooltip_text = "Boards")
-        "<i class='fa-solid fa-clipboard-list fa-lg' data-action='mouseover->tooltip#mouse', data-tooltip='#{tooltip_text}' }></i>".html_safe
+        "<i class='fa-solid fa-chess-board fa-lg' data-action='mouseover->tooltip#mouse', data-tooltip='#{tooltip_text}' }></i>".html_safe
+    end
+
+    def tokens_nav(tooltip_text = "Tokens")
+        "<i class='fa-solid fa-coins fa-lg' data-action='mouseover->tooltip#mouse', data-tooltip='#{tooltip_text}' }></i>".html_safe
+    end
+
+    def trash_nav(tooltip_text = "Delete", size = "sm")
+        "<i class='fa-solid fa-trash fa-#{size}' data-action='mouseover->tooltip#mouse', data-tooltip='#{tooltip_text}' }></i>".html_safe
     end
 end

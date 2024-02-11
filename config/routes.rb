@@ -53,7 +53,8 @@ Rails.application.routes.draw do
     end
   end
   # Order matters here.  users needs to be below the devise_for :users
-  devise_for :users
+  # devise_for :users
+  devise_for :users, controllers: { registrations: "registrations" }
   resources :users do
     member do
       delete "remove_user_doc"

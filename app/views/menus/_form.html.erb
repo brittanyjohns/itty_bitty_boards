@@ -33,10 +33,18 @@
       <%= doc_form.hidden_field :source_type, value: "User" %>
     </div>
 
+    <% unless @menu.persisted? %>
+
     <div class="mb-4 text-center">
       <p class="text-xl font-semibold">Upload a menu image</p>
       <%= doc_form.file_field :image, data: { image_parser_target: "file", action: "change->image-parser#upload" }, class: "block w-full text-sm text-gray-700 py-2 px-3 rounded leading-tight focus:outline-none focus:shadow-outline" %>
     </div>
+    <% else %>
+    <div class="mb-4 text-center">
+      <p class="text-xl font-semibold"> Tokens Used: <%= @menu.doc_boards.last&.cost || 'TBD' %></p>
+      <p class="text-md text-gray-500 font-semibold">Last updated: <%= @menu.docs.last.updated_at.strftime("%m/%d/%Y") %></p>
+    </div>
+    <% end %>
   <% end %>
 
   <div class="bg-green-500 p-6 rounded-lg text-white hidden mb-3" data-image-parser-target="please_wait" id="pleaseWait">

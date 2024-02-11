@@ -4,12 +4,10 @@
 
 <%= render "form", menu: @menu %>
 <div class="mt-6 text-center">
-  <p class="text-gray-600 text-xs mb-2">Uploading a new image will replace the current image.</p>
   <%= image_tag @doc.image, class: "sm:w-full md:w-1/3 rounded-lg mx-auto" if @doc&.image.attached? %>
 </div>
 
 <div class="mt-8 flex justify-center space-x-4">
-  <%= button_to "Show menu", menu_path(@menu), method: :get, class: "text-blue-500 hover:text-blue-700 font-medium py-2 px-4 rounded-md" %>
-  <%= button_to "Back to menus", menus_path, method: :get, class: "text-blue-500 hover:text-blue-700 font-medium py-2 px-4 rounded-md" %>
-  <%= button_to "Destroy menu", @menu, method: :delete, class: "text-red-500 hover:text-red-700 font-medium py-2 px-4 rounded-md", data: { turbo_method: :delete, turbo_confirm: "Are you sure?"} %>
+  <%= button_to "Back", menu_path(@menu), method: :get, class: "text-blue-500 hover:text-blue-700 font-medium py-2 px-4 rounded-md border" %>
+  <%= button_to "Destroy menu", @menu, method: :delete, class: "text-red-500 hover:text-red-700 font-medium py-2 px-4 rounded-md border", data: { turbo_method: :delete, turbo_confirm: "Are you sure you want to delete this menu? This action cannot be undone." } %>
 </div>

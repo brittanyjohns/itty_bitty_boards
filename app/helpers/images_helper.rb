@@ -8,9 +8,6 @@ module ImagesHelper
         else
           str += image_tag(user_image.representation(resize_to_limit: [300, 300]).processed.url, class: "shadow mx-auto my-auto h-fit")
         end
-        # if @board.present? && @board.images.include?(image) && user.can_edit?(@board)
-        #   str += button_to "#{icon("fa-solid", "trash")}".html_safe, remove_image_board_path(@board, image_id: image.id), class: "text-red-600 hover:text-red-700 py-1 px-1 float-right", method: :post,  form: {data: {turbo: 'false'}}
-        # end
         str.html_safe
       end
 
@@ -32,7 +29,7 @@ module ImagesHelper
     
       def remove_image_button(board, image)
         return unless board && image
-        button_to "#{icon("fa-solid", "trash")}".html_safe, remove_image_board_path(board, image_id: image.id), class: "text-red-600 hover:text-red-700 py-1 px-1 rounded-full absolute bottom-0 right-0 m-1 mr-2", method: :post
+        button_to trash_nav, remove_image_board_path(board, image_id: image.id), class: "text-red-600 hover:text-red-700 py-1 px-1 rounded-full absolute bottom-0 right-0 m-1 mr-2", method: :post
       end
 
       def loading_spinner

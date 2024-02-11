@@ -1,12 +1,12 @@
 <div id="<%= dom_id menu %>">
   <%= link_to menu do %>
-        <li class="p-4 md:p-6 mb-4 flex justify-between items-center bg-white rounded-lg shadow border border-gray-200 transform hover:translate-y-1 transition duration-150 ease-in-out">
-          <span class="text-lg md:text-xl font-medium text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out"><%= menu.name %></span>
-          <% unless menu.doc_boards.empty? %>
-            <span class="text-sm md:text-base text-gray-600"><%= menu.doc_boards.last.cost %> tokens</span>
-          <% else %>
-            <span id="processing" class="text-md md:text-xl font-medium text-green-800">Processing...</span>
-          <% end %>
-        </li>
+    <li class="p-2 md:p-6 mb-4 flex justify-between items-center bg-white rounded-lg shadow border border-gray-200 transform hover:translate-y-1 transition duration-150 ease-in-out">
+      <p class="text-lg md:text-xl font-medium text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out"><%= menu.name %></p>
+      <% unless menu.doc_boards.empty? %>
+        <%= image_tag menu.docs.last&.image, class: "size-20 md:size-32" if menu.docs.last&.image.attached? %>
+      <% else %>
+        <span id="processing" class="text-md md:text-xl font-medium text-green-800">Processing...</span>
       <% end %>
+    </li>
+  <% end %>
 </div>
