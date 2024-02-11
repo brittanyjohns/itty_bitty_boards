@@ -1,9 +1,9 @@
 
-<div data-controller="resize" class="m-4 h-[calc(100vh-50px-32px)] w-[calc(100vw-32px)] overflow-hidden grid grid-cols-1" data-resize-target="grid">
+<div data-controller="resize" class="m-4 h-[calc(100vh-60px-32px)] w-[calc(100vw-32px)] overflow-hidden grid grid-cols-1 gap-1" data-resize-target="grid">
   <% @board.images.each do |image| %>
     <div class="flex relative w-full pb-full shadow hover:shadow-lg hover:cursor-pointer text-center" data-controller="speak" data-speak-label="<%= image.label&.downcase %>" data-action="click->speak#speak">
-        <%= image_tag(image.display_image(current_user), class: "absolute object-contain w-full h-full bottom-0 left-0", data: { resize_target: "image"}) %>
-        <span class="grow absolute inset-x-0 top-0 font-light text-xs md:text-sm lg:text-md rounded bg-white bg-opacity-80 overflow-hidden"><%= image.label %></span>
+        <%= image_tag(image.display_image(current_user), class: "absolute object-contain w-full h-full top-0 left-0", data: { resize_target: "image"}) %>
+        <span class="grow absolute inset-x-0 bottom-0 font-light text-xs md:text-sm lg:text-md rounded bg-white bg-opacity-80 overflow-hidden"><%= image.label %></span>
     </div>
   <% end %>
 </div>

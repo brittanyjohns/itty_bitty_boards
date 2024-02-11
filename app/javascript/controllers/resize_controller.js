@@ -16,7 +16,7 @@ export default class extends Controller {
     const cols = Math.round(sqrt);
 
     // Subtract the input box height (50px) and the margin (assumed 1rem or 16px on each side, total 32px) from the viewport height
-    const adjustedHeight = `calc(100vh - 50px - 32px)`;
+    const adjustedHeight = `calc(100vh - 60px - 32px)`;
     const adjustedWidth = `calc(100vw - 32px)`;
 
     this.gridTarget.style.height = adjustedHeight;
