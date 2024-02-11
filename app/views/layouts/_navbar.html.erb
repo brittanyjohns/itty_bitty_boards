@@ -55,6 +55,7 @@
             <!-- Authentication and navigation links -->
             <% if user_signed_in? %>
               <%= link_to home_nav, boards_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+              <%= link_to "Menus", menus_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
               <%= link_to user_nav, current_user, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
               <!-- Conditional admin links -->
               <%= link_to "Users", users_path, class: "hover:text-blue-300" if current_user.admin? %>
