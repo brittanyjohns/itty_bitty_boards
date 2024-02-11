@@ -44,6 +44,7 @@ Rails.application.routes.draw do
     member do
       get "build"
       get "fullscreen"
+      get "locked"
       post "clone"
       post "add_multiple_images"
       post "associate_image"

@@ -12,9 +12,17 @@
       <script src="https://kit.fontawesome.com/7747fb4a3a.js" crossorigin="anonymous"></script>
   </head>
 
-  <body class="relative min-h-screen bg-gradient-to-r from-indigo-100 to-indigo-200 font-mono" data-controller="notice">
+  <body class="relative min-h-screen font-mono bg-stone-200 overflow-hidden pb-10" data-controller="notice speak">
       <%= render "layouts/notice" %>
       <%= render "layouts/alert" %>
+    <div class="flex justify-between bg-white mb-3 rounded-lg shadow-md sm:w-full md:w-2/3 mx-auto">
+        <%= link_to "Back", board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-2 m-1 mt-2 rounded-full text-sm" if @board %>
+        <ul class="flex flex-wrap items-center justify-center text-gray-900 dark:text-white" id="the-list"></ul>
+        <div class="flex justify-end items-center">
+            <button class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 m-2 rounded-full text-sm" data-action="click->speak#clear">Clear</button>
+            <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#speakList">Speak</button>
+        </div>
+    </div>
 
       <div id="main-screen" class="mx-auto min-h-screen">
           <%= yield %>

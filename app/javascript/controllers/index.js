@@ -43,6 +43,9 @@ application.register("pwa--sync", Pwa__SyncController)
 import PwaController from "./pwa_controller"
 application.register("pwa", PwaController)
 
+import ResizeController from "./resize_controller"
+application.register("resize", ResizeController)
+
 import SearchFormController from "./search_form_controller"
 application.register("search-form", SearchFormController)
 

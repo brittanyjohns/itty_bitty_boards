@@ -1,14 +1,15 @@
 class BoardsController < ApplicationController
   before_action :authenticate_user!
 
-  before_action :set_board, only: %i[ show edit update destroy build add_multiple_images associate_image remove_image fullscreen ]
+  before_action :set_board, only: %i[ show edit update destroy build add_multiple_images associate_image remove_image fullscreen locked ]
   layout "fullscreen", only: [:fullscreen]
+  layout "locked", only: [:locked]
 
   # GET /boards or /boards.json
   def index
     @predefined_boards = Board.predefined.order(created_at: :desc)
     if current_user.admin?
-      @boards = Board.all.order(created_at: :desc)
+      @boards = Board.non_menus.order(created_at: :desc)
     else
       @boards = current_user.boards.non_menus.order(created_at: :desc)
     end
@@ -22,6 +23,9 @@ class BoardsController < ApplicationController
   end
 
   def fullscreen
+  end
+
+  def locked
   end
 
   # GET /boards/new
