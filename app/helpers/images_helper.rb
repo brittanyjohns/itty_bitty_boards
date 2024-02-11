@@ -18,6 +18,17 @@ module ImagesHelper
         button_to "Generate AI Image", generate_image_path(image), method: :post, class: "bg-green-600 hover:text-green-700 p-3 m-2 rounded-lg text-white", 
         form: {data: {controller: 'disable'}}, data: {disable_target: "button", action: "click->disable#disableForm"} 
       end
+
+      def display_image_for_locked_board(image, user)
+        user_image = image.display_image(user)
+        str = ""
+        if !user_image
+          str += image_tag("https://via.placeholder.com/300x300.png?text=#{image.label_param}", class: "absolute object-contain w-full h-full top-0 left-0")
+        else
+          str += image_tag(image.display_image(user), class: "absolute object-contain w-full h-full top-0 left-0", data: { resize_target: "image"})
+        end
+        str.html_safe
+      end
     
       def remove_image_button(board, image)
         return unless board && image
