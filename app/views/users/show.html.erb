@@ -1,14 +1,9 @@
 <div class="container mx-auto p-3 bg-white rounded-lg shadow-xl mb-6 pb-6">
   <div class="flex justify-between items-center border-b pb-4">
-    <%= link_to 'Edit Profile', edit_user_registration_path, class: "text-indigo-600 hover:text-indigo-900 font-semibold" %>
-    <div class="relative">
-              <div class="badge bg-blue-500 text-white rounded-full p-1 text-xs" data-tippy-content="You have <%= current_user.tokens %> tokens">
-                <%= current_user.tokens %>
-              </div>
-            </div>
+    <%= link_to 'Edit Profile', edit_user_registration_path, class: "text-indigo-600 hover:text-indigo-900 font-semibold m-1" %>
         <h1 class="text-2xl font-semibold text-gray-800">User Profile</h1>
 
-    <%= link_to welcome_path, class: "inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg" do %>
+    <%= link_to welcome_path, class: "inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-center" do %>
         Welcome Info
     <% end %>
   </div>
