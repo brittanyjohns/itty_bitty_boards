@@ -53,12 +53,8 @@ class OpenaiPrompt < ApplicationRecord
       {role: "system", content: speech_expert},
       {role: "user", content: describe_scenario_prompt}
       ]}).create_chat
-    puts "REPSONSE CLASS: #{response.class}"
-    parsed_response = JSON.parse(response[:content])
-    puts "PARSED RESPONSE: #{parsed_response}"
-    description = parsed_response["description"]
-    puts "DESCRIPTION: #{description}"
-
+    parsed_response = response[:content]
+    description = JSON.parse(parsed_response)["description"]
     self.description = description
     self
   end

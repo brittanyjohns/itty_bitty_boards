@@ -14,14 +14,11 @@ class ApplicationController < ActionController::Base
       return nil if current_user.nil?
       if user_session['order_id'].nil?
         order = current_user.orders.in_progress.last || current_user.orders.create!
-        puts "Creating new order for user #{current_user.id} - #{order.id}"
       else
         begin
           order = current_user.orders.in_progress.find(user_session['order_id'])
-          puts "Found order for user #{current_user.id} - #{order.id}"
         rescue ActiveRecord::RecordNotFound => e
           order = current_user.orders.create!
-          puts "Creating new order for user #{current_user.id} - #{order.id}"
         rescue => e
           puts "\n\n****Error: #{e.inspect}\n\n"
         end
@@ -32,7 +29,6 @@ class ApplicationController < ActionController::Base
 
     def token
       @open_symbol_id_token = OpenSymbol.get_token
-      puts "Token: #{@open_symbol_id_token}"
       @open_symbol_id_token
     end
 
