@@ -28,11 +28,11 @@
 
     <div class="mb-4 text-center">
       <%= form.label :number_of_images, "How many images would you like to add?", class: "block text-gray-700 font-bold mb-2" %>
-      <%= form.select :number_of_images, 6..20, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full" %>
+      <%= form.select :number_of_images, 6..36, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full" %>
     </div>
     <div class="mb-4 text-center">
       <%= form.label :token_limit, "How many tokens would you like to use?", class: "block text-gray-700 font-bold mb-2" %>
-      <%= form.select :token_limit, 0..20, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full" %>
+      <%= form.select :token_limit, 0..36, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full" %>
       <p class="text-xs text-indigo-500 my-2 w-3/4 mx-auto">Note: If the token limit is set to 0, new images will not be generated if they are not already available. A placeholder image will be used instead.</p>
     </div>
   </div>

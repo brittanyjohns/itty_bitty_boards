@@ -25,14 +25,11 @@ class OpenaiPromptsController < ApplicationController
     @openai_prompt.token_limit = openai_prompt_params[:token_limit] || 10
     # Temporarily set send_now to true
     @openai_prompt.send_now = true
-    @openai_prompt.set_scenario_description
 
     respond_to do |format|
       if @openai_prompt.save
-        response = @openai_prompt.send_prompt_to_openai if @openai_prompt.send_now
-        parsed_response = response[:content] if response
-        @openai_prompt.create_board_from_response(parsed_response, @openai_prompt.token_limit) if parsed_response
-        format.html { redirect_to openai_prompt_url(@openai_prompt), notice: "Openai prompt was successfully created." }
+        CreateScenarioBoardJob.perform_async(@openai_prompt.id)
+        format.html { redirect_to boards_path, notice: "Your board is being created. Please wait a couple minutes and then refresh the page." }
         format.json { render :show, status: :created, location: @openai_prompt }
       else
         format.html { render :new, status: :unprocessable_entity }

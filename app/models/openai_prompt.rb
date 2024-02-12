@@ -37,14 +37,15 @@ class OpenaiPrompt < ApplicationRecord
   end
 
   def example_scenario_description_response
-    {
-      "scenario": "First day of school",
-      "description": "Meeting new classmates, asking for directions, understanding classroom rules, and expressing emotions."
-    }
+    # {
+    #   "scenario": "First day of school",
+    #   "description": "arrival at the preschool, meeting the teacher and other kids, participating in introductory activities, understanding simple instructions, asking for help, expressing basic needs like hunger, thirst or need for restroom and expressing emotions like happiness, sadness, fear or excitement"
+    # }
+    "{\"scenario\": \"First day of school\", \"description\": \"arrival at the preschool, meeting the teacher and other kids, participating in introductory activities, understanding simple instructions, asking for help, expressing basic needs like hunger, thirst or need for restroom and expressing emotions like happiness, sadness, fear or excitement\"}"
   end
 
   def describe_scenario_prompt
-    "Please describe the scenario of #{prompt_text} for a person at the age of #{age_range}. This will be used to create AAC material for people with speech difficulties. Please respond in JSON with the keys 'scenario' and 'description'."
+    "Please describe the scenario of #{prompt_text} for a person at the age of #{age_range}. This will be used to create AAC material for people with speech difficulties. Please respond in JSON with the keys 'scenario' and 'description'.\n\nExample: #{example_scenario_description_response}"
   end
 
 
