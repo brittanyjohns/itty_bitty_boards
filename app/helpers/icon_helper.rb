@@ -38,4 +38,8 @@ module IconHelper
     def trash_nav(tooltip_text = "Delete", size = "sm")
         "<i class='fa-solid fa-trash fa-#{size}' data-action='mouseover->tooltip#mouse', data-tooltip='#{tooltip_text}' }></i>".html_safe
     end
+
+    def coffee_nav(size = "sm")
+        "<i class='fa-solid fa-coffee fa-#{size}'></i>".html_safe
+    end
 end
