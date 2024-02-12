@@ -13,6 +13,10 @@ class MenusController < ApplicationController
     @new_menu_doc = Doc.new
     @new_menu_doc.documentable = @menu
     @board = @menu.boards.last
+    unless params[:menu_page]
+      redirect_to @board if @board
+      return
+    end
   end
 
   # GET /menus/new
@@ -52,9 +56,10 @@ class MenusController < ApplicationController
 
     respond_to do |format|
       if @menu.save
-        @menu.run_image_description_job
+        @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit)
+        @menu.run_image_description_job(@board.id)
         format.turbo_stream
-        format.html { redirect_to menu_url(@menu), notice: "Menu was successfully created." }
+        format.html { redirect_to @board, notice: "Menu is generating." }
         format.json { render :show, status: :created, location: @menu }
       else
         format.html { render :new, status: :unprocessable_entity }

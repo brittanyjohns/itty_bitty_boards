@@ -1,0 +1,14 @@
+<p style="color: green"><%= notice %></p>
+
+<%= render @openai_prompt %>
+
+<div>
+  <%= link_to "Edit this openai prompt", edit_openai_prompt_path(@openai_prompt) %> |
+  <%= link_to "Back to openai prompts", openai_prompts_path %>
+
+  <%= button_to "Destroy this openai prompt", @openai_prompt, method: :delete %>
+</div>
+
+<div>
+  <h1>Boards</h1>
+  <%= render @openai_prompt.boards %>

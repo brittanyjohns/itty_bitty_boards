@@ -3,6 +3,7 @@ require "openai"
 class OpenAiClient
   DEFAULT_MODEL = "text-davinci-001"
   TURBO_MODEL = "gpt-3.5-turbo"
+  GPT_4_STABLE_MODEL = "gpt-4"
   GPT_4_MODEL = "gpt-4-1106-preview"
 
   def initialize(opts)
@@ -105,7 +106,7 @@ class OpenAiClient
   def create_chat
     puts "**** ERROR **** \nNo messages provided.\n" unless @messages
     opts = {
-      model: TURBO_MODEL, # Required.
+      model: GPT_4_STABLE_MODEL, # Required.
       messages: @messages, # Required.
       temperature: 0.7,
     }

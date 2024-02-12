@@ -11,11 +11,11 @@
         <% if user_signed_in? %>
           <%= button_tag "<i class='fas fa-plus'></i>".html_safe, class: "hover:text-blue-300", data: { action: "click->dropdown#toggle", "tippy-content": "Create something new" } %>
           <%= link_to home_nav, root_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
-                        <%= link_to board_nav, boards_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+            <%= link_to board_nav, boards_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
           <%= link_to menu_nav, menus_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
           <%= link_to image_nav, images_path, class: "hover:text-blue-300" %>
           <%= link_to shopping_cart_nav, carts_show_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" unless current_order && current_order.order_items.empty? %>
-          <%= link_to coins_nav, products_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+          <%= link_to tokens_nav, products_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm", data: { tippy_content: "Buy more tokens. You currently have #{current_user.tokens}." } %>
           <%= link_to user_nav, current_user, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs", data: { tippy_content: "Your Account"} %>
           
           <!-- Conditional admin links -->
@@ -33,6 +33,7 @@
           <% if user_signed_in? %>
             <%= link_to "New Image", new_image_path, class: "block px-4 py-2 text-sm text-white hover:bg-blue-700" %>
             <%= link_to "New Board", new_board_path, class: "block px-4 py-2 text-sm text-white hover:bg-blue-700" %>
+            <%= link_to "New Scenario", new_openai_prompt_path, class: "block px-4 py-2 text-sm text-white hover:bg-blue-700" %>
             <%= link_to "New Menu", new_menu_path, class: "block px-4 py-2 text-sm text-white hover:bg-blue-700" %>
           <% end %>
         </div>
@@ -61,7 +62,7 @@
               <%= link_to image_nav, images_path, class: "hover:text-blue-300" %>
               <!-- User tokens and logout -->
               <%= link_to shopping_cart_nav, carts_show_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm"  unless current_order && current_order.order_items.empty? %>
-              <%= link_to coins_nav, products_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+              <%= link_to tokens_nav, products_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
               <%= button_to "Logout", destroy_user_session_path, method: :delete, class: "hover:text-blue-300", form_class: "ml-4" %>
             <% else %>
               <%= link_to "Sign up", new_user_registration_path, class: "hover:text-blue-300" %>

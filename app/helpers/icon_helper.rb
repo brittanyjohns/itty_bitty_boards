@@ -32,7 +32,7 @@ module IconHelper
     end
 
     def tokens_nav(tooltip_text = "Tokens")
-        "<i class='fa-solid fa-coins fa-lg' data-action='mouseover->tooltip#mouse', data-tooltip='#{tooltip_text}' }></i>".html_safe
+        "<i class='fa-solid fa-coins fa-lg'></i>".html_safe
     end
 
     def trash_nav(tooltip_text = "Delete", size = "sm")

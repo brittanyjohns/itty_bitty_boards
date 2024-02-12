@@ -27,6 +27,7 @@ class User < ApplicationRecord
   has_many :images
   has_many :docs
   has_many :orders
+  has_many :openai_prompts
   # Include default devise modules. Others available are:
   # :confirmable, :lockable, :timeoutable, :trackable and :omniauthable
   devise :database_authenticatable, :registerable,

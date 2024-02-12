@@ -8,7 +8,7 @@
 
     <% if @menu.doc_boards.any? %>
       <p class="text-2xl text-center text-green-600 mb-6">
-        Your board is ready! <%= link_to "View your board", @menu.doc_boards.first %> here.
+        Your board is ready! <%= link_to "View your board", @menu.main_board %> here.
       </p>
     <% else %>
       <p class="text-3xl text-center text-orange-600 mb-6">
@@ -50,3 +50,4 @@
   </div>
 </div>
 <hr class="my-8">
+<%= render @menu.boards %>

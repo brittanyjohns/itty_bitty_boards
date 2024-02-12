@@ -25,6 +25,7 @@ class Board < ApplicationRecord
   scope :menus, -> { where(parent_type: "Menu") }
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :predefined, -> { where(predefined: true) }
+  scope :ai_generated, -> { where(parent_type: "OpenaiPrompt") }
 
   before_save :set_number_of_columns, unless: :number_of_columns?
 
@@ -57,7 +58,6 @@ class Board < ApplicationRecord
   end
 
   def add_image(image_id)
-    puts "adding image #{image_id} to board #{id}"
     if image_ids.include?(image_id.to_i)
       puts "image already added"
     else

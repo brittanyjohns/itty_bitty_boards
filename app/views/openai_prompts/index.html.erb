@@ -1,0 +1,25 @@
+<p style="color: green"><%= notice %></p>
+
+<h1>Openai prompts</h1>
+
+<div id="openai_prompts">
+  <% @openai_prompts.each do |openai_prompt| %>
+    <div id="<%= dom_id openai_prompt %>">
+      <p>
+        <strong>User:</strong>
+        <%=  link_to openai_prompt.user_id, openai_prompt.user %>
+      </p>
+      <p>
+        <strong>Prompt text:</strong>
+        <%= link_to openai_prompt.prompt_text, openai_prompt %>
+      </p>
+      <p>
+        <strong>Board</strong>
+        <%= link_to openai_prompt.boards.last&.name, openai_prompt.boards.last if openai_prompt.boards.any? %>
+      </p>
+
+
+  <% end %>
+</div>
+
+<%= link_to "New openai prompt", new_openai_prompt_path %>

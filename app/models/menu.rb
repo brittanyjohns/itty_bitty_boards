@@ -24,6 +24,10 @@ class Menu < ApplicationRecord
 
   accepts_nested_attributes_for :docs
 
+  def main_board
+    doc_boards.first
+  end
+
   def label
     name
   end
@@ -38,8 +42,8 @@ class Menu < ApplicationRecord
     docs.map(&:board).compact
   end
 
-  def create_board_from_image(new_doc)
-    board = self.boards.new
+  def create_board_from_image(new_doc, board_id = nil)
+    board = board_id ? Board.find(board_id) : self.boards.new
     board.user = self.user
     board.name = self.name || "Board for Doc #{id}"
     board.token_limit = token_limit
@@ -93,7 +97,6 @@ class Menu < ApplicationRecord
       new_image = Image.create(label: item_name) unless image
       image = new_image if new_image
 
-
       unless food["image_description"].blank? || food["image_description"] == item_name
         image.image_prompt = food["image_description"]
       else
@@ -138,12 +141,12 @@ class Menu < ApplicationRecord
     item_name
   end
 
-  def run_image_description_job
-    EnhanceImageDescriptionJob.perform_async(self.id)
+  def run_image_description_job(board_id = nil)
+    EnhanceImageDescriptionJob.perform_async(self.id, board_id)
   end
     
 
-  def enhance_image_description
+  def enhance_image_description(board_id)
     new_doc = self.docs.last
     puts "NO NEW DOC FOUND\n" && return unless new_doc
 
@@ -156,7 +159,8 @@ class Menu < ApplicationRecord
       puts "**** ERROR **** \nNo image description provided.\n" unless description
       self.save!
 
-      create_board_from_image(new_doc)
+      create_board_from_image(new_doc, board_id)
+
     else
       puts "Image description invaild: #{description}\n"
       description

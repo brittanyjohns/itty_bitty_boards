@@ -1,6 +1,6 @@
 <div data-controller="speak show grid" class="w-full mt-2 pb-6 mx-auto" data-predefined="<%= @board.predefined %>">
     <div class="flex justify-around my-auto">
-        <%= link_to "Back", menu_path(@board.parent), class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-1 px-2 m-1 rounded-md text-sm my-auto" if @board.parent_type == "Menu" %>
+        <%= link_to "Back", menu_path(@board.parent, menu_page: true), class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-1 px-2 m-1 rounded-md text-sm my-auto" if @board.parent_type == "Menu" %>
         <%= link_to "Back", boards_path, class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-2 px-4 m-1 rounded-md text-sm" if @board.parent_type != "Menu" %>
         <%= link_to "Fullscreen", fullscreen_board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-1 px-2 m-1 rounded-md text-sm my-auto" %>
         <%= link_to "Locked", locked_board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-1 px-2 m-1 rounded-md text-sm my-auto" %>
@@ -35,12 +35,13 @@
         <% end %>
         </div>
     </div>
+    <%= render "boards/openai_prompt", openai_prompt: @board.parent if @board.parent_type == "OpenaiPrompt" %>
 
     <% if @board.parent_type == "Menu" %>
         <%= render "boards/menu", board: @board %>
     <% else %>
     <div class="flex justify-between bg-white mb-3 rounded-lg shadow-md sm:w-full md:w-2/3 mx-auto">
-        <ul class="flex flex-wrap items-center justify-center text-gray-900 dark:text-white" id="the-list"></ul>
+        <ul class="flex flex-wrap items-center justify-center text-gray-900 dark:text-white overflow-scroll" id="the-list"></ul>
         <div class="flex justify-end items-center">
             <button class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 m-2 rounded-full text-sm" data-action="click->speak#clear">Clear</button>
             <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#speakList">Speak</button>

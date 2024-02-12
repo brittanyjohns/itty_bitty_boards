@@ -204,10 +204,10 @@ class Image < ApplicationRecord
     "Generate an image of"
   end
 
-  def start_generate_image_job(start_time = 0, user_id_to_set = nil)
+  def start_generate_image_job(start_time = 0, user_id_to_set = nil, image_prompt_to_set = nil)
     user_id_to_set ||= user_id
-    puts "start_generate_image_job: #{label} - #{user_id_to_set}"
-    GenerateImageJob.perform_in(start_time.minutes, id, user_id_to_set)
+    puts "start_generate_image_job: #{label} - #{user_id_to_set} - #{image_prompt_to_set}"
+    GenerateImageJob.perform_in(start_time.minutes, id, user_id_to_set, image_prompt_to_set)
   end
 
   def self.run_generate_image_job_for(images)

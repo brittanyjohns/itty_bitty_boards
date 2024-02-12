@@ -1,8 +1,19 @@
-<%= link_to show_predefined_path(board), class: "p-2 md:p-3 mb-4 flex justify-between items-center bg-white rounded-lg shadow border border-gray-200 transform hover:translate-y-1 transition duration-150 ease-in-out" do %>
-  <div class="bg-white rounded-lg shadow p-6 text-center">
-    <h3 class="font-semibold text-lg text-blue-600"><%= board.name %></h3>
-    <div class="overflow-hidden">
-      <%= display_image_for(board.display_image, current_user) if board.display_image %>
+<% if board.predefined? %>
+  <%= link_to show_predefined_path(board), class: "p-2 md:p-3 mb-4 flex justify-between items-center bg-white rounded-lg shadow border border-gray-200 transform hover:translate-y-1 transition duration-150 ease-in-out" do %>
+    <div class="bg-white rounded-lg shadow p-6 text-center">
+      <h3 class="font-semibold text-lg text-blue-600"><%= board.name %></h3>
+      <div class="overflow-hidden">
+        <%= display_image_for(board.display_image, current_user) if board.display_image %>
+      </div>
     </div>
-  </div>
+  <% end %>
+<% else %>
+  <%= link_to board, class: "p-2 md:p-3 mb-4 flex justify-between items-center bg-white rounded-lg shadow border border-gray-200 transform hover:translate-y-1 transition duration-150 ease-in-out" do %>
+    <div class="bg-white rounded-lg shadow p-6 text-center">
+      <h3 class="font-semibold text-lg text-blue-600"><%= board.name %></h3>
+      <div class="overflow-hidden">
+        <%= display_image_for(board.display_image, current_user) if board.display_image %>
+      </div>
+    </div>
+  <% end %>
 <% end %>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_02_07_212652) do
+ActiveRecord::Schema[7.1].define(version: 2024_02_12_141702) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -135,6 +135,26 @@ ActiveRecord::Schema[7.1].define(version: 2024_02_07_212652) do
     t.string "hc"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+  end
+
+  create_table "openai_prompts", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.text "prompt_text"
+    t.text "revised_prompt"
+    t.boolean "send_now", default: false
+    t.datetime "deleted_at"
+    t.datetime "sent_at"
+    t.boolean "private", default: false
+    t.string "age_range"
+    t.integer "token_limit"
+    t.string "response_type"
+    t.text "description"
+    t.integer "number_of_images", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["deleted_at"], name: "index_openai_prompts_on_deleted_at"
+    t.index ["sent_at"], name: "index_openai_prompts_on_sent_at"
+    t.index ["user_id"], name: "index_openai_prompts_on_user_id"
   end
 
   create_table "order_items", force: :cascade do |t|
@@ -318,6 +338,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_02_07_212652) do
   add_foreign_key "board_images", "images"
   add_foreign_key "boards", "users"
   add_foreign_key "menus", "users"
+  add_foreign_key "openai_prompts", "users"
   add_foreign_key "order_items", "orders"
   add_foreign_key "order_items", "products"
   add_foreign_key "orders", "users"

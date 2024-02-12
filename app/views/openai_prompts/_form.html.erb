@@ -1,0 +1,43 @@
+
+<%= form_with(model: @openai_prompt, class: "bg-white p-4 md:px-8 rounded-lg shadow-md") do |form| %>
+  <% if @openai_prompt.errors.any? %>
+    <div style="color: red">
+      <h2><%= pluralize(openai_prompt.errors.count, "error") %> prohibited this @openai_prompt from being saved:</h2>
+
+      <ul>
+        <% @openai_prompt.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+    <div class="col-span-2 mb-4 text-center ">
+      <%= form.label :prompt_text, "Scenario", class: "block text-gray-700 font-bold mb-2" %>
+      <p class="text-xs text-gray-500 my-2">Please enter the scenario you would like to create a communication board for.</p>
+      <%= form.text_area :prompt_text, placeholder: "Ex: 'First day at a new job', 'Going to the doctor' or 'Getting ready for bed'.", class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-5/6 mx-auto" %>
+    </div>
+    <div class="mb-4 text-center">
+      <%= form.label :age_range, "Age", class: "block text-gray-700 font-bold mb-2" %>
+            <p class="text-xs text-gray-500 my-2">Please select the age range of the user for this scenario.</p>
+
+      <%= form.select :age_range, OpenaiPrompt.age_range_list, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full" %>
+    </div>
+  </div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-2">
+
+    <div class="mb-4 text-center">
+      <%= form.label :number_of_images, "How many images would you like to add?", class: "block text-gray-700 font-bold mb-2" %>
+      <%= form.select :number_of_images, 6..20, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full" %>
+    </div>
+    <div class="mb-4 text-center">
+      <%= form.label :token_limit, "How many tokens would you like to use?", class: "block text-gray-700 font-bold mb-2" %>
+      <%= form.select :token_limit, 0..20, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full" %>
+      <p class="text-xs text-indigo-500 my-2 w-3/4 mx-auto">Note: If the token limit is set to 0, new images will not be generated if they are not already available. A placeholder image will be used instead.</p>
+    </div>
+  </div>
+  <div class="mb-4 flex justify-between"> 
+    <%= link_to "cancel", openai_prompts_path, class: "text-red-500 hover:text-red-700 font-medium py-2 px-4 rounded-md" %>
+    <%= form.submit "Save", class: "text-white bg-green-500 hover:bg-green-700 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" %> 
+  </div>
+<% end %>
