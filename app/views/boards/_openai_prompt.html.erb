@@ -1,3 +1,11 @@
-<div class="mb-3">
-  <h1 class="text-3xl font-bold text-blue-600 mb-6 text-center"><%= openai_prompt.age_range %></h1>
+<div class="p-1">
+  <h3 class="text-xl font-bold text-blue-600 mb-6 text-center">Scenario board for the ages <%= openai_prompt.age_range %></h3>
+  <% if current_user.admin? %>
+  <p class="text-lg text-center text-green-600 mb-6">Prompt: <%= openai_prompt.prompt_text %></p>
+  <p class="text-lg text-center text-green-600 mb-6">Description: <%= openai_prompt.description %></p>
+  <div class="mt-8 flex justify-center space-x-1">
+    <%= link_to "View openai prompt", openai_prompt_path(openai_prompt), class: "text-blue-500 hover:text-blue-700 font-medium py-2 px-4 rounded-md border" %>
+    <%= button_to "Delete openai prompt", openai_prompt, method: :delete, data: { turbo_confirm: "Are you sure?" }, class: "text-red-500 hover:text-red-700 font-medium py-2 px-4 rounded-md border" %>
+  </div>
+  <% end %>
 </div>
