@@ -6,7 +6,6 @@ export default class extends Controller {
     console.log("Hello, Notice!", this.element)
     const notice = document.querySelector("#notice")
     this.theList = document.querySelector("#the-list")
-    console.log("this.theList: ", this.theList)
 
     const processing = document.querySelector("#processing")
     if (processing) {

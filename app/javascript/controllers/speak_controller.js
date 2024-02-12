@@ -19,7 +19,7 @@ export default class extends Controller {
     this.addToList(this.label);
   }
   addToList(word) {
-    this.thelistOutlet.innerHTML += `<li class="ml-1 lg:block">${word}</li>`;
+    this.thelistOutlet.innerHTML += `<li class="ml-1 lg:block tex-xs md:text-md">${word}</li>`;
   }
 
   removeFromList() {

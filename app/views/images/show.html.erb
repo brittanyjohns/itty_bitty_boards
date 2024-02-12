@@ -61,7 +61,10 @@
             <%= current_user.admin? ? @image.error : "Image generation has been disabled for this item. Please try again later or contact the administrator if this problem persists." %>
           </div>
         <% elsif current_user.tokens < 1 %>
-          <%= link_to "Purchase more tokens", products_path, class: "block p-4 max-w-md mx-auto bg-yellow-100 text-yellow-700 rounded-lg shadow-md" %>
+          <%= link_to products_path, class: "block p-4 max-w-md mx-auto bg-yellow-100 text-yellow-700 rounded-lg shadow-md text-center" do %>
+            <p class="text-xl font-semibold">You are out of tokens!</p>
+            <p class="text-sm">Click here to purchase more.</p>
+          <% end %>
         <% else %>
         <h3 class="text-lg font-medium m-3">
           GENERATE AN IMAGE WITH AI

@@ -43,7 +43,7 @@
         <%= render "boards/menu", board: @board %>
     <% else %>
     <div class="flex justify-between bg-white mb-3 rounded-lg shadow-md sm:w-full md:w-2/3 mx-auto">
-        <ul class="flex flex-wrap items-center justify-center text-gray-900 dark:text-white overflow-scroll" id="the-list"></ul>
+        <ul class="flex flex-wrap items-center justify-center text-gray-900 dark:text-white h-10 overflow-x-scroll" id="the-list"></ul>
         <div class="flex justify-end items-center">
             <button class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 m-2 rounded-full text-sm" data-action="click->speak#clear">Clear</button>
             <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#speakList">Speak</button>

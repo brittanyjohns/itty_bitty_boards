@@ -35,7 +35,7 @@ export default class extends Controller {
     console.log(`this.thelistOutlet: ${this.thelistOutlet}`);
     console.log(`word: ${word}`);
     this.wrapperTarget.classList.add("bg-green-200");
-    this.thelistOutlet.innerHTML += `<li class="mr-4">${word}</li>`;
+    this.thelistOutlet.innerHTML += `<li class="mr-4 text-xs md:text-md">${word}</li>`;
   }
 
   removeFromList() {
