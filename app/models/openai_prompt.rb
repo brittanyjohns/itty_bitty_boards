@@ -44,7 +44,7 @@ class OpenaiPrompt < ApplicationRecord
   end
 
   def describe_scenario_prompt
-    "Please describe the scenario of #{prompt_text} for a person at the age of #{age_range}. This will be used to create AAC material for people with speech difficulties. Please respond in JSON with the keys 'scenario' and 'description'.\n\nExample: #{example_scenario_description_response}"
+    "Please describe the scenario of #{prompt_text} for a person at the age of #{age_range}. This will be used to create AAC material for people with speech difficulties. Please respond in JSON with the keys 'scenario' and 'description'."
   end
 
 
@@ -54,7 +54,10 @@ class OpenaiPrompt < ApplicationRecord
       {role: "user", content: describe_scenario_prompt}
       ]}).create_chat
     parsed_response = response[:content]
+    puts "parsed_response: #{parsed_response}"
+    puts "parsed_response: #{parsed_response.class}"
     description = JSON.parse(parsed_response)["description"]
+    puts "description: #{description}"
     self.description = description
     self
   end
