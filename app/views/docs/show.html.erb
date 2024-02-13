@@ -4,20 +4,13 @@
     <%= render @doc, viewing_user: current_user %>
   </div>
   <div class="bg-white p-4 rounded-lg shadow-md m-8">
-    <h3 class="text-lg font-semibold">Doc Info:</h3>
-     <%= @doc.source_type %>
-    <p class="text-4xl mb-3">Documentable Title: <%= @doc.label %></p>
-                <p class="text-center py-1 px-2"><%= @doc.matching_open_symbols.map { |s| link_to s.repo_key, s, class: "text-indigo-600 hover:text-indigo-900" }.join(", ").html_safe %></p>
+    <p class="text-4xl mb-3 font-bold"> <%= @doc.label&.upcase %></p>
     <hr>
-    <p class="text-sm mb-3">Source: <%= @doc.source_type %></p>
-    <p class="text-sm mb-3"> User: <%= @doc.user&.email || "NONE" %></p>
-    <p class="text-sm mb-3">Created at: <%= time_ago_in_words(@doc.created_at) %> ago</p>
-    <p class="text-sm mb-3">Updated at: <%= time_ago_in_words(@doc.updated_at) %> ago</p>
+    <p class="text-sm mb-3">Source: <%= @doc.source_type == "User" ? @doc.user&.email : @doc.source_type %></p>
+    <p class="text-sm mb-3">Created <%= time_ago_in_words(@doc.created_at) %> ago</p>
     <hr>
-        <%= render "move", doc: @doc if current_user.can_edit?(@doc) %>
-
   </div>
-
+<% if current_user.admin? %>
   <div class="bg-white p-4 rounded-lg shadow-md m-8">
     <h3 class="text-lg font-semibold">Raw text:</h3>
     <p class="text-sm mb-3"><%= @doc.raw %></p>
@@ -26,3 +19,4 @@
     <p class="text-sm"> <%= @doc.processed %></p>
   </div>
 </div>
+<% end %>

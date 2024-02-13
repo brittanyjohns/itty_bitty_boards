@@ -18,49 +18,92 @@
     <h2 class="text-xl font-semibold text-gray-700">Account Details</h2>
     <p class="text-gray-600 mt-2">Email: <%= @user.email %></p>
     <p class="text-gray-600">Token Balance: <%= @user.tokens %> Tokens</p>
-
     <%= link_to 'Purchase More Tokens', products_path, class: "mt-3 inline-block bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-700 transition duration-300" %>
   </div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-  <div class="my-6 max-h-screen overflow-scroll">
-    <h2 class="text-xl font-semibold text-gray-700">Your Boards</h2>
-    <table class="table-auto w-full mt-2">
-      <thead class="bg-gray-100">
-        <tr>
-          <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Document Name</th>
-          <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Actions</th>
-        </tr>
-      </thead>
-      <tbody class="text-gray-700">
-        <% @user.boards.non_menus.order(created_at: :desc).each do |board| %>
-          <tr class="border-b border-gray-200 hover:bg-gray-100">
-            <td class="text-left py-3 px-4"><%= board.id %>: <%= link_to board.name, board, class: "text-indigo-600 hover:text-indigo-900" %></td>
-            <td class="text-right py-3 px-4"><%= link_to trash_nav, board_path(board), method: :delete, data: { confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="my-6 max-h-screen overflow-scroll">
+      <h2 class="text-xl font-semibold text-gray-700">Your Boards (<%= @user.boards.count %>)</h2>
+      <table class="table-auto w-full mt-2">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Document Name</th>
+            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Actions</th>
           </tr>
-        <% end %>
-      </tbody>
-    </table>
-  </div>
+        </thead>
+        <tbody class="text-gray-700">
+          <% @user.boards.non_menus.order(created_at: :desc).each do |board| %>
+            <tr class="border-b border-gray-200 hover:bg-gray-100">
+              <td class="text-left py-3 px-4"><%= board.id %>: <%= link_to board.name, board, class: "text-indigo-600 hover:text-indigo-900" %></td>
+              <td class="text-right py-3 px-4"><%= link_to trash_nav, board_path(board), method: :delete, data: { confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
 
-  <div class="my-6 max-h-screen overflow-scroll">
-    <h2 class="text-xl font-semibold text-gray-700">Your Menus</h2>
-    <table class="table-auto w-full mt-2">
-      <thead class="bg-gray-100">
-        <tr>
-          <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Document Name</th>
-          <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Actions</th>
-        </tr>
-      </thead>
-      <tbody class="text-gray-700">
-        <% @user.menus.order(created_at: :desc).each do |menu| %>
-          <tr class="border-b border-gray-200 hover:bg-gray-100">
-            <td class="text-left py-3 px-4"><%= menu.id %>: <%= link_to menu.name, menu, class: "text-indigo-600 hover:text-indigo-900" %></td>
-            <td class="text-right py-3 px-4"><%= link_to trash_nav, menu, method: :delete, data: { turbo_confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
+    <div class="my-6 max-h-screen overflow-scroll">
+      <h2 class="text-xl font-semibold text-gray-700">Your Menus (<%= @user.menus.count %>)</h2>
+      <table class="table-auto w-full mt-2">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Document Name</th>
+            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Actions</th>
           </tr>
-        <% end %>
-      </tbody>
-    </table>
+        </thead>
+        <tbody class="text-gray-700">
+          <% @user.menus.order(created_at: :desc).each do |menu| %>
+            <tr class="border-b border-gray-200 hover:bg-gray-100">
+              <td class="text-left py-3 px-4"><%= menu.id %>: <%= link_to menu.name, menu, class: "text-indigo-600 hover:text-indigo-900" %></td>
+              <td class="text-right py-3 px-4"><%= link_to trash_nav, menu, method: :delete, data: { turbo_confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="my-6 max-h-screen overflow-scroll">
+      <h2 class="text-xl font-semibold text-gray-700">Your Uploaded Images (<%= @user.images.count %>)</h2>
+      <table class="table-auto w-full mt-2">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Document Name</th>
+            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="text-gray-700">
+          <% @user.images.order(created_at: :desc).each do |image| %>
+            <tr class="border-b border-gray-200 hover:bg-gray-100">
+              <td class="text-left py-3 px-4"><%= image.id %>: <%= link_to image.label, image, class: "text-indigo-600 hover:text-indigo-900" %></td>
+              <td class="text-right py-3 px-4"><%= link_to trash_nav, image, method: :delete, data: { turbo_confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <% if current_user.admin? %>
+    <div class="my-6 max-h-screen overflow-scroll">
+      <h2 class="text-xl font-semibold text-gray-700">Your Docs (<%= @user.docs.count %>)</h2>
+      <table class="table-auto w-full mt-2">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Document Name</th>
+            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="text-gray-700">
+          <% @user.docs.order(created_at: :desc).each do |doc| %>
+            <tr class="border-b border-gray-200 hover:bg-gray-100">
+              <td class="text-left py-3 px-4"><%= doc.id %>: <%= link_to doc.label, doc, class: "text-indigo-600 hover:text-indigo-900" %></td>
+              <td class="text-right py-3 px-4"><%= link_to trash_nav, doc, method: :delete, data: { turbo_confirm: 'Are you sure?' }, class: "text-red-600 hover:text-red-800" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <% end %>
   </div>
 </div>
+
   <!-- Add additional profile elements as needed -->
 </div>

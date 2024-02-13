@@ -29,6 +29,9 @@ class Board < ApplicationRecord
 
   before_save :set_number_of_columns, unless: :number_of_columns?
 
+  # after_create_commit { broadcast_prepend_later_to :board_list, target: 'my_boards', partial: 'boards/board', locals: { board: self } }
+  after_create_commit :update_board_list
+
   def set_number_of_columns
     self.number_of_columns = 4
   end
@@ -75,5 +78,15 @@ class Board < ApplicationRecord
 
   def self.grid_sizes
     ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+  end
+
+  def update_board_list
+    puts "update_board_list"
+    # broadcast_update_to(:board_list, partial: "boards/board_list", locals: { boards: user.boards }, target: "my_boards")
+    broadcast_prepend_later_to :board_list, target: "my_boards_#{user.id}", partial: 'boards/board', locals: { board: self }
+  end
+
+  def render_to_board_list
+    broadcast_render_to(:board_list, partial: "boards/board_list", locals: { boards: user.boards }, target: "my_boards")
   end
 end

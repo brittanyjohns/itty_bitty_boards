@@ -34,6 +34,7 @@ class BoardsController < ApplicationController
     @board.user = current_user
     @board.parent_id = params[:parent_id]
     @board.parent_type = params[:parent_type]
+    @openai_prompt = OpenaiPrompt.new
   end
 
   # GET /boards/1/edit

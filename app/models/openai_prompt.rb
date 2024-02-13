@@ -80,7 +80,7 @@ class OpenaiPrompt < ApplicationRecord
     [
     {
       "role": "system",
-      "content": "#{speech_expert} You will be given a scenario description and age range of the person. Please provide #{number_of_images || 12} words or short phrases (3 words max) that are most likely to be spoken in the following scenario . These will be used to create AAC material for people with speech difficulties. Please make the words appropriate for a person at the age give. Please respond in JSON with the array key 'words_phrases'."
+      "content": "#{speech_expert} You will be given a scenario description and age range of the USER. Please provide #{number_of_images || 12} words or short phrases (3 words max) that are most likely to be spoken by the USER in the following scenario. These will be used to create AAC material for people with speech difficulties. Please make the words appropriate for a person at the age give. Please respond in JSON with the array key 'words_phrases'."
     },
     {
       "role": "user",
