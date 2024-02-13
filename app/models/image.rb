@@ -55,15 +55,6 @@ class Image < ApplicationRecord
     status == "generating"
   end
 
-  def get_stop_limit(symbols_count)
-    return symbols_count if symbols_count <= 25
-    if docs.count > 25
-      25
-    else
-      50
-    end
-  end
-
   def self.open_symbol_statuses
     ["active", "skipped"]
   end
@@ -80,7 +71,6 @@ class Image < ApplicationRecord
       puts "Limiting to #{limit} symbols"
       count = 0
       skipped_count = 0
-      stop_limit = get_stop_limit(symbols_count)
       begin
       symbols.each do |symbol|
         existing_symbol = OpenSymbol.find_by(original_os_id: symbol["id"])
@@ -88,9 +78,7 @@ class Image < ApplicationRecord
           puts "Symbol already exists: #{existing_symbol&.id} Or not an image: #{symbol["extension"]}"
           new_symbol = existing_symbol
         else
-        puts "after existing_symbol check===>: #{symbol}"
         break if count >= limit
-        puts "Creating new symbol - COUNT: #{count}"
         new_symbol =
         OpenSymbol.create!(
           name: symbol["name"],
@@ -120,13 +108,13 @@ class Image < ApplicationRecord
         else
           skipped_count += 1
         end
-        if (skipped_count + count) >= stop_limit
+        total = count + skipped_count
+        if total >= symbols_count
           puts "Skipped all symbols"
-          self.update(open_symbol_status: "skipped")
+          self.update!(open_symbol_status: "skipped")
           break
         end
       end
-      puts "Created #{count} symbols. Skipped #{skipped_count} symbols"
       symbols
       rescue => e
         puts "Error creating symbols: #{e.message}\n\n#{e.backtrace.join("\n")}"
@@ -188,7 +176,7 @@ class Image < ApplicationRecord
   end
 
   def display_label
-    label&.upcase&.truncate(27, separator: ' ')
+    label&.titleize&.truncate(27, separator: ' ')
   end
 
   def current_doc_for_user(user)

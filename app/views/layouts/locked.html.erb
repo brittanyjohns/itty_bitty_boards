@@ -13,13 +13,11 @@
   </head>
 
   <body class="relative min-h-screen font-mono bg-stone-200 overflow-hidden pb-10" data-controller="notice speak">
-      <%= render "layouts/notice" %>
-      <%= render "layouts/alert" %>
-    <div class="flex justify-between bg-white mb-3 rounded-lg shadow-md sm:w-full md:w-2/3 mx-auto overflow-x-scroll">
-        <%= link_to "Back", board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-2 m-1 mt-2 rounded-full text-sm" if @board %>
-        <ul class="flex flex-wrap items-center justify-center text-gray-900 dark:text-white h-10 overflow-x-scroll" id="the-list"></ul>
+    <div class="flex bg-white mb-3 rounded-lg shadow-md sm:w-full md:w-2/3 mx-auto overflow-x-scroll">
+        <%= link_to "Back", board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-2 my-2 rounded-full text-sm" if @board %>
+        <input class="w-5/6 p-2 m-1 rounded-full text-sm" type="text" placeholder="Click an image or type a message to begin speaking" id="the-list">
         <div class="flex justify-end items-center">
-            <button class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 m-2 rounded-full text-sm" data-action="click->speak#clear">Clear</button>
+            <button class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#clear">Clear</button>
             <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#speakList">Speak</button>
         </div>
     </div>

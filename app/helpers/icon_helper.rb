@@ -42,4 +42,12 @@ module IconHelper
     def coffee_nav(size = "sm")
         "<i class='fa-solid fa-coffee fa-#{size}'></i>".html_safe
     end
+
+    def change_image_icon(display_text = "Change Image", size = "sm")
+        "<i class='fa-solid fa-pen-to-square fa-#{size}'></i> <span class='text-xs'>#{display_text}</span>".html_safe
+    end
+
+    def spinner
+        "<span class='animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-white'></span>".html_safe
+    end
 end

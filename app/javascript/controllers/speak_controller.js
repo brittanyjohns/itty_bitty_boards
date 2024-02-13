@@ -19,11 +19,13 @@ export default class extends Controller {
     this.addToList(this.label);
   }
   addToList(word) {
-    this.thelistOutlet.innerHTML += `<li class="ml-1 lg:block tex-xs md:text-md">${word}</li>`;
+    // this.thelistOutlet.innerHTML += `<li class="ml-1 lg:block tex-xs md:text-md">${word}</li>`;
+    this.thelistOutlet.value += ` ${word}`;
   }
 
   removeFromList() {
-    const listItems = this.thelistOutlet.querySelectorAll("li");
+    // const listItems = this.thelistOutlet.querySelectorAll("li");
+    const listItems = this.thelistOutlet.value.split(" ");
     listItems.forEach((item) => {
       if (item.innerText === this.label) {
         item.remove();
@@ -32,20 +34,20 @@ export default class extends Controller {
   }
 
   clear() {
-    console.log("CLEARING LIST");
-    this.thelistOutlet.innerHTML = "";
+    this.thelistOutlet.value = "";
   }
 
   speakList() {
-    console.log("SPEAKING LIST");
-    const listItems = this.thelistOutlet.querySelectorAll("li");
+    const listItems = this.thelistOutlet.value.split(" ");
     console.log(listItems);
     let items = [];
     if (this.isAMenu) {
       items.push("I would like to order:");
     }
     listItems.forEach((item) => {
-      items.push(item.innerText);
+      if(item !== "") {
+        items.push(item);
+      }
     });
     const utterance = new SpeechSynthesisUtterance(items);
     utterance.pitch = 1.5;
