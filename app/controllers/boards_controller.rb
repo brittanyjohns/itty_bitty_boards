@@ -1,5 +1,5 @@
 class BoardsController < ApplicationController
-  before_action :authenticate_user!
+  before_action :authenticate_user!, except: %i[ locked ]
 
   before_action :set_board, only: %i[ show edit update destroy build add_multiple_images associate_image remove_image fullscreen locked ]
   layout "fullscreen", only: [:fullscreen]
