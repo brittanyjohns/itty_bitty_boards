@@ -1,5 +1,5 @@
 require "active_support/core_ext/integer/time"
-
+Rails.application.routes.default_url_options[:host] = "ittybittyboards.com"
 Rails.application.configure do
   config.log_file_size = 50.megabytes
   # Settings specified here will take precedence over those in config/application.rb.
