@@ -1,5 +1,7 @@
 class MessagesController < ApplicationController
   before_action :set_message, only: %i[ show edit update destroy ]
+  before_action :authenticate_user!, except: %i[ new create ]
+  before_action :admin_only, only: %i[ index show edit update destroy ]
 
   # GET /messages or /messages.json
   def index
@@ -65,6 +67,10 @@ class MessagesController < ApplicationController
     # Use callbacks to share common setup or constraints between actions.
     def set_message
       @message = Message.find(params[:id])
+    end
+
+    def admin_only
+      redirect_to root_path, alert: "You are not authorized to perform that action." unless current_user&.admin?
     end
 
     # Only allow a list of trusted parameters through.
