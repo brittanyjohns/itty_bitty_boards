@@ -111,7 +111,7 @@ Rails.application.configure do
     domain: "ittybittyboards.com",
     user_name: "hello@ittybittyboards.com",
     password: ENV["SMTP_PASSWORD"],
-    authentication: "password",
+    authentication: "plain",
     enable_starttls_auto: true
   }
 end
