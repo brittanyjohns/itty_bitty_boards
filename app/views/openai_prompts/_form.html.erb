@@ -15,7 +15,7 @@
     <div class="col-span-2 mb-4 text-center ">
       <%= form.label :prompt_text, "Scenario", class: "block text-gray-700 font-bold mb-2" %>
       <p class="text-xs text-gray-500 my-2">Please enter the scenario you would like to create a communication board for.</p>
-      <%= form.text_area :prompt_text, placeholder: "Ex: 'First day at a new job', 'Going to the doctor' or 'Getting ready for bed'.", class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-5/6 mx-auto" %>
+      <%= form.text_area :prompt_text, placeholder: "Ex: 'First day at a new job', 'Going to the doctor' or 'Getting ready for bed'.", class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-5/6 mx-auto", rows: 8 %>
     </div>
     <div class="mb-4 text-center">
       <%= form.label :age_range, "Age", class: "block text-gray-700 font-bold mb-2" %>

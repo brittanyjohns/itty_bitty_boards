@@ -1,0 +1,16 @@
+<%= turbo_frame_tag message do %>
+  <div class="message p-8 border">
+    <%= link_to message.body,
+                message_path(message),
+                data: { turbo_frame: "_top" } %>
+    <div class="message__actions">
+      <%= button_to "Delete",
+                    message_path(message),
+                    method: :delete,
+                    class: "p-4 bg-red-500 text-white my-3" %>
+      <%= link_to "Edit",
+                  edit_message_path(message),
+                  class: "p-4 bg-blue-500 text-white" %>
+    </div>
+  </div>
+<% end %>

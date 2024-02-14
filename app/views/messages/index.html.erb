@@ -1,0 +1,16 @@
+<%# app/views/messages/index.html.erb %>
+
+<main class="container">
+  <div class="header">
+    <h1>messages</h1>
+    <%= link_to "New message",
+                new_message_path,
+                class: "btn btn--primary",
+                data: { turbo_frame: dom_id(Message.new) } %>
+  </div>
+
+  <%= turbo_frame_tag Message.new %>
+  <%= turbo_frame_tag "messages" do %>
+    <%= render @messages %>
+  <% end %>
+</main>

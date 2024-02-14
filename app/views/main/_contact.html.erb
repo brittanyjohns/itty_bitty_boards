@@ -1,0 +1,10 @@
+
+<%= simple_form_for(Message.new) do |f| %>
+  <div class="w-1/2 p-3 mb-4 bg-gray-100">
+    <%= f.input_field :body, label: "Message", input_html: { rows: 5 }, class: "w-full" %>
+  </div>
+
+  <div class="form-actions">
+    <%= f.button :submit, "Send Message", class: "btn btn-primary" %>
+  </div>
+<% end %>

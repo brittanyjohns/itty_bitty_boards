@@ -1,12 +1,16 @@
 <div class="container mx-auto md:p-5">
-  <div class="rounded-lg shadow-lg md:p-6 m-1 md:m-4">
+  <div class="smd:p-6 m-1 md:m-4">
     <div class="mb-4 flex justify-between">
       <h2 class="text-2xl font-semibold text-gray-800">Menus</h2>
       <%= link_to "New menu", new_menu_path, class: "inline-block bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 transition duration-150" %>
     </div>
+    <% if @menus.empty? %>
+      <p class="my-10 text-gray-500 text-center p-2">You haven't created any menus yet. <br> <%= link_to "Create a new menu", new_menu_path, class: "text-indigo-600 hover:underline" %>.</p>
+    <% else %>
     <!-- Menus list -->
     <% @menus.each do |menu| %>
       <%= render menu %>
+    <% end %>
     <% end %>
   </div>
 </div>

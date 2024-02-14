@@ -1,5 +1,3 @@
-
-
 <div class="container p-4 bg-white bg-opacity-50 mx-auto shadow-lg">
     <!-- Hero Section -->
     <div class="hero_main1 bg-cover bg-center min-h-48 md:min-h-96" style="background-image: url(<%= asset_path 'hero_main1.webp' %>);">
@@ -45,47 +43,47 @@
                     </div>
                 </div>
                     <!-- Predefined Boards Section with Horizontal Scrolling -->
-    <div class="p-8 bg-white mt-8 border-t-2">
-        <h2 class="text-xl md:text-3xl font-bold text-center">Ready to Get Started?</h2>
-        <p class="text-lg text-gray-600 my-4 text-center">
-            Choose from our library of predefined boards to get started.
-        </p>
-        <div class="flex">
-            <p class="text-xl my-4 mx-5">
-                Take a look at our basic boards to get started. No sign-up required!
-            </p>            
-        </div>
-        <!-- Horizontal scrolling list for predefined boards -->
-        <div class="flex overflow-x-auto py-2 space-x-2">
-            <!-- Boards -->
-            <% @predefined_boards.order(name: :asc).each do |board| %>
-                <%= link_to show_predefined_path(board), class: "min-w-max p-3 flex-shrink-0 flex justify-center items-center bg-white rounded-lg shadow-sm hover:shadow-lg transition-shadow duration-150 ease-in-out" do %>
-                    <div class="text-center">
-                        <h3 class="font-semibold text-lg text-blue-600"><%= board.name %></h3>
-                        <%= display_image_for(board.display_image, current_user) if board.display_image %>
-                    </div>
+            <div class="p-8 bg-white mt-8 border-t-2">
+                <h2 class="text-xl md:text-3xl font-bold text-center">Ready to Get Started?</h2>
+                <p class="text-lg text-gray-600 my-4 text-center">
+                    Choose from our library of predefined boards to get started.
+                </p>
+                <div class="flex">
+                    <p class="text-xl my-4 mx-5">
+                        Take a look at our basic boards to get started. No sign-up required!
+                    </p>            
+                </div>
+                <!-- Horizontal scrolling list for predefined boards -->
+                <div class="flex overflow-x-auto py-2 space-x-2">
+                    <!-- Boards -->
+                    <% @predefined_boards.order(name: :asc).each do |board| %>
+                        <%= link_to show_predefined_path(board), class: "min-w-max p-3 flex-shrink-0 flex justify-center items-center bg-white rounded-lg shadow-sm hover:shadow-lg transition-shadow duration-150 ease-in-out" do %>
+                            <div class="text-center">
+                                <h3 class="font-semibold text-lg text-blue-600"><%= board.name %></h3>
+                                <%= display_image_for(board.display_image, current_user) if board.display_image %>
+                            </div>
+                        <% end %>
+                    <% end %>
+                </div>
+                <%= link_to new_user_registration_path, class: "grow text-center" do %>
+                    <p class="text-2xl text-center mx-auto my-auto  shadow px-5 py-8">
+                        Want to create your own? Sign up to get started.
+                    </p>
                 <% end %>
-            <% end %>
-        </div>
-        <%= link_to new_user_registration_path, class: "grow text-center" do %>
-            <p class="text-2xl text-center mx-auto my-auto  shadow px-5 py-8">
-                Want to create your own? Sign up to get started.
-            </p>
-        <% end %>
-    </div>
+            </div>
             </section>
             <!-- Features Section -->
             <section class="row-span-1 py-8 bg-white">
-                <div class="container mx-auto px-4">
+                <div class="container mx-auto px-2">
                     <h2 class="text-4xl font-bold text-center">Features</h2>
                     <div class="grid md:grid-cols-2 lg:grid-cols-2 gap-8 mt-8">
-                        <% ['Custom Boards', 'AI-Generated Images', 'Menu Conversion', 'More Coming Soon'].each_with_index do |feature, index| %>
+                        <% ['Custom Boards', 'AI-Generated Images', 'Scenario-based Boards', 'Menu Conversion', 'More Coming Soon'].each_with_index do |feature, index| %> 
                         <%= link_to faq_path do %>
-                            <div class="bg-white rounded-lg shadow p-6 text-center">
+                            <div class="bg-white rounded-lg shadow p-4 text-center">
                                 <%= image_tag "feature_#{index + 1}.webp", alt: "#{feature}", class: "h-40 object-cover rounded-md mx-auto" %>
                                 <h3 class="mt-4 font-semibold text-lg text-purple-600"><%= feature %></h3>
-                                <p class="mt-2 text-md text-gray-600">
-                                    <%= ['Create personalized communication boards with ease.', 'Leverage AI for perfect image matches.', 'Convert menus into communicative boards instantly.', 'Stay tuned for innovative communication tools.'][index] %>
+                                <p class="mt-2 text-sm text-gray-600">
+                                    <%= ['Create custom communication boards with ease.', 'Leverage AI for perfect image matches.', 'Create boards for specific scenarios.', 'Convert text menus into image boards.', 'Stay tuned for innovative communication tools.'][index] %>
                                 </p>
                             </div>
                             <% end %>
@@ -97,6 +95,3 @@
             
         </div>
     </div>
-
-
-</div>

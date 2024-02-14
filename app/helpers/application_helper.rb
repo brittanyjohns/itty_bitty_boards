@@ -16,10 +16,10 @@ module ApplicationHelper
     end
 
     def coffee_link
-        link_to "https://www.buymeacoffee.com/bhannajohns", target: "_blank", class: "flex items-center justify-center text-white bg-indigo-500 hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 rounded-lg my-2 py-5 w-3/4 md:w-2/3 mx-auto", data: {tippy_content: "Buy me a coffee (Donate to the site)"} do
-            # <p class='text-center mr-3'>Donate to support the site</p>
-            content_tag(:p, "Donate to support the site", class: "text-center mr-3") +
+        link_to "https://www.buymeacoffee.com/bhannajohns", target: "_blank", class: "flex items-center justify-center text-white bg-indigo-500 hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 rounded-lg my-2 py-5 w-3/4 md:w-2/3 mx-auto px-2", data: {tippy_content: "Buy me a coffee (Donate to the site)"} do
+            content_tag(:p, "Donate to support the site", class: "text-center mx-3") +
             coffee_nav
         end
     end
+
 end

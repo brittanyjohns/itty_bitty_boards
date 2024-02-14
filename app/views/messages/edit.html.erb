@@ -1,0 +1,10 @@
+<main class="container">
+  <%= link_to sanitize("&larr; Back to message"), message_path(@message) %>
+  <div class="header">
+    <h1>Edit message</h1>
+  </div>
+
+  <%= turbo_frame_tag "message_#{@message.id}" do %>
+    <%= render "form", message: @message %>
+  <% end %>
+</main>

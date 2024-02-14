@@ -1,5 +1,5 @@
 <div data-controller="navbar dropdown">
-  <nav class="bg-gray-900 px-6 py-4 shadow-lg">
+  <nav class="bg-gray-900 px-3 py-4 shadow-lg">
     <div class="max-w-7xl mx-auto flex justify-between items-center">
       <%= link_to root_path, class: "flex items-center" do %>
         <%= image_tag "round_itty_bitty_logo_2.png", alt: "logo", class: "h-12 w-12" %>
@@ -13,18 +13,23 @@
           <%= link_to home_nav, root_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
             <%= link_to board_nav, boards_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
           <%= link_to menu_nav, menus_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
-          <%= link_to image_nav, images_path, class: "hover:text-blue-300" %>
+          <%= link_to image_nav, images_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
           <%= link_to shopping_cart_nav, carts_show_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" unless current_order && current_order.order_items.empty? %>
           <%= link_to tokens_nav, products_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm", data: { tippy_content: "Buy more tokens. You currently have #{current_user.tokens}." } %>
           <%= link_to user_nav, current_user, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs", data: { tippy_content: "Your Account"} %>
           <!-- Conditional admin links -->
           <%= link_to "Users", users_path, class: "hover:text-blue-300" if current_user.admin? %>
           <%= link_to "Docs", docs_path, class: "hover:text-blue-300" if current_user.admin? %>
+              <%= link_to contact_nav, contact_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
           <!-- User tokens and logout -->
-          <%= button_to "Logout", destroy_user_session_path, method: :delete, class: "hover:text-blue-300", form_class: "ml-4" %>
+          <%= button_to logout_nav, destroy_user_session_path, method: :delete, class: "hover:text-blue-300", form_class: "ml-4" %>
         <% else %>
-          <%= link_to "Sign up", new_user_registration_path, class: "hover:text-blue-300" %>
-          <%= link_to "Login", new_user_session_path, class: "hover:text-blue-300" %>
+                <%= link_to "About", about_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+
+        <%= link_to "Contact", contact_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+
+          <%= link_to "Sign up", new_user_registration_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+          <%= link_to "Sign In", new_user_session_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
         <% end %>
 
         <!-- Dropdown Menu -->
@@ -39,7 +44,7 @@
       </div>
 
       <!-- Hamburger menu for mobile -->
-      <button class="md:hidden focus:outline-none focus:ring-2 focus:ring-blue-300" data-action="click->navbar#toggle">
+      <button class="md:hidden focus:outline-none focus:ring-2 focus:ring-blue-300 ml-2" data-action="click->navbar#toggle">
         <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
         </svg>
@@ -56,16 +61,19 @@
               <%= link_to menu_nav, menus_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
               <%= link_to user_nav, current_user, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
               <!-- Conditional admin links -->
-              <%= link_to "Users", users_path, class: "hover:text-blue-300" if current_user.admin? %>
-              <%= link_to "Docs", docs_path, class: "hover:text-blue-300" if current_user.admin? %>
-              <%= link_to image_nav, images_path, class: "hover:text-blue-300" %>
+              <%= link_to "Users", users_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" if current_user.admin? %>
+              <%= link_to "Docs", docs_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" if current_user.admin? %>
+              <%= link_to image_nav, images_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+              <%= link_to new_board_nav, new_board_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+              <%= link_to new_menu_nav, new_menu_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+              <%= link_to new_image_nav, new_image_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
               <!-- User tokens and logout -->
               <%= link_to shopping_cart_nav, carts_show_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm"  unless current_order && current_order.order_items.empty? %>
               <%= link_to tokens_nav, products_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
-              <%= button_to "Logout", destroy_user_session_path, method: :delete, class: "hover:text-blue-300", form_class: "ml-4" %>
+              <%= button_to logout_nav, destroy_user_session_path, method: :delete, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
             <% else %>
-              <%= link_to "Sign up", new_user_registration_path, class: "hover:text-blue-300" %>
-              <%= link_to "Login", new_user_session_path, class: "hover:text-blue-300" %>
+              <%= link_to "Sign up", new_user_registration_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+              <%= link_to login_nav, new_user_session_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
             <% end %>
           </div>
         </div>

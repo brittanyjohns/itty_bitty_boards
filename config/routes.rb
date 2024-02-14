@@ -1,6 +1,7 @@
 require 'sidekiq/web'
 
 Rails.application.routes.draw do
+  resources :messages
   resources :openai_prompts
   resources :open_symbols do
     collection do
@@ -65,8 +66,8 @@ Rails.application.routes.draw do
   get 'main/index', as: :home
   get 'main/predefined/:id', to: 'main#show_predefined', as: :show_predefined
   get 'main/demo', as: :demo
-  get 'main/about', as: :about
-  get 'main/contact', as: :contact
+  get '/about', as: :about, to: 'main#about'
+  get '/contact', as: :contact, to: 'messages#new'
   get 'main/welcome', as: :welcome
   get 'main/faq', as: :faq
   get "boards", to: "boards#index", as: :user_root
