@@ -1,8 +1,13 @@
 
 <%= simple_form_for(@message) do |f| %>
   <div class="p-3 mb-4">
-    <%= f.input_field :body, label: "Message", class: "w-full border border-gray-300 p-2 rounded-md", rows: 10 %>
+    <%= f.input_field :body, label: "Message", class: "w-full border border-gray-300 p-2 rounded-md", rows: 10, placeholder: "Please enter your message here." %>
   </div>
+  <div class="p-3 mb-4">
+    <%= f.input_field :user_email, label: "Email", class: "w-full md:w-1/2 border border-gray-300 p-2 rounded-md", placeholder: "Your email (optional)" %>
+  </div>
+
+
 
   <div class="flex justify-end items-center">
     <%= f.button :submit, "Send Message", class: "py-2 px-4 bg-purple-600 text-white rounded-md text-lg hover:bg-purple-700 transition duration-150 ease-in-out" %>

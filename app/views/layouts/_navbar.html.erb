@@ -24,7 +24,7 @@
           <!-- User tokens and logout -->
           <%= button_to logout_nav, destroy_user_session_path, method: :delete, class: "hover:text-blue-300", form_class: "ml-4" %>
         <% else %>
-                <%= link_to "About", about_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+                <%= link_to "About", about_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" if user_signed_in? && current_user.admin? %>
 
         <%= link_to "Contact", contact_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
 
