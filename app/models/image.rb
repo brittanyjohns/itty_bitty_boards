@@ -240,14 +240,9 @@ class Image < ApplicationRecord
   def self.searchable_images_for(user, only_user_images = false)
     if only_user_images
       puts "only_user_images"
-      Image.with_image_docs_for_user(user).or(Image.where(user_id: user.id)).distinct
+      Image.non_menu_images.with_image_docs_for_user(user).or(Image.where(user_id: user.id)).distinct
     else
-      Image.with_image_docs_for_user(user).or(Image.where(user_id: user.id)).or(Image.public_img.non_menu_images).distinct
+      Image.non_menu_images.with_image_docs_for_user(user).or(Image.where(user_id: user.id)).or(Image.public_img.non_menu_images).distinct
     end
-    # if user
-    #   Image.public_img.non_menu_images.with_image_docs_for_user(user).or(Image.non_menu_images.where(user_id: user.id)).distinct
-    # else
-    #   Image.public_img.non_menu_images.distinct
-    # end
   end
 end
