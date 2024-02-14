@@ -1,25 +1,16 @@
 <div data-controller="speak show grid" class="w-full mt-2 pb-6 mx-auto" data-predefined="<%= @board.predefined %>">
     <div class="flex justify-around my-auto">
-        <%= link_to "Back", menu_path(@board.parent, menu_page: true), class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-1 px-2 m-1 rounded-md text-sm my-auto" if @board.parent_type == "Menu" %>
+        <%= link_to "Back", menu_path(@board.parent, menu_page: true), class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-2 px-2 m-1 rounded-md text-sm my-auto" if @board.parent_type == "Menu" %>
         <%= link_to "Back", boards_path, class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-2 px-4 m-1 rounded-md text-sm" if @board.parent_type != "Menu" %>
-        <%= link_to "Fullscreen", fullscreen_board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-1 px-2 m-1 rounded-md text-sm my-auto" %>
-        <%= link_to "Locked", locked_board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-1 px-2 m-1 rounded-md text-sm my-auto" %>
+        <%= link_to "Fullscreen", fullscreen_board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-2 px-2 m-1 rounded-md text-sm my-auto" %>
+        <%= link_to "Locked", locked_board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-2 px-2 m-1 rounded-md text-sm my-auto" %>
 
     </div>
-    <h1 class="text-center text-2xl md:text-3xl font-bold my-2 text-gray-800">
+    <h1 class="text-center text-2xl md:text-3xl font-bold mb-2 mt-3 text-gray-800">
         <%= @board.name.titleize %>
     </h1>
             <%= render "boards/openai_prompt", openai_prompt: @board.parent if @board.parent_type == "OpenaiPrompt" %>
 
-
-    <div class="flex justify-around mt-1">
-
-    <div class="text-center">
-        <%= label_tag "number_of_columns", "Grid Columns", class: "text-xs font-medium text-gray-700 mr-2 mx-auto" %>
-        <%= select_tag "number_of_columns", options_for_select(Board.grid_sizes, @board.number_of_columns.to_s), class: "bg-white border border-gray-300 rounded-md shadow-sm py-1 px-1 block w-100 sm:text-sm sm:leading-5 m-1", data: { grid_target: "number_of_columns", action: "change->grid#changeGrid" } %>
-    </div>
-    
-    </div>
     <div class="flex justify-around mb-1 p-1">
         <%= content_tag(:button, "Add image", class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-2 px-4 m-1 rounded-md text-sm", data: {action: "click->show#toggle"}) if current_user.can_edit?(@board) %>
     </div>
@@ -45,8 +36,8 @@
     <div class="flex justify-between bg-white mb-3 rounded-lg shadow-md sm:w-full md:w-2/3 mx-auto">
         <input class="w-5/6 p-1 m-1 rounded-md text-sm" type="text" placeholder="Click an image or type a message to begin speaking" id="the-list">
         <div class="flex justify-end items-center">
-            <button class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 m-2 rounded-full text-sm" data-action="click->speak#clear">Clear</button>
-            <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#speakList">Speak</button>
+            <button class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#clear"><%= clear_icon %></button>
+            <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#speakList"><%= speak_icon %></button>
         </div>
     </div>
     <div id="<%= dom_id @board %>_images" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 gap-1 p-2 text-sm" data-grid-target="grid">
@@ -65,4 +56,10 @@
     </div>
 <% end %>
 
+</div>
+ <div class="flex justify-around mt-1">
+    <div class="text-center">
+        <%= label_tag "number_of_columns", "Grid Columns", class: "text-xs font-medium text-gray-700 mr-2 mx-auto" %>
+        <%= select_tag "number_of_columns", options_for_select(Board.grid_sizes, @board.number_of_columns.to_s), class: "bg-white border border-gray-300 rounded-md shadow-sm py-1 px-1 block w-100 sm:text-sm sm:leading-5 m-1", data: { grid_target: "number_of_columns", action: "change->grid#changeGrid" } %>
+    </div>
 </div>

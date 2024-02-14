@@ -15,7 +15,7 @@
         <p class="text-gray-600">You have no boards yet.</p>
         <%= link_to "Create a new board", new_board_path, class: "text-blue-600 hover:text-blue-200 px-2 py-1 rounded-md text-sm font-medium border m-1" %>
       </div>
-      <% end %>
+      <% else %>
 
       <ul class="list-none p-0" id="my_boards_<%= current_user.id %>">
         <%= render @boards.order(name: :asc) %>

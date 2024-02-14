@@ -74,4 +74,12 @@ module IconHelper
     def spinner
         "<span class='animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-white'></span>".html_safe
     end
+
+    def speak_icon
+        "<i class='fa-solid fa-comment-dots fa-lg'></i>".html_safe
+    end
+
+    def clear_icon
+        "<i class='fa-solid fa-xmark fa-lg'></i>".html_safe
+    end
 end
