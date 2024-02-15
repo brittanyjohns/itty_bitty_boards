@@ -41,7 +41,7 @@ class Board < ApplicationRecord
   end
 
   def display_image
-    images.order(updated_at: :desc).first
+    images.public_img.order(updated_at: :desc).first
   end
 
   def words

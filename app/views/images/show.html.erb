@@ -1,19 +1,12 @@
 <div class="bg-white mx-auto max-w-7xl mt-4 pb-6 px-4 sm:px-6 lg:px-8" data-controller="opensymbols">
   <% if current_user.admin? %>
     <div class="flex justify-between items-center space-x-4">
-      <%= link_to "Previous Image", image_path(@image.id - 1), class: "text-indigo-600 hover:text-indigo-800 font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out" %>
+      <%= link_to "Previous Image", image_path(@image.id - 1), class: "text-indigo-600 hover:text-indigo-800 font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out" if Image.where(id: @image.id - 1).present? %>
       <%= button_to "Create Symbol", create_symbol_image_path(@image), method: :post, class: "text-white bg-indigo-600 hover:bg-indigo-800 font-bold py-2 px-4 rounded-md transition duration-150 ease-in-out" if current_user.admin? && @image.open_symbol_status == "active" %>
-      <%= link_to "Next Image", image_path(@image.id + 1), class: "text-indigo-600 hover:text-indigo-800 font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out" %>
+      <%= link_to "Next Image", image_path(@image.id + 1), class: "text-indigo-600 hover:text-indigo-800 font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out" if Image.where(id: @image.id + 1).present? %>
     </div>
   <% end %>
 
-  <h1 class="mt-5 text-center text-3xl font-extrabold text-gray-900 sm:text-4xl">
-    <%= @image.label&.titleize %>
-  </h1>
-
-    <p class="mt-2 text-center text-gray-600">
-      <%= @image.display_description %>
-    </p>
 <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-1 sm:space-x-3">
   <div class="border p-3 flex-1">
     <div class="text-center mr-auto my-auto">
@@ -36,6 +29,20 @@
     <% else %>
       <%= link_to "Create a board", new_board_path, class: "mt-3 w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" %>
     <% end %>
+    </div>
+  </div>
+
+  <div class="flex-1 border p-3">
+    <h1 class="my-5 text-center text-4xl font-mono text-gray-900">
+      <%= @image.label&.titleize %>
+    </h1>
+    <%= turbo_frame_tag "current_doc" do %>
+      <%= render "docs/current_thumbnail", doc: @current_doc, user: current_user %>
+    <% end %>
+    <div class="mt-3">
+      <p class="text-center text-md py-4">
+        Don't like this image? Choose from the ones below, upload your own, or generate one using AI.
+      </p>
     </div>
   </div>
 
@@ -76,20 +83,19 @@
     </div>
   </div>
 </div>
-  <div class="mt-6 flex justify-center space-x-4 bg-white">
-    <p class="text-center font-bold text-lg py-4">
+
+<div class="w-5/6 mx-auto bg-white pb-5">
+  <div class="mt-6 w-3/4 mx-auto rounded">
+    <p class="text-center font-bold text-xl py-4 font-mono">
       Choose an image to display on your boards for <strong>"<%= @image.label.downcase %>"</strong> by clicking the STAR <%= icon("fa-regular", "star") %>
     </p>
-
   </div>
-
-<div class="fave-img w-5/6 mx-auto mt-8">
-  <div class="mt-8">
+  <div class="mt-2">
     <p class="text-center text-md py-4">
       Don't see one you like? You can either upload your own image or generate one using AI.
     </p>
   </div>
-  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+  <div class="grid grid-cols-2 gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" id="docs">
     <% @image_docs.each do |doc| %>
       <%= render "docs/doc", doc: doc, viewing_user: current_user %>
     <% end %>

@@ -1,0 +1,9 @@
+<% if doc %>
+    <%= turbo_frame_tag 'current_doc' do %>
+    <div id="<%= dom_id doc %>" class="relative overflow-hidden">
+        <%= display_image_for(doc.documentable, user, 200) %>
+    </div>
+    <% end %>
+<% else %>
+<%= image_tag("https://via.placeholder.com/200x200.png?text=#{@image.label_param}", class: "shadow mx-auto my-auto h-fit", data: {tippy_content: "This is a placeholder image. Please upload your own or generate one using AI."}) %>
+<% end %>

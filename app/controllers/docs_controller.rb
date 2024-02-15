@@ -113,11 +113,19 @@ class DocsController < ApplicationController
     @doc = Doc.find(params[:id])
     doc_id = @doc.id
     if current_user.user_docs.where(image_id: @doc.documentable_id).exists?
-      current_user.user_docs.where(image_id: @doc.documentable_id).destroy_all
+      @old_fav_doc = current_user.user_docs.where(image_id: @doc.documentable_id).destroy_all
     end
+    @old_fav_doc = @old_fav_doc&.first&.doc
+    puts "OLD FAV DOC: #{@old_fav_doc}"
+    puts "NEW FAV DOC: #{@doc}"
     @doc.update(current: true) unless @doc.current
     UserDoc.find_or_create_by(user_id: current_user.id, doc_id: doc_id, image_id: @doc.documentable_id)
-    redirect_back_or_to @doc.documentable
+    # redirect_back_or_to @doc.documentable
+    respond_to do |format|
+      format.html { redirect_back_or_to @doc.documentable, notice: "Doc was successfully destroyed." }
+      format.json { head :no_content }
+      format.turbo_stream
+    end
   end
 
   # DELETE /docs/1 or /docs/1.json

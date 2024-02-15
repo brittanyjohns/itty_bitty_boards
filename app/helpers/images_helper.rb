@@ -1,12 +1,12 @@
 module ImagesHelper
-    def display_image_for(image, user)
+    def display_image_for(image, user, size = 300)
       user_image = image.display_image(user)
         str = ""
         if !user_image
-          str += image_tag("https://via.placeholder.com/300x300.png?text=#{image.label_param}", class: "shadow mx-auto my-auto h-fit")
+          str += image_tag("https://via.placeholder.com/#{size}x#{size}.png?text=#{image.label_param}", class: "shadow mx-auto my-auto h-fit")
           # str += "<div class='w-100 h-100 px-2 text-gray-400 text-md font-bold grid justify-items-center items-center shadow mx-auto my-auto'><span class='mx-auto my-auto'>#{image.label&.upcase.truncate(27, separator: ' ')}</span> #{image.generating? ? loading_spinner : ""}</div>".html_safe
         else
-          str += image_tag(user_image.representation(resize_to_limit: [300, 300]).processed.url, class: "shadow mx-auto my-auto h-fit")
+          str += image_tag(user_image.representation(resize_to_limit: [size, size]).processed.url, class: "shadow mx-auto my-auto h-fit")
         end
         str.html_safe
       end

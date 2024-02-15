@@ -1,0 +1,9 @@
+<%= turbo_stream.replace "current_doc" do %>
+    <%= turbo_frame_tag "current_doc" do %>
+      <%= render "docs/current_thumbnail", doc: @doc, user: current_user %>
+    <% end %>
+<% end %>
+
+<%= turbo_stream.append "docs" do %>
+  <%= render "docs/doc", doc: @doc, viewing_user: current_user %>
+<% end %>

@@ -175,6 +175,22 @@ class Image < ApplicationRecord
     nil
   end
 
+  def display_doc(viewing_user = nil)
+    if viewing_user
+      img = viewing_user.display_doc_for_image(self)
+      if img
+        return img
+      end
+    end
+    if docs.current.any? && docs.current.last.image&.attached?
+      return docs.current.last
+    end
+    if docs.any? && docs.last.image&.attached?
+      return docs.last
+    end
+    nil
+  end
+
   def display_label
     label&.titleize&.truncate(27, separator: ' ')
   end
