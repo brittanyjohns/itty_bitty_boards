@@ -18,11 +18,15 @@
   <body class="h-full bg-gradient-to-r from-indigo-100 to-indigo-200  min-h-screen"
   data-controller="notice tooltip">
       <%= render "layouts/navbar" %>
-      <div class="text-pretty bg-white bg-opacity-80 h-full md:mx-10  min-h-screen pt-3 md:px-4">
+      <div class="text-pretty bg-white bg-opacity-80 h-full mdx:mx-10  min-h-screen pt-3 mdx:px-4">
         <%= render "layouts/notice" %>
       <%= render "layouts/alert" %>
 
           <%= yield %>
+
+          </div>
+          <div class="relative w-full mt-8">
+                                    <%= render "layouts/footer" %>
           </div>
       <script src="https://unpkg.com/@material-tailwind/html@latest/scripts/dialog.js"></script>
       <script src="https://unpkg.com/@popperjs/core@2/dist/umd/popper.min.js"></script>
