@@ -7,11 +7,13 @@ class BoardsController < ApplicationController
 
   # GET /boards or /boards.json
   def index
-    @predefined_boards = Board.predefined.order(created_at: :desc)
-    if current_user.admin?
-      @boards = Board.non_menus.excluding(@predefined_boards).order(created_at: :desc)
+    if params[:query].present?
+      @query = params[:query]
+      @boards = Board.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc).page(params[:page]).per(20)
+      @predefined_boards = Board.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc).page(params[:page]).per(20)
     else
-      @boards = current_user.boards.non_menus.excluding(@predefined_boards).order(created_at: :desc)
+      @boards = current_user.boards.order(created_at: :desc).page(params[:page]).per(20)
+      @predefined_boards = Board.predefined.order(created_at: :desc).page(params[:page]).per(20)
     end
   end
 

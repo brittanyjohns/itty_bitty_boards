@@ -8,6 +8,8 @@
     </div>
     <h1 class="text-center text-2xl md:text-3xl font-bold mb-2 mt-3 text-gray-800">
         <%= @board.name.titleize %>
+                  <%= button_to "#{copy_nav} Copy Board".html_safe, clone_board_path(@board), method: :post, class: "border-2 p-4 text-blue-600 hover:text-blue-200 px-3 py-2 rounded-md text-sm font-medium", data: {tippy_content: "Copy"} %>
+
     </h1>
             <%= render "boards/openai_prompt", openai_prompt: @board.parent if @board.parent_type == "OpenaiPrompt" %>
 

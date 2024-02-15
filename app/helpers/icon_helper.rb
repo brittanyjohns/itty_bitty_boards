@@ -16,7 +16,7 @@ module IconHelper
     end
 
     def copy_nav(tooltip_text = "Copy")
-        "<i class='fa-solid fa-copy fa-lg' data-tippy-content='#{tooltip_text}' }></i>".html_safe
+        "<i class='fa-solid fa-copy fa-lg'></i>".html_safe
     end
 
     def home_nav(tooltip_text = "Home")
