@@ -38,6 +38,7 @@ export default class extends Controller {
   }
 
   speakList() {
+    console.log("Speaking list")
     const listItems = this.thelistOutlet.value.split(" ");
     console.log(listItems);
     let items = [];
@@ -54,5 +55,13 @@ export default class extends Controller {
     utterance.volume = 0.7;
     utterance.rate = 1.3;
     speechSynthesis.speak(utterance);
+  }
+
+  keyPress(event) {
+    if (event.key === "Enter") {
+      this.speakList();
+    } else if (event.key === "Escape") {
+      this.clear();
+    }
   }
 }

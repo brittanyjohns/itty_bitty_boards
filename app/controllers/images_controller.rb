@@ -9,9 +9,6 @@ class ImagesController < ApplicationController
       @images = Image.searchable_images_for(current_user, true).order(label: :asc).page params[:page]
     else
       @images = Image.searchable_images_for(current_user).order(label: :asc).page params[:page]
-      if current_user.admin?
-        @images = Image.non_menu_images.order(label: :asc).page params[:page]
-      end
     end
 
     if params[:query].present?
@@ -137,6 +134,12 @@ class ImagesController < ApplicationController
         notice = "You don't have enough tokens to generate an image."
       end
     end
+    if !@found_image || @found_image&.docs.none?
+      puts "New Image or no docs"
+      limit = current_user.admin? ? 10 : 5
+      GetSymbolsJob.perform_async([@image.id], limit)
+      notice += " Creating #{limit} #{'symbol'.pluralize(limit)} for image."      
+    end
     redirect_back_or_to image_url(@image), notice: notice
   end
 
@@ -150,9 +153,7 @@ class ImagesController < ApplicationController
   def create_symbol
     @image = Image.find(params[:id])
     limit = current_user.admin? ? 10 : 1
-    # @image.generate_matching_symbol(limit)
     GetSymbolsJob.perform_async([@image.id], limit)
-    sleep 1
     redirect_back_or_to image_url(@image), notice: "Creating #{limit} #{'symbol'.pluralize(limit)} for image '#{@image.label}'."
   end
 

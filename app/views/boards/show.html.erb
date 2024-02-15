@@ -56,10 +56,10 @@
     </div>
 <% end %>
 
-</div>
- <div class="flex justify-around mt-1">
-    <div class="text-center">
-        <%= label_tag "number_of_columns", "Grid Columns", class: "text-xs font-medium text-gray-700 mr-2 mx-auto" %>
-        <%= select_tag "number_of_columns", options_for_select(Board.grid_sizes, @board.number_of_columns.to_s), class: "bg-white border border-gray-300 rounded-md shadow-sm py-1 px-1 block w-100 sm:text-sm sm:leading-5 m-1", data: { grid_target: "number_of_columns", action: "change->grid#changeGrid" } %>
+    <div class="flex justify-around mt-1">
+        <div class="text-center">
+            <%= label_tag "number_of_columns", "Grid Columns", class: "text-xs font-medium text-gray-700 mr-2 mx-auto" %>
+            <%= select_tag "number_of_columns", options_for_select(Board.grid_sizes, @board.number_of_columns.to_s), class: "bg-white border border-gray-300 rounded-md shadow-sm py-1 px-1 block w-100 sm:text-sm sm:leading-5 m-1", data: { grid_target: "number_of_columns", action: "change->grid#changeGrid" } %>
+        </div>
     </div>
 </div>

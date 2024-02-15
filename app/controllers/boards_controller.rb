@@ -9,9 +9,9 @@ class BoardsController < ApplicationController
   def index
     @predefined_boards = Board.predefined.order(created_at: :desc)
     if current_user.admin?
-      @boards = Board.non_menus.order(created_at: :desc)
+      @boards = Board.non_menus.excluding(@predefined_boards).order(created_at: :desc)
     else
-      @boards = current_user.boards.non_menus.order(created_at: :desc)
+      @boards = current_user.boards.non_menus.excluding(@predefined_boards).order(created_at: :desc)
     end
   end
 

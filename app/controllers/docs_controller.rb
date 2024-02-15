@@ -26,15 +26,14 @@ class DocsController < ApplicationController
     @label = params[:label]
     puts "Processing #{@label} for doc id #{@doc.id}"
 
-    @image = Image.find_or_create_by(label: @label, user_id: current_user.id)
+    @image = Image.searchable_images_for(current_user).find_or_create_by(label: @label)
     @doc.update!(documentable_id: @image.id, documentable_type: "Image", deleted_at: nil)
-    redirect_to @image
+    redirect_back_or_to @image
   end
 
   def deleted
     @docs = Doc.hidden.order(created_at: :desc).page params[:page]
     search_param = params[:query]&.strip
-    puts "search_param: #{search_param}"
     if params[:query].present?
       @docs = @docs.where("processed ILIKE ?", "%#{search_param}%").order(processed: :asc).page params[:page]
     else

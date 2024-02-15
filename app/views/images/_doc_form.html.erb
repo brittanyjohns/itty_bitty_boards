@@ -1,5 +1,5 @@
 <%= form_with(model: @new_image_doc, local: true, data: {controller: "disable"}) do |form| %>
-<div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+<div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 py-4">
 
     <%= form.hidden_field :documentable_type, value: @image.class %>
     <%= form.hidden_field :documentable_id, value: @image.id %>
@@ -14,7 +14,7 @@
       </ul>
     </div>
   <% end %>
-    <%= form.file_field :image, data: { action: "change->disable-parser#upload" }, class: "w-full px-2 rounded border focus:ring-2 focus:ring-orange-300 focus:outline-none" %>
+    <%= form.file_field :image, data: { action: "change->disable-parser#upload" }, class: "w-full px-2 rounded border focus:ring-2 focus:ring-orange-300 focus:outline-none bg-white" %>
   <%= form.hidden_field :source_type, value: "User" %>
     <%= form.submit "Save", disabled: false, class: "w-full sm:w-auto px-4 py-2 font-medium bg-green-300 rounded hover:bg-green-400 focus:ring-2 focus:ring-green-200 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed", data: { disable_target: "button", action: "click->disable#disableForm" } %>
 </div>

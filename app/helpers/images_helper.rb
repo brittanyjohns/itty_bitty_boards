@@ -52,4 +52,17 @@ module ImagesHelper
         str += "</div>"
         str.html_safe
       end
+
+      def print_doc_info(doc)
+        str = ""
+        str += "<div class='text-sm text-gray-500 bg-gray-100 p-2 rounded-lg shadow w-64'>"
+        str += "<div>id: #{doc.id}</div>"
+        str += "<div>image_id: #{doc.documentable_type} #{doc.documentable_id}</div>"
+        str += "<div>user_id: #{doc.user_id}</div>"
+        str += "<div>processed: #{doc.processed}</div>"
+        str += "<div>created_at: #{doc.created_at}</div>"
+        str += "<div>updated_at: #{doc.updated_at}</div>"
+        str += "</div>"
+        str.html_safe
+      end
 end
