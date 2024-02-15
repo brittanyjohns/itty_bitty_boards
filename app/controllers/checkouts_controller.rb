@@ -15,8 +15,7 @@ class CheckoutsController < ApplicationController
     @order = current_user.orders.placed.last
   end
   YOUR_DOMAIN = 'http://localhost:3000'
-  ONE_DOLLAR_PRICE_ID = Rails.env.production? ? 'price_1JQZ2nJZ6X9ZQX0Z2Z2Z2Z2Z' : 'price_1OZ2bIGfsUBE8bl3wduEk5RL'
-  
+  ONE_DOLLAR_PRICE_ID = ENV['ONE_DOLLAR_PRICE_ID']
 
   def create
     @current_order = current_order
