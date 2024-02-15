@@ -34,7 +34,7 @@ class Image < ApplicationRecord
   # scope :with_image_docs_for_user, -> (user) { includes(:docs).merge(Doc.for_user(user)) }
   scope :menu_images, -> { where(image_type: "Menu") }
   scope :non_menu_images, -> { where(image_type: nil) }
-  scope :public_img, -> { where(private: [false, nil]).or(Image.where(user_id: nil)) }
+  scope :public_img, -> { where(private: [false, nil]) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
   scope :skipped, -> { where(open_symbol_status: "skipped") }
 
