@@ -239,7 +239,7 @@ class Image < ApplicationRecord
   end
 
   def self.create_audio_files(start_at=1, batch_size = 10)
-    last_id = nil
+    last_id = 0
     end_at = start_at + batch_size
     Image.find_in_batches(start: start_at, finish: end_at, batch_size: batch_size).with_index do |group, batch|
       puts "Processing group ##{batch} -- #{group.first.id} - #{group.last.id}"
@@ -248,7 +248,7 @@ class Image < ApplicationRecord
       sleep(3)
       last_id = group.last.id
     end
-    last_id
+    last_id + 1
   end
 
   def start_generate_image_job(start_time = 0, user_id_to_set = nil, image_prompt_to_set = nil)
