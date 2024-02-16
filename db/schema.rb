@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_02_16_155828) do
+ActiveRecord::Schema[7.1].define(version: 2024_02_16_210046) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -48,6 +48,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_02_16_155828) do
     t.integer "position"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "voice"
     t.index ["board_id"], name: "index_board_images_on_board_id"
     t.index ["image_id"], name: "index_board_images_on_image_id"
   end
@@ -64,6 +65,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_02_16_155828) do
     t.boolean "predefined", default: false
     t.integer "token_limit", default: 0
     t.integer "number_of_columns", default: 4
+    t.string "voice"
     t.index ["parent_type", "parent_id"], name: "index_boards_on_parent"
     t.index ["user_id"], name: "index_boards_on_user_id"
   end
