@@ -167,6 +167,13 @@ class ImagesController < ApplicationController
     @board.add_to_cost(1) if @board
   end
 
+  def create_audio
+    @image = Image.find(params[:id])
+    voice = params[:voice] || "alloy"
+    @audio = @image.create_audio_from_text(@image.label, voice)
+    redirect_back_or_to image_url(@image), notice: "Audio created."
+  end
+
   # DELETE /images/1 or /images/1.json
   def destroy
     @image.destroy!

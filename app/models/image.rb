@@ -25,10 +25,14 @@ class Image < ApplicationRecord
   has_many :docs, as: :documentable, dependent: :destroy
   has_many :board_images, dependent: :destroy
   has_many :boards, through: :board_images
+  has_many_attached :audio_files
 
   PROMPT_ADDITION = " Styled as a simple cartoon illustration."
 
   include ImageHelper
+
+  # before_save :save_audio_file, if: -> { label_changed? }
+  before_save :save_audio_file_to_s3, if: :no_audio_saved
 
   scope :with_image_docs_for_user, -> (userId) { joins(:docs).where("docs.documentable_id = images.id AND docs.documentable_type = 'Image' AND docs.user_id = ?", userId) }
   # scope :with_image_docs_for_user, -> (user) { includes(:docs).merge(Doc.for_user(user)) }
@@ -57,6 +61,20 @@ class Image < ApplicationRecord
 
   def self.open_symbol_statuses
     ["active", "skipped"]
+  end
+
+  def no_audio_saved
+    audio_files.blank?
+  end
+
+  def existing_voices
+    # scared_nova_22.aac
+    audio_files.map { |audio| audio.filename.to_s.split("_").second }
+  end
+
+  def missing_voices
+    voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
+    voices - existing_voices
   end
 
   def generate_matching_symbol(limit = 1)
@@ -175,6 +193,10 @@ class Image < ApplicationRecord
     nil
   end
 
+  def save_audio_file_to_s3
+    create_audio_from_text
+  end
+
   def display_doc(viewing_user = nil)
     if viewing_user
       img = viewing_user.display_doc_for_image(self)
@@ -206,6 +228,14 @@ class Image < ApplicationRecord
 
   def prompt_for_label
     "Generate an image of"
+  end
+
+  def start_generate_audio_job(voice = "alloy")
+    SaveAudioJob.perform_async([id], voice)
+  end
+
+  def self.start_generate_audio_job(ids, voice = 'alloy')
+    SaveAudioJob.perform_async(ids, voice)
   end
 
   def start_generate_image_job(start_time = 0, user_id_to_set = nil, image_prompt_to_set = nil)

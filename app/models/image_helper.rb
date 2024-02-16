@@ -32,9 +32,29 @@ module ImageHelper
     else
       Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"
     end
-
   end
 
+  def create_audio_from_text(text = nil, voice = "alloy")
+    text = text || self.label
+    puts "text: #{text}"
+    response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice)
+    if response
+      # response.stream_to_file("output.aac")
+      # audio_file = File.binwrite("audio.mp3", response)
+      File.open("output.aac", "wb") { |f| f.write(response) }
+      audio_file = File.open("output.aac")
+      puts "*** ERROR *** Invaild Audio Response: #{response}" unless audio_file
+      puts "Saved audio file: #{audio_file.class}"
+      save_audio_file(audio_file, voice)
+      File.delete("output.aac")
+    else
+      Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"
+    end
+  end
+
+  def save_audio_file(audio_file, voice)
+    self.audio_files.attach(io: audio_file, filename: "#{self.label}_#{voice}_#{self.id}.aac")
+  end
   def clarify_image_description(raw)
     response = OpenAiClient.new(open_ai_opts).clarify_image_description(raw)
     if response

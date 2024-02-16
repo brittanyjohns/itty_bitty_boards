@@ -1,5 +1,6 @@
 <div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
-  <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>" data-action="click->speak#speak">
+  <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>" data-action="click->speak#<%= image.audio_files.any? ? 'playAudio' : 'speak' %>">
+  <%= audio_tag(polymorphic_path(image.audio_files.first), controls: true, id: "audio-#{image.id}", class: "hidden", data: {speak_target: "audio"}) if image.audio_files.any? %>
     <div class="items-center text-center" id="<%= image.label %>">
       <%= display_image_for(image, current_user) %>
     </div>

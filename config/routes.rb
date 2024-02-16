@@ -36,6 +36,7 @@ Rails.application.routes.draw do
     get "menu", on: :collection
     post "find_or_create", on: :collection
     member do
+      post "create_audio"
       post "generate"
       post "add_to_board"
       post "create_symbol"

@@ -2,10 +2,20 @@ import { Controller } from "@hotwired/stimulus"
 
 // Connects to data-controller="speak"
 export default class extends Controller {
+  static targets = ["audio"]
   connect() {
     this.label = this.data.get("label");
     this.thelistOutlet = document.querySelector("#the-list");
     this.isAMenu = document.querySelector("#menu-info");
+    this.audio = this.audioTarget.src;
+  }
+
+  playAudio(event) {
+    event.preventDefault();
+    console.log("Playing audio");
+    
+    const audio = new Audio(this.audio);
+    audio.play();
   }
 
   speak(event) {

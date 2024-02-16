@@ -35,6 +35,21 @@ class OpenAiClient
     { img_url: img_url, revised_prompt: revised_prompt }
   end
 
+  def create_audio_from_text(text, voice = "alloy")
+    puts "FROM OpenAiClient: text: #{text}"
+    response = openai_client.audio.speech(parameters:
+      {
+        input: text,
+        model: "tts-1",
+        voice: voice,
+      }
+    )
+    # audio_file = response.stream_to_file("output.mp3")
+    # puts "*** Audio File *** #{audio_file}"
+    puts "*** ERROR *** Invaild Audio Response: #{response}" unless response
+    response
+  end
+
   def self.describe_image(img_url)
     response = openai_client.chat(parameters: { model: "gpt-4-vision-preview", messages: [{ role: "user", content: [{ type: "text", text: "What’s in this image?" }, { type: "image_url", image_url: { url: img_url } }] }] })
     puts "*** ERROR *** Invaild Image Description Response: #{response}" unless response
