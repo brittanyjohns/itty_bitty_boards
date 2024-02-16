@@ -35,6 +35,8 @@ class User < ApplicationRecord
   has_many :user_docs, dependent: :destroy
   has_many :favorite_docs, through: :user_docs, class_name: 'Doc', source: :doc
 
+  has_secure_token :authentication_token
+
   scope :admins, -> { where(role: 'admin') }
 
   after_create :add_welcome_tokens
@@ -89,6 +91,11 @@ class User < ApplicationRecord
 
   def display_doc_for_image(image)
     favorite_docs.where(id: image.docs.pluck(:id)).first
+  end
+
+  def self.valid_credentials?(email, password)
+    user = find_by(email:)
+    user&.valid_password?(password) ? user : nil
   end
 
 end

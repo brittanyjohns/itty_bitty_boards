@@ -63,3 +63,6 @@ application.register("stripe", StripeController)
 
 import TooltipController from "./tooltip_controller"
 application.register("tooltip", TooltipController)
+
+import TurboNative__SignOutController from "./turbo_native/sign_out_controller.js"
+application.register("turbo-native--sign-out", TurboNative__SignOutController)

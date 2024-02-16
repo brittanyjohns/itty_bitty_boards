@@ -83,6 +83,22 @@ Rails.application.routes.draw do
   resources :checkouts, only: [:new, :create, :show]
   resources :orders, only: [:index, :show]
 
+  namespace :api, defaults: {format: :json} do
+    namespace :v1 do
+      resource :auth, only: [:create, :destroy]
+      # resources :notification_tokens, only: :create
+    end
+  end
+
+  namespace :turbo do
+    # namespace :ios do
+    #   resource :path_configuration, only: :show
+    # end
+    namespace :android do
+      resource :path_configuration, only: :show
+    end
+  end
+
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
