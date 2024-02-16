@@ -238,7 +238,7 @@ class Image < ApplicationRecord
     SaveAudioJob.perform_async(ids, voice)
   end
 
-  def self.create_audio_files(start_at=1, batch_size = 50)
+  def self.create_audio_files(start_at=1, batch_size = 10)
     last_id = nil
     end_at = start_at + batch_size
     Image.find_in_batches(start: start_at, finish: end_at, batch_size: batch_size).with_index do |group, batch|
