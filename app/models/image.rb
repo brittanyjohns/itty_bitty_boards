@@ -32,7 +32,7 @@ class Image < ApplicationRecord
   include ImageHelper
 
   # before_save :save_audio_file, if: -> { label_changed? }
-  before_save :save_audio_file_to_s3, if: :no_audio_saved
+  before_save :save_audio_file_to_s3!, if: :no_audio_saved
 
   scope :with_image_docs_for_user, -> (userId) { joins(:docs).where("docs.documentable_id = images.id AND docs.documentable_type = 'Image' AND docs.user_id = ?", userId) }
   # scope :with_image_docs_for_user, -> (user) { includes(:docs).merge(Doc.for_user(user)) }
@@ -193,8 +193,8 @@ class Image < ApplicationRecord
     nil
   end
 
-  def save_audio_file_to_s3
-    create_audio_from_text
+  def save_audio_file_to_s3!(voice = "alloy")
+    create_audio_from_text(label, voice)
   end
 
   def display_doc(viewing_user = nil)
@@ -240,9 +240,10 @@ class Image < ApplicationRecord
 
   def self.create_audio_files(start_at=1, batch_size = 50)
     last_id = nil
-    Image.find_in_batches(start: start_at, batch_size: batch_size).with_index do |group, batch|
-      puts "Processing group ##{batch}"
-      # group.each(&:save!)
+    end_at = start_at + batch_size
+    Image.find_in_batches(start: start_at, finish: end_at, batch_size: batch_size).with_index do |group, batch|
+      puts "Processing group ##{batch} -- #{group.first.id} - #{group.last.id}"
+      # group.each(&:save_audio_file_to_s3!)
       Image.start_generate_audio_job(group.pluck(:id))
       sleep(3)
       last_id = group.last.id

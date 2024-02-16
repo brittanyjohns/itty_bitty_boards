@@ -1,10 +1,11 @@
 class SaveAudioJob
   include Sidekiq::Job
+  sidekiq_options queue: "default", retry: false
 
   def perform(image_ids, voice)
     images = Image.where(id: image_ids)
     images.each do |image|
-      image.start_generate_audio_job if image.no_audio_saved
+      image.save_audio_file_to_s3!(voice)
       sleep 1
     end
   end
