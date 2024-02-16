@@ -238,6 +238,18 @@ class Image < ApplicationRecord
     SaveAudioJob.perform_async(ids, voice)
   end
 
+  def self.create_audio_files(start_at=1, batch_size = 50)
+    last_id = nil
+    Image.find_in_batches(start: start_at, batch_size: batch_size).with_index do |group, batch|
+      puts "Processing group ##{batch}"
+      # group.each(&:save!)
+      Image.start_generate_audio_job(group.pluck(:id))
+      sleep(3)
+      last_id = group.last.id
+    end
+    last_id
+  end
+
   def start_generate_image_job(start_time = 0, user_id_to_set = nil, image_prompt_to_set = nil)
     user_id_to_set ||= user_id
     puts "start_generate_image_job: #{label} - #{user_id_to_set} - #{image_prompt_to_set}"
