@@ -7,7 +7,7 @@ namespace :voices do
       puts "No images with no audio files"
       return
     end
-    limit = 3
+    limit = 8
     puts "images_with_no_audio.count: #{images_with_no_audio.count}"
     images_with_no_audio.in_batches(of: limit) do |batch|
       batch.each do |image|

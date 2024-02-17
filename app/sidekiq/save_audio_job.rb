@@ -1,6 +1,6 @@
 class SaveAudioJob
   include Sidekiq::Job
-  sidekiq_options queue: "default", retry: false
+  sidekiq_options queue: "default", retry: 1
 
   def perform(image_ids, voice)
     images = Image.where(id: image_ids)

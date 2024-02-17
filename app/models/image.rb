@@ -236,10 +236,10 @@ class Image < ApplicationRecord
     puts "Voices needed: #{voices_needed}"
     voices_needed = voices_needed - [voice]
     puts "Missing voices: #{missing_voices}"
-    missing_voices.each do |v|
+    voices_needed.each_with_index do |v, i|
       puts "Creating audio for voice: #{v}"
       # create_audio_from_text(label, voice)
-      start_generate_audio_job(v)
+      start_generate_audio_job(v, i)
     end
   end
 
@@ -276,8 +276,9 @@ class Image < ApplicationRecord
     "Generate an image of"
   end
 
-  def start_generate_audio_job(voice = "alloy")
-    SaveAudioJob.perform_async([id], voice)
+  def start_generate_audio_job(voice = "alloy", start_time = 0)
+    # SaveAudioJob.perform_async([id], voice)
+    SaveAudioJob.perform_in(start_time.minutes, [id], voice)
   end
 
   def self.start_generate_audio_job(ids, voice = 'alloy')

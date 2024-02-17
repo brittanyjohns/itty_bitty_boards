@@ -14,7 +14,6 @@
     <%= link_to image, class: "text-sm font-medium text-gray-700 py-1 mt-2 block hover:text-blue-600 m-1 absolute bottom-0 inset-x-0" do %>
       <%= change_image_icon(image.display_label) %>
     <% end %>
-   <%= image.board_images.find_by(board_id: @board.id).voice if @board.present? %>
 
     <%= image.generating? ? spinner : "" %>
     <%= remove_image_button(@board, image) if current_user.can_edit?(@board) %>
