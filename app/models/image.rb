@@ -232,11 +232,14 @@ class Image < ApplicationRecord
 
   def save_audio_file_to_s3!(voice = "alloy")
     create_audio_from_text(label, voice)
-    missing_voices = missing_voices - [voice]
+    voices_needed = missing_voices || []
+    puts "Voices needed: #{voices_needed}"
+    voices_needed = voices_needed - [voice]
     puts "Missing voices: #{missing_voices}"
-    missing_voices.each do |voice|
+    missing_voices.each do |v|
+      puts "Creating audio for voice: #{v}"
       # create_audio_from_text(label, voice)
-      start_generate_audio_job(voice)
+      start_generate_audio_job(v)
     end
   end
 
