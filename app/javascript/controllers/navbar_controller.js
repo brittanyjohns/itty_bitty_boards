@@ -9,14 +9,14 @@ export default class extends Controller {
     console.log("Hello, Navbar!", this.element)
     window.addEventListener("toggle-nav-bar", this.toggle)
 
-    if (isIos) {
-      console.log("This is an iOS device")
-      this.hide()
-    }
-    if (isAndroid) {
-      console.log("This is an Android device")
-      this.hide()
-    }
+    // if (isIos) {
+    //   console.log("This is an iOS device")
+    //   this.hide()
+    // }
+    // if (isAndroid) {
+    //   console.log("This is an Android device")
+    //   this.hide()
+    // }
 
   }
   hide() {

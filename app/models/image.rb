@@ -32,10 +32,11 @@ class Image < ApplicationRecord
   include ImageHelper
 
   # before_save :save_audio_file, if: -> { label_changed? }
-  before_save :save_audio_file_to_s3!, if: :no_audio_saved
+  # before_save :save_audio_file_to_s3!, if: :no_audio_saved
+  scope :without_attached_audio_files, -> { where.missing(:audio_files_attachments) }
+
 
   scope :with_image_docs_for_user, -> (userId) { joins(:docs).where("docs.documentable_id = images.id AND docs.documentable_type = 'Image' AND docs.user_id = ?", userId) }
-  # scope :with_image_docs_for_user, -> (user) { includes(:docs).merge(Doc.for_user(user)) }
   scope :menu_images, -> { where(image_type: "Menu") }
   scope :non_menu_images, -> { where(image_type: nil) }
   scope :public_img, -> { where(private: [false, nil]) }
@@ -67,13 +68,49 @@ class Image < ApplicationRecord
     audio_files.blank?
   end
 
+  def find_or_create_audio_file_for_voice(voice = "alloy")
+    existing = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label}_#{voice}_#{id}.aac").first
+    if existing
+      existing
+    else
+      create_audio_from_text(label, voice)
+    end
+  end
+
+  def get_audio_for_voice(voice = "alloy")
+    puts "GETTING AUDIO FOR VOICE: #{voice}"
+    # file = audio_files.find_by(filename: "#{label}_#{voice}_#{id}.aac")
+    file = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label}_#{voice}_#{id}.aac").first
+    if file
+      file
+      puts "\n\n Found audio file: #{file.inspect}\n\n"
+    else
+      # create_audio_from_text(label, voice)
+      start_generate_audio_job(voice)
+      puts "\n\n Starting generate audio job for voice: #{voice}\n\n"
+      file = audio_files.last
+      puts "\n\n Created audio file: #{file.inspect}\n\n"
+    end
+    file
+  end
+
+  def get_voice_for_board(board)
+    voice = board_images.find_by(board_id: board.id).voice
+    puts "\n\n GETTING VOICE FOR BOARD: #{board.id} - #{voice}\n\n"
+    get_audio_for_voice(voice)
+  end
+
   def existing_voices
     # scared_nova_22.aac
     audio_files.map { |audio| audio.filename.to_s.split("_").second }
   end
 
+  def self.voices
+    ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
+  end
+
   def missing_voices
-    voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
+    voices = Image.voices
     voices - existing_voices
   end
 
@@ -195,6 +232,12 @@ class Image < ApplicationRecord
 
   def save_audio_file_to_s3!(voice = "alloy")
     create_audio_from_text(label, voice)
+    missing_voices = missing_voices - [voice]
+    puts "Missing voices: #{missing_voices}"
+    missing_voices.each do |voice|
+      # create_audio_from_text(label, voice)
+      start_generate_audio_job(voice)
+    end
   end
 
   def display_doc(viewing_user = nil)

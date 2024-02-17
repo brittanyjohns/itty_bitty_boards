@@ -13,8 +13,9 @@
       <p class="text-sm font-semibold mx-4 mb-3">
         This image is currently being used in the following boards:
       </p>
+      <ul class="text-left">
       <% @user_image_boards.each do |board| %>
-        <%= link_to board.name.upcase, board_path(board), class: "text-indigo-600 hover:underline p-2 my-2" %>
+        <ul class="p-3 border "><%= link_to board.name.upcase, board_path(board), class: "text-indigo-600 hover:underline p-2 my-2" %></ul>
       <% end %>
 
     <% if current_user.boards.any? %>

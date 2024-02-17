@@ -36,7 +36,8 @@ class OpenAiClient
   end
 
   def create_audio_from_text(text, voice = "alloy")
-    puts "FROM OpenAiClient: text: #{text}"
+    puts "FROM OpenAiClient: text: #{text} -- voice: #{voice}"
+    begin
     response = openai_client.audio.speech(parameters:
       {
         input: text,
@@ -44,6 +45,9 @@ class OpenAiClient
         voice: voice,
       }
     )
+    rescue => e
+      puts "**** ERROR **** \n#{e.message}\n"
+    end
     # audio_file = response.stream_to_file("output.mp3")
     # puts "*** Audio File *** #{audio_file}"
     puts "*** ERROR *** Invaild Audio Response: #{response}" unless response

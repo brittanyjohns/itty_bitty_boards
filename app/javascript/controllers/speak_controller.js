@@ -12,7 +12,7 @@ export default class extends Controller {
 
   playAudio(event) {
     event.preventDefault();
-    console.log("Playing audio");
+    console.log("Playing audio", this.audio);
     
     const audio = new Audio(this.audio);
     audio.play();

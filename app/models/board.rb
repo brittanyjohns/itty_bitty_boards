@@ -28,12 +28,20 @@ class Board < ApplicationRecord
   scope :ai_generated, -> { where(parent_type: "OpenaiPrompt") }
 
   before_save :set_number_of_columns, unless: :number_of_columns?
+  before_save :set_voice, if: :voice_changed?
 
   # after_create_commit { broadcast_prepend_later_to :board_list, target: 'my_boards', partial: 'boards/board', locals: { board: self } }
   after_create_commit :update_board_list
 
   def set_number_of_columns
     self.number_of_columns = 4
+  end
+
+  def set_voice
+    puts "\n\nSet Board Voice\n\n- #{voice}"
+    board_images.each do |bi|
+      bi.update!(voice: voice)
+    end
   end
 
   def remaining_images
@@ -64,11 +72,22 @@ class Board < ApplicationRecord
     if image_ids.include?(image_id.to_i)
       puts "image already added"
     else
-      new_board_image = board_images.new(image_id: image_id.to_i)
+      new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice)
+      image = Image.find(image_id)
+      if image.existing_voices.include?(self.voice)
+        new_board_image.voice = self.voice
+      else
+        image.find_or_create_audio_file_for_voice(self.voice)
+      end
+
       unless new_board_image.save
         Rails.logger.debug "new_board_image.errors: #{new_board_image.errors.full_messages}"
       end
     end
+  end
+
+  def voice_for_image(image_id)
+    board_images.find_by(image_id: image_id).voice
   end
 
   def add_to_cost(cost)

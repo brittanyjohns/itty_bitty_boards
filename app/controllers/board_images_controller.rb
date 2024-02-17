@@ -67,6 +67,6 @@ class BoardImagesController < ApplicationController
 
     # Only allow a list of trusted parameters through.
     def board_image_params
-      params.require(:board_image).permit(:board_id, :image_id, :position)
+      params.require(:board_image).permit(:board_id, :image_id, :position, :voice)
     end
 end
