@@ -1,0 +1,33 @@
+<div id="mobile-nav" class="hidden">
+    <nav class="bg-gray-900 px-3 py-4 shadow-lg">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="text-white">
+                <div class="absolute top-0 left-0 w-full h-full bg-gray-900 bg-opacity-75"></div>
+                <div class="absolute top-0 left-0 w-1/3 h-full bg-gray-900 z-50" data-navbar-target="content">
+                    <div class="flex flex-col items-center space-y-4 mt-16">
+                    <!-- Authentication and navigation links -->
+                    <% if user_signed_in? %>
+                        <%= link_to board_nav, boards_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+                        <%= link_to menu_nav, menus_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+                        <%= link_to user_nav, current_user, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+                        <!-- Conditional admin links -->
+                        <%= link_to "Users", users_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" if current_user.admin? %>
+                        <%= link_to "Docs", docs_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" if current_user.admin? %>
+                        <%= link_to image_nav, images_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+                        <%= link_to new_board_nav, new_board_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+                        <%= link_to new_menu_nav, new_menu_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+                        <%= link_to new_image_nav, new_image_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+                        <!-- User tokens and logout -->
+                        <%= link_to shopping_cart_nav, carts_show_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm"  unless current_order && current_order.order_items.empty? %>
+                        <%= link_to tokens_nav, products_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+                        <%= button_to logout_nav, destroy_user_session_path, method: :delete, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+                    <% else %>
+                        <%= link_to "Sign up", new_user_registration_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+                        <%= link_to login_nav, new_user_session_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+                    <% end %>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+</div>

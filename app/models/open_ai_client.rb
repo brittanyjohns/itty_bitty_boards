@@ -36,6 +36,7 @@ class OpenAiClient
   end
 
   def create_audio_from_text(text, voice = "alloy")
+    voice = voice || "alloy"
     puts "FROM OpenAiClient: text: #{text} -- voice: #{voice}"
     begin
     response = openai_client.audio.speech(parameters:

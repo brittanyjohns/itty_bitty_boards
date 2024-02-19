@@ -100,6 +100,7 @@ class OpenaiPrompt < ApplicationRecord
     board.description = response
     board.save!
     create_images_from_response(board, response)
+    broadcast_replace_to(user, target: "pending_board_#{id}", partial: "boards/board", locals: { board: board })
     board
   end
 

@@ -56,8 +56,11 @@ Rails.application.routes.draw do
     end
   end
   # Order matters here.  users needs to be below the devise_for :users
-  # devise_for :users
-  devise_for :users, controllers: { registrations: "registrations" }
+  devise_for :users
+  # devise_for :users, controllers: {registrations: "registrations"}
+  # devise_scope :user do
+  #   post "/api/v1/users" => ""
+  # end
   resources :users do
     member do
       delete "remove_user_doc"
@@ -83,10 +86,10 @@ Rails.application.routes.draw do
   resources :products
   resources :checkouts, only: [:new, :create, :show]
   resources :orders, only: [:index, :show]
-
   namespace :api, defaults: {format: :json} do
     namespace :v1 do
       resource :auth, only: [:create, :destroy]
+      post "users", to: "auths#sign_up"    
       # resources :notification_tokens, only: :create
     end
   end

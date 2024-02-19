@@ -6,6 +6,7 @@ class Bridge {
   }
   
   static postMessage(name, data = {}) {
+    console.log("Posting message to native app", name, data)
     // iOS
     // window.webkit?.messageHandlers?.nativeApp?.postMessage({name, ...data})
 

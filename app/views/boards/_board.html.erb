@@ -1,15 +1,17 @@
-<% if board.predefined? %>
-  <%= link_to show_predefined_path(board) do %>
-  <li class="p-2 md:p-3 mb-4 flex justify-between items-center bg-white rounded-lg shadow border border-gray-200 transform hover:translate-y-1 transition duration-150 ease-in-out" id=<%= dom_id(board) %>>
-    <span class="text-lg md:text-xl font-medium text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out"><%= board.name %></span>
-  </li>
-  <% end %>
-
-<% else %>
-  <%= link_to board do %>
+<%= turbo_frame_tag board do %>
+  <% if board.predefined? %>
+    <%= link_to show_predefined_path(board) do %>
     <li class="p-2 md:p-3 mb-4 flex justify-between items-center bg-white rounded-lg shadow border border-gray-200 transform hover:translate-y-1 transition duration-150 ease-in-out" id=<%= dom_id(board) %>>
-    <span class="text-lg md:text-xl font-medium text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out"><%= board.name %></span>
+      <span class="text-lg md:text-xl font-medium text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out"><%= board.name %></span>
     </li>
-  <% end %>
+    <% end %>
 
+  <% else %>
+    <%= link_to board do %>
+      <li class="p-2 md:p-3 mb-4 flex justify-between items-center bg-white rounded-lg shadow border border-gray-200 transform hover:translate-y-1 transition duration-150 ease-in-out" id=<%= dom_id(board) %>>
+      <span class="text-lg md:text-xl font-medium text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out"><%= board.name %></span>
+      </li>
+    <% end %>
+
+  <% end %>
 <% end %>

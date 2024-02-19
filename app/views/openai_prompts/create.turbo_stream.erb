@@ -1,0 +1,2 @@
+<%= turbo_stream.prepend 'boards', html: "<li id='pending_board_#{@openai_prompt.id}' class='p-2 md:p-3 mb-4 flex justify-between items-center bg-green-200 rounded-lg shadow border border-gray-200 transform hover:translate-y-1 transition duration-150 ease-in-out'><span class='text-lg md:text-xl font-medium text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out'> Creating your board... </span></li>".html_safe %>
+<%= turbo_stream.update 'new_openai_prompt', "" %>

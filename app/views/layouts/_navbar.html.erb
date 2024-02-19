@@ -1,4 +1,4 @@
-<div data-controller="navbar dropdown">
+<div data-controller="navbar dropdown" id="main-navbar">
   <nav class="bg-gray-900 px-3 py-4 shadow-lg">
     <div class="max-w-7xl mx-auto flex justify-between items-center">
       <%= link_to root_path, class: "flex items-center" do %>
@@ -11,7 +11,7 @@
         <% if user_signed_in? %>
           <%= button_tag "<i class='fas fa-plus'></i>".html_safe, class: "hover:text-blue-300", data: { action: "click->dropdown#toggle", "tippy-content": "Create something new" } %>
           <%= link_to home_nav, root_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
-            <%= link_to board_nav, boards_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
+          <%= link_to board_nav, boards_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
           <%= link_to menu_nav, menus_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
           <%= link_to image_nav, images_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
           <%= link_to shopping_cart_nav, carts_show_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" unless current_order && current_order.order_items.empty? %>
@@ -77,6 +77,8 @@
             <% end %>
           </div>
         </div>
+      </div>
     </div>
   </nav>
 </div>
+<%= render "layouts/mobile_nav" %>

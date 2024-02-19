@@ -79,6 +79,7 @@ class ImagesController < ApplicationController
 
     respond_to do |format|
       if @image.save
+        format.json { render :show, status: :created, location: @image }
         # @doc = @image.docs.last
         # UserDoc.create(user_id: current_user.id, doc_id: @doc.id, image_id: @image.id)
         format.html { redirect_to image_url(@image), notice: "Image was successfully created." }

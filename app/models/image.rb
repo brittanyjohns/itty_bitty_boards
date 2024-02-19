@@ -114,6 +114,20 @@ class Image < ApplicationRecord
     voices - existing_voices
   end
 
+  def self.create_sample_audio_for_voices
+    voices.each do |voice|
+      Image.find_or_create_by!(label: "This is the voice #{voice}", private: true).create_audio_from_text("This is the voice #{voice}", voice)
+    end
+  end
+
+  def self.sample_audio_files
+    audio_files = []
+    voices.each do |voice|
+      audio_files << Image.find_by(label: "This is the voice #{voice}").audio_files
+    end
+    audio_files
+  end
+
   def generate_matching_symbol(limit = 1)
     return if open_symbol_status == "skipped"
     query = label&.downcase
