@@ -1,13 +1,32 @@
 import { Controller } from "@hotwired/stimulus"
-
+const { userAgent } = window.navigator
+export const isIos = userAgent.includes("iPhone") || userAgent.includes("iPad")
+export const isAndroid = userAgent.includes("Android")
 // Connects to data-controller="speak"
 export default class extends Controller {
   static targets = ["audio"]
   connect() {
+    if (isIos || isAndroid) {
+      console.log("This is a mobile device")
+      this.addTouchStart();
+    }
     this.label = this.data.get("label");
     this.thelistOutlet = document.querySelector("#the-list");
     this.isAMenu = document.querySelector("#menu-info");
     this.audio = this.audioTarget.src;
+
+  }
+
+  addTouchStart() {
+    const self = this;
+    this.element.addEventListener('touchstart', function() {
+      if (self.audio) {
+        self.playAudio();
+      } else {
+        self.speak();
+      }
+      console.log("touchstart");
+    });
   }
 
   playAudio(event) {
@@ -19,7 +38,12 @@ export default class extends Controller {
   }
 
   speak(event) {
-    event.preventDefault();
+    if (event) {
+      event.preventDefault();
+    }
+    if (this.label === null) {
+      return;
+    }
     const utterance = new SpeechSynthesisUtterance(this.label);
 
     utterance.pitch = 1.5;
