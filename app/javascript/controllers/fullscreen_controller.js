@@ -14,6 +14,8 @@ export default class extends Controller {
 
   disableZoom() {
     document.addEventListener('wheel', function(event) {
+      event.preventDefault();
+      console.log("wheel event disabled");
       if (event.ctrlKey) { event.preventDefault(); }
     }, { passive: false });
 
