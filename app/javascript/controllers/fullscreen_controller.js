@@ -1,13 +1,32 @@
 import { Controller } from "@hotwired/stimulus"
 
-// Connects to data-controller="pwa"
+// Connects to data-controller="fullscreen"
 export default class extends Controller {
   static targets = ["button"]
   connect() {
+    console.log("Hello, Stimulus! Fullscreen", this.element)
+    this.disableZoom();
     if (window.matchMedia('(display-mode: standalone)').matches) {
       console.log('display-mode is standalone');
       this.buttonTarget.style.display = "none";
     }
+  }
+
+  disableZoom() {
+    document.addEventListener("gesturestart", function (e) {
+      e.preventDefault();
+        document.body.style.zoom = 0.99;
+    });
+    
+    document.addEventListener("gesturechange", function (e) {
+      e.preventDefault();
+    
+      document.body.style.zoom = 0.99;
+    });
+    document.addEventListener("gestureend", function (e) {
+        e.preventDefault();
+        document.body.style.zoom = 1;
+    });
   }
 
   fullscreen() {

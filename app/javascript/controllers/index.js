@@ -40,8 +40,8 @@ application.register("pwa--form", Pwa__FormController)
 import Pwa__SyncController from "./pwa/sync_controller"
 application.register("pwa--sync", Pwa__SyncController)
 
-import PwaController from "./pwa_controller"
-application.register("pwa", PwaController)
+import FullscreenController from "./fullscreen_controller"
+application.register("fullscreen", FullscreenController)
 
 import ResizeController from "./resize_controller"
 application.register("resize", ResizeController)
