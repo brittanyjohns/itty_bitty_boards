@@ -42,11 +42,11 @@
     </div>
     <div id="<%= dom_id @board %>_images" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 gap-1 p-2 text-sm" data-grid-target="grid">
         <% @board.images.each do |image| %>
-            <div class="text-center bg-white rounded-lg shadow-md overflow-hidden">
-                <%= turbo_frame_tag dom_id(image) do %>
+            <%= turbo_frame_tag dom_id(image) do %>
+                <div class="text-center bg-white rounded-lg shadow-md overflow-hidden">
                     <%= render image %>
-                <% end %>
-            </div>
+                </div>
+            <% end %>
         <% end %>
     </div>
 <% end %>

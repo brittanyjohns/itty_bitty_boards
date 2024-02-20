@@ -3,9 +3,9 @@
 
     <div class="relative border p-3 w-full bg-white rounded-lg shadow-md overflow-hidden" id="menu-info">
         <h3 class="text-xs font-semibold text-gray-800 m-1">I would like to order:</h3>
-        <ul class="text-gray-800 font-light mb-4 pl-2 h-10 overflow-scroll" id="the-list"></ul>
+        <ul class="text-gray-800 font-light mb-4 pl-2 min-h-100 overflow-scroll" id="the-list"></ul>
         <%= button_tag clear_icon, class: "absolute bottom-0 left-0 bg-red-500 hover:bg-red-700 text-white py-1 px-2 rounded-full my-2 sm:mt-3 text-xs", data: { action: "click->notice#clearList" } %>
-        <%= button_tag speak_icon, class: "absolute bottom-0 right-0 bg-green-500 hover:bg-green-700 text-white py-1 px-2 rounded-full my-2 sm:mt-3 text-xs", data: { action: "click->speakx#speakList" } %>
+        <%= button_tag speak_icon, class: "absolute bottom-0 right-0 bg-green-500 hover:bg-green-700 text-white py-1 px-2 rounded-full my-2 sm:mt-3 text-xs", data: { action: "click->speak#speakList" } %>
 
             
     </div>

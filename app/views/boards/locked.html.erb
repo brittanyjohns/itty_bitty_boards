@@ -3,6 +3,7 @@
   <% @board.images.each do |image| %>
     <div class="flex relative w-full pb-full shadow hover:shadow-lg hover:cursor-pointer text-center" data-controller="speak" data-speak-label="<%= image.label&.downcase %>" data-action="click->speakx#speak">
         <%= display_image_for_locked_board(image, current_user) %>
+            <%= audio_tag(polymorphic_path(image.get_voice_for_board(@board)), controls: false, id: "audio-#{image.label.parameterize}", class: "hidden", data: {speak_target: "audio"}) if image.audio_files.any? && @board&.present? %>
         <span class="grow absolute inset-x-0 bottom-0 font-light text-xs md:text-sm lg:text-md rounded bg-white bg-opacity-80 overflow-hidden"><%= image.label %></span>
     </div>
   <% end %>

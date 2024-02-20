@@ -5,7 +5,6 @@ export default class extends Controller {
   static targets = ["button"]
   connect() {
     console.log("Hello, Stimulus! Fullscreen", this.element)
-    this.disableZoom();
     if (window.matchMedia('(display-mode: standalone)').matches) {
       console.log('display-mode is standalone');
       this.buttonTarget.style.display = "none";

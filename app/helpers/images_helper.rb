@@ -29,7 +29,7 @@ module ImagesHelper
     
       def remove_image_button(board, image)
         return unless board && image
-        button_to trash_nav, remove_image_board_path(board, image_id: image.id), class: "text-red-600 hover:text-red-700 py-1 px-1 rounded-full absolute bottom-0 right-0 m-1 mr-2", method: :post
+        button_to trash_nav, remove_image_board_path(board, image_id: image.id), class: "text-red-600 hover:text-red-700 py-1 px-1 rounded-full absolute bottom-0 right-0 m-1 mr-2", method: :post, data: {turbo_confirm: "Are you sure you want to remove this image from the board?"}
       end
 
       def loading_spinner

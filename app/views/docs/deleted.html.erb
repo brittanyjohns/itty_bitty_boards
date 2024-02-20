@@ -7,6 +7,7 @@
     <h2 class="text-2xl font-semibold text-gray-700">Deleted</h2>
       <div class="grid grid-cols-1 gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         <% @docs.order(created_at: :desc).each do |doc| %>
+        <%= turbo_frame_tag dom_id(doc) do %>
           <div class="border-2">
             <p class="text-center py-1 px-2"><%= doc.documentable_type.downcase %></p>
             <p class="text-center py-1 px-2"><%= image_tag doc.image, class: "h-52 w-52" if doc.image.attached? %></p>
@@ -14,6 +15,7 @@
             <div class="w-7/8 text-center py-1 px-2 mx-auto"><%= render "find_or_create", doc: doc, generate_image: false if current_user.can_edit?(doc) %></div>
             <div class="text-right py-1 px-2"><%= button_to 'Destroy', doc_path(doc, hard_delete: true), method: :delete, data: { turbo_confirm: 'Are you sure? This will perform a HARD DELETE and cannot be undone.' }, class: "text-red-600 hover:text-red-800" %><%= time_ago_in_words(doc.created_at) %> ago</div>
           </div>
+          <% end %>
         <% end %>
       </div>
     </table>

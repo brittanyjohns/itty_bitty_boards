@@ -127,9 +127,13 @@ class BoardsController < ApplicationController
   end
 
   def remove_image
-    image = Image.find(params[:image_id])
-    @board.images.delete(image)
-    redirect_back_or_to @board
+    @image = Image.find(params[:image_id])
+    @board.images.delete(@image)
+    respond_to do |format|
+      # format.html { redirect_to @board, notice: "Image was successfully removed from board." }
+      format.json { head :no_content }
+      format.turbo_stream
+    end
   end
 
   # DELETE /boards/1 or /boards/1.json
