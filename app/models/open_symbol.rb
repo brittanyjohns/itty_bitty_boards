@@ -86,6 +86,7 @@ class OpenSymbol < ApplicationRecord
 
     def self.generate_symbol(query)
       @open_symbol_id_token = open_symbol_id_token
+      return unless @open_symbol_id_token
       token_to_send = CGI.escape(@open_symbol_id_token)
       query_to_send = CGI.escape(query)
       uri = URI("https://www.opensymbols.org/api/v2/symbols?access_token=#{token_to_send}&q=#{query_to_send}")

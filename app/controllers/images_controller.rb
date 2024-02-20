@@ -143,7 +143,12 @@ class ImagesController < ApplicationController
       GetSymbolsJob.perform_async([@image.id], limit)
       notice += " Creating #{limit} #{'symbol'.pluralize(limit)} for image."      
     end
-    redirect_back_or_to image_url(@image), notice: notice
+
+    respond_to do |format|
+      format.json { render :show, status: :created, location: @image }
+      format.turbo_stream
+    end
+    # redirect_back_or_to image_url(@image), notice: notice
   end
 
   def add_to_board

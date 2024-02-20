@@ -55,7 +55,8 @@ Rails.application.routes.draw do
       post "update_grid"
     end
   end
-  # Order matters here.  users needs to be below the devise_for :users
+  resources :board_images
+    # Order matters here.  users needs to be below the devise_for :users
   devise_for :users
   # devise_for :users, controllers: {registrations: "registrations"}
   # devise_scope :user do

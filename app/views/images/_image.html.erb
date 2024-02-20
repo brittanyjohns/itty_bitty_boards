@@ -1,7 +1,7 @@
 <div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
   <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>" data-action="click->speakx#<%= image.audio_files.any? ? 'playAudio' : 'speak' %>">
     <%= audio_tag(polymorphic_path(image.get_voice_for_board(@board)), controls: false, id: "audio-#{image.id}", class: "hidden", data: {speak_target: "audio"}) if image.audio_files.any? && @board&.present? %>
-    <%= link_to image, class: "w-full h-full" do %>
+    <%= link_to image, class: "w-full h-full", data: { turbo_frame: "_top" } do %>
     <div class="items-center text-center" id="<%= image.label %>">
       <%= display_image_for(image, current_user) %>
     </div>

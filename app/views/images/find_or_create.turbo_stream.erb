@@ -1,0 +1,2 @@
+<%= turbo_stream.prepend "#{dom_id @board}_images", partial: "images/image", locals: { image: @image } %>
+<%= turbo_stream.update BoardImage.new, "" %>

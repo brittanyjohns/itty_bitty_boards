@@ -15,6 +15,7 @@ class BoardImagesController < ApplicationController
   # GET /board_images/new
   def new
     @board_image = BoardImage.new
+    @board = Board.find(params[:board_id])
   end
 
   # GET /board_images/1/edit
