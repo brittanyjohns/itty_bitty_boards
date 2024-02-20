@@ -13,20 +13,39 @@ export default class extends Controller {
   }
 
   disableZoom() {
-    document.addEventListener("gesturestart", function (e) {
-      e.preventDefault();
-        document.body.style.zoom = 0.99;
-    });
-    
-    document.addEventListener("gesturechange", function (e) {
-      e.preventDefault();
-    
-      document.body.style.zoom = 0.99;
-    });
-    document.addEventListener("gestureend", function (e) {
-        e.preventDefault();
-        document.body.style.zoom = 1;
-    });
+    document.addEventListener('gesturestart', function(event) {
+      console.log("Gesturestart");
+      event.preventDefault();
+    } );
+
+    document.addEventListener('gesturechange', function(event) {
+      console.log("Gesturechange");
+      event.preventDefault();
+    } );
+
+    document.addEventListener('gestureend', function(event) {
+      console.log("Gestureend");
+      event.preventDefault();
+    }
+    );
+
+    document.addEventListener('touchmove', function(event) {
+      console.log("Touchmove");
+      if (event.scale !== 1) { event.preventDefault(); }
+    }, { passive: false });
+
+    document.addEventListener('touchend', function(event) {
+      console.log("Touchend");
+      if (event.scale !== 1) { event.preventDefault(); }
+    }, { passive: false });
+
+    document.addEventListener('touchstart', function(event) {
+      console.log("Touchstart");
+      if (event.scale !== 1) { event.preventDefault(); }
+    }, { passive: false });
+
+
+    console.log("Zoom disabled");
   }
 
   fullscreen() {
