@@ -6,7 +6,7 @@
   </div>
   <div class="relative text-wrap basis-1/4">
     <% if action_name == "fullscreen" %>
-      <p class="text-xs font-semibold text-gray-700 py-1 block m-2 mr-3"><%= image.display_label %></p>
+      <p class="relative text-xs font-semibold text-gray-700 py-1 block m-2 mr-3"><%= image.display_label %></p>
       <% else %>
       <%= link_to image, class: "text-xs font-semibold text-gray-700 py-1 block hover:text-blue-600 m-2 mr-3" do %>
         <%= change_image_icon(image.display_label) %>

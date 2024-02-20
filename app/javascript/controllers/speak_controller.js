@@ -9,6 +9,9 @@ export default class extends Controller {
     if (isIos || isAndroid) {
       console.log("This is a mobile device")
       this.addTouchStart();
+    } else {
+      console.log("This is not a mobile device")
+      this.addOnClick();
     }
     this.label = this.data.get("label");
     this.thelistOutlet = document.querySelector("#the-list");
@@ -27,6 +30,18 @@ export default class extends Controller {
       }
       console.log("touchstart");
     });
+  }
+
+  addOnClick() {
+    const self = this;
+    this.element.addEventListener('click', function() {
+      if (self.audio) {
+        self.playAudio();
+      } else {
+        self.speak();
+      }
+    }
+    );
   }
 
   playAudio(event) {

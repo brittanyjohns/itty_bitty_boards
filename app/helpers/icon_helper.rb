@@ -67,8 +67,12 @@ module IconHelper
         "<i class='fa-solid fa-sign-in fa-#{size}' data-tippy-content='#{tooltip_text}' }></i>".html_safe
     end
 
-    def change_image_icon(display_text = "Change Image", size = "sm")
+    def change_image_icon(display_text = "Change Image", size = "xs")
         "<i class='fa-solid fa-pen-to-square fa-#{size}'></i> <span class='text-xs'>#{display_text}</span>".html_safe
+    end
+
+    def speaker_icon(display_text = "Speak", size = "sm")
+        "<span class='text-xs'>#{display_text} <i class='fa-solid fa-comment-dots fa-#{size}'></i> </span>".html_safe
     end
 
     def spinner

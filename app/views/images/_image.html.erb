@@ -1,22 +1,25 @@
 <div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
-  <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>" data-action="click->speak#<%= image.audio_files.any? ? 'playAudio' : 'speak' %>">
-  <%= audio_tag(polymorphic_path(image.get_voice_for_board(@board)), controls: false, id: "audio-#{image.id}", class: "hidden", data: {speak_target: "audio"}) if image.audio_files.any? && @board&.present? %>
+  <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>" data-action="click->speakx#<%= image.audio_files.any? ? 'playAudio' : 'speak' %>">
+    <%= audio_tag(polymorphic_path(image.get_voice_for_board(@board)), controls: false, id: "audio-#{image.id}", class: "hidden", data: {speak_target: "audio"}) if image.audio_files.any? && @board&.present? %>
+    <%= link_to image, class: "w-full h-full" do %>
     <div class="items-center text-center" id="<%= image.label %>">
       <%= display_image_for(image, current_user) %>
     </div>
-  </div>
-  <% if action_name == "fullscreen" %>
-  <div class="relative text-wrap">
-    <p class="text-sm font-semibold text-gray-700 py-1 mt-2 block m-1"><%= image.display_label %></p>
-  </div>
-    <% else %>
-  <div class="relative text-wrap min-h-10 text-center">
-    <%= link_to image, class: "text-sm font-medium text-gray-700 py-1 mt-2 block hover:text-blue-600 m-1 absolute bottom-0 inset-x-0" do %>
-      <%= change_image_icon(image.display_label) %>
     <% end %>
 
-    <%= image.generating? ? spinner : "" %>
-    <%= remove_image_button(@board, image) if current_user.can_edit?(@board) %>
-  </div>
+    <% if action_name == "fullscreen" %>
+    <div class="relative text-wrap">
+      <p class="text-sm font-semibold text-gray-700 py-1 mt-2 block m-1"><%= image.display_label %></p>
+    </div>
+      <% else %>
+    <div class="relative text-wrap min-h-10 text-center">
+      <%= button_tag class: "text-sm font-medium text-gray-700 py-1 mt-2 block hover:text-blue-600 m-1 absolute bottom-0 inset-x-0", data: { action: "click->speak#speak" } do %>
+        <%= speaker_icon(image.display_label) %>
+      <% end %>
+
+      <%= image.generating? ? spinner : "" %>
+      <%= remove_image_button(@board, image) if current_user.can_edit?(@board) %>
+    </div>
   <% end %>
-</div>
+  </div>
+</div>  

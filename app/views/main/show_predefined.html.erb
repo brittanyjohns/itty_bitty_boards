@@ -11,7 +11,7 @@
     <div class="flex flex-col justify-end mb-3">
         <div class="grid grid-cols-8 gap-1 p-2 mx-auto" id="word-list">
         <% @board.words.each do |word| %>
-            <button class="bg-teal-300 text-xs md:text-sm font-light flex justify-center items-center cursor-pointer px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-100"  data-controller='speak' data-speak-label="<%= word.downcase %>" data-action="click->speak#speak">
+            <button class="bg-teal-300 text-xs md:text-sm font-light flex justify-center items-center cursor-pointer px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-100"  data-controller='speak' data-speak-label="<%= word.downcase %>" data-action="click->speakx#speak">
                 <%= word&.upcase %>
             </button>
         <% end %>
@@ -21,18 +21,11 @@
     <% if @board.parent_type == "Menu" %>
     <%# Nothing right now %>
     <% else %>
-    <div class="flex justify-between bg-white mb-3 rounded-lg shadow-md sm:w-full md:w-2/3 mx-auto">
-        <input class="w-5/6 p-1 m-1 rounded-md text-sm" type="text" placeholder="Click an image or type a message to begin speaking" id="the-list">
-        <div class="flex justify-end items-center">
-            <button class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#clear"><%= clear_icon %></button>
-            <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#speakList"><%= speak_icon %></button>
-        </div>
-    </div>
     <div id="<%= dom_id @board %>_images" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 gap-1 p-2 text-sm" data-grid-target="grid">
         <% @board.images.each do |image| %>
             <div class="text-center bg-white rounded-lg shadow-md overflow-hidden">
                 <div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
-                    <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>" data-action="click->speak#speak">
+                    <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>" data-action="click->speakx#speak">
                         <div class="items-center text-center" id="<%= image.label %>">
                         <%= display_image_for(image, current_user) %>
                         </div>
