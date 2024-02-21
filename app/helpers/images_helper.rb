@@ -20,9 +20,9 @@ module ImagesHelper
         user_image = image.display_image(user)
         str = ""
         if !user_image
-          str += image_tag("https://via.placeholder.com/300x300.png?text=#{image.label_param}", class: "absolute object-contain w-full h-full top-0 left-0")
+          str += image_tag("https://via.placeholder.com/300x300.png?text=#{image.label_param}", class: "absolute object-contain w-full h-full top-0 left-0", data: { speak_target: "speaker" })
         else
-          str += image_tag(image.display_image(user), class: "absolute object-contain w-full h-full top-0 left-0", data: { resize_target: "image"})
+          str += image_tag(image.display_image(user), class: "absolute object-contain w-full h-full top-0 left-0", data: { resize_target: "image", speak_target: "speaker" })
         end
         str.html_safe
       end

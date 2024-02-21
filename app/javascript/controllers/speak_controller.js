@@ -5,7 +5,7 @@ export const isIos = userAgent.includes("iPhone") || userAgent.includes("iPad")
 export const isAndroid = userAgent.includes("Android")
 // Connects to data-controller="speak"
 export default class extends Controller {
-  // static targets = ["audio"]
+  static targets = ["speaker", "audio"]
   connect() {
     this.label = this.data.get("label");
     this.thelistOutlet = document.querySelector("#the-list");
@@ -15,10 +15,15 @@ export default class extends Controller {
     this.isAMenu = document.querySelector("#menu-info");
     const parameterizedLabel = this.label.toLowerCase().replace(/ /g, "-");
     const idToFind = `audio-${parameterizedLabel}`;
-    this.audioTarget = this.element.querySelector(`#${idToFind}`);
+    // this.audioTarget = this.element.querySelector(`#${idToFind}`);
+    if (this.hasAudioTarget) {
     if (this.audioTarget !== null) {
       this.audio = this.audioTarget.src;
     }
+  } else {
+    console.log("No audio found for", this.label);
+    this.audio = null;
+  }
     if (isIos || isAndroid) {
       console.log("This is a mobile device")
       this.addTouchStart();
@@ -30,7 +35,7 @@ export default class extends Controller {
 
   addTouchStart() {
     const self = this;
-    this.element.addEventListener('touchstart', function() {
+    this.speakerTaregt.addEventListener('touchstart', function() {
       if (self.audio) {
         self.playAudio();
       } else {
@@ -41,10 +46,13 @@ export default class extends Controller {
 
   addOnClick() {
     const self = this;
-    this.element.addEventListener('click', function() {
+    this.speakerTarget.addEventListener('click', function() {
+      console.log("Clicked speaker");
       if (self.audio) {
+        console.log("Playing audio");
         self.playAudio();
       } else {
+        console.log("Speaking label");
         self.speak();
       }
     }
@@ -54,7 +62,8 @@ export default class extends Controller {
   playAudio(event) {
     if (event) {
       event.preventDefault();
-    }    
+    }
+    console.log("Playing audio on click", this.audio);
     const audio = new Audio(this.audio);
     audio.play();
     this.addToList(this.label);
@@ -77,7 +86,11 @@ export default class extends Controller {
   }
 
   addToList(word) {
-    this.thelistOutlet.value += ` ${word}`;
+    if (this.thelistOutlet.value === undefined) {
+      this.thelistOutlet.innerHTML += ` <li class='pl-1'> ${word}</li>`;
+    } else {
+      this.thelistOutlet.value += ` ${word}`;
+    }
   }
 // WIP
   // addToPlaylist(labelToAdd) {
@@ -106,45 +119,49 @@ export default class extends Controller {
     this.thelistOutlet.value = "";
   }
 
-// WIP  playListAudio() {
-  //       // const playListItems = this.playlist.querySelectorAll("li");
-  //       const listItems = this.thelistOutlet.value.split(" ");
-  //   console.log("Playing playlist audio");
-  //   listItems.forEach((label) => {
-  //     const strLabel = label;
-  //     const parameterizedLabel = strLabel.toLowerCase().replace(/ /g, "-");
-  //     const idToFind = `audio-${parameterizedLabel}`;
-  //     const audioTarget = this.element.querySelector(`#${idToFind}`);
-  //     if (audioTarget === null) {
-  //       const utterance = new SpeechSynthesisUtterance(label);
+  playListAudio() {
+        // const playListItems = this.playlist.querySelectorAll("li");
+        const listItems = this.thelistOutlet.value.split(" ");
+    console.log("Playing playlist audio");
+    listItems.forEach((label) => {
+      const strLabel = label;
+      const parameterizedLabel = strLabel.toLowerCase().replace(/ /g, "-");
+      const idToFind = `audio-${parameterizedLabel}`;
+      const foundAudioTarget = this.element.querySelector(`#${idToFind}`);
+      console.log("Looking for audio for", label);
+      if (foundAudioTarget === null) {
+        console.log("No audio found for", label);
+        const utterance = new SpeechSynthesisUtterance(label);
 
-  //       utterance.pitch = 1.5;
-  //       utterance.volume = 0.7;
-  //       utterance.rate = 1.3;
-  //       speechSynthesis.speak(utterance);
-  //     } else {
-  //     const audio = audioTarget.src;
-  //     console.log("Playing audio for", audio)
+        utterance.pitch = 1.5;
+        utterance.volume = 0.7;
+        utterance.rate = 1.3;
+        speechSynthesis.speak(utterance);
+      } else {
+      console.log("Playing audio for", label)
+      const audioFile = new Audio(foundAudioTarget.src);
 
-  //     const audioFile = new Audio(audio);
-  //     let count = 2;
-  //     let timer = setInterval(function () {
+      console.log("Playing audio", audioFile);
+      audioFile.play();
 
-  //       // Reduce count by 1
-  //       count--;
+      let count = 1;
+      let timer = setInterval(function () {
+
+        // Reduce count by 1
+        count--;
       
-  //       // Update the UI
-  //       if (count > 0) {
-  //         console.log("Waiting to play audio");
-  //       } else {
-  //         clearInterval(timer);
-  //         audioFile.play();
-  //       }
+        // Update the UI
+        if (count > 0) {
+          console.log("Waiting to play audio");
+        } else {
+          clearInterval(timer);
+          audioFile.play();
+        }
       
-  //     }, 500);
-  //     }
-  //   });
-  // }
+      }, 500);
+    }
+    });
+  }
 
 
   speakList() {
