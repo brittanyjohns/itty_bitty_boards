@@ -2,8 +2,24 @@
 
 <%= render "form", image: @image %>
 
-<br>
+<hr>
 
+<div class="mt-6 border w-3/4 mx-auto">
+    <h3 class="text-lg font-medium m-3">
+      Audio files for <%= @image.label %>
+    </h3>
+    <div class="grid grid-cols-2 gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" id="audio_files">
+
+      <%= render "images/audio_form", image: @image if @image.missing_voices.any? && current_user.admin? %>
+
+      <% @image.audio_files.each do |audio_file| %>
+        <div class="text-center m-2 p-3 bg-indigo-200 rounded-lg">
+          <p class="text-sm font-semibold">Audio for <%= audio_file.filename %></p>
+          <%= audio_tag(polymorphic_path(audio_file), controls: true) %>
+        </div>
+      <% end %>
+    </div>
+</div>
 <div>
   <%= link_to "Show this image", @image %> |
   <%= link_to "Back to images", images_path %>

@@ -16,14 +16,24 @@ export default class extends Controller {
     const parameterizedLabel = this.label.toLowerCase().replace(/ /g, "-");
     const idToFind = `audio-${parameterizedLabel}`;
     // this.audioTarget = this.element.querySelector(`#${idToFind}`);
-    if (this.hasAudioTarget) {
-    if (this.audioTarget !== null) {
-      this.audio = this.audioTarget.src;
+    if (this.hasSpeakerTarget) {
+      console.log("Speaker target found", this.speakerTarget);
+      this.soundTarget = this.speakerTarget;
+    } else {
+      console.log("No speaker target found - setting to element", this.element);
+      this.soundTarget = this.element;
     }
-  } else {
-    console.log("No audio found for", this.label);
-    this.audio = null;
-  }
+    if (this.hasAudioTarget) {
+      console.log("Audio target found", this.audioTarget);
+      if (this.audioTarget !== null) {
+        console.log("Audio target is not null");
+        this.audio = this.audioTarget.src;
+      }
+    } else {
+      console.log("No audio found for", this.label);
+      this.audio = null;
+    }
+    console.log("The audio is", this.audio);
     if (isIos || isAndroid) {
       console.log("This is a mobile device")
       this.addTouchStart();
@@ -35,7 +45,7 @@ export default class extends Controller {
 
   addTouchStart() {
     const self = this;
-    this.speakerTaregt.addEventListener('touchstart', function() {
+    this.soundTarget.addEventListener('touchstart', function() {
       if (self.audio) {
         self.playAudio();
       } else {
@@ -45,8 +55,9 @@ export default class extends Controller {
   }
 
   addOnClick() {
+    console.log("Adding click event listener");
     const self = this;
-    this.speakerTarget.addEventListener('click', function() {
+    this.soundTarget.addEventListener('click', function() {
       console.log("Clicked speaker");
       if (self.audio) {
         console.log("Playing audio");
@@ -116,7 +127,11 @@ export default class extends Controller {
   }
 
   clear() {
-    this.thelistOutlet.value = "";
+    if (this.thelistOutlet.value === undefined) {
+      this.thelistOutlet.innerHTML = "";
+    } else {
+      this.thelistOutlet.value = "";
+    }
   }
 
   playListAudio() {

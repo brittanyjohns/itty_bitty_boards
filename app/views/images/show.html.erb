@@ -31,6 +31,12 @@
       <%= link_to "Create a board", new_board_path, class: "mt-3 w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" %>
     <% end %>
     </div>
+    <div class="mt-6">
+      <p class="text-sm font-semibold mx-4 mb-3">
+        Sample audio for this image:
+      </p>
+      <%= audio_tag(polymorphic_path(@image.audio_files.last), controls: true) if @image.audio_files.any? %>
+    </div>
   </div>
 
   <div class="flex-1 border p-3">
@@ -102,18 +108,7 @@
     <% end %>
   </div>
 </div>
-<% if current_user.admin? %>
-<div class="grid grid-cols-2 gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" id="audio_files">
-    <%= render "images/audio_form", image: @image if @image.missing_voices.any? %>
-  <% @image.audio_files.each do |audio_file| %>
-    <div class="text-center m-2 p-3 bg-indigo-200 rounded-lg">
-      <p class="text-sm font-semibold">Audio for <%= audio_file.filename %></p>
-      <%= audio_tag(polymorphic_path(audio_file), controls: true) %>
-    </div>
-  <% end %>
-  </div>
-<% end %>
-</div>
+
 <div class="mt-6 flex justify-center space-x-4">
     <%= button_to "Edit this image", edit_image_path(@image), method: :get, class: "text-indigo-600 hover:text-indigo-800 font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out" if current_user.can_edit?(@image) %>
     <%= button_to "Destroy this image", @image, method: :delete, class: "text-red-600 hover:text-red-800 font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out", data: { turbo_method: :delete, turbo_confirm: "Are you sure?"} if current_user.can_edit?(@image) %>
