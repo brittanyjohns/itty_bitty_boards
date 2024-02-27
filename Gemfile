@@ -117,3 +117,4 @@ gem "matrix", "~> 0.4.2"
 
 gem "http"
 gem "browser", "~> 5.3"
+gem "annotate", "~> 3.2"

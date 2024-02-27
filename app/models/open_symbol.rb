@@ -71,6 +71,7 @@ class OpenSymbol < ApplicationRecord
       end
 
     def self.get_token
+        begin
         open_symbol_access_token = ENV["OPEN_SYMBOL_ACCESS_TOKEN"]
         # make post request to get token
         response = post_open_symbols_token(open_symbol_access_token)
@@ -81,6 +82,10 @@ class OpenSymbol < ApplicationRecord
           puts "ERROR response: #{response.inspect}"
           puts "ERROR response.body: #{response.body}"
           nil
+        end
+        rescue => e
+            puts "ERROR: #{e.inspect}"
+            nil
         end
     end
 

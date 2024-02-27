@@ -35,7 +35,6 @@ class Image < ApplicationRecord
   # before_save :save_audio_file_to_s3!, if: :no_audio_saved
   scope :without_attached_audio_files, -> { where.missing(:audio_files_attachments) }
 
-
   scope :with_image_docs_for_user, -> (userId) { joins(:docs).where("docs.documentable_id = images.id AND docs.documentable_type = 'Image' AND docs.user_id = ?", userId) }
   scope :menu_images, -> { where(image_type: "Menu") }
   scope :non_menu_images, -> { where(image_type: nil) }
@@ -69,7 +68,7 @@ class Image < ApplicationRecord
   end
 
   def find_or_create_audio_file_for_voice(voice = "alloy")
-    existing = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label}_#{voice}_#{id}.aac").first
+    existing = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label.parameterize}_#{voice}_#{id}.aac").first
     if existing
       existing
     else
@@ -80,7 +79,7 @@ class Image < ApplicationRecord
   def get_audio_for_voice(voice = "alloy")
     puts "GETTING AUDIO FOR VOICE: #{voice}"
     # file = audio_files.find_by(filename: "#{label}_#{voice}_#{id}.aac")
-    file = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label}_#{voice}_#{id}.aac").first
+    file = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label.parameterize}_#{voice}_#{id}.aac").first
     if file
       file
       puts "\n\n Found audio file: #{file.inspect}\n\n"
