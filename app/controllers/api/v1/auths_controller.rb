@@ -4,14 +4,14 @@ module API
         skip_before_action :authenticate_token!, only: [:create, :sign_up]
 
         def sign_up
-          if params['user']['first_name']
-            name = params['user']['first_name'] + " " + params['user']['last_name']
-          elsif params['user']['name']
-            name = params['user']['name']
+          if params['auth'] && params['auth']['first_name'] && params['auth']['last_name']
+            name = params['auth']['first_name'] + " " + params['auth']['last_name']
+          elsif params['auth'] && params['auth']['name']
+            name = params['auth']['name']
           else
             name = ""
           end
-          user = User.new(email: params['user']['email'], password: params['user']['password'], password_confirmation: params['user']['password_confirmation'], name: name)
+          user = User.new(email: params['auth']['email'], password: params['auth']['password'], password_confirmation: params['auth']['password_confirmation'], name: name)
           if user.save
             render json: {token: user.authentication_token}
           else

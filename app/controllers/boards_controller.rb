@@ -9,7 +9,7 @@ class BoardsController < ApplicationController
   def index
     if params[:query].present?
       @query = params[:query]
-      @boards = Board.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc).page(params[:page]).per(20)
+      @boards = current_user.boards.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc).page(params[:page]).per(20)
       @predefined_boards = Board.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc).page(params[:page]).per(20)
     else
       @boards = current_user.boards.order(created_at: :desc).page(params[:page]).per(20)

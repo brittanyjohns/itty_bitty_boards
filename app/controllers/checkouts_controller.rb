@@ -14,7 +14,7 @@ class CheckoutsController < ApplicationController
     # @result = _create_result_hash(@transaction)
     @order = current_user.orders.placed.last
   end
-  YOUR_DOMAIN = 'http://localhost:3000'
+  YOUR_DOMAIN = 'http://localhost:4000'
   ONE_DOLLAR_PRICE_ID = ENV['ONE_DOLLAR_PRICE_ID']
 
   def create

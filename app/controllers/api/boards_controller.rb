@@ -1,7 +1,8 @@
-class API::BoardsController < ApplicationController
+class API::BoardsController < API::ApplicationController
   # protect_from_forgery with: :null_session
+  respond_to :json
 
-  # before_action :authenticate_user!, except: %i[ locked ]
+  # before_action :authenticate_user!
 
   # before_action :set_board, only: %i[ show edit update destroy build add_multiple_images associate_image remove_image fullscreen locked ]
   # layout "fullscreen", only: [:fullscreen]
@@ -9,12 +10,13 @@ class API::BoardsController < ApplicationController
 
   # GET /boards or /boards.json
   def index
+    puts "CURRENT_USER: #{current_user.inspect}"
     if params[:query].present?
       @query = params[:query]
-      @boards = Board.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
-      @predefined_boards = Board.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      @boards = current_user.boards.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      @predefined_boards = current_user.boards.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
     else
-      @boards = Board.all.order(created_at: :desc)
+      @boards = current_user.boards.all.order(created_at: :desc)
       @predefined_boards = Board.predefined.order(created_at: :desc)
     end
 
@@ -22,7 +24,7 @@ class API::BoardsController < ApplicationController
   end
   # GET /boards/1 or /boards/1.json
   def show
-    board = Board.includes(board_images: { image: :docs }).find(params[:id])
+    board = current_user.boards.includes(board_images: { image: :docs }).find(params[:id])
     @board_with_images =
       {
         id: board.id,
@@ -72,11 +74,9 @@ class API::BoardsController < ApplicationController
 
     respond_to do |format|
       if @board.save
-        format.html { redirect_to board_url(@board), notice: "Board was successfully created." }
-        format.json { render :show, status: :created, location: @board }
+        format.json { render json: @board, status: :created }
         format.turbo_stream
       else
-        format.html { render :new, status: :unprocessable_entity }
         format.json { render json: @board.errors, status: :unprocessable_entity }
       end
     end

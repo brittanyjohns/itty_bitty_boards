@@ -1,6 +1,7 @@
 require 'sidekiq/web'
 
 Rails.application.routes.draw do
+  get '/current_user', to: 'current_user#index'
   resources :messages
   resources :openai_prompts
   resources :open_symbols do
@@ -58,10 +59,16 @@ Rails.application.routes.draw do
   resources :board_images
     # Order matters here.  users needs to be below the devise_for :users
   devise_for :users
-  # devise_for :users, controllers: {registrations: "registrations"}
-  # devise_scope :user do
-  #   post "/api/v1/users" => ""
-  # end
+  # devise_for :users, path: '', path_names: {
+  #   sign_in: 'login',
+  #   sign_out: 'logout',
+  #   registration: 'signup'
+  # },
+  # controllers: {
+  #   sessions: 'users/sessions',
+  #   registrations: 'users/registrations'
+  # }
+
   resources :users do
     member do
       delete "remove_user_doc"

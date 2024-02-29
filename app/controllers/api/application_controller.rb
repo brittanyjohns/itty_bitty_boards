@@ -5,14 +5,20 @@ module API
     private
 
     def authenticate_token!
-      if (user = user_from_token)
+      user = user_from_token
+      puts "user: #{user}"
+      if user
         sign_in user, store: false
       else
-        head :unauthorized
+        puts "Unauthorized"
+        # direct to login page
+        render json: { error: "Unauthorized" }, status: :unauthorized
+        # head :unauthorized
       end
     end
 
     def user_from_token
+      puts "token: #{token}"
       User.find_by(authentication_token: token) if token.present?
     end
 
