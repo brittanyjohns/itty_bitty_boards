@@ -4,7 +4,7 @@ class API::BoardsController < API::ApplicationController
 
   # before_action :authenticate_user!
 
-  # before_action :set_board, only: %i[ show edit update destroy build add_multiple_images associate_image remove_image fullscreen locked ]
+  before_action :set_board, only: %i[  associate_image remove_image ]
   # layout "fullscreen", only: [:fullscreen]
   # layout "locked", only: [:locked]
 
@@ -43,6 +43,28 @@ class API::BoardsController < API::ApplicationController
       }
     puts @board_with_images.inspect
     render json: @board_with_images
+  end
+
+  def remaining_images
+    board = current_user.boards.includes(board_images: { image: :docs }).find(params[:id])
+    if params[:query].present? && params[:query] != "null"
+      @query = params[:query]
+      @images = board.remaining_images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(params[:page]).per(16)
+    else
+      @images = board.remaining_images.order(label: :asc).page(params[:page]).per(16)
+    end
+    @remaining_images = @images.map do |image|
+      {
+        id: image.id,
+        label: image.label,
+        image_prompt: image.image_prompt,
+        display_doc: image.display_image,
+        src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+        audio: image.audio_files.first&.url
+      }
+    end
+
+    render json: @remaining_images
   end
 
   # def fullscreen
@@ -141,17 +163,16 @@ class API::BoardsController < API::ApplicationController
     @found_image = Image.find_by(label: image_params[:label], user_id: current_user.id, private: true)
     @found_image ||= Image.find_by(label: image_params[:label])
     if @found_image
-      @board.add_image(@found_image.id)
       @image = @found_image
       img_saved = true
     else
-
       @image = Image.new
       @image.user = current_user
       @image.private = true
       @image.label = image_params[:label]
       img_saved = @image.save!
     end
+
     if(image_params[:docs].present?)
       doc = @image.docs.new(image_params[:docs])
       doc.user = current_user
@@ -161,9 +182,9 @@ class API::BoardsController < API::ApplicationController
     if img_saved
       @board.add_image(@image.id) if @board
       # doc.attach_image(image_params[:display_image])
-      render json: @image, status: :created
+      render json: @board, status: :created
     else
-      render json: @image.errors, status: :unprocessable_entity
+      render json: img_saved.errors, status: :unprocessable_entity
     end
   end
 
@@ -176,18 +197,27 @@ class API::BoardsController < API::ApplicationController
         Rails.logger.debug "new_board_image.errors: #{new_board_image.errors.full_messages}"
       end
     end
-
-    redirect_back_or_to @board
+    render json: @board, status: :ok
   end
 
   def remove_image
+    ActiveRecord::Base.logger = nil
+    puts "**** REMOVE IMAGE ****\n\n"
+    puts "params: #{params}"
     @image = Image.find(params[:image_id])
+    puts "IMAGE: #{@image.id} => #{@image.label}"
+    puts "BOARD: #{@board} - images: #{@board.images.count}"
     @board.images.delete(@image)
-    respond_to do |format|
-      # format.html { redirect_to @board, notice: "Image was successfully removed from board." }
-      format.json { head :no_content }
-      format.turbo_stream
-    end
+    @board.reload
+    puts "BOARD: #{@board} - images: #{@board.images.count}"
+    puts "**** REMOVED IMAGE ****\n\n"
+    sleep 5
+    render json: @board, status: :ok
+    # respond_to do |format|
+    #   # format.html { redirect_to @board, notice: "Image was successfully removed from board." }
+    #   format.json { head :no_content }
+    #   format.turbo_stream
+    # end
   end
 
   # # DELETE /boards/1 or /boards/1.json

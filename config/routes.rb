@@ -100,6 +100,8 @@ Rails.application.routes.draw do
       member do
         post "add_image"
         post "remove_image"
+        get "remaining_images"
+        put "associate_image"
       end
     end
 
