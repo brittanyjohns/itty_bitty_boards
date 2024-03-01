@@ -96,7 +96,13 @@ Rails.application.routes.draw do
   resources :orders, only: [:index, :show]
   namespace :api, defaults: {format: :json} do
     resources :images
-    resources :boards
+    resources :boards do
+      member do
+        post "add_image"
+        post "remove_image"
+      end
+    end
+
     namespace :v1 do
       resource :auth, only: [:create, :destroy]
       post "users", to: "auths#sign_up"    

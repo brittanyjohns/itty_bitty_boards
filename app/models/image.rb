@@ -27,6 +27,8 @@ class Image < ApplicationRecord
   has_many :boards, through: :board_images
   has_many_attached :audio_files
 
+  accepts_nested_attributes_for :docs
+
   PROMPT_ADDITION = " Styled as a simple cartoon illustration."
 
   include ImageHelper
@@ -85,7 +87,12 @@ class Image < ApplicationRecord
       puts "\n\n Found audio file: #{file.inspect}\n\n"
     else
       # create_audio_from_text(label, voice)
-      start_generate_audio_job(voice)
+      # start_generate_audio_job(voice)
+      begin
+        image.save_audio_file_to_s3!(voice)
+      rescue => e
+        puts "Error getting audio for voice: #{e.message}\n\n#{e.backtrace.join("\n")}"
+      end
       puts "\n\n Starting generate audio job for voice: #{voice}\n\n"
       file = audio_files.last
       puts "\n\n Created audio file: #{file.inspect}\n\n"
@@ -231,14 +238,14 @@ class Image < ApplicationRecord
     if viewing_user
       img = viewing_user.display_doc_for_image(self)&.image
       if img
-        return img
+        return img if img.attached?
       end
     end
     if docs.current.any? && docs.current.last.image&.attached?
-      return docs.current.last.image
+      return docs.current.last.image if docs.current.last.image.attached?
     end
     if docs.any? && docs.last.image&.attached?
-      return docs.last.image
+      return docs.last.image if docs.last.image.attached?
     end
     nil
   end
@@ -249,11 +256,12 @@ class Image < ApplicationRecord
     puts "Voices needed: #{voices_needed}"
     voices_needed = voices_needed - [voice]
     puts "Missing voices: #{missing_voices}"
-    voices_needed.each_with_index do |v, i|
-      puts "Creating audio for voice: #{v}"
-      # create_audio_from_text(label, voice)
-      start_generate_audio_job(v, i)
-    end
+    # if voices_needed.any?
+    #   puts "Starting generate audio job for missing voices: #{voices_needed}"
+    #   voices_needed.each do |v|
+    #     Image.start_generate_audio_job([id], v)
+    #   end
+    # end
   end
 
   def display_doc(viewing_user = nil)

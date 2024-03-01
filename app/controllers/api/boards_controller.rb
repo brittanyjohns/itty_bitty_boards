@@ -133,28 +133,62 @@ class API::BoardsController < API::ApplicationController
   #   redirect_back_or_to build_board_path(@board)
   # end
 
-  # def associate_image
-  #   image = Image.find(params[:image_id])
+  def add_image
+    puts "API:::BoardsController#create board_params: #{board_params} - params: #{params}"
 
-  #   unless @board.images.include?(image)
-  #     new_board_image = @board.board_images.new(image: image)
-  #     unless new_board_image.save
-  #       Rails.logger.debug "new_board_image.errors: #{new_board_image.errors.full_messages}"
-  #     end
-  #   end
+    puts "\nAPI::BoardsController#create image_params: #{image_params} \n\n"
+    @board = Board.find(params[:id])
+    @found_image = Image.find_by(label: image_params[:label], user_id: current_user.id, private: true)
+    @found_image ||= Image.find_by(label: image_params[:label])
+    if @found_image
+      @board.add_image(@found_image.id)
+      @image = @found_image
+      img_saved = true
+    else
 
-  #   redirect_back_or_to @board
-  # end
+      @image = Image.new
+      @image.user = current_user
+      @image.private = true
+      @image.label = image_params[:label]
+      img_saved = @image.save!
+    end
+    if(image_params[:docs].present?)
+      doc = @image.docs.new(image_params[:docs])
+      doc.user = current_user
+      doc.processed = true
+      doc.save
+    end
+    if img_saved
+      @board.add_image(@image.id) if @board
+      # doc.attach_image(image_params[:display_image])
+      render json: @image, status: :created
+    else
+      render json: @image.errors, status: :unprocessable_entity
+    end
+  end
 
-  # def remove_image
-  #   @image = Image.find(params[:image_id])
-  #   @board.images.delete(@image)
-  #   respond_to do |format|
-  #     # format.html { redirect_to @board, notice: "Image was successfully removed from board." }
-  #     format.json { head :no_content }
-  #     format.turbo_stream
-  #   end
-  # end
+  def associate_image
+    image = Image.find(params[:image_id])
+
+    unless @board.images.include?(image)
+      new_board_image = @board.board_images.new(image: image)
+      unless new_board_image.save
+        Rails.logger.debug "new_board_image.errors: #{new_board_image.errors.full_messages}"
+      end
+    end
+
+    redirect_back_or_to @board
+  end
+
+  def remove_image
+    @image = Image.find(params[:image_id])
+    @board.images.delete(@image)
+    respond_to do |format|
+      # format.html { redirect_to @board, notice: "Image was successfully removed from board." }
+      format.json { head :no_content }
+      format.turbo_stream
+    end
+  end
 
   # # DELETE /boards/1 or /boards/1.json
   # def destroy
@@ -188,8 +222,12 @@ class API::BoardsController < API::ApplicationController
       @board = Board.includes(board_images: { image: :docs }).find(params[:id])
     end
 
+    def image_params
+      params.require(:image).permit(:label, :image_prompt, :display_image, audio_files: [], docs: [:id, :user_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
+    end
+
     # Only allow a list of trusted parameters through.
     def board_params
-      params.require(:board).permit(:user_id, :name, :parent_id, :parent_type, :description, :number_of_columns, :predefined, :voice)
+      params.require(:board).permit(:user_id, :name, :parent_id, :parent_type, :description, :number_of_columns, :predefined, :voice, :id)
     end
 end

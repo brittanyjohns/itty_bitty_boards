@@ -30,12 +30,19 @@ class API::ImagesController < API::ApplicationController
   end
 
   def create
-    puts "API::ImagesController#create"
-    @image = Image.new(image_params)
+    puts "API::ImagesController#create image_params: #{image_params} - params: #{params}"
+    @image = Image.new
     @image.user = current_user
     @image.private = true
-
-    if @image.save
+    @image.label = image_params[:label]
+    @image.save!
+    doc = @image.docs.new(image_params[:docs])
+    doc.user = current_user
+    doc.processed = true
+    puts "DOC"
+    pp doc
+    if doc.save
+      # doc.attach_image(image_params[:display_image])
       render json: @image, status: :created
     else
       render json: @image.errors, status: :unprocessable_entity
@@ -45,6 +52,6 @@ class API::ImagesController < API::ApplicationController
   private
 
   def image_params
-    params.require(:image).permit(:label, :image_prompt, :display_image, audio_files: [])
+    params.require(:image).permit(:label, :image_prompt, :display_image, audio_files: [], docs: [:id, :user_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
   end
 end
