@@ -111,18 +111,19 @@ class API::BoardsController < API::ApplicationController
   #   render json: { status: "ok", data: { number_of_columns: @board.number_of_columns } }
   # end
 
-  # # PATCH/PUT /boards/1 or /boards/1.json
-  # def update
-  #   respond_to do |format|
-  #     if @board.update(board_params)
-  #       format.html { redirect_to board_url(@board), notice: "Board was successfully updated." }
-  #       format.json { render :show, status: :ok, location: @board }
-  #     else
-  #       format.html { render :edit, status: :unprocessable_entity }
-  #       format.json { render json: @board.errors, status: :unprocessable_entity }
-  #     end
-  #   end
-  # end
+  # PATCH/PUT /boards/1 or /boards/1.json
+  def update
+    @board = Board.find(params[:id])
+    respond_to do |format|
+      if @board.update(board_params)
+        format.html { redirect_to board_url(@board), notice: "Board was successfully updated." }
+        format.json { render :show, status: :ok, location: @board }
+      else
+        format.html { render :edit, status: :unprocessable_entity }
+        format.json { render json: @board.errors, status: :unprocessable_entity }
+      end
+    end
+  end
 
   # def build
   #   if params[:image_ids].present?
@@ -201,23 +202,10 @@ class API::BoardsController < API::ApplicationController
   end
 
   def remove_image
-    ActiveRecord::Base.logger = nil
-    puts "**** REMOVE IMAGE ****\n\n"
-    puts "params: #{params}"
     @image = Image.find(params[:image_id])
-    puts "IMAGE: #{@image.id} => #{@image.label}"
-    puts "BOARD: #{@board} - images: #{@board.images.count}"
     @board.images.delete(@image)
     @board.reload
-    puts "BOARD: #{@board} - images: #{@board.images.count}"
-    puts "**** REMOVED IMAGE ****\n\n"
-    sleep 5
     render json: @board, status: :ok
-    # respond_to do |format|
-    #   # format.html { redirect_to @board, notice: "Image was successfully removed from board." }
-    #   format.json { head :no_content }
-    #   format.turbo_stream
-    # end
   end
 
   # # DELETE /boards/1 or /boards/1.json

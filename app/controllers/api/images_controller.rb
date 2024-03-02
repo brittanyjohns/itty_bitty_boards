@@ -49,6 +49,17 @@ class API::ImagesController < API::ApplicationController
     end
   end
 
+  def update
+    puts "API::ImagesController#update image_params: #{image_params} - params: #{params}"
+    @image = Image.find(params[:id])
+    if @image.update(image_params)
+      render json: @image, status: :ok
+    else
+      render json: @image.errors, status: :unprocessable_entity
+    end
+  end
+
+
   private
 
   def image_params
