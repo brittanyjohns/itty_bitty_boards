@@ -107,7 +107,10 @@ Rails.application.routes.draw do
 
     namespace :v1 do
       resource :auth, only: [:create, :destroy]
-      post "users", to: "auths#sign_up"    
+      post "users", to: "auths#sign_up"
+      post "users/sign_in", to: "auths#sign_in"
+      post "users/sign_out", to: "auths#sign_out"
+      post "login", to: "auths#create"
       # resources :notification_tokens, only: :create
     end
   end

@@ -20,7 +20,7 @@ module API
         end
   
         def create
-          puts "params: #{params.inspect}"
+          puts "SIGN IN params: #{params.inspect}"
           if (user = User.valid_credentials?(params[:email], params[:password]))
             sign_in user
             render json: {token: user.authentication_token}
@@ -30,6 +30,7 @@ module API
         end
   
         def destroy
+          puts "SIGN OUT params: #{params.inspect}"
         #   destroy_notification_token
           sign_out(current_user)
           render json: {}

@@ -1,6 +1,5 @@
 class API::ImagesController < API::ApplicationController
   def index
-    puts "API::ImagesController#index"
     @images = Image.includes(:docs).with_attached_audio_files.first(16)
     @images_with_display_doc = @images.map do |image|
       {
@@ -16,7 +15,6 @@ class API::ImagesController < API::ApplicationController
   end
 
   def show
-    puts "API::ImagesController#show"
     @image = Image.includes(:docs).with_attached_audio_files.find(params[:id])
     @image_with_display_doc = {
       id: @image.id,
@@ -50,7 +48,6 @@ class API::ImagesController < API::ApplicationController
   end
 
   def update
-    puts "API::ImagesController#update image_params: #{image_params} - params: #{params}"
     @image = Image.find(params[:id])
     if @image.update(image_params)
       render json: @image, status: :ok
