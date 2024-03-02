@@ -1,9 +1,10 @@
 module API
     module V1
       class AuthsController < ApplicationController
-        skip_before_action :authenticate_token!, only: [:create, :sign_up]
+        skip_before_action :authenticate_token!, only: [:create, :sign_up, :current]
 
         def sign_up
+          puts "SIGN UP params: #{params.inspect}"
           if params['auth'] && params['auth']['first_name'] && params['auth']['last_name']
             name = params['auth']['first_name'] + " " + params['auth']['last_name']
           elsif params['auth'] && params['auth']['name']
@@ -28,12 +29,24 @@ module API
             render json: {error: error_message}, status: :unauthorized
           end
         end
+
+        def current
+          if current_user
+            render json: {user: current_user}
+          else
+            current_user = user_from_token
+            if current_user
+              render json: {user: current_user}
+            else
+              render json: {error: "Unauthorized - No user signed in"}, status: :unauthorized
+            end
+          end
+        end
   
         def destroy
-          puts "SIGN OUT params: #{params.inspect}"
-        #   destroy_notification_token
           sign_out(current_user)
-          render json: {}
+          @current_user = nil
+          render json: {message: "Signed out successfully", status: :ok}
         end
   
         private
@@ -45,10 +58,6 @@ module API
         def sign_up_params
           params.require(:user).permit(:email, :password, :password_confirmation, first_name: "", last_name: "")
         end
-  
-        # def destroy_notification_token
-        #   current_user.notification_tokens.where(token: params[:token]).destroy_all
-        # end
       end
     end
   end

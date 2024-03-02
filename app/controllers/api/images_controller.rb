@@ -22,10 +22,21 @@ class API::ImagesController < API::ApplicationController
       image_prompt: @image.image_prompt,
       display_doc: @image.display_image,
       src: url_for(@image.display_image),
-      audio: url_for(@image.audio_files.first)
-    }
-    render json: @image_with_display_doc
-  end
+      audio: url_for(@image.audio_files.first),
+      docs: @image.docs.map do |doc|
+        {
+          id: doc.id,
+          user_id: doc.user_id,
+          image: doc.image,
+          documentable_id: doc.documentable_id,
+          documentable_type: doc.documentable_type,
+          processed: doc.processed
+        } 
+      end          
+
+      }
+      render json: @image_with_display_doc
+    end
 
   def create
     puts "API::ImagesController#create image_params: #{image_params} - params: #{params}"
@@ -53,6 +64,25 @@ class API::ImagesController < API::ApplicationController
       render json: @image, status: :ok
     else
       render json: @image.errors, status: :unprocessable_entity
+    end
+  end
+
+  def search
+    if params[:user_images_only] == "1"
+      @images = Image.searchable_images_for(current_user, true).order(label: :asc).page params[:page]
+    else
+      @images = Image.searchable_images_for(current_user).order(label: :asc).page params[:page]
+    end
+
+    if params[:query].present?
+      @images = @images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page params[:page]
+    else
+      @images = @images.order(label: :asc).page params[:page]
+    end
+    if turbo_frame_request?
+      render partial: "images", locals: { images: @images }
+    else
+      render :index
     end
   end
 

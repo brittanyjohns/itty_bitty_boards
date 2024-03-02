@@ -22,6 +22,10 @@ module API
       User.find_by(authentication_token: token) if token.present?
     end
 
+    def current_user
+      @current_user ||= user_from_token
+    end
+
     def token
       request.headers.fetch("Authorization", "").split(" ").last
     end

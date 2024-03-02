@@ -95,7 +95,11 @@ Rails.application.routes.draw do
   resources :checkouts, only: [:new, :create, :show]
   resources :orders, only: [:index, :show]
   namespace :api, defaults: {format: :json} do
-    resources :images
+    resources :images do
+      collection do
+        get "search"
+      end
+    end
     resources :boards do
       member do
         post "add_image"
@@ -107,9 +111,10 @@ Rails.application.routes.draw do
 
     namespace :v1 do
       resource :auth, only: [:create, :destroy]
+      get "users/current", to: "auths#current"
       post "users", to: "auths#sign_up"
       post "users/sign_in", to: "auths#sign_in"
-      post "users/sign_out", to: "auths#sign_out"
+      post "users/sign_out", to: "auths#destroy"
       post "login", to: "auths#create"
       # resources :notification_tokens, only: :create
     end
