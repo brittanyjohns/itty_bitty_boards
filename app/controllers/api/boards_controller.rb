@@ -46,12 +46,17 @@ class API::BoardsController < API::ApplicationController
   end
 
   def remaining_images
-    board = current_user.boards.includes(board_images: { image: :docs }).find(params[:id])
+    # board = current_user.boards.includes(board_images: { image: :docs }).find(params[:id])
+    puts "params: #{params.inspect}"
+    puts "current_user: #{current_user.inspect}"
+    board = Board.find(params[:id])
+    current_page = params[:page] || 1
+    puts "board: #{board.inspect}"
     if params[:query].present? && params[:query] != "null"
       @query = params[:query]
-      @images = board.remaining_images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(params[:page]).per(16)
+      @images = board.remaining_images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(current_page).per(16)
     else
-      @images = board.remaining_images.order(label: :asc).page(params[:page]).per(16)
+      @images = board.remaining_images.order(label: :asc).page(current_page).per(16)
     end
     @remaining_images = @images.map do |image|
       {

@@ -14,7 +14,7 @@ module API
           end
           user = User.new(email: params['auth']['email'], password: params['auth']['password'], password_confirmation: params['auth']['password_confirmation'], name: name)
           if user.save
-            render json: {token: user.authentication_token}
+            render json: {token: user.authentication_token, user: user}
           else
             render json: {error: user.errors.full_messages.join(", ")}, status: :unprocessable_entity
           end
@@ -24,7 +24,7 @@ module API
           puts "SIGN IN params: #{params.inspect}"
           if (user = User.valid_credentials?(params[:email], params[:password]))
             sign_in user
-            render json: {token: user.authentication_token}
+            render json: {token: user.authentication_token, user: user}
           else
             render json: {error: error_message}, status: :unauthorized
           end
