@@ -1,13 +1,25 @@
 class API::ImagesController < API::ApplicationController
+
   def index
-    @images = Image.includes(:docs).with_attached_audio_files.first(16)
+    if params[:user_images_only] == "1"
+      @images = Image.searchable_images_for(current_user, true).order(label: :asc).page params[:page]
+    else
+      @images = Image.searchable_images_for(current_user).order(label: :asc).page params[:page]
+    end
+
+    if params[:query].present?
+      @images = @images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page params[:page]
+    else
+      @images = @images.order(label: :asc).page params[:page]
+    end
     @images_with_display_doc = @images.map do |image|
       {
         id: image.id,
         label: image.label,
         image_prompt: image.image_prompt,
         display_doc: image.display_image,
-        src: url_for(image.display_image),
+        # src: url_for(image.display_image),
+        src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
         audio: url_for(image.audio_files.first)
       }
     end
@@ -21,7 +33,8 @@ class API::ImagesController < API::ApplicationController
       label: @image.label,
       image_prompt: @image.image_prompt,
       display_doc: @image.display_image,
-      src: url_for(@image.display_image),
+      # src: url_for(@image.display_image),
+      src: @image.display_image ? @image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{@image.label_param}",
       audio: url_for(@image.audio_files.first),
       docs: @image.docs.map do |doc|
         {

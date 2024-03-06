@@ -1,7 +1,7 @@
 module API
     module V1
       class AuthsController < ApplicationController
-        skip_before_action :authenticate_token!, only: [:create, :sign_up, :current]
+        skip_before_action :authenticate_token!, only: [:create, :sign_up, :current, :destroy]
 
         def sign_up
           puts "SIGN UP params: #{params.inspect}"
