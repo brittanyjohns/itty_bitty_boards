@@ -94,10 +94,15 @@ Rails.application.routes.draw do
   resources :products
   resources :checkouts, only: [:new, :create, :show]
   resources :orders, only: [:index, :show]
+
+  #  API routes
   namespace :api, defaults: {format: :json} do
     resources :images do
       collection do
         get "search"
+        post "find_or_create"
+        post "generate"
+        post "add_to_board"
       end
     end
     resources :boards do
@@ -106,6 +111,24 @@ Rails.application.routes.draw do
         post "remove_image"
         get "remaining_images"
         put "associate_image"
+      end
+    end
+
+    resources :menus do
+      member do
+        post "rerun"
+      end
+    end
+
+    resources :docs do
+      collection do
+        get "deleted"
+      end
+      member do
+        post "mark_as_current"
+        post "move"
+        post "find_or_create_image"
+        delete "hard_delete"
       end
     end
 

@@ -1,4 +1,4 @@
-class AIP::DocsController < API::ApplicationController
+class API::DocsController < API::ApplicationController
   before_action :authenticate_token!
 
   before_action :set_doc, only: %i[ show edit update destroy ]
@@ -115,17 +115,16 @@ class AIP::DocsController < API::ApplicationController
     if current_user.user_docs.where(image_id: @doc.documentable_id).exists?
       @old_fav_doc = current_user.user_docs.where(image_id: @doc.documentable_id).destroy_all
     end
-    @old_fav_doc = @old_fav_doc&.first&.doc
-    puts "OLD FAV DOC: #{@old_fav_doc}"
+
     puts "NEW FAV DOC: #{@doc}"
     @doc.update(current: true) unless @doc.current
     UserDoc.find_or_create_by(user_id: current_user.id, doc_id: doc_id, image_id: @doc.documentable_id)
-    # redirect_back_or_to @doc.documentable
-    respond_to do |format|
-      format.html { redirect_back_or_to @doc.documentable, notice: "Doc was successfully destroyed." }
-      format.json { head :no_content }
-      format.turbo_stream
-    end
+    @image = @doc.documentable
+    @current_doc = @image.display_doc(current_user)
+    @image_docs = @image.docs.for_user(current_user).excluding(@current_doc).order(created_at: :desc).to_a
+    @doc_with_image = { doc: @doc, image: @image, current_doc: @current_doc, image_docs: @image_docs }
+    puts "\n\nDOC WITH IMAGE: #{@doc_with_image}\n\n"
+    render json: @doc_with_image
   end
 
   # DELETE /docs/1 or /docs/1.json

@@ -39,7 +39,7 @@ class Image < ApplicationRecord
 
   scope :with_image_docs_for_user, -> (userId) { joins(:docs).where("docs.documentable_id = images.id AND docs.documentable_type = 'Image' AND docs.user_id = ?", userId) }
   scope :menu_images, -> { where(image_type: "Menu") }
-  scope :non_menu_images, -> { where(image_type: nil) }
+  scope :non_menu_images, -> { where.not(image_type: "Menu") }
   scope :public_img, -> { where(private: [false, nil]) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
   scope :skipped, -> { where(open_symbol_status: "skipped") }

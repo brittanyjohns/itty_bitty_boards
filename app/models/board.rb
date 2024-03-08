@@ -45,7 +45,8 @@ class Board < ApplicationRecord
   end
 
   def remaining_images
-    Image.searchable_images_for(self.user).excluding(images)
+    # Image.searchable_images_for(self.user).excluding(images)
+    Image.public_img.non_menu_images.excluding(images)
   end
 
   def display_image

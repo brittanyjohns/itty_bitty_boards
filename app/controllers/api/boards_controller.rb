@@ -30,6 +30,7 @@ class API::BoardsController < API::ApplicationController
         id: board.id,
         name: board.name,
         description: board.description,
+        parent_type: board.parent_type,
         images: board.images.map do |image|
           {
             id: image.id,
@@ -54,9 +55,9 @@ class API::BoardsController < API::ApplicationController
     puts "board: #{board.inspect}"
     if params[:query].present? && params[:query] != "null"
       @query = params[:query]
-      @images = board.remaining_images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(current_page).per(16)
+      @images = Image.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(current_page).per(9)
     else
-      @images = board.remaining_images.order(label: :asc).page(current_page).per(16)
+      @images = Image.all.order(label: :asc).page(current_page).page(current_page).per(9)
     end
     @remaining_images = @images.map do |image|
       {
