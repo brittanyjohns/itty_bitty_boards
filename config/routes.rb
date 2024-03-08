@@ -1,6 +1,7 @@
 require 'sidekiq/web'
 
 Rails.application.routes.draw do
+  get '/current_user', to: 'current_user#index'
   resources :messages
   resources :openai_prompts
   resources :open_symbols do
@@ -58,10 +59,16 @@ Rails.application.routes.draw do
   resources :board_images
     # Order matters here.  users needs to be below the devise_for :users
   devise_for :users
-  # devise_for :users, controllers: {registrations: "registrations"}
-  # devise_scope :user do
-  #   post "/api/v1/users" => ""
-  # end
+  # devise_for :users, path: '', path_names: {
+  #   sign_in: 'login',
+  #   sign_out: 'logout',
+  #   registration: 'signup'
+  # },
+  # controllers: {
+  #   sessions: 'users/sessions',
+  #   registrations: 'users/registrations'
+  # }
+
   resources :users do
     member do
       delete "remove_user_doc"
@@ -87,10 +94,51 @@ Rails.application.routes.draw do
   resources :products
   resources :checkouts, only: [:new, :create, :show]
   resources :orders, only: [:index, :show]
+
+  #  API routes
   namespace :api, defaults: {format: :json} do
+    resources :images do
+      collection do
+        get "search"
+        post "find_or_create"
+        post "generate"
+        post "add_to_board"
+      end
+    end
+    resources :boards do
+      member do
+        post "add_image"
+        post "remove_image"
+        get "remaining_images"
+        put "associate_image"
+      end
+    end
+
+    resources :menus do
+      member do
+        post "rerun"
+      end
+    end
+
+    resources :docs do
+      collection do
+        get "deleted"
+      end
+      member do
+        post "mark_as_current"
+        post "move"
+        post "find_or_create_image"
+        delete "hard_delete"
+      end
+    end
+
     namespace :v1 do
       resource :auth, only: [:create, :destroy]
-      post "users", to: "auths#sign_up"    
+      get "users/current", to: "auths#current"
+      post "users", to: "auths#sign_up"
+      post "users/sign_in", to: "auths#sign_in"
+      post "users/sign_out", to: "auths#destroy"
+      post "login", to: "auths#create"
       # resources :notification_tokens, only: :create
     end
   end

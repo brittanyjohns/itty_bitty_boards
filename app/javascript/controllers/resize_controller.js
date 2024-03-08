@@ -15,6 +15,8 @@ export default class extends Controller {
     const rows = Math.ceil(sqrt);
     const cols = Math.round(sqrt);
 
+    console.log(`Images: ${imagesCount}, Rows: ${rows}, Cols: ${cols}`);
+
     // Subtract the input box height (50px) and the margin (assumed 1rem or 16px on each side, total 32px) from the viewport height
     const adjustedHeight = `calc(100vh - 60px - 32px)`;
     const adjustedWidth = `calc(100vw - 32px)`;

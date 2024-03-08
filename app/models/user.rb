@@ -30,8 +30,10 @@ class User < ApplicationRecord
   has_many :openai_prompts
   # Include default devise modules. Others available are:
   # :confirmable, :lockable, :timeoutable, :trackable and :omniauthable
+  include Devise::JWT::RevocationStrategies::JTIMatcher
   devise :database_authenticatable, :registerable,
-         :recoverable, :rememberable, :validatable
+         :recoverable, :rememberable, :validatable,
+         :jwt_authenticatable, jwt_revocation_strategy: self
   has_many :user_docs, dependent: :destroy
   has_many :favorite_docs, through: :user_docs, class_name: 'Doc', source: :doc
 

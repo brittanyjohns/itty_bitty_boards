@@ -74,6 +74,9 @@ end
 #  User authentication
 gem "devise"
 
+gem 'devise-jwt'
+gem 'jsonapi-serializer'
+
 # Icons
 gem "font-awesome-sass", "~> 6.4.0"
 
@@ -117,3 +120,4 @@ gem "matrix", "~> 0.4.2"
 
 gem "http"
 gem "browser", "~> 5.3"
+gem "annotate", "~> 3.2"

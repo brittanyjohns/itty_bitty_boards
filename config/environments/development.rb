@@ -1,7 +1,7 @@
 require "active_support/core_ext/integer/time"
 require "logger"
 
-Rails.application.routes.default_url_options[:host] = "localhost:3000"
+Rails.application.routes.default_url_options[:host] = "localhost:4000"
 
 Rails.application.configure do
   logger = ActiveSupport::Logger.new("log/#{Rails.env}.log")
@@ -41,7 +41,7 @@ Rails.application.configure do
     config.cache_store = :null_store
   end
 
-  config.action_controller.default_url_options = { host: "http://localhost:3000" }
+  config.action_controller.default_url_options = { host: "http://localhost:4000" }
   # Store uploaded files on the local file system (see config/storage.yml for options).
   config.active_storage.service = :amazon
   # Don't care if the mailer can't send.

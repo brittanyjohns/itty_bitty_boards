@@ -49,7 +49,6 @@ class ImagesController < ApplicationController
   def show
     @user_image_boards = @image.boards.where(user_id: current_user.id)
     @new_image_doc = @image.docs.new
-    @fav_doc_img = @image.display_image(current_user)
     @current_doc = @image.display_doc(current_user)
     @status = @image.status
     if @image.finished?

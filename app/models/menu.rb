@@ -130,6 +130,7 @@ class Menu < ApplicationRecord
   def should_generate_image(image, user, tokens_used, total_cost = 0)
     return false if image.doc_exists_for_user?(user)
     return false if user.tokens <= tokens_used
+    return false unless token_limit
     return false if token_limit <= total_cost
     true
   end

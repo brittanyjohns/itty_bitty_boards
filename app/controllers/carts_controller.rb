@@ -1,7 +1,7 @@
 class CartsController < ApplicationController
   before_action :authenticate_user!
   ONE_DOLLAR_PRICE_ID = ENV['ONE_DOLLAR_PRICE_ID']
-  DOMAIN = ENV['DOMAIN'] || 'http://localhost:3000'
+  DOMAIN = ENV['DOMAIN'] || 'http://localhost:4000'
 
   def show
     @current_order = current_order
