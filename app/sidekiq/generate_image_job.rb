@@ -9,6 +9,7 @@ class GenerateImageJob
     if args.present?
       image_prompt = args[0]
       image.temp_prompt = image_prompt
+      puts "IMAGE PROMPT: #{image_prompt}"
     end
     begin
       image.create_image_doc(user_id)

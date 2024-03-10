@@ -37,7 +37,8 @@ class Image < ApplicationRecord
   # before_save :save_audio_file_to_s3!, if: :no_audio_saved
   scope :without_attached_audio_files, -> { where.missing(:audio_files_attachments) }
 
-  scope :with_image_docs_for_user, -> (userId) { joins(:docs).where("docs.documentable_id = images.id AND docs.documentable_type = 'Image' AND docs.user_id = ?", userId) }
+  # scope :with_image_docs_for_user, -> (userId) { joins(:docs).where("docs.documentable_id = images.id AND docs.documentable_type = 'Image' AND docs.user_id = ?", userId) }
+  scope :with_image_docs_for_user, -> (userId) { order(created_at: :desc) }
   scope :menu_images, -> { where(image_type: "Menu") }
   scope :non_menu_images, -> { where.not(image_type: "Menu") }
   scope :public_img, -> { where(private: [false, nil]) }
@@ -356,9 +357,20 @@ class Image < ApplicationRecord
     end
   end
 
+  def with_display_doc(current_user = nil)
+    {
+      id: id,
+      label: label,
+      image_prompt: image_prompt,
+      display_doc: display_image(current_user),
+      src: display_image(current_user) ? display_image(current_user).url : "https://via.placeholder.com/300x300.png?text=#{label_param}",
+      audio: audio_files.first ? url_for(audio_files.first) : nil
+    }
+  end
+
   def self.searchable_menu_items_for(user = nil)
     if user
-      Image.with_image_docs_for_user(user).menu_images.or(Image.with_image_docs_for_user(user).where(user_id: user.id)).distinct
+      Image.menu_images.or(Image.where(user_id: user.id)).distinct
     else
       Image.menu_images.public_img.distinct
     end
@@ -366,10 +378,9 @@ class Image < ApplicationRecord
 
   def self.searchable_images_for(user, only_user_images = false)
     if only_user_images
-      puts "only_user_images"
-      Image.non_menu_images.with_image_docs_for_user(user).or(Image.where(user_id: user.id)).distinct
+      Image.non_menu_images.or(Image.where(user_id: [user.id, nil])).distinct
     else
-      Image.non_menu_images.with_image_docs_for_user(user).or(Image.where(user_id: user.id)).or(Image.public_img.non_menu_images).distinct
+      Image.non_menu_images.or(Image.where(user_id: [user.id, nil])).or(Image.public_img.non_menu_images).distinct
     end
   end
 end

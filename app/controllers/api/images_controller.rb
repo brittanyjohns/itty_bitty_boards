@@ -2,11 +2,10 @@ class API::ImagesController < API::ApplicationController
 
   def index
     if params[:user_images_only] == "1"
-      # @images = Image.searchable_images_for(current_user, true).order(label: :asc).page params[:page]
+      @images = Image.searchable_images_for(current_user, true).order(label: :asc).page params[:page]
     else
-      # @images = Image.searchable_images_for(current_user).order(label: :asc).page params[:page]
+      @images = Image.searchable_images_for(current_user).order(label: :asc).page params[:page]
     end
-    @images = Image.public_img.non_menu_images
 
     if params[:query].present?
       @images = @images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page params[:page]
@@ -113,14 +112,7 @@ class API::ImagesController < API::ApplicationController
       GetSymbolsJob.perform_async([@image.id], limit)
       notice += " Creating #{limit} #{'symbol'.pluralize(limit)} for image."      
     end
-    @image_with_display_doc = {
-      id: @image.id,
-      label: @image.label,
-      image_prompt: @image.image_prompt,
-      display_doc: @image.display_image(current_user),
-      src: @image.display_image(current_user) ? @image.display_image(current_user).url : "https://via.placeholder.com/300x300.png?text=#{@image.label_param}",
-      audio: @image.audio_files.first ? url_for(@image.audio_files.first) : nil
-    }
+    @image_with_display_doc = @image.with_display_doc(current_user)
     render json: @image_with_display_doc
   end
 
