@@ -114,6 +114,10 @@ Rails.application.routes.draw do
       end
     end
 
+    resources :scenarios
+
+
+
     resources :menus do
       member do
         post "rerun"

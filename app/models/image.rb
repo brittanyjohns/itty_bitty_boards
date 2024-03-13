@@ -90,7 +90,7 @@ class Image < ApplicationRecord
       # create_audio_from_text(label, voice)
       # start_generate_audio_job(voice)
       begin
-        image.save_audio_file_to_s3!(voice)
+        save_audio_file_to_s3!(voice)
       rescue => e
         puts "Error getting audio for voice: #{e.message}\n\n#{e.backtrace.join("\n")}"
       end

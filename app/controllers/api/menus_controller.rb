@@ -85,6 +85,7 @@ class API::MenusController < API::ApplicationController
     if doc.save
       @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit)
       @menu.run_image_description_job(@board.id)
+      # @menu.enhance_image_description(@board.id)
       @menu_with_display_doc = {
       id: @menu.id,
       name: @menu.name,
