@@ -13,10 +13,10 @@ class API::BoardsController < API::ApplicationController
     puts "CURRENT_USER: #{current_user.inspect}"
     if params[:query].present?
       @query = params[:query]
-      @boards = current_user.boards.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      @boards = current_user.boards.non_menus.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
       @predefined_boards = current_user.boards.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
     else
-      @boards = current_user.boards.all.order(created_at: :desc)
+      @boards = current_user.boards.non_menus.order(created_at: :desc)
       @predefined_boards = Board.predefined.order(created_at: :desc)
     end
 
@@ -24,13 +24,15 @@ class API::BoardsController < API::ApplicationController
   end
   # GET /boards/1 or /boards/1.json
   def show
-    board = current_user.boards.includes(board_images: { image: :docs }).find(params[:id])
+    board = Board.includes(board_images: { image: :docs }).find(params[:id])
     @board_with_images =
       {
         id: board.id,
         name: board.name,
         description: board.description,
         parent_type: board.parent_type,
+        predefined: board.predefined,
+        number_of_columns: board.number_of_columns,
         images: board.images.map do |image|
           {
             id: image.id,
@@ -55,9 +57,9 @@ class API::BoardsController < API::ApplicationController
     puts "board: #{board.inspect}"
     if params[:query].present? && params[:query] != "null"
       @query = params[:query]
-      @images = Image.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(current_page).per(9)
+      @images = Image.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(current_page)
     else
-      @images = Image.all.order(label: :asc).page(current_page).page(current_page).per(9)
+      @images = Image.all.order(label: :asc).page(current_page).page(current_page)
     end
     @remaining_images = @images.map do |image|
       {
@@ -120,47 +122,17 @@ class API::BoardsController < API::ApplicationController
   # PATCH/PUT /boards/1 or /boards/1.json
   def update
     @board = Board.find(params[:id])
+    @board.number_of_columns = board_params['number_of_columns'].to_i
+    puts "handleSubmit: #{board_params} \n\n- params: #{params}"
     respond_to do |format|
       if @board.update(board_params)
-        format.html { redirect_to board_url(@board), notice: "Board was successfully updated." }
-        format.json { render :show, status: :ok, location: @board }
+        format.json { render json: @board, status: :ok }
       else
-        format.html { render :edit, status: :unprocessable_entity }
         format.json { render json: @board.errors, status: :unprocessable_entity }
       end
     end
   end
 
-  # def build
-  #   if params[:image_ids].present?
-  #     image_ids = params[:image_ids].split(",").map(&:to_i)
-  #     @image_ids_to_add = image_ids - @board.image_ids
-  #   end
-  #   if params[:query].present?
-  #     @query = params[:query]
-  #     @remaining_images = @board.remaining_images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc)
-  #   else
-  #     @remaining_images = @board.remaining_images.order(label: :asc)
-  #   end
-
-  #   if turbo_frame_request?
-  #     render partial: "select_images", locals: { images: @remaining_images }
-  #   else
-  #     render :build
-  #   end
-  # end
-
-  # def add_multiple_images
-  #   if params[:image_ids].present?
-  #     @image_ids = params[:image_ids]
-  #     @image_ids.each do |image_id|
-  #       @board.add_image(image_id)
-  #     end
-  #   else
-  #     puts "no image_ids"
-  #   end
-  #   redirect_back_or_to build_board_path(@board)
-  # end
 
   def add_image
     puts "API:::BoardsController#create board_params: #{board_params} - params: #{params}"

@@ -71,7 +71,10 @@ class API::MenusController < API::ApplicationController
     @menu.description = menu_params[:description]
     @menu.token_limit = menu_params[:token_limit] || 10
     @menu.user = current_user
-    @menu.save
+    unless @menu.save
+      render json: @menu.errors, status: :unprocessable_entity
+      return
+    end
     puts "MENU PARAMS: #{menu_params}"
     doc = @menu.docs.new(menu_params[:docs])
     doc.user = current_user
@@ -82,6 +85,7 @@ class API::MenusController < API::ApplicationController
     if doc.save
       @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit)
       @menu.run_image_description_job(@board.id)
+      # @menu.enhance_image_description(@board.id)
       @menu_with_display_doc = {
       id: @menu.id,
       name: @menu.name,
