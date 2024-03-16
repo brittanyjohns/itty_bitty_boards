@@ -41,6 +41,7 @@ class Image < ApplicationRecord
   scope :with_image_docs_for_user, -> (userId) { order(created_at: :desc) }
   scope :menu_images, -> { where(image_type: "Menu") }
   scope :non_menu_images, -> { where.not(image_type: "Menu") }
+  scope :non_scenarios, -> { where.not(image_type: "OpenaiPrompt") }
   scope :public_img, -> { where(private: [false, nil]) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
   scope :skipped, -> { where(open_symbol_status: "skipped") }

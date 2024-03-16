@@ -2,9 +2,9 @@ class API::ImagesController < API::ApplicationController
 
   def index
     if params[:user_images_only] == "1"
-      @images = Image.searchable_images_for(current_user, true).order(label: :asc).page params[:page]
+      @images = Image.where(image_type: nil).searchable_images_for(current_user, true).order(label: :asc).page params[:page]
     else
-      @images = Image.searchable_images_for(current_user).order(label: :asc).page params[:page]
+      @images = Image.where(image_type: nil).searchable_images_for(current_user).order(label: :asc).page params[:page]
     end
 
     if params[:query].present?
@@ -30,7 +30,7 @@ class API::ImagesController < API::ApplicationController
     @image = Image.includes(:docs).with_attached_audio_files.find(params[:id])
     @current_doc = @image.display_doc(current_user)
     @current_doc_id = @current_doc.id if @current_doc
-    @image_docs = @image.docs.for_user(current_user).excluding(@current_doc).order(created_at: :desc)
+    @image_docs = @image.docs.for_user(current_user).order(created_at: :desc)
     @image_with_display_doc = {
       id: @image.id,
       label: @image.label.upcase,
@@ -81,13 +81,45 @@ class API::ImagesController < API::ApplicationController
   end
 
   def generate
-    @image = Image.find(params[:id])
+    if !params[:id].blank?
+      @image = Image.find(params[:id])
+    else
+      @image = Image.find_or_create_by(label: params[:image_prompt], user_id: current_user.id, private: false)
+    end
     @image.update(status: "generating")
-    image_prompt = params[:image_prompt] || "An image of #{@image.label}."
+    image_prompt = "An image of #{@image.label}."
     GenerateImageJob.perform_async(@image.id, current_user.id, image_prompt)
     sleep 2
     current_user.remove_tokens(1)
-    render json: @image_with_display_doc
+    @image_docs = @image.docs.for_user(current_user).order(created_at: :desc)
+
+    @image_with_display_doc = {
+      id: @image.id,
+      label: @image.label.upcase,
+      image_prompt: @image.image_prompt,
+      display_doc: {
+        id: @current_doc&.id,
+        label: @image&.label,
+        user_id: @current_doc&.user_id,
+        src: @current_doc&.image&.url,
+        is_current: true
+      },
+      private: @image.private,
+      # src: url_for(@image.display_image),
+      src: @image.display_image ? @image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{@image.label_param}",
+      audio: @image.audio_files.first ? url_for(@image.audio_files.first) : nil,
+      docs: @image_docs.map do |doc|
+        {
+          id: doc.id,
+          label: @image.label,
+          user_id: doc.user_id,
+          src: doc.image.url,
+          is_current: doc.id == @current_doc_id
+        } 
+      end          
+
+      }
+      render json: @image_with_display_doc
   end
 
   def find_or_create
