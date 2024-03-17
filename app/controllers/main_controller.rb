@@ -1,6 +1,7 @@
 class MainController < ApplicationController
   def index
     @predefined_boards = Board.predefined.includes(:images).order(:name)
+    @beta_request = BetaRequest.new
   end
 
   def show_predefined

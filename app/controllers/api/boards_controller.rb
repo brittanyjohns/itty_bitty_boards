@@ -13,37 +13,21 @@ class API::BoardsController < API::ApplicationController
     puts "CURRENT_USER: #{current_user.inspect}"
     if params[:query].present?
       @query = params[:query]
-      @boards = current_user.boards.non_menus.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      @boards = current_user.boards.user_made.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
       @predefined_boards = current_user.boards.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      @scenarios = current_user.boards.scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
     else
-      @boards = current_user.boards.non_menus.order(created_at: :desc)
+      @boards = current_user.boards.user_made.order(created_at: :desc)
       @predefined_boards = Board.predefined.order(created_at: :desc)
+      @scenarios = current_user.boards.scenarios.order(created_at: :desc)
     end
 
-    render json: { boards: @boards, predefined_boards: @predefined_boards }
+    render json: { boards: @boards, predefined_boards: @predefined_boards, scenarios: @scenarios }
   end
   # GET /boards/1 or /boards/1.json
   def show
     board = Board.includes(board_images: { image: :docs }).find(params[:id])
-    @board_with_images =
-      {
-        id: board.id,
-        name: board.name,
-        description: board.description,
-        parent_type: board.parent_type,
-        predefined: board.predefined,
-        number_of_columns: board.number_of_columns,
-        images: board.images.map do |image|
-          {
-            id: image.id,
-            label: image.label,
-            image_prompt: image.image_prompt,
-            display_doc: image.display_image,
-            src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-            audio: image.audio_files.first&.url
-          }
-        end
-      }
+    @board_with_images = board.api_view_with_images
     puts @board_with_images.inspect
     render json: @board_with_images
   end
@@ -61,6 +45,7 @@ class API::BoardsController < API::ApplicationController
     else
       @images = Image.all.order(label: :asc).page(current_page).page(current_page)
     end
+    @images = @images.excluding(board.images)
     @remaining_images = @images.map do |image|
       {
         id: image.id,
@@ -126,7 +111,7 @@ class API::BoardsController < API::ApplicationController
     puts "handleSubmit: #{board_params} \n\n- params: #{params}"
     respond_to do |format|
       if @board.update(board_params)
-        format.json { render json: @board, status: :ok }
+        format.json { render json: @board.api_view_with_images, status: :ok }
       else
         format.json { render json: @board.errors, status: :unprocessable_entity }
       end

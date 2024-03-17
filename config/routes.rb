@@ -1,6 +1,9 @@
 require 'sidekiq/web'
 
 Rails.application.routes.draw do
+  resources :beta_requests
+  post '/beta_signup', to: 'beta_requests#create', as: :beta_signup
+
   get '/current_user', to: 'current_user#index'
   resources :messages
   resources :openai_prompts

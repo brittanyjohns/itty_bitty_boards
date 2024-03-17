@@ -4,7 +4,6 @@ module API
         skip_before_action :authenticate_token!, only: [:create, :sign_up, :current, :destroy]
 
         def sign_up
-          puts "SIGN UP params: #{params.inspect}"
           if params['auth'] && params['auth']['first_name'] && params['auth']['last_name']
             name = params['auth']['first_name'] + " " + params['auth']['last_name']
           elsif params['auth'] && params['auth']['name']
@@ -16,18 +15,23 @@ module API
           if user.save
             render json: {token: user.authentication_token, user: user}
           else
+            puts "\n***\nUser Errors: #{user.errors.full_messages.join(", ")}"
             render json: {error: user.errors.full_messages.join(", ")}, status: :unprocessable_entity
           end
         end
   
         def create
-          puts "SIGN IN params: #{params.inspect}"
           if (user = User.valid_credentials?(params[:email], params[:password]))
             sign_in user
             render json: {token: user.authentication_token, user: user}
           else
             render json: {error: error_message}, status: :unauthorized
           end
+        end
+
+        def forgot_password
+          current_user.send_reset_password_instructions
+          render json: {message: "Reset password instructions sent to your email", status: :ok}
         end
 
         def current
