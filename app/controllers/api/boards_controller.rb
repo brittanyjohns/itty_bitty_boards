@@ -60,25 +60,6 @@ class API::BoardsController < API::ApplicationController
     render json: @remaining_images
   end
 
-  # def fullscreen
-  # end
-
-  # def locked
-  # end
-
-  # # GET /boards/new
-  # def new
-  #   @board = Board.new
-  #   @board.user = current_user
-  #   @board.parent_id = params[:parent_id]
-  #   @board.parent_type = params[:parent_type]
-  #   @openai_prompt = OpenaiPrompt.new
-  # end
-
-  # # GET /boards/1/edit
-  # def edit
-  # end
-
   # POST /boards or /boards.json
   def create
     puts "API::BoardsController#create: #{board_params.inspect}"
@@ -96,13 +77,6 @@ class API::BoardsController < API::ApplicationController
       end
     end
   end
-
-  # def update_grid
-  #   @board = Board.find(params[:id])
-  #   @board.number_of_columns = params[:number_of_columns]
-  #   @board.save!
-  #   render json: { status: "ok", data: { number_of_columns: @board.number_of_columns } }
-  # end
 
   # PATCH/PUT /boards/1 or /boards/1.json
   def update

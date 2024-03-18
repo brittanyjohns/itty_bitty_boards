@@ -80,11 +80,18 @@ class API::ImagesController < API::ApplicationController
     end
   end
 
+  def new
+    @image = Image.new
+    puts "API::ImagesController#new image_params: #{image_params} - params: #{params}"
+  end
+
   def generate
     if !params[:id].blank?
       @image = Image.find(params[:id])
     else
-      @image = Image.find_or_create_by(label: params[:image_prompt], user_id: current_user.id, private: false)
+      label = image_params[:label].present? ? image_params[:label].downcase : image_params[:image_prompt]
+      puts "Label: #{label}"
+      @image = Image.find_or_create_by(label: label, user_id: current_user.id, private: false)
     end
     @image.update(status: "generating")
     image_prompt = "An image of #{@image.label}."
