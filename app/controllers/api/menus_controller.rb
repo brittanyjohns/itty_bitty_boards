@@ -21,16 +21,24 @@ class API::MenusController < API::ApplicationController
     @new_menu_doc = Doc.new
     @new_menu_doc.documentable = @menu
     @board = @menu.boards.last
+    @board_images = @board.images.map do |image|
+      {
+        id: image.id,
+        label: image.label, 
+        src: image.display_image(current_user) ? image.display_image(current_user).url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+        audio: image.audio_files.first ? image.audio_files.first.url : nil
+      }
+    end
     @menu_with_display_doc = {
       id: @menu.id,
       name: @menu.name,
       description: @menu.description,
       boardId: @board.id,
+      images: @board_images,
       displayImage: @menu.docs.last.image.url
     }
     render json: @menu_with_display_doc
   end
-
   # GET /menus/new
   def new
     @menu = current_user.menus.new

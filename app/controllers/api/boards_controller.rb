@@ -160,6 +160,10 @@ class API::BoardsController < API::ApplicationController
   end
 
   def remove_image
+    if @board.predefined && !current_user.admin?
+      render json: { error: "Cannot remove images from predefined boards" }, status: :unprocessable_entity
+      return
+    end
     @image = Image.find(params[:image_id])
     @board.images.delete(@image)
     @board.reload
