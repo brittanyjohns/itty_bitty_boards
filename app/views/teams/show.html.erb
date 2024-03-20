@@ -1,0 +1,31 @@
+
+
+<div class="py-2 px-4 h-screen">
+    <p>
+    <strong>Created by:</strong>
+    <%= @team.created_by.name || @team.created_by.email %>
+  </p>
+
+  <h1 class="text-3xl font-bold text-blue-600 mb-6 text-center">New team</h1>
+  <%= render @team %>
+<div class="my-2 p-2">
+  <h2>Members</h2>
+  <ul>
+    <% @team.team_users.each do |member| %>
+      <li>
+        <%= member.name || member.email %>
+        <span class="text-gray-600">(<%= member.role %>)</span>
+      </li>
+    <% end %>
+  </ul>
+
+<%= render 'invite_form', team: @team %>
+<div>
+  <%= link_to "Edit this team", edit_team_path(@team) %> |
+  <%= link_to "Back to teams", teams_path %>
+
+</div>
+  <div class="mt-6 text-center">
+    <%= link_to "Back to teams", teams_path, class: "text-blue-600 hover:text-blue-800 underline" %>
+  </div>
+</div>

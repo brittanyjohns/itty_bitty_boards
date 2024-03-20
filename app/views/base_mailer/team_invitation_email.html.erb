@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style type="text/css">
+    /* Add some basic styles to ensure the email is responsive and looks good on most email clients. */
+    body { font-family: 'Arial', sans-serif; font-size: 16px; color: #333; }
+    .container { max-width: 600px; margin: auto; padding: 20px; }
+    .header { background-color: #f3f3f3; padding: 10px; text-align: center; }
+    .content { background-color: #ffffff; padding: 20px; }
+    .footer { background-color: #f3f3f3; padding: 10px; text-align: center; font-size: 12px; }
+    .button { background-color: #007bff; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>Welcome to Our Platform!</h2>
+    </div>
+    <div class="content">
+      <p>Hello <%= @invitee_name %>,</p>
+      <p>You have been invited by <%= @inviter_name %> to join the team "<%= @team_name %>" on our platform. We're excited to have you on board and look forward to seeing the contributions you will make.</p>
+      <p>To accept this invitation and start collaborating with your team, please click the button below:</p>
+      <p style="text-align: center;"><a href="<%= @invitation_link %>" class="button">Accept Invitation</a></p>
+      <p>If you have any questions or need help getting started, feel free to contact our support team.</p>
+      <p>Warm regards,<br>The Team at Our Platform</p>
+    </div>
+    <div class="footer">
+      <p>This is an automated message. Please do not reply directly to this email.</p>
+    </div>
+  </div>
+</body>
+</html>

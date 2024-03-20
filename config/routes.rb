@@ -1,6 +1,12 @@
 require 'sidekiq/web'
 
 Rails.application.routes.draw do
+  resources :teams do
+    member do
+      post "invite"
+      get "accept_invite"
+    end
+  end
   resources :beta_requests
   post '/beta_signup', to: 'beta_requests#create', as: :beta_signup
 

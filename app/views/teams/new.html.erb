@@ -1,0 +1,7 @@
+<div class="py-2 px-4 h-screen">
+  <h1 class="text-3xl font-bold text-blue-600 mb-6 text-center">New team</h1>
+  <%= render "form", team: @team %>
+  <div class="mt-6 text-center">
+    <%= link_to "Back to teams", teams_path, class: "text-blue-600 hover:text-blue-800 underline" %>
+  </div>
+</div>

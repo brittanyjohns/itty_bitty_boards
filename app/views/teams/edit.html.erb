@@ -1,0 +1,12 @@
+<h1>Editing team</h1>
+
+<%= render "form", team: @team %>
+
+<br>
+
+<div>
+    <%= button_to "Destroy this team", @team, method: :delete %>
+
+  <%= link_to "Show this team", @team %> |
+  <%= link_to "Back to teams", teams_path %>
+</div>

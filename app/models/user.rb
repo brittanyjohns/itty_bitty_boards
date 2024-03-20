@@ -32,7 +32,7 @@ class User < ApplicationRecord
   # :confirmable, :lockable, :timeoutable, :trackable and :omniauthable
   include Devise::JWT::RevocationStrategies::JTIMatcher
   devise :database_authenticatable, :registerable,
-         :recoverable, :rememberable, :validatable,
+         :recoverable, :rememberable, :validatable, :invitable,
          :jwt_authenticatable, jwt_revocation_strategy: self
   has_many :user_docs, dependent: :destroy
   has_many :favorite_docs, through: :user_docs, class_name: 'Doc', source: :doc
@@ -47,6 +47,12 @@ class User < ApplicationRecord
 
   def self.default_admin
     User.find(DEFAULT_ADMIN_ID)
+  end
+
+  def invite_to_team!(team, inviter)
+    puts "Inviting user to team"
+    result = BaseMailer.team_invitation_email(self, inviter, team).deliver_now
+    puts "Email sent: #{result}"
   end
 
   def add_welcome_tokens
