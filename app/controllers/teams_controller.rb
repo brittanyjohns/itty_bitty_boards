@@ -1,4 +1,5 @@
 class TeamsController < ApplicationController
+  before_action :authenticate_user!, except: %i[ accept_invite ]
   before_action :set_team, only: %i[ show edit update destroy ]
 
   # GET /teams or /teams.json
@@ -21,19 +22,16 @@ class TeamsController < ApplicationController
   end
 
   def invite
-    puts "\n\nINVITE\n\n"
-    puts "PArms: #{params}\n\n"
     user_email = team_user_params[:email]
-    puts "User Email: #{user_email}"
     @team = Team.find(params[:id])
     @user = User.find_by(email: user_email)
     if @user
-      puts "User found - inviting to team: #{@team.name}"
       @user.invite_to_team!(@team, current_user)
     else
       puts "User not found"
       @user = User.invite!({ email: user_email }, current_user)
     end
+    puts "User: #{@user}"
     
     @team_user = @team.add_member!(@user)
     puts "Team User: #{@team_user.inspect}"

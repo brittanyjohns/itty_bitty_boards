@@ -50,7 +50,7 @@ class User < ApplicationRecord
   end
 
   def invite_to_team!(team, inviter)
-    puts "Inviting user to team"
+    puts "Inviting user to team: #{self.raw_invitation_token}"
     result = BaseMailer.team_invitation_email(self, inviter, team).deliver_now
     puts "Email sent: #{result}"
   end
