@@ -22,7 +22,9 @@ class TeamsController < ApplicationController
   end
 
   def invite
+    puts "team_board_params: #{team_user_params.inspect}"
     user_email = team_user_params[:email]
+    user_role = team_user_params[:role]
     @team = Team.find(params[:id])
     @user = User.find_by(email: user_email)
     if @user
@@ -31,9 +33,9 @@ class TeamsController < ApplicationController
       puts "User not found"
       @user = User.invite!({ email: user_email }, current_user)
     end
-    puts "User: #{@user}"
+    puts "role: #{user_role}"
     
-    @team_user = @team.add_member!(@user)
+    @team_user = @team.add_member!(@user, user_role)
     puts "Team User: #{@team_user.inspect}"
     respond_to do |format|
       if @team_user.save
@@ -65,6 +67,23 @@ class TeamsController < ApplicationController
 
   def accept_invite
     @team = Team.find(params[:id])
+    @user = User.find_by(email: params[:email])
+    @team_user = TeamUser.find_by(user_id: @user.id, team_id: @team.id)
+  end
+
+  def accept_invite_patch
+    @team = Team.find(params[:id])
+    @user = User.find_by(email: team_user_params[:email])
+    @team_user = TeamUser.find_by(user_id: @user.id, team_id: @team.id)
+    @team_user.accept_invitation!
+    redirect_to team_url(@team)
+  end
+
+  def add_board
+    @team = Team.find(params[:id])
+    @board = Board.find(params[:board_id])
+    @team.add_board!(@board)
+    redirect_to team_url(@team), notice: "Board added to team"
   end
 
   # PATCH/PUT /teams/1 or /teams/1.json
@@ -97,11 +116,11 @@ class TeamsController < ApplicationController
     end
 
     def team_user_params
-      params.require(:team_user).permit(:email)
+      params.require(:team_user).permit(:email, :role)
     end
 
     # Only allow a list of trusted parameters through.
     def team_params
-      params.require(:team).permit(:name, :created_by)
+      params.require(:team).permit(:name)
     end
 end

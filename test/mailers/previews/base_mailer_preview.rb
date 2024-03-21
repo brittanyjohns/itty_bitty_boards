@@ -1,4 +1,9 @@
-# Preview all emails at http://localhost:3000/rails/mailers/base_mailer
+# Preview all emails at http://localhost:4000/rails/mailers/base_mailer
 class BaseMailerPreview < ActionMailer::Preview
-
+def team_invitation
+    team = Team.first
+    inviter = team.created_by
+    invitee = User.find(34)
+    result = BaseMailer.team_invitation_email(invitee, inviter, team).deliver_now
+  end
 end

@@ -1,0 +1,10 @@
+<p style="color: green"><%= notice %></p>
+
+<%= render @team_user %>
+
+<div>
+  <%= link_to "Edit this team user", edit_team_user_path(@team_user) %> |
+  <%= link_to "Back to team users", team_users_path %>
+
+  <%= button_to "Destroy this team user", @team_user, method: :delete %>
+</div>

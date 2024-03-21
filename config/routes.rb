@@ -1,10 +1,14 @@
 require 'sidekiq/web'
 
 Rails.application.routes.draw do
+  resources :team_boards
+  resources :team_users
   resources :teams do
     member do
       post "invite"
       get "accept_invite"
+      patch "accept_invite_patch"
+      post "add_board"
     end
   end
   resources :beta_requests

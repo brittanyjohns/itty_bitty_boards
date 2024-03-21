@@ -1,31 +1,36 @@
 
 
-<div class="py-2 px-4 h-screen">
-    <p>
-    <strong>Created by:</strong>
-    <%= @team.created_by.name || @team.created_by.email %>
-  </p>
+<div class="flex justify-center min-h-screen bg-gray-100">
+  <div class="w-1/2 mx-auto">
+    <h1 class="text-3xl font-bold text-center mb-4"><%= @team.name %></h1>
+    <div class="my-2 p-2 w-1/4 mx-auto">
+      <h2>Boards</h2>
+      <ul>
+        <% @team.boards.each do |board| %>
+          <li>
+            <%= link_to board.name, board %>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+    <%= link_to "New board", new_team_board_path(team_id: @team.id), class: "p-2 bg-blue-500 text-white" %>
+  </div>
 
-  <h1 class="text-3xl font-bold text-blue-600 mb-6 text-center">New team</h1>
-  <%= render @team %>
-<div class="my-2 p-2">
+<div class="my-2 p-2 w-1/4 mx-auto">
   <h2>Members</h2>
   <ul>
     <% @team.team_users.each do |member| %>
-      <li>
+      <li class="flex justify-between">
         <%= member.name || member.email %>
         <span class="text-gray-600">(<%= member.role %>)</span>
+        <span><%= member.invitation_accepted_at %></span>
+        <% if member.user_id == current_user.id %>
+          <%= link_to "Leave team", team_user_path(member), method: :delete, data: { turbo_confirm: "Are you sure?" }, class: "text-red-600 ml-10" %>
+        <% end %>
       </li>
     <% end %>
   </ul>
 
 <%= render 'invite_form', team: @team %>
-<div>
-  <%= link_to "Edit this team", edit_team_path(@team) %> |
-  <%= link_to "Back to teams", teams_path %>
 
-</div>
-  <div class="mt-6 text-center">
-    <%= link_to "Back to teams", teams_path, class: "text-blue-600 hover:text-blue-800 underline" %>
-  </div>
 </div>

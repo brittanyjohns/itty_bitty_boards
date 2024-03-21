@@ -2,13 +2,14 @@
 
 <h1>Teams</h1>
 
-<div id="teams">
-  <% @teams.each do |team| %>
-    <%= render team %>
-    <p>
-      <%= link_to "Show this team", team %>
-    </p>
-  <% end %>
+<div id="teams" class="w-1/2 mx-auto">
+  <ul class="font-bold p-2 border-2 border-blue-500">
+    <% @teams.each do |team| %>
+      <li class="p-2 border-b-2 border-blue-500">
+        <%= link_to team.name, team %>
+      </li>
+    <% end %>
+  </ul>
 </div>
 
-<%= link_to "New team", new_team_path %>
+<%= link_to "New team", new_team_path, class: "p-2 bg-blue-500 text-white" %>

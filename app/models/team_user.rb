@@ -9,4 +9,13 @@ class TeamUser < ApplicationRecord
   def name
     user&.name
   end
+
+  def accept_invitation!
+    self.invitation_accepted_at = Time.now
+    self.save
+  end
+
+  def self.roles
+    { 'admin' => 'Admin', 'member' => 'Member'}
+  end
 end

@@ -1,16 +1,19 @@
-<p style="color: green"><%= notice %></p>
+<div class="w-5/6 mx-auto">
+      <% if @team_user %>
 
-<%= render @team %>
-<div class="my-2 p-2">
-  <h2>Members</h2>
-  <ul>
-    <% @team.users.each do |member| %>
-      <li><%= member.name %></li>
+    <h1 class="text-3xl font-bold text-center mb-4">Accept Team Invitation</h1>
+
+  <div class="mb-4 w-1/2 mx-auto">
+    <%= simple_form_for(@team_user, url: accept_invite_patch_team_path(@team)) do |f| %>
+      <%= f.error_notification %>
+      <%= f.error_notification message: f.object.errors[:base].to_sentence if f.object&.errors[:base].present? %>
+
+      <%= f.input_field :email, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full", required: true %>
+      <%= f.button :submit, "Invite", class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" %>
     <% end %>
-  </ul>
+  </div>
+    <% else %>
 
-<div>
-  <%= link_to "Edit this team", edit_team_path(@team) %> |
-  <%= link_to "Back to teams", teams_path %>
-
+      <p class="text-center">You are not authorized to view this page.</p>
+    <% end %>
 </div>

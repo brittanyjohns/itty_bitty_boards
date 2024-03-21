@@ -8,7 +8,7 @@ class BaseMailer < ApplicationMailer
         @invitation_link = accept_team_invitation_url(invitation_token: invitee.raw_invitation_token, team_id: team.id)
       else
         puts "Invitee does not have a token"
-        @invitation_link = url_for(controller: 'teams', action: 'accept_invite', id: team.id)
+        @invitation_link = url_for(controller: 'teams', action: 'accept_invite', id: team.id, email: invitee.email)
       end
       puts "Invitation link: #{@invitation_link}"
       @invitee = invitee

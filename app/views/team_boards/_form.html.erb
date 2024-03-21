@@ -1,0 +1,7 @@
+<%= form_with(url: add_board_team_path(@team)) do |f| %>
+  <div class="mb-4 w-1/2 mx-auto">
+    <%= f.select :board_id, @boards.map { |b| [b.name, b.id] }, {}, class: "block appearance-none w-full bg-white border border-gray-400 hover:border-gray-500 px-4 py-2 pr-8 rounded shadow leading-tight focus:outline-none focus:shadow-outline" %>
+  <div class="mb-4 w-1/2 mx-auto">
+    <%= f.button :submit, class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" %>
+  </div>
+<% end %>
