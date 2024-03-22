@@ -27,7 +27,7 @@ class ApplicationController < ActionController::Base
 
   before_action :configure_permitted_parameters, if: :devise_controller?
   helper_method :current_order
-  before_action :set_categories, :set_teams
+  before_action :set_categories, :set_teams, :set_current_team
 
   before_action :authenticate_user!, only: [:current_order]
 
@@ -44,6 +44,10 @@ class ApplicationController < ActionController::Base
     # end
     # team
   end
+
+  def set_current_team
+    @current_team ||= current_team
+  end    
 
   def current_order
     return nil if current_user.nil?

@@ -86,9 +86,7 @@ class Image < ApplicationRecord
     file = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label.parameterize}_#{voice}_#{id}.aac").first
     if file
       file
-      puts "\n\n Found audio file: #{file.inspect}\n\n"
     else
-      puts "No audio file found for voice: #{voice} - #{label} - #{id}"
       # create_audio_from_text(label, voice)
       # start_generate_audio_job(voice)
       begin
@@ -96,7 +94,6 @@ class Image < ApplicationRecord
       rescue => e
         puts "Error getting audio for voice: #{e.message}\n\n#{e.backtrace.join("\n")}"
       end
-      puts "\n\n Starting generate audio job for voice: #{voice}\n\n"
       # file = audio_files.last
       puts "\n\n Created audio file: #{file.inspect}\n\n"
     end
@@ -106,7 +103,6 @@ class Image < ApplicationRecord
   def get_voice_for_board(board)
     return unless board
     voice = board_images.find_by(board_id: board.id).voice
-    puts "\n\n GETTING VOICE FOR BOARD: #{board.id} - #{voice}\n\n"
     get_audio_for_voice(voice)
   end
 

@@ -24,19 +24,19 @@ class BoardPolicy < ApplicationPolicy
   def show?
     return true if user.admin?
     return true if record.user == user
-    user.team_boards.joins(:board).where(board_id: record.id).first
+    user.team_boards.joins(:board).where(board_id: record.id).any?
   end
 
   def edit?
     return true if user.admin?
     return true if record.user == user
-    record.users.where(id: user.id).exists?
+    user.current_team_boards.include?(record)
   end
 
   def update?
     return true if user.admin?
     return true if record.user == user
-    record.users.where(id: user.id).exists?
+    user.current_team_boards.include?(record)
   end
 
   def current_user_teams

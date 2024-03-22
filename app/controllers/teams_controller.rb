@@ -94,6 +94,13 @@ class TeamsController < ApplicationController
     redirect_to team_url(@team), notice: "Board added to team"
   end
 
+  def remove_board
+    @team = Team.find(params[:id])
+    @board = Board.find(params[:board_id])
+    @team.remove_board!(@board)
+    redirect_to team_url(@team), notice: "Board removed from team"
+  end
+
   # PATCH/PUT /teams/1 or /teams/1.json
   def update
     respond_to do |format|

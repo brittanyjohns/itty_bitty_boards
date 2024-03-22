@@ -15,6 +15,10 @@ module IconHelper
         "<i class='fa-solid fa-user fa-lg'}></i>".html_safe
     end
 
+    def team_nav(tooltip_text = "Dashboard")
+        "<i class='fa-solid fa-users fa-lg'}></i>".html_safe
+    end
+
     def copy_nav(tooltip_text = "Copy")
         "<i class='fa-solid fa-copy fa-lg'></i>".html_safe
     end

@@ -1,0 +1,17 @@
+  <% if board.predefined? %>
+    <%= link_to show_predefined_path(board), data: { turbo_frame: "_top" } do %>
+    <li class="p-2 md:p-3 mb-4 flex justify-between items-center bg-white rounded-lg shadow border border-gray-200 transform hover:translate-y-1 transition duration-150 ease-in-out" id=<%= dom_id(board) %>>
+      <span class="text-lg md:text-xl font-medium text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out"><%= board.name %></span>
+    </li>
+    <% end %>
+  <% else %>
+      <li class="p-2 md:p-3 mb-4 flex justify-between items-center bg-white rounded-lg shadow border border-gray-200 transform hover:translate-y-1 transition duration-150 ease-in-out" id=<%= dom_id(board) %>>
+      <span class="text-lg md:text-xl font-medium text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out"><%=  link_to board.name, board %></span>
+      <% if board.user_id == current_user.id %>
+       <%= button_to trash_nav, remove_board_team_path(@team, board_id: board.id), method: :delete, data: { turbo_confirm: "Are you sure?" }, class: "text-red-600 hover:text-red-800" %>
+       <% else %>
+          <span class="text-lg md:text-xl font-medium text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out"><%= board.user.display_name %></span>
+      <% end %>
+      </li>
+
+  <% end %>

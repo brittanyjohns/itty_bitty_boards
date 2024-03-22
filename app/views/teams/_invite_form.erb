@@ -2,10 +2,10 @@
 <%= simple_form_for(@team_user, url: invite_team_path(team)) do |f| %>
   <%= f.error_notification %>
   <%= f.error_notification message: f.object.errors[:base].to_sentence if f.object&.errors[:base].present? %>
-
-  <div class="mb-4 w-1/2 mx-auto">
-    <%= f.input_field :email, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline inline", required: true, placeholder: "Email" %>
-    <%= f.input_field :role, collection: TeamUser.roles.keys, prompt: "Role", class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline inline", required: true %>
-    <%= f.button :submit, "Invite", class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-2 rounded focus:outline-none focus:shadow-outline inline" %>
+  <p class="text-center text-gray-700 text-lg font-bold">Invite a new member</p>
+  <div class="mt-4 flex justify-center">
+    <%= f.input_field :email, class: "mx-1 shadow appearance-none border rounded py-1 px-1 text-gray-700 leading-tight focus:outline-none focus:shadow-outline inline", required: true, placeholder: "Email" %>
+    <%= f.input_field :role, collection: TeamUser.roles.keys, prompt: "Role", class: "shadow appearance-none border rounded py-2 px-1 text-gray-700 leading-tight focus:outline-none focus:shadow-outline inline", required: true %>
+    <%= f.button :submit, "Invite", class: "ml-1 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-2 rounded focus:outline-none focus:shadow-outline inline" %>
   </div>
 <% end %>

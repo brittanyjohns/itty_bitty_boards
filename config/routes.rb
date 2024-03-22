@@ -12,6 +12,7 @@ Rails.application.routes.draw do
       get "accept_invite"
       patch "accept_invite_patch"
       post "add_board"
+      delete "remove_board"
     end
   end
   resources :beta_requests

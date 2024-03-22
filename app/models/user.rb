@@ -39,7 +39,15 @@ class User < ApplicationRecord
   has_many :favorite_docs, through: :user_docs, class_name: 'Doc', source: :doc
   has_many :team_users
   has_many :teams, through: :team_users
-  has_many :team_boards, through: :teams, source: :team_boards
+  # has_many :team_boards, through: :teams, source: :team_boards
+
+  def team_boards
+    TeamBoard.where(team_id: teams.pluck(:id))
+  end
+
+  def current_team_boards
+    TeamBoard.where(team_id: current_team_id)
+  end
 
   has_secure_token :authentication_token
 
@@ -110,4 +118,7 @@ class User < ApplicationRecord
     user&.valid_password?(password) ? user : nil
   end
 
+  def display_name
+    name || email
+  end
 end

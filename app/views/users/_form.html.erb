@@ -1,0 +1,12 @@
+
+<%= simple_form_for(@user) do |f| %>
+  <div class="p-3 mb-4">
+    <%= f.input_field :name, label: "Name", class: "w-full md:w-1/2 border border-gray-300 p-2 rounded-md", placeholder: "Full name" %>
+  </div>
+
+
+
+  <div class="flex justify-end items-center">
+    <%= f.button :submit, "Save", class: "py-2 px-4 bg-purple-600 text-white rounded-md text-lg hover:bg-purple-700 transition duration-150 ease-in-out" %>
+  </div>
+<% end %>

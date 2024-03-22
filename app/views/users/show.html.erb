@@ -1,6 +1,6 @@
 <div class="container mx-auto p-3 bg-white rounded-lg shadow-xl mb-6 pb-6">
   <div class="flex justify-between items-center border-b pb-4">
-    <%= link_to 'Edit Profile', edit_user_registration_path, class: "text-indigo-600 hover:text-indigo-900 font-semibold m-1" %>
+    <%= link_to 'Edit Profile', edit_user_path(@user), class: "text-indigo-600 hover:text-indigo-900 font-semibold m-1" %>
         <h1 class="text-2xl font-semibold text-gray-800">User Profile</h1>
 
     <%= link_to welcome_path, class: "inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-center" do %>
@@ -15,7 +15,7 @@
     <%= link_to "Images", images_path, class: "hover:text-blue-300 my-auto px-5" %>
     <div class="">
     <%= render "teams/set_current" %>
-    <%= render "current_team", current_team: current_user.current_team if current_user.current_team %>
+    <%= render "current_team", current_team: @user.current_team if current_user.current_team && policy(@user.current_team).show? %>
     </div>
   </div>
 

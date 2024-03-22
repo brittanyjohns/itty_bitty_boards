@@ -40,5 +40,11 @@ class Team < ApplicationRecord
         end
         team_board
     end
+
+    def remove_board!(board)
+        puts "Removing board from team: #{board&.name}"
+        team_board = team_boards.find_by(board: board)
+        team_board.destroy if team_board
+    end
     
 end
