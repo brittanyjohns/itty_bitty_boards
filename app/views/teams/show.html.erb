@@ -1,36 +1,48 @@
 
-
-<div class="flex justify-center min-h-screen bg-gray-100">
-  <div class="w-1/2 mx-auto">
-    <h1 class="text-3xl font-bold text-center mb-4"><%= @team.name %></h1>
-    <div class="my-2 p-2 w-1/4 mx-auto">
-      <h2>Boards</h2>
-      <ul>
-        <% @team.boards.each do |board| %>
-          <li>
-            <%= link_to board.name, board %>
-          </li>
-        <% end %>
+<div class="flex justify-around my-auto mb-8">
+    <h1 class="text-3xl font-bold text-center"><%= @team.name %></h1>
+    <%= link_to "Share a board", new_team_board_path(team_id: @team.id), class: "p-2 bg-blue-500 text-white rounded-md" if policy(@team).add_board? %>
+</div>
+<div class="grid grid-cols-2 gap-1">
+  <div class="">
+      <h2>
+        Boards</h2>
+      <ul class="list-none p-0 mt-3 h-80 md:h-128 overflow-scroll" id="boards">
+        <%= render @team.boards.order(name: :asc) %>
       </ul>
-    </div>
-    <%= link_to "New board", new_team_board_path(team_id: @team.id), class: "p-2 bg-blue-500 text-white" %>
   </div>
 
-<div class="my-2 p-2 w-1/4 mx-auto">
-  <h2>Members</h2>
-  <ul>
-    <% @team.team_users.each do |member| %>
-      <li class="flex justify-between">
-        <%= member.name || member.email %>
-        <span class="text-gray-600">(<%= member.role %>)</span>
-        <span><%= member.invitation_accepted_at %></span>
-        <% if member.user_id == current_user.id %>
-          <%= link_to "Leave team", team_user_path(member), method: :delete, data: { turbo_confirm: "Are you sure?" }, class: "text-red-600 ml-10" %>
+  <div class="flex justify-center">
+  <div class="p-3 w-full">
+    <table class="w-full bg-white mb-4">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">ID</th>
+          <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600"> Name</th>
+          <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Role</th>
+          <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Invite Accepted</th>
+        </tr>
+      </thead>
+      <tbody class="text-gray-700">
+        <% @team.team_users.order(created_at: :desc).each do |member| %>
+          <tr class="border-b border-gray-200 hover:bg-gray-100">
+            <td class="text-left py-3 px-4"><%= member.id %></td>
+            <td class="text-left py-3 px-4"><%= member.name || member.email %></td>
+            <td class="text-left py-3 px-4"><%= member.role %></td>
+            <td class="text-right py-3 px-4">
+              <% if member.user_id == current_user.id %>
+                <%= link_to "Leave team", team_user_path(member), method: :delete, data: { turbo_confirm: "Are you sure?" }, class: "text-red-600 ml-10" %>
+              <% end %>
+              <%= time_ago_in_words(member.invitation_accepted_at) if member.invitation_accepted_at %>
+            </td>
+          </tr>
         <% end %>
-      </li>
-    <% end %>
-  </ul>
+      </tbody>
+    </table>
+        <%= render 'invite_form', team: @team  if policy(@team).update? %>
 
-<%= render 'invite_form', team: @team %>
+  </div>
+</div>
 
+  
 </div>

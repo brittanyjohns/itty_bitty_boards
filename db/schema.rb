@@ -384,7 +384,9 @@ ActiveRecord::Schema[7.1].define(version: 2024_03_21_191842) do
     t.integer "invitation_limit"
     t.integer "invited_by_id"
     t.string "invited_by_type"
+    t.bigint "current_team_id"
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
+    t.index ["current_team_id"], name: "index_users_on_current_team_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["invitation_token"], name: "index_users_on_invitation_token", unique: true
     t.index ["jti"], name: "index_users_on_jti", unique: true

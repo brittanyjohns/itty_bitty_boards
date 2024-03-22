@@ -4,15 +4,8 @@
   <%= f.error_notification message: f.object.errors[:base].to_sentence if f.object&.errors[:base].present? %>
 
   <div class="mb-4 w-1/2 mx-auto">
-    <p class="text-center">Invite a new member to <%= team.name %></p>
-    <%= f.input_field :email, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full", required: true, placeholder: "Email" %>
-  </div>
-
-  <div class="mb-4 w-1/2 mx-auto">
-    <%= f.input_field :role, collection: TeamUser.roles.keys, selected: "member", class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full", required: true %>
-  </div>
-
-  <div class="mb-4 w-1/2 mx-auto">
-    <%= f.button :submit, "Invite", class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" %>
+    <%= f.input_field :email, class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline inline", required: true, placeholder: "Email" %>
+    <%= f.input_field :role, collection: TeamUser.roles.keys, prompt: "Role", class: "shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline inline", required: true %>
+    <%= f.button :submit, "Invite", class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-2 rounded focus:outline-none focus:shadow-outline inline" %>
   </div>
 <% end %>

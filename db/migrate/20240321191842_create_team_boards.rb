@@ -9,5 +9,7 @@ class CreateTeamBoards < ActiveRecord::Migration[7.1]
       t.timestamps
     end
     add_column :team_users, :can_edit, :boolean, default: false
+    add_column :users, :current_team_id, :bigint
+    add_index :users, :current_team_id
   end
 end

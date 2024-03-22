@@ -28,6 +28,7 @@ class User < ApplicationRecord
   has_many :docs
   has_many :orders
   has_many :openai_prompts
+  belongs_to :current_team, class_name: 'Team', optional: true
   # Include default devise modules. Others available are:
   # :confirmable, :lockable, :timeoutable, :trackable and :omniauthable
   include Devise::JWT::RevocationStrategies::JTIMatcher
@@ -36,6 +37,9 @@ class User < ApplicationRecord
          :jwt_authenticatable, jwt_revocation_strategy: self
   has_many :user_docs, dependent: :destroy
   has_many :favorite_docs, through: :user_docs, class_name: 'Doc', source: :doc
+  has_many :team_users
+  has_many :teams, through: :team_users
+  has_many :team_boards, through: :teams, source: :team_boards
 
   has_secure_token :authentication_token
 

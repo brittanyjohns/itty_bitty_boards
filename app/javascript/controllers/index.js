@@ -13,6 +13,9 @@ application.register("disable", DisableController)
 import DropdownController from "./dropdown_controller"
 application.register("dropdown", DropdownController)
 
+import FullscreenController from "./fullscreen_controller"
+application.register("fullscreen", FullscreenController)
+
 import GenerateImageController from "./generate_image_controller"
 application.register("generate-image", GenerateImageController)
 
@@ -40,9 +43,6 @@ application.register("pwa--form", Pwa__FormController)
 import Pwa__SyncController from "./pwa/sync_controller"
 application.register("pwa--sync", Pwa__SyncController)
 
-import FullscreenController from "./fullscreen_controller"
-application.register("fullscreen", FullscreenController)
-
 import ResizeController from "./resize_controller"
 application.register("resize", ResizeController)
 
@@ -60,6 +60,9 @@ application.register("static-image", StaticImageController)
 
 import StripeController from "./stripe_controller"
 application.register("stripe", StripeController)
+
+import TeamsController from "./teams_controller"
+application.register("teams", TeamsController)
 
 import TooltipController from "./tooltip_controller"
 application.register("tooltip", TooltipController)

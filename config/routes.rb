@@ -4,6 +4,9 @@ Rails.application.routes.draw do
   resources :team_boards
   resources :team_users
   resources :teams do
+    collection do
+      post "set_current"
+    end
     member do
       post "invite"
       get "accept_invite"

@@ -88,21 +88,23 @@ class Image < ApplicationRecord
       file
       puts "\n\n Found audio file: #{file.inspect}\n\n"
     else
+      puts "No audio file found for voice: #{voice} - #{label} - #{id}"
       # create_audio_from_text(label, voice)
       # start_generate_audio_job(voice)
       begin
-        save_audio_file_to_s3!(voice)
+        # save_audio_file_to_s3!(voice)
       rescue => e
         puts "Error getting audio for voice: #{e.message}\n\n#{e.backtrace.join("\n")}"
       end
       puts "\n\n Starting generate audio job for voice: #{voice}\n\n"
-      file = audio_files.last
+      # file = audio_files.last
       puts "\n\n Created audio file: #{file.inspect}\n\n"
     end
     file
   end
 
   def get_voice_for_board(board)
+    return unless board
     voice = board_images.find_by(board_id: board.id).voice
     puts "\n\n GETTING VOICE FOR BOARD: #{board.id} - #{voice}\n\n"
     get_audio_for_voice(voice)

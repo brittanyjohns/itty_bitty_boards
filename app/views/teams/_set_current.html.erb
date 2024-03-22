@@ -1,0 +1,5 @@
+<div class="flex justify-around mt-5">
+  <%= form_with(url: set_current_teams_path, method: :post, data: {controller: "teams"}) do |f| %>
+    <%= f.collection_select :team_id, @teams, :id, :name, { prompt: "Select team" }, class: "p-1 rounded-md text-black", data: { action: "change->teams#setCurrent" } %>
+  <% end %>
+</div>

@@ -1,15 +1,23 @@
 class TeamsController < ApplicationController
   before_action :authenticate_user!, except: %i[ accept_invite ]
   before_action :set_team, only: %i[ show edit update destroy ]
+  after_action :verify_policy_scoped, only: :index
 
   # GET /teams or /teams.json
   def index
-    @teams = Team.all
+    @teams = policy_scope(Team)
   end
 
   # GET /teams/1 or /teams/1.json
   def show
     @team_user = TeamUser.new
+  end
+
+  def set_current
+    @team = policy_scope(Team).find(params[:team_id])
+    current_user.update!(current_team: @team)
+
+    redirect_to team_url(@team)
   end
 
   # GET /teams/new
@@ -112,7 +120,7 @@ class TeamsController < ApplicationController
   private
     # Use callbacks to share common setup or constraints between actions.
     def set_team
-      @team = Team.find(params[:id])
+      @team = policy_scope(Team).find(params[:id])
     end
 
     def team_user_params

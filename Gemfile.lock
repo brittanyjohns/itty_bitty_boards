@@ -267,6 +267,8 @@ GEM
     public_suffix (5.0.4)
     puma (6.4.2)
       nio4r (~> 2.0)
+    pundit (2.3.1)
+      activesupport (>= 3.0.0)
     racc (1.7.3)
     rack (3.0.9)
     rack-cors (2.0.1)
@@ -424,6 +426,7 @@ DEPENDENCIES
   pay (~> 7.0)
   pg (~> 1.1)
   puma (>= 5.0)
+  pundit (~> 2.3)
   rack-cors
   rails (~> 7.1.2)
   receipts (~> 2.0)

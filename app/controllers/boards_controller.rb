@@ -1,5 +1,6 @@
 class BoardsController < ApplicationController
   before_action :authenticate_user!, except: %i[ locked ]
+  after_action :verify_policy_scoped, only: :index
 
   before_action :set_board, only: %i[ show edit update destroy build add_multiple_images associate_image remove_image fullscreen locked ]
   layout "fullscreen", only: [:fullscreen]
@@ -7,21 +8,23 @@ class BoardsController < ApplicationController
 
   # GET /boards or /boards.json
   def index
+    @boards = policy_scope(Board)
     if params[:query].present?
       @query = params[:query]
-      @boards = current_user.boards.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc).page(params[:page]).per(20)
+      @boards = @boards.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc).page(params[:page]).per(20)
       @predefined_boards = Board.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc).page(params[:page]).per(20)
     else
-      @boards = current_user.boards.order(created_at: :desc).page(params[:page]).per(20)
+      @boards = @boards.order(created_at: :desc).page(params[:page]).per(20)
       @predefined_boards = Board.predefined.order(created_at: :desc).page(params[:page]).per(20)
     end
   end
 
   # GET /boards/1 or /boards/1.json
   def show
-    unless current_user.admin? || current_user.id == @board.user_id
-      redirect_back_or_to root_url unless @board.predefined
-    end
+    authorize @board
+    # unless current_user.admin? || current_user.id == @board.user_id
+    #   redirect_back_or_to root_url unless @board.predefined
+    # end
   end
 
   def fullscreen
@@ -41,6 +44,7 @@ class BoardsController < ApplicationController
 
   # GET /boards/1/edit
   def edit
+    authorize @board
   end
 
   # POST /boards or /boards.json
