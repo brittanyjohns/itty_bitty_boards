@@ -35,14 +35,7 @@ class ApplicationController < ActionController::Base
 
   def current_team
     return nil if current_user.nil?
-    current_user.current_team
-    # if current_user.current_team.nil?
-    #   team = current_user.teams.first
-    #   current_user.update(current_team: team)
-    # else
-    #   team = current_user.current_team
-    # end
-    # team
+    current_user.current_team || current_user.teams.first
   end
 
   def set_current_team

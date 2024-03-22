@@ -1,5 +1,5 @@
 
-<%= simple_form_for(@beta_request, id: "beta_request_form", html: { class: "flex flex-col md:flex-row space-y-2 md:space-x-2" }) do |f| %>
+<%= simple_form_for(@beta_request, id: "beta_request_form", html: { class: "mt-4" }) do |f| %>
   <%= f.error_notification %>
   <%= f.error_notification message: f.object.errors[:base].to_sentence if f.object.errors[:base].present? %>
 

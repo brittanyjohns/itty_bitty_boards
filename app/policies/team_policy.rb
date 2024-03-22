@@ -6,7 +6,8 @@ class TeamPolicy < ApplicationPolicy
         end
     
         def resolve
-          if user.admin?
+          return [] unless user
+          if user&.admin?
             scope.all
           else
             scope.joins(:team_users).where(team_users: { user_id: user.id })
