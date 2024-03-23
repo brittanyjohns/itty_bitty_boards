@@ -11,6 +11,7 @@ class TeamsController < ApplicationController
   # GET /teams/1 or /teams/1.json
   def show
     @team_user = TeamUser.new
+    @team_creator = @team.created_by
   end
 
   def set_current
@@ -39,7 +40,6 @@ class TeamsController < ApplicationController
   end
 
   def invite
-    puts "team_board_params: #{team_user_params.inspect}"
     user_email = team_user_params[:email]
     user_role = team_user_params[:role]
     @team = Team.find(params[:id])
@@ -49,11 +49,9 @@ class TeamsController < ApplicationController
     else
       puts "User not found"
       @user = User.invite!({ email: user_email }, current_user)
-    end
-    puts "role: #{user_role}"
-    
+      puts "User created: #{@user}"
+    end    
     @team_user = @team.add_member!(@user, user_role)
-    puts "Team User: #{@team_user.inspect}"
     respond_to do |format|
       if @team_user.save
         format.html { redirect_to team_url(@team), notice: "Sent invite to #{user_email}" }

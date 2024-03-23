@@ -6,9 +6,9 @@ class ImagesController < ApplicationController
   # GET /images or /images.json
   def index
     if params[:user_images_only] == "1"
-      @images = Image.searchable_images_for(current_user, true).order(label: :asc).page params[:page]
+      @images = Image.searchable_images_for(current_user, true)
     else
-      @images = Image.searchable_images_for(current_user).order(label: :asc).page params[:page]
+      @images = Image.searchable_images_for(current_user)
     end
 
     if params[:query].present?

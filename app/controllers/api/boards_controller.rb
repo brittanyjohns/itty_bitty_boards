@@ -10,19 +10,20 @@ class API::BoardsController < API::ApplicationController
 
   # GET /boards or /boards.json
   def index
-    puts "CURRENT_USER: #{current_user.inspect}"
     if params[:query].present?
       @query = params[:query]
       @boards = current_user.boards.user_made.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
       @predefined_boards = current_user.boards.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
       @scenarios = current_user.boards.scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      @shared_with_me = current_user.current_team_boards.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
     else
       @boards = current_user.boards.user_made.order(created_at: :desc)
       @predefined_boards = Board.predefined.order(created_at: :desc)
       @scenarios = current_user.boards.scenarios.order(created_at: :desc)
+      @shared_with_me = current_user.current_team_boards.order(created_at: :desc)
     end
 
-    render json: { boards: @boards, predefined_boards: @predefined_boards, scenarios: @scenarios }
+    render json: { boards: @boards, predefined_boards: @predefined_boards, scenarios: @scenarios, shared_with_me: @shared_with_me }
   end
   # GET /boards/1 or /boards/1.json
   def show

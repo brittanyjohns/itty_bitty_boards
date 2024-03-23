@@ -53,6 +53,11 @@ class User < ApplicationRecord
     TeamBoard.where(team_id: current_team_id)
   end
 
+  def shared_with_me_boards
+    current_shared_board_ids = current_team_boards.pluck(:board_id)
+    Board.where(id: current_shared_board_ids)
+  end
+
   has_secure_token :authentication_token
 
   scope :admins, -> { where(role: 'admin') }

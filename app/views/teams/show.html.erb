@@ -30,13 +30,16 @@
           </tr>
         </thead>
         <tbody class="text-gray-700 rounded-md">
-          <% @team.team_users.order(created_at: :desc).each do |member| %>
+          <% @team.team_users.includes(:user).order(created_at: :desc).each do |member| %>
             <tr class="border-b border-gray-200 hover:bg-gray-100 rounded-md p-1">
               <td class="text-left py-3 px-1"><%= member.user.display_name %></td>
               <td class="text-left py-3 px-1"><%= member.role %></td>
               <td class="text-right py-3 px-1">
-                <% if member.user_id == current_user.id %>
-                  <%= link_to "Leave", team_user_path(member), method: :delete, data: { turbo_confirm: "Are you sure?" }, class: "text-red-600 ml-10" %>
+                <% if member.user_id == current_user.id && member.user_id != @team_creator.id %>
+                  <%= button_to "Leave", team_user_path(member), method: :delete, data: { turbo_confirm: "Are you sure?" }, class: "text-red-600 ml-10" %>
+                <% end %>
+                <% if member.user_id == current_user.id && member.user_id == @team_creator.id %>
+                  <%= button_to "Delete Team", team_path(@team), method: :delete, data: { turbo_confirm: "Are you sure want to delete this team? This cannot be undone?" }, class: "text-red-600 ml-10" %>
                 <% end %>
                 <%= time_ago_in_words(member.invitation_accepted_at) if member.invitation_accepted_at %>
               </td>
