@@ -12,6 +12,7 @@ class Team < ApplicationRecord
         user = created_by
         puts "Creating first user for team: #{user&.email}"
         TeamUser.create(team: self, user: user, role: 'admin', can_edit: true)
+        user.update(current_team: self)
     end
 
     def add_member!(user, role='member')
