@@ -1,6 +1,8 @@
 <div class="w-full h-full p-1">
   <div class="flex justify-around my-auto mb-8">
-      <h1 class="text-3xl font-bold text-center"><%= @team.name %></h1>
+      <h1 class="text-3xl font-bold text-center"><%= @team.name %>    </h1>
+      <h3>
+        <%= @team.created_by %></h3>
       <%= link_to "Share a board to this team", new_team_board_path(team_id: @team.id), class: "p-2 bg-blue-500 text-white rounded-md text-center" if policy(@team).add_board? %>
   </div>
   <div class="grid grid-cols-1 md:grid-cols-3 gap-1">
@@ -8,8 +10,8 @@
         <h2 class="text-xl font-semibold text-gray-700">
           Boards</h2>
         <ul class="list-none p-1 overflow-scroll" id="boards">
-          <% @team.boards.each do |board| %>
-            <%= render 'board', board: board, team_board: board.team_boards.find_by(team_id: @team.id) %>
+          <% @team.team_boards.each do |team_board| %>
+            <%= render 'board', board: team_board.board, team_board: team_board %>
           <% end %>
         </ul>
     </div>

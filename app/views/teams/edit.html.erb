@@ -5,7 +5,7 @@
 <br>
 
 <div>
-    <%= button_to "Destroy this team", @team, method: :delete %>
+    <%= button_to "Destroy this team", @team, method: :delete if policy(@team).destroy? %> |
 
   <%= link_to "Show this team", @team %> |
   <%= link_to "Back to teams", teams_path %>

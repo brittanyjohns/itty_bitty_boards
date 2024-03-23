@@ -41,6 +41,10 @@ class User < ApplicationRecord
   has_many :teams, through: :team_users
   # has_many :team_boards, through: :teams, source: :team_boards
 
+  def to_s
+    display_name
+  end
+
   def team_boards
     TeamBoard.where(team_id: teams.pluck(:id))
   end

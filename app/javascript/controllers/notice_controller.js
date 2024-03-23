@@ -19,7 +19,7 @@ export default class extends Controller {
     if (notice) {
       setTimeout(() => {
         notice.classList.add("hidden")
-      }, 3000)
+      }, 5000)
     }
   }
 

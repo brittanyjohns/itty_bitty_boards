@@ -1,6 +1,6 @@
 class TeamsController < ApplicationController
   before_action :authenticate_user!, except: %i[ accept_invite ]
-  before_action :set_team, only: %i[ show edit update destroy ]
+  before_action :set_team, only: %i[ show edit update destroy add_board remove_board ]
   after_action :verify_policy_scoped, only: :index
 
   # GET /teams or /teams.json
@@ -15,9 +15,18 @@ class TeamsController < ApplicationController
 
   def set_current
     @team = policy_scope(Team).find(params[:team_id])
-    current_user.update!(current_team: @team)
+    
 
-    redirect_to team_url(@team)
+    respond_to do |format|
+      if current_user.update(current_team: @team)
+        format.html { redirect_to team_url(@team), notice: "Your current team has been set to: #{current_user.current_team&.name}. You can change this at any time from your profile page." }
+        format.json { render :show, status: :ok, location: @team }
+      else
+        format.html { render :show, status: :unprocessable_entity }
+        format.json { render json: current_user.errors, status: :unprocessable_entity }
+      end
+    end
+
   end
 
   # GET /teams/new
@@ -59,7 +68,7 @@ class TeamsController < ApplicationController
   # POST /teams or /teams.json
   def create
     @team = Team.new
-    @team.name = team_params[:name]
+    @team.name = team_params[:name]&.upcase
     @team.created_by = current_user
 
     respond_to do |format|
@@ -88,14 +97,14 @@ class TeamsController < ApplicationController
   end
 
   def add_board
-    @team = Team.find(params[:id])
+    # @team = Team.find(params[:id])
     @board = Board.find(params[:board_id])
     @team.add_board!(@board)
     redirect_to team_url(@team), notice: "Board added to team"
   end
 
   def remove_board
-    @team = Team.find(params[:id])
+    # @team = Team.find(params[:id])
     @board = Board.find(params[:board_id])
     @team.remove_board!(@board)
     redirect_to team_url(@team), notice: "Board removed from team"

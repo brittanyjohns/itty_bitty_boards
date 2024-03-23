@@ -24,25 +24,49 @@ class TeamPolicy < ApplicationPolicy
 
   def show?
     return true if user.admin?
-    record == user.current_team
+    on_the_team?
   end
 
   def add_board?
     return true if user.admin?
-    record == user.current_team
+    on_the_team?
   end
 
   def edit?
     return true if user.admin?
-    record == user.current_team && team_user.can_edit?
+    can_edit?
   end
 
   def update?
     return true if user.admin?
-    record == user.current_team && team_user.can_edit?
+    can_edit?
   end
 
   def team_user
     TeamUser.where(user: user, team: record).first
+  end
+
+  def remove_team_user?
+    return true if user.admin?
+    return true if team_user && created_the_team?
+    false
+  end
+
+  def destroy?
+    return true if user.admin?
+    return true if created_the_team?
+    false
+  end
+
+  def can_edit?
+    on_the_team? && team_user.can_edit?
+  end
+
+  def created_the_team?
+    record.created_by == user
+  end
+
+  def on_the_team?
+    team_user && user.current_team == record
   end
 end
