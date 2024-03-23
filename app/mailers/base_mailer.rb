@@ -19,7 +19,9 @@ class BaseMailer < ApplicationMailer
       @team_name = @team.name
       
       subject = "You have been invited to join a team"
-      mail(to: @invitee.email, subject: subject)
+      mail_result = mail(to: @invitee.email, subject: subject)
+      puts "Mail result: #{mail_result.inspect}"
+      mail_result
     end
   
 end

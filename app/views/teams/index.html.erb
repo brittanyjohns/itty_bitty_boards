@@ -11,5 +11,5 @@
     <% end %>
   </ul>
 </div>
-<h1><%= current_user.current_team.name %>
+<h1><%= current_user.current_team&.name %>
 <%= link_to "New team", new_team_path, class: "p-2 bg-blue-500 text-white" %>
