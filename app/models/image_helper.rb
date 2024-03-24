@@ -46,7 +46,8 @@ module ImageHelper
       puts "*** ERROR *** Invaild Audio Response: #{response}" unless audio_file
       puts "Saved audio file: #{audio_file.class}"
       save_audio_file(audio_file, voice)
-      File.delete("output.aac")
+      file_exists = File.exist?("output.aac")
+      File.delete("output.aac") if file_exists
     else
       Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"
     end

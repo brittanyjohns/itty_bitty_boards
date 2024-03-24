@@ -10,7 +10,7 @@
     </h3>
     <div class="grid grid-cols-2 gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" id="audio_files">
 
-      <%= render "images/audio_form", image: @image if @image.missing_voices.any? && current_user.admin? %>
+      <%= render "images/audio_form", image: @image if @image.missing_voices.any? %>
 
       <% @image.audio_files.each do |audio_file| %>
         <div class="text-center m-2 p-3 bg-indigo-200 rounded-lg">

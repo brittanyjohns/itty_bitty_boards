@@ -69,4 +69,21 @@ module ImagesHelper
         str += "</div>"
         str.html_safe
       end
+
+      def get_audio_list_with_voice_names(audio_files)
+        str = "<div class='h-48 overflow-scroll'>"
+        # audio_files.map { |audio| audio.filename.to_s.split("_").second }
+        # audio_tag audio_file, controls: true, class: "my-2 flex flex-col audio-player"
+        
+        audio_files.each do |audio|
+          voice = audio.filename.to_s.split("_").second&.upcase
+          str += "<div class='flex justify-center mb-2'>"
+          str += "<p class='font-bold text-center my-auto mr-2'>#{voice}</p>"
+
+          str += audio_tag audio, controls: true, class: "flex flex-col audio-player"
+          str += "</div>"
+        end
+        str += "</div>"
+        str.html_safe
+      end
 end

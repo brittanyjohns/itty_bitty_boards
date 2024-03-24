@@ -6,17 +6,19 @@
     <%= link_to welcome_path, class: "inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-center" do %>
         Welcome Info
     <% end %>
-    <%= link_to "Add team", new_team_path, class: "inline-block bg-green-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-center", data: { intro: add_team_intro } %>
 
   </div>
   <div class="flex justify-around items-center border-b p-2">
-    <%= link_to "Menus", menus_path, class: "hover:text-blue-300 my-auto px-5" %>
-    <%= link_to "Boards", boards_path, class: "hover:text-blue-300 my-auto px-5" %>
-    <%= link_to "Images", images_path, class: "hover:text-blue-300 my-auto px-5" %>
-    <div class="">
-    <%= render "teams/set_current" %>
-    <%= render "current_team", current_team: @user.current_team if current_user.current_team && policy(@user.current_team).show? %>
+    <%= link_to "Add team", new_team_path, class: "inline-block bg-green-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-center", data: { intro: add_team_intro } %>
+      <% if @user.teams.count > 1 %>
+
+    <div class="text-center">
+      <h3 class="text-xl font-semibold text-gray-700">Switch Teams</h3>
+      <%= render "teams/set_current" %>
+      <%= render "current_team", current_team: @user.current_team if current_user.current_team && policy(@user.current_team).show? %>
     </div>
+          <% end %>
+
   </div>
 
   <div data-intro="<%= account_details_intro %>" class="mt-6">

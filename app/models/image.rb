@@ -46,9 +46,35 @@ class Image < ApplicationRecord
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
   scope :skipped, -> { where(open_symbol_status: "skipped") }
 
+  # after_create :create_voice_audio_files
+  after_save :start_create_all_audio_job, if :should_create_audio_files?
+
   def create_image_doc(user_id = nil)
     response = create_image(user_id)
     # self.image_prompt = prompt_to_send
+  end
+
+  def should_create_audio_files?
+    audio_files.count < Image.voices.count
+  end
+
+  def start_create_all_audio_job
+    CreateAllAudioJob.perform_async(id)
+  end
+
+  def create_voice_audio_files
+    Image.voices.each do |voice|
+      if !audio_file_exists_for?(voice)
+        # blob).where("active_storage_blobs.filename = ?", "#{label.parameterize}_#{voice}_#{id}.aac").blank?
+        create_audio_from_text(label, voice)
+      else
+        puts "Audio file already exists for voice: #{voice}"
+      end
+    end
+  end
+
+  def audio_file_exists_for?(voice)
+    audio_files_blobs.where(filename: "#{label}_#{voice}_#{id}.aac").any?
   end
 
   def menu?
@@ -72,7 +98,7 @@ class Image < ApplicationRecord
   end
 
   def find_or_create_audio_file_for_voice(voice = "alloy")
-    existing = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label.parameterize}_#{voice}_#{id}.aac").first
+    existing = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label}_#{voice}_#{id}.aac").first
     if existing
       existing
     else
@@ -83,7 +109,7 @@ class Image < ApplicationRecord
   def get_audio_for_voice(voice = "alloy")
     puts "GETTING AUDIO FOR VOICE: #{voice}"
     # file = audio_files.find_by(filename: "#{label}_#{voice}_#{id}.aac")
-    file = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label.parameterize}_#{voice}_#{id}.aac").first
+    file = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label}_#{voice}_#{id}.aac").first
     if file
       file
     else
@@ -117,7 +143,8 @@ class Image < ApplicationRecord
 
   def missing_voices
     voices = Image.voices
-    voices - existing_voices
+    missing = voices - existing_voices
+    missing
   end
 
   def self.create_sample_audio_for_voices

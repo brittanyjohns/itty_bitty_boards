@@ -1,8 +1,6 @@
 <% if doc %>
     <%= turbo_frame_tag 'current_doc' do %>
     <div id="<%= dom_id doc %>" class="relative overflow-hidden">
-    <%= doc.id %>
-    <%= doc.image.attached? %>
         <%= display_image_for(doc.documentable, user, 200) %>
     </div>
     <% end %>
