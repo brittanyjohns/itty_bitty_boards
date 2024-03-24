@@ -47,7 +47,7 @@ class Image < ApplicationRecord
   scope :skipped, -> { where(open_symbol_status: "skipped") }
 
   # after_create :create_voice_audio_files
-  after_save :start_create_all_audio_job, if :should_create_audio_files?
+  after_save :start_create_all_audio_job, if: :should_create_audio_files?
 
   def create_image_doc(user_id = nil)
     response = create_image(user_id)
