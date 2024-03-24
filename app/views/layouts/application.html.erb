@@ -12,27 +12,23 @@
       <%= tag :meta, name: :rails_env, content: Rails.env %>
       <%= javascript_include_tag "application", "data-turbo-track": "reload", defer: true %>
       <script src="https://kit.fontawesome.com/7747fb4a3a.js" crossorigin="anonymous"></script>
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intro.js/7.2.0/introjs.css" integrity="sha512-4OzqLjfh1aJa7M33b5+h0CSx0Q3i9Qaxlrr1T/Z+Vz+9zs5A7GM3T3MFKXoreghi3iDOSbkPMXiMBhFO7UBW/g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
       <link rel="manifest" crossorigin="use-credentials" href="/manifest.json" />
   </head>
 
-  <body class="h-full bg-gradient-to-r from-indigo-100 to-indigo-200  min-h-screen" data-controller="notice tooltip">
+  <body class="h-full bg-gradient-to-r from-indigo-100 to-indigo-200  min-h-screen" data-controller="notice tooltip demo" data-play=<%= current_user&.demo? %>>
       <%= render "layouts/navbar" %>
       <div class="text-pretty bg-white bg-opacity-80 h-full mdx:mx-10  min-h-screen pt-3 md:px-4">
         <%= render "layouts/notice" %>
-      <%= render "layouts/alert" %>
-
-          <%= yield %>
-
-          </div>
-          <div class="relative w-full mt-8">
-                                    <%= render "layouts/footer" %>
-          </div>
-      <script src="https://unpkg.com/@material-tailwind/html@latest/scripts/dialog.js"></script>
-      <script src="https://unpkg.com/@popperjs/core@2/dist/umd/popper.min.js"></script>
+        <%= render "layouts/alert" %>
+        <%= yield %>
+      </div>
+      <div class="relative w-full mt-8">
+          <%= render "layouts/footer" %>
+      </div>
+<script src="https://unpkg.com/@material-tailwind/html@latest/scripts/dialog.js"></script>
+<script src="https://unpkg.com/@popperjs/core@2/dist/umd/popper.min.js"></script>
 <script src="https://unpkg.com/tippy.js@6/dist/tippy-bundle.umd.js"></script>
-<link
-  rel="stylesheet"
-  href="https://unpkg.com/tippy.js@6/animations/scale.css"
-/>
+<link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/scale.css"/>
   </body>
 </html>

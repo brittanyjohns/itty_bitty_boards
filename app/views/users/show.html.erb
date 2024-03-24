@@ -6,7 +6,7 @@
     <%= link_to welcome_path, class: "inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-center" do %>
         Welcome Info
     <% end %>
-    <%= link_to "Add team", new_team_path, class: "inline-block bg-green-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-center" %>
+    <%= link_to "Add team", new_team_path, class: "inline-block bg-green-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-center", data: { intro: add_team_intro } %>
 
   </div>
   <div class="flex justify-around items-center border-b p-2">
@@ -19,8 +19,7 @@
     </div>
   </div>
 
-  <div class="">
-
+  <div data-intro="<%= account_details_intro %>" class="mt-6">
   <div class="mt-6">
     <h2 class="text-xl font-semibold text-gray-700">Account Details</h2>
     <p class="text-gray-600 mt-2">Email: <%= @user.email %></p>

@@ -7,6 +7,9 @@ import { application } from "./application"
 import AddImagesController from "./add_images_controller"
 application.register("add-images", AddImagesController)
 
+import DemoController from "./demo_controller"
+application.register("demo", DemoController)
+
 import DisableController from "./disable_controller"
 application.register("disable", DisableController)
 

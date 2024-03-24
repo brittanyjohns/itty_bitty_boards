@@ -1,13 +1,13 @@
 <div class="py-6 h-full">
-        <h1 class="text-xl md:text-3xl font-bold text-blue-600 mb-6 pb-2 text-center font-mono">Create a New Board from Scratch or let us help you get started</h1>
+  <h1 class="text-xl md:text-3xl font-bold text-blue-600 mb-6 pb-2 text-center font-mono">Create a New Board from Scratch or let us help you get started</h1>
   <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 py-1">
-    <div class="col-span-1">
+    <div class="col-span-1" data-intro="<%= board_from_scratch_intro %>" data-step="1">
       <h1 class="text-3xl font-bold text-blue-600 mt-6 text-center">From Scratch</h1>
       <%= turbo_frame_tag "new_board" do %>
         <%= render "form", board: @board %>
       <% end %>
     </div>
-    <div class="col-span-1">
+    <div class="col-span-1" data-intro="<%= board_from_scenario_intro %>" data-step="2">
       <h1 class="text-3xl font-bold text-blue-600 mt-6 text-center">From Scenario</h1>
       <%= turbo_frame_tag "new_openai_prompt" do %>
         <%= render partial: "openai_prompts/form", locals: { openai_prompt: @openai_prompt } %>

@@ -39,6 +39,10 @@ module IconHelper
         "<i class='fa-solid fa-chess-board fa-lg' data-tippy-content='#{tooltip_text}' }></i>".html_safe
     end
 
+    def demo_nav
+        "<i class='fa-solid fa-play fa-lg'></i>".html_safe
+    end
+
     def new_board_nav(tooltip_text = "New Board")
         "<i class='fa-solid fa-square-plus fa-lg' data-tippy-content='#{tooltip_text}' }></i>".html_safe
     end

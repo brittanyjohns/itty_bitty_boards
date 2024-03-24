@@ -1,9 +1,8 @@
-<h1>New team board</h1>
+<div class="h-full">
+  <h1 class="text-3xl font-bold text-blue-600 mb-6 text-center">Share a board to team: <%= @team.name %></h1>  
+  <div class="mt-6 text-center">
+      <%= render "form", team_board: @team_board %>
 
-<%= render "form", team_board: @team_board %>
-
-<br>
-
-<div>
-  <%= link_to "Back to team boards", team_boards_path %>
+    <%= link_to "Back to Team", @team, class: "text-blue-600 hover:text-blue-800 underline" %>
+  </div>
 </div>

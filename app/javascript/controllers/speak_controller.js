@@ -9,36 +9,26 @@ export default class extends Controller {
   connect() {
     this.label = this.data.get("label");
     this.thelistOutlet = document.querySelector("#the-list");
-    console.log("The list outlet is", this.thelistOutlet);
     // this.playlist = document.querySelector("#the-playlist");
-    console.log("Hello, Stimulus! Speak", this.playlist, this.label);
     this.isAMenu = document.querySelector("#menu-info");
     const parameterizedLabel = this.label.toLowerCase().replace(/ /g, "-");
     const idToFind = `audio-${parameterizedLabel}`;
     // this.audioTarget = this.element.querySelector(`#${idToFind}`);
     if (this.hasSpeakerTarget) {
-      console.log("Speaker target found", this.speakerTarget);
       this.soundTarget = this.speakerTarget;
     } else {
-      console.log("No speaker target found - setting to element", this.element);
       this.soundTarget = this.element;
     }
     if (this.hasAudioTarget) {
-      console.log("Audio target found", this.audioTarget);
       if (this.audioTarget !== null) {
-        console.log("Audio target is not null");
         this.audio = this.audioTarget.src;
       }
     } else {
-      console.log("No audio found for", this.label);
       this.audio = null;
     }
-    console.log("The audio is", this.audio);
     if (isIos || isAndroid) {
-      console.log("This is a mobile device")
       this.addTouchStart();
     } else {
-      console.log("This is not a mobile device")
       this.addOnClick();
     }
   }
@@ -55,15 +45,11 @@ export default class extends Controller {
   }
 
   addOnClick() {
-    console.log("Adding click event listener");
     const self = this;
     this.soundTarget.addEventListener('click', function() {
-      console.log("Clicked speaker");
       if (self.audio) {
-        console.log("Playing audio");
         self.playAudio();
       } else {
-        console.log("Speaking label");
         self.speak();
       }
     }
@@ -74,7 +60,6 @@ export default class extends Controller {
     if (event) {
       event.preventDefault();
     }
-    console.log("Playing audio on click", this.audio);
     const audio = new Audio(this.audio);
     audio.play();
     this.addToList(this.label);

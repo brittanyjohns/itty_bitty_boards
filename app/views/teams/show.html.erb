@@ -3,7 +3,7 @@
       <h1 class="text-3xl font-bold text-center"><%= @team.name %>    </h1>
       <h3>
         <%= @team.created_by %></h3>
-      <%= link_to "Share a board to this team", new_team_board_path(team_id: @team.id), class: "p-2 bg-blue-500 text-white rounded-md text-center" if policy(@team).add_board? %>
+      <%= link_to "Share a board to this team", new_team_board_path(team_id: @team.id), class: "p-2 bg-blue-500 text-white rounded-md text-center", data: { intro: share_team_board_intro, step: 2 } if policy(@team).add_board? %>
   </div>
   <div class="grid grid-cols-1 md:grid-cols-3 gap-1">
     <div class="p-1 my-5">
@@ -15,7 +15,7 @@
           <% end %>
         </ul>
     </div>
-    <div class="p-1 my-5 flex justify-center">
+    <div class="p-1 my-5 flex justify-center" data-intro="<%=invite_team_members_intro%>" data-step="1">
       <%= render 'invite_form', team: @team  if policy(@team).update? %>
     </div>
     <div class="p-1 mt-5 w-full">

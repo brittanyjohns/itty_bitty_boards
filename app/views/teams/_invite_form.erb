@@ -5,7 +5,7 @@
   <p class="text-center text-gray-700 text-lg font-bold">Invite a new member</p>
   <div class="mt-4 flex justify-center">
     <%= f.input_field :email, class: "mx-1 shadow appearance-none border rounded py-1 px-1 text-gray-700 leading-tight focus:outline-none focus:shadow-outline inline", required: true, placeholder: "Email" %>
-    <%= f.input_field :role, collection: TeamUser.roles.keys, prompt: "Role", class: "shadow appearance-none border rounded py-2 px-1 text-gray-700 leading-tight focus:outline-none focus:shadow-outline inline", required: true %>
+    <%= f.input_field :role, collection: TeamUser.roles.keys, prompt: "Role", class: "shadow appearance-none border rounded py-2 px-1 text-gray-700 leading-tight focus:outline-none focus:shadow-outline inline", required: true if policy(@team).update? %>
     <%= f.button :submit, "Invite", class: "ml-1 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-2 rounded focus:outline-none focus:shadow-outline inline" %>
   </div>
 <% end %>

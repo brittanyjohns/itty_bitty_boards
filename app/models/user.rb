@@ -70,6 +70,10 @@ class User < ApplicationRecord
     User.find(DEFAULT_ADMIN_ID)
   end
 
+  def demo?
+    play_demo == true
+  end
+
   def invite_to_team!(team, inviter)
     puts "Inviting user to team: #{self.raw_invitation_token}"
     result = BaseMailer.team_invitation_email(self, inviter, team).deliver_now
