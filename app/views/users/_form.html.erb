@@ -1,8 +1,31 @@
 
 <%= simple_form_for(@user) do |f| %>
   <div class="p-3 mb-4">
+    <%= f.label :name, "Name", class: "text-sm font-semibold text-gray-700" %>
     <%= f.input_field :name, label: "Name", class: "w-full md:w-1/2 border border-gray-300 p-2 rounded-md", placeholder: "Full name" %>
   </div>
+    <%= f.fields_for :settings do |settings_form| %>
+      <div class="p-3 mb-4">
+        <%= settings_form.label :voice, "Voice", class: "text-sm font-semibold text-gray-700" %>
+        <%= settings_form.input_field :voice, collection: Image.voices, label: "Voice", class: "w-full md:w-1/2 border border-gray-300 p-2 mx-2 rounded-md", selected: @user.settings['voice'] || "alloy" %>
+      </div>
+      <div class="p-3 mb-4">
+        <%= settings_form.label :voice_language, "Language", class: "text-sm font-semibold text-gray-700" %>
+        <%= settings_form.input_field :voice_language, collection: Image.languages, label: "Language", class: "w-full md:w-1/2 border border-gray-300 p-2 mx-2 rounded-md", selected: @user.settings['language'] || "en-US" %>
+      </div>
+      <div class="p-3 mb-4">
+        <%= settings_form.label :voice_speed, "Speed", class: "text-sm font-semibold text-gray-700" %>
+        <%= settings_form.input_field :voice_speed, collection: Image.speeds, label: "Speed", class: "w-full md:w-1/2 border border-gray-300 p-2 mx-2 rounded-md", selected: @user.settings['speed'] || "normal" %>
+      </div>
+      <div class="p-3 mb-4">
+        <%= settings_form.label :voice_pitch, "Pitch", class: "text-sm font-semibold text-gray-700" %>
+        <%= settings_form.input_field :voice_pitch, collection: Image.pitches, label: "Pitch", class: "w-full md:w-1/2 border border-gray-300 p-2 mx-2 rounded-md", selected: @user.settings['pitch'] || "normal" %>
+      </div>
+      <div class="p-3 mb-4">
+        <%= settings_form.label :voice_volume, "Volume", class: "text-sm font-semibold text-gray-700" %>
+        <%= settings_form.input_field :voice_volume, collection: Image.volumes, label: "Volume", class: "w-full md:w-1/2 border border-gray-300 p-2 mx-2 rounded-md", selected: @user.settings['volume'] || "normal" %>
+      </div>
+    <% end %>
 
 
 

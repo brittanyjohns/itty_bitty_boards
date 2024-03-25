@@ -142,6 +142,10 @@ class Image < ApplicationRecord
     ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
   end
 
+  def self.languages
+    ['en', 'es', 'fr', 'de', 'it', 'ja', 'ko', 'nl', 'pl', 'pt', 'ru', 'zh']
+  end
+
   def missing_voices
     voices = Image.voices
     missing = voices - existing_voices
@@ -160,6 +164,10 @@ class Image < ApplicationRecord
       audio_files << Image.find_by(label: "This is the voice #{voice}").audio_files
     end
     audio_files
+  end
+
+  def self.find_sample_audio_for_voice(voice)
+    Image.find_by(label: "This is the voice #{voice}").audio_files&.last
   end
 
   def generate_matching_symbol(limit = 1)

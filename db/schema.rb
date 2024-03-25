@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_03_24_171759) do
+ActiveRecord::Schema[7.1].define(version: 2024_03_25_190931) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -386,6 +386,8 @@ ActiveRecord::Schema[7.1].define(version: 2024_03_24_171759) do
     t.string "invited_by_type"
     t.bigint "current_team_id"
     t.boolean "play_demo", default: true
+    t.jsonb "settings", default: {}
+    t.string "base_words", default: [], array: true
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
     t.index ["current_team_id"], name: "index_users_on_current_team_id"
     t.index ["email"], name: "index_users_on_email", unique: true

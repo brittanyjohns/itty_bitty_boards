@@ -33,6 +33,6 @@ class UsersController < ApplicationController
   private 
 
   def user_params
-    params.require(:user).permit(:name)
+    params.require(:user).permit(:name, :base_words, settings: [:voice, :voice_speed, :voice_pitch, :voice_rate, :voice_volume, :voice_language])
   end
 end

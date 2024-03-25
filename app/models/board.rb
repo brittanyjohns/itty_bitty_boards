@@ -35,6 +35,7 @@ class Board < ApplicationRecord
 
   # before_save :set_number_of_columns, unless: :number_of_columns?
   before_save :set_voice, if: :voice_changed?
+  before_save :set_default_voice, unless: :voice?
 
   # after_create_commit { broadcast_prepend_later_to :board_list, target: 'my_boards', partial: 'boards/board', locals: { board: self } }
   after_create_commit :update_board_list
@@ -42,6 +43,10 @@ class Board < ApplicationRecord
   # def set_number_of_columns
   #   self.number_of_columns = 4
   # end
+
+  def set_default_voice
+    self.voice = user.settings["voice"]
+  end
 
   def set_voice
     puts "\n\nSet Board Voice\n\n- #{voice}"

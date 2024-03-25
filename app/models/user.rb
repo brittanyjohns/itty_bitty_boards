@@ -41,8 +41,30 @@ class User < ApplicationRecord
   has_many :teams, through: :team_users
   # has_many :team_boards, through: :teams, source: :team_boards
 
+  before_save :set_default_settings, unless: :settings?
+
   def to_s
     display_name
+  end
+
+  def set_default_settings
+    default_settings = {
+      voice: 'alloy',
+      voice_speed: 1,
+      voice_pitch: 1,
+      voice_volume: 1,
+      voice_rate: 1,
+      voice_language: 'en-US'
+
+    }
+    self.settings = default_settings
+    save
+  end
+
+
+  def add_to_settings(key, value)
+    settings[key] = value
+    save
   end
 
   def team_boards
