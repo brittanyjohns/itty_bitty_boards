@@ -46,8 +46,7 @@ class Image < ApplicationRecord
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
   scope :skipped, -> { where(open_symbol_status: "skipped") }
 
-  # after_create :create_voice_audio_files
-  after_save :start_create_all_audio_job, if: :should_create_audio_files?
+  # after_create :start_create_all_audio_job
 
   def create_image_doc(user_id = nil)
     response = create_image(user_id)
@@ -100,8 +99,10 @@ class Image < ApplicationRecord
   def find_or_create_audio_file_for_voice(voice = "alloy")
     existing = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label}_#{voice}_#{id}.aac").first
     if existing
+      puts "#{label} ==> Audio file already exists for voice: #{voice} - #{existing.filename}"
       existing
     else
+      puts "#{label} ==> Creating audio file for voice: #{voice}"
       create_audio_from_text(label, voice)
     end
   end
@@ -128,7 +129,7 @@ class Image < ApplicationRecord
 
   def get_voice_for_board(board)
     return unless board
-    voice = board_images.find_by(board_id: board.id).voice
+    voice = board_images.find_by(board_id: board.id).voice || Image.voices.sample
     get_audio_for_voice(voice)
   end
 

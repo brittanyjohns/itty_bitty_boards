@@ -37,7 +37,6 @@ export default class extends Controller {
           alert("Please enter a name for the menu");
         }
 
-
       });
     };
     reader.readAsArrayBuffer(file);

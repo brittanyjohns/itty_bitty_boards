@@ -13,6 +13,6 @@ export default class extends Controller {
     console.log("this.element", this.element)
     this.timeout = setTimeout(() => {
       this.element.requestSubmit();
-    }, 400);
+    }, 100);
   }
 }

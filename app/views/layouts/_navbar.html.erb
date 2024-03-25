@@ -36,10 +36,10 @@
         <!-- Dropdown Menu -->
         <div id="new_dropdown" class="hidden absolute top-full mt-2 w-48 bg-blue-400 rounded shadow-lg z-50" data-dropdown-target="content">
           <% if user_signed_in? %>
-            <%= link_to "New Board", new_board_path, class: "block px-4 py-2 text-sm text-white hover:bg-blue-700" %>
-            <%= link_to "New Menu", new_menu_path, class: "block px-4 py-2 text-sm text-white hover:bg-blue-700" %>
-            <%= link_to "New Image", new_image_path, class: "block px-4 py-2 text-sm text-white hover:bg-blue-700" %>
-            <%= link_to "New Scenario", new_openai_prompt_path, class: "block px-4 py-2 text-sm text-white hover:bg-blue-700" %>
+            
+            
+            <%= render "teams/set_current" %>
+
           <% end %>
         </div>
       </div>

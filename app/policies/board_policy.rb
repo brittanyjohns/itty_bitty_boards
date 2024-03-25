@@ -24,6 +24,7 @@ class BoardPolicy < ApplicationPolicy
   def show?
     return true if user.admin?
     return true if record.user == user
+    return true if record.predefined?
     user.team_boards.joins(:board).where(board_id: record.id).any?
   end
 

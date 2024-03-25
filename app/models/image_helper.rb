@@ -56,11 +56,18 @@ module ImageHelper
   def save_audio_file(audio_file, voice)
     self.audio_files.attach(io: audio_file, filename: "#{self.label}_#{voice}_#{self.id}.aac")
   end
+
   def clarify_image_description(raw)
     response = OpenAiClient.new(open_ai_opts).clarify_image_description(raw)
     if response
       puts "response: #{response}"
       response_text = response[:content]
+      if valid_json?(response_text)
+        response_text
+      else
+        puts "INVALID JSON: #{response_text}"
+        response_text = transform_into_json(response_text)
+      end
     else
       Rails.logger.error "*** ERROR - clarify_image_description *** \nDid not receive valid response. Response: #{response}\n"
     end
@@ -80,6 +87,34 @@ module ImageHelper
     end
     success
   end
+
+  def valid_json?(json)
+    JSON.parse(json)
+    return true
+  rescue JSON::ParserError => e
+    return false
+  end
+
+  def transform_into_json(str)
+    json_str = content_str.gsub(/:([a-zA-z_]+)/, '"\1"') # Convert symbols to strings
+    json_str = json_str.gsub('=>', ': ') # Replace hash rockets with colons
+
+    # Now parse the string as JSON
+    begin
+      data = JSON.parse(json_str)
+    rescue JSON::ParserError => e
+      puts "Error parsing JSON: #{e.message}"
+      # Handle invalid JSON here
+    end
+
+    # If necessary, convert back to JSON string for output or further processing
+    json_output = data.to_json
+    puts "json_output: #{json_output}"
+    json_output
+  end
+
+
+
 
   def image_types
     ["Sigma 24mm f/8",

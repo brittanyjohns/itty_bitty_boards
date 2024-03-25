@@ -1,5 +1,6 @@
 
 <h1 class="text-4xl font-bold my-3 mx-1"> Image Library</h1>
+<%= link_to "New Image", new_image_path, class: "text-blue-600 hover:text-blue-200 px-2 py-1 rounded-md text-sm font-medium border m-1" %>
 <%= render "shared_nav" if current_user.admin? %>
 <div class="w-full mx-auto overflow-clip">
 <%= paginate @images %>

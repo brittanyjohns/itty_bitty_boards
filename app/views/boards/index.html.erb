@@ -2,16 +2,11 @@
   <h1 class="text-4xl font-bold my-3">
     Boards
   </h1>
+  <%= link_to "New Board", new_board_path, class: "text-blue-600 hover:text-blue-200 px-2 py-1 rounded-md text-sm font-medium border m-1" %>
   <%= turbo_stream_from(current_user) %>
+  <%= render "utils/search", search_path: boards_path, show_user_images_only: false %>
 
-  <%= link_to "New Board", new_board_path, class: "text-blue-600 hover:text-blue-200 px-2 py-1 rounded-md text-sm font-medium border m-1", data: { turbo_frame: dom_id(Board.new) } %>
-    <%= link_to "New Scenario", new_board_path, class: "text-blue-600 hover:text-blue-200 px-2 py-1 rounded-md text-sm font-medium border m-1", data: { turbo_frame: dom_id(OpenaiPrompt.new) } %>
-  <%= turbo_frame_tag Board.new %>
-   <%= turbo_frame_tag OpenaiPrompt.new %>
-         <%= render "utils/search", search_path: boards_path, show_user_images_only: false %>
-
-              <%= paginate @boards %>
-
+  <%= paginate @boards %>
   <div class="grid sm:grid-cols-1 md:grid-cols-2 gap-2 p-3">
     <div class="border p-2 md:p-3" id="my_boards">
       <h3 class="text-2xl font-bold text-gray-800 mb-4">My Boards ( <%= @boards.count %> )</h3>

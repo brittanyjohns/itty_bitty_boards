@@ -55,6 +55,7 @@ Rails.application.routes.draw do
     post "find_or_create", on: :collection
     member do
       post "create_audio"
+      delete "remove_audio"
       post "generate"
       post "add_to_board"
       post "create_symbol"
@@ -93,6 +94,7 @@ Rails.application.routes.draw do
   end
 
   get 'main/index', as: :home
+  get 'dashboard', to: 'main#dashboard', as: :dashboard
   get 'main/predefined/:id', to: 'main#show_predefined', as: :show_predefined
   get 'main/demo', as: :demo
   get '/about', as: :about, to: 'main#about'

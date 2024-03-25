@@ -15,4 +15,9 @@ class MainController < ApplicationController
   end
   def faq
   end
+
+  def dashboard
+    @boards = policy_scope(Board).includes(:images).order(:name)
+    @user = current_user
+  end
 end

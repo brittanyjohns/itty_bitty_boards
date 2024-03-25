@@ -179,6 +179,12 @@ class ImagesController < ApplicationController
     redirect_back_or_to image_url(@image), notice: "Audio created."
   end
 
+  def remove_audio
+    @image = Image.find(params[:id])
+    @image.audio_files.find(params[:audio_id]).purge
+    redirect_back_or_to image_url(@image), notice: "Audio removed."
+  end
+
   # DELETE /images/1 or /images/1.json
   def destroy
     @image.destroy!

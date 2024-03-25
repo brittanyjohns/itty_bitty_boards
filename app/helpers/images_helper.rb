@@ -70,17 +70,22 @@ module ImagesHelper
         str.html_safe
       end
 
-      def get_audio_list_with_voice_names(audio_files)
+      def get_audio_list_with_voice_names(image)
+        audio_files = image.audio_files
         str = "<div class='h-48 overflow-scroll'>"
         # audio_files.map { |audio| audio.filename.to_s.split("_").second }
         # audio_tag audio_file, controls: true, class: "my-2 flex flex-col audio-player"
         
         audio_files.each do |audio|
           voice = audio.filename.to_s.split("_").second&.upcase
+          puts "VOICE: #{voice}"
+          puts "audio.filename: #{audio.filename}"
           str += "<div class='flex justify-center mb-2'>"
           str += "<p class='font-bold text-center my-auto mr-2'>#{voice}</p>"
 
           str += audio_tag audio, controls: true, class: "flex flex-col audio-player"
+          str += button_to "Delete", remove_audio_image_path(image, audio_id: audio.id), method: :delete, data: { confirm: "Are you sure?" }, class: "text-red-600 hover:text-red-800 underline"
+
           str += "</div>"
         end
         str += "</div>"

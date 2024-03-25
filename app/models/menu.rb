@@ -132,6 +132,7 @@ class Menu < ApplicationRecord
     return false if user.tokens <= tokens_used
     return false unless token_limit
     return false if token_limit <= total_cost
+    puts "Generating image for #{image.label}, tokens used: #{tokens_used}, total cost: #{total_cost}"
     true
   end
 

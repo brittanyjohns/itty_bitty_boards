@@ -3,12 +3,12 @@ import { Controller } from "@hotwired/stimulus"
 // Connects to data-controller="opensymbols"
 export default class extends Controller {
   connect() {
-    this.getAccessSecret()
-    this.isLoading = document.querySelector(".loading_spinner")
-    this.waitNotice = document.querySelector("#pleaseWait");
-    if (this.isLoading != null) {
-      this.notifyAndReload
-    }
+    // this.getAccessSecret()
+    // this.isLoading = document.querySelector(".loading_spinner")
+    // this.waitNotice = document.querySelector("#pleaseWait");
+    // if (this.isLoading != null) {
+    //   this.notifyAndReload
+    // }
 
   }
 
@@ -26,9 +26,9 @@ export default class extends Controller {
     })
   }
 
-  notifyAndReload() {
-    this.waitNotice.classList.remove("hidden");
-    setTimeout(() => window.location.reload(), 4000)
+  // notifyAndReload() {
+  //   this.waitNotice.classList.remove("hidden");
+  //   setTimeout(() => window.location.reload(), 4000)
     
-  }
+  // }
 }

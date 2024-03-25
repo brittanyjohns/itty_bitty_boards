@@ -58,7 +58,8 @@ class MenusController < ApplicationController
       if @menu.save
         @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit)
         @menu.run_image_description_job(@board.id)
-        format.turbo_stream
+        puts "Menu created and image description job started."
+        # format.turbo_stream
         format.html { redirect_to @board, notice: "Menu is generating." }
         format.json { render :show, status: :created, location: @menu }
       else

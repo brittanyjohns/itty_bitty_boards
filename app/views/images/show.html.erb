@@ -37,7 +37,7 @@
       </p>
       <% if @image.audio_files.any? %>
         <div class="flex justify-center">
-                <%= get_audio_list_with_voice_names(@image.audio_files) %>
+                <%= get_audio_list_with_voice_names(@image) %>
         </div>
       <% else %>
         <p class="text-sm font-semibold mx-4 mb-3">No audio files available for this image.</p>
