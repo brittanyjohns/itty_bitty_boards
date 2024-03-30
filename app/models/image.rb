@@ -146,6 +146,23 @@ class Image < ApplicationRecord
     ['en', 'es', 'fr', 'de', 'it', 'ja', 'ko', 'nl', 'pl', 'pt', 'ru', 'zh']
   end
 
+  # PLACEHOLDERS FOR FUTURE USE
+  def self.speeds
+    [1, 1.25, 1.5, 1.75, 2]
+  end
+
+  def self.pitches
+    [1, 1.25, 1.5, 1.75, 2]
+  end
+
+  def self.rates
+    [1, 1.25, 1.5, 1.75, 2]
+  end
+
+  def self.volumes
+    [1, 1.25, 1.5, 1.75, 2]
+  end
+
   def missing_voices
     voices = Image.voices
     missing = voices - existing_voices

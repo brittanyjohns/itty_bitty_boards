@@ -17,7 +17,7 @@ class BoardsController < ApplicationController
       @boards = @boards.order(created_at: :desc).page(params[:page]).per(20)
       @predefined_boards = Board.predefined.order(created_at: :desc).page(params[:page]).per(20)
     end
-    @shared_with_me = current_user.shared_with_me_boards.order(created_at: :desc).page(params[:page]).per(20)
+    @shared_boards = current_user.shared_with_me_boards.order(created_at: :desc).page(params[:page]).per(20)
   end
 
   # GET /boards/1 or /boards/1.json
