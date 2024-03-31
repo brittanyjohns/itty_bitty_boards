@@ -1,11 +1,13 @@
 <div class="container mx-auto p-3 bg-white rounded-lg shadow-xl mb-6 pb-6">
   <div class="flex justify-between items-center border-b pb-4">
+    <div class="grid grid-cols-1">
     <%= link_to 'Edit Profile', edit_user_path(@user), class: "text-indigo-600 hover:text-indigo-900 font-semibold m-1" %>
-        <h1 class="text-2xl font-semibold text-gray-800">User Profile</h1>
-
     <%= link_to welcome_path, class: "inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-center" do %>
         Welcome Info
     <% end %>
+    </div>
+    <h1 class="text-3xl font-bold text-gray-800">User Profile: <span class="font-light"><%= @user.name %></span> </h1>
+    <h1 class="text-xl font-light text-gray-800"><%= @user.email %></h1>
   </div>
   <div class="flex justify-around items-center border-b p-2">
     <%= link_to "Add team", new_team_path, class: "inline-block bg-green-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg text-center", data: { intro: add_team_intro } %>
@@ -28,7 +30,7 @@
     <div class="mt-6">
       <h2 class="text-xl font-semibold text-gray-700">User Settings</h2>
       <p class="text-gray-600 mt-2">Name: <%= @user.name %></p>
-      <p class="text-gray-600">Role: <%= @user.role %></p>
+      <p class="text-gray-600">Role: <%= @user.role || "User" %></p>
       <p class="text-gray-600">Created: <%= time_ago_in_words(@user.created_at) %> ago</p>
       <p class="text-gray-600">Updated: <%= time_ago_in_words(@user.updated_at) %> ago</p>
     </div>

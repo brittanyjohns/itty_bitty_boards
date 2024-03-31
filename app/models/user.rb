@@ -38,7 +38,6 @@ class User < ApplicationRecord
   has_many :user_docs, dependent: :destroy
   has_many :favorite_docs, through: :user_docs, class_name: 'Doc', source: :doc
   has_many :team_users
-  has_many :teams, through: :team_users
   # has_many :team_boards, through: :teams, source: :team_boards
 
   before_save :set_default_settings, unless: :settings?
@@ -73,6 +72,10 @@ class User < ApplicationRecord
 
   def current_team_boards
     TeamBoard.where(team_id: current_team_id)
+  end
+
+  def teams
+    Team.where(id: team_users.pluck(:team_id))
   end
 
   def shared_with_me_boards
@@ -153,6 +156,6 @@ class User < ApplicationRecord
   end
 
   def display_name
-    name || email
+    name.blank? ? email : name
   end
 end
