@@ -18,9 +18,8 @@
 #  open_symbol_status  :string           default("active")
 #
 class Image < ApplicationRecord
-  normalizes :label, with: -> label { label.downcase.strip }
+  normalizes :label, with: ->label { label.downcase.strip }
   attr_accessor :temp_prompt
-  default_scope { includes(:docs) }
   belongs_to :user, optional: true
   has_many :docs, as: :documentable, dependent: :destroy
   has_many :board_images, dependent: :destroy
@@ -38,7 +37,7 @@ class Image < ApplicationRecord
   scope :without_attached_audio_files, -> { where.missing(:audio_files_attachments) }
 
   # scope :with_image_docs_for_user, -> (userId) { joins(:docs).where("docs.documentable_id = images.id AND docs.documentable_type = 'Image' AND docs.user_id = ?", userId) }
-  scope :with_image_docs_for_user, -> (userId) { order(created_at: :desc) }
+  scope :with_image_docs_for_user, ->(userId) { order(created_at: :desc) }
   scope :menu_images, -> { where(image_type: "Menu") }
   scope :non_menu_images, -> { where.not(image_type: "Menu") }
   scope :non_scenarios, -> { where.not(image_type: "OpenaiPrompt") }
@@ -68,6 +67,89 @@ class Image < ApplicationRecord
         create_audio_from_text(label, voice)
       else
         puts "Audio file already exists for voice: #{voice}"
+      end
+    end
+  end
+
+  def set_next_words!
+    new_next_words = get_next_words(label)
+    puts "New next words: #{new_next_words}"
+    if new_next_words
+      self.next_words = new_next_words
+      self.save!
+    else
+      puts "No next words found for #{label}"
+      self.update!(no_next: true)
+    end
+    new_next_words
+  end
+
+  def self.run_create_words_job
+    Image.public_img.all.pluck(:id).each_slice(20) do |img_ids|
+      CreateNewWordsJob.perform_async(img_ids)
+    end
+  end
+
+  def self.run_set_next_words_job(limit = 40)
+    count = 0
+    Image.lock.public_img.where(next_words: [], no_next: false).find_in_batches(batch_size: 20) do |images|
+      img_ids = images.pluck(:id)
+      puts "\n\nStarting set next words job for #{img_ids}\n\n"
+
+      SetNextWordsJob.perform_async(img_ids)
+      count += 20
+      break if count >= limit
+      sleep(5)
+    end
+  end
+
+  def next_board
+    @next_board ||= create_next_board
+  end
+
+  def create_next_board
+    parent_resource = PredefinedResource.find_or_create_by name: "Next", resource_type: "Board"
+    admin_user = User.admins.first
+    puts "Parent resource created: #{parent_resource.name} admin_user: #{admin_user.email}"
+    next_board = Board.find_or_create_by!(name: label, user_id: admin_user.id, parent: parent_resource)
+    puts "Next board created: #{next_board.name}"
+    next_board
+  end
+
+  def create_board_from_next_words!(words)
+    # raise "No next words found for #{label}" unless next_words && next_words.any?
+    puts "Creating board for label: #{label} from next words: #{words}"
+    return unless words && !words.blank?
+
+    puts "Next board created: #{next_board.name}"
+    words.each do |word|
+      image = Image.public_img.find_by(label: word)
+      if image
+        next_board.add_image(image.id)
+      else
+        image = Image.public_img.create!(label: word)
+        next_board.add_image(image.id)
+      end
+      puts "Image added to board: #{image.label}"
+    end
+    next_board.save!
+    next_board
+  end
+
+  def create_words_from_next_words
+    return unless next_words
+    next_words.each do |word|
+      existing_word = Image.public_img.find_by(label: word)
+      if existing_word
+        puts "Word already exists: #{existing_word.label}"
+        if existing_word.next_words.blank?
+          existing_word.set_next_words!
+        else
+          puts "Next words already set for #{existing_word.label}\n #{existing_word.next_words}"
+        end
+      else
+        image = Image.public_img.create!(label: word)
+        image.set_next_words!
       end
     end
   end
@@ -139,11 +221,11 @@ class Image < ApplicationRecord
   end
 
   def self.voices
-    ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
+    ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
   end
 
   def self.languages
-    ['en', 'es', 'fr', 'de', 'it', 'ja', 'ko', 'nl', 'pl', 'pt', 'ru', 'zh']
+    ["en", "es", "fr", "de", "it", "ja", "ko", "nl", "pl", "pt", "ru", "zh"]
   end
 
   # PLACEHOLDERS FOR FUTURE USE
@@ -200,50 +282,50 @@ class Image < ApplicationRecord
       count = 0
       skipped_count = 0
       begin
-      symbols.each do |symbol|
-        existing_symbol = OpenSymbol.find_by(original_os_id: symbol["id"])
-        if existing_symbol || OpenSymbol::IMAGE_EXTENSIONS.exclude?(symbol["extension"])
-          puts "Symbol already exists: #{existing_symbol&.id} Or not an image: #{symbol["extension"]}"
-          new_symbol = existing_symbol
-        else
-        break if count >= limit
-        new_symbol =
-        OpenSymbol.create!(
-          name: symbol["name"],
-          image_url: symbol["image_url"],
-          label: query,
-          search_string: symbol["search_string"],
-          symbol_key: symbol["symbol_key"],
-          locale: symbol["locale"],
-          license_url: symbol["license_url"],
-          license: symbol["license"],
-          original_os_id: symbol["id"],
-          repo_key: symbol["repo_key"],
-          unsafe_result: symbol["unsafe_result"],
-          protected_symbol: symbol["protected_symbol"],
-          use_score: symbol["use_score"],
-          relevance: symbol["relevance"],
-          extension: symbol["extension"],
-          enabled: symbol["enabled"]
-        )
+        symbols.each do |symbol|
+          existing_symbol = OpenSymbol.find_by(original_os_id: symbol["id"])
+          if existing_symbol || OpenSymbol::IMAGE_EXTENSIONS.exclude?(symbol["extension"])
+            puts "Symbol already exists: #{existing_symbol&.id} Or not an image: #{symbol["extension"]}"
+            new_symbol = existing_symbol
+          else
+            break if count >= limit
+            new_symbol =
+              OpenSymbol.create!(
+                name: symbol["name"],
+                image_url: symbol["image_url"],
+                label: query,
+                search_string: symbol["search_string"],
+                symbol_key: symbol["symbol_key"],
+                locale: symbol["locale"],
+                license_url: symbol["license_url"],
+                license: symbol["license"],
+                original_os_id: symbol["id"],
+                repo_key: symbol["repo_key"],
+                unsafe_result: symbol["unsafe_result"],
+                protected_symbol: symbol["protected_symbol"],
+                use_score: symbol["use_score"],
+                relevance: symbol["relevance"],
+                extension: symbol["extension"],
+                enabled: symbol["enabled"],
+              )
+          end
+          symbol_name = new_symbol.name.parameterize if new_symbol
+          if new_symbol && should_create_symbol_image?(symbol_name)
+            count += 1
+            downloaded_image = new_symbol.get_downloaded_image
+            new_image_doc = self.docs.create!(processed: symbol_name, raw: new_symbol.search_string, source_type: "OpenSymbol")
+            new_image_doc.image.attach(io: downloaded_image, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{new_symbol.extension}")
+          else
+            skipped_count += 1
+          end
+          total = count + skipped_count
+          if total >= symbols_count
+            puts "Skipped all symbols"
+            self.update!(open_symbol_status: "skipped")
+            break
+          end
         end
-        symbol_name = new_symbol.name.parameterize if new_symbol
-        if new_symbol && should_create_symbol_image?(symbol_name)
-          count += 1
-          downloaded_image = new_symbol.get_downloaded_image
-          new_image_doc = self.docs.create!(processed: symbol_name, raw: new_symbol.search_string, source_type: "OpenSymbol")
-          new_image_doc.image.attach(io: downloaded_image, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{new_symbol.extension}")
-        else
-          skipped_count += 1
-        end
-        total = count + skipped_count
-        if total >= symbols_count
-          puts "Skipped all symbols"
-          self.update!(open_symbol_status: "skipped")
-          break
-        end
-      end
-      symbols
+        symbols
       rescue => e
         puts "Error creating symbols: #{e.message}\n\n#{e.backtrace.join("\n")}"
       end
@@ -272,10 +354,8 @@ class Image < ApplicationRecord
 
   def self.destroy_duplicate_images
     Image.all.group_by(&:label).each do |label, images|
-      puts "label: #{label} - #{images.count}"
       # Skip the first image (which we want to keep) and destroy the rest
       images.drop(1).each(&:destroy)
-
     end
   end
 
@@ -285,6 +365,16 @@ class Image < ApplicationRecord
 
   def label_param
     label&.gsub(" ", "+")
+  end
+
+  before_save :set_label
+
+  def set_label
+    item_name = label
+    item_name.downcase!
+    # Strip out any non-alphanumeric characters
+    item_name.gsub!(/[^a-z ]/i, "")
+    self.label = item_name
   end
 
   def display_image(viewing_user = nil)
@@ -334,7 +424,7 @@ class Image < ApplicationRecord
   end
 
   def display_label
-    label&.titleize&.truncate(27, separator: ' ')
+    label&.titleize&.truncate(27, separator: " ")
   end
 
   def current_doc_for_user(user)
@@ -355,11 +445,11 @@ class Image < ApplicationRecord
     SaveAudioJob.perform_in(start_time.minutes, [id], voice)
   end
 
-  def self.start_generate_audio_job(ids, voice = 'alloy')
+  def self.start_generate_audio_job(ids, voice = "alloy")
     SaveAudioJob.perform_async(ids, voice)
   end
 
-  def self.create_audio_files(start_at=1, batch_size = 10)
+  def self.create_audio_files(start_at = 1, batch_size = 10)
     last_id = 0
     end_at = start_at + batch_size
     Image.find_in_batches(start: start_at, finish: end_at, batch_size: batch_size).with_index do |group, batch|
@@ -416,7 +506,7 @@ class Image < ApplicationRecord
       image_prompt: image_prompt,
       display_doc: display_image(current_user),
       src: display_image(current_user) ? display_image(current_user).url : "https://via.placeholder.com/300x300.png?text=#{label_param}",
-      audio: audio_files.first ? url_for(audio_files.first) : nil
+      audio: audio_files.first ? url_for(audio_files.first) : nil,
     }
   end
 

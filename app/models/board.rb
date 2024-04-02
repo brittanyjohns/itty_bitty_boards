@@ -30,6 +30,7 @@ class Board < ApplicationRecord
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
   scope :scenarios, -> { where(parent_type: "OpenaiPrompt") }
+  scope :next_steps, -> { where(parent_type: "PredefinedResource") }
   scope :predefined, -> { where(predefined: true) }
   scope :ai_generated, -> { where(parent_type: "OpenaiPrompt") }
 
@@ -66,7 +67,7 @@ class Board < ApplicationRecord
 
   def words
     if parent_type == "Menu"
-      ["please","thank you", "yes", "no", "and", "help"]
+      ["please", "thank you", "yes", "no", "and", "help"]
     else
       ["I", "want", "to", "go", "yes", "no"]
     end
@@ -114,7 +115,7 @@ class Board < ApplicationRecord
   def update_board_list
     puts "update_board_list"
     # broadcast_update_to(:board_list, partial: "boards/board_list", locals: { boards: user.boards }, target: "my_boards")
-    broadcast_prepend_later_to :board_list, target: "my_boards_#{user.id}", partial: 'boards/board', locals: { board: self }
+    broadcast_prepend_later_to :board_list, target: "my_boards_#{user.id}", partial: "boards/board", locals: { board: self }
   end
 
   def render_to_board_list
@@ -136,9 +137,9 @@ class Board < ApplicationRecord
           image_prompt: image.image_prompt,
           display_doc: image.display_image,
           src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-          audio: image.audio_files.first&.url
+          audio: image.audio_files.first&.url,
         }
-      end
+      end,
     }
   end
 end

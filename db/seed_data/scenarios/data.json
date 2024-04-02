@@ -1,0 +1,205 @@
+[
+  // {
+  //   "prompt_text": "Eating at a restaurant",
+  //   "description": "Ordering and interacting with staff, expressing satisfaction or dietary needs",
+  //   "age_range": "1-5",
+  //   "number_of_images": 12,
+  //   "token_limit": 100
+  // },
+  // {
+  //   "prompt_text": "First day of school",
+  //   "description": "Meeting new people, asking for directions, classroom rules, expressing feelings",
+  //   "age_range": "4-6",
+  //   "number_of_images": 12,
+  //   "token_limit": 100
+  // },
+  // {
+  //   "prompt_text": "Going to a birthday party",
+  //   "description": "Greeting, playing games, eating cake, gift exchange, saying thanks",
+  //   "age_range": "4-6",
+  //   "number_of_images": 12,
+  //   "token_limit": 100
+  // }
+  {
+    "prompt_text": "Visiting the doctor",
+    "description": "Describing symptoms, discussing treatment, understanding instructions, follow-up appointments",
+    "age_range": "All ages",
+    "number_of_images": 12,
+    "token_limit": 100
+  }
+  //   {
+  //     "prompt_text": "Shopping for groceries",
+  //     "description": "Identifying items, asking for help, understanding prices, transactions",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Playing a sport",
+  //     "description": "Team communication, understanding rules, celebrating, discussing strategies",
+  //     "age_range": "7-9",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Riding public transportation",
+  //     "description": "Asking directions, understanding schedules, buying tickets, navigating stops",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Attending a religious service",
+  //     "description": "Participating in rituals, engaging in community, expressing faith",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Going to the library",
+  //     "description": "Finding books, requesting assistance, understanding rules, participating in programs",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Having a playdate",
+  //     "description": "Sharing toys, suggesting activities, resolving conflicts, expressing emotions",
+  //     "age_range": "4-6",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Visiting a zoo",
+  //     "description": "Learning about animals, asking questions, following directions, expressing curiosity",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Going on a vacation",
+  //     "description": "Planning activities, navigating, experiencing cultures, sharing memories",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Cooking a meal",
+  //     "description": "Following recipes, measuring, using kitchen tools, sharing tasks",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Cleaning the house",
+  //     "description": "Organizing, using supplies, delegating, maintaining safety",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Doing laundry",
+  //     "description": "Sorting clothes, choosing settings, adding detergent, folding",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Gardening",
+  //     "description": "Planting, watering, weeding, discussing care",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Watching a movie",
+  //     "description": "Selecting, discussing preferences, reacting, sharing opinions",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Going swimming",
+  //     "description": "Safety rules, practicing strokes, playing games, expressing comfort",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Attending a wedding",
+  //     "description": "Ceremony traditions, interacting with guests, dancing, congratulating",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Celebrating a holiday",
+  //     "description": "Traditions, meals, expressing wishes",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Going to a museum",
+  //     "description": "Exploring exhibits, asking questions, following etiquette, expressing interests",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Attending a concert",
+  //     "description": "Enjoying music, venue rules, audience participation, expressing preferences",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Having a picnic",
+  //     "description": "Planning menu, finding location, playing games, enjoying nature",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Visiting the beach",
+  //     "description": "Sand play, swimming, respecting the ocean, sun safety",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Going hiking",
+  //     "description": "Following trails, nature discussions, safety, outdoor enjoyment",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Attending a sports event",
+  //     "description": "Cheering, understanding rules, navigating crowds, discussing performances",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Going to an amusement park",
+  //     "description": "Choosing rides, safety instructions, navigating maps, expressing excitement or fears",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Participating in a workshop",
+  //     "description": "Learning skills, asking questions, practicing tasks, interacting",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   },
+  //   {
+  //     "prompt_text": "Volunteering",
+  //     "description": "Contributing to a cause, working with others, expressing compassion",
+  //     "age_range": "All ages",
+  //     "number_of_images": 12,
+  //     "token_limit": 100
+  //   }
+]

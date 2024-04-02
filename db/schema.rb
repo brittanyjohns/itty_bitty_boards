@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_03_25_190931) do
+ActiveRecord::Schema[7.1].define(version: 2024_04_02_194459) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -55,6 +55,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_03_25_190931) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "voice"
+    t.string "next_words", default: [], array: true
     t.index ["board_id"], name: "index_board_images_on_board_id"
     t.index ["image_id"], name: "index_board_images_on_image_id"
   end
@@ -107,6 +108,8 @@ ActiveRecord::Schema[7.1].define(version: 2024_03_25_190931) do
     t.string "revised_prompt"
     t.string "image_type"
     t.string "open_symbol_status", default: "active"
+    t.string "next_words", default: [], array: true
+    t.boolean "no_next", default: false
   end
 
   create_table "menus", force: :cascade do |t|

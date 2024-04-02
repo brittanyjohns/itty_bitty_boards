@@ -23,7 +23,7 @@
       <p class="text-sm font-semibold"> Add this image to a board:</p>
         <div class="sm:flex sm:justify-center sm:space-x-4">
           <%= f.hidden_field :image_id, value: @image.id %>
-          <%= f.collection_select :board_id, current_user.non_menu_boards, :id, :name, {prompt: "Select a board"}, required: true, class: "block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:max-w-xs" %>
+          <%= f.collection_select :board_id, current_user.non_menu_boards, :id, :name, { prompt: "Select a board" }, required: true, class: "block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:max-w-xs" %>
           <%= f.submit "Add", class: "mt-3 w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" %>
         </div>
       <% end %>
@@ -44,6 +44,11 @@
       <% end %>
 
     </div>
+    <div class="mt-6">
+      <p class="text-sm font-semibold mx-4 mb-3">
+        Next words:
+      </p>
+      <%= @image.next_words %>
   </div>
 
   <div class="flex-1 border p-3">
@@ -118,7 +123,7 @@
 
 <div class="mt-6 flex justify-center space-x-4">
     <%= button_to "Edit this image", edit_image_path(@image), method: :get, class: "text-indigo-600 hover:text-indigo-800 font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out" if current_user.can_edit?(@image) %>
-    <%= button_to "Destroy this image", @image, method: :delete, class: "text-red-600 hover:text-red-800 font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out", data: { turbo_method: :delete, turbo_confirm: "Are you sure?"} if current_user.can_edit?(@image) %>
+    <%= button_to "Destroy this image", @image, method: :delete, class: "text-red-600 hover:text-red-800 font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out", data: { turbo_method: :delete, turbo_confirm: "Are you sure?" } if current_user.can_edit?(@image) %>
 </div>
 
   

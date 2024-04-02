@@ -5,7 +5,7 @@ module ImageHelper
     open_ai_opts[:prompt] || name
   end
 
-  def save_image(url, user_id=nil, revised_prompt=nil)
+  def save_image(url, user_id = nil, revised_prompt = nil)
     begin
       downloaded_image = URI.open(url,
                                   "User-Agent" => "Ruby/#{RUBY_VERSION}",
@@ -22,7 +22,7 @@ module ImageHelper
     doc
   end
 
-  def create_image(user_id=nil)
+  def create_image(user_id = nil)
     user_id ||= self.user_id
     response = OpenAiClient.new(open_ai_opts).create_image
     img_url = response[:img_url]
@@ -75,6 +75,26 @@ module ImageHelper
     response_text
   end
 
+  def get_next_words(label)
+    response = OpenAiClient.new(open_ai_opts).get_next_words(label)
+    if response
+      next_words = response[:content]
+      if next_words.blank? || next_words.include?("NO NEXT WORDS")
+        return
+      end
+
+      if valid_json?(next_words)
+        next_words = JSON.parse(next_words)
+      else
+        puts "INVALID JSON: #{next_words}"
+        next_words = transform_into_json(next_words)
+      end
+    else
+      Rails.logger.error "*** ERROR - get_next_words *** \nDid not receive valid response. Response: #{response}\n"
+    end
+    next_words["next_words"]
+  end
+
   def create_image_variation(img_url = nil, user = nil)
     success = false
     img_url ||= main_doc.main_image_on_disk
@@ -95,9 +115,9 @@ module ImageHelper
     return false
   end
 
-  def transform_into_json(str)
+  def transform_into_json(content_str)
     json_str = content_str.gsub(/:([a-zA-z_]+)/, '"\1"') # Convert symbols to strings
-    json_str = json_str.gsub('=>', ': ') # Replace hash rockets with colons
+    json_str = json_str.gsub("=>", ": ") # Replace hash rockets with colons
 
     # Now parse the string as JSON
     begin
@@ -112,9 +132,6 @@ module ImageHelper
     puts "json_output: #{json_output}"
     json_output
   end
-
-
-
 
   def image_types
     ["Sigma 24mm f/8",

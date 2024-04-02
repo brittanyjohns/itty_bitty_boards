@@ -109,12 +109,12 @@ class ImagesController < ApplicationController
     GenerateImageJob.perform_async(@image.id, current_user.id, params[:image_prompt])
     sleep 2
     current_user.remove_tokens(1)
-    render json: { status: "success", redirect_url: images_url, notice: "Image was successfully cropped & saved." } 
+    render json: { status: "success", redirect_url: images_url, notice: "Image was successfully cropped & saved." }
   end
 
   def find_or_create
-    generate_image = params['generate_image'] == "1"
-    label = params['label']&.downcase
+    generate_image = params["generate_image"] == "1"
+    label = params["label"]&.downcase
     @image = Image.find_by(label: label, user_id: current_user.id)
     @image = Image.public_img.find_by(label: label) unless @image
     @found_image = @image
@@ -140,7 +140,7 @@ class ImagesController < ApplicationController
       puts "New Image or no docs"
       limit = current_user.admin? ? 10 : 5
       GetSymbolsJob.perform_async([@image.id], limit)
-      notice += " Creating #{limit} #{'symbol'.pluralize(limit)} for image."      
+      notice += " Creating #{limit} #{"symbol".pluralize(limit)} for image."
     end
 
     respond_to do |format|
@@ -161,7 +161,7 @@ class ImagesController < ApplicationController
     @image = Image.find(params[:id])
     limit = current_user.admin? ? 10 : 1
     GetSymbolsJob.perform_async([@image.id], limit)
-    redirect_back_or_to image_url(@image), notice: "Creating #{limit} #{'symbol'.pluralize(limit)} for image '#{@image.label}'."
+    redirect_back_or_to image_url(@image), notice: "Creating #{limit} #{"symbol".pluralize(limit)} for image '#{@image.label}'."
   end
 
   def run_generate
@@ -196,13 +196,14 @@ class ImagesController < ApplicationController
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_image
-      @image = Image.find(params[:id])
-    end
 
-    # Only allow a list of trusted parameters through.
-    def image_params
-      params.require(:image).permit(:label, :image_prompt, :private, :user_id, :status, :error)
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_image
+    @image = Image.find(params[:id])
+  end
+
+  # Only allow a list of trusted parameters through.
+  def image_params
+    params.require(:image).permit(:label, :image_prompt, :private, :user_id, :status, :error)
+  end
 end

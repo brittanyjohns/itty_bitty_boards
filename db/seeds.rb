@@ -8,10 +8,9 @@
 #     MovieGenre.find_or_create_by!(name: genre_name)
 #   end
 # ProductCategory.delete_all
-tokens = ProductCategory.find_or_create_by name: "tokens"
+# tokens = ProductCategory.find_or_create_by name: "tokens"
 
-
-Product.find_or_create_by name: "5 tokens", price: 1, coin_value: 5, active: true, product_category: tokens
+# Product.find_or_create_by name: "5 tokens", price: 1, coin_value: 5, active: true, product_category: tokens
 # Product.find_or_create_by name: "100 tokens", price: 10, coin_value: 100, active: true, product_category: tokens
 # Product.find_or_create_by name: "200 tokens", price: 15, coin_value: 200, active: true, product_category: tokens
 # Product.find_or_create_by name: "500 tokens", price: 20, coin_value: 500, active: true, product_category: tokens
@@ -217,3 +216,38 @@ Product.find_or_create_by name: "5 tokens", price: 1, coin_value: 5, active: tru
 # puts "Running generate image job for #{new_images.count} new images"
 # # Image.run_generate_image_job_for(new_images)
 # puts "Finished running generate image job for #{new_images.count} new images"
+
+words = [
+  "Yes",
+  "No",
+  "More",
+  "Stop",
+  "Go",
+  "Help",
+  "Please",
+  "Thank you",
+  "Sorry",
+  "I want",
+  "I feel",
+  "Bathroom",
+  "Thirsty",
+  "Hungry",
+  "Tired",
+  "Hurt",
+  "Happy",
+  "Sad",
+  "Play",
+  "All done",
+]
+
+words.each do |word|
+  image = Image.find_by(label: word.downcase)
+  if image
+    puts "Word #{word} already exists"
+  else
+    image = Image.public_img.find_or_create_by!(label: word.downcase, image_prompt: "Create an image of #{word}")
+    puts "Created word #{word}"
+  end
+  image.set_next_words! if image
+  image
+end

@@ -20,7 +20,7 @@ class OpenAiClient
   end
 
   def create_image
-    response = openai_client.images.generate(parameters: { prompt: @prompt, model: "dall-e-3", style: 'vivid'} )
+    response = openai_client.images.generate(parameters: { prompt: @prompt, model: "dall-e-3", style: "vivid" })
     if response
       img_url = response.dig("data", 0, "url")
       revised_prompt = response.dig("data", 0, "revised_prompt")
@@ -39,13 +39,11 @@ class OpenAiClient
     voice = voice || "alloy"
     puts "FROM OpenAiClient: text: #{text} -- voice: #{voice}"
     begin
-    response = openai_client.audio.speech(parameters:
-      {
-        input: text,
-        model: "tts-1",
-        voice: voice,
-      }
-    )
+      response = openai_client.audio.speech(parameters: {
+                                              input: text,
+                                              model: "tts-1",
+                                              voice: voice,
+                                            })
     rescue => e
       puts "**** ERROR **** \n#{e.message}\n"
     end
@@ -77,9 +75,37 @@ class OpenAiClient
     response
   end
 
+  def next_words_prompt(label)
+    "Given a specific context or emotion, such as '#{label}', 
+    provide a list of 24 foundational words or short phrases that are crucial for basic communication in an AAC (Augmentative and Alternative Communication) device. 
+    These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations.
+    Determine if the word '#{label}' typically leads to specific follow-up words in everyday communication. If not, respond with 'NO NEXT WORDS'. 
+    This will help in populating an AAC (Augmentative and Alternative Communication) device with contextually appropriate vocabulary.
+    Don't include contractions or words that are too specific to a particular context. Two-word phrases are acceptable but should be kept to a minimum.
+    The goal is to populate an AAC device with versatile vocabulary. '#{label}' shoule not be included in the list of next words or phrases.
+    Respond as a JSON object with the following format: {\"next_words\": [\"word1\", \"word2\", \"word3\", ...]}\n or 'NO NEXT WORDS'
+    Make your best attempt to provide a list of 24 words or short phrases (2 words max) that are foundational for basic communication in an AAC device. Respond with 'NO NEXT WORDS' if there are no common follow-up words for '#{label}' that would be used in conversation & an AAC device."
+  end
+
+  # def next_words_prompt(label)
+  #   "For the word '#{label}', decide if it generally leads to a set of specific next words in daily conversations useful for an AAC device. If yes, provide a JSON list of 24 foundational words or short phrases essential for AAC users to express intents, needs, and responses across various situations. Use the format: {\"next_words\": [\"word1\", \"word2\", ...]}. If '#{label}' does not naturally lead to next words, respond with 'NO NEXT WORDS'. Avoid contractions and context-specific words. Two-word phrases are allowed but should be limited. The goal is to populate an AAC device with versatile vocabulary."
+  # end
+
+  def get_next_words(label)
+    @model = GPT_4_MODEL
+    @messages = [{ role: "user",
+                  content: [{
+      type: "text",
+      text: next_words_prompt(label),
+    }] }]
+    response = create_chat
+    puts "*** ERROR *** Invaild Next Words Response: #{response}" unless response
+    response
+  end
+
   def strip_image_description(image_description)
     puts "Missing image description.\n" && return unless image_description
-    stripped_description = image_description.gsub(/[^a-z ]/i, '')
+    stripped_description = image_description.gsub(/[^a-z ]/i, "")
     stripped_description
   end
 

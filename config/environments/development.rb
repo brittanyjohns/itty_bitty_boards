@@ -33,7 +33,7 @@ Rails.application.configure do
 
     config.cache_store = :memory_store
     config.public_file_server.headers = {
-      "Cache-Control" => "public, max-age=#{2.days.to_i}"
+      "Cache-Control" => "public, max-age=#{2.days.to_i}",
     }
   else
     config.action_controller.perform_caching = false
@@ -59,7 +59,7 @@ Rails.application.configure do
     user_name: "hello@ittybittyboards.com",
     password: ENV["SMTP_PASSWORD"],
     authentication: "plain",
-    enable_starttls_auto: true
+    enable_starttls_auto: true,
   }
 
   # Print deprecation notices to the Rails logger.
@@ -81,7 +81,8 @@ Rails.application.configure do
   config.active_job.verbose_enqueue_logs = true
 
   # Suppress logger output for asset requests.
-  config.assets.quiet = true
+  # config.assets.quiet = true
+  config.assets.debug = true
 
   # Raises error for missing translations.
   # config.i18n.raise_on_missing_translations = true
