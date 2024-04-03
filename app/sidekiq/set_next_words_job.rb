@@ -6,9 +6,6 @@ class SetNextWordsJob
     images.each do |image|
       begin
         words = image.set_next_words!
-        sleep 1
-        puts "Set next words for image #{image.id} - #{words}"
-        image.create_board_from_next_words!(words)
         puts "Created board from next words for image #{image.id}"
       rescue => e
         puts "\n**** SIDEKIQ - SetNextWordsJob \n\nERROR **** \n#{e.message}\n"

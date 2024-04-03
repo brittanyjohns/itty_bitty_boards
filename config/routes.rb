@@ -1,4 +1,4 @@
-require 'sidekiq/web'
+require "sidekiq/web"
 
 Rails.application.routes.draw do
   resources :team_boards
@@ -16,9 +16,9 @@ Rails.application.routes.draw do
     end
   end
   resources :beta_requests
-  post '/beta_signup', to: 'beta_requests#create', as: :beta_signup
+  post "/beta_signup", to: "beta_requests#create", as: :beta_signup
 
-  get '/current_user', to: 'current_user#index'
+  get "/current_user", to: "current_user#index"
   resources :messages
   resources :openai_prompts
   resources :open_symbols do
@@ -63,10 +63,14 @@ Rails.application.routes.draw do
   end
 
   resources :boards do
+    collection do
+      get "predictive_index"
+    end
     member do
       get "build"
       get "fullscreen"
       get "locked"
+      get "predictive"
       post "clone"
       post "add_multiple_images"
       post "associate_image"
@@ -75,7 +79,7 @@ Rails.application.routes.draw do
     end
   end
   resources :board_images
-    # Order matters here.  users needs to be below the devise_for :users
+  # Order matters here.  users needs to be below the devise_for :users
   devise_for :users
   # devise_for :users, path: '', path_names: {
   #   sign_in: 'login',
@@ -93,14 +97,14 @@ Rails.application.routes.draw do
     end
   end
 
-  get 'main/index', as: :home
-  get 'dashboard', to: 'main#dashboard', as: :dashboard
-  get 'main/predefined/:id', to: 'main#show_predefined', as: :show_predefined
-  get 'main/demo', as: :demo
-  get '/about', as: :about, to: 'main#about'
-  get '/contact', as: :contact, to: 'messages#new'
-  get 'main/welcome', as: :welcome
-  get 'main/faq', as: :faq
+  get "main/index", as: :home
+  get "dashboard", to: "main#dashboard", as: :dashboard
+  get "main/predefined/:id", to: "main#show_predefined", as: :show_predefined
+  get "main/demo", as: :demo
+  get "/about", as: :about, to: "main#about"
+  get "/contact", as: :contact, to: "messages#new"
+  get "main/welcome", as: :welcome
+  get "main/faq", as: :faq
   get "boards", to: "boards#index", as: :user_root
 
   get "charges/new"
@@ -115,27 +119,31 @@ Rails.application.routes.draw do
   resources :orders, only: [:index, :show]
 
   #  API routes
-  namespace :api, defaults: {format: :json} do
+  namespace :api, defaults: { format: :json } do
     resources :images do
       collection do
         get "search"
         post "find_or_create"
         post "generate"
         post "add_to_board"
+        get "predictive"
       end
     end
     resources :boards do
+      collection do
+        get "first_predictive_board"
+        get "predictive_index"
+      end
       member do
         post "add_image"
         post "remove_image"
         get "remaining_images"
         put "associate_image"
+        get "predictive_images"
       end
     end
 
     resources :scenarios
-
-
 
     resources :menus do
       member do
@@ -181,7 +189,7 @@ Rails.application.routes.draw do
   # Can be used by load balancers and uptime monitors to verify that the app is live.
   get "up" => "rails/health#show", as: :rails_health_check
 
-  mount Sidekiq::Web => '/sidekiq'
+  mount Sidekiq::Web => "/sidekiq"
 
   # Defines the root path route ("/")
   root "main#index"

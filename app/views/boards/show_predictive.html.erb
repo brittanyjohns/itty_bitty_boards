@@ -1,0 +1,60 @@
+<%= turbo_stream_from(@board) %>
+<div data-controller="speak show grid" class="w-full mt-2 pb-6 mx-auto bg-white rounded-lg shadow-md" data-predefined="<%= @board.predefined %>">
+    <div class="flex justify-around my-4">
+        <%= link_to "Back", menu_path(@board.parent, menu_page: true), class: "bg-blue-600 hover:bg-blue-800 text-white font-semibold py-2 px-4 m-1 rounded-full transition duration-300 ease-in-out transform hover:-translate-y-1" if @board.parent_type == "Menu" %>
+        <%= link_to "Back", boards_path, class: "bg-blue-600 hover:bg-blue-800 text-white font-semibold py-2 px-4 m-1 rounded-full transition duration-300 ease-in-out transform hover:-translate-y-1" if @board.parent_type != "Menu" %>
+        <%= link_to "Fullscreen", fullscreen_board_path(@board), class: "bg-green-500 hover:bg-green-700 text-white font-semibold py-2 px-4 m-1 rounded-full transition duration-300 ease-in-out transform hover:-translate-y-1" %>
+        <%= link_to "Locked", locked_board_path(@board), class: "bg-yellow-500 hover:bg-yellow-700 text-white font-semibold py-2 px-4 m-1 rounded-full transition duration-300 ease-in-out transform hover:-translate-y-1" %>
+    </div>
+
+    <h1 class="text-center text-3xl font-bold mb-4 mt-3 text-gray-800">
+        <%= @board.name.titleize %>
+    </h1>
+
+    <%= render "boards/openai_prompt", openai_prompt: @board.parent if @board.parent_type == "OpenaiPrompt" %>
+
+    <div class="flex justify-center mb-4 p-2">
+        <%= link_to "Add Image", new_board_image_path(board_id: @board.id), class: "bg-purple-500 hover:bg-purple-700 text-white font-semibold py-2 px-4 m-1 rounded-full text-sm transition duration-300 ease-in-out transform hover:-translate-y-1", data: { turbo_frame: dom_id(BoardImage.new) } if current_user.can_edit?(@board) %>
+    </div>
+    <div class="p-1 w-full md:w-1/2 mx-auto">
+        <div class="" data-show-target="target">
+            <%= turbo_frame_tag BoardImage.new %>
+        </div>
+    </div>
+
+
+    <div class="flex justify-between bg-white mb-3 rounded-lg shadow-md sm:w-full md:w-2/3 mx-auto">
+        <input class="w-5/6 p-1 m-1 rounded-md text-sm" type="text" placeholder="Click an image or type a message to begin speaking" id="the-list">
+        <div class="flex justify-end items-center">
+            <button class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#clear"><%= clear_icon %></button>
+            <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 m-1 rounded-full text-sm" data-action="click->speak#speakList"><%= speak_icon %></button>
+        </div>
+    </div>
+    <div id="<%= dom_id @board %>_images" class="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 gap-1 p-2 text-sm" data-grid-target="grid">
+        <% @board.images.each do |image| %>
+            <%= turbo_frame_tag dom_id(image) do %>
+                <div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
+                    <%= render image %>
+                </div>
+            <% end %>
+        <% end %>
+    </div>
+
+    <div class="flex flex-wrap justify-around mt-3 gap-4">
+        <%= button_to "#{copy_nav} Copy".html_safe, clone_board_path(@board), method: :post, class: "border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-4 py-2 rounded-md text-sm font-medium transition duration-300 ease-in-out" %>
+
+        <% if policy(@board).update? %>
+            <div class="flex justify-between items-center w-full">
+                <div class="text-center mx-4">
+                    <%= label_tag "number_of_columns", "Grid Columns", class: "text-sm font-medium text-gray-700 mb-1" %>
+                    <%= select_tag "number_of_columns", options_for_select(Board.grid_sizes, @board.number_of_columns.to_s), class: "bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 block w-full sm:text-sm transition duration-300 ease-in-out", data: { grid_target: "number_of_columns", action: "change->grid#changeGrid" } %>
+                </div>
+
+                <div class="flex gap-2">
+                    <%= link_to "Edit", edit_board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full text-sm transition duration-300 ease-in-out transform hover:scale-105" %>
+                    <%= button_to "Delete", @board, method: :delete, data: { turbo_confirm: "Are you sure?" }, class: "bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full text-sm transition duration-300 ease-in-out transform hover:scale-105" %>
+                </div>
+            </div>
+        <% end %>
+    </div>
+</div>

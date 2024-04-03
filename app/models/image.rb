@@ -99,12 +99,74 @@ class Image < ApplicationRecord
       SetNextWordsJob.perform_async(img_ids)
       count += 20
       break if count >= limit
-      sleep(5)
+      sleep(1)
     end
   end
 
+  # def next_board_id
+  #   puts "Getting next board for #{label} - next_board: #{next_board&.images&.count}"
+  #   if next_board && next_board.images.any?
+  #     next_board.id
+  #   else
+  #     Board.predictive_default&.id
+  #   end
+  # end
+
+  def next_images
+    imgs = Image.where(label: next_words).public_img.order(created_at: :desc).distinct(:label)
+    return imgs if imgs.any?
+    Board.predictive_default.images
+  end
+
+  def self.create_predictive_default_board
+    predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
+    admin_user = User.admins.first
+    puts "Predefined resource created: #{predefined_resource.name} admin_user: #{admin_user.email}"
+    predictive_default_board = Board.find_or_create_by!(name: "Predictive Default", user_id: admin_user.id, parent: predefined_resource)
+    puts "Predictive default board created: #{predictive_default_board.name}"
+
+    array = [
+      "Yes",
+      "No",
+      "More",
+      "Stop",
+      "Go",
+      "Help",
+      "Please",
+      "Thank you",
+      "Sorry",
+      "I want",
+      "I feel",
+      "Bathroom",
+      "Thirsty",
+      "Hungry",
+      "Tired",
+      "Hurt",
+      "Happy",
+      "Sad",
+      "Play",
+      "All done",
+    ]
+    array.each do |word|
+      image = Image.public_img.find_by(label: word)
+      if image
+        predictive_default_board.add_image(image.id)
+      else
+        image = Image.public_img.create!(label: word)
+        predictive_default_board.add_image(image.id)
+      end
+    end
+    predictive_default_board.save!
+    predictive_default_board
+  end
+
   def next_board
-    @next_board ||= create_next_board
+    parent_resource = PredefinedResource.find_or_create_by name: "Next", resource_type: "Board"
+    admin_user = User.admins.first
+    puts "Parent resource created: #{parent_resource.name} admin_user: #{admin_user.email}"
+    next_board = Board.find_or_create_by!(name: label, user_id: admin_user.id, parent: parent_resource)
+    puts "Next board created: #{next_board&.name}"
+    next_board
   end
 
   def create_next_board

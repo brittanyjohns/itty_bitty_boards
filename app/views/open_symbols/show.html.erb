@@ -1,8 +1,8 @@
 <h1><%= @symbol.name %>><%= @symbol.label %></h1>
 <p><%= @symbol.extension %>
-<%  if @symbol.image&.attached? && @symbol.image.representable? %>
-<%= image_tag(@symbol.image.representation(resize_to_limit: [300, 300]).processed.url) %>
-<p> Image Saved: <%= link_to @symbol.image.filename, @symbol.image_doc  %></p>
+<% if @symbol.image&.attached? && @symbol.image.representable? %>
+<%= image_tag(@symbol.image) %>
+<p> Image Saved: <%= link_to @symbol.image.filename, @symbol.image_doc %></p>
 <%= button_to "Make Image", make_image_open_symbol_path(@symbol), method: :post if @symbol.image_extension? %>
 <% else %>
 
@@ -12,6 +12,6 @@
 <% end %>
 
 <%= link_to "Back", open_symbols_path %>
-<%= link_to "IMAGE", @symbol.matching_image if  @symbol.matching_image %>
+<%= link_to "IMAGE", @symbol.matching_image if @symbol.matching_image %>
 
  <%= @symbol.inspect %>

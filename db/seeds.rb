@@ -15,9 +15,9 @@
 # Product.find_or_create_by name: "200 tokens", price: 15, coin_value: 200, active: true, product_category: tokens
 # Product.find_or_create_by name: "500 tokens", price: 20, coin_value: 500, active: true, product_category: tokens
 
-# User.find_or_initialize_by email: "admin@ittybittyboards.com", first_name: "Admin", last_name: "User", role: "admin", password: "password", password_confirmation: "password"
-# parent_resource = PredefinedResource.find_or_create_by name: "Default", resource_type: "Board"
-# admin_user = User.admins.first
+User.find_or_initialize_by email: "admin@ittybittyboards.com", first_name: "Admin", last_name: "User", role: "admin", password: "password", password_confirmation: "password"
+parent_resource = PredefinedResource.find_or_create_by name: "Default", resource_type: "Board"
+admin_user = User.admins.first
 # # Predefined communication boards :
 # # • Eat - common foods
 # # • Drink - common drinks
@@ -116,26 +116,26 @@
 #     play_board.add_image(i.id)
 # end
 # puts "Created #{play_images.count} play images"
-# greetings_board = Board.find_or_create_by!(name: "Say Hello To", description: "Who would you like to say hello to?", predefined: true, predefined: true, parent: parent_resource, user: admin_user)
+greetings_board = Board.find_or_create_by!(name: "Say Hello To", description: "Who would you like to say hello to?", predefined: true, predefined: true, parent: parent_resource, user: admin_user)
 
-# greetings_images = [
-#     { label: "Mom", image_prompt: "Create an image representing mom" },
-#     { label: "Dad", image_prompt: "Create an image representing dad" },
-#     { label: "Grandma", image_prompt: "Create an image representing grandma" },
-#     { label: "Grandpa", image_prompt: "Create an image representing grandpa" },
-#     { label: "Teacher", image_prompt: "Create an image representing a teacher" },
-#     { label: "Friend", image_prompt: "Create an image representing a friend" },
-#     { label: "Sibling", image_prompt: "Create an image representing a sibling" },
-#     { label: "Aunt", image_prompt: "Create an image representing an aunt" },
-#     { label: "Uncle", image_prompt: "Create an image representing an uncle" },
-#     { label: "Pet", image_prompt: "Create an image representing a pet" }
-# ]
+greetings_images = [
+    { label: "Mom", image_prompt: "Create an image representing mom" },
+    { label: "Dad", image_prompt: "Create an image representing dad" },
+    { label: "Grandma", image_prompt: "Create an image representing grandma" },
+    { label: "Grandpa", image_prompt: "Create an image representing grandpa" },
+    { label: "Teacher", image_prompt: "Create an image representing a teacher" },
+    { label: "Friend", image_prompt: "Create an image representing a friend" },
+    { label: "Sibling", image_prompt: "Create an image representing a sibling" },
+    { label: "Aunt", image_prompt: "Create an image representing an aunt" },
+    { label: "Uncle", image_prompt: "Create an image representing an uncle" },
+    { label: "Pet", image_prompt: "Create an image representing a pet" }
+]
 
-# greetings_images.each do |image|
-# i = Image.public_img.find_or_create_by!(label: image[:label].downcase, image_prompt: image[:image_prompt])
-# new_images << i
-# greetings_board.add_image(i.id)
-# end
+greetings_images.each do |image|
+i = Image.public_img.find_or_create_by!(label: image[:label].downcase, image_prompt: image[:image_prompt])
+new_images << i
+greetings_board.add_image(i.id)
+end
 
 # top_five_boards = [
 #   "Daily Routines",

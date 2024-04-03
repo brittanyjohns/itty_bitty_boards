@@ -14,7 +14,7 @@ module DocsHelper
     if !doc.image&.attached?
       str += "<div class='h-52 w-52 text-gray-400 text-2xl font-bold grid justify-items-center items-center shadow mx-auto my-auto'><span class='mx-auto my-auto'>#{doc.documentable.label&.upcase}</span></div>".html_safe
     else
-      str += image_tag(doc.image.representation(resize_to_limit: [500, 500]).processed.url, class: classes, data: { enlarge_target: "image" })
+      str += image_tag(doc.image, class: classes, data: { enlarge_target: "image" })
     end
     str.html_safe
   end

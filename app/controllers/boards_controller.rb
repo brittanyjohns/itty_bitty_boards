@@ -2,7 +2,7 @@ class BoardsController < ApplicationController
   before_action :authenticate_user!, except: %i[ locked ]
   after_action :verify_policy_scoped, only: :index
 
-  before_action :set_board, only: %i[ show edit update destroy build add_multiple_images associate_image remove_image fullscreen locked ]
+  before_action :set_board, only: %i[ show edit update destroy build add_multiple_images associate_image remove_image fullscreen locked predictive ]
   layout "fullscreen", only: [:fullscreen]
   layout "locked", only: [:locked]
 
@@ -13,11 +13,26 @@ class BoardsController < ApplicationController
       @query = params[:query]
       @boards = @boards.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc).page(params[:page]).per(20)
       @predefined_boards = Board.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc).page(params[:page]).per(20)
+      @predictive_boards = Board.predictive.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc).page(params[:page]).per(20)
     else
       @boards = @boards.order(created_at: :desc).page(params[:page]).per(20)
       @predefined_boards = Board.predefined.order(created_at: :desc).page(params[:page]).per(20)
+      @predictive_boards = Board.predictive.order(created_at: :desc).page(params[:page]).per(20)
     end
     @shared_boards = current_user.shared_with_me_boards.order(created_at: :desc).page(params[:page]).per(20)
+  end
+
+  def predictive_index
+    @boards = Board.includes(:images).predictive
+    if turbo_frame_request?
+      render partial: "predictive_images", locals: { images: @images }
+    else
+      render :index
+    end
+  end
+
+  def predictive
+    @images = @board.images
   end
 
   # GET /boards/1 or /boards/1.json
@@ -168,13 +183,14 @@ class BoardsController < ApplicationController
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_board
-      @board = Board.includes(board_images: { image: :docs }).find(params[:id])
-    end
 
-    # Only allow a list of trusted parameters through.
-    def board_params
-      params.require(:board).permit(:user_id, :name, :parent_id, :parent_type, :description, :number_of_columns, :predefined, :voice)
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_board
+    @board = Board.includes(board_images: { image: :docs }).find(params[:id])
+  end
+
+  # Only allow a list of trusted parameters through.
+  def board_params
+    params.require(:board).permit(:user_id, :name, :parent_id, :parent_type, :description, :number_of_columns, :predefined, :voice)
+  end
 end

@@ -1,5 +1,4 @@
 class API::ImagesController < API::ApplicationController
-
   def index
     if params[:user_images_only] == "1"
       @images = Image.where(image_type: nil).searchable_images_for(current_user, true).order(label: :asc).page params[:page]
@@ -20,7 +19,7 @@ class API::ImagesController < API::ApplicationController
         display_doc: image.display_image(current_user),
         # src: url_for(image.display_image),
         src: image.display_image(current_user) ? image.display_image(current_user).url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-        audio: image.audio_files.first ? url_for(image.audio_files.first) : nil
+        audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
       }
     end
     render json: @images_with_display_doc
@@ -40,7 +39,7 @@ class API::ImagesController < API::ApplicationController
         label: @image&.label,
         user_id: @current_doc&.user_id,
         src: @current_doc&.image&.url,
-        is_current: true
+        is_current: true,
       },
       private: @image.private,
       # src: url_for(@image.display_image),
@@ -52,13 +51,13 @@ class API::ImagesController < API::ApplicationController
           label: @image.label,
           user_id: doc.user_id,
           src: doc.image.url,
-          is_current: doc.id == @current_doc_id
-        } 
-      end          
+          is_current: doc.id == @current_doc_id,
+        }
+      end,
 
-      }
-      render json: @image_with_display_doc
-    end
+    }
+    render json: @image_with_display_doc
+  end
 
   def create
     puts "API::ImagesController#create image_params: #{image_params} - params: #{params}"
@@ -109,7 +108,7 @@ class API::ImagesController < API::ApplicationController
         label: @image&.label,
         user_id: @current_doc&.user_id,
         src: @current_doc&.image&.url,
-        is_current: true
+        is_current: true,
       },
       private: @image.private,
       # src: url_for(@image.display_image),
@@ -121,17 +120,17 @@ class API::ImagesController < API::ApplicationController
           label: @image.label,
           user_id: doc.user_id,
           src: doc.image.url,
-          is_current: doc.id == @current_doc_id
-        } 
-      end          
+          is_current: doc.id == @current_doc_id,
+        }
+      end,
 
-      }
-      render json: @image_with_display_doc
+    }
+    render json: @image_with_display_doc
   end
 
   def find_or_create
-    generate_image = params['generate_image'] == "1"
-    label = image_params['label']&.downcase
+    generate_image = params["generate_image"] == "1"
+    label = image_params["label"]&.downcase
     @image = Image.find_by(label: label, user_id: current_user.id)
     @image = Image.public_img.find_by(label: label) unless @image
     @found_image = @image
@@ -157,7 +156,7 @@ class API::ImagesController < API::ApplicationController
       puts "New Image or no docs"
       limit = current_user.admin? ? 10 : 5
       GetSymbolsJob.perform_async([@image.id], limit)
-      notice += " Creating #{limit} #{'symbol'.pluralize(limit)} for image."      
+      notice += " Creating #{limit} #{"symbol".pluralize(limit)} for image."
     end
     @image_with_display_doc = @image.with_display_doc(current_user)
     render json: @image_with_display_doc
@@ -191,14 +190,32 @@ class API::ImagesController < API::ApplicationController
         image_prompt: image.image_prompt,
         display_doc: image.display_image(current_user),
         src: url_for(image.display_image),
-        audio: image.audio_files.first ? url_for(image.audio_files.first) : nil
+        audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
       }
     end
   end
 
+  def predictive
+    if params["ids"].present?
+      @images = Image.where(id: params["ids"])
+    else
+      puts "No ids - #{params}"
+    end
+    @images = @images.order(label: :asc).page params[:page]
+    @images_with_display_doc = @images.map do |image|
+      {
+        id: image.id,
+        label: image.label,
+        image_prompt: image.image_prompt,
+        display_doc: image.display_image(current_user),
+        src: url_for(image.display_image),
+        audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
+      }
+    end
+    render json: @images_with_display_doc
+  end
 
   private
-
 
   def run_generate
     return if current_user.tokens < 1

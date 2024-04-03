@@ -30,7 +30,7 @@ class Board < ApplicationRecord
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
   scope :scenarios, -> { where(parent_type: "OpenaiPrompt") }
-  scope :next_steps, -> { where(parent_type: "PredefinedResource") }
+  scope :predictive, -> { where(parent_type: "PredefinedResource") }
   scope :predefined, -> { where(predefined: true) }
   scope :ai_generated, -> { where(parent_type: "OpenaiPrompt") }
 
@@ -44,6 +44,14 @@ class Board < ApplicationRecord
   # def set_number_of_columns
   #   self.number_of_columns = 4
   # end
+
+  def predictive?
+    parent_type == "PredefinedResource" && parent.name == "Next"
+  end
+
+  def self.predictive_default
+    self.includes(board_images: { image: :docs }).where(parent_type: "PredefinedResource", name: "Predictive Default").first
+  end
 
   def set_default_voice
     self.voice = user.settings["voice"]
@@ -135,6 +143,28 @@ class Board < ApplicationRecord
           id: image.id,
           label: image.label,
           image_prompt: image.image_prompt,
+          display_doc: image.display_image,
+          src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+          audio: image.audio_files.first&.url,
+        }
+      end,
+    }
+  end
+
+  def api_view_with_predictive_images
+    {
+      id: id,
+      name: name,
+      description: description,
+      parent_type: parent_type,
+      predefined: predefined,
+      number_of_columns: number_of_columns,
+      images: images.map do |image|
+        {
+          id: image.id,
+          label: image.label,
+          image_prompt: image.image_prompt,
+          next_words: image.next_words,
           display_doc: image.display_image,
           src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
           audio: image.audio_files.first&.url,

@@ -4,7 +4,7 @@ class API::BoardsController < API::ApplicationController
 
   # before_action :authenticate_user!
 
-  before_action :set_board, only: %i[  associate_image remove_image ]
+  before_action :set_board, only: %i[ associate_image remove_image ]
   # layout "fullscreen", only: [:fullscreen]
   # layout "locked", only: [:locked]
 
@@ -25,6 +25,74 @@ class API::BoardsController < API::ApplicationController
 
     render json: { boards: @boards, predefined_boards: @predefined_boards, scenarios: @scenarios, shared_boards: @shared_boards }
   end
+
+  # export interface PredictiveImage {
+  #   id: string;
+  #   src: string;
+  #   label: string;
+  #   next_images: PredictiveImage[];
+  #   image_prompt?: string;
+  #   audio?: string;
+  #   docs?: ImageDoc[];
+  #   display_doc?: ImageDoc;
+  # }
+
+  def predictive_index
+    @boards = Board.includes(:images).predictive
+    @predictive_boards = @boards.map do |board|
+      {
+        id: board.id,
+        name: board.name,
+        description: board.description,
+        parent_type: board.parent_type,
+        predefined: board.predefined,
+        number_of_columns: board.number_of_columns,
+        images: board.images.map do |image|
+          {
+            id: image.id,
+            label: image.label,
+            image_prompt: image.image_prompt,
+            next_words: image.next_words,
+            display_doc: image.display_image,
+            src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+            audio: image.audio_files.first&.url,
+          }
+        end,
+      }
+    end
+    render json: @predictive_boards
+  end
+
+  def first_predictive_board
+    @board = Board.predictive_default
+    @board_with_images = @board.images.map do |image|
+      {
+        id: image.id,
+        label: image.label,
+        # image_prompt: image.image_prompt,
+        # nextImageIds: image.next_images.map(&:id),
+        # nextImageSrcs: image.next_images.map { |ni| ni.display_image(current_user) ? ni.display_image(current_user).url : "https://via.placeholder.com/300x300.png?text=#{ni.label_param}" },
+        next_words: image.next_words,
+        src: image.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+        audio: image.audio_files.first&.url,
+      }
+    end
+    render json: @board_with_images
+  end
+
+  def predictive_images
+    @image = Image.find(params[:id])
+    @next_images = @image.next_images.map do |ni|
+      {
+        id: ni.id,
+        label: ni.label,
+        src: ni.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{ni.label_param}",
+        audio: ni.audio_files.first&.url,
+      }
+    end
+    render json: @next_images
+  end
+
   # GET /boards/1 or /boards/1.json
   def show
     board = Board.includes(board_images: { image: :docs }).find(params[:id])
@@ -54,7 +122,7 @@ class API::BoardsController < API::ApplicationController
         image_prompt: image.image_prompt,
         display_doc: image.display_image,
         src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-        audio: image.audio_files.first&.url
+        audio: image.audio_files.first&.url,
       }
     end
 
@@ -82,7 +150,7 @@ class API::BoardsController < API::ApplicationController
   # PATCH/PUT /boards/1 or /boards/1.json
   def update
     @board = Board.find(params[:id])
-    @board.number_of_columns = board_params['number_of_columns'].to_i
+    @board.number_of_columns = board_params["number_of_columns"].to_i
     puts "handleSubmit: #{board_params} \n\n- params: #{params}"
     respond_to do |format|
       if @board.update(board_params)
@@ -92,7 +160,6 @@ class API::BoardsController < API::ApplicationController
       end
     end
   end
-
 
   def add_image
     puts "API:::BoardsController#create board_params: #{board_params} - params: #{params}"
@@ -112,7 +179,7 @@ class API::BoardsController < API::ApplicationController
       img_saved = @image.save!
     end
 
-    if(image_params[:docs].present?)
+    if (image_params[:docs].present?)
       doc = @image.docs.new(image_params[:docs])
       doc.user = current_user
       doc.processed = true
@@ -123,26 +190,26 @@ class API::BoardsController < API::ApplicationController
       # doc.attach_image(image_params[:display_image])
       # render json: @board, status: :created
       @board_with_images =
-      {
-        id: @board.id,
-        name: @board.name,
-        description: @board.description,
-        parent_type: @board.parent_type,
-        predefined: @board.predefined,
-        number_of_columns: @board.number_of_columns,
-        images: @board.images.map do |image|
-          {
-            id: image.id,
-            label: image.label,
-            image_prompt: image.image_prompt,
-            display_doc: image.display_image,
-            src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-            audio: image.audio_files.first&.url
-          }
-        end
-      }
-    puts @board_with_images.inspect
-    render json: @board_with_images
+        {
+          id: @board.id,
+          name: @board.name,
+          description: @board.description,
+          parent_type: @board.parent_type,
+          predefined: @board.predefined,
+          number_of_columns: @board.number_of_columns,
+          images: @board.images.map do |image|
+            {
+              id: image.id,
+              label: image.label,
+              image_prompt: image.image_prompt,
+              display_doc: image.display_image,
+              src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+              audio: image.audio_files.first&.url,
+            }
+          end,
+        }
+      puts @board_with_images.inspect
+      render json: @board_with_images
     else
       render json: img_saved.errors, status: :unprocessable_entity
     end
@@ -198,17 +265,18 @@ class API::BoardsController < API::ApplicationController
   # end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_board
-      @board = Board.includes(board_images: { image: :docs }).find(params[:id])
-    end
 
-    def image_params
-      params.require(:image).permit(:label, :image_prompt, :display_image, audio_files: [], docs: [:id, :user_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_board
+    @board = Board.includes(board_images: { image: :docs }).find(params[:id])
+  end
 
-    # Only allow a list of trusted parameters through.
-    def board_params
-      params.require(:board).permit(:user_id, :name, :parent_id, :parent_type, :description, :number_of_columns, :predefined, :voice, :id)
-    end
+  def image_params
+    params.require(:image).permit(:label, :image_prompt, :display_image, audio_files: [], docs: [:id, :user_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
+  end
+
+  # Only allow a list of trusted parameters through.
+  def board_params
+    params.require(:board).permit(:user_id, :name, :parent_id, :parent_type, :description, :number_of_columns, :predefined, :voice, :id)
+  end
 end

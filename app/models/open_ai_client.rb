@@ -45,7 +45,7 @@ class OpenAiClient
                                               voice: voice,
                                             })
     rescue => e
-      puts "**** ERROR **** \n#{e.message}\n"
+      puts "**** ERROR **** \n#{e.message}\n#{e.inspect}"
     end
     # audio_file = response.stream_to_file("output.mp3")
     # puts "*** Audio File *** #{audio_file}"
