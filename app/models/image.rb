@@ -84,6 +84,8 @@ class Image < ApplicationRecord
     new_next_words
   end
 
+  # bin/rails db:seed_images
+
   def self.run_create_words_job
     Image.public_img.all.pluck(:id).each_slice(20) do |img_ids|
       CreateNewWordsJob.perform_async(img_ids)

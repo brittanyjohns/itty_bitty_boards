@@ -65,6 +65,13 @@ class API::BoardsController < API::ApplicationController
 
   def first_predictive_board
     @board = Board.predictive_default
+    if @board
+      puts "Predictive board found"
+    else
+      puts "No predictive board found"
+      @board = Board.create_predictive_default
+      puts "Predictive board created"
+    end
     @board_with_images = @board.images.map do |image|
       {
         id: image.id,
