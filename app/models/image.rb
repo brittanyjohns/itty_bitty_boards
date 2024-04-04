@@ -292,6 +292,21 @@ class Image < ApplicationRecord
     ["en", "es", "fr", "de", "it", "ja", "ko", "nl", "pl", "pt", "ru", "zh"]
   end
 
+  def core_words
+    ["yes", "no", "more", "stop", "go", "help", "please", "thank you", "sorry", "i want", "i feel", "bathroom", "thirsty", "hungry", "tired", "hurt", "happy", "sad", "play", "all done"]
+  end
+
+  def action_words
+    # Should not repeat any core words
+    ["to drink", "to go", "to eat", "to sleep", "to play", "to work", "to read", "to write", "to draw", "to paint", "to sing", "to dance", "to run", "to walk", "to jump", "to sit", "to stand", "to talk", "to listen", "to watch", "to look", "to see", "to hear", "to smell", "to taste", "to touch", "to feel", "to think", "to remember", "to forget", "to learn", "to teach", "to help", "to hurt", "to love", "to hate", "to like", "to dislike", "to want", "to need", "to wish", "to hope", "to dream", "to believe", "to know", "to understand", "to remember", "to forget", "to forgive", "to apologize", "to thank", "to welcome", "to say", "to ask", "to answer", "to tell", "to show", "to give", "to take", "to send", "to receive", "to buy", "to sell", "to pay", "to cost", "to save", "to spend", "to earn", "to lose", "to win", "to find", "to search", "to discover", "to create", "to destroy", "to build", "to break", "to fix", "to repair", "to open", "to close", "to lock", "to unlock", "to start", "to stop", "to finish", "to continue", "to repeat", "to change", "to improve", "to grow", "to shrink", "to expand", "to contract", "to move", "to stay", "to return", "to leave", "to arrive", "to depart", "to enter", "to exit", "to follow", "to lead", "to guide", "to direct", "to drive", "to ride", "to fly", "to swim", "to sail", "to travel", "to visit", "to explore", "to discover", "to learn", "to teach", "to study", "to practice", "to play", "to win", "to lose", "to compete", "to challenge", "to fight", "to argue", "to discuss"]
+  end
+
+  def bg_color
+    color = core_words.include?(label) ? "bg-img-yellow" : nil
+    color = "bg-img-blue" if action_words.include?(label) unless color
+    color
+  end
+
   # PLACEHOLDERS FOR FUTURE USE
   def self.speeds
     [1, 1.25, 1.5, 1.75, 2]

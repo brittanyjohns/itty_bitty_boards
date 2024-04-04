@@ -39,7 +39,17 @@ class Board < ApplicationRecord
   before_save :set_default_voice, unless: :voice?
 
   # after_create_commit { broadcast_prepend_later_to :board_list, target: 'my_boards', partial: 'boards/board', locals: { board: self } }
-  after_create_commit :update_board_list
+  # after_create_commit :update_board_list
+
+  before_create :set_status
+
+  def set_status
+    if parent_type == "User"
+      self.status = "complete"
+    else
+      puts "board status: #{status}"
+    end
+  end
 
   # def set_number_of_columns
   #   self.number_of_columns = 4
@@ -139,7 +149,7 @@ class Board < ApplicationRecord
     broadcast_render_to(:board_list, partial: "boards/board_list", locals: { boards: user.boards }, target: "my_boards")
   end
 
-  def api_view_with_images
+  def api_view_with_images(user)
     {
       id: id,
       name: name,
@@ -147,6 +157,7 @@ class Board < ApplicationRecord
       parent_type: parent_type,
       predefined: predefined,
       number_of_columns: number_of_columns,
+      status: status,
       images: images.map do |image|
         {
           id: image.id,

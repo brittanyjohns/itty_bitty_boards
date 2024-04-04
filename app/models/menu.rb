@@ -52,6 +52,7 @@ class Menu < ApplicationRecord
     new_doc.update!(board_id: board.id)
 
     create_images_from_description(board)
+    board.update!(status: "complete")
     board
   end
 
@@ -139,14 +140,13 @@ class Menu < ApplicationRecord
   def menu_item_name(item_name)
     item_name.downcase!
     # Strip out any non-alphanumeric characters
-    item_name.gsub(/[^a-z ]/i, '')
+    item_name.gsub(/[^a-z ]/i, "")
     item_name
   end
 
   def run_image_description_job(board_id = nil)
     EnhanceImageDescriptionJob.perform_async(self.id, board_id)
   end
-    
 
   def enhance_image_description(board_id)
     new_doc = self.docs.last
@@ -162,7 +162,6 @@ class Menu < ApplicationRecord
       self.save!
 
       create_board_from_image(new_doc, board_id)
-
     else
       puts "Image description invaild: #{description}\n"
       description

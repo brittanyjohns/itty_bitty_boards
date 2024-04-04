@@ -28,8 +28,10 @@ class API::OpenaiPromptsController < API::ApplicationController
 
     respond_to do |format|
       if @openai_prompt.save
+        @board = @openai_prompt.boards.create!(user: current_user, name: @openai_prompt.prompt_text, token_limit: @openai_prompt.token_limit, description: @openai_prompt.revised_prompt)
         CreateScenarioBoardJob.perform_async(@openai_prompt.id)
-        format.json { render json: @openai_prompt, status: :created }
+
+        format.json { render json: @board.api_view_with_images(current_user), status: :created }
         format.turbo_stream
       else
         format.html { render :new, status: :unprocessable_entity }
@@ -62,13 +64,14 @@ class API::OpenaiPromptsController < API::ApplicationController
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_openai_prompt
-      @openai_prompt = OpenaiPrompt.find(params[:id])
-    end
 
-    # Only allow a list of trusted parameters through.
-    def openai_prompt_params
-      params.require(:openai_prompt).permit(:user_id, :prompt_text, :revised_prompt, :send_now, :deleted_at, :sent_at, :private, :response_type, :age_range, :number_of_images, :token_limit)
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_openai_prompt
+    @openai_prompt = OpenaiPrompt.find(params[:id])
+  end
+
+  # Only allow a list of trusted parameters through.
+  def openai_prompt_params
+    params.require(:openai_prompt).permit(:user_id, :prompt_text, :revised_prompt, :send_now, :deleted_at, :sent_at, :private, :response_type, :age_range, :number_of_images, :token_limit)
+  end
 end

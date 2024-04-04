@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_04_02_194459) do
+ActiveRecord::Schema[7.1].define(version: 2024_04_04_131614) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -73,6 +73,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_04_02_194459) do
     t.integer "token_limit", default: 0
     t.integer "number_of_columns", default: 4
     t.string "voice"
+    t.string "status", default: "pending"
     t.index ["parent_type", "parent_id"], name: "index_boards_on_parent"
     t.index ["user_id"], name: "index_boards_on_user_id"
   end

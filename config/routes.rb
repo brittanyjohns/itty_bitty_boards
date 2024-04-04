@@ -64,6 +64,7 @@ Rails.application.routes.draw do
 
   resources :boards do
     collection do
+      get "first_predictive_board"
       get "predictive_index"
     end
     member do
@@ -76,6 +77,7 @@ Rails.application.routes.draw do
       post "associate_image"
       post "remove_image"
       post "update_grid"
+      get "predictive_images"
     end
   end
   resources :board_images

@@ -76,9 +76,7 @@ class API::BoardsController < API::ApplicationController
       {
         id: image.id,
         label: image.label,
-        # image_prompt: image.image_prompt,
-        # nextImageIds: image.next_images.map(&:id),
-        # nextImageSrcs: image.next_images.map { |ni| ni.display_image(current_user) ? ni.display_image(current_user).url : "https://via.placeholder.com/300x300.png?text=#{ni.label_param}" },
+        bg_color: image.bg_color,
         next_words: image.next_words,
         src: image.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
         audio: image.audio_files.first&.url,
@@ -93,6 +91,7 @@ class API::BoardsController < API::ApplicationController
       {
         id: ni.id,
         label: ni.label,
+        bg_color: ni.bg_color,
         src: ni.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{ni.label_param}",
         audio: ni.audio_files.first&.url,
       }
@@ -103,7 +102,7 @@ class API::BoardsController < API::ApplicationController
   # GET /boards/1 or /boards/1.json
   def show
     board = Board.includes(board_images: { image: :docs }).find(params[:id])
-    @board_with_images = board.api_view_with_images
+    @board_with_images = board.api_view_with_images(current_user)
     puts @board_with_images.inspect
     render json: @board_with_images
   end
@@ -161,7 +160,7 @@ class API::BoardsController < API::ApplicationController
     puts "handleSubmit: #{board_params} \n\n- params: #{params}"
     respond_to do |format|
       if @board.update(board_params)
-        format.json { render json: @board.api_view_with_images, status: :ok }
+        format.json { render json: @board.api_view_with_images(current_user), status: :ok }
       else
         format.json { render json: @board.errors, status: :unprocessable_entity }
       end
@@ -196,25 +195,26 @@ class API::BoardsController < API::ApplicationController
       @board.add_image(@image.id) if @board
       # doc.attach_image(image_params[:display_image])
       # render json: @board, status: :created
-      @board_with_images =
-        {
-          id: @board.id,
-          name: @board.name,
-          description: @board.description,
-          parent_type: @board.parent_type,
-          predefined: @board.predefined,
-          number_of_columns: @board.number_of_columns,
-          images: @board.images.map do |image|
-            {
-              id: image.id,
-              label: image.label,
-              image_prompt: image.image_prompt,
-              display_doc: image.display_image,
-              src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-              audio: image.audio_files.first&.url,
-            }
-          end,
-        }
+      # @board_with_images =
+      #   {
+      #     id: @board.id,
+      #     name: @board.name,
+      #     description: @board.description,
+      #     parent_type: @board.parent_type,
+      #     predefined: @board.predefined,
+      #     number_of_columns: @board.number_of_columns,
+      #     images: @board.images.map do |image|
+      #       {
+      #         id: image.id,
+      #         label: image.label,
+      #         image_prompt: image.image_prompt,
+      #         display_doc: image.display_image,
+      #         src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+      #         audio: image.audio_files.first&.url,
+      #       }
+      #     end,
+      #   }
+      @board_with_images = @board.api_view_with_images(current_user)
       puts @board_with_images.inspect
       render json: @board_with_images
     else

@@ -48,12 +48,11 @@ class OpenaiPrompt < ApplicationRecord
     "Please describe the scenario of #{prompt_text} for a person at the age of #{age_range}. This will be used to create AAC material for people with speech difficulties. Please respond in JSON with the keys 'scenario' and 'description'.\n\nExample: #{example_scenario_description_response}"
   end
 
-
   def set_scenario_description
-    response = OpenAiClient.new({messages: [
-      {role: "system", content: speech_expert},
-      {role: "user", content: describe_scenario_prompt}
-      ]}).create_chat
+    response = OpenAiClient.new({ messages: [
+      { role: "system", content: speech_expert },
+      { role: "user", content: describe_scenario_prompt },
+    ] }).create_chat
     parsed_response = response[:content]
     puts "parsed_response: #{parsed_response}"
     puts "parsed_response: #{parsed_response.class}"
@@ -74,18 +73,18 @@ class OpenaiPrompt < ApplicationRecord
   def speech_expert
     "You are a speech expert and have done extensive research of people with special needs & how they communicate in various scenarios."
   end
-    
 
   def messages
     [
-    {
-      "role": "system",
-      "content": "#{speech_expert} You will be given a scenario description and age range of the USER. Please provide #{number_of_images || 12} words or short phrases (2 words max - prefer SINGLE WORDS) that are most likely to be communicated by the USER in the following scenario. These will be used to create AAC material for people with speech difficulties. Please make the words appropriate for a person at the age give. Please respond in JSON with the array key 'words_phrases'."
-    },
-    {
-      "role": "user",
-      "content": "{\"scenario\": \"#{scenario}\", \"age\": \"#{age_range}\"}"
-    }]
+      {
+        "role": "system",
+        "content": "#{speech_expert} You will be given a scenario description and age range of the USER. Please provide #{number_of_images || 12} words or short phrases (2 words max - prefer SINGLE WORDS) that are most likely to be communicated by the USER in the following scenario. These will be used to create AAC material for people with speech difficulties. Please make the words appropriate for a person at the age give. Please respond in JSON with the array key 'words_phrases'.",
+      },
+      {
+        "role": "user",
+        "content": "{\"scenario\": \"#{scenario}\", \"age\": \"#{age_range}\"}",
+      },
+    ]
   end
 
   def self.age_range_list
@@ -93,14 +92,15 @@ class OpenaiPrompt < ApplicationRecord
   end
 
   def create_board_from_response(response, token_limit)
-    board = self.boards.new
+    board = self.boards.last || self.boards.new
     board.user = self.user
     board.name = "#{prompt_text}"
     board.token_limit = token_limit
     board.description = response
     board.save!
     create_images_from_response(board, response)
-    broadcast_replace_to(user, target: "pending_board_#{id}", partial: "boards/board", locals: { board: board })
+    board.update!(status: "completed")
+    # broadcast_replace_to(user, target: "pending_board_#{id}", partial: "boards/board", locals: { board: board })
     board
   end
 
@@ -152,7 +152,26 @@ class OpenaiPrompt < ApplicationRecord
   def prompt_image_name(item_name)
     item_name.downcase!
     # Strip out any non-alphanumeric characters
-    item_name.gsub(/[^a-z ]/i, '')
+    item_name.gsub(/[^a-z ]/i, "")
     item_name
+  end
+
+  def api_view_with_images(user)
+    last_board = boards.last
+    {
+      id: id,
+      prompt_text: prompt_text,
+      revised_prompt: revised_prompt,
+      send_now: send_now,
+      deleted_at: deleted_at,
+      sent_at: sent_at,
+      private: private,
+      age_range: age_range,
+      response_type: response_type,
+      number_of_images: number_of_images,
+      user: user,
+      board_id: last_board&.id,
+      status: last_board&.status,
+    }
   end
 end

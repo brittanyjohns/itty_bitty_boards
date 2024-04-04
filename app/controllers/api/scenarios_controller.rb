@@ -28,8 +28,9 @@ class API::ScenariosController < API::ApplicationController
 
     respond_to do |format|
       if @scenario.save
+        @board = @scenario.boards.create!(user: current_user, name: @scenario.prompt_text, token_limit: @scenario.token_limit, description: @scenario.revised_prompt)
         CreateScenarioBoardJob.perform_async(@scenario.id)
-        format.json { render json: @scenario, status: :created }
+        format.json { render json: @scenario.api_view_with_images(current_user), status: :created }
         format.turbo_stream
       else
         format.html { render :new, status: :unprocessable_entity }
@@ -62,13 +63,14 @@ class API::ScenariosController < API::ApplicationController
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_scenario
-      @scenario = OpenaiPrompt.find(params[:id])
-    end
 
-    # Only allow a list of trusted parameters through.
-    def scenario_params
-      params.require(:scenario).permit(:user_id, :prompt_text, :revised_prompt, :send_now, :deleted_at, :sent_at, :private, :response_type, :age_range, :number_of_images, :token_limit)
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_scenario
+    @scenario = OpenaiPrompt.find(params[:id])
+  end
+
+  # Only allow a list of trusted parameters through.
+  def scenario_params
+    params.require(:scenario).permit(:user_id, :prompt_text, :revised_prompt, :send_now, :deleted_at, :sent_at, :private, :response_type, :age_range, :number_of_images, :token_limit)
+  end
 end
