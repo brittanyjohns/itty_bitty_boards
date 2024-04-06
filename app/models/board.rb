@@ -25,6 +25,7 @@ class Board < ApplicationRecord
   has_many :teams, through: :team_boards
   has_many :team_users, through: :teams
   has_many :users, through: :team_users
+  has_many_attached :audio_files
   scope :for_user, ->(user) { where(user: user) }
   scope :menus, -> { where(parent_type: "Menu") }
   scope :non_menus, -> { where.not(parent_type: "Menu") }
@@ -100,6 +101,31 @@ class Board < ApplicationRecord
     end
   end
 
+  def open_ai_opts
+    {}
+  end
+
+  def create_audio_for_words
+    words.each do |word|
+      self.create_audio_from_text(word)
+    end
+  end
+
+  def create_audio_from_text(text, voice = "alloy")
+    response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice)
+    if response
+      audio_file = File.open("output.aac", "wb") { |f| f.write(response) }
+      save_audio_file(audio_file, voice, text)
+      File.delete("output.aac") if File.exist?("output.aac")
+    else
+      Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"
+    end
+  end
+
+  def save_audio_file(audio_file, voice, text)
+    self.audio_files.attach(io: audio_file, filename: "#{self.id}_#{voice}_#{text}.aac")
+  end
+
   def image_docs
     images.map(&:docs).flatten
   end
@@ -149,7 +175,7 @@ class Board < ApplicationRecord
     broadcast_render_to(:board_list, partial: "boards/board_list", locals: { boards: user.boards }, target: "my_boards")
   end
 
-  def api_view_with_images(user)
+  def api_view_with_images(viewing_user)
     {
       id: id,
       name: name,
@@ -158,13 +184,13 @@ class Board < ApplicationRecord
       predefined: predefined,
       number_of_columns: number_of_columns,
       status: status,
+      floating_words: words,
       images: images.map do |image|
         {
           id: image.id,
           label: image.label,
           image_prompt: image.image_prompt,
-          display_doc: image.display_image,
-          src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+          src: image.display_image(viewing_user) ? image.display_image(viewing_user).url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
           audio: image.audio_files.first&.url,
         }
       end,

@@ -21,14 +21,14 @@
 #  stripe_customer_id     :string
 #
 class User < ApplicationRecord
-  pay_customer default_payment_processor: :stripe 
+  pay_customer default_payment_processor: :stripe
   has_many :boards
   has_many :menus
   has_many :images
   has_many :docs
   has_many :orders
   has_many :openai_prompts
-  belongs_to :current_team, class_name: 'Team', optional: true
+  belongs_to :current_team, class_name: "Team", optional: true
   # Include default devise modules. Others available are:
   # :confirmable, :lockable, :timeoutable, :trackable and :omniauthable
   include Devise::JWT::RevocationStrategies::JTIMatcher
@@ -36,7 +36,7 @@ class User < ApplicationRecord
          :recoverable, :rememberable, :validatable, :invitable,
          :jwt_authenticatable, jwt_revocation_strategy: self
   has_many :user_docs, dependent: :destroy
-  has_many :favorite_docs, through: :user_docs, class_name: 'Doc', source: :doc
+  has_many :favorite_docs, through: :user_docs, class_name: "Doc", source: :doc
   has_many :team_users
   # has_many :team_boards, through: :teams, source: :team_boards
 
@@ -47,19 +47,21 @@ class User < ApplicationRecord
   end
 
   def set_default_settings
-    default_settings = {
-      voice: 'alloy',
-      voice_speed: 1,
-      voice_pitch: 1,
-      voice_volume: 1,
-      voice_rate: 1,
-      voice_language: 'en-US'
+    voice_settings = {
+      name: "alloy",
+      speed: 1,
+      pitch: 1,
+      volume: 1,
+      rate: 1,
+      language: "en-US",
 
+    }
+    default_settings = {
+      voice: voice_settings,
     }
     self.settings = default_settings
     save
   end
-
 
   def add_to_settings(key, value)
     settings[key] = value
@@ -79,13 +81,13 @@ class User < ApplicationRecord
   end
 
   def shared_with_me_boards
-    current_shared_board_ids = current_team_boards.pluck(:board_id)
-    Board.where(id: current_shared_board_ids)
+    team_boards = TeamBoard.where(team_id: teams.pluck(:id))
+    Board.where(id: team_boards.pluck(:board_id))
   end
 
   has_secure_token :authentication_token
 
-  scope :admins, -> { where(role: 'admin') }
+  scope :admins, -> { where(role: "admin") }
 
   after_create :add_welcome_tokens
 
@@ -109,7 +111,7 @@ class User < ApplicationRecord
   end
 
   def admin?
-    role == 'admin'
+    role == "admin"
   end
 
   def non_menu_boards

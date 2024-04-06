@@ -16,8 +16,20 @@ class API::ImagesController < API::ApplicationController
         id: image.id,
         label: image.label,
         image_prompt: image.image_prompt,
-        display_doc: image.display_image(current_user),
-        # src: url_for(image.display_image),
+        src: image.display_image(current_user) ? image.display_image(current_user).url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+        audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
+      }
+    end
+    render json: @images_with_display_doc
+  end
+
+  def user_images
+    @images = Image.where(user_id: current_user.id).order(label: :asc).page params[:page]
+    @images_with_display_doc = @images.map do |image|
+      {
+        id: image.id,
+        label: image.label,
+        image_prompt: image.image_prompt,
         src: image.display_image(current_user) ? image.display_image(current_user).url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
         audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
       }
@@ -61,18 +73,16 @@ class API::ImagesController < API::ApplicationController
 
   def create
     puts "API::ImagesController#create image_params: #{image_params} - params: #{params}"
-    @image = Image.new
-    @image.user = current_user
-    @image.private = true
-    @image.label = image_params[:label]
-    @image.save!
+    @existing_image = Image.find_by(label: image_params[:label], user_id: current_user.id)
+    if @existing_image
+      @image = @existing_image
+    else
+      @image = Image.create(user: current_user, label: image_params[:label], private: true)
+    end
     doc = @image.docs.new(image_params[:docs])
     doc.user = current_user
     doc.processed = true
-    puts "DOC"
-    pp doc
     if doc.save
-      # doc.attach_image(image_params[:display_image])
       render json: @image, status: :created
     else
       render json: @image.errors, status: :unprocessable_entity

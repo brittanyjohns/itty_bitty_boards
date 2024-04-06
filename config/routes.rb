@@ -129,8 +129,10 @@ Rails.application.routes.draw do
         post "generate"
         post "add_to_board"
         get "predictive"
+        get "user_images"
       end
     end
+
     resources :boards do
       collection do
         get "first_predictive_board"
@@ -162,6 +164,12 @@ Rails.application.routes.draw do
         post "move"
         post "find_or_create_image"
         delete "hard_delete"
+      end
+    end
+
+    resources :users do
+      member do
+        put "update_settings"
       end
     end
 

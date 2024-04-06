@@ -22,6 +22,7 @@ class API::BoardsController < API::ApplicationController
       @scenarios = current_user.boards.scenarios.order(created_at: :desc)
       @shared_boards = current_user.shared_with_me_boards.order(created_at: :desc)
     end
+    puts "SHARED BOARDS: #{@shared_boards.count}"
 
     render json: { boards: @boards, predefined_boards: @predefined_boards, scenarios: @scenarios, shared_boards: @shared_boards }
   end
@@ -103,7 +104,6 @@ class API::BoardsController < API::ApplicationController
   def show
     board = Board.includes(board_images: { image: :docs }).find(params[:id])
     @board_with_images = board.api_view_with_images(current_user)
-    puts @board_with_images.inspect
     render json: @board_with_images
   end
 

@@ -451,8 +451,7 @@ class Image < ApplicationRecord
   def set_label
     item_name = label
     item_name.downcase!
-    # Strip out any non-alphanumeric characters
-    item_name.gsub!(/[^a-z ]/i, "")
+    item_name.strip!
     self.label = item_name
   end
 

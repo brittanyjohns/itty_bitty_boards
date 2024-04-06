@@ -26,13 +26,13 @@ class UsersController < ApplicationController
     if @user.update(user_params)
       redirect_to user_path(@user), notice: "Successfully updated."
     else
-      render 'edit', alert: "There was an error updating the user.\nErrors: #{user.errors.full_messages.join(', ')}"
+      render "edit", alert: "There was an error updating the user.\nErrors: #{user.errors.full_messages.join(", ")}"
     end
   end
 
-  private 
+  private
 
   def user_params
-    params.require(:user).permit(:name, :base_words, settings: [:voice, :voice_speed, :voice_pitch, :voice_rate, :voice_volume, :voice_language])
+    params.require(:user).permit(:name, :base_words, settings: [:voice, :speed, :pitch, :rate, :volume, :language])
   end
 end

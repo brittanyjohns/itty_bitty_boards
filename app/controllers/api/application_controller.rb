@@ -6,7 +6,6 @@ module API
 
     def authenticate_token!
       user = user_from_token
-      puts "user: #{user}"
       if user
         sign_in user, store: false
       else
@@ -18,7 +17,6 @@ module API
     end
 
     def user_from_token
-      puts "token: #{token}"
       User.find_by(authentication_token: token) if token.present?
     end
 
