@@ -19,6 +19,7 @@ Rails.application.routes.draw do
   post "/beta_signup", to: "beta_requests#create", as: :beta_signup
 
   get "/current_user", to: "current_user#index"
+
   resources :messages
   resources :openai_prompts
   resources :open_symbols do
@@ -100,6 +101,7 @@ Rails.application.routes.draw do
   end
 
   get "main/index", as: :home
+  get "/privacy", as: :privacy, to: "main#privacy"
   get "dashboard", to: "main#dashboard", as: :dashboard
   get "main/predefined/:id", to: "main#show_predefined", as: :show_predefined
   get "main/demo", as: :demo

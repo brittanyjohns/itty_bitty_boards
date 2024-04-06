@@ -7,13 +7,20 @@ class MainController < ApplicationController
   def show_predefined
     @board = Board.includes(:images).find(params[:id])
   end
+
   def demo
   end
+
   def about
   end
+
   def contact
   end
+
   def faq
+  end
+
+  def privacy
   end
 
   def dashboard
