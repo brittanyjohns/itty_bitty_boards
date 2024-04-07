@@ -24,14 +24,16 @@ class API::ImagesController < API::ApplicationController
   end
 
   def user_images
-    @images = Image.where(user_id: current_user.id).order(label: :asc).page params[:page]
+    @images = Image.where(user_id: current_user.id).includes(:docs).order(label: :asc).page params[:page]
     @images_with_display_doc = @images.map do |image|
+      display_img = image.display_image(current_user)
+      audio_file = image.audio_files.first
       {
         id: image.id,
         label: image.label,
         image_prompt: image.image_prompt,
-        src: image.display_image(current_user) ? image.display_image(current_user).url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-        audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
+        src: display_img ? display_img.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+        audio: audio_file ? url_for(audio_file) : nil,
       }
     end
     render json: @images_with_display_doc
