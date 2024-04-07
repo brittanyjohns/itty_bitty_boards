@@ -4,6 +4,10 @@ class MainController < ApplicationController
     @beta_request = BetaRequest.new
   end
 
+  def beta_request_form
+    @beta_request = BetaRequest.new
+  end
+
   def show_predefined
     @board = Board.includes(:images).find(params[:id])
   end

@@ -83,7 +83,9 @@ Rails.application.routes.draw do
   end
   resources :board_images
   # Order matters here.  users needs to be below the devise_for :users
-  devise_for :users
+  devise_for :users, controllers: {
+                       registrations: "users/registrations",
+                     }
   # devise_for :users, path: '', path_names: {
   #   sign_in: 'login',
   #   sign_out: 'logout',
@@ -101,6 +103,7 @@ Rails.application.routes.draw do
   end
 
   get "main/index", as: :home
+  get "beta_request", to: "main#beta_request_form", as: :beta_request_form
   get "/privacy", as: :privacy, to: "main#privacy"
   get "dashboard", to: "main#dashboard", as: :dashboard
   get "main/predefined/:id", to: "main#show_predefined", as: :show_predefined
