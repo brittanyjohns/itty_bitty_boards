@@ -9,6 +9,7 @@
 
     <h1 class="text-center text-3xl font-bold mb-4 mt-3 text-gray-800">
         <%= @board.name.titleize %>
+        <%= @board.voice %>
     </h1>
 
     <%= render "boards/openai_prompt", openai_prompt: @board.parent if @board.parent_type == "OpenaiPrompt" %>

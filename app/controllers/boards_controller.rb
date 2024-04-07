@@ -14,10 +14,12 @@ class BoardsController < ApplicationController
       @boards = @boards.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc).page(params[:page]).per(20)
       @predefined_boards = Board.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc).page(params[:page]).per(20)
       @predictive_boards = Board.predictive.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc).page(params[:page]).per(20)
+      @scenario_boards = current_user.boards.scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
     else
       @boards = @boards.order(created_at: :desc).page(params[:page]).per(20)
       @predefined_boards = Board.predefined.order(created_at: :desc).page(params[:page]).per(20)
       @predictive_boards = Board.predictive.order(created_at: :desc).page(params[:page]).per(20)
+      @scenario_boards = current_user.boards.scenarios.order(created_at: :desc).page(params[:page]).per(20)
     end
     @shared_boards = current_user.shared_with_me_boards.order(created_at: :desc).page(params[:page]).per(20)
   end
@@ -74,7 +76,7 @@ class BoardsController < ApplicationController
       if @board.save
         format.html { redirect_to board_url(@board), notice: "Board was successfully created." }
         format.json { render :show, status: :created, location: @board }
-        format.turbo_stream
+        # format.turbo_stream
       else
         format.html { render :new, status: :unprocessable_entity }
         format.json { render json: @board.errors, status: :unprocessable_entity }

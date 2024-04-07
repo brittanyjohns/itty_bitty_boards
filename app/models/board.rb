@@ -74,7 +74,8 @@ class Board < ApplicationRecord
   end
 
   def set_default_voice
-    self.voice = user.settings["voice"]
+    puts "\n\nSet Default Voice\n\n"
+    self.voice = user.settings["voice"]["name"] || "alloy"
   end
 
   def set_voice
@@ -185,6 +186,7 @@ class Board < ApplicationRecord
       number_of_columns: number_of_columns,
       status: status,
       floating_words: words,
+      voice: voice,
       images: images.map do |image|
         {
           id: image.id,

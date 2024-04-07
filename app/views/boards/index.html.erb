@@ -38,6 +38,8 @@
         <% end %>
       </ul>
     </div>
+    </div>
+    <div class="grid sm:grid-cols-1 md:grid-cols-2 gap-2 p-3">
     <div id="predictive_boards" class="border p-2 md:p-3 overflow-scroll">
       <h3 class="text-2xl font-bold text-gray-800 mb-4">Predictive Boards</h3>
       <ul class="list-none p-0 mt-3 h-80 md:h-128 overflow-scroll">
@@ -49,6 +51,18 @@
         <%= render @predictive_boards.order(name: :asc) %>
         <% end %>
       </ul>
+    </div>
+    <div id="scenario_boards" class="border p-2 md:p-3 overflow-scroll">
+      <h3 class="text-2xl font-bold text-gray-800 mb-4">Scenario Boards</h3>
+      <ul class="list-none p-0 mt-3 h-80 md:h-128 overflow-scroll">
+        <% if @scenario_boards.blank? %>
+        <div class="flex justify-center items-center">
+          <p class="text-gray-600">No scenario boards found.</p>
+        </div>
+        <% else %>
+        <%= render @scenario_boards.order(name: :asc) %>
+        <% end %>
+      </ul>
       </div>
-  </div>
+    </div>
 </div>

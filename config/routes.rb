@@ -85,6 +85,7 @@ Rails.application.routes.draw do
   # Order matters here.  users needs to be below the devise_for :users
   devise_for :users, controllers: {
                        registrations: "users/registrations",
+                       sessions: "users/sessions",
                      }
   # devise_for :users, path: '', path_names: {
   #   sign_in: 'login',

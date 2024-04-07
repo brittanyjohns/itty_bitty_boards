@@ -10,9 +10,10 @@ class Users::SessionsController < Devise::SessionsController
   # end
 
   # POST /resource/sign_in
-  # def create
-  #   super
-  # end
+  def create
+    puts "CREATE SESSIONS CONTROLLER"
+    super
+  end
 
   # DELETE /resource/sign_out
   # def destroy
@@ -25,26 +26,26 @@ class Users::SessionsController < Devise::SessionsController
   # def configure_sign_in_params
   #   devise_parameter_sanitizer.permit(:sign_in, keys: [:attribute])
   # end
-  private
+  # private
 
-  def respond_with(resource, _opts = {})
-    render json: {
-      status: {code: 200, message: 'Logged in sucessfully.'},
-      data: UserSerializer.new(resource).serializable_hash[:data][:attributes]
-    }, status: :ok
-  end
+  # def respond_with(resource, _opts = {})
+  #   render json: {
+  #     status: { code: 200, message: "Logged in sucessfully." },
+  #     data: UserSerializer.new(resource).serializable_hash[:data][:attributes],
+  #   }, status: :ok
+  # end
 
-  def respond_to_on_destroy
-    if current_user
-      render json: {
-        status: 200,
-        message: "logged out successfully"
-      }, status: :ok
-    else
-      render json: {
-        status: 401,
-        message: "Couldn't find an active session."
-      }, status: :unauthorized
-    end
-  end
+  # def respond_to_on_destroy
+  #   if current_user
+  #     render json: {
+  #       status: 200,
+  #       message: "logged out successfully",
+  #     }, status: :ok
+  #   else
+  #     render json: {
+  #       status: 401,
+  #       message: "Couldn't find an active session.",
+  #     }, status: :unauthorized
+  #   end
+  # end
 end

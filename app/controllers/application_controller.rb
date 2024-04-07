@@ -27,35 +27,35 @@ class ApplicationController < ActionController::Base
 
   before_action :configure_permitted_parameters, if: :devise_controller?
   helper_method :current_order
-  before_action :set_categories, :set_teams, :set_current_team
+  before_action :set_categories, :set_teams
 
   before_action :authenticate_user!, only: [:current_order]
 
   rescue_from Pundit::NotAuthorizedError, with: :user_not_authorized
 
-  def current_team
-    return nil if current_user.nil?
-    current_user.current_team || current_user.teams.first
-  end
+  # def current_team
+  #   return nil if current_user.nil?
+  #   current_user.current_team || current_user.teams.first
+  # end
 
-  def set_current_team
-    @current_team ||= current_team
-  end    
+  # def set_current_team
+  #   @current_team ||= current_team
+  # end
 
   def current_order
     return nil if current_user.nil?
-    if user_session['order_id'].nil?
+    if user_session["order_id"].nil?
       order = current_user.orders.in_progress.last || current_user.orders.create!
     else
       begin
-        order = current_user.orders.in_progress.find(user_session['order_id'])
+        order = current_user.orders.in_progress.find(user_session["order_id"])
       rescue ActiveRecord::RecordNotFound => e
         order = current_user.orders.create!
       rescue => e
         puts "\n\n****Error: #{e.inspect}\n\n"
       end
     end
-    user_session['order_id'] = order.id unless order.nil?
+    user_session["order_id"] = order.id unless order.nil?
     order
   end
 
@@ -65,11 +65,13 @@ class ApplicationController < ActionController::Base
   end
 
   protected
+
   def configure_permitted_parameters
     devise_parameter_sanitizer.permit(:sign_up, keys: [:name])
   end
 
   private
+
   def user_not_authorized
     flash[:alert] = "You are not authorized to perform this action."
     redirect_to(request.referrer || root_path)
