@@ -4,7 +4,7 @@ class API::BoardsController < API::ApplicationController
 
   # before_action :authenticate_user!
 
-  before_action :set_board, only: %i[ associate_image remove_image ]
+  before_action :set_board, only: %i[ associate_image remove_image destroy ]
   # layout "fullscreen", only: [:fullscreen]
   # layout "locked", only: [:locked]
 
@@ -246,14 +246,13 @@ class API::BoardsController < API::ApplicationController
   end
 
   # # DELETE /boards/1 or /boards/1.json
-  # def destroy
-  #   @board.destroy!
+  def destroy
+    @board.destroy!
 
-  #   respond_to do |format|
-  #     format.html { redirect_to boards_url, notice: "Board was successfully destroyed." }
-  #     format.json { head :no_content }
-  #   end
-  # end
+    respond_to do |format|
+      format.json { head :no_content }
+    end
+  end
 
   # def clone
   #   @board = Board.includes(:images).find(params[:id])

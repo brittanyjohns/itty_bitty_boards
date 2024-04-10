@@ -114,7 +114,7 @@ class OpenaiPrompt < ApplicationRecord
       image = Image.find_by(label: item_name, user_id: self.user_id)
       image = Image.find_by(label: item_name, private: false) unless image
       image = Image.find_by(label: item_name, private: nil) unless image
-      new_image = Image.create(label: item_name) unless image
+      new_image = Image.create(label: item_name, image_type: self.class.name) unless image
       image = new_image if new_image
       image.image_prompt = item_name
       image.revised_prompt = "Create a high-resolution image of '#{item_name}' in the context of #{prompt_text} for a person at the age of #{age_range}. This image will be used to create AAC material for people with speech difficulties. Please make the images are clear, simple & appropriate for a person at the age given."

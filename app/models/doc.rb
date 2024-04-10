@@ -34,7 +34,9 @@ class Doc < ApplicationRecord
   scope :not_hidden, -> { where(deleted_at: nil) }
   scope :symbols, -> { where(source_type: "OpenSymbol") }
   scope :ai_generated, -> { where(source_type: "OpenAI") }
-
+  scope :with_attached_image, -> { includes(image_attachment: :blob) }
+  scope :without_attached_image, -> { where.missing(:image_attachment) }
+  scope :no_user, -> { where(user_id: [nil, User::DEFAULT_ADMIN_ID]) }
   # def self.with_no_user_docs_for(user_id)
   #   includes(:user_docs).
   #     references(:user_docs).
@@ -143,6 +145,20 @@ class Doc < ApplicationRecord
     matching_open_symbols.first&.image_url
   end
 
+  include Rails.application.routes.url_helpers
+
+  def attached_image_url
+    puts "Attached Image URL #{image.inspect}"
+    if image.attached?
+      # rails_blob_url(image, only_path: true)
+      # url = rails_storage_proxy_path(image)
+      # url = url_for(image)
+      url = image.url
+      puts "URL: #{url}"
+      return url
+    end
+  end
+
   def is_a_favorite?(user)
     UserDoc.where(user_id: user.id, doc_id: id).any?
   end
@@ -150,5 +166,4 @@ class Doc < ApplicationRecord
   def update_doc_list
     broadcast_update_to(:doc_list, inserts_by: :append, target: "#{self.documentable_id}_docs_list", partial: "docs/doc", collection: documentable.docs, locals: { doc: self, viewing_user: self.user })
   end
-    
 end

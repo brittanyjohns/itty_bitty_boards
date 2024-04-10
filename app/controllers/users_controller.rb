@@ -6,6 +6,15 @@ class UsersController < ApplicationController
     @users = User.all.order(created_at: :desc).page params[:page]
   end
 
+  def admin
+    @boards = Board.all.order(created_at: :desc)
+    @images = Image.all.order(created_at: :desc)
+    @docs = Doc.all.order(created_at: :desc)
+    @users = User.all.order(created_at: :desc)
+    @beta_requests = BetaRequest.all.order(created_at: :desc)
+    @messages = Message.all.order(created_at: :desc)
+  end
+
   def show
     # redirect_back_or_to root_url unless current_user.admin? || current_user.id == params[:id].to_i
     @user = User.find(params[:id])

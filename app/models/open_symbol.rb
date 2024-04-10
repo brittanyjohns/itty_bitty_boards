@@ -104,7 +104,6 @@ class OpenSymbol < ApplicationRecord
         if @open_symbol_id_token.nil? || refresh
           self.get_token
         end
-        puts "Returning open_symbol_id_token: #{@open_symbol_id_token}"
         @open_symbol_id_token
       end
 

@@ -11,13 +11,17 @@ class API::ImagesController < API::ApplicationController
     else
       @images = @images.order(label: :asc).page params[:page]
     end
+
     @images_with_display_doc = @images.map do |image|
+      display_doc = image.display_doc(current_user)
+      audio_file = image.audio_files.first
       {
         id: image.id,
         label: image.label,
         image_prompt: image.image_prompt,
-        src: image.display_image(current_user) ? image.display_image(current_user).url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-        audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
+        image_type: image.image_type,
+        src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
+        audio: audio_file ? url_for(audio_file) : nil,
       }
     end
     render json: @images_with_display_doc
@@ -25,14 +29,20 @@ class API::ImagesController < API::ApplicationController
 
   def user_images
     @images = Image.where(user_id: current_user.id).includes(:docs).order(label: :asc).page params[:page]
-    @images_with_display_doc = @images.map do |image|
-      display_img = image.display_image(current_user)
+    @user_docs = current_user.docs.where(documentable_type: "Image").order(created_at: :desc)
+    # @images = Image.joins(:docs).where(docs: { user_id: current_user.id }).order(label: :asc).page params[:page]
+    @images = Image.non_menu_images.where(id: @user_docs.map(&:documentable_id)).order(label: :asc).page params[:page]
+    @distinct_images = @images.distinct
+    @images_with_display_doc = @distinct_images.map do |image|
+      display_doc = image.display_doc(current_user)
       audio_file = image.audio_files.first
       {
         id: image.id,
+
         label: image.label,
+        image_type: image.image_type,
         image_prompt: image.image_prompt,
-        src: display_img ? display_img.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+        src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
         audio: audio_file ? url_for(audio_file) : nil,
       }
     end
@@ -43,21 +53,24 @@ class API::ImagesController < API::ApplicationController
     @image = Image.includes(:docs).with_attached_audio_files.find(params[:id])
     @current_doc = @image.display_doc(current_user)
     @current_doc_id = @current_doc.id if @current_doc
-    @image_docs = @image.docs.for_user(current_user).order(created_at: :desc)
+    @image_docs = @image.docs.with_attached_image.for_user(current_user).order(created_at: :desc)
     @image_with_display_doc = {
       id: @image.id,
       label: @image.label.upcase,
       image_prompt: @image.image_prompt,
+      image_type: @image.image_type,
       display_doc: {
         id: @current_doc&.id,
         label: @image&.label,
         user_id: @current_doc&.user_id,
-        src: @current_doc&.image&.url,
+        src: @current_doc&.attached_image_url,
         is_current: true,
+        deleted_at: @current_doc&.deleted_at,
       },
       private: @image.private,
+      user_id: @image.user_id,
       # src: url_for(@image.display_image),
-      src: @image.display_image ? @image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{@image.label_param}",
+      src: @image.display_doc(current_user)&.attached_image_url || "https://via.placeholder.com/150x150.png?text=#{@image.label_param}",
       audio: @image.audio_files.first ? url_for(@image.audio_files.first) : nil,
       docs: @image_docs.map do |doc|
         {
@@ -79,7 +92,7 @@ class API::ImagesController < API::ApplicationController
     if @existing_image
       @image = @existing_image
     else
-      @image = Image.create(user: current_user, label: image_params[:label], private: true)
+      @image = Image.create(user: current_user, label: image_params[:label], private: true, image_prompt: image_params[:image_prompt])
     end
     doc = @image.docs.new(image_params[:docs])
     doc.user = current_user
@@ -225,6 +238,32 @@ class API::ImagesController < API::ApplicationController
       }
     end
     render json: @images_with_display_doc
+  end
+
+  def hide_doc
+    @image = Image.find(params[:id])
+    @doc = @image.docs.find(params[:doc_id])
+    unless @doc.user_id == (current_user.id || current_user.admin?)
+      render json: { status: "error", message: "You are not authorized to delete this document." }
+      return
+    end
+    @image.docs.delete(@doc)
+    if params[:hard_delete]
+      @doc.destroy
+    else
+      @doc.hide!
+    end
+    render json: { status: "ok" }
+  end
+
+  def destroy
+    @image = Image.find(params[:id])
+    unless @image.user_id == current_user.id
+      render json: { status: "error", message: "You are not authorized to delete this image." }
+      return
+    end
+    @image.destroy
+    render json: { status: "ok" }
   end
 
   private

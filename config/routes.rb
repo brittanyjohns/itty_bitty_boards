@@ -98,6 +98,9 @@ Rails.application.routes.draw do
   # }
 
   resources :users do
+    collection do
+      get "admin"
+    end
     member do
       delete "remove_user_doc"
     end
@@ -129,6 +132,9 @@ Rails.application.routes.draw do
   #  API routes
   namespace :api, defaults: { format: :json } do
     resources :images do
+      member do
+        post "hide_doc"
+      end
       collection do
         get "search"
         post "find_or_create"

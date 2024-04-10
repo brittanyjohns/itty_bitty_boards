@@ -58,6 +58,7 @@ class BoardsController < ApplicationController
     @board.parent_id = params[:parent_id]
     @board.parent_type = params[:parent_type]
     @openai_prompt = OpenaiPrompt.new
+    @sample_voices = Image.create_sample_audio_for_voices
   end
 
   # GET /boards/1/edit

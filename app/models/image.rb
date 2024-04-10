@@ -41,11 +41,22 @@ class Image < ApplicationRecord
   scope :menu_images, -> { where(image_type: "Menu") }
   scope :non_menu_images, -> { where.not(image_type: "Menu") }
   scope :non_scenarios, -> { where.not(image_type: "OpenaiPrompt") }
+  scope :no_image_type, -> { where(image_type: nil) }
   scope :public_img, -> { where(private: [false, nil]) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
   scope :skipped, -> { where(open_symbol_status: "skipped") }
+  scope :without_docs, -> { where.missing(:docs) }
+  scope :with_docs, -> { where.associated(:docs) }
 
   # after_create :start_create_all_audio_job
+  before_save :set_label, :ensure_image_type
+
+  def ensure_image_type
+    if !image_type
+      raise "Image type must be set"
+    end
+    # self.image_type ||= "Image"
+  end
 
   def create_image_doc(user_id = nil)
     response = create_image(user_id)
@@ -331,17 +342,24 @@ class Image < ApplicationRecord
   end
 
   def self.create_sample_audio_for_voices
+    audio_files = []
     voices.each do |voice|
-      Image.find_or_create_by!(label: "This is the voice #{voice}", private: true).create_audio_from_text("This is the voice #{voice}", voice)
+      audio_image = Image.find_by(label: "This is the voice #{voice}", private: true, image_type: "SampleVoice")
+      if audio_image
+        puts "Sample voice already exists: #{audio_image.id}"
+        audio_files << audio_image.audio_files
+      else
+        audio_image = Image.create!(label: "This is the voice #{voice}", private: true, image_type: "SampleVoice")
+        audio_image.create_audio_from_text("This is the voice #{voice}", voice)
+        audio_files << audio_image.audio_files
+      end
     end
+    puts "Sample voices created: #{audio_files}"
+    audio_files
   end
 
   def self.sample_audio_files
-    audio_files = []
-    voices.each do |voice|
-      audio_files << Image.find_by(label: "This is the voice #{voice}").audio_files
-    end
-    audio_files
+    Image.where(private: true, image_type: "SampleVoice").map(&:audio_files).flatten
   end
 
   def self.find_sample_audio_for_voice(voice)
@@ -411,6 +429,18 @@ class Image < ApplicationRecord
     end
   end
 
+  def self.create_symbols_for_missing_images(limit = 25)
+    count = 0
+    images_without_docs = Image.public_img.non_menu_images.without_docs
+    puts "Images without docs: #{images_without_docs.count}"
+    sleep 3
+    images_without_docs.each do |image|
+      image.generate_matching_symbol
+      count += 1
+      break if count >= limit
+    end
+  end
+
   def should_create_symbol_image?(symbol_name)
     return false if symbol_name.blank?
     symbol_name_like_label?(symbol_name) && !doc_text_matches(symbol_name)
@@ -446,8 +476,6 @@ class Image < ApplicationRecord
     label&.gsub(" ", "+")
   end
 
-  before_save :set_label
-
   def set_label
     item_name = label
     item_name.downcase!
@@ -456,19 +484,22 @@ class Image < ApplicationRecord
   end
 
   def display_image(viewing_user = nil)
-    if viewing_user
-      img = viewing_user.display_doc_for_image(self)&.image
-      if img
-        return img if img.attached?
-      end
-    end
-    if docs.current.any? && docs.current.last.image&.attached?
-      return docs.current.last.image if docs.current.last.image.attached?
-    end
-    if docs.any? && docs.last.image&.attached?
-      return docs.last.image if docs.last.image.attached?
-    end
-    nil
+    # if viewing_user
+    #   img = viewing_user.display_doc_for_image(self)&.image
+    #   if img
+    #     return img if img.attached?
+    #   end
+    # end
+    # current_docs = docs.with_attached_image.current
+    # if current_docs.any? && current_docs.last.image&.attached?
+    #   return current_docs.last.image if current_docs.last.image.attached?
+    # end
+    # userless_doc = docs.no_user.last
+    # if userless_doc&.image&.attached?
+    #   return userless_doc.image
+    # end
+    # nil
+    display_doc(viewing_user)&.image
   end
 
   def save_audio_file_to_s3!(voice = "alloy")
@@ -487,16 +518,18 @@ class Image < ApplicationRecord
 
   def display_doc(viewing_user = nil)
     if viewing_user
-      img = viewing_user.display_doc_for_image(self)
-      if img
-        return img
+      doc = viewing_user.display_doc_for_image(self)
+      if doc
+        return doc if doc.image&.attached?
       end
     end
-    if docs.current.any? && docs.current.last.image&.attached?
-      return docs.current.last
+    current_docs = docs.with_attached_image.current
+    if current_docs.any? && current_docs.last.image&.attached?
+      return current_docs.last if current_docs.last.image.attached?
     end
-    if docs.any? && docs.last.image&.attached?
-      return docs.last
+    userless_doc = docs.with_attached_image.no_user.last
+    if userless_doc&.image&.attached?
+      return userless_doc
     end
     nil
   end
