@@ -516,6 +516,10 @@ class Image < ApplicationRecord
     # end
   end
 
+  def no_user_or_admin?
+    user_id.nil? || User.admins.pluck(:id).include?(user_id)
+  end
+
   def display_doc(viewing_user = nil)
     if viewing_user
       doc = viewing_user.display_doc_for_image(self)

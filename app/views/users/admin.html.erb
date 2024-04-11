@@ -1,107 +1,45 @@
-<div class="container mx-auto p-3 bg-white rounded-lg shadow-xl mb-6 pb-6">
+<div class="mx-auto min-h-screen w-full">
   <div class="flex justify-between items-center border-b pb-4">
     <h1 class="text-3xl font-bold text-gray-800">ADMIN DASHBOARD </h1>
     <h1 class="text-xl font-light text-gray-800"><%= current_user.email %></h1>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div class="my-6 max-h-screen overflow-scroll">
-      <h2 class="text-xl font-semibold text-gray-700">All Boards (<%= @boards.count %>)</h2>
+  <div class="grid grid-cols-1 md:grid-cols-1 gap-4">
+    <div class="my-6 max-h-fit overflow-scroll">
+      <h2 class="text-xl font-semibold text-gray-700">Beta Requests (<%= @beta_requests.count %>)</h2>
       <table class="table-auto w-full mt-2">
         <thead class="bg-gray-100">
           <tr>
-            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Document Name</th>
-            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Actions</th>
+            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600"> Email</th>
+            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Created</th>
           </tr>
         </thead>
         <tbody class="text-gray-700">
-          <% @boards.user_made.order(created_at: :desc).each do |board| %>
+          <% @beta_requests.each do |beta_request| %>
             <tr class="border-b border-gray-200 hover:bg-gray-100">
-              <td class="text-left py-3 px-4"><%= board.id %>: <%= link_to board.name, board, class: "text-indigo-600 hover:text-indigo-900" %></td>
-              <td class="text-right py-3 px-4"><%= link_to trash_nav, board_path(board), method: :delete, data: { confirm: "Are you sure?" }, class: "text-red-600 hover:text-red-800" %></td>
+              <td class="py-3 px-4"><%= beta_request.email %></td>
+              <td class="text-right py-3 px-4"><%= beta_request.created_at %></td>
             </tr>
           <% end %>
         </tbody>
       </table>
     </div>
-
-    <div class="my-6 max-h-screen overflow-scroll">
-      <h2 class="text-xl font-semibold text-gray-700">All Menus (<%= Menu.all.count %>)</h2>
+    <div class="my-6 max-h-fit overflow-scroll">
+      <h2 class="text-xl font-semibold text-gray-700">All Messages (<%= @messages.count %>)</h2>
       <table class="table-auto w-full mt-2">
         <thead class="bg-gray-100">
           <tr>
-            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Document Name</th>
-            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Actions</th>
+            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Subject</th>
+            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">User</th>
+            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Created</th>
           </tr>
         </thead>
         <tbody class="text-gray-700">
-          <% Menu.all.order(created_at: :desc).each do |menu| %>
+          <% @messages.each do |message| %>
             <tr class="border-b border-gray-200 hover:bg-gray-100">
-              <td class="text-left py-3 px-4"><%= menu.id %>: <%= link_to menu.name, menu, class: "text-indigo-600 hover:text-indigo-900" %></td>
-              <td class="text-right py-3 px-4"><%= link_to trash_nav, menu, method: :delete, data: { turbo_confirm: "Are you sure?" }, class: "text-red-600 hover:text-red-800" %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
-  </div>
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div class="my-6 max-h-screen overflow-scroll">
-      <h2 class="text-xl font-semibold text-gray-700">All Uploaded Images (<%= @images.count %>)</h2>
-      <table class="table-auto w-full mt-2">
-        <thead class="bg-gray-100">
-          <tr>
-            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Document Name</th>
-            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Actions</th>
-          </tr>
-        </thead>
-        <tbody class="text-gray-700">
-          <% @images.order(created_at: :desc).each do |image| %>
-            <tr class="border-b border-gray-200 hover:bg-gray-100">
-              <td class="text-left py-3 px-4"><%= image.id %>: <%= link_to image.label, image, class: "text-indigo-600 hover:text-indigo-900" %></td>
-              <td class="text-right py-3 px-4"><%= link_to trash_nav, image, method: :delete, data: { turbo_confirm: "Are you sure?" }, class: "text-red-600 hover:text-red-800" %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
-    <div class="my-6 max-h-screen overflow-scroll">
-      <h2 class="text-xl font-semibold text-gray-700">All Docs (<%= @docs.count %>)</h2>
-      <table class="table-auto w-full mt-2">
-        <thead class="bg-gray-100">
-          <tr>
-            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Document Name</th>
-            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Actions</th>
-          </tr>
-        </thead>
-        <tbody class="text-gray-700">
-          <% @docs.order(created_at: :desc).each do |doc| %>
-            <tr class="border-b border-gray-200 hover:bg-gray-100">
-              <td class="text-left py-3 px-4"><%= doc.id %>: <%= link_to doc.label, doc, class: "text-indigo-600 hover:text-indigo-900" %></td>
-              <td class="text-right py-3 px-4"><%= link_to trash_nav, doc, method: :delete, data: { turbo_confirm: "Are you sure?" }, class: "text-red-600 hover:text-red-800" %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="my-6 max-h-screen overflow-scroll">
-      <h2 class="text-xl font-semibold text-gray-700">All openai_prompts (<%= OpenaiPrompt.all.count %>)</h2>
-      <table class="table-auto w-full mt-2">
-        <thead class="bg-gray-100">
-          <tr>
-            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Document Name</th>
-            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Created At</th>
-            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Actions</th>
-          </tr>
-        </thead>
-        <tbody class="text-gray-700">
-          <% Board.all.order(created_at: :desc).each do |board| %>
-            <tr class="border-b border-gray-200 hover:bg-gray-100">
-              <td class="text-left py-3 px-4"><%= board.id %>: <%= link_to board.name, board, class: "text-indigo-600 hover:text-indigo-900" %></td>
-              <td class="text-right py-3 px-4"><%= board.created_at %></td>
-              <td class="text-right py-3 px-4"><%= link_to trash_nav, board_path(board), method: :delete, data: { confirm: "Are you sure?" }, class: "text-red-600 hover:text-red-800" %></td>
+              <td class="text-left py-3 px-4"><%= message.subject %></td>
+              <td class="text-right py-3 px-4"><%= message.user_id %></td>
+              <td class="text-right py-3 px-4"><%= message.created_at %></td>
             </tr>
           <% end %>
         </tbody>
@@ -109,5 +47,3 @@
     </div>
 </div>
 
-  <!-- Add additional profile elements as needed -->
-</div>

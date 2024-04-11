@@ -7,9 +7,6 @@ class UsersController < ApplicationController
   end
 
   def admin
-    @boards = Board.all.order(created_at: :desc)
-    @images = Image.all.order(created_at: :desc)
-    @docs = Doc.all.order(created_at: :desc)
     @users = User.all.order(created_at: :desc)
     @beta_requests = BetaRequest.all.order(created_at: :desc)
     @messages = Message.all.order(created_at: :desc)

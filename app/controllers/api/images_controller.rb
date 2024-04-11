@@ -92,7 +92,7 @@ class API::ImagesController < API::ApplicationController
     if @existing_image
       @image = @existing_image
     else
-      @image = Image.create(user: current_user, label: image_params[:label], private: true, image_prompt: image_params[:image_prompt])
+      @image = Image.create(user: current_user, label: image_params[:label], private: true, image_prompt: image_params[:image_prompt], image_type: "User")
     end
     doc = @image.docs.new(image_params[:docs])
     doc.user = current_user
@@ -115,7 +115,7 @@ class API::ImagesController < API::ApplicationController
     else
       label = image_params[:label].present? ? image_params[:label].downcase : image_params[:image_prompt]
       puts "Label: #{label}"
-      @image = Image.find_or_create_by(label: label, user_id: current_user.id, private: false)
+      @image = Image.find_or_create_by(label: label, user_id: current_user.id, private: false, image_prompt: image_params[:image_prompt], image_type: "User")
     end
     @image.update(status: "generating")
     image_prompt = "An image of #{@image.label}."
@@ -159,7 +159,7 @@ class API::ImagesController < API::ApplicationController
     @image = Image.find_by(label: label, user_id: current_user.id)
     @image = Image.public_img.find_by(label: label) unless @image
     @found_image = @image
-    @image = Image.create(label: label, private: false) unless @image
+    @image = Image.create(label: label, private: false, user_id: current_user.id, image_prompt: image_params[:image_prompt], image_type: "User") unless @image
     @board = Board.find_by(id: image_params[:board_id]) if image_params[:board_id].present?
 
     @board.add_image(@image.id) if @board

@@ -125,3 +125,5 @@ gem "annotate", "~> 3.2"
 gem "devise_invitable", "~> 2.0"
 
 gem "pundit", "~> 2.3"
+
+gem "ransack", "~> 4.1"

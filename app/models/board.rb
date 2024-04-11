@@ -44,6 +44,10 @@ class Board < ApplicationRecord
 
   before_create :set_status
 
+  def self.ransackable_attributes(auth_object = nil)
+    ["cost", "created_at", "description", "id", "id_value", "name", "number_of_columns", "parent_id", "parent_type", "predefined", "status", "token_limit", "updated_at", "user_id", "voice"]
+  end
+
   def set_status
     if parent_type == "User"
       self.status = "complete"
