@@ -7,6 +7,9 @@ class UsersController < ApplicationController
   end
 
   def admin
+    unless current_user.admin?
+      redirect_back_or_to root_url
+    end
     @users = User.all.order(created_at: :desc)
     @beta_requests = BetaRequest.all.order(created_at: :desc)
     @messages = Message.all.order(created_at: :desc)
