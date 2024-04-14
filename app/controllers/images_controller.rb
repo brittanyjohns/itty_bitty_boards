@@ -118,7 +118,7 @@ class ImagesController < ApplicationController
     @image = Image.find_by(label: label, user_id: current_user.id)
     @image = Image.public_img.find_by(label: label) unless @image
     @found_image = @image
-    @image = Image.create(label: label, private: false) unless @image
+    @image = Image.create(label: label, private: false, image_type: "User") unless @image
     @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
 
     @board.add_image(@image.id) if @board
@@ -145,7 +145,8 @@ class ImagesController < ApplicationController
 
     respond_to do |format|
       format.json { render :show, status: :created, location: @image }
-      format.turbo_stream
+      format.html { redirect_back_or_to image_url(@image), notice: notice }
+      # format.turbo_stream
     end
     # redirect_back_or_to image_url(@image), notice: notice
   end

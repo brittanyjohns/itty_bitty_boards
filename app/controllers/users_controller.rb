@@ -13,6 +13,7 @@ class UsersController < ApplicationController
     @users = User.all.order(created_at: :desc)
     @beta_requests = BetaRequest.all.order(created_at: :desc)
     @messages = Message.all.order(created_at: :desc)
+    @images = Image.all.order(created_at: :desc)
   end
 
   def show

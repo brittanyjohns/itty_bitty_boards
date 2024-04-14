@@ -50,7 +50,7 @@ namespace :db do
   task seed_images: :environment do
     # Seed script for creating boards with images for an AAC device
     parent_resource = PredefinedResource.find_or_create_by name: "Default", resource_type: "Board"
-    admin_user = User.admins.first # Ensure you have an admin or a specific user to associate with the created boards
+    admin_user = User.admin.first # Ensure you have an admin or a specific user to associate with the created boards
 
     boards_info = [
       { name: "Greetings", description: "Common greetings and salutations.", image_labels: ["Hello", "Goodbye", "Good morning", "Good night", "How are you?", "I’m fine", "Thank you", "Please", "Yes", "No", "Excuse me", "Sorry", "You’re welcome", "See you later", "Nice to meet you", "Thank you", "Welcome", "Cheers", "Good evening", "Good afternoon"] },

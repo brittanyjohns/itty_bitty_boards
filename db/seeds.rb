@@ -17,7 +17,7 @@
 
 User.find_or_initialize_by email: "admin@ittybittyboards.com", first_name: "Admin", last_name: "User", role: "admin", password: "password", password_confirmation: "password"
 parent_resource = PredefinedResource.find_or_create_by name: "Default", resource_type: "Board"
-admin_user = User.admins.first
+admin_user = User.admin.first
 # # Predefined communication boards :
 # # • Eat - common foods
 # # • Drink - common drinks

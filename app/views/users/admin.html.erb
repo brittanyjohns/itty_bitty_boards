@@ -5,6 +5,7 @@
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-1 gap-4">
+  <%= render "images/table", images: @images %>
     <div class="my-6 max-h-fit overflow-scroll">
       <h2 class="text-xl font-semibold text-gray-700">Beta Requests (<%= @beta_requests.count %>)</h2>
       <table class="table-auto w-full mt-2">

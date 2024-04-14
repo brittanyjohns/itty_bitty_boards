@@ -95,8 +95,6 @@ class Image < ApplicationRecord
     new_next_words
   end
 
-  # bin/rails db:seed_images
-
   def self.run_create_words_job
     Image.public_img.all.pluck(:id).each_slice(20) do |img_ids|
       CreateNewWordsJob.perform_async(img_ids)
@@ -133,7 +131,7 @@ class Image < ApplicationRecord
 
   def self.create_predictive_default_board
     predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
-    admin_user = User.admins.first
+    admin_user = User.admin.first
     puts "Predefined resource created: #{predefined_resource.name} admin_user: #{admin_user.email}"
     predictive_default_board = Board.find_or_create_by!(name: "Predictive Default", user_id: admin_user.id, parent: predefined_resource)
     puts "Predictive default board created: #{predictive_default_board.name}"
@@ -175,16 +173,13 @@ class Image < ApplicationRecord
 
   def next_board
     parent_resource = PredefinedResource.find_or_create_by name: "Next", resource_type: "Board"
-    admin_user = User.admins.first
-    puts "Parent resource created: #{parent_resource.name} admin_user: #{admin_user.email}"
-    next_board = Board.find_or_create_by!(name: label, user_id: admin_user.id, parent: parent_resource)
-    puts "Next board created: #{next_board&.name}"
+    next_board = Board.find_or_create_by!(name: label, user_id: User::DEFAULT_ADMIN_ID, parent: parent_resource)
     next_board
   end
 
   def create_next_board
     parent_resource = PredefinedResource.find_or_create_by name: "Next", resource_type: "Board"
-    admin_user = User.admins.first
+    admin_user = User.admin.first
     puts "Parent resource created: #{parent_resource.name} admin_user: #{admin_user.email}"
     next_board = Board.find_or_create_by!(name: label, user_id: admin_user.id, parent: parent_resource)
     puts "Next board created: #{next_board.name}"
@@ -484,21 +479,6 @@ class Image < ApplicationRecord
   end
 
   def display_image(viewing_user = nil)
-    # if viewing_user
-    #   img = viewing_user.display_doc_for_image(self)&.image
-    #   if img
-    #     return img if img.attached?
-    #   end
-    # end
-    # current_docs = docs.with_attached_image.current
-    # if current_docs.any? && current_docs.last.image&.attached?
-    #   return current_docs.last.image if current_docs.last.image.attached?
-    # end
-    # userless_doc = docs.no_user.last
-    # if userless_doc&.image&.attached?
-    #   return userless_doc.image
-    # end
-    # nil
     display_doc(viewing_user)&.image
   end
 
@@ -517,7 +497,7 @@ class Image < ApplicationRecord
   end
 
   def no_user_or_admin?
-    user_id.nil? || User.admins.pluck(:id).include?(user_id)
+    user_id.nil? || User.admin.pluck(:id).include?(user_id)
   end
 
   def display_doc(viewing_user = nil)
@@ -586,8 +566,6 @@ class Image < ApplicationRecord
   def self.run_generate_image_job_for(images)
     start_time = 0
     images.each_slice(5) do |images_slice|
-      puts "start_time: #{start_time}"
-      puts "images_slice: #{images_slice.map(&:label)}"
       images_slice.each do |image|
         image.start_generate_image_job(start_time)
       end
@@ -597,7 +575,6 @@ class Image < ApplicationRecord
 
   def open_ai_opts
     prompt = prompt_to_send
-    puts "Sending prompt: #{prompt}"
     { prompt: prompt }
   end
 

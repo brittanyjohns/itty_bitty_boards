@@ -87,14 +87,14 @@ class User < ApplicationRecord
 
   has_secure_token :authentication_token
 
-  scope :admins, -> { where(role: "admin") }
+  scope :admin, -> { where(role: "admin") }
 
   after_create :add_welcome_tokens
 
   DEFAULT_ADMIN_ID = 1
 
   def self.default_admin
-    User.find(DEFAULT_ADMIN_ID)
+    User.admin.find(DEFAULT_ADMIN_ID)
   end
 
   def demo?

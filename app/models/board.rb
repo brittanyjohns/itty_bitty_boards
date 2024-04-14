@@ -70,7 +70,7 @@ class Board < ApplicationRecord
 
   def self.create_predictive_default
     predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
-    admin_user = User.admins.first
+    admin_user = User.admin.first
     puts "Predefined resource created: #{predefined_resource.name} admin_user: #{admin_user.email}"
     predictive_default_board = Board.find_or_create_by!(name: "Predictive Default", user_id: admin_user.id, parent: predefined_resource)
     puts "Predictive Default Board created: #{predictive_default_board.name}"

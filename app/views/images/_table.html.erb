@@ -1,0 +1,23 @@
+ <div class="my-6 max-h-screen overflow-scroll">
+      <h2 class="text-xl font-semibold text-gray-700">Images (<%= images.count %>)</h2>
+      <table class="table-auto w-full mt-2">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600"> Label</th>
+            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600"> Type</th>
+            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600"> User</th>
+            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Created</th>
+          </tr>
+        </thead>
+        <tbody class="text-gray-700">
+          <% images.each do |image| %>
+            <tr class="border-b border-gray-200 hover:bg-gray-100">
+                <td class="py-3 px-4"><%= link_to image.label, image %></td>
+                <td class="py-3 px-4"><%= image.image_type %></td>
+                <td class="py-3 px-4"><%= image.user_id || "None" %></td>
+                <td class="text-right py-3 px-4"><%= image.created_at %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>

@@ -5,7 +5,7 @@ module SeedHelper
     end
 
     def admin_user
-        @admin_user ||= User.admins.first
+        @admin_user ||= User.admin.first
     end
 
     def seed_boards_from_file(predefined_name = 'Default', file_number = 1)

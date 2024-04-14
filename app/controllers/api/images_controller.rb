@@ -1,9 +1,9 @@
 class API::ImagesController < API::ApplicationController
   def index
     if params[:user_images_only] == "1"
-      @images = Image.where(image_type: nil).searchable_images_for(current_user, true).order(label: :asc).page params[:page]
+      @images = Image.searchable_images_for(current_user, true).order(label: :asc).page params[:page]
     else
-      @images = Image.where(image_type: nil).searchable_images_for(current_user).order(label: :asc).page params[:page]
+      @images = Image.searchable_images_for(current_user).order(label: :asc).page params[:page]
     end
 
     if params[:query].present?
@@ -115,7 +115,7 @@ class API::ImagesController < API::ApplicationController
     else
       label = image_params[:label].present? ? image_params[:label].downcase : image_params[:image_prompt]
       puts "Label: #{label}"
-      @image = Image.find_or_create_by(label: label, user_id: current_user.id, private: false, image_prompt: image_params[:image_prompt], image_type: "User")
+      @image = Image.find_or_create_by(label: label, user_id: current_user.id, private: false, image_prompt: image_params[:image_prompt], image_type: "Generated")
     end
     @image.update(status: "generating")
     image_prompt = "An image of #{@image.label}."
