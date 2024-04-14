@@ -53,7 +53,7 @@ class Image < ApplicationRecord
 
   def ensure_image_type
     if !image_type
-      raise "Image type must be set"
+      self.image_type = "Image"
     end
     # self.image_type ||= "Image"
   end

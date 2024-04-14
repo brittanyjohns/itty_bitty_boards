@@ -105,7 +105,8 @@ class ImagesController < ApplicationController
 
   def generate
     @image = Image.find(params[:id])
-    @image.update(status: "generating")
+    @image.status = "generating"
+    @image.image_type = "User"
     GenerateImageJob.perform_async(@image.id, current_user.id, params[:image_prompt])
     sleep 2
     current_user.remove_tokens(1)
