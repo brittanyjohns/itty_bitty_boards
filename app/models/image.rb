@@ -503,11 +503,13 @@ class Image < ApplicationRecord
   def display_doc(viewing_user = nil)
     if viewing_user
       doc = viewing_user.display_doc_for_image(self)
+      puts "Display doc for user: #{doc&.id}"
       if doc
         return doc if doc.image&.attached?
       end
     end
     current_docs = docs.with_attached_image.current
+    puts "Current docs: #{current_docs.count}"
     if current_docs.any? && current_docs.last.image&.attached?
       return current_docs.last if current_docs.last.image.attached?
     end

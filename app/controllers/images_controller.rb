@@ -58,7 +58,7 @@ class ImagesController < ApplicationController
     else
       @ready_to_send = false
     end
-    @image_docs = @image.docs.for_user(current_user).excluding(@current_doc).order(created_at: :desc)
+    @image_docs = @image.docs.for_user(current_user).order(created_at: :desc)
   end
 
   # GET /images/new

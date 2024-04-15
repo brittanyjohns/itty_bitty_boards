@@ -10,8 +10,16 @@
     <p class="text-sm mb-3">Created <%= time_ago_in_words(@doc.created_at) %> ago</p>
     <hr>
   </div>
+</div>
+
+
+
+
+
 
 <% if current_user.admin? %>
+<div class="bg-white p-4 rounded-lg shadow-md m-8">
+  <h3 class="text-lg font-semibold">User: <%= @doc.user&.email %></h3>
   <div class="bg-white p-4 rounded-lg shadow-md m-8">
     <h3 class="text-lg font-semibold">Raw text:</h3>
     <p class="text-sm mb-3"><%= @doc.raw %></p>

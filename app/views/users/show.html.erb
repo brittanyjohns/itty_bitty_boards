@@ -1,4 +1,4 @@
-<div class="container mx-auto p-3 bg-white rounded-lg shadow-xl mb-6 pb-6">
+<div class="container w-4/5 mx-auto p-3 bg-white rounded-lg shadow-xl mb-6 pb-6">
   <div class="flex justify-between items-center border-b pb-4">
     <div class="grid grid-cols-1">
     <%= link_to "Edit Profile", edit_user_path(@user), class: "text-indigo-600 hover:text-indigo-900 font-semibold m-1" %>
@@ -129,21 +129,21 @@
   </div>
 
   <div class="my-6 max-h-screen overflow-scroll">
-      <h2 class="text-xl font-semibold text-gray-700">Your openai_prompts (<%= @user.boards.count %>)</h2>
+      <h2 class="text-xl font-semibold text-gray-700">Your openai_prompts (<%= @user.openai_prompts.count %>)</h2>
       <table class="table-auto w-full mt-2">
         <thead class="bg-gray-100">
           <tr>
-            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">Document Name</th>
+            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">prompt_text</th>
             <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Created At</th>
             <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Actions</th>
           </tr>
         </thead>
         <tbody class="text-gray-700">
-          <% @user.boards.order(created_at: :desc).each do |board| %>
+          <% @user.openai_prompts.order(created_at: :desc).each do |openai_prompt| %>
             <tr class="border-b border-gray-200 hover:bg-gray-100">
-              <td class="text-left py-3 px-4"><%= board.id %>: <%= link_to board.name, board, class: "text-indigo-600 hover:text-indigo-900" %></td>
-              <td class="text-right py-3 px-4"><%= board.created_at %></td>
-              <td class="text-right py-3 px-4"><%= link_to trash_nav, board_path(board), method: :delete, data: { confirm: "Are you sure?" }, class: "text-red-600 hover:text-red-800" %></td>
+              <td class="text-left py-3 px-4"><%= openai_prompt.id %>: <%= link_to openai_prompt.prompt_text, openai_prompt, class: "text-indigo-600 hover:text-indigo-900" %></td>
+              <td class="text-right py-3 px-4"><%= openai_prompt.created_at %></td>
+              <td class="text-right py-3 px-4"><%= link_to trash_nav, openai_prompt_path(openai_prompt), method: :delete, data: { confirm: "Are you sure?" }, class: "text-red-600 hover:text-red-800" %></td>
             </tr>
           <% end %>
         </tbody>
