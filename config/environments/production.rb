@@ -1,5 +1,5 @@
 require "active_support/core_ext/integer/time"
-Rails.application.routes.default_url_options[:host] = "ittybittyboards.com"
+Rails.application.routes.default_url_options[:host] = "speakanyway.com"
 Rails.application.configure do
   config.log_file_size = 50.megabytes
   # Settings specified here will take precedence over those in config/application.rb.
@@ -108,8 +108,8 @@ Rails.application.configure do
   config.action_mailer.smtp_settings = {
     address: "mail.privateemail.com",
     port: 587,
-    domain: "ittybittyboards.com",
-    user_name: "hello@ittybittyboards.com",
+    domain: "speakanyway.com",
+    user_name: "hello@speakanyway.com",
     password: ENV["SMTP_PASSWORD"],
     authentication: "plain",
     enable_starttls_auto: true

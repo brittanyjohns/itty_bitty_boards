@@ -15,7 +15,7 @@
       </p>
       <ul class="text-left">
       <% @user_image_boards.each do |board| %>
-        <ul class="p-3 border "><%= link_to board.name.upcase, board_path(board), class: "text-indigo-600 hover:underline p-2 my-2" %></ul>
+        <li class="p-3 border "><%= link_to board.name.upcase, board_path(board), class: "text-indigo-600 hover:underline p-2 my-2" %></ul>
       <% end %>
 
     <% if current_user.boards.any? %>
@@ -37,7 +37,7 @@
       </p>
       <% if @image.audio_files.any? %>
         <div class="flex justify-center">
-                <%= get_audio_list_with_voice_names(@image) %>
+          <%= get_audio_list_with_voice_names(@image) %>
         </div>
       <% else %>
         <p class="text-sm font-semibold mx-4 mb-3">No audio files available for this image.</p>

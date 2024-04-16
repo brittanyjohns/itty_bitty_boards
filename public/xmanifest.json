@@ -1,24 +1,23 @@
 {
-    "name": "Itty Bitty Boards",
-    "short_name": "IttyBittyBoards",
-    "start_url": "/",
-    "display": "standalone",
-    "orientation": "portrait",
-    "background_color": "#ffffff",
-    "theme_color": "#000000",
-    "icons": [
-      {
-        "src": "icons/round_itty_bitty_logo_1.png",
-        "sizes": "1024x1024",
-        "type": "image/png"
-      }
-    ],
-    "screenshots": [
-      {
-        "src": "screenshots/main_screen_IPhoneSE.png",
-        "sizes": "750x1334",
-        "type": "image/png"
-      }
-    ]
-  }
-  
+  "name": "Speak Any Way",
+  "short_name": "SpeakAnyWay",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "icons/round_itty_bitty_logo_1.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshots/main_screen_IPhoneSE.png",
+      "sizes": "750x1334",
+      "type": "image/png"
+    }
+  ]
+}

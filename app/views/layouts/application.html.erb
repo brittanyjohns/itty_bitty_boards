@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html>
   <head>
-      <title>IttyBittyBoards - Empowering Communication</title>
+      <title>SpeakAnyWay - Empowering Communication</title>
       <meta name="viewport" content="width=device-width,initial-scale=1">
       <%= csrf_meta_tags %>
       <%= csp_meta_tag %>
       <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
       <script src="https://js.stripe.com/v3/"></script>
-      <%= favicon_link_tag asset_path('round_itty_bitty_logo_2.png') %>
+      <%= favicon_link_tag asset_path("round_itty_bitty_logo_2.png") %>
       <%= tag.meta name: "stripe-key", content: Pay::Stripe.public_key %>
       <%= tag :meta, name: :rails_env, content: Rails.env %>
       <%= javascript_include_tag "application", "data-turbo-track": "reload", defer: true %>
