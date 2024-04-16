@@ -141,12 +141,13 @@ class ImagesController < ApplicationController
       puts "New Image or no docs"
       limit = current_user.admin? ? 10 : 5
       GetSymbolsJob.perform_async([@image.id], limit)
+      sleep 3
       notice += " Creating #{limit} #{"symbol".pluralize(limit)} for image."
     end
 
     respond_to do |format|
       format.json { render :show, status: :created, location: @image }
-      format.html { redirect_back_or_to image_url(@image), notice: notice }
+      format.html { redirect_to @board ? board_url(@board) : image_url(@image), notice: notice }
       # format.turbo_stream
     end
     # redirect_back_or_to image_url(@image), notice: notice

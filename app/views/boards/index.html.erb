@@ -1,4 +1,4 @@
-<div class="bg-white p-3 h-full">
+<div class="bg-white p-3 py-6 h-full mx-auto">
   <h1 class="text-4xl font-bold my-3">
     Boards
   </h1>
@@ -7,8 +7,8 @@
   <%= render "utils/search", search_path: boards_path, show_user_images_only: false %>
 
   <%= paginate @boards %>
-  <div class="grid sm:grid-cols-1 md:grid-cols-4 gap-2 p-1">
-    <div class="border p-2 md:p-3" id="my_boards">
+  <div class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 gap-2 p-1">
+    <div class="md:col-span-2 border p-2 md:p-3" id="my_boards">
       <h3 class="text-2xl font-bold text-gray-800 mb-4">My Boards ( <%= @boards.count %> )</h3>
       <% if @boards.empty? && !params[:query] %>
       <div class="flex justify-center items-center">
@@ -38,6 +38,7 @@
         <% end %>
       </ul>
     </div>
+    <% if current_user.admin? %>
     <div id="predictive_boards" class="border p-2 md:p-3 overflow-scroll">
       <h3 class="text-2xl font-bold text-gray-800 mb-4">Predictive Boards</h3>
       <ul class="list-none p-0 mt-3 h-80 md:h-128 overflow-scroll">
@@ -50,6 +51,7 @@
         <% end %>
       </ul>
     </div>
+    <% end %>
     <div id="scenario_boards" class="border p-2 md:p-3 overflow-scroll">
       <h3 class="text-2xl font-bold text-gray-800 mb-4">Scenario Boards</h3>
       <ul class="list-none p-0 mt-3 h-80 md:h-128 overflow-scroll">

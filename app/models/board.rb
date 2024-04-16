@@ -60,6 +60,10 @@ class Board < ApplicationRecord
   #   self.number_of_columns = 4
   # end
 
+  def has_generating_images?
+    images.any? { |image| image.status != "finished" }
+  end
+
   def predictive?
     parent_type == "PredefinedResource" && parent.name == "Next"
   end

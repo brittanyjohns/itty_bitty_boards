@@ -47,6 +47,7 @@ class Image < ApplicationRecord
   scope :skipped, -> { where(open_symbol_status: "skipped") }
   scope :without_docs, -> { where.missing(:docs) }
   scope :with_docs, -> { where.associated(:docs) }
+  scope :generating, -> { where(status: "generating") }
 
   # after_create :start_create_all_audio_job
   before_save :set_label, :ensure_image_type
