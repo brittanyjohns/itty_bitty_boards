@@ -149,7 +149,8 @@ class User < ApplicationRecord
   end
 
   def display_doc_for_image(image)
-    favorite_docs.with_attached_image.where(id: image.docs.with_attached_image.pluck(:id)).first
+    doc_ids_to_display = image.docs.where(user_id: [id, nil]).pluck(:id)
+    favorite_docs.with_attached_image.where(id: doc_ids_to_display).first
   end
 
   def self.valid_credentials?(email, password)

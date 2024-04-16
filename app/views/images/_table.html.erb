@@ -1,5 +1,8 @@
  <div class="my-6 max-h-screen overflow-scroll">
       <h2 class="text-xl font-semibold text-gray-700">Images (<%= images.count %>)</h2>
+      <div class="">
+       <%= paginate images %>
+      </div>
       <table class="table-auto w-full mt-2">
         <thead class="bg-gray-100">
           <tr>
@@ -12,11 +15,19 @@
         <tbody class="text-gray-700">
           <% images.each do |image| %>
             <tr class="border-b border-gray-200 hover:bg-gray-100">
-                <td class="py-3 px-4"><%= link_to image.label, image %></td>
-                <td class="py-3 px-4"><%= image.image_type %></td>
-                <td class="py-3 px-4"><%= image.user_id || "None" %></td>
-                <td class="text-right py-3 px-4"><%= image.created_at %></td>
+                <td class="py-3 px-1"><%= link_to image.label, image %></td>
+                <td class="py-3 px-1"><%= image.image_type %> - <%= image.private ? "Private" : "Public" %></td>
+                <td class="py-3 px-1"><%= image.user_id || "None" %></td>
+                <td class="text-right py-3 px-1"><%= image.created_at %></td>
             </tr>
+            <% image.docs.each do |doc| %>
+              <tr class="border-b border-gray-200 hover:bg-gray-100">
+                <td class="py-3 px-8"><%= link_to doc.id, doc %></td>
+                <td class="py-3 px-8"><%= image_tag doc.image, class: "h-24 w-24" if doc.image.attached? %></td>
+                <td class="py-3 px-8"><%= doc.user_id || "None" %></td>
+                <td class="text-right py-3 px-8"><%= doc.created_at %></td>
+              </tr>
+              <% end %>
           <% end %>
         </tbody>
       </table>

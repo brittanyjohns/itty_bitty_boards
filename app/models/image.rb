@@ -508,11 +508,7 @@ class Image < ApplicationRecord
         return doc if doc.image&.attached?
       end
     end
-    current_docs = docs.with_attached_image.current
-    puts "Current docs: #{current_docs.count}"
-    if current_docs.any? && current_docs.last.image&.attached?
-      return current_docs.last if current_docs.last.image.attached?
-    end
+
     userless_doc = docs.with_attached_image.no_user.last
     if userless_doc&.image&.attached?
       return userless_doc

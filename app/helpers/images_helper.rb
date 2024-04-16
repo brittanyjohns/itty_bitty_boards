@@ -1,5 +1,5 @@
 module ImagesHelper
-  def display_image_for(image, user, size = 300, additional_classes = "")
+  def display_image_for(image, user, size = 100, additional_classes = "")
     user_image = image.display_image(user)
     puts "\n\nUSER IMAGE: #{user_image.inspect}\n\n"
     str = ""
