@@ -281,8 +281,8 @@ class Image < ApplicationRecord
 
   def get_voice_for_board(board)
     return unless board
-    voice = board_images.find_by(board_id: board.id).voice || Image.voices.sample
-    get_audio_for_voice(voice)
+    @voice ||= board_images.find_by(board_id: board.id).voice || Image.voices.sample
+    get_audio_for_voice(@voice)
   end
 
   def existing_voices

@@ -29,8 +29,7 @@
             <div class="text-center bg-white rounded-md shadow-md overflow-hidden h-50">
                 <div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
                     <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>" data-action="click->speakx#speak">
-                        <%= audio_tag(polymorphic_path(image.get_voice_for_board(@board)), controls: false, id: "audio-#{image.label.parameterize}", class: "hidden", data: {speak_target: "audio"}) if !image.get_voice_for_board(@board).blank? && @board&.present? %>
-
+                        <%= audio_tag_for_image(image, @board, "hidden", false) if @board %>
                         <div class="relative items-center text-center" id="<%= image.label %>">
                         <p class="absolute bottom-0 left-0 m-1 text-white font-light p-1 text-xs rounded bg-black bg-opacity-70">
                             <%= image.label %>

@@ -1,5 +1,5 @@
 module ImagesHelper
-  def display_image_for(image, user, size = 100, additional_classes = "")
+  def display_image_for(image, user, size = 300, additional_classes = "")
     user_image = image.display_image(user)
     puts "\n\nUSER IMAGE: #{user_image.inspect}\n\n"
     str = ""
@@ -88,5 +88,14 @@ module ImagesHelper
     end
     str += "</div>"
     str.html_safe
+  end
+
+  def audio_tag_for_image(image, board, class_name = "", controls = true)
+    if image.get_voice_for_board(board).nil?
+      return audio_tag("", controls: false, id: "audio-#{image.label.parameterize}", class: "hidden", data: { speak_target: "audio" })
+    end
+    audio_tag(polymorphic_path(image.get_voice_for_board(board)),
+              controls: false, id: "audio-#{image.label.parameterize}",
+              class: "hidden", data: { speak_target: "audio" })
   end
 end

@@ -1,5 +1,5 @@
 <%= turbo_stream_from(@board) %>
-<div data-controller="speak show grid" class="w-full mt-2 pb-6 mx-auto bg-white rounded-lg shadow-md" data-predefined="<%= @board.predefined %>">
+<div data-controller="speak show xgrid" class="w-full mt-2 pb-6 mx-auto bg-white rounded-lg shadow-md" data-predefined="<%= @board.predefined %>">
     <div class="flex justify-around my-4">
         <%= link_to "Back", menu_path(@board.parent, menu_page: true), class: "bg-blue-600 hover:bg-blue-800 text-white font-semibold py-2 px-4 m-1 rounded-full transition duration-300 ease-in-out transform hover:-translate-y-1" if @board.parent_type == "Menu" %>
         <%= link_to "Back", boards_path, class: "bg-blue-600 hover:bg-blue-800 text-white font-semibold py-2 px-4 m-1 rounded-full transition duration-300 ease-in-out transform hover:-translate-y-1" if @board.parent_type != "Menu" %>
