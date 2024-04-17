@@ -1,7 +1,6 @@
 module ImagesHelper
   def display_image_for(image, user, size = 300, additional_classes = "")
     user_image = image.display_image(user)
-    puts "\n\nUSER IMAGE: #{user_image.inspect}\n\n"
     str = ""
     if !user_image
       str += image_tag("https://via.placeholder.com/#{size}x#{size}.png?text=#{image.label_param}", class: "shadow mx-auto my-auto h-fit #{additional_classes}")

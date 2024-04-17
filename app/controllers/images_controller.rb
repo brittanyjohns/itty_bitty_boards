@@ -141,7 +141,7 @@ class ImagesController < ApplicationController
       puts "New Image or no docs"
       limit = current_user.admin? ? 10 : 5
       GetSymbolsJob.perform_async([@image.id], limit)
-      sleep 3
+      sleep 1
       notice += " Creating #{limit} #{"symbol".pluralize(limit)} for image."
     end
 
