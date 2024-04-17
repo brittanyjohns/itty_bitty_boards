@@ -7,10 +7,11 @@ module ImageHelper
 
   def save_image(url, user_id = nil, revised_prompt = nil)
     begin
-      downloaded_image = URI.open(url,
-                                  "User-Agent" => "Ruby/#{RUBY_VERSION}",
-                                  "From" => "foo@bar.invalid",
-                                  "Referer" => "http://www.ruby-lang.org/")
+      # downloaded_image = URI.open(url,
+      #                             "User-Agent" => "Ruby/#{RUBY_VERSION}",
+      #                             "From" => "foo@bar.invalid",
+      #                             "Referer" => "http://www.ruby-lang.org/")
+      downloaded_img = Down.download(url)
       user_id ||= self.user_id
       doc = self.docs.create!(raw: name_to_send, user_id: user_id, processed: revised_prompt, source_type: "OpenAI")
       doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.webp", content_type: "image/webp")

@@ -441,13 +441,13 @@ class Image < ApplicationRecord
     end
   end
 
-  def self.create_symbols_for_missing_images(limit = 25)
+  def self.create_symbols_for_missing_images(limit = 25, sym_limit = 10)
     count = 0
     images_without_docs = Image.public_img.non_menu_images.without_docs
     puts "Images without docs: #{images_without_docs.count}"
     sleep 3
     images_without_docs.each do |image|
-      image.generate_matching_symbol
+      image.generate_matching_symbol(sym_limit)
       count += 1
       break if count >= limit
     end
