@@ -61,7 +61,8 @@ class Board < ApplicationRecord
   # end
 
   def has_generating_images?
-    images.any? { |image| image.status != "finished" }
+    image_statuses = images.map(&:status)
+    image_statuses.include?("generating")
   end
 
   def predictive?
