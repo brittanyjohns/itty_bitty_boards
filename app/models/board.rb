@@ -21,7 +21,7 @@ class Board < ApplicationRecord
   has_many :board_images, dependent: :destroy
   has_many :images, through: :board_images
   has_many :docs
-  has_many :team_boards
+  has_many :team_boards, dependent: :destroy
   has_many :teams, through: :team_boards
   has_many :team_users, through: :teams
   has_many :users, through: :team_users
