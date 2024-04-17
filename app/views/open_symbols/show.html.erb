@@ -1,5 +1,8 @@
-<h1><%= @symbol.name %>><%= @symbol.label %></h1>
+<h1><%= @symbol.name %><%= @symbol.label %></h1>
 <p><%= @symbol.extension %>
+Attached?: <%= @symbol.image&.attached? %><br>
+Representable?: <%= @symbol.image&.representable? %><br>
+Image URL: <%= @symbol.image_url %><br>
 <% if @symbol.image&.attached? && @symbol.image.representable? %>
 <%= image_tag(@symbol.image) %>
 <p> Image Saved: <%= link_to @symbol.image.filename, @symbol.image_doc %></p>

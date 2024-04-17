@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_04_05_122512) do
+ActiveRecord::Schema[7.1].define(version: 2024_04_17_162227) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -90,6 +90,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_04_05_122512) do
     t.integer "user_id"
     t.string "source_type"
     t.datetime "deleted_at"
+    t.string "original_image_url"
     t.index ["deleted_at"], name: "index_docs_on_deleted_at"
     t.index ["documentable_type", "documentable_id"], name: "index_docs_on_documentable"
     t.index ["user_id"], name: "index_docs_on_user_id"

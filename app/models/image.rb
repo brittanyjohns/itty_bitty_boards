@@ -42,7 +42,7 @@ class Image < ApplicationRecord
   scope :non_menu_images, -> { where.not(image_type: "Menu") }
   scope :non_scenarios, -> { where.not(image_type: "OpenaiPrompt") }
   scope :no_image_type, -> { where(image_type: nil) }
-  scope :public_img, -> { where(private: [false, nil]) }
+  scope :public_img, -> { where(private: [false, nil], user_id: nil) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
   scope :skipped, -> { where(open_symbol_status: "skipped") }
   scope :without_docs, -> { where.missing(:docs) }
@@ -363,7 +363,7 @@ class Image < ApplicationRecord
   end
 
   def generate_matching_symbol(limit = 1)
-    return if open_symbol_status == "skipped"
+    # return if open_symbol_status == "skipped"
     query = label&.downcase
     response = OpenSymbol.generate_symbol(query)
 
@@ -377,7 +377,7 @@ class Image < ApplicationRecord
       begin
         symbols.each do |symbol|
           existing_symbol = OpenSymbol.find_by(original_os_id: symbol["id"])
-          if existing_symbol || OpenSymbol::IMAGE_EXTENSIONS.exclude?(symbol["extension"])
+          if existing_symbol
             puts "Symbol already exists: #{existing_symbol&.id} Or not an image: #{symbol["extension"]}"
             new_symbol = existing_symbol
           else
@@ -404,10 +404,18 @@ class Image < ApplicationRecord
           end
           symbol_name = new_symbol.name.parameterize if new_symbol
           if new_symbol && should_create_symbol_image?(symbol_name)
+            puts "Creating symbol image for #{symbol_name}"
             count += 1
-            downloaded_image = new_symbol.get_downloaded_image
-            new_image_doc = self.docs.create!(processed: symbol_name, raw: new_symbol.search_string, source_type: "OpenSymbol")
-            new_image_doc.image.attach(io: downloaded_image, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{new_symbol.extension}")
+            downloaded_image = nil
+            svg_url = nil
+            if new_symbol.svg?
+              svg_url = new_symbol.image_url
+            else
+              downloaded_image = new_symbol.get_downloaded_image
+            end
+            puts "Setting image for symbol: #{symbol_name} - SVG: #{svg_url} - Downloaded: #{downloaded_image}"
+            new_image_doc = self.docs.create!(processed: symbol_name, raw: new_symbol.search_string, source_type: "OpenSymbol", original_image_url: svg_url)
+            new_image_doc.image.attach(io: downloaded_image, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{new_symbol.extension}") if downloaded_image
           else
             skipped_count += 1
           end
@@ -611,9 +619,11 @@ class Image < ApplicationRecord
 
   def self.searchable_images_for(user, only_user_images = false)
     if only_user_images
-      Image.non_menu_images.or(Image.where(user_id: [user.id, nil])).distinct
+      # Image.non_menu_images.or(Image.where(user_id: user.id)).distinct
+      Image.where(user_id: user.id).distinct
     else
-      Image.non_menu_images.or(Image.where(user_id: [user.id, nil])).or(Image.public_img.non_menu_images).distinct
+      Image.non_menu_images.public_img.distinct
+      # Image.non_menu_images.where(user_id: [user.id, nil]).or(Image.public_img.non_menu_images).distinct
     end
   end
 end

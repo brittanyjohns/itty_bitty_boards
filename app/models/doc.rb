@@ -37,11 +37,6 @@ class Doc < ApplicationRecord
   scope :with_attached_image, -> { includes(image_attachment: :blob) }
   scope :without_attached_image, -> { where.missing(:image_attachment) }
   scope :no_user, -> { where(user_id: [nil, User::DEFAULT_ADMIN_ID]) }
-  # def self.with_no_user_docs_for(user_id)
-  #   includes(:user_docs).
-  #     references(:user_docs).
-  #     where.not(user_docs: { user_id: user_id })
-  # end
 
   def hide!
     update(deleted_at: Time.now)

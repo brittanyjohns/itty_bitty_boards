@@ -77,7 +77,7 @@ class OpenAiClient
 
   def next_words_prompt(label)
     "Given a specific context or emotion, such as '#{label}', 
-    provide a list of 24 foundational words or short phrases that are crucial for basic communication in an AAC (Augmentative and Alternative Communication) device. 
+    provide a list of 24 foundational words or short phrases (2 words max) that are crucial for basic communication in an AAC (Augmentative and Alternative Communication) device. 
     These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations.
     Determine if the word '#{label}' typically leads to specific follow-up words in everyday communication. If not, respond with 'NO NEXT WORDS'. 
     This will help in populating an AAC (Augmentative and Alternative Communication) device with contextually appropriate vocabulary.

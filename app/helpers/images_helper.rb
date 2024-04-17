@@ -7,7 +7,7 @@ module ImagesHelper
       # str += "<div class='w-100 h-100 px-2 text-gray-400 text-md font-bold grid justify-items-center items-center shadow mx-auto my-auto'><span class='mx-auto my-auto'>#{image.label&.upcase.truncate(27, separator: ' ')}</span> #{image.generating? ? loading_spinner : ""}</div>".html_safe
     else
       url_for_image = url_for(user_image)
-      str += image_tag(url_for_image, class: "shadow mx-auto my-auto h-fit #{additional_classes}")
+      str += image_tag(url_for_image, class: "mx-auto my-auto h-fit #{additional_classes}")
 
       # str += image_tag(user_image, class: "shadow mx-auto my-auto h-fit")
     end

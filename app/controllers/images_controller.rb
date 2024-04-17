@@ -75,6 +75,7 @@ class ImagesController < ApplicationController
     @image = Image.new(image_params)
     @image.user = current_user
     @image.private = true
+    @image.image_type = "User"
 
     respond_to do |format|
       if @image.save
@@ -119,7 +120,7 @@ class ImagesController < ApplicationController
     @image = Image.find_by(label: label, user_id: current_user.id)
     @image = Image.public_img.find_by(label: label) unless @image
     @found_image = @image
-    @image = Image.create(label: label, private: false, image_type: "User") unless @image
+    @image = Image.create(label: label, private: false, image_type: "User", user_id: current_user.id) unless @image
     @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
 
     @board.add_image(@image.id) if @board
@@ -207,6 +208,6 @@ class ImagesController < ApplicationController
 
   # Only allow a list of trusted parameters through.
   def image_params
-    params.require(:image).permit(:label, :image_prompt, :private, :user_id, :status, :error)
+    params.require(:image).permit(:label, :image_prompt, :private, :user_id, :status, :error, :open_symbol_status, :image_type, :audio_files)
   end
 end
