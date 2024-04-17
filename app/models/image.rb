@@ -377,7 +377,7 @@ class Image < ApplicationRecord
       begin
         symbols.each do |symbol|
           existing_symbol = OpenSymbol.find_by(original_os_id: symbol["id"])
-          if existing_symbol || OpenSymbol::IMAGE_EXTENSIONS.exclude?(symbol["extension"])
+          if existing_symbol
             puts "Symbol already exists: #{existing_symbol&.id} Or not an image: #{symbol["extension"]}"
             new_symbol = existing_symbol
           else
@@ -412,16 +412,17 @@ class Image < ApplicationRecord
             svg_url = nil
             if new_symbol.svg?
               svg_url = new_symbol.image_url
-              processed = ImageProcessing::MiniMagick
-                .convert("png")
-                .resize_to_limit(300, 300)
-                .call(downloaded_image)
+              # TEMPORARILY DISABLED
+              # processed = ImageProcessing::MiniMagick
+              #   .convert("png")
+              #   .resize_to_limit(300, 300)
+              #   .call(downloaded_image)
             else
               processed = downloaded_image
             end
             ext = new_symbol.svg? ? "png" : new_symbol.extension
             puts "Setting image for symbol: #{symbol_name} - SVG: #{new_symbol.svg?} - ext: #{ext}"
-            new_image_doc = self.docs.create!(processed: symbol_name, raw: new_symbol.search_string, source_type: "OpenSymbol", original_image_url: svg_url)
+            new_image_doc = self.docs.create!(processed: symbol_name, raw: new_symbol.search_string, source_type: "OpenSymbol", original_image_url: svg_url) if processed
             new_image_doc.image.attach(io: processed, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{ext}") if processed
           else
             skipped_count += 1
