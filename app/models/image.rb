@@ -406,16 +406,23 @@ class Image < ApplicationRecord
           if new_symbol && should_create_symbol_image?(symbol_name)
             puts "Creating symbol image for #{symbol_name}"
             count += 1
-            downloaded_image = nil
+
+            downloaded_image = new_symbol.get_downloaded_image
+            processed = nil
             svg_url = nil
             if new_symbol.svg?
               svg_url = new_symbol.image_url
+              processed = ImageProcessing::MiniMagick
+                .convert("png")
+                .resize_to_limit(300, 300)
+                .call(downloaded_image)
             else
-              downloaded_image = new_symbol.get_downloaded_image
+              processed = downloaded_image
             end
-            puts "Setting image for symbol: #{symbol_name} - SVG: #{svg_url} - Downloaded: #{downloaded_image}"
+            ext = new_symbol.svg? ? "png" : new_symbol.extension
+            puts "Setting image for symbol: #{symbol_name} - SVG: #{new_symbol.svg?} - ext: #{ext}"
             new_image_doc = self.docs.create!(processed: symbol_name, raw: new_symbol.search_string, source_type: "OpenSymbol", original_image_url: svg_url)
-            new_image_doc.image.attach(io: downloaded_image, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{new_symbol.extension}") if downloaded_image
+            new_image_doc.image.attach(io: processed, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{ext}") if processed
           else
             skipped_count += 1
           end

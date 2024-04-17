@@ -135,14 +135,15 @@ class OpenSymbol < ApplicationRecord
   end
 
   def get_downloaded_image
-    return if !image_extension?
+    # return if !image_extension?
     url = self.image_url.gsub(" ", "%20")
     puts "****\n\n\nURL: #{url}"
     return unless url
-    downloaded_img = URI.open(url,
-                              "User-Agent" => "Ruby/#{RUBY_VERSION}",
-                              "From" => "foo@bar.invalid",
-                              "Referer" => "http://www.ruby-lang.org/")
+    # downloaded_img = URI.open(url,
+    #                           "User-Agent" => "Ruby/#{RUBY_VERSION}",
+    #                           "From" => "foo@bar.invalid",
+    #                           "Referer" => "http://www.ruby-lang.org/")
+    downloaded_img = Down.download(url)
     if downloaded_img
       puts "\nDownloaded Image: #{downloaded_img.inspect}\n\n****"
       return downloaded_img

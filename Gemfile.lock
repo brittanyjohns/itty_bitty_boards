@@ -138,6 +138,8 @@ GEM
       actionmailer (>= 5.0)
       devise (>= 4.6)
     domain_name (0.6.20240107)
+    down (5.4.1)
+      addressable (~> 2.8)
     drb (2.2.0)
       ruby2_keywords
     dry-auto_inject (1.0.1)
@@ -415,6 +417,7 @@ DEPENDENCIES
   devise
   devise-jwt
   devise_invitable (~> 2.0)
+  down (~> 5.4)
   error_highlight (>= 0.4.0)
   faraday
   figaro
