@@ -1,0 +1,28 @@
+ <div class="my-6 max-h-screen overflow-scroll">
+      <h2 class="text-xl font-semibold text-gray-700">Boards (<%= boards.count %>)</h2>
+      <div class="">
+       <%= paginate boards %>
+      </div>
+      <table class="table-auto w-full mt-2">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600"> Name</th>
+            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600"> predefined - parent_type</th>
+            <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-gray-600">User</th>
+            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Num of images</th>
+            <th class="text-right py-3 px-4 uppercase font-semibold text-sm text-gray-600">Created</th>
+          </tr>
+        </thead>
+        <tbody class="text-gray-700">
+          <% boards.each do |board| %>
+            <tr class="border-b border-gray-200 hover:bg-gray-100">
+                <td class="py-3 px-1"><%= board.id %> - <%= link_to board.name, board %></td>
+                <td class="py-3 px-1"><%= board.predefined ? "predefined" : "custom" %> - <%= board.parent_type %></td>
+                <td class="py-3 px-1"><%= board.user_id || "None" %></td>
+                <td class="text-right py-3 px-1"><%= board.images.count %></td>
+                <td class="text-right py-3 px-1"><%= board.created_at %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
