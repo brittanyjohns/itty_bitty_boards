@@ -34,6 +34,7 @@ class Board < ApplicationRecord
   scope :predictive, -> { where(parent_type: "PredefinedResource") }
   scope :predefined, -> { where(predefined: true) }
   scope :ai_generated, -> { where(parent_type: "OpenaiPrompt") }
+  scope :with_less_than_10_images, -> { joins(:images).group("boards.id").having("count(images.id) < 10") }
 
   # before_save :set_number_of_columns, unless: :number_of_columns?
   before_save :set_voice, if: :voice_changed?

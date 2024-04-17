@@ -13,8 +13,9 @@ class UsersController < ApplicationController
     @users = User.all.order(created_at: :desc).page params[:page]
     @beta_requests = BetaRequest.all.order(created_at: :desc).page params[:page]
     @messages = Message.all.order(created_at: :desc).page params[:page]
-    @images = Image.includes(docs: :image_attachment).all.order(created_at: :desc).page params[:page]
+    @images = Image.includes(docs: :image_attachment).all.order(label: :desc).page params[:page]
     @docs = Doc.all.order(created_at: :desc).page params[:page]
+    @boards = Board.all.order(name: :desc).page params[:page]
   end
 
   def show
