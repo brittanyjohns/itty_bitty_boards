@@ -15,7 +15,7 @@
           <%= link_to shopping_cart_nav, carts_show_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" unless current_order && current_order.order_items.empty? %>
           <%= link_to tokens_nav, products_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm", data: { tippy_content: "Buy more tokens. You currently have #{current_user.tokens}." } %>
           <%= link_to user_nav, current_user, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-xs", data: { tippy_content: "Your Account: #{current_user}" } %>
-          <%= link_to team_nav, @current_team, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm", data: { tippy_content: "Current Team: #{current_user.current_team&.name&.upcase}" } if current_user&.teams.count >= 1 %>
+          <%= link_to team_nav, team_path(current_user.current_team_id), class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm", data: { tippy_content: "Current Team: #{current_user.current_team&.name&.upcase}" } if current_user.current_team_id %>
           <!-- Conditional admin links -->
           <%= link_to "Users", users_path, class: "hover:text-blue-300" if current_user.admin? %>
           <%= link_to "Docs", docs_path, class: "hover:text-blue-300" if current_user.admin? %>
