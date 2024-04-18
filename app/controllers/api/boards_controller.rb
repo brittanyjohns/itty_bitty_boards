@@ -27,6 +27,12 @@ class API::BoardsController < API::ApplicationController
     render json: { boards: @boards, predefined_boards: @predefined_boards, scenarios: @scenarios, shared_boards: @shared_boards }
   end
 
+  def user_boards
+    @boards = current_user.boards.user_made.order(created_at: :desc)
+
+    render json: { boards: @boards }
+  end
+
   # export interface PredictiveImage {
   #   id: string;
   #   src: string;
@@ -224,14 +230,23 @@ class API::BoardsController < API::ApplicationController
 
   def associate_image
     image = Image.find(params[:image_id])
-
-    unless @board.images.include?(image)
-      new_board_image = @board.board_images.new(image: image)
-      unless new_board_image.save
-        Rails.logger.debug "new_board_image.errors: #{new_board_image.errors.full_messages}"
-      end
+    if @board.images.include?(image)
+      render json: { error: "Image already associated with board" }, status: :unprocessable_entity
+      return
     end
-    render json: @board, status: :ok
+    if @board.predefined && !current_user.admin?
+      render json: { error: "Cannot add images to predefined boards" }, status: :unprocessable_entity
+      return
+    end
+    new_board_image = @board.board_images.new(image_id: image.id)
+    if new_board_image.save
+      @board.reload
+    else
+      render json: { error: "Error adding image to board: #{new_board_image.errors.full_messages.join(", ")}" }, status: :unprocessable_entity
+      return
+    end
+
+    render json: { board: @board, new_board_image: new_board_image }
   end
 
   def remove_image

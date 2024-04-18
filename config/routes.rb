@@ -149,6 +149,7 @@ Rails.application.routes.draw do
       collection do
         get "first_predictive_board"
         get "predictive_index"
+        get "user_boards"
       end
       member do
         post "add_image"
