@@ -1,13 +1,17 @@
 <div class="py-4"  data-controller="opensymbols">
-  <%= params %>
-<h1>OpenSymbols#search</h1>
+  <%= paginate @symbols %>
+<h1>OpenSymbols (<%= @symbols.count %>)</h1>
+<h2 class="font-bold">Search: <%= @query %> </h2>
 
-<div class="border p-4">
+
+<div class="grid grid-cols-4 gap-4">
 <% @symbols.each do |symbol| %>
 <%= link_to open_symbol_path(symbol) do %>
-  <div class="open-symbol flex justify-between items-center">
-        <p class="text-md font-light mb-6"><%= symbol.original_os_id %></p>
-    <p class="text-md font-light mb-6"><%= symbol.label %></p>
+  <div class="p-1">
+        <p class="text-md font-light mb-6"><%= symbol.original_os_id %> | <%= symbol.extension %></p>
+    <div class="text-md font-light mb-6"><%= image_tag symbol.image, class: "w-1/8 mx-auto" if symbol.image&.attached? && symbol.image&.representable? %>
+        <%= image_tag symbol.image_url, class: "w-1/8 mx-auto" if !symbol.image&.attached? || !symbol.image&.representable? %>
+</div>
     <p class="text-md font-light mb-6"><%= symbol.name %></p>
   </div>
   <% end %>

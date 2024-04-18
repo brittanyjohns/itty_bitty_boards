@@ -1,6 +1,6 @@
 class OpenSymbolsController < ApplicationController
   def index
-    @symbols = OpenSymbol.all.order(created_at: :desc)
+    @symbols = OpenSymbol.includes(:docs).order(created_at: :desc).page(params[:page])
   end
 
   def show
@@ -21,8 +21,8 @@ class OpenSymbolsController < ApplicationController
 
   def search
     @query = params[:query]
-    
-    @symbols = OpenSymbol.where("label ILIKE ?", "%#{params[:query]}%").order(created_at: :desc)
+
+    @symbols = OpenSymbol.where("label ILIKE ?", "%#{params[:query]}%").order(created_at: :desc).page(params[:page])
   end
 
   def create
@@ -43,24 +43,24 @@ class OpenSymbolsController < ApplicationController
         end
         break if count >= limit
         new_symbol =
-        OpenSymbol.create!(
-          name: symbol["name"],
-          image_url: symbol["image_url"],
-          label: query,
-          search_string: symbol["search_string"],
-          symbol_key: symbol["symbol_key"],
-          locale: symbol["locale"],
-          license_url: symbol["license_url"],
-          license: symbol["license"],
-          original_os_id: symbol["id"],
-          repo_key: symbol["repo_key"],
-          unsafe_result: symbol["unsafe_result"],
-          protected_symbol: symbol["protected_symbol"],
-          use_score: symbol["use_score"],
-          relevance: symbol["relevance"],
-          extension: symbol["extension"],
-          enabled: symbol["enabled"]
-        )
+          OpenSymbol.create!(
+            name: symbol["name"],
+            image_url: symbol["image_url"],
+            label: query,
+            search_string: symbol["search_string"],
+            symbol_key: symbol["symbol_key"],
+            locale: symbol["locale"],
+            license_url: symbol["license_url"],
+            license: symbol["license"],
+            original_os_id: symbol["id"],
+            repo_key: symbol["repo_key"],
+            unsafe_result: symbol["unsafe_result"],
+            protected_symbol: symbol["protected_symbol"],
+            use_score: symbol["use_score"],
+            relevance: symbol["relevance"],
+            extension: symbol["extension"],
+            enabled: symbol["enabled"],
+          )
         count += 1
       end
     end
@@ -68,5 +68,3 @@ class OpenSymbolsController < ApplicationController
     redirect_to search_open_symbols_url(query: query), notice: "Symbols created."
   end
 end
-
-

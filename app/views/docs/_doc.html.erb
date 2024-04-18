@@ -6,7 +6,7 @@
     </p>
     <% end %>
     <%= image_tag doc.image, class: "w-full mx-auto" if doc.image.attached? && doc.image.representable? %>
-    <%= image_tag doc.original_image_url, class: "w-full mx-auto" if doc.image.attached? && !doc.image.representable? %>
+    <%= image_tag doc.original_image_url, class: "w-full mx-auto" if !doc.image&.attached? || !doc.image&.representable? %>
     <%= mark_as_current_button(doc) if doc.image.attached? && viewing_user&.can_favorite?(doc) %>
     <%= remove_doc_button(doc) if doc.persisted? && viewing_user&.can_edit?(doc) %>
 </div>
