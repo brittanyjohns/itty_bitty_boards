@@ -98,7 +98,7 @@ class OpenSymbol < ApplicationRecord
     query_to_send = CGI.escape(query)
     uri = URI("https://www.opensymbols.org/api/v2/symbols?access_token=#{token_to_send}&q=#{query_to_send}")
     response = Net::HTTP.get(uri)
-
+    puts "Response: #{response.inspect}"
     response
   end
 

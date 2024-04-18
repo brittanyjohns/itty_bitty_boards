@@ -45,9 +45,11 @@ class Image < ApplicationRecord
   scope :public_img, -> { where(private: [false, nil], user_id: nil) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
   scope :skipped, -> { where(open_symbol_status: "skipped") }
+  scope :active, -> { where(open_symbol_status: "active") }
   scope :without_docs, -> { where.missing(:docs) }
   scope :with_docs, -> { where.associated(:docs) }
   scope :generating, -> { where(status: "generating") }
+  scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
 
   # after_create :start_create_all_audio_job
   before_save :set_label, :ensure_image_type
@@ -368,6 +370,7 @@ class Image < ApplicationRecord
     response = OpenSymbol.generate_symbol(query)
 
     if response
+      puts "got a response..."
       symbols = JSON.parse(response)
       symbols_count = symbols.count
       puts "Found symbols...#{symbols_count}"
@@ -403,7 +406,7 @@ class Image < ApplicationRecord
               )
           end
           symbol_name = new_symbol.name.parameterize if new_symbol
-          if new_symbol && should_create_symbol_image?(symbol_name)
+          if new_symbol && should_create_symbol_image?(new_symbol)
             puts "Creating symbol image for #{symbol_name}"
             count += 1
 
@@ -428,6 +431,7 @@ class Image < ApplicationRecord
             skipped_count += 1
           end
           total = count + skipped_count
+          puts "Label: #{label} - Symbol: #{symbol_name} - Total: #{total} - Count: #{count} - Skipped: #{skipped_count}"
           if total >= symbols_count
             puts "Skipped all symbols"
             self.update!(open_symbol_status: "skipped")
@@ -441,20 +445,25 @@ class Image < ApplicationRecord
     end
   end
 
-  def self.create_symbols_for_missing_images(limit = 25, sym_limit = 10)
+  def self.create_symbols_for_missing_images(limit = 25, sym_limit = 3)
     count = 0
-    images_without_docs = Image.public_img.non_menu_images.without_docs
-    puts "Images without docs: #{images_without_docs.count}"
+    images_without_docs = Image.public_img.active.non_menu_images.with_less_than_3_docs
+
+    puts "Images without docs: #{images_without_docs.to_a.count}"
     sleep 3
     images_without_docs.each do |image|
+      puts "Creating symbol image for #{image.label} - sym_limit: #{sym_limit} - count: #{count}"
       image.generate_matching_symbol(sym_limit)
       count += 1
       break if count >= limit
     end
   end
 
-  def should_create_symbol_image?(symbol_name)
+  def should_create_symbol_image?(new_symbol)
+    return false if new_symbol.blank?
+    symbol_name = new_symbol.name.parameterize
     return false if symbol_name.blank?
+    return false if new_symbol.svg? # TEMPORARILY DISABLED
     symbol_name_like_label?(symbol_name) && !doc_text_matches(symbol_name)
   end
 
