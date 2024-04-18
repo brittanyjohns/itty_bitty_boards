@@ -370,7 +370,6 @@ class Image < ApplicationRecord
     response = OpenSymbol.generate_symbol(query)
 
     if response
-      puts "got a response..."
       symbols = JSON.parse(response)
       symbols_count = symbols.count
       puts "Found symbols...#{symbols_count}"
@@ -441,6 +440,7 @@ class Image < ApplicationRecord
         symbols
       rescue => e
         puts "Error creating symbols: #{e.message}\n\n#{e.backtrace.join("\n")}"
+        skipped_count += 1
       end
     end
   end

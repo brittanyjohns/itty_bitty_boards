@@ -9,7 +9,6 @@
       <div class="relative hidden md:flex items-center space-x-6 text-white">
         <!-- Authentication and navigation links -->
         <% if user_signed_in? %>
-          <%= button_tag team_nav, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm", data: { action: "click->dropdown#toggle", "tippy-content": "Change teams" } if current_user&.teams.count > 1 %>
           <%= link_to board_nav, boards_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
           <%= link_to menu_nav, menus_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
           <%= link_to image_nav, images_path, class: "text-blue-200 hover:text-white px-3 py-2 rounded-md text-sm" %>
