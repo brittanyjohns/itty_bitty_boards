@@ -13,14 +13,17 @@ class API::ImagesController < API::ApplicationController
     end
 
     @images_with_display_doc = @images.map do |image|
-      display_doc = image.display_doc(current_user)
+      # display_doc = image.display_doc(current_user)
+      img_url = image.display_image(current_user) ? cdn_image_url(image.display_image(current_user)) : nil
       audio_file = image.audio_files.first
       {
         id: image.id,
         label: image.label,
         image_prompt: image.image_prompt,
         image_type: image.image_type,
-        src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
+        # display_doc: image.display_image(current_user),
+        src: img_url || "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
+        # src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
         audio: audio_file ? url_for(audio_file) : nil,
       }
     end
@@ -34,7 +37,8 @@ class API::ImagesController < API::ApplicationController
     @images = Image.non_menu_images.where(id: @user_docs.map(&:documentable_id)).order(label: :asc).page params[:page]
     @distinct_images = @images.distinct
     @images_with_display_doc = @distinct_images.map do |image|
-      display_doc = image.display_doc(current_user)
+      # display_doc = image.display_doc(current_user)
+      img_url = image.display_image(current_user) ? cdn_image_url(image.display_image(current_user)) : nil
       audio_file = image.audio_files.first
       {
         id: image.id,
@@ -42,7 +46,9 @@ class API::ImagesController < API::ApplicationController
         label: image.label,
         image_type: image.image_type,
         image_prompt: image.image_prompt,
-        src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
+        # display_doc: image.display_image(current_user),
+        src: img_url || "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
+        # src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
         audio: audio_file ? url_for(audio_file) : nil,
       }
     end
@@ -53,7 +59,9 @@ class API::ImagesController < API::ApplicationController
     @image = Image.includes(:docs).with_attached_audio_files.find(params[:id])
     @current_doc = @image.display_doc(current_user)
     @current_doc_id = @current_doc.id if @current_doc
+    display_doc_img_url = @current_doc&.image&.attached? ? cdn_image_url(@current_doc.image) : nil
     @image_docs = @image.docs.with_attached_image.for_user(current_user).order(created_at: :desc)
+    img_url = @image.display_image(current_user) ? cdn_image_url(@image.display_image(current_user)) : nil
     @image_with_display_doc = {
       id: @image.id,
       label: @image.label.upcase,
@@ -63,21 +71,24 @@ class API::ImagesController < API::ApplicationController
         id: @current_doc&.id,
         label: @image&.label,
         user_id: @current_doc&.user_id,
-        src: @current_doc&.attached_image_url,
+        src: display_doc_img_url || "https://via.placeholder.com/150x150.png?text=#{@image&.label}",
+        # src: @current_doc&.attached_image_url,
         is_current: true,
         deleted_at: @current_doc&.deleted_at,
       },
       private: @image.private,
       user_id: @image.user_id,
       # src: url_for(@image.display_image),
-      src: @image.display_doc(current_user)&.attached_image_url || "https://via.placeholder.com/150x150.png?text=#{@image.label_param}",
+      src: img_url || "https://via.placeholder.com/150x150.png?text=#{@image.label_param}",
       audio: @image.audio_files.first ? url_for(@image.audio_files.first) : nil,
       docs: @image_docs.map do |doc|
+        doc_img_url = doc.image.attached? ? cdn_image_url(doc.image) : nil
         {
           id: doc.id,
           label: @image.label,
           user_id: doc.user_id,
-          src: doc.image.url,
+          src: doc_img_url || "https://via.placeholder.com/150x150.png?text=#{doc.id}",
+          # src: doc.image.url,
           is_current: doc.id == @current_doc_id,
         }
       end,

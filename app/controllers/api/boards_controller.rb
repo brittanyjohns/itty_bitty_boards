@@ -55,13 +55,13 @@ class API::BoardsController < API::ApplicationController
         predefined: board.predefined,
         number_of_columns: board.number_of_columns,
         images: board.images.map do |image|
+          img_url = image.display_image(current_user) ? cdn_image_url(image.display_image(current_user)) : nil
           {
             id: image.id,
             label: image.label,
             image_prompt: image.image_prompt,
             next_words: image.next_words,
-            display_doc: image.display_image,
-            src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+            src: img_url || "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
             audio: image.audio_files.first&.url,
           }
         end,
@@ -80,12 +80,13 @@ class API::BoardsController < API::ApplicationController
       puts "Predictive board created"
     end
     @board_with_images = @board.images.map do |image|
+      img_url = image.display_image(current_user) ? cdn_image_url(image.display_image(current_user)) : nil
       {
         id: image.id,
         label: image.label,
         bg_color: image.bg_color,
         next_words: image.next_words,
-        src: image.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+        src: img_url || "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
         audio: image.audio_files.first&.url,
       }
     end
@@ -95,11 +96,13 @@ class API::BoardsController < API::ApplicationController
   def predictive_images
     @image = Image.find(params[:id])
     @next_images = @image.next_images.map do |ni|
+      img_url = ni.display_image(current_user) ? cdn_image_url(ni.display_image(current_user)) : nil
       {
         id: ni.id,
         label: ni.label,
         bg_color: ni.bg_color,
-        src: ni.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{ni.label_param}",
+        next_words: ni.next_words,
+        src: img_url || "https://via.placeholder.com/300x300.png?text=#{ni.label_param}",
         audio: ni.audio_files.first&.url,
       }
     end
@@ -128,12 +131,13 @@ class API::BoardsController < API::ApplicationController
     end
     @images = @images.excluding(board.images)
     @remaining_images = @images.map do |image|
+      img_url = image.display_image(current_user) ? cdn_image_url(image.display_image(current_user)) : nil
       {
         id: image.id,
         label: image.label,
         image_prompt: image.image_prompt,
-        display_doc: image.display_image,
-        src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+        # display_doc: image.display_image,
+        src: img_url || "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
         audio: image.audio_files.first&.url,
       }
     end
