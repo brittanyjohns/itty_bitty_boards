@@ -41,6 +41,7 @@ class Image < ApplicationRecord
   scope :menu_images, -> { where(image_type: "Menu") }
   scope :non_menu_images, -> { where.not(image_type: "Menu") }
   scope :non_scenarios, -> { where.not(image_type: "OpenaiPrompt") }
+  scope :non_sample_voices, -> { where.not(image_type: "SampleVoice") }
   scope :no_image_type, -> { where(image_type: nil) }
   scope :public_img, -> { where(private: [false, nil], user_id: nil) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
@@ -491,6 +492,11 @@ class Image < ApplicationRecord
         image.destroy unless dry_run
       end
     end
+    nil
+  end
+
+  def self.with_multi_word_labels
+    Image.public_img.non_sample_voices.non_menu_images.select { |image| image.label.split(" ").count > 1 }
   end
 
   def doc_exists_for_user?(user)
