@@ -31,7 +31,7 @@ class API::OpenaiPromptsController < API::ApplicationController
         @board = @openai_prompt.boards.create!(user: current_user, name: @openai_prompt.prompt_text, token_limit: @openai_prompt.token_limit, description: @openai_prompt.revised_prompt)
         CreateScenarioBoardJob.perform_async(@openai_prompt.id)
 
-        format.json { render json: @board.api_view_with_images(current_user), status: :created }
+        format.json { render json: @board.api_view_with_images, status: :created }
         format.turbo_stream
       else
         format.html { render :new, status: :unprocessable_entity }

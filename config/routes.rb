@@ -131,6 +131,18 @@ Rails.application.routes.draw do
 
   #  API routes
   namespace :api, defaults: { format: :json } do
+    resources :teams do
+      collection do
+        post "set_current"
+      end
+      member do
+        post "invite"
+        get "accept_invite"
+        patch "accept_invite_patch"
+        post "add_board"
+        delete "remove_board"
+      end
+    end
     resources :images do
       member do
         post "hide_doc"

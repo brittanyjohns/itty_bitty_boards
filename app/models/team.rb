@@ -47,5 +47,24 @@ class Team < ApplicationRecord
         team_board = team_boards.find_by(board: board)
         team_board.destroy if team_board
     end
+
+    def index_api_view
+        {
+            id: id,
+            name: name,
+            current: id == created_by.current_team_id,
+            created_by: created_by.email,
+        }
+    end
+
+    def show_api_view
+        {
+            id: id,
+            name: name,
+            created_by: created_by.email,
+            users: users.map(&:email),
+            boards: boards.map(&:api_view_with_images),
+        }
+    end
     
 end

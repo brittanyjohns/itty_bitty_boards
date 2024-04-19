@@ -109,8 +109,12 @@ class API::BoardsController < API::ApplicationController
   # GET /boards/1 or /boards/1.json
   def show
     board = Board.includes(board_images: { image: :docs }).find(params[:id])
-    @board_with_images = board.api_view_with_images(current_user)
-    render json: @board_with_images
+    @board_with_images = board.api_view_with_images
+    user_permissions = {
+      can_edit: (board.user == current_user || current_user.admin?),
+      can_delete: (board.user == current_user || current_user.admin?),
+    }
+    render json: @board_with_images.merge(user_permissions)
   end
 
   def remaining_images
@@ -166,7 +170,7 @@ class API::BoardsController < API::ApplicationController
     puts "handleSubmit: #{board_params} \n\n- params: #{params}"
     respond_to do |format|
       if @board.update(board_params)
-        format.json { render json: @board.api_view_with_images(current_user), status: :ok }
+        format.json { render json: @board.api_view_with_images, status: :ok }
       else
         format.json { render json: @board.errors, status: :unprocessable_entity }
       end
@@ -199,29 +203,8 @@ class API::BoardsController < API::ApplicationController
     end
     if img_saved
       @board.add_image(@image.id) if @board
-      # doc.attach_image(image_params[:display_image])
-      # render json: @board, status: :created
-      # @board_with_images =
-      #   {
-      #     id: @board.id,
-      #     name: @board.name,
-      #     description: @board.description,
-      #     parent_type: @board.parent_type,
-      #     predefined: @board.predefined,
-      #     number_of_columns: @board.number_of_columns,
-      #     images: @board.images.map do |image|
-      #       {
-      #         id: image.id,
-      #         label: image.label,
-      #         image_prompt: image.image_prompt,
-      #         display_doc: image.display_image,
-      #         src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-      #         audio: image.audio_files.first&.url,
-      #       }
-      #     end,
-      #   }
-      @board_with_images = @board.api_view_with_images(current_user)
-      puts @board_with_images.inspect
+
+      @board_with_images = @board.api_view_with_images
       render json: @board_with_images
     else
       render json: img_saved.errors, status: :unprocessable_entity

@@ -1,10 +1,10 @@
 
-<div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
+<div class="relative text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
   <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>">
     <%= audio_tag_for_image(image, @board) if @board %>
     <%= link_to image, class: "w-full h-full", data: { turbo_frame: "_top" } do %>
     <div class="items-center text-center" id="<%= image.label %>">
-      <%= display_image_for(image, current_user) %>
+      <%= display_image_for(image, @display_for || current_user) %>
     </div>
     <% end %>
     <% if action_name == "fullscreen" %>
@@ -12,8 +12,8 @@
       <p class="text-sm font-semibold text-gray-700 py-1 mt-2 block m-1"><%= image.display_label %></p>
     </div>
     <% else %>
-    <div class="relative text-wrap min-h-10 text-center">
-    <% if current_user&.admin? %>
+    <div class=" text-wrap min-h-10 text-center">
+    <% if current_user&.admin? && image.user_id %>
     <p class="absolute top-0 left-0 m-4 text-white font-bold p-2 rounded bg-black bg-opacity-70">
         <%= link_to "View Image - user: #{image.user_id}", image, class: "text-white", data: { turbo: "false" } %>
     </p>

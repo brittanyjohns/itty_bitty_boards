@@ -8,6 +8,9 @@ class TeamBoardsController < ApplicationController
 
   # GET /team_boards/1 or /team_boards/1.json
   def show
+    @board = @team_board.board
+    @team = @team_board.team
+    @display_for = @board.user
   end
 
   # GET /team_boards/new

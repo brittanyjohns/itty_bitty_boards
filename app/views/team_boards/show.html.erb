@@ -1,10 +1,2 @@
-<p style="color: green"><%= notice %></p>
 
-<%= render @team_board %>
-
-<div>
-  <%= link_to "Edit this team board", edit_team_board_path(@team_board) %> |
-  <%= link_to "Back to team boards", team_boards_path %>
-
-  <%= button_to "Destroy this team board", @team_board, method: :delete %>
-</div>
+<%= render "team_boards/board" %>

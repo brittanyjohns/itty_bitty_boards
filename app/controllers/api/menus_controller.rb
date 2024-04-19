@@ -21,6 +21,10 @@ class API::MenusController < API::ApplicationController
     @new_menu_doc = Doc.new
     @new_menu_doc.documentable = @menu
     @board = @menu.boards.last
+    unless @board
+      redirect_to menus_url, notice: "No board found for this menu."
+      return
+    end
     @board_images = @board.images.map do |image|
       {
         id: image.id,
