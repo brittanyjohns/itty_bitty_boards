@@ -482,10 +482,14 @@ class Image < ApplicationRecord
     docs.unscoped.any? { |doc| doc.processed === symbol_name }
   end
 
-  def self.destroy_duplicate_images
+  def self.destroy_duplicate_images(dry_run = true)
     Image.all.group_by(&:label).each do |label, images|
       # Skip the first image (which we want to keep) and destroy the rest
-      images.drop(1).each(&:destroy)
+      # images.drop(1).each(&:destroy)
+      images.drop(1).each do |image|
+        puts "Destroying duplicate image: #{image.id}"
+        image.destroy unless dry_run
+      end
     end
   end
 
