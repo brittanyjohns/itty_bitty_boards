@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_04_20_161849) do
+ActiveRecord::Schema[7.1].define(version: 2024_04_20_191323) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -117,6 +117,10 @@ ActiveRecord::Schema[7.1].define(version: 2024_04_20_161849) do
     t.string "next_words", default: [], array: true
     t.boolean "no_next", default: false
     t.string "part_of_speech"
+    t.string "bg_color"
+    t.string "text_color"
+    t.integer "font_size"
+    t.string "border_color"
   end
 
   create_table "menus", force: :cascade do |t|

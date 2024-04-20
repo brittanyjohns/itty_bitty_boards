@@ -1,5 +1,5 @@
 
-<div class="relative text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
+<div class="relative text-center <%= image.bg_color ? "bg-#{image.bg_color}-400" : "bg-white" %> rounded-lg shadow-md overflow-hidden h-full p-1">
   <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>">
     <%= audio_tag_for_image(image, @board) if @board %>
     <%= link_to image, class: "w-full h-full", data: { turbo_frame: "_top" } do %>

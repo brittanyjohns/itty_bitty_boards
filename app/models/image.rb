@@ -52,12 +52,37 @@ class Image < ApplicationRecord
   scope :generating, -> { where(status: "generating") }
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
 
+  def background_color_for(category)
+    case category
+    when "noun"
+      "blue"
+    when "verb"
+      "green"
+    when "adjective"
+      "yellow"
+    when "adverb"
+      "purple"
+    when "pronoun"
+      "pink"
+    when "preposition"
+      "orange"
+    when "conjunction"
+      "red"
+    when "interjection"
+      "teal"
+    else
+      "gray"
+    end
+  end
   # after_create :start_create_all_audio_job
-  before_save :set_label, :ensure_image_type
+  before_save :set_label, :ensure_defaults
 
-  def ensure_image_type
+  def ensure_defaults
     if !image_type
       self.image_type = "Image"
+    end
+    if part_of_speech
+      self.bg_color = background_color_for(part_of_speech)
     end
     # self.image_type ||= "Image"
   end
@@ -649,7 +674,7 @@ class Image < ApplicationRecord
       # Image.non_menu_images.or(Image.where(user_id: user.id)).distinct
       Image.where(user_id: user.id).distinct
     else
-      Image.non_menu_images.public_img.distinct
+      Image.public_img.distinct
       # Image.non_menu_images.where(user_id: [user.id, nil]).or(Image.public_img.non_menu_images).distinct
     end
   end

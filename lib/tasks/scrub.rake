@@ -8,8 +8,12 @@ namespace :scrub do
     puts "menu_images.count: #{menu_images.count}"
     non_menu_images = Image.non_menu_images
     puts "non_menu_images.count: #{non_menu_images.count}"
-    public_user_made_images = Image.public_img.non_menu_images
-    puts "public_user_made_images.count: #{public_user_made_images.count}"
+    non_scenarios = Image.non_scenario_images
+    puts "non_scenarios.count: #{non_scenarios.count}"
+    no_image_type = Image.no_image_type
+    puts "no_image_type.count: #{no_image_type.count}"
+    public_img = Image.public_img
+    puts "public_img.count: #{public_img.count}"
   end
 
   task create_next_words: :environment do
