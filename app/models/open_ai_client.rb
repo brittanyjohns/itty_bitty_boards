@@ -75,6 +75,17 @@ class OpenAiClient
     response
   end
 
+  def categorize_word(word)
+    @model = GPT_4_MODEL
+    @messages = [{ role: "user",
+                  content: [{type: "text", 
+                  text: "Categorize the word '#{word}' into one of the following parts of speech: noun, verb, adjective, adverb, pronoun, preposition, conjunction, or interjection. If the word can be used as multiple parts of speech, choose the most common one. If the word is not a part of speech, respond with 'other'."}] }]
+    response = create_chat
+    puts "*** ERROR *** Invaild Categorize Word Response: #{response}" unless response
+    response
+  end
+      
+
   def next_words_prompt(label)
     "Given a specific context or emotion, such as '#{label}', 
     provide a list of 24 foundational words or short phrases (2 words max) that are crucial for basic communication in an AAC (Augmentative and Alternative Communication) device. 

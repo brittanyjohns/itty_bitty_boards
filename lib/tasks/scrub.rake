@@ -33,4 +33,21 @@ namespace :scrub do
       end
     end
   end
+
+  task categorize_images: :environment do
+    remaining_images = Image.non_menu_images.where(part_of_speech: nil)
+    puts "remaining_images.count: #{remaining_images.count}"
+    images = Image.non_menu_images.where(part_of_speech: nil).limit(50)
+    puts "images.count: #{images.count}"
+    images.each do |image|
+      begin
+        image.categorize!
+        puts "\n\nNo errors in the CategorizeImageJob\n\n"
+      rescue => e
+        puts "\n**** SIDEKIQ - CategorizeImageJob \n\nERROR **** \n#{e.message}\n"
+      end
+    end
+  end
+
+
 end

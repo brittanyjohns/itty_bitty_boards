@@ -653,4 +653,18 @@ class Image < ApplicationRecord
       # Image.non_menu_images.where(user_id: [user.id, nil]).or(Image.public_img.non_menu_images).distinct
     end
   end
+
+  def open_ai_opts
+    {}
+  end
+
+  def categorize!
+    response = OpenAiClient.new(open_ai_opts).categorize_word(label)
+    puts "Response: #{response}"
+    parsed_response = response[:content]&.downcase
+    if parsed_response
+      puts "Category: #{parsed_response}"
+      update!(part_of_speech: parsed_response)
+    end
+  end
 end
