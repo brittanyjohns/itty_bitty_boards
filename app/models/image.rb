@@ -39,11 +39,11 @@ class Image < ApplicationRecord
   # scope :with_image_docs_for_user, -> (userId) { joins(:docs).where("docs.documentable_id = images.id AND docs.documentable_type = 'Image' AND docs.user_id = ?", userId) }
   scope :with_image_docs_for_user, ->(userId) { order(created_at: :desc) }
   scope :menu_images, -> { where(image_type: "Menu") }
-  scope :non_menu_images, -> { where.not(image_type: "Menu") }
-  scope :non_scenarios, -> { where.not(image_type: "OpenaiPrompt") }
-  scope :non_sample_voices, -> { where.not(image_type: "SampleVoice") }
+  scope :non_menu_images, -> { where.not(image_type: "Menu").or(where(image_type: nil)) }
+  scope :non_scenarios, -> { where.not(image_type: "OpenaiPrompt").or(where(image_type: nil)) }
+  scope :non_sample_voices, -> { where.not(image_type: "SampleVoice").or(where(image_type: nil)) }
   scope :no_image_type, -> { where(image_type: nil) }
-  scope :public_img, -> { non_sample_voices.where(private: [false, nil], user_id: nil) }
+  scope :public_img, -> { where(private: [nil, false]) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
   scope :skipped, -> { where(open_symbol_status: "skipped") }
   scope :active, -> { where(open_symbol_status: "active") }
@@ -663,7 +663,8 @@ class Image < ApplicationRecord
 
   def self.searchable_menu_items_for(user = nil)
     if user
-      Image.menu_images.or(Image.where(user_id: user.id)).distinct
+      # Image.menu_images.or(Image.where(user_id: user.id)).distinct
+      Image.menu_images.where(user_id: user.id).distinct
     else
       Image.menu_images.public_img.distinct
     end
@@ -672,9 +673,10 @@ class Image < ApplicationRecord
   def self.searchable_images_for(user, only_user_images = false)
     if only_user_images
       # Image.non_menu_images.or(Image.where(user_id: user.id)).distinct
-      Image.where(user_id: user.id).distinct
+      Image.non_menu_images.where(user_id: user.id).distinct
     else
-      Image.public_img.distinct
+      Image.public_img.non_menu_images.distinct
+      # Image.all
       # Image.non_menu_images.where(user_id: [user.id, nil]).or(Image.public_img.non_menu_images).distinct
     end
   end

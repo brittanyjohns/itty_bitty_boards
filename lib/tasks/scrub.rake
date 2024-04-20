@@ -41,7 +41,7 @@ namespace :scrub do
   task categorize_images: :environment do
     remaining_images = Image.non_menu_images.where(part_of_speech: nil)
     puts "remaining_images.count: #{remaining_images.count}"
-    images = Image.non_menu_images.where(part_of_speech: nil).limit(50)
+    images = Image.non_menu_images.where(part_of_speech: nil).limit(100)
     puts "images.count: #{images.count}"
     images.each do |image|
       begin
