@@ -8,7 +8,7 @@ namespace :scrub do
     puts "menu_images.count: #{menu_images.count}"
     non_menu_images = Image.non_menu_images
     puts "non_menu_images.count: #{non_menu_images.count}"
-    non_scenarios = Image.non_scenario_images
+    non_scenarios = Image.non_scenarios
     puts "non_scenarios.count: #{non_scenarios.count}"
     no_image_type = Image.no_image_type
     puts "no_image_type.count: #{no_image_type.count}"

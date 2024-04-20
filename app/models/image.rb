@@ -96,6 +96,10 @@ class Image < ApplicationRecord
     audio_files.count < Image.voices.count
   end
 
+  def name
+    label
+  end
+
   def start_create_all_audio_job
     CreateAllAudioJob.perform_async(id)
   end
