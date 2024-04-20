@@ -43,7 +43,7 @@ class Image < ApplicationRecord
   scope :non_scenarios, -> { where.not(image_type: "OpenaiPrompt") }
   scope :non_sample_voices, -> { where.not(image_type: "SampleVoice") }
   scope :no_image_type, -> { where(image_type: nil) }
-  scope :public_img, -> { where(private: [false, nil], user_id: nil) }
+  scope :public_img, -> { non_sample_voices.where(private: [false, nil], user_id: nil) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
   scope :skipped, -> { where(open_symbol_status: "skipped") }
   scope :active, -> { where(open_symbol_status: "active") }
@@ -100,14 +100,14 @@ class Image < ApplicationRecord
   end
 
   def self.run_create_words_job
-    Image.public_img.all.pluck(:id).each_slice(20) do |img_ids|
+    Image.public_img.non_menu_images.pluck(:id).each_slice(20) do |img_ids|
       CreateNewWordsJob.perform_async(img_ids)
     end
   end
 
   def self.run_set_next_words_job(limit = 40)
     count = 0
-    Image.lock.public_img.where(next_words: [], no_next: false).find_in_batches(batch_size: 20) do |images|
+    Image.lock.public_img.non_menu_images.where(next_words: [], no_next: false).find_in_batches(batch_size: 20) do |images|
       img_ids = images.pluck(:id)
       puts "\n\nStarting set next words job for #{img_ids}\n\n"
 
