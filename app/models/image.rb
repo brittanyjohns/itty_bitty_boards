@@ -98,6 +98,10 @@ class Image < ApplicationRecord
     color
   end
 
+  def bg_class
+    "bg-#{bg_color}-400"
+  end
+
   def create_image_doc(user_id = nil)
     response = create_image(user_id)
     puts "Response: #{response}"

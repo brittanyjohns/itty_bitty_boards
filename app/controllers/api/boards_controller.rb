@@ -59,6 +59,8 @@ class API::BoardsController < API::ApplicationController
             id: image.id,
             label: image.label,
             image_prompt: image.image_prompt,
+            bg_color: image.bg_class,
+            text_color: image.text_color,
             next_words: image.next_words,
             display_doc: image.display_image,
             src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
@@ -83,7 +85,7 @@ class API::BoardsController < API::ApplicationController
       {
         id: image.id,
         label: image.label,
-        bg_color: image.bg_color,
+        bg_color: image.bg_class,
         next_words: image.next_words,
         src: image.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
         audio: image.audio_files.first&.url,

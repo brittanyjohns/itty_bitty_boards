@@ -12,9 +12,9 @@ class ImagesController < ApplicationController
     end
 
     if params[:query].present?
-      @images = @images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page params[:page]
+      @images = @images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(params[:page]).per(60)
     else
-      @images = @images.order(label: :asc).page params[:page]
+      @images = @images.order(label: :asc).page(params[:page]).per(60)
     end
     if turbo_frame_request?
       render partial: "images", locals: { images: @images }

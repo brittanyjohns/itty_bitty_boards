@@ -203,6 +203,9 @@ class Board < ApplicationRecord
           id: image.id,
           label: image.label,
           image_prompt: image.image_prompt,
+          image_type: image.image_type,
+          bg_color: image.bg_class,
+          text_color: image.text_color,
           src: image.display_image(user) ? image.display_image(user).url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
           audio: image.audio_files.first&.url,
         }
