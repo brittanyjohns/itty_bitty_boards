@@ -1,5 +1,5 @@
 
-<div class="relative text-center <%= image.bg_color ? "bg-#{image.bg_color}-400" : "bg-white" %> rounded-lg shadow-md overflow-hidden h-full p-1">
+<div class="relative text-center <%= image.bg_color ? "bg-#{image.bg_color}-400" : "bg-white" %> bg-opacity-60 rounded-lg shadow-md overflow-hidden h-full p-1">
   <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>">
     <%= audio_tag_for_image(image, @board) if @board %>
     <%= link_to image, class: "w-full h-full", data: { turbo_frame: "_top" } do %>
@@ -14,7 +14,7 @@
     <% else %>
     <div class=" text-wrap min-h-10 text-center">
     <% if current_user&.admin? %>
-    <p class="absolute top-0 left-0 m-4 text-white font-bold p-2 rounded bg-pink-400 bg-opacity-70">
+    <p class="absolute top-0 left-0 m-4 text-white font-bold p-2 rounded bg-black bg-opacity-70">
         <%= link_to "user_id: #{image.user_id}", image, class: "text-white", data: { turbo: "false" } %>
     </p>
     <% end %>

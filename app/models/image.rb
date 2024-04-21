@@ -691,7 +691,7 @@ class Image < ApplicationRecord
       # Image.non_menu_images.or(Image.where(user_id: user.id)).distinct
       Image.non_menu_images.where(user_id: user.id).distinct
     else
-      Image.public_img.non_menu_images.distinct
+      Image.public_img.non_menu_images.or(Image.non_menu_images.where(user_id: user.id)).distinct
       # Image.all
       # Image.non_menu_images.where(user_id: [user.id, nil]).or(Image.public_img.non_menu_images).distinct
     end
