@@ -20,6 +20,7 @@ class OpenAiClient
   end
 
   def create_image
+    puts "Prompt: #{@prompt}"
     response = openai_client.images.generate(parameters: { prompt: @prompt, model: "dall-e-3", style: "vivid" })
     if response
       img_url = response.dig("data", 0, "url")

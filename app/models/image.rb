@@ -52,28 +52,7 @@ class Image < ApplicationRecord
   scope :generating, -> { where(status: "generating") }
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
 
-  def background_color_for(category)
-    case category
-    when "noun"
-      "blue"
-    when "verb"
-      "green"
-    when "adjective"
-      "yellow"
-    when "adverb"
-      "purple"
-    when "pronoun"
-      "pink"
-    when "preposition"
-      "orange"
-    when "conjunction"
-      "red"
-    when "interjection"
-      "teal"
-    else
-      "gray"
-    end
-  end
+  after_create :categorize!
   # after_create :start_create_all_audio_job
   before_save :set_label, :ensure_defaults
 
@@ -82,13 +61,46 @@ class Image < ApplicationRecord
       self.image_type = "Image"
     end
     if part_of_speech
-      self.bg_color = background_color_for(part_of_speech)
+      puts "Setting bg color for #{part_of_speech}"
+      # self.bg_color = background_color_for(part_of_speech)
+      
     end
+    self.bg_color = background_color_for(part_of_speech)
+    puts "BG Color: #{self.bg_color}"
+    puts "Image type: #{image_type}"
+    puts "Part of speech: #{part_of_speech}"
     # self.image_type ||= "Image"
+  end
+
+  def background_color_for(category)
+    color = "gray"
+    case category
+    when "noun"
+      color = "blue"
+    when "verb"
+      color = "green"
+    when "adjective"
+      color = "yellow"
+    when "adverb"
+      color = "purple"
+    when "pronoun"
+      color = "pink"
+    when "preposition"
+      color = "orange"
+    when "conjunction"
+      color = "red"
+    when "interjection"
+      color = "teal"
+    else
+      color = "gray"
+    end
+    puts "Background Color: #{color}"
+    color
   end
 
   def create_image_doc(user_id = nil)
     response = create_image(user_id)
+    puts "Response: #{response}"
     # self.image_prompt = prompt_to_send
   end
 
@@ -340,11 +352,11 @@ class Image < ApplicationRecord
     ["to drink", "to go", "to eat", "to sleep", "to play", "to work", "to read", "to write", "to draw", "to paint", "to sing", "to dance", "to run", "to walk", "to jump", "to sit", "to stand", "to talk", "to listen", "to watch", "to look", "to see", "to hear", "to smell", "to taste", "to touch", "to feel", "to think", "to remember", "to forget", "to learn", "to teach", "to help", "to hurt", "to love", "to hate", "to like", "to dislike", "to want", "to need", "to wish", "to hope", "to dream", "to believe", "to know", "to understand", "to remember", "to forget", "to forgive", "to apologize", "to thank", "to welcome", "to say", "to ask", "to answer", "to tell", "to show", "to give", "to take", "to send", "to receive", "to buy", "to sell", "to pay", "to cost", "to save", "to spend", "to earn", "to lose", "to win", "to find", "to search", "to discover", "to create", "to destroy", "to build", "to break", "to fix", "to repair", "to open", "to close", "to lock", "to unlock", "to start", "to stop", "to finish", "to continue", "to repeat", "to change", "to improve", "to grow", "to shrink", "to expand", "to contract", "to move", "to stay", "to return", "to leave", "to arrive", "to depart", "to enter", "to exit", "to follow", "to lead", "to guide", "to direct", "to drive", "to ride", "to fly", "to swim", "to sail", "to travel", "to visit", "to explore", "to discover", "to learn", "to teach", "to study", "to practice", "to play", "to win", "to lose", "to compete", "to challenge", "to fight", "to argue", "to discuss"]
   end
 
-  def bg_color
-    color = core_words.include?(label) ? "bg-img-yellow" : nil
-    color = "bg-img-blue" if action_words.include?(label) unless color
-    color
-  end
+  # def background_color
+  #   color = core_words.include?(label) ? "bg-img-yellow" : nil
+  #   color = "bg-img-blue" if action_words.include?(label) unless color
+  #   color
+  # end
 
   # PLACEHOLDERS FOR FUTURE USE
   def self.speeds
@@ -683,10 +695,6 @@ class Image < ApplicationRecord
       # Image.all
       # Image.non_menu_images.where(user_id: [user.id, nil]).or(Image.public_img.non_menu_images).distinct
     end
-  end
-
-  def open_ai_opts
-    {}
   end
 
   def categorize!
