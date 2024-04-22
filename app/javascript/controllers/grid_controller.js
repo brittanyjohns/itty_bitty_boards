@@ -5,6 +5,9 @@ export default class extends Controller {
   static targets = ["number_of_columns", "grid"];
   connect() {
     this.isPredifined = this.element.dataset.predefined;
+    console.log("isPredifined", this.isPredifined);
+    console.log("number_of_columns", this.number_of_columnsTarget.value);
+    console.log("grid", this.gridTarget);
     this.gridTarget.style.gridTemplateColumns = `repeat(${this.number_of_columnsTarget.value}, 1fr)`;
   }
 
