@@ -1,8 +1,8 @@
 
 <div class="relative text-center <%= image.bg_color ? "bg-#{image.bg_color}-400" : "bg-white" %> bg-opacity-50 rounded-lg shadow-md overflow-hidden h-full p-1">
   <div id="<%= dom_id image %>" class="w-full h-full cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>">
-    <div class="text-center bg-white bg-opacity-20 rounded-lg shadow-md overflow-hidden h-full" data-action="click->speak#speak">
-      <div class="items-center text-center" id="<%= image.label %>">
+    <div class="text-center bg-white bg-opacity-20 rounded-lg shadow-md overflow-hidden h-full">
+      <div class="items-center text-center" id="<%= image.label %>" data-action="click->speak#speak">
         <%= display_image_for(image, @display_for || current_user) %>
       </div>
       <div class=" text-wrap min-h-10 text-center">
@@ -11,7 +11,7 @@
           <%= link_to "#{image.image_type} #{image.user_id}", image, class: "text-white", data: { turbo: "false" } %>
       </p>
       <% end %>
-        <%= link_to image, class: "text-xs font-semibold text-gray-700 py-1 mt-2 block m-1", data: { turbo_frame: "_top" } do %>
+        <%= link_to image, class: "text-md font-semibold text-gray-700 p-1 block absolute bottom-0 m-1", data: { turbo_frame: "_top" } do %>
             <%= image.display_label %>
         <% end %>
         <%= image.generating? ? spinner : "" %>
