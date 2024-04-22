@@ -87,6 +87,12 @@ class BoardsController < ApplicationController
 
   def update_grid
     @board = Board.find(params[:id])
+
+    if @board.predefined && !current_user.admin?
+      render json: { status: "error", message: "You are not authorized to update this board." }
+      return
+    end
+
     @board.number_of_columns = params[:number_of_columns]
     @board.save!
     render json: { status: "ok", data: { number_of_columns: @board.number_of_columns } }

@@ -51,10 +51,10 @@ class Image < ApplicationRecord
   scope :with_docs, -> { where.associated(:docs) }
   scope :generating, -> { where(status: "generating") }
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
-
-  after_create :categorize!
+  after_create :categorize!, :set_next_words!
   # after_create :start_create_all_audio_job
   before_save :set_label, :ensure_defaults
+  after_save :generate_matching_symbol, if: -> { label_changed? && open_symbol_status == "active" }
 
   def ensure_defaults
     if !image_type
@@ -491,9 +491,9 @@ class Image < ApplicationRecord
     end
   end
 
-  def self.create_symbols_for_missing_images(limit = 25, sym_limit = 3)
+  def self.create_symbols_for_missing_images(limit = 50, sym_limit = 3)
     count = 0
-    images_without_docs = Image.public_img.active.non_menu_images.with_less_than_3_docs
+    images_without_docs = Image.public_img.active.non_menu_images.without_docs.or(Image.public_img.active.non_menu_images.with_less_than_3_docs)
 
     puts "Images without docs: #{images_without_docs.to_a.count}"
     sleep 3
