@@ -493,8 +493,7 @@ class Image < ApplicationRecord
 
   def self.create_symbols_for_missing_images(limit = 50, sym_limit = 3)
     count = 0
-    images_without_docs = Image.public_img.active.non_menu_images.without_docs.or(Image.public_img.active.non_menu_images.with_less_than_3_docs)
-
+    images_without_docs = Image.public_img.active.non_menu_images.without_docs
     puts "Images without docs: #{images_without_docs.to_a.count}"
     sleep 3
     images_without_docs.each do |image|
