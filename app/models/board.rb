@@ -35,7 +35,8 @@ class Board < ApplicationRecord
   scope :predefined, -> { where(predefined: true) }
   scope :ai_generated, -> { where(parent_type: "OpenaiPrompt") }
   scope :with_less_than_10_images, -> { joins(:images).group("boards.id").having("count(images.id) < 10") }
-
+  scope :with_less_than_x_images, ->(x) { joins(:images).group("boards.id").having("count(images.id) < ?", x) }
+  scope :without_images, -> { left_outer_joins(:images).where(images: { id: nil }) }
   # before_save :set_number_of_columns, unless: :number_of_columns?
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
@@ -177,7 +178,6 @@ class Board < ApplicationRecord
   end
 
   def update_board_list
-    puts "update_board_list"
     # broadcast_update_to(:board_list, partial: "boards/board_list", locals: { boards: user.boards }, target: "my_boards")
     broadcast_prepend_later_to :board_list, target: "my_boards_#{user.id}", partial: "boards/board", locals: { board: self }
   end
@@ -198,18 +198,7 @@ class Board < ApplicationRecord
       floating_words: words,
       user_id: user_id,
       voice: voice,
-      images: images.map do |image|
-        {
-          id: image.id,
-          label: image.label,
-          image_prompt: image.image_prompt,
-          image_type: image.image_type,
-          bg_color: image.bg_class,
-          text_color: image.text_color,
-          src: image.display_image(user) ? image.display_image(user).url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-          audio: image.audio_files.first&.url,
-        }
-      end,
+      images: images.map(&:api_view),
     }
   end
 

@@ -15,7 +15,7 @@
     <div class=" text-wrap min-h-10 text-center">
     <% if current_user&.admin? %>
     <p class="absolute top-0 left-0 m-4 text-white font-bold p-2 rounded bg-black bg-opacity-70">
-        <%= link_to "user_id: #{image.user_id}", image, class: "text-white", data: { turbo: "false" } %>
+        <%= link_to "#{image.image_type} #{image.user_id}", image, class: "text-white", data: { turbo: "false" } %>
     </p>
     <% end %>
       <%= button_tag class: "text-sm font-medium text-gray-700 py-1 mt-2 block hover:text-blue-600 m-1 absolute bottom-0 inset-x-0", data: { speak_target: "speaker" } do %><%= speaker_icon(image.display_label) %><% end %>

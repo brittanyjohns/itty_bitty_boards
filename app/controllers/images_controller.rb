@@ -11,6 +11,8 @@ class ImagesController < ApplicationController
       @images = Image.searchable_images_for(current_user)
     end
 
+    @total_images = @images.count
+
     if params[:query].present?
       @images = @images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(params[:page]).per(60)
     else

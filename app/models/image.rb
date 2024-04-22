@@ -670,6 +670,20 @@ class Image < ApplicationRecord
     end
   end
 
+  def api_view
+    {
+      id: id,
+      label: label,
+      image_prompt: image_prompt,
+      image_type: image_type,
+      next_words: next_words,
+      bg_color: bg_class,
+      text_color: text_color,
+      src: display_image(user) ? display_image(user).url : "https://via.placeholder.com/300x300.png?text=#{label_param}",
+      audio: audio_files.first&.url,
+    }
+  end
+
   def with_display_doc(current_user = nil)
     {
       id: id,
@@ -693,9 +707,9 @@ class Image < ApplicationRecord
   def self.searchable_images_for(user, only_user_images = false)
     if only_user_images
       # Image.non_menu_images.or(Image.where(user_id: user.id)).distinct
-      Image.non_menu_images.where(user_id: user.id).distinct
+      Image.non_menu_images.non_scenarios.where(user_id: user.id).distinct
     else
-      Image.public_img.non_menu_images.or(Image.non_menu_images.where(user_id: user.id)).distinct
+      Image.public_img.non_menu_images.non_scenarios.or(Image.non_menu_images.non_scenarios.where(user_id: user.id)).distinct
       # Image.all
       # Image.non_menu_images.where(user_id: [user.id, nil]).or(Image.public_img.non_menu_images).distinct
     end
