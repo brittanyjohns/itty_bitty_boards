@@ -1,7 +1,7 @@
 
-<div class="relative text-center <%= image.bg_color ? "bg-#{image.bg_color}-400" : "bg-white" %> bg-opacity-50 rounded-lg shadow-md overflow-hidden h-full p-2">
+<div class="relative text-center <%= image.bg_color ? "bg-#{image.bg_color}-400" : "bg-white" %> bg-opacity-50 rounded-lg shadow-md overflow-hidden h-full p-1">
   <div id="<%= dom_id image %>" class="w-full h-full cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>">
-    <div class="text-center bg-white bg-opacity-10 rounded-lg shadow-sm overflow-hidden h-full" data-action="click->speak#speak">
+    <div class="text-center bg-white bg-opacity-20 rounded-lg shadow-md overflow-hidden h-full" data-action="click->speak#speak">
       <div class="items-center text-center" id="<%= image.label %>">
         <%= display_image_for(image, @display_for || current_user) %>
       </div>
