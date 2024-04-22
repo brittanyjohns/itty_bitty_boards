@@ -44,14 +44,15 @@ class Board < ApplicationRecord
   # after_create_commit { broadcast_prepend_later_to :board_list, target: 'my_boards', partial: 'boards/board', locals: { board: self } }
   # after_create_commit :update_board_list
 
-  before_create :set_status
+  before_save :set_status
 
   def self.ransackable_attributes(auth_object = nil)
     ["cost", "created_at", "description", "id", "id_value", "name", "number_of_columns", "parent_id", "parent_type", "predefined", "status", "token_limit", "updated_at", "user_id", "voice"]
   end
 
   def set_status
-    if parent_type == "User"
+    return unless status.nil? || status == "pending"
+    if parent_type == "User" || predefined
       self.status = "complete"
     else
       puts "board status: #{status}"
@@ -198,8 +199,21 @@ class Board < ApplicationRecord
       floating_words: words,
       user_id: user_id,
       voice: voice,
-      images: images.map(&:api_view),
+      images: images.map do |image|
+        {
+          id: image.id,
+          label: image.label,
+          image_prompt: image.image_prompt,
+          bg_color: image.bg_class,
+          text_color: image.text_color,
+          next_words: image.next_words,
+          display_doc: image.display_image,
+          src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+          audio: image.audio_files.first&.url,
+        }
+      end
     }
+
   end
 
   def api_view_with_predictive_images
@@ -215,6 +229,8 @@ class Board < ApplicationRecord
           id: image.id,
           label: image.label,
           image_prompt: image.image_prompt,
+          bg_color: image.bg_class,
+          text_color: image.text_color,
           next_words: image.next_words,
           display_doc: image.display_image,
           src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",

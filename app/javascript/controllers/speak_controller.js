@@ -1,11 +1,11 @@
-import { Controller } from "@hotwired/stimulus"
+import { Controller } from "@hotwired/stimulus";
 import { list } from "postcss";
-const { userAgent } = window.navigator
-export const isIos = userAgent.includes("iPhone") || userAgent.includes("iPad")
-export const isAndroid = userAgent.includes("Android")
+const { userAgent } = window.navigator;
+export const isIos = userAgent.includes("iPhone") || userAgent.includes("iPad");
+export const isAndroid = userAgent.includes("Android");
 // Connects to data-controller="speak"
 export default class extends Controller {
-  static targets = ["speaker", "audio"]
+  static targets = ["speaker", "audio"];
   connect() {
     this.label = this.data.get("label");
     this.thelistOutlet = document.querySelector("#the-list");
@@ -26,35 +26,34 @@ export default class extends Controller {
     } else {
       this.audio = null;
     }
-    if (isIos || isAndroid) {
-      this.addTouchStart();
-    } else {
-      this.addOnClick();
-    }
+    // if (isIos || isAndroid) {
+    //   this.addTouchStart();
+    // } else {
+    //   this.addOnClick();
+    // }
   }
 
-  addTouchStart() {
-    const self = this;
-    this.soundTarget.addEventListener('touchstart', function() {
-      if (self.audio) {
-        self.playAudio();
-      } else {
-        self.speak();
-      }
-    });
-  }
+  // addTouchStart() {
+  //   const self = this;
+  //   this.soundTarget.addEventListener("touchstart", function () {
+  //     if (self.audio) {
+  //       self.playAudio();
+  //     } else {
+  //       self.speak();
+  //     }
+  //   });
+  // }
 
-  addOnClick() {
-    const self = this;
-    this.soundTarget.addEventListener('click', function() {
-      if (self.audio) {
-        self.playAudio();
-      } else {
-        self.speak();
-      }
-    }
-    );
-  }
+  // addOnClick() {
+  //   const self = this;
+  //   this.soundTarget.addEventListener("click", function () {
+  //     if (self.audio) {
+  //       self.playAudio();
+  //     } else {
+  //       self.speak();
+  //     }
+  //   });
+  // }
 
   playAudio(event) {
     if (event) {
@@ -73,7 +72,7 @@ export default class extends Controller {
       return;
     }
     const utterance = new SpeechSynthesisUtterance(this.label);
-
+    console.log("Speaking", this.label);
     utterance.pitch = 1.5;
     utterance.volume = 0.7;
     utterance.rate = 1.3;
@@ -88,14 +87,13 @@ export default class extends Controller {
       this.thelistOutlet.value += ` ${word}`;
     }
   }
-// WIP
+  // WIP
   // addToPlaylist(labelToAdd) {
   //   console.log("adding to playlist", labelToAdd);
   //   // this.playlist.push(this.audio);
   //   this.playlist.innerHTML += ` <li>${labelToAdd}</li>`;
   //   console.log(this.playlist);
   // }
-
 
   removeFromList() {
     // const listItems = this.thelistOutlet.querySelectorAll("li");
@@ -120,8 +118,8 @@ export default class extends Controller {
   }
 
   playListAudio() {
-        // const playListItems = this.playlist.querySelectorAll("li");
-        const listItems = this.thelistOutlet.value.split(" ");
+    // const playListItems = this.playlist.querySelectorAll("li");
+    const listItems = this.thelistOutlet.value.split(" ");
     console.log("Playing playlist audio");
     listItems.forEach((label) => {
       const strLabel = label;
@@ -138,41 +136,37 @@ export default class extends Controller {
         utterance.rate = 1.3;
         speechSynthesis.speak(utterance);
       } else {
-      console.log("Playing audio for", label)
-      const audioFile = new Audio(foundAudioTarget.src);
+        console.log("Playing audio for", label);
+        const audioFile = new Audio(foundAudioTarget.src);
 
-      console.log("Playing audio", audioFile);
-      audioFile.play();
+        console.log("Playing audio", audioFile);
+        audioFile.play();
 
-      let count = 1;
-      let timer = setInterval(function () {
+        let count = 1;
+        let timer = setInterval(function () {
+          // Reduce count by 1
+          count--;
 
-        // Reduce count by 1
-        count--;
-      
-        // Update the UI
-        if (count > 0) {
-          console.log("Waiting to play audio");
-        } else {
-          clearInterval(timer);
-          audioFile.play();
-        }
-      
-      }, 500);
-    }
+          // Update the UI
+          if (count > 0) {
+            console.log("Waiting to play audio");
+          } else {
+            clearInterval(timer);
+            audioFile.play();
+          }
+        }, 500);
+      }
     });
   }
 
-
   speakList() {
-    console.log("Speaking list")
+    console.log("Speaking list");
     let listItems = [];
     if (this.thelistOutlet.value === undefined) {
       const listElements = this.thelistOutlet.querySelectorAll("li");
       listElements.forEach((item) => {
         listItems.push(item.innerText);
-      }
-      );
+      });
     } else {
       listItems = this.thelistOutlet.value.split(" ");
     }
@@ -182,7 +176,7 @@ export default class extends Controller {
       items.push("I would like to order:");
     }
     listItems.forEach((item) => {
-      if(item !== "") {
+      if (item !== "") {
         items.push(item);
       }
     });

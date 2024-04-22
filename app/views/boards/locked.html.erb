@@ -1,7 +1,7 @@
 
-<div data-controller="resize" class="m-4 h-[calc(100vh-60px-32px)] w-[calc(100vw-32px)] overflow-hidden grid grid-cols-1 gap-1" data-resize-target="grid">
+<div data-controller="resize" class="m-4 h-[calc(100vh-60px-32px)] w-[calc(100vw-32px)] overflow-hidden grid grid-cols-1 gap-1" data-resize-target="grid" data-grid-target="grid">
   <% @board.images.each do |image| %>
-    <div class="flex relative w-full pb-full shadow hover:shadow-lg hover:cursor-pointer text-center" data-controller="speak" data-speak-label="<%= image.label&.downcase %>" data-action="click->speakx#speak">
+    <div class="flex relative w-full pb-full shadow hover:shadow-lg hover:cursor-pointer text-center" data-controller="speak" data-speak-label="<%= image.label&.downcase %>" data-action="click->speak#speak">
         <%= display_image_for_locked_board(image, current_user) %>
             <%= audio_tag_for_image(image, @board, "hidden", false) if @board %>
         <span class="grow absolute inset-x-0 bottom-0 font-light text-xs md:text-sm lg:text-md rounded-sm <%= image.bg_color ? "bg-#{image.bg_color}-400" : "bg-white" %> bg-opacity-80 overflow-hidden"><%= image.label %></span>

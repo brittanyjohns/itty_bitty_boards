@@ -2,19 +2,16 @@
     <h1 class="text-center text-2xl md:text-3xl font-bold my-2 text-gray-800">
         <%= @board.name.titleize %>
     </h1>
-    <div class="flex justify-around mt-3">
-        <%= link_to "Sign Up to Customize", new_user_registration_path, class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-2 px-2 rounded-md mx-2 text-sm text-center" %>
-
-            <%= link_to "View Fullscreen Mode", locked_board_path(@board), class: "bg-blue-500 hover:bg-blue-700 text-white font-semibold py-2 px-2 rounded-md mx-2 text-sm text-center" %>
+    <div class="flex justify-around">
+        <%= link_to "Sign Up to Customize", new_user_registration_path, class: "border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-4 py-2 rounded-md text-sm font-medium transition duration-300 ease-in-out" %>
+        <%= link_to "View Fullscreen Mode", locked_board_path(@board), class: "border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-4 py-2 rounded-md text-sm font-medium transition duration-300 ease-in-out" %>
+        
     </div>
 
-    <div class="flex flex-col justify-end mb-3">
-        <div class="grid grid-cols-8 gap-1 p-2 mx-auto" id="word-list">
-        <% @board.words.each do |word| %>
-            <button class="bg-teal-300 text-xs md:text-sm font-light flex justify-center items-center cursor-pointer px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-100"  data-controller='speak' data-speak-label="<%= word.downcase %>" data-action="click->speakx#speak">
-                <%= word&.upcase %>
-            </button>
-        <% end %>
+    <div class="flex justify-center items-center">
+        <div class="mb-3">
+            <%= label_tag "number_of_columns", "Columns", class: "text-sm font-xs text-gray-700" %>
+            <%= select_tag "number_of_columns", options_for_select(Board.grid_sizes, @board.number_of_columns.to_s), class: "bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 block sm:text-sm transition duration-300 ease-in-out", data: { grid_target: "number_of_columns", action: "change->grid#changeGrid" } %>
         </div>
     </div>
 
@@ -25,7 +22,7 @@
         <% @board.images.each do |image| %>
             <div class="text-center bg-white rounded-lg shadow-md overflow-hidden">
                 <div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
-                    <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>" data-action="click->speakx#speak">
+                    <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>" data-action="click->speak#speak">
                         <div class="items-center text-center" id="<%= image.label %>">
                         <%= display_image_for(image, current_user) %>
                         </div>
@@ -39,7 +36,3 @@
     </div>
 <% end %>
 </div>
-<div class="flex justify-center items-center">
-        <%= label_tag "number_of_columns", "Number of Columns", class: "text-xs font-light text-gray-700 text-center" %>
-        <%= select_tag "number_of_columns", options_for_select(Board.grid_sizes, @board.number_of_columns.to_s), class: "bg-white border border-gray-300 rounded-md shadow-sm py-1 px-1 block w-100 sm:text-sm sm:leading-5 m-1", data: { grid_target: "number_of_columns", action: "change->grid#changeGrid" } %>
-    </div>
