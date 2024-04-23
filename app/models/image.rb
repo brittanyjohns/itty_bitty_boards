@@ -51,10 +51,11 @@ class Image < ApplicationRecord
   scope :with_docs, -> { where.associated(:docs) }
   scope :generating, -> { where(status: "generating") }
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
-  after_create :categorize!, :set_next_words!
+  after_create :categorize!
   # after_create :start_create_all_audio_job
   before_save :set_label, :ensure_defaults
   after_save :generate_matching_symbol, if: -> { label_changed? && open_symbol_status == "active" }
+  after_save :run_set_next_words_job, if: -> { next_words.blank? && no_next == false }
 
   def ensure_defaults
     if !image_type
@@ -70,6 +71,11 @@ class Image < ApplicationRecord
     puts "Image type: #{image_type}"
     puts "Part of speech: #{part_of_speech}"
     # self.image_type ||= "Image"
+  end
+
+  def run_set_next_words_job
+    puts "Starting set next words job for #{label}"
+    SetNextWordsJob.perform_async([id])
   end
 
   def background_color_for(category)
