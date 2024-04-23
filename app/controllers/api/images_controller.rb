@@ -43,8 +43,8 @@ class API::ImagesController < API::ApplicationController
 
         label: image.label,
         image_type: image.image_type,
-        bg_color: @image.bg_class,
-        text_color: @image.text_color,
+        bg_color: image.bg_class,
+        text_color: image.text_color,
         image_prompt: image.image_prompt,
         src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
         audio: audio_file ? url_for(audio_file) : nil,
