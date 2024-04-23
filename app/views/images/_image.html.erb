@@ -11,7 +11,7 @@
           <%= link_to "#{image.image_type} #{image.user_id}", image, class: "text-white", data: { turbo: "false" } %>
       </p>
       <% end %>
-        <%= link_to image, class: "text-md font-semibold text-gray-700 p-1 block absolute bottom-0 m-1", data: { turbo_frame: "_top" } do %>
+        <%= link_to image, class: "text-nowrap text-xs md:text-sm lg:text-md font-semibold text-gray-700 p-1 block absolute bottom-0 m-1", data: { turbo_frame: "_top" } do %>
             <%= image.display_label %>
         <% end %>
         <%= image.generating? ? spinner : "" %>
