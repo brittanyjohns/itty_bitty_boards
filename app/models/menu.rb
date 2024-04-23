@@ -96,8 +96,8 @@ class Menu < ApplicationRecord
       image = Image.find_by(label: item_name, private: false) unless image
       image = Image.find_by(label: item_name, private: nil) unless image
       new_image = Image.create(label: item_name, image_type: self.class.name) unless image
-      image.user_id = self.user_id
       image = new_image if new_image
+      image.user_id = self.user_id
 
       unless food["image_description"].blank? || food["image_description"] == item_name
         image.image_prompt = food["image_description"]

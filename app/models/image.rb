@@ -55,7 +55,7 @@ class Image < ApplicationRecord
   # after_create :start_create_all_audio_job
   before_save :set_label, :ensure_defaults
   after_save :generate_matching_symbol, if: -> { label_changed? && open_symbol_status == "active" }
-  after_save :run_set_next_words_job, if: -> { next_words.blank? && no_next == false }
+  after_save :run_set_next_words_job, if: -> { next_words.blank? && no_next == false && image_type != "Menu" }
 
   def ensure_defaults
     if !image_type
