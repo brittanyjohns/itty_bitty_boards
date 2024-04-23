@@ -13,10 +13,10 @@ class MenusController < ApplicationController
     @new_menu_doc = Doc.new
     @new_menu_doc.documentable = @menu
     @board = @menu.boards.last
-    unless params[:menu_page]
-      redirect_to @board if @board
-      return
-    end
+    # unless params[:menu_page]
+    #   redirect_to @board if @board
+    #   return
+    # end
   end
 
   # GET /menus/new
