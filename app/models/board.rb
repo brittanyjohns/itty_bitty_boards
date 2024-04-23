@@ -59,10 +59,6 @@ class Board < ApplicationRecord
     end
   end
 
-  # def set_number_of_columns
-  #   self.number_of_columns = 4
-  # end
-
   def has_generating_images?
     image_statuses = images.map(&:status)
     image_statuses.include?("generating")

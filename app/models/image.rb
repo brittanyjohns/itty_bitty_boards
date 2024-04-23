@@ -105,7 +105,7 @@ class Image < ApplicationRecord
   end
 
   def bg_class
-    "bg-#{bg_color}-400"
+    bg_color ? "bg-#{bg_color}-400" : "bg-white"
   end
 
   def create_image_doc(user_id = nil)
