@@ -33,17 +33,6 @@ class API::BoardsController < API::ApplicationController
     render json: { boards: @boards }
   end
 
-  # export interface PredictiveImage {
-  #   id: string;
-  #   src: string;
-  #   label: string;
-  #   next_images: PredictiveImage[];
-  #   image_prompt?: string;
-  #   audio?: string;
-  #   docs?: ImageDoc[];
-  #   display_doc?: ImageDoc;
-  # }
-
   def predictive_index
     @boards = Board.includes(:images).predictive
     @predictive_boards = @boards.map do |board|
@@ -100,7 +89,7 @@ class API::BoardsController < API::ApplicationController
       {
         id: ni.id,
         label: ni.label,
-        bg_color: ni.bg_color,
+        bg_color: ni.bg_class,
         src: ni.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{ni.label_param}",
         audio: ni.audio_files.first&.url,
       }
