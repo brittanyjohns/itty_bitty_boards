@@ -5,13 +5,13 @@
       <div class="items-center text-center" id="<%= image.label %>" data-action="click->speak#speak">
         <%= display_image_for(image, @display_for || current_user) %>
       </div>
-      <div class="text-wrap min-h-10 text-center">
+      <div class="min-h-10 text-center">
       <% if current_user&.admin? %>
       <p class="absolute top-0 left-0 m-4 text-white font-bold p-2 rounded bg-black bg-opacity-70">
           <%= link_to "#{image.image_type} #{image.user_id}", image, class: "text-white", data: { turbo: "false" } %>
       </p>
       <% end %>
-        <%= link_to image, class: "text-nowrap text-xs md:text-sm lg:text-md font-semibold text-gray-700 p-1 block absolute bottom-0 m-1", data: { turbo_frame: "_top" } do %>
+        <%= link_to image, class: "text-nowrap text-center text-xs md:text-sm lg:text-md font-semibold text-gray-700 py-1 block absolute bottom-0 left-0 m-1 w-full", data: { turbo_frame: "_top" } do %>
             <%= image.display_label %>
         <% end %>
         <%= image.generating? ? spinner : "" %>
