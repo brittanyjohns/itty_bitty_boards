@@ -1,6 +1,5 @@
-class BoardImagesController < ApplicationController
-  before_action :authenticate_user!
-
+class API::BoardImagesController < API::ApplicationController
+  respond_to :json
   before_action :set_board_image, only: %i[ show edit update destroy ]
 
   # GET /board_images or /board_images.json
@@ -14,16 +13,12 @@ class BoardImagesController < ApplicationController
 
   def move_up
     @board_image = BoardImage.find(params[:id])
-    puts "move_up - board_image: #{@board_image.position}"
     @board_image.move_higher
-    puts "move_up - board_image: #{@board_image.position}"
-    redirect_back_or_to board_url(@board_image.board)
   end
 
   def move_down
     @board_image = BoardImage.find(params[:id])
     @board_image.move_lower
-    redirect_to board_url(@board_image.board)
   end
 
   # GET /board_images/new
@@ -42,10 +37,8 @@ class BoardImagesController < ApplicationController
 
     respond_to do |format|
       if @board_image.save
-        format.html { redirect_to board_image_url(@board_image), notice: "Board image was successfully created." }
         format.json { render :show, status: :created, location: @board_image }
       else
-        format.html { render :new, status: :unprocessable_entity }
         format.json { render json: @board_image.errors, status: :unprocessable_entity }
       end
     end
@@ -55,10 +48,8 @@ class BoardImagesController < ApplicationController
   def update
     respond_to do |format|
       if @board_image.update(board_image_params)
-        format.html { redirect_to board_image_url(@board_image), notice: "Board image was successfully updated." }
         format.json { render :show, status: :ok, location: @board_image }
       else
-        format.html { render :edit, status: :unprocessable_entity }
         format.json { render json: @board_image.errors, status: :unprocessable_entity }
       end
     end
@@ -69,7 +60,6 @@ class BoardImagesController < ApplicationController
     @board_image.destroy!
 
     respond_to do |format|
-      format.html { redirect_to board_images_url, notice: "Board image was successfully destroyed." }
       format.json { head :no_content }
     end
   end

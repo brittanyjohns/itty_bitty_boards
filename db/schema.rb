@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_04_20_191323) do
+ActiveRecord::Schema[7.1].define(version: 2024_04_24_190849) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -60,6 +60,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_04_20_191323) do
     t.string "text_color"
     t.integer "font_size"
     t.string "border_color"
+    t.jsonb "layout", default: {}
     t.index ["board_id"], name: "index_board_images_on_board_id"
     t.index ["image_id"], name: "index_board_images_on_image_id"
   end

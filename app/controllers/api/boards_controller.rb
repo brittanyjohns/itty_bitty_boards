@@ -34,7 +34,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def predictive_index
-    @boards = Board.includes(:images).predictive
+    @boards = Board.includes(board_images: { image: :docs }).predictive
     @predictive_boards = @boards.map do |board|
       {
         id: board.id,
@@ -43,17 +43,18 @@ class API::BoardsController < API::ApplicationController
         parent_type: board.parent_type,
         predefined: board.predefined,
         number_of_columns: board.number_of_columns,
-        images: board.images.map do |image|
+        images: board.board_images.map do |board_image|
           {
-            id: image.id,
-            label: image.label,
-            image_prompt: image.image_prompt,
-            bg_color: image.bg_class,
-            text_color: image.text_color,
-            next_words: image.next_words,
-            display_doc: image.display_image,
-            src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-            audio: image.audio_files.first&.url,
+            id: board_image.image.id,
+            label: board_image.image.label,
+            image_prompt: board_image.image.image_prompt,
+            bg_color: board_image.image.bg_class,
+            text_color: board_image.image.text_color,
+            next_words: board_image.image.next_words,
+            position: board_image.position,
+            display_doc: board_image.image.display_image,
+            src: board_image.image.display_image ? board_image.image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+            audio: board_image.image.audio_files.first&.url,
           }
         end,
       }
@@ -108,11 +109,24 @@ class API::BoardsController < API::ApplicationController
     render json: @board_with_images.merge(user_permissions)
   end
 
+  def save_layout
+    puts "API::BoardsController#reorder_images: #{params.inspect}"
+    board = Board.includes(board_images: [:image]).find(params[:id])
+    layout = params[:layout]
+    layout.each_with_index do |layout_item, index|
+      board_image = board.board_images.find(layout_item["i"])
+      # board_image.position = board_image.calucate_position(layout_item["x"], layout_item["y"])
+      board_image.layout = layout_item
+      puts "\n\nLAYOUT ITEM: \n#{layout_item.inspect}\n"
+      board_image.save!
+    end
+    board.reload
+    render json: board.api_view_with_images
+  end
+
   def remaining_images
-    # board = current_user.boards.includes(board_images: { image: :docs }).find(params[:id])
-    puts "params: #{params.inspect}"
-    puts "current_user: #{current_user.inspect}"
-    board = Board.find(params[:id])
+    board = current_user.boards.includes(board_images: { image: :docs }).find(params[:id])
+    # board = Board.find(params[:id])
     current_page = params[:page] || 1
     puts "board: #{board.inspect}"
     if params[:query].present? && params[:query] != "null"
@@ -156,7 +170,7 @@ class API::BoardsController < API::ApplicationController
 
   # PATCH/PUT /boards/1 or /boards/1.json
   def update
-    @board = Board.find(params[:id])
+    @board = Board.includes(board_images: { image: :docs }).find(params[:id])
     @board.number_of_columns = board_params["number_of_columns"].to_i
     puts "handleSubmit: #{board_params} \n\n- params: #{params}"
     respond_to do |format|
@@ -172,7 +186,7 @@ class API::BoardsController < API::ApplicationController
     puts "API:::BoardsController#create board_params: #{board_params} - params: #{params}"
 
     puts "\nAPI::BoardsController#create image_params: #{image_params} \n\n"
-    @board = Board.find(params[:id])
+    board = Board.includes(board_images: { image: :docs }).find(params[:id])
     @found_image = Image.find_by(label: image_params[:label], user_id: current_user.id, private: true)
     @found_image ||= Image.find_by(label: image_params[:label])
     if @found_image

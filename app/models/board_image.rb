@@ -10,8 +10,10 @@
 #  updated_at :datetime         not null
 #
 class BoardImage < ApplicationRecord
+  default_scope { order(position: :asc) }
   belongs_to :board
   belongs_to :image
+  acts_as_list scope: :board
 
   before_save :set_voice
   after_save :create_voice_audio, if: :voice_changed_and_not_existing?
@@ -22,6 +24,34 @@ class BoardImage < ApplicationRecord
 
   def label
     image.label
+  end
+
+  def board_images
+    board.board_images.sort_by(&:position)
+  end
+
+  def grid_x
+    result = nil
+    if position
+      position_index = position - 1
+      result = position_index % board.number_of_columns
+    else
+      result = 0
+    end
+    result
+  end
+
+  def grid_y
+    if position
+      result = (position / board.number_of_columns).floor
+      result
+    else
+      0
+    end
+  end
+
+  def calucate_position(x, y)
+    x + (y * board.number_of_columns) + 1
   end
 
   def create_voice_audio

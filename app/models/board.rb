@@ -41,6 +41,8 @@ class Board < ApplicationRecord
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
 
+  after_save :calucate_grid_layout, if: :number_of_columns_changed?
+
   # after_create_commit { broadcast_prepend_later_to :board_list, target: 'my_boards', partial: 'boards/board', locals: { board: self } }
   # after_create_commit :update_board_list
 
@@ -70,6 +72,20 @@ class Board < ApplicationRecord
 
   def self.predictive_default
     self.where(parent_type: "PredefinedResource", name: "Predictive Default").first
+  end
+
+  def self.position_all_board_images
+    all.each do |board|
+      board.board_images.each_with_index do |bi, index|
+        bi.update!(position: index)
+      end
+    end
+  end
+
+  def position_all_board_images
+    board_images.order(:position).each_with_index do |bi, index|
+      bi.update!(position: index)
+    end
   end
 
   def self.create_predictive_default
@@ -195,22 +211,40 @@ class Board < ApplicationRecord
       floating_words: words,
       user_id: user_id,
       voice: voice,
-      images: images.map do |image|
+      images: board_images.map do |board_image|
         {
-          id: image.id,
-          label: image.label,
-          image_prompt: image.image_prompt,
-          bg_color: image.bg_class,
-          text_color: image.text_color,
-          next_words: image.next_words,
-          display_doc: image.display_image,
-          src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-          audio: image.audio_files.first&.url,
+          id: board_image.image.id,
+          label: board_image.image.label,
+          image_prompt: board_image.image.image_prompt,
+          bg_color: board_image.image.bg_class,
+          text_color: board_image.image.text_color,
+          next_words: board_image.image.next_words,
+          position: board_image.position,
+          display_doc: board_image.image.display_image,
+          src: board_image.image.display_image ? board_image.image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{board_image.image.label_param}",
+          audio: board_image.image.audio_files.first&.url,
+          layout: board_image.layout,
         }
-      end
+      end,
     }
-
   end
+
+  def calucate_grid_layout
+    position_all_board_images
+    puts "\n\nCalucate Grid Layout\n\n"
+    grid_layout = []
+    board_images.includes(:image).order(:position).each_slice(number_of_columns) do |row|
+      puts "row: #{row}"
+      row.each_with_index do |bi, index|
+        new_layout = {i: bi.id, x: board_images.grid_x, y: board_images.grid_y, w: 1, h: 1}
+        puts "index: #{index} -- bi: #{bi.label} -- position: #{bi.position}"
+        bi.update!(layout: new_layout)
+        grid_layout << bi.layout.merge({position: bi.position})
+      end
+    end
+    grid_layout
+  end
+
 
   def api_view_with_predictive_images
     {

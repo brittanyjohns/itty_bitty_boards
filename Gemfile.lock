@@ -75,6 +75,8 @@ GEM
       minitest (>= 5.1)
       mutex_m
       tzinfo (~> 2.0)
+    acts_as_list (1.1.0)
+      activerecord (>= 4.2)
     addressable (2.8.6)
       public_suffix (>= 2.0.2, < 6.0)
     annotate (3.2.0)
@@ -168,6 +170,7 @@ GEM
       thor (>= 0.14.0, < 2)
     font-awesome-sass (6.4.2)
       sassc (~> 2.0)
+    foreman (0.88.1)
     globalid (1.2.1)
       activesupport (>= 6.1)
     http (5.1.1)
@@ -406,6 +409,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  acts_as_list (~> 1.1)
   annotate (~> 3.2)
   aws-sdk-s3
   bootsnap
@@ -422,6 +426,7 @@ DEPENDENCIES
   faraday
   figaro
   font-awesome-sass (~> 6.4.0)
+  foreman
   http
   image_processing (~> 1.2)
   jbuilder

@@ -42,6 +42,7 @@ class Image < ApplicationRecord
   scope :non_menu_images, -> { where.not(image_type: "Menu").or(where(image_type: nil)) }
   scope :non_scenarios, -> { where.not(image_type: "OpenaiPrompt").or(where(image_type: nil)) }
   scope :non_sample_voices, -> { where.not(image_type: "SampleVoice").or(where(image_type: nil)) }
+  scope :sample_voices, -> { where(image_type: "SampleVoice") }
   scope :no_image_type, -> { where(image_type: nil) }
   scope :public_img, -> { where(private: [nil, false]) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
@@ -604,10 +605,6 @@ class Image < ApplicationRecord
 
   def display_label
     label&.titleize&.truncate(27, separator: " ")
-  end
-
-  def current_doc_for_user(user)
-    UserDoc.where(user_id: user.id, doc_id: docs.pluck(:id)).first&.doc
   end
 
   def prompt_to_send

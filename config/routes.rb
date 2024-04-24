@@ -81,7 +81,12 @@ Rails.application.routes.draw do
       get "predictive_images"
     end
   end
-  resources :board_images
+  resources :board_images do
+    member do
+      put "move_up"
+      put "move_down"
+    end
+  end
   # Order matters here.  users needs to be below the devise_for :users
   devise_for :users, controllers: {
                        #  registrations: "users/registrations",
@@ -164,11 +169,19 @@ Rails.application.routes.draw do
         get "user_boards"
       end
       member do
+        post "save_layout"
         post "add_image"
         post "remove_image"
         get "remaining_images"
         put "associate_image"
         get "predictive_images"
+      end
+    end
+
+    resources :board_images do
+      member do
+        put "move_up"
+        put "move_down"
       end
     end
 
