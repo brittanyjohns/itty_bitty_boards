@@ -13,7 +13,7 @@ class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
   belongs_to :board
   belongs_to :image
-  acts_as_list scope: :board
+  # acts_as_list scope: :board
 
   before_save :set_defaults
   after_save :create_voice_audio, if: :voice_changed_and_not_existing?

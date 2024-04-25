@@ -238,14 +238,20 @@ class Board < ApplicationRecord
     position_all_board_images
     puts "\n\nCalucate Grid Layout\n\n"
     grid_layout = []
-    board_images.includes(:image).order(:position).each_slice(number_of_columns) do |row|
-      puts "row: #{row}"
+    row_count = 0
+    bi_count = board_images.count
+    rows = (bi_count / number_of_columns.to_f).ceil
+    board_images.includes(:image).order(:position).each_slice(rows) do |row|
+      puts "row: #{row.count}"
       row.each_with_index do |bi, index|
-        new_layout = bi.initial_layout
-        puts "index: #{index} -- bi: #{bi.label} -- position: #{bi.position}"
+        new_layout = { i: bi.id, x: index, y: row_count, w: 1, h: 1}
+        puts "id: #{bi.id} x: #{index} y: #{row_count} -- bi: #{bi.label} -- position: #{bi.position}"
         bi.update!(layout: new_layout)
-        grid_layout << bi.layout.merge({position: bi.position})
+        bi.reload
+        puts "layout: #{bi.layout}"
       end
+      row_count += 1
+
     end
     grid_layout
   end
