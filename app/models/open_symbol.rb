@@ -122,7 +122,7 @@ class OpenSymbol < ApplicationRecord
     new_image_doc.image.attach(io: downloaded_image, filename: "#{self.name.parameterize}-symbol-#{self.id}.#{self.extension}")
   end
 
-  IMAGE_EXTENSIONS = %w(jpg jpeg gif png)
+  IMAGE_EXTENSIONS = %w(jpg jpeg gif png svg)
   SVG_EXTENSION = "svg"
 
   def svg?

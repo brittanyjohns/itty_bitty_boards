@@ -42,6 +42,11 @@ class Doc < ApplicationRecord
     update(deleted_at: Time.now)
   end
 
+  def extension
+    original_image_url&.split(".")&.last
+    # image&.blob&.filename.to_s&.split(".")&.last
+  end
+
   def self.update_source_types
     missing_documentable = []
     self.all.each do |doc|

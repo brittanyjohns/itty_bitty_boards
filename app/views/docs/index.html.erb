@@ -20,7 +20,7 @@
       <tbody class="text-gray-700">
         <% @docs.order(created_at: :desc).each do |doc| %>
           <tr class="border-b border-gray-200 hover:bg-gray-100">
-            <td class="text-left py-3 px-4"><%= doc.id %></td>
+            <td class="text-left py-3 px-4"><%= doc.id %> - <%= doc.extension %></td>
             <td class="text-left py-3 px-4"><%= link_to doc.label, doc.documentable, class: "text-indigo-600 hover:text-indigo-900" %></td>
             <td class="text-left py-3 px-4"><%= link_to doc.processed&.truncate(20), doc %> </td>
             <td class="text-left py-3 px-4"><%= image_tag doc.image, class: "w-20 h-20 mx-auto" if doc.image.attached? %></td>

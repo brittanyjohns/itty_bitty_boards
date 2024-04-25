@@ -68,9 +68,7 @@ class Image < ApplicationRecord
       
     end
     self.bg_color = background_color_for(part_of_speech)
-    puts "BG Color: #{self.bg_color}"
-    puts "Image type: #{image_type}"
-    puts "Part of speech: #{part_of_speech}"
+    puts "Image: #{label} - bg_color: #{bg_color} - part_of_speech: #{part_of_speech} - image_type: #{image_type}"
     # self.image_type ||= "Image"
   end
 
@@ -425,10 +423,10 @@ class Image < ApplicationRecord
     if response
       symbols = JSON.parse(response)
       symbols_count = symbols.count
-      puts "Found symbols...#{symbols_count}"
-      puts "Limiting to #{limit} symbols"
+
       count = 0
       skipped_count = 0
+
       begin
         symbols.each do |symbol|
           existing_symbol = OpenSymbol.find_by(original_os_id: symbol["id"])
@@ -459,7 +457,6 @@ class Image < ApplicationRecord
           end
           symbol_name = new_symbol.name.parameterize if new_symbol
           if new_symbol && should_create_symbol_image?(new_symbol)
-            puts "Creating symbol image for #{symbol_name}"
             count += 1
 
             downloaded_image = new_symbol.get_downloaded_image
@@ -467,16 +464,16 @@ class Image < ApplicationRecord
             svg_url = nil
             if new_symbol.svg?
               svg_url = new_symbol.image_url
-              # TEMPORARILY DISABLED
-              # processed = ImageProcessing::MiniMagick
-              #   .convert("png")
-              #   .resize_to_limit(300, 300)
-              #   .call(downloaded_image)
+              processed = ImageProcessing::MiniMagick
+                .convert("png")
+                .resize_to_limit(300, 300)
+                .call(downloaded_image)
+            puts "Processed SVG: #{processed}"
             else
               processed = downloaded_image
             end
+
             ext = new_symbol.svg? ? "png" : new_symbol.extension
-            puts "Setting image for symbol: #{symbol_name} - SVG: #{new_symbol.svg?} - ext: #{ext}"
             new_image_doc = self.docs.create!(processed: symbol_name, raw: new_symbol.search_string, source_type: "OpenSymbol", original_image_url: svg_url) if processed
             new_image_doc.image.attach(io: processed, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{ext}") if processed
           else
@@ -485,7 +482,6 @@ class Image < ApplicationRecord
           total = count + skipped_count
           puts "Label: #{label} - Symbol: #{symbol_name} - Total: #{total} - Count: #{count} - Skipped: #{skipped_count}"
           if total >= symbols_count
-            puts "Skipped all symbols"
             self.update!(open_symbol_status: "skipped")
             break
           end
@@ -515,7 +511,6 @@ class Image < ApplicationRecord
     return false if new_symbol.blank?
     symbol_name = new_symbol.name.parameterize
     return false if symbol_name.blank?
-    return false if new_symbol.svg? # TEMPORARILY DISABLED
     symbol_name_like_label?(symbol_name) && !doc_text_matches(symbol_name)
   end
 

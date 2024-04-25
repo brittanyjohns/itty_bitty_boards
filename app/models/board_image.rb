@@ -15,8 +15,11 @@ class BoardImage < ApplicationRecord
   belongs_to :image
   acts_as_list scope: :board
 
-  before_save :set_voice
+  before_save :set_defaults
   after_save :create_voice_audio, if: :voice_changed_and_not_existing?
+  after_create_commit :save_initial_layout
+
+  scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
 
   def voice_changed_and_not_existing?
     voice_changed? && !image.existing_voices.include?(voice)
@@ -50,6 +53,10 @@ class BoardImage < ApplicationRecord
     end
   end
 
+  def initial_layout
+    { i: id, x: grid_x, y: grid_y, w: 1, h: 1 }
+  end
+
   def calucate_position(x, y)
     x + (y * board.number_of_columns) + 1
   end
@@ -62,7 +69,11 @@ class BoardImage < ApplicationRecord
     # image.create_voice_audio unless image.
   end
 
-  def set_voice
+  def set_defaults
     self.voice = board.voice
+  end
+
+  def save_initial_layout
+    update!(layout: initial_layout)
   end
 end

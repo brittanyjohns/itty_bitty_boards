@@ -47,9 +47,14 @@ class Board < ApplicationRecord
   # after_create_commit :update_board_list
 
   before_save :set_status
+  before_create :set_number_of_columns
 
   def self.ransackable_attributes(auth_object = nil)
     ["cost", "created_at", "description", "id", "id_value", "name", "number_of_columns", "parent_id", "parent_type", "predefined", "status", "token_limit", "updated_at", "user_id", "voice"]
+  end
+
+  def set_number_of_columns
+    self.number_of_columns = 4
   end
 
   def set_status
@@ -236,7 +241,7 @@ class Board < ApplicationRecord
     board_images.includes(:image).order(:position).each_slice(number_of_columns) do |row|
       puts "row: #{row}"
       row.each_with_index do |bi, index|
-        new_layout = {i: bi.id, x: board_images.grid_x, y: board_images.grid_y, w: 1, h: 1}
+        new_layout = bi.initial_layout
         puts "index: #{index} -- bi: #{bi.label} -- position: #{bi.position}"
         bi.update!(layout: new_layout)
         grid_layout << bi.layout.merge({position: bi.position})
