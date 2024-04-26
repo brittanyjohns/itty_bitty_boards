@@ -55,7 +55,7 @@ class Image < ApplicationRecord
   scope :with_artifacts, -> { includes( { docs: { image_attachment: :blob }, audio_files_attachments: :blob }) }
 
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
-  after_create :categorize!
+  after_create :categorize!, unless: :menu?
   # after_create :start_create_all_audio_job
   before_save :set_label, :ensure_defaults
   after_save :generate_matching_symbol, if: -> { label_changed? && open_symbol_status == "active" }
