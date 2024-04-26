@@ -38,6 +38,9 @@ class Board < ApplicationRecord
   scope :with_less_than_x_images, ->(x) { joins(:images).group("boards.id").having("count(images.id) < ?", x) }
   scope :without_images, -> { left_outer_joins(:images).where(images: { id: nil }) }
   # before_save :set_number_of_columns, unless: :number_of_columns?
+  # scope :with_artifacts, -> { includes(board_images: { image: [{ docs: :image_attachment }, :audio_files_attachments] }) }
+  scope :with_artifacts, -> { includes({images: [{ docs: :image_attachment }, :audio_files_attachments]}) }
+
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
 
@@ -76,11 +79,11 @@ class Board < ApplicationRecord
   end
 
   def self.predictive_default
-    self.where(parent_type: "PredefinedResource", name: "Predictive Default").first
+    self.with_artifacts.where(parent_type: "PredefinedResource", name: "Predictive Default").first
   end
 
   def self.position_all_board_images
-    all.each do |board|
+    includes(:board_images).find_each do |board|
       board.board_images.each_with_index do |bi, index|
         bi.update!(position: index)
       end
@@ -204,7 +207,7 @@ class Board < ApplicationRecord
     broadcast_render_to(:board_list, partial: "boards/board_list", locals: { boards: user.boards }, target: "my_boards")
   end
 
-  def api_view_with_images
+  def api_view_with_images(viewing_user = nil)
     {
       id: id,
       name: name,
@@ -226,8 +229,9 @@ class Board < ApplicationRecord
           next_words: board_image.image.next_words,
           position: board_image.position,
           display_doc: board_image.image.display_image,
-          src: board_image.image.display_image ? board_image.image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{board_image.image.label_param}",
-          audio: board_image.image.audio_files.first&.url,
+          src: board_image.image.display_image_url(viewing_user),
+          # src: board_image.image.display_image ? board_image.image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{board_image.image.label_param}",
+          audio: board_image.image.default_audio_url,
           layout: board_image.layout,
         }
       end,
@@ -236,13 +240,11 @@ class Board < ApplicationRecord
 
   def calucate_grid_layout
     position_all_board_images
-    puts "\n\nCalucate Grid Layout\n\n"
     grid_layout = []
     row_count = 0
     bi_count = board_images.count
     rows = (bi_count / number_of_columns.to_f).ceil
     board_images.includes(:image).order(:position).each_slice(rows) do |row|
-      puts "row: #{row.count}"
       row.each_with_index do |bi, index|
         new_layout = { i: bi.id, x: index, y: row_count, w: 1, h: 1}
         puts "id: #{bi.id} x: #{index} y: #{row_count} -- bi: #{bi.label} -- position: #{bi.position}"

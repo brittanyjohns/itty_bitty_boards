@@ -159,6 +159,11 @@ class Doc < ApplicationRecord
     end
   end
 
+  def display_url
+    cdn_url = ENV["CDN_HOST"] + '/' + image.key if image
+    image ? cdn_url : "https://via.placeholder.com/300x300.png?text=#{documentable.label_param}"
+  end
+
   def is_a_favorite?(user)
     UserDoc.where(user_id: user.id, doc_id: id).any?
   end

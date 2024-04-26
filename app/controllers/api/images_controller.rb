@@ -13,8 +13,6 @@ class API::ImagesController < API::ApplicationController
     end
 
     @images_with_display_doc = @images.map do |image|
-      display_doc = image.display_doc(current_user)
-      audio_file = image.audio_files.first
       {
         id: image.id,
         label: image.label,
@@ -22,22 +20,23 @@ class API::ImagesController < API::ApplicationController
         image_type: image.image_type,
         bg_color: image.bg_class,
         text_color: image.text_color,
-        src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
-        audio: audio_file ? url_for(audio_file) : nil,
+        src: image.display_image_url(current_user),
+        # src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
+        audio: image.default_audio_url
       }
     end
     render json: @images_with_display_doc
   end
 
   def user_images
-    @images = Image.where(user_id: current_user.id).includes(:docs).order(label: :asc).page params[:page]
+    @images = Image.with_artifacts.where(user_id: current_user.id).includes(:docs).order(label: :asc).page params[:page]
     @user_docs = current_user.docs.where(documentable_type: "Image").order(created_at: :desc)
     # @images = Image.joins(:docs).where(docs: { user_id: current_user.id }).order(label: :asc).page params[:page]
-    @images = Image.non_menu_images.where(id: @user_docs.map(&:documentable_id)).order(label: :asc).page params[:page]
+    @images = Image.with_artifacts.non_menu_images.where(id: @user_docs.map(&:documentable_id)).order(label: :asc).page params[:page]
     @distinct_images = @images.distinct
     @images_with_display_doc = @distinct_images.map do |image|
-      display_doc = image.display_doc(current_user)
-      audio_file = image.audio_files.first
+      # display_doc = image.display_doc(current_user)
+      # audio_file = image.audio_files.first
       {
         id: image.id,
 
@@ -46,15 +45,17 @@ class API::ImagesController < API::ApplicationController
         bg_color: image.bg_class,
         text_color: image.text_color,
         image_prompt: image.image_prompt,
-        src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
-        audio: audio_file ? url_for(audio_file) : nil,
+        src: image.display_image_url(current_user),
+        # src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
+        # audio: audio_file ? url_for(audio_file) : nil,
+        audio: image.default_audio_url,
       }
     end
     render json: @images_with_display_doc
   end
 
   def show
-    @image = Image.includes(:docs).with_attached_audio_files.find(params[:id])
+    @image = Image.with_artifacts.find(params[:id])
     @current_doc = @image.display_doc(current_user)
     @current_doc_id = @current_doc.id if @current_doc
     @image_docs = @image.docs.with_attached_image.for_user(current_user).order(created_at: :desc)
@@ -69,25 +70,28 @@ class API::ImagesController < API::ApplicationController
         id: @current_doc&.id,
         label: @image&.label,
         user_id: @current_doc&.user_id,
-        src: @current_doc&.attached_image_url,
+        src: @image.display_image_url(current_user),
+        # src: @current_doc&.attached_image_url,
         is_current: true,
         deleted_at: @current_doc&.deleted_at,
       },
       private: @image.private,
       user_id: @image.user_id,
       # src: url_for(@image.display_image),
-      src: @image.display_doc(current_user)&.attached_image_url || "https://via.placeholder.com/150x150.png?text=#{@image.label_param}",
-      audio: @image.audio_files.first ? url_for(@image.audio_files.first) : nil,
+      src: @image.display_image_url(current_user),
+      # src: @image.display_doc(current_user)&.attached_image_url || "https://via.placeholder.com/150x150.png?text=#{@image.label_param}",
+      audio: image.default_audio_url,
+      # audio: @image.audio_files.first ? url_for(@image.audio_files.first) : nil,
       docs: @image_docs.map do |doc|
         {
           id: doc.id,
           label: @image.label,
           user_id: doc.user_id,
-          src: doc.image.url,
+          # src: doc.image.url,
+          src: doc.display_url,
           is_current: doc.id == @current_doc_id,
         }
       end,
-
     }
     render json: @image_with_display_doc
   end
@@ -145,9 +149,11 @@ class API::ImagesController < API::ApplicationController
         is_current: true,
       },
       private: @image.private,
+      src: @image.display_image_url(current_user),
+      audio: @image.default_audio_url,
       # src: url_for(@image.display_image),
-      src: @image.display_image ? @image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{@image.label_param}",
-      audio: @image.audio_files.first ? url_for(@image.audio_files.first) : nil,
+      # src: @image.display_image ? @image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{@image.label_param}",
+      # audio: @image.audio_files.first ? url_for(@image.audio_files.first) : nil,
       docs: @image_docs.map do |doc|
         {
           id: doc.id,
@@ -222,9 +228,11 @@ class API::ImagesController < API::ApplicationController
         id: image.id,
         label: image.label,
         image_prompt: image.image_prompt,
-        display_doc: image.display_image(current_user),
-        src: url_for(image.display_image),
-        audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
+        src: image.display_image_url(current_user),
+        audio: image.default_audio_url,
+        # display_doc: image.display_image(current_user),
+        # src: url_for(image.display_image),
+        # audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
       }
     end
   end
@@ -241,9 +249,11 @@ class API::ImagesController < API::ApplicationController
         id: image.id,
         label: image.label,
         image_prompt: image.image_prompt,
-        display_doc: image.display_image(current_user),
-        src: url_for(image.display_image),
-        audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
+        src: image.display_image_url(current_user),
+        audio: image.default_audio_url,
+        # display_doc: image.display_image(current_user),
+        # src: url_for(image.display_image),
+        # audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
       }
     end
     render json: @images_with_display_doc

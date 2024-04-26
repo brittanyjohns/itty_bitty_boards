@@ -31,6 +31,7 @@ class Image < ApplicationRecord
   PROMPT_ADDITION = " Styled as a simple cartoon illustration."
 
   include ImageHelper
+  include Rails.application.routes.url_helpers
 
   # before_save :save_audio_file, if: -> { label_changed? }
   # before_save :save_audio_file_to_s3!, if: :no_audio_saved
@@ -51,6 +52,7 @@ class Image < ApplicationRecord
   scope :without_docs, -> { where.missing(:docs) }
   scope :with_docs, -> { where.associated(:docs) }
   scope :generating, -> { where(status: "generating") }
+  scope :with_artifacts, -> { includes( { docs: :image_attachment }, :audio_files_attachments) }
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!
   # after_create :start_create_all_audio_job
@@ -564,6 +566,17 @@ class Image < ApplicationRecord
     display_doc(viewing_user)&.image
   end
 
+  def display_image_url(viewing_user = nil)
+    doc = display_doc(viewing_user)
+    doc ? doc.display_url : "https://via.placeholder.com/300x300.png?text=#{label_param}"
+  end
+
+  def default_audio_url
+    audio_file = audio_files.first
+    cdn_url = ENV["CDN_HOST"] + '/' + audio_file.key if audio_file
+    audio_file ? cdn_url : nil
+  end
+
   def save_audio_file_to_s3!(voice = "alloy")
     create_audio_from_text(label, voice)
     voices_needed = missing_voices || []
@@ -704,9 +717,9 @@ class Image < ApplicationRecord
   def self.searchable_images_for(user, only_user_images = false)
     if only_user_images
       # Image.non_menu_images.or(Image.where(user_id: user.id)).distinct
-      Image.non_menu_images.non_scenarios.where(user_id: user.id).distinct
+      Image.with_artifacts.non_menu_images.non_scenarios.where(user_id: user.id).distinct
     else
-      Image.public_img.non_menu_images.non_scenarios.or(Image.non_menu_images.non_scenarios.where(user_id: user.id)).distinct
+      Image.with_artifacts.public_img.non_menu_images.non_scenarios.or(Image.with_artifacts.non_menu_images.non_scenarios.where(user_id: user.id)).distinct
       # Image.all
       # Image.non_menu_images.where(user_id: [user.id, nil]).or(Image.public_img.non_menu_images).distinct
     end

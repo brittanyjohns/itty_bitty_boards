@@ -12,14 +12,14 @@ class API::BoardsController < API::ApplicationController
   def index
     if params[:query].present?
       @query = params[:query]
-      @boards = current_user.boards.user_made.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
-      @predefined_boards = current_user.boards.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
-      @scenarios = current_user.boards.scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      @boards = boards_for_user.user_made.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      @predefined_boards = boards_for_user.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      @scenarios = boards_for_user.scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
       @shared_boards = current_user.shared_with_me_boards.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
     else
-      @boards = current_user.boards.user_made.order(created_at: :desc)
+      @boards = boards_for_user.user_made.order(created_at: :desc)
       @predefined_boards = Board.predefined.order(created_at: :desc)
-      @scenarios = current_user.boards.scenarios.order(created_at: :desc)
+      @scenarios = boards_for_user.scenarios.order(created_at: :desc)
       @shared_boards = current_user.shared_with_me_boards.order(created_at: :desc)
     end
     puts "SHARED BOARDS: #{@shared_boards.count}"
@@ -28,13 +28,13 @@ class API::BoardsController < API::ApplicationController
   end
 
   def user_boards
-    @boards = current_user.boards.user_made.order(created_at: :desc)
+    @boards = boards_for_user.user_made.order(created_at: :desc)
 
     render json: { boards: @boards }
   end
 
   def predictive_index
-    @boards = Board.includes(board_images: { image: :docs }).predictive
+    @boards = Board.with_artifacts.predictive
     @predictive_boards = @boards.map do |board|
       {
         id: board.id,
@@ -52,8 +52,8 @@ class API::BoardsController < API::ApplicationController
             text_color: board_image.image.text_color,
             next_words: board_image.image.next_words,
             position: board_image.position,
-            display_doc: board_image.image.display_image,
-            src: board_image.image.display_image ? board_image.image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+            # display_doc: board_image.image.display_image,
+            src: board_image.image.display_image_url(current_user),
             audio: board_image.image.audio_files.first&.url,
           }
         end,
@@ -77,7 +77,8 @@ class API::BoardsController < API::ApplicationController
         label: image.label,
         bg_color: image.bg_class,
         next_words: image.next_words,
-        src: image.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+        # src: image.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+        src: image.display_image_url(current_user),
         audio: image.audio_files.first&.url,
       }
     end
@@ -91,7 +92,8 @@ class API::BoardsController < API::ApplicationController
         id: ni.id,
         label: ni.label,
         bg_color: ni.bg_class,
-        src: ni.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{ni.label_param}",
+        # src: ni.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{ni.label_param}",
+        src: ni.display_image_url(current_user),
         audio: ni.audio_files.first&.url,
       }
     end
@@ -100,8 +102,8 @@ class API::BoardsController < API::ApplicationController
 
   # GET /boards/1 or /boards/1.json
   def show
-    board = Board.includes(board_images: { image: :docs }).find(params[:id])
-    @board_with_images = board.api_view_with_images
+    board = Board.with_artifacts.find(params[:id])
+    @board_with_images = board.api_view_with_images(current_user)
     user_permissions = {
       can_edit: (board.user == current_user || current_user.admin?),
       can_delete: (board.user == current_user || current_user.admin?),
@@ -111,7 +113,7 @@ class API::BoardsController < API::ApplicationController
 
   def save_layout
     puts "API::BoardsController#reorder_images: #{params.inspect}"
-    board = Board.includes(board_images: [:image]).find(params[:id])
+    board = Board.with_artifacts.find(params[:id])
     layout = params[:layout]
     layout.each_with_index do |layout_item, index|
       board_image = board.board_images.find(layout_item["i"])
@@ -121,19 +123,19 @@ class API::BoardsController < API::ApplicationController
       board_image.save!
     end
     board.reload
-    render json: board.api_view_with_images
+    render json: board.api_view_with_images(current_user)
   end
 
   def remaining_images
-    board = current_user.boards.includes(board_images: { image: :docs }).find(params[:id])
+    board = boards_for_user.with_artifacts.find(params[:id])
     # board = Board.find(params[:id])
     current_page = params[:page] || 1
     puts "board: #{board.inspect}"
     if params[:query].present? && params[:query] != "null"
       @query = params[:query]
-      @images = Image.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(current_page)
+      @images = Image.with_artifacts.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(current_page)
     else
-      @images = Image.all.order(label: :asc).page(current_page).page(current_page)
+      @images = Image.with_artifacts.all.order(label: :asc).page(current_page).page(current_page)
     end
     @images = @images.excluding(board.images)
     @remaining_images = @images.map do |image|
@@ -141,9 +143,13 @@ class API::BoardsController < API::ApplicationController
         id: image.id,
         label: image.label,
         image_prompt: image.image_prompt,
-        display_doc: image.display_image,
-        src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-        audio: image.audio_files.first&.url,
+        bg_color: image.bg_class,
+        text_color: image.text_color,
+        src: image.display_image_url(current_user),
+        # display_doc: image.display_image,
+        # src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+        # audio: image.audio_files.first&.url,
+        audio: image.default_audio_url,
       }
     end
 
@@ -170,12 +176,12 @@ class API::BoardsController < API::ApplicationController
 
   # PATCH/PUT /boards/1 or /boards/1.json
   def update
-    @board = Board.includes(board_images: { image: :docs }).find(params[:id])
+    @board = Board.with_artifacts.find(params[:id])
     @board.number_of_columns = board_params["number_of_columns"].to_i
     puts "handleSubmit: #{board_params} \n\n- params: #{params}"
     respond_to do |format|
       if @board.update(board_params)
-        format.json { render json: @board.api_view_with_images, status: :ok }
+        format.json { render json: @board.api_view_with_images(current_user), status: :ok }
       else
         format.json { render json: @board.errors, status: :unprocessable_entity }
       end
@@ -186,7 +192,7 @@ class API::BoardsController < API::ApplicationController
     puts "API:::BoardsController#create board_params: #{board_params} - params: #{params}"
 
     puts "\nAPI::BoardsController#create image_params: #{image_params} \n\n"
-    board = Board.includes(board_images: { image: :docs }).find(params[:id])
+    board = Board.with_artifacts.find(params[:id])
     @found_image = Image.find_by(label: image_params[:label], user_id: current_user.id, private: true)
     @found_image ||= Image.find_by(label: image_params[:label])
     if @found_image
@@ -209,7 +215,7 @@ class API::BoardsController < API::ApplicationController
     if img_saved
       @board.add_image(@image.id) if @board
 
-      @board_with_images = @board.api_view_with_images
+      @board_with_images = @board.api_view_with_images(current_user)
       render json: @board_with_images
     else
       render json: img_saved.errors, status: :unprocessable_entity
@@ -277,7 +283,11 @@ class API::BoardsController < API::ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_board
-    @board = Board.includes(board_images: { image: :docs }).find(params[:id])
+    @board = Board.with_artifacts.find(params[:id])
+  end
+
+  def boards_for_user
+    current_user.boards.with_artifacts
   end
 
   def image_params

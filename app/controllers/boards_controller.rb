@@ -218,7 +218,7 @@ class BoardsController < ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_board
-    @board = Board.includes(board_images: { image: :docs }).find(params[:id])
+    @board = Board.with_artifacts.find(params[:id])
     # @board = Board.includes(images: [{ docs: :image_attachment}, :audio_files_blobs]).find(params[:id])
     @sample_voices = Image.sample_voices
   end
