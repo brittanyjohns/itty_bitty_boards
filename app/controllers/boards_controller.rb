@@ -220,7 +220,7 @@ class BoardsController < ApplicationController
   def set_board
     @board = Board.with_artifacts.find(params[:id])
     # @board = Board.includes(images: [{ docs: :image_attachment}, :audio_files_blobs]).find(params[:id])
-    @sample_voices = Image.sample_voices
+    @sample_voices = Image.with_artifacts.sample_voices
   end
 
   # Only allow a list of trusted parameters through.

@@ -52,7 +52,10 @@ class Image < ApplicationRecord
   scope :without_docs, -> { where.missing(:docs) }
   scope :with_docs, -> { where.associated(:docs) }
   scope :generating, -> { where(status: "generating") }
-  scope :with_artifacts, -> { includes( { docs: :image_attachment }, :audio_files_attachments) }
+  # scope :with_artifacts, -> { includes( { docs: :image_attachment }, :audio_files_attachments) }
+  # A.includes( { bees: [ { cees: [:ees, :effs] }, :dees] }, :zees)
+  scope :with_artifacts, -> { includes( { docs: { image_attachment: :blob }, audio_files_attachments: :blob }) }
+
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!
   # after_create :start_create_all_audio_job
@@ -180,7 +183,7 @@ class Image < ApplicationRecord
   # end
 
   def next_images
-    imgs = Image.where(label: next_words).public_img.order(created_at: :desc).distinct(:label)
+    imgs = Image.with_artifacts.where(label: next_words).public_img.order(created_at: :desc).distinct(:label)
     return imgs if imgs.any?
     Board.predictive_default.images
   end
@@ -595,20 +598,31 @@ class Image < ApplicationRecord
     user_id.nil? || User.admin.pluck(:id).include?(user_id)
   end
 
-  def display_doc(viewing_user = nil)
-    if viewing_user
-      doc = viewing_user.display_doc_for_image(self)
-      puts "Display doc for user: #{doc&.id}"
-      if doc
-        return doc if doc.image&.attached?
-      end
-    end
+  # def display_doc(viewing_user = nil)
+  #   if viewing_user
+  #     doc = viewing_user.display_doc_for_image(self)
+  #     puts "Display doc for user: #{doc&.id}"
+  #     if doc
+  #       return doc
+  #     end
+  #   end
 
-    userless_doc = docs.with_attached_image.no_user.last
-    if userless_doc&.image&.attached?
-      return userless_doc
-    end
-    nil
+  #   userless_doc = docs.with_attached_image.no_user.last
+  #   if userless_doc&.image&.attached?
+  #     return userless_doc
+  #   end
+  #   nil
+  # end
+
+  def display_doc(viewing_user = nil)
+    # Attempt to find a doc for a viewing user
+    doc = viewing_user&.display_doc_for_image(self)
+    # Return the doc if it exists, else find a userless doc
+    doc || userless_doc
+  end
+
+  def userless_doc
+    docs.with_attached_image.no_user.order(created_at: :desc).first
   end
 
   def display_label

@@ -39,7 +39,15 @@ class Board < ApplicationRecord
   scope :without_images, -> { left_outer_joins(:images).where(images: { id: nil }) }
   # before_save :set_number_of_columns, unless: :number_of_columns?
   # scope :with_artifacts, -> { includes(board_images: { image: [{ docs: :image_attachment }, :audio_files_attachments] }) }
-  scope :with_artifacts, -> { includes({images: [{ docs: :image_attachment }, :audio_files_attachments]}) }
+  # scope :with_artifacts, -> { includes({images: [{ docs: :image_attachment }, :audio_files_attachments]}) }
+  scope :with_artifacts, -> { includes({
+    images: [
+      { docs: :image_attachment },
+       :audio_files_attachments
+    ],
+    user: {user_docs: [{ doc: [{ image_attachment: :blob }] }]}
+      }
+  )}
 
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?

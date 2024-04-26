@@ -34,7 +34,7 @@ class Doc < ApplicationRecord
   scope :not_hidden, -> { where(deleted_at: nil) }
   scope :symbols, -> { where(source_type: "OpenSymbol") }
   scope :ai_generated, -> { where(source_type: "OpenAI") }
-  scope :with_attached_image, -> { includes(image_attachment: :blob) }
+  # scope :with_attached_image, -> { includes(image_attachment: :blob) }
   scope :without_attached_image, -> { where.missing(:image_attachment) }
   scope :no_user, -> { where(user_id: [nil, User::DEFAULT_ADMIN_ID]) }
 
@@ -83,9 +83,9 @@ class Doc < ApplicationRecord
     self.where.missing(:image_attachment)
   end
 
-  def self.with_attached_images
-    self.with_attached_image.all
-  end
+  # def self.with_attached_images
+  #   self.with_attached_image.all
+  # end
 
   def self.create_missing_images(max = 5)
     count = 0
@@ -111,7 +111,7 @@ class Doc < ApplicationRecord
   end
 
   def self.for_user(user)
-    user.admin? ? self.all : self.where(user_id: [user.id, nil, admin_default_id])
+    user.admin? ? self.all : self.with_attached_image.where(user_id: [user.id, nil, admin_default_id])
   end
 
   def self.current_for_user(user)
@@ -160,8 +160,9 @@ class Doc < ApplicationRecord
   end
 
   def display_url
-    cdn_url = ENV["CDN_HOST"] + '/' + image.key if image
-    image ? cdn_url : "https://via.placeholder.com/300x300.png?text=#{documentable.label_param}"
+    cdn_host = ENV["CDN_HOST"]
+    cdn_url = cdn_host + '/' + image.key if image&.key
+    cdn_url ? cdn_url : "https://via.placeholder.com/300x300.png?text=#{documentable.label_param}"
   end
 
   def is_a_favorite?(user)

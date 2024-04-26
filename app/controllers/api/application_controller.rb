@@ -17,7 +17,7 @@ module API
     end
 
     def user_from_token
-      User.find_by(authentication_token: token) if token.present?
+      User.with_artifacts.find_by(authentication_token: token) if token.present?
     end
 
     def current_user

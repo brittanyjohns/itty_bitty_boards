@@ -3,6 +3,7 @@ class API::BoardsController < API::ApplicationController
   respond_to :json
 
   # before_action :authenticate_user!
+  skip_before_action :authenticate_token!, only: %i[ predictive_index first_predictive_board predictive_images ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy ]
   # layout "fullscreen", only: [:fullscreen]
@@ -18,7 +19,7 @@ class API::BoardsController < API::ApplicationController
       @shared_boards = current_user.shared_with_me_boards.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
     else
       @boards = boards_for_user.user_made.order(created_at: :desc)
-      @predefined_boards = Board.predefined.order(created_at: :desc)
+      @predefined_boards = Board.with_artifacts.predefined.order(created_at: :desc)
       @scenarios = boards_for_user.scenarios.order(created_at: :desc)
       @shared_boards = current_user.shared_with_me_boards.order(created_at: :desc)
     end
@@ -86,7 +87,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def predictive_images
-    @image = Image.find(params[:id])
+    @image = Image.with_artifacts.find(params[:id])
     @next_images = @image.next_images.map do |ni|
       {
         id: ni.id,
@@ -178,7 +179,6 @@ class API::BoardsController < API::ApplicationController
   def update
     @board = Board.with_artifacts.find(params[:id])
     @board.number_of_columns = board_params["number_of_columns"].to_i
-    puts "handleSubmit: #{board_params} \n\n- params: #{params}"
     respond_to do |format|
       if @board.update(board_params)
         format.json { render json: @board.api_view_with_images(current_user), status: :ok }

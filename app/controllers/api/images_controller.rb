@@ -21,7 +21,6 @@ class API::ImagesController < API::ApplicationController
         bg_color: image.bg_class,
         text_color: image.text_color,
         src: image.display_image_url(current_user),
-        # src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
         audio: image.default_audio_url
       }
     end
@@ -30,8 +29,7 @@ class API::ImagesController < API::ApplicationController
 
   def user_images
     @images = Image.with_artifacts.where(user_id: current_user.id).includes(:docs).order(label: :asc).page params[:page]
-    @user_docs = current_user.docs.where(documentable_type: "Image").order(created_at: :desc)
-    # @images = Image.joins(:docs).where(docs: { user_id: current_user.id }).order(label: :asc).page params[:page]
+    @user_docs = current_user.docs.with_attached_image.where(documentable_type: "Image").order(created_at: :desc)
     @images = Image.with_artifacts.non_menu_images.where(id: @user_docs.map(&:documentable_id)).order(label: :asc).page params[:page]
     @distinct_images = @images.distinct
     @images_with_display_doc = @distinct_images.map do |image|
@@ -39,7 +37,6 @@ class API::ImagesController < API::ApplicationController
       # audio_file = image.audio_files.first
       {
         id: image.id,
-
         label: image.label,
         image_type: image.image_type,
         bg_color: image.bg_class,
@@ -80,7 +77,7 @@ class API::ImagesController < API::ApplicationController
       # src: url_for(@image.display_image),
       src: @image.display_image_url(current_user),
       # src: @image.display_doc(current_user)&.attached_image_url || "https://via.placeholder.com/150x150.png?text=#{@image.label_param}",
-      audio: image.default_audio_url,
+      audio: @image.default_audio_url,
       # audio: @image.audio_files.first ? url_for(@image.audio_files.first) : nil,
       docs: @image_docs.map do |doc|
         {
@@ -130,7 +127,6 @@ class API::ImagesController < API::ApplicationController
     @image.update(status: "generating")
     image_prompt = "An image of #{@image.label}."
     GenerateImageJob.perform_async(@image.id, current_user.id, image_prompt)
-    sleep 2
     current_user.remove_tokens(1)
     @image_docs = @image.docs.for_user(current_user).order(created_at: :desc)
 
