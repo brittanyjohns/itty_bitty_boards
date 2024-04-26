@@ -25,7 +25,7 @@ class BoardsController < ApplicationController
   end
 
   def predictive_index
-    @boards = Board.includes(:images).predictive
+    @boards = Board.with_artifacts.predictive
     if turbo_frame_request?
       render partial: "predictive_images", locals: { images: @images }
     else

@@ -55,7 +55,7 @@ class API::BoardsController < API::ApplicationController
             position: board_image.position,
             # display_doc: board_image.image.display_image,
             src: board_image.image.display_image_url(current_user),
-            audio: board_image.image.audio_files.first&.url,
+            audio: board_image.image.default_audio_url,
           }
         end,
       }
@@ -80,7 +80,7 @@ class API::BoardsController < API::ApplicationController
         next_words: image.next_words,
         # src: image.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
         src: image.display_image_url(current_user),
-        audio: image.audio_files.first&.url,
+        audio: image.default_audio_url,
       }
     end
     render json: @board_with_images
@@ -95,7 +95,7 @@ class API::BoardsController < API::ApplicationController
         bg_color: ni.bg_class,
         # src: ni.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{ni.label_param}",
         src: ni.display_image_url(current_user),
-        audio: ni.audio_files.first&.url,
+        audio: ni.default_audio_url,
       }
     end
     render json: @next_images
@@ -147,9 +147,6 @@ class API::BoardsController < API::ApplicationController
         bg_color: image.bg_class,
         text_color: image.text_color,
         src: image.display_image_url(current_user),
-        # display_doc: image.display_image,
-        # src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-        # audio: image.audio_files.first&.url,
         audio: image.default_audio_url,
       }
     end
