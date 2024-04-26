@@ -48,6 +48,7 @@ class Menu < ApplicationRecord
     board.name = self.name || "Board for Doc #{id}"
     board.token_limit = token_limit
     board.description = new_doc.processed
+    board.number_of_columns = 4
     board.save!
     new_doc.update!(board_id: board.id)
 
@@ -127,6 +128,8 @@ class Menu < ApplicationRecord
     end
     self.user.remove_tokens(tokens_used)
     board.add_to_cost(tokens_used) if board
+    board.position_all_board_images
+    board.calucate_grid_layout
   end
 
   def should_generate_image(image, user, tokens_used, total_cost = 0)

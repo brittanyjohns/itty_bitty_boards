@@ -52,8 +52,6 @@ class Image < ApplicationRecord
   scope :without_docs, -> { where.missing(:docs) }
   scope :with_docs, -> { where.associated(:docs) }
   scope :generating, -> { where(status: "generating") }
-  # scope :with_artifacts, -> { includes( { docs: :image_attachment }, :audio_files_attachments) }
-  # A.includes( { bees: [ { cees: [:ees, :effs] }, :dees] }, :zees)
   scope :with_artifacts, -> { includes( { docs: { image_attachment: :blob }, audio_files_attachments: :blob }) }
 
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
@@ -366,12 +364,6 @@ class Image < ApplicationRecord
     ["to drink", "to go", "to eat", "to sleep", "to play", "to work", "to read", "to write", "to draw", "to paint", "to sing", "to dance", "to run", "to walk", "to jump", "to sit", "to stand", "to talk", "to listen", "to watch", "to look", "to see", "to hear", "to smell", "to taste", "to touch", "to feel", "to think", "to remember", "to forget", "to learn", "to teach", "to help", "to hurt", "to love", "to hate", "to like", "to dislike", "to want", "to need", "to wish", "to hope", "to dream", "to believe", "to know", "to understand", "to remember", "to forget", "to forgive", "to apologize", "to thank", "to welcome", "to say", "to ask", "to answer", "to tell", "to show", "to give", "to take", "to send", "to receive", "to buy", "to sell", "to pay", "to cost", "to save", "to spend", "to earn", "to lose", "to win", "to find", "to search", "to discover", "to create", "to destroy", "to build", "to break", "to fix", "to repair", "to open", "to close", "to lock", "to unlock", "to start", "to stop", "to finish", "to continue", "to repeat", "to change", "to improve", "to grow", "to shrink", "to expand", "to contract", "to move", "to stay", "to return", "to leave", "to arrive", "to depart", "to enter", "to exit", "to follow", "to lead", "to guide", "to direct", "to drive", "to ride", "to fly", "to swim", "to sail", "to travel", "to visit", "to explore", "to discover", "to learn", "to teach", "to study", "to practice", "to play", "to win", "to lose", "to compete", "to challenge", "to fight", "to argue", "to discuss"]
   end
 
-  # def background_color
-  #   color = core_words.include?(label) ? "bg-img-yellow" : nil
-  #   color = "bg-img-blue" if action_words.include?(label) unless color
-  #   color
-  # end
-
   # PLACEHOLDERS FOR FUTURE USE
   def self.speeds
     [1, 1.25, 1.5, 1.75, 2]
@@ -598,22 +590,6 @@ class Image < ApplicationRecord
     user_id.nil? || User.admin.pluck(:id).include?(user_id)
   end
 
-  # def display_doc(viewing_user = nil)
-  #   if viewing_user
-  #     doc = viewing_user.display_doc_for_image(self)
-  #     puts "Display doc for user: #{doc&.id}"
-  #     if doc
-  #       return doc
-  #     end
-  #   end
-
-  #   userless_doc = docs.with_attached_image.no_user.last
-  #   if userless_doc&.image&.attached?
-  #     return userless_doc
-  #   end
-  #   nil
-  # end
-
   def display_doc(viewing_user = nil)
     # Attempt to find a doc for a viewing user
     doc = viewing_user&.display_doc_for_image(self)
@@ -639,7 +615,6 @@ class Image < ApplicationRecord
   end
 
   def start_generate_audio_job(voice = "alloy", start_time = 0)
-    # SaveAudioJob.perform_async([id], voice)
     SaveAudioJob.perform_in(start_time.minutes, [id], voice)
   end
 

@@ -52,7 +52,7 @@ class Board < ApplicationRecord
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
 
-  after_save :calucate_grid_layout, if: :number_of_columns_changed?
+  # after_save :calucate_grid_layout, if: :number_of_columns_changed?
 
   # after_create_commit { broadcast_prepend_later_to :board_list, target: 'my_boards', partial: 'boards/board', locals: { board: self } }
   # after_create_commit :update_board_list
