@@ -53,7 +53,6 @@ class API::BoardsController < API::ApplicationController
             text_color: board_image.image.text_color,
             next_words: board_image.image.next_words,
             position: board_image.position,
-            # display_doc: board_image.image.display_image,
             src: board_image.image.display_image_url(current_user),
             audio: board_image.image.default_audio_url,
           }
@@ -258,6 +257,13 @@ class API::BoardsController < API::ApplicationController
     respond_to do |format|
       format.json { head :no_content }
     end
+  end
+
+  def add_to_team
+    @team = Team.find(params[:team_id])
+    @board = Board.find(params[:id])
+    @team.boards << @board
+    render json: @team.show_api_view
   end
 
   # def clone

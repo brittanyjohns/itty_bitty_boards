@@ -237,7 +237,7 @@ class Board < ApplicationRecord
           text_color: board_image.image.text_color,
           next_words: board_image.image.next_words,
           position: board_image.position,
-          display_doc: board_image.image.display_image,
+          # display_doc: board_image.image.display_image,
           src: board_image.image.display_image_url(viewing_user),
           # src: board_image.image.display_image ? board_image.image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{board_image.image.label_param}",
           audio: board_image.image.default_audio_url,
