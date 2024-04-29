@@ -5,14 +5,14 @@ class API::TeamsController < API::ApplicationController
   # GET /teams or /teams.json
   def index
     @teams = policy_scope(Team)
-    render json: @teams.map(&:index_api_view)
+    render json: @teams.map { |team| team.index_api_view(current_user) }
   end
 
   # GET /teams/1 or /teams/1.json
   def show
     @team_user = TeamUser.new
     @team_creator = @team.created_by
-    render json: @team.show_api_view
+    render json: @team.show_api_view(current_user)
   end
 
   # def set_current
@@ -95,6 +95,16 @@ class API::TeamsController < API::ApplicationController
     # @team = Team.find(params[:id])
     @board = Board.find(params[:board_id])
     @team.add_board!(@board)
+  end
+
+  def create_board
+    @team = Team.find(params[:id])
+    @board = Board.new
+    @board.name = params[:name]
+    @board.user = current_user
+    @board.save
+    @team.add_board!(@board)
+    render json: @team.show_api_view
   end
 
   def remove_board

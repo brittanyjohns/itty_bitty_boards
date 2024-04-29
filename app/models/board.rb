@@ -227,6 +227,7 @@ class Board < ApplicationRecord
       floating_words: words,
       user_id: user_id,
       voice: voice,
+      current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
       images: board_images.map do |board_image|
         {
           id: board_image.image.id,

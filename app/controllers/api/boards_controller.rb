@@ -128,7 +128,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def remaining_images
-    board = boards_for_user.with_artifacts.find(params[:id])
+    board = Board.with_artifacts.find(params[:id])
     # board = Board.find(params[:id])
     current_page = params[:page] || 1
     puts "board: #{board.inspect}"

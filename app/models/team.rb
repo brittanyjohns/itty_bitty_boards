@@ -48,22 +48,30 @@ class Team < ApplicationRecord
         team_board.destroy if team_board
     end
 
-    def index_api_view
+    def index_api_view(viewing_user=nil)
         {
             id: id,
             name: name,
-            current: id == created_by.current_team_id,
+            current: id == viewing_user&.current_team_id,
             created_by: created_by.email,
         }
     end
 
-    def show_api_view
+    def show_api_view(viewing_user=nil)
         {
             id: id,
             name: name,
             created_by: created_by.email,
             members: team_users.map(&:api_view),
             boards: boards.map(&:api_view_with_images),
+        }
+    end
+
+    def api_view
+        {
+            id: id,
+            name: name,
+            created_by: created_by.email,
         }
     end
     

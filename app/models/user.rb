@@ -270,7 +270,7 @@ class User < ApplicationRecord
   end
 
   def api_view
-    { id: id, email: email, role: role, name: display_name }
+    {user: self, boards: boards}
   end
 
   def can_edit?(model)

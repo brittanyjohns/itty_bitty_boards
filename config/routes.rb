@@ -146,6 +146,7 @@ Rails.application.routes.draw do
         patch "accept_invite_patch"
         post "add_board"
         delete "remove_board"
+        post "create_board"
       end
     end
     resources :images do
