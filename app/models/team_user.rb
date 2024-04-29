@@ -13,7 +13,7 @@ class TeamUser < ApplicationRecord
   end
 
   def name
-    user&.name
+    user&.display_name
   end
 
   def accept_invitation!
@@ -23,5 +23,16 @@ class TeamUser < ApplicationRecord
 
   def self.roles
     { 'admin' => 'Admin', 'member' => 'Member'}
+  end
+
+  def api_view
+    {
+      id: id,
+      email: email,
+      name: name,
+      role: role,
+      can_edit: can_edit,
+      invitation_accepted_at: invitation_accepted_at,
+    }
   end
 end

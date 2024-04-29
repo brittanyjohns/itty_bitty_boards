@@ -269,6 +269,10 @@ class User < ApplicationRecord
     play_demo == true
   end
 
+  def api_view
+    { id: id, email: email, role: role, name: display_name }
+  end
+
   def can_edit?(model)
     return false unless model
     return true if admin?

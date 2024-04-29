@@ -62,7 +62,7 @@ class Team < ApplicationRecord
             id: id,
             name: name,
             created_by: created_by.email,
-            users: users.map(&:email),
+            members: team_users.map(&:api_view),
             boards: boards.map(&:api_view_with_images),
         }
     end

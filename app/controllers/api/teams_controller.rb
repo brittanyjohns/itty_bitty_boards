@@ -1,5 +1,5 @@
 class API::TeamsController < API::ApplicationController
-  before_action :set_team, only: %i[ show edit update destroy add_board remove_board ]
+  before_action :set_team, only: %i[ show edit update destroy add_board remove_board invite]
   after_action :verify_policy_scoped, only: :index
 
   # GET /teams or /teams.json
@@ -38,42 +38,41 @@ class API::TeamsController < API::ApplicationController
   def edit
   end
 
-  # def invite
-  #   user_email = team_user_params[:email]
-  #   user_role = team_user_params[:role]
-  #   @team = Team.find(params[:id])
-  #   @user = User.find_by(email: user_email)
-  #   if @user
-  #     @user.invite_to_team!(@team, current_user)
-  #   else
-  #     puts "User not found"
-  #     @user = User.invite!({ email: user_email }, current_user)
-  #     puts "User created: #{@user}"
-  #   end    
-  #   @team_user = @team.add_member!(@user, user_role)
-  #   respond_to do |format|
-  #     if @team_user.save
-  #       format.html { redirect_to team_url(@team), notice: "Sent invite to #{user_email}" }
-  #       format.json { render :show, status: :created, location: @team }
-  #     else
-  #       format.html { render :show, status: :unprocessable_entity }
-  #       format.json { render json: @team_user.errors, status: :unprocessable_entity }
-  #     end
-  #   end
-  # end
+  def invite
+    user_email = team_user_params[:email]
+    user_role = team_user_params[:role]
+    @team = Team.find(params[:id])
+    @user = User.find_by(email: user_email)
+    if @user
+      @user.invite_to_team!(@team, current_user)
+    else
+      puts "User not found"
+      @user = User.invite!({ email: user_email }, current_user)
+      puts "User created: #{@user}"
+    end    
+    @team_user = @team.add_member!(@user, user_role)
+    respond_to do |format|
+      if @team_user.save
+        format.json { render json: @team.show_api_view, status: :created }
+      else
+        format.json { render json: @team_user.errors, status: :unprocessable_entity }
+      end
+    end
+  end
 
   # POST /teams or /teams.json
   def create
     @team = Team.new
-    @team.name = team_params[:name]&.upcase
+    puts "PARAMS: #{params.inspect}"
+    # @team.name = team_params[:name]&.upcase
+    @team.name = team_params[:name]
+    puts "Team: #{@team}"
     @team.created_by = current_user
 
     respond_to do |format|
       if @team.save
-        format.html { redirect_to team_url(@team), notice: "Team was successfully created." }
-        format.json { render :show, status: :created, location: @team }
+        format.json { render json: @team, status: :created }
       else
-        format.html { render :new, status: :unprocessable_entity }
         format.json { render json: @team.errors, status: :unprocessable_entity }
       end
     end
@@ -90,21 +89,18 @@ class API::TeamsController < API::ApplicationController
     @user = User.find_by(email: team_user_params[:email])
     @team_user = TeamUser.find_by(user_id: @user.id, team_id: @team.id)
     @team_user.accept_invitation!
-    redirect_to team_url(@team)
   end
 
   def add_board
     # @team = Team.find(params[:id])
     @board = Board.find(params[:board_id])
     @team.add_board!(@board)
-    redirect_to team_url(@team), notice: "Board added to team"
   end
 
   def remove_board
     # @team = Team.find(params[:id])
     @board = Board.find(params[:board_id])
     @team.remove_board!(@board)
-    redirect_to team_url(@team), notice: "Board removed from team"
   end
 
   # PATCH/PUT /teams/1 or /teams/1.json
@@ -125,8 +121,7 @@ class API::TeamsController < API::ApplicationController
     @team.destroy!
 
     respond_to do |format|
-      format.html { redirect_to root_url, notice: "Team was successfully destroyed." }
-      format.json { head :no_content }
+      format.json { render json: { status: "ok" } }
     end
   end
 
