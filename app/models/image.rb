@@ -706,9 +706,9 @@ class Image < ApplicationRecord
   def self.searchable_images_for(user, only_user_images = false)
     if only_user_images
       # Image.non_menu_images.or(Image.where(user_id: user.id)).distinct
-      Image.with_artifacts.non_menu_images.non_scenarios.where(user_id: user.id).distinct
+      Image.with_artifacts.where(user_id: user.id).distinct
     else
-      Image.with_artifacts.public_img.non_menu_images.non_scenarios.or(Image.with_artifacts.non_menu_images.non_scenarios.where(user_id: user.id)).distinct
+      Image.with_artifacts.public_img.non_menu_images.non_scenarios.or(Image.with_artifacts.where(user_id: user.id)).distinct
       # Image.all
       # Image.non_menu_images.where(user_id: [user.id, nil]).or(Image.public_img.non_menu_images).distinct
     end
