@@ -146,7 +146,7 @@ class API::BoardsController < API::ApplicationController
         bg_color: image.bg_class,
         text_color: image.text_color,
         src: image.display_image_url(current_user),
-        audio: image.default_audio_url,
+        # audio: image.default_audio_url,
       }
     end
 

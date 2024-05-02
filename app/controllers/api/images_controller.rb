@@ -21,7 +21,7 @@ class API::ImagesController < API::ApplicationController
         bg_color: image.bg_class,
         text_color: image.text_color,
         src: image.display_image_url(current_user),
-        audio: image.default_audio_url
+        # audio: image.default_audio_url
       }
     end
     render json: @images_with_display_doc
@@ -45,7 +45,7 @@ class API::ImagesController < API::ApplicationController
         src: image.display_image_url(current_user),
         # src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
         # audio: audio_file ? url_for(audio_file) : nil,
-        audio: image.default_audio_url,
+        # audio: image.default_audio_url,
       }
     end
     render json: @images_with_display_doc
@@ -74,10 +74,11 @@ class API::ImagesController < API::ApplicationController
       },
       private: @image.private,
       user_id: @image.user_id,
+      next_words: @image.next_words,
       # src: url_for(@image.display_image),
       src: @image.display_image_url(current_user),
       # src: @image.display_doc(current_user)&.attached_image_url || "https://via.placeholder.com/150x150.png?text=#{@image.label_param}",
-      audio: @image.default_audio_url,
+      # audio: @image.default_audio_url,
       # audio: @image.audio_files.first ? url_for(@image.audio_files.first) : nil,
       docs: @image_docs.map do |doc|
         {
@@ -109,6 +110,20 @@ class API::ImagesController < API::ApplicationController
     else
       render json: @image.errors, status: :unprocessable_entity
     end
+  end
+
+  def set_next_words
+    @image = Image.find(params[:id])
+    @image.set_next_words!
+    render json: @image
+  end
+
+  def create_symbol
+    puts "API::ImagesController#create_symbol params: #{params}"
+    @image = Image.find(params[:id])
+    limit = current_user.admin? ? 10 : 1
+    GetSymbolsJob.perform_async([@image.id], limit)
+    render json: { status: "ok", message: "Creating #{limit} symbols for image." }
   end
 
   def new
@@ -247,6 +262,7 @@ class API::ImagesController < API::ApplicationController
         image_prompt: image.image_prompt,
         src: image.display_image_url(current_user),
         audio: image.default_audio_url,
+        
         # display_doc: image.display_image(current_user),
         # src: url_for(image.display_image),
         # audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,

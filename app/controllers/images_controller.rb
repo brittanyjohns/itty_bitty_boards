@@ -170,6 +170,15 @@ class ImagesController < ApplicationController
     redirect_back_or_to image_url(@image), notice: "Creating #{limit} #{"symbol".pluralize(limit)} for image '#{@image.label}'."
   end
 
+  def set_next_words
+    # @images = Image.lock.public_img.non_menu_images.where(next_words: [], no_next: false).order(created_at: :asc).limit(50)
+    # @images.each do |image|
+    #   image.set_next_words!
+    # end
+    Image.run_set_next_words_job(50)
+    redirect_back_or_to images_url, notice: "Next words set for images."
+  end
+
   def run_generate
     return if current_user.tokens < 1
     @image.update(status: "generating")

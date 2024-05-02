@@ -54,6 +54,7 @@ Rails.application.routes.draw do
   resources :images do
     get "menu", on: :collection
     post "find_or_create", on: :collection
+    post "set_next_words", on: :collection
     member do
       post "create_audio"
       delete "remove_audio"
@@ -152,6 +153,8 @@ Rails.application.routes.draw do
     resources :images do
       member do
         post "hide_doc"
+        post "create_symbol"
+        post "set_next_words"
       end
       collection do
         get "search"
