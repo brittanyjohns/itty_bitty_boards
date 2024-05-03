@@ -120,10 +120,8 @@ class API::DocsController < API::ApplicationController
     @doc.update(current: true) unless @doc.current
     UserDoc.find_or_create_by(user_id: current_user.id, doc_id: doc_id, image_id: @doc.documentable_id)
     @image = @doc.documentable
-    @current_doc = @image.display_doc(current_user)
-    @image_docs = @image.docs.for_user(current_user).excluding(@current_doc).order(created_at: :desc).to_a
-    @doc_with_image = { doc: @doc, image: @image, current_doc: @current_doc, image_docs: @image_docs }
-    puts "\n\nDOC WITH IMAGE: #{@doc_with_image}\n\n"
+    @image_docs = @image.docs.for_user(current_user).excluding(@doc).order(created_at: :desc).to_a
+    @doc_with_image = { doc: @doc, image: @image, current_doc: @doc, image_docs: @image_docs }
     render json: @doc_with_image
   end
 
