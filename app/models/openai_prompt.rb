@@ -99,6 +99,8 @@ class OpenaiPrompt < ApplicationRecord
     board.description = response
     board.save!
     create_images_from_response(board, response)
+    puts "CALCULATING GRID LAYOUT"
+    board.calucate_grid_layout
     board.update!(status: "completed")
     # broadcast_replace_to(user, target: "pending_board_#{id}", partial: "boards/board", locals: { board: board })
     board
@@ -172,6 +174,7 @@ class OpenaiPrompt < ApplicationRecord
       user: user,
       board_id: last_board&.id,
       status: last_board&.status,
+      name: last_board&.name,
     }
   end
 end

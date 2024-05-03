@@ -174,6 +174,7 @@ Rails.application.routes.draw do
       end
       member do
         post "save_layout"
+        post "rearrange_images"
         post "add_image"
         post "remove_image"
         get "remaining_images"

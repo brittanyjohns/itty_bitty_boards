@@ -13,23 +13,22 @@ class API::BoardsController < API::ApplicationController
   def index
     if params[:query].present?
       @query = params[:query]
-      @boards = boards_for_user.user_made.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
-      @predefined_boards = boards_for_user.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
-      @scenarios = boards_for_user.scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
-      @shared_boards = current_user.shared_with_me_boards.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      @boards = boards_for_user.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      @predefined_boards = Board.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      # @scenarios = boards_for_user.scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      # @shared_boards = current_user.shared_with_me_boards.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
     else
-      @boards = boards_for_user.user_made.order(created_at: :desc)
-      @predefined_boards = Board.with_artifacts.predefined.order(created_at: :desc)
-      @scenarios = boards_for_user.scenarios.order(created_at: :desc)
-      @shared_boards = current_user.shared_with_me_boards.order(created_at: :desc)
+      @boards = boards_for_user.user_made_with_scenarios.order(created_at: :desc)
+      @predefined_boards = Board.predefined.order(created_at: :desc)
+      # @scenarios = boards_for_user.scenarios.order(created_at: :desc)
+      # @shared_boards = current_user.shared_with_me_boards.order(created_at: :desc)
     end
-    puts "SHARED BOARDS: #{@shared_boards.count}"
 
-    render json: { boards: @boards, predefined_boards: @predefined_boards, scenarios: @scenarios, shared_boards: @shared_boards }
+    render json: { boards: @boards, predefined_boards: @predefined_boards}
   end
 
   def user_boards
-    @boards = boards_for_user.user_made.order(created_at: :desc)
+    @boards = boards_for_user.user_made_with_scenarios.order(created_at: :desc)
 
     render json: { boards: @boards }
   end
@@ -151,6 +150,19 @@ class API::BoardsController < API::ApplicationController
     end
 
     render json: @remaining_images
+  end
+
+  def rearrange_images
+    ActiveRecord::Base.logger = nil
+    board = Board.find(params[:id])
+    if params[:layout].present?
+      layout = params[:layout]
+      board.update_grid_layout(layout)
+    else
+      board.calucate_grid_layout
+    end
+    board.save!
+    render json: board.api_view_with_images(current_user)
   end
 
   # POST /boards or /boards.json

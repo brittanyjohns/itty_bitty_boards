@@ -8,6 +8,7 @@ class API::ScenariosController < API::ApplicationController
 
   # GET /scenarios/1 or /scenarios/1.json
   def show
+    render json: @scenario.api_view_with_images(current_user)
   end
 
   # GET /scenarios/new
@@ -25,10 +26,12 @@ class API::ScenariosController < API::ApplicationController
     @scenario.token_limit = scenario_params[:token_limit] || 10
     # Temporarily set send_now to true
     @scenario.send_now = true
+    board_name = params[:name]
+    puts "board_name: #{board_name}"
 
     respond_to do |format|
       if @scenario.save
-        @board = @scenario.boards.create!(user: current_user, name: @scenario.prompt_text, token_limit: @scenario.token_limit, description: @scenario.revised_prompt)
+        @board = @scenario.boards.create!(user: current_user, name: board_name, token_limit: @scenario.token_limit, description: @scenario.revised_prompt)
         CreateScenarioBoardJob.perform_async(@scenario.id)
         format.json { render json: @scenario.api_view_with_images(current_user), status: :created }
         format.turbo_stream

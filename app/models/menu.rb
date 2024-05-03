@@ -53,6 +53,7 @@ class Menu < ApplicationRecord
     new_doc.update!(board_id: board.id)
 
     create_images_from_description(board)
+    board.calucate_grid_layout
     board.update!(status: "complete")
     board
   end
@@ -128,8 +129,9 @@ class Menu < ApplicationRecord
     end
     self.user.remove_tokens(tokens_used)
     board.add_to_cost(tokens_used) if board
-    board.position_all_board_images
-    board.calucate_grid_layout
+    # board.position_all_board_images
+    # board.calucate_grid_layout
+    board
   end
 
   def should_generate_image(image, user, tokens_used, total_cost = 0)

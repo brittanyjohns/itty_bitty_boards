@@ -18,6 +18,7 @@
 #  open_symbol_status  :string           default("active")
 #
 class Image < ApplicationRecord
+  paginates_per 50
   normalizes :label, with: ->label { label.downcase.strip }
   attr_accessor :temp_prompt
   belongs_to :user, optional: true

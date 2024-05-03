@@ -17,7 +17,7 @@ class BoardImage < ApplicationRecord
 
   before_save :set_defaults
   after_save :create_voice_audio, if: :voice_changed_and_not_existing?
-  after_create_commit :save_initial_layout
+  # after_create_commit :save_initial_layout
 
   scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
 
@@ -72,8 +72,14 @@ class BoardImage < ApplicationRecord
   def set_defaults
     self.voice = board.voice
   end
+  def set_position
+    self.position = board_images.count + 1
+  end
 
   def save_initial_layout
-    update!(layout: initial_layout)
+    l = board.calucate_grid_layout
+    puts "CALCULATED LAYOUT: #{l}"
+    # set_position
+    # update!(layout: initial_layout)
   end
 end

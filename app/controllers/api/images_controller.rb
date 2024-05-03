@@ -75,6 +75,7 @@ class API::ImagesController < API::ApplicationController
       private: @image.private,
       user_id: @image.user_id,
       next_words: @image.next_words,
+      no_next: @image.no_next,
       # src: url_for(@image.display_image),
       src: @image.display_image_url(current_user),
       # src: @image.display_doc(current_user)&.attached_image_url || "https://via.placeholder.com/150x150.png?text=#{@image.label_param}",
