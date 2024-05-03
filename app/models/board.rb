@@ -291,6 +291,17 @@ class Board < ApplicationRecord
     end
   end
 
+  def next_grid_cell
+    x = board_images.pluck(:layout).map { |l| l[:x] }.max
+    y = board_images.pluck(:layout).map { |l| l[:y] }.max
+    x = 0 if x.nil?
+    y = 0 if y.nil?
+    x += 1
+    y += 1 if x >= number_of_columns
+    { x: x, y: y }
+  end
+    
+
 
 
   def api_view_with_predictive_images

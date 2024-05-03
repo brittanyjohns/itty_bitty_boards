@@ -240,14 +240,18 @@ class API::BoardsController < API::ApplicationController
       render json: { error: "Cannot add images to predefined boards" }, status: :unprocessable_entity
       return
     end
-    new_board_image = @board.board_images.new(image_id: image.id)
+    
+    new_board_image = @board.board_images.new(image_id: image.id, position: @board.board_images.count)
     if new_board_image.save
-      @board.reload
+      next_grid_cell = @board.next_grid_cell
+      new_layout = { i: new_board_image.id, x: next_grid_cell[:x], y: next_grid_cell[:y], w: 1, h: 1}
+      # new_layout = { i: new_board_image.id, x: 0, y: 0, w: 1, h: 1}
+      new_board_image.update!(layout: new_layout)
     else
       render json: { error: "Error adding image to board: #{new_board_image.errors.full_messages.join(", ")}" }, status: :unprocessable_entity
       return
     end
-
+    @board.reload
     render json: { board: @board, new_board_image: new_board_image }
   end
 
