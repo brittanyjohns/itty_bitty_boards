@@ -28,7 +28,7 @@ class API::OpenaiPromptsController < API::ApplicationController
 
     respond_to do |format|
       if @openai_prompt.save
-        @board = @openai_prompt.boards.create!(user: current_user, name: @openai_prompt.prompt_text, token_limit: @openai_prompt.token_limit, description: @openai_prompt.revised_prompt)
+        # @board = @openai_prompt.boards.create!(user: current_user, name: @openai_prompt.prompt_text, token_limit: @openai_prompt.token_limit, description: @openai_prompt.revised_prompt)
         CreateScenarioBoardJob.perform_async(@openai_prompt.id)
 
         format.json { render json: @board.api_view_with_images(current_user), status: :created }

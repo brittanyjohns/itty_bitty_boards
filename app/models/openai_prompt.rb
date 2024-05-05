@@ -94,15 +94,13 @@ class OpenaiPrompt < ApplicationRecord
   def create_board_from_response(response, token_limit)
     board = self.boards.last || self.boards.new
     board.user = self.user
-    board.name = "#{prompt_text}"
+    board.name = prompt_text if board.name.blank?
     board.token_limit = token_limit
     board.description = response
     board.save!
     create_images_from_response(board, response)
-    puts "CALCULATING GRID LAYOUT"
     board.calucate_grid_layout
     board.update!(status: "completed")
-    # broadcast_replace_to(user, target: "pending_board_#{id}", partial: "boards/board", locals: { board: board })
     board
   end
 
