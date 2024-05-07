@@ -182,6 +182,7 @@ Rails.application.routes.draw do
         get "predictive_images"
         post "clone"
         put "add_to_team"
+        put "remove_from_team"
       end
     end
 
@@ -253,24 +254,23 @@ Rails.application.routes.draw do
         :rails_service_blob_proxy,
         model.signed_id(expires_in: expires_in),
         model.filename,
-        options.merge(host: ENV['CDN_HOST'])
+        options.merge(host: ENV["CDN_HOST"])
       )
     else
       puts "No model.signed_id(expires_in: expires_in): #{model.blob.signed_id(expires_in: expires_in)}"
       signed_blob_id = model.blob.signed_id(expires_in: expires_in)
-      variation_key  = model.variation.key
-      filename       = model.blob.filename
+      variation_key = model.variation.key
+      filename = model.blob.filename
 
       route_for(
         :rails_blob_representation_proxy,
         signed_blob_id,
         variation_key,
         filename,
-        options.merge(host: ENV['CDN_HOST'])
+        options.merge(host: ENV["CDN_HOST"])
       )
     end
   end
-
 
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 

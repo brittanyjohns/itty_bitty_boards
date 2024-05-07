@@ -41,14 +41,15 @@ class Board < ApplicationRecord
   # before_save :set_number_of_columns, unless: :number_of_columns?
   # scope :with_artifacts, -> { includes(board_images: { image: [{ docs: :image_attachment }, :audio_files_attachments] }) }
   # scope :with_artifacts, -> { includes({images: [{ docs: :image_attachment }, :audio_files_attachments]}) }
-  scope :with_artifacts, -> { includes({
-    images: [
-      { docs: :image_attachment },
-       :audio_files_attachments
-    ],
-    user: {user_docs: [{ doc: [{ image_attachment: :blob }] }]}
-      }
-  )}
+  scope :with_artifacts, -> {
+          includes({
+            images: [
+              { docs: :image_attachment },
+              :audio_files_attachments,
+            ],
+            user: { user_docs: [{ doc: [{ image_attachment: :blob }] }] },
+          })
+        }
 
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
@@ -270,15 +271,14 @@ class Board < ApplicationRecord
       puts "ROW COUNT: #{row_count} "
       row.each_with_index do |bi, index|
         puts "bi: #{bi.id} -- index: #{index} -- row_count: #{row_count}"
-        new_layout = { i: bi.id, x: index, y: row_count, w: 1, h: 1}
-      #   puts "id: #{bi.id} x: #{index} y: #{row_count} -- bi: #{bi.label} -- position: #{bi.position}"
+        new_layout = { i: bi.id, x: index, y: row_count, w: 1, h: 1 }
+        #   puts "id: #{bi.id} x: #{index} y: #{row_count} -- bi: #{bi.label} -- position: #{bi.position}"
         bi.update!(layout: new_layout)
-        bi.reload
+        # bi.reload
         puts "layout: #{bi.layout}"
         grid_layout << new_layout
       end
       row_count += 1
-
     end
     # ActiveRecord::Base.logger = old_logger
     grid_layout
@@ -300,9 +300,6 @@ class Board < ApplicationRecord
     y += 1 if x >= number_of_columns
     { x: x, y: y }
   end
-    
-
-
 
   def api_view_with_predictive_images
     {

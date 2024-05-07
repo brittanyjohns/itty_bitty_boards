@@ -24,7 +24,7 @@ class API::BoardsController < API::ApplicationController
       # @shared_boards = current_user.shared_with_me_boards.order(created_at: :desc)
     end
 
-    render json: { boards: @boards, predefined_boards: @predefined_boards}
+    render json: { boards: @boards, predefined_boards: @predefined_boards }
   end
 
   def user_boards
@@ -145,7 +145,7 @@ class API::BoardsController < API::ApplicationController
         bg_color: image.bg_class,
         text_color: image.text_color,
         src: image.display_image_url(current_user),
-        # audio: image.default_audio_url,
+      # audio: image.default_audio_url,
       }
     end
 
@@ -230,6 +230,17 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
+  def create_from_next_words
+    puts "API::BoardsController#create_from_next_words: #{params.inspect}"
+    @board = Board.new(board_params)
+    @board.user = current_user
+    @board.parent_id = user_signed_in? ? current_user.id : params[:parent_id]
+    @board.parent_type = params[:parent_type] || "User"
+    @board.save!
+    @board.create_images_from_next_words(params[:next_words])
+    render json: @board.api_view_with_images(current_user)
+  end
+
   def associate_image
     image = Image.find(params[:image_id])
     if @board.images.include?(image)
@@ -240,11 +251,11 @@ class API::BoardsController < API::ApplicationController
       render json: { error: "Cannot add images to predefined boards" }, status: :unprocessable_entity
       return
     end
-    
+
     new_board_image = @board.board_images.new(image_id: image.id, position: @board.board_images.count)
     if new_board_image.save
       next_grid_cell = @board.next_grid_cell
-      new_layout = { i: new_board_image.id, x: next_grid_cell[:x], y: next_grid_cell[:y], w: 1, h: 1}
+      new_layout = { i: new_board_image.id, x: next_grid_cell[:x], y: next_grid_cell[:y], w: 1, h: 1 }
       # new_layout = { i: new_board_image.id, x: 0, y: 0, w: 1, h: 1}
       new_board_image.update!(layout: new_layout)
     else
@@ -282,21 +293,21 @@ class API::BoardsController < API::ApplicationController
     render json: @team.show_api_view
   end
 
-  # def clone
-  #   @board = Board.includes(:images).find(params[:id])
-  #   @new_board = Board.new
-  #   @new_board.description = @board.description
-  #   @new_board.user = current_user
-  #   @new_board.parent_id = current_user.id
-  #   @new_board.parent_type = "User"
-  #   @new_board.predefined = false
-  #   @new_board.name = "Copy of " + @board.name
-  #   @board.images.each do |image|
-  #     @new_board.add_image(image.id)
-  #   end
-  #   @new_board.save!
-  #   redirect_to board_url(@new_board), notice: "Board was successfully cloned."
-  # end
+  def clone
+    @board = Board.with_artifacts.find(params[:id])
+    @new_board = Board.new
+    @new_board.description = @board.description
+    @new_board.user = current_user
+    @new_board.parent_id = current_user.id
+    @new_board.parent_type = "User"
+    @new_board.predefined = false
+    @new_board.name = "Copy of " + @board.name
+    @board.images.each do |image|
+      @new_board.add_image(image.id)
+    end
+    @new_board.save!
+    render json: @new_board.api_view_with_images(current_user)
+  end
 
   private
 
