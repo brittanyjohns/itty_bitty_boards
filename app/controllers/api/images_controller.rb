@@ -21,7 +21,7 @@ class API::ImagesController < API::ApplicationController
         bg_color: image.bg_class,
         text_color: image.text_color,
         src: image.display_image_url(current_user),
-        # audio: image.default_audio_url
+      # audio: image.default_audio_url
       }
     end
     render json: @images_with_display_doc
@@ -43,9 +43,9 @@ class API::ImagesController < API::ApplicationController
         text_color: image.text_color,
         image_prompt: image.image_prompt,
         src: image.display_image_url(current_user),
-        # src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
-        # audio: audio_file ? url_for(audio_file) : nil,
-        # audio: image.default_audio_url,
+      # src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
+      # audio: audio_file ? url_for(audio_file) : nil,
+      # audio: image.default_audio_url,
       }
     end
     render json: @images_with_display_doc
@@ -93,6 +93,20 @@ class API::ImagesController < API::ApplicationController
       end,
     }
     render json: @image_with_display_doc
+  end
+
+  def crop
+    @existing_image = Image.find_by(label: image_params[:label], user_id: current_user.id)
+    if @existing_image
+      @image = @existing_image
+    else
+      @image = Image.create(user: current_user, label: image_params[:label], private: true, image_prompt: image_params[:image_prompt], image_type: "User")
+    end
+    @image.cropped_image.attach(
+      io: StringIO.new(Base64.decode64(params[:cropped_image])),
+      filename: "cropped_image_#{@image.id}.jpg",
+      content_type: "image/x-bmp",
+    )
   end
 
   def create
@@ -242,9 +256,9 @@ class API::ImagesController < API::ApplicationController
         image_prompt: image.image_prompt,
         src: image.display_image_url(current_user),
         audio: image.default_audio_url,
-        # display_doc: image.display_image(current_user),
-        # src: url_for(image.display_image),
-        # audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
+      # display_doc: image.display_image(current_user),
+      # src: url_for(image.display_image),
+      # audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
       }
     end
   end
@@ -263,10 +277,10 @@ class API::ImagesController < API::ApplicationController
         image_prompt: image.image_prompt,
         src: image.display_image_url(current_user),
         audio: image.default_audio_url,
-        
-        # display_doc: image.display_image(current_user),
-        # src: url_for(image.display_image),
-        # audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
+
+      # display_doc: image.display_image(current_user),
+      # src: url_for(image.display_image),
+      # audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
       }
     end
     render json: @images_with_display_doc

@@ -155,6 +155,7 @@ Rails.application.routes.draw do
         post "hide_doc"
         post "create_symbol"
         post "set_next_words"
+        post "crop"
       end
       collection do
         get "search"
