@@ -38,6 +38,7 @@ class User < ApplicationRecord
   has_many :openai_prompts
   has_many :team_users
   belongs_to :current_team, class_name: "Team", optional: true
+  has_many :word_events
   has_secure_token :authentication_token
 
   # Constants
@@ -103,7 +104,7 @@ class User < ApplicationRecord
   end
 
   def api_view
-    {user: self, boards: boards}
+    { user: self, boards: boards }
   end
 
   def can_edit?(model)

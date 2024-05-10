@@ -1,16 +1,17 @@
 module ImagesHelper
   def display_image_for(image, user, size = 300, additional_classes = "")
-    user_image = image.display_image(user)
+    # user_image = image.display_image(user)
     str = ""
-    if !user_image
-      str += image_tag("https://via.placeholder.com/#{size}x#{size}.png?text=#{image.label_param}", class: "shadow mx-auto my-auto h-fit #{additional_classes}")
-      # str += "<div class='w-100 h-100 px-2 text-gray-400 text-md font-bold grid justify-items-center items-center shadow mx-auto my-auto'><span class='mx-auto my-auto'>#{image.label&.upcase.truncate(27, separator: ' ')}</span> #{image.generating? ? loading_spinner : ""}</div>".html_safe
-    else
-      url_for_image = url_for(user_image)
-      str += image_tag(url_for_image, class: "mx-auto my-auto h-fit #{additional_classes}")
-
-      # str += image_tag(user_image, class: "shadow mx-auto my-auto h-fit")
-    end
+    # if !user_image
+    # str += image_tag("https://via.placeholder.com/#{size}x#{size}.png?text=#{image.label_param}", class: "shadow mx-auto my-auto h-fit #{additional_classes}")
+    str += "<div class='w-100 h-100 px-2 text-gray-400 text-md font-bold grid justify-items-center items-center shadow mx-auto my-auto'><span class='mx-auto my-auto'>#{image.label&.upcase.truncate(27, separator: " ")}</span> #{image.generating? ? loading_spinner : ""}</div>".html_safe
+    # else
+    # puts "user_image: #{user_image.persisted?}"
+    # url_for_image = url_for(user_image)
+    # str += image_tag(url_for_image, class: "mx-auto my-auto h-fit #{additional_classes}")
+    # str += "<p class='font-bold text-center my-auto'>#{image.label&.upcase.truncate(27, separator: " ")}</p>"
+    # str += image_tag(user_image, class: "shadow mx-auto my-auto h-fit")
+    # end
     str.html_safe
   end
 
