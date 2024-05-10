@@ -96,31 +96,59 @@ class API::ImagesController < API::ApplicationController
   end
 
   def crop
-    @existing_image = Image.find_by(label: image_params[:label], user_id: current_user.id)
+    label = image_params[:label]&.downcase
+    if params[:id].present?
+      @existing_image = Image.find(params[:id])
+    else
+      @existing_image = Image.find_by(label: label, user_id: current_user.id)
+    end
     if @existing_image
       @image = @existing_image
     else
-      @image = Image.create(user: current_user, label: image_params[:label], private: true, image_prompt: image_params[:image_prompt], image_type: "User")
+      @image = Image.create(user: current_user, label: label, private: true, image_prompt: image_params[:image_prompt], image_type: "User")
     end
-    @image.cropped_image.attach(
-      io: StringIO.new(Base64.decode64(params[:cropped_image])),
-      filename: "cropped_image_#{@image.id}.jpg",
-      content_type: "image/x-bmp",
-    )
+    @doc = @image.docs.new
+    @doc.user = current_user
+    @doc.processed = true
+    file_extension = params[:file_extension]
+    doc_tmp_id = @image.docs.count + 1
+    filename = "img_#{@image.id}_img_doc_#{doc_tmp_id}_cropped.#{file_extension}"
+    @doc.image.attach(io: StringIO.new(Base64.decode64(params[:cropped_image])),
+                      filename: filename,
+                      content_type: "image/#{file_extension}")
+    if @doc.save
+      @image.update(status: "finished")
+      @image.reload
+      render json: @image.api_view(current_user), status: :created
+    else
+      render json: @image.errors, status: :unprocessable_entity
+    end
   end
 
   def create
-    puts "API::ImagesController#create image_params: #{image_params} - params: #{params}"
-    @existing_image = Image.find_by(label: image_params[:label], user_id: current_user.id)
+    label = image_params[:label]&.downcase
+    @existing_image = Image.find_by(label: label, user_id: current_user.id)
     if @existing_image
       @image = @existing_image
     else
-      @image = Image.create(user: current_user, label: image_params[:label], private: true, image_prompt: image_params[:image_prompt], image_type: "User")
+      @image = Image.create(user: current_user, label: label, private: true, image_prompt: image_params[:image_prompt], image_type: "User")
     end
     doc = @image.docs.new(image_params[:docs])
     doc.user = current_user
     doc.processed = true
     if doc.save
+      render json: @image, status: :created
+    else
+      render json: @image.errors, status: :unprocessable_entity
+    end
+  end
+
+  def add_doc
+    @image = Image.find(params[:id])
+    @doc = @image.docs.new(image_params[:docs])
+    @doc.user = current_user
+    @doc.processed = true
+    if @doc.save
       render json: @image, status: :created
     else
       render json: @image.errors, status: :unprocessable_entity

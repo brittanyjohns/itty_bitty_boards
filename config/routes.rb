@@ -157,6 +157,7 @@ Rails.application.routes.draw do
         post "create_symbol"
         post "set_next_words"
         post "crop"
+        post "add_doc"
       end
       collection do
         get "search"
@@ -165,6 +166,7 @@ Rails.application.routes.draw do
         post "add_to_board"
         get "predictive"
         get "user_images"
+        post "crop"
       end
     end
 
