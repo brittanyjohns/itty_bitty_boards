@@ -78,7 +78,6 @@ class BoardImage < ApplicationRecord
 
   def save_initial_layout
     l = board.calucate_grid_layout
-    puts "CALCULATED LAYOUT: #{l}"
     # set_position
     # update!(layout: initial_layout)
   end

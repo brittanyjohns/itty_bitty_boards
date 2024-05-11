@@ -116,9 +116,7 @@ class API::BoardsController < API::ApplicationController
     layout = params[:layout]
     layout.each_with_index do |layout_item, index|
       board_image = board.board_images.find(layout_item["i"])
-      # board_image.position = board_image.calucate_position(layout_item["x"], layout_item["y"])
       board_image.layout = layout_item
-      puts "\n\nLAYOUT ITEM: \n#{layout_item.inspect}\n"
       board_image.save!
     end
     board.reload
