@@ -332,7 +332,7 @@ class API::ImagesController < API::ApplicationController
 
   def destroy
     @image = Image.find(params[:id])
-    unless @image.user_id == current_user.id
+    unless @image.user_id == current_user.id || current_user.admin?
       render json: { status: "error", message: "You are not authorized to delete this image." }
       return
     end
