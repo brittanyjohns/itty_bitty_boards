@@ -113,16 +113,57 @@ class API::DocsController < API::ApplicationController
     @doc = Doc.find(params[:id])
     doc_id = @doc.id
     if current_user.user_docs.where(image_id: @doc.documentable_id).exists?
-      @old_fav_doc = current_user.user_docs.where(image_id: @doc.documentable_id).destroy_all
+      @old_fav_docs = current_user.user_docs.where(image_id: @doc.documentable_id)
+      puts "OLD FAV DOC: #{@old_fav_docs.inspect}"
+      @old_fav_docs.destroy_all
     end
 
-    puts "NEW FAV DOC: #{@doc}"
-    @doc.update(current: true) unless @doc.current
-    UserDoc.find_or_create_by(user_id: current_user.id, doc_id: doc_id, image_id: @doc.documentable_id)
+    puts "NEW FAV DOC: #{@doc.inspect}"
+    user_doc = UserDoc.find_or_create_by(user_id: current_user.id, doc_id: doc_id, image_id: @doc.documentable_id)
+    @doc.update(current: true)
+    puts "USER DOC: #{user_doc.inspect}"
+    @current_doc = @doc
     @image = @doc.documentable
+
     @image_docs = @image.docs.for_user(current_user).excluding(@doc).order(created_at: :desc).to_a
-    @doc_with_image = { doc: @doc, image: @image, current_doc: @doc, image_docs: @image_docs }
-    render json: @doc_with_image
+    # @doc_with_image = { doc: @doc, image: @image, current_doc: @doc, image_docs: @image_docs }
+    @image_with_display_doc = {
+      id: @image.id,
+      label: @image.label.upcase,
+      image_prompt: @image.image_prompt,
+      image_type: @image.image_type,
+      bg_color: @image.bg_class,
+      text_color: @image.text_color,
+      display_doc: {
+        id: @current_doc&.id,
+        label: @image&.label,
+        user_id: @current_doc&.user_id,
+        src: @current_doc&.display_url,
+        # src: @current_doc&.attached_image_url,
+        is_current: true,
+        deleted_at: @current_doc&.deleted_at,
+      },
+      private: @image.private,
+      user_id: @image.user_id,
+      next_words: @image.next_words,
+      no_next: @image.no_next,
+      # src: url_for(@image.display_image),
+      src: @image.display_image_url(current_user),
+      # src: @image.display_doc(current_user)&.attached_image_url || "https://via.placeholder.com/150x150.png?text=#{@image.label_param}",
+      # audio: @image.default_audio_url,
+      # audio: @image.audio_files.first ? url_for(@image.audio_files.first) : nil,
+      docs: @image_docs.map do |doc|
+        {
+          id: doc.id,
+          label: @image.label,
+          user_id: doc.user_id,
+          # src: doc.image.url,
+          src: doc.display_url,
+          is_current: doc.id == @current_doc_id,
+        }
+      end,
+    }
+    render json: @image_with_display_doc
   end
 
   # DELETE /docs/1 or /docs/1.json
@@ -143,23 +184,24 @@ class API::DocsController < API::ApplicationController
 
   private
 
-    def set_scoped_docs
-      case params[:scope]
-      when "symbols"
-        @docs = Doc.symbols.order(created_at: :desc).page params[:page]
-      when "ai_generated"
-        @docs = Doc.ai_generated.order(created_at: :desc).page params[:page]
-      else
-        @docs = Doc.all.order(created_at: :desc).page params[:page]
-      end
+  def set_scoped_docs
+    case params[:scope]
+    when "symbols"
+      @docs = Doc.symbols.order(created_at: :desc).page params[:page]
+    when "ai_generated"
+      @docs = Doc.ai_generated.order(created_at: :desc).page params[:page]
+    else
+      @docs = Doc.all.order(created_at: :desc).page params[:page]
     end
-    # Use callbacks to share common setup or constraints between actions.
-    def set_doc
-      @doc = Doc.unscoped.find(params[:id])
-    end
+  end
 
-    # Only allow a list of trusted parameters through.
-    def doc_params
-      params.require(:doc).permit(:documentable_id, :documentable_type, :image, :raw, :current, :board_id, :user_id, :source_type)
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_doc
+    @doc = Doc.unscoped.find(params[:id])
+  end
+
+  # Only allow a list of trusted parameters through.
+  def doc_params
+    params.require(:doc).permit(:documentable_id, :documentable_type, :image, :raw, :current, :board_id, :user_id, :source_type)
+  end
 end

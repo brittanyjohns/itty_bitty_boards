@@ -130,7 +130,7 @@ class User < ApplicationRecord
        .joins(:user_docs)
        .where(user_docs: { user_id: id })
        .where(id: image.docs.select(:id))
-       .where(user_id: [id, nil])
+       .where(user_id: id)
        .first
   end
 
