@@ -57,20 +57,29 @@ class API::MenusController < API::ApplicationController
   def rerun
     @menu = Menu.find(params[:id])
     @board = @menu.boards.last
+    message = "Re-running image description job."
     unless @board
-      redirect_to menu_url(@menu), notice: "No board found for this menu."
+      message = "No board found for this menu."
+      render json: { message: message }, status: :unprocessable_entity
+      # redirect_to menu_url(@menu), notice: "No board found for this menu."
       return
     end
     if current_user.tokens < 1
-      redirect_to menu_url(@menu), notice: "Not enough tokens to re-run image description job."
+      message = "Not enough tokens to re-run image description job."
+      render json: { message: message }, status: :unprocessable_entity
+      # redirect_to menu_url(@menu), notice: "Not enough tokens to re-run image description job."
       return
     end
     if @board.cost >= @menu.token_limit
-      redirect_to menu_url(@menu), notice: "This menu has already used all of its tokens."
+      Rails.logger.info "Board cost: #{@board.cost} >= Menu token limit: #{@menu.token_limit}"
+      message = "This menu has already used all of its tokens."
+      render json: { message: message }, status: :unprocessable_entity
+      # redirect_to menu_url(@menu), notice: "This menu has already used all of its tokens."
       return
     end
     @menu.rerun_image_description_job
-    redirect_to menu_url(@menu), notice: "Re-running image description job."
+    render json: { message: message }, status: :ok
+    # redirect_to menu_url(@menu), notice: "Re-running image description job."
   end
 
   # POST /menus or /menus.json

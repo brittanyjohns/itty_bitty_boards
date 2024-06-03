@@ -66,13 +66,13 @@ class Menu < ApplicationRecord
 
     minutes_to_wait = 0
     board.images.each_slice(5) do |image_slice|
-      minutes_to_wait += 1
       image_slice.each do |image|
         next unless should_generate_image(image, @user, tokens_used, total_cost)
         image.start_generate_image_job(minutes_to_wait, @user.id)
         tokens_used += 1
         total_cost += 1
       end
+      minutes_to_wait += 1
     end
     @user.remove_tokens(tokens_used)
     board.add_to_cost(tokens_used) if board
@@ -157,6 +157,8 @@ class Menu < ApplicationRecord
   def enhance_image_description(board_id)
     new_doc = self.docs.last
     puts "NO NEW DOC FOUND\n" && return unless new_doc
+
+    self.update!(description: new_doc.processed)
 
     if !new_doc.raw.blank?
       new_doc.processed = clarify_image_description(new_doc.raw)

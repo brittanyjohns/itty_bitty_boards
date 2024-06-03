@@ -61,7 +61,7 @@ module ImageHelper
     response = OpenAiClient.new(open_ai_opts).clarify_image_description(raw)
     if response
       puts "response: #{response}"
-      response_text = response[:content]
+      response_text = response[:content].gsub("```json", "").gsub("```", "").strip
       if valid_json?(response_text)
         response_text
       else

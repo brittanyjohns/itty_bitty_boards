@@ -67,17 +67,17 @@ class Image < ApplicationRecord
       self.image_type = "Image"
     end
     if part_of_speech
-      puts "Setting bg color for #{part_of_speech}"
+      Rails.logger.debug "Setting bg color for #{part_of_speech}"
       # self.bg_color = background_color_for(part_of_speech)
       
     end
     self.bg_color = background_color_for(part_of_speech)
-    puts "Image: #{label} - bg_color: #{bg_color} - part_of_speech: #{part_of_speech} - image_type: #{image_type}"
+    Rails.logger.debug "Image: #{label} - bg_color: #{bg_color} - part_of_speech: #{part_of_speech} - image_type: #{image_type}"
     # self.image_type ||= "Image"
   end
 
   def run_set_next_words_job
-    puts "Starting set next words job for #{label}"
+    Rails.logger.debug "Starting set next words job for #{label}"
     SetNextWordsJob.perform_async([id])
   end
 
@@ -103,7 +103,7 @@ class Image < ApplicationRecord
     else
       color = "gray"
     end
-    puts "Background Color: #{color}"
+    Rails.logger.debug "Background Color: #{color}"
     color
   end
 
@@ -113,7 +113,7 @@ class Image < ApplicationRecord
 
   def create_image_doc(user_id = nil)
     response = create_image(user_id)
-    puts "Response: #{response}"
+    Rails.logger.debug "Response: #{response}"
     # self.image_prompt = prompt_to_send
   end
 
@@ -135,19 +135,19 @@ class Image < ApplicationRecord
         # blob).where("active_storage_blobs.filename = ?", "#{label.parameterize}_#{voice}_#{id}.aac").blank?
         create_audio_from_text(label, voice)
       else
-        puts "Audio file already exists for voice: #{voice}"
+        Rails.logger.debug "Audio file already exists for voice: #{voice}"
       end
     end
   end
 
   def set_next_words!
     new_next_words = get_next_words(label)
-    puts "New next words: #{new_next_words}"
+    Rails.logger.debug "New next words: #{new_next_words}"
     if new_next_words
       self.next_words = new_next_words
       self.save!
     else
-      puts "No next words found for #{label}"
+      Rails.logger.debug "No next words found for #{label}"
       self.update!(no_next: true)
     end
     new_next_words
@@ -163,7 +163,7 @@ class Image < ApplicationRecord
     count = 0
     Image.lock.public_img.non_menu_images.where(next_words: [], no_next: false).find_in_batches(batch_size: 20) do |images|
       img_ids = images.pluck(:id)
-      puts "\n\nStarting set next words job for #{img_ids}\n\n"
+      Rails.logger.debug "\n\nStarting set next words job for #{img_ids}\n\n"
 
       SetNextWordsJob.perform_async(img_ids)
       count += 20
@@ -173,7 +173,7 @@ class Image < ApplicationRecord
   end
 
   # def next_board_id
-  #   puts "Getting next board for #{label} - next_board: #{next_board&.images&.count}"
+  #   Rails.logger.debug "Getting next board for #{label} - next_board: #{next_board&.images&.count}"
   #   if next_board && next_board.images.any?
   #     next_board.id
   #   else
@@ -190,9 +190,9 @@ class Image < ApplicationRecord
   def self.create_predictive_default_board
     predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
     admin_user = User.admin.first
-    puts "Predefined resource created: #{predefined_resource.name} admin_user: #{admin_user.email}"
+    Rails.logger.debug "Predefined resource created: #{predefined_resource.name} admin_user: #{admin_user.email}"
     predictive_default_board = Board.find_or_create_by!(name: "Predictive Default", user_id: admin_user.id, parent: predefined_resource)
-    puts "Predictive default board created: #{predictive_default_board.name}"
+    Rails.logger.debug "Predictive default board created: #{predictive_default_board.name}"
 
     array = [
       "Yes",
@@ -238,18 +238,18 @@ class Image < ApplicationRecord
   def create_next_board
     parent_resource = PredefinedResource.find_or_create_by name: "Next", resource_type: "Board"
     admin_user = User.admin.first
-    puts "Parent resource created: #{parent_resource.name} admin_user: #{admin_user.email}"
+    Rails.logger.debug "Parent resource created: #{parent_resource.name} admin_user: #{admin_user.email}"
     next_board = Board.find_or_create_by!(name: label, user_id: admin_user.id, parent: parent_resource)
-    puts "Next board created: #{next_board.name}"
+    Rails.logger.debug "Next board created: #{next_board.name}"
     next_board
   end
 
   def create_board_from_next_words!(words)
     # raise "No next words found for #{label}" unless next_words && next_words.any?
-    puts "Creating board for label: #{label} from next words: #{words}"
+    Rails.logger.debug "Creating board for label: #{label} from next words: #{words}"
     return unless words && !words.blank?
 
-    puts "Next board created: #{next_board.name}"
+    Rails.logger.debug "Next board created: #{next_board.name}"
     words.each do |word|
       image = Image.public_img.find_by(label: word)
       if image
@@ -258,7 +258,7 @@ class Image < ApplicationRecord
         image = Image.public_img.create!(label: word)
         next_board.add_image(image.id)
       end
-      puts "Image added to board: #{image.label}"
+      Rails.logger.debug "Image added to board: #{image.label}"
     end
     next_board.save!
     next_board
@@ -269,11 +269,11 @@ class Image < ApplicationRecord
     next_words.each do |word|
       existing_word = Image.public_img.find_by(label: word)
       if existing_word
-        puts "Word already exists: #{existing_word.label}"
+        Rails.logger.debug "Word already exists: #{existing_word.label}"
         if existing_word.next_words.blank?
           existing_word.set_next_words!
         else
-          puts "Next words already set for #{existing_word.label}\n #{existing_word.next_words}"
+          Rails.logger.debug "Next words already set for #{existing_word.label}\n #{existing_word.next_words}"
         end
       else
         image = Image.public_img.create!(label: word)
@@ -309,16 +309,16 @@ class Image < ApplicationRecord
   def find_or_create_audio_file_for_voice(voice = "alloy")
     existing = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label}_#{voice}_#{id}.aac").first
     if existing
-      puts "#{label} ==> Audio file already exists for voice: #{voice} - #{existing.filename}"
+      Rails.logger.debug "#{label} ==> Audio file already exists for voice: #{voice} - #{existing.filename}"
       existing
     else
-      puts "#{label} ==> Creating audio file for voice: #{voice}"
+      Rails.logger.debug "#{label} ==> Creating audio file for voice: #{voice}"
       create_audio_from_text(label, voice)
     end
   end
 
   def get_audio_for_voice(voice = "alloy")
-    puts "GETTING AUDIO FOR VOICE: #{voice}"
+    Rails.logger.debug "GETTING AUDIO FOR VOICE: #{voice}"
     # file = audio_files.find_by(filename: "#{label}_#{voice}_#{id}.aac")
     file = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label}_#{voice}_#{id}.aac").first
     if file
@@ -329,10 +329,10 @@ class Image < ApplicationRecord
       begin
         # save_audio_file_to_s3!(voice)
       rescue => e
-        puts "Error getting audio for voice: #{e.message}\n\n#{e.backtrace.join("\n")}"
+        Rails.logger.debug "Error getting audio for voice: #{e.message}\n\n#{e.backtrace.join("\n")}"
       end
       # file = audio_files.last
-      puts "\n\n Created audio file: #{file.inspect}\n\n"
+      Rails.logger.debug "\n\n Created audio file: #{file.inspect}\n\n"
     end
     file
   end
@@ -393,7 +393,7 @@ class Image < ApplicationRecord
     voices.each do |voice|
       audio_image = Image.find_by(label: "This is the voice #{voice}", private: true, image_type: "SampleVoice")
       if audio_image
-        puts "Sample voice already exists: #{audio_image.id}"
+        Rails.logger.debug "Sample voice already exists: #{audio_image.id}"
         audio_files << audio_image.audio_files
       else
         audio_image = Image.create!(label: "This is the voice #{voice}", private: true, image_type: "SampleVoice")
@@ -401,7 +401,7 @@ class Image < ApplicationRecord
         audio_files << audio_image.audio_files
       end
     end
-    puts "Sample voices created: #{audio_files}"
+    Rails.logger.debug "Sample voices created: #{audio_files}"
     audio_files
   end
 
@@ -429,7 +429,7 @@ class Image < ApplicationRecord
         symbols.each do |symbol|
           existing_symbol = OpenSymbol.find_by(original_os_id: symbol["id"])
           if existing_symbol || OpenSymbol::IMAGE_EXTENSIONS.exclude?(symbol["extension"])
-            puts "Symbol already exists: #{existing_symbol&.id} Or not an image: #{symbol["extension"]}"
+            Rails.logger.debug "Symbol already exists: #{existing_symbol&.id} Or not an image: #{symbol["extension"]}"
             new_symbol = existing_symbol
           else
             break if count >= limit
@@ -466,7 +466,7 @@ class Image < ApplicationRecord
                 .convert("png")
                 .resize_to_limit(300, 300)
                 .call(downloaded_image)
-            puts "Processed SVG: #{processed}"
+            Rails.logger.debug "Processed SVG: #{processed}"
             else
               processed = downloaded_image
             end
@@ -478,7 +478,7 @@ class Image < ApplicationRecord
             skipped_count += 1
           end
           total = count + skipped_count
-          puts "Label: #{label} - Symbol: #{symbol_name} - Total: #{total} - Count: #{count} - Skipped: #{skipped_count}"
+          Rails.logger.debug "Label: #{label} - Symbol: #{symbol_name} - Total: #{total} - Count: #{count} - Skipped: #{skipped_count}"
           if total >= symbols_count
             self.update!(open_symbol_status: "skipped")
             break
@@ -486,7 +486,7 @@ class Image < ApplicationRecord
         end
         symbols
       rescue => e
-        puts "Error creating symbols: #{e.message}\n\n#{e.backtrace.join("\n")}"
+        Rails.logger.debug "Error creating symbols: #{e.message}\n\n#{e.backtrace.join("\n")}"
         skipped_count += 1
       end
     end
@@ -495,10 +495,10 @@ class Image < ApplicationRecord
   def self.create_symbols_for_missing_images(limit = 50, sym_limit = 3)
     count = 0
     images_without_docs = Image.public_img.active.non_menu_images.without_docs
-    puts "Images without docs: #{images_without_docs.to_a.count}"
+    Rails.logger.debug "Images without docs: #{images_without_docs.to_a.count}"
     sleep 3
     images_without_docs.each do |image|
-      puts "Creating symbol image for #{image.label} - sym_limit: #{sym_limit} - count: #{count}"
+      Rails.logger.debug "Creating symbol image for #{image.label} - sym_limit: #{sym_limit} - count: #{count}"
       image.generate_matching_symbol(sym_limit)
       count += 1
       break if count >= limit
@@ -532,7 +532,7 @@ class Image < ApplicationRecord
       # Skip the first image (which we want to keep) and destroy the rest
       # images.drop(1).each(&:destroy)
       images.drop(1).each do |image|
-        puts "Destroying duplicate image: #{image.id}"
+        Rails.logger.debug "Destroying duplicate image: #{image.id}"
         image.destroy unless dry_run
       end
     end
@@ -576,11 +576,11 @@ class Image < ApplicationRecord
   def save_audio_file_to_s3!(voice = "alloy")
     create_audio_from_text(label, voice)
     voices_needed = missing_voices || []
-    puts "Voices needed: #{voices_needed}"
+    Rails.logger.debug "Voices needed: #{voices_needed}"
     voices_needed = voices_needed - [voice]
-    puts "Missing voices: #{missing_voices}"
+    Rails.logger.debug "Missing voices: #{missing_voices}"
     # if voices_needed.any?
-    #   puts "Starting generate audio job for missing voices: #{voices_needed}"
+    #   Rails.logger.debug "Starting generate audio job for missing voices: #{voices_needed}"
     #   voices_needed.each do |v|
     #     Image.start_generate_audio_job([id], v)
     #   end
@@ -627,7 +627,7 @@ class Image < ApplicationRecord
     last_id = 0
     end_at = start_at + batch_size
     Image.find_in_batches(start: start_at, finish: end_at, batch_size: batch_size).with_index do |group, batch|
-      puts "Processing group ##{batch} -- #{group.first.id} - #{group.last.id}"
+      Rails.logger.debug "Processing group ##{batch} -- #{group.first.id} - #{group.last.id}"
       # group.each(&:save_audio_file_to_s3!)
       Image.start_generate_audio_job(group.pluck(:id))
       sleep(3)
@@ -638,8 +638,10 @@ class Image < ApplicationRecord
 
   def start_generate_image_job(start_time = 0, user_id_to_set = nil, image_prompt_to_set = nil)
     user_id_to_set ||= user_id
-    puts "start_generate_image_job: #{label} - #{user_id_to_set} - #{image_prompt_to_set}"
-    GenerateImageJob.perform_in(start_time.minutes, id, user_id_to_set, image_prompt_to_set)
+    Rails.logger.debug "start_generate_image_job: #{label} - #{user_id_to_set} - #{image_prompt_to_set}"
+    run_in = start_time.minutes
+
+    GenerateImageJob.perform_in(run_in, id, user_id_to_set, image_prompt_to_set)
   end
 
   def self.run_generate_image_job_for(images)
@@ -717,10 +719,10 @@ class Image < ApplicationRecord
 
   def categorize!
     response = OpenAiClient.new(open_ai_opts).categorize_word(label)
-    puts "Response: #{response}"
+    Rails.logger.debug "Response: #{response}"
     parsed_response = response[:content]&.downcase
     if parsed_response
-      puts "Category: #{parsed_response}"
+      Rails.logger.debug "Category: #{parsed_response}"
       update!(part_of_speech: parsed_response)
     end
   end

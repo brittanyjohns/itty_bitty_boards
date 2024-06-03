@@ -130,13 +130,13 @@ class OpenaiPrompt < ApplicationRecord
     total_cost = board.cost || 0
     minutes_to_wait = 0
     new_images.each_slice(5) do |image_slice|
-      minutes_to_wait += 1
       image_slice.each do |image|
         next unless should_generate_image(image, self.user, tokens_used, total_cost)
         image.start_generate_image_job(minutes_to_wait, self.user_id, image.revised_prompt)
         tokens_used += 1
         total_cost += 1
       end
+      minutes_to_wait += 1
     end
     self.user.remove_tokens(tokens_used)
     board.add_to_cost(tokens_used) if board
