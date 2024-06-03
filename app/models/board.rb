@@ -101,17 +101,16 @@ class Board < ApplicationRecord
   end
 
   def position_all_board_images
-    old_logger = ActiveRecord::Base.logger
-    ActiveRecord::Base.logger = nil
-    board_images.order(:position).each_with_index do |bi, index|
-      if bi.position
-        puts "bi.position: #{bi.position} NOT => index: #{index}"
-      else
-        puts "bi.position: nil UPDATING => index: #{index}"
-        bi.update!(position: index)
+    ActiveRecord::Base.logger.silence do
+      board_images.order(:position).each_with_index do |bi, index|
+        if bi.position
+          puts "bi.position: #{bi.position} NOT => index: #{index}"
+        else
+          puts "bi.position: nil UPDATING => index: #{index}"
+          bi.update!(position: index)
+        end
       end
     end
-    ActiveRecord::Base.logger = old_logger
   end
 
   def self.create_predictive_default
@@ -262,25 +261,22 @@ class Board < ApplicationRecord
     grid_layout = []
     row_count = 0
     bi_count = board_images.count
-    puts "board_images positions: #{board_images.map(&:position)}"
     rows = (bi_count / number_of_columns.to_f).ceil
-    puts "rows: #{rows} -- bi_count: #{bi_count} -- number_of_columns: #{number_of_columns}"
-    old_logger = ActiveRecord::Base.logger
-    ActiveRecord::Base.logger = nil
-    board_images.includes(:image).order(:position).each_slice(number_of_columns) do |row|
-      puts "ROW COUNT: #{row_count} "
-      row.each_with_index do |bi, index|
-        puts "bi: #{bi.id} -- index: #{index} -- row_count: #{row_count}"
-        new_layout = { i: bi.id, x: index, y: row_count, w: 1, h: 1 }
-        #   puts "id: #{bi.id} x: #{index} y: #{row_count} -- bi: #{bi.label} -- position: #{bi.position}"
-        bi.update!(layout: new_layout)
-        # bi.reload
-        puts "layout: #{bi.layout}"
-        grid_layout << new_layout
+    ActiveRecord::Base.logger.silence do
+      board_images.includes(:image).order(:position).each_slice(number_of_columns) do |row|
+        puts "ROW COUNT: #{row_count} "
+        row.each_with_index do |bi, index|
+          puts "bi: #{bi.id} -- index: #{index} -- row_count: #{row_count}"
+          new_layout = { i: bi.id, x: index, y: row_count, w: 1, h: 1 }
+          #   puts "id: #{bi.id} x: #{index} y: #{row_count} -- bi: #{bi.label} -- position: #{bi.position}"
+          bi.update!(layout: new_layout)
+          # bi.reload
+          puts "layout: #{bi.layout}"
+          grid_layout << new_layout
+        end
+        row_count += 1
       end
-      row_count += 1
     end
-    # ActiveRecord::Base.logger = old_logger
     grid_layout
   end
 
