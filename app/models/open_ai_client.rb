@@ -2,7 +2,7 @@ require "openai"
 
 class OpenAiClient
   GPT_4_MODEL = "gpt-4o"
-  IMAGE_MODEL = "dall-e-3"
+  IMAGE_MODEL = "dall-e-2"
 
   def initialize(opts)
     @messages = opts["messages"] || opts[:messages] || []
@@ -17,15 +17,17 @@ class OpenAiClient
     @openai_client ||= OpenAI::Client.new(access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"))
   end
 
+  # def specific_image_prompt(img_prompt)
+  #   "Can you create a text prompt for me that I can use with DALL-E to generate an image of a cartoon character expressing a certain emotion or doing a specific action. 
+  #   Or if the word is an object, write a prompt to generate an image of that object in a clear and simple way. 
+  #   Use as much detail as possible in order to generate an image that a child could easily recognize that the image represents this word/phrase: '#{img_prompt}'.
+  #   Respond with the prompt only, not the image or any other text.  It should be very clear that the word/phrase is '#{img_prompt}'."
+  # end
+
   def specific_image_prompt(img_prompt)
-    # "Can you create a text prompt for me that I can use with DALL-E to generate an image of a cartoon character expressing a certain emotion or doing a specific action. 
-    # The prompt should be clear and concise, and should describe the character and the emotion or action in detail. 
-    # The image should be suitable for a children's book or educational material. 
-    # Respond with the text prompt that you would use to generate the image."
-    "Can you create a text prompt for me that I can use with DALL-E to generate an image of a cartoon character expressing a certain emotion or doing a specific action. 
-    Or if the word is an object, write a prompt to generate an image of that object in a clear and simple way. 
-    Use as much detail as possible in order to generate an image that a child could easily recognize that the image represents this word/phrase: '#{img_prompt}'.
-    Respond with the prompt only, not the image or any other text.  It should be very clear that the word/phrase is '#{img_prompt}'."
+    "Can you create a text prompt for me that I can use with DALL-E to generate an image that is clear and simple, similar to AAC and other accessibility signs?
+    The image should represent the word/phrase '#{img_prompt}' in a way that a child could easily recognize. Avoid cartoonish styles.
+    Use as much detail as possible to ensure clarity and simplicity. Respond with the prompt only, not the image or any other text."
   end
 
   def create_image
@@ -45,7 +47,7 @@ class OpenAiClient
     else
       Rails.logger.debug "**** Client ERROR **** \nDid not receive valid response.\n#{response}"
     end
-    { img_url: img_url, revised_prompt: revised_prompt }
+    { img_url: img_url, revised_prompt: revised_prompt, edited_prompt: new_prompt }
   end
 
   def create_audio_from_text(text, voice = "alloy")
@@ -85,6 +87,7 @@ class OpenAiClient
       Rails.logger.debug "**** ERROR **** \nDid not receive valid response.\n"
     end
     Rails.logger.debug "Image Prompt Content: #{image_prompt_content}"
+    @prompt = image_prompt_content
     image_prompt_content
   end
 

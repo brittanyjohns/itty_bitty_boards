@@ -5,7 +5,7 @@ module ImageHelper
     open_ai_opts[:prompt] || name
   end
 
-  def save_image(url, user_id = nil, revised_prompt = nil)
+  def save_image(url, user_id = nil, revised_prompt = nil, edited_prompt = nil)
     begin
       # downloaded_image = URI.open(url,
       #                             "User-Agent" => "Ruby/#{RUBY_VERSION}",
@@ -13,7 +13,8 @@ module ImageHelper
       #                             "Referer" => "http://www.ruby-lang.org/")
       downloaded_image = Down.download(url)
       user_id ||= self.user_id
-      doc = self.docs.create!(raw: name_to_send, user_id: user_id, processed: revised_prompt, source_type: "OpenAI")
+      raw_txt = edited_prompt || name_to_send
+      doc = self.docs.create!(raw: raw_txt, user_id: user_id, processed: revised_prompt, source_type: "OpenAI")
       doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.webp", content_type: "image/webp")
       self.update(status: "finished")
     rescue => e
@@ -28,8 +29,9 @@ module ImageHelper
     response = OpenAiClient.new(open_ai_opts).create_image
     img_url = response[:img_url]
     revised_prompt = response[:revised_prompt]
+    edited_prompt = response[:edited_prompt]
     if img_url
-      save_image(img_url, user_id, revised_prompt)
+      save_image(img_url, user_id, revised_prompt, edited_prompt)
     else
       Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"
     end

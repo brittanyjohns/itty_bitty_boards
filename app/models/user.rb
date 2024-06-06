@@ -41,16 +41,16 @@ class User < ApplicationRecord
   has_many :word_events
   has_secure_token :authentication_token
 
+  # Scopes
+  scope :admin, -> { where(role: "admin") }
+  scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
+
   # Constants
-  DEFAULT_ADMIN_ID = 1
+  DEFAULT_ADMIN_ID = self.admin.first&.id
 
   # Callbacks
   before_save :set_default_settings, unless: :settings?
   after_create :add_welcome_tokens
-
-  # Scopes
-  scope :admin, -> { where(role: "admin") }
-  scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
 
   # Methods for user settings
   def set_default_settings

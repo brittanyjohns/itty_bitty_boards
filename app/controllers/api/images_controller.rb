@@ -183,7 +183,8 @@ class API::ImagesController < API::ApplicationController
       @image = Image.find_or_create_by(label: label, user_id: current_user.id, private: false, image_prompt: image_params[:image_prompt], image_type: "Generated")
     end
     @image.update(status: "generating")
-    image_prompt = "An image of #{@image.label}."
+    # image_prompt = "An image of #{@image.label}."
+    image_prompt = nil
     GenerateImageJob.perform_async(@image.id, current_user.id, image_prompt)
     current_user.remove_tokens(1)
     @image_docs = @image.docs.for_user(current_user).order(created_at: :desc)
