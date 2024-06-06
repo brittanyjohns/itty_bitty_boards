@@ -48,6 +48,7 @@ class API::DocsController < API::ApplicationController
 
   # GET /docs/1 or /docs/1.json
   def show
+
   end
 
   # GET /docs/new

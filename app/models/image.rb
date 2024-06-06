@@ -594,6 +594,8 @@ class Image < ApplicationRecord
   def display_doc(viewing_user = nil)
     # Attempt to find a doc for a viewing user
     doc = viewing_user&.display_doc_for_image(self)
+
+    puts "Display doc for user: #{doc&.id} - #{doc&.user_id}" if doc
     # Return the doc if it exists, else find a userless doc
     doc || userless_doc
   end

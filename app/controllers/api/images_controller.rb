@@ -54,6 +54,7 @@ class API::ImagesController < API::ApplicationController
   def show
     @image = Image.with_artifacts.find(params[:id])
     @current_doc = @image.display_doc(current_user)
+    puts "Current Doc: #{@current_doc.inspect}"
     @current_doc_id = @current_doc.id if @current_doc
     @image_docs = @image.docs.with_attached_image.for_user(current_user).order(created_at: :desc)
     @image_with_display_doc = {

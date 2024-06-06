@@ -126,12 +126,13 @@ class User < ApplicationRecord
   end
 
   def display_doc_for_image(image)
-    Doc.with_attached_image
-       .joins(:user_docs)
-       .where(user_docs: { user_id: id })
-       .where(id: image.docs.select(:id))
-       .where(user_id: id)
-       .first
+    user_docs.find_by(image_id: image.id)&.doc
+    # Doc.with_attached_image
+    #    .joins(:user_docs)
+    #    .where(user_docs: { user_id: id })
+    #    .where(id: image.docs.select(:id))
+    #    .where(user_id: id)
+    #    .first
   end
 
   def is_a_favorite?(doc)
