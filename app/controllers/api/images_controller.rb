@@ -57,6 +57,7 @@ class API::ImagesController < API::ApplicationController
     puts "Current Doc: #{@current_doc.inspect}"
     @current_doc_id = @current_doc.id if @current_doc
     @image_docs = @image.docs.with_attached_image.for_user(current_user).order(created_at: :desc)
+    @user_image_boards = @image.boards.where(user_id: current_user.id)
     @image_with_display_doc = {
       id: @image.id,
       label: @image.label.upcase,
@@ -64,6 +65,7 @@ class API::ImagesController < API::ApplicationController
       image_type: @image.image_type,
       bg_color: @image.bg_class,
       text_color: @image.text_color,
+      user_image_boards: @user_image_boards,
       display_doc: {
         id: @current_doc&.id,
         label: @image&.label,
@@ -184,8 +186,9 @@ class API::ImagesController < API::ApplicationController
       @image = Image.find_or_create_by(label: label, user_id: current_user.id, private: false, image_prompt: image_params[:image_prompt], image_type: "Generated")
     end
     @image.update(status: "generating")
+    puts "\n\nPARAMS: #{params.inspect}\n\n"
     # image_prompt = "An image of #{@image.label}."
-    image_prompt = nil
+    image_prompt = image_params[:image_prompt] || image_params['image_prompt']
     GenerateImageJob.perform_async(@image.id, current_user.id, image_prompt)
     current_user.remove_tokens(1)
     @image_docs = @image.docs.for_user(current_user).order(created_at: :desc)

@@ -189,7 +189,7 @@ class ImagesController < ApplicationController
 
   def create_audio
     @image = Image.find(params[:id])
-    voice = params[:voice] || "alloy"
+    voice = params[:voice] || "echo"
     @audio = @image.create_audio_from_text(@image.label, voice)
     redirect_back_or_to image_url(@image), notice: "Audio created."
   end

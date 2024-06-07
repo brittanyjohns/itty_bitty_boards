@@ -72,6 +72,7 @@ class BoardImage < ApplicationRecord
   def set_defaults
     self.voice = board.voice
   end
+
   def set_position
     self.position = board_images.count + 1
   end

@@ -54,7 +54,7 @@ class User < ApplicationRecord
 
   # Methods for user settings
   def set_default_settings
-    voice_settings = { name: "alloy", speed: 1, pitch: 1, volume: 1, rate: 1, language: "en-US" }
+    voice_settings = { name: "echo", speed: 1, pitch: 1, volume: 1, rate: 1, language: "en-US" }
     self.settings = { voice: voice_settings }
     save
   end

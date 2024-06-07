@@ -69,8 +69,8 @@ class Image < ApplicationRecord
     if part_of_speech
       Rails.logger.debug "Setting bg color for #{part_of_speech}"
       # self.bg_color = background_color_for(part_of_speech)
-      
     end
+    find_or_create_audio_file_for_voice("echo") unless audio_file_exists_for?("echo")
     self.bg_color = background_color_for(part_of_speech)
     Rails.logger.debug "Image: #{label} - bg_color: #{bg_color} - part_of_speech: #{part_of_speech} - image_type: #{image_type}"
     # self.image_type ||= "Image"
@@ -306,7 +306,7 @@ class Image < ApplicationRecord
     audio_files.blank?
   end
 
-  def find_or_create_audio_file_for_voice(voice = "alloy")
+  def find_or_create_audio_file_for_voice(voice = "echo")
     existing = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label}_#{voice}_#{id}.aac").first
     if existing
       Rails.logger.debug "#{label} ==> Audio file already exists for voice: #{voice} - #{existing.filename}"
@@ -317,7 +317,7 @@ class Image < ApplicationRecord
     end
   end
 
-  def get_audio_for_voice(voice = "alloy")
+  def get_audio_for_voice(voice = "echo")
     Rails.logger.debug "GETTING AUDIO FOR VOICE: #{voice}"
     # file = audio_files.find_by(filename: "#{label}_#{voice}_#{id}.aac")
     file = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label}_#{voice}_#{id}.aac").first
@@ -349,7 +349,7 @@ class Image < ApplicationRecord
   end
 
   def self.voices
-    ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+    ["echo", "echo", "fable", "onyx", "nova", "shimmer"]
   end
 
   def self.languages
@@ -573,7 +573,7 @@ class Image < ApplicationRecord
     audio_file ? cdn_url : nil
   end
 
-  def save_audio_file_to_s3!(voice = "alloy")
+  def save_audio_file_to_s3!(voice = "echo")
     create_audio_from_text(label, voice)
     voices_needed = missing_voices || []
     Rails.logger.debug "Voices needed: #{voices_needed}"
@@ -594,8 +594,6 @@ class Image < ApplicationRecord
   def display_doc(viewing_user = nil)
     # Attempt to find a doc for a viewing user
     doc = viewing_user&.display_doc_for_image(self)
-
-    puts "Display doc for user: #{doc&.id} - #{doc&.user_id}" if doc
     # Return the doc if it exists, else find a userless doc
     doc || userless_doc
   end
@@ -617,11 +615,11 @@ class Image < ApplicationRecord
     "Generate an image of"
   end
 
-  def start_generate_audio_job(voice = "alloy", start_time = 0)
+  def start_generate_audio_job(voice = "echo", start_time = 0)
     SaveAudioJob.perform_in(start_time.minutes, [id], voice)
   end
 
-  def self.start_generate_audio_job(ids, voice = "alloy")
+  def self.start_generate_audio_job(ids, voice = "echo")
     SaveAudioJob.perform_async(ids, voice)
   end
 

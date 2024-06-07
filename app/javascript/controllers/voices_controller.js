@@ -4,7 +4,7 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   connect() {
     console.log("Hello, Stimulus! Voices", this.element)
-    const voice = "alloy"
+    const voice = "echo"
     const idToFind = `this-is-the-voice-${voice}`
     const audioPlayer = this.element.querySelector(`#${idToFind}`);
     audioPlayer.classList.remove("hidden");

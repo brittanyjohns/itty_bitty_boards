@@ -37,7 +37,7 @@ module ImageHelper
     end
   end
 
-  def create_audio_from_text(text = nil, voice = "alloy")
+  def create_audio_from_text(text = nil, voice = "echo")
     text = text || self.label
     puts "text: #{text}"
     response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice)
@@ -49,6 +49,7 @@ module ImageHelper
       puts "Saved audio file: #{audio_file.class}"
       save_audio_file(audio_file, voice)
       file_exists = File.exist?("output.aac")
+      puts "File exists: #{file_exists}"
       File.delete("output.aac") if file_exists
     else
       Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"
