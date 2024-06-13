@@ -173,7 +173,7 @@ class API::DocsController < API::ApplicationController
     if params[:hard_delete]
       @doc.destroy
     else
-      @doc.hide!
+      @doc.hide
     end
 
     respond_to do |format|

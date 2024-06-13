@@ -18,7 +18,7 @@
 class Board < ApplicationRecord
   belongs_to :user
   belongs_to :parent, polymorphic: true
-  has_one :display_image, class_name: "Image", foreign_key: "display_image_id"
+  has_one :display_image, class_name: "Image", foreign_key: "id", primary_key: "display_image_id"
   has_many :board_images, dependent: :destroy
   has_many :images, through: :board_images
   has_many :docs
@@ -140,8 +140,10 @@ class Board < ApplicationRecord
     Image.public_img.non_menu_images.excluding(images)
   end
 
-  def display_image
-    images.public_img.order(updated_at: :desc).first
+  def set_display_image
+    return if display_image_id
+    self.display_image_id = images.order(updated_at: :desc).first&.id
+    save
   end
 
   def words
@@ -257,6 +259,24 @@ class Board < ApplicationRecord
           layout: board_image.layout,
         }
       end,
+    }
+  end
+
+  def api_view(viewing_user = nil)
+    {
+      id: id,
+      name: name,
+      description: description,
+      parent_type: parent_type,
+      predefined: predefined,
+      number_of_columns: number_of_columns,
+      status: status,
+      token_limit: token_limit,
+      cost: cost,
+      display_image_url: display_image&.display_image_url(viewing_user),
+      floating_words: words,
+      user_id: user_id,
+      voice: voice,
     }
   end
 

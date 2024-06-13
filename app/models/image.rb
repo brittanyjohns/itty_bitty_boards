@@ -70,7 +70,7 @@ class Image < ApplicationRecord
       Rails.logger.debug "Setting bg color for #{part_of_speech}"
       # self.bg_color = background_color_for(part_of_speech)
     end
-    find_or_create_audio_file_for_voice("echo") unless audio_file_exists_for?("echo")
+    # find_or_create_audio_file_for_voice("echo") unless audio_file_exists_for?("echo")
     self.bg_color = background_color_for(part_of_speech)
     Rails.logger.debug "Image: #{label} - bg_color: #{bg_color} - part_of_speech: #{part_of_speech} - image_type: #{image_type}"
     # self.image_type ||= "Image"
@@ -306,7 +306,7 @@ class Image < ApplicationRecord
     audio_files.blank?
   end
 
-  def find_or_create_audio_file_for_voice(voice = "echo")
+  def find_or_create_audio_file_for_voice_og(voice = "echo")
     existing = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label}_#{voice}_#{id}.aac").first
     if existing
       Rails.logger.debug "#{label} ==> Audio file already exists for voice: #{voice} - #{existing.filename}"
@@ -316,6 +316,22 @@ class Image < ApplicationRecord
       create_audio_from_text(label, voice)
     end
   end
+
+  def find_or_create_audio_file_for_voice(voice = "echo")
+    filename = "#{label}_#{voice}_#{id}.aac"
+    existing = audio_files.attachments.includes(:blob).find do |attachment|
+      attachment.blob.filename.to_s == filename
+    end
+  
+    if existing
+      Rails.logger.debug "#{label} ==> Audio file already exists for voice: #{voice} - #{existing.blob.filename}"
+      existing
+    else
+      Rails.logger.debug "#{label} ==> Creating audio file for voice: #{voice}"
+      create_audio_from_text(label, voice)
+    end
+  end
+  
 
   def get_audio_for_voice(voice = "echo")
     Rails.logger.debug "GETTING AUDIO FOR VOICE: #{voice}"
@@ -345,7 +361,9 @@ class Image < ApplicationRecord
 
   def existing_voices
     # scared_nova_22.aac
-    audio_files.map { |audio| audio.filename.to_s.split("_").second }
+    n = audio_files.map { |audio| audio.filename.to_s.split("_").second }
+    puts "Existing voices: #{n}"
+    n
   end
 
   def self.voices

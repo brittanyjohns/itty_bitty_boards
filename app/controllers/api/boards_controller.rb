@@ -24,7 +24,7 @@ class API::BoardsController < API::ApplicationController
       # @shared_boards = current_user.shared_with_me_boards.order(created_at: :desc)
     end
 
-    render json: { boards: @boards, predefined_boards: @predefined_boards }
+    render json: { boards: @boards.map(&:api_view), predefined_boards: @predefined_boards }
   end
 
   def user_boards

@@ -18,6 +18,7 @@
 class OpenaiPrompt < ApplicationRecord
   belongs_to :user
   has_many :boards, as: :parent, dependent: :destroy
+  include UtilHelper
 
   def send_prompt_to_openai
     opts = open_ai_opts.merge({ messages: messages })
@@ -53,14 +54,43 @@ class OpenaiPrompt < ApplicationRecord
       { role: "system", content: speech_expert },
       { role: "user", content: describe_scenario_prompt },
     ] }).create_chat
-    parsed_response = response[:content]
-    puts "parsed_response: #{parsed_response}"
-    puts "parsed_response: #{parsed_response.class}"
-    description = JSON.parse(parsed_response)["description"]
+    # parsed_response = response[:content]
+    # puts "OpenAI - parsed_response: #{parsed_response}"
+    # puts "parsed_response: #{parsed_response.class}"
+    response_text = nil
+    if response
+      response_text = response[:content].gsub("```json", "").gsub("```", "").strip
+      if valid_json?(response_text)
+        response_text
+      else
+        puts "INVALID JSON: #{response_text}"
+        response_text = transform_into_json(response_text)
+      end
+    else
+      Rails.logger.error "*** ERROR - set_scenario_description *** \nDid not receive valid response. Response: #{response}\n"
+    end
+    puts "response_text: #{response_text}"
+    description = JSON.parse(response_text)["description"]
+    # description = JSON.parse(parsed_response)["description"]
     puts "description: #{description}"
     self.description = description
     self
   end
+
+  # if response
+  #   puts "response: #{response}"
+  #   response_text = response[:content].gsub("```json", "").gsub("```", "").strip
+  #   if valid_json?(response_text)
+  #     response_text
+  #   else
+  #     puts "INVALID JSON: #{response_text}"
+  #     response_text = transform_into_json(response_text)
+  #   end
+  # else
+  #   Rails.logger.error "*** ERROR - clarify_image_description *** \nDid not receive valid response. Response: #{response}\n"
+  # end
+  # puts "response_text: #{response_text}"
+  # response_text
 
   def scenario
     if description.blank?
@@ -105,7 +135,17 @@ class OpenaiPrompt < ApplicationRecord
   end
 
   def create_images_from_response(board, response)
-    json_word_list = JSON.parse(response)
+    puts "RAW RESPONSE: #{response}"
+    # response_text = response[:content].gsub("```json", "").gsub("```", "").strip
+    # response_text = response[:content]
+    json_word_list = nil
+    if valid_json?(response)
+      json_word_list = JSON.parse(response)
+    else
+      puts "INVALID JSON: #{response}"
+      json_word_list = transform_into_json(response)
+    end
+    # json_word_list = JSON.parse(response)
     images = []
     new_images = []
     tokens_used = 0
