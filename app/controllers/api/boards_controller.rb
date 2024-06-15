@@ -24,7 +24,8 @@ class API::BoardsController < API::ApplicationController
       # @shared_boards = current_user.shared_with_me_boards.order(created_at: :desc)
     end
 
-    render json: { boards: @boards.map(&:api_view), predefined_boards: @predefined_boards }
+    render json: { boards: @boards.map { |b| b.api_view(current_user) },
+    predefined_boards: @predefined_boards }
   end
 
   def user_boards
@@ -325,6 +326,21 @@ class API::BoardsController < API::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def board_params
-    params.require(:board).permit(:user_id, :name, :parent_id, :parent_type, :description, :number_of_columns, :predefined, :voice, :id)
+    params.require(:board).permit(:user_id, 
+                                  :name, 
+                                  :parent_id, 
+                                  :parent_type,
+                                  :description,
+                                  :predefined,
+                                  :number_of_columns,
+                                  :next_words,
+                                  :images,
+                                  :layout,
+                                  :image_ids,
+                                  :image_id,
+                                  :query,
+                                  :page,
+                                  :display_image_id,
+    )
   end
 end

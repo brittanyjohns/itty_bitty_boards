@@ -55,12 +55,8 @@ class Board < ApplicationRecord
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
 
-  # after_save :calucate_grid_layout, if: :number_of_columns_changed?
-
-  # after_create_commit { broadcast_prepend_later_to :board_list, target: 'my_boards', partial: 'boards/board', locals: { board: self } }
-  # after_create_commit :update_board_list
-
   before_save :set_status
+  after_create :set_display_image
   before_create :set_number_of_columns
 
   def self.ransackable_attributes(auth_object = nil)
@@ -68,7 +64,8 @@ class Board < ApplicationRecord
   end
 
   def set_number_of_columns
-    self.number_of_columns = 4
+    return unless number_of_columns.nil?
+    self.number_of_columns = 6
   end
 
   def set_status
@@ -141,8 +138,8 @@ class Board < ApplicationRecord
   end
 
   def set_display_image
-    return if display_image_id
-    self.display_image_id = images.order(updated_at: :desc).first&.id
+    return unless display_image_id.blank?
+    self.display_image_id = images.first&.id
     save
   end
 
@@ -239,6 +236,7 @@ class Board < ApplicationRecord
       token_limit: token_limit,
       cost: cost,
       display_image_url: display_image&.display_image_url(viewing_user),
+      display_image_id: display_image_id,
       floating_words: words,
       user_id: user_id,
       voice: voice,
@@ -274,6 +272,7 @@ class Board < ApplicationRecord
       token_limit: token_limit,
       cost: cost,
       display_image_url: display_image&.display_image_url(viewing_user),
+      display_image_id: display_image_id,
       floating_words: words,
       user_id: user_id,
       voice: voice,
