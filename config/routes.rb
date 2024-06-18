@@ -230,6 +230,7 @@ Rails.application.routes.draw do
       post "users/sign_in", to: "auths#sign_in"
       post "users/sign_out", to: "auths#destroy"
       post "login", to: "auths#create"
+      post "forgot_password", to: "auths#forgot_password"
       # resources :notification_tokens, only: :create
     end
   end
