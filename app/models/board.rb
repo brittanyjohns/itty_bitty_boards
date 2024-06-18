@@ -65,7 +65,7 @@ class Board < ApplicationRecord
 
   def set_number_of_columns
     return unless number_of_columns.nil?
-    self.number_of_columns = 6
+    self.number_of_columns = self.large_screen_columns
   end
 
   def set_status
@@ -284,9 +284,10 @@ class Board < ApplicationRecord
     grid_layout = []
     row_count = 0
     bi_count = board_images.count
+    number_of_columns = self.number_of_columns || self.large_screen_columns
     rows = (bi_count / number_of_columns.to_f).ceil
     ActiveRecord::Base.logger.silence do
-      board_images.includes(:image).order(:position).each_slice(number_of_columns) do |row|
+      board_images.order(:position).each_slice(number_of_columns) do |row|
         puts "ROW COUNT: #{row_count} "
         row.each_with_index do |bi, index|
           puts "bi: #{bi.id} -- index: #{index} -- row_count: #{row_count}"
