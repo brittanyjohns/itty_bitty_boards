@@ -3,7 +3,7 @@ class BaseMailerPreview < ActionMailer::Preview
 def team_invitation
     team = Team.first
     inviter = team.created_by
-    invitee = User.find(34)
+    invitee = User.admin.first
     result = BaseMailer.team_invitation_email(invitee, inviter, team).deliver_now
   end
 end

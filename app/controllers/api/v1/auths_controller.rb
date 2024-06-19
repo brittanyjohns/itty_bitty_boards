@@ -44,7 +44,6 @@ module API
         end
 
         def reset_password
-          puts "\n***\nReset Password: #{params[:reset_password_token]}"
           user = User.find_by(reset_password_token: params[:reset_password_token])
           if user
             user.reset_password(params[:password], params[:password_confirmation])
