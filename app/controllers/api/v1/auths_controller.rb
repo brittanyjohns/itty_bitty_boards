@@ -1,7 +1,7 @@
 module API
     module V1
       class AuthsController < ApplicationController
-        skip_before_action :authenticate_token!, only: [:create, :sign_up, :current, :destroy, :forgot_password]
+        skip_before_action :authenticate_token!, only: [:create, :sign_up, :current, :destroy, :forgot_password, :reset_password]
 
         def sign_up
           if params['auth'] && params['auth']['first_name'] && params['auth']['last_name']
@@ -37,6 +37,16 @@ module API
             render json: {message: "Password reset instructions sent to #{user.email}"}
           else
             render json: {error: "No user found with email #{params[:email]}"}, status: :not_found
+          end
+        end
+
+        def reset_password
+          user = User.find_by(reset_password_token: params[:reset_password_token])
+          if user
+            user.reset_password(params[:password], params[:password_confirmation])
+            render json: {message: "Password reset successfully"}
+          else
+            render json: {error: "Invalid reset password token"}, status: :not_found
           end
         end
 

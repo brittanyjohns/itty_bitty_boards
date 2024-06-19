@@ -231,6 +231,7 @@ Rails.application.routes.draw do
       post "users/sign_out", to: "auths#destroy"
       post "login", to: "auths#create"
       post "forgot_password", to: "auths#forgot_password"
+      post "reset_password", to: "auths#reset_password"
       # resources :notification_tokens, only: :create
     end
   end
