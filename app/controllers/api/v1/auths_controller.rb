@@ -33,7 +33,10 @@ module API
           puts "\n***\nForgot Password: #{params[:email]}"
           user = User.find_by(email: params[:email])
           if user
-            user.send_reset_password_instructions
+            reset_token = user.send_reset_password_instructions
+            user.update(reset_password_token: reset_token)
+            puts "\n***\nReset user: #{user.email} with token: #{reset_token}"
+
             render json: {message: "Password reset instructions sent to #{user.email}"}
           else
             render json: {error: "No user found with email #{params[:email]}"}, status: :not_found
@@ -41,6 +44,7 @@ module API
         end
 
         def reset_password
+          puts "\n***\nReset Password: #{params[:reset_password_token]}"
           user = User.find_by(reset_password_token: params[:reset_password_token])
           if user
             user.reset_password(params[:password], params[:password_confirmation])
