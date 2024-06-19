@@ -9,7 +9,8 @@ class AuthMailer < Devise::Mailer
     def reset_password_instructions(record, token, opts={})
         @token = token
         @resource = record
-        @edit_password_url = ENV['FRONTEND_URL'] + "/reset_password?reset_password_token=#{@token}"
+        @front_end_url = ENV['FRONT_END_URL'] || "http://localhost:8100"
+        @edit_password_url = @front_end_url + "/reset_password?reset_password_token=#{@token}"
         mail to: record.email
     end
 end
