@@ -160,4 +160,21 @@ class User < ApplicationRecord
   def to_s
     display_name
   end
+  require 'mailgun-ruby'
+
+  def test_mailgun
+
+    # First, instantiate the Mailgun Client with your API key
+    mg_client = Mailgun::Client.new ENV['MAILGUN_API_KEY']
+
+    # Define your message parameters
+    message_params =  { from: 'brittany@speakanyway.com',
+                        to:   'bhannajohns@gmail.com',
+                        subject: 'The Ruby SDK is awesome!',
+                        text:    'It is really easy to send a message!'
+                      }
+
+    # Send your message through the client
+    mg_client.send_message 'mail.speakanyway.com', message_params
+  end
 end

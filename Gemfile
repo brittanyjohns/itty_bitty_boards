@@ -132,3 +132,5 @@ gem "down", "~> 5.4"
 
 gem "acts_as_list", "~> 1.1"
 gem "foreman"
+
+gem 'mailgun-ruby', '~>1.2.14'
