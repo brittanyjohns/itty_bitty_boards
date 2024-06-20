@@ -326,12 +326,20 @@ class API::ImagesController < API::ApplicationController
       render json: { status: "error", message: "You are not authorized to delete this document." }
       return
     end
-    @image.docs.delete(@doc)
-    if params[:hard_delete]
-      @doc.destroy
-    else
-      @doc.hide!
+    begin
+      @image.docs.delete(@doc)
+      if params[:hard_delete]
+        @doc.destroy
+      else
+        @doc.hide!
+      end
+    rescue FrozenError => e
+      # Ignore frozen error
+      render json: { status: "ok", message: e.message } and return
+    rescue StandardError => e
+      render json: { status: "error", message: e.message } and return
     end
+
     render json: { status: "ok" }
   end
 

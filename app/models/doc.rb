@@ -162,7 +162,8 @@ class Doc < ApplicationRecord
   def display_url
     cdn_host = ENV["CDN_HOST"]
     cdn_url = cdn_host + '/' + image.key if image&.key
-    cdn_url ? cdn_url : "https://via.placeholder.com/300x300.png?text=#{documentable.label_param}"
+    # cdn_url ? cdn_url : "https://via.placeholder.com/300x300.png?text=#{documentable.label_param}"
+    cdn_url ? cdn_url : nil
   end
 
   def is_a_favorite?(user)
