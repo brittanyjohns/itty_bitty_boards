@@ -33,6 +33,7 @@ class Board < ApplicationRecord
   scope :user_made, -> { where(parent_type: "User") }
   scope :scenarios, -> { where(parent_type: "OpenaiPrompt") }
   scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt"]) }
+  scope :user_made_with_scenarios_and_menus, -> { where(parent_type: ["User", "OpenaiPrompt", "Menu"]) }
   scope :predictive, -> { where(parent_type: "PredefinedResource") }
   scope :predefined, -> { where(predefined: true) }
   scope :ai_generated, -> { where(parent_type: "OpenaiPrompt") }
