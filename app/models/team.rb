@@ -1,3 +1,13 @@
+# == Schema Information
+#
+# Table name: teams
+#
+#  id         :bigint           not null, primary key
+#  name       :string
+#  created_by :integer          not null
+#  created_at :datetime         not null
+#  updated_at :datetime         not null
+#
 class Team < ApplicationRecord
     has_many :team_users, dependent: :destroy
     has_many :users, through: :team_users

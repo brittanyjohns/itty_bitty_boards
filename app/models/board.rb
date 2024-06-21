@@ -2,23 +2,28 @@
 #
 # Table name: boards
 #
-#  id                :bigint           not null, primary key
-#  user_id           :bigint           not null
-#  name              :string
-#  parent_type       :string           not null
-#  parent_id         :bigint           not null
-#  description       :text
-#  created_at        :datetime         not null
-#  updated_at        :datetime         not null
-#  cost              :integer          default(0)
-#  predefined        :boolean          default(FALSE)
-#  token_limit       :integer          default(0)
-#  number_of_columns :integer          default(4)
+#  id                    :bigint           not null, primary key
+#  user_id               :bigint           not null
+#  name                  :string
+#  parent_type           :string           not null
+#  parent_id             :bigint           not null
+#  description           :text
+#  created_at            :datetime         not null
+#  updated_at            :datetime         not null
+#  cost                  :integer          default(0)
+#  predefined            :boolean          default(FALSE)
+#  token_limit           :integer          default(0)
+#  voice                 :string
+#  status                :string           default("pending")
+#  display_image_id      :integer
+#  number_of_columns     :integer
+#  small_screen_columns  :integer          default(3)
+#  medium_screen_columns :integer          default(8)
+#  large_screen_columns  :integer          default(12)
 #
 class Board < ApplicationRecord
   belongs_to :user
   belongs_to :parent, polymorphic: true
-  has_one :display_image, class_name: "Image", foreign_key: "id", primary_key: "display_image_id"
   has_many :board_images, dependent: :destroy
   has_many :images, through: :board_images
   has_many :docs
@@ -57,8 +62,20 @@ class Board < ApplicationRecord
   before_save :set_default_voice, unless: :voice?
 
   before_save :set_status
-  after_create :set_display_image
   before_create :set_number_of_columns
+  before_destroy :delete_menu, if: :parent_type_menu?
+
+  def parent_type_menu?
+    parent_type == "Menu"
+  end
+
+  def delete_menu
+    begin
+      parent.destroy!
+    rescue => e
+      puts "Error deleting parent: #{e.inspect}"
+    end
+  end
 
   def self.ransackable_attributes(auth_object = nil)
     ["cost", "created_at", "description", "id", "id_value", "name", "number_of_columns", "parent_id", "parent_type", "predefined", "status", "token_limit", "updated_at", "user_id", "voice"]
@@ -136,12 +153,6 @@ class Board < ApplicationRecord
   def remaining_images
     # Image.searchable_images_for(self.user).excluding(images)
     Image.public_img.non_menu_images.excluding(images)
-  end
-
-  def set_display_image
-    return unless display_image_id.blank?
-    self.display_image_id = images.first&.id
-    save
   end
 
   def words
@@ -236,8 +247,7 @@ class Board < ApplicationRecord
       status: status,
       token_limit: token_limit,
       cost: cost,
-      display_image_url: display_image&.display_image_url(viewing_user),
-      display_image_id: display_image_id,
+      display_image_url: display_image_url,
       floating_words: words,
       user_id: user_id,
       voice: voice,
@@ -272,8 +282,7 @@ class Board < ApplicationRecord
       status: status,
       token_limit: token_limit,
       cost: cost,
-      display_image_url: display_image&.display_image_url(viewing_user),
-      display_image_id: display_image_id,
+      display_image_url: display_image_url,
       floating_words: words,
       user_id: user_id,
       voice: voice,

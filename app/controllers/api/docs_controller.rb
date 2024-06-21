@@ -140,7 +140,6 @@ class API::DocsController < API::ApplicationController
         label: @image&.label,
         user_id: @current_doc&.user_id,
         src: @current_doc&.display_url,
-        # src: @current_doc&.attached_image_url,
         is_current: true,
         deleted_at: @current_doc&.deleted_at,
       },
@@ -148,17 +147,12 @@ class API::DocsController < API::ApplicationController
       user_id: @image.user_id,
       next_words: @image.next_words,
       no_next: @image.no_next,
-      # src: url_for(@image.display_image),
-      src: @image.display_image_url(current_user),
-      # src: @image.display_doc(current_user)&.attached_image_url || "https://via.placeholder.com/150x150.png?text=#{@image.label_param}",
-      # audio: @image.default_audio_url,
-      # audio: @image.audio_files.first ? url_for(@image.audio_files.first) : nil,
+      src: @image.display_image_url(current_user),,
       docs: @image_docs.map do |doc|
         {
           id: doc.id,
           label: @image.label,
           user_id: doc.user_id,
-          # src: doc.image.url,
           src: doc.display_url,
           is_current: doc.id == @current_doc_id,
         }

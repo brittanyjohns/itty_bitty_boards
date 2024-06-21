@@ -2,6 +2,23 @@ module API
   class ApplicationController < ApplicationController
     prepend_before_action :authenticate_token!
 
+    def current_order
+      return nil if current_user.nil?
+      if user_session["order_id"].nil?
+        order = current_user.orders.in_progress.last || current_user.orders.create!
+      else
+        begin
+          order = current_user.orders.in_progress.find(user_session["order_id"])
+        rescue ActiveRecord::RecordNotFound => e
+          order = current_user.orders.create!
+        rescue => e
+          puts "\n\n****Error: #{e.inspect}\n\n"
+        end
+      end
+      user_session["order_id"] = order.id unless order.nil?
+      order
+    end
+
     private
 
     def authenticate_token!

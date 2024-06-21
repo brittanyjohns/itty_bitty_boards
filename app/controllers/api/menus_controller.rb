@@ -29,17 +29,18 @@ class API::MenusController < API::ApplicationController
       {
         id: image.id,
         label: image.label, 
-        src: image.display_image(current_user) ? image.display_image(current_user).url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-        audio: image.audio_files.first ? image.audio_files.first.url : nil
+        src: image.display_image_url(current_user),
+        audio: image.default_audio_url
       }
     end
     @menu_with_display_doc = {
       id: @menu.id,
       name: @menu.name,
       description: @menu.description,
-      boardId: @board.id,
-      images: @board_images,
-      displayImage: @menu.docs.last.image.url
+      # boardId: @board.id,
+      # images: @board_images,
+      board: @board.api_view_with_images(current_user),
+      displayImage: @board.display_image_url
     }
     render json: @menu_with_display_doc
   end
@@ -104,15 +105,15 @@ class API::MenusController < API::ApplicationController
     puts "DOC"
     pp doc
     if doc.save
+      puts "IMAGE ATTACHED" if doc.image.attached?
       @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit)
       @menu.run_image_description_job(@board.id)
-      # @menu.enhance_image_description(@board.id)
       @menu_with_display_doc = {
       id: @menu.id,
       name: @menu.name,
       description: @menu.description,
       boardId: @board.id,
-      displayImage: @menu.docs.last.image.url
+      # displayImage: display_image_url
     }
       render json: @menu_with_display_doc, status: :created
     else

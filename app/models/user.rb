@@ -19,6 +19,20 @@
 #  updated_at             :datetime         not null
 #  tokens                 :integer          default(0)
 #  stripe_customer_id     :string
+#  authentication_token   :string
+#  jti                    :string           not null
+#  invitation_token       :string
+#  invitation_created_at  :datetime
+#  invitation_sent_at     :datetime
+#  invitation_accepted_at :datetime
+#  invitation_limit       :integer
+#  invited_by_id          :integer
+#  invited_by_type        :string
+#  current_team_id        :bigint
+#  play_demo              :boolean          default(TRUE)
+#  settings               :jsonb
+#  base_words             :string           default([]), is an Array
+#
 
 class User < ApplicationRecord
   # Payment and authentication setup

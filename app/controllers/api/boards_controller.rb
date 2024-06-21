@@ -13,19 +13,15 @@ class API::BoardsController < API::ApplicationController
   def index
     if params[:query].present?
       @query = params[:query]
-      @boards = boards_for_user.user_made_with_scenarios_and_menus.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      @boards = boards_for_user.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
       @predefined_boards = Board.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
-      # @scenarios = boards_for_user.scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
-      # @shared_boards = current_user.shared_with_me_boards.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
     else
-      @boards = boards_for_user.user_made_with_scenarios_and_menus.order(created_at: :desc)
+      @boards = boards_for_user.user_made_with_scenarios.order(created_at: :desc)
       @predefined_boards = Board.predefined.order(created_at: :desc)
-      # @scenarios = boards_for_user.scenarios.order(created_at: :desc)
-      # @shared_boards = current_user.shared_with_me_boards.order(created_at: :desc)
     end
 
     render json: { boards: @boards.map { |b| b.api_view(current_user) },
-    predefined_boards: @predefined_boards }
+                   predefined_boards: @predefined_boards }
   end
 
   def user_boards
@@ -340,7 +336,7 @@ class API::BoardsController < API::ApplicationController
                                   :image_id,
                                   :query,
                                   :page,
-                                  :display_image_id,
+                                  :display_image_url,
     )
   end
 end

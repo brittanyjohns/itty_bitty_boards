@@ -54,6 +54,8 @@ class Menu < ApplicationRecord
 
     create_images_from_description(board)
     board.calucate_grid_layout
+    puts "Board created from image description: #{board.id}\ndisplay_url: #{new_doc.display_url}\n"
+    board.display_image_url = new_doc.display_url
     board.update!(status: "complete")
     board
   end

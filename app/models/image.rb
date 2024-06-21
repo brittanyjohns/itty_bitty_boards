@@ -16,6 +16,13 @@
 #  revised_prompt      :string
 #  image_type          :string
 #  open_symbol_status  :string           default("active")
+#  next_words          :string           default([]), is an Array
+#  no_next             :boolean          default(FALSE)
+#  part_of_speech      :string
+#  bg_color            :string
+#  text_color          :string
+#  font_size           :integer
+#  border_color        :string
 #
 class Image < ApplicationRecord
   paginates_per 50
