@@ -1,16 +1,22 @@
 class API::ImagesController < API::ApplicationController
   def index
     if params[:user_images_only] == "1"
-      @images = Image.searchable_images_for(current_user, true).order(label: :asc).page params[:page]
+      @images = Image.searchable_images_for(current_user, true)
     else
-      @images = Image.searchable_images_for(current_user).order(label: :asc).page params[:page]
+      @images = Image.searchable_images_for(current_user)
     end
 
+    puts "images.count: #{@images.count}"
+    puts "params[:query]: #{params[:query]}"
+
     if params[:query].present?
-      @images = @images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page params[:page]
+      # @images = @images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page params[:page]
+      @images = Image.search_by_label(params[:query]).order(label: :asc).page params[:page]
     else
       @images = @images.order(label: :asc).page params[:page]
     end
+
+    puts "after query images.count: #{@images.count}"
 
     @images_with_display_doc = @images.map do |image|
       {

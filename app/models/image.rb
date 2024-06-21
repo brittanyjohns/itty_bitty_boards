@@ -40,6 +40,13 @@ class Image < ApplicationRecord
 
   include ImageHelper
   include Rails.application.routes.url_helpers
+  include PgSearch::Model
+  pg_search_scope :search_by_label, against: :label, using: { tsearch: { prefix: true } }
+
+  def self.rebuild_pg_search_documents
+    find_each { |record| record.update_pg_search_document }
+  end
+
 
   # before_save :save_audio_file, if: -> { label_changed? }
   # before_save :save_audio_file_to_s3!, if: :no_audio_saved

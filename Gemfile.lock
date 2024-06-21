@@ -269,6 +269,9 @@ GEM
       rails (>= 6.0.0)
     pdf-core (0.9.0)
     pg (1.5.4)
+    pg_search (2.3.6)
+      activerecord (>= 5.2)
+      activesupport (>= 5.2)
     prawn (2.4.0)
       pdf-core (~> 0.9.0)
       ttfunk (~> 1.7)
@@ -450,6 +453,7 @@ DEPENDENCIES
   paddle (~> 2.1)
   pay (~> 7.0)
   pg (~> 1.1)
+  pg_search
   puma (>= 5.0)
   pundit (~> 2.3)
   rack-cors
