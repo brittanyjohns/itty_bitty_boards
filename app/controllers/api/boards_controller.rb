@@ -148,8 +148,9 @@ class API::BoardsController < API::ApplicationController
   end
 
   def rearrange_images
+    board = Board.find(params[:id])
+
     ActiveRecord::Base.logger.silence do
-      board = Board.find(params[:id])
       if params[:layout].present?
         layout = params[:layout]
         board.update_grid_layout(layout)
