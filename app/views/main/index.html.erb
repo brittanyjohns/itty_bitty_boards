@@ -72,7 +72,7 @@
                         <%= link_to show_predefined_path(board), class: "min-w-max p-3 flex-shrink-0 flex justify-center items-center bg-white rounded-lg shadow-sm hover:shadow-lg transition-shadow duration-150 ease-in-out" do %>
                             <div class="text-center">
                                 <h3 class="font-semibold text-lg text-blue-600"><%= board.name %></h3>
-                                <%= display_image_for(board.display_image_url, current_user, 300, "max-h-24") if board.display_image %>
+                                <%= display_image_for(board.display_image_url, current_user, 300, "max-h-24") if board.display_image_url %>
                             </div>
                         <% end %>
                     <% end %>
