@@ -48,7 +48,7 @@ class Menu < ApplicationRecord
     board.name = self.name || "Board for Doc #{id}"
     board.token_limit = token_limit
     board.description = new_doc.processed
-    board.number_of_columns = 4
+    board.number_of_columns = 6
     board.save!
     new_doc.update!(board_id: board.id)
 

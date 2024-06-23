@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_06_21_193952) do
+ActiveRecord::Schema[7.1].define(version: 2024_06_23_181107) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -80,7 +80,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_06_21_193952) do
     t.integer "token_limit", default: 0
     t.string "voice"
     t.string "status", default: "pending"
-    t.integer "number_of_columns"
+    t.integer "number_of_columns", default: 6
     t.integer "small_screen_columns", default: 3
     t.integer "medium_screen_columns", default: 8
     t.integer "large_screen_columns", default: 12

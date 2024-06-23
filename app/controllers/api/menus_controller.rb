@@ -37,8 +37,6 @@ class API::MenusController < API::ApplicationController
       id: @menu.id,
       name: @menu.name,
       description: @menu.description,
-      # boardId: @board.id,
-      # images: @board_images,
       board: @board.api_view_with_images(current_user),
       displayImage: @board.display_image_url
     }

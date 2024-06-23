@@ -61,6 +61,8 @@ class Board < ApplicationRecord
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
 
+  before_save :rearrange_images, if: :number_of_columns_changed?
+
   before_save :set_status
   before_create :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
@@ -77,10 +79,6 @@ class Board < ApplicationRecord
     end
   end
 
-  def self.ransackable_attributes(auth_object = nil)
-    ["cost", "created_at", "description", "id", "id_value", "name", "number_of_columns", "parent_id", "parent_type", "predefined", "status", "token_limit", "updated_at", "user_id", "voice"]
-  end
-
   def set_number_of_columns
     return unless number_of_columns.nil?
     self.number_of_columns = self.large_screen_columns
@@ -92,6 +90,13 @@ class Board < ApplicationRecord
       self.status = "complete"
     else
       puts "board status: #{status}"
+    end
+  end
+
+  def rearrange_images(layout=nil)
+    ActiveRecord::Base.logger.silence do
+      layout ||= calucate_grid_layout
+      update_grid_layout(layout)
     end
   end
 

@@ -148,18 +148,19 @@ class API::BoardsController < API::ApplicationController
   end
 
   def rearrange_images
-    board = Board.find(params[:id])
-
-    ActiveRecord::Base.logger.silence do
-      if params[:layout].present?
-        layout = params[:layout]
-        board.update_grid_layout(layout)
-      else
-        board.calucate_grid_layout
-      end
-      board.save!
-    end
-    render json: board.api_view_with_images(current_user)
+    @board = Board.find(params[:id])
+    
+    # ActiveRecord::Base.logger.silence do
+      @board.rearrange_images(params[:layout])
+      # if params[:layout].present?
+      #   layout = params[:layout]
+      #   board.update_grid_layout(layout)
+      # else
+      #   board.calucate_grid_layout
+      # end
+      @board.save!
+    # end
+    render json: @board.api_view_with_images(current_user)
   end
 
   # POST /boards or /boards.json
@@ -194,10 +195,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def add_image
-    puts "API:::BoardsController#create board_params: #{board_params} - params: #{params}"
-
-    puts "\nAPI::BoardsController#create image_params: #{image_params} \n\n"
-    board = Board.with_artifacts.find(params[:id])
+    @board = Board.with_artifacts.find(params[:id])
     @found_image = Image.find_by(label: image_params[:label], user_id: current_user.id, private: true)
     @found_image ||= Image.find_by(label: image_params[:label])
     if @found_image
@@ -228,7 +226,6 @@ class API::BoardsController < API::ApplicationController
   end
 
   def create_from_next_words
-    puts "API::BoardsController#create_from_next_words: #{params.inspect}"
     @board = Board.new(board_params)
     @board.user = current_user
     @board.parent_id = user_signed_in? ? current_user.id : params[:parent_id]
