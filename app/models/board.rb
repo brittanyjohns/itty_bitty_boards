@@ -63,7 +63,7 @@ class Board < ApplicationRecord
 
   before_save :rearrange_images, if: :number_of_columns_changed?
 
-  before_save :set_status
+  after_touch :set_status
   before_create :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
 
@@ -85,12 +85,19 @@ class Board < ApplicationRecord
   end
 
   def set_status
-    return unless status.nil? || status == "pending"
     if parent_type == "User" || predefined
       self.status = "complete"
     else
-      puts "board status: #{status}"
+      puts "board status: #{status} - if has_generating_images? #{has_generating_images?}"
+      if has_generating_images?
+        self.status = "generating"
+      else
+        self.status = "complete"
+      end
     end
+    self.save!
+    puts "board status: #{status}"
+
   end
 
   def rearrange_images(layout=nil)
@@ -101,8 +108,7 @@ class Board < ApplicationRecord
   end
 
   def has_generating_images?
-    image_statuses = images.map(&:status)
-    image_statuses.include?("generating")
+    board_images.any? { |bi| bi.status == "generating" }
   end
 
   def predictive?
@@ -202,6 +208,7 @@ class Board < ApplicationRecord
   end
 
   def add_image(image_id)
+    new_board_image = nil
     if image_ids.include?(image_id.to_i)
       puts "image already added"
     else
@@ -217,6 +224,7 @@ class Board < ApplicationRecord
         Rails.logger.debug "new_board_image.errors: #{new_board_image.errors.full_messages}"
       end
     end
+    new_board_image
   end
 
   def voice_for_image(image_id)
@@ -256,8 +264,11 @@ class Board < ApplicationRecord
       floating_words: words,
       user_id: user_id,
       voice: voice,
+      created_at: created_at,
+      updated_at: updated_at,
+      has_generating_images: has_generating_images?,
       current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
-      images: board_images.map do |board_image|
+      images: board_images.includes(:image).map do |board_image|
         {
           id: board_image.image.id,
           label: board_image.image.label,
@@ -271,6 +282,9 @@ class Board < ApplicationRecord
           # src: board_image.image.display_image ? board_image.image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{board_image.image.label_param}",
           audio: board_image.image.default_audio_url,
           layout: board_image.layout,
+          added_at: board_image.added_at,
+          image_last_added_at: board_image.image_last_added_at,
+          status: board_image.status,
         }
       end,
     }

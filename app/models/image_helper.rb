@@ -8,10 +8,6 @@ module ImageHelper
 
   def save_image(url, user_id = nil, revised_prompt = nil, edited_prompt = nil)
     begin
-      # downloaded_image = URI.open(url,
-      #                             "User-Agent" => "Ruby/#{RUBY_VERSION}",
-      #                             "From" => "foo@bar.invalid",
-      #                             "Referer" => "http://www.ruby-lang.org/")
       downloaded_image = Down.download(url)
       user_id ||= self.user_id
       raw_txt = edited_prompt || name_to_send
@@ -31,11 +27,13 @@ module ImageHelper
     img_url = response[:img_url]
     revised_prompt = response[:revised_prompt]
     edited_prompt = response[:edited_prompt]
+    doc = nil
     if img_url
-      save_image(img_url, user_id, revised_prompt, edited_prompt)
+      doc = save_image(img_url, user_id, revised_prompt, edited_prompt)
     else
       Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"
     end
+    doc
   end
 
   def create_audio_from_text(text = nil, voice = "echo")
@@ -64,18 +62,26 @@ module ImageHelper
   def clarify_image_description(raw)
     response = OpenAiClient.new(open_ai_opts).clarify_image_description(raw)
     if response
-      puts "response: #{response}"
       response_text = response[:content].gsub("```json", "").gsub("```", "").strip
       if valid_json?(response_text)
         response_text
       else
         puts "INVALID JSON: #{response_text}"
         response_text = transform_into_json(response_text)
+        puts "response_text: #{response_text}"
       end
     else
       Rails.logger.error "*** ERROR - clarify_image_description *** \nDid not receive valid response. Response: #{response}\n"
     end
-    puts "response_text: #{response_text}"
+
+    response_hash = JSON.parse(response_text) if response_text
+
+    puts "response_hash: #{response_hash["menu_items"]} "
+
+    if response_hash["menu_items"].blank?
+      puts "NO DESCRIPTION"
+      return nil
+    end
     response_text
   end
 

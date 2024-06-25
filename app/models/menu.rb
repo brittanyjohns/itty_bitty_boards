@@ -55,8 +55,8 @@ class Menu < ApplicationRecord
     create_images_from_description(board)
     board.calucate_grid_layout
     puts "Board created from image description: #{board.id}\ndisplay_url: #{new_doc.display_url}\n"
-    board.display_image_url = new_doc.display_url
-    board.update!(status: "complete")
+    board.display_image_url = new_doc.image&.url if new_doc.image.attached?
+    # board.update!(status: "complete")
     board
   end
 
@@ -67,23 +67,31 @@ class Menu < ApplicationRecord
     total_cost = board.cost || 0
 
     minutes_to_wait = 0
-    board.images.each_slice(5) do |image_slice|
-      image_slice.each do |image|
-        next unless should_generate_image(image, @user, tokens_used, total_cost)
-        image.start_generate_image_job(minutes_to_wait, @user.id)
-        tokens_used += 1
-        total_cost += 1
+    images_generated = 0
+    board_images.each_slice(5) do |board_image_slice|
+      board_image_slice.each do |board_image|
+        if should_generate_image(board_image.image, self.user, tokens_used, total_cost)
+          board_image.update!(status: "generating")
+          board_image.image.start_generate_image_job(minutes_to_wait, self.user_id, nil, board.id)
+          tokens_used += 1
+          total_cost += 1
+          images_generated += 1
+        else
+          puts "Not generating image for #{board_image.image.label}"
+          board_image.update!(status: "skipped")
+        end
       end
-      minutes_to_wait += 1
+        minutes_to_wait += 1
     end
     @user.remove_tokens(tokens_used)
+    puts "USED #{tokens_used} tokens for #{images_generated} images"
     board.add_to_cost(tokens_used) if board
   end
 
   def create_images_from_description(board)
     json_description = JSON.parse(description)
     images = []
-    new_images = []
+    new_board_images = []
     tokens_used = 0
     json_description["menu_items"].each do |food|
       if food["name"].blank? || food["image_description"].blank?
@@ -114,35 +122,63 @@ class Menu < ApplicationRecord
       image.display_description = image.image_prompt
       image.save!
       image.image_prompt += PROMPT_ADDITION
-      board.add_image(image.id)
+      new_board_image = board.add_image(image.id)
+      new_board_image.save_initial_layout
       images << image
-      new_images << new_image if new_image
+      new_board_images << new_board_image if new_board_image
     end
     total_cost = board.cost || 0
     minutes_to_wait = 0
-    new_images.each_slice(5) do |image_slice|
-      minutes_to_wait += 1
-      image_slice.each do |image|
-        next unless should_generate_image(image, self.user, tokens_used, total_cost)
-        image.start_generate_image_job(minutes_to_wait, self.user_id)
-        tokens_used += 1
-        total_cost += 1
+    images_generated = 0
+    new_board_images.each_slice(5) do |board_image_slice|
+      board_image_slice.each do |board_image|
+        if should_generate_image(board_image.image, self.user, tokens_used, total_cost)
+          board_image.update!(status: "generating")
+          board_image.image.start_generate_image_job(minutes_to_wait, self.user_id, nil, board.id)
+          tokens_used += 1
+          total_cost += 1
+          images_generated += 1
+        else
+          puts "Not generating image for #{image.label}"
+          board_image.update!(status: "skipped")
+        end
       end
+      minutes_to_wait += 1
     end
     self.user.remove_tokens(tokens_used)
     board.add_to_cost(tokens_used) if board
+    puts "USED #{tokens_used} tokens for #{images_generated} images"
     # board.position_all_board_images
     # board.calucate_grid_layout
     board
   end
 
   def should_generate_image(image, user, tokens_used, total_cost = 0)
-    return false if image.doc_exists_for_user?(user)
+    existing_doc = image.doc_exists_for_user?(user)
+    if existing_doc
+      puts "Doc exists for #{image.label}"
+      existing_doc.update_user_docs
+      existing_doc.update!(current: true)
+      return false
+    end
     return false if user.tokens <= tokens_used
     return false unless token_limit
     return false if token_limit <= total_cost
     puts "Generating image for #{image.label}, tokens used: #{tokens_used}, total cost: #{total_cost}"
     true
+  end
+
+  def api_view(viewing_user=nil)
+    {
+      id: id,
+      name: name,
+      description: description,
+      token_limit: token_limit,
+      board: main_board&.api_view_with_images(viewing_user),
+      displayImage: docs.last&.display_url,
+      created_at: created_at,
+      updated_at: updated_at
+    }
   end
 
   def menu_item_name(item_name)
@@ -158,23 +194,33 @@ class Menu < ApplicationRecord
 
   def enhance_image_description(board_id)
     new_doc = self.docs.last
-    puts "NO NEW DOC FOUND\n" && return unless new_doc
+    raise "NO NEW DOC FOUND" && return unless new_doc
 
     self.update!(description: new_doc.processed)
+    begin
+      if !new_doc.raw.blank?
+        new_doc.processed = clarify_image_description(new_doc.raw)
+        puts "Processed: #{new_doc.processed}\n"
+        return nil unless new_doc.processed
+        new_doc.current = true
+        new_doc.user_id = self.user_id
+        new_doc.save!
+        self.description = new_doc.processed
+        self.save!
 
-    if !new_doc.raw.blank?
-      new_doc.processed = clarify_image_description(new_doc.raw)
-      new_doc.current = true
-      new_doc.user_id = self.user_id
-      new_doc.save!
-      self.description = new_doc.processed
-      puts "**** ERROR **** \nNo image description provided.\n" unless description
-      self.save!
-
-      create_board_from_image(new_doc, board_id)
-    else
-      puts "Image description invaild: #{description}\n"
-      description
+        create_board_from_image(new_doc, board_id)
+      else
+        puts "Image description invaild: #{description}\n"
+        description
+      end
+    rescue => e
+      puts "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"
+      board = Board.where(id: board_id).first if board_id
+      board = self.boards.last unless board
+      board = self.boards.create(user: self.user, name: self.name) unless board
+      board.update(status: "error") if board
+      puts "UPDATE BOARD: #{board.inspect}"
+      nil
     end
   end
 

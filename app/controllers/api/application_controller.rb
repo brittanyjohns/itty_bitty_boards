@@ -34,7 +34,9 @@ module API
     end
 
     def user_from_token
-      User.with_artifacts.find_by(authentication_token: token) if token.present?
+      ActiveRecord::Base.logger.silence do
+        User.with_artifacts.find_by(authentication_token: token) if token.present?
+      end
     end
 
     def current_user

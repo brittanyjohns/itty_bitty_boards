@@ -4,6 +4,9 @@ class API::MenusController < API::ApplicationController
   # GET /menus or /menus.json
   def index
     @menus = current_user.menus.order(created_at: :desc).page params[:page]
+    if current_user.admin?
+      @menus = Menu.order(created_at: :desc).page params[:page]
+    end
     @menus_with_display_docs = @menus.map do |menu|
       {
         id: menu.id,
@@ -18,29 +21,7 @@ class API::MenusController < API::ApplicationController
 
   # GET /menus/1 or /menus/1.json
   def show
-    @new_menu_doc = Doc.new
-    @new_menu_doc.documentable = @menu
-    @board = @menu.boards.last
-    unless @board
-      redirect_to menus_url, notice: "No board found for this menu."
-      return
-    end
-    @board_images = @board.images.map do |image|
-      {
-        id: image.id,
-        label: image.label, 
-        src: image.display_image_url(current_user),
-        audio: image.default_audio_url
-      }
-    end
-    @menu_with_display_doc = {
-      id: @menu.id,
-      name: @menu.name,
-      description: @menu.description,
-      board: @board.api_view_with_images(current_user),
-      displayImage: @board.display_image_url
-    }
-    render json: @menu_with_display_doc
+    render json: @menu.api_view(current_user)
   end
   # GET /menus/new
   def new
@@ -65,19 +46,19 @@ class API::MenusController < API::ApplicationController
     end
     if current_user.tokens < 1
       message = "Not enough tokens to re-run image description job."
-      render json: { message: message }, status: :unprocessable_entity
+      render json: { error: message }, status: :unprocessable_entity
       # redirect_to menu_url(@menu), notice: "Not enough tokens to re-run image description job."
       return
     end
     if @board.cost >= @menu.token_limit
       Rails.logger.info "Board cost: #{@board.cost} >= Menu token limit: #{@menu.token_limit}"
-      message = "This menu has already used all of its tokens."
-      render json: { message: message }, status: :unprocessable_entity
+      message = "This menu has already used all of its tokens. Menu token limit: #{@menu.token_limit}"
+      render json: { error: message }, status: :unprocessable_entity
       # redirect_to menu_url(@menu), notice: "This menu has already used all of its tokens."
       return
     end
     @menu.rerun_image_description_job
-    render json: { message: message }, status: :ok
+    render json: @menu.api_view(current_user), status: 200
     # redirect_to menu_url(@menu), notice: "Re-running image description job."
   end
 
@@ -113,7 +94,7 @@ class API::MenusController < API::ApplicationController
       boardId: @board.id,
       # displayImage: display_image_url
     }
-      render json: @menu_with_display_doc, status: :created
+      render json: @menu_with_display_doc, status: 200
     else
       render json: @menu.errors, status: :unprocessable_entity
     end
@@ -122,17 +103,13 @@ class API::MenusController < API::ApplicationController
   # PATCH/PUT /menus/1 or /menus/1.json
   def update
     unless current_user.admin? || current_user.id == @menu.user_id
-      redirect_to root_url, notice: "You are not authorized to edit this menu."
+      render json: { error: "You do not have permission to update this menu." }, status: :unauthorized
       return
     end
-    respond_to do |format|
-      if @menu.update(menu_params)
-        format.html { redirect_to menu_url(@menu), notice: "Menu was successfully updated." }
-        format.json { render :show, status: :ok, location: @menu }
-      else
-        format.html { render :edit, status: :unprocessable_entity }
-        format.json { render json: @menu.errors, status: :unprocessable_entity }
-      end
+    if @menu.update(menu_params)
+      render json: @menu, status: :ok
+    else
+      render json: @menu.errors, status: :unprocessable_entity
     end
   end
 
@@ -141,7 +118,6 @@ class API::MenusController < API::ApplicationController
     @menu.destroy!
 
     respond_to do |format|
-      format.html { redirect_to menus_url, notice: "Menu was successfully destroyed." }
       format.json { head :no_content }
     end
   end
@@ -149,7 +125,7 @@ class API::MenusController < API::ApplicationController
   private
     # Use callbacks to share common setup or constraints between actions.
     def set_menu
-      @menu = Menu.find(params[:id])
+      @menu = Menu.includes(:boards, :docs).find(params[:id])
     end
 
     # Only allow a list of trusted parameters through.

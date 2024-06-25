@@ -4,7 +4,17 @@ class EnhanceImageDescriptionJob
 
   def perform(menu_id, board_id=nil)
     menu = Menu.find(menu_id)
-    menu.enhance_image_description(board_id)
+    begin
+      result = menu.enhance_image_description(board_id)
+      unless result
+        puts "An error occurred while enhancing the image description."
+        raise "Invalid image description."
+      end
+
+    rescue => e
+      puts "**** ERROR **** \n#{e.message}\n"
+      puts menu.reload.main_board&.inspect
+    end
   end
     
 end

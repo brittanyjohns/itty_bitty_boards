@@ -18,7 +18,7 @@
 #
 class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
-  belongs_to :board
+  belongs_to :board, touch: true
   belongs_to :image
   # acts_as_list scope: :board
 
@@ -88,5 +88,13 @@ class BoardImage < ApplicationRecord
     l = board.calucate_grid_layout
     # set_position
     # update!(layout: initial_layout)
+  end
+
+  def added_at
+    created_at.strftime("%m/%d %I:%M %p")
+  end
+
+  def image_last_added_at
+    image.docs.last&.created_at&.strftime("%m/%d %I:%M %p")
   end
 end

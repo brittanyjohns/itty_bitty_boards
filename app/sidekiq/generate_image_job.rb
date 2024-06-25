@@ -5,11 +5,17 @@ class GenerateImageJob
   def perform(image_id, user_id=nil, *args)
 
     image = Image.find(image_id)
+    board_image = nil
+    board_id = nil
     image.update(status: "generating") unless image.status == "generating"
     if args.present?
       image_prompt = args[0]
       image.temp_prompt = image_prompt
-      puts "IMAGE PROMPT: #{image_prompt}"
+      board_id = args[1]
+      board_image = BoardImage.find_by(board_id: board_id, image_id: image_id) if board_id
+      if board_image
+        board_image.update(status: "generating")
+      end
     end
     begin
       image.create_image_doc(user_id)
@@ -17,9 +23,14 @@ class GenerateImageJob
         image.image_prompt = image.image_prompt.gsub(Menu::PROMPT_ADDITION, "")
         image.save!
       end
+      if board_image
+        board_image.update(status: "complete")
+      end
     rescue => e
       puts "**** ERROR **** \n#{e.message}\n"
       image.update(status: "error", error: e.message)
+      board_image.update(status: "error") if board_image
+      
       puts "UPDATE IMAGE: #{image.inspect}"
     end
     # Do something

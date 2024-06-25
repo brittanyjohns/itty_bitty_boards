@@ -128,6 +128,12 @@ class Image < ApplicationRecord
   def create_image_doc(user_id = nil)
     response = create_image(user_id)
     Rails.logger.debug "Response: #{response}"
+    if response
+      doc = response
+      doc.update_user_docs
+      doc.update!(current: true)
+      doc
+    end
     # self.image_prompt = prompt_to_send
   end
 
@@ -576,7 +582,7 @@ class Image < ApplicationRecord
   end
 
   def doc_exists_for_user?(user)
-    docs.where(user_id: user.id).any?
+    docs.where(user_id: user.id).first
   end
 
   def label_param
@@ -669,12 +675,12 @@ class Image < ApplicationRecord
     last_id + 1
   end
 
-  def start_generate_image_job(start_time = 0, user_id_to_set = nil, image_prompt_to_set = nil)
+  def start_generate_image_job(start_time = 0, user_id_to_set = nil, image_prompt_to_set = nil, board_id = nil)
     user_id_to_set ||= user_id
     Rails.logger.debug "start_generate_image_job: #{label} - #{user_id_to_set} - #{image_prompt_to_set}"
     run_in = start_time.minutes
 
-    GenerateImageJob.perform_in(run_in, id, user_id_to_set, image_prompt_to_set)
+    GenerateImageJob.perform_in(run_in, id, user_id_to_set, image_prompt_to_set, board_id)
   end
 
   def self.run_generate_image_job_for(images)
@@ -716,6 +722,11 @@ class Image < ApplicationRecord
       text_color: text_color,
       src: display_image(viewing_user) ? display_image(viewing_user).url : "https://via.placeholder.com/300x300.png?text=#{label_param}",
       audio: audio_files.first&.url,
+      status: status,
+      error: error,
+      open_symbol_status: open_symbol_status,
+      created_at: created_at,
+      updated_at: updated_at,
     }
   end
 

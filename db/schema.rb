@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_06_23_181107) do
+ActiveRecord::Schema[7.1].define(version: 2024_06_24_193627) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -63,6 +63,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_06_23_181107) do
     t.integer "font_size"
     t.string "border_color"
     t.jsonb "layout", default: {}
+    t.string "status", default: "pending"
     t.index ["board_id"], name: "index_board_images_on_board_id"
     t.index ["image_id"], name: "index_board_images_on_image_id"
   end
