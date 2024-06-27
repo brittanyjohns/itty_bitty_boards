@@ -45,9 +45,7 @@ class Board < ApplicationRecord
   scope :with_less_than_10_images, -> { joins(:images).group("boards.id").having("count(images.id) < 10") }
   scope :with_less_than_x_images, ->(x) { joins(:images).group("boards.id").having("count(images.id) < ?", x) }
   scope :without_images, -> { left_outer_joins(:images).where(images: { id: nil }) }
-  # before_save :set_number_of_columns, unless: :number_of_columns?
-  # scope :with_artifacts, -> { includes(board_images: { image: [{ docs: :image_attachment }, :audio_files_attachments] }) }
-  # scope :with_artifacts, -> { includes({images: [{ docs: :image_attachment }, :audio_files_attachments]}) }
+
   scope :with_artifacts, -> {
           includes({
             images: [
@@ -66,6 +64,8 @@ class Board < ApplicationRecord
   after_touch :set_status
   before_create :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
+
+  validates :name, presence: true
 
   def parent_type_menu?
     parent_type == "Menu"
@@ -97,10 +97,9 @@ class Board < ApplicationRecord
     end
     self.save!
     puts "board status: #{status}"
-
   end
 
-  def rearrange_images(layout=nil)
+  def rearrange_images(layout = nil)
     ActiveRecord::Base.logger.silence do
       layout ||= calucate_grid_layout
       update_grid_layout(layout)
