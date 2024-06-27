@@ -138,6 +138,7 @@ Rails.application.routes.draw do
   #  API routes
   namespace :api, defaults: { format: :json } do
     post "word_click", to: "audits#word_click"
+    resources :beta_requests
     resources :teams do
       collection do
         post "set_current"

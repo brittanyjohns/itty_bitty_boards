@@ -8,5 +8,5 @@
 #  updated_at :datetime         not null
 #
 class BetaRequest < ApplicationRecord
-  validates :email, presence: true, uniqueness: true
+  validates :email, presence: true
 end
