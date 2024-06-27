@@ -50,6 +50,9 @@ gem "image_processing", "~> 1.2"
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ]
+  gem "rspec-rails"
+  gem "factory_bot_rails"
+  gem "faker"
 end
 
 group :development do
@@ -74,8 +77,8 @@ end
 #  User authentication
 gem "devise"
 
-gem 'devise-jwt'
-gem 'jsonapi-serializer'
+gem "devise-jwt"
+gem "jsonapi-serializer"
 
 # Icons
 gem "font-awesome-sass", "~> 6.4.0"
@@ -133,6 +136,6 @@ gem "down", "~> 5.4"
 gem "acts_as_list", "~> 1.1"
 gem "foreman"
 
-gem 'mailgun-ruby', '~>1.2.14'
+gem "mailgun-ruby", "~>1.2.14"
 
-gem 'pg_search'
+gem "pg_search"
