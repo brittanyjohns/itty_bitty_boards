@@ -1,6 +1,7 @@
 class API::BetaRequestsController < API::ApplicationController
   before_action :set_beta_request, only: %i[ show edit update destroy ]
   before_action :admin_only, only: %i[ index edit update destroy ]
+  skip_before_action :authenticate_user!, only: %i[ create ]
 
   # GET /beta_requests or /beta_requests.json
   def index
