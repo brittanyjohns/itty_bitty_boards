@@ -54,7 +54,7 @@ class API::BetaRequestsController < API::ApplicationController
 
   def admin_only
     # redirect_to root_path, alert: "You are not authorized to perform that action." unless current_user&.admin?
-    render json: { error: "You are not authorized to perform that action." }, status: :unauthorized unless current_user&.admin
+    render json: { error: "You are not authorized to perform that action." }, status: :unauthorized unless current_user&.admin?
   end
 
   # Only allow a list of trusted parameters through.
