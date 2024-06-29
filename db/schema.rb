@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_06_27_193103) do
+ActiveRecord::Schema[7.1].define(version: 2024_06_29_173716) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -421,6 +421,12 @@ ActiveRecord::Schema[7.1].define(version: 2024_06_27_193103) do
     t.boolean "play_demo", default: true
     t.jsonb "settings", default: {}
     t.string "base_words", default: [], array: true
+    t.string "plan_type", default: "free"
+    t.datetime "plan_expires_at"
+    t.string "plan_status", default: "active"
+    t.decimal "monthly_price", precision: 8, scale: 2, default: "0.0"
+    t.decimal "yearly_price", precision: 8, scale: 2, default: "0.0"
+    t.decimal "total_plan_cost", precision: 8, scale: 2, default: "0.0"
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
     t.index ["current_team_id"], name: "index_users_on_current_team_id"
     t.index ["email"], name: "index_users_on_email", unique: true
