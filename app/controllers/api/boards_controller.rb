@@ -112,7 +112,10 @@ class API::BoardsController < API::ApplicationController
     board = Board.with_artifacts.find(params[:id])
     layout = params[:layout]
     layout.each_with_index do |layout_item, index|
-      board_image = board.board_images.find(layout_item["i"])
+      puts "layout_item[#{index}]: #{layout_item.inspect}"
+      image_id = layout_item["i"]
+      board_image = board.board_images.find_by(image_id: image_id)
+      # board_image = board.board_images.find(layout_item["i"])
       board_image.layout = layout_item
       board_image.save!
     end
@@ -149,16 +152,16 @@ class API::BoardsController < API::ApplicationController
 
   def rearrange_images
     @board = Board.find(params[:id])
-    
+
     # ActiveRecord::Base.logger.silence do
-      @board.rearrange_images(params[:layout])
-      # if params[:layout].present?
-      #   layout = params[:layout]
-      #   board.update_grid_layout(layout)
-      # else
-      #   board.calucate_grid_layout
-      # end
-      @board.save!
+    @board.rearrange_images(params[:layout])
+    # if params[:layout].present?
+    #   layout = params[:layout]
+    #   board.update_grid_layout(layout)
+    # else
+    #   board.calucate_grid_layout
+    # end
+    @board.save!
     # end
     render json: @board.api_view_with_images(current_user)
   end
@@ -219,6 +222,7 @@ class API::BoardsController < API::ApplicationController
       @board.add_image(@image.id) if @board
 
       @board_with_images = @board.api_view_with_images(current_user)
+      @board.calucate_grid_layout
       render json: @board_with_images
     else
       render json: img_saved.errors, status: :unprocessable_entity
@@ -236,6 +240,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def associate_image
+    puts "API::BoardsController#associate_image: #{params.inspect}"
     image = Image.find(params[:image_id])
     if @board.images.include?(image)
       render json: { error: "Image already associated with board" }, status: :unprocessable_entity
@@ -256,7 +261,7 @@ class API::BoardsController < API::ApplicationController
       render json: { error: "Error adding image to board: #{new_board_image.errors.full_messages.join(", ")}" }, status: :unprocessable_entity
       return
     end
-    @board.reload
+    @board.calucate_grid_layout
     render json: { board: @board, new_board_image: new_board_image }
   end
 
@@ -320,9 +325,9 @@ class API::BoardsController < API::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def board_params
-    params.require(:board).permit(:user_id, 
-                                  :name, 
-                                  :parent_id, 
+    params.require(:board).permit(:user_id,
+                                  :name,
+                                  :parent_id,
                                   :parent_type,
                                   :description,
                                   :predefined,
@@ -334,7 +339,6 @@ class API::BoardsController < API::ApplicationController
                                   :image_id,
                                   :query,
                                   :page,
-                                  :display_image_url,
-    )
+                                  :display_image_url)
   end
 end
