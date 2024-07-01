@@ -221,6 +221,7 @@ Rails.application.routes.draw do
     resources :users do
       member do
         put "update_settings"
+        put "update_plan"
       end
     end
 
