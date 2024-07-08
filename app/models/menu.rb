@@ -159,21 +159,6 @@ class Menu < ApplicationRecord
     board
   end
 
-  def should_generate_image(image, user, tokens_used, total_cost = 0)
-    existing_doc = image.doc_exists_for_user?(user)
-    if existing_doc
-      puts "Doc exists for #{image.label}"
-      existing_doc.update_user_docs
-      existing_doc.update!(current: true)
-      return false
-    end
-    return false if user.tokens <= tokens_used
-    return false unless token_limit
-    return false if token_limit <= total_cost
-    puts "Generating image for #{image.label}, tokens used: #{tokens_used}, total cost: #{total_cost}"
-    true
-  end
-
   def api_view(viewing_user = nil)
     {
       id: id,
