@@ -32,6 +32,12 @@
 #  play_demo              :boolean          default(TRUE)
 #  settings               :jsonb
 #  base_words             :string           default([]), is an Array
+#  plan_type              :string           default("free")
+#  plan_expires_at        :datetime
+#  plan_status            :string           default("active")
+#  monthly_price          :decimal(8, 2)    default(0.0)
+#  yearly_price           :decimal(8, 2)    default(0.0)
+#  total_plan_cost        :decimal(8, 2)    default(0.0)
 #
 
 # This model initially had no columns defined. If you add columns to the

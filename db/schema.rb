@@ -10,10 +10,11 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_06_29_173716) do
+ActiveRecord::Schema[7.1].define(version: 2024_07_04_141217) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
+  enable_extension "pgcrypto"
   enable_extension "plpgsql"
 
   create_table "active_storage_attachments", force: :cascade do |t|
@@ -351,6 +352,24 @@ ActiveRecord::Schema[7.1].define(version: 2024_06_29_173716) do
     t.index ["product_category_id"], name: "index_products_on_product_category_id"
   end
 
+  create_table "subscriptions", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "stripe_subscription_id"
+    t.string "stripe_plan_id"
+    t.string "status"
+    t.datetime "expires_at"
+    t.integer "price_in_cents"
+    t.string "interval", default: "month"
+    t.string "stripe_customer_id"
+    t.integer "interval_count", default: 1
+    t.string "stripe_invoice_id"
+    t.string "stripe_client_reference_id"
+    t.string "stripe_payment_status"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_subscriptions_on_user_id"
+  end
+
   create_table "team_boards", force: :cascade do |t|
     t.bigint "board_id", null: false
     t.bigint "team_id", null: false
@@ -427,12 +446,14 @@ ActiveRecord::Schema[7.1].define(version: 2024_06_29_173716) do
     t.decimal "monthly_price", precision: 8, scale: 2, default: "0.0"
     t.decimal "yearly_price", precision: 8, scale: 2, default: "0.0"
     t.decimal "total_plan_cost", precision: 8, scale: 2, default: "0.0"
+    t.uuid "uuid", default: -> { "gen_random_uuid()" }
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
     t.index ["current_team_id"], name: "index_users_on_current_team_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["invitation_token"], name: "index_users_on_invitation_token", unique: true
     t.index ["jti"], name: "index_users_on_jti", unique: true
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
+    t.index ["uuid"], name: "index_users_on_uuid", unique: true
   end
 
   create_table "word_events", force: :cascade do |t|
@@ -462,6 +483,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_06_29_173716) do
   add_foreign_key "pay_payment_methods", "pay_customers", column: "customer_id"
   add_foreign_key "pay_subscriptions", "pay_customers", column: "customer_id"
   add_foreign_key "products", "product_categories"
+  add_foreign_key "subscriptions", "users"
   add_foreign_key "team_boards", "boards"
   add_foreign_key "team_boards", "teams"
   add_foreign_key "team_users", "teams"

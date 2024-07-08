@@ -11,7 +11,7 @@ class API::ImagesController < API::ApplicationController
 
     if params[:query].present?
       # @images = @images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page params[:page]
-      @images = Image.search_by_label(params[:query]).order(label: :asc).page params[:page]
+      @images = Image.with_artifacts.search_by_label(params[:query]).order(label: :asc).page params[:page]
     else
       @images = @images.order(label: :asc).page params[:page]
     end
@@ -34,9 +34,8 @@ class API::ImagesController < API::ApplicationController
   end
 
   def user_images
-    @images = Image.with_artifacts.where(user_id: current_user.id).includes(:docs).order(label: :asc).page params[:page]
     @user_docs = current_user.docs.with_attached_image.where(documentable_type: "Image").order(created_at: :desc)
-    @images = Image.with_artifacts.non_menu_images.where(id: @user_docs.map(&:documentable_id)).order(label: :asc).page params[:page]
+    @images = Image.with_artifacts.where(id: @user_docs.map(&:documentable_id)).order(label: :asc).page params[:page]
     @distinct_images = @images.distinct
     @images_with_display_doc = @distinct_images.map do |image|
       # display_doc = image.display_doc(current_user)
@@ -194,7 +193,7 @@ class API::ImagesController < API::ApplicationController
     @image.update(status: "generating")
     puts "\n\nPARAMS: #{params.inspect}\n\n"
     # image_prompt = "An image of #{@image.label}."
-    image_prompt = image_params[:image_prompt] || image_params['image_prompt']
+    image_prompt = image_params[:image_prompt] || image_params["image_prompt"]
     GenerateImageJob.perform_async(@image.id, current_user.id, image_prompt)
     current_user.remove_tokens(1)
     @image_docs = @image.docs.for_user(current_user).order(created_at: :desc)

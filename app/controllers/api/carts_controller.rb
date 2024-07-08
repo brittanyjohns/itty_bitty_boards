@@ -1,7 +1,6 @@
 class API::CartsController < API::ApplicationController
   before_action :authenticate_user!
-  ONE_DOLLAR_PRICE_ID = ENV['ONE_DOLLAR_PRICE_ID']
-  DOMAIN = ENV['DOMAIN'] || 'http://localhost:4000'
+  DOMAIN = ENV["DOMAIN"] || "http://localhost:4000"
 
   def show
     @current_order = current_order
@@ -19,12 +18,11 @@ class API::CartsController < API::ApplicationController
         name: "One-time payment for #{current_user.email}",
         currency: "usd",
         quantity: @amount.to_i,
-        success_url: DOMAIN + '/success',
-        cancel_url: DOMAIN + '/cancel'
+        success_url: DOMAIN + "/success",
+        cancel_url: DOMAIN + "/cancel",
       )
       current_user.stripe_customer_id = @checkout_session.customer
       current_user.save!
     end
   end
-
 end

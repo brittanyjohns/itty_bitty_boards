@@ -15,6 +15,7 @@
 #  source_type        :string
 #  deleted_at         :datetime
 #  original_image_url :string
+#  prompt_for_prompt  :string
 #
 require "test_helper"
 
