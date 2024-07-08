@@ -81,7 +81,7 @@ class Menu < ApplicationRecord
           board_image.update!(status: "skipped")
         end
       end
-        minutes_to_wait += 1
+      minutes_to_wait += 1
     end
     @user.remove_tokens(tokens_used)
     puts "USED #{tokens_used} tokens for #{images_generated} images"
@@ -130,21 +130,27 @@ class Menu < ApplicationRecord
     total_cost = board.cost || 0
     minutes_to_wait = 0
     images_generated = 0
-    new_board_images.each_slice(5) do |board_image_slice|
-      board_image_slice.each do |board_image|
-        if should_generate_image(board_image.image, self.user, tokens_used, total_cost)
-          board_image.update!(status: "generating")
-          board_image.image.start_generate_image_job(minutes_to_wait, self.user_id, nil, board.id)
-          tokens_used += 1
-          total_cost += 1
-          images_generated += 1
-        else
-          puts "Not generating image for #{image.label}"
-          board_image.update!(status: "skipped")
+    begin
+      new_board_images.each_slice(5) do |board_image_slice|
+        board_image_slice.each do |board_image|
+          if should_generate_image(board_image.image, self.user, tokens_used, total_cost)
+            board_image.update!(status: "generating")
+            board_image.image.start_generate_image_job(minutes_to_wait, self.user_id, nil, board.id)
+            tokens_used += 1
+            total_cost += 1
+            images_generated += 1
+          else
+            puts "Not generating image for #{board_image.image.label}"
+            board_image.update!(status: "skipped")
+          end
         end
+        minutes_to_wait += 1
       end
-      minutes_to_wait += 1
+    rescue => e
+      puts "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"
+      board.update(status: "error") if board
     end
+
     self.user.remove_tokens(tokens_used)
     board.add_to_cost(tokens_used) if board
     puts "USED #{tokens_used} tokens for #{images_generated} images"
@@ -168,7 +174,7 @@ class Menu < ApplicationRecord
     true
   end
 
-  def api_view(viewing_user=nil)
+  def api_view(viewing_user = nil)
     {
       id: id,
       name: name,
@@ -177,7 +183,7 @@ class Menu < ApplicationRecord
       board: main_board&.api_view_with_images(viewing_user),
       displayImage: docs.last&.display_url,
       created_at: created_at,
-      updated_at: updated_at
+      updated_at: updated_at,
     }
   end
 

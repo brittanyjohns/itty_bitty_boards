@@ -6,7 +6,7 @@ def trigger_customer_subscription_created
   puts "Customer subscription created"
   `stripe trigger customer.subscription.created \
         --override product:name=foo \
-        --override price:unit_amount=4200`
+        --override price:unit_amount=499`
 end
 
 trigger_customer_subscription_created

@@ -129,10 +129,7 @@ class Board < ApplicationRecord
   def position_all_board_images
     ActiveRecord::Base.logger.silence do
       board_images.order(:position).each_with_index do |bi, index|
-        if bi.position
-          puts "bi.position: #{bi.position} NOT => index: #{index}"
-        else
-          puts "bi.position: nil UPDATING => index: #{index}"
+        unless bi.position && bi.position == index
           bi.update!(position: index)
         end
       end
@@ -316,14 +313,9 @@ class Board < ApplicationRecord
     rows = (bi_count / number_of_columns.to_f).ceil
     ActiveRecord::Base.logger.silence do
       board_images.order(:position).each_slice(number_of_columns) do |row|
-        puts "ROW COUNT: #{row_count} "
         row.each_with_index do |bi, index|
-          puts "bi: #{bi.id} -- index: #{index} -- row_count: #{row_count}"
           new_layout = { i: bi.id, x: index, y: row_count, w: 1, h: 1 }
-          #   puts "id: #{bi.id} x: #{index} y: #{row_count} -- bi: #{bi.label} -- position: #{bi.position}"
           bi.update!(layout: new_layout)
-          # bi.reload
-          puts "layout: #{bi.layout}"
           grid_layout << new_layout
         end
         row_count += 1

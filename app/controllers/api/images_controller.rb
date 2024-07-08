@@ -35,7 +35,7 @@ class API::ImagesController < API::ApplicationController
 
   def user_images
     @user_docs = current_user.docs.with_attached_image.where(documentable_type: "Image").order(created_at: :desc)
-    @images = Image.with_artifacts.non_menu_images.where(id: @user_docs.map(&:documentable_id)).order(label: :asc).page params[:page]
+    @images = Image.with_artifacts.where(id: @user_docs.map(&:documentable_id)).order(label: :asc).page params[:page]
     @distinct_images = @images.distinct
     @images_with_display_doc = @distinct_images.map do |image|
       # display_doc = image.display_doc(current_user)
