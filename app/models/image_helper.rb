@@ -2,6 +2,7 @@ require "open-uri"
 
 module ImageHelper
   include UtilHelper
+
   def name_to_send
     open_ai_opts[:prompt] || name
   end

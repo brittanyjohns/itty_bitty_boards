@@ -193,6 +193,7 @@ class OpenAiClient
   end
 
   def create_chat
+    @model ||= GPT_3_MODEL
     Rails.logger.debug "**** ERROR **** \nNo messages provided.\n" unless @messages
     opts = {
       model: @model, # Required.

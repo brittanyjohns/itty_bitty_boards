@@ -1,5 +1,5 @@
 module UtilHelper
-  def valid_json?(json) 
+  def valid_json?(json)
     JSON.parse(json)
     return true
   rescue JSON::ParserError => e
@@ -22,5 +22,20 @@ module UtilHelper
     json_output = data.to_json
     puts "json_output: #{json_output}"
     json_output
+  end
+
+  def should_generate_image(image, user, tokens_used, total_cost = 0)
+    existing_doc = image.doc_exists_for_user?(user)
+    if existing_doc
+      puts "Doc exists for #{image.label}"
+      existing_doc.update_user_docs
+      existing_doc.update!(current: true)
+      return false
+    end
+    return false if user.tokens <= tokens_used
+    return false unless token_limit
+    return false if token_limit <= total_cost
+    puts "Generating image for #{image.label}, tokens used: #{tokens_used}, total cost: #{total_cost}"
+    true
   end
 end
