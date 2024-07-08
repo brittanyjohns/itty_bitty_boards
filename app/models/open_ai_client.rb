@@ -2,7 +2,9 @@ require "openai"
 
 class OpenAiClient
   GPT_4_MODEL = "gpt-4o"
+  GPT_3_MODEL = "gpt-3.5-turbo-0125"
   IMAGE_MODEL = "dall-e-2"
+  TTS_MODEL = "tts-1"
 
   def initialize(opts)
     @messages = opts["messages"] || opts[:messages] || []
@@ -10,16 +12,16 @@ class OpenAiClient
   end
 
   def self.openai_client
-    @openai_client ||= OpenAI::Client.new(access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"))
+    @openai_client ||= OpenAI::Client.new(access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"), log_errors: true)
   end
 
   def openai_client
-    @openai_client ||= OpenAI::Client.new(access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"))
+    @openai_client ||= OpenAI::Client.new(access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"), log_errors: true)
   end
 
   # def specific_image_prompt(img_prompt)
-  #   "Can you create a text prompt for me that I can use with DALL-E to generate an image of a cartoon character expressing a certain emotion or doing a specific action. 
-  #   Or if the word is an object, write a prompt to generate an image of that object in a clear and simple way. 
+  #   "Can you create a text prompt for me that I can use with DALL-E to generate an image of a cartoon character expressing a certain emotion or doing a specific action.
+  #   Or if the word is an object, write a prompt to generate an image of that object in a clear and simple way.
   #   Use as much detail as possible in order to generate an image that a child could easily recognize that the image represents this word/phrase: '#{img_prompt}'.
   #   Respond with the prompt only, not the image or any other text.  It should be very clear that the word/phrase is '#{img_prompt}'."
   # end
@@ -56,7 +58,7 @@ class OpenAiClient
     begin
       response = openai_client.audio.speech(parameters: {
                                               input: text,
-                                              model: "tts-1",
+                                              model: TTS_MODEL,
                                               voice: voice,
                                             })
     rescue => e
@@ -69,7 +71,7 @@ class OpenAiClient
   end
 
   def self.describe_image(img_url)
-    response = openai_client.chat(parameters: { model: "gpt-4-vision-preview", messages: [{ role: "user", content: [{ type: "text", text: "What’s in this image?" }, { type: "image_url", image_url: { url: img_url } }] }] })
+    response = openai_client.chat(parameters: { model: "gpt-4-vision-preview", messages: [{ role: "user", content: [{ type: "text", text: "What's in this image?" }, { type: "image_url", image_url: { url: img_url } }] }] })
     Rails.logger.debug "*** ERROR *** Invaild Image Description Response: #{response}" unless response
     # save_response_locally(response)
     response
@@ -77,7 +79,7 @@ class OpenAiClient
 
   def create_image_prompt
     new_prompt = specific_image_prompt(@prompt)
-    response = openai_client.chat(parameters: { model: GPT_4_MODEL, messages: [{ role: "user", content: [{ type: "text", text: new_prompt }] }] })
+    response = openai_client.chat(parameters: { model: GPT_3_MODEL, messages: [{ role: "user", content: [{ type: "text", text: new_prompt }] }] })
     Rails.logger.debug "*** ERROR *** Invaild Image Prompt Response: #{response}" unless response
     Rails.logger.debug "Response: #{response.inspect}" if response
     image_prompt_content = nil
@@ -91,8 +93,7 @@ class OpenAiClient
     image_prompt_content
   end
 
-
-    def clarify_image_description(image_description)
+  def clarify_image_description(image_description)
     Rails.logger.debug "Missing image description.\n" && return unless image_description
     @model = GPT_4_MODEL
     @messages = [{ role: "user", content: [{ type: "text", text: "Please parse the following text from a kid's menu and form a clear list of the food and beverage options ONLY.
@@ -108,15 +109,14 @@ class OpenAiClient
   end
 
   def categorize_word(word)
-    @model = GPT_4_MODEL
+    @model = GPT_3_MODEL
     @messages = [{ role: "user",
-                  content: [{type: "text", 
-                  text: "Categorize the word '#{word}' into one of the following parts of speech: noun, verb, adjective, adverb, pronoun, preposition, conjunction, or interjection. If the word can be used as multiple parts of speech, choose the most common one. If the word is not a part of speech, respond with 'other'."}] }]
+                  content: [{ type: "text",
+                              text: "Categorize the word '#{word}' into one of the following parts of speech: noun, verb, adjective, adverb, pronoun, preposition, conjunction, or interjection. If the word can be used as multiple parts of speech, choose the most common one. If the word is not a part of speech, respond with 'other'." }] }]
     response = create_chat
     Rails.logger.debug "*** ERROR *** Invaild Categorize Word Response: #{response}" unless response
     response
   end
-      
 
   def next_words_prompt(label)
     "Given a specific context or emotion, such as '#{label}', 
@@ -195,7 +195,7 @@ class OpenAiClient
   def create_chat
     Rails.logger.debug "**** ERROR **** \nNo messages provided.\n" unless @messages
     opts = {
-      model: GPT_4_MODEL, # Required.
+      model: @model, # Required.
       messages: @messages, # Required.
       temperature: 0.7,
     }

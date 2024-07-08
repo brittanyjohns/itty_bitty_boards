@@ -15,11 +15,11 @@
 #  token_limit           :integer          default(0)
 #  voice                 :string
 #  status                :string           default("pending")
-#  display_image_id      :integer
-#  number_of_columns     :integer
+#  number_of_columns     :integer          default(6)
 #  small_screen_columns  :integer          default(3)
 #  medium_screen_columns :integer          default(8)
 #  large_screen_columns  :integer          default(12)
+#  display_image_url     :string
 #
 require "test_helper"
 

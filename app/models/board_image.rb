@@ -15,6 +15,7 @@
 #  font_size    :integer
 #  border_color :string
 #  layout       :jsonb
+#  status       :string           default("pending")
 #
 class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }

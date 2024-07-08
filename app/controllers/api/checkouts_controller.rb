@@ -6,7 +6,6 @@ class API::CheckoutsController < API::ApplicationController
     # @client_secret = @payment_intent.client_secret
     # @client_token = gateway.client_token.generate
     @amount = @current_order.total if @current_order
-    
   end
 
   def show
@@ -14,8 +13,9 @@ class API::CheckoutsController < API::ApplicationController
     # @result = _create_result_hash(@transaction)
     @order = current_user.orders.placed.last
   end
-  YOUR_DOMAIN = 'http://localhost:4000'
-  ONE_DOLLAR_PRICE_ID = ENV['ONE_DOLLAR_PRICE_ID']
+
+  YOUR_DOMAIN = "http://localhost:4000"
+  PRO_PLAN_PRICE_ID = ENV["PRO_PLAN_PRICE_ID"]
 
   def create
     @current_order = current_order
@@ -28,12 +28,12 @@ class API::CheckoutsController < API::ApplicationController
     session = Stripe::Checkout::Session.create({
       line_items: [{
         # Provide the exact Price ID (e.g. pr_1234) of the product you want to sell
-        price: ONE_DOLLAR_PRICE_ID,
+        price: PRO_PLAN_PRICE_ID,
         quantity: quantity,
       }],
-      mode: 'payment',
-      success_url: YOUR_DOMAIN + '/success',
-      cancel_url: YOUR_DOMAIN + '/cancel',
+      mode: "payment",
+      success_url: YOUR_DOMAIN + "/success",
+      cancel_url: YOUR_DOMAIN + "/cancel",
     })
     result = session
     if result
@@ -42,7 +42,7 @@ class API::CheckoutsController < API::ApplicationController
       current_user.tokens += @current_order.total_coin_value
       current_user.save!
       flash[:notice] = "Nice! You just bought #{@current_order.total_coin_value} tokens!"
-      user_session['order_id'] = nil
+      user_session["order_id"] = nil
       redirect_to session.url, status: :see_other, allow_other_host: true
     else
       error_messages = result.errors.map { |error| "Error: #{error.code}: #{error.message}" }
@@ -59,7 +59,7 @@ class API::CheckoutsController < API::ApplicationController
     current_user.tokens += @current_order.total_coin_value
     current_user.save!
     flash[:notice] = "Nice! You just bought #{@current_order.total_coin_value} tokens!"
-    user_session['order_id'] = nil
+    user_session["order_id"] = nil
     redirect_to root_path
   end
 

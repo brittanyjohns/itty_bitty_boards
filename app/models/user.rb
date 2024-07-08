@@ -32,6 +32,12 @@
 #  play_demo              :boolean          default(TRUE)
 #  settings               :jsonb
 #  base_words             :string           default([]), is an Array
+#  plan_type              :string           default("free")
+#  plan_expires_at        :datetime
+#  plan_status            :string           default("active")
+#  monthly_price          :decimal(8, 2)    default(0.0)
+#  yearly_price           :decimal(8, 2)    default(0.0)
+#  total_plan_cost        :decimal(8, 2)    default(0.0)
 #
 
 class User < ApplicationRecord
@@ -53,6 +59,7 @@ class User < ApplicationRecord
   has_many :team_users
   belongs_to :current_team, class_name: "Team", optional: true
   has_many :word_events
+  has_many :subscriptions
   has_secure_token :authentication_token
 
   # Scopes
@@ -60,11 +67,18 @@ class User < ApplicationRecord
   scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
 
   # Constants
-  DEFAULT_ADMIN_ID = self.admin.first&.id
+  # DEFAULT_ADMIN_ID = self.admin.first&.id
+  DEFAULT_ADMIN_ID = 1
 
   # Callbacks
   before_save :set_default_settings, unless: :settings?
   after_create :add_welcome_tokens
+  before_validation :set_uuid, on: :create
+
+  def set_uuid
+    return if self.uuid.present?
+    self.uuid = SecureRandom.uuid
+  end
 
   # Methods for user settings
   def set_default_settings

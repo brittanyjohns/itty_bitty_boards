@@ -137,6 +137,17 @@ Rails.application.routes.draw do
 
   #  API routes
   namespace :api, defaults: { format: :json } do
+    post "webhooks", to: "webhooks#webhooks"
+    resources :subscriptions do
+      collection do
+        post "create_customer"
+        post "create_subscription"
+        post "billing_portal"
+      end
+      member do
+        post "cancel_subscription"
+      end
+    end
     post "word_click", to: "audits#word_click"
     resources :beta_requests
     resources :teams do
@@ -170,7 +181,6 @@ Rails.application.routes.draw do
         post "crop"
       end
     end
-
     resources :boards do
       collection do
         get "first_predictive_board"
@@ -190,22 +200,18 @@ Rails.application.routes.draw do
         put "remove_from_team"
       end
     end
-
     resources :board_images do
       member do
         put "move_up"
         put "move_down"
       end
     end
-
     resources :scenarios
-
     resources :menus do
       member do
         post "rerun"
       end
     end
-
     resources :docs do
       collection do
         get "deleted"
@@ -217,14 +223,12 @@ Rails.application.routes.draw do
         delete "hard_delete"
       end
     end
-
     resources :users do
       member do
         put "update_settings"
         put "update_plan"
       end
     end
-
     namespace :v1 do
       resource :auth, only: [:create, :destroy]
       get "users/current", to: "auths#current"
