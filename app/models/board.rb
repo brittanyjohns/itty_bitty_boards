@@ -60,6 +60,7 @@ class Board < ApplicationRecord
   before_save :set_default_voice, unless: :voice?
 
   before_save :rearrange_images, if: :number_of_columns_changed?
+  # before_save :set_display_image, if: :display_image_url.nil?
 
   after_touch :set_status
   before_create :set_number_of_columns
@@ -174,6 +175,12 @@ class Board < ApplicationRecord
     {}
   end
 
+  def set_display_image
+    new_doc = image_docs.first
+    self.display_image_url = new_doc.display_url if new_doc
+    # self.save!
+  end
+
   def create_audio_for_words
     words.each do |word|
       self.create_audio_from_text(word)
@@ -199,7 +206,8 @@ class Board < ApplicationRecord
     images.map(&:docs).flatten
   end
 
-  def image_docs_for_user(user)
+  def image_docs_for_user(user = nil)
+    user ||= self.user
     image_docs.select { |doc| doc.user_id == user.id }
   end
 
@@ -234,15 +242,6 @@ class Board < ApplicationRecord
 
   def self.grid_sizes
     ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"]
-  end
-
-  def update_board_list
-    # broadcast_update_to(:board_list, partial: "boards/board_list", locals: { boards: user.boards }, target: "my_boards")
-    broadcast_prepend_later_to :board_list, target: "my_boards_#{user.id}", partial: "boards/board", locals: { board: self }
-  end
-
-  def render_to_board_list
-    broadcast_render_to(:board_list, partial: "boards/board_list", locals: { boards: user.boards }, target: "my_boards")
   end
 
   def api_view_with_images(viewing_user = nil)
