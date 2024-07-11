@@ -27,6 +27,7 @@ class API::ImagesController < API::ApplicationController
         bg_color: image.bg_class,
         text_color: image.text_color,
         src: image.display_image_url(current_user),
+        next_words: image.next_words,
       # audio: image.default_audio_url
       }
     end
@@ -48,6 +49,7 @@ class API::ImagesController < API::ApplicationController
         text_color: image.text_color,
         image_prompt: image.image_prompt,
         src: image.display_image_url(current_user),
+        next_words: image.next_words,
       # src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
       # audio: audio_file ? url_for(audio_file) : nil,
       # audio: image.default_audio_url,
@@ -369,6 +371,8 @@ class API::ImagesController < API::ApplicationController
   end
 
   def image_params
-    params.require(:image).permit(:label, :image_prompt, :display_image, audio_files: [], docs: [:id, :user_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
+    params.require(:image).permit(:label, :image_prompt, :display_image,
+                                  next_words: [],
+                                  audio_files: [], docs: [:id, :user_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
   end
 end

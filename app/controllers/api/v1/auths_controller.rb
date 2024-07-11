@@ -1,86 +1,86 @@
 module API
-    module V1
-      class AuthsController < ApplicationController
-        skip_before_action :authenticate_token!, only: [:create, :sign_up, :current, :destroy, :forgot_password, :reset_password]
+  module V1
+    class AuthsController < ApplicationController
+      skip_before_action :authenticate_token!, only: [:create, :sign_up, :current, :destroy, :forgot_password, :reset_password]
 
-        def sign_up
-          if params['auth'] && params['auth']['first_name'] && params['auth']['last_name']
-            name = params['auth']['first_name'] + " " + params['auth']['last_name']
-          elsif params['auth'] && params['auth']['name']
-            name = params['auth']['name']
-          else
-            name = ""
-          end
-          user = User.new(email: params['auth']['email'], password: params['auth']['password'], password_confirmation: params['auth']['password_confirmation'], name: name)
-          if user.save
-            render json: {token: user.authentication_token, user: user}
-          else
-            puts "\n***\nUser Errors: #{user.errors.full_messages.join(", ")}"
-            render json: {error: user.errors.full_messages.join(", ")}, status: :unprocessable_entity
-          end
+      def sign_up
+        if params["auth"] && params["auth"]["first_name"] && params["auth"]["last_name"]
+          name = params["auth"]["first_name"] + " " + params["auth"]["last_name"]
+        elsif params["auth"] && params["auth"]["name"]
+          name = params["auth"]["name"]
+        else
+          name = ""
         end
-  
-        def create
-          if (user = User.valid_credentials?(params[:email], params[:password]))
-            sign_in user
-            render json: {token: user.authentication_token, user: user}
-          else
-            render json: {error: error_message}, status: :unauthorized
-          end
+        user = User.new(email: params["auth"]["email"], password: params["auth"]["password"], password_confirmation: params["auth"]["password_confirmation"], name: name)
+        if user.save
+          render json: { token: user.authentication_token, user: user }
+        else
+          puts "\n***\nUser Errors: #{user.errors.full_messages.join(", ")}"
+          render json: { error: user.errors.full_messages.join(", ") }, status: :unprocessable_entity
         end
+      end
 
-        def forgot_password
-          puts "\n***\nForgot Password: #{params[:email]}"
-          user = User.find_by(email: params[:email])
-          if user
-            reset_token = user.send_reset_password_instructions
-            user.update(reset_password_token: reset_token)
-            puts "\n***\nReset user: #{user.email} with token: #{reset_token}"
-
-            render json: {message: "Password reset instructions sent to #{user.email}"}
-          else
-            render json: {error: "No user found with email #{params[:email]}"}, status: :not_found
-          end
+      def create
+        if (user = User.valid_credentials?(params[:email], params[:password]))
+          sign_in user
+          render json: { token: user.authentication_token, user: user }
+        else
+          render json: { error: error_message }, status: :unauthorized
         end
+      end
 
-        def reset_password
-          user = User.find_by(reset_password_token: params[:reset_password_token])
-          if user
-            user.reset_password(params[:password], params[:password_confirmation])
-            render json: {message: "Password reset successfully"}
-          else
-            render json: {error: "Invalid reset password token"}, status: :not_found
-          end
+      def forgot_password
+        puts "\n***\nForgot Password: #{params[:email]}"
+        user = User.find_by(email: params[:email])
+        if user
+          reset_token = user.send_reset_password_instructions
+          user.update(reset_password_token: reset_token)
+          puts "\n***\nReset user: #{user.email} with token: #{reset_token}"
+
+          render json: { message: "Password reset instructions sent to #{user.email}" }
+        else
+          render json: { error: "No user found with email #{params[:email]}" }, status: :not_found
         end
+      end
 
-        def current
+      def reset_password
+        user = User.find_by(reset_password_token: params[:reset_password_token])
+        if user
+          user.reset_password(params[:password], params[:password_confirmation])
+          render json: { message: "Password reset successfully" }
+        else
+          render json: { error: "Invalid reset password token" }, status: :not_found
+        end
+      end
+
+      def current
+        if current_user
+          render json: { user: current_user.api_view }
+        else
+          current_user = user_from_token
           if current_user
-            render json: {user: current_user}
+            render json: { user: current_user }
           else
-            current_user = user_from_token
-            if current_user
-              render json: {user: current_user}
-            else
-              render json: {error: "Unauthorized - No user signed in"}, status: :unauthorized
-            end
+            render json: { error: "Unauthorized - No user signed in" }, status: :unauthorized
           end
         end
-  
-        def destroy
-          sign_out(current_user)
-          @current_user = nil
-          render json: {message: "Signed out successfully", status: :ok}
-        end
-  
-        private
-  
-        def error_message
-          I18n.t("devise.failure.invalid", authentication_keys: :email)
-        end
+      end
 
-        def sign_up_params
-          params.require(:user).permit(:email, :password, :password_confirmation, first_name: "", last_name: "")
-        end
+      def destroy
+        sign_out(current_user)
+        @current_user = nil
+        render json: { message: "Signed out successfully", status: :ok }
+      end
+
+      private
+
+      def error_message
+        I18n.t("devise.failure.invalid", authentication_keys: :email)
+      end
+
+      def sign_up_params
+        params.require(:user).permit(:email, :password, :password_confirmation, first_name: "", last_name: "")
       end
     end
   end
+end

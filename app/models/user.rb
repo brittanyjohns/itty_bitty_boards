@@ -189,6 +189,16 @@ class User < ApplicationRecord
     display_name
   end
 
+  def api_view
+    view = self.as_json
+    view["admin"] = admin?
+    view["free"] = plan_type == "free"
+    view["pro"] = plan_type == "pro"
+    view["team"] = current_team
+    view["boards"] = boards
+    view
+  end
+
   # require "mailgun-ruby"
 
   # def test_mailgun

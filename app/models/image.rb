@@ -47,7 +47,6 @@ class Image < ApplicationRecord
     find_each { |record| record.update_pg_search_document }
   end
 
-
   # before_save :save_audio_file, if: -> { label_changed? }
   # before_save :save_audio_file_to_s3!, if: :no_audio_saved
   scope :without_attached_audio_files, -> { where.missing(:audio_files_attachments) }
@@ -67,7 +66,7 @@ class Image < ApplicationRecord
   scope :without_docs, -> { where.missing(:docs) }
   scope :with_docs, -> { where.associated(:docs) }
   scope :generating, -> { where(status: "generating") }
-  scope :with_artifacts, -> { includes( { docs: { image_attachment: :blob }, audio_files_attachments: :blob }) }
+  scope :with_artifacts, -> { includes({ docs: { image_attachment: :blob }, audio_files_attachments: :blob }) }
 
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!, unless: :menu?
@@ -342,7 +341,7 @@ class Image < ApplicationRecord
     existing = audio_files.attachments.includes(:blob).find do |attachment|
       attachment.blob.filename.to_s == filename
     end
-  
+
     if existing
       Rails.logger.debug "#{label} ==> Audio file already exists for voice: #{voice} - #{existing.blob.filename}"
       existing
@@ -351,7 +350,6 @@ class Image < ApplicationRecord
       create_audio_from_text(label, voice)
     end
   end
-  
 
   def get_audio_for_voice(voice = "echo")
     Rails.logger.debug "GETTING AUDIO FOR VOICE: #{voice}"
@@ -504,7 +502,7 @@ class Image < ApplicationRecord
                 .convert("png")
                 .resize_to_limit(300, 300)
                 .call(downloaded_image)
-            Rails.logger.debug "Processed SVG: #{processed}"
+              Rails.logger.debug "Processed SVG: #{processed}"
             else
               processed = downloaded_image
             end
@@ -608,7 +606,7 @@ class Image < ApplicationRecord
 
   def default_audio_url
     audio_file = audio_files.first
-    cdn_url = ENV["CDN_HOST"] + '/' + audio_file.key if audio_file
+    cdn_url = ENV["CDN_HOST"] + "/" + audio_file.key if audio_file
     audio_file ? cdn_url : nil
   end
 
