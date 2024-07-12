@@ -167,7 +167,16 @@ class API::ImagesController < API::ApplicationController
 
   def set_next_words
     @image = Image.find(params[:id])
-    @image.set_next_words!
+    if params[:next_words].present?
+      @image.next_words = params[:next_words]&.compact_blank
+      puts "Setting next words: #{@image.next_words}"
+      @image.save
+    else
+      @image.set_next_words!
+    end
+    puts "Next Words: #{@image&.next_words.count}"
+    puts "Next images: #{@image&.next_images.count}"
+    @image.create_words_from_next_words
     render json: @image
   end
 

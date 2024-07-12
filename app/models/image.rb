@@ -290,13 +290,12 @@ class Image < ApplicationRecord
       if existing_word
         Rails.logger.debug "Word already exists: #{existing_word.label}"
         if existing_word.next_words.blank?
-          existing_word.set_next_words!
+          existing_word.save!
         else
           Rails.logger.debug "Next words already set for #{existing_word.label}\n #{existing_word.next_words}"
         end
       else
         image = Image.public_img.create!(label: word)
-        image.set_next_words!
       end
     end
   end
