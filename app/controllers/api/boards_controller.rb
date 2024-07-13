@@ -25,7 +25,8 @@ class API::BoardsController < API::ApplicationController
   end
 
   def user_boards
-    @boards = boards_for_user.user_made_with_scenarios_and_menus.order(created_at: :desc)
+    # @boards = boards_for_user.user_made_with_scenarios_and_menus.order(created_at: :desc)
+    @boards = boards_for_user.user_made_with_scenarios.order(created_at: :desc)
 
     render json: { boards: @boards }
   end
@@ -130,9 +131,9 @@ class API::BoardsController < API::ApplicationController
     puts "board: #{board.inspect}"
     if params[:query].present? && params[:query] != "null"
       @query = params[:query]
-      @images = Image.with_artifacts.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(current_page)
+      @images = Image.non_menu_images.with_artifacts.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(current_page)
     else
-      @images = Image.with_artifacts.all.order(label: :asc).page(current_page).page(current_page)
+      @images = Image.non_menu_images.with_artifacts.all.order(label: :asc).page(current_page).page(current_page)
     end
     @images = @images.excluding(board.images)
     @remaining_images = @images.map do |image|
