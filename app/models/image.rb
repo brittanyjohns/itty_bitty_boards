@@ -47,11 +47,8 @@ class Image < ApplicationRecord
     find_each { |record| record.update_pg_search_document }
   end
 
-  # before_save :save_audio_file, if: -> { label_changed? }
-  # before_save :save_audio_file_to_s3!, if: :no_audio_saved
   scope :without_attached_audio_files, -> { where.missing(:audio_files_attachments) }
 
-  # scope :with_image_docs_for_user, -> (userId) { joins(:docs).where("docs.documentable_id = images.id AND docs.documentable_type = 'Image' AND docs.user_id = ?", userId) }
   scope :with_image_docs_for_user, ->(userId) { order(created_at: :desc) }
   scope :menu_images, -> { where(image_type: "Menu") }
   scope :non_menu_images, -> { where.not(image_type: "Menu").or(where(image_type: nil)) }
@@ -70,7 +67,6 @@ class Image < ApplicationRecord
 
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!, unless: :menu?
-  # after_create :start_create_all_audio_job
   before_save :set_label, :ensure_defaults
   after_save :generate_matching_symbol, if: -> { label_changed? && open_symbol_status == "active" }
   after_save :run_set_next_words_job, if: -> { next_words.blank? && no_next == false && image_type != "Menu" }
@@ -79,14 +75,8 @@ class Image < ApplicationRecord
     if !image_type
       self.image_type = "Image"
     end
-    if part_of_speech
-      Rails.logger.debug "Setting bg color for #{part_of_speech}"
-      # self.bg_color = background_color_for(part_of_speech)
-    end
-    # find_or_create_audio_file_for_voice("echo") unless audio_file_exists_for?("echo")
     self.bg_color = background_color_for(part_of_speech)
     Rails.logger.debug "Image: #{label} - bg_color: #{bg_color} - part_of_speech: #{part_of_speech} - image_type: #{image_type}"
-    # self.image_type ||= "Image"
   end
 
   def run_set_next_words_job
@@ -133,7 +123,6 @@ class Image < ApplicationRecord
       doc.update!(current: true)
       doc
     end
-    # self.image_prompt = prompt_to_send
   end
 
   def should_create_audio_files?
@@ -151,7 +140,6 @@ class Image < ApplicationRecord
   def create_voice_audio_files
     Image.voices.each do |voice|
       if !audio_file_exists_for?(voice)
-        # blob).where("active_storage_blobs.filename = ?", "#{label.parameterize}_#{voice}_#{id}.aac").blank?
         create_audio_from_text(label, voice)
       else
         Rails.logger.debug "Audio file already exists for voice: #{voice}"
@@ -191,95 +179,15 @@ class Image < ApplicationRecord
     end
   end
 
-  # def next_board_id
-  #   Rails.logger.debug "Getting next board for #{label} - next_board: #{next_board&.images&.count}"
-  #   if next_board && next_board.images.any?
-  #     next_board.id
-  #   else
-  #     Board.predictive_default&.id
-  #   end
-  # end
-
   def next_images
     imgs = Image.with_artifacts.where(label: next_words).public_img.order(created_at: :desc).distinct(:label)
     return imgs if imgs.any?
     Board.predictive_default.images
   end
 
-  def self.create_predictive_default_board
-    predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
-    admin_user = User.admin.first
-    Rails.logger.debug "Predefined resource created: #{predefined_resource.name} admin_user: #{admin_user.email}"
-    predictive_default_board = Board.find_or_create_by!(name: "Predictive Default", user_id: admin_user.id, parent: predefined_resource)
-    Rails.logger.debug "Predictive default board created: #{predictive_default_board.name}"
-
-    array = [
-      "Yes",
-      "No",
-      "More",
-      "Stop",
-      "Go",
-      "Help",
-      "Please",
-      "Thank you",
-      "Sorry",
-      "I want",
-      "I feel",
-      "Bathroom",
-      "Thirsty",
-      "Hungry",
-      "Tired",
-      "Hurt",
-      "Happy",
-      "Sad",
-      "Play",
-      "All done",
-    ]
-    array.each do |word|
-      image = Image.public_img.find_by(label: word)
-      if image
-        predictive_default_board.add_image(image.id)
-      else
-        image = Image.public_img.create!(label: word)
-        predictive_default_board.add_image(image.id)
-      end
-    end
-    predictive_default_board.save!
-    predictive_default_board
-  end
-
   def next_board
     parent_resource = PredefinedResource.find_or_create_by name: "Next", resource_type: "Board"
     next_board = Board.find_or_create_by!(name: label, user_id: User::DEFAULT_ADMIN_ID, parent: parent_resource)
-    next_board
-  end
-
-  def create_next_board
-    parent_resource = PredefinedResource.find_or_create_by name: "Next", resource_type: "Board"
-    admin_user = User.admin.first
-    Rails.logger.debug "Parent resource created: #{parent_resource.name} admin_user: #{admin_user.email}"
-    next_board = Board.find_or_create_by!(name: label, user_id: admin_user.id, parent: parent_resource)
-    Rails.logger.debug "Next board created: #{next_board.name}"
-    next_board
-  end
-
-  def create_board_from_next_words!(words)
-    # raise "No next words found for #{label}" unless next_words && next_words.any?
-    Rails.logger.debug "Creating board for label: #{label} from next words: #{words}"
-    return unless words && !words.blank?
-
-    Rails.logger.debug "Next board created: #{next_board.name}"
-    words.each do |word|
-      image = Image.public_img.find_by(label: word)
-      if image
-        next_board.add_image(image.id)
-      else
-        image = Image.public_img.create!(label: word)
-        next_board.add_image(image.id)
-      end
-      Rails.logger.debug "Image added to board: #{image.label}"
-    end
-    next_board.save!
     next_board
   end
 
@@ -350,37 +258,9 @@ class Image < ApplicationRecord
     end
   end
 
-  def get_audio_for_voice(voice = "echo")
-    Rails.logger.debug "GETTING AUDIO FOR VOICE: #{voice}"
-    # file = audio_files.find_by(filename: "#{label}_#{voice}_#{id}.aac")
-    file = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label}_#{voice}_#{id}.aac").first
-    if file
-      file
-    else
-      # create_audio_from_text(label, voice)
-      # start_generate_audio_job(voice)
-      begin
-        # save_audio_file_to_s3!(voice)
-      rescue => e
-        Rails.logger.debug "Error getting audio for voice: #{e.message}\n\n#{e.backtrace.join("\n")}"
-      end
-      # file = audio_files.last
-      Rails.logger.debug "\n\n Created audio file: #{file.inspect}\n\n"
-    end
-    file
-  end
-
-  def get_voice_for_board(board)
-    return unless board
-    @voice ||= board_images.find_by(board_id: board.id).voice || Image.voices.sample
-    get_audio_for_voice(@voice)
-  end
-
   def existing_voices
-    # scared_nova_22.aac
-    n = audio_files.map { |audio| audio.filename.to_s.split("_").second }
-    puts "Existing voices: #{n}"
-    n
+    # Ex: filename = scared_nova_22.aac
+    audio_files.map { |audio| audio.filename.to_s.split("_").second }
   end
 
   def self.voices

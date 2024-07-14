@@ -89,13 +89,4 @@ module ImagesHelper
     str += "</div>"
     str.html_safe
   end
-
-  def audio_tag_for_image(image, board, class_name = "", controls = true)
-    if image.get_voice_for_board(board).nil?
-      return audio_tag("", controls: false, id: "audio-#{image.label.parameterize}", class: "hidden", data: { speak_target: "audio" })
-    end
-    audio_tag(polymorphic_path(image.get_voice_for_board(board)),
-              controls: false, id: "audio-#{image.label.parameterize}",
-              class: "hidden", data: { speak_target: "audio" })
-  end
 end

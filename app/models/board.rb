@@ -80,6 +80,36 @@ class Board < ApplicationRecord
     end
   end
 
+  def self.common_words
+    ["Yes", "No", "Please", "Thank you", "Help", "More", "I want", "Eat", "Drink", "Bathroom", "Pain", "Stop",
+     "Go", "Like", "Don't", "Play", "Finished", "Hungry", "Thirsty", "Tired", "Sad",
+     "Happy", "Mom", "Dad", "Friend", "Hot", "Cold", "Where", "Come here", "I need", "Sorry", "Goodbye",
+     "Hello", "What", "Who", "How", "When", "Why", "Look", "Listen", "Read",
+     "Write", "Open", "Close", "Turn on", "Turn off", "Up", "Down", "In", "Out"]
+  end
+
+  def self.update_predictive(words = nil)
+    words ||= common_words
+    predictive_default = self.predictive_default
+    words.each do |word|
+      image = Image.find_or_create_by(label: word, user_id: predictive_default.user_id)
+      predictive_default.add_image(image.id)
+      image.save!
+    end
+    predictive_default.calucate_grid_layout
+    predictive_default.save!
+  end
+
+  def self.create_predictive
+    words = common_words
+    predictive_default = self.predictive_default
+    predictive_default.images.destroy_all
+    words.each do |word|
+      image = Image.find_or_create_by(label: word, user_id: predictive_default.user_id)
+      predictive_default.images << image
+    end
+  end
+
   def set_number_of_columns
     return unless number_of_columns.nil?
     self.number_of_columns = self.large_screen_columns
@@ -140,14 +170,10 @@ class Board < ApplicationRecord
   def self.create_predictive_default
     predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
     admin_user = User.admin.first
-    puts "Predefined resource created: #{predefined_resource.name} admin_user: #{admin_user.email}"
-    predictive_default_board = Board.find_or_create_by!(name: "Predictive Default", user_id: admin_user.id, parent: predefined_resource)
-    puts "Predictive Default Board created: #{predictive_default_board.name}"
-    predictive_default_board
+    Board.find_or_create_by!(name: "Predictive Default", user_id: admin_user.id, parent: predefined_resource)
   end
 
   def set_default_voice
-    puts "\n\nSet Default Voice\n\n"
     self.voice = user.settings["voice"]["name"] || "echo"
   end
 
