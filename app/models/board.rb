@@ -91,6 +91,7 @@ class Board < ApplicationRecord
   def self.update_predictive(words = nil)
     words ||= common_words
     predictive_default = self.predictive_default
+    predictive_default.images.destroy_all
     words.each do |word|
       image = Image.find_or_create_by(label: word, user_id: predictive_default.user_id)
       predictive_default.add_image(image.id)
