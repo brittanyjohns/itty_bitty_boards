@@ -516,8 +516,14 @@ class Image < ApplicationRecord
 
   def userless_doc
     default_admin = User.admin.first
-    docs.where(user_id: nil).first || docs.where(user_id: default_admin.id).first
-    # docs.with_attached_image.no_user.order(created_at: :desc).first
+    doc = default_admin&.display_doc_for_image(self)
+    if doc
+      Rails.logger.debug "Userless doc found for #{label}"
+    else
+      doc = docs.where(user_id: nil).first
+      Rails.logger.debug "No userless doc found for #{label}"
+    end
+    doc
   end
 
   def display_label
