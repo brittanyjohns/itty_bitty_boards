@@ -515,7 +515,9 @@ class Image < ApplicationRecord
   end
 
   def userless_doc
-    docs.with_attached_image.no_user.order(created_at: :desc).first
+    default_admin = User.admin.first
+    docs.where(user_id: nil).first || docs.where(user_id: default_admin.id).first
+    # docs.with_attached_image.no_user.order(created_at: :desc).first
   end
 
   def display_label
