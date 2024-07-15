@@ -172,7 +172,8 @@ class API::ImagesController < API::ApplicationController
       puts "Setting next words: #{@image.next_words}"
       @image.save
     else
-      @image.set_next_words!
+      # @image.set_next_words!
+      CreateAllAudioJob.perform_async(@image.id)
     end
     puts "Next Words: #{@image&.next_words.count}"
     puts "Next images: #{@image&.next_images.count}"
