@@ -280,6 +280,7 @@ class Board < ApplicationRecord
       status: status,
       token_limit: token_limit,
       cost: cost,
+      layout: print_grid_layout,
       display_image_url: display_image_url,
       floating_words: words,
       user_id: user_id,
@@ -346,6 +347,14 @@ class Board < ApplicationRecord
       end
     end
     grid_layout
+  end
+
+  def print_grid_layout
+    layout = {}
+    board_images.order(:position).each do |bi|
+      layout[bi.id] = bi.layout
+    end
+    layout
   end
 
   def update_grid_layout(layout)
