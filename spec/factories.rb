@@ -1,4 +1,14 @@
 FactoryBot.define do
+  factory :child_board do
+    board { nil }
+    child_account { nil }
+    status { "MyString" }
+  end
+
+  factory :child_account do
+    
+  end
+
   factory(:user) do
     email { Faker::Internet.email }
     password { Faker::Internet.password }

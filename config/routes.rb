@@ -1,6 +1,7 @@
 require "sidekiq/web"
 
 Rails.application.routes.draw do
+  devise_for :child_accounts
   resources :team_boards
   resources :team_users
   resources :teams do
@@ -223,7 +224,16 @@ Rails.application.routes.draw do
         delete "hard_delete"
       end
     end
+
+    post "/child_accounts/sign_in", to: "auths#sign_in"
+
     resources :users do
+      resources :child_accounts do
+        member do
+          post "assign_board"
+          delete "remove_board"
+        end
+      end
       member do
         put "update_settings"
         put "update_plan"

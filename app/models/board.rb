@@ -120,7 +120,6 @@ class Board < ApplicationRecord
     if parent_type == "User" || predefined
       self.status = "complete"
     else
-      puts "board status: #{status} - if has_generating_images? #{has_generating_images?}"
       if has_generating_images?
         self.status = "generating"
       else
@@ -128,7 +127,6 @@ class Board < ApplicationRecord
       end
     end
     self.save!
-    puts "board status: #{status}"
   end
 
   def rearrange_images(layout = nil)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_07_04_141217) do
+ActiveRecord::Schema[7.1].define(version: 2024_07_21_014950) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -90,6 +90,39 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_04_141217) do
     t.string "display_image_url"
     t.index ["parent_type", "parent_id"], name: "index_boards_on_parent"
     t.index ["user_id"], name: "index_boards_on_user_id"
+  end
+
+  create_table "child_accounts", force: :cascade do |t|
+    t.string "username", default: "", null: false
+    t.string "encrypted_password", default: "", null: false
+    t.string "reset_password_token"
+    t.datetime "reset_password_sent_at"
+    t.datetime "remember_created_at"
+    t.integer "sign_in_count", default: 0, null: false
+    t.datetime "current_sign_in_at"
+    t.datetime "last_sign_in_at"
+    t.string "current_sign_in_ip"
+    t.string "last_sign_in_ip"
+    t.bigint "user_id", null: false
+    t.string "authentication_token"
+    t.jsonb "settings", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["authentication_token"], name: "index_child_accounts_on_authentication_token", unique: true
+    t.index ["reset_password_token"], name: "index_child_accounts_on_reset_password_token", unique: true
+    t.index ["user_id"], name: "index_child_accounts_on_user_id"
+    t.index ["username"], name: "index_child_accounts_on_username", unique: true
+  end
+
+  create_table "child_boards", force: :cascade do |t|
+    t.bigint "board_id", null: false
+    t.bigint "child_account_id", null: false
+    t.string "status"
+    t.jsonb "settings", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["board_id"], name: "index_child_boards_on_board_id"
+    t.index ["child_account_id"], name: "index_child_boards_on_child_account_id"
   end
 
   create_table "docs", force: :cascade do |t|
@@ -473,6 +506,9 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_04_141217) do
   add_foreign_key "board_images", "boards"
   add_foreign_key "board_images", "images"
   add_foreign_key "boards", "users"
+  add_foreign_key "child_accounts", "users"
+  add_foreign_key "child_boards", "boards"
+  add_foreign_key "child_boards", "child_accounts"
   add_foreign_key "menus", "users"
   add_foreign_key "openai_prompts", "users"
   add_foreign_key "order_items", "orders"

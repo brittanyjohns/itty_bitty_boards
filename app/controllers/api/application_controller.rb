@@ -17,9 +17,15 @@ module API
     private
 
     def user_from_token
-      ActiveRecord::Base.logger.silence do
-        User.find_by(authentication_token: token) if token.present?
-      end
+      User.find_by(authentication_token: token) if token.present?
+    end
+
+    def child_from_token
+      ChildAccount.find_by(authentication_token: token) if token.present?
+    end
+
+    def current_child
+      @current_child ||= child_from_token
     end
 
     def current_user

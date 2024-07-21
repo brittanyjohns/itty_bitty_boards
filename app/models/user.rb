@@ -38,6 +38,7 @@
 #  monthly_price          :decimal(8, 2)    default(0.0)
 #  yearly_price           :decimal(8, 2)    default(0.0)
 #  total_plan_cost        :decimal(8, 2)    default(0.0)
+#  uuid                   :uuid
 #
 
 class User < ApplicationRecord
@@ -61,6 +62,7 @@ class User < ApplicationRecord
   has_many :word_events
   has_many :subscriptions
   has_secure_token :authentication_token
+  has_many :child_accounts, dependent: :destroy
 
   # Scopes
   scope :admin, -> { where(role: "admin") }
@@ -195,6 +197,7 @@ class User < ApplicationRecord
     view["free"] = plan_type == "free"
     view["pro"] = plan_type == "pro"
     view["team"] = current_team
+    view["child_accounts"] = child_accounts
     view["boards"] = boards
     view
   end

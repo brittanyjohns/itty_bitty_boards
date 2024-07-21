@@ -38,6 +38,7 @@
 #  monthly_price          :decimal(8, 2)    default(0.0)
 #  yearly_price           :decimal(8, 2)    default(0.0)
 #  total_plan_cost        :decimal(8, 2)    default(0.0)
+#  uuid                   :uuid
 #
 
 # This model initially had no columns defined. If you add columns to the

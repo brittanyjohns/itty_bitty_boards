@@ -8,7 +8,7 @@
 #  stripe_plan_id             :string
 #  status                     :string
 #  expires_at                 :datetime
-#  price                      :decimal(8, 2)
+#  price_in_cents             :integer
 #  interval                   :string           default("month")
 #  stripe_customer_id         :string
 #  interval_count             :integer          default(1)
