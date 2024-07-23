@@ -27,12 +27,20 @@ class ChildAccount < ApplicationRecord
 
   belongs_to :user
   has_many :child_boards, dependent: :destroy
+  has_secure_token :authentication_token
 
   validates :username, presence: true, uniqueness: true
 
-  def self.valid_credentials?(username, password)
-    account = find_by(username: username)
-    account&.valid_password?(password) ? account : nil
+  def self.valid_credentials?(parent_id, username, password)
+    user = User.find_by(id: parent_id)
+    puts "User: #{user}"
+    return nil unless user
+
+    account = find_by(username: username, user: user)
+    puts "Account: #{account.inspect}"
+    valid_creds = account&.valid_password?(password) ? account : nil
+    puts "Valid Creds: #{valid_creds}"
+    valid_creds
   end
 
   def reset_password(new_password, new_password_confirmation)
@@ -48,7 +56,7 @@ class ChildAccount < ApplicationRecord
   end
 
   def self.create_for_user(user, username, password)
-    account = new(username: username, password: password, user: user)
+    account = new(username: username, password: password, user: user, password_confirmation: password)
     account.save!
     account
   end

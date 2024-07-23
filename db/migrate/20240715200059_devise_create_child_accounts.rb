@@ -31,5 +31,6 @@ class DeviseCreateChildAccounts < ActiveRecord::Migration[7.1]
     add_index :child_accounts, :username, unique: true
     add_index :child_accounts, :reset_password_token, unique: true
     add_index :child_accounts, :authentication_token, unique: true
+    ChildAccount.find_each.map(&:regenerate_authentication_token)
   end
 end

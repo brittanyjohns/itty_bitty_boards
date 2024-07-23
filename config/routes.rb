@@ -225,8 +225,6 @@ Rails.application.routes.draw do
       end
     end
 
-    post "/child_accounts/sign_in", to: "auths#sign_in"
-
     resources :users do
       resources :child_accounts do
         member do
@@ -241,6 +239,9 @@ Rails.application.routes.draw do
     end
     namespace :v1 do
       resource :auth, only: [:create, :destroy]
+      post "/child_accounts/sign_out", to: "child_auths#sign_out"
+      post "/child_accounts/login", to: "child_auths#create"
+      get "/child_accounts/current", to: "child_auths#current"
       get "users/current", to: "auths#current"
       post "users", to: "auths#sign_up"
       post "users/sign_in", to: "auths#sign_in"

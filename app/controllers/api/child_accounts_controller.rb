@@ -20,6 +20,7 @@ class API::ChildAccountsController < API::ApplicationController
     @child_account = ChildAccount.new(child_account_params)
 
     if @child_account.save
+      puts "Valid Child Account: #{@child_account.valid_password(child_account_params[:password])}"
       render json: @child_account.api_view, status: :created
     else
       render json: @child_account.errors, status: :unprocessable_entity
