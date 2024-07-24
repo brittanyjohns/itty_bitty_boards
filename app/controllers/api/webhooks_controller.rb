@@ -88,6 +88,10 @@ class API::WebhooksController < API::ApplicationController
       sub_id = data_object.id
       puts "Subscription ID: #{sub_id}"
       @subscription = Subscription.find_by(stripe_subscription_id: sub_id)
+      unless @subscription
+        puts "No subscription found for stripe_subscription: #{sub_id}"
+        return
+      end
       pp data_object
       Rails.logger.info "Subscription Updated: #{data_object.inspect}"
       if data_object.cancel_at_period_end == true
