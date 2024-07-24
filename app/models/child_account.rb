@@ -20,7 +20,7 @@
 #  updated_at             :datetime         not null
 #
 class ChildAccount < ApplicationRecord
-  devise :database_authenticatable
+  devise :database_authenticatable, :trackable
   # devise :database_authenticatable, :registerable,
   #        :recoverable, :rememberable, :validatable,
   #        authentication_keys: [:username]
@@ -31,14 +31,21 @@ class ChildAccount < ApplicationRecord
 
   validates :username, presence: true, uniqueness: true
 
-  def self.valid_credentials?(parent_id, username, password)
+  def self.valid_credentials?(parent_id, username, password_to_set)
+    # TODO: Find by child_lookup_key
     user = User.find_by(id: parent_id)
-    puts "User: #{user}"
+    puts "User: #{user.child_accounts.count}"
+    user.child_accounts.each do |child|
+      puts "Child: #{child.username} - password: #{password_to_set}"
+      result = child.valid_password?(password_to_set)
+      puts "Result: #{result}"
+      result
+    end
     return nil unless user
 
     account = find_by(username: username, user: user)
-    puts "Account: #{account.inspect}"
-    valid_creds = account&.valid_password?(password) ? account : nil
+    puts "Password to set: #{password_to_set}"
+    valid_creds = account&.valid_password?(password_to_set) ? account : nil
     puts "Valid Creds: #{valid_creds}"
     valid_creds
   end
@@ -65,6 +72,8 @@ class ChildAccount < ApplicationRecord
     {
       id: id,
       username: username,
+      name: name,
+      settings: settings,
       user_id: user_id,
       boards: child_boards.map(&:api_view),
     }

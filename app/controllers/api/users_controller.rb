@@ -10,7 +10,7 @@ class API::UsersController < API::ApplicationController
   def show
   end
 
-  def update_plan
+  def update
     puts "Update plan params: #{params}"
     @user = User.find(params[:id])
     @user.plan_type = user_params[:plan_type]

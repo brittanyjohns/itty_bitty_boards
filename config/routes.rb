@@ -234,12 +234,14 @@ Rails.application.routes.draw do
       end
       member do
         put "update_settings"
-        put "update_plan"
+        # put "update_plan"
       end
     end
+
+    resources :child_boards
     namespace :v1 do
       resource :auth, only: [:create, :destroy]
-      post "/child_accounts/sign_out", to: "child_auths#sign_out"
+      delete "/child_accounts/logout", to: "child_auths#destroy"
       post "/child_accounts/login", to: "child_auths#create"
       get "/child_accounts/current", to: "child_auths#current"
       get "users/current", to: "auths#current"

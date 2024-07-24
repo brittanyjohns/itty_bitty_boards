@@ -28,12 +28,12 @@ class API::WebhooksController < API::ApplicationController
     data_object = data["object"]
     object_type = data_object["object"]
 
-    @existing_user = User.find_by(stripe_customer_id: data_object.customer)
-    if @existing_user
-      puts "Existing user found: #{@existing_user}"
-    else
-      puts "No existing user found for customer: #{data_object.customer}"
-    end
+    # @existing_user = User.find_by(stripe_customer_id: data_object.customer)
+    # if @existing_user
+    #   puts "Existing user found: #{@existing_user}"
+    # else
+    #   puts "No existing user found for customer: #{data_object.customer}"
+    # end
     case event_type
     when "checkout.session.completed"
       puts "Checkout session completed\n #{event_type}"
@@ -100,11 +100,12 @@ class API::WebhooksController < API::ApplicationController
     when "customer.subscription.deleted"
       puts "Customer subscription deleted\n #{event_type}"
       # Handle subscription cancelled automatically based
-      @subscription = Subscription.find_by(stripe_subscription_id: data_object.subscription)
-      if @subscription.cancel
+      puts "Subscription ID: #{data_object.id}"
+      @subscription = Subscription.find_by(stripe_subscription_id: data_object.id)
+      if @subscription&.cancel
         puts "Subscription canceled: #{@subscription.inspect}"
       else
-        puts "Could not cancel subscription \n Errors: #{@subscription.errors}"
+        puts "Could not cancel subscription \n Errors: #{@subscription&.errors}"
       end
     when "billing_portal.session.created"
       puts "Billing portal session created\n #{event_type}"

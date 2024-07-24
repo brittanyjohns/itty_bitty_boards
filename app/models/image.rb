@@ -517,12 +517,7 @@ class Image < ApplicationRecord
   def userless_doc
     default_admin = User.admin.first
     doc = default_admin&.display_doc_for_image(self)
-    if doc
-      Rails.logger.debug "Userless doc found for #{label}"
-    else
-      doc = docs.where(user_id: nil).first
-      Rails.logger.debug "No userless doc found for #{label}"
-    end
+    doc = docs.where(user_id: nil).first unless doc
     doc
   end
 

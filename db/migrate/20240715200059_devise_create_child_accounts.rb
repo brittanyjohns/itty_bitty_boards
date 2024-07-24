@@ -5,6 +5,7 @@ class DeviseCreateChildAccounts < ActiveRecord::Migration[7.1]
     create_table :child_accounts do |t|
       ## Database authenticatable
       t.string :username, null: false, default: ""
+      t.string :name, default: ""
       t.string :encrypted_password, null: false, default: ""
 
       ## Recoverable
@@ -32,5 +33,7 @@ class DeviseCreateChildAccounts < ActiveRecord::Migration[7.1]
     add_index :child_accounts, :reset_password_token, unique: true
     add_index :child_accounts, :authentication_token, unique: true
     ChildAccount.find_each.map(&:regenerate_authentication_token)
+    add_column :users, :child_lookup_key, :string
+    add_index :users, :child_lookup_key, unique: true
   end
 end

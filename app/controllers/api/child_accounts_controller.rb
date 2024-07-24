@@ -18,9 +18,14 @@ class API::ChildAccountsController < API::ApplicationController
   # POST /child_accounts.json
   def create
     @child_account = ChildAccount.new(child_account_params)
-
+    parent_id = current_user.id
+    username = @child_account.username
+    password = params[:password]
+    @child_account.user = current_user
+    @child_account.password = password
+    @child_account.password_confirmation = password
     if @child_account.save
-      puts "Valid Child Account: #{@child_account.valid_password(child_account_params[:password])}"
+      puts "Valid Child Account: valid_credentials? #{ChildAccount.valid_credentials?(parent_id, username, password)}"
       render json: @child_account.api_view, status: :created
     else
       render json: @child_account.errors, status: :unprocessable_entity

@@ -94,6 +94,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_21_014950) do
 
   create_table "child_accounts", force: :cascade do |t|
     t.string "username", default: "", null: false
+    t.string "name", default: ""
     t.string "encrypted_password", default: "", null: false
     t.string "reset_password_token"
     t.datetime "reset_password_sent_at"
@@ -480,7 +481,9 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_21_014950) do
     t.decimal "yearly_price", precision: 8, scale: 2, default: "0.0"
     t.decimal "total_plan_cost", precision: 8, scale: 2, default: "0.0"
     t.uuid "uuid", default: -> { "gen_random_uuid()" }
+    t.string "child_lookup_key"
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
+    t.index ["child_lookup_key"], name: "index_users_on_child_lookup_key", unique: true
     t.index ["current_team_id"], name: "index_users_on_current_team_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["invitation_token"], name: "index_users_on_invitation_token", unique: true
