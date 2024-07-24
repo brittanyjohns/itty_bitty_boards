@@ -8,5 +8,6 @@ class CreateChildBoards < ActiveRecord::Migration[7.1]
 
       t.timestamps
     end
+    add_column :child_accounts, :name, :string, default: "" unless ChildAccount.column_names.include?("name")
   end
 end
