@@ -34,7 +34,7 @@ class ChildAccount < ApplicationRecord
   def self.valid_credentials?(parent_id, username, password_to_set)
     # TODO: Find by child_lookup_key
     user = User.find_by(id: parent_id)
-    puts "User: #{user.child_accounts.count}"
+    puts ")))) User: #{user.child_accounts.count}"
     user.child_accounts.each do |child|
       puts "Child: #{child.username} - password: #{password_to_set}"
       result = child.valid_password?(password_to_set)
@@ -42,6 +42,9 @@ class ChildAccount < ApplicationRecord
       result
     end
     return nil unless user
+
+    puts "User - #{user.id} - #{user.child_accounts.count}"
+    puts "Username: #{username}"
 
     account = find_by(username: username, user: user)
     puts "Password to set: #{password_to_set}"
@@ -66,6 +69,10 @@ class ChildAccount < ApplicationRecord
     account = new(username: username, password: password, user: user, password_confirmation: password)
     account.save!
     account
+  end
+
+  def print_credentials
+    puts "UserId: #{user_id} LookUp Key: #{user.child_lookup_key} Username: #{username}"
   end
 
   def api_view

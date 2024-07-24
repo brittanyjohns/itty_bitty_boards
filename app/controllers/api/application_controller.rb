@@ -1,6 +1,7 @@
 module API
   class ApplicationController < ApplicationController
     prepend_before_action :authenticate_token!
+    skip_before_action :authenticate_token!, only: %i[authenticate_child_token!]
 
     def authenticate_token!
       user = user_from_token
@@ -10,6 +11,19 @@ module API
         puts "Unauthorized"
         # direct to login page
         render json: { error: "Unauthorized" }, status: :unauthorized
+        # head :unauthorized
+      end
+    end
+
+    def authenticate_child_token!
+      child = child_from_token
+      if child
+        puts "Child authenticated"
+        sign_in child, store: false
+      else
+        puts "Unauthorized"
+        # direct to login page
+        render json: { error: "Unauthorized child account" }, status: :unauthorized
         # head :unauthorized
       end
     end
