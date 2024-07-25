@@ -107,8 +107,9 @@ class API::ImagesController < API::ApplicationController
 
   def crop
     label = image_params[:label]&.downcase
-    if params[:id].present?
-      @existing_image = Image.find(params[:id])
+    image_id = params["image"]["id"]
+    if image_id.present?
+      @existing_image = Image.find(image_id)
     else
       @existing_image = Image.find_by(label: label, user_id: current_user.id)
     end
