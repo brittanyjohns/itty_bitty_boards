@@ -209,6 +209,14 @@ class User < ApplicationRecord
     plan_type == "free" && created_at < TRAIL_PERIOD.ago
   end
 
+  def trial_expired_at
+    created_at + TRAIL_PERIOD
+  end
+
+  def trial_days_left
+    (trial_expired_at - Time.now).to_i / 1.day
+  end
+
   def api_view
     view = self.as_json
     view["admin"] = admin?
@@ -219,6 +227,7 @@ class User < ApplicationRecord
     view["boards"] = boards
     view["free_trial"] = free_trial?
     view["trial_expired"] = trial_expired?
+    view["trial_days_left"] = trial_days_left
     view
   end
 
