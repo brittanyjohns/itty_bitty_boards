@@ -28,6 +28,17 @@ module API
       end
     end
 
+    def authenticate_signed_in!
+      if current_user
+        puts "User signed in"
+      elsif current_child
+        puts "Child signed in"
+      else
+        puts "Unauthorized"
+        render json: { error: "Unauthorized" }, status: :unauthorized
+      end
+    end
+
     private
 
     def user_from_token

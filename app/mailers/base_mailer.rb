@@ -8,7 +8,9 @@ class BaseMailer < ApplicationMailer
     else
       puts "Invitee does not have a token"
       # @invitation_link = url_for(controller: 'teams', action: 'accept_invite', id: team.id, email: invitee.email)
-      @invitation_link = ENV["FRONT_END_URL"] + "/accept_invite?team_id=#{team.id}&email=#{invitee.email}"
+      frontend_url = Rails.env.production? ? "https://www.speakanyway.com" : "http://localhost:8100"
+      Rails.logger.info "Frontend URL: #{frontend_url}"
+      @invitation_link = frontend_url + "/accept_invite?team_id=#{team.id}&email=#{invitee.email}"
     end
     puts "Invitation link: #{@invitation_link}"
     @invitee = invitee

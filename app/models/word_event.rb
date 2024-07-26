@@ -14,4 +14,5 @@
 #
 class WordEvent < ApplicationRecord
   belongs_to :user
+  belongs_to :child_account, optional: true
 end

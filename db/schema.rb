@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_07_21_014950) do
+ActiveRecord::Schema[7.1].define(version: 2024_07_26_004701) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -501,6 +501,8 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_21_014950) do
     t.datetime "timestamp"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "child_account_id"
+    t.index ["child_account_id"], name: "index_word_events_on_child_account_id"
     t.index ["user_id"], name: "index_word_events_on_user_id"
   end
 
