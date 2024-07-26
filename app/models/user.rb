@@ -187,18 +187,36 @@ class User < ApplicationRecord
     BaseMailer.team_invitation_email(self, inviter, team).deliver_now
   end
 
+  def pro?
+    plan_type == "pro"
+  end
+
+  def free?
+    plan_type == "free"
+  end
+
   def to_s
     display_name
+  end
+
+  def free_trial?
+    plan_type == "free" && created_at > 30.days.ago
+  end
+
+  def trial_expired?
+    plan_type == "free" && created_at < 30.days.ago
   end
 
   def api_view
     view = self.as_json
     view["admin"] = admin?
-    view["free"] = plan_type == "free"
-    view["pro"] = plan_type == "pro"
+    view["free"] = free?
+    view["pro"] = pro?
     view["team"] = current_team
     view["child_accounts"] = child_accounts
     view["boards"] = boards
+    view["free_trial"] = free_trial?
+    view["trial_expired"] = trial_expired?
     view
   end
 

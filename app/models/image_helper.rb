@@ -46,10 +46,8 @@ module ImageHelper
       # audio_file = File.binwrite("audio.mp3", response)
       File.open("output.aac", "wb") { |f| f.write(response) }
       audio_file = File.open("output.aac")
-      puts "Saved audio file: #{audio_file.class}"
       save_audio_file(audio_file, voice)
       file_exists = File.exist?("output.aac")
-      puts "File exists: #{file_exists}"
       File.delete("output.aac") if file_exists
     else
       Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"

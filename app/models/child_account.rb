@@ -34,22 +34,14 @@ class ChildAccount < ApplicationRecord
   def self.valid_credentials?(parent_id, username, password_to_set)
     # TODO: Find by child_lookup_key
     user = User.find_by(id: parent_id)
-    puts ")))) User: #{user.child_accounts.count}"
     user.child_accounts.each do |child|
-      puts "Child: #{child.username} - password: #{password_to_set}"
       result = child.valid_password?(password_to_set)
-      puts "Result: #{result}"
       result
     end
     return nil unless user
 
-    puts "User - #{user.id} - #{user.child_accounts.count}"
-    puts "Username: #{username}"
-
     account = find_by(username: username, user: user)
-    puts "Password to set: #{password_to_set}"
     valid_creds = account&.valid_password?(password_to_set) ? account : nil
-    puts "Valid Creds: #{valid_creds}"
     valid_creds
   end
 
@@ -75,6 +67,10 @@ class ChildAccount < ApplicationRecord
     puts "UserId: #{user_id} LookUp Key: #{user.child_lookup_key} Username: #{username}"
   end
 
+  def can_sign_in?
+    user.pro? ? true : user.free_trial?
+  end
+
   def api_view
     {
       id: id,
@@ -83,6 +79,7 @@ class ChildAccount < ApplicationRecord
       settings: settings,
       user_id: user_id,
       boards: child_boards.map(&:api_view),
+      can_sign_in: can_sign_in?,
     }
   end
 end

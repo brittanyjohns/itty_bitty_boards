@@ -24,13 +24,19 @@ class BoardImage < ApplicationRecord
   # acts_as_list scope: :board
 
   before_save :set_defaults
-  after_save :create_voice_audio, if: :voice_changed_and_not_existing?
+  # after_save :create_voice_audio, if: :voice_changed_and_not_existing?
+  before_save :create_voice_audio, if: :voice_changed_and_not_existing?
+
   # after_create_commit :save_initial_layout
 
   scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
 
   def voice_changed_and_not_existing?
-    voice_changed? && !image.existing_voices.include?(voice)
+    x = voice_changed?
+    y = !image.existing_voices.include?(voice)
+    result = x && y
+    puts "\n\nvoice_changed #{x} && !existing_voices.include?(voice) #{y} | -- voice: #{voice}\n -- image: #{image.label}\n\n"
+    y
   end
 
   def label
@@ -73,8 +79,7 @@ class BoardImage < ApplicationRecord
     puts "\nRunning create_voice_audio\n -- image: #{image.label}\n -- voice: #{voice}\n"
     return if image.existing_voices.include?(voice)
 
-    image.find_or_create_audio_file_for_voice(board.voice)
-    # image.create_voice_audio unless image.
+    image.find_or_create_audio_file_for_voice(voice)
   end
 
   def set_defaults

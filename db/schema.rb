@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_07_26_004701) do
+ActiveRecord::Schema[7.1].define(version: 2024_07_26_175322) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -24,6 +24,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_26_004701) do
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
     t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
+    t.index ["record_id", "record_type", "name"], name: "idx_on_record_id_record_type_name_7af8b19b5e"
     t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
   end
 
@@ -141,6 +142,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_26_004701) do
     t.string "original_image_url"
     t.string "prompt_for_prompt"
     t.index ["deleted_at"], name: "index_docs_on_deleted_at"
+    t.index ["documentable_id", "documentable_type", "deleted_at"], name: "idx_on_documentable_id_documentable_type_deleted_at_a6715ad541"
     t.index ["documentable_type", "documentable_id"], name: "index_docs_on_documentable"
     t.index ["user_id"], name: "index_docs_on_user_id"
   end

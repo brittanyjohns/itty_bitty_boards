@@ -142,7 +142,9 @@ class Image < ApplicationRecord
       if !audio_file_exists_for?(voice)
         create_audio_from_text(label, voice)
       else
-        Rails.logger.debug "Audio file already exists for voice: #{voice}"
+        voice = user_id ? user.voice : "echo"
+        create_audio_from_text(label, voice)
+        Rails.logger.debug ">>>>Audio file already exists for voice: #{voice}"
       end
     end
   end
@@ -244,6 +246,7 @@ class Image < ApplicationRecord
   end
 
   def find_or_create_audio_file_for_voice(voice = "echo")
+    puts "Finding or creating audio file for #{label} - voice: #{voice}"
     filename = "#{label}_#{voice}_#{id}.aac"
     existing = audio_files.attachments.includes(:blob).find do |attachment|
       attachment.blob.filename.to_s == filename
@@ -483,9 +486,15 @@ class Image < ApplicationRecord
     doc ? doc.display_url : nil
   end
 
+  # def default_audio_url
+  #   audio_file = audio_files.first
+  #   cdn_url = ENV["CDN_HOST"] + "/" + audio_file.key if audio_file
+  #   audio_file ? cdn_url : nil
+  # end
+
   def default_audio_url
-    audio_file = audio_files.first
-    cdn_url = ENV["CDN_HOST"] + "/" + audio_file.key if audio_file
+    audio_file = audio_files_attachments.first&.blob
+    cdn_url = "#{ENV["CDN_HOST"]}/#{audio_file.key}" if audio_file
     audio_file ? cdn_url : nil
   end
 

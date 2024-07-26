@@ -1,5 +1,5 @@
 class API::UsersController < API::ApplicationController
-  before_action :set_user, only: %i[ show update_settings destroy update_plan ]
+  before_action :set_user, only: %i[ show update_settings destroy update ]
 
   # GET /users or /users.json
   def index

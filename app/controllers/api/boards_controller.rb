@@ -98,6 +98,16 @@ class API::BoardsController < API::ApplicationController
   end
 
   # GET /boards/1 or /boards/1.json
+  # def show
+  #   board = Board.with_artifacts.find(params[:id])
+  #   @board_with_images = board.api_view_with_images(current_user)
+  #   user_permissions = {
+  #     can_edit: (board.user == current_user || current_user.admin?),
+  #     can_delete: (board.user == current_user || current_user.admin?),
+  #   }
+  #   render json: @board_with_images.merge(user_permissions)
+  # end
+
   def show
     board = Board.with_artifacts.find(params[:id])
     @board_with_images = board.api_view_with_images(current_user)
@@ -187,10 +197,16 @@ class API::BoardsController < API::ApplicationController
 
   # PATCH/PUT /boards/1 or /boards/1.json
   def update
-    @board = Board.with_artifacts.find(params[:id])
+    ActiveRecord::Base.logger.silence do
+      @board = Board.with_artifacts.find(params[:id])
+    end
     @board.number_of_columns = board_params["number_of_columns"].to_i
+    @board.voice = params["voice"]
+    @board.name = params["name"]
+    puts "API::BoardsController#update: #{params.inspect}"
+    puts @board.voice ? "Voice: #{@board.voice}" : "No voice"
     respond_to do |format|
-      if @board.update(board_params)
+      if @board.save
         format.json { render json: @board.api_view_with_images(current_user), status: :ok }
       else
         format.json { render json: @board.errors, status: :unprocessable_entity }

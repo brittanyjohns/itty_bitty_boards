@@ -13,6 +13,10 @@ module API
         if (child = ChildAccount.valid_credentials?(parent_id, username, password))
           auth_token = child.authentication_token
           puts "Auth Token: #{auth_token}"
+          unless child.can_sign_in?
+            render json: { error: "Unauthorized - Account not active" }, status: :unauthorized
+            return
+          end
           sign_in child
           render json: { token: child.authentication_token, child: child }
         else

@@ -46,14 +46,25 @@ class Board < ApplicationRecord
   scope :with_less_than_x_images, ->(x) { joins(:images).group("boards.id").having("count(images.id) < ?", x) }
   scope :without_images, -> { left_outer_joins(:images).where(images: { id: nil }) }
 
+  # scope :with_artifacts, -> {
+  #         includes({
+  #           images: [
+  #             { docs: :image_attachment },
+  #             :audio_files_attachments,
+  #           ],
+  #           user: { user_docs: [{ doc: [{ image_attachment: :blob }] }] },
+  #         })
+  #       }
+
   scope :with_artifacts, -> {
-          includes({
+          includes(
             images: [
-              { docs: :image_attachment },
+              :docs,
               :audio_files_attachments,
+              :audio_files_blobs,
+              { user: { user_docs: :doc } },
             ],
-            user: { user_docs: [{ doc: [{ image_attachment: :blob }] }] },
-          })
+          )
         }
 
   before_save :set_voice, if: :voice_changed?
@@ -269,6 +280,48 @@ class Board < ApplicationRecord
     ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"]
   end
 
+  # def api_view_with_images(viewing_user = nil)
+  #   {
+  #     id: id,
+  #     name: name,
+  #     description: description,
+  #     parent_type: parent_type,
+  #     predefined: predefined,
+  #     number_of_columns: number_of_columns,
+  #     status: status,
+  #     token_limit: token_limit,
+  #     cost: cost,
+  #     layout: print_grid_layout,
+  #     display_image_url: display_image_url,
+  #     floating_words: words,
+  #     user_id: user_id,
+  #     voice: voice,
+  #     created_at: created_at,
+  #     updated_at: updated_at,
+  #     has_generating_images: has_generating_images?,
+  #     current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
+  #     images: board_images.includes(:image).map do |board_image|
+  #       {
+  #         id: board_image.image.id,
+  #         label: board_image.image.label,
+  #         image_prompt: board_image.image.image_prompt,
+  #         bg_color: board_image.image.bg_class,
+  #         text_color: board_image.image.text_color,
+  #         next_words: board_image.image.next_words,
+  #         position: board_image.position,
+  #         # display_doc: board_image.image.display_image,
+  #         src: board_image.image.display_image_url(viewing_user),
+  #         # src: board_image.image.display_image ? board_image.image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{board_image.image.label_param}",
+  #         audio: board_image.image.default_audio_url,
+  #         layout: board_image.layout,
+  #         added_at: board_image.added_at,
+  #         image_last_added_at: board_image.image_last_added_at,
+  #         status: board_image.status,
+  #       }
+  #     end,
+  #   }
+  # end
+
   def api_view_with_images(viewing_user = nil)
     {
       id: id,
@@ -289,7 +342,7 @@ class Board < ApplicationRecord
       updated_at: updated_at,
       has_generating_images: has_generating_images?,
       current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
-      images: board_images.includes(:image).map do |board_image|
+      images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
         {
           id: board_image.image.id,
           label: board_image.image.label,
@@ -298,10 +351,10 @@ class Board < ApplicationRecord
           text_color: board_image.image.text_color,
           next_words: board_image.image.next_words,
           position: board_image.position,
-          # display_doc: board_image.image.display_image,
           src: board_image.image.display_image_url(viewing_user),
-          # src: board_image.image.display_image ? board_image.image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{board_image.image.label_param}",
-          audio: board_image.image.default_audio_url,
+          # audio: board_image.image.default_audio_url,
+          audio: board_image.image.find_or_create_audio_file_for_voice(board_image.voice).url,
+          voice: board_image.voice,
           layout: board_image.layout,
           added_at: board_image.added_at,
           image_last_added_at: board_image.image_last_added_at,
