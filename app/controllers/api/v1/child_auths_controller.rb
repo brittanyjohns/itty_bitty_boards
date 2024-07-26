@@ -4,17 +4,14 @@ module API
       skip_before_action :authenticate_token!, only: [:create, :current, :destroy]
 
       def create
-        puts "Params: #{params}"
         parent_id = params[:user_id]
         username = params[:username]
         password = params[:password]
-        puts "Parent ID: #{parent_id}, Username: #{username}, Password: #{password}"
 
         if (child = ChildAccount.valid_credentials?(parent_id, username, password))
           auth_token = child.authentication_token
-          puts "Auth Token: #{auth_token}"
           unless child.can_sign_in?
-            render json: { error: "Unauthorized - Account not active" }, status: :unauthorized
+            render json: { error: "Account not active. Please upgrade to a pro account to continue." }, status: :unauthorized
             return
           end
           sign_in child

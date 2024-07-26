@@ -199,12 +199,14 @@ class User < ApplicationRecord
     display_name
   end
 
+  TRAIL_PERIOD = 7.days
+
   def free_trial?
-    plan_type == "free" && created_at > 30.days.ago
+    plan_type == "free" && created_at > TRAIL_PERIOD.ago
   end
 
   def trial_expired?
-    plan_type == "free" && created_at < 30.days.ago
+    plan_type == "free" && created_at < TRAIL_PERIOD.ago
   end
 
   def api_view
