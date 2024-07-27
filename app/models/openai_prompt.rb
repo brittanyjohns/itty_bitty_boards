@@ -133,7 +133,7 @@ class OpenaiPrompt < ApplicationRecord
     board.save!
     create_images_from_response(board, response)
     board.calucate_grid_layout
-    board.set_display_image_url
+    board.set_display_image
     board.update!(status: "completed")
     board
   end

@@ -157,12 +157,6 @@ class User < ApplicationRecord
 
   def display_doc_for_image(image)
     user_docs.find_by(image_id: image.id)&.doc
-    # Doc.with_attached_image
-    #    .joins(:user_docs)
-    #    .where(user_docs: { user_id: id })
-    #    .where(id: image.docs.select(:id))
-    #    .where(user_id: id)
-    #    .first
   end
 
   def is_a_favorite?(doc)
@@ -188,11 +182,11 @@ class User < ApplicationRecord
   end
 
   def pro?
-    plan_type == "pro"
+    plan_type.downcase == "pro"
   end
 
   def free?
-    plan_type == "free"
+    plan_type.downcase == "free"
   end
 
   def to_s
@@ -202,11 +196,11 @@ class User < ApplicationRecord
   TRAIL_PERIOD = 7.days
 
   def free_trial?
-    plan_type == "free" && created_at > TRAIL_PERIOD.ago
+    free? && created_at > TRAIL_PERIOD.ago
   end
 
   def trial_expired?
-    plan_type == "free" && created_at < TRAIL_PERIOD.ago
+    free? && created_at < TRAIL_PERIOD.ago
   end
 
   def trial_expired_at
