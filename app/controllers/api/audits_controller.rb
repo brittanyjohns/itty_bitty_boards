@@ -21,4 +21,9 @@ class API::AuditsController < API::ApplicationController
     WordEvent.create(payload)
     render json: { message: "Word click recorded" }
   end
+
+  def word_events
+    @word_events = WordEvent.all.order(word: :asc).limit(200)
+    render json: @word_events
+  end
 end

@@ -103,7 +103,6 @@ Rails.application.routes.draw do
   #   sessions: 'users/sessions',
   #   registrations: 'users/registrations'
   # }
-
   resources :users do
     collection do
       get "admin"
@@ -138,6 +137,7 @@ Rails.application.routes.draw do
 
   #  API routes
   namespace :api, defaults: { format: :json } do
+    get "word_events", to: "audits#word_events", as: :word_events
     post "webhooks", to: "webhooks#webhooks"
     resources :subscriptions do
       collection do

@@ -71,7 +71,6 @@ class Board < ApplicationRecord
   before_save :set_default_voice, unless: :voice?
 
   before_save :rearrange_images, if: :number_of_columns_changed?
-  # before_save :set_display_image, if: :display_image_url.nil?
 
   after_touch :set_status
   before_create :set_number_of_columns

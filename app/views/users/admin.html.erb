@@ -4,13 +4,24 @@
     <h1 class="text-3xl font-bold text-gray-800">ADMIN DASHBOARD </h1>
     <h1 class="text-xl font-light text-gray-800"><%= current_user.email %></h1>
   </div>
+  <div class="border-b pb-4">
+    <h1 class="text-3xl font-bold text-gray-800">Word Events</h1>
+    <h1 class="text-xl font-light text-gray-800">Total: <%= WordEvent.count %></h1>
+    <% @word_events.each do |word_event| %>
+      <div class="flex justify-between items-center border-b pb-4">
+      <h1 class="text-3xl font-bold text-gray-800"><%= word_event.user %></h1>
+        <h1 class="text-3xl font-bold text-gray-800"><%= word_event.word %></h1>
+        <h1 class="text-xl font-light text-gray-800"> <%= word_event.previous_word %></h1>
+      </div>
+    <% end %>
+  </div>
 
   <div class="relative justify-between items-center">
     <%= button_to "Set Next Words", set_next_words_images_path, class: "text-white bg-indigo-600 hover:bg-indigo-800 font-bold py-2 px-4 rounded-md transition duration-150 ease-in-out" if current_user.admin? %>
   </div>
   <div>
     <p class="text-center text-sm font-semibold">
-      Without next words: <%=Image.public_img.non_menu_images.where(next_words: [], no_next: false).count%>
+      Without next words: <%= Image.public_img.non_menu_images.where(next_words: [], no_next: false).count %>
     </p>
 
   <div class="grid grid-cols-1 md:grid-cols-1 gap-4">

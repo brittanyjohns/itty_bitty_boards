@@ -1,0 +1,22 @@
+<!-- index.html.erb -->
+<h1>Word Events Analysis</h1>
+<p>Total Clicks: <%= @total_clicks %></p>
+<p>Average Clicks per User: <%= @clicks_per_user.values.sum / @clicks_per_user.size.to_f %></p>
+
+<h2 class="mt-4">Clicks per User</h2>
+<ul>
+  <% @most_clicked_words.each do |word, count| %>
+    <li><%= word %>: <%= count %> clicks</li>
+  <% end %>
+</ul>
+
+<h2>Most Common Previous Words</h2>
+<ul>
+  <% @most_common_previous_words.each do |word, count| %>
+    <li><%= word %>: <%= count %> occurrences</li>
+  <% end %>
+</ul>
+
+<hr>
+<h2>Clicks Over Time</h2>
+<%= line_chart @clicks_over_time %>
