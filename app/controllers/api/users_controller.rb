@@ -25,12 +25,16 @@ class API::UsersController < API::ApplicationController
   # PATCH/PUT /users/1 or /users/1.json
   def update_settings
     @user = User.find(params[:id])
-    user_setting_params = params[:user]
     user_settings = @user.settings || {}
-    puts "User settings params: #{user_params} user_settings: #{user_settings}"
-    voice_settings = user_params[:voice] || {}
+    puts "User settings: #{user_settings}"
+    puts "Params: #{params}"
+    puts "wait params: #{params[:wait_to_speak]}"
+    voice_settings = params[:voice] || {}
     puts "Voice settings: #{voice_settings}"
     @user.settings = user_settings.merge(voice: voice_settings)
+    @user.base_words = params[:base_words]
+    @user.settings["wait_to_speak"] = params[:wait_to_speak] || false
+    @user.settings["disable_audit_logging"] = params[:disable_audit_logging] || false
     puts "User settings after merge: #{@user.inspect}"
 
     respond_to do |format|
