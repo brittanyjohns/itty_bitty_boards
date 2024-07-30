@@ -203,6 +203,8 @@ class API::BoardsController < API::ApplicationController
     @board.number_of_columns = board_params["number_of_columns"].to_i
     @board.voice = params["voice"]
     @board.name = params["name"]
+    @board.description = params["description"]
+    @board.display_image_url = params["display_image_url"]
     puts "API::BoardsController#update: #{params.inspect}"
     puts @board.voice ? "Voice: #{@board.voice}" : "No voice"
     respond_to do |format|

@@ -46,16 +46,6 @@ class Board < ApplicationRecord
   scope :with_less_than_x_images, ->(x) { joins(:images).group("boards.id").having("count(images.id) < ?", x) }
   scope :without_images, -> { left_outer_joins(:images).where(images: { id: nil }) }
 
-  # scope :with_artifacts, -> {
-  #         includes({
-  #           images: [
-  #             { docs: :image_attachment },
-  #             :audio_files_attachments,
-  #           ],
-  #           user: { user_docs: [{ doc: [{ image_attachment: :blob }] }] },
-  #         })
-  #       }
-
   scope :with_artifacts, -> {
           includes(
             images: [

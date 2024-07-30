@@ -23,7 +23,13 @@ class API::AuditsController < API::ApplicationController
   end
 
   def word_events
-    @word_events = WordEvent.all.order(word: :asc).limit(200)
+    if params[:user_id]
+      @user = User.find(params[:user_id])
+      @word_events = @user.word_events.limit(200)
+      # @word_events = WordEvent.where(user_id: params[:user_id]).limit(200)
+    else
+      @word_events = WordEvent.all.limit(200)
+    end
     render json: @word_events
   end
 end
