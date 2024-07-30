@@ -281,7 +281,7 @@ class API::BoardsController < API::ApplicationController
       return
     end
     @board.calucate_grid_layout
-    render json: { board: @board, new_board_image: new_board_image }
+    render json: { board: @board, new_board_image: new_board_image, label: image.label }
   end
 
   def remove_image
