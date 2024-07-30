@@ -524,7 +524,7 @@ class Image < ApplicationRecord
   end
 
   def userless_doc
-    default_admin = User.admin.first
+    default_admin = User.includes(:user_docs, :docs).admin.first
     doc = default_admin&.display_doc_for_image(self)
     doc = docs.where(user_id: nil).first unless doc
     doc
@@ -644,7 +644,7 @@ class Image < ApplicationRecord
       # Image.non_menu_images.or(Image.where(user_id: user.id)).distinct
       Image.with_artifacts.where(user_id: user.id).distinct
     else
-      Image.with_artifacts.public_img.non_menu_images.non_scenarios.or(Image.with_artifacts.where(user_id: user.id)).distinct
+      Image.with_artifacts.public_img.non_menu_images.non_scenarios.or(Image.with_artifacts.where(user_id: user.id)).or(Image.where(user_id: user.id)).distinct
       # Image.all
       # Image.non_menu_images.where(user_id: [user.id, nil]).or(Image.public_img.non_menu_images).distinct
     end

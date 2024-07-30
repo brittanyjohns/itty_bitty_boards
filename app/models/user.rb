@@ -156,7 +156,7 @@ class User < ApplicationRecord
   end
 
   def display_doc_for_image(image)
-    user_docs.find_by(image_id: image.id)&.doc
+    user_docs.includes(:doc).find_by(image_id: image.id)&.doc
   end
 
   def is_a_favorite?(doc)

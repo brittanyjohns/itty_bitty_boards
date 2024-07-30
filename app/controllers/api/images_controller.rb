@@ -1,9 +1,10 @@
 class API::ImagesController < API::ApplicationController
   def index
+    @current_user = current_user
     if params[:user_only] == "1"
-      @images = Image.searchable_images_for(current_user, true)
+      @images = Image.searchable_images_for(@current_user, true)
     else
-      @images = Image.searchable_images_for(current_user)
+      @images = Image.searchable_images_for(@current_user)
     end
 
     if params[:query].present?
@@ -23,7 +24,7 @@ class API::ImagesController < API::ApplicationController
         image_type: image.image_type,
         bg_color: image.bg_class,
         text_color: image.text_color,
-        src: image.display_image_url(current_user),
+        src: image.display_image_url(@current_user),
         next_words: image.next_words,
       # audio: image.default_audio_url
       }
@@ -32,12 +33,12 @@ class API::ImagesController < API::ApplicationController
   end
 
   def user_images
-    @user_docs = current_user.docs.with_attached_image.where(documentable_type: "Image").order(created_at: :desc)
-    @images = Image.with_artifacts.where(id: @user_docs.map(&:documentable_id)).order(label: :asc).page params[:page]
+    @current_user = current_user
+
+    @user_docs = @current_user.docs.with_attached_image.where(documentable_type: "Image").order(created_at: :desc)
+    @images = Image.with_artifacts.where(id: @user_docs.map(&:documentable_id)).or(Image.where(user_id: @current_user.id)).order(label: :asc).page params[:page]
     @distinct_images = @images.distinct
     @images_with_display_doc = @distinct_images.map do |image|
-      # display_doc = image.display_doc(current_user)
-      # audio_file = image.audio_files.first
       {
         id: image.id,
         label: image.label,
@@ -45,23 +46,21 @@ class API::ImagesController < API::ApplicationController
         bg_color: image.bg_class,
         text_color: image.text_color,
         image_prompt: image.image_prompt,
-        src: image.display_image_url(current_user),
+        src: image.display_image_url(@current_user),
         next_words: image.next_words,
-      # src: display_doc ? display_doc.attached_image_url : "https://via.placeholder.com/150x150.png?text=#{image.label_param}",
-      # audio: audio_file ? url_for(audio_file) : nil,
-      # audio: image.default_audio_url,
       }
     end
     render json: @images_with_display_doc
   end
 
   def show
+    @current_user = current_user
+
     @image = Image.with_artifacts.find(params[:id])
     @current_doc = @image.display_doc(current_user)
-    puts "Current Doc: #{@current_doc.inspect}"
     @current_doc_id = @current_doc.id if @current_doc
     @image_docs = @image.docs.with_attached_image.for_user(current_user).order(created_at: :desc)
-    @user_image_boards = @image.boards.where(user_id: current_user.id)
+    @user_image_boards = @image.boards.where(user_id: @current_user.id)
     @image_with_display_doc = {
       id: @image.id,
       label: @image.label.upcase,
@@ -74,7 +73,7 @@ class API::ImagesController < API::ApplicationController
         id: @current_doc&.id,
         label: @image&.label,
         user_id: @current_doc&.user_id,
-        src: @image.display_image_url(current_user),
+        src: @image.display_image_url(@current_user),
         # src: @current_doc&.attached_image_url,
         is_current: true,
         deleted_at: @current_doc&.deleted_at,
@@ -83,17 +82,12 @@ class API::ImagesController < API::ApplicationController
       user_id: @image.user_id,
       next_words: @image.next_words,
       no_next: @image.no_next,
-      # src: url_for(@image.display_image),
-      src: @image.display_image_url(current_user),
-      # src: @image.display_doc(current_user)&.attached_image_url || "https://via.placeholder.com/150x150.png?text=#{@image.label_param}",
-      # audio: @image.default_audio_url,
-      # audio: @image.audio_files.first ? url_for(@image.audio_files.first) : nil,
+      src: @image.display_image_url(@current_user),
       docs: @image_docs.map do |doc|
         {
           id: doc.id,
           label: @image.label,
           user_id: doc.user_id,
-          # src: doc.image.url,
           src: doc.display_url,
           is_current: doc.id == @current_doc_id,
         }
@@ -103,20 +97,22 @@ class API::ImagesController < API::ApplicationController
   end
 
   def crop
+    @current_user = current_user
+
     label = image_params[:label]&.downcase
     image_id = params["image"]["id"]
     if image_id.present?
       @existing_image = Image.find(image_id)
     else
-      @existing_image = Image.find_by(label: label, user_id: current_user.id)
+      @existing_image = Image.find_by(label: label, user_id: @current_user.id)
     end
     if @existing_image
       @image = @existing_image
     else
-      @image = Image.create(user: current_user, label: label, private: true, image_prompt: image_params[:image_prompt], image_type: "User")
+      @image = Image.create(user: @current_user, label: label, private: true, image_prompt: image_params[:image_prompt], image_type: "User")
     end
     @doc = @image.docs.new
-    @doc.user = current_user
+    @doc.user = @current_user
     @doc.processed = true
     file_extension = params[:file_extension]
     doc_tmp_id = @image.docs.count + 1
@@ -127,22 +123,24 @@ class API::ImagesController < API::ApplicationController
     if @doc.save
       @image.update(status: "finished")
       @image.reload
-      render json: @image.api_view(current_user), status: :created
+      render json: @image.api_view(@current_user), status: :created
     else
       render json: @image.errors, status: :unprocessable_entity
     end
   end
 
   def create
+    @current_user = current_user
+
     label = image_params[:label]&.downcase
-    @existing_image = Image.find_by(label: label, user_id: current_user.id)
+    @existing_image = Image.find_by(label: label, user_id: @current_user.id)
     if @existing_image
       @image = @existing_image
     else
-      @image = Image.create(user: current_user, label: label, private: true, image_prompt: image_params[:image_prompt], image_type: "User")
+      @image = Image.create(user: @current_user, label: label, private: true, image_prompt: image_params[:image_prompt], image_type: "User")
     end
     doc = @image.docs.new(image_params[:docs])
-    doc.user = current_user
+    doc.user = @current_user
     doc.processed = true
     if doc.save
       render json: @image, status: :created
@@ -167,22 +165,19 @@ class API::ImagesController < API::ApplicationController
     @image = Image.find(params[:id])
     if params[:next_words].present?
       @image.next_words = params[:next_words]&.compact_blank
-      puts "Setting next words: #{@image.next_words}"
       @image.save
     else
       # @image.set_next_words!
       CreateAllAudioJob.perform_async(@image.id)
     end
-    puts "Next Words: #{@image&.next_words.count}"
-    puts "Next images: #{@image&.next_images.count}"
+
     @image.create_words_from_next_words
     render json: @image
   end
 
   def create_symbol
-    puts "API::ImagesController#create_symbol params: #{params}"
     @image = Image.find(params[:id])
-    limit = current_user.admin? ? 10 : 1
+    limit = current_user.admin? ? 20 : 1
     GetSymbolsJob.perform_async([@image.id], limit)
     render json: { status: "ok", message: "Creating #{limit} symbols for image." }
   end
@@ -193,20 +188,22 @@ class API::ImagesController < API::ApplicationController
   end
 
   def generate
+    @current_user = current_user
+
     if !params[:id].blank?
       @image = Image.find(params[:id])
     else
       label = image_params[:label].present? ? image_params[:label].downcase : image_params[:image_prompt]
       puts "Label: #{label}"
-      @image = Image.find_or_create_by(label: label, user_id: current_user.id, private: false, image_prompt: image_params[:image_prompt], image_type: "Generated")
+      @image = Image.find_or_create_by(label: label, user_id: @current_user.id, private: false, image_prompt: image_params[:image_prompt], image_type: "Generated")
     end
     @image.update(status: "generating")
     puts "\n\nPARAMS: #{params.inspect}\n\n"
     # image_prompt = "An image of #{@image.label}."
     image_prompt = image_params[:image_prompt] || image_params["image_prompt"]
-    GenerateImageJob.perform_async(@image.id, current_user.id, image_prompt)
-    current_user.remove_tokens(1)
-    @image_docs = @image.docs.for_user(current_user).order(created_at: :desc)
+    GenerateImageJob.perform_async(@image.id, @current_user.id, image_prompt)
+    @current_user.remove_tokens(1)
+    @image_docs = @image.docs.for_user(@current_user).order(created_at: :desc)
 
     @image_with_display_doc = {
       id: @image.id,
@@ -223,11 +220,8 @@ class API::ImagesController < API::ApplicationController
         is_current: true,
       },
       private: @image.private,
-      src: @image.display_image_url(current_user),
+      src: @image.display_image_url(@current_user),
       audio: @image.default_audio_url,
-      # src: url_for(@image.display_image),
-      # src: @image.display_image ? @image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{@image.label_param}",
-      # audio: @image.audio_files.first ? url_for(@image.audio_files.first) : nil,
       docs: @image_docs.map do |doc|
         {
           id: doc.id,
@@ -243,21 +237,25 @@ class API::ImagesController < API::ApplicationController
   end
 
   def find_or_create
+    @current_user = current_user
+
     generate_image = params["generate_image"] == "1"
     label = image_params["label"]&.downcase
-    @image = Image.find_by(label: label, user_id: current_user.id)
+    is_private = image_params["private"] || false
+    @image = Image.find_by(label: label, user_id: @current_user.id)
     @image = Image.public_img.find_by(label: label) unless @image
     @found_image = @image
-    @image = Image.create(label: label, private: false, user_id: current_user.id, image_prompt: image_params[:image_prompt], image_type: "User") unless @image
+    puts "Found Image: #{@found_image.inspect}"
+    @image = Image.create(label: label, private: is_private, user_id: @current_user.id, image_prompt: image_params[:image_prompt], image_type: "User") unless @image
     @board = Board.find_by(id: image_params[:board_id]) if image_params[:board_id].present?
-
+    puts "Image: #{@image.inspect}"
     @board.add_image(@image.id) if @board
     if @found_image
       notice = "Image found!"
       @found_image.update(status: "finished") unless @found_image.finished?
       run_generate if generate_image
     else
-      if current_user.tokens > 0 && generate_image
+      if @current_user.tokens > 0 && generate_image
         notice = "Generating image..."
         run_generate
       elsif !generate_image
@@ -272,7 +270,7 @@ class API::ImagesController < API::ApplicationController
       GetSymbolsJob.perform_async([@image.id], limit)
       notice += " Creating #{limit} #{"symbol".pluralize(limit)} for image."
     end
-    @image_with_display_doc = @image.with_display_doc(current_user)
+    @image_with_display_doc = @image.with_display_doc(@current_user)
     render json: @image_with_display_doc
   end
 
@@ -286,10 +284,11 @@ class API::ImagesController < API::ApplicationController
   end
 
   def search
+    @current_user = current_user
     if params[:user_images_only] == "1"
-      @images = Image.searchable_images_for(current_user, true).order(label: :asc).page params[:page]
+      @images = Image.searchable_images_for(@current_user, true).order(label: :asc).page params[:page]
     else
-      @images = Image.searchable_images_for(current_user).order(label: :asc).page params[:page]
+      @images = Image.searchable_images_for(@current_user).order(label: :asc).page params[:page]
     end
 
     if params[:query].present?
@@ -302,18 +301,15 @@ class API::ImagesController < API::ApplicationController
         id: image.id,
         label: image.label,
         image_prompt: image.image_prompt,
-        src: image.display_image_url(current_user),
+        src: image.display_image_url(@current_user),
         audio: image.default_audio_url,
-      # display_doc: image.display_image(current_user),
-      # src: url_for(image.display_image),
-      # audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
       }
     end
   end
 
   def predictive
     if params["ids"].present?
-      @images = Image.where(id: params["ids"])
+      @images = Image.with_artifacts.where(id: params["ids"])
     else
       puts "No ids - #{params}"
     end

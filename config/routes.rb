@@ -234,7 +234,6 @@ Rails.application.routes.draw do
       end
       member do
         put "update_settings"
-        # put "update_plan"
       end
     end
 

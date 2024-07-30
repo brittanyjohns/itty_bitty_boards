@@ -11,10 +11,10 @@ class API::UsersController < API::ApplicationController
   end
 
   def update
-    puts "Update plan params: #{params}"
     @user = User.find(params[:id])
     @user.plan_type = user_params[:plan_type]
-    puts "User plan type: #{@user.plan_type}"
+    @user.name = user_params[:name]
+
     if @user.save
       render json: @user, status: :ok
     else
