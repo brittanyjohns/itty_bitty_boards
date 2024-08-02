@@ -28,7 +28,6 @@ class Subscription < ApplicationRecord
   scope :expired, -> { where("expires_at < ?", Time.now) }
 
   def self.build_from_stripe_event(data_object)
-    puts "Data object: #{data_object.inspect}"
     user_uuid = data_object["client_reference_id"]
     raise "User UUID not found" if user_uuid.nil?
     user = User.find_by(uuid: user_uuid) rescue nil
@@ -38,7 +37,6 @@ class Subscription < ApplicationRecord
       puts "Expires at not found"
       expires_at = Time.now.to_i + 1.month
     end
-    user.add_tokens(100)
     user.stripe_customer_id = data_object["customer"]
     user.plan_type = "Pro"
     user.plan_status = data_object["payment_status"] == "paid" ? "active" : "inactive"

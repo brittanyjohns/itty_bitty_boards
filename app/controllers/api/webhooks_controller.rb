@@ -55,6 +55,12 @@ class API::WebhooksController < API::ApplicationController
       }.to_json
 
       CreateSubscriptionJob.perform_async(subscription_data)
+      Rails logger.info "Subscription created: #{subscription_data}\n Adding 300 tokens to user"
+      user_uuid = subscription_data["client_reference_id"]
+      raise "User UUID not found" if user_uuid.nil?
+      @user = User.find_by(uuid: user_uuid) rescue nil
+      raise "User not found" if @user.nil?
+      @user.add_tokens(300)
 
       # Payment is successful and the subscription is created.
       # You should provision the subscription and save the customer ID to your database.
@@ -68,8 +74,10 @@ class API::WebhooksController < API::ApplicationController
         @subscription.update(status: stripe_subscription.status, expires_at: Time.at(stripe_subscription.current_period_end))
         @user = @subscription.user
         @user.plan_expires_at = Time.at(stripe_subscription.current_period_end)
+        Rails.logger.info "Subscription Paid: user: #{@user}, adding 100 tokens"
         @user.add_tokens(100)
         @user.save!
+        Rails.logger.info "Subscription Paid: User: #{@user}, Tokens: #{@user.tokens}"
       else
         puts "No subscription found for stripe_subscription: #{stripe_subscription.id}"
       end
