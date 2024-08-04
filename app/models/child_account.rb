@@ -33,14 +33,15 @@ class ChildAccount < ApplicationRecord
 
   def self.valid_credentials?(parent_id, username, password_to_set)
     # TODO: Find by child_lookup_key
-    user = User.find_by(id: parent_id)
-    user.child_accounts.each do |child|
-      result = child.valid_password?(password_to_set)
-      result
-    end
-    return nil unless user
+    # DOING -- Temp keep this until testing is done
+    # user = User.find_by(id: parent_id)
+    # user.child_accounts.each do |child|
+    #   result = child.valid_password?(password_to_set)
+    #   result
+    # end
+    # return nil unless user
 
-    account = find_by(username: username, user: user)
+    account = ChildAccount.find_by(username: username)
     valid_creds = account&.valid_password?(password_to_set) ? account : nil
     valid_creds
   end

@@ -36,11 +36,11 @@ class API::WebhooksController < API::ApplicationController
     # end
     case event_type
     when "checkout.session.completed"
-      puts "Checkout session completed\n #{event_type}"
-      puts "User UUID: #{data_object.client_reference_id}"
-      puts "Subscription ID: #{data_object.subscription}"
+      # puts "Checkout session completed\n #{event_type}"
+      # puts "User UUID: #{data_object.client_reference_id}"
+      # puts "Subscription ID: #{data_object.subscription}"
       stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
-      puts "Stripe subscription: #{stripe_subscription.inspect}"
+      # puts "Stripe subscription: #{stripe_subscription.inspect}"
 
       subscription_data = {
         subscription: data_object.subscription,

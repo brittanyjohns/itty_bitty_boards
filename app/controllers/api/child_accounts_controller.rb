@@ -72,6 +72,6 @@ class API::ChildAccountsController < API::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def child_account_params
-    params.require(:child_account).permit(:user_id, :username, :nickname)
+    params.require(:child_account).permit(:user_id, :username, :nickname, :name, :settings)
   end
 end
