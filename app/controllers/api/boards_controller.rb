@@ -98,6 +98,10 @@ class API::BoardsController < API::ApplicationController
 
   def show
     board = Board.with_artifacts.find(params[:id])
+    if board.print_grid_layout.values.any?(&:empty?)
+      board.calucate_grid_layout
+      board.save!
+    end
     @board_with_images = board.api_view_with_images(current_user)
     user_permissions = {
       can_edit: (board.user == current_user || current_user.admin?),
@@ -151,6 +155,7 @@ class API::BoardsController < API::ApplicationController
 
   def rearrange_images
     @board = Board.find(params[:id])
+    puts "API::BoardsController#rearrange_images: #{params.inspect}"
 
     # ActiveRecord::Base.logger.silence do
     @board.rearrange_images(params[:layout])
