@@ -65,7 +65,9 @@ class API::ImagesController < API::ApplicationController
     @current_doc_id = @current_doc.id if @current_doc
     @image_docs = @image.docs.with_attached_image.for_user(current_user).order(created_at: :desc)
     @user_image_boards = @image.boards.where(user_id: @current_user.id)
-    @board_image = @board&.board_images.find_by(image_id: @image.id)
+    if @board && @board.board_images.any?
+      @board_image = @board&.board_images.find_by(image_id: @image.id)
+    end
     @image_with_display_doc = {
       id: @image.id,
       label: @image.label.upcase,
