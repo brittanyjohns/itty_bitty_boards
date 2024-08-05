@@ -449,6 +449,7 @@ class Image < ApplicationRecord
     Image.all.group_by(&:label).each do |label, images|
       # Skip the first image (which we want to keep) and destroy the rest
       # images.drop(1).each(&:destroy)
+      puts "Duplicate images for #{label}: #{images.count}"
       images.drop(1).each do |image|
         Rails.logger.debug "Destroying duplicate image: #{image.id}"
         image.destroy unless dry_run

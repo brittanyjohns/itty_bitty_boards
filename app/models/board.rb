@@ -296,7 +296,7 @@ class Board < ApplicationRecord
           board_image_id: board_image.id,
           label: board_image.label,
           image_prompt: board_image.image_prompt,
-          bg_color: board_image.bg_class,
+          bg_color: @image.bg_class,
           text_color: board_image.text_color,
           next_words: board_image.next_words,
           position: board_image.position,
@@ -306,6 +306,8 @@ class Board < ApplicationRecord
           layout: board_image.layout,
           added_at: board_image.added_at,
           image_last_added_at: board_image.image_last_added_at,
+          part_of_speech: @image.part_of_speech,
+
           status: board_image.status,
         }
       end,
