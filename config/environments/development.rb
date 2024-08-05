@@ -52,23 +52,23 @@ Rails.application.configure do
 
   config.action_mailer.perform_caching = false
 
-  # config.action_mailer.delivery_method = :smtp
-  # config.action_mailer.smtp_settings = {
-  #   address: "mail.privateemail.com",
-  #   port: 587,
-  #   domain: "speakanyway.com",
-  #   user_name: "hello@speakanyway.com",
-  #   password: ENV["SMTP_PASSWORD"],
-  #   authentication: "plain",
-  #   enable_starttls_auto: true,
-  # }
-
-  config.action_mailer.delivery_method = :mailgun
-  config.action_mailer.mailgun_settings = {
-    api_key: ENV['MAILGUN_API_KEY'],
-    domain: 'mail.speakanyway.com',
-    # timeout: 20 # Default depends on rest-client, whose default is 60s. Added in 1.2.3.
+  config.action_mailer.delivery_method = :smtp
+  config.action_mailer.smtp_settings = {
+    address: "smtp.gmail.com",
+    port: 587,
+    domain: "speakanyway.com",
+    user_name: "hello@speakanyway.com",
+    password: ENV["SMTP_PASSWORD"],
+    authentication: "plain",
+    enable_starttls_auto: true,
   }
+
+  # config.action_mailer.delivery_method = :mailgun
+  # config.action_mailer.mailgun_settings = {
+  #   api_key: ENV['MAILGUN_API_KEY'],
+  #   domain: 'mail.speakanyway.com',
+  #   # timeout: 20 # Default depends on rest-client, whose default is 60s. Added in 1.2.3.
+  # }
 
   # Print deprecation notices to the Rails logger.
   config.active_support.deprecation = :log

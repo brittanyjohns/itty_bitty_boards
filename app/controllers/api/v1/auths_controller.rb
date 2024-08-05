@@ -13,6 +13,9 @@ module API
         end
         user = User.new(email: params["auth"]["email"], password: params["auth"]["password"], password_confirmation: params["auth"]["password_confirmation"], name: name)
         if user.save
+          # Send welcome email
+          # UserMailer.welcome_email(user).deliver_now
+          user.send_welcome_email
           render json: { token: user.authentication_token, user: user }
         else
           puts "\n***\nUser Errors: #{user.errors.full_messages.join(", ")}"
@@ -23,6 +26,10 @@ module API
       def create
         if (user = User.valid_credentials?(params[:email], params[:password]))
           sign_in user
+          #  Check if subscription is expired
+          if user.subscription_expired?
+            user.update(plan_type: "free")
+          end
           render json: { token: user.authentication_token, user: user }
         else
           render json: { error: error_message }, status: :unauthorized

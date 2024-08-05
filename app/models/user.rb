@@ -181,6 +181,14 @@ class User < ApplicationRecord
     BaseMailer.team_invitation_email(self, inviter, team).deliver_now
   end
 
+  def send_welcome_email
+    UserMailer.welcome_email(self).deliver_now
+  end
+
+  def subscription_expired?
+    plan_expires_at && plan_expires_at < Time.now
+  end
+
   def pro?
     plan_type.downcase == "pro"
   end
@@ -224,21 +232,4 @@ class User < ApplicationRecord
     view["trial_days_left"] = trial_days_left
     view
   end
-
-  # require "mailgun-ruby"
-
-  # def test_mailgun
-
-  #   # First, instantiate the Mailgun Client with your API key
-  #   mg_client = Mailgun::Client.new ENV["MAILGUN_API_KEY"]
-
-  #   # Define your message parameters
-  #   message_params = { from: "brittany@speakanyway.com",
-  #                     to: "bhannajohns@gmail.com",
-  #                     subject: "The Ruby SDK is awesome!",
-  #                     text: "It is really easy to send a message!" }
-
-  #   # Send your message through the client
-  #   mg_client.send_message "mail.speakanyway.com", message_params
-  # end
 end

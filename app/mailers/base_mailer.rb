@@ -17,7 +17,7 @@ class BaseMailer < ApplicationMailer
     @inviter = inviter
     @team = team
     @invitee_name = @invitee.name
-    @inviter_name = @inviter.name
+    @inviter_name = @inviter.email || @inviter.to_s
     @team_name = @team.name
 
     subject = "You have been invited to join a team"
