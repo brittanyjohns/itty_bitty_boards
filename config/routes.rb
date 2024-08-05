@@ -183,6 +183,7 @@ Rails.application.routes.draw do
       end
     end
     resources :boards do
+      resources :images
       collection do
         get "first_predictive_board"
         get "predictive_index"

@@ -48,7 +48,7 @@ class API::BoardsController < API::ApplicationController
             image_prompt: board_image.image.image_prompt,
             bg_color: board_image.image.bg_class,
             text_color: board_image.image.text_color,
-            next_words: board_image.image.next_words,
+            next_words: board_image.next_words,
             position: board_image.position,
             src: board_image.image.display_image_url(current_user),
             audio: board_image.image.default_audio_url,
@@ -68,13 +68,13 @@ class API::BoardsController < API::ApplicationController
       @board = Board.create_predictive_default
       puts "Predictive board created"
     end
-    @board_with_images = @board.images.map do |image|
+    @board_with_images = @board.board_images.map do |board_image|
+      image = board_image.image # temp fix
       {
         id: image.id,
         label: image.label,
         bg_color: image.bg_class,
-        next_words: image.next_words,
-        # src: image.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
+        next_words: board_image.next_words,
         src: image.display_image_url(current_user),
         audio: image.default_audio_url,
       }
@@ -89,24 +89,12 @@ class API::BoardsController < API::ApplicationController
         id: ni.id,
         label: ni.label,
         bg_color: ni.bg_class,
-        # src: ni.display_image(current_user)&.url || "https://via.placeholder.com/300x300.png?text=#{ni.label_param}",
         src: ni.display_image_url(current_user),
         audio: ni.default_audio_url,
       }
     end
     render json: @next_images
   end
-
-  # GET /boards/1 or /boards/1.json
-  # def show
-  #   board = Board.with_artifacts.find(params[:id])
-  #   @board_with_images = board.api_view_with_images(current_user)
-  #   user_permissions = {
-  #     can_edit: (board.user == current_user || current_user.admin?),
-  #     can_delete: (board.user == current_user || current_user.admin?),
-  #   }
-  #   render json: @board_with_images.merge(user_permissions)
-  # end
 
   def show
     board = Board.with_artifacts.find(params[:id])

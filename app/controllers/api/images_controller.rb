@@ -57,10 +57,15 @@ class API::ImagesController < API::ApplicationController
     @current_user = current_user
 
     @image = Image.with_artifacts.find(params[:id])
+    puts "PARAMS: #{params.inspect}"
+    @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
+    puts "==>>>> Board: #{@board.inspect}"
+
     @current_doc = @image.display_doc(current_user)
     @current_doc_id = @current_doc.id if @current_doc
     @image_docs = @image.docs.with_attached_image.for_user(current_user).order(created_at: :desc)
     @user_image_boards = @image.boards.where(user_id: @current_user.id)
+    @board_image = @board&.board_images.find_by(image_id: @image.id)
     @image_with_display_doc = {
       id: @image.id,
       label: @image.label.upcase,
@@ -69,18 +74,18 @@ class API::ImagesController < API::ApplicationController
       bg_color: @image.bg_class,
       text_color: @image.text_color,
       user_image_boards: @user_image_boards,
+      board_image: @board_image,
       display_doc: {
         id: @current_doc&.id,
         label: @image&.label,
         user_id: @current_doc&.user_id,
         src: @image.display_image_url(@current_user),
-        # src: @current_doc&.attached_image_url,
         is_current: true,
         deleted_at: @current_doc&.deleted_at,
       },
       private: @image.private,
       user_id: @image.user_id,
-      next_words: @image.next_words,
+      next_words: @board_image&.next_words || @image.next_words,
       no_next: @image.no_next,
       src: @image.display_image_url(@current_user),
       docs: @image_docs.map do |doc|

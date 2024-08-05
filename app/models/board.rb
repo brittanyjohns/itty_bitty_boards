@@ -169,7 +169,7 @@ class Board < ApplicationRecord
   def self.create_predictive_default
     predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
     admin_user = User.admin.first
-    Board.find_or_create_by!(name: "Predictive Default", user_id: admin_user.id, parent: predefined_resource)
+    Board.with_artifacts.find_or_create_by!(name: "Predictive Default", user_id: admin_user.id, parent: predefined_resource)
   end
 
   def set_default_voice
@@ -268,48 +268,6 @@ class Board < ApplicationRecord
   def self.grid_sizes
     ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"]
   end
-
-  # def api_view_with_images(viewing_user = nil)
-  #   {
-  #     id: id,
-  #     name: name,
-  #     description: description,
-  #     parent_type: parent_type,
-  #     predefined: predefined,
-  #     number_of_columns: number_of_columns,
-  #     status: status,
-  #     token_limit: token_limit,
-  #     cost: cost,
-  #     layout: print_grid_layout,
-  #     display_image_url: display_image_url,
-  #     floating_words: words,
-  #     user_id: user_id,
-  #     voice: voice,
-  #     created_at: created_at,
-  #     updated_at: updated_at,
-  #     has_generating_images: has_generating_images?,
-  #     current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
-  #     images: board_images.includes(:image).map do |board_image|
-  #       {
-  #         id: board_image.image.id,
-  #         label: board_image.image.label,
-  #         image_prompt: board_image.image.image_prompt,
-  #         bg_color: board_image.image.bg_class,
-  #         text_color: board_image.image.text_color,
-  #         next_words: board_image.image.next_words,
-  #         position: board_image.position,
-  #         # display_doc: board_image.image.display_image,
-  #         src: board_image.image.display_image_url(viewing_user),
-  #         # src: board_image.image.display_image ? board_image.image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{board_image.image.label_param}",
-  #         audio: board_image.image.default_audio_url,
-  #         layout: board_image.layout,
-  #         added_at: board_image.added_at,
-  #         image_last_added_at: board_image.image_last_added_at,
-  #         status: board_image.status,
-  #       }
-  #     end,
-  #   }
-  # end
 
   def api_view_with_images(viewing_user = nil)
     {

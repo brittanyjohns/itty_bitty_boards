@@ -24,10 +24,14 @@ class BoardImage < ApplicationRecord
   # acts_as_list scope: :board
 
   before_save :set_defaults
-  # after_save :create_voice_audio, if: :voice_changed_and_not_existing?
   before_save :create_voice_audio, if: :voice_changed_and_not_existing?
+  after_create :set_next_words
 
-  # after_create_commit :save_initial_layout
+  def set_next_words
+    return if next_words.present?
+    self.next_words = image.next_words
+    save
+  end
 
   scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
 

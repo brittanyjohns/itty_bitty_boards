@@ -43,7 +43,7 @@ module API
 
     def user_from_token
       puts "token: #{token} "
-      User.with_artifacts.find_by(authentication_token: token) if token.present?
+      User.find_by(authentication_token: token) if token.present?
     end
 
     def child_from_token
