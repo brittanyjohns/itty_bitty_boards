@@ -237,12 +237,8 @@ class API::BoardsController < API::ApplicationController
   end
 
   def create_from_next_words
-    @board = Board.new(board_params)
-    @board.user = current_user
-    @board.parent_id = user_signed_in? ? current_user.id : params[:parent_id]
-    @board.parent_type = params[:parent_type] || "User"
-    @board.save!
-    @board.create_images_from_next_words(params[:next_words])
+    name = params[:name] || "New Board"
+    @board = Board.create_from_next_words(current_user, name, params[:next_words])
     render json: @board.api_view_with_images(current_user)
   end
 

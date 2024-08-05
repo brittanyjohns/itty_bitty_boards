@@ -21,15 +21,36 @@ class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
   belongs_to :board, touch: true
   belongs_to :image
+  belongs_to :predictive_board, class_name: "Board", optional: true
 
   before_save :set_defaults
   before_save :create_voice_audio, if: :voice_changed_and_not_existing?
-  after_create :set_next_words
+  after_save :set_next_words, if: :predictive_and_no_predictive
+
+  def predictive_and_no_predictive
+    predictive? && !predictive_board_id
+  end
+
+  def predictive?
+    mode == "predictive"
+  end
+
+  def mark_predictive!
+    update!(mode: "predictive")
+  end
 
   def set_next_words
-    return if next_words.present?
-    self.next_words = image.next_words
-    save
+    if next_words.present? && !predictive_board_id && mode == "predictive"
+      puts "Creating predictive board for #{label}"
+      create_predictive_board
+      return
+    end
+  end
+
+  def create_predictive_board
+    return if predictive_board_id
+    predictive_board = Board.create_from_next_words(board.user, label, next_words)
+    update!(predictive_board_id: predictive_board.id)
   end
 
   def image_prompt
@@ -99,6 +120,9 @@ class BoardImage < ApplicationRecord
     self.text_color = image.text_color
     self.font_size = image.font_size
     self.border_color = image.border_color
+    if next_words.blank?
+      self.next_words = image.next_words
+    end
   end
 
   def save_defaults

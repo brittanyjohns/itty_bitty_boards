@@ -101,6 +101,18 @@ class Board < ApplicationRecord
     predictive_default.save!
   end
 
+  def self.create_from_next_words(user, name, words)
+    board = Board.create!(name: name, parent: PredefinedResource.find_or_create_by(name: "Next"), user_id: user.id)
+    words.each do |word|
+      image = Image.searchable_images_for(user).find_or_create_by(label: word)
+      BoardImage.create!(board_id: board.id, image_id: image.id, voice: board.voice)
+      puts "Added image: #{image.label}"
+    end
+    board.calucate_grid_layout
+    board.save!
+    board
+  end
+
   def self.create_predictive
     words = common_words
     predictive_default = self.predictive_default
@@ -294,6 +306,8 @@ class Board < ApplicationRecord
         {
           id: @image.id,
           board_image_id: board_image.id,
+          mode: board_image.mode,
+          predictive_board_id: board_image.predictive_board_id,
           label: board_image.label,
           image_prompt: board_image.image_prompt,
           bg_color: board_image.bg_class,
