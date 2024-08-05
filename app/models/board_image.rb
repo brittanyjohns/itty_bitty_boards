@@ -21,7 +21,6 @@ class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
   belongs_to :board, touch: true
   belongs_to :image
-  # acts_as_list scope: :board
 
   before_save :set_defaults
   before_save :create_voice_audio, if: :voice_changed_and_not_existing?
@@ -31,6 +30,14 @@ class BoardImage < ApplicationRecord
     return if next_words.present?
     self.next_words = image.next_words
     save
+  end
+
+  def image_prompt
+    image.image_prompt
+  end
+
+  def bg_class
+    bg_color ? "bg-#{bg_color}-400" : "bg-white"
   end
 
   scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
@@ -88,6 +95,15 @@ class BoardImage < ApplicationRecord
 
   def set_defaults
     self.voice = board.voice
+    self.bg_color = image.bg_color
+    self.text_color = image.text_color
+    self.font_size = image.font_size
+    self.border_color = image.border_color
+  end
+
+  def save_defaults
+    set_defaults
+    save
   end
 
   def set_position
