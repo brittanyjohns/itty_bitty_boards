@@ -198,6 +198,7 @@ class API::BoardsController < API::ApplicationController
     @board.name = params["name"]
     @board.description = params["description"]
     @board.display_image_url = params["display_image_url"]
+    @board.predefined = params["predefined"]
     puts "API::BoardsController#update: #{params.inspect}"
     puts @board.voice ? "Voice: #{@board.voice}" : "No voice"
     respond_to do |format|
