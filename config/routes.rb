@@ -184,7 +184,8 @@ Rails.application.routes.draw do
     end
     resources :board_groups do
       member do
-        put "rearrange_boards"
+        post "rearrange_boards"
+        post "save_layout"
       end
     end
 

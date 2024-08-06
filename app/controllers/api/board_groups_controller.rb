@@ -27,6 +27,19 @@ class API::BoardGroupsController < API::ApplicationController
     render json: board_group.api_view_with_boards(current_user)
   end
 
+  def save_layout
+    board_group = BoardGroup.find(params[:id])
+    layout = params[:layout]
+    layout.each_with_index do |layout_item, index|
+      board_id = layout_item["i"]
+      board = board_group.boards.find(board_id)
+      board.layout = layout_item
+      board.save!
+    end
+    board.reload
+    render json: board.api_view_with_images(current_user)
+  end
+
   def update
     board_group = BoardGroup.find(params[:id])
 
