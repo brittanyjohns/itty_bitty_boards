@@ -20,6 +20,10 @@
 #  medium_screen_columns :integer          default(8)
 #  large_screen_columns  :integer          default(12)
 #  display_image_url     :string
+#  layout                :jsonb
+#  position              :integer
+#  audio_url             :string
+#  bg_color              :string
 #
 class Board < ApplicationRecord
   belongs_to :user
@@ -65,6 +69,7 @@ class Board < ApplicationRecord
   after_touch :set_status
   before_create :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
+  after_create :create_name_audio
 
   validates :name, presence: true
 
@@ -114,6 +119,12 @@ class Board < ApplicationRecord
   def set_number_of_columns
     return unless number_of_columns.nil?
     self.number_of_columns = self.large_screen_columns
+  end
+
+  def create_name_audio
+    new_file = self.create_audio_from_text(name)
+    puts "new_file: #{new_file}"
+    new_file
   end
 
   def set_status
@@ -212,12 +223,30 @@ class Board < ApplicationRecord
     end
   end
 
-  def create_audio_from_text(text, voice = "echo")
+  # def create_audio_from_text(text, voice = "echo")
+  #   response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice)
+  #   new_file = nil
+  #   if response
+  #     audio_file = File.open("output.aac", "wb") { |f| f.write(response) }
+  #     new_file = save_audio_file(audio_file, voice, text)
+  #     File.delete("output.aac") if File.exist?("output.aac")
+  #   else
+  #     Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"
+  #   end
+  #   new_file
+  # end
+  def create_audio_from_text(text = nil, voice = "echo")
+    text = text || self.name
+    puts "text: #{text}"
     response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice)
     if response
-      audio_file = File.open("output.aac", "wb") { |f| f.write(response) }
+      # response.stream_to_file("output.aac")
+      # audio_file = File.binwrite("audio.mp3", response)
+      File.open("output.aac", "wb") { |f| f.write(response) }
+      audio_file = File.open("output.aac")
       save_audio_file(audio_file, voice, text)
-      File.delete("output.aac") if File.exist?("output.aac")
+      file_exists = File.exist?("output.aac")
+      File.delete("output.aac") if file_exists
     else
       Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"
     end
@@ -284,6 +313,7 @@ class Board < ApplicationRecord
       token_limit: token_limit,
       cost: cost,
       layout: print_grid_layout,
+      audio_url: audio_files.first&.url,
       display_image_url: display_image_url,
       floating_words: words,
       user_id: user_id,
@@ -322,6 +352,7 @@ class Board < ApplicationRecord
       id: id,
       name: name,
       layout: layout,
+      audio_url: audio_files.first&.url,
       position: position,
       description: description,
       parent_type: parent_type,

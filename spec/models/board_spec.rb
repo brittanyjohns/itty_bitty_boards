@@ -20,6 +20,10 @@
 #  medium_screen_columns :integer          default(8)
 #  large_screen_columns  :integer          default(12)
 #  display_image_url     :string
+#  layout                :jsonb
+#  position              :integer
+#  audio_url             :string
+#  bg_color              :string
 #
 require "rails_helper"
 

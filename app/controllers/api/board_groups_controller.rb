@@ -40,6 +40,13 @@ class API::BoardGroupsController < API::ApplicationController
     render json: board.api_view_with_images(current_user)
   end
 
+  def remove_board
+    board_group = BoardGroup.find(params[:id])
+    board = Board.find(params[:board_id])
+    board_group.boards.delete(board)
+    render json: board_group.api_view_with_boards(current_user)
+  end
+
   def update
     board_group = BoardGroup.find(params[:id])
 

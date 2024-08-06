@@ -186,6 +186,7 @@ Rails.application.routes.draw do
       member do
         post "rearrange_boards"
         post "save_layout"
+        post "remove_board/:board_id", to: "board_groups#remove_board"
       end
     end
 
