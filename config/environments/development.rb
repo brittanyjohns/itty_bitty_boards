@@ -51,13 +51,14 @@ Rails.application.configure do
   config.action_mailer.raise_delivery_errors = true
 
   config.action_mailer.perform_caching = false
-
+  puts "ENV['SMTP_USERNAME']: #{ENV["SMTP_USERNAME"]}"
+  puts "ENV['SMTP_PASSWORD']: #{ENV["SMTP_PASSWORD"]}"
   config.action_mailer.delivery_method = :smtp
   config.action_mailer.smtp_settings = {
     address: "smtp.gmail.com",
     port: 587,
     domain: "speakanyway.com",
-    user_name: "hello@speakanyway.com",
+    user_name: ENV["SMTP_USERNAME"],
     password: ENV["SMTP_PASSWORD"],
     authentication: "plain",
     enable_starttls_auto: true,

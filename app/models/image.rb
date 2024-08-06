@@ -246,7 +246,6 @@ class Image < ApplicationRecord
   end
 
   def find_or_create_audio_file_for_voice(voice = "echo")
-    puts "Finding or creating audio file for #{label} - voice: #{voice}"
     filename = "#{label}_#{voice}_#{id}.aac"
     existing = audio_files.attachments.includes(:blob).find do |attachment|
       attachment.blob.filename.to_s == filename
