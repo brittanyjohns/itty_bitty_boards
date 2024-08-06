@@ -18,11 +18,13 @@ class BoardGroup < ApplicationRecord
   has_many :boards, through: :board_group_boards
 
   def api_view_with_boards(viewing_user = nil)
+    puts "Predefined: #{predefined}"
     {
       id: id,
       name: name,
       predefined: predefined,
       layout: layout,
+      number_of_columns: number_of_columns,
       display_image_url: display_image_url,
       boards: boards.map { |board| board.api_view(viewing_user) },
     }

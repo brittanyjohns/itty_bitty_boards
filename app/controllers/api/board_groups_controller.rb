@@ -51,9 +51,13 @@ class API::BoardGroupsController < API::ApplicationController
     board_group = BoardGroup.find(params[:id])
 
     puts "\nUPDATE\nboard_group_params: #{board_group_params}"
+    board_group.predefined = board_group_params[:predefined]
+    puts "board_group.predefined: #{board_group.predefined}"
+    board_group.number_of_columns = board_group_params[:number_of_columns]
+    puts "board_group.number_of_columns: #{board_group.number_of_columns}"
 
     if board_group.update(board_group_params)
-      board_group.calucate_grid_layout
+      # board_group.calucate_grid_layout
       render json: board_group
     else
       render json: { errors: board_group.errors.full_messages }, status: :unprocessable_entity
@@ -70,6 +74,6 @@ class API::BoardGroupsController < API::ApplicationController
   private
 
   def board_group_params
-    params.require(:board_group).permit(:name, :display_image_url, :predefined, board_ids: [])
+    params.require(:board_group).permit(:name, :display_image_url, :predefined, :number_of_columns, board_ids: [])
   end
 end
