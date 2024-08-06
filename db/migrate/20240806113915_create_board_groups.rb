@@ -7,6 +7,7 @@ class CreateBoardGroups < ActiveRecord::Migration[7.1]
       t.string :display_image_url
       t.integer :position
       t.integer :number_of_columns, default: 6
+      t.integer :user_id, null: false
       t.string :bg_color
 
       t.timestamps

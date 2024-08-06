@@ -69,6 +69,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_06_113931) do
     t.string "display_image_url"
     t.integer "position"
     t.integer "number_of_columns", default: 6
+    t.integer "user_id", null: false
     t.string "bg_color"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false

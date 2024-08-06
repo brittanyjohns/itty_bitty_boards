@@ -52,6 +52,7 @@ class User < ApplicationRecord
 
   # Associations
   has_many :boards
+  has_many :board_groups
   has_many :menus
   has_many :images
   has_many :docs

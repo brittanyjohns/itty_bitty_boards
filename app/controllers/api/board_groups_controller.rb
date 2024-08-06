@@ -1,6 +1,7 @@
 class API::BoardGroupsController < API::ApplicationController
   def index
-    render json: BoardGroup.all
+    @board_groups = current_user.board_groups
+    render json: @board_groups
   end
 
   def show
@@ -11,6 +12,7 @@ class API::BoardGroupsController < API::ApplicationController
   def create
     puts "board_group_params: #{board_group_params}"
     board_group = BoardGroup.new(board_group_params)
+    board_group.user = current_user
 
     if board_group.save
       board_group.calucate_grid_layout

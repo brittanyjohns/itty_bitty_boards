@@ -16,12 +16,14 @@
 class BoardGroup < ApplicationRecord
   has_many :board_group_boards, dependent: :destroy
   has_many :boards, through: :board_group_boards
+  belongs_to :user
 
   def api_view_with_boards(viewing_user = nil)
     puts "Predefined: #{predefined}"
     {
       id: id,
       name: name,
+      user_id: user_id,
       predefined: predefined,
       layout: layout,
       number_of_columns: number_of_columns,
