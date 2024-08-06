@@ -275,6 +275,8 @@ class Board < ApplicationRecord
       name: name,
       description: description,
       parent_type: parent_type,
+      parent_id: parent_id,
+      parent_description: parent_type === "User" ? "User" : parent.description,
       predefined: predefined,
       number_of_columns: number_of_columns,
       status: status,

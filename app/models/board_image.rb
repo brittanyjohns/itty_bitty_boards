@@ -43,11 +43,7 @@ class BoardImage < ApplicationRecord
   scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
 
   def voice_changed_and_not_existing?
-    x = voice_changed?
-    y = !image.existing_voices.include?(voice)
-    result = x && y
-    puts "\n\nvoice_changed #{x} && !existing_voices.include?(voice) #{y} | -- voice: #{voice}\n -- image: #{image.label}\n\n"
-    y
+    !image.existing_voices.include?(voice)
   end
 
   def label

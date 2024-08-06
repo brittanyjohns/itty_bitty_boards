@@ -32,6 +32,11 @@ class OpenaiPrompt < ApplicationRecord
     response
   end
 
+  def name
+    board = boards.last
+    board&.name || prompt_text
+  end
+
   def open_ai_opts
     { prompt: prompt_to_send }
   end
@@ -80,21 +85,6 @@ class OpenaiPrompt < ApplicationRecord
     self
   end
 
-  # if response
-  #   puts "response: #{response}"
-  #   response_text = response[:content].gsub("```json", "").gsub("```", "").strip
-  #   if valid_json?(response_text)
-  #     response_text
-  #   else
-  #     puts "INVALID JSON: #{response_text}"
-  #     response_text = transform_into_json(response_text)
-  #   end
-  # else
-  #   Rails.logger.error "*** ERROR - clarify_image_description *** \nDid not receive valid response. Response: #{response}\n"
-  # end
-  # puts "response_text: #{response_text}"
-  # response_text
-
   def scenario
     if description.blank?
       prompt_text
@@ -107,11 +97,18 @@ class OpenaiPrompt < ApplicationRecord
     "You are a speech expert and have done extensive research of people with special needs & how they communicate in various scenarios."
   end
 
+  def word_list_prompt
+    num_of_imgs = number_of_images
+    Rails.logger.info "num_of_imgs: #{num_of_imgs}"
+    # "You will be given a scenario description and age range of the USER. Please provide EXACTLY #{num_of_imgs} words or short phrases (2 words max - prefer SINGLE WORDS) that are most likely to be communicated by the USER in the following scenario. These will be used to create AAC material for people with speech difficulties. Please make the words appropriate for a person at the age give. Please respond in JSON with the array key 'words_phrases'."
+    "Please generate a list of exactly #{num_of_imgs} unique words or short phrases (2 words max - prefer SINGLE WORDS) that are relevant to the scenario #{name}. Ensure that the list includes a mix of nouns, verbs, adjectives, and adverbs relevant to the activities and items involved in #{name} using the following description for additional context.  Each word should be distinct and directly related to the routine. Please respond in JSON with the array key 'words_phrases'."
+  end
+
   def messages
     [
       {
         "role": "system",
-        "content": "#{speech_expert} You will be given a scenario description and age range of the USER. Please provide #{number_of_images || 12} words or short phrases (2 words max - prefer SINGLE WORDS) that are most likely to be communicated by the USER in the following scenario. These will be used to create AAC material for people with speech difficulties. Please make the words appropriate for a person at the age give. Please respond in JSON with the array key 'words_phrases'.",
+        "content": "#{speech_expert} #{word_list_prompt}.",
       },
       {
         "role": "user",

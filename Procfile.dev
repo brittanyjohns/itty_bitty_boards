@@ -1,5 +1,5 @@
-web: env RUBY_DEBUG_OPEN=true bin/rails server
+web: env RUBY_DEBUG_OPEN=true DB_POOL=$RAILS_MAX_THREADS bin/rails server
 redis: redis-server
-sidekiq: bundle exec sidekiq
+sidekiq: DB_POOL=$SIDEKIQ_CONCURRENCY bundle exec sidekiq
 js: yarn build --watch
 css: yarn build:css --watch
