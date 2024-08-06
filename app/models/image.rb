@@ -144,7 +144,6 @@ class Image < ApplicationRecord
       else
         voice = user_id ? user.voice : "echo"
         create_audio_from_text(label, voice)
-        Rails.logger.debug ">>>>Audio file already exists for voice: #{voice}"
       end
     end
   end
@@ -237,7 +236,6 @@ class Image < ApplicationRecord
   def find_or_create_audio_file_for_voice_og(voice = "echo")
     existing = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label}_#{voice}_#{id}.aac").first
     if existing
-      Rails.logger.debug "#{label} ==> Audio file already exists for voice: #{voice} - #{existing.filename}"
       existing
     else
       Rails.logger.debug "#{label} ==> Creating audio file for voice: #{voice}"
@@ -252,7 +250,6 @@ class Image < ApplicationRecord
     end
 
     if existing
-      Rails.logger.debug "#{label} ==> Audio file already exists for voice: #{voice} - #{existing.blob.filename}"
       existing
     else
       Rails.logger.debug "#{label} ==> Creating audio file for voice: #{voice}"

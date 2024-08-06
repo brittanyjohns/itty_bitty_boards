@@ -277,6 +277,7 @@ class Board < ApplicationRecord
       parent_type: parent_type,
       parent_id: parent_id,
       parent_description: parent_type === "User" ? "User" : parent.description,
+      parent_prompt: parent_type === "OpenaiPrompt" ? parent.prompt_text : nil,
       predefined: predefined,
       number_of_columns: number_of_columns,
       status: status,

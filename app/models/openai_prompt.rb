@@ -54,7 +54,7 @@ class OpenaiPrompt < ApplicationRecord
   end
 
   def describe_scenario_prompt
-    "Please describe the scenario of #{prompt_text} for a person at the age of #{age_range}. This will be used to create AAC material for people with speech difficulties. Please respond in JSON with the keys 'scenario' and 'description'.\n\nExample: #{example_scenario_description_response}"
+    "Please describe the scenario of #{prompt_text} for a person at the age of #{age_range}. Please keep it simple but also very detailed. This will be used to create AAC material for people with speech difficulties. Please respond in JSON with the keys 'scenario' and 'description'.\n\nExample: #{example_scenario_description_response}"
   end
 
   def set_scenario_description

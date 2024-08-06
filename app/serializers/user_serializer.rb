@@ -39,6 +39,7 @@
 #  yearly_price           :decimal(8, 2)    default(0.0)
 #  total_plan_cost        :decimal(8, 2)    default(0.0)
 #  uuid                   :uuid
+#  child_lookup_key       :string
 #
 class UserSerializer
   include JSONAPI::Serializer

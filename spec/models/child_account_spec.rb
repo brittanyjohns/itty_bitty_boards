@@ -4,6 +4,7 @@
 #
 #  id                     :bigint           not null, primary key
 #  username               :string           default(""), not null
+#  name                   :string           default("")
 #  encrypted_password     :string           default(""), not null
 #  reset_password_token   :string
 #  reset_password_sent_at :datetime
