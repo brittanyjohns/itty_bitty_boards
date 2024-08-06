@@ -182,6 +182,12 @@ Rails.application.routes.draw do
         post "crop"
       end
     end
+    resources :board_groups do
+      member do
+        put "rearrange_boards"
+      end
+    end
+
     resources :boards do
       resources :images
       collection do

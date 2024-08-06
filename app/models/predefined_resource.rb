@@ -9,4 +9,7 @@
 #  updated_at    :datetime         not null
 #
 class PredefinedResource < ApplicationRecord
+  def description
+    "This is a #{resource_type} resource"
+  end
 end

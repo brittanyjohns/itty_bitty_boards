@@ -1,0 +1,65 @@
+# == Schema Information
+#
+# Table name: board_groups
+#
+#  id                :bigint           not null, primary key
+#  name              :string
+#  layout            :jsonb
+#  predefined        :boolean          default(FALSE)
+#  display_image_url :string
+#  created_at        :datetime         not null
+#  updated_at        :datetime         not null
+#
+class BoardGroup < ApplicationRecord
+  has_many :board_group_boards, dependent: :destroy
+  has_many :boards, through: :board_group_boards
+
+  def api_view_with_boards(viewing_user = nil)
+    {
+      id: id,
+      name: name,
+      predefined: predefined,
+      layout: layout,
+      display_image_url: display_image_url,
+      boards: boards.map { |board| board.api_view(viewing_user) },
+    }
+  end
+
+  def position_all_boards
+    ActiveRecord::Base.logger.silence do
+      boards.order(:position).each_with_index do |bi, index|
+        unless bi.position && bi.position == index
+          bi.update!(position: index)
+        end
+      end
+    end
+  end
+
+  def calucate_grid_layout
+    position_all_boards
+    grid_layout = []
+    row_count = 0
+    bi_count = boards.count
+    number_of_columns = self.number_of_columns || self.large_screen_columns
+    rows = (bi_count / number_of_columns.to_f).ceil
+    ActiveRecord::Base.logger.silence do
+      boards.order(:position).each_slice(number_of_columns) do |row|
+        row.each_with_index do |bi, index|
+          new_layout = { i: bi.id, x: index, y: row_count, w: 1, h: 1 }
+          bi.update!(layout: new_layout)
+          grid_layout << new_layout
+        end
+        row_count += 1
+      end
+    end
+    grid_layout
+  end
+
+  def print_grid_layout
+    layout = {}
+    boards.order(:position).each do |bi|
+      layout[bi.id] = bi.layout
+    end
+    layout
+  end
+end

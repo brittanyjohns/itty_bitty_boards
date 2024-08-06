@@ -321,6 +321,8 @@ class Board < ApplicationRecord
     {
       id: id,
       name: name,
+      layout: layout,
+      position: position,
       description: description,
       parent_type: parent_type,
       predefined: predefined,

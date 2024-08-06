@@ -1,4 +1,15 @@
 FactoryBot.define do
+  factory :board_group_board do
+    board_group { nil }
+    board { nil }
+  end
+
+  factory :board_group do
+    name { "MyString" }
+    layout { "MyString" }
+    predefined { false }
+  end
+
   factory :child_board do
     board { nil }
     child_account { nil }

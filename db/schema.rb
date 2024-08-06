@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_07_26_175322) do
+ActiveRecord::Schema[7.1].define(version: 2024_08_06_113931) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -53,6 +53,27 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_26_175322) do
     t.jsonb "details", default: {}
   end
 
+  create_table "board_group_boards", force: :cascade do |t|
+    t.bigint "board_group_id", null: false
+    t.bigint "board_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["board_group_id"], name: "index_board_group_boards_on_board_group_id"
+    t.index ["board_id"], name: "index_board_group_boards_on_board_id"
+  end
+
+  create_table "board_groups", force: :cascade do |t|
+    t.string "name"
+    t.jsonb "layout", default: {}
+    t.boolean "predefined", default: false
+    t.string "display_image_url"
+    t.integer "position"
+    t.integer "number_of_columns", default: 6
+    t.string "bg_color"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
   create_table "board_images", force: :cascade do |t|
     t.bigint "board_id", null: false
     t.bigint "image_id", null: false
@@ -89,6 +110,10 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_26_175322) do
     t.integer "medium_screen_columns", default: 8
     t.integer "large_screen_columns", default: 12
     t.string "display_image_url"
+    t.jsonb "layout", default: {}
+    t.integer "position"
+    t.string "audio_url"
+    t.string "bg_color"
     t.index ["parent_type", "parent_id"], name: "index_boards_on_parent"
     t.index ["user_id"], name: "index_boards_on_user_id"
   end
@@ -510,6 +535,8 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_26_175322) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "board_group_boards", "board_groups"
+  add_foreign_key "board_group_boards", "boards"
   add_foreign_key "board_images", "boards"
   add_foreign_key "board_images", "images"
   add_foreign_key "boards", "users"
