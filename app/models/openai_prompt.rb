@@ -159,7 +159,7 @@ class OpenaiPrompt < ApplicationRecord
         new_image = Image.create(label: item_name, image_type: self.class.name) unless image
         image = new_image if new_image
         image.image_prompt = item_name
-        image.revised_prompt = "Create a high-resolution image of '#{item_name}' in the context of #{prompt_text} for a person at the age of #{age_range}. This image will be used to create AAC material for people with speech difficulties. Please make the images are clear, simple & appropriate for a person at the age given."
+        image.revised_prompt = "Create a high-resolution image of '#{item_name}' in the context of #{name} for a person at the age of #{age_range}. Please make the images are clear, simple & appropriate for a person at the age given."
         image.private = false
         image.image_type = self.class.name
         image.display_description = image.image_prompt
