@@ -16,6 +16,8 @@ class API::BoardGroupsController < API::ApplicationController
     puts "board_group_params: #{board_group_params}"
     board_group = BoardGroup.new(board_group_params)
     board_group.user = current_user
+    board_group.predefined = board_group_params[:predefined]
+    board_group.number_of_columns = board_group_params[:number_of_columns]
 
     if board_group.save
       board_group.calucate_grid_layout
@@ -54,12 +56,8 @@ class API::BoardGroupsController < API::ApplicationController
 
   def update
     board_group = BoardGroup.find(params[:id])
-
-    puts "\nUPDATE\nboard_group_params: #{board_group_params}"
     board_group.predefined = board_group_params[:predefined]
-    puts "board_group.predefined: #{board_group.predefined}"
     board_group.number_of_columns = board_group_params[:number_of_columns]
-    puts "board_group.number_of_columns: #{board_group.number_of_columns}"
 
     if board_group.update(board_group_params)
       # board_group.calucate_grid_layout
