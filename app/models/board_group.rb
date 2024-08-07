@@ -70,4 +70,11 @@ class BoardGroup < ApplicationRecord
     end
     layout
   end
+
+  def adjust_layouts
+    layouts = boards.pluck(:layout)
+    if layouts.any? { |layout| layout.blank? }
+      calucate_grid_layout
+    end
+  end
 end
