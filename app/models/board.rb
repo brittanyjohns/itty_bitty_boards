@@ -69,7 +69,8 @@ class Board < ApplicationRecord
   after_touch :set_status
   before_create :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
-  after_create :create_name_audio
+  # after_create :create_name_audio
+  after_save :create_name_audio
 
   validates :name, presence: true
 
@@ -122,9 +123,13 @@ class Board < ApplicationRecord
   end
 
   def create_name_audio
-    new_file = self.create_audio_from_text(name)
-    puts "new_file: #{new_file}"
-    new_file
+    if audio_files.any?
+      Rails.logger.debug "Audio files already exist"
+      # Todo: Create a new audio file if the name has changed
+    else
+      new_file = self.create_audio_from_text(name)
+      new_file
+    end
   end
 
   def set_status
@@ -354,7 +359,7 @@ class Board < ApplicationRecord
       layout: layout,
       audio_url: audio_files.first&.url,
       position: position,
-      description: description,
+      # description: description,
       parent_type: parent_type,
       predefined: predefined,
       number_of_columns: number_of_columns,

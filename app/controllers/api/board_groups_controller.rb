@@ -1,7 +1,10 @@
 class API::BoardGroupsController < API::ApplicationController
   def index
-    @board_groups = current_user.board_groups
-    render json: @board_groups
+    @board_groups = current_user.board_groups.where(predefined: false)
+    @predefined = BoardGroup.predefined
+    puts "predefined: #{@predefined.map(&:api_view_with_boards)}"
+    puts "user: #{@board_groups.map(&:api_view_with_boards)}"
+    render json: { predefined: @predefined.map(&:api_view_with_boards), user: @board_groups.map(&:api_view_with_boards) }
   end
 
   def show

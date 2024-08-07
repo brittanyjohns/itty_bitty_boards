@@ -42,12 +42,10 @@ module API
     private
 
     def user_from_token
-      puts "token: #{token} "
       User.find_by(authentication_token: token) if token.present?
     end
 
     def child_from_token
-      puts "Getting child from token"
       ChildAccount.find_by(authentication_token: token) if token.present?
     end
 

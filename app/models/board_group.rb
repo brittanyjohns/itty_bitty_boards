@@ -18,8 +18,9 @@ class BoardGroup < ApplicationRecord
   has_many :boards, through: :board_group_boards
   belongs_to :user
 
+  scope :predefined, -> { where(predefined: true) }
+
   def api_view_with_boards(viewing_user = nil)
-    puts "Predefined: #{predefined}"
     {
       id: id,
       name: name,

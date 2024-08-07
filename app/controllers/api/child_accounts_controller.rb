@@ -21,6 +21,9 @@ class API::ChildAccountsController < API::ApplicationController
     parent_id = current_user.id
     username = @child_account.username
     password = params[:password]
+    name = @child_account.name
+    param_name = params[:name]
+    puts "Child Account: parent_id: #{parent_id}, username: #{username}, password: #{password}, name: #{name}, param_name: #{param_name}"
     @child_account.user = current_user
     @child_account.password = password
     @child_account.password_confirmation = password
