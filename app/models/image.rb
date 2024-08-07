@@ -376,11 +376,13 @@ class Image < ApplicationRecord
             svg_url = nil
             if new_symbol.svg?
               svg_url = new_symbol.image_url
-              processed = ImageProcessing::MiniMagick
-                .convert("png")
-                .resize_to_limit(300, 300)
-                .call(downloaded_image)
-              Rails.logger.debug "Processed SVG: #{processed}"
+              # processed = ImageProcessing::MiniMagick
+              #   .convert("png")
+              #   .resize_to_limit(300, 300)
+              #   .call(downloaded_image)
+              # Rails.logger.debug "Processed SVG: #{processed}"
+              processed = false
+              Rails.logger.debug "Disabling SVG processing for now"
             else
               processed = downloaded_image
             end
