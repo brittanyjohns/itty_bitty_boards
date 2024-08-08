@@ -14,10 +14,10 @@ class API::BoardsController < API::ApplicationController
     if params[:query].present?
       @query = params[:query]
       @boards = boards_for_user.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
-      @predefined_boards = Board.predefined.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      @predefined_boards = Board.predefined.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
     else
       @boards = boards_for_user.user_made_with_scenarios.order(created_at: :desc)
-      @predefined_boards = Board.predefined.order(created_at: :desc)
+      @predefined_boards = Board.predefined.user_made_with_scenarios.order(created_at: :desc)
     end
 
     render json: { boards: @boards.map { |b| b.api_view(current_user) },
