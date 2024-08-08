@@ -170,6 +170,7 @@ class Menu < ApplicationRecord
       token_limit: token_limit,
       board: main_board&.api_view_with_images(viewing_user),
       displayImage: docs.last&.display_url,
+      can_edit: viewing_user.admin? || viewing_user.id == user_id,
       created_at: created_at,
       updated_at: updated_at,
     }
