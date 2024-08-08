@@ -2,8 +2,7 @@ class GenerateImageJob
   include Sidekiq::Job
   sidekiq_options queue: :default, retry: false
 
-  def perform(image_id, user_id=nil, *args)
-
+  def perform(image_id, user_id = nil, *args)
     image = Image.find(image_id)
     board_image = nil
     board_id = nil
@@ -26,11 +25,15 @@ class GenerateImageJob
       if board_image
         board_image.update(status: "complete")
       end
+      if board_id
+        board = Board.find(board_id)
+        board.calucate_grid_layout
+      end
     rescue => e
       puts "**** ERROR **** \n#{e.message}\n"
       image.update(status: "error", error: e.message)
       board_image.update(status: "error") if board_image
-      
+
       puts "UPDATE IMAGE: #{image.inspect}"
     end
     # Do something

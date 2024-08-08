@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_08_06_113931) do
+ActiveRecord::Schema[7.1].define(version: 2024_08_08_165924) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -203,6 +203,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_06_113931) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "token_limit", default: 0
+    t.boolean "predefined", default: false
     t.index ["user_id"], name: "index_menus_on_user_id"
   end
 

@@ -24,6 +24,9 @@ class Menu < ApplicationRecord
 
   accepts_nested_attributes_for :docs
 
+  scope :predefined, -> { where(predefined: true) }
+  scope :user_defined, -> { where(predefined: false) }
+
   def main_board
     doc_boards.first
   end

@@ -3,9 +3,10 @@ class API::MenusController < API::ApplicationController
 
   # GET /menus or /menus.json
   def index
-    @menus = current_user.menus.order(created_at: :desc).page params[:page]
-    if current_user.admin?
-      @menus = Menu.order(created_at: :desc).page params[:page]
+    @current_user = current_user
+    @menus = @current_user.menus.user_defined.order(created_at: :desc).page params[:page]
+    if @current_user.admin?
+      @menus = Menu.user_defined.order(created_at: :desc).page params[:page]
     end
     @menus_with_display_docs = @menus.map do |menu|
       {
@@ -13,16 +14,32 @@ class API::MenusController < API::ApplicationController
         name: menu.name,
         description: menu.description,
         boardId: menu.boards.last&.id,
-        displayImage: menu.docs.last&.image&.url
+        user_id: menu.user_id,
+        displayImage: menu.docs.last&.image&.url,
+        can_edit: @current_user.admin? || @current_user.id == menu.user_id,
+        predefined: menu.predefined,
       }
     end
-    render json: @menus_with_display_docs
+    @predefined_menus = Menu.predefined.order(created_at: :desc).map do |menu|
+      {
+        id: menu.id,
+        name: menu.name,
+        description: menu.description,
+        boardId: menu.boards.last&.id,
+        user_id: menu.user_id,
+        displayImage: menu.docs.last&.image&.url,
+        can_edit: @current_user.admin? || @current_user.id == menu.user_id,
+        predefined: menu.predefined,
+      }
+    end
+    render json: { user: @menus_with_display_docs, predefined: @predefined_menus }
   end
 
   # GET /menus/1 or /menus/1.json
   def show
     render json: @menu.api_view(current_user)
   end
+
   # GET /menus/new
   def new
     @menu = current_user.menus.new
@@ -64,36 +81,35 @@ class API::MenusController < API::ApplicationController
 
   # POST /menus or /menus.json
   def create
-    @menu = current_user.menus.new
+    @current_user = current_user
+    @menu = @current_user.menus.new
     @menu.user = current_user
-    puts "PARAMS: #{params}"
     menu_name = menu_params[:name]
     @menu.name = menu_name
     @menu.description = menu_params[:description]
     @menu.token_limit = menu_params[:token_limit] || 10
-    @menu.user = current_user
+    @menu.user = @current_user
     unless @menu.save
       render json: @menu.errors, status: :unprocessable_entity
       return
     end
-    puts "MENU PARAMS: #{menu_params}"
     doc = @menu.docs.new(menu_params[:docs])
-    doc.user = current_user
+    doc.user = @current_user
     doc.processed = true
     doc.raw = params[:menu][:description]
-    puts "DOC"
-    pp doc
     if doc.save
-      puts "IMAGE ATTACHED" if doc.image.attached?
-      @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit)
+      @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined)
       @menu.run_image_description_job(@board.id)
       @menu_with_display_doc = {
-      id: @menu.id,
-      name: @menu.name,
-      description: @menu.description,
-      boardId: @board.id,
-      # displayImage: display_image_url
-    }
+        id: @menu.id,
+        name: @menu.name,
+        description: @menu.description,
+        boardId: @board.id,
+        displayImage: @menu.docs.last&.image&.url,
+        predefined: @menu.predefined,
+        user_id: @menu.user_id,
+        can_edit: @current_user.admin? || @current_user.id == @menu.user_id,
+      }
       render json: @menu_with_display_doc, status: 200
     else
       render json: @menu.errors, status: :unprocessable_entity
@@ -123,14 +139,15 @@ class API::MenusController < API::ApplicationController
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_menu
-      @menu = Menu.includes(:boards, :docs).find(params[:id])
-    end
 
-    # Only allow a list of trusted parameters through.
-    def menu_params
-      params.require(:menu).permit(:user_id, :name, :description, :token_limit,
-                                  docs: [:id, :raw, :image, :_destroy, :user_id, :source_type])
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_menu
+    @menu = Menu.includes(:boards, :docs).find(params[:id])
+  end
+
+  # Only allow a list of trusted parameters through.
+  def menu_params
+    params.require(:menu).permit(:user_id, :name, :description, :token_limit,
+                                 docs: [:id, :raw, :image, :_destroy, :user_id, :source_type])
+  end
 end
