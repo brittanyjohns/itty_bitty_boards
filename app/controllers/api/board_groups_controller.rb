@@ -1,6 +1,6 @@
 class API::BoardGroupsController < API::ApplicationController
   def index
-    @board_groups = current_user.board_groups.where(predefined: false)
+    @board_groups = current_user.board_groups.where(predefined: [false, nil])
     @predefined = BoardGroup.predefined
     render json: { predefined: @predefined.map(&:api_view_with_boards), user: @board_groups.map(&:api_view_with_boards) }
   end
@@ -59,7 +59,6 @@ class API::BoardGroupsController < API::ApplicationController
     board_group = BoardGroup.find(params[:id])
     board_group.predefined = board_group_params[:predefined]
     board_group.number_of_columns = board_group_params[:number_of_columns]
-
     if board_group.update(board_group_params)
       board_group.adjust_layouts
       render json: board_group.api_view_with_boards(current_user)
