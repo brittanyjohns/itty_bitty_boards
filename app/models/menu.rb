@@ -58,6 +58,7 @@ class Menu < ApplicationRecord
     create_images_from_description(board)
     board.calucate_grid_layout
     puts "Board created from image description: #{board.id}\ndisplay_url: #{new_doc.display_url}\n"
+    board.update_user_docs
     board.display_image_url = new_doc.image&.url if new_doc.image.attached?
     # board.update!(status: "complete")
     board
@@ -71,10 +72,11 @@ class Menu < ApplicationRecord
 
     minutes_to_wait = 0
     images_generated = 0
-    board_images.each_slice(5) do |board_image_slice|
+    board_images.each_slice(8) do |board_image_slice|
       board_image_slice.each do |board_image|
         if should_generate_image(board_image.image, self.user, tokens_used, total_cost)
           board_image.update!(status: "generating")
+          puts "Generating image for #{board_image.image.label} - user: #{self.user_id}"
           board_image.image.start_generate_image_job(minutes_to_wait, self.user_id, nil, board.id)
           tokens_used += 1
           total_cost += 1
@@ -134,7 +136,7 @@ class Menu < ApplicationRecord
     minutes_to_wait = 0
     images_generated = 0
     begin
-      new_board_images.each_slice(5) do |board_image_slice|
+      new_board_images.each_slice(8) do |board_image_slice|
         board_image_slice.each do |board_image|
           if should_generate_image(board_image.image, self.user, tokens_used, total_cost)
             board_image.update!(status: "generating")
@@ -171,6 +173,8 @@ class Menu < ApplicationRecord
       board: main_board&.api_view_with_images(viewing_user),
       displayImage: docs.last&.display_url,
       can_edit: viewing_user.admin? || viewing_user.id == user_id,
+      user_id: user_id,
+      status: main_board&.status,
       created_at: created_at,
       updated_at: updated_at,
     }

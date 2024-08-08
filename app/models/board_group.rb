@@ -30,6 +30,7 @@ class BoardGroup < ApplicationRecord
       number_of_columns: number_of_columns,
       display_image_url: display_image_url,
       boards: boards.map { |board| board.api_view(viewing_user) },
+      predefined: predefined,
     }
   end
 

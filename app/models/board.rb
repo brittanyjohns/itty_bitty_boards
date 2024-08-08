@@ -408,6 +408,12 @@ class Board < ApplicationRecord
     end
   end
 
+  def update_user_docs
+    board_images.each do |bi|
+      bi.image.update_user_docs
+    end
+  end
+
   def next_grid_cell
     x = board_images.pluck(:layout).map { |l| l[:x] }.max
     y = board_images.pluck(:layout).map { |l| l[:y] }.max
