@@ -57,31 +57,77 @@ class OpenaiPrompt < ApplicationRecord
     "Please describe the scenario of #{prompt_text} for a person at the age of #{age_range}. Please keep it simple but also very detailed. This will be used to create AAC material for people with speech difficulties. Please respond in JSON with the keys 'scenario' and 'description'.\n\nExample: #{example_scenario_description_response}"
   end
 
+  # def set_scenario_description
+  #   response_text = nil
+
+  #   begin
+  #     response = OpenAiClient.new({ messages: [
+  #       { role: "system", content: speech_expert },
+  #       { role: "user", content: describe_scenario_prompt },
+  #     ] }).create_chat
+  #     # parsed_response = response[:content]
+  #     # puts "OpenAI - parsed_response: #{parsed_response}"
+  #     # puts "parsed_response: #{parsed_response.class}"
+  #     if response
+  #       response_text = response[:content].gsub("```json", "").gsub("```", "").strip
+  #       if valid_json?(response_text)
+  #         response_text
+  #       else
+  #         puts "INVALID JSON: #{response_text}"
+  #         response_text = transform_into_json(response_text)
+  #       end
+  #     else
+  #       Rails.logger.error "*** ERROR - set_scenario_description *** \nDid not receive valid response. Response: #{response}\n"
+  #     end
+  #   rescue => e
+  #     Rails.logger.error "*** ERROR - set_scenario_description *** \n#{e.message}\n#{e.backtrace}\n"
+  #   end
+  #   puts "response_text: #{response_text}"
+  #   description = JSON.parse(response_text)["description"]
+  #   # description = JSON.parse(parsed_response)["description"]
+  #   puts "description: #{description}"
+  #   self.description = description
+  #   self
+  # end
+
   def set_scenario_description
-    response = OpenAiClient.new({ messages: [
-      { role: "system", content: speech_expert },
-      { role: "user", content: describe_scenario_prompt },
-    ] }).create_chat
-    # parsed_response = response[:content]
-    # puts "OpenAI - parsed_response: #{parsed_response}"
-    # puts "parsed_response: #{parsed_response.class}"
     response_text = nil
-    if response
-      response_text = response[:content].gsub("```json", "").gsub("```", "").strip
-      if valid_json?(response_text)
-        response_text
+
+    begin
+      response = OpenAiClient.new({ messages: [
+        { role: "system", content: speech_expert },
+        { role: "user", content: describe_scenario_prompt },
+      ] }).create_chat
+
+      if response
+        response_text = response[:content].gsub("```json", "").gsub("```", "").strip
+        if valid_json?(response_text)
+          response_text
+        else
+          puts "INVALID JSON: #{response_text}"
+          response_text = transform_into_json(response_text)
+        end
       else
-        puts "INVALID JSON: #{response_text}"
-        response_text = transform_into_json(response_text)
+        Rails.logger.error "*** ERROR - set_scenario_description *** \nDid not receive valid response. Response: #{response}\n"
+      end
+    rescue => e
+      Rails.logger.error "*** ERROR - set_scenario_description *** \n#{e.message}\n#{e.backtrace.join("\n")}\n"
+    end
+
+    if response_text
+      begin
+        descriptions = JSON.parse(response_text).map { |scenario| scenario["description"] }.join("\n")
+        puts "description: #{descriptions}"
+        self.description = descriptions
+      rescue JSON::ParserError => e
+        Rails.logger.error "*** ERROR - set_scenario_description *** \nError parsing response_text: #{response_text}\n#{e.message}\n#{e.backtrace.join("\n")}\n"
       end
     else
-      Rails.logger.error "*** ERROR - set_scenario_description *** \nDid not receive valid response. Response: #{response}\n"
+      puts "response_text is nil"
     end
-    puts "response_text: #{response_text}"
-    description = JSON.parse(response_text)["description"]
-    # description = JSON.parse(parsed_response)["description"]
-    puts "description: #{description}"
-    self.description = description
+
+    puts "RETURNING description: #{self.inspect}"
+
     self
   end
 
