@@ -203,7 +203,7 @@ class User < ApplicationRecord
     display_name
   end
 
-  TRAIL_PERIOD = 7.days
+  TRAIL_PERIOD = 14.days
 
   def free_trial?
     free? && created_at > TRAIL_PERIOD.ago
