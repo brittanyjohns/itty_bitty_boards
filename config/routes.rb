@@ -189,6 +189,7 @@ Rails.application.routes.draw do
         post "remove_board/:board_id", to: "board_groups#remove_board"
       end
     end
+    get "sample_voices", to: "images#sample_voices"
 
     resources :boards do
       resources :images

@@ -263,7 +263,7 @@ class Image < ApplicationRecord
   end
 
   def self.voices
-    ["echo", "echo", "fable", "onyx", "nova", "shimmer"]
+    ["echo", "echo", "fable", "onyx", "nova", "shimmer", "alloy"]
   end
 
   def self.languages
@@ -320,7 +320,13 @@ class Image < ApplicationRecord
   end
 
   def self.sample_audio_files
-    Image.where(private: true, image_type: "SampleVoice").map(&:audio_files).flatten
+    arry = []
+    Image.with_artifacts.where(private: true, image_type: "SampleVoice").map do |image|
+      file = image.audio_files.last
+      label = image.label
+      arry << { id: image.id, label: label, file: file, url: file&.url }
+    end
+    arry
   end
 
   def self.find_sample_audio_for_voice(voice)

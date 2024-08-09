@@ -371,6 +371,11 @@ class API::ImagesController < API::ApplicationController
     render json: { status: "ok" }
   end
 
+  def sample_voices
+    @voices = Image.sample_audio_files
+    render json: @voices
+  end
+
   private
 
   def run_generate
