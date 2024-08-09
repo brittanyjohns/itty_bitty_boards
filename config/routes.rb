@@ -247,7 +247,11 @@ Rails.application.routes.draw do
       end
     end
 
-    resources :child_boards
+    resources :child_boards do
+      collection do
+        get "current"
+      end
+    end
     namespace :v1 do
       resource :auth, only: [:create, :destroy]
       delete "/child_accounts/logout", to: "child_auths#destroy"

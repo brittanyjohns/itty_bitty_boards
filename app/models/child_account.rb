@@ -28,6 +28,7 @@ class ChildAccount < ApplicationRecord
 
   belongs_to :user
   has_many :child_boards, dependent: :destroy
+  has_many :boards, through: :child_boards
   has_secure_token :authentication_token
 
   validates :username, presence: true, uniqueness: true

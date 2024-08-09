@@ -1,7 +1,7 @@
 class API::ChildBoardsController < API::ApplicationController
   # protect_from_forgery with: :null_session
   respond_to :json
-  skip_before_action :authenticate_token!, only: %i[show]
+  skip_before_action :authenticate_token!, only: %i[show current]
   before_action :authenticate_child_token!
 
   # GET /boards/1 or /boards/1.json
@@ -16,6 +16,15 @@ class API::ChildBoardsController < API::ApplicationController
     render json: @board_with_images.merge(child_permissions)
   end
 
+  def current
+    puts "CURRENT CHILD: #{current_child}"
+    @boards = boards_for_child
+    @boards_with_images = @boards.map do |board|
+      board.api_view_with_images
+    end
+    render json: @boards_with_images
+  end
+
   private
 
   # Use callbacks to share common setup or constraints between actions.
@@ -25,7 +34,7 @@ class API::ChildBoardsController < API::ApplicationController
   end
 
   def boards_for_child
-    current_child.boards.with_artifacts
+    current_child.child_boards.with_artifacts
   end
 
   def image_params
