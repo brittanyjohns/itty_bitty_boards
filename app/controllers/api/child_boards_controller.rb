@@ -23,6 +23,12 @@ class API::ChildBoardsController < API::ApplicationController
     render json: @boards_with_images
   end
 
+  def destroy
+    set_child_board
+    @child_board.destroy
+    render json: { message: "Board deleted" }
+  end
+
   private
 
   # Use callbacks to share common setup or constraints between actions.

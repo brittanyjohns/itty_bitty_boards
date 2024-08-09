@@ -21,14 +21,18 @@ class API::ChildAccountsController < API::ApplicationController
     parent_id = current_user.id
     username = @child_account.username
     password = params[:password]
+    password_confirmation = params[:password_confirmation]
+    if password != password_confirmation
+      render json: { error: "Passwords do not match" }, status: :unprocessable_entity
+      return
+    end
     name = @child_account.name
     param_name = params[:name]
     puts "Child Account: parent_id: #{parent_id}, username: #{username}, password: #{password}, name: #{name}, param_name: #{param_name}"
     @child_account.user = current_user
-    @child_account.password = password
-    @child_account.password_confirmation = password
+    @child_account.passcode = password
     if @child_account.save
-      puts "Valid Child Account: valid_credentials? #{ChildAccount.valid_credentials?(parent_id, username, password)}"
+      puts "Valid Child Account: valid_credentials? #{ChildAccount.valid_credentials?(username, password)}"
       render json: @child_account.api_view, status: :created
     else
       render json: @child_account.errors, status: :unprocessable_entity

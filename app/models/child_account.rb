@@ -21,7 +21,7 @@
 #  updated_at             :datetime         not null
 #
 class ChildAccount < ApplicationRecord
-  devise :database_authenticatable, :trackable
+  # devise :database_authenticatable, :trackable
   # devise :database_authenticatable, :registerable,
   #        :recoverable, :rememberable, :validatable,
   #        authentication_keys: [:username]
@@ -31,21 +31,19 @@ class ChildAccount < ApplicationRecord
   has_many :boards, through: :child_boards
   has_secure_token :authentication_token
 
+  validates :passcode, presence: true, on: :create
+
   validates :username, presence: true, uniqueness: true
 
-  def self.valid_credentials?(parent_id, username, password_to_set)
-    # TODO: Find by child_lookup_key
-    # DOING -- Temp keep this until testing is done
-    # user = User.find_by(id: parent_id)
-    # user.child_accounts.each do |child|
-    #   result = child.valid_password?(password_to_set)
-    #   result
-    # end
-    # return nil unless user
-
-    account = ChildAccount.find_by(username: username)
-    valid_creds = account&.valid_password?(password_to_set) ? account : nil
-    valid_creds
+  def self.valid_credentials?(username, password_to_set)
+    account = ChildAccount.find_by(username: username, passcode: password_to_set)
+    puts "Account: #{account.inspect}"
+    if account
+      account
+    else
+      Rails.logger.info "Invalid credentials for #{username}"
+      nil
+    end
   end
 
   def reset_password(new_password, new_password_confirmation)
@@ -78,6 +76,8 @@ class ChildAccount < ApplicationRecord
     {
       id: id,
       username: username,
+      passcode: passcode,
+      parent_name: user.display_name,
       name: name,
       settings: settings,
       user_id: user_id,

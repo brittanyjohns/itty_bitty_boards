@@ -8,13 +8,12 @@ module API
         username = params[:username]
         password = params[:password]
 
-        if (child = ChildAccount.valid_credentials?(parent_id, username, password))
+        if (child = ChildAccount.valid_credentials?(username, password))
           auth_token = child.authentication_token
           unless child.can_sign_in?
             render json: { error: "Account not active. Please upgrade to a pro account to continue." }, status: :unauthorized
             return
           end
-          sign_in child
           render json: { token: child.authentication_token, child: child }
         else
           render json: { error: error_message }, status: :unauthorized
