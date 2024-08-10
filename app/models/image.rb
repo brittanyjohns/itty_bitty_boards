@@ -470,6 +470,12 @@ class Image < ApplicationRecord
           total_docs_saved += 1
         end
 
+        next_words = image.next_words
+        if next_words.any?
+          keep.next_words = (keep.next_words + next_words).uniq
+          keep.save! unless dry_run
+        end
+
         total_images_destroyed += 1
 
         puts "Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
