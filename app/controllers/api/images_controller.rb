@@ -345,7 +345,7 @@ class API::ImagesController < API::ApplicationController
   def hide_doc
     @image = Image.find(params[:id])
     @doc = @image.docs.find(params[:doc_id])
-    unless @doc.user_id == (current_user.id || current_user.admin?)
+    unless (@doc.user_id == current_user.id) || current_user.admin?
       render json: { status: "error", message: "You are not authorized to delete this document." }
       return
     end

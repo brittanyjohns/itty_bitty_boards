@@ -472,6 +472,7 @@ class Image < ApplicationRecord
 
         next_words = image.next_words
         if next_words.any?
+          puts "Next words: #{next_words}"
           keep.next_words = (keep.next_words + next_words).uniq
           keep.save! unless dry_run
         end
