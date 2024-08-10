@@ -471,9 +471,10 @@ class Image < ApplicationRecord
 
         total_images_destroyed += 1
 
+        puts "Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
         # This reload is IMPORTANT! Otherwise, the keep docs WILL be destroyed & removed from S3!
         image.reload
-        puts "Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
+        puts "AFTER RELOAD - Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
 
         image.destroy if dry_run == false
       end
