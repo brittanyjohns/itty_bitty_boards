@@ -453,6 +453,7 @@ class Image < ApplicationRecord
   def self.destroy_duplicate_images(dry_run: true)
     total_images_destroyed = 0
     total_docs_saved = 0
+    puts "RUNNING FOR #{Image.includes(:docs).non_menu_images.count} IMAGES"
     Image.includes(:docs).non_menu_images.group_by(&:label).each do |label, images|
       # Skip the first image (which we want to keep) and destroy the rest
       # images.drop(1).each(&:destroy)
@@ -475,8 +476,8 @@ class Image < ApplicationRecord
         # This reload is IMPORTANT! Otherwise, the keep docs WILL be destroyed & removed from S3!
         image.reload
         puts "AFTER RELOAD - Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
-
-        image.destroy if dry_run == false
+        puts "dry_run: #{dry_run} - Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at}"
+        image.destroy unless dry_run
       end
     end
     puts "\nTotal images destroyed: #{total_images_destroyed} - Total docs saved: #{total_docs_saved}\n"
