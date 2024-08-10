@@ -357,7 +357,7 @@ class Board < ApplicationRecord
       id: id,
       name: name,
       layout: layout,
-      audio_url: audio_files.first&.url,
+      # audio_url: audio_files.first&.url,
       position: position,
       # description: description,
       parent_type: parent_type,

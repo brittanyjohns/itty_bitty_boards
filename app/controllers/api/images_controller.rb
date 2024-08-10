@@ -138,14 +138,19 @@ class API::ImagesController < API::ApplicationController
 
   def create
     @current_user = current_user
+    puts "API::ImagesController#create image_params: #{image_params} - params: #{params}"
+
+    find_first = image_params[:find_first] == "1"
 
     label = image_params[:label]&.downcase
     @existing_image = Image.find_by(label: label, user_id: @current_user.id)
-    if @existing_image
+    @image = nil
+    if @existing_image && find_first
       @image = @existing_image
     else
       @image = Image.create(user: @current_user, label: label, private: true, image_prompt: image_params[:image_prompt], image_type: "User")
     end
+    puts "Image: #{@image.inspect}"
     doc = @image.docs.new(image_params[:docs])
     doc.user = @current_user
     doc.processed = true

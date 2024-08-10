@@ -71,8 +71,8 @@ class User < ApplicationRecord
   scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
 
   # Constants
-  # DEFAULT_ADMIN_ID = self.admin.first&.id
-  DEFAULT_ADMIN_ID = 1
+  DEFAULT_ADMIN_ID = self.admin.first&.id
+  # DEFAULT_ADMIN_ID = 1
 
   # Callbacks
   before_save :set_default_settings, unless: :settings?

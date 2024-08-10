@@ -39,6 +39,7 @@ class Doc < ApplicationRecord
   # scope :with_attached_image, -> { includes(image_attachment: :blob) }
   scope :without_attached_image, -> { where.missing(:image_attachment) }
   scope :no_user, -> { where(user_id: [nil, User::DEFAULT_ADMIN_ID]) }
+  scope :with_user, -> { where.not(user_id: [nil, User::DEFAULT_ADMIN_ID]) }
 
   def hide!
     update(deleted_at: Time.now)
@@ -163,9 +164,36 @@ class Doc < ApplicationRecord
 
   def display_url
     cdn_host = ENV["CDN_HOST"]
-    cdn_url = cdn_host + '/' + image.key if image&.key
+    cdn_url = cdn_host + "/" + image.key if image&.key
     # cdn_url ? cdn_url : "https://via.placeholder.com/300x300.png?text=#{documentable.label_param}"
     cdn_url ? cdn_url : nil
+  end
+
+  def self.clean_up_broken_urls
+    broken_count = 0
+    no_blob_count = 0
+    broken_docs = []
+    self.all.each do |doc|
+      if doc.image.attached?
+        if doc.image.blob.key.nil?
+          no_blob_count += 1
+          broken_docs << doc
+          # doc.image.purge
+          # doc.update(image: nil)
+          puts "Broken URL: #{doc.image_url}"
+        end
+      end
+      puts "No display URL: #{doc.display_url}" if doc.display_url.nil?
+      broken_count += 1 if doc.display_url.nil?
+      broken_docs << doc if doc.display_url.nil?
+    end
+    puts "Broken Count: #{broken_count}"
+    puts "No Blob Count: #{no_blob_count}"
+    puts "Total Docs: #{self.all.count}"
+    puts "Broken Docs: #{broken_docs.count}"
+    broken_docs.each do |doc|
+      doc.hide!
+    end
   end
 
   def is_a_favorite?(user)

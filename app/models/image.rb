@@ -56,7 +56,8 @@ class Image < ApplicationRecord
   scope :non_sample_voices, -> { where.not(image_type: "SampleVoice").or(where(image_type: nil)) }
   scope :sample_voices, -> { where(image_type: "SampleVoice") }
   scope :no_image_type, -> { where(image_type: nil) }
-  scope :public_img, -> { where(private: [nil, false]) }
+  scope :public_img, -> { where(private: false) }
+  scope :private_img, -> { where(private: true) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
   scope :skipped, -> { where(open_symbol_status: "skipped") }
   scope :active, -> { where(open_symbol_status: "active") }
@@ -450,15 +451,35 @@ class Image < ApplicationRecord
   end
 
   def self.destroy_duplicate_images(dry_run = true)
-    Image.all.group_by(&:label).each do |label, images|
+    total_images_destroyed = 0
+    total_docs_saved = 0
+    Image.non_menu_images.includes(:docs).all.group_by(&:label).each do |label, images|
       # Skip the first image (which we want to keep) and destroy the rest
       # images.drop(1).each(&:destroy)
-      puts "Duplicate images for #{label}: #{images.count}"
+      puts "\nDuplicate images for #{label}" if images.count > 1
+      keep = images.first
+      keeping_docs = keep.docs
+      puts "Keep: #{keep.id} - #{keep.label} - #{keep.created_at} - keeping docs: #{keeping_docs.count} " if keep && images.count > 1
       images.drop(1).each do |image|
-        Rails.logger.debug "Destroying duplicate image: #{image.id}"
-        image.destroy unless dry_run
+        puts "Duplicate images for #{label}: #{images.count}" if images.count > 1
+        destroying_docs = image.docs
+
+        Rails.logger.debug "Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at} - docs: #{destroying_docs.count}"
+
+        destroying_docs.each do |doc|
+          doc.update!(documentable_id: keep.id)
+          total_docs_saved += 1
+        end
+
+        keep.update!(next_words: image.next_words) if image.next_words.present? && keep.next_words.blank? && dry_run == false
+        total_keep_docs = keep.docs.count
+
+        total_images_destroyed += 1
+
+        image.destroy if dry_run == false
       end
     end
+    puts "\nTotal images destroyed: #{total_images_destroyed} - Total docs saved: #{total_docs_saved}\n"
     nil
   end
 
