@@ -450,33 +450,32 @@ class Image < ApplicationRecord
     docs.unscoped.any? { |doc| doc.processed === symbol_name }
   end
 
-  def self.destroy_duplicate_images(dry_run = true)
+  def self.destroy_duplicate_images(dry_run: true)
     total_images_destroyed = 0
     total_docs_saved = 0
-    Image.non_menu_images.includes(:docs).all.group_by(&:label).each do |label, images|
+    Image.includes(:docs).non_menu_images.group_by(&:label).each do |label, images|
       # Skip the first image (which we want to keep) and destroy the rest
       # images.drop(1).each(&:destroy)
-      puts "\nDuplicate images for #{label}" if images.count > 1
+      puts "\nDuplicate images for #{label}: #{images.count}" if images.count > 1
       keep = images.first
       keeping_docs = keep.docs
-      puts "Keep: #{keep.id} - #{keep.label} - #{keep.created_at} - keeping docs: #{keeping_docs.count} " if keep && images.count > 1
       images.drop(1).each do |image|
-        puts "Duplicate images for #{label}: #{images.count}" if images.count > 1
         destroying_docs = image.docs
 
         Rails.logger.debug "Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at} - docs: #{destroying_docs.count}"
-
         destroying_docs.each do |doc|
-          doc.update!(documentable_id: keep.id)
+          doc.update!(documentable_id: keep.id) unless dry_run
+          puts "Reassigning doc #{doc.id} to image #{keep.id} - #{dry_run ? "DRY RUN" : "FOR REAL LIFE"}"
           total_docs_saved += 1
         end
 
-        keep.update!(next_words: image.next_words) if image.next_words.present? && keep.next_words.blank? && dry_run == false
-        total_keep_docs = keep.docs.count
-
         total_images_destroyed += 1
 
-        # image.destroy if dry_run == false
+        # This reload is IMPORTANT! Otherwise, the keep docs WILL be destroyed & removed from S3!
+        image.reload
+        puts "Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
+
+        image.destroy if dry_run == false
       end
     end
     puts "\nTotal images destroyed: #{total_images_destroyed} - Total docs saved: #{total_docs_saved}\n"

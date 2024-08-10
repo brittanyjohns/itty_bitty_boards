@@ -17,7 +17,6 @@ FactoryBot.define do
   end
 
   factory :child_account do
-    
   end
 
   factory(:user) do
