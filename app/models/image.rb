@@ -476,7 +476,7 @@ class Image < ApplicationRecord
 
         total_images_destroyed += 1
 
-        image.destroy if dry_run == false
+        # image.destroy if dry_run == false
       end
     end
     puts "\nTotal images destroyed: #{total_images_destroyed} - Total docs saved: #{total_docs_saved}\n"
