@@ -151,24 +151,18 @@ class Doc < ApplicationRecord
   include Rails.application.routes.url_helpers
 
   def attached_image_url
-    puts "Attached Image URL #{image.inspect}"
     if image.attached?
       # rails_blob_url(image, only_path: true)
       # url = rails_storage_proxy_path(image)
       # url = url_for(image)
       url = image.url
-      puts "URL: #{url}"
       return url
     end
   end
 
   def display_url
-    puts "Display URL: #{id}"
-    puts "Image: #{image.inspect}"
     cdn_host = ENV["CDN_HOST"]
-    puts "CDN Host: #{cdn_host}"
     cdn_url = cdn_host + "/" + image.key if image&.key
-    puts "CDN URL: #{cdn_url}"
     # cdn_url ? cdn_url : "https://via.placeholder.com/300x300.png?text=#{documentable.label_param}"
     cdn_url ? cdn_url : nil
   end
