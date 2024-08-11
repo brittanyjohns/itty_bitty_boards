@@ -159,6 +159,10 @@ class Board < ApplicationRecord
     board_images.any? { |bi| bi.status == "generating" }
   end
 
+  def pending_images
+    board_images.where(status: ["pending", "generating"])
+  end
+
   def predictive?
     parent_type == "PredefinedResource" && parent.name == "Next"
   end

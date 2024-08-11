@@ -137,10 +137,15 @@ class Menu < ApplicationRecord
       image.image_prompt += PROMPT_ADDITION
       puts "Image Id: #{image.id}\n"
       new_board_image = board.add_image(image.id)
-      new_board_image&.save_initial_layout if new_board_image
+      new_board_image&.save_initial_layout_for_menu if new_board_image
       images << image
       new_board_images << new_board_image if new_board_image
     end
+    #     "237 error - undefined method `save_initial_layout' for an instance of BoardImage
+    # ["/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/activemodel-7.1.3/lib/active_model/attribute_methods.rb:489:in
+    # `method_missing'", "/Users/brittanyjohns/Projects/itty_bitty_boards/app/models/menu.rb:140:in `block in create_images_from_description'",
+    # "/Users/brittanyjohns/Projects/itty_bitty_boards/app/models/menu.rb:107:in `each'", "/Users/brittanyjohns/Projects/itty_bitty_boards/app/models/menu.rb:107:in `create_images_from_description'", "/Users/brittanyjohns/Projects/itty_bitty_boards/app/models/menu.rb:61:in `create_board_from_image'", "/Users/brittanyjohns/Projects/itty_bitty_boards/app/models/menu.rb:236:in `enhance_image_description'", "/Users/brittanyjohns/Projects/itty_bitty_boards/app/sidekiq/enhance_image_description_job.rb:8:in `perform'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:210:in `execute_job'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:180:in `block (4 levels) in process'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/middleware/chain.rb:180:in `traverse'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/middleware/chain.rb:183:in `block in traverse'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/metrics/tracking.rb:26:in `track'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/metrics/tracking.rb:126:in `call'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/middleware/chain.rb:182:in `traverse'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/middleware/chain.rb:173:in `invoke'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:179:in `block (3 levels) in process'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:140:in `block (6 levels) in dispatch'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/job_retry.rb:113:in `local'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:139:in `block (5 levels) in dispatch'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/rails.rb:16:in `block in call'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/activesupport-7.1.3/lib/active_support/reloader.rb:77:in `block in wrap'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/activesupport-7.1.3/lib/active_support/execution_wrapper.rb:92:in `wrap'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/activesupport-7.1.3/lib/active_support/reloader.rb:74:in `wrap'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/rails.rb:15:in `call'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:135:in `block (4 levels) in dispatch'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:271:in `stats'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:130:in `block (3 levels) in dispatch'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/job_logger.rb:13:in `call'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:129:in `block (2 levels) in dispatch'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/job_retry.rb:80:in `global'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:128:in `block in dispatch'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/job_logger.rb:39:in `prepare'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:127:in `dispatch'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:178:in `block (2 levels) in process'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:177:in `handle_interrupt'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:177:in `block in process'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:176:in `handle_interrupt'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:176:in `process'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:82:in `process_one'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/processor.rb:72:in `run'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/component.rb:10:in `watchdog'", "/Users/brittanyjohns/.asdf/installs/ruby/3.3.0/lib/ruby/gems/3.3.0/gems/sidekiq-7.2.1/lib/sidekiq/component.rb:19:in `block in safe_thread'"]
+    # "
     self.update!(item_list: menu_item_list)
     total_cost = board.cost || 0
     minutes_to_wait = 0
@@ -190,7 +195,16 @@ class Menu < ApplicationRecord
       status: main_board&.status,
       created_at: created_at,
       updated_at: updated_at,
+      has_generating_images: main_board&.has_generating_images?,
     }
+  end
+
+  def has_generating_images?
+    main_board&.has_generating_images?
+  end
+
+  def pending_images
+    main_board&.pending_images
   end
 
   def menu_item_name(item_name)

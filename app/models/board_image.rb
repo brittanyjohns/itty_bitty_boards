@@ -25,6 +25,7 @@ class BoardImage < ApplicationRecord
   before_save :set_defaults
   before_save :create_voice_audio, if: :voice_changed_and_not_existing?
   after_create :set_next_words
+  after_create :save_initial_layout_for_menu
 
   def set_next_words
     return if next_words.present?
@@ -106,8 +107,14 @@ class BoardImage < ApplicationRecord
     self.position = board_images.count + 1
   end
 
-  def save_initial_layout
-    l = board.calucate_grid_layout
+  def save_initial_layout_for_menu
+    if image.image_type == "Menu"
+      l = board.rearrange_images
+      puts "rearrange_images layout: #{l}"
+    else
+      puts "Not a menu image"
+    end
+
     # set_position
     # update!(layout: initial_layout)
   end

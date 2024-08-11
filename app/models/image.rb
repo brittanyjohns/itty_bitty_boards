@@ -618,18 +618,18 @@ class Image < ApplicationRecord
   def start_generate_image_job(start_time = 0, user_id_to_set = nil, image_prompt_to_set = nil, board_id = nil)
     user_id_to_set ||= user_id
     Rails.logger.debug "start_generate_image_job: #{label} - #{user_id_to_set} - #{image_prompt_to_set}"
-    run_in = start_time.minutes
+    run_in = Time.now + start_time * 30 # 30 seconds per image set of 3
 
     GenerateImageJob.perform_in(run_in, id, user_id_to_set, image_prompt_to_set, board_id)
   end
 
   def self.run_generate_image_job_for(images)
     start_time = 0
-    images.each_slice(5) do |images_slice|
+    images.each_slice(3) do |images_slice|
       images_slice.each do |image|
         image.start_generate_image_job(start_time)
       end
-      start_time += 2
+      start_time += 1
     end
   end
 
