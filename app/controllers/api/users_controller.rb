@@ -4,10 +4,11 @@ class API::UsersController < API::ApplicationController
   # GET /users or /users.json
   def index
     if current_user&.admin?
-      @users = User.all
+      @users = User.all.order(created_at: :desc)
     else
       @users = [current_user]
     end
+    render json: @users
   end
 
   # GET /users/1 or /users/1.json
