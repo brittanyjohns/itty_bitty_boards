@@ -51,18 +51,18 @@ class User < ApplicationRecord
          :jwt_authenticatable, jwt_revocation_strategy: self
 
   # Associations
-  has_many :boards
+  has_many :boards, dependent: :destroy
   has_many :board_groups
   has_many :menus
   has_many :images
   has_many :docs
   has_many :user_docs, dependent: :destroy
   has_many :orders
-  has_many :openai_prompts
-  has_many :team_users
+  has_many :openai_prompts, dependent: :destroy
+  has_many :team_users, dependent: :destroy
   belongs_to :current_team, class_name: "Team", optional: true
-  has_many :word_events
-  has_many :subscriptions
+  has_many :word_events, dependent: :destroy
+  has_many :subscriptions, dependent: :destroy
   has_secure_token :authentication_token
   has_many :child_accounts, dependent: :destroy
 
