@@ -289,7 +289,9 @@ class Board < ApplicationRecord
       unless new_board_image.save
         Rails.logger.debug "new_board_image.errors: #{new_board_image.errors.full_messages}"
       end
+      puts "new_board_image: #{new_board_image.inspect}"
     end
+    Rails.logger.error "NO IMAGE FOUND" unless new_board_image
     new_board_image
   end
 
@@ -411,11 +413,17 @@ class Board < ApplicationRecord
     end
   end
 
-  def update_user_docs
-    board_images.each do |bi|
-      bi.image.update_user_docs
-    end
-  end
+  # I forget what this does - Removing it for now
+
+  # def update_user_docs
+  #   board_images.each do |bi|
+  #     # bi.image.update_user_docs
+  #     user_docs = UserDoc.where(user_id: user_id, image_id: bi.image_id)
+  #     if user_docs.empty?
+  #       puts "Creating user doc for image: #{bi.image_id}"
+  #     end
+  #   end
+  # end
 
   def next_grid_cell
     x = board_images.pluck(:layout).map { |l| l[:x] }.max

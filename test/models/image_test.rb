@@ -23,6 +23,7 @@
 #  text_color          :string
 #  font_size           :integer
 #  border_color        :string
+#  is_private          :boolean          default(FALSE)
 #
 require "test_helper"
 

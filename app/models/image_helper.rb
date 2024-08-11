@@ -59,7 +59,10 @@ module ImageHelper
   end
 
   def clarify_image_description(raw)
-    response = OpenAiClient.new(open_ai_opts).clarify_image_description(raw)
+    # response = OpenAiClient.new(open_ai_opts).clarify_image_description(raw)
+    response, messages_sent = OpenAiClient.new(open_ai_opts).clarify_image_description(raw)
+    puts "clarify_image_description response: #{response}"
+    Rails.logger.info "clarify_image_description response: #{response}"
     if response
       response_text = response[:content].gsub("```json", "").gsub("```", "").strip
       if valid_json?(response_text)
@@ -81,7 +84,7 @@ module ImageHelper
       puts "NO DESCRIPTION"
       return nil
     end
-    response_text
+    [response_text, messages_sent]
   end
 
   def get_next_words(label)

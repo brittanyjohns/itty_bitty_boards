@@ -5,7 +5,7 @@ class MenusController < ApplicationController
 
   # GET /menus or /menus.json
   def index
-    @menus = current_user.menus.order(created_at: :desc).page params[:page]
+    @menus = Menu.all.order(created_at: :desc).page params[:page]
   end
 
   # GET /menus/1 or /menus/1.json
@@ -97,14 +97,15 @@ class MenusController < ApplicationController
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_menu
-      @menu = Menu.find(params[:id])
-    end
 
-    # Only allow a list of trusted parameters through.
-    def menu_params
-      params.require(:menu).permit(:user_id, :name, :description, :token_limit,
-                                  docs_attributes: [:id, :raw, :image, :_destroy, :user_id, :source_type])
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_menu
+    @menu = Menu.find(params[:id])
+  end
+
+  # Only allow a list of trusted parameters through.
+  def menu_params
+    params.require(:menu).permit(:user_id, :name, :description, :token_limit,
+                                 docs_attributes: [:id, :raw, :image, :_destroy, :user_id, :source_type])
+  end
 end

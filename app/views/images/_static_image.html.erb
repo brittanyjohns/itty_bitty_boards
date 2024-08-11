@@ -1,6 +1,5 @@
 <div class="text-center bg-white rounded-lg shadow-md overflow-hidden flex flex-col h-full">
   <div id="<%= dom_id image %>" class="basis-3/4 cursor-pointer hover:bg-green-200" data-controller='static-image' data-static-image-label="<%= image.label&.upcase %>" data-static-image-target="wrapper" data-action="click->static-image#speak">
-  <%= audio_tag_for_image(image, @board, "hidden", false) if @board %>
     <div class="items-center text-center" id="<%= image.label %>">
       <%= display_image_for(image, current_user) %>
     </div>

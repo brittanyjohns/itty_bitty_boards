@@ -9,6 +9,7 @@
 #  created_at  :datetime         not null
 #  updated_at  :datetime         not null
 #  token_limit :integer          default(0)
+#  predefined  :boolean          default(FALSE)
 #
 class Menu < ApplicationRecord
   belongs_to :user
@@ -17,7 +18,9 @@ class Menu < ApplicationRecord
   has_many :board_images, through: :boards
   has_many :images, through: :board_images
 
-  PROMPT_ADDITION = " The dish should be presented looking fresh and appetizing on a simple, uncluttered background. The lighting should be natural and warm, enhancing the appeal of the food and creating a welcoming atmosphere. Ensure the image looks realistic, like an actual photograph from a family restaurant's menu."
+  PROMPT_ADDITION = " The dish should be presented looking fresh and appetizing on a simple, uncluttered background.
+   The lighting should be natural and warm, enhancing the appeal of the food and creating a welcoming atmosphere.
+    Ensure the image looks realistic, like an actual photograph from a family restaurant's menu."
   include ImageHelper
 
   validates :name, presence: true
@@ -58,8 +61,10 @@ class Menu < ApplicationRecord
     create_images_from_description(board)
     board.calucate_grid_layout
     puts "Board created from image description: #{board.id}\ndisplay_url: #{new_doc.display_url}\n"
-    board.update_user_docs
+    # board.update_user_docs
+    Rails.logger.info "Not updating user docs"
     board.display_image_url = new_doc.image&.url if new_doc.image.attached?
+    board.save!
     # board.update!(status: "complete")
     board
   end
@@ -98,6 +103,7 @@ class Menu < ApplicationRecord
     images = []
     new_board_images = []
     tokens_used = 0
+    menu_item_list = []
     json_description["menu_items"].each do |food|
       if food["name"].blank? || food["image_description"].blank?
         puts "Blank name or image description for #{food.inspect}"
@@ -109,6 +115,7 @@ class Menu < ApplicationRecord
         next
       end
       item_name = menu_item_name(food["name"])
+      menu_item_list << item_name
       image = Image.find_by(label: item_name, user_id: self.user_id)
       image = Image.find_by(label: item_name, private: false) unless image
       image = Image.find_by(label: item_name, private: nil) unless image
@@ -123,15 +130,18 @@ class Menu < ApplicationRecord
         image.image_prompt += " with #{food["description"]}" if food["description"]
       end
       image.private = false
-      image.image_type = self.class.name
+      image.image_type = "Menu"
+      puts "Image prompt: #{image.image_prompt}"
       image.display_description = image.image_prompt
       image.save!
       image.image_prompt += PROMPT_ADDITION
+      puts "Image Id: #{image.id}\n"
       new_board_image = board.add_image(image.id)
-      new_board_image.save_initial_layout
+      new_board_image&.save_initial_layout if new_board_image
       images << image
       new_board_images << new_board_image if new_board_image
     end
+    self.update!(item_list: menu_item_list)
     total_cost = board.cost || 0
     minutes_to_wait = 0
     images_generated = 0
@@ -145,6 +155,7 @@ class Menu < ApplicationRecord
             total_cost += 1
             images_generated += 1
           else
+            Rails.logger.info "Not generating image for #{board_image.image.label}"
             puts "Not generating image for #{board_image.image.label}"
             board_image.update!(status: "skipped")
           end
@@ -153,7 +164,9 @@ class Menu < ApplicationRecord
       end
     rescue => e
       puts "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"
-      board.update(status: "error") if board
+      Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"
+      # board.update(status: "error") if board
+      board.update(status: "error - #{e.message}\n#{e.backtrace}\n") if board
     end
 
     self.user.remove_tokens(tokens_used)
@@ -194,17 +207,21 @@ class Menu < ApplicationRecord
   def enhance_image_description(board_id)
     new_doc = self.docs.last
     raise "NO NEW DOC FOUND" && return unless new_doc
-
     self.update!(description: new_doc.processed)
     begin
       if !new_doc.raw.blank?
-        new_doc.processed = clarify_image_description(new_doc.raw)
+        new_doc.processed, messages_sent = clarify_image_description(new_doc.raw)
         puts "Processed: #{new_doc.processed}\n"
+        puts "Messages sent: #{messages_sent}\n"
+        Rails.logger.info "Processed: #{new_doc.processed}\n"
+        Rails.logger.info "Messages sent: #{messages_sent}\n"
         return nil unless new_doc.processed
         new_doc.current = true
         new_doc.user_id = self.user_id
         new_doc.save!
+        self.raw = new_doc.raw
         self.description = new_doc.processed
+        self.prompt_sent = messages_sent
         self.save!
 
         create_board_from_image(new_doc, board_id)
@@ -217,7 +234,8 @@ class Menu < ApplicationRecord
       board = Board.where(id: board_id).first if board_id
       board = self.boards.last unless board
       board = self.boards.create(user: self.user, name: self.name) unless board
-      board.update(status: "error") if board
+      # board.update(status: "error") if board
+      board.update(status: "237 error - #{e.message}\n#{e.backtrace}\n") if board
       puts "UPDATE BOARD: #{board.inspect}"
       nil
     end

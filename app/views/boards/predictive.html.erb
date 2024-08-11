@@ -10,7 +10,6 @@
         <% @images.each do |image| %>
                   <div class="text-center bg-white rounded-lg shadow-md overflow-hidden h-full">
                     <div id="<%= dom_id image %>" class="w-full h-max cursor-pointer" data-controller='speak' data-speak-label="<%= image.label&.downcase %>">
-                      <%= audio_tag_for_image(image, @board, "hidden", false) if @board %>
                       <%= link_to predictive_board_path(image.next_board), class: "w-full h-full", data: { turbo_frame: "predictive_images", turbo_action: "advance" } do %>
                       <div class="items-center text-center" id="<%= image.label %>">
                         <%= display_image_for(image, current_user) %>

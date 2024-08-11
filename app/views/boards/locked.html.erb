@@ -8,7 +8,6 @@
       <%= board_image.position %>
     </p> 
       <%= display_image_for_locked_board(board_image.image, current_user) %>
-      <%= audio_tag_for_image(board_image.image, @board, "hidden", false) if @board %>
       <span class="grow absolute inset-x-0 bottom-0 font-light text-xs md:text-sm lg:text-md rounded-sm bg-white bg-opacity-80 overflow-hidden"><%= board_image.image.label %></span>
     </div>
     </div>

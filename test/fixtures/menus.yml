@@ -9,6 +9,7 @@
 #  created_at  :datetime         not null
 #  updated_at  :datetime         not null
 #  token_limit :integer          default(0)
+#  predefined  :boolean          default(FALSE)
 #
 
 one:

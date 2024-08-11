@@ -1,3 +1,30 @@
+# == Schema Information
+#
+# Table name: images
+#
+#  id                  :bigint           not null, primary key
+#  label               :string
+#  image_prompt        :text
+#  display_description :text
+#  private             :boolean
+#  user_id             :integer
+#  generate_image      :boolean          default(FALSE)
+#  created_at          :datetime         not null
+#  updated_at          :datetime         not null
+#  status              :string
+#  error               :string
+#  revised_prompt      :string
+#  image_type          :string
+#  open_symbol_status  :string           default("active")
+#  next_words          :string           default([]), is an Array
+#  no_next             :boolean          default(FALSE)
+#  part_of_speech      :string
+#  bg_color            :string
+#  text_color          :string
+#  font_size           :integer
+#  border_color        :string
+#  is_private          :boolean          default(FALSE)
+#
 require "rails_helper"
 
 RSpec.describe Image, type: :model do

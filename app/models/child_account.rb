@@ -19,6 +19,7 @@
 #  settings               :jsonb
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
+#  passcode               :string
 #
 class ChildAccount < ApplicationRecord
   # devise :database_authenticatable, :trackable

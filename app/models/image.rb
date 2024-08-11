@@ -23,6 +23,7 @@
 #  text_color          :string
 #  font_size           :integer
 #  border_color        :string
+#  is_private          :boolean          default(FALSE)
 #
 class Image < ApplicationRecord
   paginates_per 50
@@ -69,15 +70,31 @@ class Image < ApplicationRecord
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!, unless: :menu?
   before_save :set_label, :ensure_defaults
-  after_save :generate_matching_symbol, if: -> { label_changed? && open_symbol_status == "active" }
-  after_save :run_set_next_words_job, if: -> { next_words.blank? && no_next == false && image_type != "Menu" }
+  after_save :generate_matching_symbol, if: -> { should_generate_symbol? }
+  after_save :run_set_next_words_job, if: -> { should_set_next_words? }
+
+  scope :menu_images_without_docs, -> { menu_images.without_docs }
 
   def ensure_defaults
     if !image_type
       self.image_type = "Image"
     end
-    self.bg_color = background_color_for(part_of_speech)
+    if image_type == "Menu"
+      self.part_of_speech = "noun"
+    else
+      self.bg_color = background_color_for(part_of_speech)
+    end
     Rails.logger.debug "Image: #{label} - bg_color: #{bg_color} - part_of_speech: #{part_of_speech} - image_type: #{image_type}"
+  end
+
+  def should_generate_symbol?
+    return false if image_type == "Menu"
+    label_changed? && open_symbol_status == "active"
+  end
+
+  def should_set_next_words?
+    return false if image_type == "Menu"
+    next_words.blank? && no_next == false
   end
 
   def run_set_next_words_job
@@ -685,6 +702,7 @@ class Image < ApplicationRecord
   end
 
   def categorize!
+    return if part_of_speech.present? || menu?
     response = OpenAiClient.new(open_ai_opts).categorize_word(label)
     Rails.logger.debug "Response: #{response}"
     parsed_response = response[:content]&.downcase

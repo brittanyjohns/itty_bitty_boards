@@ -9,6 +9,7 @@
 #  display_image_url :string
 #  position          :integer
 #  number_of_columns :integer          default(6)
+#  user_id           :integer          not null
 #  bg_color          :string
 #  created_at        :datetime         not null
 #  updated_at        :datetime         not null

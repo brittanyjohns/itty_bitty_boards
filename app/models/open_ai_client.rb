@@ -96,16 +96,19 @@ class OpenAiClient
   def clarify_image_description(image_description)
     Rails.logger.debug "Missing image description.\n" && return unless image_description
     @model = GPT_4_MODEL
-    @messages = [{ role: "user", content: [{ type: "text", text: "Please parse the following text from a kid's menu and form a clear list of the food and beverage options ONLY.
-    Create a short image description for each item based on the name and description.
-    The NAME of the food or beverage is the most important part. Ensure that the name is accurate.
-    The description is optional. If no description is provided, then try to create a description based on the name.
-    Respond as json. 
-    Here is an EXAMPLE RESPONSE: #{expected_json_schema}\n
-    This is the text to parse: #{strip_image_description(image_description)}\n\n" }] }]
+    @messages = [{ role: "user", content: [{ type: "text",
+                                           text: "Please parse the following text from a restaurant menu to 
+                                                form a clear list of the food and beverage options ONLY.
+                                                Create a short image description for each item based on the name and description.
+                                                The NAME of the food or beverage is the most important part. Ensure that the name is accurate.
+                                                The description is optional. If no description is provided, then try to create a description based on the name.
+                                                Respond as json. 
+                                                Here is an EXAMPLE RESPONSE: #{expected_json_schema}\n
+                                                This is the text to parse: #{strip_image_description(image_description)}\n\n" }] }]
     response = create_chat
     Rails.logger.debug "*** ERROR *** Invaild Image Description Response: #{response}" unless response
-    response
+    # response
+    [response, @messages[0][:content][0][:text]]
   end
 
   def categorize_word(word)

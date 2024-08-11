@@ -6,6 +6,33 @@
     <%= @menu.name.titleize %>
   </h1>
 
+  <p class="text-2xl text-center text-green-600 mb-6">
+  Description: 
+    <%= @menu.description %>
+  </p>
+
+  <p class="text-2xl text-center text-green-600 mb-6">
+  Raw Text: 
+    <%= @menu.raw %>
+  </p>
+
+  <p class="text-2xl text-center text-green-600 mb-6">
+  Prompt Sent:
+    <%= @menu.prompt_sent %>
+  </p>
+  <p class="text-2xl text-center text-green-600 mb-6">
+  Prompt Used:
+    <%= @menu.item_list.count %>
+  </p>
+  <p class="text-2xl text-center text-green-600 mb-6">
+    <%= @menu.item_list %>
+  </p>
+  <p class="text-2xl text-center text-green-600 mb-6">
+    <%= @menu.images.count %>
+  </p>
+
+
+
     <% if @menu.doc_boards.any? %>
       <p class="text-2xl text-center text-green-600 mb-6">
         Your board is ready! <%= link_to "View your board", @menu.main_board %> here.
@@ -36,7 +63,7 @@
     <div class="mt-4">
       <p class="text-2xl text-center text-green-600 mb-6">
         Token Limit: <%= @menu.token_limit %><br>
-        Tokens Used: <%= @menu.doc_boards.last&.cost || 'TBD' %>
+        Tokens Used: <%= @menu.doc_boards.last&.cost || "TBD" %>
       </p>
       <p class="text-lg text-center text-green-600 mb-6">
         Last updated: <%= @menu.docs.last.updated_at.strftime("%m/%d/%Y") %>

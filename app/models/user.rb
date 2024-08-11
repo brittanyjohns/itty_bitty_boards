@@ -68,6 +68,9 @@ class User < ApplicationRecord
 
   # Scopes
   scope :admin, -> { where(role: "admin") }
+  scope :pro, -> { where(plan_type: "pro") }
+  scope :free, -> { where(plan_type: "free") }
+  scope :non_admin, -> { where.not(role: "admin") }
   scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
 
   # Constants

@@ -119,4 +119,11 @@ class BoardImage < ApplicationRecord
   def image_last_added_at
     image.docs.last&.created_at&.strftime("%m/%d %I:%M %p")
   end
+
+  def user_docs
+    docs = UserDoc.where(user_id: board.user_id, doc_id: image.docs.pluck(:id))
+    docs.each do |doc|
+      puts "Supposed to update doc: #{doc.id} =>label: #{doc.label}"
+    end
+  end
 end

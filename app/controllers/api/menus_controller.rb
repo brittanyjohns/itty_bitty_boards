@@ -87,6 +87,8 @@ class API::MenusController < API::ApplicationController
     menu_name = menu_params[:name]
     @menu.name = menu_name
     @menu.description = menu_params[:description]
+    @menu.predefined = menu_params[:predefined] || false
+    @menu.raw = menu_params[:description]
     @menu.token_limit = menu_params[:token_limit] || 10
     @menu.user = @current_user
     unless @menu.save
