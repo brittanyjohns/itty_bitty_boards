@@ -52,12 +52,12 @@ class User < ApplicationRecord
 
   # Associations
   has_many :boards, dependent: :destroy
-  has_many :board_groups
-  has_many :menus
-  has_many :images
-  has_many :docs
+  has_many :board_groups, dependent: :destroy
+  has_many :menus, dependent: :destroy
+  has_many :images, dependent: :destroy
+  has_many :docs, dependent: :destroy
   has_many :user_docs, dependent: :destroy
-  has_many :orders
+  has_many :orders, dependent: :destroy
   has_many :openai_prompts, dependent: :destroy
   has_many :team_users, dependent: :destroy
   belongs_to :current_team, class_name: "Team", optional: true
