@@ -190,8 +190,11 @@ class API::ImagesController < API::ApplicationController
   def create_symbol
     @image = Image.find(params[:id])
     limit = current_user.admin? ? 20 : 1
-    GetSymbolsJob.perform_async([@image.id], limit)
-    render json: { status: "ok", message: "Creating #{limit} symbols for image." }
+    # GetSymbolsJob.perform_async([@image.id], limit)
+    @image.update(status: "generating") unless @image.generating?
+    @image.generate_matching_symbol(limit)
+    @image.update(status: "finished") unless @image.finished?
+    render json: { status: "ok", message: "Creating #{limit} symbols for image.", image: @image }
   end
 
   def new
