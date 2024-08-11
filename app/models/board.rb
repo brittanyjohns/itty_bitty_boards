@@ -36,6 +36,9 @@ class Board < ApplicationRecord
   has_many :team_users, through: :teams
   has_many :users, through: :team_users
   has_many_attached :audio_files
+  has_many :board_group_boards, dependent: :destroy
+  has_many :board_groups, through: :board_group_boards
+
   scope :for_user, ->(user) { where(user: user) }
   scope :menus, -> { where(parent_type: "Menu") }
   scope :non_menus, -> { where.not(parent_type: "Menu") }
