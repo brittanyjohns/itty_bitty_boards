@@ -2,7 +2,7 @@ class API::ChildBoardsController < API::ApplicationController
   # protect_from_forgery with: :null_session
   respond_to :json
   skip_before_action :authenticate_token!, only: %i[show current]
-  before_action :authenticate_child_token!
+  before_action :authenticate_child_token!, only: %i[show current]
 
   # GET /boards/1 or /boards/1.json
   def show
@@ -24,7 +24,7 @@ class API::ChildBoardsController < API::ApplicationController
   end
 
   def destroy
-    set_child_board
+    @child_board = ChildBoard.find(params[:id])
     @child_board.destroy
     render json: { message: "Board deleted" }
   end

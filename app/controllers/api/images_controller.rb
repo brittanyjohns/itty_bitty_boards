@@ -333,10 +333,6 @@ class API::ImagesController < API::ApplicationController
         image_prompt: image.image_prompt,
         src: image.display_image_url(current_user),
         audio: image.default_audio_url,
-
-      # display_doc: image.display_image(current_user),
-      # src: url_for(image.display_image),
-      # audio: image.audio_files.first ? url_for(image.audio_files.first) : nil,
       }
     end
     render json: @images_with_display_doc

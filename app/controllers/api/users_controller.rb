@@ -3,7 +3,11 @@ class API::UsersController < API::ApplicationController
 
   # GET /users or /users.json
   def index
-    @users = User.all
+    if current_user&.admin?
+      @users = User.all
+    else
+      @users = [current_user]
+    end
   end
 
   # GET /users/1 or /users/1.json
