@@ -5,7 +5,7 @@ class API::BetaRequestsController < API::ApplicationController
 
   # GET /beta_requests or /beta_requests.json
   def index
-    @beta_requests = BetaRequest.all
+    @beta_requests = BetaRequest.all.order(created_at: :desc)
     render json: @beta_requests
   end
 
