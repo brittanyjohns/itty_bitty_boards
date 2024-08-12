@@ -170,9 +170,11 @@ Rails.application.routes.draw do
         post "create_symbol"
         post "set_next_words"
         post "crop"
+        post "clone"
         post "add_doc"
       end
       collection do
+        get "find_by_label"
         get "search"
         post "find_or_create"
         post "generate"

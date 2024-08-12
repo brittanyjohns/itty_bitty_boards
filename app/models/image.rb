@@ -711,4 +711,34 @@ class Image < ApplicationRecord
       update!(part_of_speech: parsed_response)
     end
   end
+
+  def clone_with_docs(cloned_user_id)
+    @source = self
+    cloned_user = User.find(cloned_user_id)
+    unless cloned_user
+      Rails.logger.debug "User not found: #{cloned_user_id} - defaulting to admin"
+      cloned_user_id = User::DEFAULT_ADMIN
+      cloned_user = User.find(cloned_user_id)
+      if !cloned_user
+        Rails.logger.debug "Default admin user not found: #{cloned_user_id}"
+        return
+      end
+    end
+    @docs = @source.docs.for_user(cloned_user)
+    @cloned_image = @source.dup
+    @cloned_image.user_id = cloned_user_id
+    @cloned_image.save
+    @docs.each do |doc|
+      original_file = doc.image
+      new_doc = doc.dup
+      new_doc.documentable = @cloned_image
+      new_doc.save
+      new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type)
+    end
+    if @cloned_image.save
+      @cloned_image
+    else
+      Rails.logger.debug "Error cloning image: #{@cloned_image}"
+    end
+  end
 end

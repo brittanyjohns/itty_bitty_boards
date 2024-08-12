@@ -77,6 +77,9 @@ class API::ImagesController < API::ApplicationController
       text_color: @image.text_color,
       user_image_boards: @user_image_boards,
       board_image: @board_image,
+      user: @image.user,
+      created_at: @image.created_at,
+      updated_at: @image.updated_at,
       display_doc: {
         id: @current_doc&.id,
         label: @image&.label,
@@ -134,6 +137,13 @@ class API::ImagesController < API::ApplicationController
     else
       render json: @image.errors, status: :unprocessable_entity
     end
+  end
+
+  def clone
+    @current_user = current_user
+    @image = Image.find(params[:id])
+    @image_clone = @image.clone_with_docs(@current_user.id)
+    render json: @image_clone
   end
 
   def create
@@ -287,6 +297,19 @@ class API::ImagesController < API::ApplicationController
     end
     @image_with_display_doc = @image.with_display_doc(@current_user)
     render json: @image_with_display_doc
+  end
+
+  def find_by_label
+    @current_user = current_user
+    label = params[:label].downcase
+    @image = Image.find_by(label: label, user_id: @current_user.id)
+    @image = Image.public_img.find_by(label: label) unless @image
+    if @image
+      @image_with_display_doc = @image.with_display_doc(@current_user)
+      render json: @image_with_display_doc
+    else
+      render json: { status: "error", message: "Image not found." }
+    end
   end
 
   def update
