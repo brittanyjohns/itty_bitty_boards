@@ -702,7 +702,7 @@ class Image < ApplicationRecord
   end
 
   def categorize!
-    return if part_of_speech.present? || menu?
+    return if part_of_speech.present? || menu? || Rails.env.test?
     response = OpenAiClient.new(open_ai_opts).categorize_word(label)
     Rails.logger.debug "Response: #{response}"
     parsed_response = response[:content]&.downcase

@@ -67,15 +67,39 @@ class Board < ApplicationRecord
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
 
-  before_save :rearrange_images, if: :number_of_columns_changed?
+  # before_save :rearrange_images, if: :number_of_columns_changed?
 
   after_touch :set_status
   before_create :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
   # after_create :create_name_audio
   after_save :create_name_audio
+  after_initialize :set_screen_sizes, unless: :all_validate_screen_sizes?
+  after_initialize :set_initial_layout, if: :layout_empty?
+
+  def layout_empty?
+    layout.blank?
+  end
+
+  def set_initial_layout
+    self.layout = { "lg" => [], "md" => [], "sm" => [] }
+  end
 
   validates :name, presence: true
+
+  def all_validate_screen_sizes?
+    if small_screen_columns&.zero? || medium_screen_columns&.zero? || large_screen_columns&.zero?
+      errors.add(:screen_sizes, "can't be zero")
+      return false
+    end
+    true
+  end
+
+  def set_screen_sizes
+    self.small_screen_columns = 3
+    self.medium_screen_columns = 8
+    self.large_screen_columns = 12
+  end
 
   def parent_type_menu?
     parent_type == "Menu"
@@ -148,10 +172,10 @@ class Board < ApplicationRecord
     self.save!
   end
 
-  def rearrange_images(layout = nil)
+  def rearrange_images(layout = nil, screen_size = "lg")
     ActiveRecord::Base.logger.silence do
       layout ||= calucate_grid_layout
-      update_grid_layout(layout)
+      update_grid_layout(layout, screen_size)
     end
   end
 
@@ -200,7 +224,6 @@ class Board < ApplicationRecord
   end
 
   def set_voice
-    puts "\n\nSet Board Voice\n\n- #{voice}"
     board_images.each do |bi|
       bi.update!(voice: voice)
     end
@@ -248,8 +271,8 @@ class Board < ApplicationRecord
   #   new_file
   # end
   def create_audio_from_text(text = nil, voice = "echo")
+    return if voice == "none" || Rails.env.test?
     text = text || self.name
-    puts "text: #{text}"
     response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice)
     if response
       # response.stream_to_file("output.aac")
@@ -313,6 +336,7 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_images(viewing_user = nil)
+    Rails.logger.debug "sending layout: #{layout}"
     {
       id: id,
       name: name,
@@ -323,10 +347,13 @@ class Board < ApplicationRecord
       parent_prompt: parent_type === "OpenaiPrompt" ? parent.prompt_text : nil,
       predefined: predefined,
       number_of_columns: number_of_columns,
+      small_screen_columns: small_screen_columns,
+      medium_screen_columns: medium_screen_columns,
+      large_screen_columns: large_screen_columns,
       status: status,
       token_limit: token_limit,
       cost: cost,
-      layout: print_grid_layout,
+      layout: layout,
       audio_url: audio_files.first&.url,
       display_image_url: display_image_url,
       floating_words: words,
@@ -339,7 +366,8 @@ class Board < ApplicationRecord
       images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
         @image = board_image.image
         {
-          id: @image.id,
+          # id: @image.id,
+          id: board_image.id,
           board_image_id: board_image.id,
           label: board_image.label,
           image_prompt: board_image.image_prompt,
@@ -348,7 +376,7 @@ class Board < ApplicationRecord
           next_words: board_image.next_words,
           position: board_image.position,
           src: @image.display_image_url(viewing_user),
-          audio: @image.find_or_create_audio_file_for_voice(board_image.voice).url,
+          audio: @image.find_or_create_audio_file_for_voice(board_image.voice)&.url,
           voice: board_image.voice,
           layout: board_image.layout,
           added_at: board_image.added_at,
@@ -366,9 +394,9 @@ class Board < ApplicationRecord
       id: id,
       name: name,
       layout: layout,
-      # audio_url: audio_files.first&.url,
+      audio_url: audio_files.first&.url,
       position: position,
-      # description: description,
+      description: description,
       parent_type: parent_type,
       predefined: predefined,
       number_of_columns: number_of_columns,
@@ -382,39 +410,163 @@ class Board < ApplicationRecord
     }
   end
 
-  def calucate_grid_layout
+  # def calucate_grid_layout
+  #   position_all_board_images
+  #   grid_layout = []
+  #   row_count = 0
+  #   bi_count = board_images.count
+  #   number_of_columns = self.number_of_columns || self.large_screen_columns
+  #   rows = (bi_count / number_of_columns.to_f).ceil
+  #   ActiveRecord::Base.logger.silence do
+  #     board_images.order(:position).each_slice(number_of_columns) do |row|
+  #       row.each_with_index do |bi, index|
+  #         new_layout = { i: bi.id, x: index, y: row_count, w: 1, h: 1 }
+  #         bi.update!(layout: new_layout)
+  #         grid_layout << new_layout
+  #       end
+  #       row_count += 1
+  #     end
+  #   end
+  #   grid_layout
+  # end
+
+  SCREEN_SIZES = %w[sm md lg].freeze
+
+  def print_grid_layout_for_screen_size(screen_size)
+    layout_to_set = layout[screen_size] || {}
+    puts "layout_to_set: #{layout_to_set}"
+    board_images.order(:position).each_with_index do |bi, i|
+      puts "#{i} - bi.layout: #{bi.position}"
+      if bi.layout[screen_size]
+        puts "setting layout for bi: #{bi.id} => #{bi.layout[screen_size]}"
+        layout_to_set[bi.id] = bi.layout[screen_size]
+      end
+      puts "***layout_to_set: #{layout_to_set}"
+    end
+    layout_to_set = layout_to_set.compact # Remove nil values
+    layout_to_set
+  end
+
+  def print_grid_layout
+    layout_to_set = layout || {}
+    SCREEN_SIZES.each do |screen_size|
+      layout_to_set[screen_size] = print_grid_layout_for_screen_size(screen_size)
+    end
+    layout_to_set
+  end
+
+  # def calucate_grid_layout_for_screen_size(screen_size)
+  #   case screen_size
+  #   when "sm"
+  #     number_of_columns = self.small_screen_columns
+  #   when "md"
+  #     number_of_columns = self.medium_screen_columns
+  #   when "lg"
+  #     number_of_columns = self.large_screen_columns
+  #   else
+  #     number_of_columns = self.large_screen_columns
+  #   end
+  #   layout_to_set = layout[screen_size] || []
+
+  #   Rails.logger.debug "layout_to_set: #{layout_to_set}"
+
+  #   position_all_board_images
+  #   row_count = 0
+  #   bi_count = board_images.count
+  #   rows = (bi_count / number_of_columns.to_f).ceil
+  #   ActiveRecord::Base.logger.silence do
+  #     board_images.order(:position).each_slice(number_of_columns) do |row|
+  #       row.each_with_index do |bi, index|
+  #         # new_layout = { i: bi.id.to_s, x: index, y: row_count, w: 1, h: 1 }
+  #         new_layout = { "i" => bi.id.to_s, "x" => index, "y" => row_count, "w" => 1, "h" => 1 }
+  #         bi.layout[screen_size] = new_layout
+  #         bi.skip_create_voice_audio = true
+  #         save_result = bi.save
+  #         bi.clean_up_layout
+
+  #         layout_to_set << new_layout
+  #       end
+  #       row_count += 1
+  #     end
+  #   end
+  #   self.layout[screen_size] = layout_to_set
+  #   self.board_images.reset
+  #   self.save!
+  # end
+
+  def calucate_grid_layout_for_screen_size(screen_size)
+    case screen_size
+    when "sm"
+      number_of_columns = self.small_screen_columns || 1
+    when "md"
+      number_of_columns = self.medium_screen_columns || 8
+    when "lg"
+      number_of_columns = self.large_screen_columns || 12
+    else
+      number_of_columns = self.large_screen_columns || 12
+    end
+
+    layout_to_set = {} # Initialize as a hash
+
     position_all_board_images
-    grid_layout = []
     row_count = 0
     bi_count = board_images.count
-    number_of_columns = self.number_of_columns || self.large_screen_columns
     rows = (bi_count / number_of_columns.to_f).ceil
     ActiveRecord::Base.logger.silence do
       board_images.order(:position).each_slice(number_of_columns) do |row|
         row.each_with_index do |bi, index|
-          new_layout = { i: bi.id, x: index, y: row_count, w: 1, h: 1 }
-          bi.update!(layout: new_layout)
-          grid_layout << new_layout
+          puts "bi: #{bi.id} - layout: #{bi.layout}"
+          new_layout = { "i" => bi.id.to_s, "x" => index, "y" => row_count, "w" => 1, "h" => 1 }
+          bi.layout[screen_size] = new_layout
+          bi.skip_create_voice_audio = true
+          bi.save
+          bi.clean_up_layout
+          layout_to_set[bi.id] = new_layout # Treat as a hash
         end
         row_count += 1
       end
     end
-    grid_layout
+    Rails.logger.debug "layout_to_set: #{layout_to_set}"
+
+    self.layout[screen_size] = layout_to_set.values # Convert back to an array if needed
+    self.board_images.reset
+    self.save!
   end
 
-  def print_grid_layout
-    layout = {}
-    board_images.order(:position).each do |bi|
-      layout[bi.id] = bi.layout
-    end
-    layout
+  def set_layouts_for_screen_sizes
+    calucate_grid_layout_for_screen_size("sm")
+    calucate_grid_layout_for_screen_size("md")
+    calucate_grid_layout_for_screen_size("lg")
+
+    puts "layout: #{layout}"
   end
 
-  def update_grid_layout(layout)
-    layout.each do |layout_item|
-      bi = board_images.find(layout_item[:i])
-      bi.update!(layout: layout_item)
+  def reset_layouts
+    self.layout = {}
+    self.set_layouts_for_screen_sizes
+    self.save!
+  end
+
+  def update_grid_layout(layout_to_set, screen_size)
+    Rails.logger.debug "layout_to_set: #{layout_to_set}"
+    layout_for_screen_size = self.layout[screen_size] || []
+    layout_to_set.each do |layout_item|
+      id_key = layout_item[:i]
+      puts "layout_item[:i]: #{layout_item[:i]}"
+      puts "layout_item['i']: #{layout_item["i"]}"
+      layout_hash = layout_item.with_indifferent_access
+      id_key = layout_hash[:i] || layout_hash["i"]
+      bi = board_images.find(id_key)
+      Rails.logger.debug "bi: #{bi.inspect}"
+      puts "bi.layout: #{bi.layout}"
+      bi.layout[screen_size] = layout_hash
+      puts "bi.layout: #{bi.layout}"
+      bi.clean_up_layout
+      bi.save!
     end
+    self.layout[screen_size] = layout_to_set
+    self.board_images.reset
+    self.save!
   end
 
   # I forget what this does - Removing it for now
@@ -424,7 +576,7 @@ class Board < ApplicationRecord
   #     # bi.image.update_user_docs
   #     user_docs = UserDoc.where(user_id: user_id, image_id: bi.image_id)
   #     if user_docs.empty?
-  #       puts "Creating user doc for image: #{bi.image_id}"
+  #        "Creating user doc for image: #{bi.image_id}"
   #     end
   #   end
   # end

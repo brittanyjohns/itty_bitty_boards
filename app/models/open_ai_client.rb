@@ -53,6 +53,7 @@ class OpenAiClient
   end
 
   def create_audio_from_text(text, voice = "echo")
+    return if Rails.env.test?
     voice = voice || "echo"
     Rails.logger.debug "FROM OpenAiClient: text: #{text} -- voice: #{voice}"
     begin

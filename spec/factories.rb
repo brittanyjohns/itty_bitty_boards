@@ -25,23 +25,30 @@ FactoryBot.define do
   end
 
   factory(:board) do
-    name { Faker::Lorem.word }
+    name { "testing 123" }
     user
     parent_id { user.id }
     parent_type { "User" }
   end
 
   factory(:team) do
-    name { Faker::Lorem.word }
+    name { "testing 123" }
     created_by { FactoryBot.create(:user) }
   end
 
   factory(:image) do
-    label { Faker::Lorem.word }
+    label { "testing 123" }
+    next_words { ["i", "am", "a", "test"] }
   end
 
   factory(:doc) do
     documentable { FactoryBot.create(:image) }
     user
+  end
+
+  factory(:board_image) do
+    board { FactoryBot.create(:board) }
+    image { FactoryBot.create(:image) }
+    skip_create_voice_audio { true }
   end
 end

@@ -32,6 +32,7 @@ class MenusController < ApplicationController
 
   def rerun
     @menu = Menu.find(params[:id])
+    screen_size = params[:screen_size] || "lg"
     @board = @menu.boards.last
     unless @board
       redirect_to menu_url(@menu), notice: "No board found for this menu."
@@ -45,7 +46,7 @@ class MenusController < ApplicationController
       redirect_to menu_url(@menu), notice: "This menu has already used all of its tokens."
       return
     end
-    @menu.rerun_image_description_job
+    @menu.rerun_image_description_job(@board.id, screen_size)
     redirect_to menu_url(@menu), notice: "Re-running image description job."
   end
 
@@ -53,11 +54,13 @@ class MenusController < ApplicationController
   def create
     @menu = current_user.menus.new(menu_params)
     @menu.user = current_user
+    screen_size = params[:screen_size] || "lg"
 
     respond_to do |format|
       if @menu.save
         @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit)
-        @menu.run_image_description_job(@board.id)
+
+        @menu.run_image_description_job(@board.id, screen_size)
         puts "Menu created and image description job started."
         # format.turbo_stream
         format.html { redirect_to @board, notice: "Menu is generating." }

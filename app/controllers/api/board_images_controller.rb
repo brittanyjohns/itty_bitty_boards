@@ -11,6 +11,15 @@ class API::BoardImagesController < API::ApplicationController
   def show
   end
 
+  def save_layout
+    @board_image = BoardImage.find(params[:id])
+    layout = params[:layout]
+    screen_size = params[:screen_size]
+    puts "\n Layout: #{layout}\n"
+    @board_image.update_layout(layout, screen_size)
+    render json: @board_image
+  end
+
   def move_up
     @board_image = BoardImage.find(params[:id])
     @board_image.move_higher
@@ -65,13 +74,14 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_board_image
-      @board_image = BoardImage.find(params[:id])
-    end
 
-    # Only allow a list of trusted parameters through.
-    def board_image_params
-      params.require(:board_image).permit(:board_id, :image_id, :position, :voice)
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_board_image
+    @board_image = BoardImage.find(params[:id])
+  end
+
+  # Only allow a list of trusted parameters through.
+  def board_image_params
+    params.require(:board_image).permit(:board_id, :image_id, :position, :voice)
+  end
 end

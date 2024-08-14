@@ -8,6 +8,7 @@ module ImageHelper
   end
 
   def save_image(url, user_id = nil, revised_prompt = nil, edited_prompt = nil)
+    return if Rails.env.test?
     begin
       downloaded_image = Down.download(url)
       user_id ||= self.user_id
@@ -23,6 +24,7 @@ module ImageHelper
   end
 
   def create_image(user_id = nil)
+    return if Rails.env.test?
     user_id ||= self.user_id
     response = OpenAiClient.new(open_ai_opts).create_image
     img_url = response[:img_url]
@@ -39,7 +41,10 @@ module ImageHelper
 
   def create_audio_from_text(text = nil, voice = "echo")
     text = text || self.label
-    puts "text: #{text}"
+    if Rails.env.test?
+      puts "Skipping audio creation in test environment"
+      return
+    end
     response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice)
     if response
       # response.stream_to_file("output.aac")
@@ -59,6 +64,7 @@ module ImageHelper
   end
 
   def clarify_image_description(raw)
+    return if Rails.env.test?
     # response = OpenAiClient.new(open_ai_opts).clarify_image_description(raw)
     response, messages_sent = OpenAiClient.new(open_ai_opts).clarify_image_description(raw)
     puts "clarify_image_description response: #{response}"
@@ -88,6 +94,7 @@ module ImageHelper
   end
 
   def get_next_words(label)
+    return if Rails.env.test?
     response = OpenAiClient.new(open_ai_opts).get_next_words(label)
     if response
       next_words = response[:content].gsub("```json", "").gsub("```", "").strip
@@ -109,6 +116,7 @@ module ImageHelper
   end
 
   def create_image_variation(img_url = nil, user = nil)
+    return if Rails.env.test?
     success = false
     img_url ||= main_doc.main_image_on_disk
     img_variation_url = OpenAiClient.new(open_ai_opts).create_image_variation(img_url)
@@ -198,6 +206,7 @@ module ImageHelper
   end
 
   def ask_ai_for_image_prompt
+    return if Rails.env.test?
     message = {
       "role": "user",
       "content": create_image_prompt_text,

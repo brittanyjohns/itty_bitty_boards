@@ -103,10 +103,11 @@ class API::BoardsController < API::ApplicationController
 
   def show
     board = Board.with_artifacts.find(params[:id])
-    if board.print_grid_layout.values.any?(&:empty?)
-      board.calucate_grid_layout
-      board.save!
-    end
+    puts "API::BoardsController#show: #{current_user.inspect}"
+    # if board.print_grid_layout.values.any?(&:empty?)
+    #   board.calucate_grid_layout
+    #   board.save!
+    # end
     @board_with_images = board.api_view_with_images(current_user)
     user_permissions = {
       can_edit: (board.user == current_user || current_user.admin?),
@@ -116,18 +117,34 @@ class API::BoardsController < API::ApplicationController
   end
 
   def save_layout
-    puts "API::BoardsController#reorder_images: #{params.inspect}"
+    puts "API::BoardsController#reorder_images: #{params.inspect}\n\n"
     board = Board.with_artifacts.find(params[:id])
-    layout = params[:layout]
-    layout.each_with_index do |layout_item, index|
-      puts "layout_item[#{index}]: #{layout_item.inspect}"
-      image_id = layout_item["i"]
-      board_image = board.board_images.find_by(image_id: image_id)
-      # board_image = board.board_images.find(layout_item["i"])
-      board_image.layout = layout_item
-      board_image.save!
+    # layout = params[:layout]
+    layout = params[:layout].map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
+
+    screen_size = params[:screen_size] || "lg"
+    Rails.logger.info "LAYOUT:\n#{layout}"
+    Rails.logger.info "SCREEN_SIZE: #{params[:screen_size]}"
+    begin
+      puts "Updating grid layout - begin"
+      board.update_grid_layout(layout, screen_size)
+    rescue => e
+      Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
+      puts "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
     end
+    # board.layout[screen_size] = layout
+    # board.save!
+
+    # layout.each_with_index do |layout_item, index|
+    #   puts "layout_item[#{index}]: #{layout_item.inspect}"
+    #   image_id = layout_item["i"]
+    #   board_image = board.board_images.find_by(image_id: image_id)
+    #   # board_image = board.board_images.find(layout_item["i"])
+    #   board_image.layout = layout_item
+    #   board_image.save!
+    # end
     board.reload
+
     render json: board.api_view_with_images(current_user)
   end
 
@@ -163,7 +180,7 @@ class API::BoardsController < API::ApplicationController
     puts "API::BoardsController#rearrange_images: #{params.inspect}"
 
     # ActiveRecord::Base.logger.silence do
-    @board.rearrange_images(params[:layout])
+    # @board.rearrange_images(params[:layout])
     # if params[:layout].present?
     #   layout = params[:layout]
     #   board.update_grid_layout(layout)
@@ -182,6 +199,11 @@ class API::BoardsController < API::ApplicationController
     @board.user = current_user
     @board.parent_id = user_signed_in? ? current_user.id : params[:parent_id]
     @board.parent_type = params[:parent_type] || "User"
+    @board.predefined = false
+    @board.small_screen_columns = board_params["small_screen_columns"].to_i
+    @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
+    @board.large_screen_columns = board_params["large_screen_columns"].to_i
+    @board.voice = params["voice"]
 
     respond_to do |format|
       if @board.save
@@ -198,7 +220,12 @@ class API::BoardsController < API::ApplicationController
     ActiveRecord::Base.logger.silence do
       @board = Board.with_artifacts.find(params[:id])
     end
+    sleep 3
+    puts "API::BoardsController#update: #{params.inspect}"
     @board.number_of_columns = board_params["number_of_columns"].to_i
+    @board.small_screen_columns = board_params["small_screen_columns"].to_i
+    @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
+    @board.large_screen_columns = board_params["large_screen_columns"].to_i
     @board.voice = params["voice"]
     @board.name = params["name"]
     @board.description = params["description"]
@@ -239,8 +266,11 @@ class API::BoardsController < API::ApplicationController
     if img_saved
       @board.add_image(@image.id) if @board
 
+      screen_size = params[:screen_size] || "lg"
+      @board.calucate_grid_layout_for_screen_size(screen_size)
+      @board.reload
       @board_with_images = @board.api_view_with_images(current_user)
-      @board.calucate_grid_layout
+
       render json: @board_with_images
     else
       render json: img_saved.errors, status: :unprocessable_entity
@@ -270,16 +300,20 @@ class API::BoardsController < API::ApplicationController
     end
 
     new_board_image = @board.board_images.new(image_id: image.id, position: @board.board_images.count)
+    new_board_image.layout = new_board_image.initial_layout
     if new_board_image.save
       next_grid_cell = @board.next_grid_cell
-      new_layout = { i: new_board_image.id, x: next_grid_cell[:x], y: next_grid_cell[:y], w: 1, h: 1 }
-      # new_layout = { i: new_board_image.id, x: 0, y: 0, w: 1, h: 1}
-      new_board_image.update!(layout: new_layout)
+      new_layout = { i: new_board_image.id.to_s, x: next_grid_cell[:x], y: next_grid_cell[:y], w: 1, h: 1 }
+      new_board_image.layout[screen_size] = new_layout
+      new_board_image.save
+      new_board_image.clean_up_layout
     else
       render json: { error: "Error adding image to board: #{new_board_image.errors.full_messages.join(", ")}" }, status: :unprocessable_entity
       return
     end
-    @board.calucate_grid_layout
+    @board.board_images.reset
+    screen_size = params[:screen_size] || "lg"
+    @board.calucate_grid_layout_for_screen_size(screen_size)
     render json: { board: @board, new_board_image: new_board_image, label: image.label }
   end
 
@@ -350,6 +384,10 @@ class API::BoardsController < API::ApplicationController
                                   :description,
                                   :predefined,
                                   :number_of_columns,
+                                  :voice,
+                                  :small_screen_columns,
+                                  :medium_screen_columns,
+                                  :large_screen_columns,
                                   :next_words,
                                   :images,
                                   :layout,

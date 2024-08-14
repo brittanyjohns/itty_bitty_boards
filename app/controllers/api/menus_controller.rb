@@ -53,6 +53,7 @@ class API::MenusController < API::ApplicationController
 
   def rerun
     @menu = Menu.find(params[:id])
+    screen_size = params[:screen_size] || "lg"
     @board = @menu.boards.last
     message = "Re-running image description job."
     unless @board
@@ -74,7 +75,7 @@ class API::MenusController < API::ApplicationController
       # redirect_to menu_url(@menu), notice: "This menu has already used all of its tokens."
       return
     end
-    @menu.rerun_image_description_job
+    @menu.rerun_image_description_job(@board.id, screen_size) if @board
     render json: @menu.api_view(current_user), status: 200
     # redirect_to menu_url(@menu), notice: "Re-running image description job."
   end
@@ -85,6 +86,7 @@ class API::MenusController < API::ApplicationController
     @menu = @current_user.menus.new
     @menu.user = current_user
     menu_name = menu_params[:name]
+    screen_size = params[:screen_size] || "lg"
     @menu.name = menu_name
     @menu.description = menu_params[:description]
     @menu.predefined = menu_params[:predefined] || false
@@ -101,7 +103,7 @@ class API::MenusController < API::ApplicationController
     doc.raw = params[:menu][:description]
     if doc.save
       @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined)
-      @menu.run_image_description_job(@board.id)
+      @menu.run_image_description_job(@board.id, screen_size)
       @menu_with_display_doc = {
         id: @menu.id,
         name: @menu.name,

@@ -59,7 +59,7 @@ class Menu < ApplicationRecord
     new_doc.update!(board_id: board.id)
 
     create_images_from_description(board)
-    board.calucate_grid_layout
+    board.reset_layouts
     puts "Board created from image description: #{board.id}\ndisplay_url: #{new_doc.display_url}\n"
     # board.update_user_docs
     Rails.logger.info "Not updating user docs"
@@ -214,8 +214,8 @@ class Menu < ApplicationRecord
     item_name
   end
 
-  def run_image_description_job(board_id = nil)
-    EnhanceImageDescriptionJob.perform_async(self.id, board_id)
+  def run_image_description_job(board_id = nil, screen_size = nil)
+    EnhanceImageDescriptionJob.perform_async(self.id, board_id, screen_size)
   end
 
   def enhance_image_description(board_id)

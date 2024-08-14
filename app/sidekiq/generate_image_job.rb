@@ -2,19 +2,16 @@ class GenerateImageJob
   include Sidekiq::Job
   sidekiq_options queue: :default, retry: false
 
-  def perform(image_id, user_id = nil, *args)
+  def perform(image_id, user_id = nil, image_prompt = nil, board_id = nil, screen_size = nil)
     image = Image.find(image_id)
     board_image = nil
-    board_id = nil
     image.update(status: "generating") unless image.status == "generating"
-    if args.present?
-      image_prompt = args[0]
+    if image_prompt
       image.temp_prompt = image_prompt
-      board_id = args[1]
-      board_image = BoardImage.find_by(board_id: board_id, image_id: image_id) if board_id
-      if board_image
-        board_image.update(status: "generating")
-      end
+    end
+    board_image = BoardImage.find_by(board_id: board_id, image_id: image_id) if board_id
+    if board_image
+      board_image.update(status: "generating")
     end
     begin
       image.create_image_doc(user_id)
@@ -27,7 +24,7 @@ class GenerateImageJob
       end
       if board_id
         board = Board.find(board_id)
-        board.calucate_grid_layout
+        board.calucate_grid_layout_for_screen_size(screen_size || "lg") if board
       end
     rescue => e
       puts "**** ERROR **** \n#{e.message}\n"

@@ -87,6 +87,7 @@ Rails.application.routes.draw do
     member do
       put "move_up"
       put "move_down"
+      put "save_layout"
     end
   end
   # Order matters here.  users needs to be below the devise_for :users

@@ -19,22 +19,35 @@
 #
 class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
-  belongs_to :board, touch: true
+  belongs_to :board
   belongs_to :image
+  attr_accessor :skip_create_voice_audio
 
   before_save :set_defaults
   before_save :create_voice_audio, if: :voice_changed_and_not_existing?
   after_create :set_next_words
   after_create :save_initial_layout_for_menu
 
+  def initialize(*args)
+    super
+    @skip_create_voice_audio = false
+  end
+
   def set_next_words
-    return if next_words.present?
+    return if next_words.present? || Rails.env.test?
     self.next_words = image.next_words
     save
   end
 
   def image_prompt
     image.image_prompt
+  end
+
+  def clean_up_layout
+    puts "\nclean_up_layout - layout: #{layout}\n\n"
+    new_layout = layout.select { |key, _| ["lg", "md", "sm", "xs", "xxs"].include?(key) }
+    puts "new_layout: #{new_layout}\n"
+    update!(layout: new_layout)
   end
 
   def bg_class
@@ -76,7 +89,11 @@ class BoardImage < ApplicationRecord
   end
 
   def initial_layout
-    { i: id, x: grid_x, y: grid_y, w: 1, h: 1 }
+    { "lg" => { "i" => id.to_s, "x" => grid_x, "y" => grid_y, "w" => 1, "h" => 1 },
+      "md" => { "i" => id.to_s, "x" => grid_x, "y" => grid_y, "w" => 1, "h" => 1 },
+      "sm" => { "i" => id.to_s, "x" => grid_x, "y" => grid_y, "w" => 1, "h" => 1 },
+      "xs" => { "i" => id.to_s, "x" => grid_x, "y" => grid_y, "w" => 1, "h" => 1 },
+      "xxs" => { "i" => id.to_s, "x" => grid_x, "y" => grid_y, "w" => 1, "h" => 1 } }
   end
 
   def calucate_position(x, y)
@@ -84,6 +101,7 @@ class BoardImage < ApplicationRecord
   end
 
   def create_voice_audio
+    return if @skip_create_voice_audio || Rails.env.test?
     puts "\nRunning create_voice_audio\n -- image: #{image.label}\n -- voice: #{voice}\n"
     return if image.existing_voices.include?(voice)
 
@@ -111,12 +129,15 @@ class BoardImage < ApplicationRecord
     if image.image_type == "Menu"
       l = board.rearrange_images
       puts "rearrange_images layout: #{l}"
-    else
-      puts "Not a menu image"
     end
 
     # set_position
     # update!(layout: initial_layout)
+  end
+
+  def update_layout(layout, screen_size)
+    self.layout[screen_size] = layout
+    save
   end
 
   def added_at

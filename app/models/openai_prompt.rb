@@ -24,6 +24,7 @@ class OpenaiPrompt < ApplicationRecord
   include UtilHelper
 
   def send_prompt_to_openai
+    return if Rails.env.test?
     opts = open_ai_opts.merge({ messages: messages })
     response = OpenAiClient.new(opts).create_chat
     if response
@@ -58,6 +59,7 @@ class OpenaiPrompt < ApplicationRecord
   end
 
   def set_scenario_description
+    return if Rails.env.test?
     response = OpenAiClient.new({ messages: [
       { role: "system", content: speech_expert },
       { role: "user", content: describe_scenario_prompt },
@@ -129,7 +131,7 @@ class OpenaiPrompt < ApplicationRecord
     board.description = response
     board.save!
     create_images_from_response(board, response)
-    board.calucate_grid_layout
+    board.reset_layouts
     board.set_display_image
     board.update!(status: "completed")
     board
