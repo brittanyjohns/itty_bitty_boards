@@ -187,6 +187,7 @@ class API::BoardsController < API::ApplicationController
     # else
     #   board.calucate_grid_layout
     # end
+    @board.reset_layouts
     @board.save!
     # end
     render json: @board.api_view_with_images(current_user)
