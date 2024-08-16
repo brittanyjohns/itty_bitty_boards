@@ -21,6 +21,16 @@ class BoardGroup < ApplicationRecord
 
   scope :predefined, -> { where(predefined: true) }
 
+  after_initialize :set_initial_layout, if: :layout_empty?
+
+  def layout_empty?
+    layout.blank?
+  end
+
+  def set_initial_layout
+    self.layout = calucate_grid_layout
+  end
+
   def api_view_with_boards(viewing_user = nil)
     {
       id: id,
