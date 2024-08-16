@@ -127,7 +127,7 @@ class API::BoardsController < API::ApplicationController
     Rails.logger.info "SCREEN_SIZE: #{params[:screen_size]}"
     begin
       puts "Updating grid layout - begin"
-      board.update_grid_layout(screen_size)
+      board.update_grid_layout(layout, screen_size)
     rescue => e
       Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
       puts "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
@@ -165,6 +165,7 @@ class API::BoardsController < API::ApplicationController
 
   def rearrange_images
     @board = Board.find(params[:id])
+    puts "API::BoardsController#rearrange_images: #{params.inspect}"
 
     @board.reset_layouts
     @board.save!

@@ -175,7 +175,7 @@ class Board < ApplicationRecord
   def rearrange_images(layout = nil, screen_size = "lg")
     ActiveRecord::Base.logger.silence do
       layout ||= calculate_grid_layout_for_screen_size(screen_size)
-      update_grid_layout(screen_size)
+      update_grid_layout(layout, screen_size)
     end
   end
 
@@ -480,19 +480,25 @@ class Board < ApplicationRecord
     self.save!
   end
 
-  def update_grid_layout(screen_size)
+  def update_grid_layout(layout_to_set, screen_size)
+    Rails.logger.debug "layout_to_set: #{layout_to_set}"
     layout_for_screen_size = self.layout[screen_size] || []
-    Rails.logger.debug "layout_for_screen_size: #{layout_for_screen_size}"
-    layout_for_screen_size.each do |layout_item|
+    unless layout_to_set.is_a?(Array)
+      Rails.logger.debug "layout_to_set is not an array"
+      return
+    end
+    layout_to_set.each do |layout_item|
       id_key = layout_item[:i]
       layout_hash = layout_item.with_indifferent_access
       id_key = layout_hash[:i] || layout_hash["i"]
-      bi = board_images.find(id_key)
+      bi = board_images.find(id_key) rescue nil
+      Rails.logger.debug "BoardImage not found for id: #{id_key}" if bi.nil?
+      bi = board_images.find_by(image_id: id_key) if bi.nil?
       bi.layout[screen_size] = layout_hash
       bi.clean_up_layout
       bi.save!
     end
-    self.layout[screen_size] = layout_for_screen_size
+    self.layout[screen_size] = layout_to_set
     self.board_images.reset
     self.save!
   end
