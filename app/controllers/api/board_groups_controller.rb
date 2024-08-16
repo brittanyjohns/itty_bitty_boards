@@ -19,9 +19,7 @@ class API::BoardGroupsController < API::ApplicationController
     board_group.number_of_columns = board_group_params[:number_of_columns]
 
     if board_group.save
-      puts "saved board_group: #{board_group.id}"
-      board_group.calucate_grid_layout
-      puts "After calucate_grid_layout: #{board_group}"
+      board_group.calculate_grid_layout
       render json: board_group.api_view_with_boards(current_user)
     else
       render json: { errors: board_group.errors.full_messages }, status: :unprocessable_entity
@@ -30,7 +28,7 @@ class API::BoardGroupsController < API::ApplicationController
 
   def rearrange_boards
     board_group = BoardGroup.find(params[:id])
-    board_group.calucate_grid_layout
+    board_group.calculate_grid_layout
     board_group.save
     render json: board_group.api_view_with_boards(current_user)
   end

@@ -20,7 +20,7 @@ RSpec.describe API::BoardsController, type: :controller do
     it "updates the board layout and returns the updated board with images" do
       expect(Board).to receive(:with_artifacts).and_return(Board)
       expect(Board).to receive(:find).with(board.id.to_s).and_return(board)
-      expect(board).to receive(:update_grid_layout).with(layout, "lg").and_call_original
+      expect(board).to receive(:update_grid_layout).with("lg").and_call_original
 
       post :save_layout, params: { id: board.id, layout: layout, screen_size: "lg" }, as: :json
 

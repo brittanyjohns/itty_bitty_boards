@@ -28,7 +28,7 @@ class BoardGroup < ApplicationRecord
   end
 
   def set_initial_layout
-    self.layout = calucate_grid_layout
+    self.layout = calculate_grid_layout
   end
 
   def api_view_with_boards(viewing_user = nil)
@@ -55,7 +55,7 @@ class BoardGroup < ApplicationRecord
     end
   end
 
-  def calucate_grid_layout
+  def calculate_grid_layout
     position_all_boards
     grid_layout = []
     row_count = 0
@@ -86,7 +86,7 @@ class BoardGroup < ApplicationRecord
   def adjust_layouts
     layouts = boards.pluck(:layout)
     if layouts.any? { |layout| layout.blank? }
-      calucate_grid_layout
+      calculate_grid_layout
     end
   end
 end

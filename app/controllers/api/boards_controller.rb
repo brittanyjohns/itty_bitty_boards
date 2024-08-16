@@ -105,7 +105,7 @@ class API::BoardsController < API::ApplicationController
     board = Board.with_artifacts.find(params[:id])
     puts "API::BoardsController#show: #{current_user.inspect}"
     # if board.print_grid_layout.values.any?(&:empty?)
-    #   board.calucate_grid_layout
+    #   board.calculate_grid_layout
     #   board.save!
     # end
     @board_with_images = board.api_view_with_images(current_user)
@@ -127,7 +127,7 @@ class API::BoardsController < API::ApplicationController
     Rails.logger.info "SCREEN_SIZE: #{params[:screen_size]}"
     begin
       puts "Updating grid layout - begin"
-      board.update_grid_layout(layout, screen_size)
+      board.update_grid_layout(screen_size)
     rescue => e
       Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
       puts "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
@@ -165,19 +165,9 @@ class API::BoardsController < API::ApplicationController
 
   def rearrange_images
     @board = Board.find(params[:id])
-    puts "API::BoardsController#rearrange_images: #{params.inspect}"
 
-    # ActiveRecord::Base.logger.silence do
-    # @board.rearrange_images(params[:layout])
-    # if params[:layout].present?
-    #   layout = params[:layout]
-    #   board.update_grid_layout(layout)
-    # else
-    #   board.calucate_grid_layout
-    # end
     @board.reset_layouts
     @board.save!
-    # end
     render json: @board.api_view_with_images(current_user)
   end
 
@@ -256,7 +246,7 @@ class API::BoardsController < API::ApplicationController
       @board.add_image(@image.id) if @board
 
       screen_size = params[:screen_size] || "lg"
-      @board.calucate_grid_layout_for_screen_size(screen_size)
+      @board.calculate_grid_layout_for_screen_size(screen_size)
       @board.reload
       @board_with_images = @board.api_view_with_images(current_user)
 
@@ -279,6 +269,7 @@ class API::BoardsController < API::ApplicationController
   def associate_image
     puts "API::BoardsController#associate_image: #{params.inspect}"
     image = Image.find(params[:image_id])
+    screen_size = params[:screen_size] || "lg"
     if @board.images.include?(image)
       render json: { error: "Image already associated with board" }, status: :unprocessable_entity
       return
@@ -302,7 +293,7 @@ class API::BoardsController < API::ApplicationController
     end
     @board.board_images.reset
     screen_size = params[:screen_size] || "lg"
-    @board.calucate_grid_layout_for_screen_size(screen_size)
+    @board.calculate_grid_layout_for_screen_size(screen_size)
     render json: { board: @board, new_board_image: new_board_image, label: image.label }
   end
 

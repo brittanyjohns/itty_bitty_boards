@@ -130,7 +130,7 @@ class Board < ApplicationRecord
       predictive_default.add_image(image.id)
       image.save!
     end
-    predictive_default.calucate_grid_layout
+    predictive_default.calculate_grid_layout
     predictive_default.save!
   end
 
@@ -174,8 +174,8 @@ class Board < ApplicationRecord
 
   def rearrange_images(layout = nil, screen_size = "lg")
     ActiveRecord::Base.logger.silence do
-      layout ||= calucate_grid_layout
-      update_grid_layout(layout, screen_size)
+      layout ||= calculate_grid_layout_for_screen_size(screen_size)
+      update_grid_layout(screen_size)
     end
   end
 
@@ -365,8 +365,8 @@ class Board < ApplicationRecord
       images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
         @image = board_image.image
         {
-          # id: @image.id,
-          id: board_image.id,
+          id: @image.id,
+          # id: board_image.id,
           board_image_id: board_image.id,
           label: board_image.label,
           image_prompt: board_image.image_prompt,
@@ -409,26 +409,6 @@ class Board < ApplicationRecord
     }
   end
 
-  # def calucate_grid_layout
-  #   position_all_board_images
-  #   grid_layout = []
-  #   row_count = 0
-  #   bi_count = board_images.count
-  #   number_of_columns = self.number_of_columns || self.large_screen_columns
-  #   rows = (bi_count / number_of_columns.to_f).ceil
-  #   ActiveRecord::Base.logger.silence do
-  #     board_images.order(:position).each_slice(number_of_columns) do |row|
-  #       row.each_with_index do |bi, index|
-  #         new_layout = { i: bi.id, x: index, y: row_count, w: 1, h: 1 }
-  #         bi.update!(layout: new_layout)
-  #         grid_layout << new_layout
-  #       end
-  #       row_count += 1
-  #     end
-  #   end
-  #   grid_layout
-  # end
-
   SCREEN_SIZES = %w[sm md lg].freeze
 
   def print_grid_layout_for_screen_size(screen_size)
@@ -450,46 +430,7 @@ class Board < ApplicationRecord
     layout_to_set
   end
 
-  # def calucate_grid_layout_for_screen_size(screen_size)
-  #   case screen_size
-  #   when "sm"
-  #     number_of_columns = self.small_screen_columns
-  #   when "md"
-  #     number_of_columns = self.medium_screen_columns
-  #   when "lg"
-  #     number_of_columns = self.large_screen_columns
-  #   else
-  #     number_of_columns = self.large_screen_columns
-  #   end
-  #   layout_to_set = layout[screen_size] || []
-
-  #   Rails.logger.debug "layout_to_set: #{layout_to_set}"
-
-  #   position_all_board_images
-  #   row_count = 0
-  #   bi_count = board_images.count
-  #   rows = (bi_count / number_of_columns.to_f).ceil
-  #   ActiveRecord::Base.logger.silence do
-  #     board_images.order(:position).each_slice(number_of_columns) do |row|
-  #       row.each_with_index do |bi, index|
-  #         # new_layout = { i: bi.id.to_s, x: index, y: row_count, w: 1, h: 1 }
-  #         new_layout = { "i" => bi.id.to_s, "x" => index, "y" => row_count, "w" => 1, "h" => 1 }
-  #         bi.layout[screen_size] = new_layout
-  #         bi.skip_create_voice_audio = true
-  #         save_result = bi.save
-  #         bi.clean_up_layout
-
-  #         layout_to_set << new_layout
-  #       end
-  #       row_count += 1
-  #     end
-  #   end
-  #   self.layout[screen_size] = layout_to_set
-  #   self.board_images.reset
-  #   self.save!
-  # end
-
-  def calucate_grid_layout_for_screen_size(screen_size)
+  def calculate_grid_layout_for_screen_size(screen_size)
     case screen_size
     when "sm"
       number_of_columns = self.small_screen_columns || 1
@@ -528,9 +469,9 @@ class Board < ApplicationRecord
   end
 
   def set_layouts_for_screen_sizes
-    calucate_grid_layout_for_screen_size("sm")
-    calucate_grid_layout_for_screen_size("md")
-    calucate_grid_layout_for_screen_size("lg")
+    calculate_grid_layout_for_screen_size("sm")
+    calculate_grid_layout_for_screen_size("md")
+    calculate_grid_layout_for_screen_size("lg")
   end
 
   def reset_layouts
@@ -539,9 +480,10 @@ class Board < ApplicationRecord
     self.save!
   end
 
-  def update_grid_layout(layout_to_set, screen_size)
+  def update_grid_layout(screen_size)
     layout_for_screen_size = self.layout[screen_size] || []
-    layout_to_set.each do |layout_item|
+    Rails.logger.debug "layout_for_screen_size: #{layout_for_screen_size}"
+    layout_for_screen_size.each do |layout_item|
       id_key = layout_item[:i]
       layout_hash = layout_item.with_indifferent_access
       id_key = layout_hash[:i] || layout_hash["i"]
@@ -550,22 +492,10 @@ class Board < ApplicationRecord
       bi.clean_up_layout
       bi.save!
     end
-    self.layout[screen_size] = layout_to_set
+    self.layout[screen_size] = layout_for_screen_size
     self.board_images.reset
     self.save!
   end
-
-  # I forget what this does - Removing it for now
-
-  # def update_user_docs
-  #   board_images.each do |bi|
-  #     # bi.image.update_user_docs
-  #     user_docs = UserDoc.where(user_id: user_id, image_id: bi.image_id)
-  #     if user_docs.empty?
-  #        "Creating user doc for image: #{bi.image_id}"
-  #     end
-  #   end
-  # end
 
   def next_grid_cell
     x = board_images.pluck(:layout).map { |l| l[:x] }.max

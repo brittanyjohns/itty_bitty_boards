@@ -575,10 +575,12 @@ class Image < ApplicationRecord
   end
 
   def userless_doc
-    default_admin = User.includes(:user_docs, :docs).admin.first
-    doc = default_admin&.display_doc_for_image(self)
-    doc = docs.where(user_id: nil).first unless doc
-    doc
+    ActiveRecord::Base.logger.silence do
+      default_admin = User.includes(:user_docs, :docs).admin.first
+      doc = default_admin&.display_doc_for_image(self)
+      doc = docs.where(user_id: nil).first unless doc
+      doc
+    end
   end
 
   def display_label

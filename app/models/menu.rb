@@ -178,7 +178,7 @@ class Menu < ApplicationRecord
     board.add_to_cost(tokens_used) if board
     puts "USED #{tokens_used} tokens for #{images_generated} images"
     # board.position_all_board_images
-    # board.calucate_grid_layout
+    # board.calculate_grid_layout
     board
   end
 

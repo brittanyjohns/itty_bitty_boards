@@ -24,7 +24,7 @@ class GenerateImageJob
       end
       if board_id
         board = Board.find(board_id)
-        board.calucate_grid_layout_for_screen_size(screen_size || "lg") if board
+        board.calculate_grid_layout_for_screen_size(screen_size || "lg") if board
       end
     rescue => e
       puts "**** ERROR **** \n#{e.message}\n"

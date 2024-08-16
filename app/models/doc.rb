@@ -164,10 +164,12 @@ class Doc < ApplicationRecord
   end
 
   def display_url
-    cdn_host = ENV["CDN_HOST"]
-    cdn_url = cdn_host + "/" + image.key if image&.key
-    # cdn_url ? cdn_url : "https://via.placeholder.com/300x300.png?text=#{documentable.label_param}"
-    cdn_url ? cdn_url : nil
+    ActiveRecord::Base.logger.silence do
+      cdn_host = ENV["CDN_HOST"]
+      cdn_url = cdn_host + "/" + image.key if image&.key
+      # cdn_url ? cdn_url : "https://via.placeholder.com/300x300.png?text=#{documentable.label_param}"
+      cdn_url ? cdn_url : nil
+    end
   end
 
   # def self.clean_up_broken_urls
