@@ -132,17 +132,6 @@ class API::BoardsController < API::ApplicationController
       Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
       puts "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
     end
-    # board.layout[screen_size] = layout
-    # board.save!
-
-    # layout.each_with_index do |layout_item, index|
-    #   puts "layout_item[#{index}]: #{layout_item.inspect}"
-    #   image_id = layout_item["i"]
-    #   board_image = board.board_images.find_by(image_id: image_id)
-    #   # board_image = board.board_images.find(layout_item["i"])
-    #   board_image.layout = layout_item
-    #   board_image.save!
-    # end
     board.reload
 
     render json: board.api_view_with_images(current_user)
@@ -152,7 +141,6 @@ class API::BoardsController < API::ApplicationController
     board = Board.with_artifacts.find(params[:id])
     # board = Board.find(params[:id])
     current_page = params[:page] || 1
-    puts "board: #{board.inspect}"
     if params[:query].present? && params[:query] != "null"
       @query = params[:query]
       @images = Image.non_menu_images.with_artifacts.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(current_page)

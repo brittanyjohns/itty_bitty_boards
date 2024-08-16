@@ -316,7 +316,6 @@ class Board < ApplicationRecord
       unless new_board_image.save
         Rails.logger.debug "new_board_image.errors: #{new_board_image.errors.full_messages}"
       end
-      puts "new_board_image: #{new_board_image.inspect}"
     end
     Rails.logger.error "NO IMAGE FOUND" unless new_board_image
     new_board_image
@@ -434,14 +433,10 @@ class Board < ApplicationRecord
 
   def print_grid_layout_for_screen_size(screen_size)
     layout_to_set = layout[screen_size] || {}
-    puts "layout_to_set: #{layout_to_set}"
     board_images.order(:position).each_with_index do |bi, i|
-      puts "#{i} - bi.layout: #{bi.position}"
       if bi.layout[screen_size]
-        puts "setting layout for bi: #{bi.id} => #{bi.layout[screen_size]}"
         layout_to_set[bi.id] = bi.layout[screen_size]
       end
-      puts "***layout_to_set: #{layout_to_set}"
     end
     layout_to_set = layout_to_set.compact # Remove nil values
     layout_to_set
@@ -515,7 +510,6 @@ class Board < ApplicationRecord
     ActiveRecord::Base.logger.silence do
       board_images.order(:position).each_slice(number_of_columns) do |row|
         row.each_with_index do |bi, index|
-          puts "bi: #{bi.id} - layout: #{bi.layout}"
           new_layout = { "i" => bi.id.to_s, "x" => index, "y" => row_count, "w" => 1, "h" => 1 }
           bi.layout[screen_size] = new_layout
           bi.skip_create_voice_audio = true
@@ -537,8 +531,6 @@ class Board < ApplicationRecord
     calucate_grid_layout_for_screen_size("sm")
     calucate_grid_layout_for_screen_size("md")
     calucate_grid_layout_for_screen_size("lg")
-
-    puts "layout: #{layout}"
   end
 
   def reset_layouts
@@ -548,19 +540,13 @@ class Board < ApplicationRecord
   end
 
   def update_grid_layout(layout_to_set, screen_size)
-    Rails.logger.debug "layout_to_set: #{layout_to_set}"
     layout_for_screen_size = self.layout[screen_size] || []
     layout_to_set.each do |layout_item|
       id_key = layout_item[:i]
-      puts "layout_item[:i]: #{layout_item[:i]}"
-      puts "layout_item['i']: #{layout_item["i"]}"
       layout_hash = layout_item.with_indifferent_access
       id_key = layout_hash[:i] || layout_hash["i"]
       bi = board_images.find(id_key)
-      Rails.logger.debug "bi: #{bi.inspect}"
-      puts "bi.layout: #{bi.layout}"
       bi.layout[screen_size] = layout_hash
-      puts "bi.layout: #{bi.layout}"
       bi.clean_up_layout
       bi.save!
     end
