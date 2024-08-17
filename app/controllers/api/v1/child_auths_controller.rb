@@ -10,8 +10,15 @@ module API
 
         if (child = ChildAccount.valid_credentials?(username, password))
           auth_token = child.authentication_token
-          unless child.can_sign_in?
-            render json: { error: "Account not active. Please upgrade to a pro account to continue." }, status: :unauthorized
+
+          unless child.can_sign_in?(current_user)
+            if authenticate_token!
+              if current_user&.admin?
+                render json: { token: auth_token, child: child }
+                return
+              end
+            end
+            # render json: { error: "Account not active. Please upgrade to a pro account to continue." }, status: :unauthorized
             return
           end
           render json: { token: child.authentication_token, child: child }

@@ -69,8 +69,18 @@ class ChildAccount < ApplicationRecord
     puts "UserId: #{user_id} LookUp Key: #{user.child_lookup_key} Username: #{username}"
   end
 
-  def can_sign_in?
-    user.pro? ? true : user.free_trial?
+  def can_sign_in?(user = nil)
+    puts "Checking if user can sign in #{user.inspect}"
+    if user && user.admin?
+      return true
+    end
+    if user
+      user.pro? ? true : user.free_trial?
+    elsif self.user.admin?
+      true
+    else
+      false
+    end
   end
 
   def api_view

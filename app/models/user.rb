@@ -166,6 +166,15 @@ class User < ApplicationRecord
     end
   end
 
+  def voice_settings
+    settings["voice"] = { name: "echo", speed: 1, pitch: 1, volume: 1, rate: 1, language: "en-US" } unless settings["voice"]
+    settings["voice"]
+  end
+
+  def voice
+    voice_settings["name"]
+  end
+
   def is_a_favorite?(doc)
     favorite_docs.include?(doc)
   end
