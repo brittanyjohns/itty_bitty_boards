@@ -14,8 +14,6 @@ class API::ImagesController < API::ApplicationController
       @images = @images.order(label: :asc).page params[:page]
     end
 
-    puts "after query images.count: #{@images.count}"
-
     @images_with_display_doc = @images.map do |image|
       {
         id: image.id,
@@ -83,7 +81,7 @@ class API::ImagesController < API::ApplicationController
         label: @image&.label,
         user_id: @current_doc&.user_id,
         src: @current_doc&.display_url,
-        raw: @current_doc.raw,
+        raw: @current_doc&.raw,
         is_current: true,
         deleted_at: @current_doc&.deleted_at,
       },
@@ -148,7 +146,6 @@ class API::ImagesController < API::ApplicationController
 
   def create
     @current_user = current_user
-    puts "API::ImagesController#create image_params: #{image_params} - params: #{params}"
 
     find_first = image_params[:find_first] == "1"
 
@@ -160,7 +157,6 @@ class API::ImagesController < API::ApplicationController
     else
       @image = Image.create(user: @current_user, label: label, private: true, image_prompt: image_params[:image_prompt], image_type: "User")
     end
-    puts "Image: #{@image.inspect}"
     doc = @image.docs.new(image_params[:docs])
     doc.user = @current_user
     doc.processed = true
@@ -209,7 +205,6 @@ class API::ImagesController < API::ApplicationController
 
   def new
     @image = Image.new
-    puts "API::ImagesController#new image_params: #{image_params} - params: #{params}"
   end
 
   def generate
@@ -219,12 +214,9 @@ class API::ImagesController < API::ApplicationController
       @image = Image.find(params[:id])
     else
       label = image_params[:label].present? ? image_params[:label].downcase : image_params[:image_prompt]
-      puts "Label: #{label}"
       @image = Image.find_or_create_by(label: label, user_id: @current_user.id, private: false, image_prompt: image_params[:image_prompt], image_type: "Generated")
     end
     @image.update(status: "generating")
-    puts "\n\nPARAMS: #{params.inspect}\n\n"
-    # image_prompt = "An image of #{@image.label}."
     image_prompt = image_params[:image_prompt] || image_params["image_prompt"]
     GenerateImageJob.perform_async(@image.id, @current_user.id, image_prompt)
     @current_user.remove_tokens(1)
@@ -270,10 +262,8 @@ class API::ImagesController < API::ApplicationController
     @image = Image.find_by(label: label, user_id: @current_user.id)
     @image = Image.public_img.find_by(label: label) unless @image
     @found_image = @image
-    puts "Found Image: #{@found_image.inspect}"
     @image = Image.create(label: label, private: is_private, user_id: @current_user.id, image_prompt: image_params[:image_prompt], image_type: "User") unless @image
     @board = Board.find_by(id: image_params[:board_id]) if image_params[:board_id].present?
-    puts "Image: #{@image.inspect}"
     @board.add_image(@image.id) if @board
     if @found_image
       notice = "Image found!"
@@ -290,7 +280,6 @@ class API::ImagesController < API::ApplicationController
       end
     end
     if !@found_image || @found_image&.docs.none?
-      puts "New Image or no docs"
       limit = current_user.admin? ? 10 : 5
       GetSymbolsJob.perform_async([@image.id], limit)
       notice += " Creating #{limit} #{"symbol".pluralize(limit)} for image."
@@ -348,8 +337,6 @@ class API::ImagesController < API::ApplicationController
   def predictive
     if params["ids"].present?
       @images = Image.with_artifacts.where(id: params["ids"])
-    else
-      puts "No ids - #{params}"
     end
     @images = @images.order(label: :asc).page params[:page]
     @images_with_display_doc = @images.map do |image|

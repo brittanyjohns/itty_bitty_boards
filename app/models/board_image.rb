@@ -27,7 +27,7 @@ class BoardImage < ApplicationRecord
   before_create :set_defaults
   before_save :create_voice_audio, if: :voice_changed_and_not_existing?
   after_create :set_next_words
-  after_create :save_initial_layout_for_menu
+  after_create :save_initial_layout
 
   def initialize(*args)
     super
@@ -107,6 +107,24 @@ class BoardImage < ApplicationRecord
     image.find_or_create_audio_file_for_voice(voice)
   end
 
+  def api_view
+    {
+      id: id,
+      image_id: image_id,
+      label: label,
+      voice: voice,
+      bg_color: bg_color,
+      text_color: text_color,
+      font_size: font_size,
+      border_color: border_color,
+      layout: layout,
+      status: status,
+      audio_url: audio_url,
+      image_prompt: image_prompt,
+      next_words: next_words,
+    }
+  end
+
   def set_defaults
     self.voice = board.voice
     self.bg_color = image.bg_color
@@ -114,7 +132,6 @@ class BoardImage < ApplicationRecord
     self.font_size = image.font_size
     self.border_color = image.border_color
     self.audio_url = image.audio_url
-    self.layout = initial_layout
   end
 
   def save_defaults
@@ -130,14 +147,13 @@ class BoardImage < ApplicationRecord
     layout[screen_size].slice("x", "y")
   end
 
-  def save_initial_layout_for_menu
+  def save_initial_layout
     if image.image_type == "Menu"
       l = board.rearrange_images
       puts "rearrange_images layout: #{l}"
+    else
+      self.update!(layout: initial_layout)
     end
-
-    # set_position
-    # update!(layout: initial_layout)
   end
 
   def update_layout(layout, screen_size)

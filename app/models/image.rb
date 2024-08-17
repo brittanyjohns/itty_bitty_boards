@@ -66,7 +66,7 @@ class Image < ApplicationRecord
   scope :without_docs, -> { where.missing(:docs) }
   scope :with_docs, -> { where.associated(:docs) }
   scope :generating, -> { where(status: "generating") }
-  scope :with_artifacts, -> { includes({ docs: { image_attachment: :blob }, audio_files_attachments: :blob }) }
+  scope :with_artifacts, -> { includes({ docs: { image_attachment: :blob } }) }
 
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!, unless: :menu?
@@ -279,12 +279,12 @@ class Image < ApplicationRecord
 
   def find_audio_for_voice(voice = "echo")
     filename = "#{label}_#{voice}_#{id}.aac"
-    if audio_files.attachments.includes(:blob).where("active_storage_blobs.filename = ?", filename).any?
-      audio_files.attachments.includes(:blob).find_by("active_storage_blobs.filename = ?", filename)
-    else
-      Rails.logger.debug "No audio file found for #{label} - #{voice}"
-      nil
-    end
+
+    audio_file = ActiveStorage::Attachment.joins(:blob)
+      .where(record: self, name: :audio_files, active_storage_blobs: { filename: filename })
+      .first
+
+    audio_file
   end
 
   def existing_voices

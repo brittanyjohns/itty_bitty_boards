@@ -12,7 +12,6 @@ class API::BoardGroupsController < API::ApplicationController
   end
 
   def create
-    puts "board_group_params: #{board_group_params}"
     board_group = BoardGroup.new(board_group_params)
     board_group.user = current_user
     board_group.predefined = board_group_params[:predefined]

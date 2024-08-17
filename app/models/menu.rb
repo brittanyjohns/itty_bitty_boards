@@ -141,7 +141,7 @@ class Menu < ApplicationRecord
       image.image_prompt += PROMPT_ADDITION
       puts "Image Id: #{image.id}\n"
       new_board_image = board.add_image(image.id)
-      new_board_image&.save_initial_layout_for_menu if new_board_image
+      new_board_image&.save_initial_layout if new_board_image
       images << image
       new_board_images << new_board_image if new_board_image
     end

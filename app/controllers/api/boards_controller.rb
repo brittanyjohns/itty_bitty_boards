@@ -268,7 +268,6 @@ class API::BoardsController < API::ApplicationController
   end
 
   def associate_image
-    puts "API::BoardsController#associate_image: #{params.inspect}"
     image = Image.find(params[:image_id])
     screen_size = params[:screen_size] || "lg"
     if @board.images.include?(image)
@@ -283,21 +282,11 @@ class API::BoardsController < API::ApplicationController
     new_board_image = @board.board_images.new(image_id: image.id, position: @board.board_images.count)
     new_board_image.layout = new_board_image.initial_layout
     if new_board_image.save
-      next_grid_cell = @board.next_grid_cell
-      puts "NEXT GRID CELL: #{next_grid_cell}"
-      puts "NEW BOARD IMAGE: #{new_board_image.inspect}"
-      # new_layout = { i: new_board_image.id.to_s, x: next_grid_cell[:x], y: next_grid_cell[:y], w: 1, h: 1 }
-      # new_board_image.layout[screen_size] = new_layout
-      # new_board_image.save
-      # new_board_image.clean_up_layout
+      @board.board_images.reset
+      render json: { board: @board, new_board_image: new_board_image, label: image.label }
     else
       render json: { error: "Error adding image to board: #{new_board_image.errors.full_messages.join(", ")}" }, status: :unprocessable_entity
-      return
     end
-    @board.board_images.reset
-    # screen_size = params[:screen_size] || "lg"
-    # @board.calculate_grid_layout_for_screen_size(screen_size)
-    render json: { board: @board, new_board_image: new_board_image, label: image.label }
   end
 
   def remove_image

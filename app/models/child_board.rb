@@ -46,7 +46,9 @@ class ChildBoard < ApplicationRecord
       status: status,
       settings: settings,
       display_image_url: display_image_url,
-      images: board.images.map(&:api_view),
+      # images: board.images.map(&:api_view),
+      images: board.board_images.map(&:api_view),
+
       layout: board.layout,
     }
   end
