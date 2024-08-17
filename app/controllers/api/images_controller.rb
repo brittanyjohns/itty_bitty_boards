@@ -84,7 +84,8 @@ class API::ImagesController < API::ApplicationController
         id: @current_doc&.id,
         label: @image&.label,
         user_id: @current_doc&.user_id,
-        src: @image.display_image_url(@current_user),
+        src: @current_doc&.display_url,
+        raw: @current_doc.raw,
         is_current: true,
         deleted_at: @current_doc&.deleted_at,
       },
@@ -99,6 +100,7 @@ class API::ImagesController < API::ApplicationController
           label: @image.label,
           user_id: doc.user_id,
           src: doc.display_url,
+          raw: doc.raw,
           is_current: doc.id == @current_doc_id,
         }
       end,

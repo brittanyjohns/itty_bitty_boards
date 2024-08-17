@@ -504,8 +504,10 @@ class Board < ApplicationRecord
   end
 
   def next_grid_cell
+    puts "Next grid cell"
     x = board_images.pluck(:layout).map { |l| l[:x] }.max
     y = board_images.pluck(:layout).map { |l| l[:y] }.max
+    puts "x: #{x}, y: #{y}"
     x = 0 if x.nil?
     y = 0 if y.nil?
     x += 1

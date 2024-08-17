@@ -59,9 +59,9 @@ class BoardGroup < ApplicationRecord
     position_all_boards
     grid_layout = []
     row_count = 0
-    bi_count = boards.count
+    boards_count = boards.count
     number_of_columns = self.number_of_columns || 6
-    rows = (bi_count / number_of_columns.to_f).ceil
+    rows = (boards_count / number_of_columns.to_f).ceil
     ActiveRecord::Base.logger.silence do
       boards.order(:position).each_slice(number_of_columns) do |row|
         row.each_with_index do |bi, index|
