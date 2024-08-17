@@ -57,9 +57,9 @@ class Board < ApplicationRecord
           includes(
             images: [
               :docs,
-              :audio_files_attachments,
-              :audio_files_blobs,
-              { user: { user_docs: :doc } },
+            # :audio_files_attachments,
+            # :audio_files_blobs,
+            # { user: { user_docs: :doc } },
             ],
           )
         }
@@ -335,7 +335,6 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_images(viewing_user = nil)
-    Rails.logger.debug "sending layout: #{layout}"
     {
       id: id,
       name: name,
@@ -353,7 +352,7 @@ class Board < ApplicationRecord
       token_limit: token_limit,
       cost: cost,
       layout: layout,
-      audio_url: audio_files.first&.url,
+      audio_url: audio_url,
       display_image_url: display_image_url,
       floating_words: words,
       user_id: user_id,
@@ -361,8 +360,10 @@ class Board < ApplicationRecord
       created_at: created_at,
       updated_at: updated_at,
       has_generating_images: has_generating_images?,
-      current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
-      images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
+      current_user_teams: [],
+      # current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
+      # images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
+      images: board_images.includes(image: :docs).map do |board_image|
         @image = board_image.image
         {
           id: @image.id,
@@ -375,7 +376,7 @@ class Board < ApplicationRecord
           next_words: board_image.next_words,
           position: board_image.position,
           src: @image.display_image_url(viewing_user),
-          audio: @image.find_or_create_audio_file_for_voice(board_image.voice)&.url,
+          audio: board_image.audio_url,
           voice: board_image.voice,
           layout: board_image.layout,
           added_at: board_image.added_at,
@@ -393,7 +394,7 @@ class Board < ApplicationRecord
       id: id,
       name: name,
       layout: layout,
-      audio_url: audio_files.first&.url,
+      audio_url: audio_url,
       position: position,
       description: description,
       parent_type: parent_type,
@@ -430,7 +431,7 @@ class Board < ApplicationRecord
     layout_to_set
   end
 
-  def calculate_grid_layout_for_screen_size(screen_size)
+  def calculate_grid_layout_for_screen_size(screen_size, reset_layouts = false)
     case screen_size
     when "sm"
       number_of_columns = self.small_screen_columns || 1
@@ -451,7 +452,14 @@ class Board < ApplicationRecord
     ActiveRecord::Base.logger.silence do
       board_images.order(:position).each_slice(number_of_columns) do |row|
         row.each_with_index do |bi, index|
-          new_layout = { "i" => bi.id.to_s, "x" => index, "y" => row_count, "w" => 1, "h" => 1 }
+          new_layout = {}
+          if bi.layout[screen_size] && reset_layouts == false
+            new_layout = bi.layout[screen_size]
+          else
+            # new_layout = { "i" => bi.id.to_s, "x" => index, "y" => row_count, "w" => 1, "h" => 1 }
+            new_layout = { "i" => bi.id.to_s, "x" => index, "y" => row_count, "w" => 1, "h" => 1 }
+          end
+
           bi.layout[screen_size] = new_layout
           bi.skip_create_voice_audio = true
           bi.save
@@ -469,9 +477,9 @@ class Board < ApplicationRecord
   end
 
   def set_layouts_for_screen_sizes
-    calculate_grid_layout_for_screen_size("sm")
-    calculate_grid_layout_for_screen_size("md")
-    calculate_grid_layout_for_screen_size("lg")
+    calculate_grid_layout_for_screen_size("sm", true)
+    calculate_grid_layout_for_screen_size("md", true)
+    calculate_grid_layout_for_screen_size("lg", true)
   end
 
   def reset_layouts
@@ -533,7 +541,7 @@ class Board < ApplicationRecord
           next_words: image.next_words,
           display_doc: image.display_image,
           src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-          audio: image.audio_files.first&.url,
+          audio: image.audio_url,
         }
       end,
     }

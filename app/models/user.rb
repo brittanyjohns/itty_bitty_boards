@@ -160,9 +160,9 @@ class User < ApplicationRecord
     Doc.with_attached_image.joins(:user_docs).where(user_docs: { user_id: id })
   end
 
-  def display_doc_for_image(image)
+  def display_doc_for_image(image_id)
     ActiveRecord::Base.logger.silence do
-      user_docs.includes(:doc).find_by(image_id: image.id)&.doc
+      user_docs.includes(:doc).find_by(image_id: image_id)&.doc
     end
   end
 

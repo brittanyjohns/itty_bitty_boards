@@ -24,6 +24,7 @@
 #  font_size           :integer
 #  border_color        :string
 #  is_private          :boolean          default(FALSE)
+#  audio_url           :string
 #
 class Image < ApplicationRecord
   paginates_per 50
@@ -251,27 +252,38 @@ class Image < ApplicationRecord
     audio_files.blank?
   end
 
-  def find_or_create_audio_file_for_voice_og(voice = "echo")
-    existing = audio_files.joins(:blob).where("active_storage_blobs.filename = ?", "#{label}_#{voice}_#{id}.aac").first
-    if existing
-      existing
+  # def find_or_create_audio_file_for_voice(voice = "echo")
+  #   filename = "#{label}_#{voice}_#{id}.aac"
+  #   if audio_files.attachments.includes(:blob).where("active_storage_blobs.filename = ?", filename).any?
+  #     audio_files.attachments.includes(:blob).find_by("active_storage_blobs.filename = ?", filename)
+  #   else
+  #     Rails.logger.debug "#{label} ==> Creating audio file for voice: #{voice}"
+  #     create_audio_from_text(label, voice)
+  #   end
+  # end
+
+  def find_or_create_audio_file_for_voice(voice = "echo")
+    filename = "#{label}_#{voice}_#{id}.aac"
+
+    audio_file = ActiveStorage::Attachment.joins(:blob)
+      .where(record: self, name: :audio_files, active_storage_blobs: { filename: filename })
+      .first
+
+    if audio_file.present?
+      audio_file
     else
       Rails.logger.debug "#{label} ==> Creating audio file for voice: #{voice}"
       create_audio_from_text(label, voice)
     end
   end
 
-  def find_or_create_audio_file_for_voice(voice = "echo")
+  def find_audio_for_voice(voice = "echo")
     filename = "#{label}_#{voice}_#{id}.aac"
-    existing = audio_files.attachments.includes(:blob).find do |attachment|
-      attachment.blob.filename.to_s == filename
-    end
-
-    if existing
-      existing
+    if audio_files.attachments.includes(:blob).where("active_storage_blobs.filename = ?", filename).any?
+      audio_files.attachments.includes(:blob).find_by("active_storage_blobs.filename = ?", filename)
     else
-      Rails.logger.debug "#{label} ==> Creating audio file for voice: #{voice}"
-      create_audio_from_text(label, voice)
+      Rails.logger.debug "No audio file found for #{label} - #{voice}"
+      nil
     end
   end
 
@@ -569,15 +581,16 @@ class Image < ApplicationRecord
 
   def display_doc(viewing_user = nil)
     # Attempt to find a doc for a viewing user
-    doc = viewing_user&.display_doc_for_image(self)
+    doc = viewing_user&.display_doc_for_image(id)
     # Return the doc if it exists, else find a userless doc
-    doc || userless_doc
+    # doc || userless_doc
+    doc
   end
 
   def userless_doc
     ActiveRecord::Base.logger.silence do
       default_admin = User.includes(:user_docs, :docs).admin.first
-      doc = default_admin&.display_doc_for_image(self)
+      doc = default_admin&.display_doc_for_image(id)
       doc = docs.where(user_id: nil).first unless doc
       doc
     end
@@ -663,7 +676,7 @@ class Image < ApplicationRecord
       bg_color: bg_class,
       text_color: text_color,
       src: display_image(viewing_user) ? display_image(viewing_user).url : "https://via.placeholder.com/300x300.png?text=#{label_param}",
-      audio: audio_files.first&.url,
+      audio: audio_url,
       status: status,
       error: error,
       open_symbol_status: open_symbol_status,

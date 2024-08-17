@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_08_11_170633) do
+ActiveRecord::Schema[7.1].define(version: 2024_08_17_200744) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -89,6 +89,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_11_170633) do
     t.string "border_color"
     t.jsonb "layout", default: {}
     t.string "status", default: "pending"
+    t.string "audio_url"
     t.index ["board_id"], name: "index_board_images_on_board_id"
     t.index ["image_id"], name: "index_board_images_on_image_id"
   end
@@ -196,6 +197,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_11_170633) do
     t.integer "font_size"
     t.string "border_color"
     t.boolean "is_private", default: false
+    t.string "audio_url"
   end
 
   create_table "menus", force: :cascade do |t|

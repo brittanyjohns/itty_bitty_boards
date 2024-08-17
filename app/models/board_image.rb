@@ -16,6 +16,7 @@
 #  border_color :string
 #  layout       :jsonb
 #  status       :string           default("pending")
+#  audio_url    :string
 #
 class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
@@ -23,7 +24,7 @@ class BoardImage < ApplicationRecord
   belongs_to :image
   attr_accessor :skip_create_voice_audio
 
-  before_save :set_defaults
+  before_create :set_defaults
   before_save :create_voice_audio, if: :voice_changed_and_not_existing?
   after_create :set_next_words
   after_create :save_initial_layout_for_menu
@@ -44,9 +45,7 @@ class BoardImage < ApplicationRecord
   end
 
   def clean_up_layout
-    puts "\nclean_up_layout - layout: #{layout}\n\n"
     new_layout = layout.select { |key, _| ["lg", "md", "sm", "xs", "xxs"].include?(key) }
-    puts "new_layout: #{new_layout}\n"
     update!(layout: new_layout)
   end
 
@@ -114,6 +113,8 @@ class BoardImage < ApplicationRecord
     self.text_color = image.text_color
     self.font_size = image.font_size
     self.border_color = image.border_color
+    self.audio_url = image.audio_url
+    self.layout = initial_layout
   end
 
   def save_defaults
@@ -123,6 +124,10 @@ class BoardImage < ApplicationRecord
 
   def set_position
     self.position = board_images.count + 1
+  end
+
+  def get_coordinates_for_screen_size(screen_size)
+    layout[screen_size].slice("x", "y")
   end
 
   def save_initial_layout_for_menu

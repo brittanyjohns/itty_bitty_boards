@@ -24,6 +24,7 @@
 #  font_size           :integer
 #  border_color        :string
 #  is_private          :boolean          default(FALSE)
+#  audio_url           :string
 #
 require "rails_helper"
 

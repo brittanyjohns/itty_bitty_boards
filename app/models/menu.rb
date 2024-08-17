@@ -10,6 +10,10 @@
 #  updated_at  :datetime         not null
 #  token_limit :integer          default(0)
 #  predefined  :boolean          default(FALSE)
+#  raw         :text
+#  item_list   :string           default([]), is an Array
+#  prompt_sent :text
+#  prompt_used :text
 #
 class Menu < ApplicationRecord
   belongs_to :user

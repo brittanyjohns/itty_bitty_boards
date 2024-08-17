@@ -56,7 +56,7 @@ class API::BoardsController < API::ApplicationController
             next_words: board_image.next_words,
             position: board_image.position,
             src: board_image.image.display_image_url(current_user),
-            audio: board_image.image.default_audio_url,
+            audio: board_image.audio_url,
           }
         end,
       }
@@ -247,7 +247,7 @@ class API::BoardsController < API::ApplicationController
       @board.add_image(@image.id) if @board
 
       screen_size = params[:screen_size] || "lg"
-      @board.calculate_grid_layout_for_screen_size(screen_size)
+      # @board.calculate_grid_layout_for_screen_size(screen_size)
       @board.reload
       @board_with_images = @board.api_view_with_images(current_user)
 
@@ -284,17 +284,19 @@ class API::BoardsController < API::ApplicationController
     new_board_image.layout = new_board_image.initial_layout
     if new_board_image.save
       next_grid_cell = @board.next_grid_cell
-      new_layout = { i: new_board_image.id.to_s, x: next_grid_cell[:x], y: next_grid_cell[:y], w: 1, h: 1 }
-      new_board_image.layout[screen_size] = new_layout
-      new_board_image.save
-      new_board_image.clean_up_layout
+      puts "NEXT GRID CELL: #{next_grid_cell}"
+      puts "NEW BOARD IMAGE: #{new_board_image.inspect}"
+      # new_layout = { i: new_board_image.id.to_s, x: next_grid_cell[:x], y: next_grid_cell[:y], w: 1, h: 1 }
+      # new_board_image.layout[screen_size] = new_layout
+      # new_board_image.save
+      # new_board_image.clean_up_layout
     else
       render json: { error: "Error adding image to board: #{new_board_image.errors.full_messages.join(", ")}" }, status: :unprocessable_entity
       return
     end
     @board.board_images.reset
-    screen_size = params[:screen_size] || "lg"
-    @board.calculate_grid_layout_for_screen_size(screen_size)
+    # screen_size = params[:screen_size] || "lg"
+    # @board.calculate_grid_layout_for_screen_size(screen_size)
     render json: { board: @board, new_board_image: new_board_image, label: image.label }
   end
 

@@ -57,9 +57,7 @@ class API::ImagesController < API::ApplicationController
     @current_user = current_user
 
     @image = Image.with_artifacts.find(params[:id])
-    puts "PARAMS: #{params.inspect}"
     @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
-    puts "==>>>> Board: #{@board.inspect}"
 
     @current_doc = @image.display_doc(current_user)
     @current_doc_id = @current_doc.id if @current_doc
