@@ -258,9 +258,14 @@ class Image < ApplicationRecord
 
   def remove_audio_files_before_may_2024
     date = Date.new(2024, 5, 1)
+    removed_count = 0
     audio_files.each do |audio|
-      audio.purge if audio.created_at < date
+      if audio.created_at < date
+        audio.purge
+        removed_count += 1
+      end
     end
+    puts "Removed #{removed_count} audio files"
   end
 
   def self.remove_old_audio
