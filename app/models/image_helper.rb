@@ -60,7 +60,7 @@ module ImageHelper
   end
 
   def save_audio_file(audio_file, voice)
-    self.audio_files.attach(io: audio_file, filename: "#{self.label}_#{voice}_#{self.id}.aac")
+    self.audio_files.attach(io: audio_file, filename: "#{self.label}_#{voice}.aac")
   end
 
   def clarify_image_description(raw)

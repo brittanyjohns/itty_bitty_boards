@@ -296,7 +296,7 @@ class Board < ApplicationRecord
   end
 
   def save_audio_file(audio_file, voice, text)
-    self.audio_files.attach(io: audio_file, filename: "#{self.id}_#{voice}_#{text}.aac")
+    self.audio_files.attach(io: audio_file, filename: "#{text}_#{voice}.aac")
   end
 
   def image_docs

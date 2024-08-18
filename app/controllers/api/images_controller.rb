@@ -76,6 +76,7 @@ class API::ImagesController < API::ApplicationController
       user: @image.user,
       created_at: @image.created_at,
       updated_at: @image.updated_at,
+      audio_files: @image.audio_files_for_api,
       display_doc: {
         id: @current_doc&.id,
         label: @image&.label,
