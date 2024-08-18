@@ -99,10 +99,16 @@ class BoardImage < ApplicationRecord
     x + (y * board.number_of_columns) + 1
   end
 
-  def create_voice_audio
+  def create_voice_audio(voice = nil)
+    voice ||= self.voice
     return if @skip_create_voice_audio || Rails.env.test?
     puts "\nRunning create_voice_audio\n -- image: #{image.label}\n -- voice: #{voice}\n"
-    return if image.existing_voices.include?(voice)
+    label_voice = "#{label}_#{voice}"
+    puts "Existing voices: #{image.existing_voices}"
+    puts "\nlabel_voice: #{label_voice}\n"
+    already_has_audio_file = image.existing_audio_files.include?(label_voice)
+    puts "\nalready_has_audio_file: #{voice}\n" if already_has_audio_file
+    return if already_has_audio_file
 
     image.find_or_create_audio_file_for_voice(voice)
   end

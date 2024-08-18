@@ -38,6 +38,7 @@ class Board < ApplicationRecord
   has_many_attached :audio_files
   has_many :board_group_boards, dependent: :destroy
   has_many :board_groups, through: :board_group_boards
+  has_many :child_boards, dependent: :destroy
 
   scope :for_user, ->(user) { where(user: user) }
   scope :menus, -> { where(parent_type: "Menu") }
@@ -306,6 +307,22 @@ class Board < ApplicationRecord
   def image_docs_for_user(user = nil)
     user ||= self.user
     image_docs.select { |doc| doc.user_id == user.id }
+  end
+
+  def create_audio_files_for_images
+    board_images.each do |bi|
+      bi.create_voice_audio
+    end
+  end
+
+  def self.create_audio_files_for_images(scope = nil)
+    scope ||= self
+    scope.
+      includes(:board_images).find_each do |board|
+      board.board_images.each do |bi|
+        bi.create_voice_audio
+      end
+    end
   end
 
   def add_image(image_id)

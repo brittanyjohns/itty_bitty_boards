@@ -259,6 +259,8 @@ class Image < ApplicationRecord
   def find_or_create_audio_file_for_voice(voice = "echo")
     filename = "#{label}_#{voice}.aac"
 
+    puts "Finding audio  - filename: #{filename}"
+
     audio_file = ActiveStorage::Attachment.joins(:blob)
       .where(record: self, name: :audio_files, active_storage_blobs: { filename: filename })
       .first
@@ -283,11 +285,23 @@ class Image < ApplicationRecord
 
   def existing_voices
     # Ex: filename = scared_nova_22.aac
-    audio_files.map { |audio| voice_from_filename(audio.blob.filename.to_s) }
+    audio_files.map { |audio| label_voice_from_filename(audio.blob.filename.to_s) }
+  end
+
+  def existing_audio_files
+    audio_files.map { |audio| audio.blob.filename.to_s }
   end
 
   def voice_from_filename(filename)
     filename.split("_")[1]
+  end
+
+  def label_from_filename(filename)
+    filename.split("_")[0]
+  end
+
+  def label_voice_from_filename(filename)
+    filename.split("_")[0..1].join("_")
   end
 
   def self.voices
