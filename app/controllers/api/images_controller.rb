@@ -410,8 +410,7 @@ class API::ImagesController < API::ApplicationController
     unless params[:audio_file_id].present?
       render json: { status: "error", message: "No audio file id provided." }
       return
-    endgit add .
-    git c
+    end
     @audio_file = @image.audio_files.find(params[:audio_file_id])
     @audio_file.purge
     render json: { status: "ok" }
