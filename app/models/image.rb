@@ -624,12 +624,6 @@ class Image < ApplicationRecord
     doc ? doc.display_url : nil
   end
 
-  # def default_audio_url
-  #   audio_file = audio_files.first
-  #   cdn_url = ENV["CDN_HOST"] + "/" + audio_file.key if audio_file
-  #   audio_file ? cdn_url : nil
-  # end
-
   def default_audio_url
     audio_file = audio_files_attachments.first&.blob
     cdn_url = "#{ENV["CDN_HOST"]}/#{audio_file.key}" if audio_file
@@ -642,12 +636,6 @@ class Image < ApplicationRecord
     Rails.logger.debug "Voices needed: #{voices_needed}"
     voices_needed = voices_needed - [voice]
     Rails.logger.debug "Missing voices: #{missing_voices}"
-    # if voices_needed.any?
-    #   Rails.logger.debug "Starting generate audio job for missing voices: #{voices_needed}"
-    #   voices_needed.each do |v|
-    #     Image.start_generate_audio_job([id], v)
-    #   end
-    # end
   end
 
   def no_user_or_admin?

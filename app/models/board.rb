@@ -267,25 +267,11 @@ class Board < ApplicationRecord
     end
   end
 
-  # def create_audio_from_text(text, voice = "echo")
-  #   response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice)
-  #   new_file = nil
-  #   if response
-  #     audio_file = File.open("output.aac", "wb") { |f| f.write(response) }
-  #     new_file = save_audio_file(audio_file, voice, text)
-  #     File.delete("output.aac") if File.exist?("output.aac")
-  #   else
-  #     Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"
-  #   end
-  #   new_file
-  # end
   def create_audio_from_text(text = nil, voice = "echo")
     return if voice == "none" || Rails.env.test?
     text = text || self.name
     response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice)
     if response
-      # response.stream_to_file("output.aac")
-      # audio_file = File.binwrite("audio.mp3", response)
       File.open("output.aac", "wb") { |f| f.write(response) }
       audio_file = File.open("output.aac")
       save_audio_file(audio_file, voice, text)
