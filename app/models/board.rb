@@ -297,7 +297,16 @@ class Board < ApplicationRecord
   end
 
   def save_audio_file(audio_file, voice, text)
+    raw_text = text || self.name
+    text = raw_text.downcase.gsub(" ", "_")
     self.audio_files.attach(io: audio_file, filename: "#{text}_#{voice}.aac")
+  end
+
+  def rename_audio_files
+    board_images.includes(:image).each do |bi|
+      bi.image.destroy_audio_files_without_voices
+      bi.image.rename_audio_files
+    end
   end
 
   def image_docs

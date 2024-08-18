@@ -257,9 +257,11 @@ class Image < ApplicationRecord
   end
 
   def find_or_create_audio_file_for_voice(voice = "echo")
-    filename = "#{label}_#{voice}.aac"
+    filename = "#{label_for_filename}_#{voice}.aac"
 
     puts "Finding audio  - filename: #{filename}"
+    puts "Existing voices: #{existing_voices}"
+    puts "Existing audio files: #{existing_audio_files}"
 
     audio_file = ActiveStorage::Attachment.joins(:blob)
       .where(record: self, name: :audio_files, active_storage_blobs: { filename: filename })
@@ -273,8 +275,12 @@ class Image < ApplicationRecord
     end
   end
 
+  def label_for_filename
+    label.parameterize
+  end
+
   def find_audio_for_voice(voice = "echo")
-    filename = "#{label}_#{voice}.aac"
+    filename = "#{label_for_filename}_#{voice}.aac"
 
     audio_file = ActiveStorage::Attachment.joins(:blob)
       .where(record: self, name: :audio_files, active_storage_blobs: { filename: filename })
@@ -285,15 +291,54 @@ class Image < ApplicationRecord
 
   def existing_voices
     # Ex: filename = scared_nova_22.aac
-    audio_files.map { |audio| label_voice_from_filename(audio.blob.filename.to_s) }
+    audio_files.map { |audio| voice_from_filename(audio.blob.filename.to_s) }.uniq.compact
   end
 
   def existing_audio_files
     audio_files.map { |audio| audio.blob.filename.to_s }
   end
 
+  def rename_audio_files
+    audio_files.each do |audio|
+      voice = voice_from_filename(audio.blob.filename.to_s)
+      unless Image.voices.include?(voice)
+        Rails.logger.debug "Invalid voice: #{voice} - #{audio.blob.filename}"
+        next
+      end
+      new_filename = "#{label_for_filename}_#{voice}.aac"
+      audio.blob.update!(filename: new_filename)
+    end
+  end
+
+  def destroy_audio_files_without_voices
+    audio_files.each do |audio|
+      voice = voice_from_filename(audio.blob.filename.to_s)
+      unless Image.voices.include?(voice)
+        Rails.logger.debug "Destroying audio file without voice: #{voice} - #{audio.blob.filename}"
+        audio.purge
+      end
+    end
+  end
+
+  def self.rename_audio_files(scope = nil, limit = 2000)
+    count = 0
+    scope ||= Image
+    scope.find_each do |image|
+      image.destroy_audio_files_without_voices
+      image.reload
+      image.rename_audio_files
+
+      count += 1
+      if count >= limit
+        puts "Limit reached: #{limit}"
+        break
+      end
+    end
+  end
+
   def voice_from_filename(filename)
-    filename.split("_")[1]
+    # Ex: scared_nova.aac
+    filename.split("_")[1].split(".")[0]
   end
 
   def label_from_filename(filename)

@@ -41,6 +41,7 @@ module ImageHelper
 
   def create_audio_from_text(text = nil, voice = "echo")
     text = text || self.label
+    new_audio_file = nil
     if Rails.env.test?
       puts "Skipping audio creation in test environment"
       return
@@ -51,16 +52,21 @@ module ImageHelper
       # audio_file = File.binwrite("audio.mp3", response)
       File.open("output.aac", "wb") { |f| f.write(response) }
       audio_file = File.open("output.aac")
-      save_audio_file(audio_file, voice)
+      new_audio_file = save_audio_file(audio_file, voice)
       file_exists = File.exist?("output.aac")
       File.delete("output.aac") if file_exists
     else
       Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"
     end
+    puts "new_audio_file: #{new_audio_file.class} - #{new_audio_file&.inspect}"
+    new_audio_file
   end
 
   def save_audio_file(audio_file, voice)
-    self.audio_files.attach(io: audio_file, filename: "#{self.label}_#{voice}.aac")
+    self.audio_files.attach(io: audio_file, filename: "#{self.label_for_filename}_#{voice}.aac")
+    new_audio_file = self.audio_files.last
+    puts "save_audio_file = new_audio_file: #{new_audio_file.class} - #{new_audio_file&.inspect}"
+    new_audio_file
   end
 
   def clarify_image_description(raw)
