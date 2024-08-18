@@ -351,7 +351,7 @@ class Image < ApplicationRecord
 
   def self.sample_audio_files
     arry = []
-    Image.with_artifacts.where(private: true, image_type: "SampleVoice").map do |image|
+    Image.where(private: true, image_type: "SampleVoice").map do |image|
       file = image.audio_files.last
       label = image.label
       arry << { id: image.id, label: label, file: file, url: file&.url }
