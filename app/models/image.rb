@@ -256,6 +256,19 @@ class Image < ApplicationRecord
     audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: audio&.url, id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at } }
   end
 
+  def remove_audio_files_before_may_2024
+    date = Date.new(2024, 5, 1)
+    audio_files.each do |audio|
+      audio.purge if audio.created_at < date
+    end
+  end
+
+  def self.remove_old_audio
+    Image.find_each do |image|
+      image.remove_audio_files_before_may_2024
+    end
+  end
+
   def find_or_create_audio_file_for_voice(voice = "echo")
     filename = "#{label_for_filename}_#{voice}.aac"
 
