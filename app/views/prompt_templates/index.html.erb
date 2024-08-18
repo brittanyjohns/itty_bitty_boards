@@ -1,0 +1,62 @@
+<p style="color: green"><%= notice %></p>
+
+<h1>Openai prompts</h1>
+
+<div id="prompt_templates">
+  <% @prompt_templates.each do |prompt_template| %>
+    <div id="<%= dom_id prompt_template %>">
+    // t.string :prompt_type
+    //   t.string :template_name
+    //   t.string :name
+    //   t.string :response_type
+    //   t.text :prompt_text
+    //   t.text :revised_prompt
+    //   t.text :preprompt_text
+    //   t.string :method_name
+    //   t.boolean :current, default: false
+    //   t.integer :quantity
+    //   t.jsonb :config, default: {}
+
+    <h1>Template Name: <%= prompt_template.template_name %></h1>
+
+      <p>
+        <strong>Name:</strong>
+        <%= prompt_template.name %>
+      </p>
+
+      <p>
+        <strong>Prompt type:</strong>
+        <%= prompt_template.prompt_type %>
+      </p>
+
+      <p>
+        <strong>Prompt text:</strong>
+        <%= prompt_template.prompt_text %>
+      </p>
+      <p>
+        <strong>Method Name</strong>
+        <%= prompt_template.method_name %>
+      </p>
+
+      <p>
+        <strong>Response type:</strong>
+        <%= prompt_template.response_type %>
+      </p>
+
+      <p>
+        <strong>Revised prompt:</strong>
+        <%= prompt_template.revised_prompt %>
+      </p>
+
+      <p>
+        <strong>Preprompt text:</strong>
+        <%= prompt_template.preprompt_text %>
+      </p>
+
+
+
+
+  <% end %>
+</div>
+
+<%= link_to "New openai prompt", new_prompt_template_path %>

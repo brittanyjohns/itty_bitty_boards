@@ -1,4 +1,12 @@
 FactoryBot.define do
+  factory :prompt_template do
+    prompt_type { "MyString" }
+    response_type { "MyString" }
+    prompt_text { "MyText" }
+    preprompt_text { "MyText" }
+    quantity { 1 }
+  end
+
   factory :board_group_board do
     board_group { nil }
     board { nil }

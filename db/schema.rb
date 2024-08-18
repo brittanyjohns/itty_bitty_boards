@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_08_17_200744) do
+ActiveRecord::Schema[7.1].define(version: 2024_08_18_195120) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -265,7 +265,10 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_17_200744) do
     t.integer "number_of_images", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "prompt_template_id"
+    t.string "name"
     t.index ["deleted_at"], name: "index_openai_prompts_on_deleted_at"
+    t.index ["prompt_template_id"], name: "index_openai_prompts_on_prompt_template_id"
     t.index ["sent_at"], name: "index_openai_prompts_on_sent_at"
     t.index ["user_id"], name: "index_openai_prompts_on_user_id"
   end
@@ -421,6 +424,22 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_17_200744) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["product_category_id"], name: "index_products_on_product_category_id"
+  end
+
+  create_table "prompt_templates", force: :cascade do |t|
+    t.string "prompt_type"
+    t.string "template_name"
+    t.string "name"
+    t.string "response_type"
+    t.text "prompt_text"
+    t.text "revised_prompt"
+    t.text "preprompt_text"
+    t.string "method_name"
+    t.boolean "current", default: false
+    t.integer "quantity", default: 8
+    t.jsonb "config", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "subscriptions", force: :cascade do |t|

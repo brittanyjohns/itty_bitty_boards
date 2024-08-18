@@ -74,6 +74,6 @@ class API::ScenariosController < API::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def scenario_params
-    params.require(:scenario).permit(:user_id, :prompt_text, :revised_prompt, :send_now, :deleted_at, :sent_at, :private, :response_type, :age_range, :number_of_images, :token_limit)
+    params.require(:scenario).permit(:name, :user_id, :prompt_text, :revised_prompt, :send_now, :deleted_at, :sent_at, :private, :response_type, :age_range, :number_of_images, :token_limit)
   end
 end

@@ -26,7 +26,9 @@ class OpenaiPrompt < ApplicationRecord
   def send_prompt_to_openai
     return if Rails.env.test?
     opts = open_ai_opts.merge({ messages: messages })
+    puts "\nsend_prompt_to_openai\n\nopts: #{opts}\n\n"
     response = OpenAiClient.new(opts).create_chat
+    puts "response: #{response}"
     if response
       update!(sent_at: Time.now)
     end
@@ -79,7 +81,7 @@ class OpenaiPrompt < ApplicationRecord
     else
       Rails.logger.error "*** ERROR - set_scenario_description *** \nDid not receive valid response. Response: #{response}\n"
     end
-    puts "response_text: #{response_text}"
+    puts "set_scenario_description - response_text: #{response_text}"
     description = JSON.parse(response_text)["description"]
     # description = JSON.parse(parsed_response)["description"]
     puts "description: #{description}"
@@ -100,10 +102,33 @@ class OpenaiPrompt < ApplicationRecord
   end
 
   def word_list_prompt
+    prompt_template = PromptTemplate.find_by(method_name: "word_list_prompt")
+    unless prompt_template
+      puts "PromptTemplate not found for 'word_list_prompt'"
+      return "Please generate a list of exactly #{number_of_images} unique words or short phrases (2 words max - prefer SINGLE WORDS) that are relevant to the scenario #{name}. Ensure that the list includes a mix of nouns, verbs, adjectives, and adverbs relevant to the activities and items involved in #{name} using the following description for additional context. Please make the words appropriate for a person at the age given. You can use common/core words if not able to meet number requirement of #{number_of_images} words/phrases. Please respond in JSON with the array key 'words_phrases'."
+    end
+
+    text = prompt_template&.prompt_text
+
+    unless text
+      puts "PromptTemplate 'word_list_prompt' does not have prompt_text"
+      return "Please generate a list of exactly #{number_of_images} unique words or short phrases (2 words max - prefer SINGLE WORDS) that are relevant to the scenario #{name}. Ensure that the list includes a mix of nouns, verbs, adjectives, and adverbs relevant to the activities and items involved in #{name} using the following description for additional context. Please make the words appropriate for a person at the age given. You can use common/core words if not able to meet number requirement of #{number_of_images} words/phrases. Please respond in JSON with the array key 'words_phrases'."
+    end
+
     num_of_imgs = number_of_images
-    Rails.logger.info "num_of_imgs: #{num_of_imgs}"
+    puts "text: #{text}"
+    name_to_send = name || "the scenario"
+    prompt_text = text.gsub!("{QUANTITY}", num_of_imgs.to_s)
+    prompt_text.gsub!("{SCENARIO}", scenario)
+    prompt_text.gsub!("{AGE_RANGE}", age_range)
+    prompt_text.gsub!("{NAME}", name_to_send)
+    self.prompt_template_id = prompt_template.id
+    save!
+
+    puts "****prompt_text: #{prompt_text}"
     # "You will be given a scenario description and age range of the USER. Please provide EXACTLY #{num_of_imgs} words or short phrases (2 words max - prefer SINGLE WORDS) that are most likely to be communicated by the USER in the following scenario. These will be used to create AAC material for people with speech difficulties. Please make the words appropriate for a person at the age give. Please respond in JSON with the array key 'words_phrases'."
-    "Please generate a list of exactly #{num_of_imgs} unique words or short phrases (2 words max - prefer SINGLE WORDS) that are relevant to the scenario #{name}. Ensure that the list includes a mix of nouns, verbs, adjectives, and adverbs relevant to the activities and items involved in #{name} using the following description for additional context. Please make the words appropriate for a person at the age given. You can use common/core words if not able to meet number requirement of #{num_of_imgs} words/phrases. Please respond in JSON with the array key 'words_phrases'."
+    # "Please generate a list of exactly #{num_of_imgs} unique words or short phrases (2 words max - prefer SINGLE WORDS) that are relevant to the scenario #{name}. Ensure that the list includes a mix of nouns, verbs, adjectives, and adverbs relevant to the activities and items involved in #{name} using the following description for additional context. Please make the words appropriate for a person at the age given. You can use common/core words if not able to meet number requirement of #{num_of_imgs} words/phrases. Please respond in JSON with the array key 'words_phrases'."
+    prompt_text
   end
 
   def messages
@@ -124,7 +149,7 @@ class OpenaiPrompt < ApplicationRecord
   end
 
   def create_board_from_response(response, token_limit)
-    board = self.boards.last || self.boards.new
+    board = self.boards.last || self.boards.new(user: self.user, name: name)
     board.user = self.user
     board.name = prompt_text if board.name.blank?
     board.token_limit = token_limit

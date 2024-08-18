@@ -1,6 +1,11 @@
 require "sidekiq/web"
 
 Rails.application.routes.draw do
+  get "prompt_templates/index"
+  get "prompt_templates/show"
+  get "prompt_templates/new"
+  get "prompt_templates/edit"
+  resources :prompt_templates
   devise_for :child_accounts
   resources :team_boards
   resources :team_users

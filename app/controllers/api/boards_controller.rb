@@ -102,44 +102,42 @@ class API::BoardsController < API::ApplicationController
   end
 
   def show
-    board = Board.with_artifacts.find(params[:id])
-    puts "API::BoardsController#show: #{current_user.inspect}"
-    # if board.print_grid_layout.values.any?(&:empty?)
-    #   board.calculate_grid_layout
-    #   board.save!
-    # end
-    @board_with_images = board.api_view_with_images(current_user)
+    # board = Board.with_artifacts.find(params[:id])
+    set_board
+    @board_with_images = @board.api_view_with_images(current_user)
     user_permissions = {
-      can_edit: (board.user == current_user || current_user.admin?),
-      can_delete: (board.user == current_user || current_user.admin?),
+      can_edit: (@board.user == current_user || current_user.admin?),
+      can_delete: (@board.user == current_user || current_user.admin?),
     }
     render json: @board_with_images.merge(user_permissions)
   end
 
   def save_layout
-    puts "API::BoardsController#reorder_images: #{params.inspect}\n\n"
-    board = Board.with_artifacts.find(params[:id])
-    # layout = params[:layout]
+    set_board
+    # board = Board.with_artifacts.find(params[:id])
     layout = params[:layout].map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
 
     screen_size = params[:screen_size] || "lg"
-    Rails.logger.info "LAYOUT:\n#{layout}"
-    Rails.logger.info "SCREEN_SIZE: #{params[:screen_size]}"
+    if params[:small_screen_columns].present? || params[:medium_screen_columns].present? || params[:large_screen_columns].present?
+      @board.small_screen_columns = params[:small_screen_columns].to_i if params[:small_screen_columns].present?
+      @board.medium_screen_columns = params[:medium_screen_columns].to_i if params[:medium_screen_columns].present?
+      @board.large_screen_columns = params[:large_screen_columns].to_i if params[:large_screen_columns].present?
+      @board.save!
+    end
+    @board.reload
     begin
-      puts "Updating grid layout - begin"
-      board.update_grid_layout(layout, screen_size)
+      @board.update_grid_layout(layout, screen_size)
     rescue => e
       Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
       puts "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
     end
-    board.reload
+    @board.reload
 
-    render json: board.api_view_with_images(current_user)
+    render json: @board.api_view_with_images(current_user)
   end
 
   def remaining_images
-    board = Board.with_artifacts.find(params[:id])
-    # board = Board.find(params[:id])
+    set_board
     current_page = params[:page] || 1
     if params[:query].present? && params[:query] != "null"
       @query = params[:query]
@@ -147,7 +145,7 @@ class API::BoardsController < API::ApplicationController
     else
       @images = Image.non_menu_images.with_artifacts.all.order(label: :asc).page(current_page).page(current_page)
     end
-    @images = @images.excluding(board.images)
+    @images = @images.excluding(@board.images)
     @remaining_images = @images.map do |image|
       {
         id: image.id,
@@ -164,8 +162,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def rearrange_images
-    @board = Board.find(params[:id])
-    puts "API::BoardsController#rearrange_images: #{params.inspect}"
+    set_board
 
     @board.reset_layouts
     @board.save!
@@ -174,7 +171,6 @@ class API::BoardsController < API::ApplicationController
 
   # POST /boards or /boards.json
   def create
-    puts "API::BoardsController#create: #{board_params.inspect}"
     @board = Board.new(board_params)
     @board.user = current_user
     @board.parent_id = user_signed_in? ? current_user.id : params[:parent_id]
@@ -197,11 +193,7 @@ class API::BoardsController < API::ApplicationController
 
   # PATCH/PUT /boards/1 or /boards/1.json
   def update
-    ActiveRecord::Base.logger.silence do
-      @board = Board.with_artifacts.find(params[:id])
-    end
-    sleep 3
-    puts "API::BoardsController#update: #{params.inspect}"
+    set_board
     @board.number_of_columns = board_params["number_of_columns"].to_i
     @board.small_screen_columns = board_params["small_screen_columns"].to_i
     @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
@@ -223,7 +215,8 @@ class API::BoardsController < API::ApplicationController
   end
 
   def add_image
-    @board = Board.with_artifacts.find(params[:id])
+    set_board
+    # @board = Board.with_artifacts.find(params[:id])
     @found_image = Image.find_by(label: image_params[:label], user_id: current_user.id, private: true)
     @found_image ||= Image.find_by(label: image_params[:label])
     if @found_image
@@ -317,7 +310,8 @@ class API::BoardsController < API::ApplicationController
   end
 
   def clone
-    @board = Board.with_artifacts.find(params[:id])
+    set_board
+    # @board = Board.with_artifacts.find(params[:id])
     @new_board = Board.new
     @new_board.description = @board.description
     @new_board.user = current_user
@@ -336,7 +330,9 @@ class API::BoardsController < API::ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_board
-    @board = Board.with_artifacts.find(params[:id])
+    ActiveRecord::Base.logger.silence do
+      @board = Board.with_artifacts.find(params[:id])
+    end
   end
 
   def boards_for_user

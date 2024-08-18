@@ -14,7 +14,8 @@ class CreateScenarioBoardJob
       Rails.logger.info "JOB parsed_response: #{parsed_response["word_phrases"]&.count}"
       response_text = response[:content].gsub("```json", "").gsub("```", "").strip if response
       puts "**JOB response_text: #{response_text}"
-      openai_prompt.create_board_from_response(response_text, openai_prompt.token_limit) if response_text
+      new_board_after = openai_prompt.create_board_from_response(response_text, openai_prompt.token_limit) if response_text
+      puts "new_board: #{new_board_after}"
       openai_prompt.update!(sent_at: Time.now)
     rescue => e
       puts "**** ERROR **** \n#{e.message}\n"
