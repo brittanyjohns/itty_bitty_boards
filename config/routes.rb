@@ -173,6 +173,8 @@ Rails.application.routes.draw do
         post "crop"
         post "clone"
         post "add_doc"
+        delete "destroy_audio"
+        post "create_audio"
       end
       collection do
         get "find_by_label"

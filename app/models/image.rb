@@ -253,7 +253,7 @@ class Image < ApplicationRecord
   end
 
   def audio_files_for_api
-    audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: audio&.url, id: audio&.id } }
+    audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: audio&.url, id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at } }
   end
 
   def find_or_create_audio_file_for_voice(voice = "echo")

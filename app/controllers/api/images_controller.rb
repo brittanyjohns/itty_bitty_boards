@@ -391,6 +391,32 @@ class API::ImagesController < API::ApplicationController
     render json: @voices
   end
 
+  def create_audio
+    @image = Image.find(params[:id])
+    voice = params[:voice] || "echo"
+    text = params[:text] || @image.label
+    if text == @image.label
+      puts "Text is the same as label"
+    else
+      @image.update(label: text)
+    end
+
+    @audio_file = @image.create_audio_from_text(text, voice)
+    render json: @audio_file
+  end
+
+  def destroy_audio
+    @image = Image.find(params[:id])
+    unless params[:audio_file_id].present?
+      render json: { status: "error", message: "No audio file id provided." }
+      return
+    endgit add .
+    git c
+    @audio_file = @image.audio_files.find(params[:audio_file_id])
+    @audio_file.purge
+    render json: { status: "ok" }
+  end
+
   private
 
   def run_generate
