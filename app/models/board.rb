@@ -225,17 +225,9 @@ class Board < ApplicationRecord
   end
 
   def set_voice
+    puts "Setting voice"
     board_images.includes(:image).each do |bi|
-      if bi.voice != voice
-        audio_file = bi.image.find_or_create_audio_file_for_voice(voice)
-        bi.update!(voice: voice, audio_url: audio_file.url) if audio_file.present?
-        bi.update!(voice: voice) unless audio_file.present?
-      else
-        if bi.audio_url.nil?
-          audio_file = bi.image.find_or_create_audio_file_for_voice(voice)
-          bi.update!(audio_url: audio_file.url) if audio_file.present?
-        end
-      end
+      bi.create_voice_audio(voice)
     end
   end
 

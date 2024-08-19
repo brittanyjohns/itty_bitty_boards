@@ -102,17 +102,21 @@ class BoardImage < ApplicationRecord
   def create_voice_audio(voice = nil)
     voice ||= self.voice
     return if @skip_create_voice_audio || Rails.env.test?
-    puts "\nRunning create_voice_audio\n -- image: #{image.label}\n -- voice: #{voice}\n"
     label_voice = "#{image.label_for_filename}_#{voice}"
     filename = "#{label_voice}.aac"
-    puts "Existing voices: #{image.existing_voices}"
-    puts "Existing audio files: #{image.existing_audio_files}"
-    puts "\nlabel_voice: #{label_voice}\n"
     already_has_audio_file = image.existing_audio_files.include?(filename)
     puts "\nalready_has_audio_file: #{voice}\n" if already_has_audio_file
-    return if already_has_audio_file
+    audio_file = image.find_audio_for_voice(voice)
 
-    image.find_or_create_audio_file_for_voice(voice)
+    if already_has_audio_file
+      self.audio_url = audio_file.url
+    else
+      puts "Creating audio file for voice: #{voice}"
+      image.find_or_create_audio_file_for_voice(voice)
+      self.audio_url = image.find_audio_for_voice(voice)&.url
+    end
+    self.voice = voice
+    save
   end
 
   def api_view
