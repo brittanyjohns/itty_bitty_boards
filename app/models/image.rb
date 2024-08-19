@@ -85,6 +85,9 @@ class Image < ApplicationRecord
     else
       self.bg_color = background_color_for(part_of_speech)
     end
+    if audio_url.blank?
+      self.audio_url = default_audio_url
+    end
     Rails.logger.debug "Image: #{label} - bg_color: #{bg_color} - part_of_speech: #{part_of_speech} - image_type: #{image_type}"
   end
 
@@ -640,6 +643,7 @@ class Image < ApplicationRecord
   def default_audio_url
     audio_file = audio_files_attachments.first&.blob
     cdn_url = "#{ENV["CDN_HOST"]}/#{audio_file.key}" if audio_file
+    puts "default_audio_url: #{cdn_url}"
     audio_file ? cdn_url : nil
   end
 
@@ -751,7 +755,7 @@ class Image < ApplicationRecord
       bg_color: bg_class,
       text_color: text_color,
       src: display_image(viewing_user) ? display_image(viewing_user).url : "https://via.placeholder.com/300x300.png?text=#{label_param}",
-      audio: audio_url,
+      audio: default_audio_url,
       status: status,
       error: error,
       open_symbol_status: open_symbol_status,
