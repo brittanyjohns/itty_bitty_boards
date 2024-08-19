@@ -167,13 +167,16 @@ class Image < ApplicationRecord
     end
   end
 
-  def self.create_single_audio_for_images_missing
+  def self.create_single_audio_for_images_missing(limit = 50)
     voice = "echo"
     group_num = 0
     Image.without_attached_audio_files.find_in_batches(batch_size: 20) do |images|
-      puts "Starting create audio job for group #{group_num} for #{images.count} images"
+      puts "\nStarting create audio job for group #{group_num} for #{images.count} images"
       SaveAudioJob.perform_async(images.pluck(:id), voice)
       group_num += 1
+      puts "Sleeping for 2 seconds"
+      sleep 2
+      break if group_num >= limit
     end
   end
 
