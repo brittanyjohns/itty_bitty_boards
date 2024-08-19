@@ -86,10 +86,6 @@ class Doc < ApplicationRecord
     self.where.missing(:image_attachment)
   end
 
-  # def self.with_attached_images
-  #   self.with_attached_image.all
-  # end
-
   def self.create_missing_images(max = 5)
     count = 0
     wait_time = 0
@@ -155,9 +151,6 @@ class Doc < ApplicationRecord
 
   def attached_image_url
     if image.attached?
-      # rails_blob_url(image, only_path: true)
-      # url = rails_storage_proxy_path(image)
-      # url = url_for(image)
       url = image.url
       return url
     end
@@ -167,28 +160,9 @@ class Doc < ApplicationRecord
     ActiveRecord::Base.logger.silence do
       cdn_host = ENV["CDN_HOST"]
       cdn_url = cdn_host + "/" + image.key if image&.key
-      # cdn_url ? cdn_url : "https://via.placeholder.com/300x300.png?text=#{documentable.label_param}"
       cdn_url ? cdn_url : nil
     end
   end
-
-  # def self.clean_up_broken_urls
-  #   broken_count = 0
-  #   no_blob_count = 0
-  #   broken_docs = []
-  #   self.all.each do |doc|
-  #     puts "No display URL: #{doc.display_url}" if doc.display_url.nil?
-  #     broken_count += 1 if doc.display_url.nil?
-  #     broken_docs << doc if doc.display_url.nil?
-  #   end
-  #   puts "Broken Count: #{broken_count}"
-  #   puts "No Blob Count: #{no_blob_count}"
-  #   puts "Total Docs: #{self.all.count}"
-  #   puts "Broken Docs: #{broken_docs.count}"
-  #   broken_docs.each do |doc|
-  #     doc.hide!
-  #   end
-  # end
 
   def self.clean_up_broken_urls
     broken_count = 0

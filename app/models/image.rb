@@ -167,6 +167,16 @@ class Image < ApplicationRecord
     end
   end
 
+  def self.create_single_audio_for_images_missing
+    voice = "echo"
+    group_num = 0
+    Image.without_attached_audio_files.find_in_batches(batch_size: 20) do |images|
+      puts "Starting create audio job for group #{group_num} for #{images.count} images"
+      SaveAudioJob.perform_async(images.pluck(:id), voice)
+      group_num += 1
+    end
+  end
+
   def set_next_words!
     new_next_words = get_next_words(label)
     Rails.logger.debug "New next words: #{new_next_words}"
