@@ -269,7 +269,7 @@ class Image < ApplicationRecord
   end
 
   def audio_files_for_api
-    audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: audio&.url, id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at } }
+    audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: default_audio_url(audio), id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at } }
   end
 
   def remove_audio_files_before_may_2024
@@ -640,11 +640,14 @@ class Image < ApplicationRecord
     doc ? doc.display_url : nil
   end
 
-  def default_audio_url
-    audio_file = audio_files_attachments.first&.blob
-    cdn_url = "#{ENV["CDN_HOST"]}/#{audio_file.key}" if audio_file
+  def default_audio_url(audio_file = nil)
+    audio_file ||= audio_files.first
+    audio_blob = audio_file&.blob
+
+    # first_audio_file = audio_files_attachments.first&.blob
+    cdn_url = "#{ENV["CDN_HOST"]}/#{audio_blob.key}" if audio_blob
     puts "default_audio_url: #{cdn_url}"
-    audio_file ? cdn_url : nil
+    audio_blob ? cdn_url : nil
   end
 
   def save_audio_file_to_s3!(voice = "echo")
