@@ -25,7 +25,6 @@ class BoardImage < ApplicationRecord
   attr_accessor :skip_create_voice_audio
 
   before_create :set_defaults
-  before_save :create_voice_audio, if: :voice_changed_and_not_existing?
   after_create :set_next_words
   after_create :save_initial_layout
 
@@ -116,6 +115,7 @@ class BoardImage < ApplicationRecord
       self.audio_url = image.find_audio_for_voice(voice)&.url
     end
     self.voice = voice
+    @skip_create_voice_audio = true
     save
   end
 
