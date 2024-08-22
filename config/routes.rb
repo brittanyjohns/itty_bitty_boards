@@ -1,6 +1,10 @@
 require "sidekiq/web"
 
 Rails.application.routes.draw do
+  resources :scenarios
+  post "scenarios/start", to: "scenarios#start"
+  post "scenarios/continue", to: "scenarios#continue"
+  post "scenarios/finalize", to: "scenarios#finalize"
   get "prompt_templates/index"
   get "prompt_templates/show"
   get "prompt_templates/new"
@@ -227,7 +231,12 @@ Rails.application.routes.draw do
         put "move_down"
       end
     end
-    resources :scenarios
+    resources :scenarios do
+      member do
+        post "answer"
+        post "finalize"
+      end
+    end
     resources :menus do
       member do
         post "rerun"

@@ -70,7 +70,6 @@ class ChildAccount < ApplicationRecord
   end
 
   def can_sign_in?(user = nil)
-    puts "Checking if user can sign in #{user.inspect}"
     if user && user.admin?
       return true
     end

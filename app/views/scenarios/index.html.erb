@@ -1,0 +1,14 @@
+<p style="color: green"><%= notice %></p>
+
+<h1>Scenarios</h1>
+
+<div id="scenarios">
+  <% @scenarios.each do |scenario| %>
+    <%= render scenario %>
+    <p>
+      <%= link_to "Show this scenario", scenario %>
+    </p>
+  <% end %>
+</div>
+
+<%= link_to "New scenario", new_scenario_path %>

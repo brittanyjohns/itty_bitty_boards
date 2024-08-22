@@ -5,6 +5,6 @@ class UserMailer < BaseMailer
     @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
     @login_link += "/dashboard"
     subject = "Welcome to SpeakAnyWay!"
-    mail(to: @user.email, subject: subject)
+    mail(to: @user.email, subject: subject, from: "welcome@speakanyway.com")
   end
 end

@@ -65,6 +65,7 @@ class User < ApplicationRecord
   has_many :subscriptions, dependent: :destroy
   has_secure_token :authentication_token
   has_many :child_accounts, dependent: :destroy
+  has_many :scenarios, dependent: :destroy
 
   # Scopes
   scope :admin, -> { where(role: "admin") }

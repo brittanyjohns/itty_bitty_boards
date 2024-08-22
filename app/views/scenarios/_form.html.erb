@@ -1,0 +1,21 @@
+
+<%= simple_form_for(@scenario) do |f| %>
+  <%= f.error_notification %>
+  <%= f.error_notification message: f.object.errors[:base].to_sentence if f.object.errors[:base].present? %>
+
+  <div class="form-inputs">
+    <%= f.input :name %>
+    <%= f.input :initial_description %>
+    <%= f.input :age_range %>
+    <%= f.input :finalize, as: :boolean %>
+  </div>
+
+  <div class="form-inputs">
+  <%= f.input :answers %>
+
+</div>
+
+  <div class="form-actions">
+    <%= f.button :submit %>
+  </div>
+<% end %>

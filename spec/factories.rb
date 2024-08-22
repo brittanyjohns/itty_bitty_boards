@@ -1,4 +1,12 @@
 FactoryBot.define do
+  factory :scenario do
+    questions { "" }
+    answers { "" }
+    name { "MyString" }
+    initial_description { "MyText" }
+    age_range { "MyString" }
+  end
+
   factory :prompt_template do
     prompt_type { "MyString" }
     response_type { "MyString" }

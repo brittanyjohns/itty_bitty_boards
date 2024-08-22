@@ -1,0 +1,12 @@
+<p style="color: green"><%= notice %></p>
+
+<%= render @scenario %>
+
+<%= @scenario.word_list %>
+
+<div>
+  <%= link_to "Edit this scenario", edit_scenario_path(@scenario) %> |
+  <%= link_to "Back to scenarios", scenarios_path %>
+
+  <%= button_to "Destroy this scenario", @scenario, method: :delete %>
+</div>

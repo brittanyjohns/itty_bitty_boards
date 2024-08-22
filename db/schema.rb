@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_08_18_195120) do
+ActiveRecord::Schema[7.1].define(version: 2024_08_21_193938) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -442,6 +442,25 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_18_195120) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "scenarios", force: :cascade do |t|
+    t.json "questions"
+    t.json "answers"
+    t.string "name"
+    t.text "initial_description"
+    t.string "age_range"
+    t.bigint "user_id", null: false
+    t.string "status", default: "pending"
+    t.string "word_list", default: [], array: true
+    t.integer "token_limit", default: 10
+    t.integer "board_id"
+    t.boolean "send_now", default: false
+    t.integer "number_of_images", default: 0
+    t.integer "tokens_used", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_scenarios_on_user_id"
+  end
+
   create_table "subscriptions", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "stripe_subscription_id"
@@ -582,6 +601,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_18_195120) do
   add_foreign_key "pay_payment_methods", "pay_customers", column: "customer_id"
   add_foreign_key "pay_subscriptions", "pay_customers", column: "customer_id"
   add_foreign_key "products", "product_categories"
+  add_foreign_key "scenarios", "users"
   add_foreign_key "subscriptions", "users"
   add_foreign_key "team_boards", "boards"
   add_foreign_key "team_boards", "teams"

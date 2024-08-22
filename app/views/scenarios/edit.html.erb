@@ -1,0 +1,10 @@
+<h1>Editing scenario</h1>
+Questions - <%= @scenario.questions %>
+<%= render "form", scenario: @scenario %>
+
+<br>
+
+<div>
+  <%= link_to "Show this scenario", @scenario %> |
+  <%= link_to "Back to scenarios", scenarios_path %>
+</div>
