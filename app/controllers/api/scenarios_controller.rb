@@ -104,6 +104,7 @@ class API::ScenariosController < API::ApplicationController
     @scenario.board_id = board.id
     @scenario.save
     CreateScenarioBoardJob.perform_async(@scenario.id)
+    sleep(3)
     render json: @scenario.api_view_with_images(current_user)
   end
 
@@ -169,7 +170,7 @@ class API::ScenariosController < API::ApplicationController
 
     prompt = <<~PROMPT
       The scenario is name: #{scenario.name} and was described as: #{initial_scenario}. The age range of the person in the given scenario is: #{age_range}.
-        Please ask 1-3 follow-up question(s) to gather more details about this scenario.
+        Please ask one or two follow-up question(s) to gather more details about this scenario and the person in it.
     PROMPT
 
     response = client.chat(
@@ -192,11 +193,12 @@ class API::ScenariosController < API::ApplicationController
     age_range = scenario.age_range
     answer_1 = scenario.answers["question_1"]
     question_1 = scenario.questions["question_1"]
+    name = scenario.name
 
     client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"])
 
     prompt = <<~PROMPT
-      The scenario is: #{initial_scenario}. The age range is: #{age_range}.
+      The scenario is name: #{scenario.name} and is described as: #{initial_scenario}. The age range is: #{age_range}.
         Based on the user's answer: #{answer_1} to the question #{question_1}.
         , please ask another follow-up question to gather more details about this scenario.
     PROMPT

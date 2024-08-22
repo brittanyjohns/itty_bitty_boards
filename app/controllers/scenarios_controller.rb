@@ -103,7 +103,7 @@ class ScenariosController < ApplicationController
     client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"])
 
     prompt = <<~PROMPT
-      The scenario is name: #{scenario.name} and was described as: #{initial_scenario}. The age range of the person in the given scenario is: #{age_range}.
+      The scenario is name: #{scenario.name} and is described as: #{initial_scenario}. The age range of the person in the given scenario is: #{age_range}.
         Please ask one follow-up question to gather more details about this scenario.
     PROMPT
 
@@ -127,11 +127,12 @@ class ScenariosController < ApplicationController
     age_range = scenario.age_range
     answer_1 = scenario.answers["answer_1"]
     question_1 = scenario.questions["question_1"]
+    name = scenario.name
 
     client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"])
 
     prompt = <<~PROMPT
-      The scenario is: #{scenario}. The age range is: #{age_range}.
+      The scenario is name: #{scenario.name} and is described as: #{initial_scenario}. The age range is: #{age_range}.
         Based on the user's answer: #{answer_1} to the question #{question_1}.
         , please ask another follow-up question to gather more details about this scenario.
     PROMPT
