@@ -15,7 +15,6 @@ class API::BoardImagesController < API::ApplicationController
     @board_image = BoardImage.find(params[:id])
     layout = params[:layout]
     screen_size = params[:screen_size]
-    puts "\n Layout: #{layout}\n"
     @board_image.update_layout(layout, screen_size)
     render json: @board_image
   end

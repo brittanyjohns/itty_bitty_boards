@@ -37,8 +37,6 @@ class Scenario < ApplicationRecord
       answers_array << { key: key, answer: value }
     end
 
-    puts "\nquestions_array: #{questions_array}\n"
-
     view = self.as_json
     view["questions"] = questions_array
     view["answers"] = answers_array
@@ -51,7 +49,6 @@ class Scenario < ApplicationRecord
   def transform_word_list_response(raw_word_list)
     # Transform the word list response to remove any special characters
     # and ensure that each word is a string
-    puts "\nraw_word_list: #{raw_word_list}\n"
     updated_list = raw_word_list.map! do |word|
       word.gsub(/[^a-z ]/i, "").split(" ").map(&:strip).reject(&:empty?)
     end
