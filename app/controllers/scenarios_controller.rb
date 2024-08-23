@@ -153,38 +153,42 @@ class ScenariosController < ApplicationController
   end
 
   def generate_word_list(scenario)
-    initial_scenario = scenario.initial_description
-    age_range = scenario.age_range
-    scenario.answers ||= {}
+    begin
+      initial_scenario = scenario.initial_description
+      age_range = scenario.age_range
+      scenario.answers ||= {}
 
-    answer_1 = scenario.answers["answer_1"]
-    question_1 = scenario.questions["question_1"]
-    question_2 = scenario.questions["question_2"]
-    answer_2 = scenario.answers["answer_2"]
+      answer_1 = scenario.answers["answer_1"]
+      question_1 = scenario.questions["question_1"]
+      question_2 = scenario.questions["question_2"]
+      answer_2 = scenario.answers["answer_2"]
 
-    client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"])
+      client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"])
 
-    prompt = <<~PROMPT
-      The scenario is: #{initial_scenario}. The age range is: #{age_range}.
+      prompt = <<~PROMPT
+        The scenario is: #{initial_scenario}. The age range is: #{age_range}.
         Based on the following details: 
         #{question_1}: #{answer_1},
         #{question_2}: #{answer_2},
         please return an array of words that people would likely use in conversation during this scenario.
-    PROMPT
+      PROMPT
 
-    response = client.chat(
-      parameters: {
-        model: "gpt-4",
-        messages: [
-          { role: "system", content: system_message },
-          { role: "user", content: prompt },
-        ],
-        max_tokens: 100,
-        temperature: 0.7,
-      },
-    )
+      response = client.chat(
+        parameters: {
+          model: "gpt-4",
+          messages: [
+            { role: "system", content: system_message },
+            { role: "user", content: prompt },
+          ],
+          max_tokens: 100,
+          temperature: 0.7,
+        },
+      )
 
-    response.dig("choices", 0, "message", "content").split(",").map(&:strip)
+      response.dig("choices", 0, "message", "content").split(",").map(&:strip)
+    rescue => e
+      puts "ERROR - generate_word_list: #{e.message} \n#{e.backtrace}"
+    end
   end
 
   def system_message
