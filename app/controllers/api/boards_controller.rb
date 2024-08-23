@@ -11,22 +11,24 @@ class API::BoardsController < API::ApplicationController
 
   # GET /boards or /boards.json
   def index
-    if params[:query].present?
-      @query = params[:query]
-      @boards = boards_for_user.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
-      @predefined_boards = Board.predefined.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
-    elsif params[:boards_only].present?
-      # @boards = boards_for_user.user_made_with_scenarios.order(created_at: :desc)
-      @boards = current_user.boards.user_made_with_scenarios.order(created_at: :desc)
-      @predefined_boards = Board.predefined.user_made_with_scenarios.order(created_at: :desc)
-    else
-      @boards = boards_for_user.user_made_with_scenarios.order(created_at: :desc)
-      @predefined_boards = Board.predefined.user_made_with_scenarios.order(created_at: :desc)
-    end
+    ActiveRecord::Base.logger.silence do
+      if params[:query].present?
+        @query = params[:query]
+        @boards = boards_for_user.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+        @predefined_boards = Board.predefined.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+      elsif params[:boards_only].present?
+        # @boards = boards_for_user.user_made_with_scenarios.order(created_at: :desc)
+        @boards = current_user.boards.user_made_with_scenarios.order(created_at: :desc)
+        @predefined_boards = Board.predefined.user_made_with_scenarios.order(created_at: :desc)
+      else
+        @boards = boards_for_user.user_made_with_scenarios.order(created_at: :desc)
+        @predefined_boards = Board.predefined.user_made_with_scenarios.order(created_at: :desc)
+      end
 
-    # render json: { boards: @boards.map { |b| b.api_view(current_user) },
-    #                predefined_boards: @predefined_boards }
-    render json: { boards: @boards, predefined_boards: @predefined_boards }
+      # render json: { boards: @boards.map { |b| b.api_view(current_user) },
+      #                predefined_boards: @predefined_boards }
+      render json: { boards: @boards, predefined_boards: @predefined_boards }
+    end
   end
 
   def user_boards

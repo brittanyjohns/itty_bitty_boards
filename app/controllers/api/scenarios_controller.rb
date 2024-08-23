@@ -104,7 +104,7 @@ class API::ScenariosController < API::ApplicationController
     @scenario.board_id = board.id
     @scenario.save
     CreateScenarioBoardJob.perform_async(@scenario.id)
-    sleep(8)
+    sleep(10)
     render json: @scenario.api_view_with_images(current_user)
   end
 

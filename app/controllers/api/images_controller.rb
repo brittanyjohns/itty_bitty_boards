@@ -31,24 +31,26 @@ class API::ImagesController < API::ApplicationController
   end
 
   def user_images
-    @current_user = current_user
+    ActiveRecord::Base.logger.silence do
+      @current_user = current_user
 
-    @user_docs = @current_user.docs.with_attached_image.where(documentable_type: "Image").order(created_at: :desc)
-    @images = Image.with_artifacts.where(id: @user_docs.map(&:documentable_id)).or(Image.where(user_id: @current_user.id)).order(label: :asc).page params[:page]
-    @distinct_images = @images.distinct
-    @images_with_display_doc = @distinct_images.map do |image|
-      {
-        id: image.id,
-        label: image.label,
-        image_type: image.image_type,
-        bg_color: image.bg_class,
-        text_color: image.text_color,
-        image_prompt: image.image_prompt,
-        src: image.display_image_url(@current_user),
-        next_words: image.next_words,
-      }
+      @user_docs = @current_user.docs.with_attached_image.where(documentable_type: "Image").order(created_at: :desc)
+      @images = Image.with_artifacts.where(id: @user_docs.map(&:documentable_id)).or(Image.where(user_id: @current_user.id)).order(label: :asc).page params[:page]
+      @distinct_images = @images.distinct
+      @images_with_display_doc = @distinct_images.map do |image|
+        {
+          id: image.id,
+          label: image.label,
+          image_type: image.image_type,
+          bg_color: image.bg_class,
+          text_color: image.text_color,
+          image_prompt: image.image_prompt,
+          src: image.display_image_url(@current_user),
+          next_words: image.next_words,
+        }
+      end
+      render json: @images_with_display_doc
     end
-    render json: @images_with_display_doc
   end
 
   def show
@@ -57,51 +59,7 @@ class API::ImagesController < API::ApplicationController
     @image = Image.with_artifacts.find(params[:id])
     @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
 
-    @current_doc = @image.display_doc(current_user)
-    @current_doc_id = @current_doc.id if @current_doc
-    @image_docs = @image.docs.with_attached_image.for_user(current_user).order(created_at: :desc)
-    @user_image_boards = @image.boards.where(user_id: @current_user.id)
-    if @board && @board.board_images.any?
-      @board_image = @board&.board_images.find_by(image_id: @image.id)
-    end
-    @image_with_display_doc = {
-      id: @image.id,
-      label: @image.label.upcase,
-      image_prompt: @image.image_prompt,
-      image_type: @image.image_type,
-      bg_color: @image.bg_class,
-      text_color: @image.text_color,
-      user_image_boards: @user_image_boards,
-      board_image: @board_image,
-      user: @image.user,
-      created_at: @image.created_at,
-      updated_at: @image.updated_at,
-      audio_files: @image.audio_files_for_api,
-      display_doc: {
-        id: @current_doc&.id,
-        label: @image&.label,
-        user_id: @current_doc&.user_id,
-        src: @current_doc&.display_url,
-        raw: @current_doc&.raw,
-        is_current: true,
-        deleted_at: @current_doc&.deleted_at,
-      },
-      private: @image.private,
-      user_id: @image.user_id,
-      next_words: @board_image&.next_words || @image.next_words,
-      no_next: @image.no_next,
-      src: @image.display_image_url(@current_user),
-      docs: @image_docs.map do |doc|
-        {
-          id: doc.id,
-          label: @image.label,
-          user_id: doc.user_id,
-          src: doc.display_url,
-          raw: doc.raw,
-          is_current: doc.id == @current_doc_id,
-        }
-      end,
-    }
+    @image_with_display_doc = @image.with_display_doc(@current_user)
     render json: @image_with_display_doc
   end
 
@@ -141,8 +99,28 @@ class API::ImagesController < API::ApplicationController
   def clone
     @current_user = current_user
     @image = Image.find(params[:id])
-    @image_clone = @image.clone_with_docs(@current_user.id)
-    render json: @image_clone
+    label_to_set = params[:new_name]&.downcase || @image.label
+    @image_clone = @image.clone_with_docs(@current_user.id, label_to_set)
+    voice = params[:voice] || "alloy"
+    text = params[:text] || @image_clone.label
+    @audio_file = @image_clone.create_audio_from_text(text, voice)
+    @image_with_display_doc = @image_clone.with_display_doc(@current_user)
+    render json: @image_with_display_doc
+  end
+
+  def create_audio
+    @image = Image.find(params[:id])
+    voice = params[:voice] || "echo"
+    text = params[:text] || @image.label
+    if text == @image.label
+      puts "Text is the same as label"
+    else
+      @image.update(label: text)
+    end
+
+    @audio_file = @image.create_audio_from_text(text, voice)
+    @image_with_display_doc = @image.with_display_doc(current_user)
+    render json: @image_with_display_doc
   end
 
   def create
@@ -389,20 +367,6 @@ class API::ImagesController < API::ApplicationController
   def sample_voices
     @voices = Image.sample_audio_files
     render json: @voices
-  end
-
-  def create_audio
-    @image = Image.find(params[:id])
-    voice = params[:voice] || "echo"
-    text = params[:text] || @image.label
-    if text == @image.label
-      puts "Text is the same as label"
-    else
-      @image.update(label: text)
-    end
-
-    @audio_file = @image.create_audio_from_text(text, voice)
-    render json: @audio_file
   end
 
   def destroy_audio

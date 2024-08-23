@@ -293,10 +293,6 @@ class Image < ApplicationRecord
   def find_or_create_audio_file_for_voice(voice = "echo")
     filename = "#{label_for_filename}_#{voice}.aac"
 
-    puts "Finding audio  - filename: #{filename}"
-    puts "Existing voices: #{existing_voices}"
-    puts "Existing audio files: #{existing_audio_files}"
-
     audio_file = ActiveStorage::Attachment.joins(:blob)
       .where(record: self, name: :audio_files, active_storage_blobs: { filename: filename })
       .first
@@ -646,7 +642,6 @@ class Image < ApplicationRecord
 
     # first_audio_file = audio_files_attachments.first&.blob
     cdn_url = "#{ENV["CDN_HOST"]}/#{audio_blob.key}" if audio_blob
-    puts "default_audio_url: #{cdn_url}"
     audio_blob ? cdn_url : nil
   end
 
@@ -757,7 +752,8 @@ class Image < ApplicationRecord
       next_words: next_words,
       bg_color: bg_class,
       text_color: text_color,
-      src: display_image(viewing_user) ? display_image(viewing_user).url : "https://via.placeholder.com/300x300.png?text=#{label_param}",
+      src: display_image_url(viewing_user),
+      # src: display_image(viewing_user) ? display_image(viewing_user).url : "https://via.placeholder.com/300x300.png?text=#{label_param}",
       audio: default_audio_url,
       status: status,
       error: error,
@@ -768,13 +764,39 @@ class Image < ApplicationRecord
   end
 
   def with_display_doc(current_user = nil)
+    current_doc = display_doc(current_user)
+    current_doc_id = current_doc.id if current_doc
+    image_docs = docs.with_attached_image.for_user(current_user).order(created_at: :desc)
+    user_image_boards = current_user ? current_user.boards : []
     {
       id: id,
       label: label,
       image_prompt: image_prompt,
       display_doc: display_image(current_user),
-      src: display_image(current_user) ? display_image(current_user).url : "https://via.placeholder.com/300x300.png?text=#{label_param}",
-      audio: audio_files.first ? url_for(audio_files.first) : nil,
+      src: display_image_url(current_user),
+      audio: default_audio_url,
+      audio_files: audio_files_for_api,
+      status: status,
+      error: error,
+      text_color: text_color,
+      bg_color: bg_class,
+      open_symbol_status: open_symbol_status,
+      created_at: created_at,
+      updated_at: updated_at,
+      private: self.private,
+      user_id: self.user_id,
+      next_words: next_words,
+      no_next: no_next,
+      docs: image_docs.map do |doc|
+        {
+          id: doc.id,
+          label: label,
+          user_id: doc.user_id,
+          src: doc.display_url,
+          raw: doc.raw,
+          is_current: doc.id == current_doc_id,
+        }
+      end,
     }
   end
 
@@ -789,12 +811,9 @@ class Image < ApplicationRecord
 
   def self.searchable_images_for(user, only_user_images = false)
     if only_user_images
-      # Image.non_menu_images.or(Image.where(user_id: user.id)).distinct
       Image.with_artifacts.where(user_id: user.id).distinct
     else
       Image.with_artifacts.public_img.non_menu_images.non_scenarios.or(Image.with_artifacts.where(user_id: user.id)).or(Image.where(user_id: user.id)).distinct
-      # Image.all
-      # Image.non_menu_images.where(user_id: [user.id, nil]).or(Image.public_img.non_menu_images).distinct
     end
   end
 
@@ -809,7 +828,10 @@ class Image < ApplicationRecord
     end
   end
 
-  def clone_with_docs(cloned_user_id)
+  def clone_with_docs(cloned_user_id, new_name)
+    if new_name.blank?
+      new_name = label
+    end
     @source = self
     cloned_user = User.find(cloned_user_id)
     unless cloned_user
@@ -824,6 +846,7 @@ class Image < ApplicationRecord
     @docs = @source.docs.for_user(cloned_user)
     @cloned_image = @source.dup
     @cloned_image.user_id = cloned_user_id
+    @cloned_image.label = new_name
     @cloned_image.save
     @docs.each do |doc|
       original_file = doc.image
