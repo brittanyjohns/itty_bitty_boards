@@ -75,17 +75,8 @@ class API::BoardsController < API::ApplicationController
       @board = Board.create_predictive_default
       puts "Predictive board created"
     end
-    @board_with_images = @board.board_images.map do |board_image|
-      image = board_image.image # temp fix
-      {
-        id: image.id,
-        label: image.label,
-        bg_color: image.bg_class,
-        next_words: board_image.next_words,
-        src: image.display_image_url(current_user),
-        audio: image.default_audio_url,
-      }
-    end
+
+    @board_with_images = @board.api_view_with_images(current_user)
     render json: @board_with_images
   end
 
