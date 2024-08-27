@@ -6,7 +6,6 @@ class CreateNewWordsJob
     images.each do |image|
       begin
         image.create_words_from_next_words
-        puts "\n\nNo errors in the CreateNewWordsJob\n\n"
       rescue => e
         puts "\n**** SIDEKIQ - CreateNewWordsJob \n\nERROR **** \n#{e.message}\n"
       end

@@ -25,6 +25,10 @@ class API::BoardsController < API::ApplicationController
         @predefined_boards = Board.predefined.user_made_with_scenarios.order(created_at: :desc)
       end
 
+      if current_user.admin?
+        @boards = Board.all.order(name: :desc)
+      end
+
       # render json: { boards: @boards.map { |b| b.api_view(current_user) },
       #                predefined_boards: @predefined_boards }
       render json: { boards: @boards, predefined_boards: @predefined_boards }

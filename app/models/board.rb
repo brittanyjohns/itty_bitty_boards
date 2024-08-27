@@ -312,6 +312,12 @@ class Board < ApplicationRecord
     end
   end
 
+  def add_images(image_ids)
+    image_ids.each do |image_id|
+      add_image(image_id)
+    end
+  end
+
   def add_image(image_id)
     new_board_image = nil
     if image_ids.include?(image_id.to_i)
@@ -363,7 +369,6 @@ class Board < ApplicationRecord
       status: status,
       token_limit: token_limit,
       cost: cost,
-      layout: layout,
       audio_url: audio_url,
       display_image_url: display_image_url,
       floating_words: words,
@@ -398,6 +403,7 @@ class Board < ApplicationRecord
           status: board_image.status,
         }
       end,
+      layout: layout,
     }
   end
 

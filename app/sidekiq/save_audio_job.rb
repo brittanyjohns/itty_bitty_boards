@@ -9,7 +9,6 @@ class SaveAudioJob
       begin
         image.find_or_create_audio_file_for_voice(voice)
         sleep(0.5)
-        puts "\n\nNo errors in the SaveAudioJob\n\n"
       rescue => e
         puts "\n**** SIDEKIQ - SaveAudioJob \n\nERROR **** \n#{e.message}\n"
       end

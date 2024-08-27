@@ -224,7 +224,14 @@ class Image < ApplicationRecord
   def next_board
     parent_resource = PredefinedResource.find_or_create_by name: "Next", resource_type: "Board"
     next_board = Board.find_or_create_by!(name: label, user_id: User::DEFAULT_ADMIN_ID, parent: parent_resource)
+    puts "Next board: #{next_board.inspect}"
     next_board
+  end
+
+  def create_next_board
+    next_board_to_use = next_board
+    next_board_to_use.add_images(next_images)
+    next_board_to_use
   end
 
   def create_words_from_next_words

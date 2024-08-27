@@ -1,7 +1,6 @@
-require 'csv'
+require "csv"
 namespace :scrub do
   task gather_info: :environment do
-
     all_images = Image.all
     puts "all_images.count: #{all_images.count}"
     menu_images = Image.menu_images
@@ -21,7 +20,6 @@ namespace :scrub do
     public_user_made_images.each do |image|
       begin
         image.create_words_from_next_words
-        puts "\n\nNo errors in the CreateNewWordsJob\n\n"
       rescue => e
         puts "\n**** SIDEKIQ - CreateNewWordsJob \n\nERROR **** \n#{e.message}\n"
       end
@@ -46,7 +44,6 @@ namespace :scrub do
     images.each do |image|
       begin
         image.categorize!
-        puts "\n\nNo errors in the CategorizeImageJob\n\n"
       rescue => e
         puts "\n**** SIDEKIQ - CategorizeImageJob \n\nERROR **** \n#{e.message}\n"
       end
@@ -59,6 +56,4 @@ namespace :scrub do
     images = i.limit(10)
     Image.run_generate_image_job_for(images)
   end
-
-
 end
