@@ -140,4 +140,4 @@ gem "mailgun-ruby", "~>1.2.14"
 
 gem "pg_search"
 
-gem "google_search_results", "~> 2.2"
+# gem "google_search_results", "~> 2.2"
