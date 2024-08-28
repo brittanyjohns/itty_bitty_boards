@@ -1,6 +1,7 @@
 require "sidekiq/web"
 
 Rails.application.routes.draw do
+  get "google_images", to: "google_search_results#image_search"
   resources :scenarios
   post "scenarios/start", to: "scenarios#start"
   post "scenarios/continue", to: "scenarios#continue"

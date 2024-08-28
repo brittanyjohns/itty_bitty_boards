@@ -181,6 +181,7 @@ GEM
     foreman (0.88.1)
     globalid (1.2.1)
       activesupport (>= 6.1)
+    google_search_results (2.2.0)
     http (5.1.1)
       addressable (~> 2.8)
       http-cookie (~> 1.0)
@@ -469,6 +470,7 @@ DEPENDENCIES
   figaro
   font-awesome-sass (~> 6.4.0)
   foreman
+  google_search_results (~> 2.2)
   http
   image_processing (~> 1.2)
   jbuilder

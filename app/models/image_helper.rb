@@ -39,6 +39,27 @@ module ImageHelper
     doc
   end
 
+  def create_image_from_google_search(image_obj, user_id = nil)
+    return if Rails.env.test?
+    user_id ||= self.user_id
+
+    img_url = image_obj[:original]
+    revised_prompt = image_obj[:title]
+    edited_prompt = image_obj[:title]
+    label = image_obj[:title]
+    new_img = self.create(label: label, user_id: user_id, status: "processing", source_type: "GoogleSearch", image_prompt: revised_prompt).save
+
+    puts "new_img: #{new_img.inspect}"
+
+    doc = nil
+    if img_url
+      doc = save_image(img_url, user_id, revised_prompt, edited_prompt)
+    else
+      Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{image_obj&.inspect}"
+    end
+    doc
+  end
+
   def create_audio_from_text(text = nil, voice = "echo")
     text = text || self.label
     new_audio_file = nil
