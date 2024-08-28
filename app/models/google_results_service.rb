@@ -25,11 +25,14 @@ require "google_search_results"
 # "is_product":
 # false
 # },
-class GoogleSearchResultsService
+class GoogleResultsService
   def initialize(query)
     @query = query
+    puts "SERP_PRIVATE_API_KEY: #{ENV["SERP_PRIVATE_API_KEY"]}"
+    # GET https://www.googleapis.com/customsearch/v1?key=INSERT_YOUR_API_KEY&cx=017576662512468239146:omuauf_lfve&q=lectures
+    #
     params = {
-      api_key: ENV["SERPAPI_API_KEY"],
+      api_key: ENV["SERP_PRIVATE_API_KEY"],
       engine: "google_images",
       google_domain: "google.com",
       q: query,
@@ -63,21 +66,21 @@ class GoogleSearchResultsService
 end
 
 # Test the service
-puts "GoogleSearchResultsService loaded\n"
-test_query = "Coffee"
-puts "Searching for #{test_query}\n\n"
-search_results = GoogleSearchResultsService.new(test_query).search
-puts "Search results class: #{search_results.class}"
-image_results = search_results[:images_results]
-puts "Image results class: #{image_results.class}"
+# puts "GoogleResultsService loaded\n"
+# test_query = "Coffee"
+# puts "Searching for #{test_query}\n\n"
+# search_results = GoogleResultsService.new(test_query).search
+# puts "Search results class: #{search_results.class}"
+# image_results = search_results[:images_results]
+# puts "Image results class: #{image_results.class}"
 
-search_images = search_results[:images_results] || []
+# search_images = search_results[:images_results] || []
 
-puts "Search images class: #{search_images.class}"
-search_images.each do |image|
-  puts "URL: #{image[:original]}"
-  puts "Title: #{image[:title]}"
-end
+# puts "Search images class: #{search_images.class}"
+# search_images.each do |image|
+#   puts "URL: #{image[:original]}"
+#   puts "Title: #{image[:title]}"
+# end
 
 puts "\n\n"
 puts "All done."
@@ -88,5 +91,5 @@ puts "\n\n"
 #   puts "URL: #{image["original"]}"
 # end
 
-puts "\nGoogleSearchResultsService finished"
-exit 0
+puts "\nGoogleResultsService finished"
+# exit 0
