@@ -835,24 +835,21 @@ class Image < ApplicationRecord
     end
   end
 
-  def self.create_image_from_google_search(src, title, long_title, user_id = nil)
+  def self.create_image_from_google_search(img_url, label, title, snippet, file_format, user_id = User::DEFAULT_ADMIN_ID)
     return if Rails.env.test?
-    user_id ||= self.user_id
-    title.downcase!
+    label = label.downcase
 
-    img_url = src
-    revised_prompt = long_title
-    edited_prompt = title
-    label = title
-    new_img = self.create(label: label, user_id: user_id, status: "processing", source_type: "GoogleSearch", image_prompt: revised_prompt).save
-
-    doc = nil
-    if img_url
-      doc = save_image(img_url, user_id, revised_prompt, edited_prompt)
+    existing_image = Image.public_img.find_by(label: label)
+    image = nil
+    if existing_image
+      Rails.logger.debug "Image already exists: #{label}"
+      image = existing_image
     else
-      Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{image_obj&.inspect}"
+      image = Image.create!(label: label, user_id: user_id, status: "processing", image_prompt: "#{title} #{snippet}", image_type: "GoogleSearch")
     end
-    doc
+    image.save_from_google(img_url, title, snippet, user_id)
+    # new_img = self.create(label: label, user_id: user_id, status: "processing", source_type: "GoogleSearch", image_prompt: revised_prompt).save
+    image
   end
 
   def clone_with_docs(cloned_user_id, new_name)

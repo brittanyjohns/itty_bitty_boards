@@ -7,14 +7,29 @@ module ImageHelper
     open_ai_opts[:prompt] || name
   end
 
-  def save_image(url, user_id = nil, revised_prompt = nil, edited_prompt = nil)
+  def save_image(url, user_id = nil, revised_prompt = nil, edited_prompt = nil, source_type = "OpenAI")
     return if Rails.env.test?
     begin
       downloaded_image = Down.download(url)
       user_id ||= self.user_id
       raw_txt = edited_prompt || name_to_send
-      doc = self.docs.create!(raw: raw_txt, user_id: user_id, processed: revised_prompt, source_type: "OpenAI")
+      doc = self.docs.create!(raw: raw_txt, user_id: user_id, processed: revised_prompt, source_type: source_type)
       doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.webp", content_type: "image/webp")
+      self.update(status: "finished")
+    rescue => e
+      puts "ImageHelper ERROR: #{e.inspect}"
+      raise e
+    end
+    doc
+  end
+
+  def save_from_google(url, processed, raw_txt, file_format = "image/webp", user_id = nil)
+    return if Rails.env.test?
+    begin
+      downloaded_image = Down.download(url)
+      user_id ||= self.user_id
+      doc = self.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "GoogleSearch")
+      doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.webp", content_type: file_format) if downloaded_image
       self.update(status: "finished")
     rescue => e
       puts "ImageHelper ERROR: #{e.inspect}"

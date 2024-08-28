@@ -1,95 +1,98 @@
-require "google_search_results"
-# {
-# "position":
-# 1,
-# "thumbnail":
-# "https://serpapi.com/searches/66ce789a7b05cabe3d9ac786/images/c4739c6c7f0a9317cd64b799d71071a1b8fbfa41e4a2c76a13e9ff80c66af52c.jpeg",
-# "related_content_id":
-# "b0JsYkFFclBGYWVsY01cIixcInFjQ0JMTnpGcE1wUjRN",
-# "serpapi_related_content_link":
-# "https://serpapi.com/search.json?engine=google_images_related_content&gl=us&hl=en&q=Coffee&related_content_id=b0JsYkFFclBGYWVsY01cIixcInFjQ0JMTnpGcE1wUjRN",
-# "source":
-# "Wikipedia, the free encyclopedia",
-# "source_logo":
-# "https://serpapi.com/searches/66ce789a7b05cabe3d9ac786/images/c4739c6c7f0a9317cd64b799d71071a14e6305fc658fc23feebacb9ccdbdbabc.png",
-# "title":
-# "Coffee - Wikipedia",
-# "link":
-# "https://en.wikipedia.org/wiki/coffee",
-# "original":
-# "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Latte_and_dark_coffee.jpg/1200px-Latte_and_dark_coffee.jpg",
-# "original_width":
-# 1200,
-# "original_height":
-# 750,
-# "is_product":
-# false
-# },
+require "net/http"
+require "json"
+
 class GoogleResultsService
+  template = "https://www.googleapis.com/customsearch/v1?q={searchTerms}&num={count?}&start={startIndex?}&lr={language?}&safe={safe?}&cx={cx?}&sort={sort?}&filter={filter?}&gl={gl?}&cr={cr?}&googlehost={googleHost?}&c2coff={disableCnTwTranslation?}&hq={hq?}&hl={hl?}&siteSearch={siteSearch?}&siteSearchFilter={siteSearchFilter?}&exactTerms={exactTerms?}&excludeTerms={excludeTerms?}&linkSite={linkSite?}&orTerms={orTerms?}&dateRestrict={dateRestrict?}&lowRange={lowRange?}&highRange={highRange?}&searchType={searchType}&fileType={fileType?}&rights={rights?}&imgSize={imgSize?}&imgType={imgType?}&imgColorType={imgColorType?}&imgDominantColor={imgDominantColor?}&alt=json"
+
   def initialize(query)
     @query = query
-    puts "SERP_PRIVATE_API_KEY: #{ENV["SERP_PRIVATE_API_KEY"]}"
-    # GET https://www.googleapis.com/customsearch/v1?key=INSERT_YOUR_API_KEY&cx=017576662512468239146:omuauf_lfve&q=lectures
-    #
+    # GET https://customsearch.googleapis.com/customsearch/v1
+
+    @google_custom_search_api_key = ENV["GOOGLE_CUSTOM_SEARCH_API_KEY"]
+    @google_custom_search_cx = ENV["GOOGLE_CUSTOM_SEARCH_CX"]
+
+    puts "GoogleResultsService initialized with query: #{@query}"
+    puts "GoogleResultsService initialized with API Key: #{@google_custom_search_api_key}"
+    puts "GoogleResultsService initialized with CX: #{@google_custom_search_cx}"
+
     params = {
-      api_key: ENV["SERP_PRIVATE_API_KEY"],
-      engine: "google_images",
-      google_domain: "google.com",
-      q: query,
-      hl: "en",
-      gl: "us",
+      api_key: @google_custom_search_api_key,
+      cx: @google_custom_search_cx,
+
       safe: "active",
-      num: 10,
-      rights: "cc_publicdomain|cc_attribute|cc_sharealike|cc_noncommercial|cc_nonderived", # Filter for usage rights
-    #   rights: "cc_publicdomain|cc_attribute|cc_sharealike" # Filter for commercial use <== TODO: Figure out if we need this
+      #   image_color_type: 'color',
+      SearchType: "image",
+      q: query,
+      rights: "cc_publicdomain",
+
     }
-    @search = GoogleSearch.new(params)
+    @search = "https://customsearch.googleapis.com/customsearch/v1?key=#{params[:api_key]}&cx=#{params[:cx]}&q=#{params[:q]}&searchType=image&safe=active&rights=cc_publicdomain"
+    puts "Search URL: #{@search}"
   end
 
   def search
-    @search.get_hash
+    @search.inspect
+    uri = URI(@search)
+    response = Net::HTTP.get(uri)
+    puts "Response: #{response}"
+    @search_results = JSON.parse(response)
+
+    response
+  end
+
+  def search_results
+    @search_results ||= search
   end
 
   def search_images
-    search_results = search
-    search_results[:images_results]
+    search_results["items"]
   end
 
   def search_links
-    search_results = search
     search_results[:organic_results]
   end
 
+  def images_api_view
+    search_images.map do |image|
+      {
+        title: image["title"],
+        link: image["link"],
+        snippet: image["snippet"],
+        thumbnail: image["image"]["thumbnailLink"],
+        context: image["image"]["contextLink"],
+        fileFormat: image["fileFormat"],
+      }
+    end
+  end
+
   def search_image_urls
-    search_images.map { |image| image[:original] }
+    urls = []
+    search_images.each_with_index do |image, index|
+      urls << image["link"]
+      puts "\nImage #{index}: "
+      pp image
+    end
+    urls
   end
 end
 
-# Test the service
+# # Test the service
 # puts "GoogleResultsService loaded\n"
 # test_query = "Coffee"
 # puts "Searching for #{test_query}\n\n"
-# search_results = GoogleResultsService.new(test_query).search
-# puts "Search results class: #{search_results.class}"
-# image_results = search_results[:images_results]
-# puts "Image results class: #{image_results.class}"
+# google_service = GoogleResultsService.new(test_query)
+# google_service.search
+# search_images = google_service.search_image_urls
+# # puts "Search images: #{search_images.inspect}"
 
-# search_images = search_results[:images_results] || []
+# puts "\n\n"
+# puts "All done."
 
-# puts "Search images class: #{search_images.class}"
-# search_images.each do |image|
-#   puts "URL: #{image[:original]}"
-#   puts "Title: #{image[:title]}"
-# end
+# puts "\n\n"
 
-puts "\n\n"
-puts "All done."
+# # search_results.each do |image|
+# #   puts "URL: #{image["original"]}"
+# # end
 
-puts "\n\n"
-
-# search_results.each do |image|
-#   puts "URL: #{image["original"]}"
-# end
-
-puts "\nGoogleResultsService finished"
+# puts "\nGoogleResultsService finished"
 # exit 0
