@@ -147,8 +147,7 @@ Rails.application.routes.draw do
 
   #  API routes
   namespace :api, defaults: { format: :json } do
-    get "google_images", to: "google_search_results#image_search"
-    post "save_image_result", to: "google_search_results#save_image_result"
+    post "google_images", to: "google_search_results#image_search"
 
     get "word_events", to: "audits#word_events", as: :word_events
     post "webhooks", to: "webhooks#webhooks"

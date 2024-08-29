@@ -1,49 +1,56 @@
 class API::GoogleSearchResultsController < API::ApplicationController
   skip_before_action :authenticate_token!
   before_action :authenticate_signed_in!
-
-  # Test the service
-  # puts "GoogleResultsService loaded\n"
-  # test_query = "Coffee"
-  # puts "Searching for #{test_query}\n\n"
-  # search_results = GoogleResultsService.new(test_query).search
-  # puts "Search results class: #{search_results.class}"
-  # image_results = search_results[:images_results]
-  # puts "Image results class: #{image_results.class}"
-
-  # image_results.each do |image|
-  #   puts "URL: #{image[:original]}"
-  # end
-
-  # puts "\n\n"
+  before_action :validate_search_params, only: [:image_search, :next_page]
+  before_action :initialize_search_service, only: [:image_search, :next_page]
 
   def image_search
-    puts "\n**google_images endpoint hit**\n"
-    image_search_service = GoogleResultsService.new(params[:q])
-    image_search_service.search
-    # search_results = image_search_service.images_api_view
-    image_results = image_search_service.images_api_view
+    add_optional_params
 
-    render json: image_results
+    if @image_search_service.search
+      render json: @image_search_service.images_api_view
+      # render json: {
+      #   images: @image_search_service.images_api_view,
+      #   queries: @image_search_service.queries,
+      #   nextStartIndex: @image_search_service.nextStartIndex,
+      # }
+    else
+      render_error_response
+    end
   end
 
-  #   export interface ImageResult {
-  #   link: string;
-  #   title: string;
-  #   thumbnail: string;
-  #   snippet?: string;
-  #   context?: string;
-  # }
+  def next_page
+    @image_search_service.add_params(start: params[:start]) if params[:start].present?
 
-  def save_image_result
-    puts "\n**save_image_result endpoint hit**\n #{params.inspect}"
-    src = params[:imageResult][:link]
-    title = params[:query]
-    long_title = params[:imageResult][:title]
-    file_format = params[:imageResult][:fileFormat]
-    user_id = current_user.id
-    puts "Saving image result: #{src}, #{title}, #{long_title}, #{user_id} , #{file_format}"
-    image = Image.create_image_from_google_search(src, title, long_title, file_format, user_id)
-    render json: image
+    if @image_search_service.search
+      render json: {
+        images: @image_search_service.images_api_view,
+        queries: @image_search_service.queries,
+        nextStartIndex: @image_search_service.nextStartIndex,
+      }
+    else
+      render_error_response
+    end
+  end
+
+  private
+
+  def initialize_search_service
+    @image_search_service = GoogleResultsService.new(params[:q], params[:start] || 1)
+  end
+
+  def add_optional_params
+    puts "Params: #{params}"
+    %i[imgType rights safe].each do |param|
+      @image_search_service.add_params(param => params[param]) if params[param].present?
+    end
+  end
+
+  def validate_search_params
+    render json: { error: "Query parameter is required" }, status: :bad_request unless params[:q].present?
+  end
+
+  def render_error_response
+    render json: { error: "Failed to fetch search results" }, status: :internal_server_error
   end
 end
