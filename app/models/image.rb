@@ -802,6 +802,7 @@ class Image < ApplicationRecord
           src: doc.display_url,
           raw: doc.raw,
           is_current: doc.id == current_doc_id,
+          can_edit: doc.user_id == current_user&.id,
         }
       end,
     }
