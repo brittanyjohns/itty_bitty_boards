@@ -180,7 +180,7 @@ class API::ScenariosController < API::ApplicationController
           { role: "system", content: system_message },
           { role: "user", content: prompt },
         ],
-        max_tokens: 50,
+        max_tokens: 100,
         temperature: 0.7,
       },
     )
@@ -210,7 +210,7 @@ class API::ScenariosController < API::ApplicationController
           { role: "system", content: system_message },
           { role: "user", content: prompt },
         ],
-        max_tokens: 50,
+        max_tokens: 100,
         temperature: 0.7,
       },
     )
