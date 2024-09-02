@@ -184,7 +184,10 @@ class Image < ApplicationRecord
   end
 
   def set_next_words!
-    new_next_words = get_next_words(label)
+    similar_images = Image.public_img.where(label: label).where.not(id: id)
+    next_words = similar_images.pluck(:label).uniq
+    new_next_words = next_words
+    new_next_words = get_next_words(label) unless new_next_words.any?
     Rails.logger.debug "New next words: #{new_next_words}"
     if new_next_words
       self.next_words = new_next_words
