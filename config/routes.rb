@@ -196,6 +196,7 @@ Rails.application.routes.draw do
         get "predictive"
         get "user_images"
         post "crop"
+        post "save_temp_doc"
       end
     end
     resources :board_groups do

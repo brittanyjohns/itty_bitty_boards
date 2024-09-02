@@ -1,17 +1,29 @@
-# Be sure to restart your server when you modify this file.
+# # Be sure to restart your server when you modify this file.
 
-# Avoid CORS issues when API is called from the frontend app.
-# Handle Cross-Origin Resource Sharing (CORS) in order to accept cross-origin Ajax requests.
+# # Avoid CORS issues when API is called from the frontend app.
+# # Handle Cross-Origin Resource Sharing (CORS) in order to accept cross-origin Ajax requests.
 
-# Read more: https://github.com/cyu/rack-cors
+# # Read more: https://github.com/cyu/rack-cors
+
+# Rails.application.config.middleware.insert_before 0, Rack::Cors do
+#   allow do
+#     origins "*"
+
+#     resource "*",
+#       headers: :any,
+#       methods: [:get, :post, :put, :patch, :delete, :options, :head],
+#       expose: [:Authorization]
+#   end
+# end
 
 Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do
-    origins "*"
+    origins "http://localhost:8100", "https://speakanyway.com", "http://www.speakanyway.com"
 
     resource "*",
       headers: :any,
       methods: [:get, :post, :put, :patch, :delete, :options, :head],
-      expose: [:Authorization]
+      expose: [:Authorization],  # Keep existing exposed headers
+      credentials: true          # Allow credentials if needed
   end
 end

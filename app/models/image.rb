@@ -628,6 +628,9 @@ class Image < ApplicationRecord
 
   def set_label
     item_name = label
+    if item_name.blank?
+      item_name = "image #{id || "new"}"
+    end
     item_name.downcase!
     item_name.strip!
     self.label = item_name

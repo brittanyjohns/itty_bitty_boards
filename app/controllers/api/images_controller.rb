@@ -68,29 +68,58 @@ class API::ImagesController < API::ApplicationController
 
     label = image_params[:label]&.downcase
     image_id = params["image"]["id"]
-    if image_id.present?
-      @existing_image = Image.find(image_id)
-    else
-      @existing_image = Image.find_by(label: label, user_id: @current_user.id)
-    end
-    if @existing_image
-      @image = @existing_image
-    else
-      @image = Image.create(user: @current_user, label: label, private: true, image_prompt: image_params[:image_prompt], image_type: "User")
-    end
-    @doc = @image.docs.new
-    @doc.user = @current_user
-    @doc.processed = true
-    file_extension = params[:file_extension]
-    doc_tmp_id = @image.docs.count + 1
-    filename = "img_#{@image.id}_img_doc_#{doc_tmp_id}_cropped.#{file_extension}"
-    @doc.image.attach(io: StringIO.new(Base64.decode64(params[:cropped_image])),
-                      filename: filename,
-                      content_type: "image/#{file_extension}")
+    # if image_id.present?
+    #   @existing_image = Image.find(image_id)
+    # else
+    #   @existing_image = Image.find_by(label: label, user_id: @current_user.id)
+    # end
+    # if @existing_image
+    #   @image = @existing_image
+    # else
+    #   @image = Image.create(user: @current_user, label: label, private: true, image_prompt: image_params[:image_prompt], image_type: "User")
+    # end
+    # @doc = @image.docs.new
+    # @doc.user = @current_user
+    # @doc.processed = true
+    # file_extension = params[:file_extension]
+    # doc_tmp_id = @image.docs.count + 1
+    # filename = "img_#{@image.id}_img_doc_#{doc_tmp_id}_cropped.#{file_extension}"
+    # @doc.image.attach(io: StringIO.new(Base64.decode64(params[:cropped_image])),
+    #                   filename: filename,
+    #                   content_type: "image/#{file_extension}")
+    @doc = attach_doc_to_image(@image, @current_user, params[:cropped_image], params[:file_extension])
+
     if @doc.save
       @image.update(status: "finished")
       @image.reload
       render json: @image.api_view(@current_user), status: :created
+    else
+      render json: @image.errors, status: :unprocessable_entity
+    end
+  end
+
+  def save_temp_doc
+    puts "Save temp doc #{params[:query]}"
+    @current_user = current_user
+    label = params[:query]&.downcase
+    @existing_image = Image.find_by(label: label, user_id: @current_user.id)
+    @image = nil
+    if @existing_image
+      @image = @existing_image
+    else
+      @image = Image.create(user: @current_user, label: label, private: true, image_prompt: params[:title], image_type: "User")
+    end
+    puts "imageUrl #{params[:imageUrl]}"
+    saved_image = @image.save_from_google(params[:imageUrl], params[:snippet], params[:title], "image/webp", @current_user.id)
+    puts "Saved image #{saved_image.inspect}"
+    saved_image_url = saved_image.display_url
+    puts "Saved image #{saved_image_url}"
+    @image.reload
+    # @doc = attach_doc_to_image(@image, @current_user, saved_image, params[:file_extension])
+    @doc = @image.docs.last
+    puts "Doc saved #{@doc} - #{@doc&.id}"
+    if @doc.save
+      render json: { image_url: saved_image_url, id: @image.id, doc_id: @doc.id }
     else
       render json: @image.errors, status: :unprocessable_entity
     end
@@ -140,7 +169,9 @@ class API::ImagesController < API::ApplicationController
     doc.user = @current_user
     doc.processed = true
     if doc.save
-      render json: @image, status: :created
+      puts "Doc saved #{doc.inspect}"
+      @image_with_display_doc = @image.attributes.merge({ display_doc: doc.attributes, src: doc.display_url })
+      render json: @image.with_display_doc(current_user), status: :created
     else
       render json: @image.errors, status: :unprocessable_entity
     end
@@ -394,5 +425,16 @@ class API::ImagesController < API::ApplicationController
     params.require(:image).permit(:label, :image_prompt, :display_image,
                                   next_words: [],
                                   audio_files: [], docs: [:id, :user_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
+  end
+
+  def attach_doc_to_image(image, user, image_data, file_extension)
+    doc = image.docs.new
+    doc.user = user
+    doc.processed = true
+    doc.image.attach(io: StringIO.new(Base64.decode64(image_data)),
+                     filename: "img_#{image.id}_img_doc_#{doc.id}_cropped.#{file_extension}",
+                     content_type: "image/#{file_extension}")
+    doc.save
+    doc
   end
 end

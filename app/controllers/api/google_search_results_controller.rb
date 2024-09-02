@@ -9,11 +9,6 @@ class API::GoogleSearchResultsController < API::ApplicationController
 
     if @image_search_service.search
       render json: @image_search_service.images_api_view
-      # render json: {
-      #   images: @image_search_service.images_api_view,
-      #   queries: @image_search_service.queries,
-      #   nextStartIndex: @image_search_service.nextStartIndex,
-      # }
     else
       render_error_response
     end
@@ -40,7 +35,6 @@ class API::GoogleSearchResultsController < API::ApplicationController
   end
 
   def add_optional_params
-    puts "Params: #{params}"
     %i[imgType rights safe].each do |param|
       @image_search_service.add_params(param => params[param]) if params[param].present?
     end

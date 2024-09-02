@@ -287,54 +287,54 @@
 #   t.index ["user_id"], name: "index_openai_prompts_on_user_id"
 # end
 
-PromptTemplate.delete_all
-num_of_imgs = 10
-name = "Scenario Name"
-sample_template = PromptTemplate.create!(
-  template_name: "Scenario Prompt Template 1",
-  name: name,
-  quantity: num_of_imgs,  # number of images to generate
-  prompt_text: "Please generate a list of exactly {QUANTITY} unique words or short phrases (2 words max - prefer SINGLE WORDS) that are relevant to the scenario {NAME}. Ensure that the list includes a mix of nouns, verbs, adjectives, and adverbs relevant to the activities and items involved in {NAME} using the following description for additional context. Please make the words appropriate for a person at the age given. You can use common/core words if not able to meet number requirement of {QUANTITY} words/phrases. Please respond in JSON with the array key 'words_phrases'.",
-  response_type: "JSON",
-  prompt_type: "Scenario",
-  method_name: "word_list_prompt",
-  current: true,
-)
+# PromptTemplate.delete_all
+# num_of_imgs = 10
+# name = "Scenario Name"
+# sample_template = PromptTemplate.create!(
+#   template_name: "Scenario Prompt Template 1",
+#   name: name,
+#   quantity: num_of_imgs,  # number of images to generate
+#   prompt_text: "Please generate a list of exactly {QUANTITY} unique words or short phrases (2 words max - prefer SINGLE WORDS) that are relevant to the scenario {NAME}. Ensure that the list includes a mix of nouns, verbs, adjectives, and adverbs relevant to the activities and items involved in {NAME} using the following description for additional context. Please make the words appropriate for a person at the age given. You can use common/core words if not able to meet number requirement of {QUANTITY} words/phrases. Please respond in JSON with the array key 'words_phrases'.",
+#   response_type: "JSON",
+#   prompt_type: "Scenario",
+#   method_name: "word_list_prompt",
+#   current: true,
+# )
 
-prompt_input = "A child is going to the zoo with their family. 
-They are excited to see all the animals and learn about them. They will see lions, 
-tigers, bears, monkeys, and elephants. They will also see birds, fish, and reptiles. 
-They will eat lunch at the zoo and play on the playground. 
-They will take pictures and buy a souvenir. They will have a fun day at the zoo."
-
-
-puts "Created #{PromptTemplate.count} prompt templates\nQuanity: #{sample_template.quantity}\nPrompt Text: #{sample_template.prompt_text}\nResponse Type: #{sample_template.response_type}\nPrompt Type: #{sample_template.prompt_type}\nMethod Name: #{sample_template.method_name}\nCurrent: #{sample_template.current}"
-user = User.admin.first
-# new_board = Board.new
-# new_board.user = user
-# new_board.parent_id = user.id
-# new_board.parent_type = "User"
-# new_board.predefined = false
-new_board_name = "Going to the Zoo"
-
-sample_scenario = OpenaiPrompt.new(user_id: user.id)
-sample_scenario.prompt_template_id = PromptTemplate.first.id
-sample_scenario.name = new_board_name
-sample_scenario.age_range = "5-7"
-sample_scenario.number_of_images = num_of_imgs
-sample_scenario.description = prompt_input
-sample_scenario.send_now = true
-sample_scenario.prompt_text = sample_scenario.description
-sample_scenario.revised_prompt = sample_scenario.description
-sample_scenario.token_limit = 10
-sample_scenario.save!
+# prompt_input = "A child is going to the zoo with their family. 
+# They are excited to see all the animals and learn about them. They will see lions, 
+# tigers, bears, monkeys, and elephants. They will also see birds, fish, and reptiles. 
+# They will eat lunch at the zoo and play on the playground. 
+# They will take pictures and buy a souvenir. They will have a fun day at the zoo."
 
 
-puts "Created #{PromptTemplate.count} prompt templates"
-puts "Sample Scenario Prompt created with id: #{sample_scenario.id}"
-@board = sample_scenario.boards.create!(user: user, name: new_board_name, token_limit: sample_scenario.token_limit, description: sample_scenario.revised_prompt)
-puts "Board created with id: #{@board.id}"
-CreateScenarioBoardJob.perform_async(sample_scenario.id)
+# puts "Created #{PromptTemplate.count} prompt templates\nQuanity: #{sample_template.quantity}\nPrompt Text: #{sample_template.prompt_text}\nResponse Type: #{sample_template.response_type}\nPrompt Type: #{sample_template.prompt_type}\nMethod Name: #{sample_template.method_name}\nCurrent: #{sample_template.current}"
+# user = User.admin.first
+# # new_board = Board.new
+# # new_board.user = user
+# # new_board.parent_id = user.id
+# # new_board.parent_type = "User"
+# # new_board.predefined = false
+# new_board_name = "Going to the Zoo"
+
+# sample_scenario = OpenaiPrompt.new(user_id: user.id)
+# sample_scenario.prompt_template_id = PromptTemplate.first.id
+# sample_scenario.name = new_board_name
+# sample_scenario.age_range = "5-7"
+# sample_scenario.number_of_images = num_of_imgs
+# sample_scenario.description = prompt_input
+# sample_scenario.send_now = true
+# sample_scenario.prompt_text = sample_scenario.description
+# sample_scenario.revised_prompt = sample_scenario.description
+# sample_scenario.token_limit = 10
+# sample_scenario.save!
 
 
-puts "Sample Scenario Prompt sent to OpenAI for generation"
+# puts "Created #{PromptTemplate.count} prompt templates"
+# puts "Sample Scenario Prompt created with id: #{sample_scenario.id}"
+# @board = sample_scenario.boards.create!(user: user, name: new_board_name, token_limit: sample_scenario.token_limit, description: sample_scenario.revised_prompt)
+# puts "Board created with id: #{@board.id}"
+# CreateScenarioBoardJob.perform_async(sample_scenario.id)
+
+
+# puts "Sample Scenario Prompt sent to OpenAI for generation"

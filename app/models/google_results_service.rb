@@ -10,10 +10,6 @@ class GoogleResultsService
     @google_custom_search_api_key = ENV["GOOGLE_CUSTOM_SEARCH_API_KEY"]
     @google_custom_search_cx = ENV["GOOGLE_CUSTOM_SEARCH_CX"]
 
-    puts "GoogleResultsService initialized with query: #{@query}"
-    puts "GoogleResultsService initialized with API Key: #{@google_custom_search_api_key}"
-    puts "GoogleResultsService initialized with CX: #{@google_custom_search_cx}"
-
     @params = {
       key: @google_custom_search_api_key,
       cx: @google_custom_search_cx,
@@ -30,7 +26,6 @@ class GoogleResultsService
     return unless extra_params&.is_a?(Hash)
     extra_params.each do |key, value|
       key_to_set = key.to_s.camelize(:lower)
-      puts "Adding param: #{key_to_set} = #{value}"
       @params[key_to_set.to_sym] = value
     end
   end
@@ -43,10 +38,8 @@ class GoogleResultsService
 
   def search
     search_url = build_search_url
-    puts "Search URL: #{search_url}"
     uri = URI(search_url)
     response = Net::HTTP.get(uri)
-    puts "Response: #{response}"
     @search_results = JSON.parse(response)
 
     response
@@ -65,14 +58,14 @@ class GoogleResultsService
   end
 
   def nextStartIndex
-    queries["nextPage"][0]["startIndex"]
+    queries["nextPage"][0]["startIndex"] if queries["nextPage"].present?
   end
 
   def images_api_view
     search_images&.map do |image|
       {
         title: image["title"],
-        link: image["link"],
+        link: image["link"],  # Direct image link
         snippet: image["snippet"],
         thumbnail: image["image"]["thumbnailLink"],
         context: image["image"]["contextLink"],
@@ -87,22 +80,3 @@ class GoogleResultsService
     search
   end
 end
-
-# # Test the service
-# puts "GoogleResultsService loaded\n"
-# test_query = "Coffee"
-# puts "Searching for #{test_query}\n\n"
-# google_service = GoogleResultsService.new(test_query)
-
-# # Search first page
-# google_service.search
-# search_images = google_service.images_api_view
-# puts "First page search images: #{search_images.inspect}"
-
-# # Search next page
-# google_service.next_page
-# next_page_images = google_service.images_api_view
-# puts "Next page search images: #{next_page_images.inspect}"
-
-# puts "\nGoogleResultsService finished"
-# exit 0
