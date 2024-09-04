@@ -285,9 +285,10 @@ class API::BoardsController < API::ApplicationController
       return
     end
     @image = Image.find(params[:image_id])
-    @board.images.delete(@image)
+    @board.remove_image(@image)
+    # @board.images.delete(@image)
     @board.reload
-    render json: @board, status: :ok
+    render json: { board: @board, status: :ok }
   end
 
   # # DELETE /boards/1 or /boards/1.json

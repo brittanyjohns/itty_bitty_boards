@@ -61,17 +61,39 @@ class GoogleResultsService
     queries["nextPage"][0]["startIndex"] if queries["nextPage"].present?
   end
 
-  def images_api_view
+  def filtered_search_results
+    filtered = []
     search_images&.map do |image|
-      {
+      img_obj = {
         title: image["title"],
         link: image["link"],  # Direct image link
         snippet: image["snippet"],
         thumbnail: image["image"]["thumbnailLink"],
         context: image["image"]["contextLink"],
         fileFormat: image["fileFormat"],
+      }.with_indifferent_access
+      unless image["fileFormat"].blank? || image["fileFormat"].include?("svg")
+        filtered << img_obj
+      end
+    end
+    puts "Filtered images: #{filtered.count}"
+    puts " \n#{filtered.inspect}\n"
+    filtered
+  end
+
+  def images_api_view
+    filtered_search_results&.map do |image|
+      puts "Image: #{image["title"]}"
+      puts "Image2: #{image[:title]}"
+      {
+        title: image["title"],
+        link: image["link"],  # Direct image link
+        snippet: image["snippet"],
+        thumbnail: image["thumbnail"],
+        context: image["context"],
+        fileFormat: image["fileFormat"],
         startIndex: nextStartIndex,
-      }
+      }.with_indifferent_access
     end
   end
 

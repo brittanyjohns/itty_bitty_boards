@@ -161,8 +161,7 @@ class BoardImage < ApplicationRecord
 
   def save_initial_layout
     if image.image_type == "Menu"
-      l = board.rearrange_images
-      puts "rearrange_images layout: #{l}"
+      board.rearrange_images
     else
       self.update!(layout: initial_layout)
     end

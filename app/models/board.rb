@@ -45,7 +45,7 @@ class Board < ApplicationRecord
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
   scope :scenarios, -> { where(parent_type: "OpenaiPrompt") }
-  scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt"]) }
+  scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt", "PredefinedResource"]) }
   scope :user_made_with_scenarios_and_menus, -> { where(parent_type: ["User", "OpenaiPrompt", "Menu"]) }
   scope :predictive, -> { where(parent_type: "PredefinedResource") }
   scope :predefined, -> { where(predefined: true) }
@@ -143,6 +143,17 @@ class Board < ApplicationRecord
       image = Image.find_or_create_by(label: word, user_id: predictive_default.user_id)
       predictive_default.images << image
     end
+  end
+
+  def self.create_base_board
+    words = ["I", "you", "he", "she", "it", "we", "they", "that", "this", "the", "a", "is", "can", "will", "do", "don't", "go", "want"]
+    base_board = self.with_artifacts.find_or_create_by(name: "Base", user_id: User.admin.first.id, parent: PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board"), predefined: true)
+    base_board.images.destroy_all
+    words.each do |word|
+      image = Image.public_img.find_or_create_by(label: word)
+      base_board.add_image(image.id)
+    end
+    base_board.reset_layouts
   end
 
   def set_number_of_columns
@@ -310,6 +321,10 @@ class Board < ApplicationRecord
         bi.create_voice_audio
       end
     end
+  end
+
+  def remove_image(image_id)
+    board_images.find_by(image_id: image_id).destroy
   end
 
   def add_images(image_ids)

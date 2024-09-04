@@ -776,11 +776,22 @@ class Image < ApplicationRecord
     }
   end
 
+  def remaining_user_boards(current_user)
+    return [] unless current_user
+    current_user.boards.user_made_with_scenarios - boards
+  end
+
+  def user_boards(current_user)
+    return [] unless current_user
+    boards.where(user_id: current_user.id)
+  end
+
   def with_display_doc(current_user = nil)
     current_doc = display_doc(current_user)
     current_doc_id = current_doc.id if current_doc
     image_docs = docs.with_attached_image.for_user(current_user).order(created_at: :desc)
-    user_image_boards = current_user ? current_user.boards : []
+    remaining = remaining_user_boards(current_user)
+    user_image_boards = user_boards(current_user)
     {
       id: id,
       label: label,
@@ -800,6 +811,9 @@ class Image < ApplicationRecord
       user_id: self.user_id,
       next_words: next_words,
       no_next: no_next,
+      part_of_speech: part_of_speech,
+      user_boards: user_image_boards.map { |board| { id: board.id, name: board.name } },
+      remaining_boards: remaining.map { |board| { id: board.id, name: board.name } },
       docs: image_docs.map do |doc|
         {
           id: doc.id,
@@ -808,7 +822,7 @@ class Image < ApplicationRecord
           src: doc.display_url,
           raw: doc.raw,
           is_current: doc.id == current_doc_id,
-          can_edit: doc.user_id == current_user&.id,
+          can_edit: (current_user && doc.user_id == current_user.id) || current_user&.admin?,
         }
       end,
     }
