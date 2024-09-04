@@ -22,11 +22,11 @@ class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
   belongs_to :board
   belongs_to :image
-  attr_accessor :skip_create_voice_audio
+  attr_accessor :skip_create_voice_audio, :skip_initial_layout
 
   before_create :set_defaults
   after_create :set_next_words
-  after_create :save_initial_layout
+  after_create :save_initial_layout, unless: :skip_initial_layout
 
   def initialize(*args)
     super
@@ -160,10 +160,19 @@ class BoardImage < ApplicationRecord
   end
 
   def save_initial_layout
-    if image.image_type == "Menu"
-      board.rearrange_images
+    puts "\n\n*** save_initial_layout ***\n\nself.skip_initial_layout: #{self.skip_initial_layout}"
+    if self.skip_initial_layout == true
+      puts "Skipping initial layout"
+      return
     else
-      self.update!(layout: initial_layout)
+      puts "\n\nSaving initial layout\n\n"
+    end
+    if self.layout.blank?
+      if image.image_type == "Menu"
+        board.rearrange_images
+      else
+        self.update!(layout: initial_layout)
+      end
     end
   end
 

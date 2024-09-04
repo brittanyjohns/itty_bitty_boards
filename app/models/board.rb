@@ -73,8 +73,6 @@ class Board < ApplicationRecord
   after_touch :set_status
   before_create :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
-  # after_create :create_name_audio
-  after_save :create_name_audio
   after_initialize :set_screen_sizes, unless: :all_validate_screen_sizes?
   after_initialize :set_initial_layout, if: :layout_empty?
 
@@ -159,16 +157,6 @@ class Board < ApplicationRecord
   def set_number_of_columns
     return unless number_of_columns.nil?
     self.number_of_columns = self.large_screen_columns
-  end
-
-  def create_name_audio
-    if audio_files.any?
-      Rails.logger.debug "Audio files already exist"
-      # Todo: Create a new audio file if the name has changed
-    else
-      new_file = self.create_audio_from_text(name)
-      new_file
-    end
   end
 
   def set_status
@@ -333,12 +321,17 @@ class Board < ApplicationRecord
     end
   end
 
-  def add_image(image_id)
+  def add_image(image_id, layout = nil)
     new_board_image = nil
     if image_ids.include?(image_id.to_i)
       puts "image already added"
     else
       new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice)
+      if layout
+        new_board_image.layout = layout
+        new_board_image.skip_initial_layout = true
+        new_board_image.save
+      end
       image = Image.find(image_id)
       if image.existing_voices.include?(self.voice)
         new_board_image.voice = self.voice
@@ -352,6 +345,41 @@ class Board < ApplicationRecord
     end
     Rails.logger.error "NO IMAGE FOUND" unless new_board_image
     new_board_image
+  end
+
+  def clone_with_images(cloned_user_id, new_name)
+    if new_name.blank?
+      new_name = name + " copy"
+    end
+    @source = self
+    cloned_user = User.find(cloned_user_id)
+    unless cloned_user
+      Rails.logger.debug "User not found: #{cloned_user_id} - defaulting to admin"
+      cloned_user_id = User::DEFAULT_ADMIN
+      cloned_user = User.find(cloned_user_id)
+      if !cloned_user
+        Rails.logger.debug "Default admin user not found: #{cloned_user_id}"
+        return
+      end
+    end
+    @images = @source.images
+    @board_images = @source.board_images
+    @layouts = @board_images.pluck(:image_id, :layout)
+
+    @cloned_board = @source.dup
+    @cloned_board.user_id = cloned_user_id
+    @cloned_board.name = new_name
+    @cloned_board.save
+    @images.each do |image|
+      layout = @layouts.find { |l| l[0] == image.id }&.second
+      puts "layout: #{layout}"
+      @cloned_board.add_image(image.id, layout)
+    end
+    if @cloned_board.save
+      @cloned_board
+    else
+      Rails.logger.debug "Error cloning board: #{@cloned_board}"
+    end
   end
 
   def voice_for_image(image_id)
@@ -501,7 +529,7 @@ class Board < ApplicationRecord
         row_count += 1
       end
     end
-    Rails.logger.debug "layout_to_set: #{layout_to_set}"
+    Rails.logger.debug "calculate_grid_layout_for_screen_size: #{layout_to_set}"
 
     self.layout[screen_size] = layout_to_set.values # Convert back to an array if needed
     self.board_images.reset
@@ -521,7 +549,7 @@ class Board < ApplicationRecord
   end
 
   def update_grid_layout(layout_to_set, screen_size)
-    Rails.logger.debug "layout_to_set: #{layout_to_set}"
+    Rails.logger.debug "update_grid_layout: #{layout_to_set}"
     layout_for_screen_size = self.layout[screen_size] || []
     unless layout_to_set.is_a?(Array)
       Rails.logger.debug "layout_to_set is not an array"
