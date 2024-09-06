@@ -1,4 +1,12 @@
 FactoryBot.define do
+  factory :dynamic_board_image do
+    
+  end
+
+  factory :dynamic_board do
+    name { "MyString" }
+  end
+
   factory :scenario do
     questions { "" }
     answers { "" }

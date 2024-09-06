@@ -9,6 +9,19 @@ class API::BoardImagesController < API::ApplicationController
 
   # GET /board_images/1 or /board_images/1.json
   def show
+    render json: @board_image.api_view
+  end
+
+  def make_dynamic
+    @board_image = BoardImage.find(params[:id])
+    @board_image.make_dynamic
+    render json: @board_image.api_view
+  end
+
+  def make_static
+    @board_image = BoardImage.find(params[:id])
+    @board_image.make_static
+    render json: @board_image.api_view
   end
 
   def save_layout

@@ -76,15 +76,11 @@ class GoogleResultsService
         filtered << img_obj
       end
     end
-    puts "Filtered images: #{filtered.count}"
-    puts " \n#{filtered.inspect}\n"
     filtered
   end
 
   def images_api_view
     filtered_search_results&.map do |image|
-      puts "Image: #{image["title"]}"
-      puts "Image2: #{image[:title]}"
       {
         title: image["title"],
         link: image["link"],  # Direct image link

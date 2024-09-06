@@ -25,6 +25,7 @@
 #  border_color        :string
 #  is_private          :boolean          default(FALSE)
 #  audio_url           :string
+#  dynamic_board_id    :integer
 #
 require "test_helper"
 

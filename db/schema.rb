@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_08_21_193938) do
+ActiveRecord::Schema[7.1].define(version: 2024_09_06_164018) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -90,6 +90,8 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_21_193938) do
     t.jsonb "layout", default: {}
     t.string "status", default: "pending"
     t.string "audio_url"
+    t.string "mode", default: "static", null: false
+    t.integer "dynamic_board_id"
     t.index ["board_id"], name: "index_board_images_on_board_id"
     t.index ["image_id"], name: "index_board_images_on_image_id"
   end
@@ -174,6 +176,42 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_21_193938) do
     t.index ["user_id"], name: "index_docs_on_user_id"
   end
 
+  create_table "dynamic_board_images", force: :cascade do |t|
+    t.integer "image_id"
+    t.integer "dynamic_board_id"
+    t.integer "position"
+    t.jsonb "layout", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "dynamic_boards", force: :cascade do |t|
+    t.string "name"
+    t.integer "user_id"
+    t.integer "parent_id"
+    t.string "parent_type"
+    t.text "description"
+    t.integer "cost", default: 0
+    t.boolean "predefined", default: false
+    t.integer "token_limit", default: 0
+    t.string "voice", default: "echo"
+    t.string "status", default: "pending"
+    t.integer "number_of_columns", default: 6
+    t.integer "small_screen_columns", default: 3
+    t.integer "medium_screen_columns", default: 8
+    t.integer "large_screen_columns", default: 12
+    t.string "display_image_url"
+    t.jsonb "layout", default: {}
+    t.integer "position"
+    t.string "audio_url"
+    t.string "bg_color"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_dynamic_boards_on_name"
+    t.index ["parent_id", "parent_type"], name: "index_dynamic_boards_on_parent_id_and_parent_type"
+    t.index ["user_id"], name: "index_dynamic_boards_on_user_id"
+  end
+
   create_table "images", force: :cascade do |t|
     t.string "label"
     t.text "image_prompt"
@@ -197,6 +235,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_21_193938) do
     t.string "border_color"
     t.boolean "is_private", default: false
     t.string "audio_url"
+    t.integer "dynamic_board_id"
   end
 
   create_table "menus", force: :cascade do |t|
@@ -556,6 +595,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_21_193938) do
     t.decimal "total_plan_cost", precision: 8, scale: 2, default: "0.0"
     t.uuid "uuid", default: -> { "gen_random_uuid()" }
     t.string "child_lookup_key"
+    t.boolean "locked", default: false, null: false
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
     t.index ["current_team_id"], name: "index_users_on_current_team_id"
     t.index ["email"], name: "index_users_on_email", unique: true

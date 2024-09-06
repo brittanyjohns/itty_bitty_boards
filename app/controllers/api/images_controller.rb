@@ -57,9 +57,13 @@ class API::ImagesController < API::ApplicationController
 
     @image = Image.with_artifacts.find(params[:id])
     @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
+    @board_image = BoardImage.find_by(board_id: @board.id, image_id: @image.id) if @board
 
     @image_with_display_doc = @image.with_display_doc(@current_user)
-    render json: @image_with_display_doc
+    board_image_data = {
+      board_image_id: @board_image&.id,
+    }
+    render json: @image_with_display_doc.merge(board_image_data)
   end
 
   def crop

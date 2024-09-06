@@ -40,6 +40,7 @@
 #  total_plan_cost        :decimal(8, 2)    default(0.0)
 #  uuid                   :uuid
 #  child_lookup_key       :string
+#  locked                 :boolean          default(FALSE), not null
 #
 
 class User < ApplicationRecord
@@ -218,7 +219,7 @@ class User < ApplicationRecord
     display_name
   end
 
-  TRAIL_PERIOD = 14.days
+  TRAIL_PERIOD = 7.days
 
   def free_trial?
     free? && created_at > TRAIL_PERIOD.ago

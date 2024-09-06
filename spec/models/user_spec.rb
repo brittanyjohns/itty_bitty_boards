@@ -40,6 +40,7 @@
 #  total_plan_cost        :decimal(8, 2)    default(0.0)
 #  uuid                   :uuid
 #  child_lookup_key       :string
+#  locked                 :boolean          default(FALSE), not null
 #
 require "rails_helper"
 

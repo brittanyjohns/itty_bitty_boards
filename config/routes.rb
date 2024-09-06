@@ -232,6 +232,8 @@ Rails.application.routes.draw do
       member do
         put "move_up"
         put "move_down"
+        put "make_dynamic"
+        put "make_static"
       end
     end
     resources :scenarios do
