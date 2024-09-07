@@ -461,6 +461,7 @@ class Board < ApplicationRecord
           label: board_image.label,
           src: board_image.image.display_image_url(viewing_user),
           audio: board_image.audio_url,
+          dynamic_board: board_image.dynamic_board&.api_view,
         }
       end,
       layout: layout,
