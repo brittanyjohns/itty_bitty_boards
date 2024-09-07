@@ -11,7 +11,6 @@
 class DynamicBoard < ApplicationRecord
   belongs_to :board
   has_many :board_images, through: :board
-
   has_many :dynamic_board_images, dependent: :destroy
   has_many :images, through: :dynamic_board_images
 
@@ -75,18 +74,22 @@ class DynamicBoard < ApplicationRecord
       description: description,
 
       image_count: dynamic_board_images.count,
+      board_image_count: board_images.count,
+
+      images: board_images.map(&:api_view),
 
       # current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
       # images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
-      images: dynamic_board_images.includes(:image).map do |dynamic_board_image|
+      ximages: dynamic_board_images.includes(:image).map do |dynamic_board_image|
         @image = dynamic_board_image.image
+        dbi = dynamic_board_image
         {
           # id: @image.id,
           # id: dynamic_board_image.id,
           dynamic_board: @image.dynamic_board&.api_view,
           id: dynamic_board_image.id,
           image_id: @image.id,
-          dynamic_board_image_id: BoardImage.find_by(image_id: @image.id)&.id,
+          dynamic_board_image_id: dbi.id,
           label: dynamic_board_image.label,
           bg_color: @image.bg_class,
           next_words: dynamic_board_image.next_words,

@@ -69,6 +69,23 @@ class API::BoardImagesController < API::ApplicationController
     end
   end
 
+  def set_next_words
+    @board_image = BoardImage.find(params[:id])
+    if params[:next_words].present?
+      @board_image.next_words = params[:next_words]&.compact_blank
+      @board_image.save
+    else
+      # CreateAllAudioJob.perform_async(@image.id)
+      puts "Creating words from next words"
+      @image = @board_image.image
+      @image.create_words_from_next_words
+      @board_image.next_words = @image.next_words
+    end
+    @board_image.save
+
+    render json: @board_image
+  end
+
   # PATCH/PUT /board_images/1 or /board_images/1.json
   def update
     respond_to do |format|

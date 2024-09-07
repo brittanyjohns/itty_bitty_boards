@@ -149,6 +149,7 @@ class BoardImage < ApplicationRecord
       added_at: added_at,
       board_mode: board.mode,
       dynamic_board_mode: dynamic_board&.mode,
+      dynamic_board_id: dynamic_board_id,
       test_mode: dynamic_board_id ? "dynamic" : "static",
       mode: mode,
     }
@@ -165,7 +166,8 @@ class BoardImage < ApplicationRecord
       next_words = set_next_words
     end
     if image.user_id && image.user_id != dynamic_user_id
-      admin_user = User.admins.find_by(id: dynamic_user_id)
+      puts "User id mismatch - image.user_id: #{image.user_id} - dynamic_user_id: #{dynamic_user_id}"
+      admin_user = User.admin.find_by(id: dynamic_user_id)
       if admin_user
         puts "Admin user found"
         dynamic_user_id = admin_user.id
@@ -223,6 +225,12 @@ class BoardImage < ApplicationRecord
     self.font_size = image.font_size
     self.border_color = image.border_color
     self.audio_url = image.audio_url
+    next_words = image.next_words
+    self.next_words = next_words if next_words.present?
+    if next_words.blank?
+      image.set_next_words!
+      self.next_words = image.next_words
+    end
   end
 
   def save_defaults

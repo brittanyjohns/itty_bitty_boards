@@ -243,6 +243,7 @@ Rails.application.routes.draw do
         put "move_down"
         put "make_dynamic"
         put "make_static"
+        put "set_next_words"
       end
     end
     resources :scenarios do
