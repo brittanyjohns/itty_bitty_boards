@@ -2,41 +2,47 @@
 #
 # Table name: dynamic_boards
 #
-#  id                    :bigint           not null, primary key
-#  name                  :string
-#  user_id               :integer
-#  parent_id             :integer
-#  parent_type           :string
-#  description           :text
-#  cost                  :integer          default(0)
-#  predefined            :boolean          default(FALSE)
-#  token_limit           :integer          default(0)
-#  voice                 :string           default("echo")
-#  status                :string           default("pending")
-#  number_of_columns     :integer          default(6)
-#  small_screen_columns  :integer          default(3)
-#  medium_screen_columns :integer          default(8)
-#  large_screen_columns  :integer          default(12)
-#  display_image_url     :string
-#  layout                :jsonb
-#  position              :integer
-#  audio_url             :string
-#  bg_color              :string
-#  created_at            :datetime         not null
-#  updated_at            :datetime         not null
+#  id         :bigint           not null, primary key
+#  name       :string
+#  board_id   :integer          not null
+#  created_at :datetime         not null
+#  updated_at :datetime         not null
 #
 class DynamicBoard < ApplicationRecord
-  belongs_to :user, optional: true
-  belongs_to :parent, polymorphic: true, optional: true
+  belongs_to :board
 
   has_many :dynamic_board_images, dependent: :destroy
   has_many :images, through: :dynamic_board_images
 
-  include BoardsHelper
+  scope :with_artifacts, -> {
+          includes(
+            images: [
+              :docs,
+            # :audio_files_attachments,
+            # :audio_files_blobs,
+            # { user: { user_docs: :doc } },
+            ],
+          )
+        }
 
-  def words
-    parent.next_words
-  end
+  delegate :user, to: :board
+  delegate :mode, to: :board
+  delegate :reset_layouts, to: :board
+  delegate :status, to: :board
+  delegate :layout, to: :board
+  delegate :number_of_columns, to: :board
+  delegate :small_screen_columns, to: :board
+  delegate :medium_screen_columns, to: :board
+  delegate :large_screen_columns, to: :board
+  delegate :audio_url, to: :board
+  delegate :display_image_url, to: :board
+  delegate :words, to: :board
+  delegate :voice, to: :board
+  delegate :position, to: :board
+  delegate :description, to: :board
+  delegate :predefined, to: :board
+  delegate :token_limit, to: :board
+  delegate :cost, to: :board
 
   def board_images
     dynamic_board_images
@@ -68,41 +74,39 @@ class DynamicBoard < ApplicationRecord
       id: id,
       name: name,
       description: description,
-      parent_type: parent_type,
-      parent_id: parent_id,
-      parent_description: parent_type === "User" ? "User" : parent.description,
-      parent_prompt: parent_type === "OpenaiPrompt" ? parent.prompt_text : nil,
-      predefined: predefined,
-      number_of_columns: number_of_columns,
-      small_screen_columns: small_screen_columns,
-      medium_screen_columns: medium_screen_columns,
-      large_screen_columns: large_screen_columns,
-      status: status,
-      token_limit: token_limit,
-      cost: cost,
-      audio_url: audio_url,
-      display_image_url: display_image_url,
-      floating_words: words,
-      user_id: user_id,
-      voice: voice,
-      created_at: created_at,
-      updated_at: updated_at,
-      current_user_teams: [],
+
+      # number_of_columns: number_of_columns,
+      # small_screen_columns: small_screen_columns,
+      # medium_screen_columns: medium_screen_columns,
+      # large_screen_columns: large_screen_columns,
+      # status: status,
+      # token_limit: token_limit,
+      # cost: cost,
+      # audio_url: audio_url,
+      # display_image_url: display_image_url,
+      # floating_words: words,
+      # user_id: user_id,
+      # voice: voice,
+      # created_at: created_at,
+      # updated_at: updated_at,
+      # current_user_teams: [],
       image_count: dynamic_board_images.count,
+
       # current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
       # images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
-      images: dynamic_board_images.includes(image: :docs).map do |board_image|
+      images: dynamic_board_images.includes(:image).map do |board_image|
         @image = board_image.image
         {
-          id: @image.id,
+          # id: @image.id,
           # id: board_image.id,
-          mode: parent.mode,
-          dynamic_board: board_image.dynamic_board&.api_view,
-          board_image_id: board_image.id,
+          dynamic_board: @image.dynamic_board&.api_view,
+          id: board_image.id,
+          image_id: @image.id,
+          board_image_id: BoardImage.find_by(image_id: @image.id)&.id,
           label: board_image.label,
           bg_color: @image.bg_class,
           next_words: board_image.next_words,
-          position: board_image.position,
+          # position: board_image.position,
           src: @image.display_image_url(viewing_user),
           audio: board_image.audio_url,
           voice: board_image.voice,
@@ -124,7 +128,6 @@ class DynamicBoard < ApplicationRecord
       audio_url: audio_url,
       position: position,
       description: description,
-      parent_type: parent_type,
       predefined: predefined,
       number_of_columns: number_of_columns,
       status: status,

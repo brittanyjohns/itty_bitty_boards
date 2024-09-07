@@ -57,12 +57,20 @@ class API::ImagesController < API::ApplicationController
 
     @image = Image.with_artifacts.find(params[:id])
     @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
-    @board_image = BoardImage.find_by(board_id: @board.id, image_id: @image.id) if @board
+    if !@board
+      @board_image = @current_user.board_images.find_by(image_id: @image.id)
+      puts "NO BOARD IMAGE FOUND" unless @board_image
+      @board = @board_image.board if @board_image
+    else
+      @board_image = BoardImage.find_by(board_id: @board.id, image_id: @image.id)
+    end
 
     @image_with_display_doc = @image.with_display_doc(@current_user)
     board_image_data = {
       board_image_id: @board_image&.id,
     }
+
+    puts "Board image data: #{board_image_data}"
     render json: @image_with_display_doc.merge(board_image_data)
   end
 
@@ -71,6 +79,7 @@ class API::ImagesController < API::ApplicationController
 
     label = image_params[:label]&.downcase
     image_id = params["image"]["id"]
+    @image = Image.find(image_id)
     @doc = attach_doc_to_image(@image, @current_user, params[:cropped_image], params[:file_extension])
 
     if @doc.save

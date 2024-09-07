@@ -208,6 +208,15 @@ Rails.application.routes.draw do
     end
     get "sample_voices", to: "images#sample_voices"
 
+    resources :dynamic_boards do
+      member do
+        post "save_layout"
+        post "rearrange_images"
+        post "add_image"
+        post "remove_image"
+      end
+    end
+
     resources :boards do
       resources :images
       collection do

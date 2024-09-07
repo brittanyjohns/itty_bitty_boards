@@ -25,7 +25,6 @@
 #  border_color        :string
 #  is_private          :boolean          default(FALSE)
 #  audio_url           :string
-#  dynamic_board_id    :integer
 #
 class Image < ApplicationRecord
   paginates_per 50
@@ -36,6 +35,7 @@ class Image < ApplicationRecord
   has_many :board_images, dependent: :destroy
   has_many :boards, through: :board_images
   has_many_attached :audio_files
+  belongs_to :dynamic_board, optional: true
 
   accepts_nested_attributes_for :docs
 
@@ -787,12 +787,18 @@ class Image < ApplicationRecord
     boards.where(user_id: current_user.id)
   end
 
+  def board_images_for(current_user)
+    return [] unless current_user
+    board_images.where(board_id: current_user.boards.pluck(:id))
+  end
+
   def with_display_doc(current_user = nil)
     current_doc = display_doc(current_user)
     current_doc_id = current_doc.id if current_doc
     image_docs = docs.with_attached_image.for_user(current_user).order(created_at: :desc)
     remaining = remaining_user_boards(current_user)
     user_image_boards = user_boards(current_user)
+    board_images = board_images_for(current_user)
     {
       id: id,
       label: label,
@@ -813,6 +819,7 @@ class Image < ApplicationRecord
       next_words: next_words,
       no_next: no_next,
       part_of_speech: part_of_speech,
+      board_images: board_images.map { |board_image| { id: board_image.id, board_id: board_image.board_id, image_id: board_image.image_id, label: board_image.label, board_name: board_image.board.name } },
       user_boards: user_image_boards.map { |board| { id: board.id, name: board.name } },
       remaining_boards: remaining.map { |board| { id: board.id, name: board.name } },
       docs: image_docs.map do |doc|

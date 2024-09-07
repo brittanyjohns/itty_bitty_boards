@@ -14,7 +14,11 @@ class API::BoardImagesController < API::ApplicationController
 
   def make_dynamic
     @board_image = BoardImage.find(params[:id])
-    @board_image.make_dynamic
+    @user = current_user
+    if @user.admin?
+      @user = @board_image.board.user
+    end
+    @board_image.make_dynamic(@user.id)
     render json: @board_image.api_view
   end
 

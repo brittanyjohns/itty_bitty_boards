@@ -3,10 +3,8 @@
 # Table name: dynamic_board_images
 #
 #  id               :bigint           not null, primary key
-#  image_id         :integer
-#  dynamic_board_id :integer
-#  position         :integer
-#  layout           :jsonb
+#  image_id         :integer          not null
+#  dynamic_board_id :integer          not null
 #  created_at       :datetime         not null
 #  updated_at       :datetime         not null
 #

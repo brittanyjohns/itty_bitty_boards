@@ -40,6 +40,8 @@ class Board < ApplicationRecord
   has_many :board_groups, through: :board_group_boards
   has_many :child_boards, dependent: :destroy
 
+  has_many :dynamic_boards
+
   include BoardsHelper
 
   scope :for_user, ->(user) { where(user: user) }
@@ -426,33 +428,48 @@ class Board < ApplicationRecord
       current_user_teams: [],
       # current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
       # images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
-      images: board_images.includes(image: :docs).map do |board_image|
-        @image = board_image.image
-        {
-          id: @image.id,
-          # id: board_image.id,
-          mode: board_image.mode,
-          dynamic_board: board_image.dynamic_board&.api_view,
-          board_image_id: board_image.id,
-          label: board_image.label,
-          image_prompt: board_image.image_prompt,
-          bg_color: @image.bg_class,
-          text_color: board_image.text_color,
-          next_words: board_image.next_words,
-          position: board_image.position,
-          src: @image.display_image_url(viewing_user),
-          audio: board_image.audio_url,
-          voice: board_image.voice,
-          layout: board_image.layout,
-          added_at: board_image.added_at,
-          image_last_added_at: board_image.image_last_added_at,
-          part_of_speech: @image.part_of_speech,
+      # images: board_images.includes(image: :docs).map do |board_image|
+      #   @image = board_image.image
+      #   {
+      #     id: @image.id,
+      #     # id: board_image.id,
+      #     mode: board_image.mode,
+      #     dynamic_board: board_image.dynamic_board&.api_view,
+      #     board_image_id: board_image.id,
+      #     label: board_image.label,
+      #     image_prompt: board_image.image_prompt,
+      #     bg_color: @image.bg_class,
+      #     text_color: board_image.text_color,
+      #     next_words: board_image.next_words,
+      #     position: board_image.position,
+      #     src: @image.display_image_url(viewing_user),
+      #     audio: board_image.audio_url,
+      #     voice: board_image.voice,
+      #     layout: board_image.layout,
+      #     added_at: board_image.added_at,
+      #     image_last_added_at: board_image.image_last_added_at,
+      #     part_of_speech: @image.part_of_speech,
 
-          status: board_image.status,
+      #     status: board_image.status,
+      #   }
+      # end,
+      # images: board_images.includes(:image).map(&:api_view),
+      images: board_images.includes(:image).map do |board_image|
+        {
+          id: board_image.id,
+          layout: board_image.layout,
+          label: board_image.label,
+          src: board_image.image.display_image_url(viewing_user),
+          audio: board_image.audio_url,
         }
       end,
       layout: layout,
     }
+  end
+
+  def mode
+    dynamic_board = DynamicBoard.joins(:board).find_by(boards: { user_id: user_id })
+    dynamic_board ? "dynamic" : "static"
   end
 
   def api_view(viewing_user = nil)

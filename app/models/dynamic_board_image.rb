@@ -3,10 +3,8 @@
 # Table name: dynamic_board_images
 #
 #  id               :bigint           not null, primary key
-#  image_id         :integer
-#  dynamic_board_id :integer
-#  position         :integer
-#  layout           :jsonb
+#  image_id         :integer          not null
+#  dynamic_board_id :integer          not null
 #  created_at       :datetime         not null
 #  updated_at       :datetime         not null
 #
@@ -23,6 +21,14 @@ class DynamicBoardImage < ApplicationRecord
 
   def audio_url
     image.audio_url
+  end
+
+  def board_image
+    BoardImage.find_by(image_id: image_id, dynamic_board_id: dynamic_board_id)
+  end
+
+  def layout
+    board_image&.layout || {}
   end
 
   def clean_up_layout

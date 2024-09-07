@@ -24,9 +24,9 @@ class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
   belongs_to :board
   belongs_to :image
+  belongs_to :dynamic_board, optional: true
   attr_accessor :skip_create_voice_audio, :skip_initial_layout
 
-  has_one :dynamic_board, as: :parent, dependent: :destroy
   before_create :set_defaults
   after_create :set_next_words
   after_create :save_initial_layout, unless: :skip_initial_layout
@@ -37,9 +37,16 @@ class BoardImage < ApplicationRecord
   end
 
   def set_next_words
+    puts "\n\n>>>>> Setting next words\n"
     return if next_words.present? || Rails.env.test?
+    if image.next_words.blank?
+      puts "No next words"
+      image.set_next_words!
+      image.reload
+    end
     self.next_words = image.next_words
     save
+    self.next_words
   end
 
   def image_prompt
@@ -135,10 +142,14 @@ class BoardImage < ApplicationRecord
       layout: layout,
       status: status,
       audio_url: audio_url,
+      src: image.display_image_url,
       image_prompt: image_prompt,
       next_words: next_words,
-      dynamic_board: dynamic_board&.api_view_with_images,
+      # dynamic_board: dynamic_board&.api_view_with_images,
       added_at: added_at,
+      board_mode: board.mode,
+      dynamic_board_mode: dynamic_board&.mode,
+      test_mode: dynamic_board_id ? "dynamic" : "static",
       mode: mode,
     }
   end
@@ -147,33 +158,61 @@ class BoardImage < ApplicationRecord
     "#{label} - #{voice}"
   end
 
-  def make_dynamic
-    dynamic_board = DynamicBoard.create(name: label, user_id: board.user_id, parent: self)
+  def make_dynamic(dynamic_user_id = nil)
+    puts "Making dynamic - dynamic_user_id: #{dynamic_user_id}"
+    if next_words.blank?
+      puts "No next words"
+      next_words = set_next_words
+    end
+    if image.user_id && image.user_id != dynamic_user_id
+      admin_user = User.admins.find_by(id: dynamic_user_id)
+      if admin_user
+        puts "Admin user found"
+        dynamic_user_id = admin_user.id
+      else
+        puts "User id mismatch - image.user_id: #{image.user_id} - dynamic_user_id: #{dynamic_user_id}"
+        return
+      end
+    end
+
+    core_image = image
+    dynamic_board = DynamicBoard.create(name: label, board: board)
 
     unless dynamic_board
       puts "Failed to create dynamic board"
       return
     end
 
-    update!(mode: "dynamic")
-    dynamic_board.update!(voice: voice, bg_color: bg_color, audio_url: audio_url)
+    update!(mode: "dynamic", dynamic_board_id: dynamic_board.id)
 
     user = board.user
+    next_words_to_set = next_words || image.next_words || []
+    # next_words_to_set next_words_to_set<< label
+    puts "Next words to set: #{next_words_to_set}"
+    puts "image.next_words: #{image.next_words}"
+    puts "next_words: #{next_words}"
 
-    words = next_words + [label]
-    words.each do |word|
+    next_words_to_set.each do |word|
       word = word.downcase
       img = user.images.find_by(label: word)
+
       img = Image.public_img.find_or_create_by(label: word) unless img
 
       dynamic_board.add_image(img.id)
+      puts "Added image: #{img.label} to dynamic board #{dynamic_board.name}"
     end
     dynamic_board.reset_layouts
+    dynamic_board.save
   end
 
   def make_static
     return unless mode == "dynamic"
-    dynamic_board.destroy
+    if dynamic_board
+      dynamic_board.destroy
+    else
+      puts "No dynamic board found"
+    end
+
     update!(mode: "static")
   end
 
