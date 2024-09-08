@@ -39,6 +39,40 @@ class BoardImage < ApplicationRecord
     save
   end
 
+  def set_next_words!
+    similar_images = Image.public_img.where(label: label).where.not(id: id)
+    # next_words = similar_images.pluck(:label).uniq
+    next_words = similar_images.pluck(:next_words).flatten.uniq
+    new_next_words = next_words
+    new_next_words = get_next_words(label) unless new_next_words.any?
+    Rails.logger.debug "New next words: #{new_next_words}"
+    if new_next_words
+      self.next_words = new_next_words
+      self.save!
+    else
+      Rails.logger.debug "No next words found for #{label}"
+      self.update!(no_next: true)
+    end
+    new_next_words
+  end
+
+  def create_words_from_next_words
+    return unless next_words
+    next_words.each do |word|
+      existing_word = Image.public_img.find_by(label: word)
+      if existing_word
+        Rails.logger.debug "Word already exists: #{existing_word.label}"
+        if existing_word.next_words.blank?
+          existing_word.save!
+        else
+          Rails.logger.debug "Next words already set for #{existing_word.label}\n #{existing_word.next_words}"
+        end
+      else
+        image = Image.public_img.create!(label: word)
+      end
+    end
+  end
+
   def image_prompt
     image.image_prompt
   end
@@ -119,7 +153,7 @@ class BoardImage < ApplicationRecord
     save
   end
 
-  def api_view
+  def api_view(viewing_user = nil)
     {
       id: id,
       image_id: image_id,
@@ -134,7 +168,16 @@ class BoardImage < ApplicationRecord
       audio_url: audio_url,
       image_prompt: image_prompt,
       next_words: next_words,
+      image: image.with_display_doc(viewing_user),
+      can_edit: viewing_user&.can_edit?(board),
+      board: board.api_view(viewing_user),
     }
+  end
+
+  def next_images
+    imgs = Image.where(label: next_words).public_img.with_attached_audio_files.order(created_at: :desc).distinct(:label)
+    return imgs if imgs.any?
+    Board.predictive_default.images
   end
 
   def set_defaults

@@ -59,6 +59,8 @@ class API::ImagesController < API::ApplicationController
     @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
 
     @image_with_display_doc = @image.with_display_doc(@current_user)
+    puts "Board: #{@board}"
+    @image_with_display_doc[:board] = @board if @board
     render json: @image_with_display_doc
   end
 
@@ -168,7 +170,7 @@ class API::ImagesController < API::ApplicationController
       @image.next_words = params[:next_words]&.compact_blank
       @image.save
     else
-      CreateAllAudioJob.perform_async(@image.id)
+      SetNextWordsJob.perform_async(@image.id, "Image")
     end
 
     @image.create_words_from_next_words

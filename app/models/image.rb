@@ -50,6 +50,7 @@ class Image < ApplicationRecord
   end
 
   scope :without_attached_audio_files, -> { where.missing(:audio_files_attachments) }
+  scope :with_attached_audio_files, -> { where.associated(:audio_files_attachments) }
 
   scope :with_image_docs_for_user, ->(userId) { order(created_at: :desc) }
   scope :menu_images, -> { where(image_type: "Menu") }
@@ -91,6 +92,10 @@ class Image < ApplicationRecord
     Rails.logger.debug "Image: #{label} - bg_color: #{bg_color} - part_of_speech: #{part_of_speech} - image_type: #{image_type}"
   end
 
+  def public_img?
+    self.private == false
+  end
+
   def should_generate_symbol?
     return false if image_type == "Menu"
     label_changed? && open_symbol_status == "active"
@@ -103,7 +108,7 @@ class Image < ApplicationRecord
 
   def run_set_next_words_job
     Rails.logger.debug "Starting set next words job for #{label}"
-    SetNextWordsJob.perform_async([id])
+    SetNextWordsJob.perform_async([id], "Image")
   end
 
   def background_color_for(category)
@@ -211,7 +216,7 @@ class Image < ApplicationRecord
       img_ids = images.pluck(:id)
       Rails.logger.debug "\n\nStarting set next words job for #{img_ids}\n\n"
 
-      SetNextWordsJob.perform_async(img_ids)
+      SetNextWordsJob.perform_async(img_ids, "Image")
       count += 20
       break if count >= limit
       sleep(1)
@@ -219,7 +224,7 @@ class Image < ApplicationRecord
   end
 
   def next_images
-    imgs = Image.with_artifacts.where(label: next_words).public_img.order(created_at: :desc).distinct(:label)
+    imgs = Image.where(label: next_words).public_img.with_attached_audio_files.order(created_at: :desc).distinct(:label)
     return imgs if imgs.any?
     Board.predictive_default.images
   end
@@ -239,6 +244,7 @@ class Image < ApplicationRecord
 
   def create_words_from_next_words
     return unless next_words
+    existing_next_words = []
     next_words.each do |word|
       existing_word = Image.public_img.find_by(label: word)
       if existing_word
@@ -247,11 +253,22 @@ class Image < ApplicationRecord
           existing_word.save!
         else
           Rails.logger.debug "Next words already set for #{existing_word.label}\n #{existing_word.next_words}"
+          if existing_word.label == label
+            n = self.next_words || []
+            puts "Existing next words: #{n}"
+            # next_words = (next_words + existing_word.next_words).uniq
+            next_words = (n + existing_word.next_words).uniq
+            existing_next_words << next_words
+            existing_word.next_words = next_words
+            existing_word.save!
+          end
         end
       else
         image = Image.public_img.create!(label: word)
       end
     end
+    w = existing_next_words.uniq
+    Rails.logger.debug "Existing next words: #{w}"
   end
 
   def audio_file_exists_for?(voice)
@@ -773,6 +790,7 @@ class Image < ApplicationRecord
       open_symbol_status: open_symbol_status,
       created_at: created_at,
       updated_at: updated_at,
+      can_edit: viewing_user&.admin? || viewing_user&.id == user_id,
     }
   end
 
@@ -783,7 +801,13 @@ class Image < ApplicationRecord
 
   def user_boards(current_user)
     return [] unless current_user
-    boards.where(user_id: current_user.id)
+    # boards.where(user_id: current_user.id)
+    current_user.boards.user_made_with_scenarios.where(id: board_images.pluck(:board_id))
+  end
+
+  def user_board_images(current_user)
+    return [] unless current_user
+    board_images.where(board_id: current_user.boards.user_made_with_scenarios.pluck(:id))
   end
 
   def with_display_doc(current_user = nil)
@@ -791,7 +815,8 @@ class Image < ApplicationRecord
     current_doc_id = current_doc.id if current_doc
     image_docs = docs.with_attached_image.for_user(current_user).order(created_at: :desc)
     remaining = remaining_user_boards(current_user)
-    user_image_boards = user_boards(current_user)
+    user_image_boards = user_boards(current_user)&.order(created_at: :desc)
+    user_board_images = user_board_images(current_user)
     {
       id: id,
       label: label,
@@ -814,6 +839,8 @@ class Image < ApplicationRecord
       part_of_speech: part_of_speech,
       user_boards: user_image_boards.map { |board| { id: board.id, name: board.name } },
       remaining_boards: remaining.map { |board| { id: board.id, name: board.name } },
+      can_edit: (current_user && user_id == current_user.id) || current_user&.admin?,
+      user_board_images: user_board_images.map { |board_image| { id: board_image.id, board_id: board_image.board_id, board_name: board_image.board.name } },
       docs: image_docs.map do |doc|
         {
           id: doc.id,

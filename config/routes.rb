@@ -228,10 +228,13 @@ Rails.application.routes.draw do
         put "remove_from_team"
       end
     end
+    get "board_images/by_image", to: "board_images#by_image"
     resources :board_images do
       member do
         put "move_up"
         put "move_down"
+        post "set_next_words"
+        get "predictive_images"
       end
     end
     resources :scenarios do
