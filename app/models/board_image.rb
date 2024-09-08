@@ -171,6 +171,8 @@ class BoardImage < ApplicationRecord
       image: image.with_display_doc(viewing_user),
       can_edit: viewing_user&.can_edit?(board),
       board: board.api_view(viewing_user),
+      mode: mode,
+      dynamic_board_id: dynamic_board_id,
     }
   end
 
@@ -178,6 +180,22 @@ class BoardImage < ApplicationRecord
     imgs = Image.where(label: next_words).public_img.with_attached_audio_files.order(created_at: :desc).distinct(:label)
     return imgs if imgs.any?
     Board.predictive_default.images
+  end
+
+  def description
+    board.description
+  end
+
+  def make_dynamic
+    dynamic_board = Board.find_or_create_by(name: "Dynamic #{label}", user_id: board.user_id, parent: self)
+
+    next_images.each do |img|
+      dynamic_board.add_image(img.id)
+    end
+
+    dynamic_board.reset_layouts
+
+    update!(mode: "dynamic", dynamic_board_id: dynamic_board.id)
   end
 
   def set_defaults
