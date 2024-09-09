@@ -2,21 +2,23 @@
 #
 # Table name: board_images
 #
-#  id           :bigint           not null, primary key
-#  board_id     :bigint           not null
-#  image_id     :bigint           not null
-#  position     :integer
-#  created_at   :datetime         not null
-#  updated_at   :datetime         not null
-#  voice        :string
-#  next_words   :string           default([]), is an Array
-#  bg_color     :string
-#  text_color   :string
-#  font_size    :integer
-#  border_color :string
-#  layout       :jsonb
-#  status       :string           default("pending")
-#  audio_url    :string
+#  id               :bigint           not null, primary key
+#  board_id         :bigint           not null
+#  image_id         :bigint           not null
+#  position         :integer
+#  created_at       :datetime         not null
+#  updated_at       :datetime         not null
+#  voice            :string
+#  next_words       :string           default([]), is an Array
+#  bg_color         :string
+#  text_color       :string
+#  font_size        :integer
+#  border_color     :string
+#  layout           :jsonb
+#  status           :string           default("pending")
+#  audio_url        :string
+#  mode             :string           default("static")
+#  dynamic_board_id :integer
 #
 class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
@@ -173,12 +175,45 @@ class BoardImage < ApplicationRecord
       board: board.api_view(viewing_user),
       mode: mode,
       dynamic_board_id: dynamic_board_id,
+      user_dynamic_base_board: viewing_user&.dynamic_board.api_view_with_images(viewing_user),
     }
   end
 
+  def all_user_images
+    Image.where(user_id: board.user_id)
+  end
+
+  def all_user_board_images(word)
+    user = board.user
+    BoardImage.includes(:image).where(images: { user_id: user.id, label: word }).distinct.map(&:image)
+  end
+
   def next_images
-    imgs = Image.where(label: next_words).public_img.with_attached_audio_files.order(created_at: :desc).distinct(:label)
-    return imgs if imgs.any?
+    if dynamic_board_id
+      dynamic_board = Board.find_by(id: dynamic_board_id)
+      if dynamic_board
+        puts "Dynamic board: #{dynamic_board.name} - #{dynamic_board.id} - #{dynamic_board.images.count}"
+        return dynamic_board.images
+      end
+    end
+    puts "No dynamic board found for #{label}"
+    all_next_images = []
+    next_words.each do |word|
+      img = all_user_images.where(label: word).first
+      img = all_user_board_images(word).first if !img
+      puts ">>>> Found image for next word: #{word} - #{img.inspect}"
+      img = Image.public_img.with_attached_audio_files.where(label: word).first if !img
+      all_next_images << img if img
+      puts "Found image for next word: #{word} - #{img.inspect}"
+      if !img
+        puts "No image found for next word: #{word}"
+        i = Image.public_img.create!(label: word.downcase)
+        puts "Created image: #{i.label}"
+        all_next_images << i
+      end
+    end
+    puts "All next images: #{all_next_images.inspect}"
+    return all_next_images if all_next_images.any?
     Board.predictive_default.images
   end
 
@@ -187,10 +222,11 @@ class BoardImage < ApplicationRecord
   end
 
   def make_dynamic
-    dynamic_board = Board.find_or_create_by(name: "Dynamic #{label}", user_id: board.user_id, parent: self)
+    # dynamic_board = Board.find_or_create_by(name: "Dynamic #{label}", user_id: board.user_id, parent: self)
+    dynamic_board = board.user.dynamic_board
 
     next_images.each do |img|
-      dynamic_board.add_image(img.id)
+      dynamic_board.add_image(img[:id])
     end
 
     dynamic_board.reset_layouts

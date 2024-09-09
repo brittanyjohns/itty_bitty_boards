@@ -322,6 +322,9 @@ class Board < ApplicationRecord
   end
 
   def add_image(image_id, layout = nil)
+    puts "Adding image: #{image_id}"
+    puts "curent image count: #{images.count}"
+    puts "image_ids: #{image_ids}"
     new_board_image = nil
     if image_ids.include?(image_id.to_i)
       puts "image already added"
@@ -367,6 +370,7 @@ class Board < ApplicationRecord
     @layouts = @board_images.pluck(:image_id, :layout)
 
     @cloned_board = @source.dup
+    @cloned_board.predefined = false
     @cloned_board.user_id = cloned_user_id
     @cloned_board.name = new_name
     @cloned_board.save

@@ -9,6 +9,7 @@ class API::BoardImagesController < API::ApplicationController
 
   # GET /board_images/1 or /board_images/1.json
   def show
+    render json: @board_image.api_view(current_user)
   end
 
   def by_image
@@ -92,20 +93,9 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   def predictive_images
-    begin
-      @board_image = BoardImage.find(params[:id])
-      @next_images = @board_image.next_images.map do |ni|
-        {
-          id: ni.id,
-          label: ni.label,
-          bg_color: ni.bg_class,
-          src: ni.display_image_url(current_user),
-          audio: ni.default_audio_url,
-        }
-      end
-      render json: @next_images
-      return
-    rescue ActiveRecord::RecordNotFound => e
+    # begin
+    @board_image = BoardImage.find_by(id: params[:id])
+    if @board_image.nil?
       @image = Image.find_by(id: params[:id])
       if @image.nil?
         render json: { error: "Record not found for Image with id=#{params[:id]}" }
@@ -123,10 +113,37 @@ class API::BoardImagesController < API::ApplicationController
         end
         puts "Setting next_images for Image"
         render json: @next_images
-      else
-        render json: { error: "Record not found for Image with id=#{params[:id]}" }
+        return
       end
+      if @board_image.mode == "dynamic" && @board_image.dynamic_board_id.present?
+        @dynamic_board = Board.find(@board_image.dynamic_board_id)
+        render json: @dynamic_board.api_view_with_images(current_user)
+        return
+      end
+    else
+      @next_images = @board_image.next_images.map do |ni|
+        puts "Next Image: #{ni.inspect}"
+        puts "Next Image: #{ni[:id]} - #{ni[:label]} - #{ni[:bg_color]} - #{ni[:src]} - #{ni[:audio_url]}"
+        {
+          id: ni[:id],
+          label: ni[:label],
+          bg_color: ni[:bg_color],
+          src: ni[:src],
+          audio: ni[:audio_url],
+        }
+      end
+
+      render json: @next_images
+      return
     end
+  end
+
+  def make_dynamic
+    @board_image = BoardImage.find(params[:id])
+    @board_image.make_dynamic
+    @board_image.reload
+    puts "Dynamic board: #{@board_image.inspect}"
+    render json: @board_image.api_view(current_user)
   end
 
   private

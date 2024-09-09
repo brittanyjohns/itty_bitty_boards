@@ -249,4 +249,12 @@ class User < ApplicationRecord
     view["trial_days_left"] = trial_days_left
     view
   end
+
+  def dynamic_board
+    board = boards.find_by(name: "Dynamic Board", parent: self, status: "active")
+    return board if board
+    board = boards.create(name: "Dynamic Board", parent: self, status: "active")
+    board.reset_layouts
+    board
+  end
 end

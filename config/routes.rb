@@ -186,6 +186,8 @@ Rails.application.routes.draw do
         post "add_doc"
         delete "destroy_audio"
         post "create_audio"
+        post "make_dynamic"
+        post "make_static"
       end
       collection do
         get "find_by_label"
@@ -235,6 +237,8 @@ Rails.application.routes.draw do
         put "move_down"
         post "set_next_words"
         get "predictive_images"
+        post "make_dynamic"
+        post "make_static"
       end
     end
     resources :scenarios do

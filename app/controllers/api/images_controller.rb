@@ -177,6 +177,17 @@ class API::ImagesController < API::ApplicationController
     render json: @image
   end
 
+  def make_dynamic
+    @image = Image.find(params[:id])
+    result = @image.make_dynamic(current_user)
+    puts "Dynamic board: #{result}"
+    if result&.is_a?(BoardImage)
+      render json: result.api_view(current_user)
+    else
+      render json: { status: "error", message: "Could not create dynamic board image #{result.inspect}" }
+    end
+  end
+
   def create_symbol
     @image = Image.find(params[:id])
     limit = current_user.admin? ? 20 : 1

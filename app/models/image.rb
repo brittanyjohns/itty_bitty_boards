@@ -96,6 +96,29 @@ class Image < ApplicationRecord
     self.private == false
   end
 
+  def make_dynamic(viewing_user)
+    user_dynamic_board = viewing_user&.dynamic_board
+    dynamic_board_image = user_dynamic_board&.board_images&.find_by(image_id: id)
+    if dynamic_board_image
+      puts "Dynamic board image already exists: #{dynamic_board_image.id}"
+      dynamic_board_image.update!(mode: "dynamic")
+    else
+      # dynamic_board_image = user_dynamic_board&.board_images&.create!(image_id: id, mode: "dynamic")
+      puts "ADDING IMAGE TO DYNAMIC BOARD: #{label} - #{user_dynamic_board&.id}"
+
+      dynamic_board_image = user_dynamic_board&.add_image(id)
+      if dynamic_board_image
+        puts "Dynamic board image created: #{dynamic_board_image.id}"
+        dynamic_board_image.make_dynamic
+      else
+        puts "Dynamic board image not created -#{dynamic_board_image.inspect}"
+        return nil
+      end
+    end
+    puts "MAKE DYNAMIC: #{label} - #{dynamic_board_image.inspect}"
+    dynamic_board_image
+  end
+
   def should_generate_symbol?
     return false if image_type == "Menu"
     label_changed? && open_symbol_status == "active"
@@ -841,6 +864,7 @@ class Image < ApplicationRecord
       remaining_boards: remaining.map { |board| { id: board.id, name: board.name } },
       can_edit: (current_user && user_id == current_user.id) || current_user&.admin?,
       user_board_images: user_board_images.map { |board_image| { id: board_image.id, board_id: board_image.board_id, board_name: board_image.board.name } },
+      user_dynamic_base_board: current_user&.dynamic_board.api_view_with_images(current_user),
       docs: image_docs.map do |doc|
         {
           id: doc.id,
