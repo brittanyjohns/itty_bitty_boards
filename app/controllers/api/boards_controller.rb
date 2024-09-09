@@ -26,7 +26,7 @@ class API::BoardsController < API::ApplicationController
       end
 
       if current_user.admin?
-        @boards = Board.all.order(name: :desc)
+        @boards = Board.all.order(created_at: :desc)
       end
 
       # render json: { boards: @boards.map { |b| b.api_view(current_user) },
@@ -96,6 +96,18 @@ class API::BoardsController < API::ApplicationController
       }
     end
     render json: @next_images
+  end
+
+  def dynamic_board
+    @dynamic_board = current_user.dynamic_board
+    if @dynamic_board
+      puts "Dynamic board found"
+    else
+      puts "No dynamic board found"
+      @dynamic_board = current_user.create_dynamic_board
+      puts "Dynamic board created"
+    end
+    render json: @dynamic_board.api_view_with_images(current_user)
   end
 
   def show
@@ -272,6 +284,11 @@ class API::BoardsController < API::ApplicationController
     new_board_image = @board.board_images.new(image_id: image.id, position: @board.board_images.count)
     new_board_image.layout = new_board_image.initial_layout
     if new_board_image.save
+      if @board.dynamic_user_board?
+        puts "Creating dynamic board image"
+        new_board_image.set_next_words!
+        new_board_image.make_dynamic
+      end
       @board.board_images.reset
       render json: { board: @board, new_board_image: new_board_image, label: image.label }
     else

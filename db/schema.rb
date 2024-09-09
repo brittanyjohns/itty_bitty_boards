@@ -177,6 +177,22 @@ ActiveRecord::Schema[7.1].define(version: 2024_09_08_195412) do
     t.index ["user_id"], name: "index_docs_on_user_id"
   end
 
+  create_table "dynamic_board_images", force: :cascade do |t|
+    t.integer "image_id", null: false
+    t.integer "dynamic_board_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "dynamic_boards", force: :cascade do |t|
+    t.string "name"
+    t.integer "board_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["board_id"], name: "index_dynamic_boards_on_board_id"
+    t.index ["name"], name: "index_dynamic_boards_on_name"
+  end
+
   create_table "images", force: :cascade do |t|
     t.string "label"
     t.text "image_prompt"
@@ -559,8 +575,9 @@ ActiveRecord::Schema[7.1].define(version: 2024_09_08_195412) do
     t.decimal "total_plan_cost", precision: 8, scale: 2, default: "0.0"
     t.uuid "uuid", default: -> { "gen_random_uuid()" }
     t.string "child_lookup_key"
+    t.boolean "locked", default: false, null: false
+    t.integer "dynamic_board_id"
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
-    t.index ["child_lookup_key"], name: "index_users_on_child_lookup_key", unique: true
     t.index ["current_team_id"], name: "index_users_on_current_team_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["invitation_token"], name: "index_users_on_invitation_token", unique: true

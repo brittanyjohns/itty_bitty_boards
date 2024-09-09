@@ -137,6 +137,18 @@ module ImageHelper
     [response_text, messages_sent]
   end
 
+  def should_rerun_next_words_job?(new_next_words)
+    puts "CHECKING should_rerun_next_words_job? new_next_words: #{new_next_words.count} - next_words: #{next_words.count}"
+    puts "new_next_words.present?: #{new_next_words.present?}"
+    puts "new_next_words != next_words: #{new_next_words != next_words}"
+    puts "new_next_words > next_words: #{new_next_words.size > next_words.size}"
+    if new_next_words&.size >= next_words.size
+      puts "should_rerun_next_words_job == new_next_words: #{new_next_words} - next_words: #{next_words}"
+      return true
+    end
+    false
+  end
+
   def get_next_words(label)
     return if Rails.env.test?
     response = OpenAiClient.new(open_ai_opts).get_next_words(label)

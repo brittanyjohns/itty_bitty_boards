@@ -24,10 +24,11 @@ class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
   belongs_to :board
   belongs_to :image
+  belongs_to :dynamic_board, optional: true
   attr_accessor :skip_create_voice_audio, :skip_initial_layout
 
   before_create :set_defaults
-  after_create :set_next_words
+  after_create :set_image_next_words
   after_create :save_initial_layout, unless: :skip_initial_layout
 
   def initialize(*args)
@@ -35,9 +36,11 @@ class BoardImage < ApplicationRecord
     @skip_create_voice_audio = false
   end
 
-  def set_next_words
+  def set_image_next_words
     return if next_words.present? || Rails.env.test?
-    self.next_words = image.next_words
+    next_words_to_set = image.next_words
+    puts "Setting next words for image: #{image.label}  #{next_words_to_set.class}-\n\n #{next_words_to_set}\n"
+    self.next_words = next_words_to_set
     save
   end
 
@@ -56,23 +59,6 @@ class BoardImage < ApplicationRecord
       self.update!(no_next: true)
     end
     new_next_words
-  end
-
-  def create_words_from_next_words
-    return unless next_words
-    next_words.each do |word|
-      existing_word = Image.public_img.find_by(label: word)
-      if existing_word
-        Rails.logger.debug "Word already exists: #{existing_word.label}"
-        if existing_word.next_words.blank?
-          existing_word.save!
-        else
-          Rails.logger.debug "Next words already set for #{existing_word.label}\n #{existing_word.next_words}"
-        end
-      else
-        image = Image.public_img.create!(label: word)
-      end
-    end
   end
 
   def image_prompt
@@ -175,7 +161,6 @@ class BoardImage < ApplicationRecord
       board: board.api_view(viewing_user),
       mode: mode,
       dynamic_board_id: dynamic_board_id,
-      user_dynamic_base_board: viewing_user&.dynamic_board.api_view_with_images(viewing_user),
     }
   end
 
@@ -198,23 +183,29 @@ class BoardImage < ApplicationRecord
     end
     puts "No dynamic board found for #{label}"
     all_next_images = []
+    user = board.user
     next_words.each do |word|
-      img = all_user_images.where(label: word).first
+      # img = all_user_images.where(label: word).first
+      # img = all_user_board_images(word).first if !img
+      # puts ">>>> Found image for next word: #{word} - #{img.inspect}"
+      img = user.images.where(label: word).first
+      puts ">>>> Found image for next word: #{word} - #{img.id}" if img
       img = all_user_board_images(word).first if !img
-      puts ">>>> Found image for next word: #{word} - #{img.inspect}"
-      img = Image.public_img.with_attached_audio_files.where(label: word).first if !img
+      puts ">>>> Found image for next word: #{word} - #{img.id}" if img
+      img = Image.searchable_images_for(user).with_attached_audio_files.where(label: word).first if !img
+      puts ">>>> Found image for next word: #{word} - #{img.id}" if img
       all_next_images << img if img
       puts "Found image for next word: #{word} - #{img.inspect}"
       if !img
         puts "No image found for next word: #{word}"
         i = Image.public_img.create!(label: word.downcase)
         puts "Created image: #{i.label}"
-        all_next_images << i
+        all_next_images << i if i
       end
     end
     puts "All next images: #{all_next_images.inspect}"
     return all_next_images if all_next_images.any?
-    Board.predictive_default.images
+    # Board.predictive_default.images
   end
 
   def description
@@ -222,8 +213,10 @@ class BoardImage < ApplicationRecord
   end
 
   def make_dynamic
-    # dynamic_board = Board.find_or_create_by(name: "Dynamic #{label}", user_id: board.user_id, parent: self)
-    dynamic_board = board.user.dynamic_board
+    add_to_user_dynamic_board
+    dynamic_board = Board.find_or_create_by(name: "Dynamic #{label}", user_id: board.user_id, parent: self)
+    dynamic_board_group = board.user.dynamic_board_group
+    dynamic_board_group.boards << dynamic_board
 
     next_images.each do |img|
       dynamic_board.add_image(img[:id])
@@ -231,7 +224,48 @@ class BoardImage < ApplicationRecord
 
     dynamic_board.reset_layouts
 
-    update!(mode: "dynamic", dynamic_board_id: dynamic_board.id)
+    puts "\n>>>Dynamic board: #{dynamic_board.inspect}\n"
+
+    saved = self.update!(mode: "dynamic", dynamic_board_id: dynamic_board.id)
+    puts "Saved: #{saved}"
+    if saved
+      create_next_images
+      dynamic_board
+    end
+
+    saved
+  end
+
+  def user
+    board.user
+  end
+
+  def add_to_user_dynamic_board
+    @dynamic_user_board = user.dynamic_board || user.create_dynamic_board
+    if @dynamic_user_board.images.where(id: image_id).any?
+      puts "Image already exists in dynamic board"
+      return
+    end
+    dynamic_board_image = BoardImage.create!(board: @dynamic_user_board, mode: "dynamic", dynamic_board_id: dynamic_board.id, image_id: image_id, voice: voice, next_words: next_words)
+    dynamic_board_image.make_dynamic
+    dynamic_board_image
+  end
+
+  def open_ai_opts
+    image.open_ai_opts
+  end
+
+  def create_next_images
+    next_words.each do |word|
+      normalized_word = word.downcase
+      img = Image.searchable_images_for(user).with_attached_audio_files.where(label: normalized_word).first
+      img = Image.public_img.find_or_create_by!(label: normalized_word) if !img
+      puts "Created next image: #{img.label}"
+      if dynamic_board_id
+        dynamic_board = Board.find(dynamic_board_id)
+        dynamic_board.add_image(img.id)
+      end
+    end
   end
 
   def set_defaults

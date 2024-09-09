@@ -88,6 +88,10 @@ class User < ApplicationRecord
     self.uuid = SecureRandom.uuid
   end
 
+  def dynamic_board
+    Board.find_by(user_id: id, name: "Dynamic Images")
+  end
+
   # Methods for user settings
   def set_default_settings
     voice_settings = { name: "echo", speed: 1, pitch: 1, volume: 1, rate: 1, language: "en-US" }
@@ -247,14 +251,27 @@ class User < ApplicationRecord
     view["free_trial"] = free_trial?
     view["trial_expired"] = trial_expired?
     view["trial_days_left"] = trial_days_left
+    view["test"] = "test"
     view
   end
 
-  def dynamic_board
-    board = boards.find_by(name: "Dynamic Board", parent: self, status: "active")
-    return board if board
-    board = boards.create(name: "Dynamic Board", parent: self, status: "active")
-    board.reset_layouts
-    board
+  def create_dynamic_board
+    @dynamic_board_group = dynamic_board_group
+    board = Board.create!(name: "Dynamic Images", parent: self, status: "active", user_id: id)
+    if board
+      board.reset_layouts
+      @dynamic_board_group.boards << board
+      board
+    else
+      Rails.logger.error "Error creating dynamic board for user: #{id}"
+      false
+    end
+  end
+
+  def dynamic_board_group
+    board_group = board_groups.find_by(name: "Dynamic Boards")
+    return board_group if board_group
+    board_group = board_groups.create(name: "Dynamic Boards")
+    board_group
   end
 end

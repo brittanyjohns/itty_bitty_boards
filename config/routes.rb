@@ -216,6 +216,7 @@ Rails.application.routes.draw do
         get "first_predictive_board"
         get "predictive_index"
         get "user_boards"
+        get "dynamic_board"
       end
       member do
         post "save_layout"

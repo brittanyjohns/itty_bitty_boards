@@ -26,6 +26,7 @@ class API::ImagesController < API::ApplicationController
         next_words: image.next_words,
       }
     end
+
     render json: @images_with_display_doc
   end
 
@@ -83,7 +84,9 @@ class API::ImagesController < API::ApplicationController
   def save_temp_doc
     @current_user = current_user
     label = params[:query]&.downcase
-    @existing_image = Image.find_by(label: label, user_id: @current_user.id)
+    @existing_image = Image.find_by(id: params[:id])
+    @existing_image = Image.find_by(label: label, user_id: @current_user.id) unless @existing_image
+    @existing_image = Image.public_img.find_by(label: label) unless @existing_image
     @image = nil
     if @existing_image
       @image = @existing_image
@@ -166,11 +169,21 @@ class API::ImagesController < API::ApplicationController
 
   def set_next_words
     @image = Image.find(params[:id])
-    if params[:next_words].present?
-      @image.next_words = params[:next_words]&.compact_blank
+
+    unless current_user.can_edit?(@image)
+      render json: { status: "error", message: "You are not authorized to edit this image." }, status: :unauthorized and return
+    end
+    new_next_words = params[:next_words]&.compact_blank
+    puts "New next words: #{new_next_words} - #{@image.next_words}"
+    if new_next_words
+      @image.next_words = new_next_words
       @image.save
     else
       SetNextWordsJob.perform_async(@image.id, "Image")
+    end
+    if params[:run_job]
+      SetNextWordsJob.perform_async(@image.id, "Image")
+      puts "Running SetNextWordsJob.perform_async => #{params.inspect}"
     end
 
     @image.create_words_from_next_words
@@ -179,10 +192,10 @@ class API::ImagesController < API::ApplicationController
 
   def make_dynamic
     @image = Image.find(params[:id])
-    result = @image.make_dynamic(current_user)
-    puts "Dynamic board: #{result}"
-    if result&.is_a?(BoardImage)
-      render json: result.api_view(current_user)
+    @dynamic_board_image = @image.make_dynamic_board_image(current_user)
+    puts "Dynamic board: #{@dynamic_board_image}"
+    if @dynamic_board_image.make_dynamic
+      render json: @dynamic_board_image.board.api_view_with_images(current_user)
     else
       render json: { status: "error", message: "Could not create dynamic board image #{result.inspect}" }
     end

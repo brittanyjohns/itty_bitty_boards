@@ -27,7 +27,7 @@
 #
 class Board < ApplicationRecord
   belongs_to :user
-  belongs_to :parent, polymorphic: true
+  belongs_to :parent, polymorphic: true, dependent: :destroy
   has_many :board_images, dependent: :destroy
   has_many :images, through: :board_images
   has_many :docs
@@ -47,6 +47,8 @@ class Board < ApplicationRecord
   scope :scenarios, -> { where(parent_type: "OpenaiPrompt") }
   scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt", "PredefinedResource"]) }
   scope :user_made_with_scenarios_and_menus, -> { where(parent_type: ["User", "OpenaiPrompt", "Menu"]) }
+  scope :dynamic, -> { where(parent_type: ["BoardImage"]) }
+  scope :dynamic_groups, -> { where(parent_type: ["BoardGroup"]) }
   scope :predictive, -> { where(parent_type: "PredefinedResource") }
   scope :predefined, -> { where(predefined: true) }
   scope :ai_generated, -> { where(parent_type: "OpenaiPrompt") }
@@ -189,6 +191,10 @@ class Board < ApplicationRecord
 
   def predictive?
     parent_type == "PredefinedResource" && parent.name == "Next"
+  end
+
+  def dynamic_user_board?
+    user.dynamic_board_id == id
   end
 
   def self.predictive_default
@@ -345,6 +351,10 @@ class Board < ApplicationRecord
       unless new_board_image.save
         Rails.logger.debug "new_board_image.errors: #{new_board_image.errors.full_messages}"
       end
+      if dynamic_user_board?
+        puts "Creating dynamic board image"
+        new_board_image.make_dynamic
+      end
     end
     Rails.logger.error "NO IMAGE FOUND" unless new_board_image
     new_board_image
@@ -406,8 +416,8 @@ class Board < ApplicationRecord
       description: description,
       parent_type: parent_type,
       parent_id: parent_id,
-      parent_description: parent_type === "User" ? "User" : parent.description,
-      parent_prompt: parent_type === "OpenaiPrompt" ? parent.prompt_text : nil,
+      parent_description: parent_type === "User" ? "User" : parent&.description,
+      parent_prompt: parent_type === "OpenaiPrompt" ? parent&.prompt_text : nil,
       predefined: predefined,
       number_of_columns: number_of_columns,
       small_screen_columns: small_screen_columns,
@@ -446,7 +456,9 @@ class Board < ApplicationRecord
           added_at: board_image.added_at,
           image_last_added_at: board_image.image_last_added_at,
           part_of_speech: @image.part_of_speech,
-
+          mode: board_image.mode,
+          dynamic_board_id: board_image.dynamic_board_id,
+          parent_type: parent_type,
           status: board_image.status,
         }
       end,
@@ -533,8 +545,6 @@ class Board < ApplicationRecord
         row_count += 1
       end
     end
-    Rails.logger.debug "calculate_grid_layout_for_screen_size: #{layout_to_set}"
-
     self.layout[screen_size] = layout_to_set.values # Convert back to an array if needed
     self.board_images.reset
     self.save!
@@ -553,7 +563,6 @@ class Board < ApplicationRecord
   end
 
   def update_grid_layout(layout_to_set, screen_size)
-    Rails.logger.debug "update_grid_layout: #{layout_to_set}"
     layout_for_screen_size = self.layout[screen_size] || []
     unless layout_to_set.is_a?(Array)
       Rails.logger.debug "layout_to_set is not an array"
@@ -576,10 +585,8 @@ class Board < ApplicationRecord
   end
 
   def next_grid_cell
-    puts "Next grid cell"
     x = board_images.pluck(:layout).map { |l| l[:x] }.max
     y = board_images.pluck(:layout).map { |l| l[:y] }.max
-    puts "x: #{x}, y: #{y}"
     x = 0 if x.nil?
     y = 0 if y.nil?
     x += 1

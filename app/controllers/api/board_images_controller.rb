@@ -28,14 +28,22 @@ class API::BoardImagesController < API::ApplicationController
 
   def set_next_words
     @board_image = BoardImage.find(params[:id])
-    if params[:next_words].present?
-      @board_image.next_words = params[:next_words]&.compact_blank
+    new_next_words = params[:next_words]&.compact_blank
+    puts "New next words: #{new_next_words} - #{@board_image.next_words}"
+    if new_next_words.present?
+      @board_image.next_words = new_next_words
+      @board_image.create_next_images
+      puts "BI- Next words: #{@board_image[:next_words]}"
       @board_image.save
     else
       SetNextWordsJob.perform_async(@board_image.id, "BoardImage")
     end
 
-    # @board_image.create_words_from_next_words
+    if params[:run_job]
+      puts "Running SetNextWordsJob.perform_async => #{params.inspect}"
+      SetNextWordsJob.perform_async(@board_image.id, "BoardImage")
+    end
+
     render json: @board_image
   end
 
@@ -94,48 +102,28 @@ class API::BoardImagesController < API::ApplicationController
 
   def predictive_images
     # begin
-    @board_image = BoardImage.find_by(id: params[:id])
-    if @board_image.nil?
-      @image = Image.find_by(id: params[:id])
-      if @image.nil?
-        render json: { error: "Record not found for Image with id=#{params[:id]}" }
-        return
-      end
-      if @image.user_id == current_user.id || @image.public_img?
-        @next_images = @image.next_images.map do |ni|
-          {
-            id: ni.id,
-            label: ni.label,
-            bg_color: ni.bg_class,
-            src: ni.display_image_url(current_user),
-            audio: ni.default_audio_url,
-          }
-        end
-        puts "Setting next_images for Image"
-        render json: @next_images
-        return
-      end
-      if @board_image.mode == "dynamic" && @board_image.dynamic_board_id.present?
-        @dynamic_board = Board.find(@board_image.dynamic_board_id)
-        render json: @dynamic_board.api_view_with_images(current_user)
-        return
-      end
-    else
-      @next_images = @board_image.next_images.map do |ni|
-        puts "Next Image: #{ni.inspect}"
-        puts "Next Image: #{ni[:id]} - #{ni[:label]} - #{ni[:bg_color]} - #{ni[:src]} - #{ni[:audio_url]}"
-        {
-          id: ni[:id],
-          label: ni[:label],
-          bg_color: ni[:bg_color],
-          src: ni[:src],
-          audio: ni[:audio_url],
-        }
-      end
+    @board_image = BoardImage.find(params[:id])
 
-      render json: @next_images
+    if @board_image.mode == "dynamic" && @board_image.dynamic_board_id.present?
+      @dynamic_board = Board.find(@board_image.dynamic_board_id)
+      render json: @dynamic_board.api_view_with_images(current_user)
       return
+    else
+      render json: { error: "No dynamic board found for board image" }, status: :unprocessable_entity
     end
+    # @next_images = @board_image.next_images.map do |ni|
+    #   puts "Next Image: #{ni.inspect}"
+    #   puts "Next Image: #{ni[:id]} - #{ni[:label]} - #{ni[:bg_color]} - #{ni[:src]} - #{ni[:audio_url]}"
+    #   {
+    #     id: ni[:id],
+    #     label: ni[:label],
+    #     bg_color: ni[:bg_color],
+    #     src: ni[:src],
+    #     audio: ni[:audio_url],
+    #   }
+    # end
+
+    # render json: @next_images
   end
 
   def make_dynamic

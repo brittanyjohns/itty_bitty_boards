@@ -31,6 +31,10 @@ class BoardGroup < ApplicationRecord
     self.layout = calculate_grid_layout
   end
 
+  def description
+    "#{name} (#{boards.count} boards)"
+  end
+
   def api_view_with_boards(viewing_user = nil)
     {
       id: id,

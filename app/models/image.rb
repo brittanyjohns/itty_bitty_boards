@@ -96,26 +96,10 @@ class Image < ApplicationRecord
     self.private == false
   end
 
-  def make_dynamic(viewing_user)
-    user_dynamic_board = viewing_user&.dynamic_board
-    dynamic_board_image = user_dynamic_board&.board_images&.find_by(image_id: id)
-    if dynamic_board_image
-      puts "Dynamic board image already exists: #{dynamic_board_image.id}"
-      dynamic_board_image.update!(mode: "dynamic")
-    else
-      # dynamic_board_image = user_dynamic_board&.board_images&.create!(image_id: id, mode: "dynamic")
-      puts "ADDING IMAGE TO DYNAMIC BOARD: #{label} - #{user_dynamic_board&.id}"
-
-      dynamic_board_image = user_dynamic_board&.add_image(id)
-      if dynamic_board_image
-        puts "Dynamic board image created: #{dynamic_board_image.id}"
-        dynamic_board_image.make_dynamic
-      else
-        puts "Dynamic board image not created -#{dynamic_board_image.inspect}"
-        return nil
-      end
-    end
-    puts "MAKE DYNAMIC: #{label} - #{dynamic_board_image.inspect}"
+  def make_dynamic_board_image(viewing_user)
+    return unless viewing_user
+    dynamic_board = viewing_user&.dynamic_board || viewing_user&.create_dynamic_board
+    dynamic_board_image = board_images.create!(board: dynamic_board, mode: "dynamic", dynamic_board_id: dynamic_board.id)
     dynamic_board_image
   end
 
@@ -213,9 +197,10 @@ class Image < ApplicationRecord
 
   def set_next_words!
     similar_images = Image.public_img.where(label: label).where.not(id: id)
-    next_words = similar_images.pluck(:label).uniq
+    next_words = similar_images.pluck(:next_words).flatten.uniq
     new_next_words = next_words
-    new_next_words = get_next_words(label) unless new_next_words.any?
+    new_next_words = get_next_words(label) if should_rerun_next_words_job?(new_next_words)
+    puts "SETING NEXT WORDS FOR IMAGE: #{label} - #{new_next_words}"
     Rails.logger.debug "New next words: #{new_next_words}"
     if new_next_words
       self.next_words = new_next_words
@@ -248,8 +233,9 @@ class Image < ApplicationRecord
 
   def next_images
     imgs = Image.where(label: next_words).public_img.with_attached_audio_files.order(created_at: :desc).distinct(:label)
+    imgs = Image.where(label: next_words).public_img.order(created_at: :desc).distinct(:label) if imgs.blank?
     return imgs if imgs.any?
-    Board.predictive_default.images
+    # Board.predictive_default.images
   end
 
   def next_board
@@ -265,6 +251,10 @@ class Image < ApplicationRecord
     next_board_to_use
   end
 
+  def description
+    display_description || image_prompt
+  end
+
   def create_words_from_next_words
     return unless next_words
     existing_next_words = []
@@ -272,20 +262,20 @@ class Image < ApplicationRecord
       existing_word = Image.public_img.find_by(label: word)
       if existing_word
         Rails.logger.debug "Word already exists: #{existing_word.label}"
-        if existing_word.next_words.blank?
-          existing_word.save!
-        else
-          Rails.logger.debug "Next words already set for #{existing_word.label}\n #{existing_word.next_words}"
-          if existing_word.label == label
-            n = self.next_words || []
-            puts "Existing next words: #{n}"
-            # next_words = (next_words + existing_word.next_words).uniq
-            next_words = (n + existing_word.next_words).uniq
-            existing_next_words << next_words
-            existing_word.next_words = next_words
-            existing_word.save!
-          end
-        end
+        # if existing_word.next_words.blank?
+        #   existing_word.save!
+        # else
+        #   Rails.logger.debug "Next words already set for #{existing_word.label}\n #{existing_word.next_words}"
+        #   if existing_word.label == label
+        #     n = self.next_words || []
+        #     puts "Existing next words: #{n}"
+        #     # next_words = (next_words + existing_word.next_words).uniq
+        #     next_words = (n + existing_word.next_words).uniq
+        #     existing_next_words << next_words
+        #     existing_word.next_words = next_words
+        #     existing_word.save!
+        #   end
+        # end
       else
         image = Image.public_img.create!(label: word)
       end
@@ -714,7 +704,7 @@ class Image < ApplicationRecord
     # Attempt to find a doc for a viewing user
     doc = viewing_user&.display_doc_for_image(id)
     # Return the doc if it exists, else find a userless doc
-    doc || userless_doc
+    # doc || userless_doc
   end
 
   def userless_doc
@@ -838,7 +828,7 @@ class Image < ApplicationRecord
     current_doc_id = current_doc.id if current_doc
     image_docs = docs.with_attached_image.for_user(current_user).order(created_at: :desc)
     remaining = remaining_user_boards(current_user)
-    user_image_boards = user_boards(current_user)&.order(created_at: :desc)
+    user_image_boards = user_boards(current_user)&.order(created_at: :desc).distinct
     user_board_images = user_board_images(current_user)
     {
       id: id,
@@ -864,7 +854,6 @@ class Image < ApplicationRecord
       remaining_boards: remaining.map { |board| { id: board.id, name: board.name } },
       can_edit: (current_user && user_id == current_user.id) || current_user&.admin?,
       user_board_images: user_board_images.map { |board_image| { id: board_image.id, board_id: board_image.board_id, board_name: board_image.board.name } },
-      user_dynamic_base_board: current_user&.dynamic_board.api_view_with_images(current_user),
       docs: image_docs.map do |doc|
         {
           id: doc.id,
