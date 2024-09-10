@@ -118,9 +118,7 @@ class API::ImagesController < API::ApplicationController
     @image = Image.find(params[:id])
     voice = params[:voice] || "echo"
     text = params[:text] || @image.label
-    if text == @image.label
-      puts "Text is the same as label"
-    else
+    if text != @image.label
       @image.update(label: text)
     end
 

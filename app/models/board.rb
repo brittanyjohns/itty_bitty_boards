@@ -226,7 +226,6 @@ class Board < ApplicationRecord
   end
 
   def set_voice
-    puts "Setting voice"
     board_images.includes(:image).each do |bi|
       bi.create_voice_audio(voice)
     end
@@ -349,7 +348,7 @@ class Board < ApplicationRecord
   def add_image(image_id, layout = nil)
     new_board_image = nil
     if image_ids.include?(image_id.to_i)
-      puts "image already added"
+      # Don't add the same image twice
     else
       new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice)
       if layout
@@ -397,7 +396,6 @@ class Board < ApplicationRecord
     @cloned_board.save
     @images.each do |image|
       layout = @layouts.find { |l| l[0] == image.id }&.second
-      puts "layout: #{layout}"
       @cloned_board.add_image(image.id, layout)
     end
     if @cloned_board.save
@@ -529,16 +527,11 @@ class Board < ApplicationRecord
       num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 12
     end
 
-    puts ">>>>> num_of_columns: #{num_of_columns}"
-
     layout_to_set = {} # Initialize as a hash
 
     position_all_board_images
     row_count = 0
     bi_count = board_images.count
-    puts "bi_count: #{bi_count}"
-    puts "num_of_columns: #{num_of_columns}"
-    puts "bi_count / num_of_columns.to_f: #{bi_count / num_of_columns.to_f}"
     rows = (bi_count / num_of_columns.to_f).ceil
     ActiveRecord::Base.logger.silence do
       board_images.order(:position).each_slice(num_of_columns) do |row|
@@ -602,10 +595,8 @@ class Board < ApplicationRecord
   end
 
   def next_grid_cell
-    puts "Next grid cell"
     x = board_images.pluck(:layout).map { |l| l[:x] }.max
     y = board_images.pluck(:layout).map { |l| l[:y] }.max
-    puts "x: #{x}, y: #{y}"
     x = 0 if x.nil?
     y = 0 if y.nil?
     x += 1

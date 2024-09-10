@@ -126,7 +126,6 @@ class API::BoardsController < API::ApplicationController
       @board.update_grid_layout(layout, screen_size)
     rescue => e
       Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
-      puts "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
     end
     @board.reload
 
@@ -203,8 +202,6 @@ class API::BoardsController < API::ApplicationController
     @board.description = params["description"]
     @board.display_image_url = params["display_image_url"]
     @board.predefined = params["predefined"]
-    puts "API::BoardsController#update: #{params.inspect}"
-    puts @board.voice ? "Voice: #{@board.voice}" : "No voice"
     respond_to do |format|
       if @board.save
         format.json { render json: @board.api_view_with_images(current_user), status: :ok }
@@ -219,7 +216,6 @@ class API::BoardsController < API::ApplicationController
     num_of_words = params[:num_of_words].to_i || 10
     result = @board.get_additional_words(num_of_words)
     additional_words = result["additional_words"]
-    puts "Creating additional images: #{additional_words}"
     @board.create_images_from_word_list(additional_words)
     render json: @board.api_view_with_images(current_user)
   end
@@ -228,7 +224,6 @@ class API::BoardsController < API::ApplicationController
     set_board
     num_of_words = params[:num_of_words].to_i || 10
     additional_words = @board.get_additional_words(num_of_words)
-    puts "Additional words: #{additional_words}"
     render json: additional_words
   end
 
