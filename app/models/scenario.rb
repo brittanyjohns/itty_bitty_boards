@@ -59,14 +59,14 @@ class Scenario < ApplicationRecord
     board = Board.find_by(id: self.board_id)
     board = Board.create!(user: self.user, name: self.name, token_limit: self.token_limit, description: self.initial_description) unless board
 
-    board_with_images = create_images_from_word_list(board)
+    board_with_images = generate_images_from_word_list(board)
     board_with_images.reset_layouts
     board_with_images.set_display_image
     board_with_images.update!(status: "completed")
     board_with_images
   end
 
-  def create_images_from_word_list(board)
+  def generate_images_from_word_list(board)
     images = []
     new_images = []
     tokens_used = 0

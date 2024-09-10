@@ -311,6 +311,22 @@ class Board < ApplicationRecord
     end
   end
 
+  def create_images_from_word_list(word_list)
+    unless word_list && word_list.any?
+      Rails.logger.debug "No word list"
+      return
+    end
+    word_list.each do |word|
+      word = word.downcase
+      user_image = user.images.find_by(label: word)
+      image = Image.public_img.find_by(label: word) unless user_image
+      image = Image.public_img.create(label: word, user_id: user_id) unless image
+      self.add_image(image.id)
+    end
+    self.reset_layouts
+    self.save!
+  end
+
   def remove_image(image_id)
     board_images.find_by(image_id: image_id).destroy
   end

@@ -180,6 +180,9 @@ class API::BoardsController < API::ApplicationController
 
     respond_to do |format|
       if @board.save
+        word_list = params[:word_list] || board_params[:word_list]
+
+        @board.create_images_from_word_list(params[:word_list]) if word_list.present?
         format.json { render json: @board, status: :created }
         format.turbo_stream
       else

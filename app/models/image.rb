@@ -674,7 +674,7 @@ class Image < ApplicationRecord
     # Attempt to find a doc for a viewing user
     doc = viewing_user&.display_doc_for_image(id)
     # Return the doc if it exists, else find a userless doc
-    doc || userless_doc
+    # doc || userless_doc
   end
 
   def userless_doc
