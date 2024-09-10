@@ -80,8 +80,11 @@ class API::ImagesController < API::ApplicationController
 
   def save_temp_doc
     @current_user = current_user
+    if params[:imageId].present?
+      @existing_image = Image.find(params[:imageId])
+    end
     label = params[:query]&.downcase
-    @existing_image = Image.find_by(label: label, user_id: @current_user.id)
+    @existing_image = Image.find_by(label: label, user_id: @current_user.id) unless @existing_image
     @image = nil
     if @existing_image
       @image = @existing_image

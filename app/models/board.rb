@@ -511,23 +511,28 @@ class Board < ApplicationRecord
   def calculate_grid_layout_for_screen_size(screen_size, reset_layouts = false)
     case screen_size
     when "sm"
-      number_of_columns = self.small_screen_columns || 1
+      num_of_columns = self.small_screen_columns > 0 ? self.small_screen_columns : 3
     when "md"
-      number_of_columns = self.medium_screen_columns || 8
+      num_of_columns = self.medium_screen_columns > 0 ? self.medium_screen_columns : 8
     when "lg"
-      number_of_columns = self.large_screen_columns || 12
+      num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 12
     else
-      number_of_columns = self.large_screen_columns || 12
+      num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 12
     end
+
+    puts ">>>>> num_of_columns: #{num_of_columns}"
 
     layout_to_set = {} # Initialize as a hash
 
     position_all_board_images
     row_count = 0
     bi_count = board_images.count
-    rows = (bi_count / number_of_columns.to_f).ceil
+    puts "bi_count: #{bi_count}"
+    puts "num_of_columns: #{num_of_columns}"
+    puts "bi_count / num_of_columns.to_f: #{bi_count / num_of_columns.to_f}"
+    rows = (bi_count / num_of_columns.to_f).ceil
     ActiveRecord::Base.logger.silence do
-      board_images.order(:position).each_slice(number_of_columns) do |row|
+      board_images.order(:position).each_slice(num_of_columns) do |row|
         row.each_with_index do |bi, index|
           new_layout = {}
           if bi.layout[screen_size] && reset_layouts == false

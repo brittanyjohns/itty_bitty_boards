@@ -42,6 +42,13 @@ class API::ChildAccountsController < API::ApplicationController
   # PATCH/PUT /child_accounts/1
   # PATCH/PUT /child_accounts/1.json
   def update
+    if params[:password] && params[:password_confirmation]
+      passcode = params[:password]
+      @child_account.passcode = passcode
+      puts "Child Account: passcode: #{passcode}"
+      @child_account.save
+      @child_account.reload
+    end
     if @child_account.update(child_account_params)
       render json: @child_account.api_view, status: :ok
     else

@@ -166,12 +166,9 @@ class BoardImage < ApplicationRecord
   end
 
   def save_initial_layout
-    puts "\n\n*** save_initial_layout ***\n\nself.skip_initial_layout: #{self.skip_initial_layout}"
     if self.skip_initial_layout == true
       puts "Skipping initial layout"
       return
-    else
-      puts "\n\nSaving initial layout\n\n"
     end
     if self.layout.blank?
       if image.image_type == "Menu"

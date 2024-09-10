@@ -128,7 +128,6 @@ class Image < ApplicationRecord
     else
       color = "gray"
     end
-    Rails.logger.debug "Background Color: #{color}"
     color
   end
 
@@ -138,7 +137,6 @@ class Image < ApplicationRecord
 
   def create_image_doc(user_id = nil)
     response = create_image(user_id)
-    Rails.logger.debug "Response: #{response}"
     if response
       doc = response
       doc.update_user_docs
@@ -188,12 +186,10 @@ class Image < ApplicationRecord
     next_words = similar_images.pluck(:label).uniq
     new_next_words = next_words
     new_next_words = get_next_words(label) unless new_next_words.any?
-    Rails.logger.debug "New next words: #{new_next_words}"
     if new_next_words
       self.next_words = new_next_words
       self.save!
     else
-      Rails.logger.debug "No next words found for #{label}"
       self.update!(no_next: true)
     end
     new_next_words
@@ -209,7 +205,6 @@ class Image < ApplicationRecord
     count = 0
     Image.lock.public_img.non_menu_images.where(next_words: [], no_next: false).find_in_batches(batch_size: 20) do |images|
       img_ids = images.pluck(:id)
-      Rails.logger.debug "\n\nStarting set next words job for #{img_ids}\n\n"
 
       SetNextWordsJob.perform_async(img_ids)
       count += 20
@@ -812,6 +807,7 @@ class Image < ApplicationRecord
       next_words: next_words,
       no_next: no_next,
       part_of_speech: part_of_speech,
+      can_edit: (current_user && user_id == current_user.id) || current_user&.admin?,
       user_boards: user_image_boards.map { |board| { id: board.id, name: board.name } },
       remaining_boards: remaining.map { |board| { id: board.id, name: board.name } },
       docs: image_docs.map do |doc|
@@ -848,10 +844,8 @@ class Image < ApplicationRecord
   def categorize!
     return if part_of_speech.present? || menu? || Rails.env.test?
     response = OpenAiClient.new(open_ai_opts).categorize_word(label)
-    Rails.logger.debug "Response: #{response}"
     parsed_response = response[:content]&.downcase
     if parsed_response
-      Rails.logger.debug "Category: #{parsed_response}"
       update!(part_of_speech: parsed_response)
     end
   end
@@ -863,7 +857,6 @@ class Image < ApplicationRecord
     existing_image = Image.public_img.find_by(label: label)
     image = nil
     if existing_image
-      Rails.logger.debug "Image already exists: #{label}"
       image = existing_image
     else
       image = Image.create!(label: label, user_id: user_id, status: "processing", image_prompt: "#{title} #{snippet}", image_type: "GoogleSearch")
