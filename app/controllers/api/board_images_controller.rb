@@ -104,6 +104,8 @@ class API::BoardImagesController < API::ApplicationController
     # begin
     @board_image = BoardImage.find(params[:id])
 
+    puts "Predictive images for board image: #{@board_image.label} - mode: #{@board_image.mode}"
+
     if @board_image.mode == "dynamic" && @board_image.dynamic_board_id.present?
       @dynamic_board = Board.find(@board_image.dynamic_board_id)
       render json: @dynamic_board.api_view_with_images(current_user)

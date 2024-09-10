@@ -334,6 +334,7 @@ class Board < ApplicationRecord
     new_board_image = nil
     if image_ids.include?(image_id.to_i)
       puts "image already added"
+      return
     else
       new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice)
       if layout

@@ -195,11 +195,10 @@ class BoardImage < ApplicationRecord
       img = Image.searchable_images_for(user).with_attached_audio_files.where(label: word).first if !img
       puts ">>>> Found image for next word: #{word} - #{img.id}" if img
       all_next_images << img if img
-      puts "Found image for next word: #{word} - #{img.inspect}"
       if !img
         puts "No image found for next word: #{word}"
         i = Image.public_img.create!(label: word.downcase)
-        puts "Created image: #{i.label}"
+        puts "CREATED image: #{i.label}"
         all_next_images << i if i
       end
     end
@@ -215,10 +214,25 @@ class BoardImage < ApplicationRecord
   def make_dynamic
     add_to_user_dynamic_board
     dynamic_board = Board.find_or_create_by(name: "Dynamic #{label}", user_id: board.user_id, parent: self)
+    if !dynamic_board
+      puts "Error creating dynamic board"
+      return false
+    end
     dynamic_board_group = board.user.dynamic_board_group
-    dynamic_board_group.boards << dynamic_board
+    if !dynamic_board_group
+      puts "Error creating dynamic board group"
+    else
+      dynamic_board_group.boards << dynamic_board
+    end
 
     next_images.each do |img|
+      puts "Next image: #{img.id} - #{img.label}"
+      match = dynamic_board.images.where(id: img.id).first
+      if match
+        puts "Match found: #{match.id}"
+        dynamic_board.add_image(match.id)
+        next
+      end
       dynamic_board.add_image(img[:id])
     end
 

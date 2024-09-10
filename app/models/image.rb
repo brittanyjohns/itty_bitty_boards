@@ -99,7 +99,16 @@ class Image < ApplicationRecord
   def make_dynamic_board_image(viewing_user)
     return unless viewing_user
     dynamic_board = viewing_user&.dynamic_board || viewing_user&.create_dynamic_board
-    dynamic_board_image = board_images.create!(board: dynamic_board, mode: "dynamic", dynamic_board_id: dynamic_board.id)
+
+    match = dynamic_board.images.find_by(label: label)
+
+    if match
+      dynamic_image = match.dup
+      dynamic_image.update!(image_type: "DynamicImage", dynamic_board_id: dynamic_board.id)
+      dynamic_board_image = board_images.create!(board_id: dynamic_board.id, mode: "dynamic", dynamic_board_id: dynamic_board.id)
+    else
+      dynamic_board_image = board_images.create!(board: dynamic_board, mode: "dynamic", dynamic_board_id: dynamic_board.id)
+    end
     dynamic_board_image
   end
 
@@ -821,6 +830,19 @@ class Image < ApplicationRecord
   def user_board_images(current_user)
     return [] unless current_user
     board_images.where(board_id: current_user.boards.user_made_with_scenarios.pluck(:id))
+  end
+
+  def matching_dynamic_board_image(viewing_user)
+    return false unless viewing_user
+    dynamic_board = viewing_user.dynamic_board
+    return false unless dynamic_board
+    match = dynamic_board.board_images.where(image_id: id, mode: "dynamic")
+    if match.any?
+      match.first
+    else
+      match = dynamic_board.board_images.create!(image_id: id, mode: "dynamic")
+    end
+    match
   end
 
   def with_display_doc(current_user = nil)

@@ -89,7 +89,9 @@ class User < ApplicationRecord
   end
 
   def dynamic_board
-    Board.find_by(user_id: id, name: "Dynamic Images")
+    board = Board.find_by(user_id: id, name: "Dynamic Images")
+    return board if board
+    create_dynamic_board
   end
 
   # Methods for user settings
