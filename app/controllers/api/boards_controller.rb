@@ -214,6 +214,24 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
+  def create_additional_images
+    set_board
+    num_of_words = params[:num_of_words].to_i || 10
+    result = @board.get_additional_words(num_of_words)
+    additional_words = result["additional_words"]
+    puts "Creating additional images: #{additional_words}"
+    @board.create_images_from_word_list(additional_words)
+    render json: @board.api_view_with_images(current_user)
+  end
+
+  def additional_words
+    set_board
+    num_of_words = params[:num_of_words].to_i || 10
+    additional_words = @board.get_additional_words(num_of_words)
+    puts "Additional words: #{additional_words}"
+    render json: additional_words
+  end
+
   def add_image
     set_board
     # @board = Board.with_artifacts.find(params[:id])

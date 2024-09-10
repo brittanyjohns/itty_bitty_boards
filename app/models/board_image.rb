@@ -143,12 +143,13 @@ class BoardImage < ApplicationRecord
     self.text_color = image.text_color
     self.font_size = image.font_size
     self.border_color = image.border_color
-    audio_file = image.find_or_create_audio_file_for_voice(voice)
+    audio_file = image.find_audio_for_voice(voice)
     if audio_file
       self.audio_url = audio_file.url
     else
+      image.run_generate_image_job_for_voice(voice)
       # This probably is nil anyway but just in case
-      self.audio_url = image.audio_url
+      # self.audio_url = image.audio_url
     end
   end
 

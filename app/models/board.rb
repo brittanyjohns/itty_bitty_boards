@@ -40,6 +40,8 @@ class Board < ApplicationRecord
   has_many :board_groups, through: :board_group_boards
   has_many :child_boards, dependent: :destroy
 
+  include UtilHelper
+
   scope :for_user, ->(user) { where(user: user) }
   scope :menus, -> { where(parent_type: "Menu") }
   scope :non_menus, -> { where.not(parent_type: "Menu") }
@@ -314,6 +316,13 @@ class Board < ApplicationRecord
   def create_images_from_word_list(word_list)
     unless word_list && word_list.any?
       Rails.logger.debug "No word list"
+      return
+    end
+    if word_list.is_a?(String)
+      word_list = word_list.split(" ")
+    end
+    if word_list.count > 50
+      Rails.logger.debug "Too many words"
       return
     end
     word_list.each do |word|
@@ -626,5 +635,27 @@ class Board < ApplicationRecord
         }
       end,
     }
+  end
+
+  def get_additional_words(number_of_words)
+    board_words = images.map(&:label).uniq
+    response = OpenAiClient.new(open_ai_opts).get_additional_words(name, number_of_words, board_words)
+    if response
+      additional_words = response[:content].gsub("```json", "").gsub("```", "").strip
+      if additional_words.blank? || additional_words.include?("NO ADDITIONAL WORDS")
+        return
+      end
+
+      if valid_json?(additional_words)
+        additional_words = JSON.parse(additional_words)
+      else
+        puts "INVALID JSON: #{additional_words}"
+        additional_words = transform_into_json(additional_words)
+      end
+    else
+      Rails.logger.error "*** ERROR - get_additional_words *** \nDid not receive valid response. Response: #{response}\n"
+    end
+    additional_words["additional_words"]
+    additional_words
   end
 end

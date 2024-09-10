@@ -150,6 +150,22 @@ class OpenAiClient
     response
   end
 
+  def get_additional_words(name, number_of_words, exclude_words)
+    @model = GPT_4_MODEL
+    text = "I have an existing AAC board titled, '#{name}', containing the following words: #{exclude_words.join(", ")}. Please provide #{number_of_words} additional words that are foundational for basic communication in an AAC device. 
+    These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. They should be similar in nature to the words already on the board, but not duplicates.
+    Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
+    @messages = [{ role: "user",
+                  content: [{
+      type: "text",
+      text: text,
+    }] }]
+    response = create_chat
+    puts "Response: #{response}"
+    Rails.logger.debug "*** ERROR *** Invaild Additional Words Response: #{response}" unless response
+    response
+  end
+
   def strip_image_description(image_description)
     Rails.logger.debug "Missing image description.\n" && return unless image_description
     stripped_description = image_description.gsub(/[^a-z ]/i, "")

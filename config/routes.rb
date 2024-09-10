@@ -226,6 +226,8 @@ Rails.application.routes.draw do
         post "clone"
         put "add_to_team"
         put "remove_from_team"
+        post "create_additional_images"
+        get "additional_words"
       end
     end
     resources :board_images do
