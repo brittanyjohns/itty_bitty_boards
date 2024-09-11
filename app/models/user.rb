@@ -76,7 +76,7 @@ class User < ApplicationRecord
 
   # Constants
   # DEFAULT_ADMIN_ID = self.admin.first&.id
-  DEFAULT_ADMIN_ID = Rails.env.development? ? 2 : 1
+  DEFAULT_ADMIN_ID = Rails.env.development? ? 6 : 1
 
   # Callbacks
   before_save :set_default_settings, unless: :settings?
@@ -163,12 +163,14 @@ class User < ApplicationRecord
 
   def display_doc_for_image(image_id)
     ActiveRecord::Base.logger.silence do
-      user_docs.includes(:doc).find_by(image_id: image_id)&.doc
+      Doc.joins(:user_docs)
+         .where(user_docs: { user_id: [id, nil, DEFAULT_ADMIN_ID], image_id: image_id })
+         .first
     end
   end
 
   def voice_settings
-    settings["voice"] = { name: "echo", speed: 1, pitch: 1, volume: 1, rate: 1, language: "en-US" } unless settings["voice"]
+    settings["voice"] = { name: "alloy", speed: 1, pitch: 1, volume: 1, rate: 1, language: "en-US" } unless settings["voice"]
     settings["voice"]
   end
 
@@ -218,7 +220,7 @@ class User < ApplicationRecord
     display_name
   end
 
-  TRAIL_PERIOD = 14.days
+  TRAIL_PERIOD = 8.days
 
   def free_trial?
     free? && created_at > TRAIL_PERIOD.ago
