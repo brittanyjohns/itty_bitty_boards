@@ -200,12 +200,11 @@ class API::BoardsController < API::ApplicationController
     @board.voice = board_params["voice"]
     @board.name = board_params["name"]
     @board.description = board_params["description"]
-    @board.display_image_url = params["display_image_url"]
+    @board.display_image_url = board_params["display_image_url"]
     @board.predefined = params["predefined"]
     if params["word_list"].present?
       word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
       @board.create_images_from_word_list(word_list)
-      @board.reset_layouts
     end
 
     respond_to do |format|
