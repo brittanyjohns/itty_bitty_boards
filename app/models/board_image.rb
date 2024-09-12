@@ -151,7 +151,7 @@ class BoardImage < ApplicationRecord
     if audio_file
       self.audio_url = audio_file.url
     else
-      image.run_generate_image_job_for_voice(voice)
+      image.start_create_all_audio_job
       # This probably is nil anyway but just in case
       # self.audio_url = image.audio_url
     end

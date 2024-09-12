@@ -162,14 +162,14 @@ class Image < ApplicationRecord
       if !audio_file_exists_for?(voice)
         create_audio_from_text(label, voice)
       else
-        voice = user_id ? user.voice : "echo"
+        voice = user_id ? user.voice : "alloy"
         create_audio_from_text(label, voice)
       end
     end
   end
 
   def self.create_single_audio_for_images_missing(limit = 50)
-    voice = "echo"
+    voice = "alloy"
     group_num = 0
     Image.without_attached_audio_files.find_in_batches(batch_size: 20) do |images|
       puts "\nStarting create audio job for group #{group_num} for #{images.count} images"
@@ -294,7 +294,7 @@ class Image < ApplicationRecord
     end
   end
 
-  def find_or_create_audio_file_for_voice(voice = "echo")
+  def find_or_create_audio_file_for_voice(voice = "alloy")
     filename = "#{label_for_filename}_#{voice}.aac"
 
     audio_file = ActiveStorage::Attachment.joins(:blob)
@@ -313,7 +313,7 @@ class Image < ApplicationRecord
     label.parameterize
   end
 
-  def find_audio_for_voice(voice = "echo")
+  def find_audio_for_voice(voice = "alloy")
     filename = "#{label_for_filename}_#{voice}.aac"
 
     audio_file = ActiveStorage::Attachment.joins(:blob)
@@ -384,7 +384,7 @@ class Image < ApplicationRecord
   end
 
   def self.voices
-    ["echo", "echo", "fable", "onyx", "nova", "shimmer", "alloy"]
+    ["echo", "fable", "onyx", "nova", "shimmer", "alloy"]
   end
 
   def self.languages
@@ -652,7 +652,7 @@ class Image < ApplicationRecord
     audio_blob ? cdn_url : nil
   end
 
-  def save_audio_file_to_s3!(voice = "echo")
+  def save_audio_file_to_s3!(voice = "alloy")
     create_audio_from_text(label, voice)
     voices_needed = missing_voices || []
     Rails.logger.debug "Voices needed: #{voices_needed}"
@@ -693,11 +693,11 @@ class Image < ApplicationRecord
     "Generate an image of"
   end
 
-  def start_generate_audio_job(voice = "echo", start_time = 0)
+  def start_generate_audio_job(voice = "alloy", start_time = 0)
     SaveAudioJob.perform_in(start_time.minutes, [id], voice)
   end
 
-  def self.start_generate_audio_job(ids, voice = "echo")
+  def self.start_generate_audio_job(ids, voice = "alloy")
     SaveAudioJob.perform_async(ids, voice)
   end
 
