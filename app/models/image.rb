@@ -570,11 +570,11 @@ class Image < ApplicationRecord
     docs.unscoped.any? { |doc| doc.processed === symbol_name }
   end
 
-  def self.destroy_duplicate_images(dry_run: true)
+  def self.destroy_duplicate_images(dry_run: true, limit: 100)
     total_images_destroyed = 0
     total_docs_saved = 0
-    puts "RUNNING FOR #{Image.includes(:docs).non_menu_images.count} IMAGES"
-    Image.includes(:docs).non_menu_images.group_by(&:label).each do |label, images|
+    puts "RUNNING FOR #{Image.public_img.includes(:docs).non_menu_images.count} IMAGES"
+    Image.public_img.includes(:docs).non_menu_images.group_by(&:label).each do |label, images|
       # Skip the first image (which we want to keep) and destroy the rest
       # images.drop(1).each(&:destroy)
       puts "\nDuplicate images for #{label}: #{images.count}" if images.count > 1
@@ -605,6 +605,10 @@ class Image < ApplicationRecord
         puts "AFTER RELOAD - Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
         puts "dry_run: #{dry_run} - Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at}"
         image.destroy unless dry_run
+        if total_images_destroyed >= limit
+          puts "Limit reached: #{limit}"
+          break
+        end
       end
     end
     puts "\nTotal images destroyed: #{total_images_destroyed} - Total docs saved: #{total_docs_saved}\n"
