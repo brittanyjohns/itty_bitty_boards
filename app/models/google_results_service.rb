@@ -9,14 +9,14 @@ class GoogleResultsService
     @start_index = start_index
     @google_custom_search_api_key = ENV["GOOGLE_CUSTOM_SEARCH_API_KEY"]
     @google_custom_search_cx = ENV["GOOGLE_CUSTOM_SEARCH_CX"]
-
+    @rights = "cc_publicdomain,cc_sharealike,cc_nonderived"  # Default rights
     @params = {
       key: @google_custom_search_api_key,
       cx: @google_custom_search_cx,
       safe: "active",
       searchType: "image",
       q: @query,
-      rights: "cc_publicdomain",
+      rights: @rights,
       start: @start_index,
       num: 10, # Number of results per page (max 10)
     }
@@ -76,15 +76,11 @@ class GoogleResultsService
         filtered << img_obj
       end
     end
-    puts "Filtered images: #{filtered.count}"
-    puts " \n#{filtered.inspect}\n"
     filtered
   end
 
   def images_api_view
     filtered_search_results&.map do |image|
-      puts "Image: #{image["title"]}"
-      puts "Image2: #{image[:title]}"
       {
         title: image["title"],
         link: image["link"],  # Direct image link
