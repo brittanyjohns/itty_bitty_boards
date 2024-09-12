@@ -667,17 +667,46 @@ class Image < ApplicationRecord
   def display_doc(viewing_user = nil)
     # Attempt to find a doc for a viewing user
     doc = viewing_user&.display_doc_for_image(id)
-    # Return the doc if it exists, else find a userless doc
-    # doc || userless_doc
+    puts "No user doc found for image: #{id} - #{label}" unless doc
+    return doc if doc
+    # image_docs = docs.with_attached_image.for_user(viewing_user).order(created_at: :desc)
+    image_docs = docs.for_user(viewing_user).order(created_at: :desc)
+    default_image_doc = image_docs.where(user_id: [User::DEFAULT_ADMIN_ID, nil]).first
+    puts "default_image_doc: #{default_image_doc.id}" if default_image_doc
+    puts "No user doc found for image: #{id} - #{label} - Using default image doc" unless default_image_doc
+
+    default_image_doc
   end
 
-  def userless_doc
-    ActiveRecord::Base.logger.silence do
-      default_admin = User.includes(:user_docs, :docs).admin.first
-      doc = default_admin&.display_doc_for_image(id)
-      doc = docs.where(user_id: nil).first unless doc
-      doc
+  def self.set_user_docs_for_docs_without(dry_run: true)
+    user = User.admin.first
+    docs_changed = []
+    public_img.each do |image|
+      has_docs = image.docs.any?
+      if !has_docs
+        puts "No docs for image: #{image.id} - #{image.label} - Skipping"
+        next
+      end
+      image.docs.each do |doc|
+        if doc.user_id == user.id
+          puts "Marking user doc for doc: #{doc.id} - #{doc.user_id}"
+          doc.update!(current: true) unless dry_run
+          docs_changed << doc
+        else
+          existing_user_doc = UserDoc.find_by(user_id: user.id, doc_id: doc.id, image_id: image.id)
+          if existing_user_doc
+            puts "User doc already exists: #{existing_user_doc.id}"
+            existing_user_doc
+          else
+            UserDoc.create!(user_id: user.id, doc_id: doc.id, image_id: image.id) unless dry_run
+            docs_changed << doc
+            puts "User doc created for doc: #{doc.id}"
+          end
+        end
+      end
     end
+    puts "Docs changed: #{docs_changed.count}"
+    docs_changed
   end
 
   def display_label
@@ -782,15 +811,19 @@ class Image < ApplicationRecord
 
   def with_display_doc(current_user = nil)
     current_doc = display_doc(current_user)
+    puts "Current doc: #{current_doc.id}" if current_doc
     current_doc_id = current_doc.id if current_doc
     image_docs = docs.with_attached_image.for_user(current_user).order(created_at: :desc)
+    puts "Image docs: #{image_docs.count}"
+    default_image_doc = image_docs.where(user_id: [User::DEFAULT_ADMIN_ID, nil]).first
+    puts "Default image doc: #{default_image_doc.id}" if default_image_doc
     remaining = remaining_user_boards(current_user)
     user_image_boards = user_boards(current_user)
     {
       id: id,
       label: label,
       image_prompt: image_prompt,
-      display_doc: display_image(current_user),
+      display_doc: display_image_url(current_user),
       src: display_image_url(current_user),
       audio: default_audio_url,
       audio_files: audio_files_for_api,

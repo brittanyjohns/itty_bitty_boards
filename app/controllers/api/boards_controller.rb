@@ -14,8 +14,8 @@ class API::BoardsController < API::ApplicationController
     ActiveRecord::Base.logger.silence do
       if params[:query].present?
         @query = params[:query]
-        @boards = boards_for_user.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
-        @predefined_boards = Board.predefined.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(name: :desc)
+        @boards = boards_for_user.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(created_at: :desc)
+        @predefined_boards = Board.predefined.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(created_at: :desc)
       elsif params[:boards_only].present?
         # @boards = boards_for_user.user_made_with_scenarios.order(created_at: :desc)
         @boards = current_user.boards.user_made_with_scenarios.order(created_at: :desc)
@@ -26,7 +26,7 @@ class API::BoardsController < API::ApplicationController
       end
 
       if current_user.admin?
-        @boards = Board.all.order(name: :desc)
+        @boards = Board.all.order(created_at: :desc)
       end
 
       # render json: { boards: @boards.map { |b| b.api_view(current_user) },
