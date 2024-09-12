@@ -137,6 +137,10 @@ class BoardImage < ApplicationRecord
     }
   end
 
+  def description
+    image.image_prompt || board.description
+  end
+
   def set_defaults
     self.voice = board.voice
     self.bg_color = image.bg_color

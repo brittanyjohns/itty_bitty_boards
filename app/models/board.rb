@@ -425,7 +425,7 @@ class Board < ApplicationRecord
       description: description,
       parent_type: parent_type,
       parent_id: parent_id,
-      parent_description: parent_type === "User" ? "User" : parent.description,
+      parent_description: parent_type === "User" ? "User" : parent&.description,
       parent_prompt: parent_type === "OpenaiPrompt" ? parent.prompt_text : nil,
       predefined: predefined,
       number_of_columns: number_of_columns,
@@ -552,7 +552,6 @@ class Board < ApplicationRecord
         row_count += 1
       end
     end
-    Rails.logger.debug "calculate_grid_layout_for_screen_size: #{layout_to_set}"
 
     self.layout[screen_size] = layout_to_set.values # Convert back to an array if needed
     self.board_images.reset
@@ -628,25 +627,49 @@ class Board < ApplicationRecord
     }
   end
 
-  def get_additional_words(number_of_words)
-    board_words = images.map(&:label).uniq
-    response = OpenAiClient.new(open_ai_opts).get_additional_words(name, number_of_words, board_words)
+  def get_words(number_of_words)
+    words_to_exclude = board_images.map(&:label).uniq
+    response = OpenAiClient.new({}).get_additional_words(name, number_of_words, words_to_exclude)
     if response
-      additional_words = response[:content].gsub("```json", "").gsub("```", "").strip
-      if additional_words.blank? || additional_words.include?("NO ADDITIONAL WORDS")
+      words = response[:content].gsub("```json", "").gsub("```", "").strip
+      if words.blank? || words.include?("NO ADDITIONAL WORDS")
         return
       end
-
-      if valid_json?(additional_words)
-        additional_words = JSON.parse(additional_words)
+      if valid_json?(words)
+        words = JSON.parse(words)
       else
-        puts "INVALID JSON: #{additional_words}"
-        additional_words = transform_into_json(additional_words)
+        puts "INVALID JSON: #{words}"
+        start_index = words.index("{")
+        end_index = words.rindex("}")
+        words = words[start_index..end_index]
+        words = transform_into_json(words)
       end
     else
-      Rails.logger.error "*** ERROR - get_additional_words *** \nDid not receive valid response. Response: #{response}\n"
+      Rails.logger.error "*** ERROR - get_words *** \nDid not receive valid response. Response: #{response}\n"
     end
-    additional_words["additional_words"]
-    additional_words
+    words["additional_words"]
+    words
+  end
+
+  def get_word_suggestions(name_to_use, number_of_words)
+    response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words)
+    if response
+      word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip
+      if word_suggestions.blank? || word_suggestions.include?("NO WORDS")
+        return
+      end
+      if valid_json?(word_suggestions)
+        word_suggestions = JSON.parse(word_suggestions)
+      else
+        puts "INVALID JSON: #{word_suggestions}"
+        start_index = word_suggestions.index("{")
+        end_index = word_suggestions.rindex("}")
+        word_suggestions = word_suggestions[start_index..end_index]
+        word_suggestions = transform_into_json(word_suggestions)
+      end
+    else
+      Rails.logger.error "*** ERROR - get_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
+    end
+    word_suggestions["words"]
   end
 end

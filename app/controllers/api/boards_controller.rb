@@ -197,11 +197,17 @@ class API::BoardsController < API::ApplicationController
     @board.small_screen_columns = board_params["small_screen_columns"].to_i
     @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
     @board.large_screen_columns = board_params["large_screen_columns"].to_i
-    @board.voice = params["voice"]
-    @board.name = params["name"]
-    @board.description = params["description"]
+    @board.voice = board_params["voice"]
+    @board.name = board_params["name"]
+    @board.description = board_params["description"]
     @board.display_image_url = params["display_image_url"]
     @board.predefined = params["predefined"]
+    if params["word_list"].present?
+      word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
+      @board.create_images_from_word_list(word_list)
+      @board.reset_layouts
+    end
+
     respond_to do |format|
       if @board.save
         format.json { render json: @board.api_view_with_images(current_user), status: :ok }
@@ -214,7 +220,8 @@ class API::BoardsController < API::ApplicationController
   def create_additional_images
     set_board
     num_of_words = params[:num_of_words].to_i || 10
-    result = @board.get_additional_words(num_of_words)
+    result = @board.get_words(num_of_words)
+    puts "Result: #{result}"
     additional_words = result["additional_words"]
     @board.create_images_from_word_list(additional_words)
     render json: @board.api_view_with_images(current_user)
@@ -223,7 +230,14 @@ class API::BoardsController < API::ApplicationController
   def additional_words
     set_board
     num_of_words = params[:num_of_words].to_i || 10
-    additional_words = @board.get_additional_words(num_of_words)
+    board_words = @board.images.map(&:label).uniq
+    additional_words = @board.get_words(num_of_words)
+    render json: additional_words
+  end
+
+  def words
+    additional_words = Board.new.get_word_suggestions(params[:name], params[:num_of_words])
+
     render json: additional_words
   end
 
