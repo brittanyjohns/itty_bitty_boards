@@ -67,6 +67,10 @@ class API::ImagesController < API::ApplicationController
 
     label = image_params[:label]&.downcase
     image_id = params["image"]["id"]
+    @image = Image.find(image_id) if image_id.present?
+    @image = Image.find_by(label: label, user_id: @current_user.id) unless @image
+    @image = Image.public_img.find_by(label: label) unless @image
+    @image = Image.create(label: label, user_id: @current_user.id) unless @image
     @doc = attach_doc_to_image(@image, @current_user, params[:cropped_image], params[:file_extension])
 
     if @doc.save
