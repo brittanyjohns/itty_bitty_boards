@@ -82,6 +82,7 @@ class API::ImagesController < API::ApplicationController
     end
   end
 
+  # Google Search API
   def save_temp_doc
     @current_user = current_user
     if params[:imageId].present?

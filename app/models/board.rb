@@ -570,7 +570,7 @@ class Board < ApplicationRecord
     self.save!
   end
 
-  def update_grid_layout(layout_to_set, screen_size)
+  def update_grid_layout(layout_to_set, screen_size, margins = [0, 0])
     Rails.logger.debug "update_grid_layout: #{layout_to_set}"
     layout_for_screen_size = self.layout[screen_size] || []
     unless layout_to_set.is_a?(Array)
@@ -584,6 +584,9 @@ class Board < ApplicationRecord
       bi = board_images.find(id_key) rescue nil
       Rails.logger.debug "BoardImage not found for id: #{id_key}" if bi.nil?
       bi = board_images.find_by(image_id: id_key) if bi.nil?
+      Rails.logger.debug "BoardImage not found for image_id: #{id_key}" if bi.nil?
+      layout_hash[:x_margin] = margins[0]
+      layout_hash[:y_margin] = margins[1]
       bi.layout[screen_size] = layout_hash
       bi.clean_up_layout
       bi.save!
