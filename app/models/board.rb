@@ -393,6 +393,7 @@ class Board < ApplicationRecord
     @cloned_board = @source.dup
     @cloned_board.user_id = cloned_user_id
     @cloned_board.name = new_name
+    @cloned_board.predefined = false
     @cloned_board.save
     @images.each do |image|
       layout = @layouts.find { |l| l[0] == image.id }&.second
