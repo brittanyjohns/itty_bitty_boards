@@ -118,17 +118,18 @@ class API::BoardsController < API::ApplicationController
     margin_y = params[:yMargin].to_i
 
     puts "MArgin X: #{margin_x}, Margin Y: #{margin_y}"
-
     screen_size = params[:screen_size] || "lg"
     if params[:small_screen_columns].present? || params[:medium_screen_columns].present? || params[:large_screen_columns].present?
       @board.small_screen_columns = params[:small_screen_columns].to_i if params[:small_screen_columns].present?
       @board.medium_screen_columns = params[:medium_screen_columns].to_i if params[:medium_screen_columns].present?
       @board.large_screen_columns = params[:large_screen_columns].to_i if params[:large_screen_columns].present?
-      @board.save!
     end
-    @board.reload
+    if margin_x.present? && margin_y.present?
+      @board.margin_settings[screen_size] = { x: margin_x, y: margin_y }
+    end
+    @board.save!
     begin
-      @board.update_grid_layout(layout, screen_size, [margin_x, margin_y])
+      @board.update_grid_layout(layout, screen_size)
     rescue => e
       Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
     end

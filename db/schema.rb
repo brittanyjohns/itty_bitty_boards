@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_08_21_193938) do
+ActiveRecord::Schema[7.1].define(version: 2024_09_16_163338) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -116,6 +116,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_21_193938) do
     t.integer "position"
     t.string "audio_url"
     t.string "bg_color"
+    t.jsonb "margin_settings", default: {}
     t.index ["parent_type", "parent_id"], name: "index_boards_on_parent"
     t.index ["user_id"], name: "index_boards_on_user_id"
   end
@@ -168,6 +169,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_21_193938) do
     t.string "source_type"
     t.datetime "deleted_at"
     t.string "original_image_url"
+    t.string "prompt_for_prompt"
     t.index ["deleted_at"], name: "index_docs_on_deleted_at"
     t.index ["documentable_id", "documentable_type", "deleted_at"], name: "idx_on_documentable_id_documentable_type_deleted_at_a6715ad541"
     t.index ["documentable_type", "documentable_id"], name: "index_docs_on_documentable"
@@ -557,6 +559,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_21_193938) do
     t.uuid "uuid", default: -> { "gen_random_uuid()" }
     t.string "child_lookup_key"
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
+    t.index ["child_lookup_key"], name: "index_users_on_child_lookup_key", unique: true
     t.index ["current_team_id"], name: "index_users_on_current_team_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["invitation_token"], name: "index_users_on_invitation_token", unique: true

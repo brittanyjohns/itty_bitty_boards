@@ -671,14 +671,9 @@ class Image < ApplicationRecord
   def display_doc(viewing_user = nil)
     # Attempt to find a doc for a viewing user
     doc = viewing_user&.display_doc_for_image(id)
-    puts "No user doc found for image: #{id} - #{label}" unless doc
     return doc if doc
-    # image_docs = docs.with_attached_image.for_user(viewing_user).order(created_at: :desc)
     image_docs = docs.for_user(viewing_user).order(created_at: :desc)
     default_image_doc = image_docs.where(user_id: [User::DEFAULT_ADMIN_ID, nil]).first
-    puts "default_image_doc: #{default_image_doc.id}" if default_image_doc
-    puts "No user doc found for image: #{id} - #{label} - Using default image doc" unless default_image_doc
-
     default_image_doc
   end
 

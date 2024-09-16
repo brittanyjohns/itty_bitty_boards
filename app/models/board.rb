@@ -443,6 +443,7 @@ class Board < ApplicationRecord
       voice: voice,
       created_at: created_at,
       updated_at: updated_at,
+      margin_settings: margin_settings,
       has_generating_images: has_generating_images?,
       current_user_teams: [],
       # current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
@@ -571,7 +572,7 @@ class Board < ApplicationRecord
     self.save!
   end
 
-  def update_grid_layout(layout_to_set, screen_size, margins = [0, 0])
+  def update_grid_layout(layout_to_set, screen_size)
     Rails.logger.debug "update_grid_layout: #{layout_to_set}"
     layout_for_screen_size = self.layout[screen_size] || []
     unless layout_to_set.is_a?(Array)
@@ -585,9 +586,10 @@ class Board < ApplicationRecord
       bi = board_images.find(id_key) rescue nil
       Rails.logger.debug "BoardImage not found for id: #{id_key}" if bi.nil?
       bi = board_images.find_by(image_id: id_key) if bi.nil?
-      Rails.logger.debug "BoardImage not found for image_id: #{id_key}" if bi.nil?
-      layout_hash[:x_margin] = margins[0]
-      layout_hash[:y_margin] = margins[1]
+      if bi.nil?
+        Rails.logger.debug "BoardImage not found for image_id: #{id_key}"
+        next
+      end
       bi.layout[screen_size] = layout_hash
       bi.clean_up_layout
       bi.save!
