@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_09_16_163338) do
+ActiveRecord::Schema[7.1].define(version: 2024_09_16_174000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -117,6 +117,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_09_16_163338) do
     t.string "audio_url"
     t.string "bg_color"
     t.jsonb "margin_settings", default: {}
+    t.jsonb "settings", default: {}
     t.index ["parent_type", "parent_id"], name: "index_boards_on_parent"
     t.index ["user_id"], name: "index_boards_on_user_id"
   end

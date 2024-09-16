@@ -24,6 +24,8 @@
 #  position              :integer
 #  audio_url             :string
 #  bg_color              :string
+#  margin_settings       :jsonb
+#  settings              :jsonb
 #
 class Board < ApplicationRecord
   belongs_to :user
@@ -70,6 +72,8 @@ class Board < ApplicationRecord
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
 
+  before_destroy :clean_up_scenarios
+
   # before_save :rearrange_images, if: :number_of_columns_changed?
 
   after_touch :set_status
@@ -94,6 +98,11 @@ class Board < ApplicationRecord
       return false
     end
     true
+  end
+
+  def clean_up_scenarios
+    OpenaiPrompt.where(board_id: id).destroy_all
+    Scenario.where(board_id: id).destroy_all
   end
 
   def set_screen_sizes

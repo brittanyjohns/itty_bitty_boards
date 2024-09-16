@@ -1,6 +1,6 @@
 class API::ScenariosController < API::ApplicationController
   before_action :set_scenario, only: %i[ show edit update destroy finalize answer ]
-
+  GPT_4_MODEL = "gpt-4o"
   # GET /scenarios or /scenarios.json
   def index
     @scenarios = Scenario.all
@@ -170,12 +170,12 @@ class API::ScenariosController < API::ApplicationController
 
     prompt = <<~PROMPT
       The scenario is name: #{scenario.name} and was described as: #{initial_scenario}. The age range of the person in the given scenario is: #{age_range}.
-        Please ask one or two follow-up question(s) to gather more details about this scenario and the person in it.
+        Please ask one follow-up question to gather more details about this scenario and the person in it.
     PROMPT
 
     response = client.chat(
       parameters: {
-        model: "gpt-4",
+        model: GPT_4_MODEL,
         messages: [
           { role: "system", content: system_message },
           { role: "user", content: prompt },
@@ -205,7 +205,7 @@ class API::ScenariosController < API::ApplicationController
 
     response = client.chat(
       parameters: {
-        model: "gpt-4",
+        model: GPT_4_MODEL,
         messages: [
           { role: "system", content: system_message },
           { role: "user", content: prompt },
@@ -241,7 +241,7 @@ class API::ScenariosController < API::ApplicationController
 
     response = client.chat(
       parameters: {
-        model: "gpt-4",
+        model: GPT_4_MODEL,
         messages: [
           { role: "system", content: system_message },
           { role: "user", content: prompt },

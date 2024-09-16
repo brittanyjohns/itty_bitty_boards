@@ -24,6 +24,8 @@
 #  position              :integer
 #  audio_url             :string
 #  bg_color              :string
+#  margin_settings       :jsonb
+#  settings              :jsonb
 #
 require "test_helper"
 

@@ -114,18 +114,19 @@ class API::BoardsController < API::ApplicationController
     # board = Board.with_artifacts.find(params[:id])
     layout = params[:layout].map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
 
-    margin_x = params[:xMargin].to_i
-    margin_y = params[:yMargin].to_i
-
-    puts "MArgin X: #{margin_x}, Margin Y: #{margin_y}"
     screen_size = params[:screen_size] || "lg"
     if params[:small_screen_columns].present? || params[:medium_screen_columns].present? || params[:large_screen_columns].present?
       @board.small_screen_columns = params[:small_screen_columns].to_i if params[:small_screen_columns].present?
       @board.medium_screen_columns = params[:medium_screen_columns].to_i if params[:medium_screen_columns].present?
       @board.large_screen_columns = params[:large_screen_columns].to_i if params[:large_screen_columns].present?
     end
+    margin_x = params[:xMargin].to_i
+    margin_y = params[:yMargin].to_i
     if margin_x.present? && margin_y.present?
       @board.margin_settings[screen_size] = { x: margin_x, y: margin_y }
+    end
+    if params[:settings].present?
+      @board.settings[screen_size] = params[:settings]
     end
     @board.save!
     begin
