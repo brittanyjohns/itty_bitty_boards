@@ -105,16 +105,17 @@ class BoardImage < ApplicationRecord
     filename = "#{label_voice}.aac"
     already_has_audio_file = image.existing_audio_files.include?(filename)
     puts "\nalready_has_audio_file: #{voice}\n" if already_has_audio_file
+    self.voice = voice
     audio_file = image.find_audio_for_voice(voice)
 
-    if already_has_audio_file
-      self.audio_url = audio_file.url
+    if already_has_audio_file && audio_file
+      self.audio_url = image.default_audio_url(audio_file)
     else
       puts "Creating audio file for voice: #{voice}"
       image.find_or_create_audio_file_for_voice(voice)
-      self.audio_url = image.find_audio_for_voice(voice)&.url
+      audio_file = image.find_audio_for_voice(voice)
+      self.audio_url = image.default_audio_url(audio_file)
     end
-    self.voice = voice
     @skip_create_voice_audio = true
     save
   end
