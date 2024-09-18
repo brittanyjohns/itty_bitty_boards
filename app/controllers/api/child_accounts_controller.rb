@@ -46,14 +46,18 @@ class API::ChildAccountsController < API::ApplicationController
   # PATCH/PUT /child_accounts/1.json
   def update
     if params[:password] && params[:password_confirmation]
-      passcode = params[:password]
-      @child_account.passcode = passcode
-      settings = params[:settings]
-      if settings
-        @child_account.settings = settings
+      if params[:password] != params[:password_confirmation]
+        render json: { error: "Passwords do not match" }, status: :unprocessable_entity
+        return
       end
-      @child_account.save
+      passcode = params[:password]
+      @child_account.passcode = passcode unless passcode.blank?
     end
+    settings = params[:settings]
+    if settings
+      @child_account.settings = settings
+    end
+    @child_account.save
     if @child_account.update(child_account_params)
       render json: @child_account.api_view, status: :ok
     else
@@ -91,6 +95,6 @@ class API::ChildAccountsController < API::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def child_account_params
-    params.require(:child_account).permit(:user_id, :username, :nickname, :name, :settings)
+    params.require(:child_account).permit(:user_id, :username, :nickname, :name)
   end
 end

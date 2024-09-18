@@ -4,6 +4,7 @@ module API
     skip_before_action :authenticate_token!, only: %i[authenticate_child_token!]
 
     def authenticate_token!
+      puts "Authenticating user token"
       user = user_from_token
       if user
         sign_in user, store: false

@@ -7,8 +7,10 @@ module API
         parent_id = params[:user_id]
         username = params[:username]
         password = params[:password]
+        puts "Parent ID: #{parent_id} Username: #{username} Password: #{password}"
 
         if (child = ChildAccount.valid_credentials?(username, password))
+          puts "Child found: #{child.print_credentials}"
           auth_token = child.authentication_token
 
           unless child.can_sign_in?(current_user)
