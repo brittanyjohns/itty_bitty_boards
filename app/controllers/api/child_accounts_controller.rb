@@ -28,6 +28,10 @@ class API::ChildAccountsController < API::ApplicationController
     end
     name = @child_account.name
     param_name = params[:name]
+    settings = params[:settings]
+    if settings
+      @child_account.settings = settings
+    end
     @child_account.user = current_user
     @child_account.passcode = password
     if @child_account.save
@@ -44,8 +48,11 @@ class API::ChildAccountsController < API::ApplicationController
     if params[:password] && params[:password_confirmation]
       passcode = params[:password]
       @child_account.passcode = passcode
+      settings = params[:settings]
+      if settings
+        @child_account.settings = settings
+      end
       @child_account.save
-      @child_account.reload
     end
     if @child_account.update(child_account_params)
       render json: @child_account.api_view, status: :ok
