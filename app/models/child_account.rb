@@ -67,18 +67,25 @@ class ChildAccount < ApplicationRecord
   end
 
   def print_credentials
-    puts "UserId: #{user_id} LookUp Key: #{user.child_lookup_key} Username: #{username}"
+    puts "UserId: #{user_id} Username: #{username} Password: #{passcode}"
   end
 
   def can_sign_in?(user = nil)
     if user && user.admin?
       return true
     end
+
+    if self.user.admin?
+      return true
+    end
+
     if user
       user.pro? ? true : user.free_trial?
-    elsif self.user.admin?
-      true
     else
+      if self.user.admin?
+        return true
+      end
+      puts "No user provided"
       false
     end
   end
