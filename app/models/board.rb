@@ -44,6 +44,13 @@ class Board < ApplicationRecord
 
   include UtilHelper
 
+  include PgSearch::Model
+  pg_search_scope :search_by_name,
+                  against: :name,
+                  using: {
+                    tsearch: { prefix: true },
+                  }
+
   scope :for_user, ->(user) { where(user: user) }
   scope :menus, -> { where(parent_type: "Menu") }
   scope :non_menus, -> { where.not(parent_type: "Menu") }
@@ -51,7 +58,7 @@ class Board < ApplicationRecord
   scope :scenarios, -> { where(parent_type: "OpenaiPrompt") }
   scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt", "PredefinedResource"]) }
   scope :user_made_with_scenarios_and_menus, -> { where(parent_type: ["User", "OpenaiPrompt", "Menu"]) }
-  scope :predictive, -> { where(parent_type: "PredefinedResource") }
+  scope :predictive, -> { where(pare nt_type: "PredefinedResource") }
   scope :predefined, -> { where(predefined: true) }
   scope :ai_generated, -> { where(parent_type: "OpenaiPrompt") }
   scope :with_less_than_10_images, -> { joins(:images).group("boards.id").having("count(images.id) < 10") }

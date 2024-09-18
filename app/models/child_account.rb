@@ -33,12 +33,12 @@ class ChildAccount < ApplicationRecord
   has_secure_token :authentication_token
 
   validates :passcode, presence: true, on: :create
+  validates :passcode, length: { minimum: 6 }, on: :create
 
   validates :username, presence: true, uniqueness: true
 
   def self.valid_credentials?(username, password_to_set)
     account = ChildAccount.find_by(username: username, passcode: password_to_set)
-    puts "Account: #{account.inspect}"
     if account
       account
     else

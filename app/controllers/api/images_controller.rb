@@ -8,7 +8,6 @@ class API::ImagesController < API::ApplicationController
     end
 
     if params[:query].present?
-      # @images = @images.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page params[:page]
       @images = Image.with_artifacts.search_by_label(params[:query]).order(label: :asc).page params[:page]
     else
       @images = @images.order(label: :asc).page params[:page]

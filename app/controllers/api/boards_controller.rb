@@ -13,9 +13,13 @@ class API::BoardsController < API::ApplicationController
   def index
     ActiveRecord::Base.logger.silence do
       if params[:query].present?
-        @query = params[:query]
-        @boards = boards_for_user.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(created_at: :desc)
-        @predefined_boards = Board.predefined.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(created_at: :desc)
+
+        # @boards = boards_for_user.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(created_at: :desc)
+        # @predefined_boards = Board.predefined.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(created_at: :desc)
+        @boards = Board.search_by_name(params[:query]).order(created_at: :desc).page params[:page]
+        @predefined_boards = Board.predefined.search_by_name(params[:query]).order(created_at: :desc).page params[:page]
+        render json: { boards: @boards, predefined_boards: @predefined_boards }
+        return
       elsif params[:boards_only].present?
         # @boards = boards_for_user.user_made_with_scenarios.order(created_at: :desc)
         @boards = current_user.boards.user_made_with_scenarios.order(created_at: :desc)
@@ -330,6 +334,8 @@ class API::BoardsController < API::ApplicationController
   # # DELETE /boards/1 or /boards/1.json
   def destroy
     @board.destroy!
+
+    puts "Board destroyed"
 
     respond_to do |format|
       format.json { head :no_content }
