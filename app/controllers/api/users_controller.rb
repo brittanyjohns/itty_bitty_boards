@@ -31,16 +31,14 @@ class API::UsersController < API::ApplicationController
   def update_settings
     @user = User.find(params[:id])
     user_settings = @user.settings || {}
-    puts "User settings: #{user_settings}"
-    puts "Params: #{params}"
-    puts "wait params: #{params[:wait_to_speak]}"
+
     voice_settings = params[:voice] || {}
-    puts "Voice settings: #{voice_settings}"
     @user.settings = user_settings.merge(voice: voice_settings)
     @user.base_words = params[:base_words]
     @user.settings["wait_to_speak"] = params[:wait_to_speak] || false
     @user.settings["disable_audit_logging"] = params[:disable_audit_logging] || false
-    puts "User settings after merge: #{@user.inspect}"
+    @user.settings["enable_image_display"] = params[:enable_image_display] || false
+    @user.settings["enable_text_display"] = params[:enable_text_display] || false
 
     respond_to do |format|
       if @user.save
