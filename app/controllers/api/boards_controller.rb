@@ -37,7 +37,7 @@ class API::BoardsController < API::ApplicationController
 
       # render json: { boards: @boards.map { |b| b.api_view(current_user) },
       #                predefined_boards: @predefined_boards }
-      render json: { boards: @boards, predefined_boards: @predefined_boards, categories: @categories }
+      render json: { boards: @boards, predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.categories }
     end
   end
 
