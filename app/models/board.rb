@@ -26,6 +26,7 @@
 #  bg_color              :string
 #  margin_settings       :jsonb
 #  settings              :jsonb
+#  category              :string
 #
 class Board < ApplicationRecord
   belongs_to :user
@@ -128,6 +129,10 @@ class Board < ApplicationRecord
     rescue => e
       puts "Error deleting parent: #{e.inspect}"
     end
+  end
+
+  def self.categories
+    ["general", "featured", "popular", "seasonal", "routines", "emotions", "actions", "animals", "food", "people", "places", "things", "colors", "shapes", "numbers", "letters"]
   end
 
   def self.common_words
@@ -440,6 +445,7 @@ class Board < ApplicationRecord
       id: id,
       name: name,
       description: description,
+      category: category,
       parent_type: parent_type,
       parent_id: parent_id,
       parent_description: parent_type === "User" ? "User" : parent&.description,

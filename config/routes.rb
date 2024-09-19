@@ -215,6 +215,7 @@ Rails.application.routes.draw do
         get "predictive_index"
         get "user_boards"
         get "words"
+        get "categories"
       end
       member do
         post "save_layout"

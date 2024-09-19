@@ -33,10 +33,17 @@ class API::BoardsController < API::ApplicationController
         @boards = Board.all.order(created_at: :desc)
       end
 
+      @categories = Board.categories
+
       # render json: { boards: @boards.map { |b| b.api_view(current_user) },
       #                predefined_boards: @predefined_boards }
-      render json: { boards: @boards, predefined_boards: @predefined_boards }
+      render json: { boards: @boards, predefined_boards: @predefined_boards, categories: @categories }
     end
+  end
+
+  def categories
+    @categories = Board.categories
+    render json: @categories
   end
 
   def user_boards
@@ -213,6 +220,8 @@ class API::BoardsController < API::ApplicationController
     @board.description = board_params["description"]
     @board.display_image_url = board_params["display_image_url"]
     @board.predefined = board_params["predefined"]
+    @board.category = board_params["category"]
+    puts "Category: #{board_params["category"]}"
     if params["word_list"].present?
       word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
       @board.create_images_from_word_list(word_list)
@@ -393,6 +402,6 @@ class API::BoardsController < API::ApplicationController
                                   :image_id,
                                   :query,
                                   :page,
-                                  :display_image_url)
+                                  :display_image_url, :category, :word_list)
   end
 end

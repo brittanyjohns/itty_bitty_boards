@@ -26,6 +26,7 @@
 #  bg_color              :string
 #  margin_settings       :jsonb
 #  settings              :jsonb
+#  category              :string
 #
 require "test_helper"
 

@@ -25,6 +25,7 @@
 #  border_color        :string
 #  is_private          :boolean          default(FALSE)
 #  audio_url           :string
+#  category            :string
 #
 require "rails_helper"
 
