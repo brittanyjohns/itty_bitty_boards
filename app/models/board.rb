@@ -486,7 +486,7 @@ class Board < ApplicationRecord
       voice: voice,
       created_at: created_at,
       updated_at: updated_at,
-      margin_settings: display_margin_settings,
+      margin_settings: margin_settings,
       has_generating_images: has_generating_images?,
       current_user_teams: [],
       # current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
