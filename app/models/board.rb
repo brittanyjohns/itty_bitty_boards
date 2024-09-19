@@ -84,6 +84,8 @@ class Board < ApplicationRecord
 
   # before_save :rearrange_images, if: :number_of_columns_changed?
 
+  before_save :set_display_margin_settings, unless: :margin_settings_valid_for_all_screen_sizes?
+
   after_touch :set_status
   before_create :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
@@ -436,6 +438,25 @@ class Board < ApplicationRecord
     save
   end
 
+  def margin_settings_valid_for_all_screen_sizes?
+    margin_settings_valid_for_screen_size?("sm") && margin_settings_valid_for_screen_size?("md") && margin_settings_valid_for_screen_size?("lg")
+  end
+
+  def margin_settings_valid_for_screen_size?(screen_size)
+    margin_settings.is_a?(Hash) && margin_settings.keys.sort.include?(screen_size) && margin_settings[screen_size].is_a?(Hash)
+  end
+
+  def set_display_margin_settings
+    settings = margin_settings || {}
+    ["lg", "md", "sm"].each do |screen_size|
+      unless margin_settings_valid_for_screen_size?(screen_size)
+        settings[screen_size] = { "x" => 5, "y" => 5 }
+      end
+    end
+    self.margin_settings = settings
+    self.save!
+  end
+
   def self.grid_sizes
     ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"]
   end
@@ -465,7 +486,7 @@ class Board < ApplicationRecord
       voice: voice,
       created_at: created_at,
       updated_at: updated_at,
-      margin_settings: margin_settings,
+      margin_settings: display_margin_settings,
       has_generating_images: has_generating_images?,
       current_user_teams: [],
       # current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
