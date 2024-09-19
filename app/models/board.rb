@@ -349,9 +349,14 @@ class Board < ApplicationRecord
     end
     word_list.each do |word|
       word = word.downcase
-      user_image = user.images.find_by(label: word)
-      image = Image.public_img.find_by(label: word) unless user_image
+      image = user.images.find_by(label: word)
+      puts "User Image: #{image}" if image
+      image = Image.public_img.find_by(label: word) unless image
+      puts "Public Image: #{image}" if image
+      found_image = image
       image = Image.public_img.create(label: word, user_id: user_id) unless image
+      puts "Created Image: #{image}" unless found_image
+      puts "Added Image: #{image}" if image
       self.add_image(image.id)
     end
     self.reset_layouts
