@@ -13,6 +13,11 @@ class API::UsersController < API::ApplicationController
 
   # GET /users/1 or /users/1.json
   def show
+    unless current_user&.admin? || current_user == @user
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+    render json: @user.api_view
   end
 
   def update
@@ -39,6 +44,35 @@ class API::UsersController < API::ApplicationController
     @user.settings["disable_audit_logging"] = params[:disable_audit_logging] || false
     @user.settings["enable_image_display"] = params[:enable_image_display] || false
     @user.settings["enable_text_display"] = params[:enable_text_display] || false
+
+    respond_to do |format|
+      if @user.save
+        format.json { render json: @user, status: :ok }
+      else
+        format.json { render json: @user.errors, status: :unprocessable_entity }
+      end
+    end
+  end
+
+  def admin_update_settings
+    unless current_user&.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+    @user = User.find(params[:id])
+    user_settings = @user.settings || {}
+
+    voice_settings = params[:voice] || {}
+    @user.settings = user_settings.merge(voice: voice_settings)
+    @user.base_words = params[:base_words]
+    @user.settings["wait_to_speak"] = params[:wait_to_speak] || false
+    @user.settings["disable_audit_logging"] = params[:disable_audit_logging] || false
+    @user.settings["enable_image_display"] = params[:enable_image_display] || false
+    @user.settings["enable_text_display"] = params[:enable_text_display] || false
+
+    # ADMIN ONLY
+    @user.plan_type = params[:plan_type]
+    @user.locked = params[:locked] || false
 
     respond_to do |format|
       if @user.save

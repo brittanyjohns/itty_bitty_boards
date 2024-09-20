@@ -66,6 +66,26 @@ class Board < ApplicationRecord
   scope :with_less_than_x_images, ->(x) { joins(:images).group("boards.id").having("count(images.id) < ?", x) }
   scope :without_images, -> { left_outer_joins(:images).where(images: { id: nil }) }
 
+  scope :featured, -> { where(category: "featured") }
+  scope :popular, -> { where(category: "popular") }
+  scope :general, -> { where(category: "general") }
+  scope :seasonal, -> { where(category: "seasonal") }
+  scope :routines, -> { where(category: "routines") }
+  scope :emotions, -> { where(category: "emotions") }
+  scope :actions, -> { where(category: "actions") }
+  scope :animals, -> { where(category: "animals") }
+  scope :food, -> { where(category: "food") }
+  scope :people, -> { where(category: "people") }
+  scope :places, -> { where(category: "places") }
+  scope :things, -> { where(category: "things") }
+  scope :colors, -> { where(category: "colors") }
+  scope :shapes, -> { where(category: "shapes") }
+  scope :numbers, -> { where(category: "numbers") }
+  scope :letters, -> { where(category: "letters") }
+  scope :preset, -> { where(predefined: true) }
+
+  SAFE_FILTERS = %w[all preset featured popular general seasonal routines emotions actions animals food people places things colors shapes numbers letters].freeze
+
   scope :with_artifacts, -> {
           includes(
             images: [

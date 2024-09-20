@@ -25,6 +25,10 @@ module API
 
       def create
         if (user = User.valid_credentials?(params[:email], params[:password]))
+          if user.locked?
+            render json: { error: "Your account is locked. Please contact support." }, status: :unauthorized
+            return
+          end
           sign_in user
           #  Check if subscription is expired
           if user.subscription_expired?

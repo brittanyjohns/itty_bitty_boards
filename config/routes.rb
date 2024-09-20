@@ -216,6 +216,7 @@ Rails.application.routes.draw do
         get "user_boards"
         get "words"
         get "categories"
+        get "preset"
       end
       member do
         post "save_layout"
@@ -270,6 +271,7 @@ Rails.application.routes.draw do
       end
       member do
         put "update_settings"
+        put "admin_update_settings"
       end
     end
 

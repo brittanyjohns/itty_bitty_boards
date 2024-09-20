@@ -41,6 +41,33 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
+  def preset
+    ActiveRecord::Base.logger.silence do
+      if params[:query].present?
+        @predefined_boards = Board.predefined.search_by_name(params[:query]).order(created_at: :desc).page params[:page]
+      elsif params[:filter].present?
+        puts "Filter: #{params[:filter]}"
+        filter = params[:filter]
+        unless Board::SAFE_FILTERS.include?(filter)
+          render json: { error: "Invalid filter" }, status: :unprocessable_entity
+          return
+        end
+
+        result = Board.predefined.send(filter)
+        if result.is_a?(ActiveRecord::Relation)
+          @predefined_boards = result.order(created_at: :desc).page params[:page]
+        else
+          @predefined_boards = result
+        end
+        # @predefined_boards = Board.predefined.where(category: params[:filter]).order(created_at: :desc).page params[:page]
+      else
+        @predefined_boards = Board.predefined.order(created_at: :desc)
+      end
+      @categories = @predefined_boards.map(&:category).uniq.compact
+      render json: { predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.categories }
+    end
+  end
+
   def categories
     @categories = Board.categories
     render json: @categories
