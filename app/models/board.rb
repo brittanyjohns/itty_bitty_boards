@@ -66,7 +66,7 @@ class Board < ApplicationRecord
   scope :with_less_than_x_images, ->(x) { joins(:images).group("boards.id").having("count(images.id) < ?", x) }
   scope :without_images, -> { left_outer_joins(:images).where(images: { id: nil }) }
 
-  scope :featured, -> { where(category: "featured") }
+  scope :featured, -> { where(category: ["featured", "popular"]) }
   scope :popular, -> { where(category: "popular") }
   scope :general, -> { where(category: "general") }
   scope :seasonal, -> { where(category: "seasonal") }
@@ -100,8 +100,6 @@ class Board < ApplicationRecord
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
 
-  before_destroy :clean_up_scenarios
-
   # before_save :rearrange_images, if: :number_of_columns_changed?
 
   before_save :set_display_margin_settings, unless: :margin_settings_valid_for_all_screen_sizes?
@@ -131,7 +129,6 @@ class Board < ApplicationRecord
   end
 
   def clean_up_scenarios
-    OpenaiPrompt.where(board_id: id).destroy_all
     Scenario.where(board_id: id).destroy_all
   end
 
