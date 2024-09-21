@@ -235,6 +235,7 @@ class OpenAiClient
       model: @model, # Required.
       messages: @messages, # Required.
       temperature: 0.7,
+      response_format: { type: "json_object" },
     }
     begin
       response = openai_client.chat(
