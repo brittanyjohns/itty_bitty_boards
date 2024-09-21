@@ -146,7 +146,7 @@ class User < ApplicationRecord
   end
 
   def api_view
-    { user: self, boards: boards }
+    { user: self, boards: boards.map(&:user_api_view), images: images, docs: docs }
   end
 
   def can_edit?(model)

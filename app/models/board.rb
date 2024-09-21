@@ -561,6 +561,25 @@ class Board < ApplicationRecord
     }
   end
 
+  def user_api_view
+    {
+      id: id,
+      name: name,
+      description: description,
+      parent_type: parent_type,
+      predefined: predefined,
+      number_of_columns: number_of_columns,
+      status: status,
+      token_limit: token_limit,
+      cost: cost,
+      display_image_url: display_image_url,
+      voice: voice,
+      created_at: created_at,
+      updated_at: updated_at,
+      margin_settings: margin_settings,
+    }
+  end
+
   SCREEN_SIZES = %w[sm md lg].freeze
 
   def print_grid_layout_for_screen_size(screen_size)
