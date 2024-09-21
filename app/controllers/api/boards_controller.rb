@@ -5,7 +5,7 @@ class API::BoardsController < API::ApplicationController
   # before_action :authenticate_user!
   skip_before_action :authenticate_token!, only: %i[ predictive_index first_predictive_board predictive_images ]
 
-  before_action :set_board, only: %i[ associate_image remove_image destroy ]
+  before_action :set_board, only: %i[ associate_image remove_image destroy associate_images ]
   # layout "fullscreen", only: [:fullscreen]
   # layout "locked", only: [:locked]
 
@@ -353,6 +353,32 @@ class API::BoardsController < API::ApplicationController
     else
       render json: { error: "Error adding image to board: #{new_board_image.errors.full_messages.join(", ")}" }, status: :unprocessable_entity
     end
+  end
+
+  def associate_images
+    images = Image.where(id: params[:image_ids])
+    screen_size = params[:screen_size] || "lg"
+    if @board.images.include?(images)
+      render json: { error: "Image already associated with board" }, status: :unprocessable_entity
+      return
+    end
+
+    if @board.predefined && !current_user.admin?
+      render json: { error: "Cannot add images to predefined boards" }, status: :unprocessable_entity
+      return
+    end
+
+    new_board_images = []
+    images.each do |image|
+      new_board_image = @board.board_images.new(image_id: image.id, position: @board.board_images.count)
+      new_board_image.layout = new_board_image.initial_layout
+      new_board_image.save
+      new_board_images << new_board_image
+    end
+    # @board.reset_multiple_images_layout_all_screen_sizes(new_board_images)
+    @board.calculate_layout_for_multiple_images(new_board_images, "lg")
+    @board.reload
+    render json: { board: @board, new_board_images: new_board_images }
   end
 
   def remove_image

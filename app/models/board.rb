@@ -625,6 +625,88 @@ class Board < ApplicationRecord
     self.save!
   end
 
+  def reset_multiple_images_layout_all_screen_sizes(new_images)
+    SCREEN_SIZES.each do |screen_size|
+      calculate_layout_for_multiple_images(new_images, screen_size)
+    end
+  end
+
+  def calculate_layout_for_multiple_images(new_images, screen_size)
+    # Step 1: Determine the number of columns based on screen size
+    board = self
+    num_of_columns = case screen_size
+      when "sm"
+        board.small_screen_columns > 0 ? board.small_screen_columns : 3
+      when "md"
+        board.medium_screen_columns > 0 ? board.medium_screen_columns : 8
+      when "lg"
+        board.large_screen_columns > 0 ? board.large_screen_columns : 12
+      else
+        board.large_screen_columns > 0 ? board.large_screen_columns : 12
+      end
+
+    # Step 2: Get the current layout and existing images
+    current_layout = board.layout[screen_size] || []
+    existing_images = board.board_images.order(:position)
+
+    # Step 3: Position existing images
+    row_count = 0
+    position_index = 0
+
+    # Store all layouts in a hash for efficient updating later
+    updated_layout = {}
+
+    # Position existing images first
+    existing_images.each_slice(num_of_columns) do |row|
+      row.each_with_index do |image, index|
+        new_layout = image.layout[screen_size] || {}
+        new_layout["x"] = index
+        new_layout["y"] = row_count
+        new_layout["w"] = 1
+        new_layout["h"] = 1
+        updated_layout[image.id] = new_layout
+        image.layout[screen_size] = new_layout
+        image.skip_create_voice_audio = true
+        image.save!
+      end
+      row_count += 1
+    end
+
+    # Step 4: Add new images to the layout
+    max_y = existing_images.map { |bi| bi.layout[screen_size]["y"] }.max || 0
+    on_max_y = existing_images.select { |bi| bi.layout[screen_size]["y"] == max_y } || []
+    max_x = on_max_y.map { |bi| bi.layout[screen_size]["x"] }.max || 0
+
+    puts "Max X: #{max_x}, Max Y: #{max_y}"
+    row_count = max_y
+    new_images.each do |new_image|
+      col_position = position_index % num_of_columns
+      row_position = row_count + (position_index / num_of_columns)
+
+      puts "Positioning image: #{new_image.label} at x: #{col_position}, y: #{row_position}"
+      puts "Position index: #{position_index}, max_y: #{max_y}\n"
+
+      new_layout = {
+        "i" => new_image.id.to_s,
+        "x" => col_position,
+        "y" => row_position,
+        "w" => 1,
+        "h" => 1,
+      }
+
+      new_image.layout[screen_size] = new_layout
+      new_image.skip_create_voice_audio = true
+      new_image.save!
+      updated_layout[new_image.id] = new_layout
+
+      position_index += 1
+    end
+
+    # Step 5: Update the board's overall layout
+    board.layout[screen_size] = updated_layout.values
+    board.save!
+  end
+
   def set_layouts_for_screen_sizes
     calculate_grid_layout_for_screen_size("sm", true)
     calculate_grid_layout_for_screen_size("md", true)
