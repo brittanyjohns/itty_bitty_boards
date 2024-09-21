@@ -48,7 +48,6 @@ class API::DocsController < API::ApplicationController
 
   # GET /docs/1 or /docs/1.json
   def show
-
   end
 
   # GET /docs/new
@@ -113,15 +112,22 @@ class API::DocsController < API::ApplicationController
   def mark_as_current
     @doc = Doc.find(params[:id])
     doc_id = @doc.id
+
     if current_user.user_docs.where(image_id: @doc.documentable_id).exists?
       @old_fav_docs = current_user.user_docs.where(image_id: @doc.documentable_id)
-      puts "OLD FAV DOC: #{@old_fav_docs.inspect}"
+      puts "OLD FAV DOC: #{@old_fav_docs.pluck(:id, :doc_id)}"
       @old_fav_docs.destroy_all
     end
-
+    @doc.reload
     puts "NEW FAV DOC: #{@doc.inspect}"
-    user_doc = UserDoc.find_or_create_by(user_id: current_user.id, doc_id: doc_id, image_id: @doc.documentable_id)
-    @doc.update(current: true)
+    user_doc = UserDoc.create!(user_id: current_user.id, doc_id: doc_id, image_id: @doc.documentable_id)
+    did_update = @doc.update(current: true)
+    puts "DOC UPDATE: #{@doc.inspect}"
+    if did_update
+      puts "Doc updated successfully"
+    else
+      puts "Doc did not update"
+    end
     puts "USER DOC: #{user_doc.inspect}"
     @current_doc = @doc
     @image = @doc.documentable
