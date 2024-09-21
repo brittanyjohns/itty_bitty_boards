@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_09_19_142619) do
+ActiveRecord::Schema[7.1].define(version: 2024_09_21_162318) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -90,10 +90,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_09_19_142619) do
     t.jsonb "layout", default: {}
     t.string "status", default: "pending"
     t.string "audio_url"
-    t.string "mode", default: "static"
-    t.integer "dynamic_board_id"
     t.index ["board_id"], name: "index_board_images_on_board_id"
-    t.index ["dynamic_board_id"], name: "index_board_images_on_dynamic_board_id"
     t.index ["image_id"], name: "index_board_images_on_image_id"
   end
 
@@ -175,26 +172,11 @@ ActiveRecord::Schema[7.1].define(version: 2024_09_19_142619) do
     t.string "source_type"
     t.datetime "deleted_at"
     t.string "original_image_url"
+    t.string "prompt_for_prompt"
     t.index ["deleted_at"], name: "index_docs_on_deleted_at"
     t.index ["documentable_id", "documentable_type", "deleted_at"], name: "idx_on_documentable_id_documentable_type_deleted_at_a6715ad541"
     t.index ["documentable_type", "documentable_id"], name: "index_docs_on_documentable"
     t.index ["user_id"], name: "index_docs_on_user_id"
-  end
-
-  create_table "dynamic_board_images", force: :cascade do |t|
-    t.integer "image_id", null: false
-    t.integer "dynamic_board_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
-  create_table "dynamic_boards", force: :cascade do |t|
-    t.string "name"
-    t.integer "board_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["board_id"], name: "index_dynamic_boards_on_board_id"
-    t.index ["name"], name: "index_dynamic_boards_on_name"
   end
 
   create_table "images", force: :cascade do |t|
@@ -581,13 +563,14 @@ ActiveRecord::Schema[7.1].define(version: 2024_09_19_142619) do
     t.decimal "total_plan_cost", precision: 8, scale: 2, default: "0.0"
     t.uuid "uuid", default: -> { "gen_random_uuid()" }
     t.string "child_lookup_key"
-    t.boolean "locked", default: false, null: false
-    t.integer "dynamic_board_id"
+    t.boolean "locked", default: false
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
+    t.index ["child_lookup_key"], name: "index_users_on_child_lookup_key", unique: true
     t.index ["current_team_id"], name: "index_users_on_current_team_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["invitation_token"], name: "index_users_on_invitation_token", unique: true
     t.index ["jti"], name: "index_users_on_jti", unique: true
+    t.index ["locked"], name: "index_users_on_locked"
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
     t.index ["uuid"], name: "index_users_on_uuid", unique: true
   end
