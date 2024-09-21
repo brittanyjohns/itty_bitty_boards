@@ -169,9 +169,13 @@ class User < ApplicationRecord
 
   def display_doc_for_image(image_id)
     ActiveRecord::Base.logger.silence do
+      doc = Doc.joins(:user_docs)
+        .where(user_docs: { user_id: id, image_id: image_id })
+        .last
+      return doc if doc
       Doc.joins(:user_docs)
-         .where(user_docs: { user_id: [id, nil, DEFAULT_ADMIN_ID], image_id: image_id })
-         .first
+         .where(user_docs: { user_id: [nil, DEFAULT_ADMIN_ID], image_id: image_id })
+         .last
     end
   end
 
