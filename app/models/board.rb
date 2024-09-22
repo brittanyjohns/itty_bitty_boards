@@ -66,25 +66,26 @@ class Board < ApplicationRecord
   scope :with_less_than_x_images, ->(x) { joins(:images).group("boards.id").having("count(images.id) < ?", x) }
   scope :without_images, -> { left_outer_joins(:images).where(images: { id: nil }) }
 
-  scope :featured, -> { where(category: ["featured", "popular"]) }
-  scope :popular, -> { where(category: "popular") }
-  scope :general, -> { where(category: "general") }
-  scope :seasonal, -> { where(category: "seasonal") }
-  scope :routines, -> { where(category: "routines") }
-  scope :emotions, -> { where(category: "emotions") }
-  scope :actions, -> { where(category: "actions") }
-  scope :animals, -> { where(category: "animals") }
-  scope :food, -> { where(category: "food") }
-  scope :people, -> { where(category: "people") }
-  scope :places, -> { where(category: "places") }
-  scope :things, -> { where(category: "things") }
-  scope :colors, -> { where(category: "colors") }
-  scope :shapes, -> { where(category: "shapes") }
-  scope :numbers, -> { where(category: "numbers") }
-  scope :letters, -> { where(category: "letters") }
+  scope :featured, -> { where(category: ["featured", "popular"], predefined: true) }
+  scope :popular, -> { where(category: "popular", predefined: true) }
+  scope :general, -> { where(category: "general", predefined: true) }
+  scope :seasonal, -> { where(category: "seasonal", predefined: true) }
+  scope :routines, -> { where(category: "routines", predefined: true) }
+  scope :emotions, -> { where(category: "emotions", predefined: true) }
+  scope :actions, -> { where(category: "actions", predefined: true) }
+  scope :animals, -> { where(category: "animals", predefined: true) }
+  scope :food, -> { where(category: "food", predefined: true) }
+  scope :people, -> { where(category: "people", predefined: true) }
+  scope :places, -> { where(category: "places", predefined: true) }
+  scope :things, -> { where(category: "things", predefined: true) }
+  scope :colors, -> { where(category: "colors", predefined: true) }
+  scope :shapes, -> { where(category: "shapes", predefined: true) }
+  scope :numbers, -> { where(category: "numbers", predefined: true) }
+  scope :letters, -> { where(category: "letters", predefined: true) }
   scope :preset, -> { where(predefined: true) }
+  scope :welcome, -> { where(category: "welcome", predefined: true) }
 
-  SAFE_FILTERS = %w[all preset featured popular general seasonal routines emotions actions animals food people places things colors shapes numbers letters].freeze
+  SAFE_FILTERS = %w[all welcome preset featured popular general seasonal routines emotions actions animals food people places things colors shapes numbers letters].freeze
 
   scope :with_artifacts, -> {
           includes(
@@ -151,7 +152,7 @@ class Board < ApplicationRecord
   end
 
   def self.categories
-    ["general", "featured", "popular", "seasonal", "routines", "emotions", "actions", "animals", "food", "people", "places", "things", "colors", "shapes", "numbers", "letters"]
+    ["general", "welcome", "featured", "popular", "seasonal", "routines", "emotions", "actions", "animals", "food", "people", "places", "things", "colors", "shapes", "numbers", "letters"]
   end
 
   def self.common_words
@@ -558,6 +559,7 @@ class Board < ApplicationRecord
       floating_words: words,
       user_id: user_id,
       voice: voice,
+      margin_settings: margin_settings,
     }
   end
 

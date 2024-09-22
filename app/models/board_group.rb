@@ -21,6 +21,13 @@ class BoardGroup < ApplicationRecord
 
   scope :predefined, -> { where(predefined: true) }
 
+  include PgSearch::Model
+  pg_search_scope :search_by_name,
+                  against: :name,
+                  using: {
+                    tsearch: { prefix: true },
+                  }
+
   after_initialize :set_initial_layout, if: :layout_empty?
 
   def layout_empty?

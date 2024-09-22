@@ -15,7 +15,9 @@ class API::BoardGroupsController < API::ApplicationController
         @predefined_board_groups = BoardGroup.predefined.order(created_at: :desc).page params[:page]
       end
       @welcome_group = BoardGroup.welcome_group
-      render json: { predefined_board_groups: @predefined_board_groups.map(&:api_view_with_boards), welcome_group: @welcome_group.api_view_with_boards }
+      @welcome_board = @welcome_group&.boards&.first
+      puts "Welcome group: #{@welcome_group}"
+      render json: { predefined_board_groups: @predefined_board_groups.map(&:api_view_with_boards), welcome_group: @welcome_group&.api_view_with_boards, welcome_board: @welcome_board&.api_view_with_images }
     end
   end
 

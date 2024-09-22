@@ -64,7 +64,8 @@ class API::BoardsController < API::ApplicationController
         @predefined_boards = Board.predefined.order(created_at: :desc)
       end
       @categories = @predefined_boards.map(&:category).uniq.compact
-      render json: { predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.categories }
+      @welcome_boards = Board.welcome
+      render json: { predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.categories, welcome_boards: @welcome_boards.map(&:api_view_with_images) }
     end
   end
 
