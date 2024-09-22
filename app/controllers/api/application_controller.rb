@@ -18,6 +18,7 @@ module API
 
     def authenticate_child_token!
       child = child_from_token
+      puts "Child token: #{child.inspect}"
       if child
         puts "Child authenticated"
         sign_in child, store: false
@@ -43,10 +44,12 @@ module API
     private
 
     def user_from_token
+      puts "USERToken: #{token}"
       User.find_by(authentication_token: token) if token.present?
     end
 
     def child_from_token
+      puts "CHILDToken: #{token}"
       ChildAccount.find_by(authentication_token: token) if token.present?
     end
 
@@ -55,7 +58,10 @@ module API
     end
 
     def current_user
+      puts "Current user: #{@current_user}"
       @current_user ||= user_from_token
+      puts "Current user: #{@current_user}"
+      @current_user
     end
 
     def token

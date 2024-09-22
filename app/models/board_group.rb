@@ -55,6 +55,10 @@ class BoardGroup < ApplicationRecord
     end
   end
 
+  def self.welcome_group
+    BoardGroup.find_by(name: "Welcome", predefined: true)
+  end
+
   def calculate_grid_layout
     position_all_boards
     grid_layout = []

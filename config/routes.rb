@@ -200,6 +200,9 @@ Rails.application.routes.draw do
       end
     end
     resources :board_groups do
+      collection do
+        get "preset"
+      end
       member do
         post "rearrange_boards"
         post "save_layout"
