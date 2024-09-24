@@ -995,12 +995,13 @@ class Image < ApplicationRecord
     end
     @display_doc = @source.display_doc(cloned_user)
 
-    @cloned_image = Image.new
+    @cloned_image = @source.dup
     @cloned_image.user_id = cloned_user_id
     @cloned_image.label = new_name
     @cloned_image.image_type = @source.image_type
     @cloned_image.image_prompt = @source.image_prompt
-
+    @cloned_image.part_of_speech = @source.part_of_speech
+    @cloned_image.status = @source.status
     @cloned_image.save
     original_file = @display_doc.image
     new_doc = @display_doc.dup
