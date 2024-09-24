@@ -110,12 +110,38 @@ class API::ImagesController < API::ApplicationController
     @current_user = current_user
     @image = Image.find(params[:id])
     label_to_set = params[:new_name]&.downcase || @image.label
-    @image_clone = @image.clone_with_docs(@current_user.id, label_to_set)
+    user_id = @current_user.id
+    @image_clone = @image.clone_with_docs(user_id, label_to_set)
     voice = params[:voice] || "alloy"
     text = params[:text] || @image_clone.label
-    @audio_file = @image_clone.create_audio_from_text(text, voice)
+    # @audio_file = @image_clone.create_audio_from_text(text, voice)
     @image_with_display_doc = @image_clone.with_display_doc(@current_user)
     render json: @image_with_display_doc
+  end
+
+  def upload_audio
+    @image = Image.find(params[:id])
+    unless @image.user_id == current_user.id || current_user.admin?
+      render json: { status: "error", message: "You are not authorized to upload audio for this image." }
+      return
+    end
+    @file_name = params[:file_name] || params[:audio_file].original_filename
+    @file_name = @file_name.downcase.gsub(" ", "-")
+    @file_name = @file_name.downcase.gsub("_", "-")
+    @file_name_to_save = "#{@file_name}_custom"
+    puts "File name to save: #{@file_name_to_save}"
+
+    puts "Audio file: #{params[:audio_file]}"
+
+    @audio_file = @image.audio_files.attach(io: params[:audio_file], filename: @file_name_to_save)
+    new_audio_file_url = @image.default_audio_url(@audio_file.first)
+    puts "New audio file url: #{new_audio_file_url}"
+    if @image.update(audio_url: new_audio_file_url, voice: @image.voice_from_filename(@file_name_to_save), audio_url: new_audio_file_url, use_custom_audio: true)
+      @image_with_display_doc = @image.with_display_doc(current_user)
+      render json: { status: "ok", image: @image_with_display_doc, audio_file: @audio_file.first, audio_url: new_audio_file_url, filename: @file_name_to_save, voice: @image.voice_from_filename(@file_name_to_save) }
+    else
+      render json: @image.errors, status: :unprocessable_entity
+    end
   end
 
   def create_audio
@@ -385,6 +411,34 @@ class API::ImagesController < API::ApplicationController
     @audio_file = @image.audio_files.find(params[:audio_file_id])
     @audio_file.purge
     render json: { status: "ok" }
+  end
+
+  def set_current_audio
+    puts "Setting current audio :\n"
+    pp params
+    @image = Image.find(params[:id])
+    unless current_user.admin? || @image.user_id == current_user.id
+      render json: { status: "error", message: "You are not authorized to update the audio url for this image." }
+      return
+    end
+    audio_file_id = params[:audio_file_id]
+    unless audio_file_id.present?
+      render json: { status: "error", message: "No audio file id provided." }
+      return
+    end
+    @audio_file = @image.audio_files.find(audio_file_id)
+    puts "Audio file: #{@audio_file.inspect}"
+    @audio_file_url = @image.default_audio_url(@audio_file)
+    unless @audio_file_url.present?
+      render json: { status: "error", message: "Could not find audio file url." }
+      return
+    end
+    voice = @image.voice_from_filename(@audio_file.blob.filename.to_s)
+    if @image.update(audio_url: @audio_file_url, voice: voice, use_custom_audio: voice === "custom")
+      render json: { status: "ok", audio_url: @audio_file_url, filename: @audio_file.blob.filename, voice: voice }
+    else
+      render json: { status: "error", message: "Could not update audio url." }
+    end
   end
 
   private

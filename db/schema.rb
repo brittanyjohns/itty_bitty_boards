@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_09_21_162318) do
+ActiveRecord::Schema[7.1].define(version: 2024_09_23_211331) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -203,7 +203,11 @@ ActiveRecord::Schema[7.1].define(version: 2024_09_21_162318) do
     t.boolean "is_private", default: false
     t.string "audio_url"
     t.string "category"
+    t.boolean "use_custom_audio", default: false
+    t.string "voice"
     t.index ["category"], name: "index_images_on_category"
+    t.index ["use_custom_audio"], name: "index_images_on_use_custom_audio"
+    t.index ["voice"], name: "index_images_on_voice"
   end
 
   create_table "menus", force: :cascade do |t|

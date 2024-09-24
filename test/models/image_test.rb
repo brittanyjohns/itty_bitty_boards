@@ -26,6 +26,8 @@
 #  is_private          :boolean          default(FALSE)
 #  audio_url           :string
 #  category            :string
+#  use_custom_audio    :boolean          default(FALSE)
+#  voice               :string
 #
 require "test_helper"
 

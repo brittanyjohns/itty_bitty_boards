@@ -31,7 +31,17 @@ class API::GoogleSearchResultsController < API::ApplicationController
   private
 
   def initialize_search_service
-    @image_search_service = GoogleResultsService.new(params[:q], params[:start] || 1)
+    query = params[:q]
+    secondarySearch = params[:secondarySearch]
+    if secondarySearch.present?
+      query_to_run = secondarySearch
+    else
+      query_to_run = query
+    end
+
+    puts "query_to_run: #{query_to_run}"
+
+    @image_search_service = GoogleResultsService.new(query_to_run, params[:start] || 1)
   end
 
   def add_optional_params

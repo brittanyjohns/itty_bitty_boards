@@ -52,9 +52,9 @@ class OpenAiClient
     { img_url: img_url, revised_prompt: revised_prompt, edited_prompt: new_prompt }
   end
 
-  def create_audio_from_text(text, voice = "echo")
+  def create_audio_from_text(text, voice = "alloy")
     return if Rails.env.test?
-    voice = voice || "echo"
+    voice = voice || "alloy"
     Rails.logger.debug "FROM OpenAiClient: text: #{text} -- voice: #{voice}"
     begin
       response = openai_client.audio.speech(parameters: {

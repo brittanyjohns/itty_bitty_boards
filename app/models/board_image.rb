@@ -145,12 +145,20 @@ class BoardImage < ApplicationRecord
   end
 
   def set_defaults
-    self.voice = board.voice
+    audio_file = nil
+    if image.use_custom_audio
+      self.voice = image.voice
+      audio_file = image.find_custom_audio_file
+    else
+      self.voice = board.voice
+      audio_file = image.find_audio_for_voice(voice)
+    end
+    puts "audio_file: #{audio_file.inspect}"
+
     self.bg_color = image.bg_color
     self.text_color = image.text_color
     self.font_size = image.font_size
     self.border_color = image.border_color
-    audio_file = image.find_audio_for_voice(voice)
     if audio_file
       self.audio_url = audio_file.url
     else

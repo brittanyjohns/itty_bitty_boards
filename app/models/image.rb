@@ -26,6 +26,8 @@
 #  is_private          :boolean          default(FALSE)
 #  audio_url           :string
 #  category            :string
+#  use_custom_audio    :boolean          default(FALSE)
+#  voice               :string
 #
 class Image < ApplicationRecord
   paginates_per 50
@@ -274,8 +276,24 @@ class Image < ApplicationRecord
     audio_files.blank?
   end
 
+  def default_audio_files
+    audio_files.select { |audio| audio.blob.filename.to_s.exclude?("custom") }
+  end
+
   def audio_files_for_api
-    audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: default_audio_url(audio), id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at } }
+    default_audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: default_audio_url(audio), id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at, current: is_audio_current?(audio) } }
+  end
+
+  def custom_audio_files
+    audio_files.select { |audio| audio.blob.filename.to_s.include?("custom") }
+  end
+
+  def custom_audio_files_for_api
+    custom_audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: default_audio_url(audio), id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at, current: is_audio_current?(audio) } }
+  end
+
+  def is_audio_current?(audio)
+    default_audio_url(audio) == audio_url
   end
 
   def remove_audio_files_before_may_2024
@@ -332,6 +350,14 @@ class Image < ApplicationRecord
 
   def existing_audio_files
     audio_files.map { |audio| audio.blob.filename.to_s }
+  end
+
+  def find_custom_audio_file
+    # audio_file = ActiveStorage::Attachment.joins(:blob)
+    #   .where(record: self, name: :audio_files, active_storage_blobs: { "filename ILIKE ?" => "%custom%" })
+    #   .first
+    custom_file = audio_files.find { |audio| audio.blob.filename.to_s.include?("custom") }
+    custom_file
   end
 
   def rename_audio_files
@@ -738,7 +764,6 @@ class Image < ApplicationRecord
       Rails.logger.debug "Processing group ##{batch} -- #{group.first.id} - #{group.last.id}"
       # group.each(&:save_audio_file_to_s3!)
       Image.start_generate_audio_job(group.pluck(:id))
-      sleep(3)
       last_id = group.last.id
     end
     last_id + 1
@@ -790,7 +815,6 @@ class Image < ApplicationRecord
       bg_color: bg_class,
       text_color: text_color,
       src: display_image_url(viewing_user),
-      # src: display_image(viewing_user) ? display_image(viewing_user).url : "https://via.placeholder.com/300x300.png?text=#{label_param}",
       audio: default_audio_url,
       status: status,
       error: error,
@@ -811,6 +835,8 @@ class Image < ApplicationRecord
   end
 
   def with_display_doc(current_user = nil)
+    puts "Current user: #{current_user.id}" if current_user
+    puts "user_id: #{user_id}"
     current_doc = display_doc(current_user)
     puts "Current doc: #{current_doc.id}" if current_doc
     current_doc_id = current_doc.id if current_doc
@@ -828,6 +854,7 @@ class Image < ApplicationRecord
       src: display_image_url(current_user),
       audio: default_audio_url,
       audio_files: audio_files_for_api,
+      custom_audio_files: custom_audio_files_for_api,
       status: status,
       error: error,
       text_color: text_color,
@@ -841,7 +868,7 @@ class Image < ApplicationRecord
       no_next: no_next,
       part_of_speech: part_of_speech,
       can_edit: (current_user && user_id == current_user.id) || current_user&.admin?,
-      user_boards: user_image_boards.map { |board| { id: board.id, name: board.name } },
+      user_boards: user_image_boards.map { |board| { id: board.id, name: board.name, voice: board.voice } },
       remaining_boards: remaining.map { |board| { id: board.id, name: board.name } },
       docs: image_docs.map do |doc|
         {
@@ -895,7 +922,6 @@ class Image < ApplicationRecord
       image = Image.create!(label: label, user_id: user_id, status: "processing", image_prompt: "#{title} #{snippet}", image_type: "GoogleSearch")
     end
     image.save_from_google(img_url, title, snippet, user_id)
-    # new_img = self.create(label: label, user_id: user_id, status: "processing", source_type: "GoogleSearch", image_prompt: revised_prompt).save
     image
   end
 

@@ -186,6 +186,8 @@ Rails.application.routes.draw do
         post "add_doc"
         delete "destroy_audio"
         post "create_audio"
+        post "upload_audio"
+        post "set_current_audio"
       end
       collection do
         get "find_by_label"
