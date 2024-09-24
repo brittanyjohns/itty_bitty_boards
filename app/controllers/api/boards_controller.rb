@@ -13,15 +13,11 @@ class API::BoardsController < API::ApplicationController
   def index
     ActiveRecord::Base.logger.silence do
       if params[:query].present?
-
-        # @boards = boards_for_user.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(created_at: :desc)
-        # @predefined_boards = Board.predefined.user_made_with_scenarios.where("name ILIKE ?", "%#{params[:query]}%").order(created_at: :desc)
         @boards = Board.search_by_name(params[:query]).order(created_at: :desc).page params[:page]
         @predefined_boards = Board.predefined.search_by_name(params[:query]).order(created_at: :desc).page params[:page]
         render json: { boards: @boards, predefined_boards: @predefined_boards }
         return
       elsif params[:boards_only].present?
-        # @boards = boards_for_user.user_made_with_scenarios.order(created_at: :desc)
         @boards = current_user.boards.user_made_with_scenarios.order(created_at: :desc)
         @predefined_boards = Board.predefined.user_made_with_scenarios.order(created_at: :desc)
       else
@@ -35,8 +31,6 @@ class API::BoardsController < API::ApplicationController
 
       @categories = @boards.map(&:category).uniq.compact
 
-      # render json: { boards: @boards.map { |b| b.api_view(current_user) },
-      #                predefined_boards: @predefined_boards }
       render json: { boards: @boards, predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.categories }
     end
   end
@@ -46,7 +40,6 @@ class API::BoardsController < API::ApplicationController
       if params[:query].present?
         @predefined_boards = Board.predefined.search_by_name(params[:query]).order(created_at: :desc).page params[:page]
       elsif params[:filter].present?
-        puts "Filter: #{params[:filter]}"
         filter = params[:filter]
         unless Board::SAFE_FILTERS.include?(filter)
           render json: { error: "Invalid filter" }, status: :unprocessable_entity
@@ -111,15 +104,9 @@ class API::BoardsController < API::ApplicationController
 
   def first_predictive_board
     @board = Board.predictive_default
-    if @board
-      puts "Predictive board found"
-    else
-      puts "No predictive board found"
-      @board = Board.create_predictive_default
-      puts "Predictive board created"
-    end
+    @board = Board.create_predictive_default unless @board
 
-    @board_with_images = @board.api_view_with_images(current_user)
+    @board_with_images = @board.api_view_with_images(current_user) if @board
     render json: @board_with_images
   end
 
@@ -249,7 +236,6 @@ class API::BoardsController < API::ApplicationController
     @board.display_image_url = board_params["display_image_url"]
     @board.predefined = board_params["predefined"]
     @board.category = board_params["category"]
-    puts "Category: #{board_params["category"]}"
     if params["word_list"].present?
       word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
       @board.create_images_from_word_list(word_list)
@@ -268,7 +254,6 @@ class API::BoardsController < API::ApplicationController
     set_board
     num_of_words = params[:num_of_words].to_i || 10
     result = @board.get_words(num_of_words)
-    puts "Result: #{result}"
     additional_words = result["additional_words"]
     @board.create_images_from_word_list(additional_words)
     render json: @board.api_view_with_images(current_user)

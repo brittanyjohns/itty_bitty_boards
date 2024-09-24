@@ -96,14 +96,12 @@ module ImageHelper
     else
       Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"
     end
-    puts "new_audio_file: #{new_audio_file.class} - #{new_audio_file&.inspect}"
     new_audio_file
   end
 
   def save_audio_file(audio_file, voice)
     self.audio_files.attach(io: audio_file, filename: "#{self.label_for_filename}_#{voice}.aac")
     new_audio_file = self.audio_files.last
-    puts "save_audio_file = new_audio_file: #{new_audio_file.class} - #{new_audio_file&.inspect}"
     new_audio_file
   end
 

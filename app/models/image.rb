@@ -78,7 +78,19 @@ class Image < ApplicationRecord
   after_save :generate_matching_symbol, if: -> { should_generate_symbol? }
   after_save :run_set_next_words_job, if: -> { should_set_next_words? }
 
+  after_save :update_board_images, if: -> { need_to_update_board_images? }
+
   scope :menu_images_without_docs, -> { menu_images.without_docs }
+
+  def need_to_update_board_images?
+    use_custom_audio || voice_changed?
+  end
+
+  def update_board_images
+    BoardImage.where(image_id: id).each do |bi|
+      bi.update!(audio_url: audio_url, voice: voice)
+    end
+  end
 
   def ensure_defaults
     if !image_type
@@ -293,7 +305,8 @@ class Image < ApplicationRecord
   end
 
   def is_audio_current?(audio)
-    default_audio_url(audio) == audio_url
+    url = default_audio_url(audio)
+    url == audio_url
   end
 
   def remove_audio_files_before_may_2024
@@ -339,6 +352,12 @@ class Image < ApplicationRecord
     audio_file = ActiveStorage::Attachment.joins(:blob)
       .where(record: self, name: :audio_files, active_storage_blobs: { filename: filename })
       .first
+
+    unless audio_file
+      Rails.logger.debug "Audio file not found: #{filename}"
+      audio_file = find_or_create_audio_file_for_voice(voice)
+      self.audio_url = default_audio_url(audio_file)
+    end
 
     audio_file
   end

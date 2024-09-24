@@ -2,23 +2,21 @@
 #
 # Table name: board_images
 #
-#  id               :bigint           not null, primary key
-#  board_id         :bigint           not null
-#  image_id         :bigint           not null
-#  position         :integer
-#  created_at       :datetime         not null
-#  updated_at       :datetime         not null
-#  voice            :string
-#  next_words       :string           default([]), is an Array
-#  bg_color         :string
-#  text_color       :string
-#  font_size        :integer
-#  border_color     :string
-#  layout           :jsonb
-#  status           :string           default("pending")
-#  audio_url        :string
-#  mode             :string           default("static")
-#  dynamic_board_id :integer
+#  id           :bigint           not null, primary key
+#  board_id     :bigint           not null
+#  image_id     :bigint           not null
+#  position     :integer
+#  created_at   :datetime         not null
+#  updated_at   :datetime         not null
+#  voice        :string
+#  next_words   :string           default([]), is an Array
+#  bg_color     :string
+#  text_color   :string
+#  font_size    :integer
+#  border_color :string
+#  layout       :jsonb
+#  status       :string           default("pending")
+#  audio_url    :string
 #
 class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
@@ -153,14 +151,13 @@ class BoardImage < ApplicationRecord
       self.voice = board.voice
       audio_file = image.find_audio_for_voice(voice)
     end
-    puts "audio_file: #{audio_file.inspect}"
 
     self.bg_color = image.bg_color
     self.text_color = image.text_color
     self.font_size = image.font_size
     self.border_color = image.border_color
     if audio_file
-      self.audio_url = audio_file.url
+      self.audio_url = image.default_audio_url(audio_file)
     else
       image.start_create_all_audio_job
       # This probably is nil anyway but just in case

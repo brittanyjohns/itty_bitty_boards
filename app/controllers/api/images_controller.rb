@@ -114,6 +114,12 @@ class API::ImagesController < API::ApplicationController
     @image_clone = @image.clone_with_docs(user_id, label_to_set)
     voice = params[:voice] || "alloy"
     text = params[:text] || @image_clone.label
+    @original_audio_files = @image.audio_files
+    @original_audio_files.each do |audio_file|
+      original_file = audio_file.dup
+
+      @audio_file = @image_clone.audio_files.attach(io: StringIO.new(original_file.download), filename: audio_file.blob.filename)
+    end
     # @audio_file = @image_clone.create_audio_from_text(text, voice)
     @image_with_display_doc = @image_clone.with_display_doc(@current_user)
     render json: @image_with_display_doc
@@ -136,7 +142,9 @@ class API::ImagesController < API::ApplicationController
     @audio_file = @image.audio_files.attach(io: params[:audio_file], filename: @file_name_to_save)
     new_audio_file_url = @image.default_audio_url(@audio_file.first)
     puts "New audio file url: #{new_audio_file_url}"
-    if @image.update(audio_url: new_audio_file_url, voice: @image.voice_from_filename(@file_name_to_save), audio_url: new_audio_file_url, use_custom_audio: true)
+    voice = @image.voice_from_filename(@audio_file.blob.filename.to_s)
+
+    if @image.update(audio_url: new_audio_file_url, voice: @image.voice_from_filename(@file_name_to_save), use_custom_audio: true)
       @image_with_display_doc = @image.with_display_doc(current_user)
       render json: { status: "ok", image: @image_with_display_doc, audio_file: @audio_file.first, audio_url: new_audio_file_url, filename: @file_name_to_save, voice: @image.voice_from_filename(@file_name_to_save) }
     else
@@ -434,6 +442,7 @@ class API::ImagesController < API::ApplicationController
       return
     end
     voice = @image.voice_from_filename(@audio_file.blob.filename.to_s)
+
     if @image.update(audio_url: @audio_file_url, voice: voice, use_custom_audio: voice === "custom")
       render json: { status: "ok", audio_url: @audio_file_url, filename: @audio_file.blob.filename, voice: voice }
     else
