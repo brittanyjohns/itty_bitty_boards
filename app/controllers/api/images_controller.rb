@@ -16,6 +16,8 @@ class API::ImagesController < API::ApplicationController
     @images_with_display_doc = @images.map do |image|
       {
         id: image.id,
+        user_id: image.user_id,
+
         label: image.label,
         image_prompt: image.image_prompt,
         image_type: image.image_type,
@@ -23,6 +25,7 @@ class API::ImagesController < API::ApplicationController
         text_color: image.text_color,
         src: image.display_image_url(@current_user),
         next_words: image.next_words,
+        can_edit: image.user_id == @current_user.id || @current_user.admin?,
       }
     end
     render json: @images_with_display_doc
@@ -38,6 +41,7 @@ class API::ImagesController < API::ApplicationController
       @images_with_display_doc = @distinct_images.map do |image|
         {
           id: image.id,
+          user_id: image.user_id,
           label: image.label,
           image_type: image.image_type,
           bg_color: image.bg_class,
@@ -111,7 +115,7 @@ class API::ImagesController < API::ApplicationController
     @image = Image.find(params[:id])
     label_to_set = params[:new_name]&.downcase || @image.label
     user_id = @current_user.id
-    @image_clone = @image.clone_with_docs(user_id, label_to_set)
+    @image_clone = @image.clone_with_current_display_doc(user_id, label_to_set)
     voice = params[:voice] || "alloy"
     text = params[:text] || @image_clone.label
     @original_audio_files = @image.audio_files

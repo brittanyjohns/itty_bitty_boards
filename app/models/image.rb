@@ -977,4 +977,40 @@ class Image < ApplicationRecord
       Rails.logger.debug "Error cloning image: #{@cloned_image}"
     end
   end
+
+  def clone_with_current_display_doc(cloned_user_id, new_name)
+    if new_name.blank?
+      new_name = label
+    end
+    @source = self
+    cloned_user = User.find(cloned_user_id)
+    unless cloned_user
+      Rails.logger.debug "User not found: #{cloned_user_id} - defaulting to admin"
+      cloned_user_id = User::DEFAULT_ADMIN
+      cloned_user = User.find(cloned_user_id)
+      if !cloned_user
+        Rails.logger.debug "Default admin user not found: #{cloned_user_id}"
+        return
+      end
+    end
+    @display_doc = @source.display_doc(cloned_user)
+
+    @cloned_image = Image.new
+    @cloned_image.user_id = cloned_user_id
+    @cloned_image.label = new_name
+    @cloned_image.image_type = @source.image_type
+    @cloned_image.image_prompt = @source.image_prompt
+
+    @cloned_image.save
+    original_file = @display_doc.image
+    new_doc = @display_doc.dup
+    new_doc.documentable = @cloned_image
+    new_doc.save
+    new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type)
+    if @cloned_image.save
+      @cloned_image
+    else
+      Rails.logger.debug "Error cloning image: #{@cloned_image}"
+    end
+  end
 end
