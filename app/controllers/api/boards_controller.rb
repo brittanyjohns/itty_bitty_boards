@@ -356,6 +356,9 @@ class API::BoardsController < API::ApplicationController
 
     new_board_images = []
     images.each do |image|
+      if @board.images.include?(image)
+        next
+      end
       new_board_image = @board.board_images.new(image_id: image.id, position: @board.board_images.count)
       new_board_image.layout = new_board_image.initial_layout
       new_board_image.save

@@ -38,7 +38,6 @@ class ChildAccount < ApplicationRecord
   validates :username, presence: true, uniqueness: true
 
   def self.valid_credentials?(username, password_to_set)
-    puts "Checking credentials for #{username} - #{password_to_set}"
     account = ChildAccount.find_by(username: username, passcode: password_to_set)
     if account
       account
