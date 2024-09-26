@@ -158,7 +158,7 @@ class API::ImagesController < API::ApplicationController
 
   def create_audio
     @image = Image.find(params[:id])
-    voice = params[:voice] || "echo"
+    voice = params[:voice] || "alloy"
     text = params[:text] || @image.label
     if text != @image.label
       @image.update(label: text)
