@@ -14,6 +14,7 @@ class API::UsersController < API::ApplicationController
   # GET /users/1 or /users/1.json
   def show
     unless current_user&.admin? || current_user == @user
+      puts ">>>> Unauthorized"
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end

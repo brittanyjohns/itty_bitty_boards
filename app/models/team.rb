@@ -53,7 +53,6 @@ class Team < ApplicationRecord
   end
 
   def remove_board!(board)
-    puts "Removing board from team: #{board&.name}"
     team_board = team_boards.find_by(board: board)
     team_board.destroy if team_board
   end
@@ -63,7 +62,7 @@ class Team < ApplicationRecord
       id: id,
       name: name,
       current: id == viewing_user&.current_team_id,
-      created_by: created_by.email,
+      created_by: created_by&.email,
     }
   end
 

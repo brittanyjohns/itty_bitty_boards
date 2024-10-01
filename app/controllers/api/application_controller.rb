@@ -58,9 +58,7 @@ module API
     end
 
     def current_user
-      puts "Current user: #{@current_user}"
       @current_user ||= user_from_token
-      puts "Current user: #{@current_user}"
       @current_user
     end
 

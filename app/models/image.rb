@@ -318,7 +318,6 @@ class Image < ApplicationRecord
         removed_count += 1
       end
     end
-    puts "Removed #{removed_count} audio files"
   end
 
   def self.remove_old_audio
@@ -854,15 +853,10 @@ class Image < ApplicationRecord
   end
 
   def with_display_doc(current_user = nil)
-    puts "Current user: #{current_user.id}" if current_user
-    puts "user_id: #{user_id}"
     current_doc = display_doc(current_user)
-    puts "Current doc: #{current_doc.id}" if current_doc
     current_doc_id = current_doc.id if current_doc
     image_docs = docs.with_attached_image.for_user(current_user).order(created_at: :desc)
-    puts "Image docs: #{image_docs.count}"
     default_image_doc = image_docs.where(user_id: [User::DEFAULT_ADMIN_ID, nil]).first
-    puts "Default image doc: #{default_image_doc.id}" if default_image_doc
     remaining = remaining_user_boards(current_user)
     user_image_boards = user_boards(current_user)
     {
