@@ -40,6 +40,7 @@ class ChildAccount < ApplicationRecord
   def self.valid_credentials?(username, password_to_set)
     account = ChildAccount.find_by(username: username, passcode: password_to_set)
     if account
+      puts "Account found: #{account.inspect}"
       account
     else
       Rails.logger.info "Invalid credentials for #{username}"
@@ -69,8 +70,8 @@ class ChildAccount < ApplicationRecord
     puts "UserId: #{user_id} Username: #{username} Password: #{passcode}"
   end
 
-  def can_sign_in?(user = nil)
-    if user && user.admin?
+  def can_sign_in?(user_context = nil)
+    if user_context && user_context.admin?
       return true
     end
 
