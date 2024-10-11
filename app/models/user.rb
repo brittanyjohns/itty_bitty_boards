@@ -48,7 +48,7 @@ class User < ApplicationRecord
   pay_customer default_payment_processor: :stripe
   include Devise::JWT::RevocationStrategies::JTIMatcher
   devise :database_authenticatable, :registerable,
-         :recoverable, :rememberable, :validatable, :invitable,
+         :recoverable, :rememberable, :validatable, :invitable, :trackable,
          :jwt_authenticatable, jwt_revocation_strategy: self
 
   # Associations
@@ -257,6 +257,10 @@ class User < ApplicationRecord
     view["free_trial"] = free_trial?
     view["trial_expired"] = trial_expired?
     view["trial_days_left"] = trial_days_left
+    view["last_sign_in_at"] = last_sign_in_at
+    view["last_sign_in_ip"] = last_sign_in_ip
+    view["current_sign_in_at"] = current_sign_in_at
+    view["current_sign_in_ip"] = current_sign_in_ip
     view
   end
 end
