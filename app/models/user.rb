@@ -144,10 +144,6 @@ class User < ApplicationRecord
     play_demo == true
   end
 
-  def api_view
-    { user: self, boards: boards.map(&:user_api_view), images: images, docs: docs }
-  end
-
   def can_edit?(model)
     return false unless model
     return true if admin?
@@ -254,7 +250,9 @@ class User < ApplicationRecord
     view["pro"] = pro?
     view["team"] = current_team
     view["child_accounts"] = child_accounts
+    view["images"] = images
     view["boards"] = boards
+    view["docs"] = docs
     view["free_trial"] = free_trial?
     view["trial_expired"] = trial_expired?
     view["trial_days_left"] = trial_days_left
