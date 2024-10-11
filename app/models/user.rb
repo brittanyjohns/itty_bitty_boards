@@ -250,9 +250,10 @@ class User < ApplicationRecord
     view["pro"] = pro?
     view["team"] = current_team
     view["child_accounts"] = child_accounts
-    view["images"] = images
+    view["images"] = images.limit(100)
     view["boards"] = boards
     view["docs"] = docs
+    view["scenarios"] = scenarios
     view["free_trial"] = free_trial?
     view["trial_expired"] = trial_expired?
     view["trial_days_left"] = trial_days_left
