@@ -18,6 +18,9 @@ class API::UsersController < API::ApplicationController
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
+    if @user.locked?
+      @user.settings["locked"] = true
+    end
     render json: @user.api_view
   end
 
@@ -74,6 +77,7 @@ class API::UsersController < API::ApplicationController
     # ADMIN ONLY
     @user.plan_type = params[:plan_type]
     @user.locked = params[:locked] || false
+    @user.settings["locked"] = params[:locked] || false
 
     respond_to do |format|
       if @user.save
