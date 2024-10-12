@@ -365,7 +365,7 @@ class API::BoardsController < API::ApplicationController
       new_board_images << new_board_image
     end
     # @board.reset_multiple_images_layout_all_screen_sizes(new_board_images)
-    @board.calculate_layout_for_multiple_images(new_board_images, "lg")
+    # @board.calculate_layout_for_multiple_images(new_board_images, "lg")
     @board.reload
     render json: { board: @board, new_board_images: new_board_images }
   end
