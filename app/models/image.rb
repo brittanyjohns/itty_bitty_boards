@@ -114,7 +114,11 @@ class Image < ApplicationRecord
 
   def should_set_next_words?
     return false if image_type == "Menu"
-    next_words.blank? && no_next == false
+    return true if next_words.blank? && no_next == false
+    words_to_check = next_words - [label]
+    if words_to_check.blank?
+      return true
+    end
   end
 
   def run_set_next_words_job
@@ -198,10 +202,10 @@ class Image < ApplicationRecord
   end
 
   def set_next_words!
-    similar_images = Image.public_img.where(label: label).where.not(id: id)
-    next_words = similar_images.pluck(:label).uniq
-    new_next_words = next_words
-    new_next_words = get_next_words(label) unless new_next_words.any?
+    # similar_images = Image.public_img.where(label: label).where.not(id: id)
+    # new_next_words = similar_images.pluck(:next_words).uniq
+    # puts "Next words: #{next_words}"
+    new_next_words = get_next_words(label)
     if new_next_words
       self.next_words = new_next_words
       self.save!
@@ -230,7 +234,26 @@ class Image < ApplicationRecord
   end
 
   def next_images
-    imgs = Image.with_artifacts.where(label: next_words).public_img.order(created_at: :desc).distinct(:label)
+    # imgs = Image.where(label: next_words).public_img.order(created_at: :desc).distinct(:label)
+    if next_words.blank? || next_words == [label]
+      return Board.predictive_default.images
+    end
+    imgs = []
+    next_words.each do |word|
+      img = Image.public_img.find_by(label: word)
+      if img
+        imgs << img
+      else
+        Rails.logger.debug "Image not found: #{word}"
+        img = Image.create(label: word)
+        if img
+          imgs << img
+        else
+          Rails.logger.debug "Could not create image: #{word} - #{img.errors.full_messages}"
+        end
+      end
+    end
+
     return imgs if imgs.any?
     Board.predictive_default.images
   end
@@ -907,10 +930,13 @@ class Image < ApplicationRecord
   end
 
   def self.searchable_images_for(user, only_user_images = false)
+    if !user
+      return Image.with_artifacts.public_img.non_menu_images.distinct
+    end
     if only_user_images
       Image.with_artifacts.where(user_id: user.id).distinct
     else
-      Image.with_artifacts.public_img.non_menu_images.non_scenarios.or(Image.with_artifacts.where(user_id: user.id)).or(Image.where(user_id: user.id)).distinct
+      Image.with_artifacts.public_img.non_menu_images.or(Image.with_artifacts.where(user_id: user.id)).or(Image.where(user_id: user.id)).distinct
     end
   end
 

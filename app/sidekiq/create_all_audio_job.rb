@@ -3,7 +3,11 @@ class CreateAllAudioJob
 
   def perform(image_id)
     image = Image.find(image_id)
-    image.create_voice_audio_files
-    puts "Created all audio files for image: #{image.label}"
+    if image.audio_files.blank?
+      puts "Creating all audio files for image: #{image.label}"
+      image.create_voice_audio_files
+    else
+      puts "Audio files already exist for image: #{image.label}"
+    end
   end
 end

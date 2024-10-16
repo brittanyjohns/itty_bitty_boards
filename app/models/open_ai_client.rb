@@ -29,7 +29,7 @@ class OpenAiClient
   def specific_image_prompt(img_prompt)
     "Can you create a text prompt for me that I can use with DALL-E to generate an image that is clear and simple, similar to AAC and other accessibility signs?
     The image should represent the word/phrase '#{img_prompt}' in a way that a child could easily recognize. Avoid cartoonish styles.
-    Use as much detail as possible to ensure clarity and simplicity. Respond with the prompt only, not the image or any other text."
+    Use as much detail as possible to ensure clarity and simplicity. Respond with the prompt only, not the image or any other text. Respond in JSON format."
   end
 
   def create_image
@@ -130,8 +130,7 @@ class OpenAiClient
     This will help in populating an AAC (Augmentative and Alternative Communication) device with contextually appropriate vocabulary.
     Don't include contractions or words that are too specific to a particular context. Two-word phrases are acceptable but should be kept to a minimum.
     The goal is to populate an AAC device with versatile vocabulary. '#{label}' shoule not be included in the list of next words or phrases.
-    Respond as a JSON object with the following format: {\"next_words\": [\"word1\", \"word2\", \"word3\", ...]}\n or 'NO NEXT WORDS'
-    Make your best attempt to provide a list of 24 words or short phrases (2 words max) that are foundational for basic communication in an AAC device. Respond with 'NO NEXT WORDS' if there are no common follow-up words for '#{label}' that would be used in conversation & an AAC device."
+    Make your best attempt to provide a list of 24 words or short phrases (2 words max) that are foundational for basic communication in an AAC device. Respond with 'NO NEXT WORDS' if there are no common follow-up words for '#{label}' that would be used in conversation & an AAC device. Use json format. Respond with a JSON object in the following format: {\"next_words\": [\"word1\", \"word2\", \"word3\", ...]}"
   end
 
   # def next_words_prompt(label)
@@ -248,7 +247,7 @@ class OpenAiClient
       @role = response.dig("choices", 0, "message", "role")
       @content = response.dig("choices", 0, "message", "content")
     else
-      Rails.logger.debug "**** ERROR **** \nDid not receive valid response.\n"
+      Rails.logger.debug "**** ERROR - create_chat **** \nDid not receive valid response.\n #{response&.inspect}"
     end
     { role: @role, content: @content }
   end

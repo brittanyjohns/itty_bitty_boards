@@ -111,7 +111,8 @@ class API::BoardsController < API::ApplicationController
   end
 
   def predictive_images
-    @image = Image.with_artifacts.find(params[:id])
+    @image = Image.with_artifacts.searchable_images_for(current_user).find_by_id(params[:id])
+    puts "Rendering predictive images for image: #{@image.label} : #{@image.next_images.count} images"
     @next_images = @image.next_images.map do |ni|
       {
         id: ni.id,

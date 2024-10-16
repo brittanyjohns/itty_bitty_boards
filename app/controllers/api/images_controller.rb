@@ -211,7 +211,8 @@ class API::ImagesController < API::ApplicationController
       @image.next_words = params[:next_words]&.compact_blank
       @image.save
     else
-      CreateAllAudioJob.perform_async(@image.id)
+      @image.set_next_words!
+      # CreateAllAudioJob.perform_async(@image.id)
     end
 
     @image.create_words_from_next_words

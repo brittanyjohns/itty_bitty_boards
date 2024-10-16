@@ -311,7 +311,7 @@ class Board < ApplicationRecord
       file_exists = File.exist?("output.aac")
       File.delete("output.aac") if file_exists
     else
-      Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"
+      Rails.logger.error "**** ERROR - create_audio_from_text **** \nDid not receive valid response.\n #{response&.inspect}"
     end
   end
 

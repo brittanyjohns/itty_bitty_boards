@@ -50,7 +50,7 @@ module ImageHelper
     if img_url
       doc = save_image(img_url, user_id, revised_prompt, edited_prompt)
     else
-      Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"
+      Rails.logger.error "**** ERROR - create_image **** \nDid not receive valid response.\n #{response&.inspect}"
     end
     doc
   end
@@ -94,7 +94,7 @@ module ImageHelper
       file_exists = File.exist?("output.aac")
       File.delete("output.aac") if file_exists
     else
-      Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{response&.inspect}"
+      Rails.logger.error "**** ERROR - create_audio_from_text **** \nDid not receive valid response.\n #{response&.inspect}"
     end
     new_audio_file
   end
@@ -166,7 +166,7 @@ module ImageHelper
       save_image(img_variation_url)
       success = true
     else
-      Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n"
+      Rails.logger.error "**** ERROR - create_image_variation **** \nDid not receive valid response.\n"
     end
     success
   end
