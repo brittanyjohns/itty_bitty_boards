@@ -867,7 +867,7 @@ class Image < ApplicationRecord
 
   def remaining_user_boards(current_user)
     return [] unless current_user
-    current_user.boards.user_made_with_scenarios - boards
+    current_user.boards.user_made_with_scenarios.excluding(boards).order(name: :asc)
   end
 
   def user_boards(current_user)
