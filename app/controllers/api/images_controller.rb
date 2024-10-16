@@ -8,7 +8,7 @@ class API::ImagesController < API::ApplicationController
     end
 
     if params[:query].present?
-      @images = Image.with_artifacts.search_by_label(params[:query]).order(label: :asc).page params[:page]
+      @images = Image.non_sample_voices.with_artifacts.search_by_label(params[:query]).order(label: :asc).page params[:page]
     else
       @images = @images.order(label: :asc).page params[:page]
     end

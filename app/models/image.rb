@@ -62,7 +62,7 @@ class Image < ApplicationRecord
   scope :non_sample_voices, -> { where.not(image_type: "SampleVoice").or(where(image_type: nil)) }
   scope :sample_voices, -> { where(image_type: "SampleVoice") }
   scope :no_image_type, -> { where(image_type: nil) }
-  scope :public_img, -> { where(private: false) }
+  scope :public_img, -> { non_sample_voices.where(private: false) }
   scope :private_img, -> { where(private: true) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
   scope :skipped, -> { where(open_symbol_status: "skipped") }
