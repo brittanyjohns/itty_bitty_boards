@@ -353,7 +353,7 @@ class Board < ApplicationRecord
     end
   end
 
-  def create_images_from_word_list(word_list)
+  def find_or_create_images_from_word_list(word_list)
     unless word_list && word_list.any?
       Rails.logger.debug "No word list"
       return
@@ -368,16 +368,12 @@ class Board < ApplicationRecord
     word_list.each do |word|
       word = word.downcase
       image = user.images.find_by(label: word)
-      puts "User Image: #{image}" if image
       image = Image.public_img.find_by(label: word) unless image
-      puts "Public Image: #{image}" if image
       found_image = image
       image = Image.public_img.create(label: word, user_id: user_id) unless image
-      puts "Created Image: #{image}" unless found_image
-      puts "Added Image: #{image}" if image
       self.add_image(image.id)
     end
-    self.reset_layouts
+    # self.reset_layouts
     self.save!
   end
 
@@ -492,7 +488,7 @@ class Board < ApplicationRecord
       category: category,
       parent_type: parent_type,
       parent_id: parent_id,
-      parent_description: parent_type === "User" ? "User" : parent&.description,
+      parent_description: parent_type === "User" ? "User" : parent&.to_s,
       parent_prompt: parent_type === "OpenaiPrompt" ? parent.prompt_text : nil,
       predefined: predefined,
       number_of_columns: number_of_columns,
@@ -519,6 +515,7 @@ class Board < ApplicationRecord
         {
           id: @image.id,
           # id: board_image.id,
+          predictive_board_id: @image.predictive_board&.id,
           board_image_id: board_image.id,
           label: board_image.label,
           image_prompt: board_image.image_prompt,
@@ -542,11 +539,17 @@ class Board < ApplicationRecord
   end
 
   def api_view(viewing_user = nil)
+    normalized_name = name.downcase.strip
+    puts "Normalized Name: #{normalized_name}"
+    predictive_image_matching = Image.where(label: normalized_name, user_id: user_id).first
+    puts "Predictive Image Matching: #{predictive_image_matching}"
+    predictive_next_board = predictive_image_matching ? predictive_image_matching.predictive_board_for_user(viewing_user) : Board.predictive_default
     {
       id: id,
       name: name,
       layout: layout,
       audio_url: audio_url,
+      predictive_default_id: Board.predictive_default.id,
       position: position,
       description: description,
       parent_type: parent_type,
@@ -777,27 +780,64 @@ class Board < ApplicationRecord
     { x: x, y: y }
   end
 
-  def api_view_with_predictive_images
+  def api_view_with_predictive_images(viewing_user = nil)
     {
       id: id,
       name: name,
       description: description,
+      category: category,
       parent_type: parent_type,
+      parent_id: parent_id,
+      parent_description: parent_type === "User" ? "User" : parent&.to_s,
+      parent_prompt: parent_type === "OpenaiPrompt" ? parent.prompt_text : nil,
       predefined: predefined,
       number_of_columns: number_of_columns,
-      images: images.map do |image|
+      small_screen_columns: small_screen_columns,
+      medium_screen_columns: medium_screen_columns,
+      large_screen_columns: large_screen_columns,
+      status: status,
+      token_limit: token_limit,
+      cost: cost,
+      audio_url: audio_url,
+      display_image_url: display_image_url,
+      floating_words: words,
+      user_id: user_id,
+      voice: voice,
+      created_at: created_at,
+      updated_at: updated_at,
+      margin_settings: margin_settings,
+      has_generating_images: has_generating_images?,
+      current_user_teams: [],
+      # current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
+      # images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
+      images: board_images.includes(image: :docs).map do |board_image|
+        @image = board_image.image
+        @default_board = Board.predictive_default
         {
-          id: image.id,
-          label: image.label,
-          image_prompt: image.image_prompt,
-          bg_color: image.bg_class,
-          text_color: image.text_color,
-          next_words: image.next_words,
-          display_doc: image.display_image,
-          src: image.display_image ? image.display_image.url : "https://via.placeholder.com/300x300.png?text=#{image.label_param}",
-          audio: image.audio_url,
+          id: @image.id,
+          # id: board_image.id,
+          predictive_board_id: @image.predictive_board&.id,
+          predictive_default_id: @default_board.id,
+          predictive_default: @image.predictive_board&.id == @default_board.id,
+          board_image_id: board_image.id,
+          label: board_image.label,
+          image_prompt: board_image.image_prompt,
+          bg_color: @image.bg_class,
+          text_color: board_image.text_color,
+          next_words: board_image.next_words,
+          position: board_image.position,
+          src: @image.display_image_url(viewing_user),
+          audio: board_image.audio_url,
+          voice: board_image.voice,
+          layout: board_image.layout,
+          added_at: board_image.added_at,
+          image_last_added_at: board_image.image_last_added_at,
+          part_of_speech: @image.part_of_speech,
+
+          status: board_image.status,
         }
       end,
+      layout: layout,
     }
   end
 

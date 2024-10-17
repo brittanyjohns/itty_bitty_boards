@@ -89,7 +89,6 @@ Rails.application.routes.draw do
       post "associate_image"
       post "remove_image"
       post "update_grid"
-      get "predictive_images"
     end
   end
   resources :board_images do
@@ -188,6 +187,8 @@ Rails.application.routes.draw do
         post "create_audio"
         post "upload_audio"
         post "set_current_audio"
+        get "predictive_images"
+        post "create_predictive_board"
       end
       collection do
         get "find_by_label"
@@ -196,6 +197,7 @@ Rails.application.routes.draw do
         post "generate"
         post "add_to_board"
         get "predictive"
+        get "predictive_images"
         get "user_images"
         post "crop"
         post "save_temp_doc"
@@ -231,10 +233,10 @@ Rails.application.routes.draw do
         get "remaining_images"
         put "associate_image"
         put "associate_images"
-        get "predictive_images"
         post "clone"
         put "add_to_team"
         put "remove_from_team"
+        get "predictive_image_board"
         post "create_additional_images"
         get "additional_words"
       end

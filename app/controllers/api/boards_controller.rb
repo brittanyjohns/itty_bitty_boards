@@ -3,7 +3,7 @@ class API::BoardsController < API::ApplicationController
   respond_to :json
 
   # before_action :authenticate_user!
-  skip_before_action :authenticate_token!, only: %i[ predictive_index first_predictive_board predictive_images ]
+  skip_before_action :authenticate_token!, only: %i[ predictive_index first_predictive_board ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images ]
   # layout "fullscreen", only: [:fullscreen]
@@ -106,23 +106,14 @@ class API::BoardsController < API::ApplicationController
     @board = Board.predictive_default
     @board = Board.create_predictive_default unless @board
 
-    @board_with_images = @board.api_view_with_images(current_user) if @board
+    @board_with_images = @board.api_view_with_predictive_images(current_user)
     render json: @board_with_images
   end
 
-  def predictive_images
-    @image = Image.with_artifacts.searchable_images_for(current_user).find_by_id(params[:id])
-    puts "Rendering predictive images for image: #{@image.label} : #{@image.next_images.count} images"
-    @next_images = @image.next_images.map do |ni|
-      {
-        id: ni.id,
-        label: ni.label,
-        bg_color: ni.bg_class,
-        src: ni.display_image_url(current_user),
-        audio: ni.default_audio_url,
-      }
-    end
-    render json: @next_images
+  def predictive_image_board
+    @board = Board.find(params[:id])
+
+    render json: @board.api_view_with_predictive_images(current_user)
   end
 
   def show
@@ -210,12 +201,13 @@ class API::BoardsController < API::ApplicationController
     @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
     @board.large_screen_columns = board_params["large_screen_columns"].to_i
     @board.voice = params["voice"]
+    word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
+
+    @board.find_or_create_images_from_word_list(word_list) if word_list.present?
+    @board.reset_layouts
 
     respond_to do |format|
       if @board.save
-        word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
-
-        @board.create_images_from_word_list(word_list) if word_list.present?
         format.json { render json: @board, status: :created }
         format.turbo_stream
       else
@@ -239,7 +231,7 @@ class API::BoardsController < API::ApplicationController
     @board.category = board_params["category"]
     if params["word_list"].present?
       word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
-      @board.create_images_from_word_list(word_list)
+      @board.find_or_create_images_from_word_list(word_list) if word_list.present?
     end
 
     respond_to do |format|
@@ -256,7 +248,7 @@ class API::BoardsController < API::ApplicationController
     num_of_words = params[:num_of_words].to_i || 10
     result = @board.get_words(num_of_words)
     additional_words = result["additional_words"]
-    @board.create_images_from_word_list(additional_words)
+    @board.find_or_create_images_from_word_list(additional_words)
     render json: @board.api_view_with_images(current_user)
   end
 

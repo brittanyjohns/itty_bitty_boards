@@ -38,6 +38,7 @@ class Image < ApplicationRecord
   has_many :board_images, dependent: :destroy
   has_many :boards, through: :board_images
   has_many_attached :audio_files
+  has_many :predictive_boards, as: :parent, class_name: "Board", dependent: :destroy
 
   accepts_nested_attributes_for :docs
 
@@ -124,6 +125,36 @@ class Image < ApplicationRecord
   def run_set_next_words_job
     Rails.logger.debug "Starting set next words job for #{label}"
     SetNextWordsJob.perform_async([id])
+  end
+
+  def predictive_board_for_user(user_id)
+    board = predictive_boards.find_by(name: label, user_id: user_id)
+    if board
+      board
+    else
+      CreatePredictiveBoardJob.perform_async(id, user_id)
+      # create_predictive_board(user_id)
+      Board.predictive_default
+    end
+  end
+
+  def predictive_board
+    viewing_user_id = user_id
+    viewing_user_id.blank? ? Board.predictive_default : predictive_board_for_user(viewing_user_id)
+  end
+
+  def create_predictive_board(new_user_id)
+    board = predictive_boards.find_by(name: label, user_id: new_user_id)
+    if board
+      puts "Predictive board already exists: #{board.id}"
+      board.find_or_create_images_from_word_list(next_words)
+    else
+      puts "Creating predictive board for #{label} - #{new_user_id}"
+      board = predictive_boards.create!(name: label, user_id: new_user_id)
+      board.find_or_create_images_from_word_list(next_words)
+      board.reset_layouts
+    end
+    board
   end
 
   def background_color_for(category)
@@ -233,14 +264,15 @@ class Image < ApplicationRecord
     end
   end
 
-  def next_images
+  def next_images(user_id = nil)
     # imgs = Image.where(label: next_words).public_img.order(created_at: :desc).distinct(:label)
     if next_words.blank? || next_words == [label]
       return Board.predictive_default.images
     end
     imgs = []
     next_words.each do |word|
-      img = Image.public_img.find_by(label: word)
+      img = Image.find_by(label: word, user_id: user_id) if user_id
+      img = Image.public_img.find_by(label: word) unless img
       if img
         imgs << img
       else
@@ -258,17 +290,17 @@ class Image < ApplicationRecord
     Board.predictive_default.images
   end
 
-  def next_board
-    parent_resource = PredefinedResource.find_or_create_by name: "Next", resource_type: "Board"
-    next_board = Board.find_or_create_by!(name: label, user_id: User::DEFAULT_ADMIN_ID, parent: parent_resource)
-    next_board
-  end
+  # def next_board
+  #   parent_resource = PredefinedResource.find_or_create_by name: "Next", resource_type: "Board"
+  #   next_board = Board.find_or_create_by!(name: label, user_id: User::DEFAULT_ADMIN_ID, parent: parent_resource)
+  #   next_board
+  # end
 
-  def create_next_board
-    next_board_to_use = next_board
-    next_board_to_use.add_images(next_images)
-    next_board_to_use
-  end
+  # def create_next_board
+  #   next_board_to_use = next_board
+  #   next_board_to_use.add_images(next_images)
+  #   next_board_to_use
+  # end
 
   def create_words_from_next_words
     return unless next_words
@@ -894,6 +926,8 @@ class Image < ApplicationRecord
       status: status,
       error: error,
       text_color: text_color,
+      predictive_board_id: predictive_board&.id,
+      predictive_default: Board.predictive_default.id === predictive_board&.id,
       bg_color: bg_class,
       open_symbol_status: open_symbol_status,
       created_at: created_at,
@@ -964,56 +998,56 @@ class Image < ApplicationRecord
     image
   end
 
-  def clone_with_docs(cloned_user_id, new_name)
-    if new_name.blank?
-      new_name = label
-    end
-    @source = self
-    cloned_user = User.find(cloned_user_id)
-    unless cloned_user
-      Rails.logger.debug "User not found: #{cloned_user_id} - defaulting to admin"
-      cloned_user_id = User::DEFAULT_ADMIN
-      cloned_user = User.find(cloned_user_id)
-      if !cloned_user
-        Rails.logger.debug "Default admin user not found: #{cloned_user_id}"
-        return
-      end
-    end
-    @docs = @source.docs.for_user(cloned_user)
-    @cloned_image = @source.dup
-    @cloned_image.user_id = cloned_user_id
-    @cloned_image.label = new_name
-    @cloned_image.save
-    @docs.each do |doc|
-      original_file = doc.image
-      new_doc = doc.dup
-      new_doc.documentable = @cloned_image
-      new_doc.save
-      new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type)
-    end
-    if @cloned_image.save
-      @cloned_image
-    else
-      Rails.logger.debug "Error cloning image: #{@cloned_image}"
-    end
-  end
+  # def clone_with_docs(cloned_user_id, new_name)
+  #   if new_name.blank?
+  #     new_name = label
+  #   end
+  #   @source = self
+  #   cloned_user = User.find(cloned_user_id)
+  #   unless cloned_user
+  #     Rails.logger.debug "User not found: #{cloned_user_id} - defaulting to admin"
+  #     cloned_user_id = User::DEFAULT_ADMIN
+  #     cloned_user = User.find(cloned_user_id)
+  #     if !cloned_user
+  #       Rails.logger.debug "Default admin user not found: #{cloned_user_id}"
+  #       return
+  #     end
+  #   end
+  #   @docs = @source.docs.for_user(cloned_user)
+  #   @cloned_image = @source.dup
+  #   @cloned_image.user_id = cloned_user_id
+  #   @cloned_image.label = new_name
+  #   @cloned_image.save
+  #   @docs.each do |doc|
+  #     original_file = doc.image
+  #     new_doc = doc.dup
+  #     new_doc.documentable = @cloned_image
+  #     new_doc.save
+  #     new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type)
+  #   end
+  #   if @cloned_image.save
+  #     @cloned_image
+  #   else
+  #     Rails.logger.debug "Error cloning image: #{@cloned_image}"
+  #   end
+  # end
 
   def clone_with_current_display_doc(cloned_user_id, new_name)
     if new_name.blank?
       new_name = label
     end
     @source = self
-    cloned_user = User.find(cloned_user_id)
-    unless cloned_user
+    @cloned_user = User.find(cloned_user_id)
+    unless @cloned_user
       Rails.logger.debug "User not found: #{cloned_user_id} - defaulting to admin"
       cloned_user_id = User::DEFAULT_ADMIN
-      cloned_user = User.find(cloned_user_id)
-      if !cloned_user
+      @cloned_user = User.find(cloned_user_id)
+      if !@cloned_user
         Rails.logger.debug "Default admin user not found: #{cloned_user_id}"
         return
       end
     end
-    @display_doc = @source.display_doc(cloned_user)
+    @display_doc = @source.display_doc(@cloned_user)
 
     @cloned_image = @source.dup
     @cloned_image.user_id = cloned_user_id
@@ -1029,6 +1063,7 @@ class Image < ApplicationRecord
     new_doc.save
     new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type)
     if @cloned_image.save
+      @cloned_image.create_predictive_board(@cloned_user.id)
       @cloned_image
     else
       Rails.logger.debug "Error cloning image: #{@cloned_image}"

@@ -129,6 +129,33 @@ class API::ImagesController < API::ApplicationController
     render json: @image_with_display_doc
   end
 
+  def predictive_images
+    puts ">>>> Predictive images"
+    @current_user = current_user
+    @image = Image.includes(:docs, :predictive_boards).find(params[:id])
+    if !@image.user_id || (current_user.id != @image.user_id)
+      puts "User not authorized to view image.  Sending next images."
+      @board = @image.predictive_board_for_user(User::DEFAULT_ADMIN_ID)
+    else
+      @board = @image.predictive_board_for_user(@current_user.id)
+    end
+    if @board
+      @images = @board.images
+      puts "Found Predictive Board: #{@board.created_at.strftime("%Y-%m-%d")}"
+    else
+      puts "No board found for image. Sending next images."
+      @images = Board.predictive_default.images
+      CreatePredictiveBoardJob.perform_async(@image.id, @current_user.id)
+    end
+    if !@board
+      @board = Board.predictive_default
+    end
+
+    @board_with_images = @board.api_view_with_predictive_images(current_user)
+
+    render json: @board_with_images
+  end
+
   def upload_audio
     @image = Image.find(params[:id])
     unless @image.user_id == current_user.id || current_user.admin?
@@ -210,13 +237,32 @@ class API::ImagesController < API::ApplicationController
     if params[:next_words].present?
       @image.next_words = params[:next_words]&.compact_blank
       @image.save
+      if @image.predictive_board&.id === Board.predictive_default.id
+        puts "using predictive default board"
+      else
+        @board = @image.predictive_board_for_user(current_user.id)
+        if @board
+          new_words = @image.next_words.keep_if { |word| !@board.words.include?(word) }
+          puts "New words: #{new_words}"
+          @board.find_or_create_images_from_word_list(new_words)
+        end
+      end
     else
       @image.set_next_words!
       # CreateAllAudioJob.perform_async(@image.id)
     end
 
     @image.create_words_from_next_words
-    render json: @image
+    if @image.predictive_board&.id === Board.predictive_default.id
+      CreatePredictiveBoardJob.perform_async(@image.id, User::DEFAULT_ADMIN_ID)
+    end
+    render json: @image.api_view(current_user)
+  end
+
+  def create_predictive_board
+    @image = Image.find(params[:id])
+    CreatePredictiveBoardJob.perform_async(@image.id, current_user.id)
+    render json: { status: "ok", message: "Creating predictive board for image." }
   end
 
   def create_symbol
