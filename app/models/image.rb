@@ -236,6 +236,7 @@ class Image < ApplicationRecord
     # similar_images = Image.public_img.where(label: label).where.not(id: id)
     # new_next_words = similar_images.pluck(:next_words).uniq
     # puts "Next words: #{next_words}"
+    return if no_next || next_words.any?
     new_next_words = get_next_words(label)
     if new_next_words
       self.next_words = new_next_words

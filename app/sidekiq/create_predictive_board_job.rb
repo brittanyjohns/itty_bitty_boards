@@ -2,7 +2,7 @@ class CreatePredictiveBoardJob
   include Sidekiq::Job
 
   def perform(image_id, user_id)
-    image = Image.find(image_id)
+    image = Image.find_by(id: image_id)
     if image.nil?
       Rails.logger.error "Image not found: #{image_id}"
       return

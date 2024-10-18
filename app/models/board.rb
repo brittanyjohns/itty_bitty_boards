@@ -87,16 +87,7 @@ class Board < ApplicationRecord
 
   SAFE_FILTERS = %w[all welcome preset featured popular general seasonal routines emotions actions animals food people places things colors shapes numbers letters].freeze
 
-  scope :with_artifacts, -> {
-          includes(
-            images: [
-              :docs,
-            # :audio_files_attachments,
-            # :audio_files_blobs,
-            # { user: { user_docs: :doc } },
-            ],
-          )
-        }
+  scope :with_artifacts, -> { includes({ board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }) }
 
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
@@ -391,8 +382,10 @@ class Board < ApplicationRecord
     new_board_image = nil
     if image_ids.include?(image_id.to_i)
       # Don't add the same image twice
+      puts "Image already exists"
+      return
     else
-      new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice)
+      new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images.count)
       if layout
         new_board_image.layout = layout
         new_board_image.skip_initial_layout = true

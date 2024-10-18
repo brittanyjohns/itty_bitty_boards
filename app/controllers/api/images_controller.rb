@@ -145,7 +145,7 @@ class API::ImagesController < API::ApplicationController
     else
       puts "No board found for image. Sending next images."
       @images = Board.predictive_default.images
-      CreatePredictiveBoardJob.perform_async(@image.id, @current_user.id)
+      # CreatePredictiveBoardJob.perform_async(@image.id, @current_user.id)
     end
     if !@board
       @board = Board.predictive_default
