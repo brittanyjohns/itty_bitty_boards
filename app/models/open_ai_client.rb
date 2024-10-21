@@ -151,9 +151,10 @@ class OpenAiClient
 
   def get_additional_words(name, number_of_words = 24, exclude_words = [])
     exclude_words_prompt = exclude_words.blank? ? "and no words to exclude." : "excluding the words '#{exclude_words.join("', '")}'."
+    puts "Exclude Words: #{exclude_words}"
     @model = GPT_4_MODEL
-    text = "I have an existing AAC board titled, '#{name}', #{exclude_words_prompt}. Please provide #{number_of_words} additional words that are foundational for basic communication in an AAC device. 
-    These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. They should be similar in nature to the words already on the board, but not duplicates.
+    text = "I have an existing AAC board titled, '#{name}' with the current words: [#{exclude_words_prompt}]. Please provide EXACTLY #{number_of_words} additional words that are foundational for basic communication in an AAC device. 
+    These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. They should be similar in nature to the words already on the board, but not duplicates. Do not repeat any words that are already on the board & only provide #{number_of_words} words. DO NOT INCLUDE [#{exclude_words_prompt}]. 
     Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
     @messages = [{ role: "user",
                   content: [{

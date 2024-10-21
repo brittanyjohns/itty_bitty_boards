@@ -834,9 +834,10 @@ class Board < ApplicationRecord
     }
   end
 
-  def get_words(number_of_words)
+  def get_words(name_to_send, number_of_words, words_to_exclude = [])
     words_to_exclude = board_images.map(&:label).uniq
-    response = OpenAiClient.new({}).get_additional_words(name, number_of_words, words_to_exclude)
+    puts "Words to exclude: #{words_to_exclude}"
+    response = OpenAiClient.new({}).get_additional_words(name_to_send, number_of_words, words_to_exclude)
     if response
       words = response[:content].gsub("```json", "").gsub("```", "").strip
       if words.blank? || words.include?("NO ADDITIONAL WORDS")
@@ -854,9 +855,19 @@ class Board < ApplicationRecord
     else
       Rails.logger.error "*** ERROR - get_words *** \nDid not receive valid response. Response: #{response}\n"
     end
-    words["additional_words"]
-    words
+    # words["additional_words"]
+    words_to_include = words["additional_words"] || []
+    words_to_include = words_to_include.map { |w| w.downcase }
+    words_to_include = words_to_include - words_to_exclude
+    words_to_include = words_to_include.uniq
+    puts "Words to include: #{words_to_include}"
+    words_to_include
   end
+
+  ["want", "need", "help", "stop", "more", "yes", "no", "like", "go", "come", "look", "play", "eat", "drink",
+   "feel", "open", "close", "turn", "give", "take", "find", "make", "read", "write",
+   "listen", "see", "hear", "touch", "sit", "stand", "i", "to", "you", "happy", "sad", "big",
+   "little", "fast", "slow", "hot", "cold", "good", "bad", "here", "there"]
 
   def get_word_suggestions(name_to_use, number_of_words)
     response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words)

@@ -214,7 +214,7 @@ class API::ImagesController < API::ApplicationController
     doc.processed = true
     if doc.save
       @image_with_display_doc = @image.attributes.merge({ display_doc: doc.attributes, src: doc.display_url })
-      render json: @image.with_display_doc(current_user), status: :created
+      render json: @image.with_display_doc(@current_user), status: :created
     else
       render json: @image.errors, status: :unprocessable_entity
     end

@@ -246,7 +246,9 @@ class API::BoardsController < API::ApplicationController
   def create_additional_images
     set_board
     num_of_words = params[:num_of_words].to_i || 10
-    result = @board.get_words(num_of_words)
+    name_to_send = params[:name] || @board.name
+    puts "Getting words for #{name_to_send}"
+    result = @board.get_words(name_to_send, num_of_words, @board.words)
     additional_words = result["additional_words"]
     @board.find_or_create_images_from_word_list(additional_words)
     render json: @board.api_view_with_images(current_user)
@@ -256,7 +258,8 @@ class API::BoardsController < API::ApplicationController
     set_board
     num_of_words = params[:num_of_words].to_i || 10
     board_words = @board.images.map(&:label).uniq
-    additional_words = @board.get_words(num_of_words)
+    name_to_send = params[:name] || @board.name
+    additional_words = @board.get_words(name_to_send, num_of_words, board_words)
     render json: additional_words
   end
 

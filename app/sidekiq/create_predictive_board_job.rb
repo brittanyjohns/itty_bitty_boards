@@ -11,6 +11,11 @@ class CreatePredictiveBoardJob
       Rails.logger.error "No next words for image: #{image_id}"
       image.set_next_words!
     end
+    user = User.find_by(id: user_id)
+    if user.nil?
+      Rails.logger.error "User not found: #{user_id}"
+      return
+    end
 
     result = image.create_predictive_board(user_id)
     if result
