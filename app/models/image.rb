@@ -132,7 +132,7 @@ class Image < ApplicationRecord
     if board
       board
     else
-      CreatePredictiveBoardJob.perform_async(id, user_id)
+      # CreatePredictiveBoardJob.perform_async(id, user_id)
       # create_predictive_board(user_id)
       Board.predictive_default
     end

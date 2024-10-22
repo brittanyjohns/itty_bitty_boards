@@ -25,9 +25,9 @@ class API::BoardsController < API::ApplicationController
         @predefined_boards = Board.predefined.user_made_with_scenarios.order(created_at: :desc)
       end
 
-      if current_user.admin?
-        @boards = Board.all.order(created_at: :desc)
-      end
+      # if current_user.admin?
+      #   @boards = Board.all.order(created_at: :desc)
+      # end
 
       @categories = @boards.map(&:category).uniq.compact
 

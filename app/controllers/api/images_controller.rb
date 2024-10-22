@@ -253,9 +253,9 @@ class API::ImagesController < API::ApplicationController
     end
 
     @image.create_words_from_next_words
-    if @image.predictive_board&.id === Board.predictive_default.id
-      CreatePredictiveBoardJob.perform_async(@image.id, User::DEFAULT_ADMIN_ID)
-    end
+    # if @image.predictive_board&.id === Board.predictive_default.id
+    #   CreatePredictiveBoardJob.perform_async(@image.id, User::DEFAULT_ADMIN_ID)
+    # end
     render json: @image.api_view(current_user)
   end
 
