@@ -247,9 +247,8 @@ class API::BoardsController < API::ApplicationController
     set_board
     num_of_words = params[:num_of_words].to_i || 10
     name_to_send = params[:name] || @board.name
-    puts "Getting words for #{name_to_send}"
     result = @board.get_words(name_to_send, num_of_words, @board.words)
-    additional_words = result["additional_words"]
+    additional_words = result
     @board.find_or_create_images_from_word_list(additional_words)
     render json: @board.api_view_with_images(current_user)
   end
