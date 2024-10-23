@@ -84,22 +84,33 @@ module ImageHelper
       puts "Skipping audio creation in test environment"
       return
     end
-    response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice)
-    if response
-      # response.stream_to_file("output.aac")
-      # audio_file = File.binwrite("audio.mp3", response)
-      File.open("output.aac", "wb") { |f| f.write(response) }
-      audio_file = File.open("output.aac")
-      new_audio_file = save_audio_file(audio_file, voice)
-      file_exists = File.exist?("output.aac")
-      File.delete("output.aac") if file_exists
-    else
-      Rails.logger.error "**** ERROR - create_audio_from_text **** \nDid not receive valid response.\n #{response&.inspect}"
+    Image.voices.each do |voice|
+      if !audio_file_exists_for?(voice)
+        create_audio_from_text(label, voice)
+      else
+        voice = user_id ? user.voice : "alloy"
+        create_audio_from_text(label, voice)
+      end
     end
-    new_audio_file
   end
 
-  def save_audio_file(audio_file, voice)
+  response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice)
+  if response
+    # response.stream_to_file("output.aac")
+    # audio_file = File.binwrite("audio.mp3", response)
+    File.open("output.aac", "wb") { |f| f.write(response) }
+    audio_file = File.open("output.aac")
+    new_audio_file = save_audio_file(audio_file, voice)
+    file_exists = File.exist?("output.aac")
+    File.delete("output.aac") if file_exists
+  else
+    Rails.logger.error "**** ERROR - create_audio_from_text **** \nDid not receive valid response.\n #{response&.inspect}"
+  end
+  new_audio_file
+end
+
+def save_audio_file(audio_file, voice)
+  if v
     self.audio_files.attach(io: audio_file, filename: "#{self.label_for_filename}_#{voice}.aac")
     new_audio_file = self.audio_files.last
     new_audio_file
