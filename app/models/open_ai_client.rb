@@ -12,11 +12,11 @@ class OpenAiClient
   end
 
   def self.openai_client
-    @openai_client ||= OpenAI::Client.new(access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"), log_errors: true)
+    @openai_client ||= OpenAI::Client.new(access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"), log_errors: Rails.env.development?)
   end
 
   def openai_client
-    @openai_client ||= OpenAI::Client.new(access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"), log_errors: true)
+    @openai_client ||= OpenAI::Client.new(access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"), log_errors: Rails.env.development?)
   end
 
   # def specific_image_prompt(img_prompt)

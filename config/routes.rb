@@ -191,6 +191,7 @@ Rails.application.routes.draw do
         post "create_predictive_board"
       end
       collection do
+        post "generate_audio"
         get "find_by_label"
         get "search"
         post "find_or_create"

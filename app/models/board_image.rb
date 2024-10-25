@@ -133,6 +133,7 @@ class BoardImage < ApplicationRecord
       layout: layout,
       status: status,
       audio_url: audio_url,
+      audio: audio_url,
       image_prompt: image_prompt,
       next_words: next_words,
     }

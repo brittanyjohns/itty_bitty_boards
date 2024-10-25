@@ -196,6 +196,34 @@ class API::ImagesController < API::ApplicationController
     render json: @image_with_display_doc
   end
 
+  def generate_audio
+    input_text = params[:text]
+
+    begin
+      client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"], log_errors: true)
+      puts "Generating audio for text: #{input_text}"
+      puts "Client: #{client.inspect}"
+
+      voice = params[:voice] || "alloy"
+
+      response = client.audio.speech(
+        parameters: {
+          model: "tts-1",
+          voice: voice,
+          input: input_text,
+        },
+      )
+
+      puts "Response: #{response.inspect}"
+
+      audio_data = response
+      send_data audio_data, type: "audio/mpeg", disposition: "attachment", filename: "output.mp3"
+    rescue StandardError => e
+      Rails.logger.error("Error generating audio: #{e.message}")
+      render json: { error: "Failed to generate audio" }, status: :internal_server_error
+    end
+  end
+
   def create
     @current_user = current_user
 
@@ -335,7 +363,7 @@ class API::ImagesController < API::ApplicationController
     @found_image = @image
     @image = Image.create(label: label, private: is_private, user_id: @current_user.id, image_prompt: image_params[:image_prompt], image_type: "User") unless @image
     @board = Board.find_by(id: image_params[:board_id]) if image_params[:board_id].present?
-    @board.add_image(@image.id) if @board
+    new_board_image = @board.add_image(@image.id) if @board
     if @found_image
       notice = "Image found!"
       @found_image.update(status: "finished") unless @found_image.finished?
@@ -350,13 +378,11 @@ class API::ImagesController < API::ApplicationController
         notice = "You don't have enough tokens to generate an image."
       end
     end
-    if !@found_image || @found_image&.docs.none?
-      limit = current_user.admin? ? 10 : 5
-      GetSymbolsJob.perform_async([@image.id], limit)
-      notice += " Creating #{limit} #{"symbol".pluralize(limit)} for image."
+    if new_board_image
+      render json: new_board_image.api_view
+    else
+      render json: @image.api_view(@current_user), notice: notice
     end
-    @image_with_display_doc = @image.with_display_doc(@current_user)
-    render json: @image_with_display_doc
   end
 
   def find_by_label
@@ -512,7 +538,7 @@ class API::ImagesController < API::ApplicationController
   end
 
   def image_params
-    params.require(:image).permit(:label, :image_prompt, :display_image,
+    params.require(:image).permit(:label, :image_prompt, :display_image, :board_id,
                                   next_words: [],
                                   audio_files: [], docs: [:id, :user_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
   end

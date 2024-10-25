@@ -880,6 +880,7 @@ class Image < ApplicationRecord
   end
 
   def api_view(viewing_user = nil)
+    @default_audio_url = default_audio_url
     {
       id: id,
       label: label,
@@ -889,7 +890,8 @@ class Image < ApplicationRecord
       bg_color: bg_class,
       text_color: text_color,
       src: display_image_url(viewing_user),
-      audio: default_audio_url,
+      audio_url: @default_audio_url,
+      audio: @default_audio_url,
       status: status,
       error: error,
       open_symbol_status: open_symbol_status,
@@ -915,13 +917,15 @@ class Image < ApplicationRecord
     default_image_doc = image_docs.where(user_id: [User::DEFAULT_ADMIN_ID, nil]).first
     remaining = remaining_user_boards(current_user)
     user_image_boards = user_boards(current_user)
+    @default_audio_url = default_audio_url
     {
       id: id,
       label: label,
       image_prompt: image_prompt,
       display_doc: display_image_url(current_user),
       src: display_image_url(current_user),
-      audio: default_audio_url,
+      audio: @default_audio_url,
+      audio_url: @default_audio_url,
       audio_files: audio_files_for_api,
       custom_audio_files: custom_audio_files_for_api,
       status: status,
