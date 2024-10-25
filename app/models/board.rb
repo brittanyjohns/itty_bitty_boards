@@ -396,11 +396,11 @@ class Board < ApplicationRecord
         new_board_image.skip_initial_layout = true
         new_board_image.save
       end
-      image = Image.find(image_id)
-      if image.existing_voices.include?(self.voice)
+      @image = Image.with_artifacts.find(image_id)
+      if @image.existing_voices.include?(self.voice)
         new_board_image.voice = self.voice
       else
-        image.find_or_create_audio_file_for_voice(self.voice)
+        @image.find_or_create_audio_file_for_voice(self.voice)
       end
 
       unless new_board_image.save
@@ -408,6 +408,7 @@ class Board < ApplicationRecord
       end
     end
     Rails.logger.error "NO IMAGE FOUND" unless new_board_image
+    new_board_image.src = @image.display_image(self.user)
     new_board_image
   end
 

@@ -22,7 +22,7 @@ class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
   belongs_to :board
   belongs_to :image
-  attr_accessor :skip_create_voice_audio, :skip_initial_layout
+  attr_accessor :skip_create_voice_audio, :skip_initial_layout, :src
 
   before_create :set_defaults
   after_create :set_next_words
@@ -120,12 +120,17 @@ class BoardImage < ApplicationRecord
     save
   end
 
+  def user
+    board.user
+  end
+
   def api_view
     {
       id: id,
       image_id: image_id,
       label: label,
       voice: voice,
+      src: src || image.display_image(self.user),
       bg_color: bg_color,
       text_color: text_color,
       font_size: font_size,
