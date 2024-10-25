@@ -13,30 +13,27 @@ class API::V1::ChildAuthsController < API::ApplicationController
       user_context = child.user
 
       unless child.can_sign_in?(user_context)
-        if authenticate_token!
-          if user_context&.admin?
-            render json: { token: auth_token, child: child }
-            return
-          end
+        if user_context&.admin?
+          return render json: { token: auth_token, child: child }
         end
-        render json: { error: "Account not active. Please upgrade to a pro account to continue." }, status: :unauthorized
-        return
+        return render json: { error: "Account not active. Please upgrade to a pro account to continue.", token: "" }, status: :unauthorized
       end
-      render json: { token: child.authentication_token, child: child }
+
+      return render json: { token: child.authentication_token, child: child }
     else
-      render json: { error: error_message }, status: :unauthorized
+      return render json: { error: error_message }, status: :unauthorized
     end
   end
 
   def current
     if current_child
-      render json: { child: current_child.api_view }
+      return render json: { child: current_child.api_view }
     else
       current_child = child_from_token
       if current_child
-        render json: { child: current_child }
+        return render json: { child: current_child }
       else
-        render json: { error: "Unauthorized - No child signed in" }, status: :unauthorized
+        return render json: { error: "Unauthorized - No child signed in" }, status: :unauthorized
       end
     end
   end
