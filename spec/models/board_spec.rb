@@ -105,7 +105,7 @@ RSpec.describe Board, type: :model do
 
     it "updates the layout for the specified screen size and does not affect other screen sizes" do
       layout_to_set = [{ "i" => board_image1.id.to_s, "x" => 0, "y" => 0, "w" => 1, "h" => 1 }]
-      board.update_grid_layout("md")
+      board.update_grid_layout(layout_to_set, "md")
 
       expect(board_image1.reload.layout["md"]).to eq(layout_to_set.first)
       expect(board_image1.layout["sm"]).to be_nil
@@ -117,7 +117,7 @@ RSpec.describe Board, type: :model do
         board_image1.layout["md"] = { "x" => 1, "y" => 1, "w" => 1, "h" => 1 }
         board_image1.save
 
-        board.update_grid_layout("md")
+        board.update_grid_layout(layout_to_set, "md")
 
         expect(board_image1.reload.layout["md"]).to eq(layout_to_set.first)
         expect(board.layout["md"]).to eq(layout_to_set)
@@ -156,7 +156,7 @@ RSpec.describe Board, type: :model do
       )
     end
     it "returns the expected JSON structure" do
-      board.update_grid_layout("md")
+      board.update_grid_layout(layout_to_set, "md")
       board.reload
       json_response = board.api_view_with_images(user)
 

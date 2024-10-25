@@ -66,32 +66,22 @@ class BoardImage < ApplicationRecord
     board.board_images.sort_by(&:position)
   end
 
-  def grid_x
-    result = nil
-    if position
-      position_index = position - 1
-      result = position_index % board.number_of_columns
-    else
-      result = 0
-    end
-    result
+  def grid_x(screen_size = "lg")
+    return layout[screen_size]["x"] if layout[screen_size] && layout[screen_size]["x"]
+    board.next_available_cell(screen_size)&.fetch("x", 0) || 0
   end
 
-  def grid_y
-    if position
-      result = (position / board.number_of_columns).floor
-      result
-    else
-      0
-    end
+  def grid_y(screen_size = "lg")
+    return layout[screen_size]["y"] if layout[screen_size] && layout[screen_size]["y"]
+    board.next_available_cell(screen_size)&.fetch("y", 0) || 0
   end
 
   def initial_layout
-    { "lg" => { "i" => id.to_s, "x" => grid_x, "y" => grid_y, "w" => 1, "h" => 1 },
-      "md" => { "i" => id.to_s, "x" => grid_x, "y" => grid_y, "w" => 1, "h" => 1 },
-      "sm" => { "i" => id.to_s, "x" => grid_x, "y" => grid_y, "w" => 1, "h" => 1 },
-      "xs" => { "i" => id.to_s, "x" => grid_x, "y" => grid_y, "w" => 1, "h" => 1 },
-      "xxs" => { "i" => id.to_s, "x" => grid_x, "y" => grid_y, "w" => 1, "h" => 1 } }
+    { "lg" => { "i" => id.to_s, "x" => grid_x("lg"), "y" => grid_y("lg"), "w" => 1, "h" => 1 },
+      "md" => { "i" => id.to_s, "x" => grid_x("md"), "y" => grid_y("md"), "w" => 1, "h" => 1 },
+      "sm" => { "i" => id.to_s, "x" => grid_x("sm"), "y" => grid_y("sm"), "w" => 1, "h" => 1 },
+      "xs" => { "i" => id.to_s, "x" => grid_x("sm"), "y" => grid_y("sm"), "w" => 1, "h" => 1 },
+      "xxs" => { "i" => id.to_s, "x" => grid_x("sm"), "y" => grid_y("sm"), "w" => 1, "h" => 1 } }
   end
 
   def calucate_position(x, y)
@@ -166,7 +156,7 @@ class BoardImage < ApplicationRecord
       self.audio_url = image.default_audio_url(audio_file)
     else
       puts "Board Image - Creating audio file for voice: #{voice} - #{image.label}"
-      image.start_create_all_audio_job
+      image.start_create_all_audio_job unless Rails.env.test? || Rails.env.development?
       # This probably is nil anyway but just in case
       # self.audio_url = image.audio_url
     end

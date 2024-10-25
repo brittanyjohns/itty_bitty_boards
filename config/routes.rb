@@ -227,6 +227,7 @@ Rails.application.routes.draw do
         get "preset"
       end
       member do
+        post "format_with_ai"
         post "save_layout"
         post "rearrange_images"
         post "add_image"

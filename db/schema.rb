@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_09_23_211331) do
+ActiveRecord::Schema[7.1].define(version: 2024_10_25_185530) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -90,7 +90,9 @@ ActiveRecord::Schema[7.1].define(version: 2024_09_23_211331) do
     t.jsonb "layout", default: {}
     t.string "status", default: "pending"
     t.string "audio_url"
+    t.jsonb "data", default: {}
     t.index ["board_id"], name: "index_board_images_on_board_id"
+    t.index ["data"], name: "index_board_images_on_data", using: :gin
     t.index ["image_id"], name: "index_board_images_on_image_id"
   end
 
@@ -119,7 +121,9 @@ ActiveRecord::Schema[7.1].define(version: 2024_09_23_211331) do
     t.jsonb "margin_settings", default: {}
     t.jsonb "settings", default: {}
     t.string "category"
+    t.jsonb "data", default: {}
     t.index ["category"], name: "index_boards_on_category"
+    t.index ["data"], name: "index_boards_on_data", using: :gin
     t.index ["parent_type", "parent_id"], name: "index_boards_on_parent"
     t.index ["user_id"], name: "index_boards_on_user_id"
   end

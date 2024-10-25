@@ -268,6 +268,14 @@ class API::BoardsController < API::ApplicationController
     render json: additional_words
   end
 
+  def format_with_ai
+    set_board
+    screen_size = params[:screen_size] || "lg"
+    @board.format_board_with_ai(screen_size)
+    @board.reload
+    render json: @board.api_view_with_images(current_user)
+  end
+
   def add_image
     set_board
     # @board = Board.with_artifacts.find(params[:id])

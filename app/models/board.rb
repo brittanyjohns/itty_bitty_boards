@@ -395,6 +395,12 @@ class Board < ApplicationRecord
         new_board_image.layout = layout
         new_board_image.skip_initial_layout = true
         new_board_image.save
+      else
+        new_board_image.layout = {}
+        new_board_image.layout["lg"] = next_available_cell("lg").merge("i" => new_board_image.id.to_s)
+        new_board_image.layout["md"] = next_available_cell("md").merge("i" => new_board_image.id.to_s)
+        new_board_image.layout["sm"] = next_available_cell("sm").merge("i" => new_board_image.id.to_s)
+        new_board_image.save
       end
       @image = Image.with_artifacts.find(image_id)
       if @image.existing_voices.include?(self.voice)
@@ -607,18 +613,9 @@ class Board < ApplicationRecord
   end
 
   def calculate_grid_layout_for_screen_size(screen_size, reset_layouts = false)
-    case screen_size
-    when "sm"
-      num_of_columns = self.small_screen_columns > 0 ? self.small_screen_columns : 3
-    when "md"
-      num_of_columns = self.medium_screen_columns > 0 ? self.medium_screen_columns : 8
-    when "lg"
-      num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 12
-    else
-      num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 12
-    end
+    num_of_columns = get_number_of_columns(screen_size)
 
-    layout_to_set = {} # Initialize as a hash
+    layout_to_set = [] # Initialize as an array
 
     position_all_board_images
     row_count = 0
@@ -638,103 +635,40 @@ class Board < ApplicationRecord
           bi.skip_create_voice_audio = true
           bi.save
           bi.clean_up_layout
-          layout_to_set[bi.id] = new_layout # Treat as a hash
+          layout_to_set << new_layout
         end
         row_count += 1
       end
     end
 
-    self.layout[screen_size] = layout_to_set.values # Convert back to an array if needed
+    self.layout[screen_size] = layout_to_set
     self.board_images.reset
     self.save!
-  end
-
-  def reset_multiple_images_layout_all_screen_sizes(new_images)
-    SCREEN_SIZES.each do |screen_size|
-      calculate_layout_for_multiple_images(new_images, screen_size)
-    end
-  end
-
-  def calculate_layout_for_multiple_images(new_images, screen_size)
-    # Step 1: Determine the number of columns based on screen size
-    board = self
-    num_of_columns = case screen_size
-      when "sm"
-        board.small_screen_columns > 0 ? board.small_screen_columns : 3
-      when "md"
-        board.medium_screen_columns > 0 ? board.medium_screen_columns : 8
-      when "lg"
-        board.large_screen_columns > 0 ? board.large_screen_columns : 12
-      else
-        board.large_screen_columns > 0 ? board.large_screen_columns : 12
-      end
-
-    # Step 2: Get the current layout and existing images
-    current_layout = board.layout[screen_size] || []
-    existing_images = board.board_images.order(:position)
-
-    # Step 3: Position existing images
-    row_count = 0
-    position_index = 0
-
-    # Store all layouts in a hash for efficient updating later
-    updated_layout = {}
-
-    # Position existing images first
-    existing_images.each_slice(num_of_columns) do |row|
-      row.each_with_index do |image, index|
-        new_layout = image.layout[screen_size] || {}
-        new_layout["x"] = index
-        new_layout["y"] = row_count
-        new_layout["w"] = 1
-        new_layout["h"] = 1
-        updated_layout[image.id] = new_layout
-        image.layout[screen_size] = new_layout
-        image.skip_create_voice_audio = true
-        image.save!
-      end
-      row_count += 1
-    end
-
-    # Step 4: Add new images to the layout
-    max_y = existing_images.map { |bi| bi.layout[screen_size]["y"] }.max || 0
-    on_max_y = existing_images.select { |bi| bi.layout[screen_size]["y"] == max_y } || []
-    max_x = on_max_y.map { |bi| bi.layout[screen_size]["x"] }.max || 0
-
-    puts "Max X: #{max_x}, Max Y: #{max_y}"
-    row_count = max_y
-    new_images.each do |new_image|
-      col_position = position_index % num_of_columns
-      row_position = row_count + (position_index / num_of_columns)
-
-      puts "Positioning image: #{new_image.label} at x: #{col_position}, y: #{row_position}"
-      puts "Position index: #{position_index}, max_y: #{max_y}\n"
-
-      new_layout = {
-        "i" => new_image.id.to_s,
-        "x" => col_position,
-        "y" => row_position,
-        "w" => 1,
-        "h" => 1,
-      }
-
-      new_image.layout[screen_size] = new_layout
-      new_image.skip_create_voice_audio = true
-      new_image.save!
-      updated_layout[new_image.id] = new_layout
-
-      position_index += 1
-    end
-
-    # Step 5: Update the board's overall layout
-    board.layout[screen_size] = updated_layout.values
-    board.save!
   end
 
   def set_layouts_for_screen_sizes
     calculate_grid_layout_for_screen_size("sm", true)
     calculate_grid_layout_for_screen_size("md", true)
     calculate_grid_layout_for_screen_size("lg", true)
+  end
+
+  def update_layouts_for_screen_sizes
+    update_board_layout("sm")
+    update_board_layout("md")
+    update_board_layout("lg")
+  end
+
+  def update_board_layout(screen_size)
+    self.layout = {}
+    self.layout[screen_size] = {}
+
+    board_images.each do |bi|
+      bi.layout[screen_size] = bi.layout[screen_size] || {}
+      bi_layout = bi.layout[screen_size].merge("i" => bi.id.to_s)
+      self.layout[screen_size][bi.id] = bi_layout
+    end
+    self.save
+    self.board_images.reset
   end
 
   def reset_layouts
@@ -770,14 +704,112 @@ class Board < ApplicationRecord
     self.save!
   end
 
-  def next_grid_cell
-    x = board_images.pluck(:layout).map { |l| l[:x] }.max
-    y = board_images.pluck(:layout).map { |l| l[:y] }.max
-    x = 0 if x.nil?
-    y = 0 if y.nil?
-    x += 1
-    y += 1 if x >= number_of_columns
-    { x: x, y: y }
+  def get_number_of_columns(screen_size = "lg")
+    case screen_size
+    when "sm"
+      num_of_columns = self.small_screen_columns > 0 ? self.small_screen_columns : 3
+    when "md"
+      num_of_columns = self.medium_screen_columns > 0 ? self.medium_screen_columns : 8
+    when "lg"
+      num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 12
+    else
+      num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 12
+    end
+  end
+
+  def next_available_cell(screen_size = "lg")
+    # Create a hash to track occupied cells
+    occupied = Hash.new { |hash, key| hash[key] = [] }
+    self.update_board_layout(screen_size)
+    grid = self.layout[screen_size] || []
+    columns = get_number_of_columns(screen_size)
+
+    # Mark existing cells as occupied
+    grid.each do |cell|
+      cell_layout = cell[1]
+      x, y, w, h = cell_layout.values_at("x", "y", "w", "h")
+      x ||= 0
+      y ||= 0
+      w ||= 1
+      h ||= 1
+      w.times do |w_offset|
+        h.times do |h_offset|
+          occupied[y + h_offset] << (x + w_offset)
+        end
+      end
+    end
+
+    # Search for the first unoccupied 1x1 cell
+    (0..Float::INFINITY).each do |y|
+      (0...columns).each do |x|
+        unless occupied[y].include?(x)
+          return { "x" => x, "y" => y, "w" => 1, "h" => 1 }
+        end
+      end
+    end
+  end
+
+  def format_board_with_ai(screen_size = "lg")
+    num_of_columns = get_number_of_columns(screen_size)
+    words = images.map(&:label)
+    response = OpenAiClient.new({}).generate_formatted_board(name, num_of_columns, words)
+    if response
+      puts "Response: #{response.class}"
+      parsed_response = JSON.parse(response)
+      grid_response = parsed_response["grid"]
+      personable_explanation = "Personable Explanation: " + parsed_response["personable_explanation"]
+      professional_explanation = "Professional Explanation: " + parsed_response["professional_explanation"]
+      explanation = personable_explanation + "\n" + professional_explanation
+      self.data["personable_explanation"] = personable_explanation
+      self.data["professional_explanation"] = professional_explanation
+      grid_response.each do |item|
+        label = item["word"]
+        board_image = board_images.joins(:image).find_by(images: { label: label })
+        image = board_image&.image
+
+        if board_image
+          item["size"] ||= [1, 1]
+          if item["frequency"].present?
+            if item["frequency"] === "high"
+              item["size"] = [2, 2]
+            end
+            puts "Frequency: #{item["frequency"]}"
+            board_image.data["label"] = label
+            board_image.data[screen_size] ||= {}
+            board_image.data[screen_size]["frequency"] = item["frequency"]
+            board_image.data[screen_size]["size"] = item["size"]
+            board_image.data["part_of_speech"] = item["part_of_speech"]
+            board_image.data["bg_color"] = image.background_color_for(item["part_of_speech"])
+            board_image.save!
+          end
+          image.part_of_speech = item["part_of_speech"] if item["part_of_speech"].present? && image.part_of_speech.blank?
+          image.save!
+
+          x_coordinate = item["position"][0]
+          y_coordinate = item["position"][1]
+          puts "Label: #{label} - X: #{x_coordinate} - Y: #{y_coordinate}"
+          if x_coordinate >= num_of_columns
+            x_coordinate = 0
+          end
+          max_num_of_rows = (images.count / num_of_columns.to_f).ceil
+          puts "Max Rows: #{max_num_of_rows}"
+          if y_coordinate >= max_num_of_rows
+            puts "#{image.label} Y Coordinate: #{y_coordinate} - Max Rows: #{max_num_of_rows}"
+            y_coordinate = max_num_of_rows + 1
+          end
+
+          board_image.layout ||= {}
+          board_image.layout[screen_size] = { "x" => x_coordinate, "y" => y_coordinate, "w" => 1, "h" => 1, "i" => board_image.id.to_s }
+          board_image.save!
+        else
+          puts "Board Image not found for label: #{label}"
+        end
+      end
+      if explanation
+        self.description = explanation
+        self.save!
+      end
+    end
   end
 
   def api_view_with_predictive_images(viewing_user = nil)
@@ -838,7 +870,7 @@ class Board < ApplicationRecord
           status: board_image.status,
         }
       end,
-      layout: layout,
+    # layout: layout,
     }
   end
 

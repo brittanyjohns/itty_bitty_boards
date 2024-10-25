@@ -94,6 +94,17 @@ class OpenAiClient
     image_prompt_content
   end
 
+  def generate_formatted_board(name, num_of_columns, words = [])
+    @model = GPT_4_MODEL
+    @messages = [{ role: "user",
+                  content: [{ type: "text",
+                              text: format_board_prompt(name, num_of_columns, words) }] }]
+    response = create_chat
+    puts "*******\nResponse: #{response}\n"
+    Rails.logger.debug "*** ERROR *** Invaild Formatted Board Response: #{response}" unless response
+    response[:content]
+  end
+
   def clarify_image_description(image_description)
     Rails.logger.debug "Missing image description.\n" && return unless image_description
     @model = GPT_4_MODEL
@@ -133,9 +144,36 @@ class OpenAiClient
     Make your best attempt to provide a list of 24 words or short phrases (2 words max) that are foundational for basic communication in an AAC device. Respond with 'NO NEXT WORDS' if there are no common follow-up words for '#{label}' that would be used in conversation & an AAC device. Use json format. Respond with a JSON object in the following format: {\"next_words\": [\"word1\", \"word2\", \"word3\", ...]}"
   end
 
-  # def next_words_prompt(label)
-  #   "For the word '#{label}', decide if it generally leads to a set of specific next words in daily conversations useful for an AAC device. If yes, provide a JSON list of 24 foundational words or short phrases essential for AAC users to express intents, needs, and responses across various situations. Use the format: {\"next_words\": [\"word1\", \"word2\", ...]}. If '#{label}' does not naturally lead to next words, respond with 'NO NEXT WORDS'. Avoid contractions and context-specific words. Two-word phrases are allowed but should be limited. The goal is to populate an AAC device with versatile vocabulary."
-  # end
+  def format_board_prompt(name, num_of_columns, word_array = [])
+    words = word_array.join(", ") unless word_array.blank?
+    word_count = word_array.size
+    max_num_of_rows = (word_count / num_of_columns.to_f).ceil
+    text = <<-PROMPT
+      Create an AAC communication board formatted as a grid layout. The board should be a JSON object with the following structure:
+
+      {
+        "grid": [
+          {"word": "I", "position": [0,0], "part_of_speech": "pronoun", "frequency": "high"},
+          {"word": "want", "position": [0,1], "part_of_speech": "verb", "frequency": "high"},
+          {"word": "more", "position": [0,2], "part_of_speech": "adverb", "frequency": "high"},
+          ...
+        ]
+      }
+
+      Organize the words based on these guidelines:
+      1. Core words should be placed first and grouped together, prioritizing high-frequency words.
+      2. Group words by parts of speech (e.g., pronouns, verbs, adjectives).
+      3. Consider how speech-language pathologists arrange words for ease of use in communication, ensuring frequently used words are near the top left.
+      4. Use a grid layout with a maximum of #{num_of_columns} columns and a variable number of rows based on the number of words. Maximize the number of words per row while keeping the board easy to navigate. Max rows: #{max_num_of_rows}.
+      5. Each entry should include the word, its grid position as [x, y], its part of speech, and its frequency of use.
+
+      Please create a grid layout that include the words: '#{words}', grouped and positioned based on their typical use in AAC communication.
+      The Y-COORDINATE should increase from top to bottom, and the X-COORDINATE should increase from left to right.
+      It is VERY important that the Y-COOORDINATE should not exceed #{max_num_of_rows} and the X-COORDINATE should not exceed #{num_of_columns}.  AND that there are no duplicate grid positions.
+      Please also provide a professional explanation (for a speech-language pathologist) and a personable explanation (for a caregiver or user - but still professional) of the layout.
+      Respond with a JSON object in the following format: {\"grid\": [{\"word\": \"word1\", \"position\": [x1, y1], \"part_of_speech\": \"part_of_speech1\", \"frequency\": \"frequency1\"}, ...], \"professional_explanation\": \"professional_explanation\", \"personable_explanation\": \"personable_explanation\"}
+    PROMPT
+  end
 
   def get_next_words(label)
     @model = GPT_4_MODEL
