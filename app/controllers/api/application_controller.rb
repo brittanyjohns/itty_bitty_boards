@@ -44,8 +44,8 @@ module API
     private
 
     def user_from_token
-      puts "USERToken: #{token}"
-      User.find_by(authentication_token: token) if token.present?
+      puts "USERToken: #{@user_from_token}"
+      @user_from_token ||= User.find_by(authentication_token: token) if token.present?
     end
 
     def child_from_token

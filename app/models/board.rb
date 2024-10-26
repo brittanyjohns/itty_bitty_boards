@@ -396,10 +396,11 @@ class Board < ApplicationRecord
         new_board_image.skip_initial_layout = true
         new_board_image.save
       else
-        new_board_image.layout = {}
-        new_board_image.layout["lg"] = next_available_cell("lg").merge("i" => new_board_image.id.to_s)
-        new_board_image.layout["md"] = next_available_cell("md").merge("i" => new_board_image.id.to_s)
-        new_board_image.layout["sm"] = next_available_cell("sm").merge("i" => new_board_image.id.to_s)
+        # new_board_image.layout = {}
+
+        # new_board_image.layout["lg"] = next_available_cell("lg").merge("i" => new_board_image.id.to_s)
+        # new_board_image.layout["md"] = next_available_cell("md").merge("i" => new_board_image.id.to_s)
+        # new_board_image.layout["sm"] = next_available_cell("sm").merge("i" => new_board_image.id.to_s)
         new_board_image.save
       end
       @image = Image.with_artifacts.find(image_id)
