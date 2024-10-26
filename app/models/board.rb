@@ -264,14 +264,6 @@ class Board < ApplicationRecord
     Image.public_img.non_menu_images.excluding(images)
   end
 
-  def words
-    if parent_type == "Menu"
-      ["please", "thank you", "yes", "no", "and", "help"]
-    else
-      ["I", "want", "to", "go", "yes", "no"]
-    end
-  end
-
   def open_ai_opts
     {}
   end
@@ -490,6 +482,7 @@ class Board < ApplicationRecord
       description: description,
       category: category,
       common_words: Board.common_words,
+      words: words,
       parent_type: parent_type,
       parent_id: parent_id,
       parent_description: parent_type === "User" ? "User" : parent&.to_s,
