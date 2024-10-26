@@ -480,13 +480,16 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_images(viewing_user = nil)
+    missing_common_words = Board.common_words - words
     {
       id: id,
       name: name,
       description: description,
       category: category,
       common_words: Board.common_words,
-      words: words,
+      word_list: words,
+      missing_common_words: missing_common_words,
+      data: data,
       parent_type: parent_type,
       parent_id: parent_id,
       parent_description: parent_type === "User" ? "User" : parent&.to_s,
