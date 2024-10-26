@@ -412,7 +412,7 @@ class Board < ApplicationRecord
       end
     end
     Rails.logger.error "NO IMAGE FOUND" unless new_board_image
-    new_board_image.src = @image.display_image(self.user)
+    new_board_image.src = @image.display_image_url(self.user)
     new_board_image
   end
 
