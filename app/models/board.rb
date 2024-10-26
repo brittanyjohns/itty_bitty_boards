@@ -147,11 +147,8 @@ class Board < ApplicationRecord
   end
 
   def self.common_words
-    ["Yes", "No", "Please", "Thank you", "Help", "More", "I want", "Eat", "Drink", "Bathroom", "Pain", "Stop",
-     "Go", "Like", "Don't", "Play", "Finished", "Hungry", "Thirsty", "Tired", "Sad",
-     "Happy", "Mom", "Dad", "Friend", "Hot", "Cold", "Where", "Come here", "I need", "Sorry", "Goodbye",
-     "Hello", "What", "Who", "How", "When", "Why", "Look", "Listen", "Read",
-     "Write", "Open", "Close", "Turn on", "Turn off", "Up", "Down", "In", "Out"]
+    ["I", "you", "he", "she", "it", "we", "they", "that", "this", "the", "a", "is", "can", "will", "do", "don't", "go", "want",
+     "please", "thank you", "yes", "no", "and", "help", "hello", "goodbye", "hi", "bye", "stop", "start", "more", "less", "big", "small"]
   end
 
   def self.update_predictive(words = nil)
@@ -492,6 +489,7 @@ class Board < ApplicationRecord
       name: name,
       description: description,
       category: category,
+      common_words: Board.common_words,
       parent_type: parent_type,
       parent_id: parent_id,
       parent_description: parent_type === "User" ? "User" : parent&.to_s,

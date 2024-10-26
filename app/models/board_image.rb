@@ -120,7 +120,7 @@ class BoardImage < ApplicationRecord
       image_id: image_id,
       label: label,
       voice: voice,
-      src: src || image.display_image_url(self.user),
+      src: image.display_image_url(self.user),
       bg_color: bg_color,
       text_color: text_color,
       font_size: font_size,
