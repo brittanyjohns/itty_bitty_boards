@@ -8,7 +8,7 @@ class API::UsersController < API::ApplicationController
     else
       @users = [current_user]
     end
-    render json: @users
+    render json: @users.map(&:api_view)
   end
 
   # GET /users/1 or /users/1.json

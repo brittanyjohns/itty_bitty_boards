@@ -5,21 +5,20 @@ class API::V1::ChildAuthsController < API::ApplicationController
     parent_id = params[:user_id]
     username = params[:username]
     password = params[:password]
-    puts "Parent ID: #{parent_id} Username: #{username} Password: #{password}"
 
     if (child = ChildAccount.valid_credentials?(username, password))
-      puts "Child found: #{child.print_credentials}"
       auth_token = child.authentication_token
       user_context = child.user
 
       unless child.can_sign_in?(user_context)
         if user_context&.admin?
+          child.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip, sign_in_count: child.sign_in_count + 1)
           return render json: { token: auth_token, child: child }
         end
         return render json: { error: "Account not active. Please upgrade to a pro account to continue.", token: "" }, status: :unauthorized
       end
-
-      return render json: { token: child.authentication_token, child: child }
+      child.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip, sign_in_count: child.sign_in_count + 1)
+      return render json: { token: auth_token, child: child }
     else
       return render json: { error: error_message }, status: :unauthorized
     end

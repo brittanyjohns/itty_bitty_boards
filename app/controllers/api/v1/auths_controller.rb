@@ -30,6 +30,7 @@ module API
             return
           end
           sign_in user
+          user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
           #  Check if subscription is expired
           if user.subscription_expired?
             user.update(plan_type: "free")

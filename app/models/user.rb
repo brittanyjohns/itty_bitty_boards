@@ -261,6 +261,7 @@ class User < ApplicationRecord
     view["last_sign_in_ip"] = last_sign_in_ip
     view["current_sign_in_at"] = current_sign_in_at
     view["current_sign_in_ip"] = current_sign_in_ip
+    view["sign_in_count"] = sign_in_count
     view
   end
 end
