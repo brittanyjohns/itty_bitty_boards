@@ -14,7 +14,6 @@ class API::UsersController < API::ApplicationController
   # GET /users/1 or /users/1.json
   def show
     unless current_user&.admin? || current_user == @user
-      puts ">>>> Unauthorized"
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
@@ -48,6 +47,7 @@ class API::UsersController < API::ApplicationController
     @user.settings["disable_audit_logging"] = params[:disable_audit_logging] || false
     @user.settings["enable_image_display"] = params[:enable_image_display] || false
     @user.settings["enable_text_display"] = params[:enable_text_display] || false
+    @user.settings["startup_board_group_id"] = params[:startup_board_group_id] if params[:startup_board_group_id]
 
     respond_to do |format|
       if @user.save

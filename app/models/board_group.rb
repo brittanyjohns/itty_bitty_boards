@@ -20,6 +20,9 @@ class BoardGroup < ApplicationRecord
   belongs_to :user
 
   scope :predefined, -> { where(predefined: true) }
+  scope :with_artifacts, -> { includes(boards: [:images, :board_images]) }
+
+  validates :name, presence: true
 
   include PgSearch::Model
   pg_search_scope :search_by_name,
@@ -28,7 +31,17 @@ class BoardGroup < ApplicationRecord
                     tsearch: { prefix: true },
                   }
 
-  after_initialize :set_initial_layout, if: :layout_empty?
+  # after_initialize :set_initial_layout, if: :layout_empty?
+  after_save :calculate_grid_layout
+  after_save :create_board_audio_files
+
+  def create_board_audio_files
+    boards.each do |board|
+      puts "Creating audio files for board #{board.id}"
+      next if board.audio_url.present?
+      board.create_voice_audio
+    end
+  end
 
   def layout_empty?
     layout.blank?
@@ -44,7 +57,7 @@ class BoardGroup < ApplicationRecord
       name: name,
       user_id: user_id,
       predefined: predefined,
-      layout: layout,
+      layout: print_grid_layout,
       number_of_columns: number_of_columns,
       display_image_url: display_image_url,
       boards: boards.map { |board| board.api_view(viewing_user) },
@@ -64,6 +77,10 @@ class BoardGroup < ApplicationRecord
 
   def self.welcome_group
     BoardGroup.find_by(name: "Welcome", predefined: true)
+  end
+
+  def self.startup
+    BoardGroup.find_or_create_by(name: "Startup", predefined: true)
   end
 
   def calculate_grid_layout
@@ -87,11 +104,7 @@ class BoardGroup < ApplicationRecord
   end
 
   def print_grid_layout
-    layout = {}
-    boards.order(:position).each do |bi|
-      layout[bi.id] = bi.layout
-    end
-    layout
+    boards.map(&:layout)
   end
 
   def adjust_layouts

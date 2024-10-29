@@ -43,6 +43,8 @@ class Board < ApplicationRecord
   has_many :board_groups, through: :board_group_boards
   has_many :child_boards, dependent: :destroy
 
+  attr_accessor :skip_create_voice_audio
+
   include UtilHelper
 
   include PgSearch::Model
@@ -89,6 +91,8 @@ class Board < ApplicationRecord
 
   scope :with_artifacts, -> { includes({ board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }) }
 
+  include ImageHelper
+
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
 
@@ -100,14 +104,9 @@ class Board < ApplicationRecord
   before_create :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
   after_initialize :set_screen_sizes, unless: :all_validate_screen_sizes?
-  after_initialize :set_initial_layout, if: :layout_empty?
 
   def layout_empty?
     layout.blank?
-  end
-
-  def set_initial_layout
-    self.layout = { "lg" => [], "md" => [], "sm" => [] }
   end
 
   validates :name, presence: true
@@ -122,6 +121,60 @@ class Board < ApplicationRecord
 
   def clean_up_scenarios
     Scenario.where(board_id: id).destroy_all
+  end
+
+  def label_for_filename
+    name.downcase.gsub(" ", "_")
+  end
+
+  def default_audio_url(audio_file = nil)
+    audio_file ||= audio_files.first
+    audio_blob = audio_file&.blob
+
+    cdn_url = "#{ENV["CDN_HOST"]}/#{audio_blob.key}" if audio_blob
+
+    audio_blob ? cdn_url : nil
+  end
+
+  def create_voice_audio
+    return if @skip_create_voice_audio
+    puts "Creating voice audio for board: #{name} - #{voice}"
+    # return Rails.env.test?
+    label_voice = "#{label_for_filename}_#{voice}"
+    filename = "#{label_voice}.aac"
+    puts "Filename: #{filename}"
+    # already_has_audio_file = existing_audio_files.include?(filename)
+    already_has_audio_file = false
+    puts "\nalready_has_audio_file: #{voice}\n" if already_has_audio_file
+    # audio_file = audio_files.find_by(filename: filename)
+
+    audio_file = audio_files.last
+    puts "Audio File: #{audio_file.inspect}"
+
+    if already_has_audio_file && audio_file
+      self.audio_url = default_audio_url(audio_file)
+    else
+      audio_file = create_audio_from_text(name, voice)
+      puts "Audio File: #{audio_file.inspect}"
+      puts "last audio file: #{audio_files.last.inspect}"
+      if audio_file.is_a?(Integer) || audio_file.nil?
+        puts "Error creating audio file: #{audio_file}"
+        return
+      end
+      self.audio_url = default_audio_url(audio_file)
+    end
+    puts "Audio URL: #{audio_url}"
+    result = save
+    puts "Save Result: #{result}"
+    result
+  end
+
+  def existing_audio_files
+    return [] unless audio_files.attached?
+    puts "Existing Audio Files: #{audio_files[0].inspect}"
+    names = audio_files_blobs.map(&:filename)
+    puts "Existing Audio Files: #{names}"
+    names
   end
 
   def set_screen_sizes
@@ -272,38 +325,6 @@ class Board < ApplicationRecord
     new_doc = image_docs.first
     self.display_image_url = new_doc.display_url if new_doc
     # self.save!
-  end
-
-  def create_audio_for_words
-    words.each do |word|
-      self.create_audio_from_text(word)
-    end
-  end
-
-  def create_audio_from_text(text = nil, voice = "echo")
-    return if voice == "none" || Rails.env.test?
-    text = text || self.name
-    puts "TEST ==> #{self.inspect}"
-    begin
-      response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice)
-      if response
-        File.open("output.aac", "wb") { |f| f.write(response) }
-        audio_file = File.open("output.aac")
-        save_audio_file(audio_file, voice, text)
-        file_exists = File.exist?("output.aac")
-        File.delete("output.aac") if file_exists
-      else
-        Rails.logger.error "**** ERROR - create_audio_from_text **** \nDid not receive valid response.\n #{response&.inspect}"
-      end
-    rescue => e
-      Rails.logger.error "**** ERROR - create_audio_from_text **** \n#{e.message}\n#{e.backtrace}\n"
-    end
-  end
-
-  def save_audio_file(audio_file, voice, text)
-    raw_text = text || self.name
-    text = raw_text.downcase.gsub(" ", "_")
-    self.audio_files.attach(io: audio_file, filename: "#{text}_#{voice}.aac")
   end
 
   def rename_audio_files
@@ -658,13 +679,10 @@ class Board < ApplicationRecord
   end
 
   def update_board_layout(screen_size)
-    self.layout = {}
-    self.layout[screen_size] = {}
-
     board_images.each do |bi|
       bi.layout[screen_size] = bi.layout[screen_size] || {}
       bi_layout = bi.layout[screen_size].merge("i" => bi.id.to_s)
-      self.layout[screen_size][bi.id] = bi_layout
+      # self.layout[screen_size][bi.id] = bi_layout
     end
     self.save
     self.board_images.reset
@@ -698,7 +716,7 @@ class Board < ApplicationRecord
       bi.clean_up_layout
       bi.save!
     end
-    self.layout[screen_size] = layout_to_set
+    # self.layout[screen_size] = layout_to_set
     self.board_images.reset
     self.save!
   end
@@ -716,11 +734,17 @@ class Board < ApplicationRecord
     end
   end
 
+  def grid_layout(screen_size = "lg")
+    board_images.order(:position).map do |bi|
+      bi.layout[screen_size]
+    end
+  end
+
   def next_available_cell(screen_size = "lg")
     # Create a hash to track occupied cells
     occupied = Hash.new { |hash, key| hash[key] = [] }
     self.update_board_layout(screen_size)
-    grid = self.layout[screen_size] || []
+    grid = self.grid_layout[screen_size] || []
     columns = get_number_of_columns(screen_size)
 
     # Mark existing cells as occupied

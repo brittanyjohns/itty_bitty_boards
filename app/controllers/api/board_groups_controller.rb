@@ -34,6 +34,7 @@ class API::BoardGroupsController < API::ApplicationController
     board_group.number_of_columns = board_group_params[:number_of_columns]
 
     if board_group.save
+      mark_default(board_group)
       board_group.calculate_grid_layout
       render json: board_group.api_view_with_boards(current_user)
     else
@@ -73,6 +74,7 @@ class API::BoardGroupsController < API::ApplicationController
     board_group.predefined = board_group_params[:predefined]
     board_group.number_of_columns = board_group_params[:number_of_columns]
     if board_group.update(board_group_params)
+      mark_default(board_group)
       board_group.adjust_layouts
       render json: board_group.api_view_with_boards(current_user)
     else
@@ -90,6 +92,16 @@ class API::BoardGroupsController < API::ApplicationController
   private
 
   def board_group_params
-    params.require(:board_group).permit(:name, :display_image_url, :predefined, :number_of_columns, board_ids: [])
+    params.require(:board_group).permit(:name, :display_image_url, :make_default, :predefined, :number_of_columns, board_ids: [])
+  end
+
+  def mark_default(board_group)
+    make_default = current_user.board_groups.empty? || board_group_params[:make_default]
+    puts "Make default: #{make_default}"
+    if make_default
+      current_user.settings["startup_board_group_id"] = board_group.id
+      puts "Startup board group ID: #{board_group.id}"
+      current_user.save
+    end
   end
 end
