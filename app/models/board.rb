@@ -204,18 +204,18 @@ class Board < ApplicationRecord
      "please", "thank you", "yes", "no", "and", "help", "hello", "goodbye", "hi", "bye", "stop", "start", "more", "less", "big", "small"]
   end
 
-  def self.update_predictive(words = nil)
-    words ||= common_words
-    predictive_default = self.predictive_default
-    predictive_default.images.destroy_all
-    words.each do |word|
-      image = Image.public_img.find_or_create_by(label: word)
-      predictive_default.add_image(image.id)
-      image.save!
-    end
-    predictive_default.calculate_grid_layout
-    predictive_default.save!
-  end
+  # def self.update_predictive(words = nil)
+  #   words ||= common_words
+  #   predictive_default = self.predictive_default
+  #   predictive_default.images.destroy_all
+  #   words.each do |word|
+  #     image = Image.public_img.find_or_create_by(label: word)
+  #     predictive_default.add_image(image.id)
+  #     image.save!
+  #   end
+  #   predictive_default.calculate_grid_layout
+  #   predictive_default.save!
+  # end
 
   def self.create_predictive
     words = common_words
@@ -567,13 +567,13 @@ class Board < ApplicationRecord
   def api_view(viewing_user = nil)
     normalized_name = name.downcase.strip
     predictive_image_matching = Image.where(label: normalized_name, user_id: user_id).first
-    predictive_next_board = predictive_image_matching ? predictive_image_matching.predictive_board_for_user(viewing_user) : Board.predictive_default
+    # predictive_next_board = predictive_image_matching ? predictive_image_matching.predictive_board_for_user(viewing_user) : Board.predictive_default
     {
       id: id,
       name: name,
       layout: layout,
       audio_url: audio_url,
-      predictive_default_id: Board.predictive_default.id,
+      # predictive_default_id: Board.predictive_default.id,
       position: position,
       description: description,
       parent_type: parent_type,
