@@ -566,9 +566,7 @@ class Board < ApplicationRecord
 
   def api_view(viewing_user = nil)
     normalized_name = name.downcase.strip
-    puts "Normalized Name: #{normalized_name}"
     predictive_image_matching = Image.where(label: normalized_name, user_id: user_id).first
-    puts "Predictive Image Matching: #{predictive_image_matching}"
     predictive_next_board = predictive_image_matching ? predictive_image_matching.predictive_board_for_user(viewing_user) : Board.predictive_default
     {
       id: id,
