@@ -104,6 +104,11 @@ class Board < ApplicationRecord
   before_create :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
   after_initialize :set_screen_sizes, unless: :all_validate_screen_sizes?
+  after_initialize :set_initial_layout, if: :layout_empty?
+
+  def set_initial_layout
+    self.layout = { "lg" => [], "md" => [], "sm" => [] }
+  end
 
   def layout_empty?
     layout.blank?
@@ -612,7 +617,7 @@ class Board < ApplicationRecord
   SCREEN_SIZES = %w[sm md lg].freeze
 
   def print_grid_layout_for_screen_size(screen_size)
-    layout_to_set = layout[screen_size] || {}
+    layout_to_set = []
     board_images.order(:position).each_with_index do |bi, i|
       if bi.layout[screen_size]
         layout_to_set[bi.id] = bi.layout[screen_size]
@@ -677,10 +682,12 @@ class Board < ApplicationRecord
   end
 
   def update_board_layout(screen_size)
+    self.layout = {}
+    self.layout[screen_size] = {}
     board_images.each do |bi|
       bi.layout[screen_size] = bi.layout[screen_size] || {}
       bi_layout = bi.layout[screen_size].merge("i" => bi.id.to_s)
-      # self.layout[screen_size][bi.id] = bi_layout
+      self.layout[screen_size][bi.id] = bi_layout
     end
     self.save
     self.board_images.reset
@@ -714,7 +721,7 @@ class Board < ApplicationRecord
       bi.clean_up_layout
       bi.save!
     end
-    # self.layout[screen_size] = layout_to_set
+    self.layout[screen_size] = layout_to_set
     self.board_images.reset
     self.save!
   end
@@ -733,8 +740,19 @@ class Board < ApplicationRecord
   end
 
   def grid_layout(screen_size = "lg")
+    layout_to_set = []
     board_images.order(:position).map do |bi|
-      bi.layout[screen_size]
+      puts "screen_size: #{screen_size}"
+      puts "Board Image: #{bi.layout.blank?}"
+      if bi.layout.blank?
+        puts "No layout for board image: #{bi.id}"
+        bi.layout = { i: bi.id.to_s, x: 0, y: 0, w: 1, h: 1 }
+        bi.save!
+      end
+      puts "Board Image Layout: #{bi.layout}"
+      board_layout = bi.layout.with_indifferent_access
+      layout_for_screen = board_layout[screen_size] || {}
+      layout_to_set << layout_for_screen
     end
   end
 
@@ -742,7 +760,7 @@ class Board < ApplicationRecord
     # Create a hash to track occupied cells
     occupied = Hash.new { |hash, key| hash[key] = [] }
     self.update_board_layout(screen_size)
-    grid = self.grid_layout[screen_size] || []
+    grid = self.layout[screen_size] || []
     columns = get_number_of_columns(screen_size)
 
     # Mark existing cells as occupied
