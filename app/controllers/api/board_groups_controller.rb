@@ -23,11 +23,8 @@ class API::BoardGroupsController < API::ApplicationController
 
   def show
     @board_group = BoardGroup.find(params[:id])
-    # @board_group.adjust_layouts
-    response = @board_group.api_view_with_boards(current_user)
-    puts "Response: \n"
-    pp response
-    render json: response
+
+    render json: @board_group.api_view_with_boards(current_user)
   end
 
   def create
@@ -57,8 +54,13 @@ class API::BoardGroupsController < API::ApplicationController
     layout = params[:layout]
     layout.each_with_index do |layout_item, index|
       board_id = layout_item["i"]
-      board = board_group.boards.find(board_id)
-      board.layout = layout_item
+      puts "Board ID: #{board_id}"
+      if board_id.blank?
+        puts "Skipping blank board ID at index #{index}"
+        next
+      end
+      board = board_group.boards.find(board_id.to_i)
+      board.group_layout = layout_item
       board.save!
     end
     board_group.reload

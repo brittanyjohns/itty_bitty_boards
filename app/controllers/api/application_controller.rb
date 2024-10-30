@@ -7,7 +7,7 @@ module API
       puts "Authenticating user token"
       user = user_from_token
       if user
-        sign_in user, store: false
+        sign_in user
       else
         puts "Unauthorized"
         # direct to login page
@@ -21,7 +21,7 @@ module API
       puts "Child token: #{child.inspect}"
       if child
         puts "Child authenticated"
-        sign_in child, store: false
+        sign_in child
       else
         puts "Unauthorized"
         # direct to login page

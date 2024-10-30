@@ -247,7 +247,6 @@ class User < ApplicationRecord
     startup_board_group_id = settings["startup_board_group_id"]
     puts "Startup board group ID: #{startup_board_group_id}"
     board_group = BoardGroup.includes(:boards).find_by(id: startup_board_group_id) if startup_board_group_id
-    puts "Startup board group: #{board_group}"
     return board_group if board_group
     BoardGroup.startup
   end
@@ -272,6 +271,7 @@ class User < ApplicationRecord
     view["current_sign_in_ip"] = current_sign_in_ip
     view["sign_in_count"] = sign_in_count
     view["startup_board_group"] = startup_board_group&.api_view_with_boards(self)
+    view["startup_board_group_id"] = startup_board_group&.id
     view["board_groups"] = board_groups
     view
   end
