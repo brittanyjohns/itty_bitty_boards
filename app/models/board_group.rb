@@ -34,6 +34,15 @@ class BoardGroup < ApplicationRecord
   # after_initialize :set_initial_layout, if: :layout_empty?
   after_save :calculate_grid_layout
   after_save :create_board_audio_files
+  after_initialize :set_number_of_columns, if: :no_colmns_set
+
+  def set_number_of_columns
+    self.number_of_columns = 6
+  end
+
+  def no_colmns_set
+    number_of_columns.nil?
+  end
 
   def create_board_audio_files
     boards.each do |board|
@@ -52,6 +61,7 @@ class BoardGroup < ApplicationRecord
   end
 
   def api_view_with_boards(viewing_user = nil)
+    puts "number of columns: #{number_of_columns}"
     {
       id: id,
       name: name,
@@ -105,7 +115,6 @@ class BoardGroup < ApplicationRecord
 
   def print_grid_layout
     grid = boards.map(&:group_layout)
-    puts "Grid layout: #{grid}"
     grid.compact  # remove nils
   end
 

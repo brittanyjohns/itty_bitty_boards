@@ -23,8 +23,11 @@ class API::BoardGroupsController < API::ApplicationController
 
   def show
     @board_group = BoardGroup.find(params[:id])
-    @board_group.adjust_layouts
-    render json: @board_group.api_view_with_boards(current_user)
+    # @board_group.adjust_layouts
+    response = @board_group.api_view_with_boards(current_user)
+    puts "Response: \n"
+    pp response
+    render json: response
   end
 
   def create
