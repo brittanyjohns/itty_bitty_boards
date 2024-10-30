@@ -578,6 +578,7 @@ class Board < ApplicationRecord
       name: name,
       layout: layout,
       audio_url: audio_url,
+      group_layout: group_layout,
       # predictive_default_id: Board.predictive_default.id,
       position: position,
       description: description,
@@ -685,7 +686,7 @@ class Board < ApplicationRecord
     self.layout = {}
     self.layout[screen_size] = {}
     board_images.each do |bi|
-      bi.layout[screen_size] = bi.layout[screen_size] || {}
+      bi.layout[screen_size] = bi.layout[screen_size] || { x: 0, y: 0, w: 1, h: 1 } # Set default layout
       bi_layout = bi.layout[screen_size].merge("i" => bi.id.to_s)
       self.layout[screen_size][bi.id] = bi_layout
     end

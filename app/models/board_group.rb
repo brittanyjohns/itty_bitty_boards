@@ -92,9 +92,9 @@ class BoardGroup < ApplicationRecord
     rows = (boards_count / number_of_columns.to_f).ceil
     ActiveRecord::Base.logger.silence do
       boards.order(:position).each_slice(number_of_columns) do |row|
-        row.each_with_index do |bi, index|
-          new_layout = { i: bi.id, x: index, y: row_count, w: 1, h: 1 }
-          bi.update!(layout: new_layout)
+        row.each_with_index do |board, index|
+          new_layout = { i: board.id, x: index, y: row_count, w: 1, h: 1 }
+          board.update!(group_layout: new_layout)
           grid_layout << new_layout
         end
         row_count += 1
@@ -104,11 +104,13 @@ class BoardGroup < ApplicationRecord
   end
 
   def print_grid_layout
-    boards.map(&:layout)
+    grid = boards.map(&:group_layout)
+    puts "Grid layout: #{grid}"
+    grid.compact  # remove nils
   end
 
   def adjust_layouts
-    layouts = boards.pluck(:layout)
+    layouts = boards.pluck(:group_layout)
     if layouts.any? { |layout| layout.blank? }
       calculate_grid_layout
     end
