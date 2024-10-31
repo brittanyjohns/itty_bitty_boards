@@ -506,7 +506,9 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_images(viewing_user = nil)
-    missing_common_words = Board.common_words - words
+    downcased_common_words = Board.common_words.map(&:downcase)
+    missing_common_words = downcased_common_words - words
+
     {
       id: id,
       name: name,

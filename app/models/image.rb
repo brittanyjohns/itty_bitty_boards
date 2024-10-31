@@ -80,6 +80,7 @@ class Image < ApplicationRecord
   after_save :run_set_next_words_job, if: -> { should_set_next_words? }
 
   after_save :update_board_images, if: -> { need_to_update_board_images? }
+  after_save :update_background_color, if: -> { part_of_speech_changed? }
 
   scope :menu_images_without_docs, -> { menu_images.without_docs }
 
@@ -90,6 +91,17 @@ class Image < ApplicationRecord
   def update_board_images
     BoardImage.where(image_id: id).each do |bi|
       bi.update!(audio_url: audio_url, voice: voice)
+    end
+  end
+
+  def update_background_color
+    puts "Updating background color for #{label}"
+    self.bg_color = background_color_for(part_of_speech)
+    if bg_color == "gray"
+      return
+    end
+    board_images.each do |bi|
+      bi.update!(bg_color: bg_color) if bi.bg_color.blank? || bi.bg_color == "gray"
     end
   end
 
@@ -155,6 +167,18 @@ class Image < ApplicationRecord
       board.reset_layouts
     end
     board
+  end
+
+  def self.valid_parts_of_speech
+    ["noun", "verb", "adjective", "adverb", "pronoun", "preposition", "conjunction", "interjection"]
+  end
+
+  def self.ensure_parts_of_speech(limit = 100)
+    images_without_part_of_speech = Image.where.not(part_of_speech: valid_parts_of_speech).limit(limit)
+    puts "Images without part of speech: #{images_without_part_of_speech.count} - labels: #{images_without_part_of_speech.pluck(:label)}\n\n"
+    images_without_part_of_speech.each do |image|
+      image.categorize!
+    end
   end
 
   def background_color_for(category)
@@ -290,18 +314,6 @@ class Image < ApplicationRecord
     return imgs if imgs.any?
     Board.predictive_default.images
   end
-
-  # def next_board
-  #   parent_resource = PredefinedResource.find_or_create_by name: "Next", resource_type: "Board"
-  #   next_board = Board.find_or_create_by!(name: label, user_id: User::DEFAULT_ADMIN_ID, parent: parent_resource)
-  #   next_board
-  # end
-
-  # def create_next_board
-  #   next_board_to_use = next_board
-  #   next_board_to_use.add_images(next_images)
-  #   next_board_to_use
-  # end
 
   def create_words_from_next_words
     return unless next_words
@@ -980,11 +992,17 @@ class Image < ApplicationRecord
   end
 
   def categorize!
-    return if part_of_speech.present? || menu? || Rails.env.test?
+    return if menu? || Rails.env.test?
     response = OpenAiClient.new(open_ai_opts).categorize_word(label)
-    parsed_response = response[:content]&.downcase
-    if parsed_response
-      update!(part_of_speech: parsed_response)
+    response_content = response[:content]&.downcase
+    parsed_response = response_content ? JSON.parse(response_content) : nil
+
+    puts "Parsed response: #{parsed_response}"
+    part_of_speech = parsed_response&.with_indifferent_access["part_of_speech"] || parsed_response&.with_indifferent_access["partofspeech"] if parsed_response
+    puts "Part of speech: #{part_of_speech}"
+    if part_of_speech && Image.valid_parts_of_speech.include?(part_of_speech)
+      puts "Updating part of speech: #{part_of_speech}"
+      update!(part_of_speech: part_of_speech)
     end
   end
 
