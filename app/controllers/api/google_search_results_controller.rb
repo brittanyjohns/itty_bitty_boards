@@ -1,6 +1,6 @@
 class API::GoogleSearchResultsController < API::ApplicationController
-  skip_before_action :authenticate_token!
-  before_action :authenticate_signed_in!
+  # skip_before_action :authenticate_token!
+  # before_action :authenticate_signed_in!
   before_action :validate_search_params, only: [:image_search, :next_page]
   before_action :initialize_search_service, only: [:image_search, :next_page]
 

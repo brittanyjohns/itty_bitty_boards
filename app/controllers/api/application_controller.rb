@@ -4,10 +4,9 @@ module API
     skip_before_action :authenticate_token!, only: %i[authenticate_child_token!]
 
     def authenticate_token!
-      puts "Authenticating user token"
-      user = user_from_token
-      if user
-        sign_in user
+      @user ||= user_from_token
+      if @user
+        sign_in @user
       else
         puts "Unauthorized"
         # direct to login page
@@ -17,11 +16,11 @@ module API
     end
 
     def authenticate_child_token!
-      child = child_from_token
-      puts "Child token: #{child.inspect}"
-      if child
+      @child ||= child_from_token
+      puts "Child token: #{@child.inspect}"
+      if @child
         puts "Child authenticated"
-        sign_in child
+        # sign_in @child
       else
         puts "Unauthorized"
         # direct to login page
