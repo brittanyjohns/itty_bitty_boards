@@ -170,11 +170,11 @@ class Image < ApplicationRecord
   end
 
   def self.valid_parts_of_speech
-    ["noun", "verb", "adjective", "adverb", "pronoun", "preposition", "conjunction", "interjection"]
+    ["noun", "verb", "adjective", "adverb", "pronoun", "preposition", "conjunction", "interjection", "phrase"]
   end
 
   def self.ensure_parts_of_speech(limit = 100)
-    images_without_part_of_speech = Image.where.not(part_of_speech: valid_parts_of_speech).limit(limit)
+    images_without_part_of_speech = Image.where.not(part_of_speech: Image.valid_parts_of_speech).limit(limit)
     puts "Images without part of speech: #{images_without_part_of_speech.count} - labels: #{images_without_part_of_speech.pluck(:label)}\n\n"
     images_without_part_of_speech.each do |image|
       image.categorize!

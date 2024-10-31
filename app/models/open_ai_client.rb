@@ -127,7 +127,7 @@ class OpenAiClient
     @model = GPT_3_MODEL
     @messages = [{ role: "user",
                   content: [{ type: "text",
-                              text: "Categorize the word '#{word}' into one of the following parts of speech: noun, verb, adjective, adverb, pronoun, preposition, conjunction, or interjection. If the word can be used as multiple parts of speech, choose the most common one. If the word is not a part of speech, respond with 'other'. Respond as json." }] }]
+                              text: "Categorize the word '#{word}' into one of the following parts of speech: #{Image.valid_parts_of_speech} If the word can be used as multiple parts of speech, choose the most common one. If the word is not a part of speech, respond with 'other'. Respond as json." }] }]
     response = create_chat
     Rails.logger.debug "*** ERROR *** Invaild Categorize Word Response: #{response}" unless response
     response
