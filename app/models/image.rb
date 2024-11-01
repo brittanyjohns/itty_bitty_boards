@@ -1080,11 +1080,14 @@ class Image < ApplicationRecord
     @cloned_image.part_of_speech = @source.part_of_speech
     @cloned_image.status = @source.status
     @cloned_image.save
-    original_file = @display_doc.image
-    new_doc = @display_doc.dup
-    new_doc.documentable = @cloned_image
-    new_doc.save
-    new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type)
+
+    if @display_doc
+      original_file = @display_doc.image
+      new_doc = @display_doc.dup
+      new_doc.documentable = @cloned_image
+      new_doc.save
+      new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type)
+    end
     if @cloned_image.save
       @cloned_image.create_predictive_board(@cloned_user.id)
       @cloned_image

@@ -362,7 +362,7 @@ class API::ImagesController < API::ApplicationController
     @image = Image.public_img.find_by(label: label) unless @image
     @found_image = @image
     @image = Image.create(label: label, private: is_private, user_id: @current_user.id, image_prompt: image_params[:image_prompt], image_type: "User") unless @image
-    @board = Board.find_by(id: image_params[:board_id]) if image_params[:board_id].present?
+    @board = Board.find_by(id: image_params[:board_id]) unless image_params[:board_id].blank?
     if @board&.predefined && (@board&.user_id != @current_user.id)
       return render json: @image.api_view(@current_user), status: :ok unless @current_user.admin?
     end

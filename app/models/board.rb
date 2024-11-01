@@ -884,7 +884,7 @@ class Board < ApplicationRecord
       current_user_teams: [],
       # current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
       # images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
-      images: board_images.includes(image: :docs).map do |board_image|
+      images: board_images.map do |board_image|
         @image = board_image.image
         @default_board = Board.predictive_default
         {

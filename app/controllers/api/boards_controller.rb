@@ -111,7 +111,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def predictive_image_board
-    @board = Board.find(params[:id])
+    @board = Board.with_artifacts.find(params[:id])
 
     render json: @board.api_view_with_predictive_images(current_user)
   end
