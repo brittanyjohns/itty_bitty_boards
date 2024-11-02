@@ -6,7 +6,9 @@ module API
     def authenticate_token!
       @user ||= user_from_token
       if @user
-        sign_in @user
+        # sign_in @user
+        puts "User authenticated"
+        true
       else
         puts "Unauthorized"
         # direct to login page
