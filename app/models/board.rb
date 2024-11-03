@@ -853,6 +853,7 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_predictive_images(viewing_user = nil)
+    @board_images = board_images.includes(:image).distinct
     {
       id: id,
       name: name,
@@ -882,20 +883,13 @@ class Board < ApplicationRecord
       current_user_teams: [],
       # current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
       # images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
-      images: board_images.map do |board_image|
+      images: @board_images.map do |board_image|
         @image = board_image.get_predictive_image_for(viewing_user)
         @default_board = Board.predictive_default
         @predictive_board_id = @image.predictive_board_for_user(viewing_user).id
-        # normalized_name = name.downcase.strip
-        # predictive_image_matching = viewing_user ? @image.predictive_board_for_user(viewing_user) : nil
-        # puts "Predictive Image Matching: #{predictive_image_matching.inspect}" if predictive_image_matching
-        # @predictive_next_board = predictive_image_matching ? predictive_image_matching.predictive_board_for_user(viewing_user) : Board.predictive_default
-
         {
           id: @image.id,
-          # id: board_image.id,
           predictive_board_id: @predictive_board_id,
-          # predictive_board_id: @predictive_board_id,
           predictive_default_id: @default_board.id,
           predictive_default: @predictive_board_id == @default_board.id,
           board_image_id: board_image.id,
