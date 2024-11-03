@@ -28,6 +28,21 @@ class BoardImage < ApplicationRecord
   after_create :set_next_words
   after_create :save_initial_layout, unless: :skip_initial_layout
 
+  # after_initialize :set_initial_layout, if: :layout_invalid?
+
+  def set_initial_layout
+    self.layout = { "lg" => { "i" => id.to_s, "x" => grid_x("lg"), "y" => grid_y("lg"), "w" => 1, "h" => 1 },
+                    "md" => { "i" => id.to_s, "x" => grid_x("md"), "y" => grid_y("md"), "w" => 1, "h" => 1 },
+                    "sm" => { "i" => id.to_s, "x" => grid_x("sm"), "y" => grid_y("sm"), "w" => 1, "h" => 1 },
+                    "xs" => { "i" => id.to_s, "x" => grid_x("sm"), "y" => grid_y("sm"), "w" => 1, "h" => 1 },
+                    "xxs" => { "i" => id.to_s, "x" => grid_x("sm"), "y" => grid_y("sm"), "w" => 1, "h" => 1 } }
+  end
+
+  def layout_invalid?
+    return true if layout.blank?
+    layout["lg"].values.any?(&:nil?) || layout["md"].values.any?(&:nil?) || layout["sm"].values.any?(&:nil?) || layout["xs"].values.any?(&:nil?) || layout["xxs"].values.any?(&:nil?)
+  end
+
   def initialize(*args)
     super
     @skip_create_voice_audio = false
