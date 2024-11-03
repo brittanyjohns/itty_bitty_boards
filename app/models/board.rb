@@ -573,7 +573,6 @@ class Board < ApplicationRecord
   def api_view(viewing_user = nil)
     normalized_name = name.downcase.strip
     predictive_image_matching = Image.where(label: normalized_name, user_id: user_id).first
-    # predictive_next_board = predictive_image_matching ? predictive_image_matching.predictive_board_for_user(viewing_user) : Board.predictive_default
     {
       id: id,
       name: name,
@@ -886,6 +885,7 @@ class Board < ApplicationRecord
       images: board_images.map do |board_image|
         @image = board_image.get_predictive_image_for(viewing_user)
         @default_board = Board.predictive_default
+        @predictive_board_id = viewing_user ? @image.predictive_board_for_user(viewing_user)&.id : nil,
         # normalized_name = name.downcase.strip
         # predictive_image_matching = viewing_user ? @image.predictive_board_for_user(viewing_user) : nil
         # puts "Predictive Image Matching: #{predictive_image_matching.inspect}" if predictive_image_matching
@@ -895,10 +895,9 @@ class Board < ApplicationRecord
           id: @image.id,
           # id: board_image.id,
           # predictive_board_id: @image.predictive_board&.id,
-          predictive_board_id: viewing_user ? @image.predictive_board_for_user(viewing_user)&.id : nil,
+          predictive_board_id: @predictive_board_id,
           predictive_default_id: @default_board.id,
           predictive_default: @image.predictive_board&.id == @default_board.id,
-          predictive_image_matching: @image.predictive_board_for_user(viewing_user)&.id == @image.predictive_board&.id,
           board_image_id: board_image.id,
           label: board_image.label,
           image_prompt: board_image.image_prompt,

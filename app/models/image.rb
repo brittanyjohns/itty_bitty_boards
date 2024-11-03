@@ -142,16 +142,12 @@ class Image < ApplicationRecord
   def predictive_board_for_user(user_id)
     board = predictive_boards.find_by(name: label, user_id: user_id)
     if board
-      puts "Predictive board already exists: #{board.id}"
       board
     else
       board = predictive_boards.where(user_id: User::DEFAULT_ADMIN_ID).first
       if board
-        puts "Predictive board exists for admin: #{board.id}"
         board
       else
-        puts "No admin predictive board found - creating default"
-        CreatePredictiveBoardJob.perform_async(id, User::DEFAULT_ADMIN_ID)
         Board.predictive_default
       end
     end
