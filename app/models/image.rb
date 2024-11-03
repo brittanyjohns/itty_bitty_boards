@@ -142,11 +142,18 @@ class Image < ApplicationRecord
   def predictive_board_for_user(user_id)
     board = predictive_boards.find_by(name: label, user_id: user_id)
     if board
+      puts "Predictive board already exists: #{board.id}"
       board
     else
-      # CreatePredictiveBoardJob.perform_async(id, user_id)
-      # create_predictive_board(user_id)
-      Board.predictive_default
+      board = predictive_boards.where(user_id: User::DEFAULT_ADMIN_ID).first
+      if board
+        puts "Predictive board exists for admin: #{board.id}"
+        board
+      else
+        puts "No admin predictive board found - creating default"
+        CreatePredictiveBoardJob.perform_async(id, User::DEFAULT_ADMIN_ID)
+        Board.predictive_default
+      end
     end
   end
 
@@ -156,9 +163,11 @@ class Image < ApplicationRecord
   end
 
   def create_predictive_board(new_user_id)
-    board = predictive_boards.find_by(name: label, user_id: new_user_id)
+    normalized_name = label.downcase.strip
+    puts "Creating predictive board for #{label} - #{new_user_id}"
+    board = predictive_boards.find_by(name: normalized_name, user_id: new_user_id)
     if board
-      puts "Predictive board already exists: #{board.id}"
+      puts "create_predictive_board: Predictive board already exists: #{board.id}"
       board.find_or_create_images_from_word_list(next_words)
     else
       puts "Creating predictive board for #{label} - #{new_user_id}"
@@ -1089,6 +1098,7 @@ class Image < ApplicationRecord
       new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type)
     end
     if @cloned_image.save
+      puts "Creating predictive board for cloned image"
       @cloned_image.create_predictive_board(@cloned_user.id)
       @cloned_image
     else

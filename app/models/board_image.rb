@@ -39,6 +39,15 @@ class BoardImage < ApplicationRecord
     save
   end
 
+  def get_predictive_image_for(viewing_user)
+    image = Image.where(user_id: viewing_user.id, label: label).first
+    if image
+      return image
+    else
+      return self.image
+    end
+  end
+
   def image_prompt
     image.image_prompt
   end

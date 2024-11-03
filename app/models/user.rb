@@ -122,6 +122,10 @@ class User < ApplicationRecord
     Board.with_artifacts.where(id: team_boards.select(:board_id))
   end
 
+  def predictive_boards
+    boards.where(parent_type: "Image")
+  end
+
   # Token management
   def add_welcome_tokens
     add_tokens(10)

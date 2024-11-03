@@ -30,8 +30,9 @@ class API::BoardsController < API::ApplicationController
       # end
 
       @categories = @boards.map(&:category).uniq.compact
+      # @boards = current_user.boards.all.order(name: :asc)
 
-      render json: { boards: @boards, predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.categories }
+      render json: { boards: @boards, predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.categories, predictive_boards: current_user.predictive_boards }
     end
   end
 
