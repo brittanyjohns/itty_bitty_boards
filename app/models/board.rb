@@ -208,19 +208,6 @@ class Board < ApplicationRecord
      "please", "thank you", "yes", "no", "and", "help", "hello", "goodbye", "hi", "bye", "stop", "start", "more", "less", "big", "small"]
   end
 
-  # def self.update_predictive(words = nil)
-  #   words ||= common_words
-  #   predictive_default = self.predictive_default
-  #   predictive_default.images.destroy_all
-  #   words.each do |word|
-  #     image = Image.public_img.find_or_create_by(label: word)
-  #     predictive_default.add_image(image.id)
-  #     image.save!
-  #   end
-  #   predictive_default.calculate_grid_layout
-  #   predictive_default.save!
-  # end
-
   def self.create_predictive
     words = common_words
     predictive_default = self.predictive_default
@@ -232,8 +219,8 @@ class Board < ApplicationRecord
   end
 
   def self.create_base_board
-    words = ["I", "you", "he", "she", "it", "we", "they", "that", "this", "the", "a", "is", "can", "will", "do", "don't", "go", "want"]
-    base_board = self.with_artifacts.find_or_create_by(name: "Base", user_id: User.admin.first.id, parent: PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board"), predefined: true)
+    words = common_words
+    base_board = self.with_artifacts.find_or_create_by(name: "Base", user_id: User::DEFAULT_ADMIN_ID, parent: PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board"), predefined: true)
     base_board.images.destroy_all
     words.each do |word|
       image = Image.public_img.find_or_create_by(label: word)
@@ -560,7 +547,7 @@ class Board < ApplicationRecord
           voice: board_image.voice,
           layout: board_image.layout,
           added_at: board_image.added_at,
-          image_last_added_at: board_image.image_last_added_at,
+          # image_last_added_at: board_image.image_last_added_at,
           part_of_speech: @image.part_of_speech,
 
           status: board_image.status,
@@ -579,7 +566,6 @@ class Board < ApplicationRecord
       layout: layout,
       audio_url: audio_url,
       group_layout: group_layout,
-      # predictive_default_id: Board.predictive_default.id,
       position: position,
       description: description,
       parent_type: parent_type,
@@ -853,7 +839,8 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_predictive_images(viewing_user = nil)
-    @board_images = board_images.includes(:image).distinct
+    @board_images = board_images.includes(image: :docs)
+    @default_board = Board.predictive_default
     {
       id: id,
       name: name,
@@ -885,13 +872,12 @@ class Board < ApplicationRecord
       # images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
       images: @board_images.map do |board_image|
         @image = board_image.get_predictive_image_for(viewing_user)
-        @default_board = Board.predictive_default
-        @predictive_board_id = @image.predictive_board_for_user(viewing_user).id
+
+        @predictive_board_id = @image&.predictive_board_for_user(viewing_user)&.id
         {
           id: @image.id,
           predictive_board_id: @predictive_board_id,
           predictive_default_id: @default_board.id,
-          predictive_default: @predictive_board_id == @default_board.id,
           board_image_id: board_image.id,
           label: board_image.label,
           image_prompt: board_image.image_prompt,

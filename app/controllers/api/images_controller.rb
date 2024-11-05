@@ -205,11 +205,20 @@ class API::ImagesController < API::ApplicationController
       puts "Client: #{client.inspect}"
 
       voice = params[:voice] || "alloy"
+      user_speed = current_user.settings["voice"]["speed"] || 1.0
+      speed = params[:speed].blank? ? user_speed : params[:speed]
+
+      valid_speeds = 0.25..4.0
+      speed = valid_speeds.include?(speed.to_f) ? speed.to_f : 1.0
+      puts "Speed: #{speed}"
+
+      puts "User speed: #{user_speed}"
 
       response = client.audio.speech(
         parameters: {
           model: "tts-1",
           voice: voice,
+          speed: speed,
           input: input_text,
         },
       )

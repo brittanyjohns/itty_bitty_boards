@@ -71,7 +71,7 @@ class Image < ApplicationRecord
   scope :without_docs, -> { where.missing(:docs) }
   scope :with_docs, -> { where.associated(:docs) }
   scope :generating, -> { where(status: "generating") }
-  scope :with_artifacts, -> { includes({ docs: { image_attachment: :blob } }) }
+  scope :with_artifacts, -> { includes({ docs: { image_attachment: :blob } }, :predictive_boards) }
 
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!, unless: :menu?

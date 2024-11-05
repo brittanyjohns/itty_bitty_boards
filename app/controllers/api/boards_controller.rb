@@ -104,7 +104,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def first_predictive_board
-    @board = Board.predictive_default
+    @board = Board.with_artifacts.predictive_default
     @board = Board.create_predictive_default unless @board
 
     @board_with_images = @board.api_view_with_predictive_images(current_user)
