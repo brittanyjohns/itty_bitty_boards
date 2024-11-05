@@ -778,7 +778,8 @@ class Board < ApplicationRecord
   def format_board_with_ai(screen_size = "lg")
     num_of_columns = get_number_of_columns(screen_size)
     words = images.map(&:label)
-    response = OpenAiClient.new({}).generate_formatted_board(name, num_of_columns, words)
+    max_num_of_rows = (images.count / num_of_columns.to_f).ceil
+    response = OpenAiClient.new({}).generate_formatted_board(name, num_of_columns, words, max_num_of_rows)
     if response
       puts "Response: #{response.class}"
       parsed_response = JSON.parse(response)
@@ -817,11 +818,11 @@ class Board < ApplicationRecord
           if x_coordinate >= num_of_columns
             x_coordinate = 0
           end
-          max_num_of_rows = (images.count / num_of_columns.to_f).ceil
+          # max_num_of_rows = (images.count / num_of_columns.to_f).ceil
           puts "Max Rows: #{max_num_of_rows}"
           if y_coordinate >= max_num_of_rows
             puts "#{image.label} Y Coordinate: #{y_coordinate} - Max Rows: #{max_num_of_rows}"
-            y_coordinate = max_num_of_rows + 1
+            y_coordinate = max_num_of_rows
           end
 
           board_image.layout ||= {}

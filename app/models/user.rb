@@ -261,11 +261,6 @@ class User < ApplicationRecord
     view["free"] = free?
     view["pro"] = pro?
     view["team"] = current_team
-    view["child_accounts"] = child_accounts
-    # view["images"] = images.limit(100)
-    view["boards"] = boards
-    view["docs"] = docs
-    view["scenarios"] = scenarios
     view["free_trial"] = free_trial?
     view["trial_expired"] = trial_expired?
     view["trial_days_left"] = trial_days_left
@@ -274,9 +269,7 @@ class User < ApplicationRecord
     view["current_sign_in_at"] = current_sign_in_at
     view["current_sign_in_ip"] = current_sign_in_ip
     view["sign_in_count"] = sign_in_count
-    view["startup_board_group"] = startup_board_group&.api_view_with_boards(self)
-    view["startup_board_group_id"] = startup_board_group&.id
-    view["board_groups"] = board_groups
+    view["startup_board_group_id"] = settings["startup_board_group_id"]
     view
   end
 end

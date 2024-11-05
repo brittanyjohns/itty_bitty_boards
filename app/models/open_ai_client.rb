@@ -94,11 +94,11 @@ class OpenAiClient
     image_prompt_content
   end
 
-  def generate_formatted_board(name, num_of_columns, words = [])
+  def generate_formatted_board(name, num_of_columns, words = [], max_num_of_rows = 4)
     @model = GPT_4_MODEL
     @messages = [{ role: "user",
                   content: [{ type: "text",
-                              text: format_board_prompt(name, num_of_columns, words) }] }]
+                              text: format_board_prompt(name, num_of_columns, words, max_num_of_rows) }] }]
     response = create_chat
     puts "*******\nResponse: #{response}\n"
     Rails.logger.debug "*** ERROR *** Invaild Formatted Board Response: #{response}" unless response
@@ -144,10 +144,9 @@ class OpenAiClient
     Make your best attempt to provide a list of 24 words or short phrases (2 words max) that are foundational for basic communication in an AAC device. Respond with 'NO NEXT WORDS' if there are no common follow-up words for '#{label}' that would be used in conversation & an AAC device. Use json format. Respond with a JSON object in the following format: {\"next_words\": [\"word1\", \"word2\", \"word3\", ...]}"
   end
 
-  def format_board_prompt(name, num_of_columns, word_array = [])
+  def format_board_prompt(name, num_of_columns, word_array = [], max_num_of_rows = 4)
     words = word_array.join(", ") unless word_array.blank?
     word_count = word_array.size
-    max_num_of_rows = (word_count / num_of_columns.to_f).ceil
     text = <<-PROMPT
       Create an AAC communication board formatted as a grid layout. The board should be a JSON object with the following structure:
 

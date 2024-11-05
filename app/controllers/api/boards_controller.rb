@@ -229,9 +229,18 @@ class API::BoardsController < API::ApplicationController
     @board.display_image_url = board_params["display_image_url"]
     @board.predefined = board_params["predefined"]
     @board.category = board_params["category"]
-    if params["word_list"].present?
+    if !params["word_list"].blank?
       word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
       @board.find_or_create_images_from_word_list(word_list) if word_list.present?
+    end
+
+    if params["image_ids_to_remove"].present?
+      image_ids_to_remove = params["image_ids_to_remove"]
+      puts "Image IDs to remove: #{image_ids_to_remove}"
+      image_ids_to_remove.each do |image_id|
+        image = Image.find(image_id)
+        @board.remove_image(image)
+      end
     end
 
     respond_to do |format|
@@ -447,6 +456,6 @@ class API::BoardsController < API::ApplicationController
                                   :image_id,
                                   :query,
                                   :page,
-                                  :display_image_url, :category, :word_list)
+                                  :display_image_url, :category, :word_list, :image_ids_to_remove)
   end
 end

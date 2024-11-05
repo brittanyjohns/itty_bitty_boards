@@ -102,10 +102,8 @@ class API::BoardGroupsController < API::ApplicationController
 
   def mark_default(board_group)
     make_default = current_user.board_groups.empty? || board_group_params[:make_default]
-    puts "Make default: #{make_default}"
     if make_default
       current_user.settings["startup_board_group_id"] = board_group.id
-      puts "Startup board group ID: #{board_group.id}"
       current_user.save
     end
   end
