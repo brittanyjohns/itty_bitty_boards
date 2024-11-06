@@ -53,6 +53,7 @@ class User < ApplicationRecord
 
   # Associations
   has_many :boards, dependent: :destroy
+  has_many :board_images, through: :boards
   has_many :board_groups, dependent: :destroy
   has_many :menus, dependent: :destroy
   has_many :images, dependent: :destroy

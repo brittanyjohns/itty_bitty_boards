@@ -82,6 +82,7 @@ class API::BoardsController < API::ApplicationController
         id: board.id,
         name: board.name,
         description: board.description,
+        can_edit: (board.user == current_user || current_user.admin?),
         parent_type: board.parent_type,
         predefined: board.predefined,
         number_of_columns: board.number_of_columns,

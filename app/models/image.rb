@@ -361,6 +361,10 @@ class Image < ApplicationRecord
     audio_files.blank?
   end
 
+  def predictive?
+    predictive_board && predictive_board.id != Board.predictive_default.id
+  end
+
   def default_audio_files
     audio_files.select { |audio| audio.blob.filename.to_s.exclude?("custom") }
   end
@@ -1065,7 +1069,7 @@ class Image < ApplicationRecord
       new_name = label
     end
     @source = self
-    @cloned_user = User.find(cloned_user_id)
+    @cloned_user = User.includes(:board_images).find(cloned_user_id)
     unless @cloned_user
       Rails.logger.debug "User not found: #{cloned_user_id} - defaulting to admin"
       cloned_user_id = User::DEFAULT_ADMIN
@@ -1085,6 +1089,11 @@ class Image < ApplicationRecord
     @cloned_image.part_of_speech = @source.part_of_speech
     @cloned_image.status = @source.status
     @cloned_image.save
+
+    @old_board_images_for_cloned_user = @cloned_user.board_images.where(image_id: @source.id)
+    @old_board_images_for_cloned_user.each do |board_image|
+      board_image.update!(image_id: @cloned_image.id)
+    end
 
     if @display_doc
       original_file = @display_doc.image

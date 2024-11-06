@@ -59,7 +59,7 @@ class Board < ApplicationRecord
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
   scope :scenarios, -> { where(parent_type: "OpenaiPrompt") }
-  scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt", "PredefinedResource"]) }
+  scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt"]) }
   scope :user_made_with_scenarios_and_menus, -> { where(parent_type: ["User", "OpenaiPrompt", "Menu"]) }
   scope :predefined, -> { where(predefined: true) }
   scope :ai_generated, -> { where(parent_type: "OpenaiPrompt") }
@@ -260,10 +260,6 @@ class Board < ApplicationRecord
 
   def pending_images
     board_images.where(status: ["pending", "generating"])
-  end
-
-  def predictive?
-    parent_type == "PredefinedResource" && parent.name == "Next"
   end
 
   def self.predictive_default
@@ -494,7 +490,6 @@ class Board < ApplicationRecord
   def api_view_with_images(viewing_user = nil)
     downcased_common_words = Board.common_words.map(&:downcase)
     missing_common_words = downcased_common_words - words
-
     {
       id: id,
       name: name,
@@ -530,11 +525,14 @@ class Board < ApplicationRecord
       # images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
       images: board_images.includes(image: :docs).map do |board_image|
         @image = board_image.image
+        is_owner = @image.user_id == viewing_user&.id
+        is_predictive = @image.predictive?
         {
           id: @image.id,
           # id: board_image.id,
           predictive_board_id: @image.predictive_board&.id,
           board_image_id: board_image.id,
+          dynamic: is_owner && is_predictive,
           label: board_image.label,
           image_prompt: board_image.image_prompt,
           bg_color: @image.bg_class,
@@ -846,6 +844,7 @@ class Board < ApplicationRecord
       id: id,
       name: name,
       description: description,
+      can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
       category: category,
       parent_type: parent_type,
       parent_id: parent_id,
