@@ -366,6 +366,8 @@ class API::ImagesController < API::ApplicationController
 
     generate_image = params["generate_image"] == "1"
     label = image_params["label"]&.downcase
+    puts "Label: #{label}"
+
     is_private = image_params["private"] || false
     @image = Image.find_by(label: label, user_id: @current_user.id)
     @image = Image.public_img.find_by(label: label) unless @image
@@ -376,6 +378,7 @@ class API::ImagesController < API::ApplicationController
       return render json: @image.api_view(@current_user), status: :ok unless @current_user.admin?
     end
     new_board_image = @board.add_image(@image.id) if @board
+
     if @found_image
       notice = "Image found!"
       @found_image.update(status: "finished") unless @found_image.finished?
@@ -390,6 +393,7 @@ class API::ImagesController < API::ApplicationController
         notice = "You don't have enough tokens to generate an image."
       end
     end
+
     if new_board_image
       render json: new_board_image.api_view
     else

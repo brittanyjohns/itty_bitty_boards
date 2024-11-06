@@ -281,9 +281,11 @@ class API::BoardsController < API::ApplicationController
   def format_with_ai
     set_board
     screen_size = params[:screen_size] || "lg"
-    @board.format_board_with_ai(screen_size)
-    @board.reload
-    render json: @board.api_view_with_images(current_user)
+    puts "Formatting board with AI for screen size: #{screen_size}"
+    FormatBoardWithAiJob.perform_async(@board.id, screen_size)
+    # @board.format_board_with_ai(screen_size)
+    puts "Board formatted with AI"
+    render json: { status: :ok }
   end
 
   def add_image

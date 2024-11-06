@@ -263,7 +263,7 @@ class Board < ApplicationRecord
   end
 
   def self.predictive_default
-    self.with_artifacts.where(parent_type: "PredefinedResource", name: "Predictive Default").first
+    self.where(parent_type: "PredefinedResource", name: "Predictive Default").first
   end
 
   def self.position_all_board_images
@@ -488,6 +488,7 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_images(viewing_user = nil)
+    @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards])
     downcased_common_words = Board.common_words.map(&:downcase)
     missing_common_words = downcased_common_words - words
     {
@@ -523,7 +524,7 @@ class Board < ApplicationRecord
       current_user_teams: [],
       # current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
       # images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
-      images: board_images.includes(image: :docs).map do |board_image|
+      images: @board_images.map do |board_image|
         @image = board_image.image
         is_owner = @image.user_id == viewing_user&.id
         is_predictive = @image.predictive?
@@ -536,7 +537,7 @@ class Board < ApplicationRecord
           label: board_image.label,
           image_prompt: board_image.image_prompt,
           bg_color: @image.bg_class,
-          text_color: board_image.text_color,
+          text_color: @image.text_color,
           next_words: board_image.next_words,
           position: board_image.position,
           src: @image.display_image_url(viewing_user),
@@ -565,6 +566,7 @@ class Board < ApplicationRecord
       audio_url: audio_url,
       group_layout: group_layout,
       position: position,
+      data: data,
       description: description,
       parent_type: parent_type,
       predefined: predefined,
@@ -775,9 +777,12 @@ class Board < ApplicationRecord
 
   def format_board_with_ai(screen_size = "lg")
     num_of_columns = get_number_of_columns(screen_size)
-    words = images.map(&:label)
-    max_num_of_rows = (images.count / num_of_columns.to_f).ceil
+    @board_images = board_images.includes(:image)
+    words = @board_images.pluck(:label)
+    max_num_of_rows = (words.count / num_of_columns.to_f).ceil
+    puts "Words: #{words}"
     response = OpenAiClient.new({}).generate_formatted_board(name, num_of_columns, words, max_num_of_rows)
+    puts "Response: #{response.inspect}"
     if response
       puts "Response: #{response.class}"
       parsed_response = JSON.parse(response)
@@ -789,7 +794,7 @@ class Board < ApplicationRecord
       self.data["professional_explanation"] = professional_explanation
       grid_response.each do |item|
         label = item["word"]
-        board_image = board_images.joins(:image).find_by(images: { label: label })
+        board_image = @board_images.joins(:image).find_by(images: { label: label })
         image = board_image&.image
 
         if board_image
@@ -835,10 +840,11 @@ class Board < ApplicationRecord
         self.save!
       end
     end
+    self
   end
 
   def api_view_with_predictive_images(viewing_user = nil)
-    @board_images = board_images.includes(image: :docs)
+    @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards])
     @default_board = Board.predictive_default
     {
       id: id,

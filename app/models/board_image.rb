@@ -27,6 +27,7 @@ class BoardImage < ApplicationRecord
   before_create :set_defaults
   after_create :set_next_words
   after_create :save_initial_layout, unless: :skip_initial_layout
+  before_save :set_label, if: -> { label.blank? }
 
   # after_initialize :set_initial_layout, if: :layout_invalid?
 
@@ -36,6 +37,10 @@ class BoardImage < ApplicationRecord
                     "sm" => { "i" => id.to_s, "x" => grid_x("sm"), "y" => grid_y("sm"), "w" => 1, "h" => 1 },
                     "xs" => { "i" => id.to_s, "x" => grid_x("sm"), "y" => grid_y("sm"), "w" => 1, "h" => 1 },
                     "xxs" => { "i" => id.to_s, "x" => grid_x("sm"), "y" => grid_y("sm"), "w" => 1, "h" => 1 } }
+  end
+
+  def set_label
+    self.label = image.label
   end
 
   def layout_invalid?
@@ -55,7 +60,10 @@ class BoardImage < ApplicationRecord
   end
 
   def get_predictive_image_for(viewing_user)
-    image = Image.where(user_id: viewing_user.id, label: label).first
+    user_id_to_search = viewing_user ? viewing_user.id : nil
+    image = Image.with_artifacts.where(user_id: user_id_to_search, label: label).first
+
+    # image = Image.where(user_id: viewing_user.id, label: label).first
     if image
       return image
     else
@@ -80,10 +88,6 @@ class BoardImage < ApplicationRecord
 
   def voice_changed_and_not_existing?
     !image.existing_voices.include?(voice)
-  end
-
-  def label
-    image.label
   end
 
   def board_images

@@ -97,11 +97,9 @@ class Image < ApplicationRecord
   def update_background_color
     puts "Updating background color for #{label}"
     self.bg_color = background_color_for(part_of_speech)
-    if bg_color == "gray"
-      return
-    end
+    self.text_color = text_color_for(bg_color)
     board_images.each do |bi|
-      bi.update!(bg_color: bg_color) if bi.bg_color.blank? || bi.bg_color == "gray"
+      bi.update!(bg_color: bg_color, text_color: text_color)
     end
   end
 
@@ -113,6 +111,7 @@ class Image < ApplicationRecord
       self.part_of_speech = "noun"
     else
       self.bg_color = background_color_for(part_of_speech)
+      self.text_color = text_color_for(bg_color)
     end
     if audio_url.blank?
       self.audio_url = default_audio_url
@@ -140,11 +139,12 @@ class Image < ApplicationRecord
   end
 
   def predictive_board_for_user(user_id)
-    board = predictive_boards.find_by(name: label, user_id: user_id)
+    @predictive_boards = predictive_boards.with_artifacts
+    board = @predictive_boards.find_by(name: label, user_id: user_id)
     if board
       board
     else
-      board = predictive_boards.where(user_id: User::DEFAULT_ADMIN_ID).first
+      board = @predictive_boards.where(user_id: User::DEFAULT_ADMIN_ID).first
       if board
         board
       else
@@ -208,6 +208,34 @@ class Image < ApplicationRecord
     else
       color = "gray"
     end
+    color
+  end
+
+  def text_color_for(bg_color)
+    color = "black"
+    case bg_color
+    when "blue"
+      color = "white"
+    when "green"
+      color = "white"
+    when "yellow"
+      color = "black"
+    when "purple"
+      color = "white"
+    when "pink"
+      color = "black"
+    when "orange"
+      color = "black"
+    when "red"
+      color = "white"
+    when "teal"
+      color = "white"
+    when "gray"
+      color = "white"
+    else
+      color = "black"
+    end
+    puts "Text color: #{color} - bg_color: #{bg_color}"
     color
   end
 
@@ -362,7 +390,7 @@ class Image < ApplicationRecord
   end
 
   def predictive?
-    predictive_board && predictive_board.id != Board.predictive_default.id
+    predictive_board != Board.predictive_default.id
   end
 
   def default_audio_files
