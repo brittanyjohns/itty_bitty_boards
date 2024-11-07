@@ -548,8 +548,6 @@ class Board < ApplicationRecord
   end
 
   def api_view(viewing_user = nil)
-    normalized_name = name.downcase.strip
-    predictive_image_matching = Image.where(label: normalized_name, user_id: user_id).first
     {
       id: id,
       name: name,

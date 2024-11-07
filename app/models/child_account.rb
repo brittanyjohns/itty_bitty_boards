@@ -90,6 +90,11 @@ class ChildAccount < ApplicationRecord
     end
   end
 
+  def available_boards
+    current_boards = self.child_boards.map(&:board)
+    user.boards.user_made_with_scenarios_and_menus.excluding(current_boards)
+  end
+
   def api_view
     {
       id: id,
@@ -101,6 +106,7 @@ class ChildAccount < ApplicationRecord
       user_id: user_id,
       boards: child_boards.map(&:api_view),
       can_sign_in: can_sign_in?,
+      available_boards: available_boards.map(&:api_view),
     }
   end
 end
