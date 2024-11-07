@@ -956,23 +956,25 @@ class Image < ApplicationRecord
 
   def user_boards(current_user)
     return [] unless current_user
-    boards.where(user_id: current_user.id)
+    # boards.user_made_with_scenarios_and_menus.where(user_id: current_user.id)
+    Board.joins(:board_images).where(board_images: { image_id: id }).user_made_with_scenarios_and_menus.where(user_id: current_user.id)
   end
 
   def with_display_doc(current_user = nil)
-    current_doc = display_doc(current_user)
+    @current_user = current_user
+    current_doc = display_doc(@current_user)
     current_doc_id = current_doc.id if current_doc
-    image_docs = docs.with_attached_image.for_user(current_user).order(created_at: :desc)
+    image_docs = docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
     default_image_doc = image_docs.where(user_id: [User::DEFAULT_ADMIN_ID, nil]).first
-    remaining = remaining_user_boards(current_user)
-    user_image_boards = user_boards(current_user)
+    remaining = remaining_user_boards(@current_user)
+    user_image_boards = user_boards(@current_user)
     @default_audio_url = default_audio_url
     {
       id: id,
       label: label,
       image_prompt: image_prompt,
-      display_doc: display_image_url(current_user),
-      src: display_image_url(current_user),
+      display_doc: display_image_url(@current_user),
+      src: display_image_url(@current_user),
       audio: @default_audio_url,
       audio_url: @default_audio_url,
       audio_files: audio_files_for_api,
@@ -981,7 +983,7 @@ class Image < ApplicationRecord
       error: error,
       text_color: text_color,
       predictive_board_id: predictive_board&.id,
-      predictive_default: Board.predictive_default.id === predictive_board&.id,
+      # predictive_default: Board.predictive_default.id === predictive_board&.id,
       bg_color: bg_class,
       open_symbol_status: open_symbol_status,
       created_at: created_at,
@@ -1057,40 +1059,6 @@ class Image < ApplicationRecord
     image.save_from_google(img_url, title, snippet, user_id)
     image
   end
-
-  # def clone_with_docs(cloned_user_id, new_name)
-  #   if new_name.blank?
-  #     new_name = label
-  #   end
-  #   @source = self
-  #   cloned_user = User.find(cloned_user_id)
-  #   unless cloned_user
-  #     Rails.logger.debug "User not found: #{cloned_user_id} - defaulting to admin"
-  #     cloned_user_id = User::DEFAULT_ADMIN
-  #     cloned_user = User.find(cloned_user_id)
-  #     if !cloned_user
-  #       Rails.logger.debug "Default admin user not found: #{cloned_user_id}"
-  #       return
-  #     end
-  #   end
-  #   @docs = @source.docs.for_user(cloned_user)
-  #   @cloned_image = @source.dup
-  #   @cloned_image.user_id = cloned_user_id
-  #   @cloned_image.label = new_name
-  #   @cloned_image.save
-  #   @docs.each do |doc|
-  #     original_file = doc.image
-  #     new_doc = doc.dup
-  #     new_doc.documentable = @cloned_image
-  #     new_doc.save
-  #     new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type)
-  #   end
-  #   if @cloned_image.save
-  #     @cloned_image
-  #   else
-  #     Rails.logger.debug "Error cloning image: #{@cloned_image}"
-  #   end
-  # end
 
   def clone_with_current_display_doc(cloned_user_id, new_name)
     if new_name.blank?

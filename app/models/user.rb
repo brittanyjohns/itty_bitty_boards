@@ -124,7 +124,7 @@ class User < ApplicationRecord
   end
 
   def predictive_boards
-    boards.where(parent_type: "Image")
+    boards.predictive
   end
 
   # Token management

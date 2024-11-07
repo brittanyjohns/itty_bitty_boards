@@ -130,12 +130,11 @@ class API::ImagesController < API::ApplicationController
   end
 
   def predictive_images
-    puts ">>>> Predictive images"
     @current_user = current_user
     @image = Image.includes(:docs, :predictive_boards).find(params[:id])
     if !@image.user_id || (current_user.id != @image.user_id)
       puts "User not authorized to view image.  Sending next images."
-      @board = @image.predictive_board_for_user(User::DEFAULT_ADMIN_ID)
+      # @board = @image.predictive_board_for_user(User::DEFAULT_ADMIN_ID)
     else
       @board = @image.predictive_board_for_user(@current_user.id)
     end
@@ -515,8 +514,6 @@ class API::ImagesController < API::ApplicationController
   end
 
   def set_current_audio
-    puts "Setting current audio :\n"
-    pp params
     @image = Image.find(params[:id])
     unless current_user.admin? || @image.user_id == current_user.id
       render json: { status: "error", message: "You are not authorized to update the audio url for this image." }
@@ -528,7 +525,6 @@ class API::ImagesController < API::ApplicationController
       return
     end
     @audio_file = @image.audio_files.find(audio_file_id)
-    puts "Audio file: #{@audio_file.inspect}"
     @audio_file_url = @image.default_audio_url(@audio_file)
     unless @audio_file_url.present?
       render json: { status: "error", message: "Could not find audio file url." }
@@ -537,7 +533,7 @@ class API::ImagesController < API::ApplicationController
     voice = @image.voice_from_filename(@audio_file.blob.filename.to_s)
 
     if @image.update(audio_url: @audio_file_url, voice: voice, use_custom_audio: voice === "custom")
-      render json: { status: "ok", audio_url: @audio_file_url, filename: @audio_file.blob.filename, voice: voice }
+      render json: { status: "ok", audio_url: @audio_file_url, filename: @audio_file.blob.filename, voice: voice, message: "Audio url updated.", image: @image.with_display_doc(@current_user) }
     else
       render json: { status: "error", message: "Could not update audio url." }
     end

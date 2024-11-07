@@ -67,6 +67,8 @@ class Board < ApplicationRecord
   scope :with_less_than_x_images, ->(x) { joins(:images).group("boards.id").having("count(images.id) < ?", x) }
   scope :without_images, -> { left_outer_joins(:images).where(images: { id: nil }) }
 
+  scope :predictive, -> { where(parent_type: "Image") }
+
   scope :featured, -> { where(category: ["featured", "popular"], predefined: true) }
   scope :popular, -> { where(category: "popular", predefined: true) }
   scope :general, -> { where(category: "general", predefined: true) }
@@ -208,26 +210,15 @@ class Board < ApplicationRecord
      "please", "thank you", "yes", "no", "and", "help", "hello", "goodbye", "hi", "bye", "stop", "start", "more", "less", "big", "small"]
   end
 
-  def self.create_predictive
-    words = common_words
-    predictive_default = self.predictive_default
-    predictive_default.images.destroy_all
-    words.each do |word|
-      image = Image.find_or_create_by(label: word, user_id: predictive_default.user_id)
-      predictive_default.images << image
-    end
-  end
-
-  def self.create_base_board
-    words = common_words
-    base_board = self.with_artifacts.find_or_create_by(name: "Base", user_id: User::DEFAULT_ADMIN_ID, parent: PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board"), predefined: true)
-    base_board.images.destroy_all
-    words.each do |word|
-      image = Image.public_img.find_or_create_by(label: word)
-      base_board.add_image(image.id)
-    end
-    base_board.reset_layouts
-  end
+  # def self.create_predictive
+  #   words = common_words
+  #   predictive_default = self.predictive_default
+  #   predictive_default.images.destroy_all
+  #   words.each do |word|
+  #     image = Image.find_or_create_by(label: word, user_id: predictive_default.user_id)
+  #     predictive_default.images << image
+  #   end
+  # end
 
   def set_number_of_columns
     return unless number_of_columns.nil?
@@ -883,7 +874,7 @@ class Board < ApplicationRecord
         {
           id: @image.id,
           predictive_board_id: @predictive_board_id,
-          predictive_default_id: @default_board.id,
+          # predictive_default_id: @default_board.id,
           board_image_id: board_image.id,
           label: board_image.label,
           image_prompt: board_image.image_prompt,

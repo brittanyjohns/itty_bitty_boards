@@ -38,8 +38,8 @@ class Doc < ApplicationRecord
   scope :ai_generated, -> { where(source_type: "OpenAI") }
   # scope :with_attached_image, -> { includes(image_attachment: :blob) }
   scope :without_attached_image, -> { where.missing(:image_attachment) }
-  scope :no_user, -> { where(user_id: [nil, User::DEFAULT_ADMIN_ID]) }
-  scope :with_user, -> { where.not(user_id: [nil, User::DEFAULT_ADMIN_ID]) }
+  scope :no_user, -> { where(user_id: nil) }
+  scope :with_user, -> { where.not(user_id: nil) }
 
   def hide!
     update(deleted_at: Time.now)
