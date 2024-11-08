@@ -42,12 +42,16 @@ class API::UsersController < API::ApplicationController
 
     voice_settings = params[:voice] || {}
     @user.settings = user_settings.merge(voice: voice_settings)
+    params.each do |key, value|
+      @user.settings[key] = value unless value.nil?
+    end
+
     @user.base_words = params[:base_words]
-    @user.settings["wait_to_speak"] = params[:wait_to_speak] || false
-    @user.settings["disable_audit_logging"] = params[:disable_audit_logging] || false
-    @user.settings["enable_image_display"] = params[:enable_image_display] || false
-    @user.settings["enable_text_display"] = params[:enable_text_display] || false
-    @user.settings["startup_board_group_id"] = params[:startup_board_group_id] if params[:startup_board_group_id]
+    # @user.settings["wait_to_speak"] = params[:wait_to_speak] || false
+    # @user.settings["disable_audit_logging"] = params[:disable_audit_logging] || false
+    # @user.settings["enable_image_display"] = params[:enable_image_display] || false
+    # @user.settings["enable_text_display"] = params[:enable_text_display] || false
+    # @user.settings["startup_board_group_id"] = params[:startup_board_group_id] if params[:startup_board_group_id]
 
     respond_to do |format|
       if @user.save
