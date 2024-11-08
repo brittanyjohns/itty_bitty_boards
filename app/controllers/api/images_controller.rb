@@ -35,9 +35,10 @@ class API::ImagesController < API::ApplicationController
     ActiveRecord::Base.logger.silence do
       @current_user = current_user
 
-      @user_docs = @current_user.docs.with_attached_image.where(documentable_type: "Image").order(created_at: :desc)
-      @images = Image.with_artifacts.where(id: @user_docs.map(&:documentable_id)).or(Image.where(user_id: @current_user.id)).order(label: :asc).page params[:page]
-      @distinct_images = @images.distinct
+      # @user_docs = @current_user.docs.with_attached_image.where(documentable_type: "Image").order(created_at: :desc)
+      # @images = Image.with_artifacts.where(id: @user_docs.map(&:documentable_id)).or(Image.where(user_id: @current_user.id)).order(label: :asc).page params[:page]
+      # @distinct_images = @images.distinct
+      @distinct_images = Image.with_artifacts.where(user_id: @current_user.id).order(label: :asc).page params[:page]
       @images_with_display_doc = @distinct_images.map do |image|
         {
           id: image.id,

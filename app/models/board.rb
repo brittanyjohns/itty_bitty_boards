@@ -834,7 +834,6 @@ class Board < ApplicationRecord
 
   def api_view_with_predictive_images(viewing_user = nil)
     @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards])
-    @default_board = Board.predictive_default
     {
       id: id,
       name: name,
@@ -867,12 +866,15 @@ class Board < ApplicationRecord
       # images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
       images: @board_images.map do |board_image|
         @image = board_image.get_predictive_image_for(viewing_user)
+        is_owner = @image.user_id == viewing_user&.id
+        is_predictive = @image.predictive?
 
         @predictive_board_id = @image&.predictive_board_for_user(viewing_user)&.id
         {
           id: @image.id,
           predictive_board_id: @predictive_board_id,
           # predictive_default_id: @default_board.id,
+          dynamic: is_owner && is_predictive,
           board_image_id: board_image.id,
           label: board_image.label,
           image_prompt: board_image.image_prompt,
