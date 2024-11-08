@@ -90,7 +90,8 @@ class BoardGroup < ApplicationRecord
   end
 
   def self.startup
-    BoardGroup.find_or_create_by(name: "Startup", predefined: true)
+    puts "Creating startup group - @startup is #{@startup&.id}"
+    @startup ||= BoardGroup.find_or_create_by(name: "Startup", predefined: true)
   end
 
   def calculate_grid_layout

@@ -66,12 +66,18 @@ module API
       end
 
       def current
-        if current_user
-          render json: { user: current_user.api_view }
+        @current_user = current_user
+        if @current_user
+          puts "Found Current user: #{@current_user}"
+          @current_user.reload
+          @view = @current_user.api_view
+          puts "Reloaded user: #{@view}"
+          render json: { user: @view }
         else
-          current_user = user_from_token
-          if current_user
-            render json: { user: current_user }
+          puts "No current user"
+          @current_user = user_from_token
+          if @current_user
+            render json: { user: @current_user.api_view }
           else
             render json: { error: "Unauthorized - No user signed in" }, status: :unauthorized
           end
