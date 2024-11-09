@@ -201,8 +201,6 @@ class API::ImagesController < API::ApplicationController
 
     begin
       client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"], log_errors: true)
-      puts "Generating audio for text: #{input_text}"
-      puts "Client: #{client.inspect}"
 
       voice = params[:voice] || "alloy"
       user_speed = current_user.settings["voice"]["speed"] || 1.0
@@ -210,9 +208,6 @@ class API::ImagesController < API::ApplicationController
 
       valid_speeds = 0.25..4.0
       speed = valid_speeds.include?(speed.to_f) ? speed.to_f : 1.0
-      puts "Speed: #{speed}"
-
-      puts "User speed: #{user_speed}"
 
       response = client.audio.speech(
         parameters: {
@@ -222,8 +217,6 @@ class API::ImagesController < API::ApplicationController
           input: input_text,
         },
       )
-
-      puts "Response: #{response.inspect}"
 
       audio_data = response
       send_data audio_data, type: "audio/mpeg", disposition: "attachment", filename: "output.mp3"

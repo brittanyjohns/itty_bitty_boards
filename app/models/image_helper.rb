@@ -108,10 +108,7 @@ module ImageHelper
 
   def clarify_image_description(raw)
     return if Rails.env.test?
-    # response = OpenAiClient.new(open_ai_opts).clarify_image_description(raw)
     response, messages_sent = OpenAiClient.new(open_ai_opts).clarify_image_description(raw)
-    puts "clarify_image_description response: #{response}"
-    Rails.logger.info "clarify_image_description response: #{response}"
     if response
       response_text = response[:content].gsub("```json", "").gsub("```", "").strip
       if valid_json?(response_text)
@@ -119,7 +116,6 @@ module ImageHelper
       else
         puts "INVALID JSON: #{response_text}"
         response_text = transform_into_json(response_text)
-        puts "response_text: #{response_text}"
       end
     else
       Rails.logger.error "*** ERROR - clarify_image_description *** \nDid not receive valid response. Response: #{response}\n"

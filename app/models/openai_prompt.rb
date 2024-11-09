@@ -68,9 +68,7 @@ class OpenaiPrompt < ApplicationRecord
       { role: "system", content: speech_expert },
       { role: "user", content: describe_scenario_prompt },
     ] }).create_chat
-    # parsed_response = response[:content]
-    # puts "OpenAI - parsed_response: #{parsed_response}"
-    # puts "parsed_response: #{parsed_response.class}"
+
     response_text = nil
     if response
       response_text = response[:content].gsub("```json", "").gsub("```", "").strip
@@ -165,9 +163,6 @@ class OpenaiPrompt < ApplicationRecord
   end
 
   def create_images_from_response(board, response)
-    puts "RAW RESPONSE: #{response}"
-    # response_text = response[:content].gsub("```json", "").gsub("```", "").strip
-    # response_text = response[:content]
     json_word_list = nil
     if valid_json?(response)
       json_word_list = JSON.parse(response)

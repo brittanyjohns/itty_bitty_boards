@@ -1036,11 +1036,8 @@ class Image < ApplicationRecord
     response_content = response[:content]&.downcase
     parsed_response = response_content ? JSON.parse(response_content) : nil
 
-    puts "Parsed response: #{parsed_response}"
     part_of_speech = parsed_response&.with_indifferent_access["part_of_speech"] || parsed_response&.with_indifferent_access["partofspeech"] if parsed_response
-    puts "Part of speech: #{part_of_speech}"
     if part_of_speech && Image.valid_parts_of_speech.include?(part_of_speech)
-      puts "Updating part of speech: #{part_of_speech}"
       update!(part_of_speech: part_of_speech)
     end
   end

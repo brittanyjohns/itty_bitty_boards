@@ -68,10 +68,8 @@ module API
       def current
         @current_user = current_user
         if @current_user
-          puts "Found Current user: #{@current_user}"
           @current_user.reload
           @view = @current_user.api_view
-          puts "Reloaded user: #{@view}"
           render json: { user: @view }
         else
           puts "No current user"

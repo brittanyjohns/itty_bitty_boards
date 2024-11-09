@@ -109,11 +109,14 @@ class API::BoardsController < API::ApplicationController
     @board = Board.create_predictive_default unless @board
 
     @board_with_images = @board.api_view_with_predictive_images(current_user)
+    # render json: @board_with_images
+    expires_in 24.hours, public: true # Cache control header
     render json: @board_with_images
   end
 
   def predictive_image_board
     @board = Board.with_artifacts.find(params[:id])
+    expires_in 24.hours, public: true # Cache control header
 
     render json: @board.api_view_with_predictive_images(current_user)
   end

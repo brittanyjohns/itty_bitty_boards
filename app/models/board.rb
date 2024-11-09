@@ -769,11 +769,8 @@ class Board < ApplicationRecord
     @board_images = board_images.includes(:image)
     words = @board_images.pluck(:label)
     max_num_of_rows = (words.count / num_of_columns.to_f).ceil
-    puts "Words: #{words}"
     response = OpenAiClient.new({}).generate_formatted_board(name, num_of_columns, words, max_num_of_rows)
-    puts "Response: #{response.inspect}"
     if response
-      puts "Response: #{response.class}"
       parsed_response = JSON.parse(response)
       grid_response = parsed_response["grid"]
       personable_explanation = "Personable Explanation: " + parsed_response["personable_explanation"]
