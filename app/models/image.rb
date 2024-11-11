@@ -816,14 +816,18 @@ class Image < ApplicationRecord
   end
 
   def display_doc(viewing_user = nil)
-    puts "Display doc for image: #{id} - #{label} - User: #{viewing_user&.id}"
     if viewing_user
-      docs = self.docs.with_attached_image.where(user_id: [viewing_user.id, nil, User::DEFAULT_ADMIN_ID])
+      # docs = self.docs.where(user_id: [viewing_user.id, nil, User::DEFAULT_ADMIN_ID])
+      user_docs = viewing_user.user_docs.where(image_id: id)
+      docs = user_docs.map(&:doc)
     else
-      docs = self.docs.with_attached_image.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
+      docs = self.docs.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
     end
-    puts "Docs: #{docs.count}" if docs
-    puts "No docs found for image: #{id} - #{label}" if docs.blank?
+    if docs.blank?
+      puts "No docs found for image: #{id} - #{label}"
+      docs = self.docs.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
+    end
+
     doc = docs.first
     doc
 
