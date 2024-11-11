@@ -290,9 +290,6 @@ class Image < ApplicationRecord
   end
 
   def set_next_words!
-    # similar_images = Image.public_img.where(label: label).where.not(id: id)
-    # new_next_words = similar_images.pluck(:next_words).uniq
-    # puts "Next words: #{next_words}"
     return if no_next || next_words.any?
     new_next_words = get_next_words(label)
     if new_next_words
@@ -794,7 +791,6 @@ class Image < ApplicationRecord
 
   def display_image_url(viewing_user = nil)
     doc = display_doc(viewing_user)
-    # doc ? doc.display_url : "https://via.placeholder.com/300x300.png?text=#{label_param}"
     doc ? doc.display_url : nil
   end
 
@@ -820,12 +816,23 @@ class Image < ApplicationRecord
   end
 
   def display_doc(viewing_user = nil)
+    puts "Display doc for image: #{id} - #{label} - User: #{viewing_user&.id}"
+    if viewing_user
+      docs = self.docs.with_attached_image.where(user_id: [viewing_user.id, nil, User::DEFAULT_ADMIN_ID])
+    else
+      docs = self.docs.with_attached_image.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
+    end
+    puts "Docs: #{docs.count}" if docs
+    puts "No docs found for image: #{id} - #{label}" if docs.blank?
+    doc = docs.first
+    doc
+
     # Attempt to find a doc for a viewing user
-    viewer_docs = viewing_user&.display_docs_for_image(id)
-    puts "Viewer docs: #{viewer_docs.count}" if viewer_docs
-    doc = viewer_docs&.first
-    puts "Display doc for user: #{viewing_user.id} - #{doc.id}" if doc
-    return doc if doc
+    # viewer_docs = viewing_user&.display_docs_for_image(id)
+    # puts "Viewer docs: #{viewer_docs.count}" if viewer_docs
+    # doc = viewer_docs&.first
+    # puts "Display doc for user: #{viewing_user.id} - #{doc.id}" if doc
+    # return doc if doc
     # puts "viewer_docs: #{viewer_docs.count}" if viewer_docs
     # default_docs = docs.where(user_id: [User::DEFAULT_ADMIN_ID, nil]) if docs
     # puts "Default docs: #{default_docs.count}" if default_docs
@@ -971,6 +978,7 @@ class Image < ApplicationRecord
     @current_user = current_user
     current_doc = display_doc(@current_user)
     current_doc_id = current_doc.id if current_doc
+    doc_img_url = current_doc&.display_url
     image_docs = docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
     remaining = remaining_user_boards(@current_user)
     user_image_boards = user_boards(@current_user)
@@ -979,8 +987,8 @@ class Image < ApplicationRecord
       id: id,
       label: label,
       image_prompt: image_prompt,
-      display_doc: display_image_url(@current_user),
-      src: display_image_url(@current_user),
+      display_doc: doc_img_url,
+      src: doc_img_url,
       audio: @default_audio_url,
       audio_url: @default_audio_url,
       audio_files: audio_files_for_api,

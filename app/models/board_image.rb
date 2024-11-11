@@ -61,8 +61,8 @@ class BoardImage < ApplicationRecord
 
   def get_predictive_image_for(viewing_user)
     user_id_to_search = viewing_user ? viewing_user.id : nil
-    image = Image.with_artifacts.where(user_id: user_id_to_search, label: label).first
-
+    images = Image.with_artifacts.where(user_id: [user_id_to_search, User::DEFAULT_ADMIN_ID], label: label)
+    image = images.first
     # image = Image.where(user_id: viewing_user.id, label: label).first
     if image
       return image
@@ -122,7 +122,6 @@ class BoardImage < ApplicationRecord
     label_voice = "#{image.label_for_filename}_#{voice}"
     filename = "#{label_voice}.aac"
     already_has_audio_file = image.existing_audio_files.include?(filename)
-    puts "\nalready_has_audio_file: #{voice}\n" if already_has_audio_file
     self.voice = voice
     audio_file = image.find_audio_for_voice(voice)
 
