@@ -118,6 +118,14 @@ class User < ApplicationRecord
     save
   end
 
+  def predictive_boards
+    boards.predictive.includes(:parent, :board_images)
+  end
+
+  def predictive_images
+    images.joins(:board_images).where(board_images: { board_id: predictive_boards.select(:id) }).distinct
+  end
+
   def add_to_settings(key, value)
     settings[key] = value
     save
@@ -138,10 +146,6 @@ class User < ApplicationRecord
 
   def shared_with_me_boards
     Board.with_artifacts.where(id: team_boards.select(:board_id))
-  end
-
-  def predictive_boards
-    boards.predictive
   end
 
   # Token management

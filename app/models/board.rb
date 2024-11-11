@@ -479,7 +479,7 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_images(viewing_user = nil)
-    @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards])
+    @board_images = board_images.includes(image: :user)
     downcased_common_words = Board.common_words.map(&:downcase)
     existing_words = @board_images.pluck(:label).map(&:downcase)
     missing_common_words = downcased_common_words - existing_words
@@ -832,6 +832,11 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_predictive_images(viewing_user = nil)
+    # @images = viewing_user ? viewing_user.images.includes(:board_images).where(board_images: { board_id: id }) : images.includes(:board_images)
+    # @images = viewing_user ? Image.includes(:board_images, :user).where(board_images: { board_id: id }, user_id: [viewing_user.id, nil, User::DEFAULT_ADMIN_ID]) : images.includes(:board_images, :user)
+    # @user_images = viewing_user ? viewing_user.predictive_images : []
+
+    # @images = board_images.includes(:image).map(&:image)
     @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards])
     {
       id: id,
@@ -862,32 +867,49 @@ class Board < ApplicationRecord
       has_generating_images: has_generating_images?,
       current_user_teams: [],
       images: @board_images.map do |board_image|
-        @image = board_image.get_predictive_image_for(viewing_user)
-        is_owner = @image.user_id == viewing_user&.id
-        is_predictive = @image.predictive?
+        @board_image = board_image
 
-        @predictive_board_id = @image&.predictive_board_for_user(viewing_user)&.id
+        @label = @board_image.label
+
+        @image = viewing_user ? viewing_user.images.find_by(label: @label) : board_image.image
+        puts "IMAGE: #{@image}"
+        if @image.nil?
+          @image = Image.public_img.find_by(label: @label)
+        end
+
+        puts "IMAGE: #{@image}"
+        image = @image || board_image.image
+
+        # @board_image = image.board_images.find_by(board_id: id)
+        # @image = board_image.get_predictive_image_for(viewing_user)
+        is_owner = image.user_id == viewing_user&.id
+        is_predictive = image.predictive?
+
+        puts "#{image.label} -- USER: #{viewing_user&.id} - IMAGE: #{image.id} - OWNER: #{is_owner} - PREDICTIVE: #{is_predictive}"
+
+        @predictive_board_id = image&.predictive_board_for_user(viewing_user)&.id
         {
-          id: @image.id,
+          id: image.id,
+          image_user_id: image.user_id,
           predictive_board_id: @predictive_board_id,
           dynamic: is_owner && is_predictive,
-          board_image_id: board_image.id,
-          label: board_image.label,
-          image_prompt: board_image.image_prompt,
-          bg_color: @image.bg_class,
-          text_color: board_image.text_color,
-          next_words: board_image.next_words,
-          position: board_image.position,
-          src: @image.display_image_url(viewing_user),
-          audio: board_image.audio_url,
-          audio_url: board_image.audio_url,
-          voice: board_image.voice,
-          layout: board_image.layout,
-          added_at: board_image.added_at,
-          image_last_added_at: board_image.image_last_added_at,
-          part_of_speech: @image.part_of_speech,
+          board_image_id: @board_image.id,
+          label: @board_image.label,
+          image_prompt: @board_image.image_prompt,
+          bg_color: image.bg_class,
+          text_color: @board_image.text_color,
+          next_words: @board_image.next_words,
+          position: @board_image.position,
+          src: image.display_image_url(viewing_user),
+          audio: @board_image.audio_url,
+          audio_url: @board_image.audio_url,
+          voice: @board_image.voice,
+          layout: @board_image.layout,
+          added_at: @board_image.added_at,
+          image_last_added_at: @board_image.image_last_added_at,
+          part_of_speech: image.part_of_speech,
 
-          status: board_image.status,
+          status: @board_image.status,
         }
       end,
     # layout: layout,
