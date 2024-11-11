@@ -882,7 +882,7 @@ class Board < ApplicationRecord
 
         # @board_image = image.board_images.find_by(board_id: id)
         # @image = board_image.get_predictive_image_for(viewing_user)
-        is_owner = image.user_id == viewing_user&.id
+        is_owner = viewing_user && image.user_id == viewing_user&.id
         is_predictive = image.predictive?
 
         puts "#{image.label} -- USER: #{viewing_user&.id} - IMAGE: #{image.id} - OWNER: #{is_owner} - PREDICTIVE: #{is_predictive}"

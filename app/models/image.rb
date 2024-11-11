@@ -387,7 +387,7 @@ class Image < ApplicationRecord
   end
 
   def predictive?
-    predictive_board != Board.predictive_default.id
+    predictive_board&.id != Board.predictive_default.id
   end
 
   def default_audio_files
