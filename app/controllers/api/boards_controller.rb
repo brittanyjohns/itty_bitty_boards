@@ -105,10 +105,20 @@ class API::BoardsController < API::ApplicationController
   end
 
   def first_predictive_board
+    @user_type = params[:user_type] || "user"
+    puts "User type: #{@user_type}"
     @board = Board.with_artifacts.predictive_default
     @board = Board.create_predictive_default unless @board
+    if @user_type == "user"
+      viewing_user = current_user
+    elsif @user_type == "child"
+      puts "Child user - finding child user: current_user: #{current_child.inspect}"
+      viewing_user = current_child
+    end
 
-    @board_with_images = @board.api_view_with_predictive_images(current_user)
+    puts "Viewing user: #{viewing_user.inspect}"
+
+    @board_with_images = @board.api_view_with_predictive_images(viewing_user)
     # render json: @board_with_images
     expires_in 24.hours, public: true # Cache control header
     render json: @board_with_images

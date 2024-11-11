@@ -7,7 +7,6 @@ module API
       @user ||= user_from_token
       if @user
         # sign_in @user
-        puts "User authenticated"
         true
       else
         puts "Unauthorized"

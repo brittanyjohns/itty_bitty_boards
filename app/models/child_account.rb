@@ -37,6 +37,8 @@ class ChildAccount < ApplicationRecord
 
   validates :username, presence: true, uniqueness: true
 
+  delegate :display_docs_for_image, to: :user
+
   def self.valid_credentials?(username, password_to_set)
     account = ChildAccount.find_by(username: username, passcode: password_to_set)
     if account
@@ -88,6 +90,10 @@ class ChildAccount < ApplicationRecord
       puts "No user provided"
       false
     end
+  end
+
+  def admin?
+    user.admin?
   end
 
   def available_boards

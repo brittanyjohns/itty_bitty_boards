@@ -184,15 +184,23 @@ class User < ApplicationRecord
     Doc.with_attached_image.joins(:user_docs).where(user_docs: { user_id: id })
   end
 
-  def display_doc_for_image(image_id)
+  def display_docs_for_image(image_id)
+    # image = Image.includes(:docs).find_by(id: image_id)
+    # return [] unless image
+    # docs = image.docs.where(user_id: id)
+    # return docs if docs.present?
+    # docs = image.docs.where(user_id: [nil, DEFAULT_ADMIN_ID])
+    # return docs if docs.present?
+    # []
+
     ActiveRecord::Base.logger.silence do
-      doc = Doc.joins(:user_docs)
+      docs = Doc.joins(:user_docs)
         .where(user_docs: { user_id: id, image_id: image_id })
-        .last
-      return doc if doc
+        .all
+      return docs if docs.present?
       Doc.joins(:user_docs)
          .where(user_docs: { user_id: [nil, DEFAULT_ADMIN_ID], image_id: image_id })
-         .last
+         .all
     end
   end
 

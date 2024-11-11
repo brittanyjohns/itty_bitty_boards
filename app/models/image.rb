@@ -821,11 +821,18 @@ class Image < ApplicationRecord
 
   def display_doc(viewing_user = nil)
     # Attempt to find a doc for a viewing user
-    doc = viewing_user&.display_doc_for_image(id)
+    viewer_docs = viewing_user&.display_docs_for_image(id)
+    puts "Viewer docs: #{viewer_docs.count}" if viewer_docs
+    doc = viewer_docs&.first
+    puts "Display doc for user: #{viewing_user.id} - #{doc.id}" if doc
     return doc if doc
-    image_docs = docs.for_user(viewing_user).order(created_at: :desc)
-    default_image_doc = image_docs.where(user_id: [User::DEFAULT_ADMIN_ID, nil]).first
-    default_image_doc
+    # puts "viewer_docs: #{viewer_docs.count}" if viewer_docs
+    # default_docs = docs.where(user_id: [User::DEFAULT_ADMIN_ID, nil]) if docs
+    # puts "Default docs: #{default_docs.count}" if default_docs
+    # default_image_doc = default_docs&.first if default_docs
+    # # image_docs = default_docs.for_user(viewing_user).order(created_at: :desc) if default_docs
+    # # default_image_doc = image_docs.where(user_id: [User::DEFAULT_ADMIN_ID, nil]).first
+    # default_image_doc
   end
 
   def self.set_user_docs_for_docs_without(dry_run: true)
@@ -965,7 +972,6 @@ class Image < ApplicationRecord
     current_doc = display_doc(@current_user)
     current_doc_id = current_doc.id if current_doc
     image_docs = docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
-    default_image_doc = image_docs.where(user_id: [User::DEFAULT_ADMIN_ID, nil]).first
     remaining = remaining_user_boards(@current_user)
     user_image_boards = user_boards(@current_user)
     @default_audio_url = default_audio_url

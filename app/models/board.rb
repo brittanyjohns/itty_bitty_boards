@@ -475,20 +475,22 @@ class Board < ApplicationRecord
   end
 
   def words
-    images.map(&:label)
+    @words ||= board_images.pluck(:label)
   end
 
   def api_view_with_images(viewing_user = nil)
     @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards])
     downcased_common_words = Board.common_words.map(&:downcase)
-    missing_common_words = downcased_common_words - words
+    existing_words = @board_images.pluck(:label).map(&:downcase)
+    missing_common_words = downcased_common_words - existing_words
     {
       id: id,
       name: name,
       description: description,
       category: category,
       common_words: Board.common_words,
-      word_list: words,
+      # word_list: words,
+      word_list: existing_words,
       missing_common_words: missing_common_words,
       data: data,
       parent_type: parent_type,
@@ -564,7 +566,7 @@ class Board < ApplicationRecord
       token_limit: token_limit,
       cost: cost,
       display_image_url: display_image_url,
-      floating_words: words,
+      # floating_words: words,
       user_id: user_id,
       voice: voice,
       margin_settings: margin_settings,
@@ -851,7 +853,7 @@ class Board < ApplicationRecord
       cost: cost,
       audio_url: audio_url,
       display_image_url: display_image_url,
-      floating_words: words,
+      # floating_words: words,
       user_id: user_id,
       voice: voice,
       created_at: created_at,
@@ -896,7 +898,7 @@ class Board < ApplicationRecord
   end
 
   def get_words(name_to_send, number_of_words, words_to_exclude = [])
-    words_to_exclude = board_images.map(&:label).uniq
+    words_to_exclude = board_images.pluck(:label).map { |w| w.downcase }
     puts "Words to exclude: #{words_to_exclude}"
     response = OpenAiClient.new({}).get_additional_words(name_to_send, number_of_words, words_to_exclude)
     if response
