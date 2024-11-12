@@ -479,7 +479,7 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_images(viewing_user = nil)
-    @board_images = board_images.includes(image: :user)
+    @board_images = board_images.includes(:image).uniq
     downcased_common_words = Board.common_words.map(&:downcase)
     existing_words = @board_images.pluck(:label).map(&:downcase)
     missing_common_words = downcased_common_words - existing_words
