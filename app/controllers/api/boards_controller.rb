@@ -132,6 +132,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def show
+    puts "GETTING BOARD - ID: #{params[:id]}"
     # board = Board.with_artifacts.find(params[:id])
     set_board
     @board_with_images = @board.api_view_with_images(current_user)
@@ -298,7 +299,7 @@ class API::BoardsController < API::ApplicationController
     FormatBoardWithAiJob.perform_async(@board.id, screen_size)
     # @board.format_board_with_ai(screen_size)
     puts "Board formatted with AI"
-    render json: { status: :ok }
+    render json: @board.api_view_with_images(current_user)
   end
 
   def add_image

@@ -791,15 +791,18 @@ class Board < ApplicationRecord
             if item["frequency"] === "high"
               item["size"] = [2, 2]
             end
+
             puts "Frequency: #{item["frequency"]}"
-            board_image.data["label"] = label
-            board_image.data[screen_size] ||= {}
-            board_image.data[screen_size]["frequency"] = item["frequency"]
-            board_image.data[screen_size]["size"] = item["size"]
-            board_image.data["part_of_speech"] = item["part_of_speech"]
-            board_image.data["bg_color"] = image.background_color_for(item["part_of_speech"])
-            board_image.save!
           end
+
+          board_image.data["label"] = label
+          board_image.data[screen_size] ||= {}
+          board_image.data[screen_size]["frequency"] = item["frequency"]
+          board_image.data[screen_size]["size"] = item["size"]
+          board_image.data["part_of_speech"] = item["part_of_speech"]
+          board_image.data["bg_color"] = image.background_color_for(item["part_of_speech"])
+          board_image.save!
+
           image.part_of_speech = item["part_of_speech"] if item["part_of_speech"].present? && image.part_of_speech.blank?
           image.save!
 
@@ -832,11 +835,6 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_predictive_images(viewing_user = nil)
-    # @images = viewing_user ? viewing_user.images.includes(:board_images).where(board_images: { board_id: id }) : images.includes(:board_images)
-    # @images = viewing_user ? Image.includes(:board_images, :user).where(board_images: { board_id: id }, user_id: [viewing_user.id, nil, User::DEFAULT_ADMIN_ID]) : images.includes(:board_images, :user)
-    # @user_images = viewing_user ? viewing_user.predictive_images : []
-
-    # @images = board_images.includes(:image).map(&:image)
     @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards])
     {
       id: id,

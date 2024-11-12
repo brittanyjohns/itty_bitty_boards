@@ -44,6 +44,8 @@ class Image < ApplicationRecord
 
   PROMPT_ADDITION = " Styled as a simple cartoon illustration."
 
+  validates :label, presence: true
+
   include ImageHelper
   include Rails.application.routes.url_helpers
   include PgSearch::Model
@@ -830,20 +832,6 @@ class Image < ApplicationRecord
 
     doc = docs.first
     doc
-
-    # Attempt to find a doc for a viewing user
-    # viewer_docs = viewing_user&.display_docs_for_image(id)
-    # puts "Viewer docs: #{viewer_docs.count}" if viewer_docs
-    # doc = viewer_docs&.first
-    # puts "Display doc for user: #{viewing_user.id} - #{doc.id}" if doc
-    # return doc if doc
-    # puts "viewer_docs: #{viewer_docs.count}" if viewer_docs
-    # default_docs = docs.where(user_id: [User::DEFAULT_ADMIN_ID, nil]) if docs
-    # puts "Default docs: #{default_docs.count}" if default_docs
-    # default_image_doc = default_docs&.first if default_docs
-    # # image_docs = default_docs.for_user(viewing_user).order(created_at: :desc) if default_docs
-    # # default_image_doc = image_docs.where(user_id: [User::DEFAULT_ADMIN_ID, nil]).first
-    # default_image_doc
   end
 
   def self.set_user_docs_for_docs_without(dry_run: true)

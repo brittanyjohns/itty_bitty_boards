@@ -160,7 +160,7 @@ class OpenAiClient
       }
 
       Organize the words based on these guidelines:
-      1. Core words should be placed first and grouped together, prioritizing high-frequency words.
+      1. Core words should be placed first and grouped together, prioritizing high-frequency words - Stating with the coordinate [0,0].
       2. Group words by parts of speech (e.g., pronouns, verbs, adjectives).
       3. Consider how speech-language pathologists arrange words for ease of use in communication, ensuring frequently used words are near the top left.
       4. Use a grid layout with a maximum of #{num_of_columns} columns and a variable number of rows based on the number of words. Maximize the number of words per row while keeping the board easy to navigate. Max rows: #{max_num_of_rows}.
