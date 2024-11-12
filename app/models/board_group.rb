@@ -70,7 +70,17 @@ class BoardGroup < ApplicationRecord
       layout: print_grid_layout,
       number_of_columns: number_of_columns,
       display_image_url: display_image_url,
-      boards: boards.map { |board| board.api_view(viewing_user) },
+      boards: boards.map do |board|
+        { id: board.id,
+          name: board.name,
+          description: board.description,
+          user_id: board.user_id,
+          parent_id: board.parent_id,
+          parent_type: board.parent_type,
+          group_layout: board.group_layout,
+          display_image_url: board.display_image_url,
+          audio_url: board.audio_url }
+      end,
       predefined: predefined,
     }
   end

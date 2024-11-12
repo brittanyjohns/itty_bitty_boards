@@ -113,7 +113,8 @@ class Doc < ApplicationRecord
     if user.nil?
       return self.with_attached_image.where(user_id: [nil, admin_default_id])
     end
-    user.admin? ? self.all : self.with_attached_image.where(user_id: [user.id, nil, admin_default_id])
+    # user.admin? ? self.all : self.with_attached_image.where(user_id: [user.id, nil, admin_default_id])
+    self.with_attached_image.where(user_id: [user.id, nil, admin_default_id])
   end
 
   def self.current_for_user(user)

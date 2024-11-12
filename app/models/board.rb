@@ -59,8 +59,8 @@ class Board < ApplicationRecord
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
   scope :scenarios, -> { where(parent_type: "OpenaiPrompt") }
-  scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt"]) }
-  scope :user_made_with_scenarios_and_menus, -> { where(parent_type: ["User", "OpenaiPrompt", "Menu"]) }
+  scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt"], predefined: false) }
+  scope :user_made_with_scenarios_and_menus, -> { where(parent_type: ["User", "OpenaiPrompt", "Menu"], predefined: false) }
   scope :predefined, -> { where(predefined: true) }
   scope :ai_generated, -> { where(parent_type: "OpenaiPrompt") }
   scope :with_less_than_10_images, -> { joins(:images).group("boards.id").having("count(images.id) < 10") }
@@ -352,7 +352,7 @@ class Board < ApplicationRecord
     word_list.each do |word|
       word = word.downcase
       image = user.images.find_by(label: word)
-      image = Image.public_img.find_by(label: word) unless image
+      image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
       found_image = image
       image = Image.public_img.create(label: word, user_id: user_id) unless image
       self.add_image(image.id)
@@ -415,7 +415,7 @@ class Board < ApplicationRecord
     cloned_user = User.find(cloned_user_id)
     unless cloned_user
       Rails.logger.debug "User not found: #{cloned_user_id} - defaulting to admin"
-      cloned_user_id = User::DEFAULT_ADMIN
+      cloned_user_id = User::DEFAULT_ADMIN_ID
       cloned_user = User.find(cloned_user_id)
       if !cloned_user
         Rails.logger.debug "Default admin user not found: #{cloned_user_id}"
@@ -871,10 +871,10 @@ class Board < ApplicationRecord
 
         @label = @board_image.label
 
-        @image = viewing_user ? viewing_user.images.find_by(label: @label) : board_image.image
+        @image = viewing_user ? viewing_user.images.find_by(label: @label) : nil
         puts "IMAGE: #{@image}"
         if @image.nil?
-          @image = Image.public_img.find_by(label: @label)
+          @image = Image.public_img.find_by(label: @label, user_id: [User::DEFAULT_ADMIN_ID, nil])
         end
 
         puts "IMAGE: #{@image}"
