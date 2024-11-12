@@ -384,6 +384,8 @@ class Board < ApplicationRecord
         new_board_image.skip_initial_layout = true
         new_board_image.save
       else
+        new_board_image.save
+        new_board_image.set_initial_layout!
         # new_board_image.layout = {}
 
         # new_board_image.layout["lg"] = next_available_cell("lg").merge("i" => new_board_image.id.to_s)
@@ -518,6 +520,7 @@ class Board < ApplicationRecord
       # current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
       # images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
       images: @board_images.map do |board_image|
+        puts "invaild layout: #{board_image.layout}" if board_image.layout_invalid?
         @image = board_image.image
         is_owner = @image.user_id == viewing_user&.id
         is_predictive = @image.predictive?
@@ -944,10 +947,10 @@ class Board < ApplicationRecord
     words_to_include
   end
 
-  ["want", "need", "help", "stop", "more", "yes", "no", "like", "go", "come", "look", "play", "eat", "drink",
-   "feel", "open", "close", "turn", "give", "take", "find", "make", "read", "write",
-   "listen", "see", "hear", "touch", "sit", "stand", "i", "to", "you", "happy", "sad", "big",
-   "little", "fast", "slow", "hot", "cold", "good", "bad", "here", "there"]
+  # ["want", "need", "help", "stop", "more", "yes", "no", "like", "go", "come", "look", "play", "eat", "drink",
+  #  "feel", "open", "close", "turn", "give", "take", "find", "make", "read", "write",
+  #  "listen", "see", "hear", "touch", "sit", "stand", "i", "to", "you", "happy", "sad", "big",
+  #  "little", "fast", "slow", "hot", "cold", "good", "bad", "here", "there"]
 
   def get_word_suggestions(name_to_use, number_of_words)
     response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words)

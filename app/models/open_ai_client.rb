@@ -192,6 +192,9 @@ class OpenAiClient
     @model = GPT_4_MODEL
     text = "I have an existing AAC board titled, '#{name}' with the current words: [#{exclude_words_prompt}]. Please provide EXACTLY #{number_of_words} additional words that are foundational for basic communication in an AAC device. 
     These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. They should be similar in nature to the words already on the board, but not duplicates. Do not repeat any words that are already on the board & only provide #{number_of_words} words. DO NOT INCLUDE [#{exclude_words_prompt}]. 
+    If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate. 
+    If the board is 'feelings', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
+    If the board is 'family', words like 'mom', 'dad', 'sister', 'brother', etc. would be appropriate.
     Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
     @messages = [{ role: "user",
                   content: [{
@@ -206,7 +209,11 @@ class OpenAiClient
   def get_word_suggestions(name, number_of_words = 24)
     @model = GPT_4_MODEL
     text = "I have an existing AAC board titled, '#{name}'. Inferring the context from the name, please provide #{number_of_words} words that are foundational for basic communication in an AAC device.
-    These words should relate to the context of the board and be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations.
+    These words should relate to the context of the board and be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. 
+    Examples: If the board is named 'drink', words like 'water', 'milk', 'juice', 'thirsty', etc. would be appropriate. 
+    If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate. 
+    If the board is 'feelings', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
+    If the board is 'family', words like 'mom', 'dad', 'sister', 'brother', etc. would be appropriate.
     Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}"
 
     @messages = [{ role: "user",
