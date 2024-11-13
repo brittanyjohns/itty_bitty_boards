@@ -69,6 +69,9 @@ class Board < ApplicationRecord
 
   scope :predictive, -> { where(parent_type: "Image") }
 
+  scope :created_this_week, -> { where("created_at > ?", 1.week.ago) }
+  scope :created_before_this_week, -> { where("created_at < ?", 11.days.ago) }
+
   scope :featured, -> { where(category: ["featured", "popular"], predefined: true) }
   scope :popular, -> { where(category: "popular", predefined: true) }
   scope :general, -> { where(category: "general", predefined: true) }
@@ -253,8 +256,28 @@ class Board < ApplicationRecord
     board_images.where(status: ["pending", "generating"])
   end
 
-  def self.predictive_default
-    self.where(parent_type: "PredefinedResource", name: "Predictive Default").first
+  def self.predictive_default(viewing_user = nil)
+    predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
+    board = nil
+    if viewing_user
+      predictive_default_id = viewing_user.settings["predictive_default_id"]
+      if predictive_default_id
+        board = self.find_by(id: predictive_default_id)
+      end
+      board = self.create(name: "Custom Predictive Default", user_id: viewing_user.id, parent_type: "PredefinedResource", parent_id: predefined_resource.id) unless board
+      viewing_user.settings["predictive_default_id"] = board.id
+      viewing_user.save!
+    else
+      board = self.with_artifacts.where(parent_type: "PredefinedResource", name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID).first
+    end
+    if board && board.images.count == 0
+      original_board = self.with_artifacts.where(parent_type: "PredefinedResource", name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID).first
+      original_board.images.each do |image|
+        board.add_image(image.id)
+      end
+      puts "Added images to Predictive Default"
+    end
+    board
   end
 
   def self.position_all_board_images
@@ -524,10 +547,11 @@ class Board < ApplicationRecord
         @image = board_image.image
         is_owner = @image.user_id == viewing_user&.id
         is_predictive = @image.predictive?
+        @image_predictive_board = @image.predictive_board
         {
           id: @image.id,
           # id: board_image.id,
-          predictive_board_id: @image.predictive_board&.id,
+          predictive_board_id: @image_predictive_board&.id,
           board_image_id: board_image.id,
           dynamic: is_owner && is_predictive,
           label: board_image.label,
@@ -536,7 +560,7 @@ class Board < ApplicationRecord
           text_color: @image.text_color,
           next_words: board_image.next_words,
           position: board_image.position,
-          src: @image.display_image_url(viewing_user),
+          src: @image_predictive_board&.display_image_url || @image.display_image_url(viewing_user),
           audio: board_image.audio_url,
           audio_url: board_image.audio_url,
           voice: board_image.voice,
@@ -873,12 +897,10 @@ class Board < ApplicationRecord
         @label = @board_image.label
 
         @image = viewing_user ? viewing_user.images.find_by(label: @label) : nil
-        puts "IMAGE: #{@image}"
         if @image.nil?
           @image = Image.public_img.find_by(label: @label, user_id: [User::DEFAULT_ADMIN_ID, nil])
         end
 
-        puts "IMAGE: #{@image}"
         image = @image || board_image.image
 
         # @board_image = image.board_images.find_by(board_id: id)

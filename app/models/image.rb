@@ -96,6 +96,22 @@ class Image < ApplicationRecord
     end
   end
 
+  def update_predictive_boards
+    predictive_boards.includes(:user).each do |board|
+      board_user = board.user
+      updated_image_url = display_image_url(board_user)
+
+      board.update!(display_image_url: updated_image_url)
+    end
+  end
+
+  def self.update_all_predictive_boards
+    boards_to_update = Board.predictive.includes(:parent).where(parent_type: "Image")
+    boards_to_update.each do |board|
+      board.parent.update_predictive_boards
+    end
+  end
+
   def update_background_color
     puts "Updating background color for #{label}"
     self.bg_color = background_color_for(part_of_speech)
@@ -146,7 +162,7 @@ class Image < ApplicationRecord
     if board
       board
     else
-      board = @predictive_boards.where(user_id: nil).first
+      board = @predictive_boards.where(user_id: User::DEFAULT_ADMIN_ID).first
       if board
         board
       else
@@ -820,13 +836,12 @@ class Image < ApplicationRecord
   def display_doc(viewing_user = nil)
     if viewing_user
       # docs = self.docs.where(user_id: [viewing_user.id, nil, User::DEFAULT_ADMIN_ID])
-      user_docs = viewing_user.user_docs.where(image_id: id)
+      user_docs = viewing_user.user_docs.includes(:doc).where(image_id: id)
       docs = user_docs.map(&:doc)
     else
       docs = self.docs.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
     end
     if docs.blank?
-      puts "No docs found for image: #{id} - #{label}"
       docs = self.docs.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
     end
 
@@ -1094,13 +1109,13 @@ class Image < ApplicationRecord
       board_image.update!(image_id: @cloned_image.id)
     end
 
-    if @display_doc
+    if @display_doc && @display_doc.image.attached?
       original_file = @display_doc.image
       new_doc = @display_doc.dup
       new_doc.documentable = @cloned_image
       new_doc.user_id = cloned_user_id
       new_doc.save
-      new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type)
+      new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type) unless original_file.nil?
     end
     if @cloned_image.save
       puts "Creating predictive board for cloned image"

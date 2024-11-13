@@ -20,7 +20,7 @@
 class Doc < ApplicationRecord
   default_scope { where(deleted_at: nil) }
   belongs_to :user, optional: true
-  belongs_to :documentable, polymorphic: true
+  belongs_to :documentable, polymorphic: true, touch: true
   belongs_to :board, optional: true
   has_one_attached :image
   has_many :user_docs, dependent: :destroy

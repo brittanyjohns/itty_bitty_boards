@@ -298,6 +298,9 @@ class User < ApplicationRecord
     view["current_sign_in_at"] = current_sign_in_at
     view["current_sign_in_ip"] = current_sign_in_ip
     view["sign_in_count"] = sign_in_count
+    view["tokens"] = tokens
+    view["phrase_board_id"] = settings["phrase_board_id"]
+    view["predictive_default_id"] = settings["predictive_default_id"]
     # view["startup_board_group_id"] = settings["startup_board_group_id"].blank? ? startup_board_group.id.to_s : settings["startup_board_group_id"]
     view
   end

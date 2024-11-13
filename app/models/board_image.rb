@@ -20,13 +20,14 @@
 #
 class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
-  belongs_to :board
-  belongs_to :image
+  belongs_to :board, touch: true
+  belongs_to :image, touch: true
   attr_accessor :skip_create_voice_audio, :skip_initial_layout, :src
 
   before_create :set_defaults
   after_create :set_next_words
   before_save :set_label, if: -> { label.blank? }
+  after_save :update_predictive_board
 
   # after_initialize :set_initial_layout, if: :layout_invalid?
 
@@ -41,6 +42,12 @@ class BoardImage < ApplicationRecord
 
   def set_label
     self.label = image.label
+  end
+
+  def update_predictive_board
+    if board.parent_type == "Image"
+      board.parent.update_predictive_boards
+    end
   end
 
   def layout_invalid?
