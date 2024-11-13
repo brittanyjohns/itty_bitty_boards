@@ -116,7 +116,8 @@ class API::ImagesController < API::ApplicationController
     @image = Image.find(params[:id])
     label_to_set = params[:new_name]&.downcase || @image.label
     user_id = @current_user.id
-    @image_clone = @image.clone_with_current_display_doc(user_id, label_to_set)
+    make_dynamic = params[:make_dynamic] == "1"
+    @image_clone = @image.clone_with_current_display_doc(user_id, label_to_set, make_dynamic)
     voice = params[:voice] || "alloy"
     text = params[:text] || @image_clone.label
     @original_audio_files = @image.audio_files

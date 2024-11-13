@@ -983,6 +983,7 @@ class Image < ApplicationRecord
 
   def with_display_doc(current_user = nil)
     @current_user = current_user
+    @predictive_board = predictive_board
     current_doc = display_doc(@current_user)
     current_doc_id = current_doc.id if current_doc
     doc_img_url = current_doc&.display_url
@@ -1003,8 +1004,8 @@ class Image < ApplicationRecord
       status: status,
       error: error,
       text_color: text_color,
-      predictive_board_id: predictive_board&.id,
-      # predictive_default: Board.predictive_default.id === predictive_board&.id,
+      predictive_board_id: @predictive_board&.id,
+      dynamic: @predictive_board&.user_id == @current_user&.id,
       bg_color: bg_class,
       open_symbol_status: open_symbol_status,
       created_at: created_at,
@@ -1078,7 +1079,7 @@ class Image < ApplicationRecord
     image
   end
 
-  def clone_with_current_display_doc(cloned_user_id, new_name)
+  def clone_with_current_display_doc(cloned_user_id, new_name, make_dynamic = false)
     if new_name.blank?
       new_name = label
     end
@@ -1119,7 +1120,7 @@ class Image < ApplicationRecord
     end
     if @cloned_image.save
       puts "Creating predictive board for cloned image"
-      @cloned_image.create_predictive_board(@cloned_user.id)
+      @cloned_image.create_predictive_board(@cloned_user.id) if make_dynamic
       @cloned_image
     else
       Rails.logger.debug "Error cloning image: #{@cloned_image}"
