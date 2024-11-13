@@ -52,8 +52,8 @@ class BoardImage < ApplicationRecord
 
   def layout_invalid?
     return true if layout.blank?
-    return true if layout["lg"] == nil || layout["md"] == nil || layout["sm"] == nil || layout["xs"] == nil || layout["xxs"] == nil
-    layout["lg"].values.any?(&:nil?) || layout["md"].values.any?(&:nil?) || layout["sm"].values.any?(&:nil?) || layout["xs"].values.any?(&:nil?) || layout["xxs"].values.any?(&:nil?)
+    return true if layout["lg"] == nil || layout["md"] == nil || layout["sm"] == nil
+    layout["lg"].values.any?(&:nil?) || layout["md"].values.any?(&:nil?) || layout["sm"].values.any?(&:nil?)
   end
 
   def initialize(*args)

@@ -3,7 +3,7 @@ class API::BoardsController < API::ApplicationController
   respond_to :json
 
   # before_action :authenticate_user!
-  skip_before_action :authenticate_token!, only: %i[ predictive_index first_predictive_board ]
+  skip_before_action :authenticate_token!, only: %i[ predictive_index first_predictive_board predictive_image_board ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images ]
   # layout "fullscreen", only: [:fullscreen]
@@ -112,7 +112,7 @@ class API::BoardsController < API::ApplicationController
       viewing_user = current_user
     elsif @user_type == "child"
       puts "Child user - finding child user: current_user: #{current_child.inspect}"
-      viewing_user = current_child
+      viewing_user = current_child.user
     end
 
     @board = Board.predictive_default(viewing_user)
@@ -139,12 +139,14 @@ class API::BoardsController < API::ApplicationController
   def show
     # board = Board.with_artifacts.find(params[:id])
     set_board
-    @board_with_images = @board.api_view_with_images(current_user)
-    user_permissions = {
-      can_edit: (@board.user == current_user || current_user.admin?),
-      can_delete: (@board.user == current_user || current_user.admin?),
-    }
-    render json: @board_with_images.merge(user_permissions)
+    if stale?(etag: @board, last_modified: @board.updated_at)
+      @board_with_images = @board.api_view_with_images(current_user)
+      user_permissions = {
+        can_edit: (@board.user == current_user || current_user.admin?),
+        can_delete: (@board.user == current_user || current_user.admin?),
+      }
+      render json: @board_with_images.merge(user_permissions)
+    end
   end
 
   def save_layout
