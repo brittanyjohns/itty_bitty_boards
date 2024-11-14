@@ -158,7 +158,8 @@ class Image < ApplicationRecord
 
   def predictive_board_for_user(user_id)
     @predictive_boards = predictive_boards
-    board = @predictive_boards.find_by(name: label, user_id: user_id)
+    puts "Predictive boards #{label}: #{@predictive_boards}"
+    board = @predictive_boards.find_by(name: label, user_id: user_id) if user_id
     if board
       board
     else
@@ -174,7 +175,7 @@ class Image < ApplicationRecord
 
   def predictive_board
     viewing_user_id = user_id
-    viewing_user_id.blank? ? Board.predictive_default : predictive_board_for_user(viewing_user_id)
+    predictive_board_for_user(viewing_user_id)
   end
 
   def create_predictive_board(new_user_id)
@@ -993,6 +994,9 @@ class Image < ApplicationRecord
     remaining = remaining_user_boards(@current_user)
     user_image_boards = user_boards(@current_user)
     @default_audio_url = default_audio_url
+    @predictive_board_id = predictive_board_for_user(@current_user)&.id
+    @global_default_id = Board.predictive_default_id
+    is_predictive = @predictive_board_id != @global_default_id
     {
       id: id,
       label: label,
@@ -1006,7 +1010,7 @@ class Image < ApplicationRecord
       status: status,
       error: error,
       text_color: text_color,
-      predictive_board_id: @current_user&.settings["predictive_default_id"] || Board.predictive_default_id,
+      predictive_board_id: @predictive_board_id,
       dynamic: @predictive_board&.user_id == @current_user&.id,
       bg_color: bg_class,
       open_symbol_status: open_symbol_status,

@@ -926,16 +926,11 @@ class Board < ApplicationRecord
 
         image = @image || board_image.image
 
-        # @board_image = image.board_images.find_by(board_id: id)
-        # @image = board_image.get_predictive_image_for(viewing_user)
         is_owner = viewing_user && image.user_id == viewing_user&.id
-        # is_predictive = image.predictive?
 
         @predictive_board_id = image&.predictive_board_for_user(viewing_user)&.id
         @global_default_id = Board.predictive_default_id
         is_predictive = @predictive_board_id != @global_default_id
-        puts "Predictive Board ID: #{@predictive_board_id}"
-        puts "Predictive Default ID: #{@global_default_id}"
         {
           id: image.id,
           image_user_id: image.user_id,
