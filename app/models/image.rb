@@ -405,7 +405,8 @@ class Image < ApplicationRecord
   end
 
   def predictive?
-    predictive_board&.id != Board.predictive_default.id
+    id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
+    id_from_env && id_from_env.to_i == id
   end
 
   def default_audio_files

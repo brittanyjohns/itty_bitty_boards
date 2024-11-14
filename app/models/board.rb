@@ -259,7 +259,6 @@ class Board < ApplicationRecord
   def self.predictive_default(viewing_user = nil)
     board = nil
     id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
-    puts "Predictive Default ID from ENV: #{id_from_env}"
     if viewing_user
       predictive_default_id = viewing_user&.settings["predictive_default_id"]
       puts "Predictive Default ID from user settings: #{predictive_default_id}"
@@ -275,11 +274,12 @@ class Board < ApplicationRecord
         CreateCustomPredictiveDefaultJob.perform_async(viewing_user.id)
       end
     end
-    if id_from_env
-      board = self.with_artifacts.find_by(id: id_from_env) unless board
+    if id_from_env && !board
+      puts "Predictive Default ID from ENV: #{id_from_env}"
+      board = self.with_artifacts.find_by(id: id_from_env)
     end
     # original_board = nil
-    if board.nil?
+    if !board
       # original_board = self.with_artifacts.find_by(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
       puts "Predictive Default not found"
       predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
