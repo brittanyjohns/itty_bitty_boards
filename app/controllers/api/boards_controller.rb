@@ -115,7 +115,7 @@ class API::BoardsController < API::ApplicationController
       viewing_user = current_child.user
     end
 
-    id_from_env = ENV["PREDICTIVE_BOARD_ID"]
+    id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
 
     user_predictive_board_id = viewing_user&.settings["predictive_board_id"] ? viewing_user.settings["predictive_board_id"].to_i : nil
 
