@@ -281,7 +281,6 @@ class API::ImagesController < API::ApplicationController
         @board = @image.predictive_board_for_user(current_user.id)
         if @board
           new_words = @image.next_words.keep_if { |word| !@board.words.include?(word) }
-          puts "New words: #{new_words}"
           @board.find_or_create_images_from_word_list(new_words)
         end
       end

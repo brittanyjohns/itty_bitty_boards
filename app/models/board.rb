@@ -59,7 +59,7 @@ class Board < ApplicationRecord
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
   scope :scenarios, -> { where(parent_type: "OpenaiPrompt") }
-  scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt", "PredefinedResource"], predefined: false) }
+  scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt"], predefined: false) }
   scope :user_made_with_scenarios_and_menus, -> { where(parent_type: ["User", "OpenaiPrompt", "Menu", "PredefinedResource"], predefined: false) }
   scope :predefined, -> { where(predefined: true) }
   scope :ai_generated, -> { where(parent_type: "OpenaiPrompt") }
@@ -865,7 +865,6 @@ class Board < ApplicationRecord
           end
           # max_num_of_rows = (images.count / num_of_columns.to_f).ceil
           if y_coordinate >= max_num_of_rows
-            puts "#{image.label} Y Coordinate: #{y_coordinate} - Max Rows: #{max_num_of_rows}"
             y_coordinate = max_num_of_rows
           end
 
@@ -928,8 +927,6 @@ class Board < ApplicationRecord
 
         is_owner = viewing_user && image.user_id == viewing_user&.id
 
-        puts "USer settings: #{viewing_user&.settings}"
-
         @predictive_board_id = image&.predictive_board_for_user(viewing_user&.id)&.id
         @global_default_id = Board.predictive_default_id
         is_predictive = @predictive_board_id != @global_default_id
@@ -966,7 +963,6 @@ class Board < ApplicationRecord
 
   def get_words(name_to_send, number_of_words, words_to_exclude = [])
     words_to_exclude = board_images.pluck(:label).map { |w| w.downcase }
-    puts "Words to exclude: #{words_to_exclude}"
     response = OpenAiClient.new({}).get_additional_words(name_to_send, number_of_words, words_to_exclude)
     if response
       words = response[:content].gsub("```json", "").gsub("```", "").strip
