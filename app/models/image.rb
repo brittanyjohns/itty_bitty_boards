@@ -158,13 +158,21 @@ class Image < ApplicationRecord
 
   def predictive_board_for_user(user_id)
     @predictive_boards = predictive_boards
-    puts "Predictive boards #{label}: #{@predictive_boards}"
+    puts "user_id: #{user_id} Predictive boards #{label}: #{@predictive_boards}"
     board = @predictive_boards.find_by(name: label, user_id: user_id) if user_id
     if board
-      board
+      return board
     else
+      user_to_use = User.find_by(id: user_id.to_i) if user_id
+      user_predictive_default_id = user_to_use&.settings["predictive_default_id"] if user_to_use
+
+      if user_predictive_default_id
+        board = @predictive_boards.find_by(id: user_predictive_default_id.to_i)
+        return board if board
+      end
+      puts "ERROR: Predictive board not found for #{label} - #{user_id}"
       id_to_find = Board.predictive_default_id
-      board = Board.find_by(id: id_to_find)
+      board = Board.find_by(id: id_to_find) unless board
       if board
         board
       else
@@ -994,7 +1002,7 @@ class Image < ApplicationRecord
     remaining = remaining_user_boards(@current_user)
     user_image_boards = user_boards(@current_user)
     @default_audio_url = default_audio_url
-    @predictive_board_id = predictive_board_for_user(@current_user)&.id
+    @predictive_board_id = predictive_board_for_user(@current_user&.id)&.id
     @global_default_id = Board.predictive_default_id
     is_predictive = @predictive_board_id != @global_default_id
     {
@@ -1114,6 +1122,13 @@ class Image < ApplicationRecord
     @old_board_images_for_cloned_user = @cloned_user.board_images.where(image_id: @source.id)
     @old_board_images_for_cloned_user.each do |board_image|
       board_image.update!(image_id: @cloned_image.id)
+    end
+
+    @cloned_user.predictive_boards.each do |board|
+      board_image = board.board_images.find_by(label: @cloned_image.label)
+      if board_image
+        board_image.update!(image_id: @cloned_image.id)
+      end
     end
 
     if @display_doc && @display_doc.image.attached?

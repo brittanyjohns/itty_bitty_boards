@@ -928,7 +928,9 @@ class Board < ApplicationRecord
 
         is_owner = viewing_user && image.user_id == viewing_user&.id
 
-        @predictive_board_id = image&.predictive_board_for_user(viewing_user)&.id
+        puts "USer settings: #{viewing_user&.settings}"
+
+        @predictive_board_id = image&.predictive_board_for_user(viewing_user&.id)&.id
         @global_default_id = Board.predictive_default_id
         is_predictive = @predictive_board_id != @global_default_id
         {
