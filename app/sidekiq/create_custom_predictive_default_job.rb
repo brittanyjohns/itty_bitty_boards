@@ -18,6 +18,7 @@ class CreateCustomPredictiveDefaultJob
           puts "Added images to Predictive Default"
         end
       end
+      FormatBoardWithAiJob.perform_async(board.id, "lg")
     end
 
     # Do something

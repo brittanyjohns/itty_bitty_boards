@@ -166,8 +166,8 @@ class Image < ApplicationRecord
       if board
         board
       else
-        viewing_user = User.find_by(id: user_id)
-        Board.predictive_default(viewing_user)
+        id_to_find = Board.predictive_default_id
+        board = Board.find_by(id: id_to_find)
       end
     end
   end

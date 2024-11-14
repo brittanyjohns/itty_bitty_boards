@@ -213,16 +213,6 @@ class Board < ApplicationRecord
      "please", "thank you", "yes", "no", "and", "help", "hello", "goodbye", "hi", "bye", "stop", "start", "more", "less", "big", "small"]
   end
 
-  # def self.create_predictive
-  #   words = common_words
-  #   predictive_default = self.predictive_default
-  #   predictive_default.images.destroy_all
-  #   words.each do |word|
-  #     image = Image.find_or_create_by(label: word, user_id: predictive_default.user_id)
-  #     predictive_default.images << image
-  #   end
-  # end
-
   def set_number_of_columns
     return unless number_of_columns.nil?
     self.number_of_columns = self.large_screen_columns
@@ -265,12 +255,9 @@ class Board < ApplicationRecord
       if user_predictive_default_id
         board = self.with_artifacts.find_by(id: user_predictive_default_id)
         if !board || (user_predictive_default_id === id_from_env)
-          puts "Predictive Default ID from ENV matches Predictive Default ID from user settings"
           CreateCustomPredictiveDefaultJob.perform_async(viewing_user.id)
         end
-        puts "Predictive Default ID found in user settings" if board
       else
-        puts "Predictive Default ID not found in user settings"
         CreateCustomPredictiveDefaultJob.perform_async(viewing_user.id)
       end
     end
@@ -842,7 +829,7 @@ class Board < ApplicationRecord
       explanation = personable_explanation + "\n" + professional_explanation
       self.data["personable_explanation"] = personable_explanation
       self.data["professional_explanation"] = professional_explanation
-      grid_response.each do |item|
+      grid_response.each_with_index do |item, index|
         label = item["word"]
         board_image = @board_images.joins(:image).find_by(images: { label: label })
         image = board_image&.image
@@ -863,6 +850,8 @@ class Board < ApplicationRecord
           board_image.data[screen_size]["size"] = item["size"]
           board_image.data["part_of_speech"] = item["part_of_speech"]
           board_image.data["bg_color"] = image.background_color_for(item["part_of_speech"])
+
+          board_image.position = index
           board_image.save!
 
           image.part_of_speech = item["part_of_speech"] if item["part_of_speech"].present? && image.part_of_speech.blank?
