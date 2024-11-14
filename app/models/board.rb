@@ -293,10 +293,10 @@ class Board < ApplicationRecord
   def self.predictive_default_id
     id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
     if id_from_env
-      return id_from_env
+      return id_from_env.to_i
     else
       board = self.with_artifacts.where(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource").first
-      board&.id
+      board&.id&.to_i
     end
   end
 
@@ -859,12 +859,11 @@ class Board < ApplicationRecord
 
           x_coordinate = item["position"][0]
           y_coordinate = item["position"][1]
-          puts "Label: #{label} - X: #{x_coordinate} - Y: #{y_coordinate}"
+          puts "Label: #{label} - X: #{x_coordinate} - Y: #{y_coordinate} Max Rows: #{max_num_of_rows}"
           if x_coordinate >= num_of_columns
             x_coordinate = 0
           end
           # max_num_of_rows = (images.count / num_of_columns.to_f).ceil
-          puts "Max Rows: #{max_num_of_rows}"
           if y_coordinate >= max_num_of_rows
             puts "#{image.label} Y Coordinate: #{y_coordinate} - Max Rows: #{max_num_of_rows}"
             y_coordinate = max_num_of_rows
@@ -933,7 +932,10 @@ class Board < ApplicationRecord
         # is_predictive = image.predictive?
 
         @predictive_board_id = image&.predictive_board_for_user(viewing_user)&.id
-        is_predictive = @predictive_board_id.present? && @predictive_board_id != Board.predictive_default_id
+        @global_default_id = Board.predictive_default_id
+        is_predictive = @predictive_board_id != @global_default_id
+        puts "Predictive Board ID: #{@predictive_board_id}"
+        puts "Predictive Default ID: #{@global_default_id}"
         {
           id: image.id,
           image_user_id: image.user_id,
@@ -941,7 +943,7 @@ class Board < ApplicationRecord
           is_owner: is_owner,
           is_predictive: is_predictive,
           dynamic: is_owner && is_predictive,
-
+          global_default_id: @global_default_id,
           board_image_id: @board_image.id,
           label: @board_image.label,
           image_prompt: @board_image.image_prompt,
