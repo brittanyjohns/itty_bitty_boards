@@ -121,15 +121,24 @@ class API::BoardsController < API::ApplicationController
 
     user_predictive_board_id = viewing_user&.settings["predictive_default_id"] ? viewing_user.settings["predictive_default_id"].to_i : nil
     puts "User predictive board ID: #{user_predictive_board_id}"
+    custom_board = nil
     if user_predictive_board_id && Board.exists?(user_predictive_board_id) && user_predictive_board_id != id_from_env.to_i
       @board = Board.find_by(id: user_predictive_board_id)
+      custom_board = true
     else
       @board = Board.find_by(id: id_from_env)
+      custom_board = false
     end
 
     if @board.nil?
       puts "Predictive board not found"
       @board = Board.find_by(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
+      custom_board = false
+    end
+
+    unless custom_board
+      puts "Predictive board not custom - setting user predictive default ID"
+      CreateCustomPredictiveDefaultJob.perform_async(viewing_user.id)
     end
 
     if stale?(etag: @board, last_modified: @board.updated_at)

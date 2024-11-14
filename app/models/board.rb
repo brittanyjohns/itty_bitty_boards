@@ -67,7 +67,7 @@ class Board < ApplicationRecord
   scope :with_less_than_x_images, ->(x) { joins(:images).group("boards.id").having("count(images.id) < ?", x) }
   scope :without_images, -> { left_outer_joins(:images).where(images: { id: nil }) }
 
-  scope :predictive, -> { where(parent_type: "Image") }
+  scope :predictive, -> { where(parent_type: ["Image", "PredefinedResource"]) }
 
   scope :created_this_week, -> { where("created_at > ?", 1.week.ago) }
   scope :created_before_this_week, -> { where("created_at < ?", 11.days.ago) }

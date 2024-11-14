@@ -157,17 +157,17 @@ class Image < ApplicationRecord
   end
 
   def predictive_board_for_user(user_id)
-    @predictive_boards = predictive_boards.with_artifacts
+    @predictive_boards = predictive_boards
     board = @predictive_boards.find_by(name: label, user_id: user_id)
     if board
       board
     else
-      board = @predictive_boards.where(user_id: User::DEFAULT_ADMIN_ID).first
+      id_to_find = Board.predictive_default_id
+      board = Board.find_by(id: id_to_find)
       if board
         board
       else
-        id_to_find = Board.predictive_default_id
-        board = Board.find_by(id: id_to_find)
+        board = @predictive_boards.where(user_id: User::DEFAULT_ADMIN_ID).first
       end
     end
   end
