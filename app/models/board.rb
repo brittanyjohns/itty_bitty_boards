@@ -942,8 +942,6 @@ class Board < ApplicationRecord
         is_owner = viewing_user && image.user_id == viewing_user&.id
         is_predictive = image.predictive?
 
-        puts "#{image.label} -- USER: #{viewing_user&.id} - IMAGE: #{image.id} - OWNER: #{is_owner} - PREDICTIVE: #{is_predictive}"
-
         @predictive_board_id = image&.predictive_board_for_user(viewing_user)&.id
         {
           id: image.id,
