@@ -260,11 +260,11 @@ class Board < ApplicationRecord
     board = nil
     id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
     if viewing_user
-      predictive_default_id = viewing_user&.settings["predictive_default_id"]
-      puts "Predictive Default ID from user settings: #{predictive_default_id}"
-      if predictive_default_id
-        board = self.with_artifacts.find_by(id: predictive_default_id)
-        if !board || (predictive_default_id === id_from_env)
+      user_predictive_default_id = viewing_user&.settings["predictive_default_id"]
+      puts "Predictive Default ID from user settings: #{user_predictive_default_id}"
+      if user_predictive_default_id
+        board = self.with_artifacts.find_by(id: user_predictive_default_id)
+        if !board || (user_predictive_default_id === id_from_env)
           puts "Predictive Default ID from ENV matches Predictive Default ID from user settings"
           CreateCustomPredictiveDefaultJob.perform_async(viewing_user.id)
         end
@@ -275,7 +275,6 @@ class Board < ApplicationRecord
       end
     end
     if id_from_env && !board
-      puts "Predictive Default ID from ENV: #{id_from_env}"
       board = self.with_artifacts.find_by(id: id_from_env)
     end
     # original_board = nil
@@ -587,6 +586,8 @@ class Board < ApplicationRecord
           # id: board_image.id,
           predictive_board_id: @image_predictive_board&.id,
           board_image_id: board_image.id,
+          is_owner: is_owner,
+          is_predictive: is_predictive,
           dynamic: is_owner && is_predictive,
           label: board_image.label,
           image_prompt: board_image.image_prompt,
@@ -940,14 +941,18 @@ class Board < ApplicationRecord
         # @board_image = image.board_images.find_by(board_id: id)
         # @image = board_image.get_predictive_image_for(viewing_user)
         is_owner = viewing_user && image.user_id == viewing_user&.id
-        is_predictive = image.predictive?
+        # is_predictive = image.predictive?
 
         @predictive_board_id = image&.predictive_board_for_user(viewing_user)&.id
+        is_predictive = @predictive_board_id.present? && @predictive_board_id != Board.predictive_default_id
         {
           id: image.id,
           image_user_id: image.user_id,
           predictive_board_id: @predictive_board_id,
+          is_owner: is_owner,
+          is_predictive: is_predictive,
           dynamic: is_owner && is_predictive,
+
           board_image_id: @board_image.id,
           label: @board_image.label,
           image_prompt: @board_image.image_prompt,

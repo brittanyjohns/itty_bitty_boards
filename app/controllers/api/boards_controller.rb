@@ -117,8 +117,10 @@ class API::BoardsController < API::ApplicationController
 
     id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
 
-    user_predictive_board_id = viewing_user&.settings["predictive_board_id"] ? viewing_user.settings["predictive_board_id"].to_i : nil
+    puts "viewing_user&.settings: #{viewing_user&.settings}"
 
+    user_predictive_board_id = viewing_user&.settings["predictive_default_id"] ? viewing_user.settings["predictive_default_id"].to_i : nil
+    puts "User predictive board ID: #{user_predictive_board_id}"
     if user_predictive_board_id && Board.exists?(user_predictive_board_id) && user_predictive_board_id != id_from_env.to_i
       @board = Board.find_by(id: user_predictive_board_id)
     else

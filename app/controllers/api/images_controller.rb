@@ -152,14 +152,14 @@ class API::ImagesController < API::ApplicationController
       puts "Found Predictive Board: #{@board.created_at.strftime("%Y-%m-%d")}"
     else
       puts "No board found for image. Sending next images."
-      @images = Board.predictive_default.images
+      @images = Board.predictive_default(@current_user).images
       # CreatePredictiveBoardJob.perform_async(@image.id, @current_user.id)
     end
     if !@board
-      @board = Board.predictive_default
+      @board = Board.predictive_default(@current_user)
     end
 
-    @board_with_images = @board.api_view_with_predictive_images(current_user)
+    @board_with_images = @board.api_view_with_predictive_images(@current_user)
 
     render json: @board_with_images
   end
