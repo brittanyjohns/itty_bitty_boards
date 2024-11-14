@@ -1004,7 +1004,7 @@ class Image < ApplicationRecord
       status: status,
       error: error,
       text_color: text_color,
-      predictive_board_id: @predictive_board&.id,
+      predictive_board_id: @current_user&.settings["predictive_default_id"] || Board.predictive_default_id,
       dynamic: @predictive_board&.user_id == @current_user&.id,
       bg_color: bg_class,
       open_symbol_status: open_symbol_status,
@@ -1112,11 +1112,16 @@ class Image < ApplicationRecord
 
     if @display_doc && @display_doc.image.attached?
       original_file = @display_doc.image
-      new_doc = @display_doc.dup
-      new_doc.documentable = @cloned_image
-      new_doc.user_id = cloned_user_id
-      new_doc.save
-      new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type) unless original_file.nil?
+      if original_file
+        puts "Cloning display doc for cloned image #{original_file.filename}"
+        new_doc = @display_doc.dup
+        new_doc.documentable = @cloned_image
+        new_doc.user_id = cloned_user_id
+        new_doc.save
+        new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type) unless original_file.nil?
+      else
+        puts "No image attached to display doc"
+      end
     end
     if @cloned_image.save
       puts "Creating predictive board for cloned image"

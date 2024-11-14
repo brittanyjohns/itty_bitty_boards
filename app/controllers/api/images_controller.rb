@@ -122,10 +122,17 @@ class API::ImagesController < API::ApplicationController
     text = params[:text] || @image_clone.label
     @original_audio_files = @image.audio_files
     @original_audio_files.each do |audio_file|
-      original_file = audio_file.dup
+      begin
+        original_file = audio_file.dup
+        puts "original file: #{original_file.filename}"
+        puts "audio file: #{audio_file.filename}"
 
-      @audio_file = @image_clone.audio_files.attach(io: StringIO.new(original_file.download), filename: audio_file.blob.filename)
+        @audio_file = @image_clone.audio_files.attach(io: StringIO.new(original_file.download), filename: audio_file.blob.filename)
+      rescue StandardError => e
+        puts "Error copying audio files #{original_file.filename}: #{e.message}"
+      end
     end
+
     # @audio_file = @image_clone.create_audio_from_text(text, voice)
     @image_with_display_doc = @image_clone.with_display_doc(@current_user)
     render json: @image_with_display_doc

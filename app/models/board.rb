@@ -59,8 +59,8 @@ class Board < ApplicationRecord
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
   scope :scenarios, -> { where(parent_type: "OpenaiPrompt") }
-  scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt"], predefined: false) }
-  scope :user_made_with_scenarios_and_menus, -> { where(parent_type: ["User", "OpenaiPrompt", "Menu"], predefined: false) }
+  scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt", "PredefinedResource"], predefined: false) }
+  scope :user_made_with_scenarios_and_menus, -> { where(parent_type: ["User", "OpenaiPrompt", "Menu", "PredefinedResource"], predefined: false) }
   scope :predefined, -> { where(predefined: true) }
   scope :ai_generated, -> { where(parent_type: "OpenaiPrompt") }
   scope :with_less_than_10_images, -> { joins(:images).group("boards.id").having("count(images.id) < 10") }
@@ -257,27 +257,61 @@ class Board < ApplicationRecord
   end
 
   def self.predictive_default(viewing_user = nil)
-    predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
     board = nil
+    id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
+    puts "Predictive Default ID from ENV: #{id_from_env}"
     if viewing_user
-      predictive_default_id = viewing_user.settings["predictive_default_id"]
+      predictive_default_id = viewing_user&.settings["predictive_default_id"]
+      puts "Predictive Default ID from user settings: #{predictive_default_id}"
       if predictive_default_id
-        board = self.find_by(id: predictive_default_id)
+        board = self.with_artifacts.find_by(id: predictive_default_id)
+        if !board || (predictive_default_id === id_from_env)
+          puts "Predictive Default ID from ENV matches Predictive Default ID from user settings"
+          CreateCustomPredictiveDefaultJob.perform_async(viewing_user.id)
+        end
+        puts "Predictive Default ID found in user settings" if board
+      else
+        puts "Predictive Default ID not found in user settings"
+        CreateCustomPredictiveDefaultJob.perform_async(viewing_user.id)
       end
-      board = self.create(name: "Custom Predictive Default", user_id: viewing_user.id, parent_type: "PredefinedResource", parent_id: predefined_resource.id) unless board
-      viewing_user.settings["predictive_default_id"] = board.id
-      viewing_user.save!
-    else
-      board = self.with_artifacts.where(parent_type: "PredefinedResource", name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID).first
     end
-    if board && board.images.count == 0
-      original_board = self.with_artifacts.where(parent_type: "PredefinedResource", name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID).first
-      original_board.images.each do |image|
-        board.add_image(image.id)
-      end
-      puts "Added images to Predictive Default"
+    if id_from_env
+      board = self.with_artifacts.find_by(id: id_from_env) unless board
+    end
+    # original_board = nil
+    if board.nil?
+      # original_board = self.with_artifacts.find_by(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
+      puts "Predictive Default not found"
+      predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
+      board = self.create(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource", parent_id: predefined_resource.id)
+    end
+
+    # if viewing_user && board
+    #   viewing_user.settings["predictive_default_id"] = board.id
+    #   viewing_user.save!
+    # end
+
+    board
+  end
+
+  def self.create_custom_predictive_default_for_user(new_user)
+    predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
+    board = self.create(name: "Custom Predictive Default", user_id: new_user.id, parent_type: "PredefinedResource", parent_id: predefined_resource.id)
+    if board
+      new_user.settings["predictive_default_id"] = board.id
+      new_user.save!
     end
     board
+  end
+
+  def self.predictive_default_id
+    id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
+    if id_from_env
+      return id_from_env
+    else
+      board = self.with_artifacts.where(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource").first
+      board&.id
+    end
   end
 
   def self.position_all_board_images

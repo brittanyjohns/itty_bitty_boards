@@ -115,11 +115,24 @@ class API::BoardsController < API::ApplicationController
       viewing_user = current_child.user
     end
 
-    @board = Board.predictive_default(viewing_user)
-    @board = Board.create_predictive_default unless @board
+    id_from_env = ENV["PREDICTIVE_BOARD_ID"]
+
+    user_predictive_board_id = viewing_user&.settings["predictive_board_id"] ? viewing_user.settings["predictive_board_id"].to_i : nil
+
+    if user_predictive_board_id && Board.exists?(user_predictive_board_id) && user_predictive_board_id != id_from_env.to_i
+      @board = Board.find_by(id: user_predictive_board_id)
+    else
+      @board = Board.find_by(id: id_from_env)
+    end
+
+    if @board.nil?
+      puts "Predictive board not found"
+      @board = Board.find_by(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
+    end
 
     if stale?(etag: @board, last_modified: @board.updated_at)
-      render json: @board.api_view_with_predictive_images(viewing_user)
+      @loaded_board = Board.with_artifacts.find(@board.id)
+      render json: @loaded_board.api_view_with_predictive_images(viewing_user)
     end
     # render json: @board_with_images
   end
@@ -140,10 +153,11 @@ class API::BoardsController < API::ApplicationController
     # board = Board.with_artifacts.find(params[:id])
     set_board
     if stale?(etag: @board, last_modified: @board.updated_at)
-      @board_with_images = @board.api_view_with_images(current_user)
+      @loaded_board = Board.with_artifacts.find(@board.id)
+      @board_with_images = @loaded_board.api_view_with_images(current_user)
       user_permissions = {
-        can_edit: (@board.user == current_user || current_user.admin?),
-        can_delete: (@board.user == current_user || current_user.admin?),
+        can_edit: (@loaded_board.user == current_user || current_user.admin?),
+        can_delete: (@loaded_board.user == current_user || current_user.admin?),
       }
       render json: @board_with_images.merge(user_permissions)
     end

@@ -33,8 +33,8 @@ class API::ChildBoardsController < API::ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_child_board
-    @child_board = ChildBoard.find(params[:id])
-    @board = Board.with_artifacts.find(@child_board.board_id)
+    @child_board = ChildBoard.includes(board: { board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }).find(params[:id])
+    @board = @child_board.board
   end
 
   def boards_for_child
