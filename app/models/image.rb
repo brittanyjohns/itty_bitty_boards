@@ -157,7 +157,7 @@ class Image < ApplicationRecord
   end
 
   def predictive_board_for_user(user_id)
-    @predictive_boards = predictive_boards.with_artifacts
+    @predictive_boards = Board.predictive.with_artifacts.where(parent_type: "Image", parent_id: id, name: label)
     puts "user_id: #{user_id} Predictive boards #{label}: #{@predictive_boards}"
     board = @predictive_boards.find_by(name: label, user_id: user_id) if user_id
     if board

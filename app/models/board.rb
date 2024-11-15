@@ -225,8 +225,12 @@ class Board < ApplicationRecord
 
   def update_display_image
     if ["Image", "PredefinedResource"].include?(parent_type)
-      parent_user_id = parent.user_id
-      parent_image_url = parent.display_image_url(self.user) if parent_user_id == self.user_id
+      if parent_type == "Image"
+        parent_user_id = parent.user_id
+        parent_image_url = parent.display_image_url(self.user) if parent_user_id == self.user_id
+      else
+        parent_image_url = parent.display_image_url
+      end
       if parent_image_url.blank?
         puts "Parent Image URL is blank"
         return
@@ -313,7 +317,7 @@ class Board < ApplicationRecord
     if id_from_env
       return id_from_env.to_i
     else
-      board = self.with_artifacts.where(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource").first
+      board = self.where(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource").first
       board&.id&.to_i
     end
   end
@@ -936,9 +940,9 @@ class Board < ApplicationRecord
 
         @label = @board_image.label
 
-        @image = viewing_user ? viewing_user.images.find_by(label: @label) : nil
+        @image = viewing_user ? viewing_user.images.with_artifacts.find_by(label: @label) : nil
         if @image.nil?
-          @image = Image.public_img.find_by(label: @label, user_id: [User::DEFAULT_ADMIN_ID, nil])
+          @image = Image.with_artifacts.public_img.find_by(label: @label, user_id: [User::DEFAULT_ADMIN_ID, nil])
         end
 
         image = @image || board_image.image
