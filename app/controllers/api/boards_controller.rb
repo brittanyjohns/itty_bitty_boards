@@ -149,12 +149,13 @@ class API::BoardsController < API::ApplicationController
   end
 
   def predictive_image_board
-    @board = Board.with_artifacts.find(params[:id])
+    @board = Board.find(params[:id])
     # expires_in 8.hours, public: true # Cache control header
 
     if stale?(etag: @board, last_modified: @board.updated_at)
       puts "Stale board - #{params[:id]}"
-      render json: @board.api_view_with_predictive_images(current_user)
+      @loaded_board = Board.with_artifacts.find(@board.id)
+      render json: @loaded_board.api_view_with_predictive_images(current_user)
     end
 
     # render json: @board.api_view_with_predictive_images(current_user)
@@ -230,7 +231,6 @@ class API::BoardsController < API::ApplicationController
 
   def rearrange_images
     set_board
-
     @board.reset_layouts
     @board.save!
     render json: @board.api_view_with_images(current_user)
