@@ -99,6 +99,7 @@ class Board < ApplicationRecord
 
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
+  before_save :update_display_image, unless: :display_image_url?
 
   # before_save :rearrange_images, if: :number_of_columns_changed?
 
@@ -216,6 +217,23 @@ class Board < ApplicationRecord
   def set_number_of_columns
     return unless number_of_columns.nil?
     self.number_of_columns = self.large_screen_columns
+  end
+
+  def needs_display_image?
+    display_image_url.blank?
+  end
+
+  def update_display_image
+    if ["Image", "PredefinedResource"].include?(parent_type)
+      parent_user_id = parent.user_id
+      parent_image_url = parent.display_image_url(self.user) if parent_user_id == self.user_id
+      if parent_image_url.blank?
+        puts "Parent Image URL is blank"
+        return
+      end
+      self.display_image_url = parent_image_url
+      self.status = "complete"
+    end
   end
 
   def set_status
