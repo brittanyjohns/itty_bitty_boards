@@ -60,7 +60,7 @@ class API::ImagesController < API::ApplicationController
     @current_user = current_user
 
     @image = Image.with_artifacts.find(params[:id])
-    @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
+    # @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
 
     @image_with_display_doc = @image.with_display_doc(@current_user)
     render json: @image_with_display_doc

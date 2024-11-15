@@ -157,6 +157,8 @@ class Image < ApplicationRecord
   end
 
   def predictive_board_for_user(user_id)
+    puts "Predictive board for user: #{user_id}"
+    return unless user_id && (user_id.is_a?(Integer) || user_id.is_a?(String))
     @predictive_boards = Board.predictive.with_artifacts.where(parent_type: "Image", parent_id: id, name: label, user_id: user_id)
     @predictive_board = @predictive_boards.find_by(name: label, user_id: user_id) if user_id
     if @predictive_board
@@ -992,16 +994,6 @@ class Image < ApplicationRecord
     Board.joins(:board_images).where(board_images: { image_id: id }).user_made_with_scenarios_and_menus.where(user_id: current_user.id)
   end
 
-  def dynamic(viewing_user_id = nil)
-    viewing_user_id ||= user_id
-    is_owner = viewing_user_id == user_id
-    predict_id = predictive_board(viewing_user_id)&.id
-    global_default_id = Board.predictive_default_id
-    is_predictive = predict_id && global_default_id && global_default_id.to_i != predict_id
-    puts "Predictive: #{is_predictive} - Is owner: #{is_owner} - Predictive ID: #{predict_id} - Global Default ID: #{global_default_id}"
-    is_predictive && is_owner
-  end
-
   def with_display_doc(current_user = nil)
     @current_user = current_user
     @predictive_board = predictive_board
@@ -1013,8 +1005,10 @@ class Image < ApplicationRecord
     user_image_boards = user_boards(@current_user)
     @default_audio_url = default_audio_url
     @predictive_board_id = predictive_board_for_user(@current_user&.id)&.id
-    @global_default_id = Board.predictive_default_id
+    @user_custom_default_id = @current_user&.settings["predictive_default_id"]
+    @global_default_id = @user_custom_default_id || Board.predictive_default_id
     is_predictive = @predictive_board_id != @global_default_id
+    is_owner = user_id == @current_user&.id
     {
       id: id,
       label: label,
@@ -1029,7 +1023,10 @@ class Image < ApplicationRecord
       error: error,
       text_color: text_color,
       predictive_board_id: @predictive_board_id,
-      dynamic: dynamic,
+      global_default_id: @global_default_id,
+      dynamic: is_predictive && is_owner,
+      is_predictive: is_predictive,
+      is_owner: is_owner,
       bg_color: bg_class,
       open_symbol_status: open_symbol_status,
       created_at: created_at,

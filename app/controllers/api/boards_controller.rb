@@ -71,7 +71,7 @@ class API::BoardsController < API::ApplicationController
 
   def user_boards
     # @boards = boards_for_user.user_made_with_scenarios_and_menus.order(name: :asc)
-    @boards = boards_for_user.user_made_with_scenarios.order(name: :asc)
+    @boards = current_user.boards.user_made_with_scenarios.order(name: :asc)
 
     render json: { boards: @boards }
   end
@@ -177,8 +177,8 @@ class API::BoardsController < API::ApplicationController
     }
     if stale?(etag: @board, last_modified: @board.updated_at)
       RailsPerformance.measure("Show Board") do
-        @loaded_board = Board.with_artifacts.find(@board.id)
-        @board_with_images = @loaded_board.api_view_with_predictive_images(current_user)
+        # @loaded_board = Board.with_artifacts.find(@board.id)
+        @board_with_images = @board.api_view_with_predictive_images(current_user)
       end
       render json: @board_with_images.merge(user_permissions)
     end
@@ -490,7 +490,7 @@ class API::BoardsController < API::ApplicationController
   # Use callbacks to share common setup or constraints between actions.
   def set_board
     # ActiveRecord::Base.logger.silence do
-    @board = Board.find(params[:id])
+    @board = Board.with_artifacts.find(params[:id])
     # end
   end
 

@@ -70,7 +70,7 @@ class Board < ApplicationRecord
   scope :predictive, -> { where(parent_type: ["Image", "PredefinedResource"]) }
 
   scope :created_this_week, -> { where("created_at > ?", 1.week.ago) }
-  scope :created_before_this_week, -> { where("created_at < ?", 11.days.ago) }
+  scope :created_before_this_week, -> { where("created_at < ?", 8.days.ago) }
 
   scope :featured, -> { where(category: ["featured", "popular"], predefined: true) }
   scope :popular, -> { where(category: "popular", predefined: true) }
@@ -148,35 +148,24 @@ class Board < ApplicationRecord
 
   def create_voice_audio
     return if @skip_create_voice_audio
-    puts "Creating voice audio for board: #{name} - #{voice}"
-    # return Rails.env.test?
     label_voice = "#{label_for_filename}_#{voice}"
     filename = "#{label_voice}.aac"
-    puts "Filename: #{filename}"
-    # already_has_audio_file = existing_audio_files.include?(filename)
     already_has_audio_file = false
-    puts "\nalready_has_audio_file: #{voice}\n" if already_has_audio_file
-    # audio_file = audio_files.find_by(filename: filename)
 
     audio_file = audio_files.last
-    puts "Audio File: #{audio_file.inspect}"
 
     if already_has_audio_file && audio_file
       self.audio_url = default_audio_url(audio_file)
     else
       audio_file = create_audio_from_text(name, voice)
-      puts "Audio File: #{audio_file.inspect}"
-      puts "last audio file: #{audio_files.last.inspect}"
       if audio_file.is_a?(Integer) || audio_file.nil?
         puts "Error creating audio file: #{audio_file}"
         return
       end
       self.audio_url = default_audio_url(audio_file)
     end
-    puts "Audio URL: #{audio_url}"
-    result = save
-    puts "Save Result: #{result}"
-    result
+    @skip_create_voice_audio = true
+    save
   end
 
   def existing_audio_files
@@ -228,7 +217,6 @@ class Board < ApplicationRecord
       parent_user_id = parent.user_id
       parent_image_url = parent.display_image_url(self.user) if parent_user_id == self.user_id
       if parent_image_url.blank?
-        puts "Parent Image URL is blank"
         return
       end
       self.display_image_url = parent_image_url
@@ -908,6 +896,7 @@ class Board < ApplicationRecord
 
   def api_view_with_predictive_images(viewing_user = nil)
     @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards])
+    # @board_images = board_images.includes(:image)
     {
       id: id,
       name: name,
@@ -951,16 +940,18 @@ class Board < ApplicationRecord
         is_owner = viewing_user && image.user_id == viewing_user&.id
 
         @predictive_board_id = image&.predictive_board_for_user(viewing_user&.id)&.id
-        @global_default_id = Board.predictive_default_id
+        @user_custom_default_id = viewing_user&.settings["predictive_default_id"]
+        @global_default_id = @user_custom_default_id || Board.predictive_default_id
         is_predictive = @predictive_board_id != @global_default_id
+        is_dynamic = is_owner && is_predictive
         {
           id: image.id,
           image_user_id: image.user_id,
           predictive_board_id: @predictive_board_id,
-          is_owner: is_owner,
-          is_predictive: is_predictive,
-          dynamic: is_owner && is_predictive,
           global_default_id: @global_default_id,
+          is_owner: is_owner,
+          dynamic: is_dynamic,
+          is_predictive: is_predictive,
           board_image_id: @board_image.id,
           label: @board_image.label,
           image_prompt: @board_image.image_prompt,
