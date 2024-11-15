@@ -220,17 +220,13 @@ class Board < ApplicationRecord
   end
 
   def needs_display_image?
-    display_image_url.blank?
+    parent_type == "Image" && display_image_url.blank?
   end
 
   def update_display_image
-    if ["Image", "PredefinedResource"].include?(parent_type)
-      if parent_type == "Image"
-        parent_user_id = parent.user_id
-        parent_image_url = parent.display_image_url(self.user) if parent_user_id == self.user_id
-      else
-        parent_image_url = parent.display_image_url
-      end
+    if parent_type == "Image"
+      parent_user_id = parent.user_id
+      parent_image_url = parent.display_image_url(self.user) if parent_user_id == self.user_id
       if parent_image_url.blank?
         puts "Parent Image URL is blank"
         return
