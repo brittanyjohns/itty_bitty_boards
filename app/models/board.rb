@@ -423,7 +423,9 @@ class Board < ApplicationRecord
   end
 
   def remove_image(image_id)
-    board_images.find_by(image_id: image_id).destroy
+    return unless image_ids.include?(image_id.to_i)
+    bi = board_images.find_by(image_id: image_id)
+    bi.destroy if bi
   end
 
   def add_images(image_ids)

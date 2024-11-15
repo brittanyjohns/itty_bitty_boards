@@ -142,10 +142,11 @@ class API::BoardsController < API::ApplicationController
     end
 
     if stale?(etag: @board, last_modified: @board.updated_at)
-      RailsPerformance.measure("Predictive board API view") do
+      RailsPerformance.measure("First Predictive Board") do
         @loaded_board = Board.with_artifacts.find(@board.id)
+        @board_with_images = @loaded_board.api_view_with_predictive_images(viewing_user)
       end
-      render json: @loaded_board.api_view_with_predictive_images(viewing_user)
+      render json: @board_with_images
     end
     # render json: @board_with_images
   end
@@ -156,8 +157,11 @@ class API::BoardsController < API::ApplicationController
 
     if stale?(etag: @board, last_modified: @board.updated_at)
       puts "Stale board - #{params[:id]}"
-      @loaded_board = Board.with_artifacts.find(@board.id)
-      render json: @loaded_board.api_view_with_predictive_images(current_user)
+      RailsPerformance.measure("Predictive Image Board") do
+        @loaded_board = Board.with_artifacts.find(@board.id)
+        @board_with_images = @loaded_board.api_view_with_predictive_images(current_user)
+      end
+      render json: @board_with_images
     end
 
     # render json: @board.api_view_with_predictive_images(current_user)
@@ -287,7 +291,7 @@ class API::BoardsController < API::ApplicationController
       puts "Image IDs to remove: #{image_ids_to_remove}"
       image_ids_to_remove.each do |image_id|
         image = Image.find(image_id)
-        @board.remove_image(image)
+        @board.remove_image(image&.id) if @board && image
       end
     end
 
@@ -446,8 +450,8 @@ class API::BoardsController < API::ApplicationController
       render json: { error: "Cannot remove images from predefined boards" }, status: :unprocessable_entity
       return
     end
-    @image = Image.find(params[:image_id])
-    @board.remove_image(@image)
+    @image = Image.find_by(id: params[:image_id])
+    @board.remove_image(@image&.id) if @board && @image
     # @board.images.delete(@image)
     @board.reload
     render json: { board: @board, status: :ok }
