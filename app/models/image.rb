@@ -819,6 +819,7 @@ class Image < ApplicationRecord
 
   def display_image_url(viewing_user = nil)
     doc = display_doc(viewing_user)
+
     doc ? doc.display_url : nil
   end
 

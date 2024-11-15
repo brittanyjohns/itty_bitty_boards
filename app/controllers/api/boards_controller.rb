@@ -165,7 +165,7 @@ class API::BoardsController < API::ApplicationController
     set_board
     if stale?(etag: @board, last_modified: @board.updated_at)
       @loaded_board = Board.with_artifacts.find(@board.id)
-      @board_with_images = @loaded_board.api_view_with_images(current_user)
+      @board_with_images = @loaded_board.api_view_with_predictive_images(current_user)
       user_permissions = {
         can_edit: (@loaded_board.user == current_user || current_user.admin?),
         can_delete: (@loaded_board.user == current_user || current_user.admin?),
