@@ -13,33 +13,34 @@ class API::BoardsController < API::ApplicationController
   def index
     ActiveRecord::Base.logger.silence do
       if params[:query].present?
-        @boards = Board.search_by_name(params[:query]).order(created_at: :desc).page params[:page]
-        @predefined_boards = Board.predefined.search_by_name(params[:query]).order(created_at: :desc).page params[:page]
+        @boards = Board.search_by_name(params[:query]).order(name: :asc).page params[:page]
+        @predefined_boards = Board.predefined.search_by_name(params[:query]).order(name: :asc).page params[:page]
         render json: { boards: @boards, predefined_boards: @predefined_boards }
         return
       elsif params[:boards_only].present?
-        @boards = current_user.boards.user_made_with_scenarios.order(created_at: :desc)
-        @predefined_boards = Board.predefined.user_made_with_scenarios.order(created_at: :desc)
+        @boards = current_user.boards.user_made_with_scenarios.order(name: :asc)
+        @predefined_boards = Board.predefined.user_made_with_scenarios.order(name: :asc)
       else
-        @boards = boards_for_user.user_made_with_scenarios.order(created_at: :desc)
-        @predefined_boards = Board.predefined.user_made_with_scenarios.order(created_at: :desc)
+        @boards = boards_for_user.user_made_with_scenarios.order(name: :asc)
+        @predefined_boards = Board.predefined.user_made_with_scenarios.order(name: :asc)
       end
 
       # if current_user.admin?
-      #   @boards = Board.all.order(created_at: :desc)
+      #   @boards = Board.all.order(name: :asc)
       # end
 
       @categories = @boards.map(&:category).uniq.compact
+      @predictive_boards = current_user.boards.predictive.order(name: :asc)
       # @boards = current_user.boards.all.order(name: :asc)
 
-      render json: { boards: @boards, predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.categories, predictive_boards: current_user.predictive_boards }
+      render json: { boards: @boards, predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.categories, predictive_boards: @predictive_boards }
     end
   end
 
   def preset
     ActiveRecord::Base.logger.silence do
       if params[:query].present?
-        @predefined_boards = Board.predefined.search_by_name(params[:query]).order(created_at: :desc).page params[:page]
+        @predefined_boards = Board.predefined.search_by_name(params[:query]).order(name: :asc).page params[:page]
       elsif params[:filter].present?
         filter = params[:filter]
         unless Board::SAFE_FILTERS.include?(filter)
@@ -49,13 +50,13 @@ class API::BoardsController < API::ApplicationController
 
         result = Board.predefined.send(filter)
         if result.is_a?(ActiveRecord::Relation)
-          @predefined_boards = result.order(created_at: :desc).page params[:page]
+          @predefined_boards = result.order(name: :asc).page params[:page]
         else
           @predefined_boards = result
         end
-        # @predefined_boards = Board.predefined.where(category: params[:filter]).order(created_at: :desc).page params[:page]
+        # @predefined_boards = Board.predefined.where(category: params[:filter]).order(name: :asc).page params[:page]
       else
-        @predefined_boards = Board.predefined.order(created_at: :desc)
+        @predefined_boards = Board.predefined.order(name: :asc)
       end
       @categories = @predefined_boards.map(&:category).uniq.compact
       @welcome_boards = Board.welcome
@@ -69,8 +70,8 @@ class API::BoardsController < API::ApplicationController
   end
 
   def user_boards
-    # @boards = boards_for_user.user_made_with_scenarios_and_menus.order(created_at: :desc)
-    @boards = boards_for_user.user_made_with_scenarios.order(created_at: :desc)
+    # @boards = boards_for_user.user_made_with_scenarios_and_menus.order(name: :asc)
+    @boards = boards_for_user.user_made_with_scenarios.order(name: :asc)
 
     render json: { boards: @boards }
   end
@@ -170,13 +171,15 @@ class API::BoardsController < API::ApplicationController
   def show
     # board = Board.with_artifacts.find(params[:id])
     set_board
+    user_permissions = {
+      can_edit: (@board.user == current_user || current_user.admin?),
+      can_delete: (@board.user == current_user || current_user.admin?),
+    }
     if stale?(etag: @board, last_modified: @board.updated_at)
-      @loaded_board = Board.with_artifacts.find(@board.id)
-      @board_with_images = @loaded_board.api_view_with_predictive_images(current_user)
-      user_permissions = {
-        can_edit: (@loaded_board.user == current_user || current_user.admin?),
-        can_delete: (@loaded_board.user == current_user || current_user.admin?),
-      }
+      RailsPerformance.measure("Show Board") do
+        @loaded_board = Board.with_artifacts.find(@board.id)
+        @board_with_images = @loaded_board.api_view_with_predictive_images(current_user)
+      end
       render json: @board_with_images.merge(user_permissions)
     end
   end
@@ -486,9 +489,9 @@ class API::BoardsController < API::ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_board
-    ActiveRecord::Base.logger.silence do
-      @board = Board.with_artifacts.find(params[:id])
-    end
+    # ActiveRecord::Base.logger.silence do
+    @board = Board.find(params[:id])
+    # end
   end
 
   def boards_for_user
