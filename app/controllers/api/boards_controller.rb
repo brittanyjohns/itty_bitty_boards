@@ -142,7 +142,9 @@ class API::BoardsController < API::ApplicationController
     end
 
     if stale?(etag: @board, last_modified: @board.updated_at)
-      @loaded_board = Board.with_artifacts.find(@board.id)
+      RailsPerformance.measure("Predictive board API view") do
+        @loaded_board = Board.with_artifacts.find(@board.id)
+      end
       render json: @loaded_board.api_view_with_predictive_images(viewing_user)
     end
     # render json: @board_with_images

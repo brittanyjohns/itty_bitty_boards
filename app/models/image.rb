@@ -78,8 +78,8 @@ class Image < ApplicationRecord
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!, unless: :menu?
   before_save :set_label, :ensure_defaults
-  after_save :generate_matching_symbol, if: -> { should_generate_symbol? }
-  after_save :run_set_next_words_job, if: -> { should_set_next_words? }
+  # after_save :generate_matching_symbol, if: -> { should_generate_symbol? }
+  # after_save :run_set_next_words_job, if: -> { should_set_next_words? }
 
   after_save :update_board_images, if: -> { need_to_update_board_images? }
   after_save :update_background_color, if: -> { part_of_speech_changed? }
@@ -170,7 +170,7 @@ class Image < ApplicationRecord
         return @predictive_board if @predictive_board
       end
       id_to_find = Board.predictive_default_id
-      @predictive_board = Board.with_artifacts.find_by(id: id_to_find) unless board
+      @predictive_board = Board.with_artifacts.find_by(id: id_to_find) unless @predictive_board
       if @predictive_board
         @predictive_board
       else
