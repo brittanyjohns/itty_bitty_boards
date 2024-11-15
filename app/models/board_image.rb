@@ -53,7 +53,37 @@ class BoardImage < ApplicationRecord
   def layout_invalid?
     return true if layout.blank?
     return true if layout["lg"] == nil || layout["md"] == nil || layout["sm"] == nil
-    layout["lg"].values.any?(&:nil?) || layout["md"].values.any?(&:nil?) || layout["sm"].values.any?(&:nil?)
+    return true if layout["lg"].values.any?(&:nil?) || layout["md"].values.any?(&:nil?) || layout["sm"].values.any?(&:nil?)
+    return true if layout["lg"]["i"] != id.to_s || layout["md"]["i"] != id.to_s || layout["sm"]["i"] != id.to_s
+    return true if layout["lg"]["w"] != 1 || layout["md"]["w"] != 1 || layout["sm"]["w"] != 1
+    return true if layout["lg"]["h"] != 1 || layout["md"]["h"] != 1 || layout["sm"]["h"] != 1
+    return false
+  end
+
+  def self.with_invalid_layouts
+    self.includes(:board).all.select { |bi| bi.layout_invalid? }
+  end
+
+  def self.with_non_cdn_audio
+    self.includes(:image).all.select { |bi| bi.audio_url && !bi.audio_url.include?("cloudfront") }
+  end
+
+  def self.fix_non_cdn_audio
+    self.with_non_cdn_audio.each do |bi|
+      img = bi.image
+      voice = bi.voice
+      audio_file = img.find_audio_for_voice(voice)
+
+      bi.audio_url = img.default_audio_url(audio_file)
+      puts "Updating audio for #{bi.id} - #{bi.label} - #{bi.audio_url}"
+      bi.save
+    end
+  end
+
+  def self.fix_invalid_layouts
+    self.with_invalid_layouts.each do |bi|
+      bi.set_initial_layout!
+    end
   end
 
   def initialize(*args)

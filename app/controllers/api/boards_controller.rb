@@ -370,20 +370,20 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
-  def create_from_next_words
-    @board = Board.new(board_params)
-    @board.user = current_user
-    @board.parent_id = user_signed_in? ? current_user.id : params[:parent_id]
-    @board.parent_type = params[:parent_type] || "User"
-    @board.save!
-    @board.create_images_from_next_words(params[:next_words])
-    render json: @board.api_view_with_images(current_user)
-  end
+  # def create_from_next_words
+  #   @board = Board.new(board_params)
+  #   @board.user = current_user
+  #   @board.parent_id = user_signed_in? ? current_user.id : params[:parent_id]
+  #   @board.parent_type = params[:parent_type] || "User"
+  #   @board.save!
+  #   @board.create_images_from_next_words(params[:next_words])
+  #   render json: @board.api_view_with_images(current_user)
+  # end
 
   def associate_image
-    image = Image.find(params[:image_id])
+    @image = Image.find(params[:image_id])
     screen_size = params[:screen_size] || "lg"
-    if @board.images.include?(image)
+    if @board.images.include?(@image)
       render json: { error: "Image already associated with board" }, status: :unprocessable_entity
       return
     end
@@ -392,14 +392,22 @@ class API::BoardsController < API::ApplicationController
       return
     end
 
-    new_board_image = @board.board_images.new(image_id: image.id, position: @board.board_images.count)
-    new_board_image.layout = new_board_image.initial_layout
-    if new_board_image.save
-      @board.board_images.reset
-      render json: { board: @board, new_board_image: new_board_image, label: image.label }
+    new_board_image = @board.add_image(@image.id) if @board
+    notice = "Image added to board"
+    if new_board_image
+      render json: @board.api_view_with_images(current_user), notice: notice
     else
-      render json: { error: "Error adding image to board: #{new_board_image.errors.full_messages.join(", ")}" }, status: :unprocessable_entity
+      render json: { error: "Error adding image to board" }, status: :unprocessable_entity
     end
+
+    # new_board_image = @board.board_images.new(image_id: image.id, position: @board.board_images.count)
+    # new_board_image.layout = new_board_image.initial_layout
+    # if new_board_image.save
+    #   @board.board_images.reset
+    #   render json: { board: @board, new_board_image: new_board_image, label: image.label }
+    # else
+    #   render json: { error: "Error adding image to board: #{new_board_image.errors.full_messages.join(", ")}" }, status: :unprocessable_entity
+    # end
   end
 
   def associate_images

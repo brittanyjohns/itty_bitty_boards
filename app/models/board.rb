@@ -976,7 +976,7 @@ class Board < ApplicationRecord
           status: @board_image.status,
         }
       end,
-    # layout: layout,
+      layout: print_grid_layout,
     }
   end
 
