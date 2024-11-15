@@ -21,11 +21,11 @@
 class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
   belongs_to :board, touch: true
-  belongs_to :image, touch: true
+  belongs_to :image
   attr_accessor :skip_create_voice_audio, :skip_initial_layout, :src
 
   before_create :set_defaults
-  after_create :set_next_words
+  # after_create :set_next_words
   before_save :set_label, if: -> { label.blank? }
   after_save :update_predictive_board
 
@@ -75,7 +75,6 @@ class BoardImage < ApplicationRecord
       audio_file = img.find_audio_for_voice(voice)
 
       bi.audio_url = img.default_audio_url(audio_file)
-      puts "Updating audio for #{bi.id} - #{bi.label} - #{bi.audio_url}"
       bi.save
     end
   end
@@ -166,7 +165,6 @@ class BoardImage < ApplicationRecord
     if already_has_audio_file && audio_file
       self.audio_url = image.default_audio_url(audio_file)
     else
-      puts "Creating audio file for voice: #{voice}"
       image.find_or_create_audio_file_for_voice(voice)
       audio_file = image.find_audio_for_voice(voice)
       self.audio_url = image.default_audio_url(audio_file)
@@ -220,10 +218,7 @@ class BoardImage < ApplicationRecord
     if audio_file
       self.audio_url = image.default_audio_url(audio_file)
     else
-      puts "Board Image - Creating audio file for voice: #{voice} - #{image.label}"
       image.start_create_all_audio_job unless Rails.env.test? || Rails.env.development?
-      # This probably is nil anyway but just in case
-      # self.audio_url = image.audio_url
     end
   end
 
@@ -265,12 +260,5 @@ class BoardImage < ApplicationRecord
 
   def image_last_added_at
     image.docs.last&.created_at&.strftime("%m/%d %I:%M %p")
-  end
-
-  def user_docs
-    docs = UserDoc.where(user_id: board.user_id, doc_id: image.docs.pluck(:id))
-    docs.each do |doc|
-      puts "Supposed to update doc: #{doc.id} =>label: #{doc.label}"
-    end
   end
 end

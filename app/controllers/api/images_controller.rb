@@ -113,20 +113,18 @@ class API::ImagesController < API::ApplicationController
 
   def clone
     @current_user = current_user
-    @image = Image.find(params[:id])
+    @image = Image.with_artifacts.find(params[:id])
     label_to_set = params[:new_name]&.downcase || @image.label
     user_id = @current_user.id
     make_dynamic = params[:make_dynamic] == "1"
-    @image_clone = @image.clone_with_current_display_doc(user_id, label_to_set, make_dynamic)
+    word_list = params[:word_list] ? params[:word_list].compact : @image.next_words
+    @image_clone = @image.clone_with_current_display_doc(user_id, label_to_set, make_dynamic, word_list)
     voice = params[:voice] || "alloy"
     text = params[:text] || @image_clone.label
     @original_audio_files = @image.audio_files
     @original_audio_files.each do |audio_file|
       begin
         original_file = audio_file.dup
-        puts "original file: #{original_file.filename}"
-        puts "audio file: #{audio_file.filename}"
-
         @audio_file = @image_clone.audio_files.attach(io: StringIO.new(original_file.download), filename: audio_file.blob.filename)
       rescue StandardError => e
         puts "Error copying audio files #{original_file.filename}: #{e.message}"
@@ -147,14 +145,7 @@ class API::ImagesController < API::ApplicationController
     else
       @board = @image.predictive_board_for_user(@current_user.id)
     end
-    if @board
-      @images = @board.images
-      puts "Found Predictive Board: #{@board.created_at.strftime("%Y-%m-%d")}"
-    else
-      puts "No board found for image. Sending next images."
-      @images = Board.predictive_default(@current_user).images
-      # CreatePredictiveBoardJob.perform_async(@image.id, @current_user.id)
-    end
+
     if !@board
       @board = Board.predictive_default(@current_user)
     end
@@ -298,7 +289,11 @@ class API::ImagesController < API::ApplicationController
 
   def create_predictive_board
     @image = Image.find(params[:id])
-    CreatePredictiveBoardJob.perform_async(@image.id, current_user.id)
+    user_id = current_user.id
+    word_list = params[:word_list] || []
+
+    result = @image.create_predictive_board(user_id, word_list)
+    # CreatePredictiveBoardJob.perform_async(@image.id, current_user.id)
     render json: { status: "ok", message: "Creating predictive board for image." }
   end
 

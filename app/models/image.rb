@@ -186,17 +186,16 @@ class Image < ApplicationRecord
     predictive_board_for_user(viewing_user_id)
   end
 
-  def create_predictive_board(new_user_id)
-    normalized_name = label.downcase.strip
-    puts "Creating predictive board for #{label} - #{new_user_id}"
-    board = predictive_boards.find_by(name: normalized_name, user_id: new_user_id)
+  def create_predictive_board(new_user_id, words_to_use = nil)
+    puts "Creating predictive board for #{label} - #{new_user_id} - words: #{words_to_use}"
+    board = predictive_boards.find_by(name: label, user_id: new_user_id)
     if board
       puts "create_predictive_board: Predictive board already exists: #{board.id}"
-      board.find_or_create_images_from_word_list(next_words)
+      board.find_or_create_images_from_word_list(words_to_use)
     else
       puts "Creating predictive board for #{label} - #{new_user_id}"
       board = predictive_boards.create!(name: label, user_id: new_user_id)
-      board.find_or_create_images_from_word_list(next_words)
+      board.find_or_create_images_from_word_list(words_to_use)
       board.reset_layouts
     end
     board
@@ -1100,18 +1099,21 @@ class Image < ApplicationRecord
     image
   end
 
-  def clone_with_current_display_doc(cloned_user_id, new_name, make_dynamic = false)
+  def clone_with_current_display_doc(cloned_user_id, new_name, make_dynamic = false, word_list = [])
     if new_name.blank?
       new_name = label
     end
     @source = self
+    if word_list.blank?
+      word_list = @source.next_words
+    end
+
     @cloned_user = User.includes(:board_images).find(cloned_user_id)
     unless @cloned_user
       Rails.logger.debug "User not found: #{cloned_user_id} - defaulting to admin"
       cloned_user_id = User::DEFAULT_ADMIN_ID
       @cloned_user = User.find(cloned_user_id)
       if !@cloned_user
-        Rails.logger.debug "Default admin user not found: #{cloned_user_id}"
         return
       end
     end
@@ -1119,6 +1121,7 @@ class Image < ApplicationRecord
 
     @cloned_image = @source.dup
     @cloned_image.user_id = cloned_user_id
+    @cloned_image.next_words = word_list
     @cloned_image.label = new_name
     @cloned_image.image_type = @source.image_type
     @cloned_image.image_prompt = @source.image_prompt
@@ -1141,19 +1144,16 @@ class Image < ApplicationRecord
     if @display_doc && @display_doc.image.attached?
       original_file = @display_doc.image
       if original_file
-        puts "Cloning display doc for cloned image #{original_file.filename}"
         new_doc = @display_doc.dup
         new_doc.documentable = @cloned_image
         new_doc.user_id = cloned_user_id
         new_doc.save
         new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type) unless original_file.nil?
-      else
-        puts "No image attached to display doc"
       end
     end
+
     if @cloned_image.save
-      puts "Creating predictive board for cloned image"
-      @cloned_image.create_predictive_board(@cloned_user.id) if make_dynamic
+      @cloned_image.create_predictive_board(@cloned_user.id, word_list)
       @cloned_image
     else
       Rails.logger.debug "Error cloning image: #{@cloned_image}"
