@@ -27,6 +27,8 @@
 #  margin_settings       :jsonb
 #  settings              :jsonb
 #  category              :string
+#  data                  :jsonb
+#  group_layout          :jsonb
 #
 
 one:

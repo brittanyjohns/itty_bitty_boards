@@ -28,6 +28,7 @@
 #  category            :string
 #  use_custom_audio    :boolean          default(FALSE)
 #  voice               :string
+#  src_url             :string
 #
 require "test_helper"
 

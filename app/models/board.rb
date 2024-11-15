@@ -27,6 +27,8 @@
 #  margin_settings       :jsonb
 #  settings              :jsonb
 #  category              :string
+#  data                  :jsonb
+#  group_layout          :jsonb
 #
 class Board < ApplicationRecord
   belongs_to :user
@@ -533,6 +535,14 @@ class Board < ApplicationRecord
     @words ||= board_images.pluck(:label)
   end
 
+  def get_commons_words
+    @board_images = board_images.includes(:image).uniq
+    downcased_common_words = Board.common_words.map(&:downcase)
+    existing_words = @board_images.pluck(:label).map(&:downcase)
+    missing_common_words = downcased_common_words - existing_words
+    { missing_common_words: missing_common_words, existing_words: existing_words }
+  end
+
   def api_view_with_images(viewing_user = nil)
     # @board_images = board_images.includes(:image).uniq
     # downcased_common_words = Board.common_words.map(&:downcase)
@@ -897,9 +907,14 @@ class Board < ApplicationRecord
   def api_view_with_predictive_images(viewing_user = nil)
     @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards])
     # @board_images = board_images.includes(:image)
+    word_data = get_commons_words
+    existing_words = word_data[:existing_words]
+    missing_common_words = word_data[:missing_common_words]
     {
       id: id,
       name: name,
+      missing_common_words: missing_common_words,
+      existing_words: existing_words,
       description: description,
       can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
       category: category,
@@ -918,6 +933,7 @@ class Board < ApplicationRecord
       audio_url: audio_url,
       display_image_url: display_image_url,
       # floating_words: words,
+      common_words: Board.common_words,
       user_id: user_id,
       voice: voice,
       created_at: created_at,
@@ -946,6 +962,7 @@ class Board < ApplicationRecord
         is_dynamic = is_owner && is_predictive
         {
           id: image.id,
+          label: @board_image.label,
           image_user_id: image.user_id,
           predictive_board_id: @predictive_board_id,
           global_default_id: @global_default_id,
@@ -953,13 +970,15 @@ class Board < ApplicationRecord
           dynamic: is_dynamic,
           is_predictive: is_predictive,
           board_image_id: @board_image.id,
-          label: @board_image.label,
           image_prompt: @board_image.image_prompt,
           bg_color: image.bg_class,
           text_color: @board_image.text_color,
           next_words: @board_image.next_words,
           position: @board_image.position,
+          src_url: image.src_url,
+
           src: image.display_image_url(viewing_user),
+          display_image_url: @board_image.display_image_url,
           audio: @board_image.audio_url,
           audio_url: @board_image.audio_url,
           voice: @board_image.voice,

@@ -1,12 +1,18 @@
 class AddUrlToBoardImages < ActiveRecord::Migration[7.1]
   def change
     add_column :board_images, :display_image_url, :string
-    add_index :board_images, :display_image_url
 
-    if column_exists?(:board_images, :display_image_url)
-      BoardImage.includes(image: :user).all.each do |bi|
-        user = bi.image.user
-        bi.update(display_image_url: bi.image.display_image_url(user))
+    add_column :images, :src_url, :string
+
+    if column_exists?(:images, :src_url)
+      Image.with_docs.includes(:board_images, :docs).find_each do |image|
+        user = image.user
+        updated_src = image.display_image_url(user)
+
+        image.update!(src_url: updated_src)
+        image.board_images.each do |board_image|
+          board_image.update!(display_image_url: updated_src)
+        end
       end
     end
   end

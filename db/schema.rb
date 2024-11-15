@@ -95,7 +95,6 @@ ActiveRecord::Schema[7.1].define(version: 2024_11_15_214743) do
     t.string "display_image_url"
     t.index ["board_id"], name: "index_board_images_on_board_id"
     t.index ["data"], name: "index_board_images_on_data", using: :gin
-    t.index ["display_image_url"], name: "index_board_images_on_display_image_url"
     t.index ["image_id"], name: "index_board_images_on_image_id"
     t.index ["label"], name: "index_board_images_on_label"
   end
@@ -214,6 +213,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_11_15_214743) do
     t.string "category"
     t.boolean "use_custom_audio", default: false
     t.string "voice"
+    t.string "src_url"
     t.index ["category"], name: "index_images_on_category"
     t.index ["use_custom_audio"], name: "index_images_on_use_custom_audio"
     t.index ["voice"], name: "index_images_on_voice"

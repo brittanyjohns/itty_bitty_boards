@@ -28,6 +28,7 @@
 #  category            :string
 #  use_custom_audio    :boolean          default(FALSE)
 #  voice               :string
+#  src_url             :string
 #
 class Image < ApplicationRecord
   paginates_per 50
@@ -78,12 +79,14 @@ class Image < ApplicationRecord
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!, unless: :menu?
   before_save :set_label, :ensure_defaults
-  after_save :update_board_images_display_image, if: -> { should_update_board_images_display_image? }
+  # after_save :update_board_images_display_image, if: -> { should_update_board_images_display_image? }
   # after_save :generate_matching_symbol, if: -> { should_generate_symbol? }
   # after_save :run_set_next_words_job, if: -> { should_set_next_words? }
 
   after_save :update_board_images, if: -> { need_to_update_board_images? }
   after_save :update_background_color, if: -> { part_of_speech_changed? }
+
+  before_save :update_src_url, if: -> { src_url.blank? && docs.any? }
 
   scope :menu_images_without_docs, -> { menu_images.without_docs }
 
@@ -103,14 +106,15 @@ class Image < ApplicationRecord
     result
   end
 
-  def update_board_images_display_image
-    updated_image_url = display_image_url(user)
+  def update_board_images_display_image(updated_image_url)
+    puts "Updating board images display image for #{label} - user: #{user_id}"
+    # updated_image_url = display_image_url(user)
     if !updated_image_url
       puts "No updated image url"
       return
     end
-    BoardImage.where(image_id: id).each do |bi|
-      bi.update!(display_image_url: updated_image_url) if bi.display_image_url != updated_image_url
+    board_images.each do |bi|
+      bi.update!(display_image_url: updated_image_url)
     end
   end
 
@@ -279,7 +283,6 @@ class Image < ApplicationRecord
     else
       color = "black"
     end
-    puts "Text color: #{color} - bg_color: #{bg_color}"
     color
   end
 
@@ -1010,6 +1013,13 @@ class Image < ApplicationRecord
     Board.joins(:board_images).where(board_images: { image_id: id }).user_made_with_scenarios_and_menus.where(user_id: current_user.id)
   end
 
+  def update_src_url
+    doc = display_doc(user)
+    if doc && doc.display_url
+      self.src_url = doc.display_url
+    end
+  end
+
   def with_display_doc(current_user = nil)
     @current_user = current_user
     @predictive_board = predictive_board
@@ -1031,6 +1041,7 @@ class Image < ApplicationRecord
       image_prompt: image_prompt,
       display_doc: doc_img_url,
       src: doc_img_url,
+      src_url: src_url,
       audio: @default_audio_url,
       audio_url: @default_audio_url,
       audio_files: audio_files_for_api,
