@@ -463,7 +463,9 @@ class Board < ApplicationRecord
 
       unless new_board_image.save
         Rails.logger.debug "new_board_image.errors: #{new_board_image.errors.full_messages}"
+        return
       end
+      self.save!
     end
     Rails.logger.error "NO IMAGE FOUND" unless new_board_image
     new_board_image.src = @image.display_image_url(self.user)

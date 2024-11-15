@@ -157,30 +157,30 @@ class Image < ApplicationRecord
   end
 
   def predictive_board_for_user(user_id)
-    @predictive_boards = Board.predictive.with_artifacts.where(parent_type: "Image", parent_id: id, name: label)
-    board = @predictive_boards.find_by(name: label, user_id: user_id) if user_id
-    if board
-      return board
+    @predictive_boards = Board.predictive.with_artifacts.where(parent_type: "Image", parent_id: id, name: label, user_id: user_id)
+    @predictive_board = @predictive_boards.find_by(name: label, user_id: user_id) if user_id
+    if @predictive_board
+      return @predictive_board
     else
       user_to_use = User.find_by(id: user_id.to_i) if user_id
       user_predictive_default_id = user_to_use&.settings["predictive_default_id"] if user_to_use
 
       if user_predictive_default_id
-        board = @predictive_boards.find_by(id: user_predictive_default_id.to_i)
-        return board if board
+        @predictive_board = Board.predictive.with_artifacts.find_by(id: user_predictive_default_id.to_i)
+        return @predictive_board if @predictive_board
       end
       id_to_find = Board.predictive_default_id
-      board = Board.with_artifacts.find_by(id: id_to_find) unless board
-      if board
-        board
+      @predictive_board = Board.with_artifacts.find_by(id: id_to_find) unless board
+      if @predictive_board
+        @predictive_board
       else
-        board = @predictive_boards.with_artifacts.where(user_id: User::DEFAULT_ADMIN_ID).first
+        @predictive_board = @predictive_boards.with_artifacts.where(user_id: User::DEFAULT_ADMIN_ID).first
       end
     end
   end
 
-  def predictive_board
-    viewing_user_id = user_id
+  def predictive_board(current_user_id = nil)
+    viewing_user_id = current_user_id || user_id
     predictive_board_for_user(viewing_user_id)
   end
 
@@ -414,7 +414,8 @@ class Image < ApplicationRecord
 
   def predictive?
     id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
-    id_from_env && id_from_env.to_i == id
+    predict_id = predictive_board&.id
+    id_from_env && id_from_env.to_i == predict_id
   end
 
   def default_audio_files
@@ -991,6 +992,16 @@ class Image < ApplicationRecord
     Board.joins(:board_images).where(board_images: { image_id: id }).user_made_with_scenarios_and_menus.where(user_id: current_user.id)
   end
 
+  def dynamic(viewing_user_id = nil)
+    viewing_user_id ||= user_id
+    is_owner = viewing_user_id == user_id
+    predict_id = predictive_board(viewing_user_id)&.id
+    global_default_id = Board.predictive_default_id
+    is_predictive = predict_id && global_default_id && global_default_id.to_i != predict_id
+    puts "Predictive: #{is_predictive} - Is owner: #{is_owner} - Predictive ID: #{predict_id} - Global Default ID: #{global_default_id}"
+    is_predictive && is_owner
+  end
+
   def with_display_doc(current_user = nil)
     @current_user = current_user
     @predictive_board = predictive_board
@@ -1018,7 +1029,7 @@ class Image < ApplicationRecord
       error: error,
       text_color: text_color,
       predictive_board_id: @predictive_board_id,
-      dynamic: @predictive_board&.user_id == @current_user&.id,
+      dynamic: dynamic,
       bg_color: bg_class,
       open_symbol_status: open_symbol_status,
       created_at: created_at,
