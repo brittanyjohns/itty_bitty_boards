@@ -78,6 +78,7 @@ class Image < ApplicationRecord
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!, unless: :menu?
   before_save :set_label, :ensure_defaults
+  after_save :update_board_images_display_image, if: -> { should_update_board_images_display_image? }
   # after_save :generate_matching_symbol, if: -> { should_generate_symbol? }
   # after_save :run_set_next_words_job, if: -> { should_set_next_words? }
 
@@ -93,6 +94,23 @@ class Image < ApplicationRecord
   def update_board_images
     BoardImage.where(image_id: id).each do |bi|
       bi.update!(audio_url: audio_url, voice: voice)
+    end
+  end
+
+  def should_update_board_images_display_image?
+    result = display_image_url(user) != display_image_url
+    puts "Should update board images display image? #{result}"
+    result
+  end
+
+  def update_board_images_display_image
+    updated_image_url = display_image_url(user)
+    if !updated_image_url
+      puts "No updated image url"
+      return
+    end
+    BoardImage.where(image_id: id).each do |bi|
+      bi.update!(display_image_url: updated_image_url) if bi.display_image_url != updated_image_url
     end
   end
 
@@ -157,7 +175,6 @@ class Image < ApplicationRecord
   end
 
   def predictive_board_for_user(user_id)
-    puts "Predictive board for user: #{user_id}"
     return unless user_id && (user_id.is_a?(Integer) || user_id.is_a?(String))
     @predictive_boards = Board.predictive.with_artifacts.where(parent_type: "Image", parent_id: id, name: label, user_id: user_id)
     @predictive_board = @predictive_boards.find_by(name: label, user_id: user_id) if user_id
