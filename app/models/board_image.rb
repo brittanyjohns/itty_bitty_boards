@@ -88,6 +88,12 @@ class BoardImage < ApplicationRecord
     end
   end
 
+  def self.fix_all
+    self.fix_invalid_layouts
+    self.fix_non_cdn_audio
+    Image.destroy_duplicate_images(dry_run: false, limit: 400)
+  end
+
   def initialize(*args)
     super
     @skip_create_voice_audio = false
