@@ -956,7 +956,8 @@ class Board < ApplicationRecord
         is_owner = viewing_user && image.user_id == viewing_user&.id
 
         @predictive_board_id = image&.predictive_board_for_user(viewing_user&.id)&.id
-        @user_custom_default_id = viewing_user&.settings["predictive_default_id"]
+        @viewer_settings = viewing_user&.settings || {}
+        @user_custom_default_id = @viewer_settings["predictive_default_id"]
         @global_default_id = @user_custom_default_id || Board.predictive_default_id
         is_predictive = @predictive_board_id != @global_default_id
         is_dynamic = is_owner && is_predictive
