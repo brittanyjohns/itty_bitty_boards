@@ -5,6 +5,7 @@ class OpenAiClient
   GPT_3_MODEL = "gpt-3.5-turbo-0125"
   IMAGE_MODEL = "dall-e-2"
   TTS_MODEL = "tts-1"
+  PREVIEW_MODEL = "o1-preview"
 
   def initialize(opts)
     @messages = opts["messages"] || opts[:messages] || []
@@ -95,12 +96,13 @@ class OpenAiClient
   end
 
   def generate_formatted_board(name, num_of_columns, words = [], max_num_of_rows = 4)
-    @model = GPT_4_MODEL
+    @model = PREVIEW_MODEL
+    Rails.logger.debug "User - model: #{@model} -- name: #{name} -- num_of_columns: #{num_of_columns} -- words: #{words} -- max_num_of_rows: #{max_num_of_rows}"
     @messages = [{ role: "user",
                   content: [{ type: "text",
                               text: format_board_prompt(name, num_of_columns, words, max_num_of_rows) }] }]
-    response = create_chat
-    puts "*******\nResponse: #{response}\n"
+    response = create_completion
+    Rails.logger.debug "*******\nResponse: #{response}\n"
     Rails.logger.debug "*** ERROR *** Invaild Formatted Board Response: #{response}" unless response
     response[:content]
   end
@@ -145,10 +147,25 @@ class OpenAiClient
   end
 
   def format_board_prompt(name, num_of_columns, word_array = [], max_num_of_rows = 4)
+    puts "max_num_of_rows: #{max_num_of_rows}"
+    Rails.logger.debug "\nName: #{name} -- Num of Columns: #{num_of_columns} -- Max Num of Rows: #{max_num_of_rows}\n"
     words = word_array.join(", ") unless word_array.blank?
     word_count = word_array.size
     text = <<-PROMPT
-      Create an AAC communication board formatted as a grid layout. The board should be a JSON object with the following structure:
+      Create an AAC communication board formatted as a grid layout.
+
+      Organize the words based on these guidelines:
+      1. Core words should be placed first and grouped together, prioritizing high-frequency words - Stating with the coordinate [0,0].
+      2. Group words by parts of speech (e.g., pronouns, verbs, adjectives).
+      3. Consider how speech-language pathologists arrange words for ease of use in communication, ensuring frequently used words are near the top left.
+      4. Use a grid layout with a MAXIMUM of #{num_of_columns} columns and MAX rows: #{max_num_of_rows}.
+      5. Each entry should include the word, its grid position as [x, y], its part of speech, and its frequency of use.
+
+      Please create a grid layout that include the words: '#{words}', grouped and positioned based on their typical use in AAC communication.
+      It is VERY important that the Y-COOORDINATE should not exceed #{max_num_of_rows} and the X-COORDINATE should not exceed #{num_of_columns}.
+      Please also provide a professional explanation (for a speech-language pathologist) and a personable explanation (for a caregiver or user - but still professional) of the layout.
+      
+       Please respond as a valid JSON object with the following structure:
 
       {
         "grid": [
@@ -156,21 +173,11 @@ class OpenAiClient
           {"word": "want", "position": [0,1], "part_of_speech": "verb", "frequency": "high"},
           {"word": "more", "position": [0,2], "part_of_speech": "adverb", "frequency": "high"},
           ...
-        ]
+          {"word": "elevator", "position": [5,10], "part_of_speech": "noun", "frequency": "low"},
+        ],
+        "professional_explanation": "This layout is designed to help users quickly find and use the most common words in AAC communication. The words are grouped by parts of speech and arranged in a grid to make it easy to locate and select the right word.",
+        "personable_explanation": "This board is set up to help you find the words you need to communicate quickly and easily. The words are grouped by type and placed in a grid so you can find them easily."
       }
-
-      Organize the words based on these guidelines:
-      1. Core words should be placed first and grouped together, prioritizing high-frequency words - Stating with the coordinate [0,0].
-      2. Group words by parts of speech (e.g., pronouns, verbs, adjectives).
-      3. Consider how speech-language pathologists arrange words for ease of use in communication, ensuring frequently used words are near the top left.
-      4. Use a grid layout with a maximum of #{num_of_columns} columns and a variable number of rows based on the number of words. Maximize the number of words per row while keeping the board easy to navigate. Max rows: #{max_num_of_rows}.
-      5. Each entry should include the word, its grid position as [x, y], its part of speech, and its frequency of use.
-
-      Please create a grid layout that include the words: '#{words}', grouped and positioned based on their typical use in AAC communication.
-      The Y-COORDINATE should increase from top to bottom, and the X-COORDINATE should increase from left to right.
-      It is VERY important that the Y-COOORDINATE should not exceed #{max_num_of_rows} and the X-COORDINATE should not exceed #{num_of_columns}.  AND that there are no duplicate grid positions.
-      Please also provide a professional explanation (for a speech-language pathologist) and a personable explanation (for a caregiver or user - but still professional) of the layout.
-      Respond with a JSON object in the following format: {\"grid\": [{\"word\": \"word1\", \"position\": [x1, y1], \"part_of_speech\": \"part_of_speech1\", \"frequency\": \"frequency1\"}, ...], \"professional_explanation\": \"professional_explanation\", \"personable_explanation\": \"personable_explanation\"}
     PROMPT
   end
 
@@ -280,6 +287,32 @@ class OpenAiClient
       messages: @messages, # Required.
       temperature: 0.7,
       response_format: { type: "json_object" },
+    }
+    begin
+      response = openai_client.chat(
+        parameters: opts,
+      )
+    rescue => e
+      Rails.logger.debug "**** ERROR **** \n#{e.message}\n"
+    end
+    if response
+      @role = response.dig("choices", 0, "message", "role")
+      @content = response.dig("choices", 0, "message", "content")
+    else
+      Rails.logger.debug "**** ERROR - create_chat **** \nDid not receive valid response.\n #{response&.inspect}"
+    end
+    { role: @role, content: @content }
+  end
+
+  def create_completion
+    @model ||= PREVIEW_MODEL
+    Rails.logger.error "**** ERROR **** \nNo messages provided.\n" unless @messages
+    Rails.logger.debug "Sending to model: #{@model}"
+    opts = {
+      model: @model, # Required.
+      messages: @messages, # Required.
+    # temperature: 0.7,
+    # response_format: { type: "json_object" },
     }
     begin
       response = openai_client.chat(

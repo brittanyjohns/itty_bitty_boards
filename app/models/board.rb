@@ -843,13 +843,22 @@ class Board < ApplicationRecord
     max_num_of_rows = (words.count / num_of_columns.to_f).ceil
     response = OpenAiClient.new({}).generate_formatted_board(name, num_of_columns, words, max_num_of_rows)
     if response
-      parsed_response = JSON.parse(response)
+      parsed_response = response.gsub("```json", "").gsub("```", "").strip
+      if valid_json?(parsed_response)
+        parsed_response = JSON.parse(parsed_response)
+      else
+        puts "INVALID JSON: #{parsed_response}"
+        parsed_response = transform_into_json(parsed_response)
+      end
+      # parsed_response = JSON.parse(response)
       grid_response = parsed_response["grid"]
       personable_explanation = "Personable Explanation: " + parsed_response["personable_explanation"]
       professional_explanation = "Professional Explanation: " + parsed_response["professional_explanation"]
       explanation = personable_explanation + "\n" + professional_explanation
       self.data["personable_explanation"] = personable_explanation
       self.data["professional_explanation"] = professional_explanation
+      puts "Grid Response: \n"
+      pp grid_response
       grid_response.each_with_index do |item, index|
         label = item["word"]
         board_image = @board_images.joins(:image).find_by(images: { label: label })

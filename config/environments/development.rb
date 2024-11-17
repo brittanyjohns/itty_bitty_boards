@@ -2,7 +2,7 @@ require "active_support/core_ext/integer/time"
 require "logger"
 
 Rails.application.routes.default_url_options[:host] = "localhost:4000"
-
+ActiveRecord.verbose_query_logs = false
 Rails.application.configure do
   logger = ActiveSupport::Logger.new("log/#{Rails.env}.log")
   logger.formatter = config.log_formatter
