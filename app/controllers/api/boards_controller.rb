@@ -157,7 +157,6 @@ class API::BoardsController < API::ApplicationController
     # expires_in 8.hours, public: true # Cache control header
 
     if stale?(etag: @board, last_modified: @board.updated_at)
-      puts "Stale board - #{params[:id]}"
       RailsPerformance.measure("Predictive Image Board") do
         @loaded_board = Board.with_artifacts.find(@board.id)
         @board_with_images = @loaded_board.api_view_with_predictive_images(current_user)

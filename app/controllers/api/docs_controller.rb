@@ -115,7 +115,6 @@ class API::DocsController < API::ApplicationController
 
     if current_user.user_docs.where(image_id: @doc.documentable_id).exists?
       @old_fav_docs = current_user.user_docs.where(image_id: @doc.documentable_id)
-      puts "OLD FAV DOC: #{@old_fav_docs.pluck(:id, :doc_id)}"
       @old_fav_docs.destroy_all
     end
     @doc.reload
@@ -131,6 +130,11 @@ class API::DocsController < API::ApplicationController
     puts "USER DOC: #{user_doc.inspect}"
     @current_doc = @doc
     @image = @doc.documentable
+    @user = @image.user
+    if @user.id == current_user.id
+      @image.update!(src_url: @current_doc.display_url)
+      board_imgs = @user.board_images.where(image_id: @image.id).update_all(display_image_url: @current_doc.display_url)
+    end
 
     @image_docs = @image.docs.for_user(current_user).excluding(@doc).order(created_at: :desc).to_a
     # @doc_with_image = { doc: @doc, image: @image, current_doc: @doc, image_docs: @image_docs }

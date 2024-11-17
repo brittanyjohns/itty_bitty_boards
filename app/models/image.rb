@@ -135,7 +135,6 @@ class Image < ApplicationRecord
   end
 
   def update_background_color
-    puts "Updating background color for #{label}"
     self.bg_color = background_color_for(part_of_speech)
     self.text_color = text_color_for(bg_color)
     board_images.each do |bi|
