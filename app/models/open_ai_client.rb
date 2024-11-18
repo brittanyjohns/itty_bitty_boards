@@ -193,23 +193,26 @@ class OpenAiClient
     response
   end
 
-  def get_additional_words(name, number_of_words = 24, exclude_words = [], viewing_user = nil)
+  def get_additional_words(name, number_of_words = 24, exclude_words = [], use_preview_model = false)
     exclude_words_prompt = exclude_words.blank? ? "and no words to exclude." : "excluding the words '#{exclude_words.join("', '")}'."
     puts "Exclude Words: #{exclude_words}"
+    puts "use_preview_model: #{use_preview_model}"
 
     first_sentence = name.include?("Predictive") ? "I have the initial communication board" : "I have an existing AAC board titled, '#{name}'"
     text = "#{first_sentence} with the current words: [#{exclude_words_prompt}]. Please provide EXACTLY #{number_of_words} additional words that are foundational for basic communication in an AAC device.
     These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. They should be similar in nature to the words already on the board, but not duplicates. Do not repeat any words that are already on the board & only provide #{number_of_words} words. DO NOT INCLUDE [#{exclude_words_prompt}]. 
     If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate. 
-    If the board is 'feelings', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
-    If the board is 'family', words like 'mom', 'dad', 'sister', 'brother', etc. would be appropriate.
+    If the board is 'feeling', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
+     If the board is 'drink', words like 'water', 'milk', 'juice', 'thirsty', etc. would be appropriate.
+     If the board is 'will', words like 'you', 'I', 'we', 'they', etc. would be appropriate.
+     If the board is 'food', words like 'apple', 'banana', 'cookie', 'hungry', etc. would be appropriate.
     Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
     @messages = [{ role: "user",
                   content: [{
       type: "text",
       text: text,
     }] }]
-    if viewing_user&.admin?
+    if use_preview_model
       @model = PREVIEW_MODEL
       response = create_completion
     else

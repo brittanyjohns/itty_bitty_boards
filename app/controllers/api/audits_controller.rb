@@ -33,6 +33,6 @@ class API::AuditsController < API::ApplicationController
     else
       @word_events = WordEvent.all.limit(200)
     end
-    render json: @word_events
+    render json: @word_events.order(created_at: :desc)
   end
 end

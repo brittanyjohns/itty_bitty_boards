@@ -400,7 +400,7 @@ class Board < ApplicationRecord
     if word_list.is_a?(String)
       word_list = word_list.split(" ")
     end
-    if word_list.count > 50
+    if word_list.count > 60
       Rails.logger.debug "Too many words"
       return
     end
@@ -1011,9 +1011,9 @@ class Board < ApplicationRecord
     }
   end
 
-  def get_words(name_to_send, number_of_words, words_to_exclude = [], viewing_user = nil)
+  def get_words(name_to_send, number_of_words, words_to_exclude = [], use_preview_model = false)
     words_to_exclude = board_images.pluck(:label).map { |w| w.downcase }
-    response = OpenAiClient.new({}).get_additional_words(name_to_send, number_of_words, words_to_exclude, viewing_user)
+    response = OpenAiClient.new({}).get_additional_words(name_to_send, number_of_words, words_to_exclude, use_preview_model)
     if response
       words = response[:content].gsub("```json", "").gsub("```", "").strip
       if words.blank? || words.include?("NO ADDITIONAL WORDS")

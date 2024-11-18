@@ -206,15 +206,30 @@ class Image < ApplicationRecord
     predictive_board_for_user(viewing_user_id)
   end
 
-  def create_predictive_board(new_user_id, words_to_use = nil)
-    puts "Creating predictive board for #{label} - #{new_user_id} - words: #{words_to_use}"
+  def create_predictive_board(new_user_id, words_to_use = nil, use_preview_model = false)
+    Rails.logger.debug "Creating predictive board for #{label} - #{new_user_id} - words: #{words_to_use}"
     board = predictive_boards.find_by(name: label, user_id: new_user_id)
     if board
       puts "create_predictive_board: Predictive board already exists: #{board.id}"
+      if use_preview_model
+        puts "use_preview_model: #{use_preview_model}"
+        board_words = board.board_images.map(&:label).uniq
+        words_to_use = board.get_words(name_to_send, 25, board_words, use_preview_model)
+        self.next_words = words_to_use
+        self.save!
+      end
+
       board.find_or_create_images_from_word_list(words_to_use)
     else
       puts "Creating predictive board for #{label} - #{new_user_id}"
       board = predictive_boards.create!(name: label, user_id: new_user_id)
+      if use_preview_model
+        puts "use_preview_model: #{use_preview_model}"
+        board_words = board.board_images.map(&:label).uniq
+        words_to_use = board.get_words(name_to_send, 25, board_words, use_preview_model)
+        self.next_words = words_to_use
+        self.save!
+      end
       board.find_or_create_images_from_word_list(words_to_use)
       board.reset_layouts
     end
