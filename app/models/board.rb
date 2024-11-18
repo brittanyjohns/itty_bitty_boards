@@ -93,6 +93,8 @@ class Board < ApplicationRecord
   scope :preset, -> { where(predefined: true) }
   scope :welcome, -> { where(category: "welcome", predefined: true) }
 
+  scope :custom_predictive_defaults, -> { where(name: "Custom Predictive Default", parent_type: "PredefinedResource") }
+
   SAFE_FILTERS = %w[all welcome preset featured popular general seasonal routines emotions actions animals food people places things colors shapes numbers letters].freeze
 
   scope :with_artifacts, -> { includes({ board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }) }
@@ -257,44 +259,46 @@ class Board < ApplicationRecord
   def self.predictive_default(viewing_user = nil)
     board = nil
     id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
+    puts "Predictive Default ID from ENV: #{id_from_env}"
     if viewing_user
       user_predictive_default_id = viewing_user&.settings["predictive_default_id"]
       puts "Predictive Default ID from user settings: #{user_predictive_default_id}"
       if user_predictive_default_id
         board = self.with_artifacts.find_by(id: user_predictive_default_id)
-        if !board || (user_predictive_default_id === id_from_env)
-          CreateCustomPredictiveDefaultJob.perform_async(viewing_user.id)
-        end
-      else
-        CreateCustomPredictiveDefaultJob.perform_async(viewing_user.id)
       end
     end
     if id_from_env && !board
       board = self.with_artifacts.find_by(id: id_from_env)
     end
-    # original_board = nil
     if !board
-      # original_board = self.with_artifacts.find_by(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
-      puts "Predictive Default not found"
+      board = Board.with_artifacts.find_by(user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
+    end
+    if !board
+      Rails.logger.warn "Something went wrong creating Predictive Default"
+
       predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
       board = self.create(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource", parent_id: predefined_resource.id)
+      board.find_or_create_images_from_word_list(self.common_words) if board
     end
-
-    # if viewing_user && board
-    #   viewing_user.settings["predictive_default_id"] = board.id
-    #   viewing_user.save!
-    # end
-
     board
   end
 
   def self.create_custom_predictive_default_for_user(new_user)
-    predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
-    board = self.create(name: "Custom Predictive Default", user_id: new_user.id, parent_type: "PredefinedResource", parent_id: predefined_resource.id)
+    # predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
+    original_board = self.predictive_default
+    puts "Original Board: #{original_board.id}"
+    board = nil
+    if original_board
+      board = original_board.clone_with_images(new_user.id, "Custom Predictive Default")
+    else
+      Rails.logger.error "Something went wrong attempting to clone Predictive Default"
+    end
+    # board = self.create(name: "Custom Predictive Default", user_id: new_user.id, parent_type: "PredefinedResource", parent_id: predefined_resource.id)
     if board
       new_user.settings["predictive_default_id"] = board.id
       new_user.save!
     end
+    Rails.logger.debug "Custom Predictive Default Board: #{board} for user: #{new_user.id}"
     board
   end
 
@@ -413,8 +417,11 @@ class Board < ApplicationRecord
   end
 
   def remove_image(image_id)
+    Rails.logger.debug "Removing image: #{image_id}"
+    Rails.logger.debug "image_ids.include?(image_id.to_i): #{image_ids.include?(image_id.to_i)}"
     return unless image_ids.include?(image_id.to_i)
     bi = board_images.find_by(image_id: image_id)
+    Rails.logger.debug "Board Image: #{bi}"
     bi.destroy if bi
   end
 

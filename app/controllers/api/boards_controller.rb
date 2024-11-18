@@ -184,7 +184,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def initial_predictive_board
-    @board = Board.with_artifacts.find_by(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
+    @board = Board.predictive_default
     if @board.nil?
       @board = Board.with_artifacts.find_by(user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
       CreateCustomPredictiveDefaultJob.perform_async(current_user.id)
@@ -281,24 +281,17 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
+  def create_custom_predictive_board
+    @user = current_user
+    # @user.create_custom_predictive_default_board
+    @board = @user.fix_user_predictive_default_board # Fix for existing users - remove after a while
+    Rails.logger.info "Created custom predictive default board for user #{current_user.id} - board images: #{@board.image_ids.count}"
+    render json: @board.api_view_with_images(@user)
+  end
+
   # PATCH/PUT /boards/1 or /boards/1.json
   def update
     set_board
-    @board.number_of_columns = board_params["number_of_columns"].to_i
-    @board.small_screen_columns = board_params["small_screen_columns"].to_i
-    @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
-    @board.large_screen_columns = board_params["large_screen_columns"].to_i
-    @board.voice = board_params["voice"]
-    @board.name = board_params["name"]
-    @board.description = board_params["description"]
-    @board.display_image_url = board_params["display_image_url"]
-    @board.predefined = board_params["predefined"]
-    @board.category = board_params["category"]
-    if !params["word_list"].blank?
-      word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
-      @board.find_or_create_images_from_word_list(word_list) if word_list.present?
-    end
-
     if params["image_ids_to_remove"].present?
       image_ids_to_remove = params["image_ids_to_remove"]
       puts "Image IDs to remove: #{image_ids_to_remove}"
@@ -306,13 +299,31 @@ class API::BoardsController < API::ApplicationController
         image = Image.find(image_id)
         @board.remove_image(image&.id) if @board && image
       end
-    end
+      Rails.logger.info "Board images after removal: #{@board&.images}"
+      render json: @board.api_view_with_images(current_user)
+      return
+    else
+      @board.number_of_columns = board_params["number_of_columns"].to_i
+      @board.small_screen_columns = board_params["small_screen_columns"].to_i
+      @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
+      @board.large_screen_columns = board_params["large_screen_columns"].to_i
+      @board.voice = board_params["voice"]
+      @board.name = board_params["name"]
+      @board.description = board_params["description"]
+      @board.display_image_url = board_params["display_image_url"]
+      @board.predefined = board_params["predefined"]
+      @board.category = board_params["category"]
+      if !params["word_list"].blank?
+        word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
+        @board.find_or_create_images_from_word_list(word_list) if word_list.present?
+      end
 
-    respond_to do |format|
-      if @board.save
-        format.json { render json: @board.api_view_with_images(current_user), status: :ok }
-      else
-        format.json { render json: @board.errors, status: :unprocessable_entity }
+      respond_to do |format|
+        if @board.save
+          format.json { render json: @board.api_view_with_images(current_user), status: :ok }
+        else
+          format.json { render json: @board.errors, status: :unprocessable_entity }
+        end
       end
     end
   end

@@ -83,6 +83,7 @@ class User < ApplicationRecord
   # Callbacks
   before_save :set_default_settings, unless: :settings?
   after_create :add_welcome_tokens
+  # after_create :create_custom_predictive_default_board
   before_validation :set_uuid, on: :create
   before_save :ensure_settings, unless: :has_all_settings?
 
@@ -93,6 +94,50 @@ class User < ApplicationRecord
 
   def locked?
     locked == true
+  end
+
+  def self.clear_all_custom_default_boards
+    self.all.each do |user|
+      user.clear_custom_default_board
+    end
+  end
+
+  def clear_custom_default_board
+    custom_board = custom_predictive_default_board
+    custom_board.destroy! if custom_board && custom_board.user_id == id
+    self.settings["predictive_default_id"] = nil
+    save
+  end
+
+  def custom_predictive_default_board
+    Board.find_by(id: settings["predictive_default_id"]&.to_i)
+  end
+
+  def self.without_custom_predictive_board
+    # search user setting for predictive_default_id
+    self.where("settings->>'predictive_default_id' IS NULL").or(self.where("settings->>'predictive_default_id' = '#{Board.predictive_default_id}'"))
+  end
+
+  def self.fix_user_predictive_default_boards
+    self.non_admin.each do |user|
+      user.fix_user_predictive_default_board
+    end
+  end
+
+  def fix_user_predictive_default_board
+    custom_board = custom_predictive_default_board
+
+    if custom_board.nil? || custom_board&.id == Board.predictive_default_id
+      puts "Creating custom predictive default board for user #{id}"
+      custom_board = create_custom_predictive_default_board
+    else
+      puts "Checking custom predictive default board for user #{id}"
+      if custom_board.images.count < 10
+        custom_board.destroy
+        custom_board = create_custom_predictive_default_board
+      end
+    end
+    custom_board
   end
 
   def required_settings
@@ -108,6 +153,10 @@ class User < ApplicationRecord
     required_settings.each do |setting|
       settings[setting] = true if settings[setting].nil?
     end
+  end
+
+  def create_custom_predictive_default_board
+    Board.create_custom_predictive_default_for_user(self)
   end
 
   # Methods for user settings
@@ -301,6 +350,8 @@ class User < ApplicationRecord
     view["tokens"] = tokens
     view["phrase_board_id"] = settings["phrase_board_id"]
     view["predictive_default_id"] = settings["predictive_default_id"]
+    view["global_board_id"] = Board.predictive_default_id
+    view["has_custom_predictive_default"] = custom_predictive_default_board.present?
     # view["startup_board_group_id"] = settings["startup_board_group_id"].blank? ? startup_board_group.id.to_s : settings["startup_board_group_id"]
     view
   end
