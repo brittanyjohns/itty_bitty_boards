@@ -343,7 +343,7 @@ class API::BoardsController < API::ApplicationController
     num_of_words = params[:num_of_words].to_i || 10
     board_words = @board.images.map(&:label).uniq
     name_to_send = params[:name] || @board.name
-    additional_words = @board.get_words(name_to_send, num_of_words, board_words)
+    additional_words = @board.get_words(name_to_send, num_of_words, board_words, current_user)
     render json: additional_words
   end
 
