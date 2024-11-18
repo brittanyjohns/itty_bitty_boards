@@ -225,6 +225,7 @@ Rails.application.routes.draw do
         get "words"
         get "categories"
         get "preset"
+        get "initial_predictive_board"
       end
       member do
         post "format_with_ai"

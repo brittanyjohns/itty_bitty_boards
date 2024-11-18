@@ -290,7 +290,7 @@ class API::ImagesController < API::ApplicationController
   def create_predictive_board
     @image = Image.find(params[:id])
     user_id = current_user.id
-    word_list = params[:word_list] || []
+    word_list = params[:word_list] || Board.common_words
 
     result = @image.create_predictive_board(user_id, word_list)
     # CreatePredictiveBoardJob.perform_async(@image.id, current_user.id)

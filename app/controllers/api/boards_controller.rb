@@ -183,6 +183,17 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
+  def initial_predictive_board
+    @board = Board.with_artifacts.find_by(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
+    if @board.nil?
+      @board = Board.with_artifacts.find_by(user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
+      CreateCustomPredictiveDefaultJob.perform_async(current_user.id)
+      current_user.settings["predictive_default_id"] = @board.id
+      current_user.save!
+    end
+    render json: @board.api_view_with_images(current_user)
+  end
+
   def save_layout
     set_board
     # board = Board.with_artifacts.find(params[:id])

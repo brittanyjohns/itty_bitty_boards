@@ -3,6 +3,7 @@ class CreatePredictiveBoardJob
 
   def perform(image_id, user_id, word_list)
     image = Image.find_by(id: image_id)
+    word_list = word_list || Board.common_words
     if image.nil?
       Rails.logger.error "Image not found: #{image_id}"
       return
