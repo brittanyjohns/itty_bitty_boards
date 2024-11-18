@@ -193,10 +193,10 @@ class OpenAiClient
     response
   end
 
-  def get_additional_words(name, number_of_words = 24, exclude_words = [])
+  def get_additional_words(name, number_of_words = 24, exclude_words = [], viewing_user = nil)
     exclude_words_prompt = exclude_words.blank? ? "and no words to exclude." : "excluding the words '#{exclude_words.join("', '")}'."
     puts "Exclude Words: #{exclude_words}"
-    @model = GPT_4_MODEL
+
     first_sentence = name.include?("Predictive") ? "I have the initial communication board" : "I have an existing AAC board titled, '#{name}'"
     text = "#{first_sentence} with the current words: [#{exclude_words_prompt}]. Please provide EXACTLY #{number_of_words} additional words that are foundational for basic communication in an AAC device.
     These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. They should be similar in nature to the words already on the board, but not duplicates. Do not repeat any words that are already on the board & only provide #{number_of_words} words. DO NOT INCLUDE [#{exclude_words_prompt}]. 
@@ -209,7 +209,13 @@ class OpenAiClient
       type: "text",
       text: text,
     }] }]
-    response = create_chat
+    if viewing_user&.admin?
+      @model = PREVIEW_MODEL
+      response = create_completion
+    else
+      @model = GPT_4_MODEL
+      response = create_chat
+    end
     Rails.logger.debug "*** ERROR *** Invaild Additional Words Response: #{response}" unless response
     response
   end

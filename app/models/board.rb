@@ -1011,9 +1011,9 @@ class Board < ApplicationRecord
     }
   end
 
-  def get_words(name_to_send, number_of_words, words_to_exclude = [])
+  def get_words(name_to_send, number_of_words, words_to_exclude = [], viewing_user = nil)
     words_to_exclude = board_images.pluck(:label).map { |w| w.downcase }
-    response = OpenAiClient.new({}).get_additional_words(name_to_send, number_of_words, words_to_exclude)
+    response = OpenAiClient.new({}).get_additional_words(name_to_send, number_of_words, words_to_exclude, viewing_user)
     if response
       words = response[:content].gsub("```json", "").gsub("```", "").strip
       if words.blank? || words.include?("NO ADDITIONAL WORDS")
