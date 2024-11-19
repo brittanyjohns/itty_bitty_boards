@@ -352,7 +352,7 @@ class User < ApplicationRecord
     view["predictive_default_id"] = settings["predictive_default_id"]
     view["global_board_id"] = Board.predictive_default_id
     view["has_dynamic_default"] = dynamic_default_board.present?
-    # view["startup_board_group_id"] = settings["startup_board_group_id"].blank? ? startup_board_group.id.to_s : settings["startup_board_group_id"]
+    view["startup_board_group_id"] = settings["startup_board_group_id"]
     view
   end
 end

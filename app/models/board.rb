@@ -856,7 +856,7 @@ class Board < ApplicationRecord
         @viewer_settings = viewing_user&.settings || {}
         @user_custom_default_id = @viewer_settings["predictive_default_id"]
         @global_default_id = @user_custom_default_id || Board.predictive_default_id
-        is_predictive = @predictive_board_id != @global_default_id
+        is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id
         is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)
         {
           id: image.id,
@@ -942,7 +942,7 @@ class Board < ApplicationRecord
 
   def get_words(name_to_send, number_of_words, words_to_exclude = [], use_preview_model = false)
     words_to_exclude = board_images.pluck(:label).map { |w| w.downcase }
-    response = OpenAiClient.new({}).get_additional_words(name_to_send, number_of_words, words_to_exclude, use_preview_model)
+    response = OpenAiClient.new({}).get_additional_words(self, name_to_send, number_of_words, words_to_exclude, use_preview_model)
     if response
       words = response[:content].gsub("```json", "").gsub("```", "").strip
       if words.blank? || words.include?("NO ADDITIONAL WORDS")

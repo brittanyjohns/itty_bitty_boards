@@ -1057,7 +1057,7 @@ class Image < ApplicationRecord
     @user_custom_default_id = @current_user&.settings["predictive_default_id"]
     @global_default_id = @user_custom_default_id || Board.predictive_default_id
     is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
-    is_predictive = @predictive_board_id != @global_default_id
+    is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id
     is_owner = user_id == @current_user&.id
     is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)
     {
