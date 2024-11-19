@@ -70,6 +70,7 @@ class Board < ApplicationRecord
   scope :without_images, -> { left_outer_joins(:images).where(images: { id: nil }) }
 
   scope :predictive, -> { where(parent_type: ["Image", "PredefinedResource"]) }
+  scope :dynamic, -> { where(parent_type: ["PredefinedResource"]) }
 
   scope :created_this_week, -> { where("created_at > ?", 1.week.ago) }
   scope :created_before_this_week, -> { where("created_at < ?", 8.days.ago) }

@@ -73,7 +73,7 @@ class API::BoardsController < API::ApplicationController
     # @boards = boards_for_user.user_made_with_scenarios_and_menus.order(name: :asc)
     @boards = current_user.boards.user_made_with_scenarios.order(name: :asc)
 
-    render json: { boards: @boards }
+    render json: { boards: @boards, dynamic_boards: current_user.boards.dynamic.order(name: :asc) }
   end
 
   def predictive_index
