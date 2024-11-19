@@ -153,13 +153,20 @@ class API::BoardsController < API::ApplicationController
   end
 
   def predictive_image_board
-    @board = Board.find(params[:id])
+    @board = Board.with_artifacts.find_by(id: params[:id])
+    Rails.logger.info "Predictive image board ID: #{params[:id]}"
+    if @board.nil?
+      @board = Board.predictive_default(current_user)
+      Rails.logger.info "#{Board.predictive_default_id} -- No user predictive default board found - setting default board : #{@board.id}"
+      current_user.settings["predictive_default_id"] = nil
+      current_user.save!
+    end
     # expires_in 8.hours, public: true # Cache control header
 
     if stale?(etag: @board, last_modified: @board.updated_at)
       RailsPerformance.measure("Predictive Image Board") do
-        @loaded_board = Board.with_artifacts.find(@board.id)
-        @board_with_images = @loaded_board.api_view_with_predictive_images(current_user)
+        # @loaded_board = Board.with_artifacts.find(@board.id)
+        @board_with_images = @board.api_view_with_predictive_images(current_user)
       end
       render json: @board_with_images
     end
@@ -185,10 +192,11 @@ class API::BoardsController < API::ApplicationController
 
   def initial_predictive_board
     @board = Board.predictive_default
+    Rails.logger.info "Initial predictive board ID: #{@board&.id}"
     if @board.nil?
       @board = Board.with_artifacts.find_by(user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
-      CreateCustomPredictiveDefaultJob.perform_async(current_user.id)
-      current_user.settings["predictive_default_id"] = @board.id
+      # CreateCustomPredictiveDefaultJob.perform_async(current_user.id)
+      current_user.settings["predictive_default_id"] = nil
       current_user.save!
     end
     render json: @board.api_view_with_images(current_user)

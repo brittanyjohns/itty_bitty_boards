@@ -191,6 +191,7 @@ class API::ImagesController < API::ApplicationController
     end
 
     @audio_file = @image.create_audio_from_text(text, voice)
+    @image.reload
     @image_with_display_doc = @image.with_display_doc(current_user)
     render json: @image_with_display_doc
   end
@@ -510,7 +511,8 @@ class API::ImagesController < API::ApplicationController
     end
     @audio_file = @image.audio_files.find(params[:audio_file_id])
     @audio_file.purge
-    render json: { status: "ok" }
+    @image.reload
+    render json: { status: "ok", image: @image.with_display_doc(current_user) }
   end
 
   def set_current_audio

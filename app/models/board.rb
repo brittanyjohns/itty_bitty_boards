@@ -261,7 +261,7 @@ class Board < ApplicationRecord
     id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
     puts "Predictive Default ID from ENV: #{id_from_env}"
     if viewing_user
-      user_predictive_default_id = viewing_user&.settings["predictive_default_id"]
+      user_predictive_default_id = viewing_user&.settings["predictive_default_id"]&.to_i
       puts "Predictive Default ID from user settings: #{user_predictive_default_id}"
       if user_predictive_default_id
         board = self.with_artifacts.find_by(id: user_predictive_default_id)
