@@ -291,9 +291,9 @@ class API::BoardsController < API::ApplicationController
 
   def create_custom_predictive_board
     @user = current_user
-    # @user.create_custom_predictive_default_board
+    # @user.create_dynamic_default_board
     @board = @user.fix_user_predictive_default_board # Fix for existing users - remove after a while
-    Rails.logger.info "Created custom predictive default board for user #{current_user.id} - board images: #{@board.image_ids.count}"
+    Rails.logger.info "Created dynamic default board for user #{current_user.id} - board images: #{@board.image_ids.count}"
     render json: @board.api_view_with_images(@user)
   end
 

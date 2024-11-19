@@ -93,7 +93,8 @@ class Board < ApplicationRecord
   scope :preset, -> { where(predefined: true) }
   scope :welcome, -> { where(category: "welcome", predefined: true) }
 
-  scope :custom_predictive_defaults, -> { where(name: "Custom Predictive Default", parent_type: "PredefinedResource") }
+  scope :dynamic_defaults, -> { where(name: "Dynamic Default", parent_type: "PredefinedResource") }
+  scope :dynamic_defaults, -> { where(name: "Dynamic Default", parent_type: "PredefinedResource") }
 
   SAFE_FILTERS = %w[all welcome preset featured popular general seasonal routines emotions actions animals food people places things colors shapes numbers letters].freeze
 
@@ -283,22 +284,21 @@ class Board < ApplicationRecord
     board
   end
 
-  def self.create_custom_predictive_default_for_user(new_user)
+  def self.create_dynamic_default_for_user(new_user)
     # predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
     original_board = self.predictive_default
     puts "Original Board: #{original_board.id}"
     board = nil
     if original_board
-      board = original_board.clone_with_images(new_user.id, "Custom Predictive Default")
+      board = original_board.clone_with_images(new_user.id, "Dynamic Default")
     else
       Rails.logger.error "Something went wrong attempting to clone Predictive Default"
     end
-    # board = self.create(name: "Custom Predictive Default", user_id: new_user.id, parent_type: "PredefinedResource", parent_id: predefined_resource.id)
     if board
       new_user.settings["predictive_default_id"] = board.id
       new_user.save!
     end
-    Rails.logger.debug "Custom Predictive Default Board: #{board} for user: #{new_user.id}"
+    Rails.logger.debug "Dynamic Default Board: #{board} for user: #{new_user.id}"
     board
   end
 
