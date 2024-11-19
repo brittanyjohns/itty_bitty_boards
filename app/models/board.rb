@@ -94,7 +94,6 @@ class Board < ApplicationRecord
   scope :welcome, -> { where(category: "welcome", predefined: true) }
 
   scope :dynamic_defaults, -> { where(name: "Dynamic Default", parent_type: "PredefinedResource") }
-  scope :dynamic_defaults, -> { where(name: "Dynamic Default", parent_type: "PredefinedResource") }
 
   SAFE_FILTERS = %w[all welcome preset featured popular general seasonal routines emotions actions animals food people places things colors shapes numbers letters].freeze
 
@@ -550,125 +549,6 @@ class Board < ApplicationRecord
     { missing_common_words: missing_common_words, existing_words: existing_words }
   end
 
-  def api_view_with_images(viewing_user = nil)
-    # @board_images = board_images.includes(:image).uniq
-    # downcased_common_words = Board.common_words.map(&:downcase)
-    # existing_words = @board_images.pluck(:label).map(&:downcase)
-    # missing_common_words = downcased_common_words - existing_words
-    # {
-    #   id: id,
-    #   name: name,
-    #   description: description,
-    #   category: category,
-    #   common_words: Board.common_words,
-    #   # word_list: words,
-    #   word_list: existing_words,
-    #   missing_common_words: missing_common_words,
-    #   data: data,
-    #   parent_type: parent_type,
-    #   parent_id: parent_id,
-    #   parent_description: parent_type === "User" ? "User" : parent&.to_s,
-    #   parent_prompt: parent_type === "OpenaiPrompt" ? parent.prompt_text : nil,
-    #   predefined: predefined,
-    #   number_of_columns: number_of_columns,
-    #   small_screen_columns: small_screen_columns,
-    #   medium_screen_columns: medium_screen_columns,
-    #   large_screen_columns: large_screen_columns,
-    #   status: status,
-    #   token_limit: token_limit,
-    #   cost: cost,
-    #   audio_url: audio_url,
-    #   display_image_url: display_image_url,
-    #   floating_words: words,
-    #   user_id: user_id,
-    #   voice: voice,
-    #   created_at: created_at,
-    #   updated_at: updated_at,
-    #   margin_settings: margin_settings,
-    #   has_generating_images: has_generating_images?,
-    #   current_user_teams: [],
-    #   # current_user_teams: viewing_user ? viewing_user.teams.map(&:api_view) : [],
-    #   # images: board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs]).map do |board_image|
-    #   images: @board_images.map do |board_image|
-    #     puts "invaild layout: #{board_image.layout}" if board_image.layout_invalid?
-    #     @image = board_image.image
-    #     is_owner = @image.user_id == viewing_user&.id
-    #     is_predictive = @image.predictive?
-    #     @image_predictive_board = @image.predictive_board
-    #     {
-    #       id: @image.id,
-    #       # id: board_image.id,
-    #       predictive_board_id: @image_predictive_board&.id,
-    #       board_image_id: board_image.id,
-    #       is_owner: is_owner,
-    #       is_predictive: is_predictive,
-    #       dynamic: is_owner && is_predictive,
-    #       label: board_image.label,
-    #       image_prompt: board_image.image_prompt,
-    #       bg_color: @image.bg_class,
-    #       text_color: @image.text_color,
-    #       next_words: board_image.next_words,
-    #       position: board_image.position,
-    #       src: @image_predictive_board&.display_image_url || @image.display_image_url(viewing_user),
-    #       audio: board_image.audio_url,
-    #       audio_url: board_image.audio_url,
-    #       voice: board_image.voice,
-    #       layout: board_image.layout,
-    #       added_at: board_image.added_at,
-    #       # image_last_added_at: board_image.image_last_added_at,
-    #       part_of_speech: @image.part_of_speech,
-
-    #       status: board_image.status,
-    #     }
-    #   end,
-    #   layout: layout,
-    # }
-    api_view_with_predictive_images(viewing_user)
-  end
-
-  def api_view(viewing_user = nil)
-    {
-      id: id,
-      name: name,
-      layout: layout,
-      audio_url: audio_url,
-      group_layout: group_layout,
-      position: position,
-      data: data,
-      description: description,
-      parent_type: parent_type,
-      predefined: predefined,
-      number_of_columns: number_of_columns,
-      status: status,
-      token_limit: token_limit,
-      cost: cost,
-      display_image_url: display_image_url,
-      # floating_words: words,
-      user_id: user_id,
-      voice: voice,
-      margin_settings: margin_settings,
-    }
-  end
-
-  def user_api_view
-    {
-      id: id,
-      name: name,
-      description: description,
-      parent_type: parent_type,
-      predefined: predefined,
-      number_of_columns: number_of_columns,
-      status: status,
-      token_limit: token_limit,
-      cost: cost,
-      display_image_url: display_image_url,
-      voice: voice,
-      created_at: created_at,
-      updated_at: updated_at,
-      margin_settings: margin_settings,
-    }
-  end
-
   SCREEN_SIZES = %w[sm md lg].freeze
 
   def print_grid_layout_for_screen_size(screen_size)
@@ -970,13 +850,14 @@ class Board < ApplicationRecord
         image = @image || board_image.image
 
         is_owner = viewing_user && image.user_id == viewing_user&.id
+        is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
 
         @predictive_board_id = image&.predictive_board_for_user(viewing_user&.id)&.id
         @viewer_settings = viewing_user&.settings || {}
         @user_custom_default_id = @viewer_settings["predictive_default_id"]
         @global_default_id = @user_custom_default_id || Board.predictive_default_id
         is_predictive = @predictive_board_id != @global_default_id
-        is_dynamic = is_owner && is_predictive
+        is_dynamic = (is_owner && is_predictive) || is_admin_image
         {
           id: image.id,
           label: @board_image.label,
@@ -984,6 +865,7 @@ class Board < ApplicationRecord
           predictive_board_id: @predictive_board_id,
           global_default_id: @global_default_id,
           is_owner: is_owner,
+          is_admin_image: is_admin_image,
           dynamic: is_dynamic,
           is_predictive: is_predictive,
           board_image_id: @board_image.id,
@@ -1008,6 +890,53 @@ class Board < ApplicationRecord
         }
       end,
       layout: print_grid_layout,
+    }
+  end
+
+  def api_view_with_images(viewing_user = nil)
+    api_view_with_predictive_images(viewing_user)
+  end
+
+  def api_view(viewing_user = nil)
+    {
+      id: id,
+      name: name,
+      layout: layout,
+      audio_url: audio_url,
+      group_layout: group_layout,
+      position: position,
+      data: data,
+      description: description,
+      parent_type: parent_type,
+      predefined: predefined,
+      number_of_columns: number_of_columns,
+      status: status,
+      token_limit: token_limit,
+      cost: cost,
+      display_image_url: display_image_url,
+      # floating_words: words,
+      user_id: user_id,
+      voice: voice,
+      margin_settings: margin_settings,
+    }
+  end
+
+  def user_api_view
+    {
+      id: id,
+      name: name,
+      description: description,
+      parent_type: parent_type,
+      predefined: predefined,
+      number_of_columns: number_of_columns,
+      status: status,
+      token_limit: token_limit,
+      cost: cost,
+      display_image_url: display_image_url,
+      voice: voice,
+      created_at: created_at,
+      updated_at: updated_at,
+      margin_settings: margin_settings,
     }
   end
 

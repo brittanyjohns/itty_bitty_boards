@@ -1047,8 +1047,10 @@ class Image < ApplicationRecord
     @predictive_board_id = predictive_board_for_user(@current_user&.id)&.id
     @user_custom_default_id = @current_user&.settings["predictive_default_id"]
     @global_default_id = @user_custom_default_id || Board.predictive_default_id
+    is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
     is_predictive = @predictive_board_id != @global_default_id
     is_owner = user_id == @current_user&.id
+    is_dynamic = (is_owner && is_predictive) || is_admin_image
     {
       id: id,
       label: label,
@@ -1065,7 +1067,7 @@ class Image < ApplicationRecord
       text_color: text_color,
       predictive_board_id: @predictive_board_id,
       global_default_id: @global_default_id,
-      dynamic: is_predictive && is_owner,
+      dynamic: is_dynamic,
       is_predictive: is_predictive,
       is_owner: is_owner,
       bg_color: bg_class,
