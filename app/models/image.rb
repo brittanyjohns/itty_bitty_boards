@@ -76,6 +76,15 @@ class Image < ApplicationRecord
   scope :generating, -> { where(status: "generating") }
   scope :with_artifacts, -> { includes({ docs: { image_attachment: :blob } }, :predictive_boards, :user) }
 
+  scope :created_between, ->(start_date, end_date) { where(created_at: start_date..end_date) }
+
+  def self.cleanup_mess
+    # 2024-10-23T02:29:57.064Z
+    start_date = Date.new(2024, 10, 22)
+    end_date = Date.new(2024, 10, 24)
+    Image.created_between(start_date, end_date).destroy_all
+  end
+
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!, unless: :menu?
   before_save :set_label, :ensure_defaults
