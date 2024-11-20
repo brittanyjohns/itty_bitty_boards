@@ -168,7 +168,11 @@ class User < ApplicationRecord
   end
 
   def predictive_boards
-    boards.predictive.includes(:parent, :board_images)
+    boards.predictive.includes(:parent, :board_images).order(name: :asc)
+  end
+
+  def dynamic_boards
+    boards.dynamic.includes(:parent, :board_images).order(name: :asc)
   end
 
   def predictive_images
@@ -353,9 +357,9 @@ class User < ApplicationRecord
     view["global_board_id"] = Board.predictive_default_id
     view["has_dynamic_default"] = dynamic_default_board.present?
     view["startup_board_group_id"] = settings["startup_board_group_id"]
-    view["boards"] = boards.map(&:user_api_view)
-    view["board_groups"] = board_groups.map(&:user_api_view)
-    view["dynamic_boards"] = predictive_boards.map(&:user_api_view)
+    view["boards"] = boards.order(name: :asc).map(&:user_api_view)
+    view["board_groups"] = board_groups.order(name: :asc).map(&:user_api_view)
+    view["dynamic_boards"] = dynamic_boards.map(&:user_api_view)
     view
   end
 end
