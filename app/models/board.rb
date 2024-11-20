@@ -401,15 +401,14 @@ class Board < ApplicationRecord
       word_list = word_list.split(" ")
     end
     if word_list.count > 60
-      Rails.logger.debug "Too many words"
-      return
+      Rails.logger.debug "Too many words - will only use the first 25"
+      word_list = word_list[0..25]
     end
     word_list.each do |word|
       word = word.downcase
       image = user.images.find_by(label: word)
       image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
-      found_image = image
-      image = Image.public_img.create(label: word, user_id: user_id) unless image
+      image = Image.public_img.create(label: word, user_id: nil) unless image
       self.add_image(image.id)
     end
     # self.reset_layouts
@@ -417,11 +416,8 @@ class Board < ApplicationRecord
   end
 
   def remove_image(image_id)
-    Rails.logger.debug "Removing image: #{image_id}"
-    Rails.logger.debug "image_ids.include?(image_id.to_i): #{image_ids.include?(image_id.to_i)}"
     return unless image_ids.include?(image_id.to_i)
     bi = board_images.find_by(image_id: image_id)
-    Rails.logger.debug "Board Image: #{bi}"
     bi.destroy if bi
   end
 
@@ -636,10 +632,8 @@ class Board < ApplicationRecord
   end
 
   def update_grid_layout(layout_to_set, screen_size)
-    Rails.logger.debug "update_grid_layout: #{layout_to_set}"
     layout_for_screen_size = self.layout[screen_size] || []
     unless layout_to_set.is_a?(Array)
-      Rails.logger.debug "layout_to_set is not an array"
       return
     end
     layout_to_set.each do |layout_item|
@@ -647,7 +641,6 @@ class Board < ApplicationRecord
       layout_hash = layout_item.with_indifferent_access
       id_key = layout_hash[:i] || layout_hash["i"]
       bi = board_images.find(id_key) rescue nil
-      Rails.logger.debug "BoardImage not found for id: #{id_key}" if bi.nil?
       bi = board_images.find_by(image_id: id_key) if bi.nil?
       if bi.nil?
         Rails.logger.debug "BoardImage not found for image_id: #{id_key}"
@@ -678,14 +671,10 @@ class Board < ApplicationRecord
   def grid_layout(screen_size = "lg")
     layout_to_set = []
     board_images.order(:position).map do |bi|
-      puts "screen_size: #{screen_size}"
-      puts "Board Image: #{bi.layout.blank?}"
       if bi.layout.blank?
-        puts "No layout for board image: #{bi.id}"
         bi.layout = { i: bi.id.to_s, x: 0, y: 0, w: 1, h: 1 }
         bi.save!
       end
-      puts "Board Image Layout: #{bi.layout}"
       board_layout = bi.layout.with_indifferent_access
       layout_for_screen = board_layout[screen_size] || {}
       layout_to_set << layout_for_screen
@@ -735,7 +724,6 @@ class Board < ApplicationRecord
       if valid_json?(parsed_response)
         parsed_response = JSON.parse(parsed_response)
       else
-        puts "INVALID JSON: #{parsed_response}"
         parsed_response = transform_into_json(parsed_response)
       end
       # parsed_response = JSON.parse(response)
@@ -758,8 +746,6 @@ class Board < ApplicationRecord
             if item["frequency"] === "high"
               item["size"] = [2, 2]
             end
-
-            puts "Frequency: #{item["frequency"]}"
           end
 
           board_image.data["label"] = label
@@ -852,12 +838,12 @@ class Board < ApplicationRecord
 
         is_owner = viewing_user && image.user_id == viewing_user&.id
         is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
-
         @predictive_board_id = image&.predictive_board_for_user(viewing_user&.id)&.id
+        @predictive_board_id ||= image&.predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
         @viewer_settings = viewing_user&.settings || {}
         @user_custom_default_id = @viewer_settings["predictive_default_id"]
-        @global_default_id = @user_custom_default_id || Board.predictive_default_id
-        is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id
+        @global_default_id = Board.predictive_default_id
+        is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
         is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)
         {
           id: image.id,

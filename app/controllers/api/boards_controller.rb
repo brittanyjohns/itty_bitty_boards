@@ -107,21 +107,16 @@ class API::BoardsController < API::ApplicationController
 
   def first_predictive_board
     @user_type = params[:user_type] || "user"
-    puts "User type: #{@user_type}"
 
     if @user_type == "user"
       viewing_user = current_user
     elsif @user_type == "child"
-      puts "Child user - finding child user: current_user: #{current_child.inspect}"
       viewing_user = current_child.user
     end
 
     id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
 
-    puts "viewing_user&.settings: #{viewing_user&.settings}"
-
     user_predictive_board_id = viewing_user&.settings["predictive_default_id"] ? viewing_user.settings["predictive_default_id"].to_i : nil
-    puts "User predictive board ID: #{user_predictive_board_id}"
     custom_board = nil
     if user_predictive_board_id && Board.exists?(user_predictive_board_id) && user_predictive_board_id != id_from_env.to_i
       @board = Board.find_by(id: user_predictive_board_id)
@@ -132,14 +127,8 @@ class API::BoardsController < API::ApplicationController
     end
 
     if @board.nil?
-      puts "Predictive board not found"
       @board = Board.find_by(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
       custom_board = false
-    end
-
-    unless custom_board
-      puts "Predictive board not custom - setting user predictive default ID"
-      CreateCustomPredictiveDefaultJob.perform_async(viewing_user.id)
     end
 
     if stale?(etag: @board, last_modified: @board.updated_at)
@@ -149,12 +138,10 @@ class API::BoardsController < API::ApplicationController
       end
       render json: @board_with_images
     end
-    # render json: @board_with_images
   end
 
   def predictive_image_board
     @board = Board.with_artifacts.find_by(id: params[:id])
-    Rails.logger.info "Predictive image board ID: #{params[:id]}"
     if @board.nil?
       @board = Board.predictive_default(current_user)
       Rails.logger.info "#{Board.predictive_default_id} -- No user predictive default board found - setting default board : #{@board.id}"
@@ -302,7 +289,6 @@ class API::BoardsController < API::ApplicationController
     set_board
     if params["image_ids_to_remove"].present?
       image_ids_to_remove = params["image_ids_to_remove"]
-      puts "Image IDs to remove: #{image_ids_to_remove}"
       image_ids_to_remove.each do |image_id|
         image = Image.find(image_id)
         @board.remove_image(image&.id) if @board && image

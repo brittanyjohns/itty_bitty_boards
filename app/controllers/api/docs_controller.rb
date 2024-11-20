@@ -114,23 +114,28 @@ class API::DocsController < API::ApplicationController
     doc_id = @doc.id
 
     if current_user.user_docs.where(image_id: @doc.documentable_id).exists?
-      @old_fav_docs = current_user.user_docs.where(image_id: @doc.documentable_id)
+      @old_fav_docs = current_user.user_docs.includes(:doc).where(image_id: @doc.documentable_id)
+      @old_fav_docs.each do |old_fav_doc|
+        old_fav_doc.doc.update(current: false) if old_fav_doc.user_id == current_user.id
+      end
       @old_fav_docs.destroy_all
     end
     @doc.reload
-    puts "NEW FAV DOC: #{@doc.inspect}"
     user_doc = UserDoc.create!(user_id: current_user.id, doc_id: doc_id, image_id: @doc.documentable_id)
     did_update = @doc.update(current: true)
-    puts "DOC UPDATE: #{@doc.inspect}"
     if did_update
       puts "Doc updated successfully"
     else
       puts "Doc did not update"
     end
-    puts "USER DOC: #{user_doc.inspect}"
     @current_doc = @doc
     @image = @doc.documentable
     @user = @image.user
+    if @user.nil? && current_user.admin?
+      @user = current_user
+      @image.update!(src_url: @current_doc.display_url)
+      board_imgs = Board_images.where(image_id: @image.id, user_id: [nil, User::DEFAULT_ADMIN_ID]).update_all(display_image_url: @current_doc.display_url)
+    end
     if @user.id == current_user.id
       @image.update!(src_url: @current_doc.display_url)
       board_imgs = @user.board_images.where(image_id: @image.id).update_all(display_image_url: @current_doc.display_url)

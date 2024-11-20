@@ -64,9 +64,7 @@ class Menu < ApplicationRecord
 
     create_images_from_description(board)
     board.reset_layouts
-    puts "Board created from image description: #{board.id}\ndisplay_url: #{new_doc.display_url}\n"
-    # board.update_user_docs
-    Rails.logger.info "Not updating user docs"
+
     board.display_image_url = new_doc.image&.url if new_doc.image.attached?
     board.save!
     # board.update!(status: "complete")

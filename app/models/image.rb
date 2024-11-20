@@ -193,20 +193,22 @@ class Image < ApplicationRecord
     if @predictive_board
       return @predictive_board
     else
-      user_to_use = User.find_by(id: user_id.to_i) if user_id
-      user_predictive_default_id = user_to_use&.settings["predictive_default_id"] if user_to_use
+      Rails.logger.debug "Label: #{label} - NO USER - Predictive board found: #{@predictive_board} with label: #{label}"
+      viewing_user = User.find_by(id: user_id.to_i) if user_id
+      user_predictive_default_id = viewing_user&.settings["predictive_default_id"] if viewing_user
+      Rails.logger.debug "user_predictive_default_id-Predictive default id: #{user_predictive_default_id}"
 
       if user_predictive_default_id
         @predictive_board = Board.predictive.with_artifacts.find_by(id: user_predictive_default_id.to_i)
         return @predictive_board if @predictive_board
       end
-      id_to_find = Board.predictive_default_id
-      @predictive_board = Board.with_artifacts.find_by(id: id_to_find) unless @predictive_board
-      if @predictive_board
-        @predictive_board
-      else
-        @predictive_board = @predictive_boards.with_artifacts.where(user_id: User::DEFAULT_ADMIN_ID).first
+
+      if user_id == User::DEFAULT_ADMIN_ID
+        @predictive_board = Board.predictive_default
+        return @predictive_board if @predictive_board
       end
+      Rails.logger.debug "NIL ==> Predictive board not found for #{label} - #{user_id}"
+      nil
     end
   end
 
@@ -510,7 +512,6 @@ class Image < ApplicationRecord
     if audio_file.present?
       audio_file
     else
-      Rails.logger.debug "#{label} ==> Creating audio file for voice: #{voice}"
       create_audio_from_text(label, voice)
     end
   end
@@ -723,11 +724,6 @@ class Image < ApplicationRecord
             svg_url = nil
             if new_symbol.svg?
               svg_url = new_symbol.image_url
-              # processed = ImageProcessing::MiniMagick
-              #   .convert("png")
-              #   .resize_to_limit(300, 300)
-              #   .call(downloaded_image)
-              # Rails.logger.debug "Processed SVG: #{processed}"
               processed = false
               Rails.logger.debug "Disabling SVG processing for now"
             else
@@ -879,9 +875,7 @@ class Image < ApplicationRecord
   def save_audio_file_to_s3!(voice = "alloy")
     create_audio_from_text(label, voice)
     voices_needed = missing_voices || []
-    Rails.logger.debug "Voices needed: #{voices_needed}"
     voices_needed = voices_needed - [voice]
-    Rails.logger.debug "Missing voices: #{missing_voices}"
   end
 
   def display_doc(viewing_user = nil)
@@ -1053,12 +1047,14 @@ class Image < ApplicationRecord
     remaining = remaining_user_boards(@current_user)
     user_image_boards = user_boards(@current_user)
     @default_audio_url = default_audio_url
-    @predictive_board_id = predictive_board_for_user(@current_user&.id)&.id
-    @user_custom_default_id = @current_user&.settings["predictive_default_id"]
-    @global_default_id = @user_custom_default_id || Board.predictive_default_id
+    is_owner = @current_user && user_id == @current_user&.id
     is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
-    is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id
-    is_owner = user_id == @current_user&.id
+    @predictive_board_id = predictive_board_for_user(@current_user&.id)&.id
+    @predictive_board_id ||= predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
+    @viewer_settings = @current_user&.settings || {}
+    @user_custom_default_id = @viewer_settings["predictive_default_id"]
+    @global_default_id = Board.predictive_default_id
+    is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
     is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)
     {
       id: id,
