@@ -85,6 +85,13 @@ class BoardGroup < ApplicationRecord
     }
   end
 
+  def user_api_view
+    {
+      id: id,
+      name: name,
+    }
+  end
+
   def position_all_boards
     ActiveRecord::Base.logger.silence do
       boards.order(:position).each_with_index do |bi, index|

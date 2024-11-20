@@ -353,6 +353,9 @@ class User < ApplicationRecord
     view["global_board_id"] = Board.predictive_default_id
     view["has_dynamic_default"] = dynamic_default_board.present?
     view["startup_board_group_id"] = settings["startup_board_group_id"]
+    view["boards"] = boards.map(&:user_api_view)
+    view["board_groups"] = board_groups.map(&:user_api_view)
+    view["dynamic_boards"] = predictive_boards.map(&:user_api_view)
     view
   end
 end
