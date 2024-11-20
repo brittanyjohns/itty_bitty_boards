@@ -884,24 +884,24 @@ class Image < ApplicationRecord
     Rails.logger.debug "Missing voices: #{missing_voices}"
   end
 
-  def no_user_or_admin?
-    user_id.nil? || User.admin.pluck(:id).include?(user_id)
-  end
-
   def display_doc(viewing_user = nil)
     if viewing_user
       # docs = self.docs.where(user_id: [viewing_user.id, nil, User::DEFAULT_ADMIN_ID])
       user_docs = viewing_user.user_docs.includes(:doc).where(image_id: id)
       docs = user_docs.map(&:doc)
-    else
-      docs = self.docs.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
-    end
-    if docs.blank?
-      docs = self.docs.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
+      return docs.first if docs.any?
     end
 
-    doc = docs.first
-    doc
+    docs = self.docs.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
+    return docs.current.first if docs.current.any?
+    return nil if docs.blank?
+    user_docs = UserDoc.where(doc_id: docs.pluck(:id), user_id: User::DEFAULT_ADMIN_ID)
+    if user_docs.any?
+      doc = user_docs.last.doc
+      return doc if doc
+    end
+    doc = docs.last
+    return doc if doc
   end
 
   def self.set_user_docs_for_docs_without(dry_run: true)
