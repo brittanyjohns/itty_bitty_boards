@@ -429,6 +429,7 @@ class Board < ApplicationRecord
 
   def add_image(image_id, layout = nil)
     new_board_image = nil
+    return if image_id.blank?
     if image_ids.include?(image_id.to_i)
       # Don't add the same image twice
       puts "Image already exists"
@@ -449,7 +450,12 @@ class Board < ApplicationRecord
         # new_board_image.layout["sm"] = next_available_cell("sm").merge("i" => new_board_image.id.to_s)
         new_board_image.save
       end
-      @image = Image.with_artifacts.find(image_id)
+      @image = Image.with_artifacts.find_by(id: image_id)
+      unless @image
+        Rails.logger.debug "Image not found: #{image_id}"
+        return
+      end
+
       if @image.existing_voices.include?(self.voice)
         new_board_image.voice = self.voice
       else

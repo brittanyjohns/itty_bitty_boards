@@ -13,12 +13,12 @@ class API::V1::ChildAuthsController < API::ApplicationController
       unless child.can_sign_in?(user_context)
         if user_context&.admin?
           child.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip, sign_in_count: child.sign_in_count + 1)
-          return render json: { token: auth_token, child: child }
+          return render json: { token: auth_token, account: child }
         end
         return render json: { error: "Account not active. Please upgrade to a pro account to continue.", token: "" }, status: :unauthorized
       end
       child.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip, sign_in_count: child.sign_in_count + 1)
-      return render json: { token: auth_token, child: child }
+      return render json: { token: auth_token, account: child }
     else
       return render json: { error: error_message }, status: :unauthorized
     end
@@ -26,11 +26,11 @@ class API::V1::ChildAuthsController < API::ApplicationController
 
   # def current
   #   if current_account
-  #     return render json: { child: current_account.api_view }
+  #     return render json: { account: current_account.api_view }
   #   else
   #     current_account = child_from_token
   #     if current_account
-  #       return render json: { child: current_account }
+  #       return render json: { account: current_account }
   #     else
   #       return render json: { error: "Unauthorized - No child signed in" }, status: :unauthorized
   #     end

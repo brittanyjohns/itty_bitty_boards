@@ -33,6 +33,8 @@ module API
     def authenticate_signed_in!
       if current_user
         puts "User signed in"
+      elsif current_account
+        puts "Child signed in"
       else
         puts "Unauthorized"
         render json: { error: "Unauthorized" }, status: :unauthorized

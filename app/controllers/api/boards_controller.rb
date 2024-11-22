@@ -252,7 +252,7 @@ class API::BoardsController < API::ApplicationController
     board_type = params[:board_type] || board_params[:board_type]
     puts "Board type: #{board_type}"
     if board_type == "dynamic"
-      predefined_resource = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board", user_id: current_user.id)
+      predefined_resource = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board")
       @board.parent_id = predefined_resource.id
       @board.parent_type = "PredefinedResource"
     else

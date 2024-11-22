@@ -22,10 +22,24 @@ class API::Account::ChildBoardsController < API::Account::ApplicationController
     render json: @boards_with_images
   end
 
-  def destroy
-    @child_board = ChildBoard.find(params[:id])
-    @child_board.destroy
-    render json: { message: "Board deleted" }
+  def predictive_board
+    @board = Board.with_artifacts.find_by(id: params[:id])
+    @user = current_account.user
+    if @board.nil?
+      @board = Board.predictive_default(@user)
+      Rails.logger.info "#{Board.predictive_default_id} -- No account dynamic default board found - setting default board : #{@board.id}"
+    end
+    # expires_in 8.hours, public: true # Cache control header
+
+    if stale?(etag: @board, last_modified: @board.updated_at)
+      RailsPerformance.measure("Predictive Image Board") do
+        # @loaded_board = Board.with_artifacts.find(@board.id)
+        @board_with_images = @board.api_view_with_predictive_images(@user)
+      end
+      render json: @board_with_images
+    end
+
+    # render json: @board.api_view_with_predictive_images(@user)
   end
 
   private

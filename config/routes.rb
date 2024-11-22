@@ -311,13 +311,16 @@ Rails.application.routes.draw do
         collection do
           get "initial_predictive_board"
         end
-        member do
-          get "predictive_image_board"
-        end
+        # member do
+        #   get "predictive_image_board"
+        # end
       end
       resources :child_boards do
         collection do
           get "current"
+        end
+        member do
+          get "predictive_board"
         end
       end
     end
