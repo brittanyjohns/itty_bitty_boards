@@ -5,7 +5,6 @@ class API::Account::BoardsController < API::Account::ApplicationController
   # before_action :authenticate_user!
   # skip_before_action :authenticate_child_token!, only: %i[show current]
 
-  before_action :set_board, only: %i[ associate_image remove_image destroy associate_images ]
   # layout "fullscreen", only: [:fullscreen]
   # layout "locked", only: [:locked]
 
@@ -116,7 +115,8 @@ class API::Account::BoardsController < API::Account::ApplicationController
 
     id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
 
-    user_predictive_board_id = viewing_user&.settings["predictive_default_id"] ? viewing_user.settings["predictive_default_id"].to_i : nil
+    user_predictive_board_id = viewing_user&.settings["dynamic_board_id"] ? viewing_user.settings["dynamic_board_id"].to_i : nil
+
     custom_board = nil
     if user_predictive_board_id && Board.exists?(user_predictive_board_id) && user_predictive_board_id != id_from_env.to_i
       @board = Board.find_by(id: user_predictive_board_id)
@@ -145,7 +145,7 @@ class API::Account::BoardsController < API::Account::ApplicationController
     if @board.nil?
       @board = Board.predictive_default(current_account)
       Rails.logger.info "#{Board.predictive_default_id} -- No user predictive default board found - setting default board : #{@board.id}"
-      current_account.settings["predictive_default_id"] = nil
+      current_account.settings["dynamic_board_id"] = nil
       current_account.save!
     end
     # expires_in 8.hours, public: true # Cache control header
@@ -178,12 +178,13 @@ class API::Account::BoardsController < API::Account::ApplicationController
   end
 
   def initial_predictive_board
-    @board = Board.predictive_default
+    dynamic_board_id = current_account&.settings["dynamic_board_id"] ? current_account.settings["dynamic_board_id"].to_i : nil
+    @board = Board.find_by(id: dynamic_board_id) if dynamic_board_id
     Rails.logger.info "Initial predictive board ID: #{@board&.id}"
     if @board.nil?
-      @board = Board.with_artifacts.find_by(user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
+      @board = Board.predictive_default(current_account)
       # CreateCustomPredictiveDefaultJob.perform_async(current_account.id)
-      current_account.settings["predictive_default_id"] = nil
+      current_account.settings["dynamic_board_id"] = nil
       current_account.save!
     end
     render json: @board.api_view_with_images(current_account)

@@ -111,7 +111,7 @@ class API::BoardsController < API::ApplicationController
 
     id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
 
-    user_predictive_board_id = viewing_user&.settings["predictive_default_id"] ? viewing_user.settings["predictive_default_id"].to_i : nil
+    user_predictive_board_id = viewing_user&.settings["dynamic_board_id"] ? viewing_user.settings["dynamic_board_id"].to_i : nil
     custom_board = nil
     if user_predictive_board_id && Board.exists?(user_predictive_board_id) && user_predictive_board_id != id_from_env.to_i
       @board = Board.find_by(id: user_predictive_board_id)
@@ -140,7 +140,7 @@ class API::BoardsController < API::ApplicationController
     if @board.nil?
       @board = Board.predictive_default(current_user)
       Rails.logger.info "#{Board.predictive_default_id} -- No user predictive default board found - setting default board : #{@board.id}"
-      current_user.settings["predictive_default_id"] = nil
+      current_user.settings["dynamic_board_id"] = nil
       current_user.save!
     end
     # expires_in 8.hours, public: true # Cache control header
@@ -178,7 +178,7 @@ class API::BoardsController < API::ApplicationController
     if @board.nil?
       @board = Board.with_artifacts.find_by(user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
       # CreateCustomPredictiveDefaultJob.perform_async(current_user.id)
-      current_user.settings["predictive_default_id"] = nil
+      current_user.settings["dynamic_board_id"] = nil
       current_user.save!
     end
     render json: @board.api_view_with_images(current_user)

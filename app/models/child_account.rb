@@ -30,7 +30,7 @@ class ChildAccount < ApplicationRecord
   belongs_to :user
   has_many :child_boards, dependent: :destroy
   has_many :boards, through: :child_boards
-  # has_many :images, through: :boards
+  has_many :images, through: :boards
   has_secure_token :authentication_token
 
   validates :passcode, presence: true, on: :create
@@ -49,6 +49,10 @@ class ChildAccount < ApplicationRecord
       Rails.logger.info "Invalid credentials for #{username}"
       nil
     end
+  end
+
+  def user_docs
+    user.user_docs
   end
 
   def reset_password(new_password, new_password_confirmation)

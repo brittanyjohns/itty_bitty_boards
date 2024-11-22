@@ -105,17 +105,17 @@ class User < ApplicationRecord
   def clear_custom_default_board
     custom_board = dynamic_default_board
     custom_board.destroy! if custom_board && custom_board.user_id == id
-    self.settings["predictive_default_id"] = nil
+    self.settings["dynamic_board_id"] = nil
     save
   end
 
   def dynamic_default_board
-    Board.find_by(id: settings["predictive_default_id"]&.to_i)
+    Board.find_by(id: settings["dynamic_board_id"]&.to_i)
   end
 
   def self.without_custom_predictive_board
     # search user setting for predictive_default_id
-    self.where("settings->>'predictive_default_id' IS NULL")
+    self.where("settings->>'dynamic_board_id' IS NULL")
   end
 
   def self.fix_user_predictive_default_boards
@@ -353,7 +353,7 @@ class User < ApplicationRecord
     view["sign_in_count"] = sign_in_count
     view["tokens"] = tokens
     view["phrase_board_id"] = settings["phrase_board_id"]
-    view["predictive_default_id"] = settings["predictive_default_id"]
+    view["dynamic_board_id"] = settings["dynamic_board_id"]
     view["global_board_id"] = Board.predictive_default_id
     view["has_dynamic_default"] = dynamic_default_board.present?
     view["startup_board_group_id"] = settings["startup_board_group_id"]

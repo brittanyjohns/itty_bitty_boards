@@ -29,6 +29,7 @@ class API::ChildAccountsController < API::ApplicationController
     name = @child_account.name
     param_name = params[:name]
     settings = params[:settings]
+    puts "Settings: #{settings.inspect}"
     if settings
       @child_account.settings = settings
     end
@@ -54,11 +55,12 @@ class API::ChildAccountsController < API::ApplicationController
       @child_account.passcode = passcode unless passcode.blank?
     end
     settings = params[:settings]
+    puts "Update Settings: #{settings.inspect}"
     if settings
       @child_account.settings = settings
     end
-    @child_account.save
-    if @child_account.update(child_account_params)
+
+    if @child_account.save
       render json: @child_account.api_view, status: :ok
     else
       render json: @child_account.errors, status: :unprocessable_entity

@@ -195,7 +195,7 @@ class Image < ApplicationRecord
     else
       Rails.logger.debug "Label: #{label} - NO USER - Predictive board found: #{@predictive_board} with label: #{label}"
       viewing_user = User.find_by(id: user_id.to_i) if user_id
-      user_predictive_default_id = viewing_user&.settings["predictive_default_id"] if viewing_user
+      user_predictive_default_id = viewing_user&.settings["dynamic_board_id"] if viewing_user
       Rails.logger.debug "user_predictive_default_id-Predictive default id: #{user_predictive_default_id}"
 
       if user_predictive_default_id
@@ -1052,7 +1052,7 @@ class Image < ApplicationRecord
     @predictive_board_id = predictive_board_for_user(@current_user&.id)&.id
     @predictive_board_id ||= predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
     @viewer_settings = @current_user&.settings || {}
-    @user_custom_default_id = @viewer_settings["predictive_default_id"]
+    @user_custom_default_id = @viewer_settings["dynamic_board_id"]
     @global_default_id = Board.predictive_default_id
     is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
     is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)

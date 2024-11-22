@@ -262,7 +262,7 @@ class Board < ApplicationRecord
     id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
     puts "Predictive Default ID from ENV: #{id_from_env}"
     if viewing_user
-      user_predictive_default_id = viewing_user&.settings["predictive_default_id"]&.to_i
+      user_predictive_default_id = viewing_user&.settings["dynamic_board_id"]&.to_i
       puts "Predictive Default ID from user settings: #{user_predictive_default_id}"
       if user_predictive_default_id
         board = self.with_artifacts.find_by(id: user_predictive_default_id)
@@ -295,7 +295,7 @@ class Board < ApplicationRecord
       Rails.logger.error "Something went wrong attempting to clone Predictive Default"
     end
     if board
-      new_user.settings["predictive_default_id"] = board.id
+      new_user.settings["dynamic_board_id"] = board.id
       new_user.save!
     end
     Rails.logger.debug "Dynamic Default Board: #{board} for user: #{new_user.id}"
@@ -863,7 +863,7 @@ class Board < ApplicationRecord
         @predictive_board_id = image&.predictive_board_for_user(viewing_user&.id)&.id
         @predictive_board_id ||= image&.predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
         @viewer_settings = viewing_user&.settings || {}
-        @user_custom_default_id = @viewer_settings["predictive_default_id"]
+        @user_custom_default_id = @viewer_settings["dynamic_board_id"]
         @global_default_id = Board.predictive_default_id
         is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
         is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)

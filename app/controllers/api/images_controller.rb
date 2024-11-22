@@ -365,6 +365,7 @@ class API::ImagesController < API::ApplicationController
     @current_user = current_user
 
     generate_image = params["generate_image"] == "1"
+    duplicate_image = params["duplicate"] == "1"
     label = image_params["label"]&.downcase
     puts "Label: #{label}"
 
@@ -372,7 +373,7 @@ class API::ImagesController < API::ApplicationController
     @image = Image.find_by(label: label, user_id: @current_user.id)
     @image = Image.public_img.find_by(label: label) unless @image
     @found_image = @image
-    @image = Image.create(label: label, private: is_private, user_id: @current_user.id, image_prompt: image_params[:image_prompt], image_type: "User") unless @image
+    @image = Image.create(label: label, private: is_private, user_id: @current_user.id, image_prompt: image_params[:image_prompt], image_type: "User") unless @image || duplicate_image
     @board = Board.find_by(id: image_params[:board_id]) unless image_params[:board_id].blank?
     if @board&.predefined && (@board&.user_id != @current_user.id)
       return render json: @image.api_view(@current_user), status: :ok unless @current_user.admin?
