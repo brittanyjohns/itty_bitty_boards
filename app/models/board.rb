@@ -405,7 +405,7 @@ class Board < ApplicationRecord
       word_list = word_list[0..25]
     end
     word_list.each do |word|
-      word = word.downcase
+      word = word.downcase.gsub('"', "").gsub("'", "")
       image = user.images.find_by(label: word)
       image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
       image = Image.public_img.create(label: word, user_id: nil) unless image
@@ -787,6 +787,21 @@ class Board < ApplicationRecord
     self
   end
 
+  def board_type
+    case parent_type
+    when "PredefinedResource"
+      return "dynamic"
+    when "Image"
+      return "dynamic"
+    when "OpenaiPrompt"
+      return "static"
+    when "User"
+      return "static"
+    else
+      return parent_type.downcase
+    end
+  end
+
   def api_view_with_predictive_images(viewing_user = nil)
     @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards])
     # @board_images = board_images.includes(:image)
@@ -803,6 +818,7 @@ class Board < ApplicationRecord
       category: category,
       parent_type: parent_type,
       parent_id: parent_id,
+      board_type: board_type,
       parent_description: parent_type === "User" ? "User" : parent&.to_s,
       parent_prompt: parent_type === "OpenaiPrompt" ? parent.prompt_text : nil,
       predefined: predefined,

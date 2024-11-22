@@ -1,7 +1,6 @@
-class API::ChildBoardsController < API::ApplicationController
+class API::Account::ChildBoardsController < API::Account::ApplicationController
   # protect_from_forgery with: :null_session
   respond_to :json
-  skip_before_action :authenticate_token!, only: %i[show current]
   before_action :authenticate_child_token!, only: %i[show current]
 
   # GET /boards/1 or /boards/1.json

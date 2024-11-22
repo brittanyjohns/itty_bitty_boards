@@ -306,6 +306,21 @@ Rails.application.routes.draw do
       post "reset_password", to: "auths#reset_password"
       # resources :notification_tokens, only: :create
     end
+    namespace :account do
+      resources :boards do
+        collection do
+          get "initial_predictive_board"
+        end
+        member do
+          get "predictive_image_board"
+        end
+      end
+      resources :child_boards do
+        collection do
+          get "current"
+        end
+      end
+    end
   end
 
   namespace :turbo do

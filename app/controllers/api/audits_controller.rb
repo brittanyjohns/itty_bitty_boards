@@ -3,7 +3,7 @@ class API::AuditsController < API::ApplicationController
   before_action :authenticate_signed_in!
 
   def word_click
-    user = current_user || current_child.user
+    user = current_user || current_account.user
     unless user
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
@@ -16,7 +16,7 @@ class API::AuditsController < API::ApplicationController
       user_id: user.id,
       board_id: params[:boardId],
       team_id: user.current_team_id,
-      child_account_id: current_child&.id,
+      child_account_id: current_account&.id,
     }
     WordEvent.create(payload)
     render json: { message: "Word click recorded" }

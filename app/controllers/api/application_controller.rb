@@ -33,8 +33,6 @@ module API
     def authenticate_signed_in!
       if current_user
         puts "User signed in"
-      elsif current_child
-        puts "Child signed in"
       else
         puts "Unauthorized"
         render json: { error: "Unauthorized" }, status: :unauthorized
@@ -48,12 +46,11 @@ module API
     end
 
     def child_from_token
-      puts "CHILDToken: #{token}"
       @child_from_token ||= ChildAccount.find_by(authentication_token: token) if token.present?
     end
 
-    def current_child
-      @current_child ||= child_from_token
+    def current_account
+      @current_account ||= child_from_token
     end
 
     def current_user

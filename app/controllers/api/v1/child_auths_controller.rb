@@ -24,26 +24,47 @@ class API::V1::ChildAuthsController < API::ApplicationController
     end
   end
 
+  # def current
+  #   if current_account
+  #     return render json: { child: current_account.api_view }
+  #   else
+  #     current_account = child_from_token
+  #     if current_account
+  #       return render json: { child: current_account }
+  #     else
+  #       return render json: { error: "Unauthorized - No child signed in" }, status: :unauthorized
+  #     end
+  #   end
+  # end
+
   def current
-    if current_child
-      return render json: { child: current_child.api_view }
+    @current_account = current_account
+    if @current_account
+      @current_account.reload
+      @view = @current_account.api_view
+      render json: { account: @view }
     else
-      current_child = child_from_token
-      if current_child
-        return render json: { child: current_child }
+      puts "No current account"
+      @current_account = user_from_token
+      if @current_account
+        render json: { account: @current_account.api_view }
       else
-        return render json: { error: "Unauthorized - No child signed in" }, status: :unauthorized
+        render json: { error: "Unauthorized - No user signed in" }, status: :unauthorized
       end
     end
   end
 
   def destroy
-    sign_out(current_child)
-    @current_child = nil
+    sign_out(current_account)
+    @current_account = nil
     render json: { message: "Signed out successfully", status: :ok }
   end
 
   private
+
+  def current_account
+    @current_account ||= child_from_token
+  end
 
   def error_message
     I18n.t("devise.failure.invalid", authentication_keys: :username)

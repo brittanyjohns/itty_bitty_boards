@@ -1202,7 +1202,7 @@ class Image < ApplicationRecord
     end
 
     if @cloned_image.save
-      @cloned_image.create_predictive_board(@cloned_user.id, word_list)
+      @cloned_image.create_predictive_board(@cloned_user.id, word_list) if make_dynamic
       @cloned_image
     else
       Rails.logger.debug "Error cloning image: #{@cloned_image}"

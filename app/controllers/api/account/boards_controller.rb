@@ -1,9 +1,9 @@
-class API::BoardsController < API::ApplicationController
+class API::Account::BoardsController < API::Account::ApplicationController
   # protect_from_forgery with: :null_session
   respond_to :json
 
   # before_action :authenticate_user!
-  skip_before_action :authenticate_token!, only: %i[ predictive_index first_predictive_board predictive_image_board ]
+  skip_before_action :authenticate_child_token!, only: %i[show current]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images ]
   # layout "fullscreen", only: [:fullscreen]
@@ -107,7 +107,12 @@ class API::BoardsController < API::ApplicationController
 
   def first_predictive_board
     @user_type = params[:user_type] || "user"
-    viewing_user = current_user
+
+    if @user_type == "user"
+      viewing_user = current_user
+    elsif @user_type == "child"
+      viewing_user = current_account.user
+    end
 
     id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
 
