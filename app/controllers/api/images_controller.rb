@@ -230,11 +230,12 @@ class API::ImagesController < API::ApplicationController
     @current_user = current_user
 
     find_first = image_params[:find_first] == "1"
+    duplicate_image = image_params[:duplicate] == "1"
 
     label = image_params[:label]&.downcase
     @existing_image = Image.find_by(label: label, user_id: @current_user.id)
     @image = nil
-    if @existing_image && find_first
+    if @existing_image && find_first && !duplicate_image
       @image = @existing_image
     else
       @image = Image.create(user: @current_user, label: label, private: true, image_prompt: image_params[:image_prompt], image_type: "User")
@@ -367,7 +368,7 @@ class API::ImagesController < API::ApplicationController
     generate_image = params["generate_image"] == "1"
     duplicate_image = params["duplicate"] == "1"
     label = image_params["label"]&.downcase
-    puts "Label: #{label}"
+    puts "Label: #{label} -- Generate Image: #{generate_image} -- Duplicate Image: #{duplicate_image}"
 
     is_private = image_params["private"] || false
     @image = Image.find_by(label: label, user_id: @current_user.id)
@@ -375,6 +376,10 @@ class API::ImagesController < API::ApplicationController
     @found_image = @image
     @image = Image.create(label: label, private: is_private, user_id: @current_user.id, image_prompt: image_params[:image_prompt], image_type: "User") unless @image || duplicate_image
     @board = Board.find_by(id: image_params[:board_id]) unless image_params[:board_id].blank?
+    if @board.nil? && duplicate_image && !generate_image && @image&.id
+      return render json: @image.api_view(@current_user), status: :ok
+    end
+
     if @board&.predefined && (@board&.user_id != @current_user.id)
       return render json: @image.api_view(@current_user), status: :ok unless @current_user.admin?
     end
