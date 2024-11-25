@@ -401,8 +401,8 @@ class Board < ApplicationRecord
       word_list = word_list.split(" ")
     end
     if word_list.count > 60
-      Rails.logger.debug "Too many words - will only use the first 35"
-      word_list = word_list[0..35]
+      Rails.logger.debug "Too many words - will only use the first 25"
+      word_list = word_list[0..25]
     end
     word_list.each do |word|
       word = word.downcase.gsub('"', "").gsub("'", "")
@@ -863,15 +863,16 @@ class Board < ApplicationRecord
         @predictive_board_id = image&.predictive_board_for_user(viewing_user&.id)&.id
         @predictive_board_id ||= image&.predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
         @viewer_settings = viewing_user&.settings || {}
-        @user_custom_default_id = @viewer_settings["dynamic_board_id"]
         @global_default_id = Board.predictive_default_id
+        @user_custom_default_id = @viewer_settings["dynamic_board_id"] || @global_default_id
         is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
         is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)
         {
           id: image.id,
           label: @board_image.label,
           image_user_id: image.user_id,
-          predictive_board_id: @predictive_board_id,
+          predictive_board_id: is_dynamic ? @predictive_board_id : @user_custom_default_id,
+          user_custom_default_id: @user_custom_default_id,
           global_default_id: @global_default_id,
           is_owner: is_owner,
           is_admin_image: is_admin_image,
