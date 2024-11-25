@@ -117,7 +117,7 @@ class API::ImagesController < API::ApplicationController
     label_to_set = params[:new_name]&.downcase || @image.label
     user_id = @current_user.id
     make_dynamic = params[:make_dynamic] == "1"
-    word_list = params[:word_list] ? params[:word_list].compact : @image.next_words
+    word_list = params[:word_list] ? params[:word_list].compact : nil
     @image_clone = @image.clone_with_current_display_doc(user_id, label_to_set, make_dynamic, word_list)
     voice = params[:voice] || "alloy"
     text = params[:text] || @image_clone.label
@@ -292,11 +292,11 @@ class API::ImagesController < API::ApplicationController
   def create_predictive_board
     @image = Image.find(params[:id])
     user_id = current_user.id
-    word_list = params[:word_list] || Board.common_words
+    word_list = params[:word_list] ? params[:word_list].compact : nil
 
     use_preview_model = current_user.admin? || current_user.settings["use_preview_model"]
 
-    Rails.logger.info("Creating predictive board for image: #{@image.label} -- use_preview_model: #{use_preview_model}")
+    Rails.logger.info("Creating predictive board for image: #{@image.label} -- use_preview_model: #{use_preview_model} -- word_list: #{word_list}")
 
     result = @image.create_predictive_board(user_id, word_list, use_preview_model)
     # CreatePredictiveBoardJob.perform_async(@image.id, current_user.id)

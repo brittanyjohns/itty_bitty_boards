@@ -94,11 +94,13 @@ class API::UsersController < API::ApplicationController
 
   # DELETE /users/1 or /users/1.json
   def destroy
+    unless current_user&.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
     @user.destroy!
 
-    respond_to do |format|
-      format.json { head :no_content }
-    end
+    render json: { success: true }
   end
 
   private

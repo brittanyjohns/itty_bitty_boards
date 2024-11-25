@@ -221,24 +221,18 @@ class Image < ApplicationRecord
     Rails.logger.debug "Creating predictive board for #{label} - #{new_user_id} - words: #{words_to_use}"
     board = predictive_boards.find_by(name: label, user_id: new_user_id)
     if board
-      puts "create_predictive_board: Predictive board already exists: #{board.id}"
       if use_preview_model
-        puts "use_preview_model: #{use_preview_model}"
         board_words = board.board_images.map(&:label).uniq
-        words_to_use = board.get_words(name_to_send, 25, board_words, use_preview_model)
-        self.next_words = words_to_use
+        self.next_words = board.get_words(name_to_send, 25, board_words, use_preview_model)
         self.save!
       end
 
       board.find_or_create_images_from_word_list(words_to_use)
     else
-      puts "Creating predictive board for #{label} - #{new_user_id}"
       board = predictive_boards.create!(name: label, user_id: new_user_id)
       if use_preview_model
-        puts "use_preview_model: #{use_preview_model}"
         board_words = board.board_images.map(&:label).uniq
-        words_to_use = board.get_words(name_to_send, 25, board_words, use_preview_model)
-        self.next_words = words_to_use
+        self.next_words = board.get_words(name_to_send, 25, board_words, use_preview_model)
         self.save!
       end
       board.find_or_create_images_from_word_list(words_to_use)
@@ -1149,6 +1143,7 @@ class Image < ApplicationRecord
   end
 
   def clone_with_current_display_doc(cloned_user_id, new_name, make_dynamic = false, word_list = [])
+    Rails.logger.debug "Cloning image: #{id} - #{label} - #{cloned_user_id} - #{new_name} - #{make_dynamic} - #{word_list}"
     if new_name.blank?
       new_name = label
     end
@@ -1177,12 +1172,15 @@ class Image < ApplicationRecord
     @cloned_image.part_of_speech = @source.part_of_speech
     @cloned_image.status = @source.status
     @cloned_image.save
-
-    @old_board_images_for_cloned_user = @cloned_user.board_images.where(image_id: @source.id)
-    @old_board_images_for_cloned_user.each do |board_image|
-      board_image.update!(image_id: @cloned_image.id)
+    if @source.user_id != @cloned_user.id
+      @old_board_images_for_cloned_user = @cloned_user.board_images.includes(:image).where(image_id: @source.id)
+      @old_board_images_for_cloned_user.each do |board_image|
+        if board_image.image.user_id === @cloned_user.id
+          next
+        end
+        board_image.update!(image_id: @cloned_image.id)
+      end
     end
-
     @cloned_user.predictive_boards.each do |board|
       board_image = board.board_images.find_by(label: @cloned_image.label)
       if board_image
