@@ -84,6 +84,10 @@ class API::ChildAccountsController < API::ApplicationController
   # DELETE /child_accounts/1
   # DELETE /child_accounts/1.json
   def destroy
+    unless @child_account.user == current_user || current_user.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
     @child_account.destroy!
   end
 
