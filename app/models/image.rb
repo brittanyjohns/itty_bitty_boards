@@ -193,20 +193,20 @@ class Image < ApplicationRecord
     if @predictive_board
       return @predictive_board
     else
-      Rails.logger.debug "Label: #{label} - NO USER - Predictive board found: #{@predictive_board} with label: #{label}"
-      viewing_user = User.find_by(id: user_id.to_i) if user_id
-      user_predictive_default_id = viewing_user&.settings["dynamic_board_id"] if viewing_user
-      Rails.logger.debug "user_predictive_default_id-Predictive default id: #{user_predictive_default_id}"
+      # Rails.logger.debug "Label: #{label} - NO USER - Predictive board found: #{@predictive_board} with label: #{label}"
+      # viewing_user = User.find_by(id: user_id.to_i) if user_id
+      # user_predictive_default_id = viewing_user&.settings["dynamic_board_id"] if viewing_user
+      # Rails.logger.debug "user_predictive_default_id-Predictive default id: #{user_predictive_default_id}"
 
-      if user_predictive_default_id
-        @predictive_board = Board.predictive.with_artifacts.find_by(id: user_predictive_default_id.to_i)
-        return @predictive_board if @predictive_board
-      end
+      # if user_predictive_default_id
+      #   @predictive_board = Board.predictive.with_artifacts.find_by(id: user_predictive_default_id.to_i)
+      #   return @predictive_board if @predictive_board
+      # end
 
-      if user_id == User::DEFAULT_ADMIN_ID
-        @predictive_board = Board.predictive_default
-        return @predictive_board if @predictive_board
-      end
+      # if user_id == User::DEFAULT_ADMIN_ID
+      #   @predictive_board = Board.predictive_default
+      #   return @predictive_board if @predictive_board
+      # end
       Rails.logger.debug "NIL ==> Predictive board not found for #{label} - #{user_id}"
       nil
     end
@@ -1031,6 +1031,10 @@ class Image < ApplicationRecord
     end
   end
 
+  def matching_viewer_images(viewing_user = nil)
+    Image.where(label: label, user_id: viewing_user&.id).where.not(id: id).order(created_at: :desc)
+  end
+
   def with_display_doc(current_user = nil)
     @current_user = current_user
     @predictive_board = predictive_board
@@ -1043,8 +1047,10 @@ class Image < ApplicationRecord
     @default_audio_url = default_audio_url
     is_owner = @current_user && user_id == @current_user&.id
     is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
-    @predictive_board_id = predictive_board_for_user(@current_user&.id)&.id
-    @predictive_board_id ||= predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
+    @user_dynamic_board = predictive_board_for_user(@current_user&.id)
+    @predictive_board = @user_dynamic_board
+    @predictive_board ||= predictive_board_for_user(User::DEFAULT_ADMIN_ID)
+    @predictive_board_id = @predictive_board&.id
     @viewer_settings = @current_user&.settings || {}
     @user_custom_default_id = @viewer_settings["dynamic_board_id"]
     @global_default_id = Board.predictive_default_id
@@ -1067,6 +1073,7 @@ class Image < ApplicationRecord
       predictive_board_id: @predictive_board_id,
       global_default_id: @global_default_id,
       dynamic: is_dynamic,
+      dynamic_board: @predictive_board&.api_view_with_images(@current_user),
       is_predictive: is_predictive,
       is_owner: is_owner,
       bg_color: bg_class,
@@ -1081,6 +1088,7 @@ class Image < ApplicationRecord
       can_edit: (current_user && user_id == current_user.id) || current_user&.admin?,
       user_boards: user_image_boards.map { |board| { id: board.id, name: board.name, voice: board.voice } },
       remaining_boards: remaining.map { |board| { id: board.id, name: board.name } },
+      matching_viewer_images: matching_viewer_images(@current_user).map { |image| { id: image.id, label: image.label, src: image.display_image_url(@current_user), created_at: image.created_at.strftime("%b %d, %Y") } },
       docs: image_docs.map do |doc|
         {
           id: doc.id,
@@ -1106,12 +1114,12 @@ class Image < ApplicationRecord
 
   def self.searchable_images_for(user, only_user_images = false)
     if !user
-      return Image.with_artifacts.public_img.non_menu_images.distinct
+      return Image.with_artifacts.non_sample_voices.public_img.non_menu_images.distinct
     end
     if only_user_images
-      Image.with_artifacts.where(user_id: user.id).distinct
+      Image.with_artifacts.non_sample_voices.where(user_id: user.id).distinct
     else
-      Image.with_artifacts.public_img.non_menu_images.or(Image.with_artifacts.where(user_id: user.id)).or(Image.where(user_id: user.id)).distinct
+      Image.with_artifacts.non_sample_voices.public_img.non_menu_images.or(Image.with_artifacts.where(user_id: user.id)).or(Image.where(user_id: user.id)).distinct
     end
   end
 

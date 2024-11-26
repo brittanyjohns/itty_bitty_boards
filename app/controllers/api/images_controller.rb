@@ -2,13 +2,16 @@ class API::ImagesController < API::ApplicationController
   def index
     @current_user = current_user
     if params[:user_only] == "1"
-      @images = Image.searchable_images_for(@current_user, true)
+      # @images = Image.searchable_images_for(@current_user, true)
+      @images = Image.with_artifacts.where(user_id: @current_user.id)
     else
-      @images = Image.searchable_images_for(@current_user)
+      # @images = Image.searchable_images_for(@current_user)
+      @images = Image.with_artifacts.where(user_id: [@current_user.id, nil, User::DEFAULT_ADMIN_ID])
     end
 
     if params[:query].present?
-      @images = Image.non_sample_voices.with_artifacts.search_by_label(params[:query]).order(label: :asc).page params[:page]
+      # @images = Image.non_sample_voices.with_artifacts.where(user_id: [@current_user.id, nil, User::DEFAULT_ADMIN_ID]).search_by_label(params[:query]).order(label: :asc).page params[:page]
+      @images = @images.search_by_label(params[:query]).order(label: :asc).page params[:page]
     else
       @images = @images.order(label: :asc).page params[:page]
     end
@@ -32,28 +35,30 @@ class API::ImagesController < API::ApplicationController
   end
 
   def user_images
-    ActiveRecord::Base.logger.silence do
-      @current_user = current_user
+    render json: { status: "error", message: "User images endpoint is deprecated.  Please use the images endpoint with the user_only parameter." }
 
-      # @user_docs = @current_user.docs.with_attached_image.where(documentable_type: "Image").order(created_at: :desc)
-      # @images = Image.with_artifacts.where(id: @user_docs.map(&:documentable_id)).or(Image.where(user_id: @current_user.id)).order(label: :asc).page params[:page]
-      # @distinct_images = @images.distinct
-      @distinct_images = Image.with_artifacts.where(user_id: @current_user.id).order(label: :asc).page params[:page]
-      @images_with_display_doc = @distinct_images.map do |image|
-        {
-          id: image.id,
-          user_id: image.user_id,
-          label: image.label,
-          image_type: image.image_type,
-          bg_color: image.bg_class,
-          text_color: image.text_color,
-          image_prompt: image.image_prompt,
-          src: image.display_image_url(@current_user),
-          next_words: image.next_words,
-        }
-      end
-      render json: @images_with_display_doc
-    end
+    # ActiveRecord::Base.logger.silence do
+    #   @current_user = current_user
+
+    #   # @user_docs = @current_user.docs.with_attached_image.where(documentable_type: "Image").order(created_at: :desc)
+    #   # @images = Image.with_artifacts.where(id: @user_docs.map(&:documentable_id)).or(Image.where(user_id: @current_user.id)).order(label: :asc).page params[:page]
+    #   # @distinct_images = @images.distinct
+    #   @distinct_images = Image.with_artifacts.where(user_id: @current_user.id).order(label: :asc).page params[:page]
+    #   @images_with_display_doc = @distinct_images.map do |image|
+    #     {
+    #       id: image.id,
+    #       user_id: image.user_id,
+    #       label: image.label,
+    #       image_type: image.image_type,
+    #       bg_color: image.bg_class,
+    #       text_color: image.text_color,
+    #       image_prompt: image.image_prompt,
+    #       src: image.display_image_url(@current_user),
+    #       next_words: image.next_words,
+    #     }
+    #   end
+    #   render json: @images_with_display_doc
+    # end
   end
 
   def show
