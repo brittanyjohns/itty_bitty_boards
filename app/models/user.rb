@@ -294,6 +294,7 @@ class User < ApplicationRecord
 
   def send_welcome_email
     UserMailer.welcome_email(self).deliver_now
+    AdminMailer.new_user_email(self).deliver_now
   end
 
   def subscription_expired?

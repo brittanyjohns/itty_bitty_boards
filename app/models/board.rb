@@ -56,7 +56,7 @@ class Board < ApplicationRecord
                     tsearch: { prefix: true },
                   }
 
-  scope :for_user, ->(user) { where(user: user) }
+  scope :for_user, ->(user) { where(user: user).or(where(user_id: User::DEFAULT_ADMIN_ID, predefined: true)) }
   scope :menus, -> { where(parent_type: "Menu") }
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
@@ -69,7 +69,7 @@ class Board < ApplicationRecord
   scope :with_less_than_x_images, ->(x) { joins(:images).group("boards.id").having("count(images.id) < ?", x) }
   scope :without_images, -> { left_outer_joins(:images).where(images: { id: nil }) }
 
-  scope :predictive, -> { where(parent_type: ["Image", "PredefinedResource"]) }
+  scope :predictive, -> { where(parent_type: ["Image"]) }
   scope :dynamic, -> { where(parent_type: ["PredefinedResource"]) }
 
   scope :created_this_week, -> { where("created_at > ?", 1.week.ago) }

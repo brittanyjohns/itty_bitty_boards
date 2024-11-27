@@ -12,18 +12,25 @@ class API::BoardsController < API::ApplicationController
   # GET /boards or /boards.json
   def index
     ActiveRecord::Base.logger.silence do
-      if params[:query].present?
-        @boards = Board.search_by_name(params[:query]).order(name: :asc).page params[:page]
+      if !params[:query].blank?
+        puts "Searching for boards with query: #{params[:query]}"
+        # @boards = Board.for_user(current_user).search_by_name(params[:query]).order(name: :asc).page params[:page]
+        @boards = current_user.boards.user_made_with_scenarios.search_by_name(params[:query]).order(name: :asc).page params[:page]
         @predefined_boards = Board.predefined.search_by_name(params[:query]).order(name: :asc).page params[:page]
-        render json: { boards: @boards, predefined_boards: @predefined_boards }
+        @dynamic_boards = current_user.boards.dynamic.search_by_name(params[:query]).order(name: :asc).page params[:page]
+        @predictive_boards = current_user.boards.predictive.search_by_name(params[:query]).order(name: :asc).page params[:page]
+        render json: { boards: @boards, preset_boards: @predefined_boards, dynamic_boards: @dynamic_boards, predictive_boards: @predictive_boards }
         return
-      elsif params[:boards_only].present?
+      end
+      if !params[:boards_only].blank?
+        puts "Getting boards only"
         @boards = current_user.boards.user_made_with_scenarios.order(name: :asc)
-        @predefined_boards = Board.predefined.user_made_with_scenarios.order(name: :asc)
+        @predefined_boards = Board.predefined.order(name: :asc)
       else
         @boards = boards_for_user.user_made_with_scenarios.order(name: :asc)
-        @predefined_boards = Board.predefined.user_made_with_scenarios.order(name: :asc)
+        @predefined_boards = Board.predefined.order(name: :asc)
       end
+      puts "Boards count: predefined_boards: #{@predefined_boards.count}"
 
       # if current_user.admin?
       #   @boards = Board.all.order(name: :asc)
@@ -31,9 +38,10 @@ class API::BoardsController < API::ApplicationController
 
       @categories = @boards.map(&:category).uniq.compact
       @predictive_boards = current_user.boards.predictive.order(name: :asc)
+      @dynamic_boards = current_user.boards.dynamic.order(name: :asc)
       # @boards = current_user.boards.all.order(name: :asc)
 
-      render json: { boards: @boards, predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.categories, predictive_boards: @predictive_boards }
+      render json: { boards: @boards, preset_boards: @predefined_boards, categories: @categories, all_categories: Board.categories, predictive_boards: @predictive_boards, dynamic_boards: @dynamic_boards }
     end
   end
 
@@ -525,7 +533,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def boards_for_user
-    current_user.boards.with_artifacts
+    Board.for_user(current_user)
   end
 
   def image_params

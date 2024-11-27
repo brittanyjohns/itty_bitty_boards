@@ -1,0 +1,20 @@
+
+<div class="container">
+    <div class="header">
+        <p>SpeakAnyWay has a new user! 🎉</p>
+    </div>
+    <div class="content">
+        <p>Hi <%= @admin.name %>,</p>
+        <p>Just a quick note to let you know that a new user has signed up for SpeakAnyWay:</p>
+        <p>Name: <%= @user.name %></p>
+        <p>Email: <%= @user.email %></p>
+        <p>Role: <%= @user.role %></p>
+        <hr>
+        <p>Plan type: <%= @user.plan_type %></p>
+        <p>Plan status: <%= @user.plan_status %></p>
+        <p>Tokens: <%= @user.tokens %></p>
+        <hr>
+
+        <p>Whoo-hoo! 🎉</p>
+        <p>Best,<br>The SpeakAnyWay Team</p>
+</div>
