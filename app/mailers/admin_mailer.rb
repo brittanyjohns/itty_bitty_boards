@@ -13,6 +13,7 @@ class AdminMailer < BaseMailer
     to_email = ENV["ADMIN_EMAIL"] || "hello@speakanyway.com"
     subject = "New user signed up for SpeakAnyWay AAC!!"
     @user = user
+    @admin = User.find_by(id: User::DEFAULT_ADMIN_ID)
     mail(to: to_email, subject: subject, from: "hello@speakanyway.com")
   end
 end
