@@ -221,18 +221,18 @@ class Image < ApplicationRecord
     Rails.logger.debug "Creating predictive board for #{label} - #{new_user_id} - words: #{words_to_use}"
     board = predictive_boards.find_by(name: label, user_id: new_user_id)
     if board
-      if use_preview_model
+      if use_preview_model && words_to_use.blank?
         board_words = board.board_images.map(&:label).uniq
-        self.next_words = board.get_words(name_to_send, 25, board_words, use_preview_model)
+        self.next_words = board.get_words(name_to_send, 10, board_words, use_preview_model)
         self.save!
       end
 
       board.find_or_create_images_from_word_list(words_to_use)
     else
       board = predictive_boards.create!(name: label, user_id: new_user_id)
-      if use_preview_model
+      if use_preview_model && words_to_use.blank?
         board_words = board.board_images.map(&:label).uniq
-        self.next_words = board.get_words(name_to_send, 25, board_words, use_preview_model)
+        self.next_words = board.get_words(name_to_send, 10, board_words, use_preview_model)
         self.save!
       end
       board.find_or_create_images_from_word_list(words_to_use)
