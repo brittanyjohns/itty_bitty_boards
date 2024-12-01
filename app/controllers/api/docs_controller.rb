@@ -134,7 +134,7 @@ class API::DocsController < API::ApplicationController
     if @user.nil? && current_user.admin?
       @user = current_user
       @image.update!(src_url: @current_doc.display_url)
-      board_imgs = Board_images.where(image_id: @image.id, user_id: [nil, User::DEFAULT_ADMIN_ID]).update_all(display_image_url: @current_doc.display_url)
+      board_imgs = BoardImage.where(image_id: @image.id, user_id: [nil, User::DEFAULT_ADMIN_ID]).update_all(display_image_url: @current_doc.display_url)
     end
     if @user.id == current_user.id
       @image.update!(src_url: @current_doc.display_url)
