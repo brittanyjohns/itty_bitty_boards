@@ -3,10 +3,10 @@ class API::ImagesController < API::ApplicationController
     @current_user = current_user
     if params[:user_only] == "1"
       # @images = Image.searchable_images_for(@current_user, true)
-      @images = Image.with_artifacts.where(user_id: @current_user.id)
+      @images = Image.searchable.with_artifacts.where(user_id: @current_user.id)
     else
       # @images = Image.searchable_images_for(@current_user)
-      @images = Image.with_artifacts.where(user_id: [@current_user.id, nil, User::DEFAULT_ADMIN_ID])
+      @images = Image.searchable.with_artifacts.where(user_id: [@current_user.id, nil, User::DEFAULT_ADMIN_ID])
     end
 
     if params[:query].present?
@@ -31,7 +31,7 @@ class API::ImagesController < API::ApplicationController
         can_edit: image.user_id == @current_user.id || @current_user.admin?,
       }
     end
-    render json: @images_with_display_doc
+    render json: @images_with_display_doc.sort { |a, b| a[:label] <=> b[:label] }
   end
 
   def user_images

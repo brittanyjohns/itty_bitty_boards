@@ -58,7 +58,7 @@ class Image < ApplicationRecord
   end
 
   scope :without_attached_audio_files, -> { where.missing(:audio_files_attachments) }
-
+  scope :searchable, -> { non_sample_voices }
   scope :with_image_docs_for_user, ->(userId) { order(created_at: :desc) }
   scope :menu_images, -> { where(image_type: "Menu") }
   scope :non_menu_images, -> { where.not(image_type: "Menu").or(where(image_type: nil)) }
