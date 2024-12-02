@@ -441,9 +441,14 @@ class API::ImagesController < API::ApplicationController
     else
       @user = @image.user
       current_user.user_docs.where(image_id: @image.id).destroy_all
+      if @user.nil? && current_user.admin?
+        @user = current_user
+        @image.update!(src_url: nil)
+        board_imgs = BoardImage.where(image_id: @image.id, user_id: [nil, User::DEFAULT_ADMIN_ID]).map { |bi| bi.update(display_image_url: nil) }
+      end
       if @user.id == current_user.id
         @image.update!(src_url: nil)
-        board_imgs = @user.board_images.where(image_id: @image.id).update_all(display_image_url: nil)
+        board_imgs = @user.board_images.where(image_id: @image.id).map { |bi| bi.update(display_image_url: nil) }
       end
       @image_docs = @image.docs.for_user(current_user).order(created_at: :desc)
       @image_docs.update_all(current: false)
