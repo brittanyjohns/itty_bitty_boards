@@ -877,7 +877,10 @@ class Image < ApplicationRecord
       # docs = self.docs.where(user_id: [viewing_user.id, nil, User::DEFAULT_ADMIN_ID])
       user_docs = viewing_user.user_docs.includes(:doc).where(image_id: id)
       docs = user_docs.map(&:doc)
-      return docs.first if docs.any?
+      return docs.last if docs.any?
+      if viewing_user.id == self.user_id
+        return nil
+      end
     end
 
     docs = self.docs.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
