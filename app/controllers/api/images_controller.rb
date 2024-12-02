@@ -434,6 +434,56 @@ class API::ImagesController < API::ApplicationController
     end
   end
 
+  def clear_current
+    @image = Image.find(params[:id])
+    if @image.nil?
+      render json: { status: "error", message: "Image not found." }
+    else
+      @user = @image.user
+      current_user.user_docs.where(image_id: @image.id).destroy_all
+      if @user.id == current_user.id
+        @image.update!(src_url: nil)
+        board_imgs = @user.board_images.where(image_id: @image.id).update_all(display_image_url: nil)
+      end
+      @image_docs = @image.docs.for_user(current_user).order(created_at: :desc)
+      @image_docs.update_all(current: false)
+
+      # @image_with_display_doc = @image.with_display_doc(current_user)
+      @image_with_display_doc = {
+        id: @image.id,
+        label: @image.label.upcase,
+        image_prompt: @image.image_prompt,
+        image_type: @image.image_type,
+        bg_color: @image.bg_class,
+        text_color: @image.text_color,
+        display_doc: {
+          id: nil,
+          label: @image.label,
+          user_id: nil,
+          src: nil,
+          is_current: true,
+
+        },
+        private: @image.private,
+        user_id: @image.user_id,
+        next_words: @image.next_words,
+        no_next: @image.no_next,
+        src: nil,
+        docs: @image_docs.map do |doc|
+          {
+            id: doc.id,
+            label: @image.label,
+            user_id: doc.user_id,
+            src: doc.display_url,
+            is_current: doc.id == @current_doc_id,
+          }
+        end,
+      }
+
+      render json: @image_with_display_doc
+    end
+  end
+
   def search
     @current_user = current_user
     if params[:user_images_only] == "1"

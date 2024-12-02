@@ -189,6 +189,7 @@ Rails.application.routes.draw do
         post "set_current_audio"
         get "predictive_images"
         post "create_predictive_board"
+        post "clear_current"
       end
       collection do
         post "generate_audio"
