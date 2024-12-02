@@ -444,7 +444,7 @@ class API::ImagesController < API::ApplicationController
       if @user.nil? && current_user.admin?
         @user = current_user
         @image.update!(src_url: nil)
-        board_imgs = BoardImage.where(image_id: @image.id, user_id: [nil, User::DEFAULT_ADMIN_ID]).map { |bi| bi.update(display_image_url: nil) }
+        board_imgs = BoardImage.where(image_id: @image.id).map { |bi| bi.update(display_image_url: nil) }
       end
       if @user.id == current_user.id
         @image.update!(src_url: nil)

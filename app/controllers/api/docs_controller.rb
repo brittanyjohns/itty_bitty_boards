@@ -132,14 +132,23 @@ class API::DocsController < API::ApplicationController
       @current_doc = @doc
       @image = @doc.documentable
       @user = @image.user
+      # if @user.nil? && current_user.admin?
+      #   @user = current_user
+      #   @image.update!(src_url: @current_doc.display_url)
+      #   board_imgs = BoardImage.where(image_id: @image.id, user_id: [nil, User::DEFAULT_ADMIN_ID]).update_all(display_image_url: @current_doc.display_url)
+      # end
+      # if @user.id == current_user.id
+      #   @image.update!(src_url: @current_doc.display_url)
+      #   board_imgs = @user.board_images.where(image_id: @image.id).update_all(display_image_url: @current_doc.display_url)
+      # end
       if @user.nil? && current_user.admin?
         @user = current_user
-        @image.update!(src_url: @current_doc.display_url)
-        board_imgs = BoardImage.where(image_id: @image.id, user_id: [nil, User::DEFAULT_ADMIN_ID]).update_all(display_image_url: @current_doc.display_url)
+        @image.update!(src_url: nil)
+        board_imgs = BoardImage.where(image_id: @image.id).map { |bi| bi.update(display_image_url: nil) }
       end
       if @user.id == current_user.id
-        @image.update!(src_url: @current_doc.display_url)
-        board_imgs = @user.board_images.where(image_id: @image.id).update_all(display_image_url: @current_doc.display_url)
+        @image.update!(src_url: nil)
+        board_imgs = @user.board_images.where(image_id: @image.id).map { |bi| bi.update(display_image_url: nil) }
       end
 
       @image_docs = @image.docs.for_user(current_user).excluding(@doc).order(created_at: :desc).to_a
