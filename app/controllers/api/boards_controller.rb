@@ -258,12 +258,15 @@ class API::BoardsController < API::ApplicationController
     @board = Board.new(board_params)
     @board.user = current_user
     board_type = params[:board_type] || board_params[:board_type]
+    settings = params[:settings] || board_params[:settings]
     puts "Board type: #{board_type}"
     if board_type == "dynamic"
       predefined_resource = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board")
       @board.parent_id = predefined_resource.id
       @board.parent_type = "PredefinedResource"
-    else
+    elsif board_type == "predictive"
+      puts "Creating predictive board"
+    elsif board_type == "static"
       @board.parent_type = "User"
       @board.parent_id = current_user.id
     end
@@ -299,6 +302,7 @@ class API::BoardsController < API::ApplicationController
   # PATCH/PUT /boards/1 or /boards/1.json
   def update
     set_board
+    @board_user = @board.user
     if params["image_ids_to_remove"].present?
       image_ids_to_remove = params["image_ids_to_remove"]
       image_ids_to_remove.each do |image_id|
@@ -321,15 +325,26 @@ class API::BoardsController < API::ApplicationController
       @board.category = board_params["category"]
 
       board_type = params[:board_type] || board_params[:board_type]
-      puts "Board type: #{board_type}"
+      settings = params[:settings] || board_params[:settings]
+      Rails.logger.debug "Board type: #{board_type}"
       if board_type == "dynamic"
         predefined_resource = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board")
         @board.parent_id = predefined_resource.id
         @board.parent_type = "PredefinedResource"
-      else
+      elsif board_type == "predictive"
+        puts "Creating predictive board"
+        @board.parent_type = "Image"
+        matching_image = @board_user.images.find_or_create_by(label: @board.name)
+        if matching_image
+          @board.parent_id = matching_image.id
+        end
+      elsif board_type == "static"
         @board.parent_type = "User"
-        @board.parent_id = current_user.id
+        @board.parent_id = @board.user.id
       end
+      new_board_settings = @board.settings.merge(settings)
+      Rails.logger.info "New board settings: #{new_board_settings}"
+      @board.settings = new_board_settings
       if !params["word_list"].blank?
         word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
         @board.find_or_create_images_from_word_list(word_list) if word_list.present?
@@ -560,6 +575,6 @@ class API::BoardsController < API::ApplicationController
                                   :image_id,
                                   :query,
                                   :page,
-                                  :display_image_url, :category, :word_list, :image_ids_to_remove, :board_type)
+                                  :display_image_url, :category, :word_list, :image_ids_to_remove, :board_type, settings: {})
   end
 end

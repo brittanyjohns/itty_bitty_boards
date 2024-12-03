@@ -298,12 +298,13 @@ class API::ImagesController < API::ApplicationController
     @image = Image.find(params[:id])
     user_id = current_user.id
     word_list = params[:word_list] ? params[:word_list].compact : nil
+    board_settings = params[:board_settings] || {}
 
     use_preview_model = current_user.admin? || current_user.settings["use_preview_model"]
 
     Rails.logger.info("Creating predictive board for image: #{@image.label} -- use_preview_model: #{use_preview_model} -- word_list: #{word_list}")
 
-    result = @image.create_predictive_board(user_id, word_list, use_preview_model)
+    result = @image.create_predictive_board(user_id, word_list, use_preview_model, board_settings)
     # CreatePredictiveBoardJob.perform_async(@image.id, current_user.id)
     render json: { status: "ok", message: "Creating predictive board for image." }
   end

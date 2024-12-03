@@ -193,20 +193,6 @@ class Image < ApplicationRecord
     if @predictive_board
       return @predictive_board
     else
-      # Rails.logger.debug "Label: #{label} - NO USER - Predictive board found: #{@predictive_board} with label: #{label}"
-      # viewing_user = User.find_by(id: user_id.to_i) if user_id
-      # user_predictive_default_id = viewing_user&.settings["dynamic_board_id"] if viewing_user
-      # Rails.logger.debug "user_predictive_default_id-Predictive default id: #{user_predictive_default_id}"
-
-      # if user_predictive_default_id
-      #   @predictive_board = Board.predictive.with_artifacts.find_by(id: user_predictive_default_id.to_i)
-      #   return @predictive_board if @predictive_board
-      # end
-
-      # if user_id == User::DEFAULT_ADMIN_ID
-      #   @predictive_board = Board.predictive_default
-      #   return @predictive_board if @predictive_board
-      # end
       Rails.logger.debug "NIL ==> Predictive board not found for #{label} - #{user_id}"
       nil
     end
@@ -217,7 +203,7 @@ class Image < ApplicationRecord
     predictive_board_for_user(viewing_user_id)
   end
 
-  def create_predictive_board(new_user_id, words_to_use = nil, use_preview_model = false)
+  def create_predictive_board(new_user_id, words_to_use = nil, use_preview_model = false, board_settings = {})
     Rails.logger.debug "Creating predictive board for #{label} - #{new_user_id} - words: #{words_to_use}"
     board = predictive_boards.find_by(name: label, user_id: new_user_id)
     if board
@@ -229,7 +215,8 @@ class Image < ApplicationRecord
 
       board.find_or_create_images_from_word_list(words_to_use)
     else
-      board = predictive_boards.create!(name: label, user_id: new_user_id)
+      Rails.logger.debug "Creating new predictive board for #{label} - #{new_user_id} - settings: #{board_settings}"
+      board = predictive_boards.create!(name: label, user_id: new_user_id, settings: board_settings)
       if use_preview_model && words_to_use.blank?
         board_words = board.board_images.map(&:label).uniq
         self.next_words = board.get_words(name_to_send, 10, board_words, use_preview_model)

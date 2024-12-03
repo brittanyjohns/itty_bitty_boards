@@ -798,7 +798,7 @@ class Board < ApplicationRecord
     when "PredefinedResource"
       return "dynamic"
     when "Image"
-      return "dynamic"
+      return "predictive"
     when "OpenaiPrompt"
       return "static"
     when "User"
@@ -844,6 +844,7 @@ class Board < ApplicationRecord
       created_at: created_at,
       updated_at: updated_at,
       margin_settings: margin_settings,
+      settings: settings,
       has_generating_images: has_generating_images?,
       current_user_teams: [],
       images: @board_images.map do |board_image|
@@ -862,11 +863,15 @@ class Board < ApplicationRecord
         is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
         @predictive_board_id = image&.predictive_board_for_user(viewing_user&.id)&.id
         @predictive_board_id ||= image&.predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
+        @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
         @viewer_settings = viewing_user&.settings || {}
+        @predictive_board_settings = @predictive_board&.settings || {}
         @global_default_id = Board.predictive_default_id
+
         @user_custom_default_id = @viewer_settings["dynamic_board_id"] || @global_default_id
         is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
         is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)
+        mute_name = @predictive_board_settings["mute_name"] == true && is_dynamic
         {
           id: image.id,
           label: @board_image.label,
@@ -885,7 +890,7 @@ class Board < ApplicationRecord
           next_words: @board_image.next_words,
           position: @board_image.position,
           src_url: image.src_url,
-
+          mute_name: mute_name,
           src: image.display_image_url(viewing_user),
           display_image_url: @board_image.display_image_url,
           audio: @board_image.audio_url,
