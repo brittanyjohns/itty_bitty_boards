@@ -233,6 +233,10 @@ class Image < ApplicationRecord
   end
 
   def self.ensure_parts_of_speech(limit = 100)
+    total_without_part_of_speech = Image.where.not(part_of_speech: Image.valid_parts_of_speech).count
+    puts "Total images without part of speech: #{total_without_part_of_speech} - limit: #{limit} \nContinue? (y/n)"
+    response = gets.chomp
+    return unless response == "y"
     images_without_part_of_speech = Image.where.not(part_of_speech: Image.valid_parts_of_speech).limit(limit)
     puts "Images without part of speech: #{images_without_part_of_speech.count} - labels: #{images_without_part_of_speech.pluck(:label)}\n\n"
     images_without_part_of_speech.each do |image|
