@@ -229,7 +229,7 @@ class Image < ApplicationRecord
   end
 
   def self.valid_parts_of_speech
-    ["noun", "verb", "adjective", "adverb", "pronoun", "preposition", "conjunction", "interjection", "phrase"]
+    ["noun", "verb", "adjective", "adverb", "pronoun", "preposition", "conjunction", "interjection", "phrase", "article"]
   end
 
   def self.ensure_parts_of_speech(limit = 100)

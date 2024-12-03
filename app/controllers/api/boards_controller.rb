@@ -266,6 +266,11 @@ class API::BoardsController < API::ApplicationController
       @board.parent_type = "PredefinedResource"
     elsif board_type == "predictive"
       puts "Creating predictive board"
+      @board.parent_type = "Image"
+      matching_image = @board.user.images.find_or_create_by(label: @board.name)
+      if matching_image
+        @board.parent_id = matching_image.id
+      end
     elsif board_type == "static"
       @board.parent_type = "User"
       @board.parent_id = current_user.id
