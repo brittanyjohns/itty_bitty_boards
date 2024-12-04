@@ -198,25 +198,42 @@ class OpenAiClient
     puts "Exclude Words: #{exclude_words}"
     puts "use_preview_model: #{use_preview_model}"
 
-    is_dynamic_board = board&.parent_type == "Image"
     text = ""
-    if !is_dynamic_board
-      first_sentence = name.include?("Default") ? "I have the initial communication board displayed to the user." : "I have an existing AAC board titled, '#{name}'"
-      word_instructions = "#{first_sentence} with the current words: [#{exclude_words_prompt}]. Please provide EXACTLY #{number_of_words} additional words that are foundational for basic communication in an AAC device."
-
+    if board&.dynamic?
+      Rails.logger.debug "** Dynamic Board"
+      first_sentence = "I have the initial communication board displayed to the user."
+      word_instructions = " #{first_sentence} with the current words: [#{exclude_words_prompt}]. Please provide EXACTLY #{number_of_words} additional words that are foundational for basic communication in an AAC device."
       static_instructions = "These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. They should be similar in nature to the words already on the board, but not duplicates."
       text = "#{word_instructions} #{static_instructions}"
-    else
+      ending = "Use the existing words on the board as a guide for the type of words that should be added. Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
+    elsif board&.static?
+      Rails.logger.debug "** Static Board"
+      first_sentence = "I have an existing AAC board titled, '#{name}'"
+      word_instructions = " #{first_sentence} with the current words: [#{exclude_words_prompt}]. Please provide EXACTLY #{number_of_words} additional words that are foundational for basic communication in an AAC device."
+      static_instructions = "These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. They should be similar in nature to the words already on the board, but not duplicates."
+      text = "#{word_instructions} #{static_instructions}"
+      ending = "If the board is 'drink', words like 'water', 'milk', 'juice', etc. would be appropriate.
+        If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate.
+        If the board is 'feelings', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
+        Use the existing words on the board as a guide for the type of words that should be added. Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
+    elsif board&.predictive?
+      Rails.logger.debug "** Predictive Board"
       text = "I have an AAC board & the last word/phrase selected was '#{name}'. Please provide #{number_of_words} words/phrases that are most likely to be used next in conversation after the word/phrase '#{name}'."
+      ending = "If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate. 
+        If the board is 'we', words like 'are', 'can', 'will', etc. would be appropriate.
+        If the board is 'will', words like 'you', 'go', 'eat', etc. would be appropriate.
+        Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
+    elsif board&.category?
+      Rails.logger.debug "** Category Board"
+      text = "I have an AAC button labeled '#{name}'. Please provide #{number_of_words} words that are related to the category '#{name}'."
+      ending = "If the board is 'feeling', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
+        If the board is 'drink', words like 'water', 'milk', 'juice', etc. would be appropriate.
+        If the board is 'food', words like 'apple', 'banana', 'cookie', etc. would be appropriate.
+        Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
     end
-    format_instructions = "Do not repeat any words that are already on the board & only provide #{number_of_words} words. DO NOT INCLUDE [#{exclude_words_prompt}]. 
-    If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate. 
-    If the board is 'feeling', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
-     If the board is 'drink', words like 'water', 'milk', 'juice', 'thirsty', etc. would be appropriate.
-     If the board is 'will', words like 'you', 'I', 'we', 'they', etc. would be appropriate.
-     If the board is 'food', words like 'apple', 'banana', 'cookie', 'hungry', etc. would be appropriate.
-    Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
-    text = "#{text} #{format_instructions}"
+    format_instructions = "Do not repeat any words that are already on the board & only provide #{number_of_words} words. DO NOT INCLUDE [#{exclude_words_prompt}]."
+
+    text = "#{text} #{format_instructions} #{ending}"
     @messages = [{ role: "user",
                   content: [{
       type: "text",

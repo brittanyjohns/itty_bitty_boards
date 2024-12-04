@@ -301,6 +301,10 @@ class User < ApplicationRecord
     plan_expires_at && plan_expires_at < Time.now
   end
 
+  def resource_type
+    "User"
+  end
+
   def pro?
     plan_type.downcase == "pro"
   end

@@ -39,9 +39,10 @@ class API::BoardsController < API::ApplicationController
       @categories = @boards.map(&:category).uniq.compact
       @predictive_boards = current_user.boards.predictive.order(name: :asc)
       @dynamic_boards = current_user.boards.dynamic.order(name: :asc)
+      @category_boards = current_user.boards.categories.order(name: :asc)
       # @boards = current_user.boards.all.order(name: :asc)
 
-      render json: { boards: @boards, preset_boards: @predefined_boards, categories: @categories, all_categories: Board.categories, predictive_boards: @predictive_boards, dynamic_boards: @dynamic_boards }
+      render json: { boards: @boards, preset_boards: @predefined_boards, categories: @categories, all_categories: Board.board_categories, predictive_boards: @predictive_boards, dynamic_boards: @dynamic_boards, category_boards: @category_boards }
     end
   end
 
@@ -68,12 +69,12 @@ class API::BoardsController < API::ApplicationController
       end
       @categories = @predefined_boards.map(&:category).uniq.compact
       @welcome_boards = Board.welcome
-      render json: { predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.categories, welcome_boards: @welcome_boards.map(&:api_view_with_images) }
+      render json: { predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.board_categories, welcome_boards: @welcome_boards.map(&:api_view_with_images) }
     end
   end
 
   def categories
-    @categories = Board.categories
+    @categories = Board.board_categories
     render json: @categories
   end
 
@@ -258,18 +259,25 @@ class API::BoardsController < API::ApplicationController
     @board = Board.new(board_params)
     @board.user = current_user
     board_type = params[:board_type] || board_params[:board_type]
-    settings = params[:settings] || board_params[:settings]
-    puts "Board type: #{board_type}"
+    settings = params[:settings] || board_params[:settings] || {}
+    settings["board_type"] = board_type
     if board_type == "dynamic"
       predefined_resource = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board")
       @board.parent_id = predefined_resource.id
       @board.parent_type = "PredefinedResource"
     elsif board_type == "predictive"
-      puts "Creating predictive board"
       @board.parent_type = "Image"
       matching_image = @board.user.images.find_or_create_by(label: @board.name)
       if matching_image
         @board.parent_id = matching_image.id
+        @board.image_parent_id = matching_image.id
+      end
+    elsif board_type == "category"
+      @board.parent_type = "PredefinedResource"
+      @board.parent_id = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Category").id
+      matching_image = @board.user.images.find_or_create_by(label: @board.name)
+      if matching_image
+        @board.image_parent_id = matching_image.id
       end
     elsif board_type == "static"
       @board.parent_type = "User"
@@ -330,7 +338,8 @@ class API::BoardsController < API::ApplicationController
       @board.category = board_params["category"]
 
       board_type = params[:board_type] || board_params[:board_type]
-      settings = params[:settings] || board_params[:settings]
+      settings = params[:settings] || board_params[:settings] || {}
+      settings["board_type"] = board_type
       Rails.logger.debug "Board type: #{board_type}"
       if board_type == "dynamic"
         predefined_resource = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board")
@@ -339,9 +348,17 @@ class API::BoardsController < API::ApplicationController
       elsif board_type == "predictive"
         puts "Creating predictive board"
         @board.parent_type = "Image"
-        matching_image = @board_user.images.find_or_create_by(label: @board.name)
+        matching_image = @board.user.images.find_or_create_by(label: @board.name)
         if matching_image
           @board.parent_id = matching_image.id
+          @board.image_parent_id = matching_image.id
+        end
+      elsif board_type == "category"
+        @board.parent_type = "PredefinedResource"
+        @board.parent_id = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Category").id
+        matching_image = @board.user.images.find_or_create_by(label: @board.name)
+        if matching_image
+          @board.image_parent_id = matching_image.id
         end
       elsif board_type == "static"
         @board.parent_type = "User"

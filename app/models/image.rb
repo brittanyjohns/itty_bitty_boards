@@ -78,6 +78,10 @@ class Image < ApplicationRecord
 
   scope :created_between, ->(start_date, end_date) { where(created_at: start_date..end_date) }
 
+  def category_boards
+    @category_boards ||= Board.where(parent_type: "PredefinedResource", image_parent_id: id, user_id: user_id)
+  end
+
   def self.cleanup_mess
     # 2024-10-23T02:29:57.064Z
     start_date = Date.new(2024, 10, 22)
@@ -186,14 +190,24 @@ class Image < ApplicationRecord
     SetNextWordsJob.perform_async([id])
   end
 
-  def predictive_board_for_user(user_id)
-    return unless user_id && (user_id.is_a?(Integer) || user_id.is_a?(String))
-    @predictive_boards = Board.predictive.with_artifacts.where(parent_type: "Image", parent_id: id, name: label, user_id: user_id)
-    @predictive_board = @predictive_boards.find_by(name: label, user_id: user_id) if user_id
+  def category_board
+    category_board = category_boards.find_by(name: label) || category_boards.first
+    category_board
+  end
+
+  def predictive_board_for_user(viewing_user_id)
+    if category_board
+      img = Image.find_by(id: category_board&.image_parent_id)
+      @predictive_boards = Board.predictive.with_artifacts.where(image_parent_id: img.id, user_id: viewing_user_id)
+    end
+
+    return unless viewing_user_id && (viewing_user_id.is_a?(Integer) || viewing_user_id.is_a?(String))
+    @predictive_boards = Board.predictive.with_artifacts.where(parent_type: "Image", parent_id: id, name: label, user_id: viewing_user_id) if @predictive_boards.blank?
+    @predictive_board = @predictive_boards.find_by(name: label, user_id: viewing_user_id) if viewing_user_id
     if @predictive_board
       return @predictive_board
     else
-      Rails.logger.debug "NIL ==> Predictive board not found for #{label} - #{user_id}"
+      Rails.logger.debug "NIL ==> Predictive board not found for #{label} - #{viewing_user_id}"
       nil
     end
   end
@@ -295,6 +309,10 @@ class Image < ApplicationRecord
       color = "black"
     end
     color
+  end
+
+  def resource_type
+    "Image"
   end
 
   def bg_class
@@ -844,7 +862,12 @@ class Image < ApplicationRecord
   end
 
   def display_image_url(viewing_user = nil)
-    doc = display_doc(viewing_user)
+    if category_board
+      img = Image.find_by(id: category_board&.image_parent_id)
+      doc = img.display_doc(viewing_user) if img
+    else
+      doc = display_doc(viewing_user)
+    end
 
     doc ? doc.display_url : nil
   end
@@ -1051,6 +1074,9 @@ class Image < ApplicationRecord
     @global_default_id = Board.predictive_default_id
     is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
     is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)
+    @category_boards = category_boards
+    is_category = @category_boards.any?
+
     {
       id: id,
       label: label,
@@ -1071,6 +1097,9 @@ class Image < ApplicationRecord
       dynamic_board: @predictive_board&.api_view_with_images(@current_user),
       is_predictive: is_predictive,
       is_owner: is_owner,
+      is_admin_image: is_admin_image,
+      is_category: is_category,
+      category_boards: @category_boards.map { |board| { id: board.id, name: board.name } },
       bg_color: bg_class,
       open_symbol_status: open_symbol_status,
       created_at: created_at,

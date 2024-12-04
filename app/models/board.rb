@@ -61,16 +61,13 @@ class Board < ApplicationRecord
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
   scope :scenarios, -> { where(parent_type: "OpenaiPrompt") }
-  scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt"], predefined: false) }
+  scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt", "PredefinedResource"], predefined: false) }
   scope :user_made_with_scenarios_and_menus, -> { where(parent_type: ["User", "OpenaiPrompt", "Menu", "PredefinedResource"], predefined: false) }
   scope :predefined, -> { where(predefined: true) }
   scope :ai_generated, -> { where(parent_type: "OpenaiPrompt") }
   scope :with_less_than_10_images, -> { joins(:images).group("boards.id").having("count(images.id) < 10") }
   scope :with_less_than_x_images, ->(x) { joins(:images).group("boards.id").having("count(images.id) < ?", x) }
   scope :without_images, -> { left_outer_joins(:images).where(images: { id: nil }) }
-
-  scope :predictive, -> { where(parent_type: ["Image"]) }
-  scope :dynamic, -> { where(parent_type: ["PredefinedResource"]) }
 
   scope :created_this_week, -> { where("created_at > ?", 1.week.ago) }
   scope :created_before_this_week, -> { where("created_at < ?", 8.days.ago) }
@@ -116,8 +113,28 @@ class Board < ApplicationRecord
   after_initialize :set_screen_sizes, unless: :all_validate_screen_sizes?
   after_initialize :set_initial_layout, if: :layout_empty?
 
+  def self.dynamic
+    PredefinedResource.dynamic_boards
+  end
+
+  def self.categories
+    PredefinedResource.categories
+  end
+
+  def self.predictive
+    where(parent_type: "Image")
+  end
+
+  def self.static
+    where(parent_type: "User")
+  end
+
   def set_initial_layout
     self.layout = { "lg" => [], "md" => [], "sm" => [] }
+  end
+
+  def parent_image
+    Image.find_by(id: image_parent_id, user_id: user_id)
   end
 
   def layout_empty?
@@ -199,7 +216,7 @@ class Board < ApplicationRecord
     end
   end
 
-  def self.categories
+  def self.board_categories
     ["general", "welcome", "featured", "popular", "seasonal", "routines", "emotions", "actions", "animals", "food", "people", "places", "things", "colors", "shapes", "numbers", "letters"]
   end
 
@@ -218,12 +235,8 @@ class Board < ApplicationRecord
   end
 
   def update_display_image
-    if parent_type == "Image"
-      parent_user_id = parent.user_id
-      parent_image_url = parent.display_image_url(self.user) if parent_user_id == self.user_id
-      if parent_image_url.blank?
-        return
-      end
+    if parent_image
+      parent_image_url = parent_image.display_image_url(user)
       self.display_image_url = parent_image_url
       self.status = "complete"
     end
@@ -282,6 +295,26 @@ class Board < ApplicationRecord
       board.find_or_create_images_from_word_list(self.common_words) if board
     end
     board
+  end
+
+  def resource_type
+    parent.resource_type
+  end
+
+  def dynamic?
+    resource_type == "Board"
+  end
+
+  def predictive?
+    resource_type == "Image"
+  end
+
+  def static?
+    resource_type == "User"
+  end
+
+  def category?
+    resource_type == "Category"
   end
 
   def self.create_dynamic_default_for_user(new_user)
@@ -794,17 +827,21 @@ class Board < ApplicationRecord
   end
 
   def board_type
-    case parent_type
-    when "PredefinedResource"
-      return "dynamic"
+    case resource_type
+    when "Category"
+      return "category"
     when "Image"
       return "predictive"
-    when "OpenaiPrompt"
-      return "static"
+    when "Board"
+      return "dynamic"
     when "User"
       return "static"
+    when "Menu"
+      return "menu"
+    when "OpenaiPrompt"
+      return "scenario"
     else
-      return parent_type.downcase
+      return resource_type.downcase
     end
   end
 
@@ -824,6 +861,7 @@ class Board < ApplicationRecord
       category: category,
       parent_type: parent_type,
       parent_id: parent_id,
+      image_parent_id: image_parent_id,
       board_type: board_type,
       parent_description: parent_type === "User" ? "User" : parent&.to_s,
       parent_prompt: parent_type === "OpenaiPrompt" ? parent.prompt_text : nil,
@@ -861,8 +899,14 @@ class Board < ApplicationRecord
 
         is_owner = viewing_user && image.user_id == viewing_user&.id
         is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
-        @predictive_board_id = image&.predictive_board_for_user(viewing_user&.id)&.id
-        @predictive_board_id ||= image&.predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
+
+        @category_board = image&.category_board
+        if @category_board
+          @predictive_board_id = @category_board.id
+        else
+          @predictive_board_id = image&.predictive_board_for_user(viewing_user&.id)&.id
+          @predictive_board_id ||= image&.predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
+        end
         @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
         @viewer_settings = viewing_user&.settings || {}
         @predictive_board_settings = @predictive_board&.settings || {}
@@ -871,6 +915,7 @@ class Board < ApplicationRecord
         @user_custom_default_id = @viewer_settings["dynamic_board_id"] || @global_default_id
         is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
         is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)
+        is_category = @category_board.present?
         mute_name = @predictive_board_settings["mute_name"] == true && is_dynamic
         {
           id: image.id,
@@ -878,8 +923,10 @@ class Board < ApplicationRecord
           image_user_id: image.user_id,
           predictive_board_id: is_dynamic ? @predictive_board_id : @user_custom_default_id,
           user_custom_default_id: @user_custom_default_id,
+          predictive_board_board_type: @predictive_board&.board_type,
           global_default_id: @global_default_id,
           is_owner: is_owner,
+          is_category: is_category,
           is_admin_image: is_admin_image,
           dynamic: is_dynamic,
           is_predictive: is_predictive,

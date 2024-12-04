@@ -30,9 +30,11 @@ class API::Account::BoardsController < API::Account::ApplicationController
 
       @categories = @boards.map(&:category).uniq.compact
       @predictive_boards = current_account.boards.predictive.order(name: :asc)
+      @category_boards = current_account.boards.categories.order(name: :asc)
+      @dynamic_boards = current_account.boards.dynamic.order(name: :asc)
       # @boards = current_account.boards.all.order(name: :asc)
 
-      render json: { boards: @boards, predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.categories, predictive_boards: @predictive_boards }
+      render json: { boards: @boards, predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.board_categories, predictive_boards: @predictive_boards, category_boards: @category_boards, dynamic_boards: @dynamic_boards }
     end
   end
 
@@ -59,12 +61,12 @@ class API::Account::BoardsController < API::Account::ApplicationController
       end
       @categories = @predefined_boards.map(&:category).uniq.compact
       @welcome_boards = Board.welcome
-      render json: { predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.categories, welcome_boards: @welcome_boards.map(&:api_view_with_images) }
+      render json: { predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.board_categories, welcome_boards: @welcome_boards.map(&:api_view_with_images) }
     end
   end
 
   def categories
-    @categories = Board.categories
+    @categories = Board.board_categories
     render json: @categories
   end
 

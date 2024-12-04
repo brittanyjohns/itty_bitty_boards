@@ -52,6 +52,10 @@ class Menu < ApplicationRecord
     docs.map(&:board).compact
   end
 
+  def resource_type
+    "Menu"
+  end
+
   def create_board_from_image(new_doc, board_id = nil)
     board = board_id ? Board.find(board_id) : self.boards.new
     board.user = self.user
