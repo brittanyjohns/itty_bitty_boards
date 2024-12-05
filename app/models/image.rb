@@ -40,6 +40,7 @@ class Image < ApplicationRecord
   has_many :boards, through: :board_images
   has_many_attached :audio_files
   has_many :predictive_boards, as: :parent, class_name: "Board", dependent: :destroy
+  has_many :category_boards, class_name: "Board", foreign_key: "image_parent_id", dependent: :destroy
 
   accepts_nested_attributes_for :docs
 
@@ -78,9 +79,9 @@ class Image < ApplicationRecord
 
   scope :created_between, ->(start_date, end_date) { where(created_at: start_date..end_date) }
 
-  def category_boards
-    @category_boards ||= Board.where(parent_type: "PredefinedResource", image_parent_id: id, user_id: user_id)
-  end
+  # def category_boards
+  #   @category_boards ||= Board.where(parent_type: "PredefinedResource", image_parent_id: id, user_id: user_id)
+  # end
 
   def self.cleanup_mess
     # 2024-10-23T02:29:57.064Z
@@ -316,7 +317,7 @@ class Image < ApplicationRecord
   end
 
   def bg_class
-    bg_color ? "bg-#{bg_color}-400" : "bg-white"
+    bg_color ? "bg-#{bg_color}-400" : "bg-black"
   end
 
   def create_image_doc(user_id = nil)
@@ -1066,8 +1067,14 @@ class Image < ApplicationRecord
     is_owner = @current_user && user_id == @current_user&.id
     is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
     @user_dynamic_board = predictive_board_for_user(@current_user&.id)
-    @predictive_board = @user_dynamic_board
-    @predictive_board ||= predictive_board_for_user(User::DEFAULT_ADMIN_ID)
+
+    @category_board = category_board
+    if @category_board
+      @predictive_board_id = @category_board.id
+    else
+      @predictive_board = @user_dynamic_board
+      @predictive_board ||= predictive_board_for_user(User::DEFAULT_ADMIN_ID)
+    end
     @predictive_board_id = @predictive_board&.id
     @viewer_settings = @current_user&.settings || {}
     @user_custom_default_id = @viewer_settings["dynamic_board_id"]
@@ -1075,7 +1082,7 @@ class Image < ApplicationRecord
     is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
     is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)
     @category_boards = category_boards
-    is_category = @category_boards.any?
+    is_category = @predictive_board&.board_type == "category"
 
     {
       id: id,
@@ -1084,6 +1091,7 @@ class Image < ApplicationRecord
       display_doc: doc_img_url,
       src: doc_img_url,
       src_url: src_url,
+      predictive_board_board_type: @predictive_board&.board_type,
       audio: @default_audio_url,
       audio_url: @default_audio_url,
       audio_files: audio_files_for_api,
