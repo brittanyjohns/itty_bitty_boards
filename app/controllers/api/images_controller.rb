@@ -17,6 +17,16 @@ class API::ImagesController < API::ApplicationController
     end
 
     @images_with_display_doc = @images.map do |image|
+      @category_board = image&.category_board
+      if @category_board
+        @predictive_board_id = @category_board.id
+      else
+        @predictive_board_id = image&.predictive_board_for_user(current_user&.id)&.id
+        @predictive_board_id ||= image&.predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
+      end
+      @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
+      predictive_board_board_type = @predictive_board ? @predictive_board.board_type : nil
+      is_owner = image.user_id == @current_user.id
       {
         id: image.id,
         user_id: image.user_id,
@@ -28,7 +38,10 @@ class API::ImagesController < API::ApplicationController
         text_color: image.text_color,
         src: image.display_image_url(@current_user),
         next_words: image.next_words,
-        can_edit: image.user_id == @current_user.id || @current_user.admin?,
+        can_edit: is_owner || @current_user.admin?,
+        is_admin_image: image.user_id == User::DEFAULT_ADMIN_ID,
+        predictive_board_board_type: predictive_board_board_type,
+        dynamic: predictive_board_board_type.present?,
       }
     end
     render json: @images_with_display_doc.sort { |a, b| a[:label] <=> b[:label] }

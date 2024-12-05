@@ -1010,7 +1010,6 @@ class Board < ApplicationRecord
     else
       Rails.logger.error "*** ERROR - get_words *** \nDid not receive valid response. Response: #{response}\n"
     end
-    # words["additional_words"]
     words_to_include = words["additional_words"] || []
     words_to_include = words_to_include.map { |w| w.downcase }
     words_to_include = words_to_include - words_to_exclude
@@ -1018,11 +1017,6 @@ class Board < ApplicationRecord
     puts "Words to include: #{words_to_include}"
     words_to_include
   end
-
-  # ["want", "need", "help", "stop", "more", "yes", "no", "like", "go", "come", "look", "play", "eat", "drink",
-  #  "feel", "open", "close", "turn", "give", "take", "find", "make", "read", "write",
-  #  "listen", "see", "hear", "touch", "sit", "stand", "i", "to", "you", "happy", "sad", "big",
-  #  "little", "fast", "slow", "hot", "cold", "good", "bad", "here", "there"]
 
   def get_word_suggestions(name_to_use, number_of_words)
     response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words)
