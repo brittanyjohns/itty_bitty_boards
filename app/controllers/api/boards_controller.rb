@@ -411,7 +411,7 @@ class API::BoardsController < API::ApplicationController
     set_board
     screen_size = params[:screen_size] || "lg"
     puts "Formatting board with AI for screen size: #{screen_size}"
-    FormatBoardWithAiJob.perform_async(@board.id, screen_size)
+    FormatBoardWithAiJob.perform_async(@board.id, screen_size, true)
     # @board.format_board_with_ai(screen_size)
     @board.update(status: "formatting")
     puts "Board formatted with AI"
@@ -453,16 +453,6 @@ class API::BoardsController < API::ApplicationController
       render json: img_saved.errors, status: :unprocessable_entity
     end
   end
-
-  # def create_from_next_words
-  #   @board = Board.new(board_params)
-  #   @board.user = current_user
-  #   @board.parent_id = user_signed_in? ? current_user.id : params[:parent_id]
-  #   @board.parent_type = params[:parent_type] || "User"
-  #   @board.save!
-  #   @board.create_images_from_next_words(params[:next_words])
-  #   render json: @board.api_view_with_images(current_user)
-  # end
 
   def associate_image
     @image = Image.find(params[:image_id])

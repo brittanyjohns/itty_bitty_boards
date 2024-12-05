@@ -95,16 +95,17 @@ class OpenAiClient
     image_prompt_content
   end
 
-  def generate_formatted_board(name, num_of_columns, words = [], max_num_of_rows = 4)
+  def generate_formatted_board(name, num_of_columns, words = [], max_num_of_rows = 4, maintain_existing = false)
     @model = PREVIEW_MODEL
-    Rails.logger.debug "User - model: #{@model} -- name: #{name} -- num_of_columns: #{num_of_columns} -- words: #{words} -- max_num_of_rows: #{max_num_of_rows}"
+    Rails.logger.debug "User - model: #{@model} -- name: #{name} -- num_of_columns: #{num_of_columns} -- words: #{words.count} -- max_num_of_rows: #{max_num_of_rows}"
     @messages = [{ role: "user",
                   content: [{ type: "text",
-                              text: format_board_prompt(name, num_of_columns, words, max_num_of_rows) }] }]
+                              text: format_board_prompt(name, num_of_columns, words, max_num_of_rows, maintain_existing) }] }]
+    Rails.logger.debug "Text:\n#{@messages[0][:content][0][:text]}"
     response = create_completion
     Rails.logger.debug "*******\nResponse: #{response}\n"
     Rails.logger.debug "*** ERROR *** Invaild Formatted Board Response: #{response}" unless response
-    response[:content]
+    response[:content] if response
   end
 
   def clarify_image_description(image_description)
@@ -146,11 +147,17 @@ class OpenAiClient
     Make your best attempt to provide a list of 24 words or short phrases (2 words max) that are foundational for basic communication in an AAC device. Respond with 'NO NEXT WORDS' if there are no common follow-up words for '#{label}' that would be used in conversation & an AAC device. Use json format. Respond with a JSON object in the following format: {\"next_words\": [\"word1\", \"word2\", \"word3\", ...]}"
   end
 
-  def format_board_prompt(name, num_of_columns, word_array = [], max_num_of_rows = 4)
+  def maintain_existing_instructions(existing_grid)
+    "The existing grid layout is as follows: #{existing_grid}. Please maintain the existing size of each word, changing only the position of the words as needed."
+  end
+
+  def format_board_prompt(name, num_of_columns, existing_grid = [], max_num_of_rows = 4, maintain_existing = false)
+    words = existing_grid.map { |word_obj| word_obj[:word] }
+
     puts "max_num_of_rows: #{max_num_of_rows}"
-    Rails.logger.debug "\nName: #{name} -- Num of Columns: #{num_of_columns} -- Max Num of Rows: #{max_num_of_rows}\n"
-    words = word_array.join(", ") unless word_array.blank?
-    word_count = word_array.size
+    Rails.logger.debug "\nName: #{name} -- Num of Columns: #{num_of_columns} -- Max Num of Rows: #{max_num_of_rows} -- Existing Grid: #{existing_grid.count} -- Maintain Existing: #{maintain_existing}"
+    word_str = words.join(", ") unless words.blank?
+    word_count = words.size
     text = <<-PROMPT
       Create an AAC communication board formatted as a grid layout.
 
@@ -159,7 +166,10 @@ class OpenAiClient
       2. Group words by parts of speech (e.g., pronouns, verbs, adjectives).
       3. Consider how speech-language pathologists arrange words for ease of use in communication, ensuring frequently used words are near the top left.
       4. Use a grid layout with a MAXIMUM of #{num_of_columns} columns and MAX rows: #{max_num_of_rows}.
-      5. Each entry should include the word, its grid position as [x, y], its part of speech, and its frequency of use.
+      5. Each entry should include the word, its grid position as [x, y], its part of speech, its size, and its frequency of use.
+      6. The size of each word should be based on its frequency of use, with high-frequency words being larger. Size is represented as number of grid spaces the word occupies. [1,1] is a single grid space. [2,2] is a 2x2 grid space. & so on.
+      7. Do not overlap words or exceed the grid size.
+      #{maintain_existing_instructions(existing_grid) if maintain_existing}
 
       Please create a grid layout that include the words: '#{words}', grouped and positioned based on their typical use in AAC communication.
       It is VERY important that the Y-COOORDINATE should not exceed #{max_num_of_rows} and the X-COORDINATE should not exceed #{num_of_columns}.
@@ -169,11 +179,11 @@ class OpenAiClient
 
       {
         "grid": [
-          {"word": "I", "position": [0,0], "part_of_speech": "pronoun", "frequency": "high"},
-          {"word": "want", "position": [0,1], "part_of_speech": "verb", "frequency": "high"},
-          {"word": "more", "position": [0,2], "part_of_speech": "adverb", "frequency": "high"},
+          {"word": "I", "position": [0,0], "part_of_speech": "pronoun", "frequency": "medium", "size": [1,1]},
+          {"word": "banana", "position": [0,1], "part_of_speech": "noun", "frequency": "low", "size": [1,1]},
+          {"word": "more", "position": [2,4], "part_of_speech": "adverb", "frequency": "high", "size": [2,2]},
           ...
-          {"word": "elevator", "position": [5,10], "part_of_speech": "noun", "frequency": "low"},
+          {"word": "elevator", "position": [5,10], "part_of_speech": "noun", "frequency": "low", "size": [1,1]}
         ],
         "professional_explanation": "This layout is designed to help users quickly find and use the most common words in AAC communication. The words are grouped by parts of speech and arranged in a grid to make it easy to locate and select the right word.",
         "personable_explanation": "This board is set up to help you find the words you need to communicate quickly and easily. The words are grouped by type and placed in a grid so you can find them easily."
@@ -355,14 +365,15 @@ class OpenAiClient
       response = openai_client.chat(
         parameters: opts,
       )
+      Rails.logger.debug "create_completion Response: #{response.inspect}"
     rescue => e
-      Rails.logger.debug "**** ERROR **** \n#{e.message}\n"
+      Rails.logger.debug "**** ERROR **** \n#{e.message}\n#response: #{response.inspect}"
     end
     if response
       @role = response.dig("choices", 0, "message", "role")
       @content = response.dig("choices", 0, "message", "content")
     else
-      Rails.logger.debug "**** ERROR - create_chat **** \nDid not receive valid response.\n #{response&.inspect}"
+      Rails.logger.debug "**** ERROR - create_completion **** \nDid not receive valid response.\n #{response&.inspect}"
     end
     { role: @role, content: @content }
   end

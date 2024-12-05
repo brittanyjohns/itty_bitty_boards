@@ -752,12 +752,25 @@ class Board < ApplicationRecord
     end
   end
 
-  def format_board_with_ai(screen_size = "lg")
+  def format_board_with_ai(screen_size = "lg", maintain_existing_layout = false)
     num_of_columns = get_number_of_columns(screen_size)
     @board_images = board_images.includes(:image)
-    words = @board_images.pluck(:label)
+    existing_layout = []
+    @board_images.each do |bi|
+      bi_layout = bi.layout[screen_size]
+      bi_data_for_screen = bi.data[screen_size] || {}
+      w = {
+        word: bi.label,
+        size: [bi_layout["w"], bi_layout["h"]],
+      # position: [bi_layout["x"], bi_layout["y"]],
+      # part_of_speech: bi.data["part_of_speech"] || bi.image.part_of_speech,
+      # frequency: bi_data_for_screen["frequency"] || "low",
+      }
+      existing_layout << w
+    end
+
     max_num_of_rows = (words.count / num_of_columns.to_f).ceil
-    response = OpenAiClient.new({}).generate_formatted_board(name, num_of_columns, words, max_num_of_rows)
+    response = OpenAiClient.new({}).generate_formatted_board(name, num_of_columns, existing_layout, max_num_of_rows, maintain_existing_layout)
     if response
       parsed_response = response.gsub("```json", "").gsub("```", "").strip
       if valid_json?(parsed_response)
@@ -772,8 +785,7 @@ class Board < ApplicationRecord
       explanation = personable_explanation + "\n" + professional_explanation
       self.data["personable_explanation"] = personable_explanation
       self.data["professional_explanation"] = professional_explanation
-      puts "Grid Response: \n"
-      pp grid_response
+
       grid_response.each_with_index do |item, index|
         label = item["word"]
         board_image = @board_images.joins(:image).find_by(images: { label: label })
@@ -781,11 +793,12 @@ class Board < ApplicationRecord
 
         if board_image
           item["size"] ||= [1, 1]
-          if item["frequency"].present?
-            if item["frequency"] === "high"
-              item["size"] = [2, 2]
-            end
-          end
+          puts "Label: #{label} - Size: #{item["size"]}"
+          # if item["frequency"].present?
+          #   if item["frequency"] === "high"
+          #     item["size"] = [2, 2]
+          #   end
+          # end
 
           board_image.data["label"] = label
           board_image.data[screen_size] ||= {}
@@ -802,7 +815,7 @@ class Board < ApplicationRecord
 
           x_coordinate = item["position"][0]
           y_coordinate = item["position"][1]
-          puts "Label: #{label} - X: #{x_coordinate} - Y: #{y_coordinate} Max Rows: #{max_num_of_rows}"
+          puts "Label: #{label} - X: #{x_coordinate} - Y: #{y_coordinate} Max Rows: #{max_num_of_rows} - size: #{item["size"]}"
           if x_coordinate >= num_of_columns
             x_coordinate = 0
           end
@@ -812,7 +825,7 @@ class Board < ApplicationRecord
           end
 
           board_image.layout ||= {}
-          board_image.layout[screen_size] = { "x" => x_coordinate, "y" => y_coordinate, "w" => 1, "h" => 1, "i" => board_image.id.to_s }
+          board_image.layout[screen_size] = { "x" => x_coordinate, "y" => y_coordinate, "w" => item["size"][0], "h" => item["size"][1], "i" => board_image.id.to_s }
           board_image.save!
         else
           puts "Board Image not found for label: #{label}"
