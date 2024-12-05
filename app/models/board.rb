@@ -756,12 +756,24 @@ class Board < ApplicationRecord
     num_of_columns = get_number_of_columns(screen_size)
     @board_images = board_images.includes(:image)
     existing_layout = []
+
     @board_images.each do |bi|
+      image = bi.image
+      @category_board = image&.category_board
+      if @category_board
+        @predictive_board_id = @category_board.id
+      else
+        @predictive_board_id = image&.predictive_board_for_user(user_id)&.id
+        @predictive_board_id ||= image&.predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
+      end
+      @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
       bi_layout = bi.layout[screen_size]
       bi_data_for_screen = bi.data[screen_size] || {}
+      Rails.logger.debug "#{bi.label} -- BOARD TYPE: #{@predictive_board&.board_type}"
       w = {
         word: bi.label,
         size: [bi_layout["w"], bi_layout["h"]],
+        board_type: @predictive_board&.board_type,
       # position: [bi_layout["x"], bi_layout["y"]],
       # part_of_speech: bi.data["part_of_speech"] || bi.image.part_of_speech,
       # frequency: bi_data_for_screen["frequency"] || "low",

@@ -216,7 +216,6 @@ class Image < ApplicationRecord
     if @predictive_board
       return @predictive_board
     else
-      Rails.logger.debug "NIL ==> Predictive board not found for #{label} - #{viewing_user_id}"
       nil
     end
   end
