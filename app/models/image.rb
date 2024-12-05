@@ -158,6 +158,7 @@ class Image < ApplicationRecord
   def update_background_color
     self.bg_color = background_color_for(part_of_speech)
     self.text_color = text_color_for(bg_color)
+    self.save!
     board_images.each do |bi|
       bi.update!(bg_color: bg_color, text_color: text_color)
     end
