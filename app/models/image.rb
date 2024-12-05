@@ -148,6 +148,13 @@ class Image < ApplicationRecord
     end
   end
 
+  def self.update_all_background_colors
+    bad_bg_colors = ["gray", "white", nil]
+    self.where(bg_color: bad_bg_colors).each do |image|
+      image.update_background_color
+    end
+  end
+
   def update_background_color
     self.bg_color = background_color_for(part_of_speech)
     self.text_color = text_color_for(bg_color)
@@ -279,6 +286,8 @@ class Image < ApplicationRecord
       color = "red"
     when "interjection"
       color = "teal"
+    when "phrase"
+      color = "white"
     else
       color = "gray"
     end
