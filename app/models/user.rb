@@ -172,7 +172,7 @@ class User < ApplicationRecord
   end
 
   def dynamic_boards
-    boards.dynamic.includes(:parent, :board_images).order(name: :asc)
+    boards.dynamic(id).includes(:parent, :board_images).order(name: :asc)
   end
 
   def predictive_images

@@ -15,13 +15,13 @@ class PredefinedResource < ApplicationRecord
     "This is a #{resource_type} resource"
   end
 
-  def self.dynamic_boards
+  def self.dynamic_boards(user_id)
     default_resource = self.includes(:boards).where(resource_type: "Board", name: "Default").first_or_create
-    default_resource.boards
+    default_resource.boards.where(user_id: user_id)
   end
 
-  def self.categories
+  def self.categories(user_id)
     default_resource = self.includes(:boards).where(resource_type: "Category", name: "Default").first_or_create
-    default_resource.boards
+    default_resource.boards.where(user_id: user_id)
   end
 end

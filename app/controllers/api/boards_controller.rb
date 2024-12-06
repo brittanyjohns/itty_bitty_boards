@@ -38,8 +38,8 @@ class API::BoardsController < API::ApplicationController
 
       @categories = @boards.map(&:category).uniq.compact
       @predictive_boards = current_user.boards.predictive.order(name: :asc)
-      @dynamic_boards = current_user.boards.dynamic.order(name: :asc)
-      @category_boards = current_user.boards.categories.order(name: :asc)
+      @dynamic_boards = current_user.boards.dynamic(current_user.id).order(name: :asc)
+      @category_boards = current_user.boards.categories(current_user.id).order(name: :asc)
       # @boards = current_user.boards.all.order(name: :asc)
 
       render json: { boards: @boards, preset_boards: @predefined_boards, categories: @categories, all_categories: Board.board_categories, predictive_boards: @predictive_boards, dynamic_boards: @dynamic_boards, category_boards: @category_boards }

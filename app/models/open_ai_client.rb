@@ -155,7 +155,6 @@ class OpenAiClient
   def format_board_prompt(name, num_of_columns, existing_grid = [], max_num_of_rows = 4, maintain_existing = false)
     words = existing_grid.map { |word_obj| word_obj[:word] }
 
-    puts "max_num_of_rows: #{max_num_of_rows}"
     Rails.logger.debug "\nName: #{name} -- Num of Columns: #{num_of_columns} -- Max Num of Rows: #{max_num_of_rows} -- Existing Grid: #{existing_grid.count} -- Maintain Existing: #{maintain_existing}"
     word_str = words.join(", ") unless words.blank?
     word_count = words.size
@@ -174,22 +173,24 @@ class OpenAiClient
 
       Please create a grid layout that include the words: '#{words}', grouped and positioned based on their typical use in AAC communication.
       It is VERY important that the Y-COOORDINATE should not exceed #{max_num_of_rows} and the X-COORDINATE should not exceed #{num_of_columns}.
-      Please also provide a professional explanation (for a speech-language pathologist) and a personable explanation (for a caregiver or user - but still professional) of the layout.
-      
-       Please respond as a valid JSON object with the following structure:
+             Please respond as a valid JSON object with the following structure:
 
       {
         "grid": [
           {"word": "I", "position": [0,0], "part_of_speech": "pronoun", "frequency": "medium", "size": [1,1]},
           {"word": "banana", "position": [0,1], "part_of_speech": "noun", "frequency": "low", "size": [1,1]},
-          {"word": "more", "position": [2,4], "part_of_speech": "adverb", "frequency": "high", "size": [2,2]},
+          {"word": "more", "position": [2,4], "part_of_speech": "adverb", "frequency": "high", "size": [1,1]},
           ...
           {"word": "elevator", "position": [5,10], "part_of_speech": "noun", "frequency": "low", "size": [1,1]}
         ],
-        "professional_explanation": "This layout is designed to help users quickly find and use the most common words in AAC communication. The words are grouped by parts of speech and arranged in a grid to make it easy to locate and select the right word.",
-        "personable_explanation": "This board is set up to help you find the words you need to communicate quickly and easily. The words are grouped by type and placed in a grid so you can find them easily."
-      }
+              }
     PROMPT
+  end
+
+  def explanation_prompt
+    'Please also provide a professional explanation (for a speech-language pathologist) and a personable explanation (for a caregiver or user - but still professional) of the layout.
+    {"professional_explanation": "This layout is designed to help users quickly find and use the most common words in AAC communication. The words are grouped by parts of speech and arranged in a grid to make it easy to locate and select the right word.
+    "personable_explanation": "This board is set up to help you find the words you need to communicate quickly and easily. The words are grouped by type and placed in a grid so you can find them easily.}'
   end
 
   def get_next_words(label)

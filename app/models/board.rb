@@ -113,12 +113,12 @@ class Board < ApplicationRecord
   after_initialize :set_screen_sizes, unless: :all_validate_screen_sizes?
   after_initialize :set_initial_layout, if: :layout_empty?
 
-  def self.dynamic
-    PredefinedResource.dynamic_boards
+  def self.dynamic(user_id)
+    PredefinedResource.dynamic_boards(user_id)
   end
 
-  def self.categories
-    PredefinedResource.categories
+  def self.categories(user_id)
+    PredefinedResource.categories(user_id)
   end
 
   def self.predictive
