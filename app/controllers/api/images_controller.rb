@@ -18,6 +18,7 @@ class API::ImagesController < API::ApplicationController
 
     @images_with_display_doc = @images.map do |image|
       @category_board = image&.category_board
+      is_category = @category_board.present?
       if @category_board
         @predictive_board_id = @category_board.id
       else

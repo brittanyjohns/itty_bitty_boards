@@ -1091,7 +1091,7 @@ class Image < ApplicationRecord
     is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
     is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)
     @category_boards = category_boards
-    is_category = @predictive_board&.board_type == "category"
+    is_category = @category_boards.where(user_id: [@current_user&.id, nil, User::DEFAULT_ADMIN_ID]).any?
 
     {
       id: id,

@@ -441,7 +441,7 @@ class Board < ApplicationRecord
       word = word.downcase.gsub('"', "").gsub("'", "")
       image = user.images.find_by(label: word)
       image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
-      image = Image.public_img.create(label: word, user_id: nil) unless image
+      image = Image.create(label: word, user_id: user.id) unless image
       self.add_image(image.id)
     end
     # self.reset_layouts
@@ -871,7 +871,7 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_predictive_images(viewing_user = nil)
-    @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards])
+    @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards])
     # @board_images = board_images.includes(:image)
     word_data = get_commons_words
     existing_words = word_data[:existing_words]
@@ -940,7 +940,8 @@ class Board < ApplicationRecord
         @user_custom_default_id = @viewer_settings["dynamic_board_id"] || @global_default_id
         is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
         is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)
-        is_category = @category_board.present?
+        @category_boards = image.category_boards
+        is_category = @category_boards.where(user_id: [viewing_user&.id, nil, User::DEFAULT_ADMIN_ID]).any?
         mute_name = @predictive_board_settings["mute_name"] == true && is_dynamic
         {
           id: image.id,
@@ -950,6 +951,8 @@ class Board < ApplicationRecord
           user_custom_default_id: @user_custom_default_id,
           predictive_board_board_type: @predictive_board&.board_type,
           global_default_id: @global_default_id,
+          category_boards: @category_boards.map { |cb| cb.id },
+          category_board_id: @category_board&.id,
           is_owner: is_owner,
           is_category: is_category,
           is_admin_image: is_admin_image,
