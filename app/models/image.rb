@@ -1092,7 +1092,10 @@ class Image < ApplicationRecord
     is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)
     @category_boards = category_boards
     is_category = @category_boards.where(user_id: [@current_user&.id, nil, User::DEFAULT_ADMIN_ID]).any?
-
+    if is_category
+      category_board_images = @category_boards.map(&:images).flatten
+      category_board_images = category_board_images.select { |image| image.id != id }
+    end
     {
       id: id,
       label: label,
@@ -1117,6 +1120,7 @@ class Image < ApplicationRecord
       is_admin_image: is_admin_image,
       is_category: is_category,
       category_boards: @category_boards.map { |board| { id: board.id, name: board.name } },
+      category_board_images: category_board_images&.map { |img| { id: img.id, label: img.label, src: img.display_image_url(@current_user) } },
       bg_color: bg_class,
       open_symbol_status: open_symbol_status,
       created_at: created_at,

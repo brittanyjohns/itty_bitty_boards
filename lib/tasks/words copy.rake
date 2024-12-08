@@ -17,8 +17,7 @@ namespace :db do
       # Build attributes hash suitable for OpenaiPrompt creation
       label = word_hash["label"]
       next_words = word_hash["next_words"]
-      puts "Label: #{label}"
-      puts "Next Words: #{next_words}"
+
       existing_word = Image.find_by(label: label)
       if existing_word
         existing_word.update(next_words: next_words)

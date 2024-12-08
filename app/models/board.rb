@@ -811,7 +811,6 @@ class Board < ApplicationRecord
 
         if board_image
           item["size"] ||= [1, 1]
-          puts "Label: #{label} - Size: #{item["size"]}"
           # if item["frequency"].present?
           #   if item["frequency"] === "high"
           #     item["size"] = [2, 2]
@@ -833,7 +832,6 @@ class Board < ApplicationRecord
 
           x_coordinate = item["position"][0]
           y_coordinate = item["position"][1]
-          puts "Label: #{label} - X: #{x_coordinate} - Y: #{y_coordinate} Max Rows: #{max_num_of_rows} - size: #{item["size"]}"
           if x_coordinate >= num_of_columns
             x_coordinate = 0
           end
