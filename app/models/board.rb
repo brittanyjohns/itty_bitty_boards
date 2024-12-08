@@ -792,11 +792,17 @@ class Board < ApplicationRecord
       end
       # parsed_response = JSON.parse(response)
       grid_response = parsed_response["grid"]
-      personable_explanation = "Personable Explanation: " + parsed_response["personable_explanation"]
-      professional_explanation = "Professional Explanation: " + parsed_response["professional_explanation"]
-      explanation = personable_explanation + "\n" + professional_explanation
-      self.data["personable_explanation"] = personable_explanation
-      self.data["professional_explanation"] = professional_explanation
+      if parsed_response["personable_explanation"]
+        personable_explanation = "Personable Explanation: " + parsed_response["personable_explanation"]
+      end
+      if parsed_response["professional_explanation"]
+        professional_explanation = "Professional Explanation: " + parsed_response["professional_explanation"]
+      end
+      if personable_explanation && professional_explanation
+        explanation = personable_explanation + "\n" + professional_explanation
+        self.data["personable_explanation"] = personable_explanation
+        self.data["professional_explanation"] = professional_explanation
+      end
 
       grid_response.each_with_index do |item, index|
         label = item["word"]
