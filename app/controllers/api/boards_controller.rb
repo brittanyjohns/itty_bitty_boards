@@ -11,38 +11,27 @@ class API::BoardsController < API::ApplicationController
 
   # GET /boards or /boards.json
   def index
+    if params[:query].present?
+      @search_results = Board.for_user(current_user).search_by_name(params[:query]).order(name: :asc).page params[:page]
+      render json: { search_results: @search_results } and return
+    end
     ActiveRecord::Base.logger.silence do
-      if !params[:query].blank?
-        puts "Searching for boards with query: #{params[:query]}"
-        # @boards = Board.for_user(current_user).search_by_name(params[:query]).order(name: :asc).page params[:page]
-        @boards = current_user.boards.user_made_with_scenarios.search_by_name(params[:query]).order(name: :asc).page params[:page]
-        @predefined_boards = Board.predefined.search_by_name(params[:query]).order(name: :asc).page params[:page]
-        @dynamic_boards = current_user.boards.dynamic.search_by_name(params[:query]).order(name: :asc).page params[:page]
-        @predictive_boards = current_user.boards.predictive.search_by_name(params[:query]).order(name: :asc).page params[:page]
-        render json: { boards: @boards, preset_boards: @predefined_boards, dynamic_boards: @dynamic_boards, predictive_boards: @predictive_boards }
-        return
-      end
-      if !params[:boards_only].blank?
-        puts "Getting boards only"
-        @boards = current_user.boards.user_made_with_scenarios.order(name: :asc)
-        @predefined_boards = Board.predefined.order(name: :asc)
-      else
-        @boards = boards_for_user.user_made_with_scenarios.order(name: :asc)
-        @predefined_boards = Board.predefined.order(name: :asc)
-      end
-      puts "Boards count: predefined_boards: #{@predefined_boards.count}"
+      @user_boards = current_user.boards
+      @predictive_boards = @user_boards.predictive.order(name: :asc).page params[:page]
+      @dynamic_boards = @user_boards.dynamic(current_user.id).order(name: :asc).page params[:page]
+      @category_boards = @user_boards.categories(current_user.id).order(name: :asc).page params[:page]
+      @static_boards = @user_boards.static.order(name: :asc).page params[:page]
+      @static_preset_boards = Board.static.predefined.order(name: :asc).page params[:page]
+      @dynamic_preset_boards = Board.dynamic.predefined.order(name: :asc).page params[:page]
+      @predictive_preset_boards = Board.predictive.predefined.order(name: :asc).page params[:page]
+      @category_preset_boards = Board.categories.predefined.order(name: :asc).page params[:page]
 
-      # if current_user.admin?
-      #   @boards = Board.all.order(name: :asc)
-      # end
-
-      @categories = @boards.map(&:category).uniq.compact
-      @predictive_boards = current_user.boards.predictive.order(name: :asc)
-      @dynamic_boards = current_user.boards.dynamic(current_user.id).order(name: :asc)
-      @category_boards = current_user.boards.categories(current_user.id).order(name: :asc)
-      # @boards = current_user.boards.all.order(name: :asc)
-
-      render json: { boards: @boards, preset_boards: @predefined_boards, categories: @categories, all_categories: Board.board_categories, predictive_boards: @predictive_boards, dynamic_boards: @dynamic_boards, category_boards: @category_boards }
+      render json: { category_preset_boards: @category_preset_boards,
+                     static_preset_boards: @static_preset_boards,
+                     dynamic_preset_boards: @dynamic_preset_boards,
+                     predictive_preset_boards: @predictive_preset_boards,
+                     predictive_boards: @predictive_boards,
+                     dynamic_boards: @dynamic_boards, category_boards: @category_boards, boards: @static_boards, search_results: @search_results }
     end
   end
 
@@ -228,23 +217,64 @@ class API::BoardsController < API::ApplicationController
     current_page = params[:page] || 1
     if params[:query].present? && params[:query] != "null"
       @query = params[:query]
-      @images = Image.non_menu_images.with_artifacts.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc).page(current_page)
+      @images = Image.non_menu_images.with_artifacts.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc)
     else
-      @images = Image.non_menu_images.with_artifacts.all.order(label: :asc).page(current_page).page(current_page)
+      @images = Image.non_menu_images.with_artifacts.all.order(label: :asc)
     end
     @images = @images.excluding(@board.images)
-    @remaining_images = @images.map do |image|
+
+    if params[:scope]
+      case params[:scope]
+      when "predictive"
+        @images = @images.predictive
+      when "category"
+        @images = @images.category
+      when "static"
+        @images = @images.static
+      end
+    end
+    @images = @images.where(user_id: [current_user.id, User::DEFAULT_ADMIN_ID, nil]).page(current_page)
+    # @remaining_images = @images.map do |image|
+    #   {
+    #     id: image.id,
+    #     label: image.label,
+    #     image_prompt: image.image_prompt,
+    #     bg_color: image.bg_class,
+    #     text_color: image.text_color,
+    #     src: image.display_image_url(current_user),
+    #   }
+    # end
+
+    @images_with_display_doc = @images.map do |image|
+      @category_board = image&.category_board
+      is_category = @category_board.present?
+      if @category_board
+        @predictive_board_id = @category_board.id
+      else
+        @predictive_board_id = image&.predictive_board_for_user(current_user&.id)&.id
+        @predictive_board_id ||= image&.predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
+      end
+      @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
+      predictive_board_board_type = @predictive_board ? @predictive_board.board_type : nil
+      is_owner = image.user_id == @current_user.id
       {
         id: image.id,
+        user_id: image.user_id,
+
         label: image.label,
         image_prompt: image.image_prompt,
+        image_type: image.image_type,
         bg_color: image.bg_class,
         text_color: image.text_color,
-        src: image.display_image_url(current_user),
+        src: image.display_image_url(@current_user),
+        next_words: image.next_words,
+        can_edit: is_owner || @current_user.admin?,
+        is_admin_image: image.user_id == User::DEFAULT_ADMIN_ID,
+        predictive_board_board_type: predictive_board_board_type,
+        dynamic: predictive_board_board_type.present?,
       }
     end
-
-    render json: @remaining_images
+    render json: @images_with_display_doc.sort { |a, b| a[:label] <=> b[:label] }
   end
 
   def rearrange_images
@@ -267,7 +297,7 @@ class API::BoardsController < API::ApplicationController
       @board.parent_type = "PredefinedResource"
     elsif board_type == "predictive"
       @board.parent_type = "Image"
-      matching_image = @board.user.images.find_or_create_by(label: @board.name)
+      matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "Predictive")
       if matching_image
         @board.parent_id = matching_image.id
         @board.image_parent_id = matching_image.id
@@ -275,7 +305,7 @@ class API::BoardsController < API::ApplicationController
     elsif board_type == "category"
       @board.parent_type = "PredefinedResource"
       @board.parent_id = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Category").id
-      matching_image = @board.user.images.find_or_create_by(label: @board.name)
+      matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "Category")
       if matching_image
         @board.image_parent_id = matching_image.id
       end
@@ -352,6 +382,7 @@ class API::BoardsController < API::ApplicationController
         if matching_image
           @board.parent_id = matching_image.id
           @board.image_parent_id = matching_image.id
+          matching_image.update(image_type: "Predictive")
         end
       elsif board_type == "category"
         @board.parent_type = "PredefinedResource"
@@ -359,6 +390,7 @@ class API::BoardsController < API::ApplicationController
         matching_image = @board.user.images.find_or_create_by(label: @board.name)
         if matching_image
           @board.image_parent_id = matching_image.id
+          matching_image.update(image_type: "Category")
         end
       elsif board_type == "static"
         @board.parent_type = "User"
@@ -371,7 +403,13 @@ class API::BoardsController < API::ApplicationController
         word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
         @board.find_or_create_images_from_word_list(word_list) if word_list.present?
       end
-
+      # if @board.parent_type_changed?
+      #   previous_parent = @board.parent_type_was
+      #   @board.board_images.each do |board_image|
+      #     if
+      #     board_image.image
+      #   end
+      # end
       respond_to do |format|
         if @board.save
           format.json { render json: @board.api_view_with_images(current_user), status: :ok }

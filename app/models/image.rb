@@ -76,7 +76,6 @@ class Image < ApplicationRecord
   scope :with_docs, -> { where.associated(:docs) }
   scope :generating, -> { where(status: "generating") }
   scope :with_artifacts, -> { includes({ docs: { image_attachment: :blob } }, :predictive_boards, :user) }
-
   scope :created_between, ->(start_date, end_date) { where(created_at: start_date..end_date) }
 
   # def category_boards
@@ -148,6 +147,18 @@ class Image < ApplicationRecord
     end
   end
 
+  def self.category
+    self.where.associated(:category_boards)
+  end
+
+  def self.static
+    self.where(image_type: "User")
+  end
+
+  def self.predictive
+    self.where.associated(:predictive_boards)
+  end
+
   def self.update_all_background_colors
     bad_bg_colors = ["gray", "white", nil]
     self.where(bg_color: bad_bg_colors).each do |image|
@@ -165,8 +176,14 @@ class Image < ApplicationRecord
   end
 
   def ensure_defaults
-    if !image_type
-      self.image_type = "Image"
+    if !image_type || image_type.blank? || image_type == "Image" || image_type == "Scenario"
+      if category_board
+        self.image_type = "Category"
+      elsif predictive_board
+        self.image_type = "Predictive"
+      else
+        puts "Skipping image type update for #{label} - image_type: #{image_type}"
+      end
     end
     if image_type == "Menu"
       self.part_of_speech = "noun"
@@ -206,11 +223,13 @@ class Image < ApplicationRecord
 
   def predictive_board_for_user(viewing_user_id)
     if category_board
-      img = Image.find_by(id: category_board&.image_parent_id)
-      @predictive_boards = Board.predictive.with_artifacts.where(image_parent_id: img.id, user_id: viewing_user_id)
+      # img = Image.find_by(id: category_board&.image_parent_id)
+      # @predictive_boards = Board.predictive.with_artifacts.where(image_parent_id: img.id, user_id: viewing_user_id)
+      return nil
     end
+    viewing_user_id = viewing_user_id || user_id
 
-    return unless viewing_user_id && (viewing_user_id.is_a?(Integer) || viewing_user_id.is_a?(String))
+    # return unless viewing_user_id && (viewing_user_id.is_a?(Integer) || viewing_user_id.is_a?(String))
     @predictive_boards = Board.predictive.with_artifacts.where(parent_type: "Image", parent_id: id, name: label, user_id: viewing_user_id) if @predictive_boards.blank?
     @predictive_board = @predictive_boards.find_by(name: label, user_id: viewing_user_id) if viewing_user_id
     if @predictive_board
@@ -231,6 +250,7 @@ class Image < ApplicationRecord
     if board
       if use_preview_model && words_to_use.blank?
         board_words = board.board_images.map(&:label).uniq
+        self.image_type = "Predictive"
         self.next_words = board.get_words(name_to_send, 10, board_words, use_preview_model)
         self.save!
       end
@@ -241,6 +261,7 @@ class Image < ApplicationRecord
       board = predictive_boards.create!(name: label, user_id: new_user_id, settings: board_settings)
       if use_preview_model && words_to_use.blank?
         board_words = board.board_images.map(&:label).uniq
+        self.image_type = "Predictive"
         self.next_words = board.get_words(name_to_send, 10, board_words, use_preview_model)
         self.save!
       end
@@ -1063,6 +1084,11 @@ class Image < ApplicationRecord
     Image.where(label: label, user_id: viewing_user&.id).where.not(id: id).order(created_at: :desc)
   end
 
+  def matching_viewer_boards(viewing_user)
+    return [] unless viewing_user
+    viewing_user.boards.excluding(boards).where(name: label).order(created_at: :desc)
+  end
+
   def with_display_doc(current_user = nil)
     @current_user = current_user
     @predictive_board = predictive_board
@@ -1098,6 +1124,7 @@ class Image < ApplicationRecord
     end
     {
       id: id,
+      image_type: image_type,
       label: label,
       image_prompt: image_prompt,
       display_doc: doc_img_url,
@@ -1134,6 +1161,7 @@ class Image < ApplicationRecord
       user_boards: user_image_boards.map { |board| { id: board.id, name: board.name, voice: board.voice } },
       remaining_boards: remaining.map { |board| { id: board.id, name: board.name } },
       matching_viewer_images: matching_viewer_images(@current_user).map { |image| { id: image.id, label: image.label, src: image.display_image_url(@current_user), created_at: image.created_at.strftime("%b %d, %Y") } },
+      matching_viewer_boards: matching_viewer_boards(@current_user).map { |board| { id: board.id, name: board.name, voice: board.voice, display_image_url: board.display_image_url, created_at: board.created_at.strftime("%b %d, %Y") } },
       docs: image_docs.map do |doc|
         {
           id: doc.id,

@@ -72,24 +72,9 @@ class Board < ApplicationRecord
   scope :created_this_week, -> { where("created_at > ?", 1.week.ago) }
   scope :created_before_this_week, -> { where("created_at < ?", 8.days.ago) }
 
-  scope :featured, -> { where(category: ["featured", "popular"], predefined: true) }
-  scope :popular, -> { where(category: "popular", predefined: true) }
-  scope :general, -> { where(category: "general", predefined: true) }
-  scope :seasonal, -> { where(category: "seasonal", predefined: true) }
-  scope :routines, -> { where(category: "routines", predefined: true) }
-  scope :emotions, -> { where(category: "emotions", predefined: true) }
-  scope :actions, -> { where(category: "actions", predefined: true) }
-  scope :animals, -> { where(category: "animals", predefined: true) }
-  scope :food, -> { where(category: "food", predefined: true) }
-  scope :people, -> { where(category: "people", predefined: true) }
-  scope :places, -> { where(category: "places", predefined: true) }
-  scope :things, -> { where(category: "things", predefined: true) }
-  scope :colors, -> { where(category: "colors", predefined: true) }
-  scope :shapes, -> { where(category: "shapes", predefined: true) }
-  scope :numbers, -> { where(category: "numbers", predefined: true) }
-  scope :letters, -> { where(category: "letters", predefined: true) }
   scope :preset, -> { where(predefined: true) }
   scope :welcome, -> { where(category: "welcome", predefined: true) }
+  POSSIBLE_BOARD_TYPES = %w[board category user image].freeze
 
   scope :dynamic_defaults, -> { where(name: "Dynamic Default", parent_type: "PredefinedResource") }
 
@@ -102,6 +87,7 @@ class Board < ApplicationRecord
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
   before_save :update_display_image, unless: :display_image_url?
+  before_save :set_board_type
 
   # before_save :rearrange_images, if: :number_of_columns_changed?
 
@@ -113,20 +99,28 @@ class Board < ApplicationRecord
   after_initialize :set_screen_sizes, unless: :all_validate_screen_sizes?
   after_initialize :set_initial_layout, if: :layout_empty?
 
-  def self.dynamic(user_id)
-    PredefinedResource.dynamic_boards(user_id)
+  def self.dynamic(user_id = nil)
+    if user_id
+      PredefinedResource.dynamic_boards(user_id)
+    else
+      PredefinedResource.dynamic_boards(User::DEFAULT_ADMIN_ID).predefined
+    end
   end
 
-  def self.categories(user_id)
-    PredefinedResource.categories(user_id)
+  def self.categories(user_id = nil)
+    if user_id
+      PredefinedResource.categories(user_id)
+    else
+      PredefinedResource.categories(User::DEFAULT_ADMIN_ID).predefined
+    end
   end
 
   def self.predictive
-    where(parent_type: "Image")
+    where(board_type: "predictive")
   end
 
   def self.static
-    where(parent_type: "User")
+    where(board_type: "static")
   end
 
   def set_initial_layout
@@ -268,6 +262,13 @@ class Board < ApplicationRecord
 
   def pending_images
     board_images.where(status: ["pending", "generating"])
+  end
+
+  def set_board_type
+    if POSSIBLE_BOARD_TYPES.include?(board_type)
+      return
+    end
+    self.board_type = tmp_board_type
   end
 
   def self.predictive_default(viewing_user = nil)
@@ -855,12 +856,17 @@ class Board < ApplicationRecord
     self
   end
 
-  def board_type
+  def tmp_board_type
     case resource_type
     when "Category"
       return "category"
     when "Image"
-      return "predictive"
+      if parent_type == "PredefinedResource"
+        return "category"
+      else
+        puts "predictive - Parent type: #{parent_type}"
+        return "predictive"
+      end
     when "Board"
       return "dynamic"
     when "User"
@@ -882,6 +888,7 @@ class Board < ApplicationRecord
     missing_common_words = word_data[:missing_common_words]
     {
       id: id,
+      board_type: board_type,
       name: name,
       missing_common_words: missing_common_words,
       existing_words: existing_words,
