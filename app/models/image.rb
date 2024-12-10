@@ -148,15 +148,17 @@ class Image < ApplicationRecord
   end
 
   def self.category
-    self.where.associated(:category_boards)
+    # self.where.associated(:category_boards)
+    self.where(image_type: "Category")
   end
 
   def self.static
-    self.where(image_type: "User")
+    self.where.not(image_type: ["Category", "Predictive"])
   end
 
   def self.predictive
     self.where.associated(:predictive_boards)
+    # self.where(image_type: "Predictive")
   end
 
   def self.update_all_background_colors
@@ -176,15 +178,21 @@ class Image < ApplicationRecord
   end
 
   def ensure_defaults
-    if !image_type || image_type.blank? || image_type == "Image" || image_type == "Scenario" || image_type == "OpenaiPrompt"
-      if category_board
-        self.image_type = "Category"
-        self.predictive_board_id = category_board.id
-      elsif predictive_board
-        self.image_type = "Predictive"
-        self.predictive_board_id = predictive_board.id
-      end
+    if image_type.blank?
+      self.image_type = "Static"
     end
+    if category_board && category_board&.board_type == "category"
+      puts "Setting image type to Category"
+      self.image_type = "Category"
+      self.predictive_board_id = category_board.id
+    end
+
+    if predictive_board && predictive_board&.board_type == "predictive"
+      puts "Setting image type to Predictive"
+      self.image_type = "Predictive"
+      self.predictive_board_id = predictive_board.id
+    end
+
     if image_type == "Menu"
       self.part_of_speech = "noun"
     else
@@ -242,7 +250,7 @@ class Image < ApplicationRecord
 
   def predictive_board(current_user_id = nil)
     viewing_user_id = current_user_id || user_id
-    predictive_board_for_user(viewing_user_id)
+    @predictive_board ||= predictive_board_for_user(viewing_user_id)
   end
 
   def create_predictive_board(new_user_id, words_to_use = nil, use_preview_model = false, board_settings = {})
@@ -1129,7 +1137,7 @@ class Image < ApplicationRecord
 
   def with_display_doc(current_user = nil)
     @current_user = current_user
-    @predictive_board = predictive_board
+    @predictive_board = predictive_board(@current_user&.id)
     current_doc = display_doc(@current_user)
     current_doc_id = current_doc.id if current_doc
     doc_img_url = current_doc&.display_url
