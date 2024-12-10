@@ -24,7 +24,6 @@ class API::BoardsController < API::ApplicationController
       @static_preset_boards = Board.static.predefined.order(name: :asc).page params[:page]
       @dynamic_preset_boards = Board.dynamic.predefined.order(name: :asc).page params[:page]
       @predictive_preset_boards = Board.predictive.predefined.order(name: :asc).page params[:page]
-      @category_preset_boards = Board.categories.predefined.order(name: :asc).page params[:page]
 
       render json: { category_preset_boards: @category_preset_boards,
                      static_preset_boards: @static_preset_boards,
@@ -233,7 +232,7 @@ class API::BoardsController < API::ApplicationController
         @images = @images.static
       end
     end
-    @images = @images.where(user_id: [current_user.id, User::DEFAULT_ADMIN_ID, nil]).page(current_page)
+    @images = @images.where(user_id: [current_user.id, User::DEFAULT_ADMIN_ID, nil]).distinct.page(current_page)
     # @remaining_images = @images.map do |image|
     #   {
     #     id: image.id,
