@@ -29,6 +29,8 @@
 #  category              :string
 #  data                  :jsonb
 #  group_layout          :jsonb
+#  image_parent_id       :integer
+#  board_type            :string
 #
 require "rails_helper"
 

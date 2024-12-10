@@ -132,15 +132,18 @@ class API::DocsController < API::ApplicationController
       @current_doc = @doc
       @image = @doc.documentable
       @user = @image.user
-      # if @user.nil? && current_user.admin?
-      #   @user = current_user
-      #   @image.update!(src_url: @current_doc.display_url)
-      #   board_imgs = BoardImage.where(image_id: @image.id, user_id: [nil, User::DEFAULT_ADMIN_ID]).update_all(display_image_url: @current_doc.display_url)
-      # end
-      # if @user.id == current_user.id
-      #   @image.update!(src_url: @current_doc.display_url)
-      #   board_imgs = @user.board_images.where(image_id: @image.id).update_all(display_image_url: @current_doc.display_url)
-      # end
+      is_owner = @user.id == current_user.id
+
+      puts "Current user: #{current_user.id} Image user: #{@user} Is owner: #{is_owner}\nis_dynamic: #{@image.is_dynamic(current_user)}"
+
+      if @image.is_dynamic(current_user) && is_owner
+        predictive_board = @image.predictive_board
+        if predictive_board
+          puts "Updating predictive board with display image"
+          predictive_board.update!(display_image_url: @doc.display_url)
+        end
+      end
+
       if @user.nil? && current_user.admin?
         @user = current_user
         @image.update!(src_url: nil)

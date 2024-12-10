@@ -176,13 +176,13 @@ class Image < ApplicationRecord
   end
 
   def ensure_defaults
-    if !image_type || image_type.blank? || image_type == "Image" || image_type == "Scenario"
+    if !image_type || image_type.blank? || image_type == "Image" || image_type == "Scenario" || image_type == "OpenaiPrompt"
       if category_board
         self.image_type = "Category"
+        self.predictive_board_id = category_board.id
       elsif predictive_board
         self.image_type = "Predictive"
-      else
-        puts "Skipping image type update for #{label} - image_type: #{image_type}"
+        self.predictive_board_id = predictive_board.id
       end
     end
     if image_type == "Menu"
@@ -222,21 +222,22 @@ class Image < ApplicationRecord
   end
 
   def predictive_board_for_user(viewing_user_id)
-    if category_board
-      # img = Image.find_by(id: category_board&.image_parent_id)
-      # @predictive_boards = Board.predictive.with_artifacts.where(image_parent_id: img.id, user_id: viewing_user_id)
-      return nil
-    end
-    viewing_user_id = viewing_user_id || user_id
+    Board.find_by(id: predictive_board_id)
+    # if category_board
+    #   # img = Image.find_by(id: category_board&.image_parent_id)
+    #   # @predictive_boards = Board.predictive.with_artifacts.where(image_parent_id: img.id, user_id: viewing_user_id)
+    #   return nil
+    # end
+    # viewing_user_id = viewing_user_id || user_id
 
-    # return unless viewing_user_id && (viewing_user_id.is_a?(Integer) || viewing_user_id.is_a?(String))
-    @predictive_boards = Board.predictive.with_artifacts.where(parent_type: "Image", parent_id: id, name: label, user_id: viewing_user_id) if @predictive_boards.blank?
-    @predictive_board = @predictive_boards.find_by(name: label, user_id: viewing_user_id) if viewing_user_id
-    if @predictive_board
-      return @predictive_board
-    else
-      nil
-    end
+    # # return unless viewing_user_id && (viewing_user_id.is_a?(Integer) || viewing_user_id.is_a?(String))
+    # @predictive_boards = Board.predictive.with_artifacts.where(parent_type: "Image", parent_id: id, name: label, user_id: viewing_user_id) if @predictive_boards.blank?
+    # @predictive_board = @predictive_boards.find_by(name: label, user_id: viewing_user_id) if viewing_user_id
+    # if @predictive_board
+    #   return @predictive_board
+    # else
+    #   nil
+    # end
   end
 
   def predictive_board(current_user_id = nil)
@@ -1089,16 +1090,8 @@ class Image < ApplicationRecord
     viewing_user.boards.excluding(boards).where(name: label).order(created_at: :desc)
   end
 
-  def with_display_doc(current_user = nil)
-    @current_user = current_user
-    @predictive_board = predictive_board
-    current_doc = display_doc(@current_user)
-    current_doc_id = current_doc.id if current_doc
-    doc_img_url = current_doc&.display_url
-    image_docs = docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
-    remaining = remaining_user_boards(@current_user)
-    user_image_boards = user_boards(@current_user)
-    @default_audio_url = default_audio_url
+  def set_ids(viewing_user)
+    @current_user = viewing_user
     is_owner = @current_user && user_id == @current_user&.id
     is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
     @user_dynamic_board = predictive_board_for_user(@current_user&.id)
@@ -1111,11 +1104,45 @@ class Image < ApplicationRecord
       @predictive_board ||= predictive_board_for_user(User::DEFAULT_ADMIN_ID)
     end
     @predictive_board_id = @predictive_board&.id
+    puts "predictive_board_id: #{@predictive_board_id}"
     @viewer_settings = @current_user&.settings || {}
     @user_custom_default_id = @viewer_settings["dynamic_board_id"]
     @global_default_id = Board.predictive_default_id
+    @is_owner = is_owner
+    @is_admin_image = is_admin_image
+  end
+
+  def is_dynamic(viewing_user)
+    puts "predictive_board_id: #{predictive_board_id}"
+    board = Board.find_by(id: predictive_board_id)
+    puts "board: #{board&.board_type}"
+    is_dynamic = ["predictive", "category"].include?(board&.board_type)
+    puts "is_dynamic: #{is_dynamic}"
+    is_dynamic
+  end
+
+  def is_predictive(viewing_user)
+    set_ids(viewing_user)
     is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
-    is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)
+    is_predictive
+  end
+
+  def with_display_doc(current_user = nil)
+    @current_user = current_user
+    @predictive_board = predictive_board
+    current_doc = display_doc(@current_user)
+    current_doc_id = current_doc.id if current_doc
+    doc_img_url = current_doc&.display_url
+    image_docs = docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
+    remaining = remaining_user_boards(@current_user)
+    user_image_boards = user_boards(@current_user)
+    @default_audio_url = default_audio_url
+    # is_owner = @current_user && user_id == @current_user&.id
+    is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
+
+    img_is_dynamic = is_dynamic(@current_user)
+    img_is_predictive = is_predictive(@current_user)
+    is_owner = @current_user && user_id == @current_user&.id
     @category_boards = category_boards
     is_category = @category_boards.where(user_id: [@current_user&.id, nil, User::DEFAULT_ADMIN_ID]).any?
     if is_category
@@ -1140,9 +1167,9 @@ class Image < ApplicationRecord
       text_color: text_color,
       predictive_board_id: @predictive_board_id,
       global_default_id: @global_default_id,
-      dynamic: is_dynamic,
+      dynamic: img_is_dynamic,
       dynamic_board: @predictive_board&.api_view_with_images(@current_user),
-      is_predictive: is_predictive,
+      is_predictive: img_is_predictive,
       is_owner: is_owner,
       is_admin_image: is_admin_image,
       is_category: is_category,

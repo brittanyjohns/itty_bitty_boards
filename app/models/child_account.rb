@@ -103,7 +103,7 @@ class ChildAccount < ApplicationRecord
 
   def available_boards
     current_boards = self.child_boards.map(&:board)
-    user.boards.user_made_with_scenarios_and_menus.excluding(current_boards)
+    user.boards.user_made_with_scenarios_and_menus.excluding(current_boards).order(:name)
   end
 
   def api_view
