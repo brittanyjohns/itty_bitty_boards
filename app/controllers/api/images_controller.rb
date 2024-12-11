@@ -4,6 +4,12 @@ class API::ImagesController < API::ApplicationController
     sort_order = params[:sort_order] || "asc"
     sort_field = params[:sort_field] || "label"
     puts "Sort order: #{sort_order} -- Sort field: #{sort_field}"
+    if sort_field == "undefined" || sort_field.blank?
+      sort_field = "label"
+    end
+    if sort_order == "undefined" || sort_order.blank?
+      sort_order = "asc"
+    end
     if params[:user_only] == "1"
       # @images = Image.searchable_images_for(@current_user, true)
       @images = Image.searchable.with_artifacts.where(user_id: @current_user.id)
