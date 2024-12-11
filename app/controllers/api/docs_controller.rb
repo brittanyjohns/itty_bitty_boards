@@ -131,6 +131,7 @@ class API::DocsController < API::ApplicationController
       end
       @current_doc = @doc
       @image = @doc.documentable
+      @image.update_all_boards_image_belongs_to
       @user = @image.user
       is_owner = @user.id == current_user.id
 

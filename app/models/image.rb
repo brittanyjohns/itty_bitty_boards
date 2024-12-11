@@ -119,6 +119,14 @@ class Image < ApplicationRecord
     result
   end
 
+  def update_all_boards_image_belongs_to
+    puts "Updating all boards image belongs to"
+    board_images.includes(:board).each do |bi|
+      bi.board.updated_at = Time.now
+      bi.board.save!
+    end
+  end
+
   def update_board_images_display_image(updated_image_url)
     if !updated_image_url
       puts "No updated image url"
