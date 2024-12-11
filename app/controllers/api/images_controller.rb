@@ -318,9 +318,13 @@ class API::ImagesController < API::ApplicationController
 
     Rails.logger.info("Creating predictive board for image: #{@image.label} -- use_preview_model: #{use_preview_model} -- word_list: #{word_list}")
 
-    result = @image.create_predictive_board(user_id, word_list, use_preview_model, board_settings)
+    board = @image.create_predictive_board(user_id, word_list, use_preview_model, board_settings)
+    if board.nil?
+      render json: { status: "error", message: "Could not create predictive board." }
+      return
+    end
     # CreatePredictiveBoardJob.perform_async(@image.id, current_user.id)
-    render json: { status: "ok", message: "Creating predictive board for image." }
+    render json: { status: "ok", message: "Creating predictive board for image.", board: board }
   end
 
   def create_symbol
