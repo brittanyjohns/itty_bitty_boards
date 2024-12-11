@@ -120,8 +120,6 @@ class Image < ApplicationRecord
   end
 
   def update_board_images_display_image(updated_image_url)
-    puts "Updating board images display image for #{label} - user: #{user_id}"
-    # updated_image_url = display_image_url(user)
     if !updated_image_url
       puts "No updated image url"
       return
@@ -182,13 +180,11 @@ class Image < ApplicationRecord
       self.image_type = "Static"
     end
     if category_board && category_board&.board_type == "category"
-      puts "Setting image type to Category"
       self.image_type = "Category"
       self.predictive_board_id = category_board.id
     end
 
     if predictive_board && predictive_board&.board_type == "predictive"
-      puts "Setting image type to Predictive"
       self.image_type = "Predictive"
       self.predictive_board_id = predictive_board.id
     end
@@ -231,21 +227,6 @@ class Image < ApplicationRecord
 
   def predictive_board_for_user(viewing_user_id)
     Board.find_by(id: predictive_board_id)
-    # if category_board
-    #   # img = Image.find_by(id: category_board&.image_parent_id)
-    #   # @predictive_boards = Board.predictive.with_artifacts.where(image_parent_id: img.id, user_id: viewing_user_id)
-    #   return nil
-    # end
-    # viewing_user_id = viewing_user_id || user_id
-
-    # # return unless viewing_user_id && (viewing_user_id.is_a?(Integer) || viewing_user_id.is_a?(String))
-    # @predictive_boards = Board.predictive.with_artifacts.where(parent_type: "Image", parent_id: id, name: label, user_id: viewing_user_id) if @predictive_boards.blank?
-    # @predictive_board = @predictive_boards.find_by(name: label, user_id: viewing_user_id) if viewing_user_id
-    # if @predictive_board
-    #   return @predictive_board
-    # else
-    #   nil
-    # end
   end
 
   def predictive_board(current_user_id = nil)
@@ -1114,7 +1095,6 @@ class Image < ApplicationRecord
       @predictive_board ||= predictive_board_for_user(User::DEFAULT_ADMIN_ID)
     end
     @predictive_board_id = @predictive_board&.id
-    puts "predictive_board_id: #{@predictive_board_id}"
     @viewer_settings = @current_user&.settings || {}
     @user_custom_default_id = @viewer_settings["dynamic_board_id"]
     @global_default_id = Board.predictive_default_id
@@ -1123,11 +1103,8 @@ class Image < ApplicationRecord
   end
 
   def is_dynamic(viewing_user)
-    puts " is_dynamic predictive_board_id: #{predictive_board_id}"
     board = predictive_board_for_user(viewing_user&.id)
-    puts "board: #{board&.board_type}"
     is_dynamic = ["predictive", "category"].include?(board&.board_type)
-    puts "is_dynamic: #{is_dynamic}"
     is_dynamic
   end
 
