@@ -447,7 +447,7 @@ class API::ImagesController < API::ApplicationController
   def update
     @image = Image.find(params[:id])
     if @image.update(image_params)
-      render json: @image, status: :ok
+      render json: @image.with_display_doc(current_user)
     else
       render json: @image.errors, status: :unprocessable_entity
     end
@@ -638,6 +638,7 @@ class API::ImagesController < API::ApplicationController
 
   def image_params
     params.require(:image).permit(:label, :image_prompt, :display_image, :board_id,
+                                  :bg_color, :text_color, :private, :image_type, :part_of_speech,
                                   next_words: [],
                                   audio_files: [], docs: [:id, :user_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
   end
