@@ -255,28 +255,30 @@ class Image < ApplicationRecord
 
   def create_predictive_board(new_user_id, words_to_use = nil, use_preview_model = false, board_settings = {})
     Rails.logger.debug "Creating predictive board for #{label} - #{new_user_id} - words: #{words_to_use}"
+    new_board = false
     board = predictive_boards.find_by(name: label, user_id: new_user_id)
     if board
       if use_preview_model && words_to_use.blank?
         board_words = board.board_images.map(&:label).uniq
-        self.image_type = "Predictive"
         self.next_words = board.get_words(name_to_send, 10, board_words, use_preview_model)
-        self.save!
       end
 
-      board.find_or_create_images_from_word_list(words_to_use)
+      # board.find_or_create_images_from_word_list(words_to_use)
     else
       Rails.logger.debug "Creating new predictive board for #{label} - #{new_user_id} - settings: #{board_settings}"
       board = predictive_boards.create!(name: label, user_id: new_user_id, settings: board_settings)
+      new_board = true
       if use_preview_model && words_to_use.blank?
         board_words = board.board_images.map(&:label).uniq
-        self.image_type = "Predictive"
         self.next_words = board.get_words(name_to_send, 10, board_words, use_preview_model)
-        self.save!
       end
-      board.find_or_create_images_from_word_list(words_to_use)
-      board.reset_layouts
     end
+    self.image_type = "Predictive"
+    self.predictive_board_id = board.id
+    self.save!
+
+    board.find_or_create_images_from_word_list(words_to_use)
+    board.reset_layouts if new_board
     board
   end
 
@@ -1121,8 +1123,8 @@ class Image < ApplicationRecord
   end
 
   def is_dynamic(viewing_user)
-    puts "predictive_board_id: #{predictive_board_id}"
-    board = Board.find_by(id: predictive_board_id)
+    puts " is_dynamic predictive_board_id: #{predictive_board_id}"
+    board = predictive_board_for_user(viewing_user&.id)
     puts "board: #{board&.board_type}"
     is_dynamic = ["predictive", "category"].include?(board&.board_type)
     puts "is_dynamic: #{is_dynamic}"
