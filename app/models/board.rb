@@ -1035,6 +1035,11 @@ class Board < ApplicationRecord
     words_to_exclude = board_images.pluck(:label).map { |w| w.downcase }
     response = OpenAiClient.new({}).get_additional_words(self, name_to_send, number_of_words, words_to_exclude, use_preview_model)
     if response
+      Rails.logger.debug "Response: #{response}"
+      if response[:content].blank?
+        Rails.logger.error "*** ERROR - get_words *** \nDid not receive valid response. Response: #{response}\n"
+        return
+      end
       words = response[:content].gsub("```json", "").gsub("```", "").strip
       if words.blank? || words.include?("NO ADDITIONAL WORDS")
         return

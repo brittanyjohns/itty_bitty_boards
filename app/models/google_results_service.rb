@@ -37,10 +37,16 @@ class GoogleResultsService
   end
 
   def search
-    search_url = build_search_url
-    uri = URI(search_url)
-    response = Net::HTTP.get(uri)
-    @search_results = JSON.parse(response)
+    begin
+      search_url = build_search_url
+      uri = URI(search_url)
+      response = Net::HTTP.get(uri)
+      puts "Response: #{response}"
+      @search_results = JSON.parse(response)
+    rescue StandardError => e
+      Rails.logger.error "Error in GoogleResultsService#search: #{e.message}"
+      @search_results = {}
+    end
 
     response
   end
