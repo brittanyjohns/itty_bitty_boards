@@ -213,7 +213,7 @@ class API::ImagesController < API::ApplicationController
   end
 
   def create_audio
-    @image = Image.find(params[:id])
+    @image = Image.with_artifacts.find(params[:id])
     voice = params[:voice] || "alloy"
     text = params[:text] || @image.label
     if text != @image.label
