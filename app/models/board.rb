@@ -373,7 +373,7 @@ class Board < ApplicationRecord
   end
 
   def set_default_voice
-    self.voice = user.settings["voice"]["name"] || "echo"
+    self.voice = user.settings["voice"]["name"] || "alloy"
   end
 
   def set_voice

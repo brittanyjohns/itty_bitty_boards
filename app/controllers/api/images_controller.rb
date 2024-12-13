@@ -87,6 +87,39 @@ class API::ImagesController < API::ApplicationController
     end
   end
 
+  def merge
+    puts "Merging images params: #{params}"
+    @current_user = current_user
+    @image = Image.find(params[:id])
+    @image_to_merge = Image.find(params[:merge_image_id])
+    puts "Image to merge: #{@image_to_merge}"
+    @docs = @image_to_merge.docs
+    @docs.each do |doc|
+      doc.update(image_id: @image.id)
+    end
+    @board_images = BoardImage.where(image_id: @image_to_merge.id)
+    @board_images.each do |board_image|
+      board_image.update(image_id: @image.id)
+    end
+
+    # @audio_files = @image_to_merge.audio_files
+    # @audio_files.each do |audio_file|
+    #   begin
+    #     original_file = audio_file.dup
+    #     @audio_file = @image.audio_files.attach(io: StringIO.new(original_file.download), filename: audio_file.blob.filename)
+    #   rescue StandardError => e
+    #     puts "Error copying audio files #{original_file.filename}: #{e.message}"
+    #   end
+    # end
+
+    if @image_to_merge.predictive_board
+      @image_to_merge.predictive_board.update(image_id: @image.id)
+    end
+    @image_to_merge.destroy
+    @image.reload
+    render json: @image.with_display_doc(@current_user)
+  end
+
   def clone
     @current_user = current_user
     @image = Image.with_artifacts.find(params[:id])

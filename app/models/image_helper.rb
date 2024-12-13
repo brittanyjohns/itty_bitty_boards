@@ -77,7 +77,7 @@ module ImageHelper
   #   doc
   # end
 
-  def create_audio_from_text(text = nil, voice = "echo")
+  def create_audio_from_text(text = nil, voice = "alloy")
     text = text || self.label
     new_audio_file = nil
     if Rails.env.test?
