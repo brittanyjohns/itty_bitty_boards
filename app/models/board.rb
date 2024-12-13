@@ -285,7 +285,7 @@ class Board < ApplicationRecord
       end
     end
     if id_from_env && !board
-      board = self.with_artifacts.find_by(id: id_from_env)
+      board = self.with_artifacts.find_by(id: id_from_env&.to_i)
     end
     if !board
       board = Board.with_artifacts.find_by(user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
@@ -766,8 +766,8 @@ class Board < ApplicationRecord
       if @category_board
         @predictive_board_id = @category_board.id
       else
-        @predictive_board_id = image&.predictive_board_for_user(user_id)&.id
-        @predictive_board_id ||= image&.predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
+        @predictive_board_id = image&.predictive_board_id
+        @predictive_board_id ||= Board.predictive_default(user)
       end
       @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
       bi_layout = bi.layout[screen_size]
@@ -900,7 +900,6 @@ class Board < ApplicationRecord
       parent_type: parent_type,
       parent_id: parent_id,
       image_parent_id: image_parent_id,
-      board_type: board_type,
       parent_description: parent_type === "User" ? "User" : parent&.to_s,
       parent_prompt: parent_type === "OpenaiPrompt" ? parent.prompt_text : nil,
       predefined: predefined,
@@ -928,24 +927,15 @@ class Board < ApplicationRecord
 
         @label = @board_image.label
 
-        @image = viewing_user ? viewing_user.images.with_artifacts.find_by(label: @label) : nil
-        if @image.nil?
-          @image = Image.with_artifacts.public_img.find_by(label: @label, user_id: [User::DEFAULT_ADMIN_ID, nil])
-        end
-
-        image = @image || board_image.image
+        image = board_image.image
 
         is_owner = viewing_user && image.user_id == viewing_user&.id
         is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
 
         @category_board = image&.category_board
-        if @category_board
-          @predictive_board_id = @category_board.id
-        else
-          @predictive_board_id = image&.predictive_board_for_user(viewing_user&.id)&.id
-          @predictive_board_id ||= image&.predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
-        end
-        @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
+        @predictive_board_id = image&.predictive_board_id
+        @predictive_board = image&.predictive_board
+
         @viewer_settings = viewing_user&.settings || {}
         @predictive_board_settings = @predictive_board&.settings || {}
         @global_default_id = Board.predictive_default_id
@@ -973,20 +963,19 @@ class Board < ApplicationRecord
           is_predictive: is_predictive,
           board_image_id: @board_image.id,
           image_prompt: @board_image.image_prompt,
-          bg_color: image.bg_class,
+          bg_color: @board_image.bg_class,
           text_color: @board_image.text_color,
           next_words: @board_image.next_words,
           position: @board_image.position,
           src_url: image.src_url,
           mute_name: mute_name,
-          src: image.display_image_url(viewing_user),
+          src: image.display_image_url(viewing_user) || image.src_url,
           display_image_url: @board_image.display_image_url,
           audio: @board_image.audio_url,
           audio_url: @board_image.audio_url,
           voice: @board_image.voice,
           layout: @board_image.layout,
           added_at: @board_image.added_at,
-          image_last_added_at: @board_image.image_last_added_at,
           part_of_speech: image.part_of_speech,
 
           status: @board_image.status,

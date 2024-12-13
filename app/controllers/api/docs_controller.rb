@@ -131,9 +131,15 @@ class API::DocsController < API::ApplicationController
       end
       @current_doc = @doc
       @image = @doc.documentable
-      @image.update_all_boards_image_belongs_to
+      UpdateBoardImagesJob.perform_async(@image.id)
       @user = @image.user
-      is_owner = @user.id == current_user.id
+      is_owner = false
+      if @user.nil? && current_user.admin?
+        @user = current_user
+        is_owner = true
+      else
+        is_owner = @user.id == current_user.id
+      end
 
       puts "Current user: #{current_user.id} Image user: #{@user} Is owner: #{is_owner}\nis_dynamic: #{@image.is_dynamic(current_user)}"
 
@@ -176,7 +182,7 @@ class API::DocsController < API::ApplicationController
         user_id: @image.user_id,
         next_words: @image.next_words,
         no_next: @image.no_next,
-        src: @image.display_image_url(current_user),
+        src: @current_doc&.display_url,
         docs: @image_docs.map do |doc|
           {
             id: doc.id,

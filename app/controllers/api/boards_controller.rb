@@ -24,6 +24,7 @@ class API::BoardsController < API::ApplicationController
       @static_preset_boards = Board.static.predefined.order(name: :asc).page params[:page]
       @dynamic_preset_boards = Board.dynamic.predefined.order(name: :asc).page params[:page]
       @predictive_preset_boards = Board.predictive.predefined.order(name: :asc).page params[:page]
+      @category_preset_boards = Board.categories.predefined.order(name: :asc).page params[:page]
 
       render json: { category_preset_boards: @category_preset_boards,
                      static_preset_boards: @static_preset_boards,
@@ -250,8 +251,8 @@ class API::BoardsController < API::ApplicationController
       if @category_board
         @predictive_board_id = @category_board.id
       else
-        @predictive_board_id = image&.predictive_board_for_user(current_user&.id)&.id
-        @predictive_board_id ||= image&.predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
+        @predictive_board_id = image&.predictive_board(current_user&.id)&.id
+        @predictive_board_id ||= image&.predictive_board&.id
       end
       @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
       predictive_board_board_type = @predictive_board ? @predictive_board.board_type : nil

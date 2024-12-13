@@ -29,6 +29,7 @@
 #  use_custom_audio    :boolean          default(FALSE)
 #  voice               :string
 #  src_url             :string
+#  predictive_board_id :integer
 #
 class Image < ApplicationRecord
   paginates_per 50
@@ -119,8 +120,13 @@ class Image < ApplicationRecord
     result
   end
 
+  def predictive_board
+    if predictive_board_id
+      Board.find(predictive_board_id)
+    end
+  end
+
   def update_all_boards_image_belongs_to
-    puts "Updating all boards image belongs to"
     board_images.includes(:board).each do |bi|
       bi.board.updated_at = Time.now
       bi.board.save!
@@ -186,6 +192,10 @@ class Image < ApplicationRecord
   def ensure_defaults
     if image_type.blank?
       self.image_type = "Static"
+      user_predictive_board_id = user&.predictive_board_id
+      if user_predictive_board_id && user_predictive_board_id != predictive_board_id && predictive_board_id.blank?
+        self.predictive_board_id = user_predictive_board_id
+      end
     end
     if category_board && category_board&.board_type == "category"
       self.image_type = "Category"
@@ -200,8 +210,8 @@ class Image < ApplicationRecord
     if image_type == "Menu"
       self.part_of_speech = "noun"
     else
-      self.bg_color = background_color_for(part_of_speech)
-      self.text_color = text_color_for(bg_color)
+      self.bg_color = background_color_for(part_of_speech) if bg_color.blank?
+      self.text_color = text_color_for(bg_color) if text_color.blank?
     end
     if audio_url.blank?
       self.audio_url = default_audio_url
@@ -229,17 +239,8 @@ class Image < ApplicationRecord
   end
 
   def category_board
-    category_board = category_boards.find_by(name: label) || category_boards.first
-    category_board
-  end
-
-  def predictive_board_for_user(viewing_user_id)
-    Board.find_by(id: predictive_board_id)
-  end
-
-  def predictive_board(current_user_id = nil)
-    viewing_user_id = current_user_id || user_id
-    @predictive_board ||= predictive_board_for_user(viewing_user_id)
+    category_board_id = predictive_board_id
+    category_board_id ? Board.find(category_board_id) : nil
   end
 
   def create_predictive_board(new_user_id, words_to_use = nil, use_preview_model = false, board_settings = {})
@@ -1045,13 +1046,14 @@ class Image < ApplicationRecord
     @default_audio_url = default_audio_url
     {
       id: id,
+      image_type: image_type,
       label: label,
       image_prompt: image_prompt,
       image_type: image_type,
       next_words: next_words,
       bg_color: bg_class,
       text_color: text_color,
-      src: display_image_url(viewing_user),
+      src: display_image_url(viewing_user) || src_url,
       audio_url: @default_audio_url,
       audio: @default_audio_url,
       status: status,
@@ -1064,13 +1066,14 @@ class Image < ApplicationRecord
 
   def remaining_user_boards(current_user)
     return [] unless current_user
-    current_user.boards.user_made_with_scenarios.excluding(boards).order(name: :asc)
+    current_user.boards.excluding(boards).order(name: :asc)
   end
 
   def user_boards(current_user)
     return [] unless current_user
     # boards.user_made_with_scenarios_and_menus.where(user_id: current_user.id)
-    Board.joins(:board_images).where(board_images: { image_id: id }).user_made_with_scenarios_and_menus.where(user_id: current_user.id)
+    # Board.joins(:board_images).where(board_images: { image_id: id }).user_made_with_scenarios_and_menus.where(user_id: current_user.id)
+    current_user.boards.joins(:board_images).where(board_images: { image_id: id }).order(name: :asc)
   end
 
   def update_src_url
@@ -1086,45 +1089,48 @@ class Image < ApplicationRecord
 
   def matching_viewer_boards(viewing_user)
     return [] unless viewing_user
-    viewing_user.boards.excluding(boards).where(name: label).order(created_at: :desc)
+    viewing_user.boards.where(name: label).order(created_at: :desc)
   end
 
   def set_ids(viewing_user)
     @current_user = viewing_user
     is_owner = @current_user && user_id == @current_user&.id
     is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
-    @user_dynamic_board = predictive_board_for_user(@current_user&.id)
+    @user_dynamic_board = predictive_board
+    @global_default_id = Board.predictive_default_id
 
     @category_board = category_board
     if @category_board
       @predictive_board_id = @category_board.id
     else
       @predictive_board = @user_dynamic_board
-      @predictive_board ||= predictive_board_for_user(User::DEFAULT_ADMIN_ID)
+      @predictive_board ||= Board.predictive_default
     end
     @predictive_board_id = @predictive_board&.id
     @viewer_settings = @current_user&.settings || {}
     @user_custom_default_id = @viewer_settings["dynamic_board_id"]
-    @global_default_id = Board.predictive_default_id
+
     @is_owner = is_owner
     @is_admin_image = is_admin_image
   end
 
   def is_dynamic(viewing_user)
-    board = predictive_board_for_user(viewing_user&.id)
-    is_dynamic = ["predictive", "category"].include?(board&.board_type)
+    board = predictive_board
+    # is_dynamic = ["predictive", "category"].include?(board&.board_type)
+    is_dynamic = board.present?
     is_dynamic
   end
 
   def is_predictive(viewing_user)
     set_ids(viewing_user)
-    is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
+    # is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
+    is_predictive = predictive_board_id.present?
     is_predictive
   end
 
   def with_display_doc(current_user = nil)
     @current_user = current_user
-    @predictive_board = predictive_board(@current_user&.id)
+    @predictive_board = predictive_board
     current_doc = display_doc(@current_user)
     current_doc_id = current_doc.id if current_doc
     doc_img_url = current_doc&.display_url
@@ -1181,7 +1187,7 @@ class Image < ApplicationRecord
       part_of_speech: part_of_speech,
       can_edit: (current_user && user_id == current_user.id) || current_user&.admin?,
       user_boards: user_image_boards.map { |board| { id: board.id, name: board.name, voice: board.voice } },
-      remaining_boards: remaining.map { |board| { id: board.id, name: board.name } },
+      remaining_boards: remaining.map { |board| { id: board.id, name: board.name, board_type: board.board_type } },
       matching_viewer_images: matching_viewer_images(@current_user).map { |image| { id: image.id, label: image.label, src: image.display_image_url(@current_user), created_at: image.created_at.strftime("%b %d, %Y") } },
       matching_viewer_boards: matching_viewer_boards(@current_user).map { |board| { id: board.id, name: board.name, voice: board.voice, display_image_url: board.display_image_url, created_at: board.created_at.strftime("%b %d, %Y") } },
       docs: image_docs.map do |doc|

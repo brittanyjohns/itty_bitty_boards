@@ -29,6 +29,7 @@
 #  use_custom_audio    :boolean          default(FALSE)
 #  voice               :string
 #  src_url             :string
+#  predictive_board_id :integer
 #
 require "test_helper"
 

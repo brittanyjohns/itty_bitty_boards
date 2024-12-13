@@ -25,65 +25,11 @@ class API::ImagesController < API::ApplicationController
       @images = @images.order("#{sort_field} #{sort_order}").page params[:page]
     end
 
-    render json: @images.map { |image| image.with_display_doc(@current_user) }
-
-    # @images_with_display_doc = @images.map do |image|
-    #   @category_board = image&.category_board
-    #   is_category = @category_board.present?
-    #   if @category_board
-    #     @predictive_board_id = @category_board.id
-    #   else
-    #     @predictive_board_id = image&.predictive_board_for_user(current_user&.id)&.id
-    #     @predictive_board_id ||= image&.predictive_board_for_user(User::DEFAULT_ADMIN_ID)&.id
-    #   end
-    #   @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
-    #   predictive_board_board_type = @predictive_board ? @predictive_board.board_type : nil
-    #   is_owner = image.user_id == @current_user.id
-    #   {
-    #     id: image.id,
-    #     user_id: image.user_id,
-
-    #     label: image.label,
-    #     image_prompt: image.image_prompt,
-    #     image_type: image.image_type,
-    #     bg_color: image.bg_class,
-    #     text_color: image.text_color,
-    #     src: image.display_image_url(@current_user),
-    #     next_words: image.next_words,
-    #     can_edit: is_owner || @current_user.admin?,
-    #     is_admin_image: image.user_id == User::DEFAULT_ADMIN_ID,
-    #     predictive_board_board_type: predictive_board_board_type,
-    #     dynamic: predictive_board_board_type.present?,
-    #   }
-    # end
-    # render json: @images_with_display_doc.sort { |a, b| a[:label] <=> b[:label] }
+    render json: @images.map { |image| image.api_view(@current_user) }
   end
 
   def user_images
     render json: { status: "error", message: "User images endpoint is deprecated.  Please use the images endpoint with the user_only parameter." }
-
-    # ActiveRecord::Base.logger.silence do
-    #   @current_user = current_user
-
-    #   # @user_docs = @current_user.docs.with_attached_image.where(documentable_type: "Image").order(created_at: :desc)
-    #   # @images = Image.with_artifacts.where(id: @user_docs.map(&:documentable_id)).or(Image.where(user_id: @current_user.id)).order(label: :asc).page params[:page]
-    #   # @distinct_images = @images.distinct
-    #   @distinct_images = Image.with_artifacts.where(user_id: @current_user.id).order(label: :asc).page params[:page]
-    #   @images_with_display_doc = @distinct_images.map do |image|
-    #     {
-    #       id: image.id,
-    #       user_id: image.user_id,
-    #       label: image.label,
-    #       image_type: image.image_type,
-    #       bg_color: image.bg_class,
-    #       text_color: image.text_color,
-    #       image_prompt: image.image_prompt,
-    #       src: image.display_image_url(@current_user),
-    #       next_words: image.next_words,
-    #     }
-    #   end
-    #   render json: @images_with_display_doc
-    # end
   end
 
   def show
@@ -132,7 +78,7 @@ class API::ImagesController < API::ApplicationController
     end
     saved_image = @image.save_from_google(params[:imageUrl], params[:snippet], params[:title], "image/webp", @current_user.id)
     saved_image_url = saved_image.display_url
-    @image.reload
+    UpdateBoardImagesJob.perform_async(@image.id)
     @doc = @image.docs.last
     if @doc.save
       render json: { image_url: saved_image_url, id: @image.id, doc_id: @doc.id }
@@ -171,9 +117,8 @@ class API::ImagesController < API::ApplicationController
     @image = Image.includes(:docs, :predictive_boards).find(params[:id])
     if !@image.user_id || (current_user.id != @image.user_id)
       puts "User not authorized to view image.  Sending next images."
-      # @board = @image.predictive_board_for_user(User::DEFAULT_ADMIN_ID)
     else
-      @board = @image.predictive_board_for_user(@current_user.id)
+      @board = @image.predictive_board
     end
 
     if !@board
@@ -299,9 +244,8 @@ class API::ImagesController < API::ApplicationController
       @image.next_words = params[:next_words]&.compact_blank
       @image.save
       if @image.predictive_board&.id === Board.predictive_default.id
-        puts "using predictive default board"
       else
-        @board = @image.predictive_board_for_user(current_user.id)
+        @board = @image.predictive_board
         if @board
           new_words = @image.next_words.keep_if { |word| !@board.words.include?(word) }
           @board.find_or_create_images_from_word_list(new_words)
@@ -649,7 +593,7 @@ class API::ImagesController < API::ApplicationController
 
   def image_params
     params.require(:image).permit(:label, :image_prompt, :display_image, :board_id,
-                                  :bg_color, :text_color, :private, :image_type, :part_of_speech,
+                                  :bg_color, :text_color, :private, :image_type, :part_of_speech, :predictive_board_id,
                                   next_words: [],
                                   audio_files: [], docs: [:id, :user_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
   end
