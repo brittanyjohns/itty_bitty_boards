@@ -251,8 +251,7 @@ class API::BoardsController < API::ApplicationController
       if @category_board
         @predictive_board_id = @category_board.id
       else
-        @predictive_board_id = image&.predictive_board(current_user&.id)&.id
-        @predictive_board_id ||= image&.predictive_board&.id
+        @predictive_board_id = image&.predictive_board_id
       end
       @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
       predictive_board_board_type = @predictive_board ? @predictive_board.board_type : nil
