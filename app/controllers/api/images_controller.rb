@@ -117,6 +117,8 @@ class API::ImagesController < API::ApplicationController
       @image.update(predictive_board_id: predictive_board_id)
     end
     # @image_to_merge.destroy!
+    @image_to_merge.update(status: "marked_for_deletion")
+    DeleteImageJob.perform_in(1.minute, @image_to_merge.id)
     @image.reload
     render json: @image.with_display_doc(@current_user)
   end
