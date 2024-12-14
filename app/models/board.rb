@@ -866,7 +866,6 @@ class Board < ApplicationRecord
       if parent_type == "PredefinedResource"
         return "category"
       else
-        puts "predictive - Parent type: #{parent_type}"
         return "predictive"
       end
     when "Board"

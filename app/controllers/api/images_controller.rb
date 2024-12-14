@@ -95,7 +95,14 @@ class API::ImagesController < API::ApplicationController
     puts "Image to merge: #{@image_to_merge}"
     @docs = @image_to_merge.docs
     @docs.each do |doc|
-      doc.update(image_id: @image.id)
+      original_file = doc.image.blob
+      if original_file
+        new_doc = doc.dup
+        new_doc.documentable = @cloned_image
+        new_doc.user_id = @current_user.id
+        new_doc.save
+        new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@image.label}_#{@image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type) unless original_file.nil?
+      end
     end
     @board_images = BoardImage.where(image_id: @image_to_merge.id)
     @board_images.each do |board_image|
@@ -112,8 +119,9 @@ class API::ImagesController < API::ApplicationController
     #   end
     # end
 
-    if @image_to_merge.predictive_board
-      @image_to_merge.predictive_board.update(image_id: @image.id)
+    if @image_to_merge.predictive_board && !@image.predictive_board_id
+      predictive_board_id = @image_to_merge.predictive_board_id
+      @image.update(predictive_board_id: predictive_board_id)
     end
     @image_to_merge.destroy
     @image.reload
