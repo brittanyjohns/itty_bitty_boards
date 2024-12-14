@@ -122,7 +122,7 @@ class Image < ApplicationRecord
 
   def predictive_board
     if predictive_board_id
-      Board.find(predictive_board_id)
+      Board.find_by(id: predictive_board_id)
     end
   end
 
