@@ -240,7 +240,7 @@ class Image < ApplicationRecord
 
   def category_board
     category_board_id = predictive_board_id
-    category_board_id ? Board.find(category_board_id) : nil
+    category_board_id ? Board.find_by(id: category_board_id) : nil
   end
 
   def create_predictive_board(new_user_id, words_to_use = nil, use_preview_model = false, board_settings = {})
