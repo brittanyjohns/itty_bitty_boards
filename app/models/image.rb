@@ -1188,8 +1188,11 @@ class Image < ApplicationRecord
       can_edit: (current_user && user_id == current_user.id) || current_user&.admin?,
       user_boards: user_image_boards.map { |board| { id: board.id, name: board.name, voice: board.voice } },
       remaining_boards: remaining.map { |board| { id: board.id, name: board.name, board_type: board.board_type } },
-      matching_viewer_images: matching_viewer_images(@current_user).map { |image| { id: image.id, label: image.label, src: image.display_image_url(@current_user), created_at: image.created_at.strftime("%b %d, %Y") } },
-      matching_viewer_boards: matching_viewer_boards(@current_user).map { |board| { id: board.id, name: board.name, voice: board.voice, display_image_url: board.display_image_url, created_at: board.created_at.strftime("%b %d, %Y") } },
+      matching_viewer_images: matching_viewer_images(@current_user).map { |image| { id: image.id, label: image.label, src: image.display_image_url(@current_user) || image.src_url, created_at: image.created_at.strftime("%b %d, %Y") } },
+      matching_viewer_boards: matching_viewer_boards(@current_user).map { |board|
+        { id: board.id, name: board.name, voice: board.voice,
+          display_image_url: board.display_image_url || board.parent_image&.src_url, created_at: board.created_at.strftime("%b %d, %Y") }
+      },
       docs: image_docs.map do |doc|
         {
           id: doc.id,

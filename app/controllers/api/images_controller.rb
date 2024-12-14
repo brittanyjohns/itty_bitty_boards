@@ -92,38 +92,27 @@ class API::ImagesController < API::ApplicationController
     @current_user = current_user
     @image = Image.find(params[:id])
     @image_to_merge = Image.find(params[:merge_image_id])
-    puts "Image to merge: #{@image_to_merge}"
+    puts "Image to merge: #{@image_to_merge.inspect}"
     @docs = @image_to_merge.docs
+    puts "Docs to merge: #{@docs.count}"
     @docs.each do |doc|
-      original_file = doc.image.blob
-      if original_file
-        new_doc = doc.dup
-        new_doc.documentable = @cloned_image
-        new_doc.user_id = @current_user.id
-        new_doc.save
-        new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@image.label}_#{@image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type) unless original_file.nil?
-      end
+      puts "Merging doc: #{doc.id}"
+      doc.documentable = @image
+      doc.user = @current_user
+      result = doc.save!
+
+      puts "DocResult: #{result}"
     end
+    puts "MERGE DONE"
     @board_images = BoardImage.where(image_id: @image_to_merge.id)
     @board_images.each do |board_image|
       board_image.update(image_id: @image.id)
     end
-
-    # @audio_files = @image_to_merge.audio_files
-    # @audio_files.each do |audio_file|
-    #   begin
-    #     original_file = audio_file.dup
-    #     @audio_file = @image.audio_files.attach(io: StringIO.new(original_file.download), filename: audio_file.blob.filename)
-    #   rescue StandardError => e
-    #     puts "Error copying audio files #{original_file.filename}: #{e.message}"
-    #   end
-    # end
-
     if @image_to_merge.predictive_board && !@image.predictive_board_id
       predictive_board_id = @image_to_merge.predictive_board_id
       @image.update(predictive_board_id: predictive_board_id)
     end
-    @image_to_merge.destroy
+    # @image_to_merge.destroy!
     @image.reload
     render json: @image.with_display_doc(@current_user)
   end

@@ -931,7 +931,7 @@ class Board < ApplicationRecord
         is_owner = viewing_user && image.user_id == viewing_user&.id
         is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
 
-        @category_board = image&.category_board
+        # @category_board = image&.category_board
         @predictive_board_id = image&.predictive_board_id
         @predictive_board = image&.predictive_board
 
@@ -942,8 +942,9 @@ class Board < ApplicationRecord
         @user_custom_default_id = @viewer_settings["dynamic_board_id"] || @global_default_id
         is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
         is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)
-        @category_boards = image.category_boards
-        is_category = @category_boards.where(user_id: [viewing_user&.id, nil, User::DEFAULT_ADMIN_ID]).any?
+        # @category_boards = image.category_boards
+        # is_category = @category_boards.where(user_id: [viewing_user&.id, nil, User::DEFAULT_ADMIN_ID]).any?
+        is_category = @predictive_board && @predictive_board.board_type == "category"
         mute_name = @predictive_board_settings["mute_name"] == true && is_dynamic
         {
           id: image.id,
@@ -953,8 +954,8 @@ class Board < ApplicationRecord
           user_custom_default_id: @user_custom_default_id,
           predictive_board_board_type: @predictive_board&.board_type,
           global_default_id: @global_default_id,
-          category_boards: @category_boards.map { |cb| cb.id },
-          category_board_id: @category_board&.id,
+          # category_boards: @category_boards.map { |cb| cb.id },
+          # category_board_id: @category_board&.id,
           is_owner: is_owner,
           is_category: is_category,
           is_admin_image: is_admin_image,
