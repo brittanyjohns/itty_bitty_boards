@@ -35,7 +35,11 @@ class API::ImagesController < API::ApplicationController
   def show
     @current_user = current_user
 
-    @image = Image.with_artifacts.find(params[:id])
+    puts "Show image params: #{params}"
+    id = params[:id]
+    puts "Image ID: #{id}"
+
+    @image = Image.find(id)
     # @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
 
     @image_with_display_doc = @image.with_display_doc(@current_user)
