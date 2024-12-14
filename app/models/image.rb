@@ -210,7 +210,7 @@ class Image < ApplicationRecord
     if image_type == "Menu"
       self.part_of_speech = "noun"
     else
-      self.bg_color = background_color_for(part_of_speech) if bg_color.blank?
+      self.bg_color = background_color_for(part_of_speech) if bg_color.blank? && part_of_speech_changed?
       self.text_color = text_color_for(bg_color) if text_color.blank?
     end
     if audio_url.blank?
@@ -314,6 +314,14 @@ class Image < ApplicationRecord
       color = "gray"
     end
     color
+  end
+
+  def bg_color_class
+    "bg-#{bg_color}-400"
+  end
+
+  def get_bg_color(bg_class)
+    bg_class.split("-")[1]
   end
 
   def text_color_for(bg_color)

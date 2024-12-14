@@ -435,6 +435,10 @@ class API::ImagesController < API::ApplicationController
 
   def update
     @image = Image.find(params[:id])
+    bg_color_class = image_params[:bg_color]
+    puts "BG Color: #{bg_color_class}"
+    @bg_color = @image.get_bg_color(bg_color_class)
+    puts "BG Color bg_color: #{@bg_color}"
     if @image.update(image_params)
       render json: @image.with_display_doc(current_user)
     else
