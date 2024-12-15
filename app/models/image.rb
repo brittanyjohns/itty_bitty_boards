@@ -192,10 +192,10 @@ class Image < ApplicationRecord
   def ensure_defaults
     if image_type.blank?
       self.image_type = "Static"
-      user_predictive_board_id = user&.predictive_board_id
-      if user_predictive_board_id && user_predictive_board_id != predictive_board_id && predictive_board_id.blank?
-        self.predictive_board_id = user_predictive_board_id
-      end
+      # user_predictive_board_id = user&.predictive_board_id
+      # if user_predictive_board_id && user_predictive_board_id != predictive_board_id && predictive_board_id.blank? && new_record?
+      #   self.predictive_board_id = user_predictive_board_id
+      # end
     end
     if category_board && category_board&.board_type == "category"
       self.image_type = "Category"
@@ -210,7 +210,7 @@ class Image < ApplicationRecord
     if image_type == "Menu"
       self.part_of_speech = "noun"
     else
-      self.bg_color = background_color_for(part_of_speech) if bg_color.blank? && part_of_speech_changed?
+      self.bg_color = background_color_for(part_of_speech) if part_of_speech_changed?
       self.text_color = text_color_for(bg_color) if text_color.blank?
     end
     if audio_url.blank?
@@ -314,14 +314,6 @@ class Image < ApplicationRecord
       color = "gray"
     end
     color
-  end
-
-  def bg_color_class
-    "bg-#{bg_color}-400"
-  end
-
-  def get_bg_color(bg_class)
-    bg_class.split("-")[1]
   end
 
   def text_color_for(bg_color)
@@ -1110,13 +1102,14 @@ class Image < ApplicationRecord
     @global_default_id = Board.predictive_default_id
 
     @category_board = category_board
-    if @category_board
-      @predictive_board_id = @category_board.id
-    else
-      @predictive_board = @user_dynamic_board
-      @predictive_board ||= Board.predictive_default
-    end
-    @predictive_board_id = @predictive_board&.id
+    # if @category_board
+    #   @predictive_board_id = @category_board.id
+    # else
+    #   @predictive_board = @user_dynamic_board
+    #   @predictive_board ||= Board.predictive_default
+    # end
+    @predictive_board = predictive_board
+    @predictive_board_id = predictive_board_id
     @viewer_settings = @current_user&.settings || {}
     @user_custom_default_id = @viewer_settings["dynamic_board_id"]
 
