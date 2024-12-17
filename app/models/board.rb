@@ -790,7 +790,6 @@ class Board < ApplicationRecord
     end
 
     max_num_of_rows = (words.count / num_of_columns.to_f).ceil
-    max_num_of_rows += 1
     response = OpenAiClient.new({}).generate_formatted_board(name, num_of_columns, existing_layout, max_num_of_rows, maintain_existing_layout)
     if response
       parsed_response = response.gsub("```json", "").gsub("```", "").strip
