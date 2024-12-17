@@ -651,23 +651,23 @@ class Board < ApplicationRecord
     calculate_grid_layout_for_screen_size("lg", true)
   end
 
-  # def update_layouts_for_screen_sizes
-  #   update_board_layout("sm")
-  #   update_board_layout("md")
-  #   update_board_layout("lg")
-  # end
+  def update_layouts_for_screen_sizes
+    update_board_layout("sm")
+    update_board_layout("md")
+    update_board_layout("lg")
+  end
 
-  # def update_board_layout(screen_size)
-  #   self.layout = {}
-  #   self.layout[screen_size] = {}
-  #   board_images.each do |bi|
-  #     bi.layout[screen_size] = bi.layout[screen_size] || { x: 0, y: 0, w: 1, h: 1 } # Set default layout
-  #     bi_layout = bi.layout[screen_size].merge("i" => bi.id.to_s)
-  #     self.layout[screen_size][bi.id] = bi_layout
-  #   end
-  #   self.save
-  #   self.board_images.reset
-  # end
+  def update_board_layout(screen_size)
+    self.layout = {}
+    self.layout[screen_size] = {}
+    board_images.order(:position).each do |bi|
+      bi.layout[screen_size] = bi.layout[screen_size] || { x: 0, y: 0, w: 1, h: 1 } # Set default layout
+      bi_layout = bi.layout[screen_size].merge("i" => bi.id.to_s)
+      self.layout[screen_size][bi.id] = bi_layout
+    end
+    self.save
+    self.board_images.reset
+  end
 
   def reset_layouts
     self.layout = {}
@@ -790,6 +790,7 @@ class Board < ApplicationRecord
     end
 
     max_num_of_rows = (words.count / num_of_columns.to_f).ceil
+    max_num_of_rows += 1
     response = OpenAiClient.new({}).generate_formatted_board(name, num_of_columns, existing_layout, max_num_of_rows, maintain_existing_layout)
     if response
       parsed_response = response.gsub("```json", "").gsub("```", "").strip
@@ -800,6 +801,7 @@ class Board < ApplicationRecord
       end
       # parsed_response = JSON.parse(response)
       grid_response = parsed_response["grid"]
+      Rails.logger.debug "Grid Response: #{grid_response}"
       if parsed_response["personable_explanation"]
         personable_explanation = "Personable Explanation: " + parsed_response["personable_explanation"]
       end
