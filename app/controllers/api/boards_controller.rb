@@ -183,7 +183,8 @@ class API::BoardsController < API::ApplicationController
   end
 
   def save_layout
-    @board = Board.includes(board_images: :image).find(params[:id])
+    # @board = Board.includes(board_images: :image).find(params[:id])
+    set_board
     layout = params[:layout].map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
 
     # Sort layout by y and x coordinates
@@ -194,9 +195,9 @@ class API::BoardsController < API::ApplicationController
       board_image_id = item["i"].to_i
       board_image = @board.board_images.find_by(id: board_image_id)
       if board_image
-        board_image.update(position: i)
+        board_image.update!(position: i)
       else
-        puts "Board image not found for ID: #{board_image_id}"
+        Rails.logger.debug "Board image not found for ID: #{board_image_id}"
       end
     end
 
@@ -221,7 +222,7 @@ class API::BoardsController < API::ApplicationController
 
     # Update the grid layout
     begin
-      @board.update_grid_layout(layout, screen_size)
+      @board.update_grid_layout(sorted_layout, screen_size)
     rescue => e
       Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
     end

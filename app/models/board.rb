@@ -563,7 +563,7 @@ class Board < ApplicationRecord
     settings = margin_settings || {}
     ["lg", "md", "sm"].each do |screen_size|
       unless margin_settings_valid_for_screen_size?(screen_size)
-        settings[screen_size] = { "x" => 5, "y" => 5 }
+        settings[screen_size] = { "x" => 3, "y" => 3 }
       end
     end
     self.margin_settings = settings
@@ -617,23 +617,28 @@ class Board < ApplicationRecord
     rows = (bi_count / num_of_columns.to_f).ceil
     ActiveRecord::Base.logger.silence do
       board_images.order(:position).each_slice(num_of_columns) do |row|
+        Rails.logger.debug "Row: #{row}"
         row.each_with_index do |bi, index|
           new_layout = {}
           if bi.layout[screen_size] && reset_layouts == false
             new_layout = bi.layout[screen_size]
+            Rails.logger.debug "Existing Layout for #{bi.label} - #{bi.id}"
           else
+            Rails.logger.debug "New Layout for #{bi.label} - #{bi.id}"
             new_layout = { "i" => bi.id.to_s, "x" => index, "y" => row_count, "w" => 1, "h" => 1 }
           end
 
           bi.layout[screen_size] = new_layout
           bi.skip_create_voice_audio = true
-          bi.save
+          bi.save!
           bi.clean_up_layout
           layout_to_set << new_layout
         end
         row_count += 1
       end
     end
+
+    Rails.logger.debug "Layout to set: #{layout_to_set}"
 
     self.layout[screen_size] = layout_to_set
     self.board_images.reset
@@ -646,27 +651,28 @@ class Board < ApplicationRecord
     calculate_grid_layout_for_screen_size("lg", true)
   end
 
-  def update_layouts_for_screen_sizes
-    update_board_layout("sm")
-    update_board_layout("md")
-    update_board_layout("lg")
-  end
+  # def update_layouts_for_screen_sizes
+  #   update_board_layout("sm")
+  #   update_board_layout("md")
+  #   update_board_layout("lg")
+  # end
 
-  def update_board_layout(screen_size)
-    self.layout = {}
-    self.layout[screen_size] = {}
-    board_images.each do |bi|
-      bi.layout[screen_size] = bi.layout[screen_size] || { x: 0, y: 0, w: 1, h: 1 } # Set default layout
-      bi_layout = bi.layout[screen_size].merge("i" => bi.id.to_s)
-      self.layout[screen_size][bi.id] = bi_layout
-    end
-    self.save
-    self.board_images.reset
-  end
+  # def update_board_layout(screen_size)
+  #   self.layout = {}
+  #   self.layout[screen_size] = {}
+  #   board_images.each do |bi|
+  #     bi.layout[screen_size] = bi.layout[screen_size] || { x: 0, y: 0, w: 1, h: 1 } # Set default layout
+  #     bi_layout = bi.layout[screen_size].merge("i" => bi.id.to_s)
+  #     self.layout[screen_size][bi.id] = bi_layout
+  #   end
+  #   self.save
+  #   self.board_images.reset
+  # end
 
   def reset_layouts
     self.layout = {}
     self.set_layouts_for_screen_sizes
+    # self.update_layouts_for_screen_sizes
     self.save!
   end
 
@@ -681,6 +687,7 @@ class Board < ApplicationRecord
       id_key = layout_hash[:i] || layout_hash["i"]
       bi = board_images.find(id_key) rescue nil
       bi = board_images.find_by(image_id: id_key) if bi.nil?
+
       if bi.nil?
         Rails.logger.debug "BoardImage not found for image_id: #{id_key}"
         next
@@ -880,7 +887,7 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_predictive_images(viewing_user = nil)
-    @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards])
+    @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards]).order(:position)
     # @board_images = board_images.includes(:image)
     word_data = get_commons_words
     existing_words = word_data[:existing_words]
@@ -952,6 +959,7 @@ class Board < ApplicationRecord
           user_custom_default_id: @user_custom_default_id,
           predictive_board_board_type: @predictive_board&.board_type,
           global_default_id: @global_default_id,
+          position: @board_image.position,
           # category_boards: @category_boards.map { |cb| cb.id },
           # category_board_id: @category_board&.id,
           is_owner: is_owner,
