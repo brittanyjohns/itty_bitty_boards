@@ -183,32 +183,50 @@ class API::BoardsController < API::ApplicationController
   end
 
   def save_layout
-    set_board
-    # board = Board.with_artifacts.find(params[:id])
+    @board = Board.includes(board_images: :image).find(params[:id])
     layout = params[:layout].map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
 
+    # Sort layout by y and x coordinates
+    sorted_layout = layout.sort_by { |item| [item["y"].to_i, item["x"].to_i] }
+
+    board_image_ids = []
+    sorted_layout.each_with_index do |item, i|
+      board_image_id = item["i"].to_i
+      board_image = @board.board_images.find_by(id: board_image_id)
+      if board_image
+        board_image.update(position: i)
+      else
+        puts "Board image not found for ID: #{board_image_id}"
+      end
+    end
+
+    # Save screen size settings
     screen_size = params[:screen_size] || "lg"
     if params[:small_screen_columns].present? || params[:medium_screen_columns].present? || params[:large_screen_columns].present?
       @board.small_screen_columns = params[:small_screen_columns].to_i if params[:small_screen_columns].present?
       @board.medium_screen_columns = params[:medium_screen_columns].to_i if params[:medium_screen_columns].present?
       @board.large_screen_columns = params[:large_screen_columns].to_i if params[:large_screen_columns].present?
     end
+
+    # Save margin settings
     margin_x = params[:xMargin].to_i
     margin_y = params[:yMargin].to_i
     if margin_x.present? && margin_y.present?
       @board.margin_settings[screen_size] = { x: margin_x, y: margin_y }
     end
-    if params[:settings].present?
-      @board.settings[screen_size] = params[:settings]
-    end
+
+    # Save additional settings
+    @board.settings[screen_size] = params[:settings] if params[:settings].present?
     @board.save!
+
+    # Update the grid layout
     begin
       @board.update_grid_layout(layout, screen_size)
     rescue => e
       Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
     end
-    @board.reload
 
+    @board.reload
     render json: @board.api_view_with_images(current_user)
   end
 
@@ -593,9 +611,9 @@ class API::BoardsController < API::ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_board
-    # ActiveRecord::Base.logger.silence do
-    @board = Board.with_artifacts.find(params[:id])
-    # end
+    ActiveRecord::Base.logger.silence do
+      @board = Board.with_artifacts.find(params[:id])
+    end
   end
 
   def boards_for_user

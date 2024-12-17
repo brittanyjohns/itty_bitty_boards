@@ -609,10 +609,9 @@ class Board < ApplicationRecord
 
   def calculate_grid_layout_for_screen_size(screen_size, reset_layouts = false)
     num_of_columns = get_number_of_columns(screen_size)
-
     layout_to_set = [] # Initialize as an array
 
-    position_all_board_images
+    # position_all_board_images
     row_count = 0
     bi_count = board_images.count
     rows = (bi_count / num_of_columns.to_f).ceil
@@ -676,7 +675,7 @@ class Board < ApplicationRecord
     unless layout_to_set.is_a?(Array)
       return
     end
-    layout_to_set.each do |layout_item|
+    layout_to_set.each_with_index do |layout_item, i|
       id_key = layout_item[:i]
       layout_hash = layout_item.with_indifferent_access
       id_key = layout_hash[:i] || layout_hash["i"]
@@ -687,6 +686,7 @@ class Board < ApplicationRecord
         next
       end
       bi.layout[screen_size] = layout_hash
+      bi.position = i
       bi.clean_up_layout
       bi.save!
     end
