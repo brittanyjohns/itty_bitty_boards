@@ -888,7 +888,7 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_predictive_images(viewing_user = nil)
-    @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards]).order(:position)
+    @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards]).order(:position).uniq
     # @board_images = board_images.includes(:image)
     word_data = get_commons_words
     existing_words = word_data[:existing_words]
@@ -981,7 +981,7 @@ class Board < ApplicationRecord
           audio: @board_image.audio_url,
           audio_url: @board_image.audio_url,
           voice: @board_image.voice,
-          layout: @board_image.layout,
+          layout: @board_image.layout.with_indifferent_access,
           added_at: @board_image.added_at,
           part_of_speech: image.part_of_speech,
 
