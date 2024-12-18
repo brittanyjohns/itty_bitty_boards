@@ -198,11 +198,13 @@ class Image < ApplicationRecord
       # end
     end
     if category_board && category_board&.board_type == "category"
+      puts "Setting image type to Category - #{category_board.name}"
       self.image_type = "Category"
       self.predictive_board_id = category_board.id
     end
 
     if predictive_board && predictive_board&.board_type == "predictive"
+      puts "Setting image type to Predictive - #{predictive_board.name}"
       self.image_type = "Predictive"
       self.predictive_board_id = predictive_board.id
     end
@@ -1117,15 +1119,15 @@ class Image < ApplicationRecord
     @is_admin_image = is_admin_image
   end
 
-  def is_dynamic(viewing_user)
+  def is_dynamic(viewing_user = nil)
     board = predictive_board
     # is_dynamic = ["predictive", "category"].include?(board&.board_type)
     is_dynamic = board.present?
     is_dynamic
   end
 
-  def is_predictive(viewing_user)
-    set_ids(viewing_user)
+  def is_predictive(viewing_user = nil)
+    # set_ids(viewing_user)
     # is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
     is_predictive = predictive_board_id.present?
     is_predictive
