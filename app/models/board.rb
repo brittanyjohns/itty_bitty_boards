@@ -625,7 +625,9 @@ class Board < ApplicationRecord
             Rails.logger.debug "Existing Layout for #{bi.label} - #{bi.id}"
           else
             Rails.logger.debug "New Layout for #{bi.label} - #{bi.id}"
-            new_layout = { "i" => bi.id.to_s, "x" => index, "y" => row_count, "w" => 1, "h" => 1 }
+            width = bi.layout[screen_size] ? bi.layout[screen_size]["w"] : 1
+            height = bi.layout[screen_size] ? bi.layout[screen_size]["h"] : 1
+            new_layout = { "i" => bi.id.to_s, "x" => index, "y" => row_count, "w" => width, "h" => height }
           end
 
           bi.layout[screen_size] = new_layout
