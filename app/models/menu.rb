@@ -287,11 +287,18 @@ class Menu < ApplicationRecord
   end
 
   def describe_menu(doc)
-    image_data = doc.active_storage_to_data_url
-    puts "Image data: #{image_data.present?}\n Running describe_menu\n"
-    response = OpenAiClient.new(open_ai_opts).describe_menu(image_data)
-    menu_items = response[:content]
-    puts "Menu items: #{menu_items}\n"
+    begin
+      image_data = doc.active_storage_to_data_url
+      puts "Image data: #{image_data.present?}\n Running describe_menu\n"
+      response = OpenAiClient.new(open_ai_opts).describe_menu(image_data)
+      menu_items = response[:content]
+      puts "Menu items: #{menu_items}\n"
+    rescue => e
+      puts "**** OpenAiClient ERROR **** \n#{e.message}\n"
+      puts e.backtrace
+      Rails.logger.error "**** OpenAiClient ERROR **** \n#{e.message}\n#{e.backtrace}\n"
+    end
+
     if response
       # if valid_json?(menu_items)
       #   menu_items = JSON.parse(menu_items)
