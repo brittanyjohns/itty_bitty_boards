@@ -105,7 +105,8 @@ class API::MenusController < API::ApplicationController
     # doc.processed = true
     doc.raw = params[:menu][:description]
     if doc.save
-      @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined)
+      Rails.logger.info "Running image description job. #{doc.id} - #{doc.display_url}"
+      @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.display_url)
       @menu.run_image_description_job(@board.id, screen_size)
       @menu_with_display_doc = {
         id: @menu.id,
