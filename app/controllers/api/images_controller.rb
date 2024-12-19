@@ -550,6 +550,16 @@ class API::ImagesController < API::ApplicationController
     render json: @images_with_display_doc
   end
 
+  def describe
+    @image = Image.find(params[:id])
+    image_url = params[:image_url] || @image.display_image_url(current_user)
+    puts "Describing image #{@image.label}: #{image_url}"
+    @image.update(status: "describing")
+    @image.describe_image(image_url)
+    @image.reload
+    render json: @image.with_display_doc(current_user)
+  end
+
   def hide_doc
     @image = Image.find(params[:id])
     @doc = @image.docs.find(params[:doc_id])

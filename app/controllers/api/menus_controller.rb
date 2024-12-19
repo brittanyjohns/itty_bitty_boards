@@ -75,7 +75,8 @@ class API::MenusController < API::ApplicationController
       # redirect_to menu_url(@menu), notice: "This menu has already used all of its tokens."
       return
     end
-    @menu.rerun_image_description_job(@board.id, screen_size) if @board
+    # @menu.rerun_image_description_job
+    @menu.enhance_image_description(@board.id)
     render json: @menu.api_view(current_user), status: 200
     # redirect_to menu_url(@menu), notice: "Re-running image description job."
   end

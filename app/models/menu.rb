@@ -66,6 +66,9 @@ class Menu < ApplicationRecord
     board.save!
     new_doc.update!(board_id: board.id)
 
+    puts "Creating images from description for board: #{board.id}"
+    puts "Description: #{new_doc.processed}"
+
     create_images_from_description(board)
     board.reset_layouts
 
@@ -110,6 +113,7 @@ class Menu < ApplicationRecord
     new_board_images = []
     tokens_used = 0
     menu_item_list = []
+
     json_description["menu_items"].each do |food|
       if food["name"].blank? || food["image_description"].blank?
         puts "Blank name or image description for #{food.inspect}"
@@ -189,7 +193,7 @@ class Menu < ApplicationRecord
       displayImage: docs.last&.display_url,
       can_edit: viewing_user.admin? || viewing_user.id == user_id,
       user_id: user_id,
-      status: main_board&.status,
+      status: main_board&.status || "error",
       created_at: created_at,
       updated_at: updated_at,
       has_generating_images: main_board&.has_generating_images?,
@@ -215,24 +219,51 @@ class Menu < ApplicationRecord
     EnhanceImageDescriptionJob.perform_async(self.id, board_id, screen_size)
   end
 
-  def enhance_image_description(board_id)
+  def enhance_image_description(board_id = nil)
+    board_id ||= self.boards.last&.id
+    puts "Enhancing image description for #{name} - board_id: #{board_id}"
     new_doc = self.docs.last
+    if valid_json?(description)
+      puts "DESCRIPTION Valid JSON: #{description}"
+    end
     raise "NO NEW DOC FOUND" && return unless new_doc
     self.update!(description: new_doc.processed)
     begin
-      if !new_doc.raw.blank?
-        new_doc.processed, messages_sent = clarify_image_description(new_doc.raw)
+      if new_doc.processed
+        # new_doc.processed, messages_sent = clarify_image_description(new_doc.raw)
         puts "Processed: #{new_doc.processed}\n"
-        puts "Messages sent: #{messages_sent}\n"
+        # puts "Messages sent: #{messages_sent}\n"
         Rails.logger.info "Processed: #{new_doc.processed}\n"
-        Rails.logger.info "Messages sent: #{messages_sent}\n"
-        return nil unless new_doc.processed
+        # Rails.logger.info "Messages sent: #{messages_sent}\n"
+        # return nil unless new_doc.processed
+
+        if new_doc.attached_image_url.blank?
+          puts "No attached image url"
+        else
+          puts "Attached image url: #{new_doc.attached_image_url.class}"
+        end
+        new_processed = describe_menu(new_doc)
+        puts "New processed: #{new_processed}\n"
+        # new_new_processed, messages_sent = clarify_image_description(new_processed)
+
+        # if valid_json?(new_processed)
+        #   puts "Valid JSON: #{new_processed}"
+        #   new_processed = JSON.parse(new_processed)
+        # else
+        #   puts "INVALID JSON: #{new_processed}"
+        #   new_processed = transform_into_json(new_processed)
+        # end
+
+        # new_new_processed = new_processed["menu_items"].to_json
+        new_new_processed = new_processed.to_json
+
+        puts "new_new_processed: #{new_processed}\n"
+        new_doc.processed = new_new_processed
         new_doc.current = true
         new_doc.user_id = self.user_id
         new_doc.save!
         self.raw = new_doc.raw
-        self.description = new_doc.processed
-        self.prompt_sent = messages_sent
+        self.description = new_new_processed
         self.save!
 
         create_board_from_image(new_doc, board_id)
@@ -241,15 +272,57 @@ class Menu < ApplicationRecord
         description
       end
     rescue => e
-      puts "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"
+      puts "**** ERROR **** \n#{e.message}\n"
+      puts e.backtrace
       board = Board.where(id: board_id).first if board_id
       board = self.boards.last unless board
       board = self.boards.create(user: self.user, name: self.name) unless board
       # board.update(status: "error") if board
-      board.update(status: "237 error - #{e.message}\n#{e.backtrace}\n") if board
-      puts "UPDATE BOARD: #{board.inspect}"
+      # board.update(status: "error - #{e.message}\n#{e.backtrace}\n") if board
       nil
     end
+  end
+
+  def describe_menu(doc)
+    image_data = doc.active_storage_to_data_url
+    puts "Image data: #{image_data.present?}\n Running describe_menu\n"
+    response = OpenAiClient.new(open_ai_opts).describe_menu(image_data)
+    menu_items = response[:content]
+    puts "Menu items: #{menu_items}\n"
+    if response
+      # if valid_json?(menu_items)
+      #   menu_items = JSON.parse(menu_items)
+      # else
+      #   puts "INVALID JSON: #{menu_items}"
+      #   menu_items = transform_into_json(menu_items)
+      # end
+
+      begin
+        # Extract the "content" field from the first choice
+        content = response["choices"].first["message"]["content"]
+
+        # Remove Markdown code block formatting (e.g., ```json)
+        json_content = content.gsub(/```json|```/, "").strip
+
+        # Parse the JSON string into a Ruby hash
+        menu_items = JSON.parse(json_content)
+
+        # Output the parsed menu items
+        puts "Menu Items:"
+        menu_items["menu_items"].each do |item|
+          puts " - #{item["name"]}: #{item["description"]}"
+        end
+      rescue JSON::ParserError => e
+        puts "Failed to parse JSON: #{e.message}"
+      rescue => e
+        puts "**** ERROR ****"
+        puts e.message
+      end
+    else
+      Rails.logger.error "*** ERROR - get_menu_items *** \nDid not receive valid response. Response: #{response}\n"
+    end
+    puts "menu_items: #{menu_items}"
+    menu_items
   end
 
   def open_ai_opts

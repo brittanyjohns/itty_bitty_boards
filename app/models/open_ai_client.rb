@@ -72,16 +72,39 @@ class OpenAiClient
     response
   end
 
-  def self.describe_image(img_url)
-    response = openai_client.chat(parameters: { model: "gpt-4-vision-preview", messages: [{ role: "user", content: [{ type: "text", text: "What's in this image?" }, { type: "image_url", image_url: { url: img_url } }] }] })
+  GPT_VISION_MODEL = "gpt-4o-mini"
+
+  def describe_image(img_url)
+    response = openai_client.chat(parameters: {
+                                    model: GPT_VISION_MODEL,
+                                    messages: [{ role: "user",
+                                                content: [{ type: "text",
+                                                            text: "What's in this image?" },
+                                                          { type: "image_url", image_url: { url: img_url } }] }],
+                                  })
+    puts "OPENAI Response: #{response}"
     Rails.logger.debug "*** ERROR *** Invaild Image Description Response: #{response}" unless response
+    # save_response_locally(response)
+    response
+  end
+
+  def describe_menu(img_url)
+    response = openai_client.chat(parameters: {
+                                    model: GPT_VISION_MODEL,
+                                    messages: [{ role: "user",
+                                                content: [{ type: "text",
+                                                            text: "This is a restaurant menu. Please describe the menu items in a list like your were reading them to the server. Please respond as json in the following format: #{expected_json_schema}" },
+                                                          { type: "image_url", image_url: { url: img_url } }] }],
+                                  })
+    puts "Menu OPENAI Response: #{response}"
+    Rails.logger.debug "*** ERROR *** Invaild Menu Description Response: #{response}" unless response
     # save_response_locally(response)
     response
   end
 
   def create_image_prompt
     new_prompt = specific_image_prompt(@prompt)
-    response = openai_client.chat(parameters: { model: GPT_3_MODEL, messages: [{ role: "user", content: [{ type: "text", text: new_prompt }] }] })
+    response = openai_client.chat(parameters: { model: GPT_4_MODEL, messages: [{ role: "user", content: [{ type: "text", text: new_prompt }] }] })
     Rails.logger.debug "*** ERROR *** Invaild Image Prompt Response: #{response}" unless response
     Rails.logger.debug "Response: #{response.inspect}" if response
     image_prompt_content = nil
@@ -122,8 +145,26 @@ class OpenAiClient
                                                 This is the text to parse: #{strip_image_description(image_description)}\n\n" }] }]
     response = create_chat
     Rails.logger.debug "*** ERROR *** Invaild Image Description Response: #{response}" unless response
+    puts "clarify_image_description Response: #{response}"
     # response
     [response, @messages[0][:content][0][:text]]
+  end
+
+  def format_menu_description(menu_description)
+    @model = GPT_4_MODEL
+    @messages = [{ role: "user", content: [{ type: "text",
+                                           text: "Please parse the following description from a restaurant menu to
+                                                form a clear list of the food and beverage options ONLY.
+                                                Create a short image description for each item based on the name and description.
+                                                The NAME of the food or beverage is the most important part. Ensure that the name is accurate.
+                                                The description is optional. If no description is provided, then try to create a description based on the name.
+                                                Respond as json.
+                                                Here is an EXAMPLE RESPONSE: #{expected_json_schema}\n
+                                                This is the text to parse: #{strip_image_description(menu_description)}\n\n" }] }]
+    response = create_chat
+    Rails.logger.debug "*** ERROR *** Invaild Menu Description Response: #{response}" unless response
+    puts "format_menu_description Response: #{response}"
+    response
   end
 
   def categorize_word(word)

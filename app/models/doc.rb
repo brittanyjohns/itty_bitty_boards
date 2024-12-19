@@ -50,6 +50,18 @@ class Doc < ApplicationRecord
     # image&.blob&.filename.to_s&.split(".")&.last
   end
 
+  def active_storage_to_data_url
+    blob = image.blob
+    puts "Blob: #{blob}"
+    # Get S3 URL
+    url = Rails.application.routes.url_helpers.rails_blob_url(blob, only_path: false)
+    # Download and encode
+    image_data = URI.open(url).read
+    mime_type = blob.content_type # e.g., "image/png"
+    base64_image = Base64.strict_encode64(image_data)
+    "data:#{mime_type};base64,#{base64_image}"
+  end
+
   def self.update_source_types
     missing_documentable = []
     self.all.each do |doc|

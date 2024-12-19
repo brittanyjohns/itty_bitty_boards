@@ -1126,6 +1126,19 @@ class Image < ApplicationRecord
     is_dynamic
   end
 
+  def describe_image(doc_url)
+    response = OpenAiClient.new(open_ai_opts).describe_image(doc_url)
+    response_content = response[:content]&.downcase
+    puts "Response content: #{response_content}"
+    parsed_response = response_content ? JSON.parse(response_content) : nil
+    puts "Parsed response: #{parsed_response}"
+    if parsed_response
+      parsed_response["output"]["image"]
+    else
+      nil
+    end
+  end
+
   def is_predictive(viewing_user = nil)
     # set_ids(viewing_user)
     # is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id

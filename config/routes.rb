@@ -178,6 +178,7 @@ Rails.application.routes.draw do
     resources :images do
       member do
         post "hide_doc"
+        post "describe"
         post "create_symbol"
         post "set_next_words"
         post "crop"
