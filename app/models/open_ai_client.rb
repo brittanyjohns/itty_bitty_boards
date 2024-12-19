@@ -89,6 +89,7 @@ class OpenAiClient
   end
 
   def describe_menu(img_url)
+    Rails.logger.debug "Image URL: #{img_url}"
     begin
       response = openai_client.chat(parameters: {
                                       model: GPT_VISION_MODEL,

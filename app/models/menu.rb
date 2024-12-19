@@ -296,7 +296,7 @@ class Menu < ApplicationRecord
   def describe_menu(doc)
     begin
       image_data = doc.active_storage_to_data_url
-      puts "Image data: #{image_data.present?}\n Running describe_menu\n"
+      Rails.logger.debug "Image data: #{image_data.present?}\n Running describe_menu\n #{image_data}"
       response = OpenAiClient.new(open_ai_opts).describe_menu(image_data)
       menu_items = response[:content]
       puts "Menu items: #{menu_items}\n"

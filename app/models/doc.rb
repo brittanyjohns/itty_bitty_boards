@@ -51,13 +51,19 @@ class Doc < ApplicationRecord
   end
 
   def active_storage_to_data_url
-    blob = image.blob
-    puts "Blob: #{blob}"
-    # Get S3 URL
-    url = Rails.application.routes.url_helpers.rails_blob_url(blob, only_path: false)
-    # Download and encode
-    image_data = URI.open(url).read
-    mime_type = blob.content_type # e.g., "image/png"
+    # blob = image.blob
+    # puts "Blob: #{blob}"
+    # # Get S3 URL
+    # url = Rails.application.routes.url_helpers.rails_blob_url(blob, only_path: false)
+    # # Download and encode
+    # image_data = URI.open(url).read
+    # mime_type = blob.content_type # e.g., "image/png"
+    # base64_image = Base64.strict_encode64(image_data)
+    # "data:#{mime_type};base64,#{base64_image}"
+    url = display_url
+    downloaded_image = Down.download(url)
+    image_data = downloaded_image.read
+    mime_type = downloaded_image.content_type # e.g., "image/png"
     base64_image = Base64.strict_encode64(image_data)
     "data:#{mime_type};base64,#{base64_image}"
   end
