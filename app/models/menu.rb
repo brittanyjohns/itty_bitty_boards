@@ -246,16 +246,11 @@ class Menu < ApplicationRecord
         # Rails.logger.info "Messages sent: #{messages_sent}\n"
         # return nil unless new_doc.processed
 
-        if new_doc.attached_image_url.blank?
-          puts "No attached image url"
-        else
-          puts "Attached image url: #{new_doc.attached_image_url.class}"
-        end
         new_processed = describe_menu(new_doc)
         @board.update(status: "error") unless new_processed
         @board.update!(description: new_processed) if new_processed
         Rails.logger.debug "New processed: #{new_processed}\n"
-        from_text, messages_sent = clarify_image_description(new_processed)
+        from_text, messages_sent = clarify_image_description(new_doc.raw)
 
         if valid_json?(from_text)
           puts "Valid JSON: #{from_text}"
@@ -277,7 +272,7 @@ class Menu < ApplicationRecord
         new_doc.save!
         self.raw = new_doc.raw
         self.description = new_new_processed
-        self.prompt_sent = new_doc.prompt_sent
+        self.prompt_sent = new_processed
         self.save!
 
         create_board_from_image(new_doc, board_id)
