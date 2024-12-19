@@ -76,7 +76,7 @@ class Board < ApplicationRecord
 
   scope :preset, -> { where(predefined: true) }
   scope :welcome, -> { where(category: "welcome", predefined: true) }
-  POSSIBLE_BOARD_TYPES = %w[board category user image].freeze
+  POSSIBLE_BOARD_TYPES = %w[board category user image menu].freeze
 
   scope :dynamic_defaults, -> { where(name: "Dynamic Default", parent_type: "PredefinedResource") }
 
@@ -898,6 +898,7 @@ class Board < ApplicationRecord
     {
       id: id,
       board_type: board_type,
+      menu_id: board_type === "menu" ? parent_id : nil,
       name: name,
       missing_common_words: missing_common_words,
       existing_words: existing_words,
