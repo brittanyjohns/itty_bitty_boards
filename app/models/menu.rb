@@ -227,7 +227,7 @@ class Menu < ApplicationRecord
   def enhance_image_description(board_id = nil)
     board_id ||= self.boards.last&.id
     @board = Board.find_by(id: board_id) if board_id
-    Rails.logger.debug "Enhancing image description for #{name} - board_id: #{board&.id}"
+    Rails.logger.debug "Enhancing image description for #{name} - board_id: #{@board&.id}"
     new_doc = self.docs.last
     Rails.logger.debug "New doc: #{new_doc.inspect}"
     # if valid_json?(description)
