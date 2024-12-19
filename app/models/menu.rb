@@ -140,6 +140,7 @@ class Menu < ApplicationRecord
 
       unless food["image_description"].blank? || food["image_description"] == item_name
         image.image_prompt = food["image_description"]
+        image.image_prompt += " #{food["description"]}" if food["description"]
       else
         image.image_prompt = "Create a high-resolution image of #{item_name}"
         image.image_prompt += " with #{food["description"]}" if food["description"]
@@ -302,7 +303,6 @@ class Menu < ApplicationRecord
       response = OpenAiClient.new(open_ai_opts).describe_menu(image_data)
       Rails.logger.debug "describe_menu - Response: #{response}\n"
       menu_items = response[:content] if response
-      puts "Menu items: #{menu_items}\n"
     rescue => e
       puts "**** OpenAiClient ERROR **** \n#{e.message}\n"
       puts e.backtrace
