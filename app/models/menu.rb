@@ -57,6 +57,7 @@ class Menu < ApplicationRecord
   end
 
   def create_board_from_image(new_doc, board_id = nil)
+    Rails.logger.debug "Creating board from image for #{name} - board_id: #{board_id}"
     board = board_id ? Board.find(board_id) : self.boards.new
     board.user = self.user
     board.name = self.name || "Board for Doc #{id}"
@@ -221,7 +222,7 @@ class Menu < ApplicationRecord
 
   def enhance_image_description(board_id = nil)
     board_id ||= self.boards.last&.id
-    puts "Enhancing image description for #{name} - board_id: #{board_id}"
+    Rails.logger.debug "Enhancing image description for #{name} - board_id: #{board_id}"
     new_doc = self.docs.last
     if valid_json?(description)
       puts "DESCRIPTION Valid JSON: #{description}"
@@ -243,7 +244,7 @@ class Menu < ApplicationRecord
           puts "Attached image url: #{new_doc.attached_image_url.class}"
         end
         new_processed = describe_menu(new_doc)
-        puts "New processed: #{new_processed}\n"
+        Rails.logger.debug "New processed: #{new_processed}\n"
         # new_new_processed, messages_sent = clarify_image_description(new_processed)
 
         # if valid_json?(new_processed)
@@ -274,6 +275,8 @@ class Menu < ApplicationRecord
     rescue => e
       puts "**** ERROR **** \n#{e.message}\n"
       puts e.backtrace
+      Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"
+
       # board = Board.where(id: board_id).first if board_id
       # board = self.boards.last unless board
       # board = self.boards.create(user: self.user, name: self.name) unless board

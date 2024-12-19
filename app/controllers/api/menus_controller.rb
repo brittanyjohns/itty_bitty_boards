@@ -94,6 +94,7 @@ class API::MenusController < API::ApplicationController
     @menu.raw = menu_params[:description]
     @menu.token_limit = menu_params[:token_limit] || 10
     @menu.user = @current_user
+    @board = @menu.boards.new(user: current_user, name: menu_name, token_limit: @menu.token_limit, predefined: @menu.predefined)
     unless @menu.save
       render json: @menu.errors, status: :unprocessable_entity
       return
