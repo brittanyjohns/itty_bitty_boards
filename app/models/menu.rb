@@ -257,7 +257,7 @@ class Menu < ApplicationRecord
         # new_new_processed = new_processed["menu_items"].to_json
         new_new_processed = new_processed.to_json
 
-        puts "new_new_processed: #{new_processed}\n"
+        Rails.logger.debug "new_new_processed: #{new_processed}\n"
         new_doc.processed = new_new_processed
         new_doc.current = true
         new_doc.user_id = self.user_id
@@ -268,15 +268,15 @@ class Menu < ApplicationRecord
 
         create_board_from_image(new_doc, board_id)
       else
-        puts "Image description invaild: #{description}\n"
+        Rails.logger.error "Image description invaild: #{description}\n"
         description
       end
     rescue => e
       puts "**** ERROR **** \n#{e.message}\n"
       puts e.backtrace
-      board = Board.where(id: board_id).first if board_id
-      board = self.boards.last unless board
-      board = self.boards.create(user: self.user, name: self.name) unless board
+      # board = Board.where(id: board_id).first if board_id
+      # board = self.boards.last unless board
+      # board = self.boards.create(user: self.user, name: self.name) unless board
       # board.update(status: "error") if board
       # board.update(status: "error - #{e.message}\n#{e.backtrace}\n") if board
       nil
