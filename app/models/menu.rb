@@ -224,9 +224,10 @@ class Menu < ApplicationRecord
     board_id ||= self.boards.last&.id
     Rails.logger.debug "Enhancing image description for #{name} - board_id: #{board_id}"
     new_doc = self.docs.last
-    if valid_json?(description)
-      puts "DESCRIPTION Valid JSON: #{description}"
-    end
+    Rails.logger.debug "New doc: #{new_doc.inspect}"
+    # if valid_json?(description)
+    #   puts "DESCRIPTION Valid JSON: #{description}"
+    # end
     raise "NO NEW DOC FOUND" && return unless new_doc
     self.update!(description: new_doc.processed)
     begin
