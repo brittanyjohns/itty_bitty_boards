@@ -236,7 +236,7 @@ class Menu < ApplicationRecord
     raise "NO NEW DOC FOUND" && return unless new_doc
     # self.update!(description: new_doc.processed)
     begin
-      if new_doc.processed
+      if new_doc
         # new_doc.processed, messages_sent = clarify_image_description(new_doc.raw)
         puts "Processed: #{new_doc.processed}\n"
         # puts "Messages sent: #{messages_sent}\n"
@@ -277,8 +277,7 @@ class Menu < ApplicationRecord
 
         create_board_from_image(new_doc, board_id)
       else
-        Rails.logger.error "Image description invaild: #{description}\n"
-        description
+        Rails.logger.error "NO NEW DOC FOUND"
       end
     rescue => e
       puts "**** ERROR **** \n#{e.message}\n"
