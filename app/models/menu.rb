@@ -222,14 +222,15 @@ class Menu < ApplicationRecord
 
   def enhance_image_description(board_id = nil)
     board_id ||= self.boards.last&.id
-    Rails.logger.debug "Enhancing image description for #{name} - board_id: #{board_id}"
+    @board = Board.find_by(id: board_id) if board_id
+    Rails.logger.debug "Enhancing image description for #{name} - board_id: #{board&.id}"
     new_doc = self.docs.last
     Rails.logger.debug "New doc: #{new_doc.inspect}"
     # if valid_json?(description)
     #   puts "DESCRIPTION Valid JSON: #{description}"
     # end
     raise "NO NEW DOC FOUND" && return unless new_doc
-    self.update!(description: new_doc.processed)
+    # self.update!(description: new_doc.processed)
     begin
       if new_doc.processed
         # new_doc.processed, messages_sent = clarify_image_description(new_doc.raw)
@@ -245,6 +246,8 @@ class Menu < ApplicationRecord
           puts "Attached image url: #{new_doc.attached_image_url.class}"
         end
         new_processed = describe_menu(new_doc)
+        @board.update(status: "error") unless new_processed
+        @board.update!(description: new_processed) if new_processed
         Rails.logger.debug "New processed: #{new_processed}\n"
         # new_new_processed, messages_sent = clarify_image_description(new_processed)
 

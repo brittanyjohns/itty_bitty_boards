@@ -909,6 +909,7 @@ class Board < ApplicationRecord
       parent_id: parent_id,
       image_parent_id: image_parent_id,
       parent_description: parent_type === "User" ? "User" : parent&.to_s,
+      menu_description: parent_type === "Menu" ? parent&.description : nil,
       parent_prompt: parent_type === "OpenaiPrompt" ? parent.prompt_text : nil,
       predefined: predefined,
       number_of_columns: number_of_columns,
