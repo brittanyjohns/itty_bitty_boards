@@ -193,6 +193,8 @@ class Menu < ApplicationRecord
       id: id,
       name: name,
       description: description,
+      prompt_sent: prompt_sent,
+      prompt_used: prompt_used,
       token_limit: token_limit,
       board: main_board&.api_view_with_images(viewing_user),
       displayImage: docs.last&.display_url,
@@ -253,15 +255,17 @@ class Menu < ApplicationRecord
         @board.update(status: "error") unless new_processed
         @board.update!(description: new_processed) if new_processed
         Rails.logger.debug "New processed: #{new_processed}\n"
-        # new_new_processed, messages_sent = clarify_image_description(new_processed)
+        from_text, messages_sent = clarify_image_description(new_processed)
 
-        # if valid_json?(new_processed)
-        #   puts "Valid JSON: #{new_processed}"
-        #   new_processed = JSON.parse(new_processed)
-        # else
-        #   puts "INVALID JSON: #{new_processed}"
-        #   new_processed = transform_into_json(new_processed)
-        # end
+        if valid_json?(from_text)
+          puts "Valid JSON: #{from_text}"
+          new_from_text = JSON.parse(from_text)
+          self.prompt_used = new_from_text
+        else
+          puts "INVALID JSON: #{new_processed}"
+          new_from_text = transform_into_json(new_processed)
+          self.prompt_used = new_from_text
+        end
 
         # new_new_processed = new_processed["menu_items"].to_json
         new_new_processed = new_processed.to_json
@@ -273,6 +277,7 @@ class Menu < ApplicationRecord
         new_doc.save!
         self.raw = new_doc.raw
         self.description = new_new_processed
+        self.prompt_sent = new_doc.prompt_sent
         self.save!
 
         create_board_from_image(new_doc, board_id)
