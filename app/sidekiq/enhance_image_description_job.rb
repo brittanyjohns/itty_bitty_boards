@@ -11,10 +11,11 @@ class EnhanceImageDescriptionJob
         raise "Invalid image description."
       end
       board = Board.find(board_id) if board_id
-      board.calculate_grid_layout_for_screen_size(screen_size || "lg") if board
+      board.reset_layouts if board
+      puts "NO BOARD FOUND" unless board
     rescue => e
       puts "**** ERROR **** \n#{e.message}\n"
-      puts menu.reload.main_board&.inspect
+      puts e.backtrace.join("\n")
     end
   end
 end
