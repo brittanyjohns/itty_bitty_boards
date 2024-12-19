@@ -62,13 +62,13 @@ class API::MenusController < API::ApplicationController
       # redirect_to menu_url(@menu), notice: "No board found for this menu."
       return
     end
-    if current_user.tokens < 1
+    if current_user.tokens < 1 && !current_user.admin?
       message = "Not enough tokens to re-run image description job."
       render json: { error: message }, status: :unprocessable_entity
       # redirect_to menu_url(@menu), notice: "Not enough tokens to re-run image description job."
       return
     end
-    if @board.cost >= @menu.token_limit
+    if @board.cost >= @menu.token_limit && !current_user.admin?
       Rails.logger.info "Board cost: #{@board.cost} >= Menu token limit: #{@menu.token_limit}"
       message = "This menu has already used all of its tokens. Menu token limit: #{@menu.token_limit}"
       render json: { error: message }, status: :unprocessable_entity

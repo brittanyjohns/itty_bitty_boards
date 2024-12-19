@@ -195,6 +195,7 @@ class Menu < ApplicationRecord
       description: description,
       prompt_sent: prompt_sent,
       prompt_used: prompt_used,
+      raw: raw,
       token_limit: token_limit,
       board: main_board&.api_view_with_images(viewing_user),
       displayImage: docs.last&.display_url,
