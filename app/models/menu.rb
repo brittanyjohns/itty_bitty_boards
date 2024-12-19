@@ -115,6 +115,10 @@ class Menu < ApplicationRecord
     tokens_used = 0
     menu_item_list = []
 
+    Rails.logger.debug "Creating images from description for board: #{board.description}"
+    Rails.logger.debug "Description: #{description}"
+    Rails.logger.debug "JSON Description: #{json_description}"
+
     json_description["menu_items"].each do |food|
       if food["name"].blank? || food["image_description"].blank?
         puts "Blank name or image description for #{food.inspect}"
