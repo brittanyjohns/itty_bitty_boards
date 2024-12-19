@@ -75,6 +75,7 @@ class API::MenusController < API::ApplicationController
       # redirect_to menu_url(@menu), notice: "This menu has already used all of its tokens."
       return
     end
+    Rails.logger.info "Re-running image description job."
     # @menu.rerun_image_description_job
     @menu.enhance_image_description(@board.id)
     render json: @menu.api_view(current_user), status: 200
@@ -101,7 +102,7 @@ class API::MenusController < API::ApplicationController
     end
     doc = @menu.docs.new(menu_params[:docs])
     doc.user = @current_user
-    doc.processed = true
+    # doc.processed = true
     doc.raw = params[:menu][:description]
     if doc.save
       @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined)
@@ -111,6 +112,7 @@ class API::MenusController < API::ApplicationController
         name: @menu.name,
         description: @menu.description,
         boardId: @board.id,
+        board: @board.api_view(@current_user),
         displayImage: @menu.docs.last&.image&.url,
         predefined: @menu.predefined,
         user_id: @menu.user_id,
