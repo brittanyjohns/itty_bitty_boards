@@ -190,6 +190,7 @@ class Image < ApplicationRecord
   end
 
   def ensure_defaults
+    Rails.logger.debug "Ensuring defaults for #{label}"
     if image_type.blank?
       self.image_type = "Static"
       # user_predictive_board_id = user&.predictive_board_id
@@ -197,14 +198,15 @@ class Image < ApplicationRecord
       #   self.predictive_board_id = user_predictive_board_id
       # end
     end
+    Rails.logger.debug "Image type: #{image_type} - any category boards? #{category_boards.any?}"
     if category_board && category_board&.board_type == "category"
-      puts "Setting image type to Category - #{category_board.name}"
+      Rails.logger.debug "Setting image type to Category - #{category_board.name}"
       self.image_type = "Category"
       self.predictive_board_id = category_board.id
     end
 
     if predictive_board && predictive_board&.board_type == "predictive"
-      puts "Setting image type to Predictive - #{predictive_board.name}"
+      Rails.logger.debug "Setting image type to Predictive - #{predictive_board.name}"
       self.image_type = "Predictive"
       self.predictive_board_id = predictive_board.id
     end
@@ -218,7 +220,7 @@ class Image < ApplicationRecord
     if audio_url.blank?
       self.audio_url = default_audio_url
     end
-    Rails.logger.debug "Image: #{label} - bg_color: #{bg_color} - part_of_speech: #{part_of_speech} - image_type: #{image_type}"
+    Rails.logger.debug "Image: #{label} - bg_color: #{bg_color} - part_of_speech: #{part_of_speech} - image_type: #{image_type} - predictive_board_id: #{predictive_board&.id} category #{category_board&.id}- predictive_board_name: #{predictive_board&.name} - category_board_name: #{category_board&.name}"
   end
 
   def should_generate_symbol?
@@ -241,8 +243,12 @@ class Image < ApplicationRecord
   end
 
   def category_board
-    category_board_id = predictive_board_id
-    category_board_id ? Board.find_by(id: category_board_id) : nil
+    if predictive_board_id
+      category_board_id = predictive_board_id
+      category_board_id ? Board.find_by(id: category_board_id) : nil
+    else
+      category_boards.first
+    end
   end
 
   def create_predictive_board(new_user_id, words_to_use = nil, use_preview_model = false, board_settings = {})
@@ -1075,7 +1081,7 @@ class Image < ApplicationRecord
     return [] unless current_user
     # boards.user_made_with_scenarios_and_menus.where(user_id: current_user.id)
     # Board.joins(:board_images).where(board_images: { image_id: id }).user_made_with_scenarios_and_menus.where(user_id: current_user.id)
-    current_user.boards.joins(:board_images).where(board_images: { image_id: id }).order(name: :asc)
+    current_user.boards.includes(:board_images).where(board_images: { image_id: id }).order(name: :asc)
   end
 
   def update_src_url
@@ -1155,6 +1161,7 @@ class Image < ApplicationRecord
     image_docs = docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
     remaining = remaining_user_boards(@current_user)
     user_image_boards = user_boards(@current_user)
+    Rails.logger.debug "User image boards: #{user_image_boards.inspect}"
     @default_audio_url = default_audio_url
     # is_owner = @current_user && user_id == @current_user&.id
     is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
@@ -1162,11 +1169,12 @@ class Image < ApplicationRecord
     img_is_dynamic = is_dynamic(@current_user)
     img_is_predictive = is_predictive(@current_user)
     is_owner = @current_user && user_id == @current_user&.id
-    @category_boards = category_boards
+    @category_boards = category_boards.order(name: :asc)
     is_category = @category_boards.where(user_id: [@current_user&.id, nil, User::DEFAULT_ADMIN_ID]).any?
+    # board_image_data = self.board_images_for_user(@current_user).map { |board_image| board_image.api_view(@current_user) }
     if is_category
-      category_board_images = @category_boards.map(&:images).flatten
-      category_board_images = category_board_images.select { |image| image.id != id }
+      # category_board_images = @category_boards.map(&:images).flatten
+      # category_board_images = category_board_images.select { |image| image.id != id }
     end
     {
       id: id,
@@ -1176,6 +1184,7 @@ class Image < ApplicationRecord
       display_doc: doc_img_url,
       src: doc_img_url,
       src_url: src_url,
+      # board_images: @current_user.boards.includes(board_images: :image).where(board_images: { image_id: id }).order(name: :asc).map { |board_img| board_img.api_view(@current_user) },
       predictive_board_board_type: @predictive_board&.board_type,
       audio: @default_audio_url,
       audio_url: @default_audio_url,
@@ -1192,7 +1201,7 @@ class Image < ApplicationRecord
       is_owner: is_owner,
       is_admin_image: is_admin_image,
       is_category: is_category,
-      category_boards: @category_boards.map { |board| { id: board.id, name: board.name } },
+      category_boards: @category_boards.map { |board| board.api_view(@current_user) },
       category_board_images: category_board_images&.map { |img| { id: img.id, label: img.label, src: img.display_image_url(@current_user) } },
       bg_color: bg_class,
       open_symbol_status: open_symbol_status,
@@ -1204,7 +1213,7 @@ class Image < ApplicationRecord
       no_next: no_next,
       part_of_speech: part_of_speech,
       can_edit: (current_user && user_id == current_user.id) || current_user&.admin?,
-      user_boards: user_image_boards.map { |board| { id: board.id, name: board.name, voice: board.voice } },
+      user_boards: user_image_boards.map { |board| board.api_view(@current_user) },
       remaining_boards: remaining.map { |board| { id: board.id, name: board.name, board_type: board.board_type } },
       matching_viewer_images: matching_viewer_images(@current_user).map { |image| { id: image.id, label: image.label, src: image.display_image_url(@current_user) || image.src_url, created_at: image.created_at.strftime("%b %d, %Y") } },
       matching_viewer_boards: matching_viewer_boards(@current_user).map { |board|
@@ -1232,6 +1241,15 @@ class Image < ApplicationRecord
     else
       Image.menu_images.public_img.distinct
     end
+  end
+
+  def category_board_images
+    category_board_images = category_boards.map(&:images).flatten
+    category_board_images = category_board_images.select { |image| image.id != id }
+  end
+
+  def board_images_for_user(viewing_user)
+    category_board_images
   end
 
   def self.searchable_images_for(user, only_user_images = false)

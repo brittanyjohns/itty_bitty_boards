@@ -890,6 +890,7 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_predictive_images(viewing_user = nil)
+    @board_settings = settings || {}
     @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards]).order(:position).uniq
     # @board_images = board_images.includes(:image)
     word_data = get_commons_words
@@ -958,6 +959,15 @@ class Board < ApplicationRecord
         # is_category = @category_boards.where(user_id: [viewing_user&.id, nil, User::DEFAULT_ADMIN_ID]).any?
         is_category = @predictive_board && @predictive_board.board_type == "category"
         mute_name = @predictive_board_settings["mute_name"] == true && is_dynamic
+        freeze_board = @predictive_board_settings["freeze_board"] == true
+        Rails.logger.debug "Freeze Board: #{freeze_board}"
+        Rails.logger.debug "Board Settings: #{@board_settings.inspect}" if freeze_board
+        is_first_image = @board_image.position == 0
+        freeze_parent_board = @board_settings["freeze_board"] == true && is_first_image
+        Rails.logger.debug "Freeze Parent Board: #{@board_image.label} - #{freeze_parent_board}"
+        @board_image.data ||= {}
+        override_frozen = @board_image.data["override_frozen"] == true
+        mute_name ||= true if override_frozen
         {
           id: image.id,
           label: @board_image.label,
@@ -969,6 +979,11 @@ class Board < ApplicationRecord
           is_owner: is_owner,
           is_category: is_category,
           is_admin_image: is_admin_image,
+          freeze_board: freeze_board,
+          freeze_parent_board: freeze_parent_board,
+          is_first_image: is_first_image,
+          override_frozen: override_frozen,
+          position: @board_image.position,
           dynamic: is_dynamic,
           is_predictive: is_predictive,
           board_image_id: @board_image.id,
@@ -987,7 +1002,7 @@ class Board < ApplicationRecord
           layout: @board_image.layout.with_indifferent_access,
           added_at: @board_image.added_at,
           part_of_speech: image.part_of_speech,
-
+          data: @board_image.data,
           status: @board_image.status,
         }
       end,
@@ -1016,10 +1031,11 @@ class Board < ApplicationRecord
       token_limit: token_limit,
       cost: cost,
       display_image_url: display_image_url,
-      # floating_words: words,
+      board_type: board_type,
       user_id: user_id,
       voice: voice,
       margin_settings: margin_settings,
+      board_images: board_images.map { |bi| bi.api_view(viewing_user) },
     }
   end
 

@@ -10,20 +10,7 @@ class BoardImagesController < ApplicationController
 
   # GET /board_images/1 or /board_images/1.json
   def show
-  end
-
-  def move_up
-    @board_image = BoardImage.find(params[:id])
-    puts "move_up - board_image: #{@board_image.position}"
-    @board_image.move_higher
-    puts "move_up - board_image: #{@board_image.position}"
-    redirect_back_or_to board_url(@board_image.board)
-  end
-
-  def move_down
-    @board_image = BoardImage.find(params[:id])
-    @board_image.move_lower
-    redirect_to board_url(@board_image.board)
+    render json: @board_image.api_view
   end
 
   # GET /board_images/new
@@ -75,13 +62,14 @@ class BoardImagesController < ApplicationController
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_board_image
-      @board_image = BoardImage.find(params[:id])
-    end
 
-    # Only allow a list of trusted parameters through.
-    def board_image_params
-      params.require(:board_image).permit(:board_id, :image_id, :position, :voice)
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_board_image
+    @board_image = BoardImage.find(params[:id])
+  end
+
+  # Only allow a list of trusted parameters through.
+  def board_image_params
+    params.require(:board_image).permit(:board_id, :image_id, :position, :voice, :data)
+  end
 end

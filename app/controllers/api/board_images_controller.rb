@@ -1,6 +1,6 @@
 class API::BoardImagesController < API::ApplicationController
   respond_to :json
-  before_action :set_board_image, only: %i[ show edit update destroy ]
+  before_action :set_board_image, only: %i[ show update destroy ]
 
   # GET /board_images or /board_images.json
   def index
@@ -9,6 +9,7 @@ class API::BoardImagesController < API::ApplicationController
 
   # GET /board_images/1 or /board_images/1.json
   def show
+    render json: @board_image.api_view(current_user)
   end
 
   def save_layout
@@ -29,37 +30,15 @@ class API::BoardImagesController < API::ApplicationController
     @board_image.move_lower
   end
 
-  # GET /board_images/new
-  def new
-    @board_image = BoardImage.new
-    @board = Board.find(params[:board_id])
-  end
-
-  # GET /board_images/1/edit
-  def edit
-  end
-
-  # POST /board_images or /board_images.json
-  def create
-    @board_image = BoardImage.new(board_image_params)
-
-    respond_to do |format|
-      if @board_image.save
-        format.json { render :show, status: :created, location: @board_image }
-      else
-        format.json { render json: @board_image.errors, status: :unprocessable_entity }
-      end
-    end
-  end
-
   # PATCH/PUT /board_images/1 or /board_images/1.json
   def update
-    respond_to do |format|
-      if @board_image.update(board_image_params)
-        format.json { render :show, status: :ok, location: @board_image }
-      else
-        format.json { render json: @board_image.errors, status: :unprocessable_entity }
-      end
+    data = params[:board_image][:data]
+    updatedData = @board_image.data.merge(data.to_unsafe_h)
+    @board_image.data = updatedData
+    if @board_image.save
+      render json: @board_image.api_view(current_user)
+    else
+      render json: @board_image.errors, status: :unprocessable_entity
     end
   end
 
@@ -76,11 +55,14 @@ class API::BoardImagesController < API::ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_board_image
+    puts "set_board_image"
+    puts params
     @board_image = BoardImage.find(params[:id])
+    puts "set_board_image done #{@board_image}"
   end
 
   # Only allow a list of trusted parameters through.
   def board_image_params
-    params.require(:board_image).permit(:board_id, :image_id, :position, :voice)
+    params.require(:board_image).permit(:board_id, :image_id, :position, :voice, data: {})
   end
 end

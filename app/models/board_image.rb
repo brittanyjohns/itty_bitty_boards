@@ -186,13 +186,18 @@ class BoardImage < ApplicationRecord
     board.user
   end
 
-  def api_view
+  def api_view(viewing_user = nil)
+    viewing_user ||= user
+    all_img_board_images = board.board_images.includes(:image)
     {
       id: id,
       image_id: image_id,
       label: label,
       voice: voice,
-      src: image.display_image_url(self.user),
+      src: image.display_image_url(viewing_user),
+      board_id: board_id,
+      position: position,
+      board_name: board.name,
       bg_color: bg_color,
       text_color: text_color,
       font_size: font_size,
@@ -203,6 +208,7 @@ class BoardImage < ApplicationRecord
       audio: audio_url,
       image_prompt: image_prompt,
       next_words: next_words,
+      data: data,
     }
   end
 
