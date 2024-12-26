@@ -1097,7 +1097,7 @@ class Image < ApplicationRecord
   end
 
   def matching_viewer_images(viewing_user = nil)
-    imgs = Image.where(label: label, user_id: [viewing_user&.id, User::DEFAULT_ADMIN_ID, nil]).where.not(id: id)
+    imgs = Image.where(label: label, user_id: [viewing_user&.id]).where.not(id: id)
     imgs = imgs.where.not(status: "marked_for_deletion")
     imgs.order(created_at: :desc)
   end
