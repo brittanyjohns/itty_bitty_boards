@@ -6,7 +6,7 @@ class API::Account::ChildBoardsController < API::Account::ApplicationController
   # GET /boards/1 or /boards/1.json
   def show
     set_child_board
-    @board_with_images = @board.api_view_with_images(current_account.user)
+    @board_with_images = @board.api_view_with_images
     child_permissions = {
       can_edit: false,
       can_delete: false,

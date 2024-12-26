@@ -46,6 +46,7 @@ class Board < ApplicationRecord
   has_many :board_group_boards, dependent: :destroy
   has_many :board_groups, through: :board_group_boards
   has_many :child_boards, dependent: :destroy
+  belongs_to :image_parent, class_name: "Image", optional: true
 
   attr_accessor :skip_create_voice_audio
 
@@ -82,7 +83,8 @@ class Board < ApplicationRecord
 
   SAFE_FILTERS = %w[all welcome preset featured popular general seasonal routines emotions actions animals food people places things colors shapes numbers letters].freeze
 
-  scope :with_artifacts, -> { includes({ board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }) }
+  # scope :with_artifacts, -> { includes({ board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }) }
+  scope :with_artifacts, -> { includes({ board_images: [{ image: [:docs, :audio_files_attachments, :audio_files_blobs, :user, :category_boards] }] }, :image_parent) }
 
   include ImageHelper
 
@@ -127,10 +129,6 @@ class Board < ApplicationRecord
 
   def set_initial_layout
     self.layout = { "lg" => [], "md" => [], "sm" => [] }
-  end
-
-  def parent_image
-    Image.find_by(id: image_parent_id, user_id: user_id)
   end
 
   def layout_empty?
@@ -231,9 +229,9 @@ class Board < ApplicationRecord
   end
 
   def update_display_image
-    if parent_image
-      parent_image_url = parent_image.display_image_url(user)
-      self.display_image_url = parent_image_url
+    if image_parent
+      image_parent_url = image_parent.display_image_url(user)
+      self.display_image_url = image_parent_url
       self.status = "complete"
     end
   end
@@ -428,6 +426,7 @@ class Board < ApplicationRecord
 
   def find_or_create_images_from_word_list(word_list)
     unless word_list && word_list.any?
+      puts "No word list"
       Rails.logger.debug "No word list"
       return
     end

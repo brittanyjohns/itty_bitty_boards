@@ -76,7 +76,7 @@ class Image < ApplicationRecord
   scope :without_docs, -> { where.missing(:docs) }
   scope :with_docs, -> { where.associated(:docs) }
   scope :generating, -> { where(status: "generating") }
-  scope :with_artifacts, -> { includes({ docs: { image_attachment: :blob } }, :predictive_boards, :user) }
+  scope :with_artifacts, -> { includes({ docs: { image_attachment: :blob } }, :predictive_boards, :user, :category_boards) }
   scope :created_between, ->(start_date, end_date) { where(created_at: start_date..end_date) }
 
   # def category_boards
@@ -245,7 +245,7 @@ class Image < ApplicationRecord
   def category_board
     if predictive_board_id
       category_board_id = predictive_board_id
-      category_board_id ? Board.find_by(id: category_board_id) : nil
+      category_board_id ? Board.with_artifacts.find_by(id: category_board_id) : nil
     else
       category_boards.first
     end
@@ -270,6 +270,11 @@ class Image < ApplicationRecord
         board_words = board.board_images.map(&:label).uniq
         self.next_words = board.get_words(name_to_send, 10, board_words, use_preview_model)
       end
+    end
+
+    if !board
+      Rails.logger.debug "Could not create predictive board for #{label}"
+      return
     end
     self.image_type = "Predictive"
     self.predictive_board_id = board.id
@@ -1218,7 +1223,7 @@ class Image < ApplicationRecord
       matching_viewer_images: matching_viewer_images(@current_user).map { |image| { id: image.id, label: image.label, src: image.display_image_url(@current_user) || image.src_url, created_at: image.created_at.strftime("%b %d, %Y") } },
       matching_viewer_boards: matching_viewer_boards(@current_user).map { |board|
         { id: board.id, name: board.name, voice: board.voice,
-          display_image_url: board.display_image_url || board.parent_image&.src_url, created_at: board.created_at.strftime("%b %d, %Y") }
+          display_image_url: board.display_image_url || board.image_parent&.src_url, created_at: board.created_at.strftime("%b %d, %Y") }
       },
       docs: image_docs.map do |doc|
         {

@@ -14,8 +14,10 @@ class ChildBoard < ApplicationRecord
   belongs_to :board
   belongs_to :child_account
   has_many :images, through: :board
+  has_one :image_parent, through: :board
 
-  scope :with_artifacts, -> { includes(board: :images) }
+  # scope :with_artifacts, -> { includes(board: :images) }
+  scope :with_artifacts, -> { includes({ board: [{ images: [:docs, :audio_files_attachments, :audio_files_blobs, :user, :category_boards] }] }, :image_parent) }
 
   def name
     board.name
@@ -34,6 +36,7 @@ class ChildBoard < ApplicationRecord
       status: status,
       settings: settings,
       display_image_url: display_image_url,
+      board_type: board.board_type,
     }
   end
 

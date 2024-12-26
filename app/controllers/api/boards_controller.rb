@@ -330,6 +330,10 @@ class API::BoardsController < API::ApplicationController
     elsif board_type == "static"
       @board.parent_type = "User"
       @board.parent_id = current_user.id
+    else
+      @board.board_type = "static"
+      @board.parent_type = "User"
+      @board.parent_id = current_user.id
     end
     Rails.logger.info "Board Parent type: #{@board.parent_type} - Parent ID: #{@board.parent_id}"
     @board.predefined = false
