@@ -682,6 +682,7 @@ class Board < ApplicationRecord
     unless layout_to_set.is_a?(Array)
       return
     end
+    Rails.logger.debug "Layout to set: #{layout_to_set}"
     layout_to_set.each_with_index do |layout_item, i|
       id_key = layout_item[:i]
       layout_hash = layout_item.with_indifferent_access
@@ -812,6 +813,11 @@ class Board < ApplicationRecord
         explanation = personable_explanation + "\n" + professional_explanation
         self.data["personable_explanation"] = personable_explanation
         self.data["professional_explanation"] = professional_explanation
+      end
+
+      if grid_response.blank?
+        Rails.logger.debug "No grid response"
+        return
       end
 
       grid_response.each_with_index do |item, index|
