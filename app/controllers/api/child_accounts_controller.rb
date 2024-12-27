@@ -5,7 +5,7 @@ class API::ChildAccountsController < API::ApplicationController
   # GET /child_accounts.json
   def index
     @child_accounts = current_user.child_accounts
-    render json: @child_accounts.map(&:api_view)
+    render json: @child_accounts.map(&:index_api_view)
   end
 
   # GET /child_accounts/1
@@ -33,6 +33,10 @@ class API::ChildAccountsController < API::ApplicationController
     if settings
       @child_account.settings = settings
     end
+    details = params[:details] 
+    if details
+      @child_account.details = details
+    end
     @child_account.user = current_user
     @child_account.passcode = password
     if @child_account.save
@@ -58,6 +62,11 @@ class API::ChildAccountsController < API::ApplicationController
     puts "Update Settings: #{settings.inspect}"
     if settings
       @child_account.settings = settings
+    end
+
+    details = params[:details] 
+    if details
+      @child_account.details = details
     end
 
     if @child_account.save

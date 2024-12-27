@@ -276,15 +276,16 @@ Rails.application.routes.draw do
     end
 
     resources :users do
-      resources :child_accounts do
-        member do
-          post "assign_board"
-          delete "remove_board"
-        end
-      end
       member do
         put "update_settings"
         put "admin_update_settings"
+      end
+    end
+
+    resources :child_accounts do
+      member do
+        post "assign_board"
+        delete "remove_board"
       end
     end
 

@@ -102,8 +102,9 @@ class ChildAccount < ApplicationRecord
   end
 
   def available_boards
-    current_boards = self.child_boards.map(&:board)
-    user.boards.user_made_with_scenarios_and_menus.excluding(current_boards).order(:name)
+    current_board_ids = self.child_boards.distinct.pluck(:board_id)
+    current_boards = Board.where(id: current_board_ids)
+    user.boards.where.not(id: current_boards.pluck(:id)).order(:name)
   end
 
   def api_view
@@ -114,10 +115,22 @@ class ChildAccount < ApplicationRecord
       parent_name: user.display_name,
       name: name,
       settings: settings,
+      details: details,
       user_id: user_id,
-      boards: child_boards.map(&:api_view),
+      boards: child_boards.map { |cb| { id: cb.id, name: cb.board.name, board_type: cb.board.board_type, board_id: cb.board_id, display_image_url: cb.board.display_image_url } },
       can_sign_in: can_sign_in?,
-      available_boards: available_boards.map(&:api_view),
+      available_boards: available_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type } },
+
+    }
+  end
+
+  def index_api_view
+    {
+      id: id,
+      username: username,
+      name: name,
+      parent_name: user.display_name,
+      user_id: user_id,
     }
   end
 end

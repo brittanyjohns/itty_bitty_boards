@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_12_10_192943) do
+ActiveRecord::Schema[7.1].define(version: 2024_12_27_161220) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -154,6 +154,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_12_10_192943) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "passcode"
+    t.jsonb "details"
     t.index ["authentication_token"], name: "index_child_accounts_on_authentication_token", unique: true
     t.index ["reset_password_token"], name: "index_child_accounts_on_reset_password_token", unique: true
     t.index ["user_id"], name: "index_child_accounts_on_user_id"
