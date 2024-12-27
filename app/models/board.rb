@@ -186,16 +186,14 @@ class Board < ApplicationRecord
 
   def existing_audio_files
     return [] unless audio_files.attached?
-    puts "Existing Audio Files: #{audio_files[0].inspect}"
     names = audio_files_blobs.map(&:filename)
-    puts "Existing Audio Files: #{names}"
     names
   end
 
   def set_screen_sizes
-    self.small_screen_columns = 3
-    self.medium_screen_columns = 8
-    self.large_screen_columns = 12
+    self.small_screen_columns = 4
+    self.medium_screen_columns = 6
+    self.large_screen_columns = 8
   end
 
   def parent_type_menu?
@@ -206,7 +204,7 @@ class Board < ApplicationRecord
     begin
       parent.destroy!
     rescue => e
-      puts "Error deleting parent: #{e.inspect}"
+      Rails.logger.debug "Error deleting parent: #{e.inspect}"
     end
   end
 
