@@ -51,6 +51,7 @@ class Board < ApplicationRecord
   attr_accessor :skip_create_voice_audio
 
   include UtilHelper
+  include BoardsHelper
 
   include PgSearch::Model
   pg_search_scope :search_by_name,
@@ -161,6 +162,54 @@ class Board < ApplicationRecord
 
     audio_blob ? cdn_url : nil
   end
+
+  # OBF helper methods
+
+  def url
+    base_url = ENV["FRONT_END_URL"] || "localhost:8100"
+    "#{base_url}/boards/#{id}"
+  end
+
+  def data_url
+    base_url = ENV["API_URL"] || "localhost:4000"
+    "#{base_url}/api/boards/#{id}"
+  end
+
+  def description_html
+    description
+  end
+
+  def label_locale
+    "en"
+  end
+
+  def default_locale
+    "en"
+  end
+
+  def license
+    {'type'=> 'private'}
+  end
+
+  def background
+    bg_color
+  end
+
+  def obf_grid
+    og_layout = print_grid_layout_for_screen_size("lg")
+    puts "OG Layout: #{og_layout}"
+    grid = []
+        sheet['rows'].times do 
+          grid << [nil] * sheet['columns']
+        end
+        board['grid'] = {
+          'rows' => sheet['rows'],
+          'columns' => sheet['columns'],
+          'order' => grid
+        }
+        grid
+  end
+
 
   def create_voice_audio
     return if @skip_create_voice_audio

@@ -1,6 +1,6 @@
 source "https://rubygems.org"
 
-ruby "3.3.1"
+ruby "3.3.0"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 7.1.2"
@@ -141,3 +141,5 @@ gem "mailgun-ruby", "~>1.2.14"
 gem "pg_search"
 
 gem "lograge"
+
+gem "obf", "~> 0.9.9"
