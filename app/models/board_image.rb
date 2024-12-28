@@ -162,6 +162,52 @@ class BoardImage < ApplicationRecord
     x + (y * board.number_of_columns) + 1
   end
 
+  def to_obf_image_format
+    {
+      id: id.to_s,
+      url: image.display_image_url,
+      width: board.grid_cell_width,
+      height: board.grid_cell_width,
+      content_type: image.content_type,
+      label: label,
+      url: image.display_image_url,
+      ext_saw_voice: voice,
+    }
+  end
+
+  def to_obf_sound_format
+    {
+      id: audio_file&.id.to_s,
+      label: label,
+      url: audio_url,
+      ext_saw_voice: voice,
+      image_id: id.to_s,
+    }
+  end
+
+  def to_obf_button_format
+    return unless board.predictive? || board.category?
+    predictive_board = image.predictive_board
+    {
+      id: id.to_s,
+      label: label,
+      image_id: image_id.to_s,
+      background: bg_color,
+      load_board: {
+        id: predictive_board.id.to_s,
+        name: predictive_board.name,
+        url: predictive_board.url,
+        data_url: predictive_board.data_url,
+        path: predictive_board.path,
+      },
+
+    }
+  end
+
+  def audio_file
+    image.find_audio_for_voice(voice)
+  end
+
   def create_voice_audio(voice = nil)
     voice ||= self.voice
     return if @skip_create_voice_audio || Rails.env.test?

@@ -932,6 +932,18 @@ class Image < ApplicationRecord
     voices_needed = voices_needed - [voice]
   end
 
+  def content_type
+    display_doc&.image_blob&.content_type
+  end
+
+  def width
+    display_doc&.image_blob&.metadata&.dig("width")
+  end
+
+  def height
+    display_doc&.image_blob&.metadata&.dig("height")
+  end
+
   def display_doc(viewing_user = nil)
     if viewing_user
       # docs = self.docs.where(user_id: [viewing_user.id, nil, User::DEFAULT_ADMIN_ID])

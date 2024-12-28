@@ -107,7 +107,7 @@ gem "kaminari"
 gem "pay", "~> 7.0"
 
 # To use Stripe, also include:
-gem "stripe", "~> 10.0"
+gem "stripe", "~> 12.0"
 
 # To use Braintree + PayPal, also include:
 gem "braintree", "~> 4.7"

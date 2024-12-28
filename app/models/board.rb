@@ -85,7 +85,7 @@ class Board < ApplicationRecord
   SAFE_FILTERS = %w[all welcome preset featured popular general seasonal routines emotions actions animals food people places things colors shapes numbers letters].freeze
 
   # scope :with_artifacts, -> { includes({ board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }) }
-  scope :with_artifacts, -> { includes({ board_images: [{ image: [:docs, :audio_files_attachments, :audio_files_blobs, :user, :category_boards] }] }, :image_parent) }
+  scope :with_artifacts, -> { includes({ board_images: [{ image: [{ docs: [:image_attachment, :image_blob, :user_docs] }, :audio_files_attachments, :audio_files_blobs, :user, :category_boards] }] }, :image_parent) }
 
   include ImageHelper
 
@@ -188,28 +188,12 @@ class Board < ApplicationRecord
   end
 
   def license
-    {'type'=> 'private'}
+    { "type" => "wip" }
   end
 
   def background
     bg_color
   end
-
-  def obf_grid
-    og_layout = print_grid_layout_for_screen_size("lg")
-    puts "OG Layout: #{og_layout}"
-    grid = []
-        sheet['rows'].times do 
-          grid << [nil] * sheet['columns']
-        end
-        board['grid'] = {
-          'rows' => sheet['rows'],
-          'columns' => sheet['columns'],
-          'order' => grid
-        }
-        grid
-  end
-
 
   def create_voice_audio
     return if @skip_create_voice_audio
@@ -777,12 +761,18 @@ class Board < ApplicationRecord
     end
   end
 
+  def grid_cell_width(screen_size = "lg")
+    screen_dimensions = { "sm" => 599, "md" => 650, "lg" => 769 }
+    screen_dimension = screen_dimensions[screen_size]
+    num_of_columns = get_number_of_columns(screen_size)
+    (screen_dimension / num_of_columns).to_i
+  end
+
   def next_available_cell(screen_size = "lg")
     # Create a hash to track occupied cells
     occupied = Hash.new { |hash, key| hash[key] = [] }
     self.update_board_layout(screen_size)
     grid = self.layout[screen_size] || []
-    columns = get_number_of_columns(screen_size)
 
     # Mark existing cells as occupied
     grid.each do |cell|
