@@ -14,19 +14,22 @@ module BoardsHelper
     # obf_board[:background] = self.background
     # obf_board[:url] = self.url
     # obf_board[:data_url] = self.data_url
-    # obf_board[:description_html] = self.description_html
+    obf_board[:description_html] = self.description_html
     # obf_board[:protected_content_user_identifier] = self.protected_content_user_identifier
     obf_board[:license] = self.license
-    obf_board[:default_locale] = self.default_locale
-    obf_board[:label_locale] = self.label_locale
     obf_board[:grid] = self.format_grid
     obf_board[:images] = self.board_images.map(&:to_obf_image_format)
     obf_board[:sounds] = self.board_images.map(&:to_obf_sound_format)
-    obf_board[:buttons] = self.board_images.map(&:to_obf_button_format) if self.predictive? || self.category?
+    obf_board[:buttons] = self.board_images.map(&:to_obf_button_format)
 
     data = obf_board.to_json
-    File.open("obf.json", "w") { |file| file.write(data) }
+    File.open("obf.obf", "w") { |file| file.write(data) }
     obf_board
+  end
+
+  def to_pdf
+    # obf_board = self.to_obf
+    OBF::PDF.from_obf("obf.obf", "obf.pdf")
   end
 
   def format_grid
@@ -49,6 +52,7 @@ module BoardsHelper
       y = cell["y"]
       w = cell["w"]
       h = cell["h"]
+      new_grid[y] ||= []
       new_grid[y][x] = cell["i"]
       #   (y + 1).upto(y + h - 1) do |yy|
       #     (x + 1).upto(x + w - 1) do |xx|
@@ -65,5 +69,48 @@ module BoardsHelper
       "order" => new_grid,
     }
     result
+  end
+
+  def description_html
+    if description.nil?
+      "<p>This board was created using SpeakAnyWay AAC. You can create your own boards at <a href='https://www.speakanyway.com'>SpeakAnyWay.com</a></p>"
+    else
+      "<p>#{description}</p>"
+    end
+  end
+
+  COLORS = {
+    "white" => "rgb(255, 255, 255)",
+    "red" => "rgb(255, 0, 0)",
+    "red pink" => "rgb(255, 112, 156)",
+    "pinky purple" => "rgb(255, 115, 222)",
+    "light red-orange" => "rgb(250, 196, 140)",
+    "orange" => "rgb(255, 196, 87)",
+    "yellow" => "rgb(255, 234, 117)",
+    "yellowy" => "rgb(255, 241, 92)",
+    "light yellow" => "rgb(252, 242, 134)",
+    "dark green" => "rgb(82, 209, 86)",
+    "navy green" => "rgb(149, 189, 42)",
+    "green" => "rgb(161, 245, 113)",
+    "pale green" => "rgb(196, 252, 141)",
+    "strong blue" => "rgb(94, 207, 255)",
+    "happy blue" => "rgb(148, 223, 255)",
+    "bluey" => "rgb(176, 223, 255)",
+    "light blue" => "rgb(194, 241, 255)",
+    "dark purple" => "rgb(118, 152, 199)",
+    "light purple" => "rgb(208, 190, 232)",
+    "brown" => "rgb(153, 79, 0)",
+    "dark blue" => "rgb(0, 109, 235)",
+    "black" => "rgb(0, 0, 0)",
+    "gray" => "rgb(161, 161, 161)",
+    "dark orange" => "rgb(255, 108, 59)",
+  }
+
+  def get_background_color_css
+    color = self.bg_color
+    if color.blank?
+      color = "white"
+    end
+    COLORS[color]
   end
 end

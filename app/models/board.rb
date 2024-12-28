@@ -175,20 +175,8 @@ class Board < ApplicationRecord
     "#{base_url}/api/boards/#{id}"
   end
 
-  def description_html
-    description
-  end
-
-  def label_locale
-    "en"
-  end
-
-  def default_locale
-    "en"
-  end
-
   def license
-    { "type" => "wip" }
+    { "name" => "CC BY-SA 4.0", "url" => "https://creativecommons.org/licenses/by-sa/4.0/" }
   end
 
   def background

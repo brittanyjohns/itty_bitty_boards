@@ -244,6 +244,7 @@ Rails.application.routes.draw do
         get "predictive_image_board"
         post "create_additional_images"
         get "additional_words"
+        get "download_obf"
       end
     end
     resources :board_images do

@@ -1,6 +1,6 @@
 class API::BoardsController < API::ApplicationController
   # protect_from_forgery with: :null_session
-  respond_to :json
+  # respond_to :json
 
   # before_action :authenticate_user!
   skip_before_action :authenticate_token!, only: %i[ predictive_index first_predictive_board predictive_image_board ]
@@ -440,6 +440,12 @@ class API::BoardsController < API::ApplicationController
         end
       end
     end
+  end
+
+  def download_obf
+    set_board
+    obf_board = @board.to_obf
+    send_data obf_board.to_json, filename: "board.obf", type: "application/json", disposition: "attachment"
   end
 
   def create_additional_images

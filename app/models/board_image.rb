@@ -32,6 +32,8 @@ class BoardImage < ApplicationRecord
   before_save :set_label, if: -> { label.blank? }
   after_save :update_predictive_board
 
+  include BoardsHelper
+
   # after_initialize :set_initial_layout, if: :layout_invalid?
 
   def set_initial_layout!
@@ -166,10 +168,10 @@ class BoardImage < ApplicationRecord
     {
       id: id.to_s,
       url: image.display_image_url,
-      width: board.grid_cell_width,
-      height: board.grid_cell_width,
+      width: 850, # this might need to be changed
+      height: 850, # this might need to be changed
       content_type: image.content_type,
-      label: label,
+      ext_saw_label: label,
       url: image.display_image_url,
       ext_saw_voice: voice,
       ext_board_type: board.board_type,
@@ -179,32 +181,25 @@ class BoardImage < ApplicationRecord
   def to_obf_sound_format
     {
       id: audio_file&.id.to_s,
-      label: label,
+      ext_saw_label: label,
       url: audio_url,
       ext_saw_voice: voice,
       ext_board_type: board.board_type,
-      image_id: id.to_s,
+      ext_saw_image_id: id.to_s,
+      duration: 1, # this might need to be changed
+      content_type: "audio/aac",
     }
   end
 
   def to_obf_button_format
-    puts "Checking for predictive or category"
-    return unless board.predictive? || board.category?
-    predictive_board = image.predictive_board
-    puts "Predictive Board: #{predictive_board}"
-    return unless predictive_board
     {
       id: id.to_s,
       label: label,
-      image_id: image_id.to_s,
-      background: bg_color,
-      load_board: {
-        id: predictive_board.id.to_s,
-        name: predictive_board.name,
-        url: predictive_board.url,
-        data_url: predictive_board.data_url,
-        path: predictive_board.path,
-      },
+      image_id: id.to_s,
+      background_color: get_background_color_css,
+      border_color: border_color || "rgb(68, 68, 68)",
+      ext_saw_image_id: image_id.to_s,
+      ext_saw_board_id: board_id.to_s,
     }
   end
 
