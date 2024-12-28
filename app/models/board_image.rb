@@ -172,6 +172,7 @@ class BoardImage < ApplicationRecord
       label: label,
       url: image.display_image_url,
       ext_saw_voice: voice,
+      ext_board_type: board.board_type,
     }
   end
 
@@ -181,13 +182,17 @@ class BoardImage < ApplicationRecord
       label: label,
       url: audio_url,
       ext_saw_voice: voice,
+      ext_board_type: board.board_type,
       image_id: id.to_s,
     }
   end
 
   def to_obf_button_format
+    puts "Checking for predictive or category"
     return unless board.predictive? || board.category?
     predictive_board = image.predictive_board
+    puts "Predictive Board: #{predictive_board}"
+    return unless predictive_board
     {
       id: id.to_s,
       label: label,
@@ -200,7 +205,6 @@ class BoardImage < ApplicationRecord
         data_url: predictive_board.data_url,
         path: predictive_board.path,
       },
-
     }
   end
 
