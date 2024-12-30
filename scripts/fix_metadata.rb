@@ -3,7 +3,6 @@ require "aws-sdk-s3"
 s3 = Aws::S3::Client.new(region: "us-east-1")
 
 bucket_name = "itty-bitty-boards-#{Rails.env}"
-key = "e00epy1omnmnmjqcq9z0oqsotlu5"
 
 # s3.copy_object(
 #   bucket: bucket_name,
