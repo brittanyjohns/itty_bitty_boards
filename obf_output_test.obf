@@ -1,0 +1,176 @@
+{
+  "format": "open-board-0.1",
+  "license": {
+    "name": "CC BY-SA 4.0",
+    "url": "https://creativecommons.org/licenses/by-sa/4.0/"
+  },
+  "buttons": [
+    {
+      "id": "4726",
+      "label": "sad",
+      "image_id": "4726",
+      "background_color": "rgb(255, 234, 117)",
+      "border_color": "rgb(68, 68, 68)",
+      "ext_saw_image_id": "1910",
+      "ext_saw_board_id": "676"
+    },
+    {
+      "id": "4723",
+      "label": "sleep",
+      "image_id": "4723",
+      "background_color": "rgb(161, 245, 113)",
+      "border_color": "rgb(68, 68, 68)",
+      "ext_saw_image_id": "1907",
+      "ext_saw_board_id": "676"
+    },
+    {
+      "id": "4722",
+      "label": "read",
+      "image_id": "4722",
+      "background_color": "rgb(161, 245, 113)",
+      "border_color": "rgb(68, 68, 68)",
+      "ext_saw_image_id": "1906",
+      "ext_saw_board_id": "676"
+    },
+    {
+      "id": "4751",
+      "label": "all done",
+      "image_id": "4751",
+      "background_color": "rgb(255, 234, 117)",
+      "border_color": "rgb(68, 68, 68)",
+      "ext_saw_image_id": "1934",
+      "ext_saw_board_id": "676"
+    },
+    {
+      "id": "4732",
+      "label": "school",
+      "image_id": "4732",
+      "background_color": null,
+      "border_color": "rgb(68, 68, 68)",
+      "ext_saw_image_id": "1916",
+      "ext_saw_board_id": "676"
+    }
+  ],
+  "grid": {
+    "rows": 1,
+    "columns": 5,
+    "order": [
+      [
+        "4726",
+        "4723",
+        "4722",
+        "4751",
+        "4732"
+      ]
+    ]
+  },
+  "images": [
+    {
+      "id": "4726",
+      "width": 850,
+      "height": 850,
+      "content_type": "image/jpeg",
+      "ext_saw_label": "sad",
+      "url": "https://d2hmhwqjibkod8.cloudfront.net/9ypx9aexzzyyvlyjygbz4u81qbrr",
+      "ext_saw_voice": "shimmer",
+      "ext_board_type": "static"
+    },
+    {
+      "id": "4723",
+      "width": 850,
+      "height": 850,
+      "content_type": "image/png",
+      "ext_saw_label": "sleep",
+      "url": "https://d2hmhwqjibkod8.cloudfront.net/9qfrgc8mso0xoirhfggs5a7ufcnz",
+      "ext_saw_voice": "shimmer",
+      "ext_board_type": "static"
+    },
+    {
+      "id": "4722",
+      "width": 850,
+      "height": 850,
+      "content_type": "image/png",
+      "ext_saw_label": "read",
+      "url": "https://d2hmhwqjibkod8.cloudfront.net/uo81ao7fkzyqipe1ztbh65u5yoe0",
+      "ext_saw_voice": "shimmer",
+      "ext_board_type": "static"
+    },
+    {
+      "id": "4751",
+      "width": 850,
+      "height": 850,
+      "content_type": "image/png",
+      "ext_saw_label": "all done",
+      "url": "https://d2hmhwqjibkod8.cloudfront.net/3xvti2p9p41ojqqon8impcsnfq8k",
+      "ext_saw_voice": "shimmer",
+      "ext_board_type": "static"
+    },
+    {
+      "id": "4732",
+      "width": 850,
+      "height": 850,
+      "content_type": "image/png",
+      "ext_saw_label": "school",
+      "url": "https://d2hmhwqjibkod8.cloudfront.net/dezgneb7fzkf6tx6dv0zvkwhac0j",
+      "ext_saw_voice": "shimmer",
+      "ext_board_type": "static"
+    }
+  ],
+  "sounds": [
+    {
+      "id": "5122",
+      "ext_saw_label": "sad",
+      "url": "https://d2hmhwqjibkod8.cloudfront.net/1oyobt4355kr9tupwa1lhvhrlhoy",
+      "ext_saw_voice": "shimmer",
+      "ext_board_type": "static",
+      "ext_saw_image_id": "4726",
+      "duration": 1,
+      "content_type": "audio/aac"
+    },
+    {
+      "id": "5119",
+      "ext_saw_label": "sleep",
+      "url": "https://d2hmhwqjibkod8.cloudfront.net/7u7pq46trwzdvzgce4p49nsvk2ck",
+      "ext_saw_voice": "shimmer",
+      "ext_board_type": "static",
+      "ext_saw_image_id": "4723",
+      "duration": 1,
+      "content_type": "audio/aac"
+    },
+    {
+      "id": "5118",
+      "ext_saw_label": "read",
+      "url": "https://d2hmhwqjibkod8.cloudfront.net/irhkztv6dulq9zmy9cv4f5uqspt6",
+      "ext_saw_voice": "shimmer",
+      "ext_board_type": "static",
+      "ext_saw_image_id": "4722",
+      "duration": 1,
+      "content_type": "audio/aac"
+    },
+    {
+      "id": "5147",
+      "ext_saw_label": "all done",
+      "url": "https://d2hmhwqjibkod8.cloudfront.net/l6sabqjj5uoded1o7salgw55gz1k",
+      "ext_saw_voice": "shimmer",
+      "ext_board_type": "static",
+      "ext_saw_image_id": "4751",
+      "duration": 1,
+      "content_type": "audio/aac"
+    },
+    {
+      "id": "5128",
+      "ext_saw_label": "school",
+      "url": "https://d2hmhwqjibkod8.cloudfront.net/unr0ownx9q4hvm7dbou3e3iqsphg",
+      "ext_saw_voice": "shimmer",
+      "ext_board_type": "static",
+      "ext_saw_image_id": "4732",
+      "duration": 1,
+      "content_type": "audio/aac"
+    }
+  ],
+  "id": "676",
+  "locale": "en",
+  "name": "test",
+  "default_layout": "landscape",
+  "description_html": "<p>This board was created using SpeakAnyWay AAC. You can create your own boards at <a href='https://www.speakanyway.com'>SpeakAnyWay.com</a></p>"
+}

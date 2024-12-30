@@ -52,6 +52,7 @@ class Board < ApplicationRecord
 
   include UtilHelper
   include BoardsHelper
+  include ObfHelper
 
   include PgSearch::Model
   pg_search_scope :search_by_name,
@@ -1129,5 +1130,40 @@ class Board < ApplicationRecord
       Rails.logger.error "*** ERROR - get_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
     end
     word_suggestions["words"]
+  end
+
+  def self.from_obf(path)
+    puts "from obf"
+    obf_json_or_path = path
+    #   OBF::External.from_obf(path, "done.json")
+    opts ||= {}
+    obj = obf_json_or_path
+    if obj.is_a?(String)
+      obj = OBF::Utils.parse_obf(File.read(obf_json_or_path), opts)
+    else
+      obj = OBF::Utils.parse_obf(obf_json_or_path, opts)
+    end
+    board_name = obj["name"]
+    voice = obj["voice"] || "alloy"
+
+    (obj["buttons"] || []).each do |item|
+      label = item["label"]
+      if item["ext_saw_image_id"]
+        image = Image.find_by(id: item["ext_saw_image_id"].to_i)
+      else
+        image = Image.find_or_create_by(label: label)
+      end
+
+      doc = obj["images"].detect { |s| s["id"] == item["image_id"] }
+      url = doc["url"]
+      file_format = doc["content_type"]
+      raw_txt = "obf_id_#{doc["id"]}"
+      processed = "processed: #{Time.now}"
+
+      saved_doc = image.save_from_url(url, processed, raw_txt, file_format)
+    end
+
+    obj["license"] = OBF::Utils.parse_license(obj["license"])
+    obj
   end
 end

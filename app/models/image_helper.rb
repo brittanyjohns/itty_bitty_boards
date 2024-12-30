@@ -23,7 +23,7 @@ module ImageHelper
     doc
   end
 
-  def save_from_google(url, processed, raw_txt, file_format = "image/webp", user_id = nil)
+  def save_from_url(url, processed, raw_txt, file_format = "image/webp", user_id = nil)
     return if Rails.env.test?
     begin
       puts "Downloading image from: #{url}"

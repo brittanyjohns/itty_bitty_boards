@@ -448,6 +448,10 @@ class API::BoardsController < API::ApplicationController
     send_data obf_board.to_json, filename: "board.obf", type: "application/json", disposition: "attachment"
   end
 
+  def import_obf
+    puts "Params: #{params}"
+  end
+
   def create_additional_images
     set_board
     num_of_words = params[:num_of_words].to_i || 10

@@ -1303,7 +1303,7 @@ class Image < ApplicationRecord
     else
       image = Image.create!(label: label, user_id: user_id, status: "processing", image_prompt: "#{title} #{snippet}", image_type: "GoogleSearch")
     end
-    image.save_from_google(img_url, title, snippet, user_id)
+    image.save_from_url(img_url, title, snippet, user_id)
     image
   end
 

@@ -8,12 +8,10 @@ module BoardsHelper
     obf_board[:id] = self.id.to_s
     obf_board[:locale] = "en"
     obf_board[:name] = self.name
+    obf_board[:name] = self.name
     obf_board[:format] = OBF::OBF::FORMAT
     obf_board[:default_layout] = "landscape"
-    puts "-- obf -- #{obf_board}"
-    # obf_board[:background] = self.background
-    # obf_board[:url] = self.url
-    # obf_board[:data_url] = self.data_url
+
     obf_board[:description_html] = self.description_html
     # obf_board[:protected_content_user_identifier] = self.protected_content_user_identifier
     obf_board[:license] = self.license
@@ -28,7 +26,6 @@ module BoardsHelper
   end
 
   def to_pdf
-    # obf_board = self.to_obf
     OBF::PDF.from_obf("obf.obf", "obf.pdf")
   end
 
@@ -37,12 +34,9 @@ module BoardsHelper
     screen_size = "lg"
     columns = large_screen_columns
     board_image_count = board_images.count
-    puts "Board Image Count: #{board_image_count}"
     og_grid = print_grid_layout_for_screen_size(screen_size)
-    puts "Original Grid: #{og_grid}"
     grid = self.layout[screen_size] || []
     rows = grid.map { |cell| cell["y"] + cell["h"] }.max || 0
-    puts "Rows: #{rows} - Columns: #{columns}"
     new_grid = []
     rows.times do |y|
       new_grid << Array.new(columns, nil)
@@ -54,12 +48,6 @@ module BoardsHelper
       h = cell["h"]
       new_grid[y] ||= []
       new_grid[y][x] = cell["i"]
-      #   (y + 1).upto(y + h - 1) do |yy|
-      #     (x + 1).upto(x + w - 1) do |xx|
-      #       puts "YY: #{yy} - XX: #{xx}"
-      #       new_grid[yy][xx] = cell["i"]
-      #     end
-      #   end
     end
 
     result = {}
