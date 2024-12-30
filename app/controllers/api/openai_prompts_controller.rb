@@ -32,7 +32,6 @@ class API::OpenaiPromptsController < API::ApplicationController
         CreateScenarioBoardJob.perform_async(@openai_prompt.id)
 
         format.json { render json: @board.api_view_with_images(current_user), status: :created }
-        format.turbo_stream
       else
         format.html { render :new, status: :unprocessable_entity }
         format.json { render json: @openai_prompt.errors, status: :unprocessable_entity }

@@ -1243,9 +1243,16 @@ class Image < ApplicationRecord
           label: label,
           user_id: doc.user_id,
           src: doc.display_url,
+          attached_image_url: doc.attached_image_url,
           raw: doc.raw,
           is_current: doc.id == current_doc_id,
           can_edit: (current_user && doc.user_id == current_user.id) || current_user&.admin?,
+          original_image_url: doc.original_image_url,
+          processed: doc.processed,
+          data: doc.data,
+          created_at: doc.created_at,
+          updated_at: doc.updated_at,
+          license: doc.license,
         }
       end,
     }
@@ -1360,7 +1367,7 @@ class Image < ApplicationRecord
         new_doc.documentable = @cloned_image
         new_doc.user_id = cloned_user_id
         new_doc.save
-        new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.webp", content_type: original_file.content_type) unless original_file.nil?
+        new_doc.image.attach(io: StringIO.new(original_file.download), filename: "img_#{@cloned_image.label}_#{@cloned_image.id}_doc_#{new_doc.id}.#{new_doc.extension || "png"}", content_type: original_file.content_type) unless original_file.nil?
       end
     end
 

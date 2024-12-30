@@ -176,10 +176,13 @@ class Doc < ApplicationRecord
   end
 
   def display_url
-    ActiveRecord::Base.logger.silence do
+    if image.attached?
       cdn_host = ENV["CDN_HOST"]
-      cdn_url = cdn_host + "/" + image.key if image&.key
-      cdn_url ? cdn_url : nil
+      if cdn_host
+        "#{cdn_host}/#{image.key}" # Construct CloudFront URL
+      else
+        attached_image_url # Fallback to the direct Active Storage URL
+      end
     end
   end
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_12_27_161220) do
+ActiveRecord::Schema[7.1].define(version: 2024_12_30_195249) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -186,6 +186,8 @@ ActiveRecord::Schema[7.1].define(version: 2024_12_27_161220) do
     t.datetime "deleted_at"
     t.string "original_image_url"
     t.string "prompt_for_prompt"
+    t.jsonb "data"
+    t.jsonb "license"
     t.index ["deleted_at"], name: "index_docs_on_deleted_at"
     t.index ["documentable_id", "documentable_type", "deleted_at"], name: "idx_on_documentable_id_documentable_type_deleted_at_a6715ad541"
     t.index ["documentable_type", "documentable_id"], name: "index_docs_on_documentable"

@@ -31,7 +31,6 @@ class OpenaiPromptsController < ApplicationController
         CreateScenarioBoardJob.perform_async(@openai_prompt.id)
         format.html { redirect_to boards_path, notice: "Your board is being created. Please wait a couple minutes and then refresh the page." }
         format.json { render :show, status: :created, location: @openai_prompt }
-        # format.turbo_stream
       else
         format.html { render :new, status: :unprocessable_entity }
         format.json { render json: @openai_prompt.errors, status: :unprocessable_entity }
