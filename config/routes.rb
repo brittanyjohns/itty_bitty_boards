@@ -228,6 +228,7 @@ Rails.application.routes.draw do
         get "preset"
         get "initial_predictive_board"
         get "create_custom_predictive_board"
+        post "import_obf"
       end
       member do
         post "format_with_ai"

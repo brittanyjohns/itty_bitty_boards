@@ -309,32 +309,8 @@ class API::BoardsController < API::ApplicationController
     board_type = params[:board_type] || board_params[:board_type]
     settings = params[:settings] || board_params[:settings] || {}
     settings["board_type"] = board_type
-    if board_type == "dynamic"
-      predefined_resource = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board")
-      @board.parent_id = predefined_resource.id
-      @board.parent_type = "PredefinedResource"
-    elsif board_type == "predictive"
-      @board.parent_type = "Image"
-      matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "Predictive")
-      if matching_image
-        @board.parent_id = matching_image.id
-        @board.image_parent_id = matching_image.id
-      end
-    elsif board_type == "category"
-      @board.parent_type = "PredefinedResource"
-      @board.parent_id = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Category").id
-      matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "Category")
-      if matching_image
-        @board.image_parent_id = matching_image.id
-      end
-    elsif board_type == "static"
-      @board.parent_type = "User"
-      @board.parent_id = current_user.id
-    else
-      @board.board_type = "static"
-      @board.parent_type = "User"
-      @board.parent_id = current_user.id
-    end
+    @board.assign_parent(board_type, current_user)
+
     Rails.logger.info "Board Parent type: #{@board.parent_type} - Parent ID: #{@board.parent_id}"
     @board.predefined = false
     @board.small_screen_columns = board_params["small_screen_columns"].to_i
@@ -349,7 +325,6 @@ class API::BoardsController < API::ApplicationController
     respond_to do |format|
       if @board.save
         format.json { render json: @board, status: :created }
-        format.turbo_stream
       else
         format.json { render json: @board.errors, status: :unprocessable_entity }
       end
@@ -446,6 +421,17 @@ class API::BoardsController < API::ApplicationController
     set_board
     obf_board = @board.to_obf
     send_data obf_board.to_json, filename: "board.obf", type: "application/json", disposition: "attachment"
+  end
+
+  def import_obf
+    puts "Params: #{params}"
+    if params[:data].present?
+      boardData = params[:data].to_json
+      @board = Board.from_obf(boardData, current_user)
+      render json: { id: @board.id }
+    else
+      render json: { error: "No data provided" }, status: :unprocessable_entity
+    end
   end
 
   def create_additional_images

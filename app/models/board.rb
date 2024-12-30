@@ -52,6 +52,7 @@ class Board < ApplicationRecord
 
   include UtilHelper
   include BoardsHelper
+  include ObfHelper
 
   include PgSearch::Model
   pg_search_scope :search_by_name,
@@ -777,6 +778,8 @@ class Board < ApplicationRecord
       end
     end
 
+    columns = get_number_of_columns(screen_size)
+
     # Search for the first unoccupied 1x1 cell
     (0..Float::INFINITY).each do |y|
       (0...columns).each do |x|
@@ -1076,6 +1079,36 @@ class Board < ApplicationRecord
     }
   end
 
+  def assign_parent(board_type, current_user)
+    if board_type == "dynamic"
+      predefined_resource = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board")
+      self.parent_id = predefined_resource.id
+      self.parent_type = "PredefinedResource"
+    elsif board_type == "predictive"
+      self.parent_type = "Image"
+      matching_image = self.user.images.find_or_create_by(label: self.name, image_type: "Predictive")
+      if matching_image
+        self.parent_id = matching_image.id
+        self.image_parent_id = matching_image.id
+      end
+    elsif board_type == "category"
+      self.parent_type = "PredefinedResource"
+      self.parent_id = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Category").id
+      self.save!
+      matching_image = self.user.images.find_or_create_by(label: self.name, image_type: "Category")
+      if matching_image
+        self.image_parent_id = matching_image.id
+      end
+    elsif board_type == "static"
+      self.parent_type = "User"
+      self.parent_id = current_user.id
+    else
+      self.board_type = "static"
+      self.parent_type = "User"
+      self.parent_id = current_user.id
+    end
+  end
+
   def get_words(name_to_send, number_of_words, words_to_exclude = [], use_preview_model = false)
     words_to_exclude = board_images.pluck(:label).map { |w| w.downcase }
     response = OpenAiClient.new({}).get_additional_words(self, name_to_send, number_of_words, words_to_exclude, use_preview_model)
@@ -1129,5 +1162,64 @@ class Board < ApplicationRecord
       Rails.logger.error "*** ERROR - get_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
     end
     word_suggestions["words"]
+  end
+
+  def self.from_obf(data, current_user)
+    #
+    puts "from obf"
+    # obf_json_or_path = path
+    # #   OBF::External.from_obf(path, "done.json")
+    # opts ||= {}
+    # obj = obf_json_or_path
+    # if obj.is_a?(String)
+    #   obj = OBF::Utils.parse_obf(File.read(obf_json_or_path), opts)
+    # else
+    #   obj = OBF::Utils.parse_obf(obf_json_or_path, opts)
+    # end
+    obj = JSON.parse(data)
+    board_name = obj["name"]
+    voice = obj["voice"] || "alloy"
+    board = Board.new(name: board_name, user_id: current_user.id, voice: voice)
+    board_type = obj["board_type"] || "static"
+    board.board_type = board_type
+
+    board.assign_parent(board_type, current_user)
+    board.save!
+    (obj["buttons"] || []).each do |item|
+      label = item["label"]
+      if item["ext_saw_image_id"]
+        image = Image.find_by(id: item["ext_saw_image_id"].to_i, user_id: current_user.id)
+      end
+      image = Image.find_by(label: label, user_id: current_user.id) unless image
+      found_image = image
+      image = Image.create(label: label, user_id: current_user.id) unless image
+
+      doc = obj["images"].detect { |s| s["id"] == item["image_id"] }
+      url = doc["url"] if doc
+      if url
+        file_format = doc["content_type"] || "image/png"
+        file_format = "image/svg+xml" if file_format == "image/svg"
+        license = doc["license"]
+        raw_txt = "obf_id_#{doc["id"]}"
+        processed = "processed: #{Time.now}"
+        puts "file_format: #{file_format}"
+
+        if image.docs.where(original_image_url: url).any?
+          puts "Image already exists"
+        else
+          downloaded_image = Down.download(url)
+          puts "Downloaded Image: #{downloaded_image}"
+          puts "License: #{license}"
+          user_id = current_user.id
+          doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
+          doc.image.attach(io: downloaded_image, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}", content_type: file_format) if downloaded_image
+          image.update(status: "finished")
+        end
+      end
+      board.add_image(image.id)
+    end
+
+    obj["license"] = OBF::Utils.parse_license(obj["license"])
+    return board
   end
 end

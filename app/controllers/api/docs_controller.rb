@@ -213,7 +213,6 @@ class API::DocsController < API::ApplicationController
     respond_to do |format|
       format.html { redirect_back_or_to documentable, notice: "Doc was successfully destroyed." }
       format.json { head :no_content }
-      format.turbo_stream { render turbo_stream: turbo_stream.remove(@doc) }
     end
   end
 

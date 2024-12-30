@@ -13,7 +13,8 @@ module ImageHelper
       downloaded_image = Down.download(url)
       user_id ||= self.user_id
       raw_txt = edited_prompt || name_to_send
-      doc = self.docs.create!(raw: raw_txt, user_id: user_id, processed: revised_prompt, source_type: source_type)
+      doc = self.docs.create!(raw: raw_txt, user_id: user_id, processed: revised_prompt, source_type: source_type, original_image_url: url)
+      extension = doc.extension || "webp"
       doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.webp", content_type: "image/webp")
       self.update(status: "finished")
     rescue => e
@@ -23,13 +24,13 @@ module ImageHelper
     doc
   end
 
-  def save_from_google(url, processed, raw_txt, file_format = "image/webp", user_id = nil)
+  def save_from_url(url, processed, raw_txt, file_format = "image/webp", user_id = nil, source_type = "GoogleSearch")
     return if Rails.env.test?
     begin
       puts "Downloading image from: #{url}"
       downloaded_image = Down.download(url)
       user_id ||= self.user_id
-      doc = self.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "GoogleSearch")
+      doc = self.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: source_type, original_image_url: url)
       doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.webp", content_type: file_format) if downloaded_image
       self.update(status: "finished")
     rescue => e

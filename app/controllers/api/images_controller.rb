@@ -80,7 +80,7 @@ class API::ImagesController < API::ApplicationController
     else
       @image = Image.create(user: @current_user, label: label, private: true, image_prompt: params[:title], image_type: "User")
     end
-    saved_image = @image.save_from_google(params[:imageUrl], params[:snippet], params[:title], "image/webp", @current_user.id)
+    saved_image = @image.save_from_url(params[:imageUrl], params[:snippet], params[:title], "image/webp", @current_user.id)
     saved_image_url = saved_image.display_url
     UpdateBoardImagesJob.perform_async(@image.id)
     @doc = @image.docs.last
