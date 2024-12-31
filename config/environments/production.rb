@@ -39,6 +39,8 @@ Rails.application.configure do
 
   # Store uploaded files on the local file system (see config/storage.yml for options).
   config.active_storage.service = :amazon
+  config.active_storage.content_types_to_serve_as_binary -= ["image/svg+xml", "image/svg"]
+  config.active_storage.content_types_allowed_inline += ["image/svg+xml", "image/svg"]
 
   # Mount Action Cable outside main process or domain.
   # config.action_cable.mount_path = nil
@@ -54,11 +56,11 @@ Rails.application.configure do
 
   # Log to STDOUT by default
   config.logger = ActiveSupport::Logger.new(STDOUT)
-    .tap  { |logger| logger.formatter = ::Logger::Formatter.new }
+    .tap { |logger| logger.formatter = ::Logger::Formatter.new }
     .then { |logger| ActiveSupport::TaggedLogging.new(logger) }
 
   # Prepend all log lines with the following tags.
-  config.log_tags = [ :request_id ]
+  config.log_tags = [:request_id]
 
   # Info include generic and useful information about system operation, but avoids logging too much
   # information to avoid inadvertent exposure of personally identifiable information (PII). If you
@@ -104,21 +106,21 @@ Rails.application.configure do
   # Incoming server (POP3): 995 port for SSL, 110 for TLS.
   # Outgoing server (SMTP): 465 port for SSL, 25/587 port for TLS.
 
-#   config.action_mailer.delivery_method = :smtp
-#   config.action_mailer.smtp_settings = {
-#     address: "smtp.mailgun.org"
-#     port: 587,
-#     domain: "speakanyway.com",
-#     user_name: "brad@sandbox705d52bb95f047af8cd33ca21d92a9b7.mailgun.org",
-#     password: ENV["SMTP_PASSWORD"],
-#     authentication: "plain",
-#     enable_starttls_auto: true
-#   }
+  #   config.action_mailer.delivery_method = :smtp
+  #   config.action_mailer.smtp_settings = {
+  #     address: "smtp.mailgun.org"
+  #     port: 587,
+  #     domain: "speakanyway.com",
+  #     user_name: "brad@sandbox705d52bb95f047af8cd33ca21d92a9b7.mailgun.org",
+  #     password: ENV["SMTP_PASSWORD"],
+  #     authentication: "plain",
+  #     enable_starttls_auto: true
+  #   }
 
   config.action_mailer.delivery_method = :mailgun
   config.action_mailer.mailgun_settings = {
-    api_key: ENV['MAILGUN_API_KEY'],
-    domain: 'mail.speakanyway.com',
-    # timeout: 20 # Default depends on rest-client, whose default is 60s. Added in 1.2.3.
+    api_key: ENV["MAILGUN_API_KEY"],
+    domain: "mail.speakanyway.com",
+  # timeout: 20 # Default depends on rest-client, whose default is 60s. Added in 1.2.3.
   }
 end
