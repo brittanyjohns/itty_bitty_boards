@@ -491,6 +491,10 @@ class Board < ApplicationRecord
       new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images.count)
       if layout
         new_board_image.layout = layout
+        if new_board_image.layout_invalid
+          puts "Invalid Layout"
+          new_board_image.set_initial_layout!
+        end
         new_board_image.skip_initial_layout = true
         new_board_image.save
       else
@@ -501,7 +505,7 @@ class Board < ApplicationRecord
         # new_board_image.layout["lg"] = next_available_cell("lg").merge("i" => new_board_image.id.to_s)
         # new_board_image.layout["md"] = next_available_cell("md").merge("i" => new_board_image.id.to_s)
         # new_board_image.layout["sm"] = next_available_cell("sm").merge("i" => new_board_image.id.to_s)
-        new_board_image.save
+        # new_board_image.save
       end
       @image = Image.with_artifacts.find_by(id: image_id)
       unless @image
@@ -610,6 +614,7 @@ class Board < ApplicationRecord
   def print_grid_layout_for_screen_size(screen_size)
     layout_to_set = []
     board_images.order(:position).each_with_index do |bi, i|
+      puts "bi layout: #{bi.layout}"
       if bi.layout[screen_size]
         layout_to_set[bi.id] = bi.layout[screen_size]
       end
@@ -1191,7 +1196,6 @@ class Board < ApplicationRecord
         image = Image.find_by(id: item["ext_saw_image_id"].to_i, user_id: current_user.id)
       end
       image = Image.find_by(label: label, user_id: current_user.id) unless image
-      found_image = image
       image = Image.create(label: label, user_id: current_user.id) unless image
 
       doc = obj["images"].detect { |s| s["id"] == item["image_id"] }
@@ -1219,7 +1223,6 @@ class Board < ApplicationRecord
       board.add_image(image.id)
     end
 
-    obj["license"] = OBF::Utils.parse_license(obj["license"])
     return board
   end
 end

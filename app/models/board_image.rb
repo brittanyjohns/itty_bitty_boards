@@ -34,7 +34,7 @@ class BoardImage < ApplicationRecord
 
   include BoardsHelper
 
-  # after_initialize :set_initial_layout, if: :layout_invalid?
+  scope :updated_today, -> { where("updated_at > ?", 1.hour.ago) }
 
   def set_initial_layout!
     self.layout = { "lg" => { "i" => id.to_s, "x" => grid_x("lg"), "y" => grid_y("lg"), "w" => 1, "h" => 1 },
