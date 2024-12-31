@@ -63,8 +63,7 @@ FactoryBot.define do
   end
 
   factory(:board_image) do
-    board { FactoryBot.create(:board) }
-    image { FactoryBot.create(:image) }
-    skip_create_voice_audio { true }
+    board
+    image
   end
 end

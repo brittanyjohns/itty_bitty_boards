@@ -35,17 +35,20 @@
 require "rails_helper"
 
 RSpec.describe Board, type: :model do
-  let!(:user) { FactoryBot.create(:user) }
-  let!(:board) { FactoryBot.create(:board, user: user, layout: {}, medium_screen_columns: 2, large_screen_columns: 3, small_screen_columns: 1) }
-  let!(:board_image1) { FactoryBot.create(:board_image, position: 1, board: board, layout: {}) }
-  let!(:board_image2) { FactoryBot.create(:board_image, position: 2, board: board, layout: {}) }
-
-  before do
-    board.board_images << [board_image1, board_image2]
-    # board.reset_layouts
+  after(:each) do
+    BoardImage.destroy_all
+    Board.destroy_all
   end
-
+  let!(:board) { FactoryBot.create(:board, user: user, layout: {}, medium_screen_columns: 2, large_screen_columns: 3, small_screen_columns: 1) }
+  let!(:user) { FactoryBot.create(:user) }
   describe "#calculate_grid_layout_for_screen_size" do
+    let!(:board_image1) { FactoryBot.create(:board_image, position: 1, board: board, layout: {}) }
+    let!(:board_image2) { FactoryBot.create(:board_image, position: 2, board: board, layout: {}) }
+
+    before do
+      board.board_images << [board_image1, board_image2]
+      # board.reset_layouts
+    end
     it "calculates the grid layout based on screen size and column count" do
       board.medium_screen_columns = 2
       board.calculate_grid_layout_for_screen_size("md")
@@ -57,13 +60,11 @@ RSpec.describe Board, type: :model do
       expect(board_image2.layout["md"]["x"]).to eq(1)
       expect(board_image2.layout["md"]["y"]).to eq(0)
       api_view = board.api_view_with_images(user)
-      puts "board.print_grid_layout: #{api_view[:images].first[:layout]}"
     end
 
     it "handles cases where there are more images than columns" do
       board.medium_screen_columns = 1
       board.calculate_grid_layout_for_screen_size("md")
-      puts "test-Board layout: #{board_image1.layout}"
       board_image1.reload
       board_image2.reload
 
@@ -80,13 +81,15 @@ RSpec.describe Board, type: :model do
 
       board.set_layouts_for_screen_sizes
 
-      expect(board).to have_received(:calculate_grid_layout_for_screen_size).with("sm")
-      expect(board).to have_received(:calculate_grid_layout_for_screen_size).with("md")
-      expect(board).to have_received(:calculate_grid_layout_for_screen_size).with("lg")
+      expect(board).to have_received(:calculate_grid_layout_for_screen_size).with("sm", true)
+      expect(board).to have_received(:calculate_grid_layout_for_screen_size).with("md", true)
+      expect(board).to have_received(:calculate_grid_layout_for_screen_size).with("lg", true)
     end
   end
 
   describe "#reset_layouts" do
+    let!(:board_image1) { FactoryBot.create(:board_image, position: 1, board: board, layout: {}) }
+    let!(:board_image2) { FactoryBot.create(:board_image, position: 2, board: board, layout: {}) }
     it "resets and recalculates layouts" do
       board.layout = { "md" => { board_image1.id => { x: 1, y: 1, w: 1, h: 1 } } }
 
@@ -98,10 +101,11 @@ RSpec.describe Board, type: :model do
   end
 
   describe "#update_grid_layout" do
+    let!(:board_image1) { FactoryBot.create(:board_image, position: 1, board: board, layout: {}) }
+    let!(:board_image2) { FactoryBot.create(:board_image, position: 2, board: board, layout: {}) }
     it "updates the layout for the specified screen size" do
       layout_to_set = [{ "i" => board_image1.id.to_s, "x" => 0, "y" => 0, "w" => 1, "h" => 1 }]
-      puts "before test-Board layout: #{board.layout}"
-      board.update_grid_layout("md")
+      board.update_grid_layout(layout_to_set, "md")
 
       expect(board_image1.reload.layout["md"]).to eq(layout_to_set.first)
       expect(board.layout["md"]).to eq(layout_to_set)
@@ -130,11 +134,11 @@ RSpec.describe Board, type: :model do
   end
 
   describe "#api_view_with_images" do
+    let!(:board_image1) { FactoryBot.create(:board_image, position: 1, board: board, layout: {}) }
+    let!(:board_image2) { FactoryBot.create(:board_image, position: 2, board: board, layout: {}) }
     it "returns the expected JSON structure" do
       board.reload
       json_response = board.api_view_with_images(user)
-
-      puts "json_response[:images].first: #{json_response[:images].first[:layout]}"
 
       expect(json_response).to include(
         :id,
@@ -160,11 +164,10 @@ RSpec.describe Board, type: :model do
       )
     end
     it "returns the expected JSON structure" do
+      layout_to_set = [{ "i" => board_image1.id.to_s, "x" => 0, "y" => 0, "w" => 1, "h" => 1 }]
       board.update_grid_layout(layout_to_set, "md")
       board.reload
       json_response = board.api_view_with_images(user)
-
-      puts "json_response[:images].first: #{json_response[:images].first[:layout]}"
 
       expect(json_response[:images].first[:layout]["md"]).to eq({ "i" => board_image1.id.to_s, "x" => 0, "y" => 0, "w" => 1, "h" => 1 })
     end
@@ -183,6 +186,39 @@ RSpec.describe Board, type: :model do
       board.print_grid_layout
 
       expect(board.layout).to be_present
+    end
+  end
+
+  describe "#parse_obf_grid" do
+    let!(:user) { FactoryBot.create(:user) }
+    let!(:board) { Board.create!(name: "test board", user: user, parent_id: user.id, parent_type: "User") }
+    let!(:image_1) { Image.create(label: "test image 1") }
+    let!(:image_2) { Image.create(label: "test image 2") }
+    let(:obf_grid) { { "rows" => 2, "columns" => 2, "order" => [[nil, board_image_1.id], [nil, board_image_2.id]] } }
+    let(:expected_layout) { [{ "i" => board_image_1.id.to_s, "x" => 1, "y" => 0, "w" => 1, "h" => 1 }, { "i" => board_image_2.id.to_s, "x" => 2, "y" => 0, "w" => 1, "h" => 1 }] }
+    before do
+      board.add_image(image_1.id)
+      board.add_image(image_2.id)
+    end
+    let!(:board_image_1) { board.board_images.first }
+    let!(:board_image_2) { board.board_images.last }
+    it "parses the OBF grid" do
+      board.parse_obf_grid(obf_grid)
+
+      expect(board.layout).to be_present
+      expect(board.print_grid_layout_for_screen_size("lg")).to eq(expected_layout)
+    end
+  end
+
+  describe ".from_obf" do
+    it "creates a new board from an OBF file" do
+      obf_file = Rails.root.join("spec", "data", "test.obf")
+      data = JSON.parse(File.read(obf_file))
+      expected_board_image_count = data["images"].size
+      board = Board.from_obf(obf_file, user)
+
+      expect(board).to be_present
+      expect(board.board_images.size).to eq(expected_board_image_count)
     end
   end
 end

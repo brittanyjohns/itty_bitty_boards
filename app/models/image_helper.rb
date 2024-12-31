@@ -82,7 +82,6 @@ module ImageHelper
     text = text || self.label
     new_audio_file = nil
     if Rails.env.test?
-      puts "Skipping audio creation in test environment"
       return
     end
     response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice)

@@ -614,7 +614,6 @@ class Board < ApplicationRecord
   def print_grid_layout_for_screen_size(screen_size)
     layout_to_set = []
     board_images.order(:position).each_with_index do |bi, i|
-      puts "bi layout: #{bi.layout}"
       if bi.layout[screen_size]
         layout_to_set[bi.id] = bi.layout[screen_size]
       end
@@ -1170,22 +1169,23 @@ class Board < ApplicationRecord
   end
 
   def self.from_obf(data, current_user)
-    #
-    puts "from obf"
-    # obf_json_or_path = path
-    # #   OBF::External.from_obf(path, "done.json")
-    # opts ||= {}
-    # obj = obf_json_or_path
-    # if obj.is_a?(String)
-    #   obj = OBF::Utils.parse_obf(File.read(obf_json_or_path), opts)
-    # else
-    #   obj = OBF::Utils.parse_obf(obf_json_or_path, opts)
-    # end
+    if data.is_a?(String)
+      # Do nothing
+    elsif data.is_a?(Pathname)
+      data = data.read
+    end
+
     obj = JSON.parse(data)
     board_name = obj["name"]
     voice = obj["voice"] || "alloy"
     board = Board.new(name: board_name, user_id: current_user.id, voice: voice)
     board_type = obj["board_type"] || "static"
+    dynamic_images = obj["buttons"].select { |item| item["load_board"] != nil }
+    if dynamic_images
+      puts "Dynamic Images: #{dynamic_images.count}"
+      puts "Dynamic Images: #{dynamic_images}"
+      board_type = "dynamic"
+    end
     board.board_type = board_type
 
     board.assign_parent(board_type, current_user)
@@ -1199,6 +1199,23 @@ class Board < ApplicationRecord
       image = Image.create(label: label, user_id: current_user.id) unless image
 
       doc = obj["images"].detect { |s| s["id"] == item["image_id"] }
+      grid = obj["grid"]
+      grid_coordinates = nil
+      if grid
+        rows = grid["rows"]
+        columns = grid["columns"]
+        order = grid["order"]
+        order.each_with_index do |row, y|
+          row.each_with_index do |cell, x|
+            next if cell.nil?
+            if cell == item["id"]
+              grid_coordinates = [x, y]
+            end
+          end
+        end
+      else
+        puts "No Grid"
+      end
       url = doc["url"] if doc
       if url
         file_format = doc["content_type"] || "image/png"
@@ -1206,23 +1223,48 @@ class Board < ApplicationRecord
         license = doc["license"]
         raw_txt = "obf_id_#{doc["id"]}"
         processed = "processed: #{Time.now}"
-        puts "file_format: #{file_format}"
 
         if image.docs.where(original_image_url: url).any?
           puts "Image already exists"
         else
           downloaded_image = Down.download(url)
-          puts "Downloaded Image: #{downloaded_image}"
-          puts "License: #{license}"
           user_id = current_user.id
           doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
           doc.image.attach(io: downloaded_image, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}", content_type: file_format) if downloaded_image
           image.update(status: "finished")
         end
       end
-      board.add_image(image.id)
+      new_board_image = board.add_image(image.id)
+      if new_board_image
+        new_board_image.layout = { "lg" => { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s } }
+        new_board_image.save!
+      end
     end
 
     return board
+  end
+
+  def parse_obf_grid(obf_grid)
+    # Extract rows, columns, and order from the OBF grid
+    rows = obf_grid["rows"]
+    columns = obf_grid["columns"]
+    order = obf_grid["order"]
+
+    # Reconstruct the original grid layout
+    original_grid = []
+    order.each_with_index do |row, y|
+      row.each_with_index do |cell, x|
+        next if cell.nil? # Skip empty cells
+        original_grid << {
+          "x" => x,
+          "y" => y,
+          "w" => 1, # Assuming each cell is 1x1 in size; adjust if needed
+          "h" => 1, # Assuming each cell is 1x1 in size; adjust if needed
+          "i" => cell,
+        }
+      end
+    end
+
+    original_grid
   end
 end
