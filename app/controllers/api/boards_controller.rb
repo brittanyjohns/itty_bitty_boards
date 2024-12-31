@@ -424,9 +424,9 @@ class API::BoardsController < API::ApplicationController
   end
 
   def import_obf
-    puts "Params: #{params}"
     if params[:data].present?
       boardData = params[:data].to_json
+
       @board = Board.from_obf(boardData, current_user)
       render json: { id: @board.id }
     else

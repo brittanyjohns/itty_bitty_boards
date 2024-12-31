@@ -350,7 +350,6 @@ class Board < ApplicationRecord
       new_user.settings["dynamic_board_id"] = board.id
       new_user.save!
     end
-    Rails.logger.debug "Dynamic Default Board: #{board} for user: #{new_user.id}"
     board
   end
 
@@ -446,8 +445,6 @@ class Board < ApplicationRecord
 
   def find_or_create_images_from_word_list(word_list)
     unless word_list && word_list.any?
-      puts "No word list"
-      Rails.logger.debug "No word list"
       return
     end
     if word_list.is_a?(String)
@@ -520,7 +517,7 @@ class Board < ApplicationRecord
       end
 
       unless new_board_image.save
-        Rails.logger.debug "new_board_image.errors: #{new_board_image.errors.full_messages}"
+        Rails.logger.error "new_board_image.errors: #{new_board_image.errors.full_messages}"
         return
       end
       self.save!
@@ -561,7 +558,7 @@ class Board < ApplicationRecord
     if @cloned_board.save
       @cloned_board
     else
-      Rails.logger.debug "Error cloning board: #{@cloned_board}"
+      Rails.logger.error "Error cloning board: #{@cloned_board}"
     end
   end
 
@@ -640,14 +637,11 @@ class Board < ApplicationRecord
     rows = (bi_count / num_of_columns.to_f).ceil
     ActiveRecord::Base.logger.silence do
       board_images.order(:position).each_slice(num_of_columns) do |row|
-        Rails.logger.debug "Row: #{row}"
         row.each_with_index do |bi, index|
           new_layout = {}
           if bi.layout[screen_size] && reset_layouts == false
             new_layout = bi.layout[screen_size]
-            Rails.logger.debug "Existing Layout for #{bi.label} - #{bi.id}"
           else
-            Rails.logger.debug "New Layout for #{bi.label} - #{bi.id}"
             width = bi.layout[screen_size] ? bi.layout[screen_size]["w"] : 1
             height = bi.layout[screen_size] ? bi.layout[screen_size]["h"] : 1
             new_layout = { "i" => bi.id.to_s, "x" => index, "y" => row_count, "w" => width, "h" => height }
@@ -662,8 +656,6 @@ class Board < ApplicationRecord
         row_count += 1
       end
     end
-
-    Rails.logger.debug "Layout to set: #{layout_to_set}"
 
     self.layout[screen_size] = layout_to_set
     self.board_images.reset
@@ -706,7 +698,6 @@ class Board < ApplicationRecord
     unless layout_to_set.is_a?(Array)
       return
     end
-    Rails.logger.debug "Layout to set: #{layout_to_set}"
     layout_to_set.each_with_index do |layout_item, i|
       id_key = layout_item[:i]
       layout_hash = layout_item.with_indifferent_access
@@ -811,7 +802,6 @@ class Board < ApplicationRecord
       @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
       bi_layout = bi.layout[screen_size]
       bi_data_for_screen = bi.data[screen_size] || {}
-      Rails.logger.debug "#{bi.label} -- BOARD TYPE: #{@predictive_board&.board_type}"
       w = {
         word: bi.label,
         size: [bi_layout["w"], bi_layout["h"]],
@@ -834,7 +824,6 @@ class Board < ApplicationRecord
       end
       # parsed_response = JSON.parse(response)
       grid_response = parsed_response["grid"]
-      Rails.logger.debug "Grid Response: #{grid_response}"
       if parsed_response["personable_explanation"]
         personable_explanation = "Personable Explanation: " + parsed_response["personable_explanation"]
       end
@@ -963,6 +952,7 @@ class Board < ApplicationRecord
       common_words: Board.common_words,
       user_id: user_id,
       voice: voice,
+      data: data,
       created_at: created_at,
       updated_at: updated_at,
       margin_settings: margin_settings,
@@ -988,20 +978,15 @@ class Board < ApplicationRecord
         @global_default_id = Board.predictive_default_id
 
         @user_custom_default_id = @viewer_settings["dynamic_board_id"] || @global_default_id
-        # is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
-        # is_dynamic = (is_owner && is_predictive) || (is_admin_image && is_predictive)
+
         is_dynamic = image.is_dynamic
         is_predictive = image.is_predictive
-        # @category_boards = image.category_boards
-        # is_category = @category_boards.where(user_id: [viewing_user&.id, nil, User::DEFAULT_ADMIN_ID]).any?
+
         is_category = @predictive_board && @predictive_board.board_type == "category"
         mute_name = @predictive_board_settings["mute_name"] == true && is_dynamic
         freeze_board = @predictive_board_settings["freeze_board"] == true
-        Rails.logger.debug "Freeze Board: #{freeze_board}"
-        Rails.logger.debug "Board Settings: #{@board_settings.inspect}" if freeze_board
         is_first_image = @board_image.position == 0
         freeze_parent_board = @board_settings["freeze_board"] == true && is_first_image
-        Rails.logger.debug "Freeze Parent Board: #{@board_image.label} - #{freeze_parent_board}"
         @board_image.data ||= {}
         override_frozen = @board_image.data["override_frozen"] == true
         mute_name ||= true if override_frozen
@@ -1117,7 +1102,6 @@ class Board < ApplicationRecord
     words_to_exclude = board_images.pluck(:label).map { |w| w.downcase }
     response = OpenAiClient.new({}).get_additional_words(self, name_to_send, number_of_words, words_to_exclude, use_preview_model)
     if response
-      Rails.logger.debug "Response: #{response}"
       if response[:content].blank?
         Rails.logger.error "*** ERROR - get_words *** \nDid not receive valid response. Response: #{response}\n"
         return
@@ -1184,19 +1168,24 @@ class Board < ApplicationRecord
     medium_screen_columns = columns
     small_screen_columns = columns
     number_of_columns = columns
-    board_data = { obf_id: obj["id"] }
+    board_data = { obf_id: obj["id"], obf_grid: obj["grid"] }
     board = Board.new(name: board_name, user_id: current_user.id, voice: voice, large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns, data: board_data, number_of_columns: number_of_columns)
     board_type = obj["board_type"] || "static"
     dynamic_images = obj["buttons"].select { |item| item["load_board"] != nil }
-    if dynamic_images
-      puts "Dynamic Images: #{dynamic_images.count}"
-      puts "Dynamic Images: #{dynamic_images}"
+    if dynamic_images.any?
       board_type = "dynamic"
     end
     board.board_type = board_type
 
     board.assign_parent(board_type, current_user)
     board.save!
+    grid = obj["grid"]
+    if grid
+      rows = grid["rows"]
+      columns = grid["columns"]
+      grid_order = grid["order"]
+    end
+
     (obj["buttons"] || []).each do |item|
       label = item["label"]
       if item["ext_saw_image_id"]
@@ -1206,22 +1195,19 @@ class Board < ApplicationRecord
       image = Image.create(label: label, user_id: current_user.id) unless image
 
       doc = obj["images"].detect { |s| s["id"] == item["image_id"] }
-      grid = obj["grid"]
+
       grid_coordinates = nil
-      if grid
-        rows = grid["rows"]
-        columns = grid["columns"]
-        order = grid["order"]
-        order.each_with_index do |row, y|
+      if grid_order
+        grid_order.each_with_index do |row, y|
           row.each_with_index do |cell, x|
-            next if cell.nil?
+            if cell.blank?
+              next
+            end
             if cell == item["id"]
               grid_coordinates = [x, y]
             end
           end
         end
-      else
-        puts "No Grid"
       end
       url = doc["url"] if doc
       if url
@@ -1241,11 +1227,15 @@ class Board < ApplicationRecord
           image.update(status: "finished")
         end
       end
-      new_board_image = board.add_image(image.id)
+
+      # new_board_image = board.add_image(image.id, new_board_image_layout)
+      new_board_image = board.board_images.create!(image_id: image.id.to_i, voice: board.voice, position: board.board_images.count)
       if new_board_image
-        new_board_image.layout["lg"] = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }
-        new_board_image.layout["md"] = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }
-        new_board_image.layout["sm"] = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }
+        new_board_image_layout = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }
+        new_board_image.layout["lg"] = new_board_image_layout
+        new_board_image.layout["md"] = new_board_image_layout
+        new_board_image.layout["sm"] = new_board_image_layout
+
         new_board_image.save!
       end
     end

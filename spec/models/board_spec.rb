@@ -214,11 +214,16 @@ RSpec.describe Board, type: :model do
     it "creates a new board from an OBF file" do
       obf_file = Rails.root.join("spec", "data", "test.obf")
       data = JSON.parse(File.read(obf_file))
+      grid_order = data["grid"]["order"]
       expected_board_image_count = data["images"].size
       board = Board.from_obf(obf_file, user)
 
+      last_bi_layout = board.board_images.last.layout
+      pp last_bi_layout
+
       expect(board).to be_present
       expect(board.board_images.size).to eq(expected_board_image_count)
+      expect(last_bi_layout).to be_present
     end
   end
 end
