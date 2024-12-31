@@ -1,12 +1,13 @@
 require "aws-sdk-s3"
 
 s3 = Aws::S3::Client.new(region: "us-east-1")
-
-bucket_name = "itty-bitty-boards-#{Rails.env}"
+RAILS_ENV = ENV.fetch("RAILS_ENV", "development")
+bucket_name = "itty-bitty-boards-#{RAILS_ENV}"
+puts "Checking bucket: #{bucket_name}"
 
 # s3.copy_object(
 #   bucket: bucket_name,
-#   copy_source: "#{bucket_name}/#{key}",
+#   copy_source: " #{bucket_name}/#{key}",
 #   key: key,
 #   metadata_directive: "REPLACE",
 #   content_type: "image/svg+xml",
