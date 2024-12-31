@@ -1,5 +1,5 @@
 require "aws-sdk-s3"
-
+require_relative "../config/environment"
 s3 = Aws::S3::Client.new(region: "us-east-1")
 RAILS_ENV = ENV.fetch("RAILS_ENV", "development")
 bucket_name = "itty-bitty-boards-#{RAILS_ENV}"
