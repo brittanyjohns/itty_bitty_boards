@@ -164,15 +164,15 @@ class BoardImage < ApplicationRecord
     x + (y * board.number_of_columns) + 1
   end
 
-  def to_obf_image_format
+  def to_obf_image_format(viewing_user = nil)
+    viewing_user ||= user
     {
       id: id.to_s,
-      url: image.display_image_url,
+      url: image.display_image_url(viewing_user) || image.src_url,
       width: 850, # this might need to be changed
       height: 850, # this might need to be changed
       content_type: image.content_type,
       ext_saw_label: label,
-      url: image.display_image_url,
       ext_saw_voice: voice,
       ext_board_type: board.board_type,
     }
@@ -193,7 +193,7 @@ class BoardImage < ApplicationRecord
 
   def to_obf_button_format
     {
-      id: id.to_s,
+      id: id.to_i,
       label: label,
       image_id: id.to_s,
       background_color: get_background_color_css,

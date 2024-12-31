@@ -1169,6 +1169,7 @@ class Board < ApplicationRecord
   end
 
   def self.from_obf(data, current_user)
+    screen_size = "lg"
     if data.is_a?(String)
       # Do nothing
     elsif data.is_a?(Pathname)
@@ -1178,7 +1179,13 @@ class Board < ApplicationRecord
     obj = JSON.parse(data)
     board_name = obj["name"]
     voice = obj["voice"] || "alloy"
-    board = Board.new(name: board_name, user_id: current_user.id, voice: voice)
+    columns = obj["grid"]["columns"]
+    large_screen_columns = columns
+    medium_screen_columns = columns
+    small_screen_columns = columns
+    number_of_columns = columns
+    board_data = { obf_id: obj["id"] }
+    board = Board.new(name: board_name, user_id: current_user.id, voice: voice, large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns, data: board_data, number_of_columns: number_of_columns)
     board_type = obj["board_type"] || "static"
     dynamic_images = obj["buttons"].select { |item| item["load_board"] != nil }
     if dynamic_images
@@ -1236,7 +1243,9 @@ class Board < ApplicationRecord
       end
       new_board_image = board.add_image(image.id)
       if new_board_image
-        new_board_image.layout = { "lg" => { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s } }
+        new_board_image.layout["lg"] = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }
+        new_board_image.layout["md"] = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }
+        new_board_image.layout["sm"] = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }
         new_board_image.save!
       end
     end

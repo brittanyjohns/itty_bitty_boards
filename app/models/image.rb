@@ -945,17 +945,19 @@ class Image < ApplicationRecord
   end
 
   def display_doc(viewing_user = nil)
+    viewing_user ||= self.user
     if viewing_user
       # docs = self.docs.where(user_id: [viewing_user.id, nil, User::DEFAULT_ADMIN_ID])
       user_docs = viewing_user.user_docs.includes(:doc).where(image_id: id)
       docs = user_docs.map(&:doc)
       return docs.last if docs.any?
-      if viewing_user.id == self.user_id
-        return nil
-      end
+      # if viewing_user.id == self.user_id
+      #   return nil
+      # end
     end
+    docs = self.docs.where(user_id: [nil, User::DEFAULT_ADMIN_ID, viewing_user&.id])
 
-    docs = self.docs.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
+    puts "Docs: #{docs.count}"
     return docs.current.first if docs.current.any?
     return nil if docs.blank?
     user_docs = UserDoc.where(doc_id: docs.pluck(:id), user_id: User::DEFAULT_ADMIN_ID)
@@ -1074,7 +1076,6 @@ class Image < ApplicationRecord
       image_type: image_type,
       label: label,
       image_prompt: image_prompt,
-      image_type: image_type,
       next_words: next_words,
       bg_color: bg_class,
       text_color: text_color,

@@ -1,7 +1,8 @@
 require "obf"
 
 module BoardsHelper
-  def to_obf
+  def to_obf(viewing_user = nil)
+    viewing_user ||= user
     obf_board = OBF::Utils.obf_shell
     obf_board = obf_board.with_indifferent_access
     puts "obf_board: #{obf_board}"
@@ -16,7 +17,7 @@ module BoardsHelper
     # obf_board[:protected_content_user_identifier] = self.protected_content_user_identifier
     obf_board[:license] = self.license
     obf_board[:grid] = self.format_grid
-    obf_board[:images] = self.board_images.map(&:to_obf_image_format)
+    obf_board[:images] = self.board_images.map { |image| image.to_obf_image_format(viewing_user) }
     obf_board[:sounds] = self.board_images.map(&:to_obf_sound_format)
     obf_board[:buttons] = self.board_images.map(&:to_obf_button_format)
 
@@ -37,7 +38,7 @@ module BoardsHelper
     og_grid = print_grid_layout_for_screen_size(screen_size)
     puts "screen_size #{screen_size} - og_grid: #{og_grid}"
     grid = self.layout[screen_size] || []
-    rows = grid.map { |cell| cell["y"] + cell["h"] }.max || 0
+    rows = og_grid.map { |cell| cell["y"] + cell["h"] }.max || 0
     new_grid = []
     rows.times do |y|
       new_grid << Array.new(columns, nil)
@@ -48,7 +49,7 @@ module BoardsHelper
       w = cell["w"]
       h = cell["h"]
       new_grid[y] ||= []
-      new_grid[y][x] = cell["i"]
+      new_grid[y][x] = cell["i"].to_i
     end
 
     result = {}

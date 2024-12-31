@@ -419,7 +419,7 @@ class API::BoardsController < API::ApplicationController
 
   def download_obf
     set_board
-    obf_board = @board.to_obf
+    obf_board = @board.to_obf(current_user)
     send_data obf_board.to_json, filename: "board.obf", type: "application/json", disposition: "attachment"
   end
 
