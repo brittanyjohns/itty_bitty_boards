@@ -166,6 +166,8 @@ class BoardImage < ApplicationRecord
 
   def to_obf_image_format(viewing_user = nil)
     viewing_user ||= user
+    is_dynamic = board.board_type == "dynamic"
+    puts "is_dynamic: #{is_dynamic}"
     {
       id: id.to_s,
       url: image.display_image_url(viewing_user) || image.src_url,

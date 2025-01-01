@@ -427,7 +427,7 @@ class API::BoardsController < API::ApplicationController
     if params[:data].present?
       boardData = params[:data].to_json
 
-      @board = Board.from_obf(boardData, current_user)
+      @board, _dynamic_data = Board.from_obf(boardData, current_user)
       render json: { id: @board.id }
     else
       render json: { error: "No data provided" }, status: :unprocessable_entity

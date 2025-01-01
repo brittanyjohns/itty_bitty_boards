@@ -5,16 +5,13 @@ module BoardsHelper
     viewing_user ||= user
     obf_board = OBF::Utils.obf_shell
     obf_board = obf_board.with_indifferent_access
-    puts "obf_board: #{obf_board}"
     obf_board[:id] = self.id.to_s
     obf_board[:locale] = "en"
-    obf_board[:name] = self.name
     obf_board[:name] = self.name
     obf_board[:format] = OBF::OBF::FORMAT
     obf_board[:default_layout] = "landscape"
 
     obf_board[:description_html] = self.description_html
-    # obf_board[:protected_content_user_identifier] = self.protected_content_user_identifier
     obf_board[:license] = self.license
     obf_board[:grid] = self.format_grid
     obf_board[:images] = self.board_images.map { |image| image.to_obf_image_format(viewing_user) }
@@ -24,6 +21,10 @@ module BoardsHelper
     data = obf_board.to_json
     File.open("obf.obf", "w") { |file| file.write(data) }
     obf_board
+  end
+
+  def to_obz(viewing_user = nil)
+    # A .obz file is a zip file containing an .obf file and all the images and sounds referenced by the .obf file.
   end
 
   def to_pdf

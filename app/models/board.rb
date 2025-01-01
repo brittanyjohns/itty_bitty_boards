@@ -52,7 +52,6 @@ class Board < ApplicationRecord
 
   include UtilHelper
   include BoardsHelper
-  include ObfHelper
 
   include PgSearch::Model
   pg_search_scope :search_by_name,
@@ -497,12 +496,6 @@ class Board < ApplicationRecord
       else
         new_board_image.save
         new_board_image.set_initial_layout!
-        # new_board_image.layout = {}
-
-        # new_board_image.layout["lg"] = next_available_cell("lg").merge("i" => new_board_image.id.to_s)
-        # new_board_image.layout["md"] = next_available_cell("md").merge("i" => new_board_image.id.to_s)
-        # new_board_image.layout["sm"] = next_available_cell("sm").merge("i" => new_board_image.id.to_s)
-        # new_board_image.save
       end
       @image = Image.with_artifacts.find_by(id: image_id)
       unless @image
@@ -1152,8 +1145,15 @@ class Board < ApplicationRecord
     word_suggestions["words"]
   end
 
-  def self.from_obf(data, current_user)
+  def self.determine_board_type(buttons)
+    return "static" unless buttons
+    buttons.any? { |item| item["load_board"].present? } ? "dynamic" : "static"
+  end
+
+  def self.from_obf(data, current_user, dynamic_data = nil)
     screen_size = "lg"
+    board_image_data = data["images_hash"]
+    puts "board_image_data: #{board_image_data.inspect}"
     if data.is_a?(String)
       # Do nothing
     elsif data.is_a?(Pathname)
@@ -1161,6 +1161,7 @@ class Board < ApplicationRecord
     end
 
     obj = JSON.parse(data)
+    puts "Importing OBF: #{obj["name"]}"
     board_name = obj["name"]
     voice = obj["voice"] || "alloy"
     columns = obj["grid"]["columns"]
@@ -1170,11 +1171,9 @@ class Board < ApplicationRecord
     number_of_columns = columns
     board_data = { obf_id: obj["id"], obf_grid: obj["grid"] }
     board = Board.new(name: board_name, user_id: current_user.id, voice: voice, large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns, data: board_data, number_of_columns: number_of_columns)
-    board_type = obj["board_type"] || "static"
     dynamic_images = obj["buttons"].select { |item| item["load_board"] != nil }
-    if dynamic_images.any?
-      board_type = "dynamic"
-    end
+    # puts "Dynamic images: #{dynamic_images}"
+    board_type = determine_board_type(dynamic_images)
     board.board_type = board_type
 
     board.assign_parent(board_type, current_user)
@@ -1209,27 +1208,52 @@ class Board < ApplicationRecord
           end
         end
       end
-      url = doc["url"] if doc
-      if url
+      if doc
+        url = doc["url"]
+        doc_path = doc["path"]
+
         file_format = doc["content_type"] || "image/png"
         file_format = "image/svg+xml" if file_format == "image/svg"
         license = doc["license"]
         raw_txt = "obf_id_#{doc["id"]}"
         processed = "processed: #{Time.now}"
-
-        if image.docs.where(original_image_url: url).any?
-          puts "Image already exists"
-        else
-          downloaded_image = Down.download(url)
+        if url && doc_path.blank?
+          if image.docs.where(original_image_url: url).any?
+            puts "Image already exists"
+          else
+            downloaded_image = Down.download(url)
+            user_id = current_user.id
+            doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
+            doc.image.attach(io: downloaded_image, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}", content_type: file_format) if downloaded_image
+            image.update(status: "finished")
+          end
+        elsif doc_path
+          # NEED TO IMPLEMENT
+          # Download the image from path
+          data = Base64.decode64(doc_path)
           user_id = current_user.id
           doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
-          doc.image.attach(io: downloaded_image, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}", content_type: file_format) if downloaded_image
+          doc.image.attach(io: StringIO.new(data), filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}", content_type: file_format) if data
           image.update(status: "finished")
+        else
+          puts "No URL or path found for image"
         end
       end
 
+      dynamic_board = item["load_board"]
+      puts "Dynamic board: #{dynamic_board}"
+      # if dynamic_board
+      dynamic_data ||= {}
+      dynamic_data[image.id] = { "board_id" => board.id,
+                                 "original_obf_id" => obj["id"],
+                                 "dynamic_board" => dynamic_board,
+                                 "label" => label,
+                                 "orginal_image_id" => item["image_id"],
+                                 "grid_coordinates" => grid_coordinates }
+      # end
+
       # new_board_image = board.add_image(image.id, new_board_image_layout)
-      new_board_image = board.board_images.create!(image_id: image.id.to_i, voice: board.voice, position: board.board_images.count)
+      new_board_image = board.board_images.create!(image_id: image.id.to_i, voice: board.voice, position: board.board_images.count) if image
       if new_board_image
         new_board_image_layout = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }
         new_board_image.layout["lg"] = new_board_image_layout
@@ -1240,7 +1264,7 @@ class Board < ApplicationRecord
       end
     end
 
-    return board
+    return [board, dynamic_data]
   end
 
   def parse_obf_grid(obf_grid)
@@ -1263,7 +1287,132 @@ class Board < ApplicationRecord
         }
       end
     end
-
     original_grid
   end
+
+  def self.from_obz(extracted_obz_data, current_user)
+    # puts "Extracted OBF data: #{extracted_obz_data}"
+    extracted_obz_data = extracted_obz_data.with_indifferent_access
+    manifest = extracted_obz_data[:manifest]
+    boards = extracted_obz_data[:boards]
+    images = extracted_obz_data[:images]
+    puts "Count of boards: #{boards.count}"
+    puts "Count of images: #{images.count}"
+    created_boards = []
+    dynamic_data_array = []
+    boards.each do |board_data|
+      board_json = board_data.to_json
+      new_board, dynamic_data = from_obf(board_json, current_user)
+      created_boards << { board_id: new_board.id, original_obf_id: board_data["id"] }
+      dynamic_data_array << dynamic_data
+    end
+
+    puts "Created boards: #{created_boards}"
+    puts "Dynamic data: #{dynamic_data_array}"
+    dynamic_data_array.each do |dynamic_data|
+      dynamic_data.each do |image_id, data|
+        image = Image.find_by(id: image_id)
+        if image
+          # puts "Data: #{data}"
+          if data["dynamic_board"]
+            # image.dynamic_data = data
+            # image.save!
+            puts "Dynamic data: #{data}"
+            if created_boards.any? { |b| b[:original_obf_id] == data["dynamic_board"]["id"] }
+              puts "Dynamic board found"
+              dynamic_board = created_boards.find { |b| b[:original_obf_id] == data["dynamic_board"]["id"] }
+              dynamic_board_id = dynamic_board[:board_id]
+              image.predictive_board_id = dynamic_board_id
+              image.save!
+            else
+              puts "Dynamic board not found"
+            end
+          end
+        else
+          puts "Image not found for id: #{image_id}"
+        end
+      end
+    end
+
+    # puts "Images: #{images}"
+    created_boards
+  end
+
+  # def self.extract_obz(file_or_path)
+  #   path = file_or_path.respond_to?(:path) ? file_or_path.path : file_or_path
+  #   extracted_data = {}
+  #   Zip::File.open(path) do |zip_file|
+  #     manifest_data = nil
+  #     paths = {}
+  #     zip_file.each do |entry|
+  #       if entry.name == "manifest.json"
+  #         manifest_data = JSON.parse(entry.get_input_stream.read)
+  #         root = manifest_data["root"]
+  #         paths = manifest_data["paths"]
+  #         extracted_data[:manifest] = manifest_data
+  #       end
+  #     end
+  #     puts "Manifest data: #{manifest_data}"
+  #     if manifest_data
+  #       paths.each do |key, value|
+  #         puts "Key: #{key}, value: #{value}"
+  #         if key == "boards"
+  #           value.each do |board_path_array|
+  #             board_path = board_path_array[-1]
+  #             board_data = nil
+  #             zip_file.each do |entry|
+  #               if entry.name == board_path
+  #                 board_data = JSON.parse(entry.get_input_stream.read)
+  #                 extracted_data[:boards] ||= []
+  #                 extracted_data[:boards] << board_data if board_data
+  #               else
+  #                 puts "No board data found entry.name: #{entry.name}"
+  #               end
+  #             end
+  #           end
+  #         end
+
+  #         if key == "images"
+  #           value.each do |image_path_array|
+  #             image_path = image_path_array[-1]
+  #             image_id = image_path_array[0]
+  #             image_data = nil
+  #             zip_file.each do |entry|
+  #               if entry.name == image_path
+  #                 puts "Found image #{image_id} data for: #{image_path} - entry.name: #{entry.name}"
+  #                 # Read the raw binary data of the image
+  #                 binary_data = entry.get_input_stream.read
+  #                 img_data = Base64.encode64(binary_data)
+  #                 image_data = { image_id: image_id, data: img_data }
+
+  #                 # # Create a Tempfile for Active Storage
+  #                 # Tempfile.create(["image", File.extname(entry.name)]) do |tempfile|
+  #                 #   tempfile.binmode
+  #                 #   tempfile.write(binary_data)
+  #                 #   tempfile.rewind
+
+  #                 #   # Attach the Tempfile to the Active Storage object
+  #                 #   image_model.file.attach(
+  #                 #     io: tempfile,
+  #                 #     filename: entry.name,
+  #                 #     content_type: Mime::Type.lookup_by_extension(File.extname(entry.name).delete(".")).to_s,
+  #                 #   )
+  #                 # end
+  #                 puts "Image data: #{image_data}"
+
+  #                 extracted_data[:images] ||= []
+  #                 extracted_data[:images] << image_data if image_data
+  #               else
+  #                 puts "No image data found entry.name: #{entry.name} - image_path: #{image_path}"
+  #               end
+  #             end
+  #           end
+  #         end
+  #       end
+  #     else
+  #       puts "No manifest data found"
+  #     end
+  #   end
+  #   extracted_data
+  # end
 end
