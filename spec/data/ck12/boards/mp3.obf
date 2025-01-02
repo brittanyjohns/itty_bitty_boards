@@ -1,0 +1,108 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S76X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(51,102,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S76X0Y1myalbums.png", 
+      "label": "My Album's"
+    }, 
+    {
+      "background_color": "rgb(51,102,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S76X1Y2rewind.png", 
+      "label": "rewind"
+    }, 
+    {
+      "background_color": "rgb(51,102,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "22", 
+      "image_id": "icons/S76X2Y2playpause.png", 
+      "label": "Play/pause"
+    }, 
+    {
+      "background_color": "rgb(51,102,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "32", 
+      "image_id": "icons/S76X3Y2fastforward.png", 
+      "label": "Fast forward"
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        null, 
+        null, 
+        null
+      ], 
+      [
+        "01", 
+        null, 
+        null, 
+        null
+      ], 
+      [
+        null, 
+        "12", 
+        "22", 
+        "32"
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "mp3", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S76X0Y0toppage.png", 
+      "path": "../icons/S76X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S76X0Y1myalbums.png", 
+      "path": "../icons/S76X0Y1myalbums.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S76X1Y2rewind.png", 
+      "path": "../icons/S76X1Y2rewind.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S76X2Y2playpause.png", 
+      "path": "../icons/S76X2Y2playpause.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S76X3Y2fastforward.png", 
+      "path": "../icons/S76X3Y2fastforward.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate mp3", 
+  "sounds": []
+}

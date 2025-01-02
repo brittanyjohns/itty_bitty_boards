@@ -250,27 +250,27 @@ RSpec.describe Board, type: :model do
       extracted_data = OBF::OBZ.to_external(obf_zip_file, {})
 
       # Write the extracted data to a file
-      File.open("obf.obf", "w") { |file| file.write(extracted_data.to_json) }
 
       # puts "extracted_data:\n"
       # pp extracted_data
       expected_board_image_count = extracted_data["images"].size
-      puts "expected_board_image_count: #{expected_board_image_count}"
       expect(extracted_data).to be_present
 
       result = Board.from_obz(extracted_data, user)
       first_board_id = result.first.with_indifferent_access[:board_id]
-      puts "\n\nresult: #{result.inspect}\n\n"
-      puts "\n\nfirst_board_id: #{first_board_id}"
+
       first_board = Board.find(first_board_id)
-      first_board_image_count = first_board.board_images.count
-      puts "first_board_image_count: #{first_board}"
-      expect(first_board_image_count).to eq(expected_board_image_count)
+
+      expect(first_board.board_images.count).to eq(expected_board_image_count)
       first_board_board_image = first_board.board_images.first
       first_board_image = first_board_board_image.image
       docs = first_board_image.docs
+      puts "first_board_image: #{first_board_image.inspect}"
+      puts "docs: #{docs.inspect}"
+      doc_image = docs.first.image if docs.present?
       # puts "docs: #{docs.inspect}"
-      expect(docs).to be_present
+      expect(docs.count).to eq(1)
+      expect(doc_image).to be_present
       # pp extracted_data["boards"]
     end
   end

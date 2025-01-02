@@ -1,0 +1,201 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S72X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(51,102,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S72X1Y0myphotos.png", 
+      "label": "My photos"
+    }, 
+    {
+      "background_color": "rgb(51,102,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S72X2Y0mp3.png", 
+      "label": "MP3", 
+      "load_board": {
+        "path": "boards/mp3.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(51,102,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S72X3Y0volumeup.png", 
+      "label": "volume up"
+    }, 
+    {
+      "background_color": "rgb(51,102,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S72X0Y1iwant.png", 
+      "label": "I want", 
+      "load_board": {
+        "path": "boards/iwant.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(51,102,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S72X1Y1phone.png", 
+      "label": "phone"
+    }, 
+    {
+      "background_color": "rgb(51,102,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S72X3Y1volumedown.png", 
+      "label": "volume down"
+    }, 
+    {
+      "background_color": "rgb(255,0,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S72X0Y2computercontrol.png", 
+      "label": "Computer control"
+    }, 
+    {
+      "background_color": "rgb(51,102,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S72X1Y2dvd.png", 
+      "label": "DVD", 
+      "load_board": {
+        "path": "boards/dvd.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(51,102,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "22", 
+      "image_id": "icons/S72X2Y2tv.png", 
+      "label": "TV"
+    }, 
+    {
+      "background_color": "rgb(51,102,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "32", 
+      "image_id": "icons/S72X3Y2ecu.png", 
+      "label": "ECU"
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        null, 
+        "31"
+      ], 
+      [
+        "02", 
+        "12", 
+        "22", 
+        "32"
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "leisure", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S72X0Y0toppage.png", 
+      "path": "../icons/S72X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S72X1Y0myphotos.png", 
+      "path": "../icons/S72X1Y0myphotos.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S72X2Y0mp3.png", 
+      "path": "../icons/S72X2Y0mp3.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S72X3Y0volumeup.png", 
+      "path": "../icons/S72X3Y0volumeup.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S72X0Y1iwant.png", 
+      "path": "../icons/S72X0Y1iwant.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S72X1Y1phone.png", 
+      "path": "../icons/S72X1Y1phone.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S72X3Y1volumedown.png", 
+      "path": "../icons/S72X3Y1volumedown.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S72X0Y2computercontrol.png", 
+      "path": "../icons/S72X0Y2computercontrol.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S72X1Y2dvd.png", 
+      "path": "../icons/S72X1Y2dvd.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S72X2Y2tv.png", 
+      "path": "../icons/S72X2Y2tv.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S72X3Y2ecu.png", 
+      "path": "../icons/S72X3Y2ecu.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate leisure", 
+  "sounds": []
+}

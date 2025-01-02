@@ -1,0 +1,66 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S63X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S63X1Y0mydayplaces.png", 
+      "label": "My day places"
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        null, 
+        null
+      ], 
+      [
+        null, 
+        null, 
+        null, 
+        null
+      ], 
+      [
+        null, 
+        null, 
+        null, 
+        null
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "mydayplaces", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S63X0Y0toppage.png", 
+      "path": "../icons/S63X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S63X1Y0mydayplaces.png", 
+      "path": "../icons/S63X1Y0mydayplaces.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate mydayplaces", 
+  "sounds": []
+}

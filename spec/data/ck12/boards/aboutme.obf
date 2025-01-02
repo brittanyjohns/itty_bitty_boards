@@ -1,0 +1,204 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S2X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S2X1Y0unknown.png", 
+      "label": "--------------"
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S2X2Y0unknown.png", 
+      "label": "--------------"
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S2X3Y0birthday.png", 
+      "label": "birthday"
+    }, 
+    {
+      "background_color": "rgb(178,123,6)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S2X0Y1unknown.png", 
+      "label": "--------------", 
+      "load_board": {
+        "path": "boards/family.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S2X1Y1unknown.png", 
+      "label": "--------------"
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S2X2Y1unknown.png", 
+      "label": "--------------"
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S2X3Y1tv.png", 
+      "label": "TV"
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S2X0Y2ilike.png", 
+      "label": "I like", 
+      "load_board": {
+        "path": "boards/ilike.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S2X1Y2unknown.png", 
+      "label": "--------------", 
+      "load_board": {
+        "path": "boards/idontlike.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,102,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "22", 
+      "image_id": "icons/S2X2Y2tellmeaboutyou.png", 
+      "label": "Tell me about you.", 
+      "load_board": {
+        "path": "boards/tellmeaboutyou.obf"
+      }
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        "02", 
+        "12", 
+        "22", 
+        null
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "aboutme", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S2X0Y0toppage.png", 
+      "path": "../icons/S2X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S2X1Y0unknown.png", 
+      "path": "../icons/S2X1Y0unknown.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S2X2Y0unknown.png", 
+      "path": "../icons/S2X2Y0unknown.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S2X3Y0birthday.png", 
+      "path": "../icons/S2X3Y0birthday.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S2X0Y1unknown.png", 
+      "path": "../icons/S2X0Y1unknown.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S2X1Y1unknown.png", 
+      "path": "../icons/S2X1Y1unknown.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S2X2Y1unknown.png", 
+      "path": "../icons/S2X2Y1unknown.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S2X3Y1tv.png", 
+      "path": "../icons/S2X3Y1tv.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S2X0Y2ilike.png", 
+      "path": "../icons/S2X0Y2ilike.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S2X1Y2unknown.png", 
+      "path": "../icons/S2X1Y2unknown.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S2X2Y2tellmeaboutyou.png", 
+      "path": "../icons/S2X2Y2tellmeaboutyou.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate aboutme", 
+  "sounds": []
+}

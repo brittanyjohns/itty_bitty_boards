@@ -1,0 +1,171 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S41X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S41X1Y0pets.png", 
+      "label": "Pets", 
+      "load_board": {
+        "path": "boards/pets.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S41X2Y0farmanimals.png", 
+      "label": "Farm animals", 
+      "load_board": {
+        "path": "boards/farmanimals.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S41X3Y0wildanimals.png", 
+      "label": "Wild animals", 
+      "load_board": {
+        "path": "boards/wildanimals.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S41X0Y1wateranimals.png", 
+      "label": "Water animals", 
+      "load_board": {
+        "path": "boards/wateranimals.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S41X1Y1birds.png", 
+      "label": "Birds", 
+      "load_board": {
+        "path": "boards/birds.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S41X2Y1insects.png", 
+      "label": "Insects", 
+      "load_board": {
+        "path": "boards/birds.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S41X3Y1petcare.png", 
+      "label": "Pet care", 
+      "load_board": {
+        "path": "boards/petcare.obf"
+      }
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        null, 
+        null, 
+        null, 
+        null
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "animals", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S41X0Y0toppage.png", 
+      "path": "../icons/S41X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S41X1Y0pets.png", 
+      "path": "../icons/S41X1Y0pets.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S41X2Y0farmanimals.png", 
+      "path": "../icons/S41X2Y0farmanimals.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S41X3Y0wildanimals.png", 
+      "path": "../icons/S41X3Y0wildanimals.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S41X0Y1wateranimals.png", 
+      "path": "../icons/S41X0Y1wateranimals.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S41X1Y1birds.png", 
+      "path": "../icons/S41X1Y1birds.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S41X2Y1insects.png", 
+      "path": "../icons/S41X2Y1insects.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S41X3Y1petcare.png", 
+      "path": "../icons/S41X3Y1petcare.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate animals", 
+  "sounds": []
+}

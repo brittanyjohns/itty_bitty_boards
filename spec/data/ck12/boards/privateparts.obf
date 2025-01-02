@@ -1,0 +1,164 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S11X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S11X1Y0privateparts.png", 
+      "label": "Private parts"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S11X2Y0bottom.png", 
+      "label": "bottom"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S11X3Y0breasts.png", 
+      "label": "breasts"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S11X0Y1penis.png", 
+      "label": "penis"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S11X1Y1underarmhair.png", 
+      "label": "underarm hair"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S11X2Y1vagina.png", 
+      "label": "vagina"
+    }, 
+    {
+      "background_color": "rgb(231,65,198)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S11X0Y2love.png", 
+      "label": "love"
+    }, 
+    {
+      "background_color": "rgb(231,65,198)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S11X1Y2kiss.png", 
+      "label": "kiss"
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        null
+      ], 
+      [
+        "02", 
+        "12", 
+        null, 
+        null
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "privateparts", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S11X0Y0toppage.png", 
+      "path": "../icons/S11X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S11X1Y0privateparts.png", 
+      "path": "../icons/S11X1Y0privateparts.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S11X2Y0bottom.png", 
+      "path": "../icons/S11X2Y0bottom.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S11X3Y0breasts.png", 
+      "path": "../icons/S11X3Y0breasts.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S11X0Y1penis.png", 
+      "path": "../icons/S11X0Y1penis.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S11X1Y1underarmhair.png", 
+      "path": "../icons/S11X1Y1underarmhair.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S11X2Y1vagina.png", 
+      "path": "../icons/S11X2Y1vagina.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S11X0Y2love.png", 
+      "path": "../icons/S11X0Y2love.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S11X1Y2kiss.png", 
+      "path": "../icons/S11X1Y2kiss.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate privateparts", 
+  "sounds": []
+}

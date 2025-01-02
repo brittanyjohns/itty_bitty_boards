@@ -1,0 +1,229 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(166,166,166)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S0X0Y0chatting.png", 
+      "label": "Chatting", 
+      "load_board": {
+        "path": "boards/chatting.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,102,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S0X1Y0questions.png", 
+      "label": "Questions", 
+      "load_board": {
+        "path": "boards/questions.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,156,248)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S0X2Y0personalcare.png", 
+      "label": "Personal Care", 
+      "load_board": {
+        "path": "boards/personalcare.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S0X3Y0things.png", 
+      "label": "Things", 
+      "load_board": {
+        "path": "boards/things.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,3,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S0X0Y1actionwords.png", 
+      "label": "Action words", 
+      "load_board": {
+        "path": "boards/actionwords.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(178,123,6)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S0X1Y1people.png", 
+      "label": "People", 
+      "load_board": {
+        "path": "boards/people.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S0X2Y1describing.png", 
+      "label": "Describing", 
+      "load_board": {
+        "path": "boards/describing.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S0X3Y1myday.png", 
+      "label": "My day", 
+      "load_board": {
+        "path": "boards/myday.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S0X1Y2places.png", 
+      "label": "Places", 
+      "load_board": {
+        "path": "boards/places.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(51,102,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "22", 
+      "image_id": "icons/S0X2Y2leisure.png", 
+      "label": "Leisure", 
+      "load_board": {
+        "path": "boards/leisure.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(69,139,60)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "32", 
+      "image_id": "icons/S0X3Y2littlewords.png", 
+      "label": "Little words", 
+      "load_board": {
+        "path": "boards/littlewords.obf"
+      }
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        null, 
+        "12", 
+        "22", 
+        "32"
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "toppage", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S0X0Y0chatting.png", 
+      "path": "../icons/S0X0Y0chatting.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S0X1Y0questions.png", 
+      "path": "../icons/S0X1Y0questions.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S0X2Y0personalcare.png", 
+      "path": "../icons/S0X2Y0personalcare.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S0X3Y0things.png", 
+      "path": "../icons/S0X3Y0things.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S0X0Y1actionwords.png", 
+      "path": "../icons/S0X0Y1actionwords.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S0X1Y1people.png", 
+      "path": "../icons/S0X1Y1people.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S0X2Y1describing.png", 
+      "path": "../icons/S0X2Y1describing.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S0X3Y1myday.png", 
+      "path": "../icons/S0X3Y1myday.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S0X0Y2unknown.png", 
+      "path": "../icons/S0X0Y2unknown.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S0X1Y2places.png", 
+      "path": "../icons/S0X1Y2places.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S0X2Y2leisure.png", 
+      "path": "../icons/S0X2Y2leisure.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S0X3Y2littlewords.png", 
+      "path": "../icons/S0X3Y2littlewords.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate toppage", 
+  "sounds": []
+}

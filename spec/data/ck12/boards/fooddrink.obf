@@ -1,0 +1,230 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S15X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S15X1Y0breakfast.png", 
+      "label": "Breakfast", 
+      "load_board": {
+        "path": "boards/breakfast.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S15X2Y0lunch.png", 
+      "label": "Lunch", 
+      "load_board": {
+        "path": "boards/lunch.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S15X3Y0meals.png", 
+      "label": "Meals", 
+      "load_board": {
+        "path": "boards/meals.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S15X0Y1imhungry.png", 
+      "label": "I'm hungry"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S15X1Y1vegsalad.png", 
+      "label": "Veg & salad", 
+      "load_board": {
+        "path": "boards/vegetables.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S15X2Y1fruit.png", 
+      "label": "Fruit", 
+      "load_board": {
+        "path": "boards/fruit.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S15X3Y1drinks.png", 
+      "label": "Drinks", 
+      "load_board": {
+        "path": "boards/drinks.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S15X0Y2imthirsty.png", 
+      "label": "I'm thirsty"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S15X1Y2snackspud.png", 
+      "label": "Snacks & Pud", 
+      "load_board": {
+        "path": "boards/snackspud.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "22", 
+      "image_id": "icons/S15X2Y2saucesingredients.png", 
+      "label": "Sauces/ingredients"
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "32", 
+      "image_id": "icons/S15X3Y2foodchat.png", 
+      "label": "Food chat", 
+      "load_board": {
+        "path": "boards/foodchat.obf"
+      }
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        "02", 
+        "12", 
+        "22", 
+        "32"
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "fooddrink", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S15X0Y0toppage.png", 
+      "path": "../icons/S15X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S15X1Y0breakfast.png", 
+      "path": "../icons/S15X1Y0breakfast.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S15X2Y0lunch.png", 
+      "path": "../icons/S15X2Y0lunch.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S15X3Y0meals.png", 
+      "path": "../icons/S15X3Y0meals.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S15X0Y1imhungry.png", 
+      "path": "../icons/S15X0Y1imhungry.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S15X1Y1vegsalad.png", 
+      "path": "../icons/S15X1Y1vegsalad.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S15X2Y1fruit.png", 
+      "path": "../icons/S15X2Y1fruit.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S15X3Y1drinks.png", 
+      "path": "../icons/S15X3Y1drinks.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S15X0Y2imthirsty.png", 
+      "path": "../icons/S15X0Y2imthirsty.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S15X1Y2snackspud.png", 
+      "path": "../icons/S15X1Y2snackspud.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S15X2Y2saucesingredients.png", 
+      "path": "../icons/S15X2Y2saucesingredients.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S15X3Y2foodchat.png", 
+      "path": "../icons/S15X3Y2foodchat.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate fooddrink", 
+  "sounds": []
+}

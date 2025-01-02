@@ -1,0 +1,215 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S52X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(196,131,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S52X1Y0people.png", 
+      "label": "People"
+    }, 
+    {
+      "background_color": "rgb(178,123,6)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S52X2Y0friends.png", 
+      "label": "Friends", 
+      "load_board": {
+        "path": "boards/friends.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(178,123,6)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S52X3Y0peoplewhohelp.png", 
+      "label": "People who help", 
+      "load_board": {
+        "path": "boards/peoplewhohelp.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(196,131,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S52X0Y1i.png", 
+      "label": "I"
+    }, 
+    {
+      "background_color": "rgb(196,131,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S52X1Y1my.png", 
+      "label": "my"
+    }, 
+    {
+      "background_color": "rgb(196,131,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S52X2Y1mine.png", 
+      "label": "mine"
+    }, 
+    {
+      "background_color": "rgb(178,123,6)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S52X3Y1family.png", 
+      "label": "family", 
+      "load_board": {
+        "path": "boards/family.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(196,131,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S52X0Y2it.png", 
+      "label": "it"
+    }, 
+    {
+      "background_color": "rgb(196,131,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S52X1Y2you.png", 
+      "label": "you"
+    }, 
+    {
+      "background_color": "rgb(196,131,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "22", 
+      "image_id": "icons/S52X2Y2boy.png", 
+      "label": "boy"
+    }, 
+    {
+      "background_color": "rgb(196,131,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "32", 
+      "image_id": "icons/S52X3Y2girl.png", 
+      "label": "girl"
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        "02", 
+        "12", 
+        "22", 
+        "32"
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "people", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S52X0Y0toppage.png", 
+      "path": "../icons/S52X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S52X1Y0people.png", 
+      "path": "../icons/S52X1Y0people.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S52X2Y0friends.png", 
+      "path": "../icons/S52X2Y0friends.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S52X3Y0peoplewhohelp.png", 
+      "path": "../icons/S52X3Y0peoplewhohelp.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S52X0Y1i.png", 
+      "path": "../icons/S52X0Y1i.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S52X1Y1my.png", 
+      "path": "../icons/S52X1Y1my.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S52X2Y1mine.png", 
+      "path": "../icons/S52X2Y1mine.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S52X3Y1family.png", 
+      "path": "../icons/S52X3Y1family.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S52X0Y2it.png", 
+      "path": "../icons/S52X0Y2it.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S52X1Y2you.png", 
+      "path": "../icons/S52X1Y2you.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S52X2Y2boy.png", 
+      "path": "../icons/S52X2Y2boy.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S52X3Y2girl.png", 
+      "path": "../icons/S52X3Y2girl.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate people", 
+  "sounds": []
+}

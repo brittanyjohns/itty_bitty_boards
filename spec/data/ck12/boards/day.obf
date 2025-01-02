@@ -1,0 +1,206 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S69X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(0,0,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S69X1Y0day.png", 
+      "label": "day"
+    }, 
+    {
+      "background_color": "rgb(0,0,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S69X2Y0weekend.png", 
+      "label": "weekend"
+    }, 
+    {
+      "background_color": "rgb(0,0,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S69X3Y0night.png", 
+      "label": "night"
+    }, 
+    {
+      "background_color": "rgb(0,0,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S69X0Y1monday.png", 
+      "label": "Monday"
+    }, 
+    {
+      "background_color": "rgb(0,0,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S69X1Y1tuesday.png", 
+      "label": "Tuesday"
+    }, 
+    {
+      "background_color": "rgb(0,0,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S69X2Y1wednesday.png", 
+      "label": "Wednesday"
+    }, 
+    {
+      "background_color": "rgb(0,0,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S69X3Y1thursday.png", 
+      "label": "Thursday"
+    }, 
+    {
+      "background_color": "rgb(0,0,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S69X0Y2friday.png", 
+      "label": "Friday"
+    }, 
+    {
+      "background_color": "rgb(0,0,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S69X1Y2saturday.png", 
+      "label": "Saturday"
+    }, 
+    {
+      "background_color": "rgb(0,0,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "22", 
+      "image_id": "icons/S69X2Y2sunday.png", 
+      "label": "Sunday"
+    }, 
+    {
+      "background_color": "rgb(0,0,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "32", 
+      "image_id": "icons/S69X3Y2week.png", 
+      "label": "week"
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        "02", 
+        "12", 
+        "22", 
+        "32"
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "day", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S69X0Y0toppage.png", 
+      "path": "../icons/S69X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S69X1Y0day.png", 
+      "path": "../icons/S69X1Y0day.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S69X2Y0weekend.png", 
+      "path": "../icons/S69X2Y0weekend.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S69X3Y0night.png", 
+      "path": "../icons/S69X3Y0night.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S69X0Y1monday.png", 
+      "path": "../icons/S69X0Y1monday.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S69X1Y1tuesday.png", 
+      "path": "../icons/S69X1Y1tuesday.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S69X2Y1wednesday.png", 
+      "path": "../icons/S69X2Y1wednesday.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S69X3Y1thursday.png", 
+      "path": "../icons/S69X3Y1thursday.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S69X0Y2friday.png", 
+      "path": "../icons/S69X0Y2friday.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S69X1Y2saturday.png", 
+      "path": "../icons/S69X1Y2saturday.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S69X2Y2sunday.png", 
+      "path": "../icons/S69X2Y2sunday.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S69X3Y2week.png", 
+      "path": "../icons/S69X3Y2week.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate day", 
+  "sounds": []
+}

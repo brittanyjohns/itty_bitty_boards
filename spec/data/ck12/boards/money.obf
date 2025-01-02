@@ -1,0 +1,108 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S37X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S37X1Y0money.png", 
+      "label": "money"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S37X2Y0chequebook.png", 
+      "label": "cheque book"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S37X3Y0wallet.png", 
+      "label": "wallet"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S37X0Y1purse.png", 
+      "label": "purse"
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        null, 
+        null, 
+        null
+      ], 
+      [
+        null, 
+        null, 
+        null, 
+        null
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "money", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S37X0Y0toppage.png", 
+      "path": "../icons/S37X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S37X1Y0money.png", 
+      "path": "../icons/S37X1Y0money.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S37X2Y0chequebook.png", 
+      "path": "../icons/S37X2Y0chequebook.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S37X3Y0wallet.png", 
+      "path": "../icons/S37X3Y0wallet.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S37X0Y1purse.png", 
+      "path": "../icons/S37X0Y1purse.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate money", 
+  "sounds": []
+}

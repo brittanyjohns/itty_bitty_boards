@@ -1,0 +1,206 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S20X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S20X1Y0fastfood.png", 
+      "label": "fast food"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S20X2Y0chips.png", 
+      "label": "chips"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S20X3Y0chickennugget.png", 
+      "label": "chicken nugget"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S20X0Y1fishandchips.png", 
+      "label": "fish and chips"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S20X1Y1fishburger.png", 
+      "label": "fish burger"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S20X2Y1cheeseburger.png", 
+      "label": "cheese burger"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S20X3Y1burger.png", 
+      "label": "burger"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S20X0Y2sweets.png", 
+      "label": "sweets"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S20X1Y2candyfloss.png", 
+      "label": "candy floss"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "22", 
+      "image_id": "icons/S20X2Y2pizza.png", 
+      "label": "pizza"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "32", 
+      "image_id": "icons/S20X3Y2hotdog.png", 
+      "label": "hot dog"
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        "02", 
+        "12", 
+        "22", 
+        "32"
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "fastfood", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S20X0Y0toppage.png", 
+      "path": "../icons/S20X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S20X1Y0fastfood.png", 
+      "path": "../icons/S20X1Y0fastfood.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S20X2Y0chips.png", 
+      "path": "../icons/S20X2Y0chips.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S20X3Y0chickennugget.png", 
+      "path": "../icons/S20X3Y0chickennugget.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S20X0Y1fishandchips.png", 
+      "path": "../icons/S20X0Y1fishandchips.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S20X1Y1fishburger.png", 
+      "path": "../icons/S20X1Y1fishburger.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S20X2Y1cheeseburger.png", 
+      "path": "../icons/S20X2Y1cheeseburger.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S20X3Y1burger.png", 
+      "path": "../icons/S20X3Y1burger.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S20X0Y2sweets.png", 
+      "path": "../icons/S20X0Y2sweets.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S20X1Y2candyfloss.png", 
+      "path": "../icons/S20X1Y2candyfloss.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S20X2Y2pizza.png", 
+      "path": "../icons/S20X2Y2pizza.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S20X3Y2hotdog.png", 
+      "path": "../icons/S20X3Y2hotdog.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate fastfood", 
+  "sounds": []
+}

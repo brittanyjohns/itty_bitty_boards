@@ -1,0 +1,215 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S64X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S64X1Y0shops.png", 
+      "label": "shops", 
+      "load_board": {
+        "path": "boards/shops.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S64X2Y0placesoutside.png", 
+      "label": "places outside", 
+      "load_board": {
+        "path": "boards/outsideplaces.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S64X3Y0restaurant.png", 
+      "label": "restaurant"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S64X0Y1cinema.png", 
+      "label": "cinema"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S64X1Y1schoolcollege.png", 
+      "label": "School/college"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S64X2Y1town.png", 
+      "label": "town"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S64X3Y1pool.png", 
+      "label": "pool"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S64X0Y2library.png", 
+      "label": "library"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S64X1Y2pub.png", 
+      "label": "pub"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "22", 
+      "image_id": "icons/S64X2Y2doctors.png", 
+      "label": "doctors"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "32", 
+      "image_id": "icons/S64X3Y2placesathome.png", 
+      "label": "Places at home", 
+      "load_board": {
+        "path": "boards/placesathome.obf"
+      }
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        "02", 
+        "12", 
+        "22", 
+        "32"
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "places", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S64X0Y0toppage.png", 
+      "path": "../icons/S64X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S64X1Y0shops.png", 
+      "path": "../icons/S64X1Y0shops.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S64X2Y0placesoutside.png", 
+      "path": "../icons/S64X2Y0placesoutside.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S64X3Y0restaurant.png", 
+      "path": "../icons/S64X3Y0restaurant.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S64X0Y1cinema.png", 
+      "path": "../icons/S64X0Y1cinema.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S64X1Y1schoolcollege.png", 
+      "path": "../icons/S64X1Y1schoolcollege.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S64X2Y1town.png", 
+      "path": "../icons/S64X2Y1town.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S64X3Y1pool.png", 
+      "path": "../icons/S64X3Y1pool.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S64X0Y2library.png", 
+      "path": "../icons/S64X0Y2library.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S64X1Y2pub.png", 
+      "path": "../icons/S64X1Y2pub.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S64X2Y2doctors.png", 
+      "path": "../icons/S64X2Y2doctors.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S64X3Y2placesathome.png", 
+      "path": "../icons/S64X3Y2placesathome.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate places", 
+  "sounds": []
+}

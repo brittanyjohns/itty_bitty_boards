@@ -23,6 +23,7 @@ class Doc < ApplicationRecord
   belongs_to :documentable, polymorphic: true, touch: true
   belongs_to :board, optional: true
   has_one_attached :image
+  has_one_base64_attached :image
   has_many :user_docs, dependent: :destroy
 
   after_create :update_user_docs, if: :user_id

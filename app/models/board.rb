@@ -1150,121 +1150,141 @@ class Board < ApplicationRecord
     buttons.any? { |item| item["load_board"].present? } ? "dynamic" : "static"
   end
 
-  def self.from_obf(data, current_user, dynamic_data = nil)
-    screen_size = "lg"
-    board_image_data = data["images_hash"]
-    puts "board_image_data: #{board_image_data.inspect}"
-    if data.is_a?(String)
-      # Do nothing
-    elsif data.is_a?(Pathname)
-      data = data.read
-    end
-
-    obj = JSON.parse(data)
-    puts "Importing OBF: #{obj["name"]}"
-    board_name = obj["name"]
-    voice = obj["voice"] || "alloy"
-    columns = obj["grid"]["columns"]
-    large_screen_columns = columns
-    medium_screen_columns = columns
-    small_screen_columns = columns
-    number_of_columns = columns
-    board_data = { obf_id: obj["id"], obf_grid: obj["grid"] }
-    board = Board.new(name: board_name, user_id: current_user.id, voice: voice, large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns, data: board_data, number_of_columns: number_of_columns)
-    dynamic_images = obj["buttons"].select { |item| item["load_board"] != nil }
-    # puts "Dynamic images: #{dynamic_images}"
-    board_type = determine_board_type(dynamic_images)
-    board.board_type = board_type
-
-    board.assign_parent(board_type, current_user)
-    board.save!
-    grid = obj["grid"]
-    if grid
-      rows = grid["rows"]
-      columns = grid["columns"]
-      grid_order = grid["order"]
-    end
-
-    (obj["buttons"] || []).each do |item|
-      label = item["label"]
-      if item["ext_saw_image_id"]
-        image = Image.find_by(id: item["ext_saw_image_id"].to_i, user_id: current_user.id)
+  def self.from_obf(data, current_user)
+    begin
+      screen_size = "lg"
+      dynamic_data = {}
+      if data.is_a?(String)
+        # Do nothing
+      elsif data.is_a?(Pathname)
+        data = data.read
       end
-      image = Image.find_by(label: label, user_id: current_user.id) unless image
-      image = Image.create(label: label, user_id: current_user.id) unless image
 
-      doc = obj["images"].detect { |s| s["id"] == item["image_id"] }
+      obj = JSON.parse(data)
+      Rails.logger.debug "Importing OBF: #{obj["name"]}"
+      board_name = obj["name"]
+      voice = obj["voice"] || "alloy"
+      columns = obj["grid"]["columns"]
+      large_screen_columns = columns
+      medium_screen_columns = columns
+      small_screen_columns = columns
+      number_of_columns = columns
+      board_data = { obf_id: obj["id"], obf_grid: obj["grid"] }
+      board = Board.new(name: board_name, user_id: current_user.id, voice: voice, large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns, data: board_data, number_of_columns: number_of_columns)
+      dynamic_images = obj["buttons"].select { |item| item["load_board"] != nil }
+      board_type = determine_board_type(dynamic_images)
+      board.board_type = board_type
 
-      grid_coordinates = nil
-      if grid_order
-        grid_order.each_with_index do |row, y|
-          row.each_with_index do |cell, x|
-            if cell.blank?
-              next
-            end
-            if cell == item["id"]
-              grid_coordinates = [x, y]
+      board.assign_parent(board_type, current_user)
+      if board.save
+        puts "Board saved"
+        board.reload
+      else
+        puts "Board not saved"
+        return
+      end
+      grid = obj["grid"]
+      if grid
+        rows = grid["rows"]
+        columns = grid["columns"]
+        grid_order = grid["order"]
+      end
+      puts "Processing images"
+
+      (obj["buttons"] || []).each do |item|
+        label = item["label"]
+        if item["ext_saw_image_id"]
+          image = Image.find_by(id: item["ext_saw_image_id"].to_i, user_id: current_user.id)
+        end
+        image = Image.find_by(label: label, user_id: current_user.id) unless image
+        image = Image.create(label: label, user_id: current_user.id) unless image
+
+        doc = obj["images"].detect { |s| s["id"] == item["image_id"] }
+
+        grid_coordinates = nil
+        if grid_order
+          grid_order.each_with_index do |row, y|
+            row.each_with_index do |cell, x|
+              if cell.blank?
+                next
+              end
+              if cell == item["id"]
+                grid_coordinates = [x, y]
+              end
             end
           end
         end
-      end
-      if doc
-        url = doc["url"]
-        doc_path = doc["path"]
+        puts "Grid Coordinates: #{grid_coordinates}"
+        if doc
+          url = doc["url"]
+          doc_data = doc["data"]
 
-        file_format = doc["content_type"] || "image/png"
-        file_format = "image/svg+xml" if file_format == "image/svg"
-        license = doc["license"]
-        raw_txt = "obf_id_#{doc["id"]}"
-        processed = "processed: #{Time.now}"
-        if url && doc_path.blank?
-          if image.docs.where(original_image_url: url).any?
-            puts "Image already exists"
-          else
-            downloaded_image = Down.download(url)
+          file_format = doc["content_type"] || "image/png"
+          file_format = "image/svg+xml" if file_format == "image/svg"
+          license = doc["license"]
+          raw_txt = "obf_id_#{doc["id"]}"
+          processed = "processed: #{Time.now}"
+          puts "URL: #{url}"
+          if url && doc_data.blank?
+            if image.docs.where(original_image_url: url).any?
+              puts "Image already exists"
+            else
+              downloaded_image = Down.download(url)
+              user_id = current_user.id
+              doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
+              doc.image.attach(io: downloaded_image, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}", content_type: file_format) if downloaded_image
+              image.update(status: "finished")
+            end
+          elsif doc_data
+            data = Base64.decode64(doc_data)
+            puts "doc_data: #{doc_data}"
             user_id = current_user.id
+            Rails.logger.debug "Attaching image - file_format: #{file_format}"
             doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
-            doc.image.attach(io: downloaded_image, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}", content_type: file_format) if downloaded_image
+            doc.image.attach(data: doc_data, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}", content_type: file_format) if data
+            attach_result = doc.save
+            if !attach_result
+              Rails.logger.error "Error attaching image"
+            else
+              Rails.logger.debug "Attached image: #{attach_result}"
+              image.reload
+              last_doc = image.docs.last
+              is_image_attached = last_doc.image.attached?
+              Rails.logger.debug "\n\n...Is image attached: #{is_image_attached}\n\n"
+            end
             image.update(status: "finished")
+          else
+            Rails.logger.debug "No URL or path found for image"
           end
-        elsif doc_path
-          # NEED TO IMPLEMENT
-          # Download the image from path
-          data = Base64.decode64(doc_path)
-          user_id = current_user.id
-          doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
-          doc.image.attach(io: StringIO.new(data), filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}", content_type: file_format) if data
-          image.update(status: "finished")
-        else
-          puts "No URL or path found for image"
+        end
+
+        dynamic_board = item["load_board"]
+
+        dynamic_data[image.id] = { "board_id" => board.id,
+                                   "original_obf_id" => obj["id"],
+                                   "dynamic_board" => dynamic_board,
+                                   "label" => label,
+                                   "orginal_image_id" => item["image_id"],
+                                   "grid_coordinates" => grid_coordinates }
+
+        new_board_image = board.board_images.create!(image_id: image.id.to_i, voice: board.voice, position: board.board_images.count) if image
+        if new_board_image
+          new_board_image_layout = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }
+          new_board_image.layout["lg"] = new_board_image_layout
+          new_board_image.layout["md"] = new_board_image_layout
+          new_board_image.layout["sm"] = new_board_image_layout
+
+          new_board_image.save!
         end
       end
+      puts "Returning board : #{board.id}"
 
-      dynamic_board = item["load_board"]
-      puts "Dynamic board: #{dynamic_board}"
-      # if dynamic_board
-      dynamic_data ||= {}
-      dynamic_data[image.id] = { "board_id" => board.id,
-                                 "original_obf_id" => obj["id"],
-                                 "dynamic_board" => dynamic_board,
-                                 "label" => label,
-                                 "orginal_image_id" => item["image_id"],
-                                 "grid_coordinates" => grid_coordinates }
-      # end
-
-      # new_board_image = board.add_image(image.id, new_board_image_layout)
-      new_board_image = board.board_images.create!(image_id: image.id.to_i, voice: board.voice, position: board.board_images.count) if image
-      if new_board_image
-        new_board_image_layout = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }
-        new_board_image.layout["lg"] = new_board_image_layout
-        new_board_image.layout["md"] = new_board_image_layout
-        new_board_image.layout["sm"] = new_board_image_layout
-
-        new_board_image.save!
-      end
+      return [board, dynamic_data]
+    rescue => e
+      puts "Error: #{e}"
+      Rails.logger.error "Error: #{e}"
+      return nil
     end
-
-    return [board, dynamic_data]
   end
 
   def parse_obf_grid(obf_grid)
@@ -1291,13 +1311,11 @@ class Board < ApplicationRecord
   end
 
   def self.from_obz(extracted_obz_data, current_user)
-    # puts "Extracted OBF data: #{extracted_obz_data}"
     extracted_obz_data = extracted_obz_data.with_indifferent_access
     manifest = extracted_obz_data[:manifest]
     boards = extracted_obz_data[:boards]
-    images = extracted_obz_data[:images]
-    puts "Count of boards: #{boards.count}"
-    puts "Count of images: #{images.count}"
+    root_board = boards.first # Temporarily assume the first board is the root board
+
     created_boards = []
     dynamic_data_array = []
     boards.each do |board_data|
@@ -1307,25 +1325,21 @@ class Board < ApplicationRecord
       dynamic_data_array << dynamic_data
     end
 
-    puts "Created boards: #{created_boards}"
-    puts "Dynamic data: #{dynamic_data_array}"
     dynamic_data_array.each do |dynamic_data|
       dynamic_data.each do |image_id, data|
         image = Image.find_by(id: image_id)
         if image
-          # puts "Data: #{data}"
           if data["dynamic_board"]
-            # image.dynamic_data = data
-            # image.save!
-            puts "Dynamic data: #{data}"
             if created_boards.any? { |b| b[:original_obf_id] == data["dynamic_board"]["id"] }
-              puts "Dynamic board found"
               dynamic_board = created_boards.find { |b| b[:original_obf_id] == data["dynamic_board"]["id"] }
-              dynamic_board_id = dynamic_board[:board_id]
+              dynamic_board_id = dynamic_board.with_indifferent_access[:board_id]
               image.predictive_board_id = dynamic_board_id
               image.save!
             else
-              puts "Dynamic board not found"
+              puts "Dynamic board not found - setting root board"
+              root_board_id = created_boards.find { |b| b[:original_obf_id] == root_board["id"] }[:board_id]
+              image.predictive_board_id = root_board_id
+              image.save!
             end
           end
         else
@@ -1334,85 +1348,6 @@ class Board < ApplicationRecord
       end
     end
 
-    # puts "Images: #{images}"
     created_boards
   end
-
-  # def self.extract_obz(file_or_path)
-  #   path = file_or_path.respond_to?(:path) ? file_or_path.path : file_or_path
-  #   extracted_data = {}
-  #   Zip::File.open(path) do |zip_file|
-  #     manifest_data = nil
-  #     paths = {}
-  #     zip_file.each do |entry|
-  #       if entry.name == "manifest.json"
-  #         manifest_data = JSON.parse(entry.get_input_stream.read)
-  #         root = manifest_data["root"]
-  #         paths = manifest_data["paths"]
-  #         extracted_data[:manifest] = manifest_data
-  #       end
-  #     end
-  #     puts "Manifest data: #{manifest_data}"
-  #     if manifest_data
-  #       paths.each do |key, value|
-  #         puts "Key: #{key}, value: #{value}"
-  #         if key == "boards"
-  #           value.each do |board_path_array|
-  #             board_path = board_path_array[-1]
-  #             board_data = nil
-  #             zip_file.each do |entry|
-  #               if entry.name == board_path
-  #                 board_data = JSON.parse(entry.get_input_stream.read)
-  #                 extracted_data[:boards] ||= []
-  #                 extracted_data[:boards] << board_data if board_data
-  #               else
-  #                 puts "No board data found entry.name: #{entry.name}"
-  #               end
-  #             end
-  #           end
-  #         end
-
-  #         if key == "images"
-  #           value.each do |image_path_array|
-  #             image_path = image_path_array[-1]
-  #             image_id = image_path_array[0]
-  #             image_data = nil
-  #             zip_file.each do |entry|
-  #               if entry.name == image_path
-  #                 puts "Found image #{image_id} data for: #{image_path} - entry.name: #{entry.name}"
-  #                 # Read the raw binary data of the image
-  #                 binary_data = entry.get_input_stream.read
-  #                 img_data = Base64.encode64(binary_data)
-  #                 image_data = { image_id: image_id, data: img_data }
-
-  #                 # # Create a Tempfile for Active Storage
-  #                 # Tempfile.create(["image", File.extname(entry.name)]) do |tempfile|
-  #                 #   tempfile.binmode
-  #                 #   tempfile.write(binary_data)
-  #                 #   tempfile.rewind
-
-  #                 #   # Attach the Tempfile to the Active Storage object
-  #                 #   image_model.file.attach(
-  #                 #     io: tempfile,
-  #                 #     filename: entry.name,
-  #                 #     content_type: Mime::Type.lookup_by_extension(File.extname(entry.name).delete(".")).to_s,
-  #                 #   )
-  #                 # end
-  #                 puts "Image data: #{image_data}"
-
-  #                 extracted_data[:images] ||= []
-  #                 extracted_data[:images] << image_data if image_data
-  #               else
-  #                 puts "No image data found entry.name: #{entry.name} - image_path: #{image_path}"
-  #               end
-  #             end
-  #           end
-  #         end
-  #       end
-  #     else
-  #       puts "No manifest data found"
-  #     end
-  #   end
-  #   extracted_data
-  # end
 end

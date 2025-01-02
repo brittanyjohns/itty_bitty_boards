@@ -1,0 +1,178 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S66X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S66X1Y0outsideplaces.png", 
+      "label": "outside places"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S66X2Y0street.png", 
+      "label": "street"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S66X3Y0carpark.png", 
+      "label": "car park"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S66X0Y1beach.png", 
+      "label": "beach"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S66X1Y1hill.png", 
+      "label": "hill"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S66X2Y1woods.png", 
+      "label": "woods"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S66X3Y1field.png", 
+      "label": "field"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S66X0Y2garden.png", 
+      "label": "garden"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S66X1Y2lake.png", 
+      "label": "lake"
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        "02", 
+        "12", 
+        null, 
+        null
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "outsideplaces", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S66X0Y0toppage.png", 
+      "path": "../icons/S66X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S66X1Y0outsideplaces.png", 
+      "path": "../icons/S66X1Y0outsideplaces.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S66X2Y0street.png", 
+      "path": "../icons/S66X2Y0street.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S66X3Y0carpark.png", 
+      "path": "../icons/S66X3Y0carpark.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S66X0Y1beach.png", 
+      "path": "../icons/S66X0Y1beach.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S66X1Y1hill.png", 
+      "path": "../icons/S66X1Y1hill.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S66X2Y1woods.png", 
+      "path": "../icons/S66X2Y1woods.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S66X3Y1field.png", 
+      "path": "../icons/S66X3Y1field.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S66X0Y2garden.png", 
+      "path": "../icons/S66X0Y2garden.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S66X1Y2lake.png", 
+      "path": "../icons/S66X1Y2lake.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate outsideplaces", 
+  "sounds": []
+}

@@ -1,0 +1,18 @@
+{
+  "format": "open-board-0.1",
+  "root": "boards/path_images.obf",
+  "paths": {
+    "boards": {
+      "path_images_and_sounds": "boards/path_images.obf",
+      "link": "boards/linked_board.obf"
+    },
+    "images": {
+      "9": "images/happy.png",
+      "11": "images/sad.png"
+    },
+    "sounds": {
+      "s2": "sounds/sigh.mp3",
+      "s3": "sounds/sigh.mp3"
+    }
+  }
+}

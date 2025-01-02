@@ -1,0 +1,222 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S13X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S13X1Y0methings.png", 
+      "label": "Me things", 
+      "load_board": {
+        "path": "boards/methings.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S13X2Y0fooddrink.png", 
+      "label": "Food & drink", 
+      "load_board": {
+        "path": "boards/fooddrink.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S13X3Y0kitchenthings.png", 
+      "label": "Kitchen things", 
+      "load_board": {
+        "path": "boards/kitchenthings.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S13X0Y1clothes.png", 
+      "label": "Clothes", 
+      "load_board": {
+        "path": "boards/clothes.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S13X1Y1furniture.png", 
+      "label": "Furniture", 
+      "load_board": {
+        "path": "boards/furniture.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S13X2Y1thingsthathelp.png", 
+      "label": "Things that help", 
+      "load_board": {
+        "path": "boards/thingsthathelp.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S13X3Y1toiletries.png", 
+      "label": "Toiletries", 
+      "load_board": {
+        "path": "boards/toiletries.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S13X0Y2money.png", 
+      "label": "Money", 
+      "load_board": {
+        "path": "boards/money.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S13X1Y2transport.png", 
+      "label": "Transport", 
+      "load_board": {
+        "path": "boards/transport.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "22", 
+      "image_id": "icons/S13X2Y2nature.png", 
+      "label": "Nature", 
+      "load_board": {
+        "path": "boards/nature.obf"
+      }
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        "02", 
+        "12", 
+        "22", 
+        null
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "things", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S13X0Y0toppage.png", 
+      "path": "../icons/S13X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S13X1Y0methings.png", 
+      "path": "../icons/S13X1Y0methings.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S13X2Y0fooddrink.png", 
+      "path": "../icons/S13X2Y0fooddrink.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S13X3Y0kitchenthings.png", 
+      "path": "../icons/S13X3Y0kitchenthings.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S13X0Y1clothes.png", 
+      "path": "../icons/S13X0Y1clothes.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S13X1Y1furniture.png", 
+      "path": "../icons/S13X1Y1furniture.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S13X2Y1thingsthathelp.png", 
+      "path": "../icons/S13X2Y1thingsthathelp.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S13X3Y1toiletries.png", 
+      "path": "../icons/S13X3Y1toiletries.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S13X0Y2money.png", 
+      "path": "../icons/S13X0Y2money.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S13X1Y2transport.png", 
+      "path": "../icons/S13X1Y2transport.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S13X2Y2nature.png", 
+      "path": "../icons/S13X2Y2nature.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate things", 
+  "sounds": []
+}

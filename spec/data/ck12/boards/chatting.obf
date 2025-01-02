@@ -1,0 +1,215 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S1X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S1X1Y0aboutme.png", 
+      "label": "About me", 
+      "load_board": {
+        "path": "boards/aboutme.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S1X2Y0wml.png", 
+      "label": "WML", 
+      "load_board": {
+        "path": "boards/wml.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S1X3Y0icantfindwhatiwanttosay.png", 
+      "label": "I can't find what I want to say?"
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S1X0Y1hello.png", 
+      "label": "Hello"
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S1X1Y1imfine.png", 
+      "label": "I'm fine"
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S1X2Y1ok.png", 
+      "label": "ok"
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S1X3Y1imnotsogood.png", 
+      "label": "I'm not so good"
+    }, 
+    {
+      "background_color": "rgb(255,192,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S1X0Y2mystories.png", 
+      "label": "My stories", 
+      "load_board": {
+        "path": "boards/mystories.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S1X1Y2sorry.png", 
+      "label": "sorry"
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "22", 
+      "image_id": "icons/S1X2Y2idontknow.png", 
+      "label": "I don't know"
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "32", 
+      "image_id": "icons/S1X3Y2bye.png", 
+      "label": "bye"
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        "02", 
+        "12", 
+        "22", 
+        "32"
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "chatting", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S1X0Y0toppage.png", 
+      "path": "../icons/S1X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S1X1Y0aboutme.png", 
+      "path": "../icons/S1X1Y0aboutme.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S1X2Y0wml.png", 
+      "path": "../icons/S1X2Y0wml.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S1X3Y0icantfindwhatiwanttosay.png", 
+      "path": "../icons/S1X3Y0icantfindwhatiwanttosay.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S1X0Y1hello.png", 
+      "path": "../icons/S1X0Y1hello.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S1X1Y1imfine.png", 
+      "path": "../icons/S1X1Y1imfine.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S1X2Y1ok.png", 
+      "path": "../icons/S1X2Y1ok.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S1X3Y1imnotsogood.png", 
+      "path": "../icons/S1X3Y1imnotsogood.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S1X0Y2mystories.png", 
+      "path": "../icons/S1X0Y2mystories.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S1X1Y2sorry.png", 
+      "path": "../icons/S1X1Y2sorry.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S1X2Y2idontknow.png", 
+      "path": "../icons/S1X2Y2idontknow.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S1X3Y2bye.png", 
+      "path": "../icons/S1X3Y2bye.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate chatting", 
+  "sounds": []
+}

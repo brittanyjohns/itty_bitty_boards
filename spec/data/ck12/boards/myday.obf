@@ -1,0 +1,131 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S62X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(47,255,252)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S62X1Y0numbers.png", 
+      "label": "numbers", 
+      "load_board": {
+        "path": "boards/numbers.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S62X2Y0timetable.png", 
+      "label": "Timetable"
+    }, 
+    {
+      "background_color": "rgb(255,0,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S62X3Y0computercontrol.png", 
+      "label": "Computer control"
+    }, 
+    {
+      "background_color": "rgb(102,0,102)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S62X0Y1mydayplaces.png", 
+      "label": "My day places", 
+      "load_board": {
+        "path": "boards/mydayplaces.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(231,65,198)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S62X1Y1cooking.png", 
+      "label": "cooking", 
+      "load_board": {
+        "path": "boards/cooking.obf"
+      }
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        null, 
+        null
+      ], 
+      [
+        null, 
+        null, 
+        null, 
+        null
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "myday", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S62X0Y0toppage.png", 
+      "path": "../icons/S62X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S62X1Y0numbers.png", 
+      "path": "../icons/S62X1Y0numbers.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S62X2Y0timetable.png", 
+      "path": "../icons/S62X2Y0timetable.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S62X3Y0computercontrol.png", 
+      "path": "../icons/S62X3Y0computercontrol.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S62X0Y1mydayplaces.png", 
+      "path": "../icons/S62X0Y1mydayplaces.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S62X1Y1cooking.png", 
+      "path": "../icons/S62X1Y1cooking.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate myday", 
+  "sounds": []
+}

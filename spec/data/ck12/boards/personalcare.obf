@@ -1,0 +1,184 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S9X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,156,248)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S9X1Y0ineedthetoilet.png", 
+      "label": "I need the toilet"
+    }, 
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S9X2Y0idontfeelwell.png", 
+      "label": "I don't feel well.", 
+      "load_board": {
+        "path": "boards/idontfeelwell.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S9X3Y0bodyparts.png", 
+      "label": "body parts", 
+      "load_board": {
+        "path": "boards/bodyparts.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,156,248)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S9X0Y1ineedsomehelp.png", 
+      "label": "I need some help"
+    }, 
+    {
+      "background_color": "rgb(255,156,248)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S9X1Y1idlikeashower.png", 
+      "label": "I'd like a shower"
+    }, 
+    {
+      "background_color": "rgb(255,156,248)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S9X2Y1idloveabath.png", 
+      "label": "I'd love a bath"
+    }, 
+    {
+      "background_color": "rgb(255,156,248)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S9X3Y1canyoucutmynails.png", 
+      "label": "Can you cut my nails"
+    }, 
+    {
+      "background_color": "rgb(255,156,248)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S9X0Y2ineedtogetchanged.png", 
+      "label": "I need to get changed"
+    }, 
+    {
+      "background_color": "rgb(255,156,248)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S9X1Y2canyoudomyhair.png", 
+      "label": "Can you do my hair?"
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        "02", 
+        "12", 
+        null, 
+        null
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "personalcare", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S9X0Y0toppage.png", 
+      "path": "../icons/S9X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S9X1Y0ineedthetoilet.png", 
+      "path": "../icons/S9X1Y0ineedthetoilet.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S9X2Y0idontfeelwell.png", 
+      "path": "../icons/S9X2Y0idontfeelwell.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S9X3Y0bodyparts.png", 
+      "path": "../icons/S9X3Y0bodyparts.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S9X0Y1ineedsomehelp.png", 
+      "path": "../icons/S9X0Y1ineedsomehelp.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S9X1Y1idlikeashower.png", 
+      "path": "../icons/S9X1Y1idlikeashower.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S9X2Y1idloveabath.png", 
+      "path": "../icons/S9X2Y1idloveabath.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S9X3Y1canyoucutmynails.png", 
+      "path": "../icons/S9X3Y1canyoucutmynails.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S9X0Y2ineedtogetchanged.png", 
+      "path": "../icons/S9X0Y2ineedtogetchanged.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S9X1Y2canyoudomyhair.png", 
+      "path": "../icons/S9X1Y2canyoudomyhair.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate personalcare", 
+  "sounds": []
+}

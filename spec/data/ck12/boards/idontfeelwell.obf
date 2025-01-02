@@ -1,0 +1,209 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S12X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S12X1Y0ihaveapaininmy.png", 
+      "label": "I have a pain in my", 
+      "load_board": {
+        "path": "boards/bodyparts.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S12X2Y0headache.png", 
+      "label": "headache"
+    }, 
+    {
+      "background_color": "rgb(191,191,191)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S12X3Y0ouch.png", 
+      "label": "ouch"
+    }, 
+    {
+      "background_color": "rgb(255,255,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S12X0Y1cold.png", 
+      "label": "cold"
+    }, 
+    {
+      "background_color": "rgb(255,255,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S12X1Y1stomachache.png", 
+      "label": "stomach ache"
+    }, 
+    {
+      "background_color": "rgb(255,255,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S12X2Y1sick.png", 
+      "label": "sick"
+    }, 
+    {
+      "background_color": "rgb(255,255,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S12X3Y1chestpain.png", 
+      "label": "chest pain"
+    }, 
+    {
+      "background_color": "rgb(255,255,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S12X0Y2cramp.png", 
+      "label": "cramp"
+    }, 
+    {
+      "background_color": "rgb(255,255,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S12X1Y2backpain.png", 
+      "label": "back pain"
+    }, 
+    {
+      "background_color": "rgb(255,255,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "22", 
+      "image_id": "icons/S12X2Y2sorethroat.png", 
+      "label": "sore throat"
+    }, 
+    {
+      "background_color": "rgb(255,255,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "32", 
+      "image_id": "icons/S12X3Y2itch.png", 
+      "label": "itch"
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        "02", 
+        "12", 
+        "22", 
+        "32"
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "idontfeelwell", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S12X0Y0toppage.png", 
+      "path": "../icons/S12X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S12X1Y0ihaveapaininmy.png", 
+      "path": "../icons/S12X1Y0ihaveapaininmy.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S12X2Y0headache.png", 
+      "path": "../icons/S12X2Y0headache.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S12X3Y0ouch.png", 
+      "path": "../icons/S12X3Y0ouch.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S12X0Y1cold.png", 
+      "path": "../icons/S12X0Y1cold.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S12X1Y1stomachache.png", 
+      "path": "../icons/S12X1Y1stomachache.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S12X2Y1sick.png", 
+      "path": "../icons/S12X2Y1sick.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S12X3Y1chestpain.png", 
+      "path": "../icons/S12X3Y1chestpain.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S12X0Y2cramp.png", 
+      "path": "../icons/S12X0Y2cramp.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S12X1Y2backpain.png", 
+      "path": "../icons/S12X1Y2backpain.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S12X2Y2sorethroat.png", 
+      "path": "../icons/S12X2Y2sorethroat.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S12X3Y2itch.png", 
+      "path": "../icons/S12X3Y2itch.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate idontfeelwell", 
+  "sounds": []
+}

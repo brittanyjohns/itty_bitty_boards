@@ -1,0 +1,192 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S40X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S40X1Y0weather.png", 
+      "label": "weather"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S40X2Y0rain.png", 
+      "label": "rain"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S40X3Y0sun.png", 
+      "label": "sun"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S40X0Y1icy.png", 
+      "label": "icy"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S40X1Y1stormy.png", 
+      "label": "stormy"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S40X2Y1cloudy.png", 
+      "label": "cloudy"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S40X3Y1foggy.png", 
+      "label": "foggy"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S40X0Y2snow.png", 
+      "label": "snow"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S40X1Y2freezing.png", 
+      "label": "freezing"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "22", 
+      "image_id": "icons/S40X2Y2wind.png", 
+      "label": "wind"
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        "02", 
+        "12", 
+        "22", 
+        null
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "weather", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S40X0Y0toppage.png", 
+      "path": "../icons/S40X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S40X1Y0weather.png", 
+      "path": "../icons/S40X1Y0weather.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S40X2Y0rain.png", 
+      "path": "../icons/S40X2Y0rain.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S40X3Y0sun.png", 
+      "path": "../icons/S40X3Y0sun.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S40X0Y1icy.png", 
+      "path": "../icons/S40X0Y1icy.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S40X1Y1stormy.png", 
+      "path": "../icons/S40X1Y1stormy.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S40X2Y1cloudy.png", 
+      "path": "../icons/S40X2Y1cloudy.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S40X3Y1foggy.png", 
+      "path": "../icons/S40X3Y1foggy.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S40X0Y2snow.png", 
+      "path": "../icons/S40X0Y2snow.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S40X1Y2freezing.png", 
+      "path": "../icons/S40X1Y2freezing.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S40X2Y2wind.png", 
+      "path": "../icons/S40X2Y2wind.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate weather", 
+  "sounds": []
+}

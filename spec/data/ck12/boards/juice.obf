@@ -1,0 +1,178 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S25X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S25X1Y0juice.png", 
+      "label": "juice"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S25X2Y0applejuice.png", 
+      "label": "apple juice"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S25X3Y0orangejuice.png", 
+      "label": "orange juice"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S25X0Y1blackcurrant.png", 
+      "label": "blackcurrant"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S25X1Y1pineapplejuice.png", 
+      "label": "pineapple juice"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S25X2Y1grapejuice.png", 
+      "label": "grape juice"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S25X3Y1grapefruitjuice.png", 
+      "label": "grapefruit juice"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S25X0Y2cranberryjuice.png", 
+      "label": "cranberry juice"
+    }, 
+    {
+      "background_color": "rgb(255,255,0)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S25X1Y2tomatojuice.png", 
+      "label": "tomato juice"
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        "02", 
+        "12", 
+        null, 
+        null
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "juice", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S25X0Y0toppage.png", 
+      "path": "../icons/S25X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S25X1Y0juice.png", 
+      "path": "../icons/S25X1Y0juice.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S25X2Y0applejuice.png", 
+      "path": "../icons/S25X2Y0applejuice.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S25X3Y0orangejuice.png", 
+      "path": "../icons/S25X3Y0orangejuice.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S25X0Y1blackcurrant.png", 
+      "path": "../icons/S25X0Y1blackcurrant.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S25X1Y1pineapplejuice.png", 
+      "path": "../icons/S25X1Y1pineapplejuice.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S25X2Y1grapejuice.png", 
+      "path": "../icons/S25X2Y1grapejuice.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S25X3Y1grapefruitjuice.png", 
+      "path": "../icons/S25X3Y1grapefruitjuice.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S25X0Y2cranberryjuice.png", 
+      "path": "../icons/S25X0Y2cranberryjuice.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S25X1Y2tomatojuice.png", 
+      "path": "../icons/S25X1Y2tomatojuice.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate juice", 
+  "sounds": []
+}

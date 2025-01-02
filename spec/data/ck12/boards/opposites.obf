@@ -1,0 +1,206 @@
+{
+  "buttons": [
+    {
+      "background_color": "rgb(255,239,7)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "00", 
+      "image_id": "icons/S60X0Y0toppage.png", 
+      "label": "Top Page", 
+      "load_board": {
+        "path": "boards/toppage.obf"
+      }
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "10", 
+      "image_id": "icons/S60X1Y0alldone.png", 
+      "label": "all done"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "20", 
+      "image_id": "icons/S60X2Y0dry.png", 
+      "label": "dry"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "30", 
+      "image_id": "icons/S60X3Y0wet.png", 
+      "label": "wet"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "01", 
+      "image_id": "icons/S60X0Y1fast.png", 
+      "label": "fast"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "11", 
+      "image_id": "icons/S60X1Y1slow.png", 
+      "label": "slow"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "21", 
+      "image_id": "icons/S60X2Y1big.png", 
+      "label": "big"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "31", 
+      "image_id": "icons/S60X3Y1little.png", 
+      "label": "little"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "02", 
+      "image_id": "icons/S60X0Y2easy.png", 
+      "label": "easy"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "12", 
+      "image_id": "icons/S60X1Y2hard.png", 
+      "label": "hard"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "22", 
+      "image_id": "icons/S60X2Y2clean.png", 
+      "label": "clean"
+    }, 
+    {
+      "background_color": "rgb(1,231,255)", 
+      "border_color": "rgb(68,68,68)", 
+      "id": "32", 
+      "image_id": "icons/S60X3Y2dirty.png", 
+      "label": "dirty"
+    }
+  ], 
+  "format": "open-board-0.1", 
+  "grid": {
+    "columns": 4, 
+    "order": [
+      [
+        "00", 
+        "10", 
+        "20", 
+        "30"
+      ], 
+      [
+        "01", 
+        "11", 
+        "21", 
+        "31"
+      ], 
+      [
+        "02", 
+        "12", 
+        "22", 
+        "32"
+      ]
+    ], 
+    "rows": 3
+  }, 
+  "id": "opposites", 
+  "images": [
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S60X0Y0toppage.png", 
+      "path": "../icons/S60X0Y0toppage.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S60X1Y0alldone.png", 
+      "path": "../icons/S60X1Y0alldone.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S60X2Y0dry.png", 
+      "path": "../icons/S60X2Y0dry.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S60X3Y0wet.png", 
+      "path": "../icons/S60X3Y0wet.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S60X0Y1fast.png", 
+      "path": "../icons/S60X0Y1fast.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S60X1Y1slow.png", 
+      "path": "../icons/S60X1Y1slow.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S60X2Y1big.png", 
+      "path": "../icons/S60X2Y1big.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S60X3Y1little.png", 
+      "path": "../icons/S60X3Y1little.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S60X0Y2easy.png", 
+      "path": "../icons/S60X0Y2easy.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S60X1Y2hard.png", 
+      "path": "../icons/S60X1Y2hard.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S60X2Y2clean.png", 
+      "path": "../icons/S60X2Y2clean.png", 
+      "width": 300
+    }, 
+    {
+      "content_type": "image/png", 
+      "height": 300, 
+      "id": "icons/S60X3Y2dirty.png", 
+      "path": "../icons/S60X3Y2dirty.png", 
+      "width": 300
+    }
+  ], 
+  "locale": "en", 
+  "name": "CommuniKate opposites", 
+  "sounds": []
+}
