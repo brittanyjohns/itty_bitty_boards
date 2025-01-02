@@ -31,6 +31,7 @@
 #  group_layout          :jsonb
 #  image_parent_id       :integer
 #  board_type            :string
+#  obf_id                :string
 #
 class Board < ApplicationRecord
   belongs_to :user
@@ -82,7 +83,7 @@ class Board < ApplicationRecord
   scope :preset, -> { where(predefined: true) }
   scope :welcome, -> { where(category: "welcome", predefined: true) }
   POSSIBLE_BOARD_TYPES = %w[board category user image menu].freeze
-  SOURCE_TYPE_NAMES = %w[CommuniKate].freeze
+  SOURCE_TYPE_NAMES = ["CommuniKate", "Core 24 - "].freeze
 
   scope :dynamic_defaults, -> { where(name: "Dynamic Default", parent_type: "PredefinedResource") }
 
@@ -300,12 +301,13 @@ class Board < ApplicationRecord
     original_type_name = nil
     SOURCE_TYPE_NAMES.each do |type_name|
       has_source_type = name.include?(type_name) if name
+      Rails.logger.debug "Cleaned up name: #{name} -- #{type_name} -- #{has_source_type}"
+
       if has_source_type
         original_type_name = type_name
         name.gsub!(type_name, "").strip if name
         break
       end
-      Rails.logger.debug "Cleaned up name: #{name}"
     end
     self.data["source_type"] = original_type_name if has_source_type
     self.name = name.strip if name
@@ -1336,6 +1338,8 @@ class Board < ApplicationRecord
     manifest = extracted_obz_data[:manifest]
     boards = extracted_obz_data[:boards]
 
+    board_group = BoardGroup.create!(name: boards[0]["name"], user_id: current_user.id)
+
     created_boards = []
     dynamic_data_array = []
     boards.each do |board_data|
@@ -1343,6 +1347,8 @@ class Board < ApplicationRecord
       new_board, dynamic_data = from_obf(board_json, current_user)
       created_boards << { board_id: new_board&.id, original_obf_id: board_data["id"], board: new_board }
       dynamic_data_array << dynamic_data
+      board_group.boards << new_board
+      board_group.save!
     end
 
     boards_to_add = created_boards.map { |b| b[:board] }
@@ -1350,9 +1356,8 @@ class Board < ApplicationRecord
     root_board = boards_to_add.first
     root_board.update!(board_type: "dynamic")
 
-    board_group = BoardGroup.create!(name: root_board.name, user_id: current_user.id)
-    board_group.board_ids = boards_to_add.map(&:id)
-    board_group.save!
+    # board_group.board_ids = boards_to_add.map(&:id)
+    # board_group.save!
 
     dynamic_data_array.each do |dynamic_data|
       dynamic_data.each do |image_id, data|

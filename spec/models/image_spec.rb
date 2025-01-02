@@ -30,6 +30,7 @@
 #  voice               :string
 #  src_url             :string
 #  predictive_board_id :integer
+#  data                :jsonb
 #
 require "rails_helper"
 

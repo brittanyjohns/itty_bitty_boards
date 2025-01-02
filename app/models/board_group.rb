@@ -31,7 +31,7 @@ class BoardGroup < ApplicationRecord
                     tsearch: { prefix: true },
                   }
 
-  # after_initialize :set_initial_layout, if: :layout_empty?
+  after_initialize :set_initial_layout, if: :layout_empty?
   after_save :calculate_grid_layout
   after_save :create_board_audio_files
   after_initialize :set_number_of_columns, if: :no_colmns_set

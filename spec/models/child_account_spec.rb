@@ -20,6 +20,7 @@
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
 #  passcode               :string
+#  details                :jsonb
 #
 require 'rails_helper'
 

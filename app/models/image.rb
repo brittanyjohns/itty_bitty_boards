@@ -30,6 +30,7 @@
 #  voice               :string
 #  src_url             :string
 #  predictive_board_id :integer
+#  data                :jsonb
 #
 class Image < ApplicationRecord
   paginates_per 50
@@ -46,6 +47,8 @@ class Image < ApplicationRecord
   accepts_nested_attributes_for :docs
 
   PROMPT_ADDITION = " Styled as a simple cartoon illustration."
+
+  SOURCE_TYPE_NAMES = ["CommuniKate", "Core 24 - "].freeze
 
   validates :label, presence: true
 
@@ -92,7 +95,7 @@ class Image < ApplicationRecord
 
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!, unless: :menu?
-  before_save :set_label, :ensure_defaults
+  before_save :clean_up_label, :set_label, :ensure_defaults
   # after_save :update_board_images_display_image, if: -> { should_update_board_images_display_image? }
   # after_save :generate_matching_symbol, if: -> { should_generate_symbol? }
   # after_save :run_set_next_words_job, if: -> { should_set_next_words? }
@@ -118,6 +121,28 @@ class Image < ApplicationRecord
     result = display_image_url(user) != display_image_url
     puts "Should update board images display image? #{result}"
     result
+  end
+
+  def clean_up_label
+    has_source_type = false
+    original_type_name = nil
+    img_label = label
+    SOURCE_TYPE_NAMES.each do |type_name|
+      img_label = label.downcase
+      has_source_type = img_label.include?(type_name.downcase) if label
+      Rails.logger.debug "Cleaning up label: #{img_label} -- #{type_name}" if has_source_type
+
+      if has_source_type
+        original_type_name = type_name
+        img_label.gsub!(type_name.downcase, "")
+        Rails.logger.debug "NEW LABEL: #{img_label} - LABEL: #{label}"
+        break
+      end
+    end
+    self.data ||= {}
+    self.data["source_type"] = original_type_name if has_source_type
+    self.label = img_label
+    Rails.logger.debug ">>>Cleaned up label: #{self.label} - Removed - #{original_type_name} -- #{has_source_type}"
   end
 
   def predictive_board
@@ -1200,6 +1225,7 @@ class Image < ApplicationRecord
       label: label,
       image_prompt: image_prompt,
       display_doc: doc_img_url,
+      data: data,
       src: doc_img_url,
       src_url: src_url,
       # board_images: @current_user.boards.includes(board_images: :image).where(board_images: { image_id: id }).order(name: :asc).map { |board_img| board_img.api_view(@current_user) },

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_01_02_171102) do
+ActiveRecord::Schema[7.1].define(version: 2025_01_02_190529) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -224,6 +224,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_01_02_171102) do
     t.string "voice"
     t.string "src_url"
     t.integer "predictive_board_id"
+    t.jsonb "data", default: {}
     t.index ["category"], name: "index_images_on_category"
     t.index ["predictive_board_id"], name: "index_images_on_predictive_board_id"
     t.index ["use_custom_audio"], name: "index_images_on_use_custom_audio"

@@ -31,6 +31,7 @@
 #  group_layout          :jsonb
 #  image_parent_id       :integer
 #  board_type            :string
+#  obf_id                :string
 #
 require "test_helper"
 

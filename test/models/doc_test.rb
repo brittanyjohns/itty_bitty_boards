@@ -16,6 +16,8 @@
 #  deleted_at         :datetime
 #  original_image_url :string
 #  prompt_for_prompt  :string
+#  data               :jsonb
+#  license            :jsonb
 #
 require "test_helper"
 
