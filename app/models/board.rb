@@ -948,6 +948,7 @@ class Board < ApplicationRecord
       category: category,
       parent_type: parent_type,
       parent_id: parent_id,
+      obf_id: obf_id,
       image_parent_id: image_parent_id,
       parent_description: parent_type === "User" ? "User" : parent&.to_s,
       menu_description: parent_type === "Menu" ? parent&.description : nil,
@@ -1191,6 +1192,10 @@ class Board < ApplicationRecord
       number_of_columns = columns
       board_data = { obf_grid: obj["grid"] }
       board = Board.find_by(name: board_name, user_id: current_user.id, obf_id: obf_id)
+      if board
+        Rails.logger.error "Board already exists for name: #{board_name} and user_id: #{current_user.id} and obf_id: #{obf_id}"
+        return
+      end
       board = Board.new(name: board_name, user_id: current_user.id, voice: voice,
                         large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns,
                         data: board_data, number_of_columns: number_of_columns, obf_id: obf_id) unless board
@@ -1219,8 +1224,8 @@ class Board < ApplicationRecord
         if item["ext_saw_image_id"]
           image = Image.find_by(id: item["ext_saw_image_id"].to_i, user_id: current_user.id)
         end
-        image = Image.find_by(label: label, user_id: current_user.id) unless image
-        image = Image.public_img.find_by(label: label, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
+        image = Image.static.find_by(label: label, user_id: current_user.id) unless image
+        image = Image.static.public_img.find_by(label: label, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
         image = Image.create(label: label, user_id: current_user.id) unless image
 
         doc = obj["images"].detect { |s| s["id"] == item["image_id"] }
@@ -1361,16 +1366,18 @@ class Board < ApplicationRecord
 
     dynamic_data_array.each do |dynamic_data|
       dynamic_data.each do |image_id, data|
-        image = Image.find_by(id: image_id)
+        image = Image.find_by(id: image_id&.to_i)
         if image
           if data["dynamic_board"]
             if created_boards.any? { |b| b[:original_obf_id] == data["dynamic_board"]["id"] }
               dynamic_board = created_boards.find { |b| b[:original_obf_id] == data["dynamic_board"]["id"] }
               dynamic_board_id = dynamic_board.with_indifferent_access[:board_id]
               image.predictive_board_id = dynamic_board_id
+
               image.save!
             else
               image.predictive_board_id = root_board.id if root_board
+              image.image_type = "Static"
               image.save!
             end
           else

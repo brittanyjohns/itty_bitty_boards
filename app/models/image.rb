@@ -224,6 +224,21 @@ class Image < ApplicationRecord
       # end
     end
     Rails.logger.debug "Image type: #{image_type} - any category boards? #{category_boards.any?}"
+
+    if image_type == "Menu"
+      self.part_of_speech = "noun"
+    else
+      self.bg_color = background_color_for(part_of_speech) if part_of_speech_changed?
+      self.text_color = text_color_for(bg_color) if text_color.blank?
+    end
+    if audio_url.blank?
+      self.audio_url = default_audio_url
+    end
+    if predictive_board_id && image_type == "Static"
+      self.predictive_board_id = nil
+      Rails.logger.debug "Predictive board id removed for static image"
+    end
+
     if category_board && category_board&.board_type == "category"
       Rails.logger.debug "Setting image type to Category - #{category_board.name}"
       self.image_type = "Category"
@@ -234,16 +249,6 @@ class Image < ApplicationRecord
       Rails.logger.debug "Setting image type to Predictive - #{predictive_board.name}"
       self.image_type = "Predictive"
       self.predictive_board_id = predictive_board.id
-    end
-
-    if image_type == "Menu"
-      self.part_of_speech = "noun"
-    else
-      self.bg_color = background_color_for(part_of_speech) if part_of_speech_changed?
-      self.text_color = text_color_for(bg_color) if text_color.blank?
-    end
-    if audio_url.blank?
-      self.audio_url = default_audio_url
     end
     Rails.logger.debug "Image: #{label} - bg_color: #{bg_color} - part_of_speech: #{part_of_speech} - image_type: #{image_type} - predictive_board_id: #{predictive_board&.id} category #{category_board&.id}- predictive_board_name: #{predictive_board&.name} - category_board_name: #{category_board&.name}"
   end
