@@ -924,6 +924,7 @@ class Image < ApplicationRecord
     end
     item_name.downcase!
     item_name.strip!
+    item_name.gsub!(/[^0-9a-zA-Z!? ]/, "")
     self.label = item_name
   end
 
