@@ -33,7 +33,7 @@ class BoardGroup < ApplicationRecord
 
   after_initialize :set_initial_layout, if: :layout_empty?
   after_save :calculate_grid_layout
-  after_save :create_board_audio_files
+  # after_save :create_board_audio_files
   after_initialize :set_number_of_columns, if: :no_colmns_set
 
   def set_number_of_columns
