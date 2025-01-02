@@ -1352,21 +1352,17 @@ class Board < ApplicationRecord
       new_board, dynamic_data = from_obf(board_json, current_user)
       created_boards << { board_id: new_board&.id, original_obf_id: board_data["id"], board: new_board }
       dynamic_data_array << dynamic_data
-      board_group.boards << new_board
+      board_group.boards << new_board if new_board
       board_group.save!
     end
 
-    boards_to_add = created_boards.map { |b| b[:board] }
-
-    root_board = boards_to_add.first
+    root_board = board_group.boards.order(:position).first
     root_board.update!(board_type: "dynamic")
-
-    # board_group.board_ids = boards_to_add.map(&:id)
-    # board_group.save!
 
     dynamic_data_array.each do |dynamic_data|
       dynamic_data.each do |image_id, data|
-        image = Image.find_by(id: image_id&.to_i)
+        image = Image.find_by(id: image_id&.to_i, user_id: current_user.id)
+        next unless image
         if image
           if data["dynamic_board"]
             if created_boards.any? { |b| b[:original_obf_id] == data["dynamic_board"]["id"] }
@@ -1376,13 +1372,10 @@ class Board < ApplicationRecord
 
               image.save!
             else
-              image.predictive_board_id = root_board.id if root_board
-              image.image_type = "Static"
+              # image.predictive_board_id = root_board.id if root_board
+              # image.image_type = "Static"
               image.save!
             end
-          else
-            image.predictive_board_id = root_board.id if root_board
-            image.save!
           end
         else
           Rails.logger.warn "Image not found for id: #{image_id}"
