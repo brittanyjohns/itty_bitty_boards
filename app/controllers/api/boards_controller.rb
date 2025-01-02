@@ -424,13 +424,30 @@ class API::BoardsController < API::ApplicationController
   end
 
   def import_obf
-    if params[:data].present?
+    if params[:file].present?
+      uploaded_file = params[:file]
+      file_extension = File.extname(uploaded_file.original_filename)
+
+      puts "File extension: #{file_extension}"
+      puts "Uploaded file: #{uploaded_file.original_filename}"
+
+      if file_extension == ".obz"
+        # decompressed_data = decompress_obz(uploaded_file.read)
+        extracted_obz_data = OBF::OBZ.to_external(uploaded_file, {})
+        puts "Extracted OBZ data: #{extracted_obz_data}"
+        # extracted_obz_data = JSON.parse(decompressed_data)
+        created_boards = Board.from_obz(extracted_obz_data, current_user)
+        render json: { created_boards: created_boards }
+      else
+        render json: { error: "Unsupported file format" }, status: :unprocessable_entity
+      end
+    elsif params[:data].present?
       boardData = params[:data].to_json
 
       @board, _dynamic_data = Board.from_obf(boardData, current_user)
       render json: { id: @board.id }
     else
-      render json: { error: "No data provided" }, status: :unprocessable_entity
+      render json: { error: "No file or data provided" }, status: :unprocessable_entity
     end
   end
 

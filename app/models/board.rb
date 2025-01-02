@@ -75,6 +75,9 @@ class Board < ApplicationRecord
 
   scope :created_this_week, -> { where("created_at > ?", 1.week.ago) }
   scope :created_before_this_week, -> { where("created_at < ?", 8.days.ago) }
+  scope :created_today, -> { where("created_at > ?", 1.day.ago.end_of_day) }
+  scope :created_yesterday, -> { where("created_at > ? AND created_at < ?", 1.day.ago.beginning_of_day, Time.zone.now.beginning_of_day) }
+  scope :communikate_boards, -> { where("name ILIKE ?", "%CommuniKate%") }
 
   scope :preset, -> { where(predefined: true) }
   scope :welcome, -> { where(category: "welcome", predefined: true) }
@@ -196,7 +199,7 @@ class Board < ApplicationRecord
     else
       audio_file = create_audio_from_text(name, voice)
       if audio_file.is_a?(Integer) || audio_file.nil?
-        puts "Error creating audio file: #{audio_file}"
+        Rails.logger.error "Error creating audio file: #{audio_file}"
         return
       end
       self.audio_url = default_audio_url(audio_file)
@@ -338,7 +341,6 @@ class Board < ApplicationRecord
   def self.create_dynamic_default_for_user(new_user)
     # predefined_resource = PredefinedResource.find_or_create_by name: "Predictive Default", resource_type: "Board"
     original_board = self.predictive_default
-    puts "Original Board: #{original_board.id}"
     board = nil
     if original_board
       board = original_board.clone_with_images(new_user.id, "Dynamic Default")
@@ -481,14 +483,13 @@ class Board < ApplicationRecord
     return if image_id.blank?
     if image_ids.include?(image_id.to_i)
       # Don't add the same image twice
-      puts "Image already exists"
       return
     else
       new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images.count)
       if layout
         new_board_image.layout = layout
         if new_board_image.layout_invalid
-          puts "Invalid Layout"
+          Rails.logger.debug "Invalid layout: #{new_board_image.layout}"
           new_board_image.set_initial_layout!
         end
         new_board_image.skip_initial_layout = true
@@ -874,7 +875,7 @@ class Board < ApplicationRecord
           board_image.layout[screen_size] = { "x" => x_coordinate, "y" => y_coordinate, "w" => item["size"][0], "h" => item["size"][1], "i" => board_image.id.to_s }
           board_image.save!
         else
-          puts "Board Image not found for label: #{label}"
+          Rails.logger.debug "Board Image not found for label: #{label}"
         end
       end
       if explanation
@@ -1106,7 +1107,6 @@ class Board < ApplicationRecord
       if valid_json?(words)
         words = JSON.parse(words)
       else
-        puts "INVALID JSON: #{words}"
         start_index = words.index("{")
         end_index = words.rindex("}")
         words = words[start_index..end_index]
@@ -1119,7 +1119,6 @@ class Board < ApplicationRecord
     words_to_include = words_to_include.map { |w| w.downcase }
     words_to_include = words_to_include - words_to_exclude
     words_to_include = words_to_include.uniq
-    puts "Words to include: #{words_to_include}"
     words_to_include
   end
 
@@ -1133,7 +1132,6 @@ class Board < ApplicationRecord
       if valid_json?(word_suggestions)
         word_suggestions = JSON.parse(word_suggestions)
       else
-        puts "INVALID JSON: #{word_suggestions}"
         start_index = word_suggestions.index("{")
         end_index = word_suggestions.rindex("}")
         word_suggestions = word_suggestions[start_index..end_index]
@@ -1177,7 +1175,6 @@ class Board < ApplicationRecord
 
       board.assign_parent(board_type, current_user)
       if board.save
-        puts "Board saved"
         board.reload
       else
         puts "Board not saved"
@@ -1189,7 +1186,6 @@ class Board < ApplicationRecord
         columns = grid["columns"]
         grid_order = grid["order"]
       end
-      puts "Processing images"
 
       (obj["buttons"] || []).each do |item|
         label = item["label"]
@@ -1214,7 +1210,6 @@ class Board < ApplicationRecord
             end
           end
         end
-        puts "Grid Coordinates: #{grid_coordinates}"
         if doc
           url = doc["url"]
           doc_data = doc["data"]
@@ -1224,7 +1219,6 @@ class Board < ApplicationRecord
           license = doc["license"]
           raw_txt = "obf_id_#{doc["id"]}"
           processed = "processed: #{Time.now}"
-          puts "URL: #{url}"
           if url && doc_data.blank?
             if image.docs.where(original_image_url: url).any?
               puts "Image already exists"
@@ -1237,20 +1231,12 @@ class Board < ApplicationRecord
             end
           elsif doc_data
             data = Base64.decode64(doc_data)
-            puts "doc_data: #{doc_data}"
             user_id = current_user.id
             Rails.logger.debug "Attaching image - file_format: #{file_format}"
             doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
             doc.image.attach(data: doc_data, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}", content_type: file_format) if data
-            attach_result = doc.save
-            if !attach_result
-              Rails.logger.error "Error attaching image"
-            else
-              Rails.logger.debug "Attached image: #{attach_result}"
-              image.reload
-              last_doc = image.docs.last
-              is_image_attached = last_doc.image.attached?
-              Rails.logger.debug "\n\n...Is image attached: #{is_image_attached}\n\n"
+            unless doc.save
+              Rails.logger.error "Error saving doc: #{doc.errors.full_messages}"
             end
             image.update(status: "finished")
           else
@@ -1277,11 +1263,8 @@ class Board < ApplicationRecord
           new_board_image.save!
         end
       end
-      puts "Returning board : #{board.id}"
-
       return [board, dynamic_data]
     rescue => e
-      puts "Error: #{e}"
       Rails.logger.error "Error: #{e}"
       return nil
     end
@@ -1336,14 +1319,13 @@ class Board < ApplicationRecord
               image.predictive_board_id = dynamic_board_id
               image.save!
             else
-              puts "Dynamic board not found - setting root board"
               root_board_id = created_boards.find { |b| b[:original_obf_id] == root_board["id"] }[:board_id]
               image.predictive_board_id = root_board_id
               image.save!
             end
           end
         else
-          puts "Image not found for id: #{image_id}"
+          Rails.logger.warn "Image not found for id: #{image_id}"
         end
       end
     end
