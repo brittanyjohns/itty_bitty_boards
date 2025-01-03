@@ -61,7 +61,6 @@ class BoardGroup < ApplicationRecord
   end
 
   def api_view_with_boards(viewing_user = nil)
-    puts "number of columns: #{number_of_columns}"
     {
       id: id,
       name: name,
