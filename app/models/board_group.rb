@@ -70,6 +70,7 @@ class BoardGroup < ApplicationRecord
       layout: print_grid_layout,
       number_of_columns: number_of_columns,
       display_image_url: display_image_url,
+      created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
       boards: boards.map do |board|
         { id: board.id,
           name: board.name,
@@ -100,6 +101,14 @@ class BoardGroup < ApplicationRecord
         end
       end
     end
+  end
+
+  def add_board(board)
+    if boards.include?(board)
+      Rails.logger.info "Board #{board.id} already in group #{id}"
+      return
+    end
+    board_group_boards.create(board: board)
   end
 
   def self.welcome_group

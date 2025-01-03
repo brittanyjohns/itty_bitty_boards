@@ -48,7 +48,7 @@ class Image < ApplicationRecord
 
   PROMPT_ADDITION = " Styled as a simple cartoon illustration."
 
-  SOURCE_TYPE_NAMES = ["CommuniKate", "Core 24 - "].freeze
+  SOURCE_TYPE_NAMES = ["CommuniKate", "Core 24 - ", "Core 24"].freeze
 
   validates :label, presence: true
 
@@ -65,8 +65,8 @@ class Image < ApplicationRecord
   scope :without_attached_audio_files, -> { where.missing(:audio_files_attachments) }
   scope :searchable, -> { non_sample_voices.non_menu_images }
   scope :with_image_docs_for_user, ->(userId) { order(created_at: :desc) }
-  scope :menu_images, -> { where(image_type: "Menu") }
-  scope :non_menu_images, -> { where.not(image_type: "Menu").or(where(image_type: nil)) }
+  scope :menu_images, -> { where(image_type: "menu") }
+  scope :non_menu_images, -> { where.not(image_type: "menu").or(where(image_type: nil)) }
   scope :non_scenarios, -> { where.not(image_type: "OpenaiPrompt").or(where(image_type: nil)) }
   scope :non_sample_voices, -> { where.not(image_type: "SampleVoice").or(where(image_type: nil)) }
   scope :sample_voices, -> { where(image_type: "SampleVoice") }
@@ -82,10 +82,6 @@ class Image < ApplicationRecord
   scope :with_artifacts, -> { includes({ docs: { image_attachment: :blob } }, :predictive_boards, :user, :category_boards) }
   scope :created_between, ->(start_date, end_date) { where(created_at: start_date..end_date) }
 
-  # def category_boards
-  #   @category_boards ||= Board.where(parent_type: "PredefinedResource", image_parent_id: id, user_id: user_id)
-  # end
-
   def self.cleanup_mess
     # 2024-10-23T02:29:57.064Z
     start_date = Date.new(2024, 10, 22)
@@ -95,10 +91,8 @@ class Image < ApplicationRecord
 
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!, unless: :menu?
-  before_save :clean_up_label, :set_label, :ensure_defaults
-  # after_save :update_board_images_display_image, if: -> { should_update_board_images_display_image? }
-  # after_save :generate_matching_symbol, if: -> { should_generate_symbol? }
-  # after_save :run_set_next_words_job, if: -> { should_set_next_words? }
+  before_save :set_label, :ensure_defaults
+  before_save :clean_up_label
 
   after_save :update_board_images, if: -> { need_to_update_board_images? }
   after_save :update_background_color, if: -> { part_of_speech_changed? }
@@ -129,20 +123,18 @@ class Image < ApplicationRecord
     img_label = label
     SOURCE_TYPE_NAMES.each do |type_name|
       img_label = label.downcase
-      has_source_type = img_label.include?(type_name.downcase) if label
-      Rails.logger.debug "Cleaning up label: #{img_label} -- #{type_name}" if has_source_type
+      type_name.downcase!
+      has_source_type = img_label.include?(type_name)
 
       if has_source_type
         original_type_name = type_name
-        img_label.gsub!(type_name.downcase, "")
-        Rails.logger.debug "NEW LABEL: #{img_label} - LABEL: #{label}"
+        img_label.gsub!(type_name, "")
         break
       end
     end
     self.data ||= {}
     self.data["source_type"] = original_type_name if has_source_type
     self.label = img_label
-    Rails.logger.debug ">>>Cleaned up label: #{self.label} - Removed - #{original_type_name} -- #{has_source_type}"
   end
 
   def predictive_board
@@ -186,16 +178,16 @@ class Image < ApplicationRecord
 
   def self.category
     # self.where.associated(:category_boards)
-    self.where(image_type: "Category")
+    self.where(image_type: "category")
   end
 
   def self.static
-    self.where.not(image_type: ["Category", "Predictive"])
+    self.where.not(image_type: ["category", "predictive"])
   end
 
   def self.predictive
     self.where.associated(:predictive_boards)
-    # self.where(image_type: "Predictive")
+    # self.where(image_type: "predictive")
   end
 
   def self.update_all_background_colors
@@ -216,8 +208,8 @@ class Image < ApplicationRecord
 
   def ensure_defaults
     Rails.logger.debug "Ensuring defaults for #{label}"
-    if image_type.blank?
-      self.image_type = "Static"
+    if image_type.blank? || image_type == "Static"
+      self.image_type = "static"
       # user_predictive_board_id = user&.predictive_board_id
       # if user_predictive_board_id && user_predictive_board_id != predictive_board_id && predictive_board_id.blank? && new_record?
       #   self.predictive_board_id = user_predictive_board_id
@@ -225,7 +217,7 @@ class Image < ApplicationRecord
     end
     Rails.logger.debug "Image type: #{image_type} - any category boards? #{category_boards.any?}"
 
-    if image_type == "Menu"
+    if image_type == "menu"
       self.part_of_speech = "noun"
     else
       self.bg_color = background_color_for(part_of_speech) if part_of_speech_changed?
@@ -234,32 +226,35 @@ class Image < ApplicationRecord
     if audio_url.blank?
       self.audio_url = default_audio_url
     end
-    if predictive_board_id && image_type == "Static"
+    if predictive_board_id && image_type == "static"
       self.predictive_board_id = nil
       Rails.logger.debug "Predictive board id removed for static image"
     end
 
     if category_board && category_board&.board_type == "category"
       Rails.logger.debug "Setting image type to Category - #{category_board.name}"
-      self.image_type = "Category"
+      self.image_type = "category"
       self.predictive_board_id = category_board.id
     end
 
     if predictive_board && predictive_board&.board_type == "predictive"
       Rails.logger.debug "Setting image type to Predictive - #{predictive_board.name}"
-      self.image_type = "Predictive"
+      self.image_type = "predictive"
       self.predictive_board_id = predictive_board.id
     end
-    Rails.logger.debug "Image: #{label} - bg_color: #{bg_color} - part_of_speech: #{part_of_speech} - image_type: #{image_type} - predictive_board_id: #{predictive_board&.id} category #{category_board&.id}- predictive_board_name: #{predictive_board&.name} - category_board_name: #{category_board&.name}"
+    if category_boards.any? && !self.predictive_board_id
+      self.predictive_board_id = category_boards.first.id
+      self.image_type = "category"
+    end
   end
 
   def should_generate_symbol?
-    return false if image_type == "Menu"
+    return false if image_type == "menu"
     label_changed? && open_symbol_status == "active"
   end
 
   def should_set_next_words?
-    return false if image_type == "Menu"
+    return false if image_type == "menu"
     return true if next_words.blank? && no_next == false
     words_to_check = next_words - [label]
     if words_to_check.blank?
@@ -306,7 +301,7 @@ class Image < ApplicationRecord
       Rails.logger.debug "Could not create predictive board for #{label}"
       return
     end
-    self.image_type = "Predictive"
+    self.image_type = "predictive"
     self.predictive_board_id = board.id
     self.save!
 
@@ -518,7 +513,7 @@ class Image < ApplicationRecord
   end
 
   def menu?
-    image_type == "Menu"
+    image_type == "menu"
   end
 
   def finished?
@@ -924,12 +919,12 @@ class Image < ApplicationRecord
 
   def set_label
     item_name = label
-    if item_name.blank?
-      item_name = "image #{id || "new"}"
-    end
     item_name.downcase!
     item_name.strip!
     item_name.gsub!(/[^0-9a-zA-Z!? ]/, "")
+    if item_name.blank?
+      item_name = "image #{id || "new"}"
+    end
     self.label = item_name
   end
 
@@ -987,8 +982,6 @@ class Image < ApplicationRecord
       # end
     end
     docs = self.docs.where(user_id: [nil, User::DEFAULT_ADMIN_ID, viewing_user&.id])
-
-    puts "Docs: #{docs.count}"
     return docs.current.first if docs.current.any?
     return nil if docs.blank?
     user_docs = UserDoc.where(doc_id: docs.pluck(:id), user_id: User::DEFAULT_ADMIN_ID)
@@ -1092,7 +1085,7 @@ class Image < ApplicationRecord
   end
 
   def prompt_addition
-    if image_type == "Menu"
+    if image_type == "menu"
       image_prompt.include?(Menu::PROMPT_ADDITION) ? "" : Menu::PROMPT_ADDITION
     else
       # image_prompt.include?(PROMPT_ADDITION) ? "" : PROMPT_ADDITION

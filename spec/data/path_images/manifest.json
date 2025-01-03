@@ -4,7 +4,8 @@
   "paths": {
     "boards": {
       "path_images": "boards/path_images.obf",
-      "link": "boards/linked_board.obf"
+      "link": "boards/linked_board.obf",
+      "link2": "boards/other_linked_board.obf"
     },
     "images": {
       "9": "images/happy.png",

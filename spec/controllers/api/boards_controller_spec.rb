@@ -50,4 +50,39 @@ RSpec.describe API::BoardsController, type: :controller do
       expect(board.layout["lg"].length).to eq(2)
     end
   end
+
+  # describe "POST #import_from_obf" do
+  #   let(:obf_zip_file_path) { Rails.root.join("spec", "data", "path_images.obz") }
+  #   let(:obf_zip_file) { File.open(obf_zip_file_path) }
+  #   let(:extracted_data) { OBF::OBZ.to_external(obf_zip_file, {}) }
+  #   let(:file_name) { File.basename(obf_zip_file) }
+  #   let(:root_board_id) { nil }
+
+  #   before do
+  #     Zip::File.open(obf_zip_file.path) do |zip_file|
+  #       zip_file.each do |entry|
+  #         if entry.name == "manifest.json"
+  #           manifest = JSON.parse(entry.get_input_stream.read)
+  #           root_board_id = manifest["root"]
+  #         end
+  #       end
+  #     end
+  #   end
+
+  #   it "imports from OBZ file" do
+  #     json_data = {
+  #       extracted_obz_data: extracted_data,
+  #       current_user_id: user.id,
+  #       group_name: file_name,
+  #       root_board_id: root_board_id,
+  #     }.to_json
+
+  #     expect(ImportFromObfJob).to receive(:new).and_call_original
+  #     expect_any_instance_of(ImportFromObfJob).to receive(:perform).with(json_data)
+
+  #     post :import_from_obf, params: { obz_file: obf_zip_file }, as: :json
+
+  #     expect(response).to have_http_status(:ok)
+  #   end
+  # end
 end

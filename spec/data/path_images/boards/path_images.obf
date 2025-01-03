@@ -8,8 +8,14 @@
     "rows": 2,
     "columns": 2,
     "order": [
-      [1, null],
-      [null, 2]
+      [
+        1,
+        3
+      ],
+      [
+        null,
+        2
+      ]
     ]
   },
   "buttons": [
@@ -29,6 +35,16 @@
       "image_id": "11",
       "background_color": "rgb(255, 255, 255)",
       "border_color": "rgb(150, 150, 150)"
+    },
+    {
+      "id": 3,
+      "label": "happy smile",
+      "image_id": "9",
+      "background_color": "rgb(255, 255, 255)",
+      "border_color": "rgb(150, 150, 150)",
+      "load_board": {
+        "path": "boards/other_linked_board.obf"
+      }
     }
   ],
   "images": [

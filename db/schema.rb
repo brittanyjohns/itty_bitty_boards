@@ -225,6 +225,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_01_02_190529) do
     t.string "src_url"
     t.integer "predictive_board_id"
     t.jsonb "data", default: {}
+    t.jsonb "license", default: {}
+    t.string "obf_id"
     t.index ["category"], name: "index_images_on_category"
     t.index ["predictive_board_id"], name: "index_images_on_predictive_board_id"
     t.index ["use_custom_audio"], name: "index_images_on_use_custom_audio"

@@ -217,7 +217,8 @@ RSpec.describe Board, type: :model do
       data = JSON.parse(File.read(obf_file))
       grid_order = data["grid"]["order"]
       expected_board_image_count = data["images"].size
-      board, _dynamic_data = Board.from_obf(obf_file, user)
+      root_board_id = data["id"]
+      board, _dynamic_data = Board.from_obf(obf_file, user, root_board_id)
 
       last_bi_layout = board.board_images.last.layout
 
@@ -246,21 +247,32 @@ RSpec.describe Board, type: :model do
 
   describe ".from_obz" do
     it "creates a zip file containing an OBF file and all the images, other files referenced by the OBF file" do
-      obf_zip_file = Rails.root.join("spec", "data", "path_images.obz")
+      obf_zip_file_path = Rails.root.join("spec", "data", "ck12.obz")
       # extracted_data = Board.extract_obz(obf_zip_file)
-      extracted_data = OBF::OBZ.to_external(obf_zip_file, {})
+      extracted_data = OBF::OBZ.to_external(obf_zip_file_path, {})
+      file_name = File.basename(obf_zip_file_path)
 
       # Write the extracted data to a file
 
       # puts "extracted_data:\n"
       # pp extracted_data
-      expected_board_image_count = extracted_data["images"].size
+      expected_board_image_count = extracted_data["boards"].size
+      first_board = extracted_data["boards"].first
       expect(extracted_data).to be_present
 
-      result = Board.from_obz(extracted_data, user)
-      first_board_id = result.first.with_indifferent_access[:board_id]
+      puts "first_board: #{first_board["id"]}"
 
+      result = Board.from_obz(extracted_data, user, file_name, first_board["id"])
+      first_board_id = result.first.with_indifferent_access[:board_id]
+      second_board_id = result.second.with_indifferent_access[:board_id]
+      pp result
       first_board = Board.find(first_board_id)
+      second_board = Board.find(second_board_id)
+
+      expect(first_board).to be_present
+      expect(first_board.board_type).to eq("dynamic")
+      expect(second_board).to be_present
+      expect(second_board.board_type).to eq("predictive")
 
       expect(first_board.board_images.count).to eq(expected_board_image_count)
       first_board_board_image = first_board.board_images.first

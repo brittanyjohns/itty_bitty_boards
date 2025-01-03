@@ -527,7 +527,8 @@ class Board < ApplicationRecord
       if @image.existing_voices.include?(self.voice)
         new_board_image.voice = self.voice
       else
-        @image.find_or_create_audio_file_for_voice(self.voice)
+        # @image.find_or_create_audio_file_for_voice(self.voice)
+        SaveAudioJob.perform_async([image_id], self.voice)
       end
 
       unless new_board_image.save
@@ -1170,7 +1171,7 @@ class Board < ApplicationRecord
     buttons.any? { |item| item["load_board"].present? } ? "predictive" : "static"
   end
 
-  def self.from_obf(data, current_user, is_root = false)
+  def self.from_obf(data, current_user, root_board_id = nil, dry_run = false)
     begin
       screen_size = "lg"
       dynamic_data = {}
@@ -1191,21 +1192,26 @@ class Board < ApplicationRecord
       small_screen_columns = columns
       number_of_columns = columns
       board_data = { obf_grid: obj["grid"] }
+      is_root = root_board_id == obf_id
+
       board = Board.find_by(name: board_name, user_id: current_user.id, obf_id: obf_id)
       if board
         Rails.logger.error "Board already exists for name: #{board_name} and user_id: #{current_user.id} and obf_id: #{obf_id}"
         return
       end
+      dynamic_images = obj["buttons"].select { |item| item["load_board"] != nil }
+      board_type = determine_board_type(dynamic_images, is_root)
+
+      Rails.logger.debug "NAme: #{board_name} -- Board Type: #{board_type} - is_root: #{is_root} - dynamic_images: #{dynamic_images.count} - buttons: #{obj["buttons"].count}"
+
       board = Board.new(name: board_name, user_id: current_user.id, voice: voice,
                         large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns,
                         data: board_data, number_of_columns: number_of_columns, obf_id: obf_id) unless board
-      dynamic_images = obj["buttons"].select { |item| item["load_board"] != nil }
-      board_type = determine_board_type(dynamic_images, is_root)
       board.board_type = board_type
 
       board.assign_parent(board_type, current_user)
-      if board.save
-        board.reload
+      if board.save!
+        # Whoo hoo
       else
         puts "Board not saved"
         return
@@ -1218,15 +1224,30 @@ class Board < ApplicationRecord
       end
 
       temp_display_image = nil
-
+      Rails.logger.debug "Importing images for board: #{board.name}"
       (obj["buttons"] || []).each do |item|
         label = item["label"]
         if item["ext_saw_image_id"]
           image = Image.find_by(id: item["ext_saw_image_id"].to_i, user_id: current_user.id)
         end
-        image = Image.static.find_by(label: label, user_id: current_user.id) unless image
-        image = Image.static.public_img.find_by(label: label, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
-        image = Image.create(label: label, user_id: current_user.id) unless image
+        image = Image.find_by(user_id: current_user.id, obf_id: item["image_id"]) unless image
+        image = Image.find_by(obf_id: item["image_id"], user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
+        # image = Image.static.public_img.find_by(label: label, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
+        image = Image.new(label: label, user_id: current_user.id, obf_id: item["image_id"]) unless image
+        image.clean_up_label
+        image.save! if image.new_record?
+
+        if !image
+          Rails.logger.error "Image not found for label: #{label}"
+          next
+        end
+        if image.predictive_board_id
+          puts "Image already has predictive board: #{image.predictive_board_id}"
+        else
+          image.predictive_board_id = board.id
+          # image.image_type = "static"
+          image.save
+        end
 
         doc = obj["images"].detect { |s| s["id"] == item["image_id"] }
 
@@ -1254,9 +1275,7 @@ class Board < ApplicationRecord
           processed = "processed: #{Time.now}"
           if url
             temp_display_image = url
-            if image.docs.where(original_image_url: url).any?
-              puts "Image already exists"
-            else
+            if image.docs.where(original_image_url: url).none?
               downloaded_image = Down.download(url)
               user_id = current_user.id
               doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
@@ -1307,10 +1326,10 @@ class Board < ApplicationRecord
           new_board_image.save!
         end
       end
-      board.update(display_image_url: temp_display_image)
+      board.update!(display_image_url: temp_display_image) if temp_display_image
       return [board, dynamic_data]
     rescue => e
-      Rails.logger.error "Error: #{e}"
+      Rails.logger.error "Error Importing from OBF: #{e}"
       return nil
     end
   end
@@ -1338,29 +1357,55 @@ class Board < ApplicationRecord
     original_grid
   end
 
-  def self.from_obz(extracted_obz_data, current_user)
+  def self.analyze_obz(file)
+  end
+
+  def self.from_obz(extracted_obz_data, current_user, group_name = nil, root_board_id = nil, dry_run = false)
     extracted_obz_data = extracted_obz_data.with_indifferent_access
     manifest = extracted_obz_data[:manifest]
     boards = extracted_obz_data[:boards]
+    group_name ||= boards[0]["name"]
+    Rails.logger.debug "Creating board group: #{group_name} - root_board_id: #{root_board_id}"
 
-    board_group = BoardGroup.create!(name: boards[0]["name"], user_id: current_user.id)
+    board_group = BoardGroup.create!(name: group_name, user_id: current_user.id)
 
     created_boards = []
     dynamic_data_array = []
-    boards.each do |board_data|
+    boards.each_with_index do |board_data, index|
       board_json = board_data.to_json
-      new_board, dynamic_data = from_obf(board_json, current_user)
+      new_board, dynamic_data = from_obf(board_json, current_user, root_board_id, dry_run)
       created_boards << { board_id: new_board&.id, original_obf_id: board_data["id"], board: new_board }
       dynamic_data_array << dynamic_data
-      board_group.boards << new_board if new_board
-      board_group.save!
+      if new_board
+        Rails.logger.debug "Adding board to board group #{board_group.id} - #{new_board.name}"
+        unless dry_run
+          board_group.add_board(new_board)
+          board_group.save!
+        end
+      else
+        Rails.logger.error "Error creating board from OBF"
+      end
+    end
+    board_group.reload
+
+    if dry_run
+      Rails.logger.debug "Dry run - skipping board creation"
+      resource_data = { board_count: boards.count, group_name: group_name, created_boards: created_boards, root_board_id: root_board_id }
+      return resource_data
     end
 
-    root_board = board_group.boards.order(:position).first
-    root_board.update!(board_type: "dynamic")
+    if root_board_id
+      root_board = Board.find_by(obf_id: root_board_id)
+    else
+      root_board = board_group.boards.order(:position).first
+    end
+    root_board.update!(board_type: "dynamic") if root_board
+    if !root_board
+      Rails.logger.error "Root board not found - group: #{group_name}"
+    end
 
     dynamic_data_array.each do |dynamic_data|
-      dynamic_data.each do |image_id, data|
+      dynamic_data&.each do |image_id, data|
         image = Image.find_by(id: image_id&.to_i, user_id: current_user.id)
         next unless image
         if image
@@ -1373,7 +1418,7 @@ class Board < ApplicationRecord
               image.save!
             else
               # image.predictive_board_id = root_board.id if root_board
-              # image.image_type = "Static"
+              # image.image_type = "static"
               image.save!
             end
           end

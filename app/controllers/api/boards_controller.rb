@@ -430,21 +430,36 @@ class API::BoardsController < API::ApplicationController
 
       puts "File extension: #{file_extension}"
       puts "Uploaded file: #{uploaded_file.original_filename}"
+      file_name = uploaded_file.original_filename
 
       if file_extension == ".obz"
         # decompressed_data = decompress_obz(uploaded_file.read)
         extracted_obz_data = OBF::OBZ.to_external(uploaded_file, {})
-        puts "Extracted OBZ data: #{extracted_obz_data}"
+        # puts "Extracted OBZ data: #{extracted_obz_data}"
         # extracted_obz_data = JSON.parse(decompressed_data)
-        created_boards = Board.from_obz(extracted_obz_data, current_user)
-        render json: { created_boards: created_boards }
+        # created_boards = Board.from_obz(extracted_obz_data, current_user)
+        @root_board_id = nil
+        Zip::File.open(uploaded_file.path) do |zip_file|
+          zip_file.each do |entry|
+            puts "Entry: #{entry.name}"
+            if entry.name == "manifest.json"
+              manifest = JSON.parse(entry.get_input_stream.read)
+              Rails.logger.debug "Manifest: #{manifest}"
+              @root_board_id = manifest["root"]
+            end
+          end
+        end
+        json_input = { extracted_obz_data: extracted_obz_data, current_user_id: current_user&.id, group_name: file_name, root_board_id: @root_board_id }
+        ImportFromObfJob.perform_async(json_input.to_json)
+        render json: { status: "ok", message: "Importing OBZ file" }
+        # render json: { created_boards: created_boards }
       else
         render json: { error: "Unsupported file format" }, status: :unprocessable_entity
       end
     elsif params[:data].present?
       boardData = params[:data].to_json
 
-      @board, _dynamic_data = Board.from_obf(boardData, current_user)
+      @board, _dynamic_data = Board.from_obf(boardData, current_user, boardData["name"], boardData["root_board_id"])
       render json: { id: @board.id }
     else
       render json: { error: "No file or data provided" }, status: :unprocessable_entity
