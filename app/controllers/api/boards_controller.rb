@@ -439,6 +439,7 @@ class API::BoardsController < API::ApplicationController
         # extracted_obz_data = JSON.parse(decompressed_data)
         # created_boards = Board.from_obz(extracted_obz_data, current_user)
         @get_manifest_data = Board.extract_manifest(uploaded_file.path)
+        Rails.logger.info "Manifest data: #{@get_manifest_data}"
         @root_board_id = @get_manifest_data["root"]
 
         json_input = { extracted_obz_data: extracted_obz_data, current_user_id: current_user&.id, group_name: file_name, root_board_id: @root_board_id }

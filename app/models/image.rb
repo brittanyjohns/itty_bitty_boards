@@ -242,9 +242,16 @@ class Image < ApplicationRecord
       self.image_type = "predictive"
       self.predictive_board_id = predictive_board.id
     end
-    if category_boards.any? && !self.predictive_board_id
+    if category_boards.any? && !predictive_board_id
       self.predictive_board_id = category_boards.first.id
       self.image_type = "category"
+    end
+
+    matching_boards = matching_viewer_boards(user)
+
+    if !predictive_board_id && matching_boards.any?
+      self.predictive_board_id = matching_boards.order(created_at: :desc).first.id
+      Rails.logger.debug "Setting predictive board id to #{predictive_board_id} for #{label}"
     end
   end
 
