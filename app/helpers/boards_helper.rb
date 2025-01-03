@@ -18,12 +18,14 @@ module BoardsHelper
     obf_board[:sounds] = self.board_images.map(&:to_obf_sound_format)
     obf_board[:buttons] = self.board_images.map(&:to_obf_button_format)
 
-    data = obf_board.to_json
-    File.open("obf.obf", "w") { |file| file.write(data) }
+    # data = obf_board.to_json
+    # File.open("obf.obf", "w") { |file| file.write(data) }
     obf_board
   end
 
   def to_obz(viewing_user = nil)
+    obf_board = to_obf(viewing_user)
+    OBF::External.to_obz(obf_board, "new_obz.obz")
     # A .obz file is a zip file containing an .obf file and all the images and sounds referenced by the .obf file.
   end
 

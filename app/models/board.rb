@@ -1195,10 +1195,10 @@ class Board < ApplicationRecord
       is_root = root_board_id == obf_id
 
       board = Board.find_by(name: board_name, user_id: current_user.id, obf_id: obf_id)
-      if board
-        Rails.logger.error "Board already exists for name: #{board_name} and user_id: #{current_user.id} and obf_id: #{obf_id}"
-        return
-      end
+      # if board
+      #   Rails.logger.error "Board already exists for name: #{board_name} and user_id: #{current_user.id} and obf_id: #{obf_id}"
+      #   return
+      # end
       dynamic_images = obj["buttons"].select { |item| item["load_board"] != nil }
       board_type = determine_board_type(dynamic_images, is_root)
 
@@ -1374,6 +1374,10 @@ class Board < ApplicationRecord
     boards.each_with_index do |board_data, index|
       board_json = board_data.to_json
       new_board, dynamic_data = from_obf(board_json, current_user, root_board_id, dry_run)
+      if !new_board
+        Rails.logger.error "Error creating board from OBF - #{board_data["name"]}"
+        next
+      end
       created_boards << { board_id: new_board&.id, original_obf_id: board_data["id"], board: new_board }
       dynamic_data_array << dynamic_data
       if new_board
@@ -1385,6 +1389,11 @@ class Board < ApplicationRecord
       else
         Rails.logger.error "Error creating board from OBF"
       end
+    end
+
+    if created_boards.empty?
+      Rails.logger.error "No boards created"
+      return
     end
     board_group.reload
 
@@ -1429,5 +1438,17 @@ class Board < ApplicationRecord
     end
 
     created_boards
+  end
+
+  def self.extract_manifest(zip_path, manifest_filename = "manifest.json")
+    Zip::File.open(zip_path) do |zip_file|
+      manifest_entry = zip_file.find_entry(manifest_filename)
+      raise "Manifest file '#{manifest_filename}' not found in the archive" unless manifest_entry
+
+      manifest_entry.get_input_stream.read
+    end
+  rescue Zip::Error => e
+    puts "Failed to process the ZIP file: #{e.message}"
+    nil
   end
 end
