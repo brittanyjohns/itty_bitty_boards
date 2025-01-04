@@ -19,6 +19,7 @@ class BoardGroup < ApplicationRecord
   has_many :boards, through: :board_group_boards
   belongs_to :user
   belongs_to :root_board, class_name: "Board", optional: true
+  has_one :root_board_group, class_name: "BoardGroup", foreign_key: "board_group_id"
 
   scope :predefined, -> { where(predefined: true) }
   scope :with_artifacts, -> { includes(boards: [:images, :board_images]) }
@@ -35,6 +36,7 @@ class BoardGroup < ApplicationRecord
   after_initialize :set_initial_layout, if: :layout_empty?
   after_save :calculate_grid_layout
   # after_save :create_board_audio_files
+  before_save :set_root_board
   after_initialize :set_number_of_columns, if: :no_colmns_set
 
   def set_number_of_columns
@@ -67,6 +69,8 @@ class BoardGroup < ApplicationRecord
       name: name,
       user_id: user_id,
       predefined: predefined,
+      root_board_id: root_board_id,
+      original_obf_root_id: original_obf_root_id,
       # layout: print_grid_layout,
       # number_of_columns: number_of_columns,
       display_image_url: display_image_url,
@@ -127,6 +131,18 @@ class BoardGroup < ApplicationRecord
 
   def self.welcome_group
     BoardGroup.find_by(name: "Welcome", predefined: true)
+  end
+
+  def set_root_board
+    og_root_board_id = original_obf_root_id
+    if og_root_board_id.present?
+      self.root_board = Board.find_by(obf_id: og_root_board_id)
+    else
+      root_board = boards.first
+      og_root_board_id = root_board&.obf_id
+      self.original_obf_root_id = og_root_board_id
+      self.root_board_id = root_board&.id
+    end
   end
 
   def self.startup

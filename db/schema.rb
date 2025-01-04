@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_01_04_133344) do
+ActiveRecord::Schema[7.1].define(version: 2025_01_04_171152) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -133,6 +133,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_01_04_133344) do
     t.integer "image_parent_id"
     t.string "board_type"
     t.string "obf_id"
+    t.integer "board_group_id"
+    t.index ["board_group_id"], name: "index_boards_on_board_group_id"
     t.index ["board_type"], name: "index_boards_on_board_type"
     t.index ["category"], name: "index_boards_on_category"
     t.index ["data"], name: "index_boards_on_data", using: :gin

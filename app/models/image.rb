@@ -219,10 +219,10 @@ class Image < ApplicationRecord
     if audio_url.blank?
       self.audio_url = default_audio_url
     end
-    if predictive_board_id && image_type == "static"
-      self.predictive_board_id = nil
-      Rails.logger.debug "Predictive board id removed for static image"
-    end
+    # if predictive_board_id && image_type == "static"
+    #   self.predictive_board_id = nil
+    #   Rails.logger.debug "Predictive board id removed for static image"
+    # end
 
     if category_board && category_board&.board_type == "category"
       Rails.logger.debug "Setting image type to Category - #{category_board.name}"

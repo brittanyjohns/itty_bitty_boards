@@ -1190,7 +1190,7 @@ class Board < ApplicationRecord
       end
 
       obj = JSON.parse(data)
-      Rails.logger.debug "Importing OBF: #{obj["name"]}"
+      Rails.logger.debug "Importing OBF: #{obj["name"]} - #{obj["id"]} -root_board_id: #{root_board_id}"
       board_name = obj["name"]
       obf_id = obj["id"]
       voice = obj["voice"] || "alloy"
@@ -1414,10 +1414,11 @@ class Board < ApplicationRecord
     if root_board_id
       root_board = Board.find_by(obf_id: root_board_id)
     else
+      Rails.logger.debug "Root board not found - group: #{group_name}"
       root_board = board_group.boards.order(:position).first
     end
-    Rails.logger.debug "Root board: #{root_board&.name} - Updating board type to dynamic"
-    board_group.update!(root_board_id: root_board&.id)
+    Rails.logger.debug "Root board: #{root_board&.name} - Updating board type to dynamic" if root_board
+    board_group.update!(root_board_id: root_board&.id) if root_board
     root_board.update!(board_type: "dynamic") if root_board
     if !root_board
       Rails.logger.error "Root board not found - group: #{group_name}"
