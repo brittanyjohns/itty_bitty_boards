@@ -208,13 +208,6 @@ class Image < ApplicationRecord
 
   def ensure_defaults
     Rails.logger.debug "Ensuring defaults for #{label}"
-    if image_type.blank? || image_type == "Static"
-      self.image_type = "static"
-      # user_predictive_board_id = user&.predictive_board_id
-      # if user_predictive_board_id && user_predictive_board_id != predictive_board_id && predictive_board_id.blank? && new_record?
-      #   self.predictive_board_id = user_predictive_board_id
-      # end
-    end
     Rails.logger.debug "Image type: #{image_type} - any category boards? #{category_boards.any?}"
 
     if image_type == "menu"
@@ -237,12 +230,12 @@ class Image < ApplicationRecord
       self.predictive_board_id = category_board.id
     end
 
-    if predictive_board && predictive_board&.board_type == "predictive"
+    if predictive_board && predictive_board&.board_type == "predictive" && image_type.blank?
       Rails.logger.debug "Setting image type to Predictive - #{predictive_board.name}"
       self.image_type = "predictive"
       self.predictive_board_id = predictive_board.id
     end
-    if category_boards.any? && !predictive_board_id
+    if category_boards.any? && !predictive_board_id && image_type.blank?
       self.predictive_board_id = category_boards.first.id
       self.image_type = "category"
     end
@@ -252,6 +245,9 @@ class Image < ApplicationRecord
     if !predictive_board_id && matching_boards.any?
       self.predictive_board_id = matching_boards.order(created_at: :desc).first.id
       Rails.logger.debug "Setting predictive board id to #{predictive_board_id} for #{label}"
+    end
+    if image_type.blank? || image_type == "Static"
+      self.image_type = "static"
     end
   end
 

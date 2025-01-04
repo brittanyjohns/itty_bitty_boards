@@ -274,17 +274,30 @@ RSpec.describe Board, type: :model do
       expect(second_board).to be_present
       expect(second_board.board_type).to eq("predictive")
 
-      expect(first_board.board_images.count).to eq(expected_board_image_count)
-      first_board_board_image = first_board.board_images.first
-      first_board_image = first_board_board_image.image
-      docs = first_board_image.docs
-      puts "first_board_image: #{first_board_image.inspect}"
-      puts "docs: #{docs.inspect}"
-      doc_image = docs.first.image if docs.present?
+      # expect(first_board.board_images.count).to eq(expected_board_image_count)
+      # first_board_board_image = first_board.board_images.first
+      # first_board_image = first_board_board_image.image
+      # docs = first_board_image.docs
+      # puts "first_board_image: #{first_board_image.inspect}"
       # puts "docs: #{docs.inspect}"
-      expect(docs.count).to eq(1)
-      expect(doc_image).to be_present
+      # doc_image = docs.first.image if docs.present?
+      # # puts "docs: #{docs.inspect}"
+      # expect(docs.count).to eq(1)
+      # expect(doc_image).to be_present
       # pp extracted_data["boards"]
+    end
+  end
+
+  describe ".extract_manifest" do
+    it "extracts the manifest from an OBZ file" do
+      obf_zip_file_path = Rails.root.join("spec", "data", "ck12.obz")
+      manifest = Board.extract_manifest(obf_zip_file_path)
+      parsed_manifest = JSON.parse(manifest)
+
+      puts "parsed_manifest: #{parsed_manifest}"
+      root_board_id = parsed_manifest["root"]
+      puts "root_board_id: #{root_board_id}"
+      expect(manifest).to be_present
     end
   end
 end

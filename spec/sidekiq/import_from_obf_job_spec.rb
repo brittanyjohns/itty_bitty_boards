@@ -3,8 +3,9 @@ RSpec.describe ImportFromObfJob, type: :job do
   describe "#perform" do
     obf_zip_file_path = Rails.root.join("spec", "data", "path_images.obz")
     obf_zip_file = File.open(obf_zip_file_path)
+    puts "obf_zip_file: #{obf_zip_file}"
     extracted_data = OBF::OBZ.to_external(obf_zip_file, {})
-    file_name = obf_zip_file.ba
+    file_name = obf_zip_file.basename.to_s
     @root_board_id = nil
     Zip::File.open(obf_zip_file.path) do |zip_file|
       zip_file.each do |entry|

@@ -387,7 +387,7 @@ class API::BoardsController < API::ApplicationController
         matching_image = @board.user.images.find_or_create_by(label: @board.name)
         if matching_image
           @board.image_parent_id = matching_image.id
-          matching_image.update(image_type: "Category")
+          matching_image.update(image_type: "category")
         end
       elsif board_type == "static"
         @board.parent_type = "User"
@@ -440,7 +440,10 @@ class API::BoardsController < API::ApplicationController
         # created_boards = Board.from_obz(extracted_obz_data, current_user)
         @get_manifest_data = Board.extract_manifest(uploaded_file.path)
         Rails.logger.debug "Manifest data: #{@get_manifest_data}"
-        @root_board_id = @get_manifest_data["root"]
+        parsed_manifest = JSON.parse(@get_manifest_data)
+
+        puts "parsed_manifest: #{parsed_manifest}"
+        @root_board_id = parsed_manifest["root"]
         Rails.logger.debug "Root board ID: #{@root_board_id}"
 
         json_input = { extracted_obz_data: extracted_obz_data, current_user_id: current_user&.id, group_name: file_name, root_board_id: @root_board_id }

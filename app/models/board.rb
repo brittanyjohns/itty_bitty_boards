@@ -33,6 +33,8 @@
 #  board_type            :string
 #  obf_id                :string
 #
+require "zip"
+
 class Board < ApplicationRecord
   belongs_to :user
   belongs_to :parent, polymorphic: true
@@ -355,7 +357,7 @@ class Board < ApplicationRecord
   end
 
   def category?
-    resource_type == "Category"
+    resource_type == "category"
   end
 
   def self.create_dynamic_default_for_user(new_user)
@@ -909,7 +911,7 @@ class Board < ApplicationRecord
 
   def tmp_board_type
     case resource_type
-    when "Category"
+    when "category"
       return "category"
     when "Image"
       if parent_type == "PredefinedResource"
@@ -937,11 +939,14 @@ class Board < ApplicationRecord
     word_data = get_commons_words
     existing_words = word_data[:existing_words]
     missing_common_words = word_data[:missing_common_words]
+    root_boards = board_groups.map(&:root_board).flatten
     {
       id: id,
       board_type: board_type,
       menu_id: board_type === "menu" ? parent_id : nil,
       name: name,
+      board_groups: board_groups.any? ? board_groups.map(&:api_view) : [],
+      root_boards: root_boards.any? ? root_boards.map(&:api_view) : [],
       missing_common_words: missing_common_words,
       existing_words: existing_words,
       description: description,
@@ -1091,16 +1096,16 @@ class Board < ApplicationRecord
       self.parent_type = "PredefinedResource"
     elsif board_type == "predictive"
       self.parent_type = "Image"
-      matching_image = self.user.images.find_or_create_by(label: self.name, image_type: "Predictive")
+      matching_image = self.user.images.find_or_create_by(label: self.name, image_type: "predictive")
       if matching_image
         self.parent_id = matching_image.id
         self.image_parent_id = matching_image.id
       end
     elsif board_type == "category"
       self.parent_type = "PredefinedResource"
-      self.parent_id = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Category").id
+      self.parent_id = PredefinedResource.find_or_create_by(name: "Default", resource_type: "category").id
       self.save!
-      matching_image = self.user.images.find_or_create_by(label: self.name, image_type: "Category")
+      matching_image = self.user.images.find_or_create_by(label: self.name, image_type: "category")
       if matching_image
         self.image_parent_id = matching_image.id
       end
@@ -1165,10 +1170,13 @@ class Board < ApplicationRecord
     word_suggestions["words"]
   end
 
-  def self.determine_board_type(buttons, is_root = false)
-    return "static" unless buttons
+  def self.determine_board_type(dynamic_images, is_root = false)
+    return "static" unless dynamic_images
     return "dynamic" if is_root
-    buttons.any? { |item| item["load_board"].present? } ? "predictive" : "static"
+    if dynamic_images.count == 1
+      return "static"
+    end
+    return "predictive"
   end
 
   def self.from_obf(data, current_user, root_board_id = nil, dry_run = false)
@@ -1367,7 +1375,7 @@ class Board < ApplicationRecord
     group_name ||= boards[0]["name"]
     Rails.logger.debug "Creating board group: #{group_name} - root_board_id: #{root_board_id}"
 
-    board_group = BoardGroup.create!(name: group_name, user_id: current_user.id)
+    board_group = BoardGroup.create!(name: group_name, user_id: current_user.id, original_obf_root_id: root_board_id)
 
     created_boards = []
     dynamic_data_array = []
@@ -1408,6 +1416,8 @@ class Board < ApplicationRecord
     else
       root_board = board_group.boards.order(:position).first
     end
+    Rails.logger.debug "Root board: #{root_board&.name} - Updating board type to dynamic"
+    board_group.update!(root_board_id: root_board&.id)
     root_board.update!(board_type: "dynamic") if root_board
     if !root_board
       Rails.logger.error "Root board not found - group: #{group_name}"
@@ -1426,8 +1436,8 @@ class Board < ApplicationRecord
 
               image.save!
             else
-              # image.predictive_board_id = root_board.id if root_board
-              # image.image_type = "static"
+              image.predictive_board_id = root_board.id if root_board
+              # image.image_type = "predictive"
               image.save!
             end
           end
@@ -1441,8 +1451,11 @@ class Board < ApplicationRecord
   end
 
   def self.extract_manifest(zip_path, manifest_filename = "manifest.json")
+    puts "Extracting manifest from ZIP file: #{zip_path}"
     Zip::File.open(zip_path) do |zip_file|
+      puts "Searching for manifest file '#{manifest_filename}' in the archive"
       manifest_entry = zip_file.find_entry(manifest_filename)
+
       raise "Manifest file '#{manifest_filename}' not found in the archive" unless manifest_entry
 
       manifest_entry.get_input_stream.read

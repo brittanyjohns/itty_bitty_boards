@@ -18,6 +18,7 @@ class BoardGroup < ApplicationRecord
   has_many :board_group_boards, dependent: :destroy
   has_many :boards, through: :board_group_boards
   belongs_to :user
+  belongs_to :root_board, class_name: "Board", optional: true
 
   scope :predefined, -> { where(predefined: true) }
   scope :with_artifacts, -> { includes(boards: [:images, :board_images]) }
@@ -60,6 +61,19 @@ class BoardGroup < ApplicationRecord
     self.layout = calculate_grid_layout
   end
 
+  def api_view(viewing_user = nil)
+    {
+      id: id,
+      name: name,
+      user_id: user_id,
+      predefined: predefined,
+      # layout: print_grid_layout,
+      # number_of_columns: number_of_columns,
+      display_image_url: display_image_url,
+      created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+  end
+
   def api_view_with_boards(viewing_user = nil)
     {
       id: id,
@@ -73,6 +87,7 @@ class BoardGroup < ApplicationRecord
       boards: boards.map do |board|
         { id: board.id,
           name: board.name,
+          board_type: board.board_type,
           description: board.description,
           user_id: board.user_id,
           parent_id: board.parent_id,
