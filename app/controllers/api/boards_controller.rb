@@ -142,12 +142,14 @@ class API::BoardsController < API::ApplicationController
       current_user.save!
     end
     # expires_in 8.hours, public: true # Cache control header
+    @board_group = BoardGroup.find_by(id: params[:board_group_id]) if params[:board_group_id].present?
 
     if stale?(etag: @board, last_modified: @board.updated_at)
       RailsPerformance.measure("Predictive Image Board") do
         # @loaded_board = Board.with_artifacts.find(@board.id)
         @board_with_images = @board.api_view_with_predictive_images(current_user)
       end
+      @board_with_images[:root_board_id] = @board_group&.root_board_id
       render json: @board_with_images
     end
 
@@ -443,7 +445,12 @@ class API::BoardsController < API::ApplicationController
         parsed_manifest = JSON.parse(@get_manifest_data)
 
         puts "parsed_manifest: #{parsed_manifest}"
-        @root_board_id = parsed_manifest["root"]
+        @root_board_id_key = parsed_manifest["root"]
+        paths = parsed_manifest["paths"]
+        puts "paths: #{paths.keys}"
+        boards = paths["boards"]
+        @root_board_id = boards.key(@root_board_id_key)
+
         Rails.logger.debug "Root board ID: #{@root_board_id}"
 
         json_input = { extracted_obz_data: extracted_obz_data, current_user_id: current_user&.id, group_name: file_name, root_board_id: @root_board_id }
@@ -454,7 +461,12 @@ class API::BoardsController < API::ApplicationController
         render json: { error: "Unsupported file format" }, status: :unprocessable_entity
       end
     elsif params[:data].present?
-      boardData = params[:data].to_json
+      boardData = params[:data].to_unsafe_h
+      params[:board_group_id] = params[:board_group_id].to_i
+      board_group = BoardGroup.find_by(id: params[:board_group_id]) if params[:board_group_id].present?
+      if board_group
+        boardData = board_group.merge({ board_group: board_group })
+      end
 
       @board, _dynamic_data = Board.from_obf(boardData, current_user, boardData["name"], boardData["root_board_id"])
       render json: { id: @board.id }

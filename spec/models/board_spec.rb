@@ -32,11 +32,13 @@
 #  image_parent_id       :integer
 #  board_type            :string
 #  obf_id                :string
+#  board_group_id        :integer
 #
 require "rails_helper"
 
 RSpec.describe Board, type: :model do
   after(:each) do
+    BoardGroup.destroy_all
     BoardImage.destroy_all
     Board.destroy_all
   end
@@ -218,7 +220,8 @@ RSpec.describe Board, type: :model do
       grid_order = data["grid"]["order"]
       expected_board_image_count = data["images"].size
       root_board_id = data["id"]
-      board, _dynamic_data = Board.from_obf(obf_file, user, root_board_id)
+      board_group = BoardGroup.create!(name: "Test", user: user, original_obf_root_id: root_board_id)
+      board, _dynamic_data = Board.from_obf(obf_file, user, board_group)
 
       last_bi_layout = board.board_images.last.layout
 
@@ -251,6 +254,12 @@ RSpec.describe Board, type: :model do
       # extracted_data = Board.extract_obz(obf_zip_file)
       extracted_data = OBF::OBZ.to_external(obf_zip_file_path, {})
       file_name = File.basename(obf_zip_file_path)
+      @get_manifest_data = Board.extract_manifest(obf_zip_file_path)
+      Rails.logger.debug "Manifest data: #{@get_manifest_data}"
+      parsed_manifest = JSON.parse(@get_manifest_data)
+
+      puts "parsed_manifest: #{parsed_manifest}"
+      @root_board_id = parsed_manifest["root"]
 
       # Write the extracted data to a file
 
@@ -259,8 +268,6 @@ RSpec.describe Board, type: :model do
       expected_board_image_count = extracted_data["boards"].size
       first_board = extracted_data["boards"].first
       expect(extracted_data).to be_present
-
-      puts "first_board: #{first_board["id"]}"
 
       result = Board.from_obz(extracted_data, user, file_name, first_board["id"])
       first_board_id = result.first.with_indifferent_access[:board_id]
@@ -294,9 +301,10 @@ RSpec.describe Board, type: :model do
       manifest = Board.extract_manifest(obf_zip_file_path)
       parsed_manifest = JSON.parse(manifest)
 
-      puts "parsed_manifest: #{parsed_manifest}"
-      root_board_id = parsed_manifest["root"]
-      puts "root_board_id: #{root_board_id}"
+      root_board_id_key = parsed_manifest["root"]
+      paths = parsed_manifest["paths"]
+      boards = paths["boards"]
+      root_board_id = boards.key(root_board_id_key)
       expect(manifest).to be_present
     end
   end

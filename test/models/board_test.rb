@@ -32,6 +32,7 @@
 #  image_parent_id       :integer
 #  board_type            :string
 #  obf_id                :string
+#  board_group_id        :integer
 #
 require "test_helper"
 

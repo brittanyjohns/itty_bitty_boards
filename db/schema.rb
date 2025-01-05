@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_01_04_171152) do
+ActiveRecord::Schema[7.1].define(version: 2025_01_04_220917) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -234,7 +234,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_01_04_171152) do
     t.jsonb "license", default: {}
     t.string "obf_id"
     t.index ["category"], name: "index_images_on_category"
-    t.index ["obf_id"], name: "index_images_on_obf_id", unique: true
+    t.index ["obf_id"], name: "index_images_on_obf_id"
     t.index ["predictive_board_id"], name: "index_images_on_predictive_board_id"
     t.index ["use_custom_audio"], name: "index_images_on_use_custom_audio"
     t.index ["voice"], name: "index_images_on_voice"

@@ -2,24 +2,25 @@
 #
 # Table name: board_groups
 #
-#  id                :bigint           not null, primary key
-#  name              :string
-#  layout            :jsonb
-#  predefined        :boolean          default(FALSE)
-#  display_image_url :string
-#  position          :integer
-#  number_of_columns :integer          default(6)
-#  user_id           :integer          not null
-#  bg_color          :string
-#  created_at        :datetime         not null
-#  updated_at        :datetime         not null
+#  id                   :bigint           not null, primary key
+#  name                 :string
+#  layout               :jsonb
+#  predefined           :boolean          default(FALSE)
+#  display_image_url    :string
+#  position             :integer
+#  number_of_columns    :integer          default(6)
+#  user_id              :integer          not null
+#  bg_color             :string
+#  created_at           :datetime         not null
+#  updated_at           :datetime         not null
+#  root_board_id        :integer
+#  original_obf_root_id :string
 #
 class BoardGroup < ApplicationRecord
-  has_many :board_group_boards, dependent: :destroy
-  has_many :boards, through: :board_group_boards
+  # has_many :board_group_boards, dependent: :destroy
+  has_many :boards
   belongs_to :user
   belongs_to :root_board, class_name: "Board", optional: true
-  has_one :root_board_group, class_name: "BoardGroup", foreign_key: "board_group_id"
 
   scope :predefined, -> { where(predefined: true) }
   scope :with_artifacts, -> { includes(boards: [:images, :board_images]) }
@@ -121,13 +122,13 @@ class BoardGroup < ApplicationRecord
     end
   end
 
-  def add_board(board)
-    if boards.include?(board)
-      Rails.logger.info "Board #{board.id} already in group #{id}"
-      return
-    end
-    board_group_boards.create(board: board)
-  end
+  # def add_board(board)
+  #   if boards.include?(board)
+  #     Rails.logger.info "Board #{board.id} already in group #{id}"
+  #     return
+  #   end
+  #   board_group_boards.create(board: board)
+  # end
 
   def self.welcome_group
     BoardGroup.find_by(name: "Welcome", predefined: true)
