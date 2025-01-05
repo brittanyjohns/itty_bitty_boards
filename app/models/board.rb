@@ -1007,6 +1007,9 @@ class Board < ApplicationRecord
 
         is_dynamic = image.is_dynamic
         is_predictive = image.is_predictive
+        if image.predictive_board_id == @root_board&.id
+          is_dynamic = false
+        end
 
         is_category = @predictive_board && @predictive_board.board_type == "category"
         mute_name = @predictive_board_settings["mute_name"] == true && is_dynamic
@@ -1020,6 +1023,7 @@ class Board < ApplicationRecord
           id: image.id,
           label: @board_image.label,
           root_board_id: @root_board&.id,
+          root_board_name: @root_board&.name,
           image_user_id: image.user_id,
           predictive_board_id: is_dynamic ? @predictive_board_id : @user_custom_default_id,
           user_custom_default_id: @user_custom_default_id,
@@ -1260,13 +1264,14 @@ class Board < ApplicationRecord
         image.clean_up_label
 
         if image.predictive_board_id
-          puts "Image already has predictive board: #{image.predictive_board_id}"
+          puts "Image already has predictive board: #{image.predictive_board_id} updating to: #{board.id}"
+          image.predictive_board_id = board.id
+          image.save!
         else
           image.predictive_board_id = board.id
           # image.image_type = "static"
-          image.save
+          image.save!
         end
-        image.save! if image.new_record?
 
         if !image
           Rails.logger.error "Image not found for label: #{label}"
