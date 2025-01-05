@@ -429,9 +429,6 @@ class API::BoardsController < API::ApplicationController
     if params[:file].present?
       uploaded_file = params[:file]
       file_extension = File.extname(uploaded_file.original_filename)
-
-      puts "File extension: #{file_extension}"
-      puts "Uploaded file: #{uploaded_file.original_filename}"
       file_name = uploaded_file.original_filename
 
       if file_extension == ".obz"
@@ -441,13 +438,10 @@ class API::BoardsController < API::ApplicationController
         # extracted_obz_data = JSON.parse(decompressed_data)
         # created_boards = Board.from_obz(extracted_obz_data, current_user)
         @get_manifest_data = Board.extract_manifest(uploaded_file.path)
-        Rails.logger.debug "Manifest data: #{@get_manifest_data}"
         parsed_manifest = JSON.parse(@get_manifest_data)
 
-        puts "parsed_manifest: #{parsed_manifest}"
         @root_board_id_key = parsed_manifest["root"]
         paths = parsed_manifest["paths"]
-        puts "paths: #{paths.keys}"
         boards = paths["boards"]
         @root_board_id = boards.key(@root_board_id_key)
 
