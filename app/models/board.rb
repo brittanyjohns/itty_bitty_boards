@@ -1047,7 +1047,7 @@ class Board < ApplicationRecord
           position: @board_image.position,
           src_url: image.src_url,
           mute_name: mute_name,
-          src: image.display_image_url(viewing_user) || image.src_url,
+          src: image.src_url || image.display_image_url(viewing_user),
           display_image_url: @board_image.display_image_url,
           audio: @board_image.audio_url,
           audio_url: @board_image.audio_url,
