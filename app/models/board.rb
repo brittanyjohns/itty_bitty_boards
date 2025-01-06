@@ -1183,10 +1183,7 @@ class Board < ApplicationRecord
   def self.determine_board_type(dynamic_images, is_root = false)
     return "static" unless dynamic_images
     return "dynamic" if is_root
-    if dynamic_images.count == 1
-      return "static"
-    end
-    return "predictive"
+    return "category"
   end
 
   def self.from_obf(data, current_user, board_group = nil)

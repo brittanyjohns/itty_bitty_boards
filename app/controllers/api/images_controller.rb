@@ -19,7 +19,6 @@ class API::ImagesController < API::ApplicationController
     end
 
     if params[:query].present?
-      # @images = Image.non_sample_voices.with_artifacts.where(user_id: [@current_user.id, nil, User::DEFAULT_ADMIN_ID]).search_by_label(params[:query]).order(label: :asc).page params[:page]
       @images = @images.search_by_label(params[:query]).order("#{sort_field} #{sort_order}").page params[:page]
     else
       @images = @images.order("#{sort_field} #{sort_order}").page params[:page]

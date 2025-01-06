@@ -141,8 +141,11 @@ class Image < ApplicationRecord
 
   def predictive_board
     if predictive_board_id
-      Board.find_by(id: predictive_board_id)
+      board = Board.find_by(id: predictive_board_id)
+      return board if board
     end
+    matching_boards = matching_viewer_boards(user)
+    matching_boards.order(created_at: :desc).first if matching_boards.any?
   end
 
   def update_all_boards_image_belongs_to
@@ -226,7 +229,7 @@ class Image < ApplicationRecord
     #   Rails.logger.debug "Predictive board id removed for static image"
     # end
 
-    if category_board && category_board&.board_type == "category"
+    if category_board
       Rails.logger.debug "Setting image type to Category - #{category_board.name}"
       self.image_type = "category"
       self.predictive_board_id = category_board.id
@@ -249,7 +252,11 @@ class Image < ApplicationRecord
       Rails.logger.debug "Setting predictive board id to #{predictive_board_id} for #{label}"
     end
     if image_type.blank? || image_type == "Static"
-      self.image_type = "static"
+      # self.image_type = "static"
+      Rails.logger.debug "Would have set image type to Static for #{label}"
+    end
+    if predictive_board && self.predictive_board_id != predictive_board.id
+      self.predictive_board_id = predictive_board.id
     end
   end
 
@@ -865,41 +872,96 @@ class Image < ApplicationRecord
     docs.unscoped.any? { |doc| doc.processed === symbol_name }
   end
 
-  def self.destroy_duplicate_images(dry_run: true, limit: 100)
+  def self.update_predictive_images
+    Image.predictive.where(predictive_board_id: nil).each do |image|
+      matching_boards = image.matching_viewer_boards(image.user)
+      if matching_boards.any?
+        image.predictive_board_id = matching_boards.order(created_at: :desc).first.id
+        image.save!
+      end
+    end
+  end
+
+  def self.destroy_duplicate_images(dry_run: true, limit: 100, labels: [])
     total_images_destroyed = 0
     total_docs_saved = 0
-    puts "RUNNING FOR #{Image.public_img.includes(:docs).non_menu_images.count} IMAGES"
-    Image.public_img.includes(:docs).non_menu_images.group_by(&:label).each do |label, images|
-      # Skip the first image (which we want to keep) and destroy the rest
-      # images.drop(1).each(&:destroy)
-      puts "\nDuplicate images for #{label}: #{images.count}" if images.count > 1
-      keep = images.first
-      keeping_docs = keep.docs
-      images.drop(1).each do |image|
-        destroying_docs = image.docs
+    ActiveRecord::Base.logger.silence do
 
-        Rails.logger.debug "Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at} - docs: #{destroying_docs.count}"
-        destroying_docs.each do |doc|
-          doc.update!(documentable_id: keep.id) unless dry_run
-          puts "Reassigning doc #{doc.id} to image #{keep.id} - #{dry_run ? "DRY RUN" : "FOR REAL LIFE"}"
-          total_docs_saved += 1
+      # Count the labels and group them
+      if labels.any?
+        @label_counts = Image.non_menu_images.where(user_id: [User::DEFAULT_ADMIN_ID, nil], label: labels).group(:label).count
+      else
+        @label_counts = Image.non_menu_images.where(user_id: [User::DEFAULT_ADMIN_ID, nil]).group(:label).count
+      end
+
+      # Filter for labels with duplicates (count > 1)
+      @duplicate_labels = @label_counts.select { |_label, count| count > 1 }
+
+      # Log the number of duplicate labels and the total number of images in those labels
+      Rails.logger.debug "Found #{@duplicate_labels.count} labels with duplicates."
+      Rails.logger.debug "Total images with duplicate labels: #{@duplicate_labels.values.sum}"
+      puts "RUNNING FOR #{@duplicate_labels.count} IMAGES - Limit: #{limit} - Dry Run: #{dry_run}"
+      puts "Would you like to continue? (y/n)"
+      response = gets.chomp
+      return unless response == "y"
+      @duplicate_labels.each do |label, image_count|
+        Rails.logger.debug "Checking for duplicates for #{label} - #{image_count} images"
+        images = Image.where(user_id: [User::DEFAULT_ADMIN_ID, nil], label: label).order(created_at: :desc)
+        # Skip the first image (which we want to keep) and destroy the rest
+        # images.drop(1).each(&:destroy)
+        puts "\nDuplicate images for #{label}: #{images.count}" if images.count > 1
+        keep = images.select { |image| image.predictive_board_id }.first
+        keep ||= images.first
+        keeping_docs = keep.docs
+        puts "Urls: #{keeping_docs.pluck(:original_image_url)}" if keeping_docs.any?
+        kept_urls = keeping_docs.pluck(:original_image_url)
+        predictive_board_id = keep.predictive_board_id
+        predictive_board_id = images.pluck(:predictive_board_id).compact.first unless predictive_board_id
+        puts "Keeping image: id: #{keep.id} - label: #{keep.label} - created_at: #{keep.created_at} - docs: #{keeping_docs.count} - predictive_board_id: #{predictive_board_id}"
+        keep.predictive_board_id = predictive_board_id
+        keep.save! unless dry_run
+        images_to_run = images.excluding(keep)
+        puts "Images: #{images.count} - Images to run: #{images_to_run.count}"
+        images_to_run.each do |image|
+          destroying_docs = image.docs
+
+          Rails.logger.debug "Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at} - docs: #{destroying_docs.count} - predictive_board_id: #{predictive_board_id}"
+          destroying_docs.each do |doc|
+            if kept_urls.include?(doc.original_image_url)
+              puts "Skipping doc: #{doc.id} - #{doc.original_image_url}"
+              next
+            end
+            doc.update!(documentable_id: keep.id) unless dry_run
+            # puts "Reassigning doc #{doc.id} to image #{keep.id} - #{dry_run ? "DRY RUN" : "FOR REAL LIFE"}"
+            total_docs_saved += 1
+          end
+
+          destroying_board_images = BoardImage.where(image_id: image.id)
+          destroying_board_images.each do |bi|
+            bi.update!(image_id: keep.id) unless dry_run
+          end
+
+          next_words = image.next_words
+          if next_words.any?
+            # puts "Next words: #{next_words}"
+            keep.next_words = (keep.next_words + next_words).uniq
+            keep.save! unless dry_run
+          end
+
+          total_images_destroyed += 1
+
+          # puts "Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
+          # This reload is IMPORTANT! Otherwise, the keep docs WILL be destroyed & removed from S3!
+          image.reload
+          # puts "AFTER RELOAD - Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
+          puts "dry_run: #{dry_run} - Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at}"
+          image.destroy! unless dry_run
+          if total_images_destroyed >= limit
+            puts "in Limit reached: #{limit}"
+            break
+          end
         end
 
-        next_words = image.next_words
-        if next_words.any?
-          puts "Next words: #{next_words}"
-          keep.next_words = (keep.next_words + next_words).uniq
-          keep.save! unless dry_run
-        end
-
-        total_images_destroyed += 1
-
-        puts "Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
-        # This reload is IMPORTANT! Otherwise, the keep docs WILL be destroyed & removed from S3!
-        image.reload
-        puts "AFTER RELOAD - Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
-        puts "dry_run: #{dry_run} - Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at}"
-        image.destroy unless dry_run
         if total_images_destroyed >= limit
           puts "Limit reached: #{limit}"
           break
@@ -939,7 +1001,7 @@ class Image < ApplicationRecord
 
   def display_image_url(viewing_user = nil)
     if category_board
-      img = Image.find_by(id: category_board&.image_parent_id)
+      img = Image.with_artifacts.find_by(id: category_board&.image_parent_id)
       doc = img.display_doc(viewing_user) if img
     else
       doc = display_doc(viewing_user)
@@ -1149,29 +1211,6 @@ class Image < ApplicationRecord
     viewing_user.boards.where(name: label).order(created_at: :desc)
   end
 
-  def set_ids(viewing_user)
-    @current_user = viewing_user
-    is_owner = @current_user && user_id == @current_user&.id
-    is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
-    @user_dynamic_board = predictive_board
-    @global_default_id = Board.predictive_default_id
-
-    @category_board = category_board
-    # if @category_board
-    #   @predictive_board_id = @category_board.id
-    # else
-    #   @predictive_board = @user_dynamic_board
-    #   @predictive_board ||= Board.predictive_default
-    # end
-    @predictive_board = predictive_board
-    @predictive_board_id = predictive_board_id
-    @viewer_settings = @current_user&.settings || {}
-    @user_custom_default_id = @viewer_settings["dynamic_board_id"]
-
-    @is_owner = is_owner
-    @is_admin_image = is_admin_image
-  end
-
   def is_dynamic(viewing_user = nil)
     board = predictive_board
     # is_dynamic = ["predictive", "category"].include?(board&.board_type)
@@ -1193,8 +1232,6 @@ class Image < ApplicationRecord
   end
 
   def is_predictive(viewing_user = nil)
-    # set_ids(viewing_user)
-    # is_predictive = @predictive_board_id && @predictive_board_id != @global_default_id && @predictive_board_id != @user_custom_default_id
     is_predictive = predictive_board_id.present?
     is_predictive
   end
@@ -1202,6 +1239,7 @@ class Image < ApplicationRecord
   def with_display_doc(current_user = nil)
     @current_user = current_user
     @predictive_board = predictive_board
+    @global_default_id = Board.predictive_default_id
     current_doc = display_doc(@current_user)
     current_doc_id = current_doc.id if current_doc
     doc_img_url = current_doc&.display_url
@@ -1241,10 +1279,10 @@ class Image < ApplicationRecord
       status: status,
       error: error,
       text_color: text_color,
-      predictive_board_id: @predictive_board_id,
+      predictive_board_id: predictive_board_id,
       global_default_id: @global_default_id,
       dynamic: img_is_dynamic,
-      dynamic_board: @predictive_board&.api_view_with_images(@current_user),
+      dynamic_board: predictive_board,
       is_predictive: img_is_predictive,
       is_owner: is_owner,
       is_admin_image: is_admin_image,

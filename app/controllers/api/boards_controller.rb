@@ -369,31 +369,35 @@ class API::BoardsController < API::ApplicationController
       board_type = params[:board_type] || board_params[:board_type]
       settings = params[:settings] || board_params[:settings] || {}
       settings["board_type"] = board_type
+      matching_image = nil
       Rails.logger.debug "Board type: #{board_type}"
       if board_type == "dynamic"
         predefined_resource = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board")
         @board.parent_id = predefined_resource.id
         @board.parent_type = "PredefinedResource"
+        @board.board_type = "dynamic"
       elsif board_type == "predictive"
         puts "Creating predictive board"
         @board.parent_type = "Image"
-        matching_image = @board.user.images.find_or_create_by(label: @board.name)
+        matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "predictive")
+        @board.board_type = "predictive"
         if matching_image
           @board.parent_id = matching_image.id
           @board.image_parent_id = matching_image.id
-          matching_image.update(image_type: "Predictive")
+          # matching_image.update(image_type: "predictive")
         end
       elsif board_type == "category"
+        @board.board_type = "category"
         @board.parent_type = "PredefinedResource"
         @board.parent_id = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Category").id
-        matching_image = @board.user.images.find_or_create_by(label: @board.name)
+        matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "category")
         if matching_image
           @board.image_parent_id = matching_image.id
-          matching_image.update(image_type: "category")
         end
       elsif board_type == "static"
         @board.parent_type = "User"
         @board.parent_id = @board.user.id
+        @board.board_type = "static"
       end
       new_board_settings = @board.settings.merge(settings)
       Rails.logger.info "New board settings: #{new_board_settings}"
@@ -409,6 +413,7 @@ class API::BoardsController < API::ApplicationController
       #     board_image.image
       #   end
       # end
+      Rails.logger.info "#{board_type} -- Board type before save: #{@board.board_type}"
       respond_to do |format|
         if @board.save
           format.json { render json: @board.api_view_with_images(current_user), status: :ok }
