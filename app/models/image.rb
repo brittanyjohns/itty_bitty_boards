@@ -67,8 +67,8 @@ class Image < ApplicationRecord
   scope :without_attached_audio_files, -> { where.missing(:audio_files_attachments) }
   scope :searchable, -> { non_sample_voices.non_menu_images }
   scope :with_image_docs_for_user, ->(userId) { order(created_at: :desc) }
-  scope :menu_images, -> { where(image_type: "menu") }
-  scope :non_menu_images, -> { where.not(image_type: "menu").or(where(image_type: nil)) }
+  scope :menu_images, -> { where(image_type: ["menu", "Menu"]) }
+  scope :non_menu_images, -> { where.not(image_type: ["menu", "Menu"]).or(where(image_type: nil)) }
   scope :non_scenarios, -> { where.not(image_type: "OpenaiPrompt").or(where(image_type: nil)) }
   scope :non_sample_voices, -> { where.not(image_type: "SampleVoice").or(where(image_type: nil)) }
   scope :sample_voices, -> { where(image_type: "SampleVoice") }

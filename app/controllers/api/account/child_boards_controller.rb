@@ -1,7 +1,7 @@
 class API::Account::ChildBoardsController < API::Account::ApplicationController
   # protect_from_forgery with: :null_session
   respond_to :json
-  before_action :authenticate_child_token!, only: %i[show current]
+  before_action :authenticate_child_token!, only: %i[show current predictive_board]
 
   # GET /boards/1 or /boards/1.json
   def show

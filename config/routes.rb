@@ -327,6 +327,11 @@ Rails.application.routes.draw do
           get "predictive_board"
         end
       end
+      resources :images do
+        collection do
+          post "find_or_create"
+        end
+      end
     end
   end
 
