@@ -170,7 +170,7 @@ class BoardImage < ApplicationRecord
     puts "is_dynamic: #{is_dynamic}"
     {
       id: id.to_s,
-      url: image.display_image_url(viewing_user) || image.src_url,
+      url: display_image_url || image.display_image_url(viewing_user) || image.src_url,
       width: 850, # this might need to be changed
       height: 850, # this might need to be changed
       content_type: image.content_type,

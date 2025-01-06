@@ -35,7 +35,7 @@
 #  obf_id              :string
 #
 class Image < ApplicationRecord
-  paginates_per 50
+  paginates_per 100
   normalizes :label, with: ->label { label.downcase.strip }
   attr_accessor :temp_prompt
   belongs_to :user, optional: true
@@ -148,9 +148,11 @@ class Image < ApplicationRecord
     matching_boards.order(created_at: :desc).first if matching_boards.any?
   end
 
-  def update_all_boards_image_belongs_to
+  def update_all_boards_image_belongs_to(url)
     board_images.includes(:board).each do |bi|
       bi.board.updated_at = Time.now
+      bi.display_image_url = url
+      bi.save!
       bi.board.save!
     end
   end
@@ -1046,7 +1048,7 @@ class Image < ApplicationRecord
     if viewing_user
       # docs = self.docs.where(user_id: [viewing_user.id, nil, User::DEFAULT_ADMIN_ID])
       user_docs = viewing_user.user_docs.includes(:doc).where(image_id: id)
-      docs = user_docs.map(&:doc)
+      docs = user_docs.order(:updated_at).map(&:doc)
       return docs.last if docs.any?
       # if viewing_user.id == self.user_id
       #   return nil
@@ -1060,8 +1062,8 @@ class Image < ApplicationRecord
       doc = user_docs.last.doc
       return doc if doc
     end
-    doc = docs.last
-    return doc if doc
+    # doc = docs.last
+    # return doc if doc
   end
 
   def self.set_user_docs_for_docs_without(dry_run: true)

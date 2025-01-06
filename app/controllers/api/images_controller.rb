@@ -81,8 +81,13 @@ class API::ImagesController < API::ApplicationController
     end
     saved_image = @image.save_from_url(params[:imageUrl], params[:snippet], params[:title], "image/webp", @current_user.id)
     saved_image_url = saved_image.display_url
-    UpdateBoardImagesJob.perform_async(@image.id)
+    @image.update_all_boards_image_belongs_to(saved_image_url)
+    # UpdateBoardImagesJob.perform_async(@image.id, saved_image_url)
     @doc = @image.docs.last
+    user_docs_to_delete = @current_user.user_docs.where(image_id: @image.id)
+    user_docs_to_delete.destroy_all
+    user_doc = UserDoc.create!(user_id: current_user.id, doc_id: doc_id, image_id: @doc.documentable_id)
+    did_update = @doc.update(current: true)
     if @doc.save
       render json: { image_url: saved_image_url, id: @image.id, doc_id: @doc.id }
     else
@@ -460,15 +465,23 @@ class API::ImagesController < API::ApplicationController
     else
       @user = @image.user
       current_user.user_docs.where(image_id: @image.id).destroy_all
-      if @user.nil? && current_user.admin?
-        @user = current_user
-        @image.update!(src_url: nil)
-        board_imgs = BoardImage.where(image_id: @image.id).map { |bi| bi.update(display_image_url: nil) }
-      end
-      if @user.id == current_user.id
-        @image.update!(src_url: nil)
-        board_imgs = @user.board_images.where(image_id: @image.id).map { |bi| bi.update(display_image_url: nil) }
-      end
+      @image.update_all_boards_image_belongs_to(nil)
+      # UpdateBoardImagesJob.perform_async(@image.id, saved_image_url)
+      # if @user.nil? && current_user.admin?
+      #   @user = current_user
+      #   @image.update!(src_url: nil)
+      #   board_imgs = BoardImage.includes(:board).where(image_id: @image.id)
+      #   board = board_imgs.first.board
+      #   board_imgs.map { |bi| bi.update(display_image_url: nil) }
+      #   board.update!(updated_at: Time.now)
+      # end
+      # if @user.id == current_user.id
+      #   @image.update!(src_url: nil)
+      #   board_imgs = BoardImage.includes(:board).where(image_id: @image.id)
+      #   board = board_imgs.first.board
+      #   board_imgs.map { |bi| bi.update(display_image_url: nil) }
+      #   board.update!(updated_at: Time.now)
+      # end
       @image_docs = @image.docs.for_user(current_user).order(created_at: :desc)
       @image_docs.update_all(current: false)
 
