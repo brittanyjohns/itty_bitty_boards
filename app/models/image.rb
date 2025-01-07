@@ -965,7 +965,7 @@ class Image < ApplicationRecord
         end
 
         keep.reload
-        keep.update_all_boards_image_belongs_to
+        keep.update_all_boards_image_belongs_to(kieep.display_image_url(keep.user))
         puts "Total images destroyed: #{total_images_destroyed} - Total docs saved: #{total_docs_saved}\n"
 
         if total_images_destroyed >= limit
