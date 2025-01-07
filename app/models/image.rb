@@ -901,7 +901,7 @@ class Image < ApplicationRecord
       return unless response == "y"
       @duplicate_labels.each do |label, image_count|
         Rails.logger.debug "Checking for duplicates for #{label} - #{image_count} images"
-        images = Image.where(user_id: [User::DEFAULT_ADMIN_ID, nil], label: label).order(created_at: :desc)
+        images = Image.where(user_id: user_ids, label: label).order(created_at: :desc)
         # Skip the first image (which we want to keep) and destroy the rest
         # images.drop(1).each(&:destroy)
         puts "\nDuplicate images for #{label}: #{images.count}" if images.count > 1
@@ -909,7 +909,7 @@ class Image < ApplicationRecord
         keep ||= images.first
         keeping_docs = keep.docs
         puts "Urls: #{keeping_docs.pluck(:original_image_url)}" if keeping_docs.any?
-        kept_urls = keeping_docs.pluck(:original_image_url)
+        kept_urls = keeping_docs.pluck(:original_image_url).compact
         predictive_board_id = keep.predictive_board_id
         predictive_board_id = images.pluck(:predictive_board_id).compact.first unless predictive_board_id
         puts "Keeping image: id: #{keep.id} - label: #{keep.label} - created_at: #{keep.created_at} - docs: #{keeping_docs.count} - predictive_board_id: #{predictive_board_id}"
