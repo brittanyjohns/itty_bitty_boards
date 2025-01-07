@@ -877,16 +877,16 @@ class Image < ApplicationRecord
     end
   end
 
-  def self.destroy_duplicate_images(dry_run: true, limit: 100, labels: [])
+  def self.destroy_duplicate_images(dry_run: true, limit: 100, labels: [], user_ids: [User::DEFAULT_ADMIN_ID, nil])
     total_images_destroyed = 0
     total_docs_saved = 0
     ActiveRecord::Base.logger.silence do
 
       # Count the labels and group them
       if labels.any?
-        @label_counts = Image.non_menu_images.where(user_id: [User::DEFAULT_ADMIN_ID, nil], label: labels).group(:label).count
+        @label_counts = Image.non_menu_images.where(user_id: user_ids, label: labels).group(:label).count
       else
-        @label_counts = Image.non_menu_images.where(user_id: [User::DEFAULT_ADMIN_ID, nil]).group(:label).count
+        @label_counts = Image.non_menu_images.where(user_id: user_ids).group(:label).count
       end
 
       # Filter for labels with duplicates (count > 1)
