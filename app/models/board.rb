@@ -510,7 +510,7 @@ class Board < ApplicationRecord
       new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images.count)
       if layout
         new_board_image.layout = layout
-        if new_board_image.layout_invalid
+        if new_board_image.layout_invalid?
           Rails.logger.debug "Invalid layout: #{new_board_image.layout}"
           new_board_image.set_initial_layout!
         end
