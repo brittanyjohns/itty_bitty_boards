@@ -32,7 +32,8 @@ module ImageHelper
       user_id ||= self.user_id
       doc = self.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: source_type, original_image_url: url)
       doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.webp", content_type: file_format) if downloaded_image
-      self.update(status: "finished")
+      self.update(status: "finished", src_url: url)
+      update_all_boards_image_belongs_to(url)
     rescue => e
       puts "ImageHelper ERROR: #{e.inspect}"
       raise e
