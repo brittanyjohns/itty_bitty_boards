@@ -86,7 +86,7 @@ class API::ImagesController < API::ApplicationController
     @doc = @image.docs.last
     user_docs_to_delete = @current_user.user_docs.where(image_id: @image.id)
     user_docs_to_delete.destroy_all
-    user_doc = UserDoc.create!(user_id: current_user.id, doc_id: doc_id, image_id: @doc.documentable_id)
+    user_doc = UserDoc.create!(user_id: current_user.id, doc_id: @doc.id, image_id: @doc.documentable_id)
     did_update = @doc.update(current: true)
     if @doc.save
       render json: { image_url: saved_image_url, id: @image.id, doc_id: @doc.id }
