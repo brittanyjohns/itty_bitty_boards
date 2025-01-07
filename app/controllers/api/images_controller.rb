@@ -580,6 +580,10 @@ class API::ImagesController < API::ApplicationController
       return
     end
     begin
+      doc_url = @doc.display_url
+      if @image.src_url == doc_url
+        @image.update(src_url: nil)
+      end
       @image.docs.delete(@doc)
       if params[:hard_delete]
         @doc.destroy

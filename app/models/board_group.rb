@@ -55,7 +55,7 @@ class BoardGroup < ApplicationRecord
   def update_all_boards
     boards.includes(:images).find_each do |board|
       first_img_url = board.images.select { |img| img.src_url.present? }.first&.src_url
-      board.display_image_url = first_img_url
+      board.display_image_url = first_img_url if first_img_url.present? && board.display_image_url.blank?
       board.save
     end
   end

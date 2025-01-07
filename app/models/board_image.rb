@@ -30,6 +30,7 @@ class BoardImage < ApplicationRecord
   before_create :set_defaults
   # after_create :set_next_words
   before_save :set_label, if: -> { label.blank? }
+  before_save :save_display_image_url, if: -> { display_image_url.blank? }
   after_save :update_predictive_board
 
   include BoardsHelper
@@ -63,6 +64,10 @@ class BoardImage < ApplicationRecord
     return true if layout["lg"]["w"] != 1 || layout["md"]["w"] != 1 || layout["sm"]["w"] != 1
     return true if layout["lg"]["h"] != 1 || layout["md"]["h"] != 1 || layout["sm"]["h"] != 1
     return false
+  end
+
+  def save_display_image_url
+    self.display_image_url = image.src_url
   end
 
   def self.with_invalid_layouts

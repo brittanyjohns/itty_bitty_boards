@@ -113,12 +113,6 @@ class Image < ApplicationRecord
     end
   end
 
-  def should_update_board_images_display_image?
-    result = display_image_url(user) != display_image_url
-    puts "Should update board images display image? #{result}"
-    result
-  end
-
   def clean_up_label
     has_source_type = false
     original_type_name = nil
@@ -150,6 +144,7 @@ class Image < ApplicationRecord
 
   def update_all_boards_image_belongs_to(url)
     board_images.includes(:board).each do |bi|
+      next if user_id && bi.board.user_id != user_id
       bi.board.updated_at = Time.now
       bi.display_image_url = url
       bi.save!
@@ -157,13 +152,11 @@ class Image < ApplicationRecord
     end
   end
 
-  def update_board_images_display_image(updated_image_url)
-    if !updated_image_url
-      puts "No updated image url"
-      return
-    end
+  def update_board_images_display_image
+    return unless src_url
     board_images.each do |bi|
-      bi.update!(display_image_url: updated_image_url)
+      next unless bi.display_image_url.blank?
+      bi.update!(display_image_url: src_url)
     end
   end
 
@@ -1053,17 +1046,12 @@ class Image < ApplicationRecord
       # if viewing_user.id == self.user_id
       #   return nil
       # end
+
+      docs = self.docs.where(user_id: viewing_user.id)
+      return docs.current.first if docs.current.any?
     end
-    docs = self.docs.where(user_id: [nil, User::DEFAULT_ADMIN_ID, viewing_user&.id])
-    return docs.current.first if docs.current.any?
-    return nil if docs.blank?
-    user_docs = UserDoc.where(doc_id: docs.pluck(:id), user_id: User::DEFAULT_ADMIN_ID)
-    if user_docs.any?
-      doc = user_docs.last.doc
-      return doc if doc
-    end
-    # doc = docs.last
-    # return doc if doc
+    base_doc = self.docs.includes(image_attachment: :blob).first
+    base_doc
   end
 
   def self.set_user_docs_for_docs_without(dry_run: true)
