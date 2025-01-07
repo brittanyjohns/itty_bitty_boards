@@ -19,6 +19,8 @@
 class BoardGroup < ApplicationRecord
   # has_many :board_group_boards, dependent: :destroy
   has_many :boards
+  has_many :board_images, through: :boards
+  has_many :images, through: :board_images
   belongs_to :user
   belongs_to :root_board, class_name: "Board", optional: true
 
@@ -42,6 +44,20 @@ class BoardGroup < ApplicationRecord
 
   def set_number_of_columns
     self.number_of_columns = 6
+  end
+
+  def update_all_board_images
+    images.includes(:board_images).find_each do |image|
+      image.update_all_boards_image_belongs_to(image.src_url) if image.src_url.present?
+    end
+  end
+
+  def update_all_boards
+    boards.includes(:images).find_each do |board|
+      first_img_url = board.images.select { |img| img.src_url.present? }.first&.src_url
+      board.display_image_url = first_img_url
+      board.save
+    end
   end
 
   def no_colmns_set
