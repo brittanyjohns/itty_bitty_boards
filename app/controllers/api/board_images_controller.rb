@@ -35,7 +35,7 @@ class API::BoardImagesController < API::ApplicationController
     data = params[:board_image][:data]
     updatedData = @board_image.data.merge(data.to_unsafe_h)
     @board_image.data = updatedData
-    if @board_image.save
+    if @board_image.update(board_image_params)
       render json: @board_image.api_view(current_user)
     else
       render json: @board_image.errors, status: :unprocessable_entity
@@ -63,6 +63,9 @@ class API::BoardImagesController < API::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def board_image_params
-    params.require(:board_image).permit(:board_id, :image_id, :position, :voice, data: {})
+    params.require(:board_image).permit(:board_id, :predictive_board_id,
+                                        :image_id, :position, :voice, :bg_color,
+                                        :text_color, :font_size, :border_color,
+                                        :layout, :status, :audio_url)
   end
 end

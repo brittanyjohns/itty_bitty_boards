@@ -131,8 +131,17 @@ class API::DocsController < API::ApplicationController
       end
       @current_doc = @doc
       @image = @doc.documentable
+      board_id = params[:board_id]
+      @board = Board.find_by(id: board_id)
+      if @board
+        @board_image = @board.board_images.find_by(image_id: @image.id)
+        if @board_image
+          @board_image.update!(display_image_url: @doc.display_url)
+        end
+        @board.update!(updated_at: Time.zone.now)
+      end
       # UpdateBoardImagesJob.perform_async(@image.id, @doc.display_url)
-      @image.update_all_boards_image_belongs_to(@doc.display_url)
+      # @image.update_all_boards_image_belongs_to(@doc.display_url)
       @user = @image.user
       is_owner = false
       if @user.nil? && current_user.admin?
@@ -140,16 +149,6 @@ class API::DocsController < API::ApplicationController
         is_owner = true
       else
         is_owner = @user.id == current_user.id
-      end
-
-      puts "Current user: #{current_user.id} Image user: #{@user} Is owner: #{is_owner}\nis_dynamic: #{@image.is_dynamic(current_user)}"
-
-      if @image.is_dynamic(current_user) && is_owner
-        predictive_board = @image.predictive_board
-        if predictive_board
-          puts "Updating predictive board with display image"
-          predictive_board.update!(display_image_url: @doc.display_url)
-        end
       end
 
       # if @user.id == current_user.id

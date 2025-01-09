@@ -25,13 +25,13 @@ class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
   belongs_to :board, touch: true
   belongs_to :image
+  belongs_to :predictive_board, class_name: "Board", optional: true
   attr_accessor :skip_create_voice_audio, :skip_initial_layout, :src
 
   before_create :set_defaults
   # after_create :set_next_words
   before_save :set_label, if: -> { label.blank? }
   before_save :save_display_image_url, if: -> { display_image_url.blank? }
-  after_save :update_predictive_board
 
   include BoardsHelper
 
@@ -50,10 +50,12 @@ class BoardImage < ApplicationRecord
     self.label = image.label
   end
 
-  def update_predictive_board
-    if board.parent_type == "Image"
-      board.parent.update_predictive_boards
-    end
+  def is_dynamic?
+    predictive_board_id.present? && predictive_board_id != board_id
+  end
+
+  def set_voice
+    create_voice_audio(voice)
   end
 
   def layout_invalid?
@@ -98,7 +100,6 @@ class BoardImage < ApplicationRecord
   def self.fix_all
     self.fix_invalid_layouts
     self.fix_non_cdn_audio
-    Image.destroy_duplicate_images(dry_run: false, limit: 400)
   end
 
   def initialize(*args)
@@ -134,7 +135,9 @@ class BoardImage < ApplicationRecord
   end
 
   def bg_class
-    bg_color ? "bg-#{bg_color}-400" : "bg-white"
+    # bg_color ? "bg-#{bg_color}-400" : "bg-white"
+    color = bg_color.include?("bg-") ? bg_color : "bg-#{bg_color}-400"
+    color || "bg-#{image.bg_class}-400" || "bg-white"
   end
 
   scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
@@ -186,6 +189,7 @@ class BoardImage < ApplicationRecord
   end
 
   def to_obf_sound_format
+    audio_file = image.find_audio_for_voice(voice)
     {
       id: audio_file&.id.to_s,
       ext_saw_label: label,
@@ -232,6 +236,7 @@ class BoardImage < ApplicationRecord
     end
     @skip_create_voice_audio = true
     save
+    # board.update!(updated_at: Time.zone.now)
   end
 
   def user
@@ -240,13 +245,17 @@ class BoardImage < ApplicationRecord
 
   def api_view(viewing_user = nil)
     viewing_user ||= user
-    all_img_board_images = board.board_images.includes(:image)
+    all_img_board_images = board.board_images.includes(:image).distinct
     {
       id: id,
       image_id: image_id,
       label: label,
+      board_name: board.name,
+      board_type: board.board_type,
+      dynamic: is_dynamic?,
       voice: voice,
-      src: image.display_image_url(viewing_user),
+      src: display_image_url,
+      display_image_url: display_image_url,
       board_id: board_id,
       position: position,
       board_name: board.name,
@@ -258,9 +267,9 @@ class BoardImage < ApplicationRecord
       status: status,
       audio_url: audio_url,
       audio: audio_url,
-      image_prompt: image_prompt,
       next_words: next_words,
       data: data,
+      predictive_board_id: predictive_board_id,
     }
   end
 
@@ -282,6 +291,8 @@ class BoardImage < ApplicationRecord
     self.text_color = image.text_color
     self.font_size = image.font_size
     self.border_color = image.border_color
+    self.label = image.label
+    self.display_image_url = image.display_image_url(user)
     if audio_file
       self.audio_url = image.default_audio_url(audio_file)
     else

@@ -38,6 +38,7 @@ require "zip"
 
 class Board < ApplicationRecord
   belongs_to :user
+  paginates_per 100
   belongs_to :parent, polymorphic: true
   belongs_to :board_group, optional: true
   has_many :board_images, dependent: :destroy
@@ -64,6 +65,7 @@ class Board < ApplicationRecord
                   }
 
   scope :for_user, ->(user) { where(user: user).or(where(user_id: User::DEFAULT_ADMIN_ID, predefined: true)) }
+  scope :with_image_parent, -> { where.associated(:image_parent) }
   scope :menus, -> { where(parent_type: "Menu") }
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
@@ -85,7 +87,6 @@ class Board < ApplicationRecord
   scope :preset, -> { where(predefined: true) }
   scope :welcome, -> { where(category: "welcome", predefined: true) }
   POSSIBLE_BOARD_TYPES = %w[board category user image menu].freeze
-  SOURCE_TYPE_NAMES = ["CommuniKate", "Core 24 - "].freeze
 
   scope :dynamic_defaults, -> { where(name: "Dynamic Default", parent_type: "PredefinedResource") }
 
@@ -102,30 +103,27 @@ class Board < ApplicationRecord
   # before_save :set_board_type
   before_save :clean_up_name
 
-  # before_save :rearrange_images, if: :number_of_columns_changed?
-
   before_save :set_display_margin_settings, unless: :margin_settings_valid_for_all_screen_sizes?
 
-  after_touch :set_status
   before_create :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
   after_initialize :set_screen_sizes, unless: :all_validate_screen_sizes?
   after_initialize :set_initial_layout, if: :layout_empty?
 
-  def self.dynamic(user_id = nil)
-    if user_id
-      PredefinedResource.dynamic_boards(user_id)
-    else
-      PredefinedResource.dynamic_boards(User::DEFAULT_ADMIN_ID).predefined
-    end
+  def self.dynamic
+    where(board_type: "dynamic")
   end
 
-  def self.categories(user_id = nil)
-    if user_id
-      PredefinedResource.categories(user_id)
-    else
-      PredefinedResource.categories(User::DEFAULT_ADMIN_ID).predefined
-    end
+  def self.categories
+    where(board_type: "category")
+  end
+
+  def self.user_made
+    where(board_type: "user")
+  end
+
+  def self.ai_generated
+    where(board_type: "ai_generated")
   end
 
   def self.predictive
@@ -260,20 +258,10 @@ class Board < ApplicationRecord
       image_parent_url = image_parent.display_image_url(user)
       self.display_image_url = image_parent_url
       self.status = "complete"
-    end
-  end
-
-  def set_status
-    if parent_type == "User" || predefined
+    elsif parent_type == "Image"
+      self.display_image_url = parent.display_image_url(user)
       self.status = "complete"
-    else
-      if has_generating_images?
-        self.status = "generating"
-      else
-        self.status = "complete"
-      end
     end
-    self.save!
   end
 
   def rearrange_images(layout = nil, screen_size = "lg")
@@ -301,18 +289,28 @@ class Board < ApplicationRecord
   def clean_up_name
     has_source_type = false
     original_type_name = nil
-    SOURCE_TYPE_NAMES.each do |type_name|
-      has_source_type = name.include?(type_name) if name
-      Rails.logger.debug "Cleaned up name: #{name} -- #{type_name} -- #{has_source_type}"
+    Image::SOURCE_TYPE_NAMES.each do |type_name|
+      board_name = name.downcase
+      type_name.downcase!
+      has_source_type = board_name.include?(type_name) if board_name
+      has_source_type = source_type == type_name if source_type && !has_source_type
+      puts "Has source type final: #{has_source_type} - #{type_name}"
 
       if has_source_type
-        original_type_name = type_name
-        name.gsub!(type_name, "").strip if name
+        original_type_name = type_name.gsub(" - ", "").strip
+        name.gsub!(type_name, "") if name
         break
       end
     end
     self.data["source_type"] = original_type_name if has_source_type
     self.name = name.strip if name
+    if name.blank? || name == "Untitled Board"
+      self.name = original_type_name + " Board" if original_type_name
+      if name.blank?
+        self.name = "Untitled Board"
+      end
+    end
+    name
   end
 
   def self.predictive_default(viewing_user = nil)
@@ -428,12 +426,6 @@ class Board < ApplicationRecord
     {}
   end
 
-  def set_display_image
-    new_doc = image_docs.first
-    self.display_image_url = new_doc.display_url if new_doc
-    # self.save!
-  end
-
   def rename_audio_files
     board_images.includes(:image).each do |bi|
       bi.image.destroy_audio_files_without_voices
@@ -503,9 +495,10 @@ class Board < ApplicationRecord
   def add_image(image_id, layout = nil)
     new_board_image = nil
     return if image_id.blank?
+    @image = Image.with_artifacts.find_by(id: image_id)
     if image_ids.include?(image_id.to_i)
       # Don't add the same image twice
-      return
+      new_board_image = board_images.find_by(image_id: image_id.to_i)
     else
       new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images.count)
       if layout
@@ -520,7 +513,6 @@ class Board < ApplicationRecord
         new_board_image.save
         new_board_image.set_initial_layout!
       end
-      @image = Image.with_artifacts.find_by(id: image_id)
       unless @image
         Rails.logger.debug "Image not found: #{image_id}"
         return
@@ -533,6 +525,8 @@ class Board < ApplicationRecord
         SaveAudioJob.perform_async([image_id], self.voice)
       end
 
+      new_board_image.src = @image.display_image_url(self.user)
+
       unless new_board_image.save
         Rails.logger.error "new_board_image.errors: #{new_board_image.errors.full_messages}"
         return
@@ -540,7 +534,6 @@ class Board < ApplicationRecord
       self.save!
     end
     Rails.logger.error "NO IMAGE FOUND" unless new_board_image
-    new_board_image.src = @image.display_image_url(self.user)
     new_board_image
   end
 
@@ -812,12 +805,10 @@ class Board < ApplicationRecord
       @category_board = image&.category_board
       if @category_board
         @predictive_board_id = @category_board.id
-      else
-        @predictive_board_id = image&.predictive_board_id
-        @predictive_board_id ||= Board.predictive_default(user)
       end
       @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
       bi_layout = bi.layout[screen_size]
+      bi.predictive_board_id = @predictive_board_id
       bi_data_for_screen = bi.data[screen_size] || {}
       w = {
         word: bi.label,
@@ -939,7 +930,7 @@ class Board < ApplicationRecord
 
   def api_view_with_predictive_images(viewing_user = nil)
     @board_settings = settings || {}
-    @board_images = board_images.includes(image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards]).order(:position).uniq
+    @board_images = board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).order(:position).uniq
     # @board_images = board_images.includes(:image)
     word_data = get_commons_words
     existing_words = word_data[:existing_words]
@@ -949,6 +940,7 @@ class Board < ApplicationRecord
     {
       id: id,
       board_type: board_type,
+      source_type: source_type,
       menu_id: board_type === "menu" ? parent_id : nil,
       name: name,
       root_board: @root_board,
@@ -996,8 +988,8 @@ class Board < ApplicationRecord
         is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
 
         # @category_board = image&.category_board
-        @predictive_board_id = image&.predictive_board_id
-        @predictive_board = image&.predictive_board
+        @predictive_board_id = @board_image.predictive_board_id
+        @predictive_board = @board_image.predictive_board
 
         @viewer_settings = viewing_user&.settings || {}
         @predictive_board_settings = @predictive_board&.settings || {}
@@ -1005,9 +997,9 @@ class Board < ApplicationRecord
 
         @user_custom_default_id = @viewer_settings["dynamic_board_id"] || @global_default_id
 
-        is_dynamic = image.is_dynamic
-        is_predictive = image.is_predictive
-        if image.predictive_board_id == @root_board&.id
+        is_dynamic = @board_image.is_dynamic?
+        is_predictive = image.predictive?
+        if @board_image.predictive_board_id == @root_board&.id
           is_dynamic = false
         end
 
@@ -1097,26 +1089,28 @@ class Board < ApplicationRecord
     {
       id: id,
       name: name,
+      board_type: board_type,
     }
   end
 
   def assign_parent(board_type, current_user)
+    puts "Assigning parent for board: #{name} - #{board_type}"
     if board_type == "dynamic"
-      predefined_resource = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board")
+      predefined_resource = PredefinedResource.find_or_create_by!(name: "Default", resource_type: "Board")
       self.parent_id = predefined_resource.id
       self.parent_type = "PredefinedResource"
     elsif board_type == "predictive"
       self.parent_type = "Image"
-      matching_image = self.user.images.find_or_create_by(label: self.name, image_type: "predictive")
+      matching_image = self.user.images.find_or_create_by!(label: self.name, image_type: "predictive")
       if matching_image
         self.parent_id = matching_image.id
         self.image_parent_id = matching_image.id
       end
     elsif board_type == "category"
       self.parent_type = "PredefinedResource"
-      self.parent_id = PredefinedResource.find_or_create_by(name: "Default", resource_type: "category").id
+      self.parent_id = PredefinedResource.find_or_create_by!(name: "Default", resource_type: "category").id
       self.save!
-      matching_image = self.user.images.find_or_create_by(label: self.name, image_type: "category")
+      matching_image = self.user.images.find_or_create_by!(label: self.name, image_type: "category")
       if matching_image
         self.image_parent_id = matching_image.id
       end
@@ -1231,7 +1225,9 @@ class Board < ApplicationRecord
       board.board_type = board_type
 
       board.assign_parent(board_type, current_user)
+      puts "Board parent - #{board.parent.inspect}"
       if board.save!
+        puts "Board created: #{board.name} - #{board.id}"
         # Whoo hoo
       else
         puts "Board not saved"
@@ -1239,6 +1235,7 @@ class Board < ApplicationRecord
       end
       if is_root
         Rails.logger.debug "Root board found: #{board_name}"
+        puts "board_group found: #{board_group.inspect}"
         board_group.update(root_board_id: board.id)
       end
       grid = obj["grid"]
@@ -1256,20 +1253,15 @@ class Board < ApplicationRecord
           image = Image.find_by(id: item["ext_saw_image_id"].to_i, user_id: current_user.id)
         end
         image = Image.find_by(user_id: current_user.id, obf_id: item["image_id"]) unless image
+        found_image = image
         # image = Image.find_by(obf_id: item["image_id"], user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
         # image = Image.static.public_img.find_by(label: label, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
         image = Image.new(label: label, user_id: current_user.id, obf_id: item["image_id"]) unless image
         image.clean_up_label
+        image.save!
 
-        if image.predictive_board_id
-          puts "Image already has predictive board: #{image.predictive_board_id} updating to: #{board.id}"
-          image.predictive_board_id = board.id
-          image.save!
-        else
-          image.predictive_board_id = board.id
-          # image.image_type = "static"
-          image.save!
-        end
+        puts "Image found: #{image.label} - #{image.id}" if found_image
+        puts "Image created: #{image.label} - #{image.id}" unless found_image
 
         if !image
           Rails.logger.error "Image not found for label: #{label}"
@@ -1328,21 +1320,12 @@ class Board < ApplicationRecord
 
         dynamic_board = item["load_board"]
 
-        dynamic_data[image.id] = { "board_id" => board.id,
-                                   "board" => board,
-                                   "original_obf_id" => obj["id"],
-                                   "dynamic_board" => dynamic_board,
-                                   "label" => label,
-                                   "orginal_image_id" => item["image_id"],
-                                   "grid_coordinates" => grid_coordinates }
-        if image
-          existing_image = board.board_images.find_by(image_id: image.id)
-          if existing_image
-            puts "Image already exists"
-            new_board_image = existing_image
-          else
-            new_board_image = board.board_images.create!(image_id: image.id.to_i, voice: board.voice, position: board.board_images.count)
-          end
+        existing_image = board.board_images.find_by(image_id: image.id)
+        if existing_image
+          puts "Image already exists"
+          new_board_image = existing_image
+        else
+          new_board_image = board.board_images.create!(image_id: image.id.to_i, voice: board.voice, position: board.board_images.count)
         end
         if new_board_image
           new_board_image_layout = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }
@@ -1352,13 +1335,28 @@ class Board < ApplicationRecord
 
           new_board_image.save!
         end
+        dynamic_data[image.id] = { "board_id" => board.id,
+                                   "board" => board,
+                                   "original_obf_id" => obj["id"],
+                                   "dynamic_board" => dynamic_board,
+                                   "label" => label,
+                                   "orginal_image_id" => item["image_id"],
+                                   "board_image_id" => new_board_image.id }
       end
       board.update!(display_image_url: temp_display_image) if temp_display_image
+
+      puts "end Board created: #{board.name} - #{board.id}"
+
       return [board, dynamic_data]
     rescue => e
       Rails.logger.error "Error Importing from OBF: #{e}"
       return nil
     end
+  end
+
+  def source_type
+    data = self.data || {}
+    data["source_type"] || nil
   end
 
   def parse_obf_grid(obf_grid)
@@ -1382,9 +1380,6 @@ class Board < ApplicationRecord
       end
     end
     original_grid
-  end
-
-  def self.analyze_obz(file)
   end
 
   def self.from_obz(extracted_obz_data, current_user, group_name = nil, root_board_id = nil)
@@ -1442,24 +1437,27 @@ class Board < ApplicationRecord
     dynamic_data_array.each do |dynamic_data|
       dynamic_data&.each do |image_id, data|
         image = Image.find_by(id: image_id&.to_i, user_id: current_user.id)
-        next unless image
-        if image
+        board_image_id = data["board_image_id"]
+        board_image = BoardImage.find_by(id: board_image_id)
+        next unless board_image
+        if board_image
           if data["dynamic_board"]
             if created_boards.any? { |b| b[:original_obf_id] == data["dynamic_board"]["id"] }
               dynamic_board = created_boards.find { |b| b[:original_obf_id] == data["dynamic_board"]["id"] }
               dynamic_board_id = dynamic_board.with_indifferent_access[:board_id]
-              Rails.logger.debug "Setting predictive board for image: #{image.label} - #{dynamic_board_id}"
-              image.predictive_board_id = dynamic_board_id
+              Rails.logger.debug "Setting predictive board for image: #{board_image.label} - #{dynamic_board_id}"
+              # image.predictive_board_id = dynamic_board_id
+              board_image.predictive_board_id = dynamic_board_id
 
-              image.save!
+              board_image.save!
             else
-              image.predictive_board_id = root_board.id if root_board
+              board_image.predictive_board_id = root_board.id if root_board
               # image.image_type = "predictive"
-              image.save!
+              board_image.save!
             end
           end
         else
-          Rails.logger.warn "Image not found for id: #{image_id}"
+          Rails.logger.warn "board_image not found for id: #{board_image_id}"
         end
       end
     end
@@ -1479,6 +1477,32 @@ class Board < ApplicationRecord
     end
   rescue Zip::Error => e
     puts "Failed to process the ZIP file: #{e.message}"
+    nil
+  end
+
+  def self.analyze_manifest(manifest_data)
+    puts "Analyzing manifest data: "
+
+    manifest_data = JSON.parse(manifest_data)
+    parsed_data = manifest_data.with_indifferent_access
+    root_board_id = parsed_data[:root]
+    data = parsed_data[:paths]
+    pp data.keys
+    boards = data[:boards]
+    buttons = data[:buttons]
+    images = data[:images]
+    sounds = data[:sounds]
+    first_image = images&.first
+    puts "First image: #{first_image.inspect}"
+    {
+      board_count: boards&.count,
+      button_count: buttons&.count,
+      image_count: images&.count,
+      sound_count: sounds&.count,
+      root_board_id: root_board_id,
+    }
+  rescue JSON::ParserError => e
+    puts "Failed to parse the manifest data: #{e.message}"
     nil
   end
 end

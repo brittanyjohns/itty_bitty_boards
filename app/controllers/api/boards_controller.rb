@@ -18,8 +18,8 @@ class API::BoardsController < API::ApplicationController
     ActiveRecord::Base.logger.silence do
       @user_boards = current_user.boards
       @predictive_boards = @user_boards.predictive.order(name: :asc).page params[:page]
-      @dynamic_boards = @user_boards.dynamic(current_user.id).order(name: :asc).page params[:page]
-      @category_boards = @user_boards.categories(current_user.id).order(name: :asc).page params[:page]
+      @dynamic_boards = @user_boards.dynamic.order(name: :asc).page params[:page]
+      @category_boards = @user_boards.categories.order(name: :asc).page params[:page]
       @static_boards = @user_boards.static.order(name: :asc).page params[:page]
       @static_preset_boards = Board.static.predefined.order(name: :asc).page params[:page]
       @dynamic_preset_boards = Board.dynamic.predefined.order(name: :asc).page params[:page]
@@ -267,15 +267,6 @@ class API::BoardsController < API::ApplicationController
     # end
 
     @images_with_display_doc = @images.map do |image|
-      @category_board = image&.category_board
-      is_category = @category_board.present?
-      if @category_board
-        @predictive_board_id = @category_board.id
-      else
-        @predictive_board_id = image&.predictive_board_id
-      end
-      @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
-      predictive_board_board_type = @predictive_board ? @predictive_board.board_type : nil
       is_owner = image.user_id == @current_user.id
       {
         id: image.id,
@@ -290,8 +281,7 @@ class API::BoardsController < API::ApplicationController
         next_words: image.next_words,
         can_edit: is_owner || @current_user.admin?,
         is_admin_image: image.user_id == User::DEFAULT_ADMIN_ID,
-        predictive_board_board_type: predictive_board_board_type,
-        dynamic: predictive_board_board_type.present?,
+        dynamic: image.dynamic?,
       }
     end
     render json: @images_with_display_doc.sort { |a, b| a[:label] <=> b[:label] }

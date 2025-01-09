@@ -114,13 +114,9 @@ class API::ImagesController < API::ApplicationController
     puts "MERGE DONE"
     @board_images = BoardImage.where(image_id: @image_to_merge.id)
     @board_images.each do |board_image|
-      board_image.update(image_id: @image.id)
+      board_image.update(image_id: @image.id, display_image_url: @image.src_url)
     end
-    if @image_to_merge.predictive_board && !@image.predictive_board_id
-      predictive_board_id = @image_to_merge.predictive_board_id
-      @image.update(predictive_board_id: predictive_board_id)
-    end
-    # @image_to_merge.destroy!
+
     @image_to_merge.update(status: "marked_for_deletion")
     DeleteImageJob.perform_in(1.minute, @image_to_merge.id)
     @image.reload
@@ -312,7 +308,7 @@ class API::ImagesController < API::ApplicationController
     use_preview_model = current_user.admin? || current_user.settings["use_preview_model"]
 
     Rails.logger.info("Creating predictive board for image: #{@image.label} -- use_preview_model: #{use_preview_model} -- word_list: #{word_list}")
-
+    board_settings[:board_id] = params[:board_id] if params[:board_id].present?
     board = @image.create_predictive_board(user_id, word_list, use_preview_model, board_settings)
     if board.nil?
       render json: { status: "error", message: "Could not create predictive board." }
@@ -441,14 +437,6 @@ class API::ImagesController < API::ApplicationController
 
   def update
     @image = Image.find(params[:id])
-    if params[:image][:predictive_board_id].present?
-      puts "Predictive board id: #{params[:image][:predictive_board_id]}"
-    else
-      image_params[:predictive_board_id] = nil
-      @image.predictive_board_id = nil
-      @image.save!
-    end
-
     puts "Image params: #{image_params}"
 
     if @image.update(image_params)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_01_04_220917) do
+ActiveRecord::Schema[7.1].define(version: 2025_01_07_184524) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -97,10 +97,12 @@ ActiveRecord::Schema[7.1].define(version: 2025_01_04_220917) do
     t.jsonb "data", default: {}
     t.string "label"
     t.string "display_image_url"
+    t.integer "predictive_board_id"
     t.index ["board_id"], name: "index_board_images_on_board_id"
     t.index ["data"], name: "index_board_images_on_data", using: :gin
     t.index ["image_id"], name: "index_board_images_on_image_id"
     t.index ["label"], name: "index_board_images_on_label"
+    t.index ["predictive_board_id"], name: "index_board_images_on_predictive_board_id"
   end
 
   create_table "boards", force: :cascade do |t|
@@ -229,13 +231,11 @@ ActiveRecord::Schema[7.1].define(version: 2025_01_04_220917) do
     t.boolean "use_custom_audio", default: false
     t.string "voice"
     t.string "src_url"
-    t.integer "predictive_board_id"
     t.jsonb "data", default: {}
     t.jsonb "license", default: {}
     t.string "obf_id"
     t.index ["category"], name: "index_images_on_category"
     t.index ["obf_id"], name: "index_images_on_obf_id"
-    t.index ["predictive_board_id"], name: "index_images_on_predictive_board_id"
     t.index ["use_custom_audio"], name: "index_images_on_use_custom_audio"
     t.index ["voice"], name: "index_images_on_voice"
   end

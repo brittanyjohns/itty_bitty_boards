@@ -50,7 +50,7 @@ class Image < ApplicationRecord
 
   PROMPT_ADDITION = " Styled as a simple cartoon illustration."
 
-  SOURCE_TYPE_NAMES = ["CommuniKate", "Core 24 - ", "Core 24"].freeze
+  SOURCE_TYPE_NAMES = ["CommuniKate", "Core 24 - ", "Core 24", "Sequoia 15 - ", "Sequoia 15"].freeze
 
   validates :label, presence: true
 
@@ -113,6 +113,11 @@ class Image < ApplicationRecord
     end
   end
 
+  def source_type
+    data = self.data || {}
+    data["source_type"]
+  end
+
   def clean_up_label
     has_source_type = false
     original_type_name = nil
@@ -130,23 +135,31 @@ class Image < ApplicationRecord
     end
     self.data ||= {}
     self.data["source_type"] = original_type_name if has_source_type
-    self.label = img_label
+    self.label = img_label.strip
+
+    if label.blank? || label == "Untitled Image"
+      self.label = original_type_name + " Image" if original_type_name
+      if label.blank?
+        self.name = "Untitled Image"
+      end
+    end
   end
 
   def predictive_board
-    if predictive_board_id
-      board = Board.find_by(id: predictive_board_id)
-      return board if board
-    end
-    matching_boards = matching_viewer_boards(user)
-    matching_boards.order(created_at: :desc).first if matching_boards.any?
+    # if predictive_board_id
+    #   board = Board.find_by(id: predictive_board_id)
+    #   return board if board
+    # end
+    # matching_boards = matching_viewer_boards(user)
+    # matching_boards.order(created_at: :desc).first if matching_boards.any?
+
   end
 
   def update_all_boards_image_belongs_to(url)
     board_images.includes(:board).each do |bi|
       next if user_id && bi.board.user_id != user_id
       bi.board.updated_at = Time.now
-      bi.display_image_url = url
+      bi.display_image_url = url unless bi.display_image_url.present?
       bi.save!
       bi.board.save!
     end
@@ -186,8 +199,7 @@ class Image < ApplicationRecord
   end
 
   def self.predictive
-    self.where.associated(:predictive_boards)
-    # self.where(image_type: "predictive")
+    self.where(image_type: "predictive")
   end
 
   def self.update_all_background_colors
@@ -219,39 +231,21 @@ class Image < ApplicationRecord
     if audio_url.blank?
       self.audio_url = default_audio_url
     end
-    # if predictive_board_id && image_type == "static"
-    #   self.predictive_board_id = nil
-    #   Rails.logger.debug "Predictive board id removed for static image"
-    # end
+
+    if voice.blank?
+      user_voice = user&.voice
+      self.voice = user_voice || "alloy"
+    end
 
     if category_board
       Rails.logger.debug "Setting image type to Category - #{category_board.name}"
       self.image_type = "category"
-      self.predictive_board_id = category_board.id
+      # self.predictive_board_id = category_board.id
     end
 
-    if predictive_board && predictive_board&.board_type == "predictive" && image_type.blank?
-      Rails.logger.debug "Setting image type to Predictive - #{predictive_board.name}"
-      self.image_type = "predictive"
-      self.predictive_board_id = predictive_board.id
-    end
-    if category_boards.any? && !predictive_board_id && image_type.blank?
-      self.predictive_board_id = category_boards.first.id
-      self.image_type = "category"
-    end
-
-    matching_boards = matching_viewer_boards(user)
-
-    if !predictive_board_id && matching_boards.any?
-      self.predictive_board_id = matching_boards.order(created_at: :desc).first.id
-      Rails.logger.debug "Setting predictive board id to #{predictive_board_id} for #{label}"
-    end
     if image_type.blank? || image_type == "Static"
-      # self.image_type = "static"
+      self.image_type = "static"
       Rails.logger.debug "Would have set image type to Static for #{label}"
-    end
-    if predictive_board && self.predictive_board_id != predictive_board.id
-      self.predictive_board_id = predictive_board.id
     end
   end
 
@@ -275,18 +269,23 @@ class Image < ApplicationRecord
   end
 
   def category_board
-    if predictive_board_id
-      category_board_id = predictive_board_id
-      category_board_id ? Board.with_artifacts.find_by(id: category_board_id) : nil
-    else
-      category_boards.first
-    end
+    category_boards.first
+    # if predictive_board_id
+    #   category_board_id = predictive_board_id
+    #   category_board_id ? Board.with_artifacts.find_by(id: category_board_id) : nil
+    # else
+    #   category_boards.first
+    # end
   end
 
   def create_predictive_board(new_user_id, words_to_use = nil, use_preview_model = false, board_settings = {})
     Rails.logger.debug "Creating predictive board for #{label} - #{new_user_id} - words: #{words_to_use}"
     new_board = false
-    board = predictive_boards.find_by(name: label, user_id: new_user_id)
+    base_board_id = board_settings[:board_id]
+    if base_board_id
+      base_board = Board.find_by(id: base_board_id)
+    end
+    board = predictive_boards.find_by(name: label, user_id: new_user_id) unless board
     if board
       if use_preview_model && words_to_use.blank?
         board_words = board.board_images.map(&:label).uniq
@@ -308,11 +307,18 @@ class Image < ApplicationRecord
       Rails.logger.debug "Could not create predictive board for #{label}"
       return
     end
+    new_base_board_image = base_board.add_image(self.id) if base_board
+    board.update!(display_image_url: src_url) if src_url
+
     self.image_type = "predictive"
-    self.predictive_board_id = board.id
-    self.save!
+    if new_base_board_image
+      new_base_board_image.predictive_board_id = board.id
+      new_base_board_image.save!
+      base_board.update!(board_type: "dynamic")
+    end
 
     board.find_or_create_images_from_word_list(words_to_use)
+    board.board_type = "predictive"
     board.reset_layouts if new_board
     board
   end
@@ -540,9 +546,7 @@ class Image < ApplicationRecord
   end
 
   def predictive?
-    id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
-    predict_id = predictive_board&.id
-    id_from_env && id_from_env.to_i == predict_id
+    image_type == "predictive"
   end
 
   def default_audio_files
@@ -603,7 +607,7 @@ class Image < ApplicationRecord
 
   def find_audio_for_voice(voice = "alloy")
     filename = "#{label_for_filename}_#{voice}.aac"
-
+    # TODO - this should be unscoped & check all audio files -- maybe?
     audio_file = ActiveStorage::Attachment.joins(:blob)
       .where(record: self, name: :audio_files, active_storage_blobs: { filename: filename })
       .first
@@ -686,7 +690,7 @@ class Image < ApplicationRecord
   end
 
   def self.voices
-    ["echo", "fable", "onyx", "nova", "shimmer", "alloy"]
+    ["alloy", "fable", "onyx", "nova", "shimmer", "echo"]
   end
 
   def self.languages
@@ -867,16 +871,6 @@ class Image < ApplicationRecord
     docs.unscoped.any? { |doc| doc.processed === symbol_name }
   end
 
-  def self.update_predictive_images
-    Image.predictive.where(predictive_board_id: nil).each do |image|
-      matching_boards = image.matching_viewer_boards(image.user)
-      if matching_boards.any?
-        image.predictive_board_id = matching_boards.order(created_at: :desc).first.id
-        image.save!
-      end
-    end
-  end
-
   def self.destroy_duplicate_images(dry_run: true, limit: 100, labels: [], user_ids: [User::DEFAULT_ADMIN_ID, nil])
     total_images_destroyed = 0
     total_docs_saved = 0
@@ -905,22 +899,19 @@ class Image < ApplicationRecord
         # Skip the first image (which we want to keep) and destroy the rest
         # images.drop(1).each(&:destroy)
         puts "\nDuplicate images for #{label}: #{images.count}" if images.count > 1
-        keep = images.select { |image| image.predictive_board_id }.first
+        keep = images.select { |image| image.user_id != nil }.first
         keep ||= images.first
         keeping_docs = keep.docs
         puts "Urls: #{keeping_docs.pluck(:original_image_url)}" if keeping_docs.any?
         kept_urls = keeping_docs.pluck(:original_image_url).compact
-        predictive_board_id = keep.predictive_board_id
-        predictive_board_id = images.pluck(:predictive_board_id).compact.first unless predictive_board_id
-        puts "Keeping image: id: #{keep.id} - label: #{keep.label} - created_at: #{keep.created_at} - docs: #{keeping_docs.count} - predictive_board_id: #{predictive_board_id}"
-        keep.predictive_board_id = predictive_board_id
+
         keep.save! unless dry_run
         images_to_run = images.excluding(keep)
         puts "Images: #{images.count} - Images to run: #{images_to_run.count}"
         images_to_run.each do |image|
           destroying_docs = image.docs
 
-          Rails.logger.debug "Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at} - docs: #{destroying_docs.count} - predictive_board_id: #{predictive_board_id}"
+          Rails.logger.debug "Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at} - docs: #{destroying_docs.count}"
           destroying_docs.each do |doc|
             if kept_urls.include?(doc.original_image_url)
               puts "Skipping doc: #{doc.id} - #{doc.original_image_url}"
@@ -931,8 +922,8 @@ class Image < ApplicationRecord
             total_docs_saved += 1
           end
 
-          destroying_board_images = BoardImage.where(image_id: image.id)
-          destroying_board_images.each do |bi|
+          updating_board_images = BoardImage.where(image_id: image.id)
+          updating_board_images.each do |bi|
             bi.update!(image_id: keep.id) unless dry_run
           end
 
@@ -1049,6 +1040,7 @@ class Image < ApplicationRecord
 
       docs = self.docs.where(user_id: viewing_user.id)
       return docs.current.first if docs.current.any?
+      return docs.first if docs.any?
     end
     base_doc = self.docs.includes(image_attachment: :blob).first
     base_doc
@@ -1187,6 +1179,11 @@ class Image < ApplicationRecord
     current_user.boards.includes(:board_images).where(board_images: { image_id: id }).order(name: :asc)
   end
 
+  def user_board_images(current_user)
+    return [] unless current_user
+    current_user.board_images.where(image_id: id).order(created_at: :desc)
+  end
+
   def update_src_url
     doc = display_doc(user)
     if doc && doc.display_url
@@ -1205,11 +1202,8 @@ class Image < ApplicationRecord
     viewing_user.boards.where(name: label).order(created_at: :desc)
   end
 
-  def is_dynamic(viewing_user = nil)
-    board = predictive_board
-    # is_dynamic = ["predictive", "category"].include?(board&.board_type)
-    is_dynamic = board.present?
-    is_dynamic
+  def dynamic?
+    image_type == "dynamic"
   end
 
   def describe_image(doc_url)
@@ -1225,9 +1219,9 @@ class Image < ApplicationRecord
     end
   end
 
-  def is_predictive(viewing_user = nil)
-    is_predictive = predictive_board_id.present?
-    is_predictive
+  def predictive_board_image_for_user(viewing_user = nil)
+    return nil unless viewing_user
+    viewing_user.board_images.where.not(predictive_board_id: nil).where(image_id: id).first
   end
 
   def with_display_doc(current_user = nil)
@@ -1244,9 +1238,12 @@ class Image < ApplicationRecord
     @default_audio_url = default_audio_url
     # is_owner = @current_user && user_id == @current_user&.id
     is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
+    @matching_boards = matching_viewer_boards(@current_user)
 
-    img_is_dynamic = is_dynamic(@current_user)
-    img_is_predictive = is_predictive(@current_user)
+    @board_images = user_board_images(@current_user)
+
+    img_is_dynamic = dynamic?
+    img_is_predictive = predictive?
     is_owner = @current_user && user_id == @current_user&.id
     @category_boards = category_boards.order(name: :asc)
     is_category = @category_boards.where(user_id: [@current_user&.id, nil, User::DEFAULT_ADMIN_ID]).any?
@@ -1273,7 +1270,8 @@ class Image < ApplicationRecord
       status: status,
       error: error,
       text_color: text_color,
-      predictive_board_id: predictive_board_id,
+      predictive_board_id: nil,
+      board_images: @board_images.map { |board_image| board_image.api_view(@current_user) },
       global_default_id: @global_default_id,
       dynamic: img_is_dynamic,
       dynamic_board: predictive_board,
@@ -1296,7 +1294,7 @@ class Image < ApplicationRecord
       user_boards: user_image_boards.map { |board| board.api_view(@current_user) },
       remaining_boards: remaining.map { |board| { id: board.id, name: board.name, board_type: board.board_type } },
       matching_viewer_images: matching_viewer_images(@current_user).map { |image| { id: image.id, label: image.label, src: image.display_image_url(@current_user) || image.src_url, created_at: image.created_at.strftime("%b %d, %Y") } },
-      matching_viewer_boards: matching_viewer_boards(@current_user).map { |board|
+      matching_viewer_boards: @matching_boards.map { |board|
         { id: board.id, name: board.name, voice: board.voice,
           display_image_url: board.display_image_url || board.image_parent&.src_url, created_at: board.created_at.strftime("%b %d, %Y") }
       },

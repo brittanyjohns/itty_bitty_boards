@@ -308,4 +308,19 @@ RSpec.describe Board, type: :model do
       expect(manifest).to be_present
     end
   end
+
+  describe ".analyze_manifest" do
+    it "analyzes the manifest from an OBZ file" do
+      obf_zip_file_path = Rails.root.join("spec", "data", "ck12.obz")
+      manifest = Board.extract_manifest(obf_zip_file_path)
+      parsed_manifest = Board.analyze_manifest(manifest)
+      puts "parsed_manifest: #{parsed_manifest}"
+
+      board_count = parsed_manifest["board_count"]
+      image_count = parsed_manifest["image_count"]
+      root_board_id = parsed_manifest["root_board_id"]
+
+      expect(parsed_manifest).to be_present
+    end
+  end
 end
