@@ -15,7 +15,7 @@ class API::ImagesController < API::ApplicationController
       @images = Image.searchable.with_artifacts.where(user_id: @current_user.id)
     else
       # @images = Image.searchable_images_for(@current_user)
-      @images = Image.searchable.with_artifacts.where(user_id: [@current_user.id, nil, User::DEFAULT_ADMIN_ID])
+      @images = Image.searchable.with_artifacts.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
     end
 
     if params[:query].present?
