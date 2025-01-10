@@ -148,7 +148,7 @@ class API::DocsController < API::ApplicationController
         @user = current_user
         is_owner = true
       else
-        is_owner = @user.id == current_user.id
+        is_owner = @user&.id == current_user.id
       end
 
       # if @user.id == current_user.id

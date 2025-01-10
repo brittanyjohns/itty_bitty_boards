@@ -298,7 +298,8 @@ class Board < ApplicationRecord
 
       if has_source_type
         original_type_name = type_name.gsub("-", "").strip
-        name.downcase!.gsub!(type_name, "") if name
+        name.downcase!
+        name.gsub!(type_name, "") if name
         break
       end
     end

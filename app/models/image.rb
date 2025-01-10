@@ -1292,11 +1292,10 @@ class Image < ApplicationRecord
       part_of_speech: part_of_speech,
       can_edit: (current_user && user_id == current_user.id) || current_user&.admin?,
       user_boards: user_image_boards.map { |board| board.api_view(@current_user) },
-      remaining_boards: remaining.map { |board| { id: board.id, name: board.name, board_type: board.board_type } },
-      matching_viewer_images: matching_viewer_images(@current_user).map { |image| { id: image.id, label: image.label, src: image.display_image_url(@current_user) || image.src_url, created_at: image.created_at.strftime("%b %d, %Y") } },
+      remaining_boards: remaining.map { |board| { id: board.id, name: board.name, board_type: board.board_type, user_id: board.user_id } },
+      matching_viewer_images: matching_viewer_images(@current_user).map { |image| { id: image.id, label: image.label, src: image.display_image_url(@current_user) || image.src_url, created_at: image.created_at.strftime("%b %d, %Y"), user_id: image.user_id } },
       matching_viewer_boards: @matching_boards.map { |board|
-        { id: board.id, name: board.name, voice: board.voice,
-          display_image_url: board.display_image_url || board.image_parent&.src_url, created_at: board.created_at.strftime("%b %d, %Y") }
+        { id: board.id, name: board.name, voice: board.voice, user_id: board.user_id, board_type: board.board_type, display_image_url: board.display_image_url || board.image_parent&.src_url, created_at: board.created_at.strftime("%b %d, %Y") }
       },
       docs: image_docs.map do |doc|
         {

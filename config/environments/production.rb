@@ -106,16 +106,16 @@ Rails.application.configure do
   # Incoming server (POP3): 995 port for SSL, 110 for TLS.
   # Outgoing server (SMTP): 465 port for SSL, 25/587 port for TLS.
 
-  #   config.action_mailer.delivery_method = :smtp
-  #   config.action_mailer.smtp_settings = {
-  #     address: "smtp.mailgun.org"
-  #     port: 587,
-  #     domain: "speakanyway.com",
-  #     user_name: "brad@sandbox705d52bb95f047af8cd33ca21d92a9b7.mailgun.org",
-  #     password: ENV["SMTP_PASSWORD"],
-  #     authentication: "plain",
-  #     enable_starttls_auto: true
-  #   }
+  # config.action_mailer.delivery_method = :smtp
+  # config.action_mailer.smtp_settings = {
+  #   host: "speakanyway.com",
+  #   port: 587,
+  #   domain: "speakanyway.com",
+  #   user_name: "brad@sandbox705d52bb95f047af8cd33ca21d92a9b7.mailgun.org",
+  #   password: ENV["SMTP_PASSWORD"],
+  #   authentication: "plain",
+  #   enable_starttls_auto: true,
+  # }
 
   config.action_mailer.delivery_method = :mailgun
   config.action_mailer.mailgun_settings = {
