@@ -900,6 +900,10 @@ class Image < ApplicationRecord
     docs.unscoped.any? { |doc| doc.processed === symbol_name }
   end
 
+  def label_and_user_id
+    "#{label_for_filename}_#{user_id}"
+  end
+
   def self.destroy_duplicate_images(dry_run: true, limit: 100, labels: [], user_ids: [User::DEFAULT_ADMIN_ID, nil])
     total_images_destroyed = 0
     total_docs_saved = 0
