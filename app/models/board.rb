@@ -297,8 +297,8 @@ class Board < ApplicationRecord
       puts "Has source type final: #{has_source_type} - #{type_name}"
 
       if has_source_type
-        original_type_name = type_name.gsub(" - ", "").strip
-        name.gsub!(type_name, "") if name
+        original_type_name = type_name.gsub("-", "").strip
+        name.downcase!.gsub!(type_name, "") if name
         break
       end
     end
