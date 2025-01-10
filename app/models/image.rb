@@ -73,7 +73,7 @@ class Image < ApplicationRecord
   scope :non_sample_voices, -> { where.not(image_type: "SampleVoice").or(where(image_type: nil)) }
   scope :sample_voices, -> { where(image_type: "SampleVoice") }
   scope :no_image_type, -> { where(image_type: nil) }
-  scope :public_img, -> { non_sample_voices.where(private: false) }
+  scope :public_img, -> { non_sample_voices.where(private: [false, nil]) }
   scope :private_img, -> { where(private: true) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
   scope :skipped, -> { where(open_symbol_status: "skipped") }
@@ -191,7 +191,6 @@ class Image < ApplicationRecord
         is_current_url_valid = authorized_to_view_url?(bi.display_image_url)
         unless is_current_url_valid
           image_result = authorized_to_view_url?(url)
-          puts "Image result: #{image_result}"
           bi.display_image_url = url if image_result
         end
       else

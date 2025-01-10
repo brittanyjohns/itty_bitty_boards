@@ -1004,13 +1004,12 @@ class Board < ApplicationRecord
         end
 
         is_category = @predictive_board && @predictive_board.board_type == "category"
-        mute_name = @predictive_board_settings["mute_name"] == true && is_dynamic
         freeze_board = @predictive_board_settings["freeze_board"] == true
         is_first_image = @board_image.position == 0
         freeze_parent_board = @board_settings["freeze_board"] == true && is_first_image
         @board_image.data ||= {}
         override_frozen = @board_image.data["override_frozen"] == true
-        mute_name ||= true if override_frozen
+        mute_name = @board_image.data["mute_name"] == true
         {
           id: image.id,
           label: @board_image.label,
@@ -1462,7 +1461,7 @@ class Board < ApplicationRecord
       manifest_entry.get_input_stream.read
     end
   rescue Zip::Error => e
-    puts "Failed to process the ZIP file: #{e.message}"
+    Rails.logger.debug "Failed to process the ZIP file: #{e.message}"
     nil
   end
 
@@ -1485,7 +1484,7 @@ class Board < ApplicationRecord
       root_board_id: root_board_id,
     }
   rescue JSON::ParserError => e
-    puts "Failed to parse the manifest data: #{e.message}"
+    Rails.logger.debug "Failed to parse the manifest data: #{e.message}"
     nil
   end
 end
