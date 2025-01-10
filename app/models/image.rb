@@ -83,13 +83,7 @@ class Image < ApplicationRecord
   scope :generating, -> { where(status: "generating") }
   scope :with_artifacts, -> { includes({ docs: { image_attachment: :blob } }, :predictive_boards, :user, :category_boards) }
   scope :created_between, ->(start_date, end_date) { where(created_at: start_date..end_date) }
-
-  def self.cleanup_mess
-    # 2024-10-23T02:29:57.064Z
-    start_date = Date.new(2024, 10, 22)
-    end_date = Date.new(2024, 10, 24)
-    Image.created_between(start_date, end_date).destroy_all
-  end
+  scope :created_before, ->(date) { where("created_at < ?", date) }
 
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!, unless: :menu?
@@ -155,21 +149,56 @@ class Image < ApplicationRecord
 
   end
 
-  def update_all_boards_image_belongs_to(url)
-    board_images.includes(:board).each do |bi|
-      next if user_id && bi.board.user_id != user_id
-      bi.board.updated_at = Time.now
-      bi.display_image_url = url unless bi.display_image_url.present?
-      bi.save!
-      bi.board.save!
+  #   require 'net/http'
+  # require 'uri'
+
+  def authorized_to_view_url?(url)
+    begin
+      uri = URI.parse(url)
+      response = Net::HTTP.get_response(uri)
+
+      # Allowable status codes (you can customize this)
+      return response.code.to_i == 200
+    rescue SocketError, URI::InvalidURIError, Timeout::Error, Errno::ECONNREFUSED => e
+      Rails.logger.error("URL validation error for #{url}: #{e.message}")
+      return false
     end
   end
 
-  def update_board_images_display_image
-    return unless src_url
-    board_images.each do |bi|
-      next unless bi.display_image_url.blank?
-      bi.update!(display_image_url: src_url)
+  # def update_all_boards_image_belongs_to(url)
+  #   board_images.includes(:board).each do |bi|
+  #     next if user_id && bi.board.user_id != user_id
+  #     bi.board.updated_at = Time.now
+  #     if bi.display_image_url.present?
+  #       is_current_url_valid = authorized_to_view_url?(bi.display_image_url)
+  #       unless is_current_url_valid
+  #         bi.display_image_url = url
+  #       end
+  #     else
+  #       bi.display_image_url = url
+  #     end
+
+  #     bi.save!
+  #     bi.board.save!
+  #   end
+  # end
+  def update_all_boards_image_belongs_to(url = nil)
+    url ||= src_url
+    board_images.includes(:board).find_each do |bi|
+      next if user_id && bi.board.user_id != user_id
+
+      bi.board.updated_at = Time.now
+      if bi.display_image_url.present?
+        is_current_url_valid = authorized_to_view_url?(bi.display_image_url)
+        unless is_current_url_valid
+          bi.display_image_url = url if authorized_to_view_url?(url)
+        end
+      else
+        bi.display_image_url = url if authorized_to_view_url?(url)
+      end
+
+      bi.save!
+      bi.board.save!
     end
   end
 

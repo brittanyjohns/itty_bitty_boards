@@ -453,7 +453,10 @@ class API::ImagesController < API::ApplicationController
     else
       @user = @image.user
       current_user.user_docs.where(image_id: @image.id).destroy_all
-      @image.update_all_boards_image_belongs_to(nil)
+      @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
+      @board_image = BoardImage.where(image_id: @image.id, board_id: @board.id).first
+      @board_images.update(display_image_url: nil) if @board_image
+      # @image.update_all_boards_image_belongs_to(nil)
       # UpdateBoardImagesJob.perform_async(@image.id, saved_image_url)
       # if @user.nil? && current_user.admin?
       #   @user = current_user

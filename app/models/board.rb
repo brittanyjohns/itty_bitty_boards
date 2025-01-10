@@ -1037,7 +1037,7 @@ class Board < ApplicationRecord
           text_color: @board_image.text_color,
           next_words: @board_image.next_words,
           position: @board_image.position,
-          src_url: image.src_url,
+          src_url: @board_image.display_image_url || image.src_url,
           mute_name: mute_name,
           # src: image.src_url || @board_image.display_image_url || image.display_image_url(viewing_user),
           src: @board_image.display_image_url || image.display_image_url(viewing_user),
