@@ -1243,11 +1243,11 @@ class Board < ApplicationRecord
         if item["ext_saw_image_id"]
           image = Image.find_by(id: item["ext_saw_image_id"].to_i, user_id: current_user.id)
         end
-        image = Image.find_by(user_id: current_user.id, obf_id: item["image_id"]) unless image
+        image = Image.find_by(user_id: current_user.id) unless image
         found_image = image
         # image = Image.find_by(obf_id: item["image_id"], user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
         # image = Image.static.public_img.find_by(label: label, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
-        image = Image.new(label: label, user_id: current_user.id, obf_id: item["image_id"]) unless image
+        image = Image.new(label: label, user_id: current_user.id) unless image
         image.clean_up_label
         image.save!
 
@@ -1312,13 +1312,16 @@ class Board < ApplicationRecord
         if existing_image
           new_board_image = existing_image
         else
-          new_board_image = board.board_images.create!(image_id: image.id.to_i, voice: board.voice, position: board.board_images.count)
+          new_board_image = board.board_images.create!(image_id: image.id.to_i, voice: board.voice, position: board.board_images.count, display_image_url: temp_display_image)
         end
         if new_board_image
           new_board_image_layout = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }
           new_board_image.layout["lg"] = new_board_image_layout
           new_board_image.layout["md"] = new_board_image_layout
           new_board_image.layout["sm"] = new_board_image_layout
+
+          new_board_image.data ||= {}
+          new_board_image.data["obf_id"] = item["image_id"]
 
           new_board_image.save!
         end
