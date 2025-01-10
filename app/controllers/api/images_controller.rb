@@ -39,9 +39,9 @@ class API::ImagesController < API::ApplicationController
     puts "Image ID: #{id}"
 
     @image = Image.find(id)
-    # @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
+    @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
 
-    @image_with_display_doc = @image.with_display_doc(@current_user)
+    @image_with_display_doc = @image.with_display_doc(@current_user, @board)
     render json: @image_with_display_doc
   end
 

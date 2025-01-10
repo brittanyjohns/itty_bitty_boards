@@ -1224,7 +1224,7 @@ class Image < ApplicationRecord
     viewing_user.board_images.where.not(predictive_board_id: nil).where(image_id: id).first
   end
 
-  def with_display_doc(current_user = nil)
+  def with_display_doc(current_user = nil, board = nil)
     @current_user = current_user
     @predictive_board = predictive_board
     @global_default_id = Board.predictive_default_id
@@ -1241,6 +1241,8 @@ class Image < ApplicationRecord
     @matching_boards = matching_viewer_boards(@current_user)
 
     @board_images = user_board_images(@current_user)
+
+    @board_image = BoardImage.where(image_id: id, board_id: board.id).first if board
 
     img_is_dynamic = dynamic?
     img_is_predictive = predictive?
@@ -1260,7 +1262,7 @@ class Image < ApplicationRecord
       display_doc: doc_img_url,
       data: data,
       src: doc_img_url,
-      src_url: src_url,
+      src_url: @board_image&.display_image_url,
       # board_images: @current_user.boards.includes(board_images: :image).where(board_images: { image_id: id }).order(name: :asc).map { |board_img| board_img.api_view(@current_user) },
       predictive_board_board_type: @predictive_board&.board_type,
       audio: @default_audio_url,
