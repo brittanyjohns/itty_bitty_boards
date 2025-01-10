@@ -50,7 +50,7 @@ class Image < ApplicationRecord
 
   PROMPT_ADDITION = " Styled as a simple cartoon illustration."
 
-  SOURCE_TYPE_NAMES = ["CommuniKate", "Core 24 - ", "Core 24", "Sequoia 15 - ", "Sequoia 15"].freeze
+  SOURCE_TYPE_NAMES = ["CommuniKate", "Core 24 - ", "Core 24", "Sequoia 15 - ", "Sequoia 15", "starter, "].freeze
 
   validates :label, presence: true
 
@@ -94,7 +94,7 @@ class Image < ApplicationRecord
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!, unless: :menu?
   before_save :set_label, :ensure_defaults
-  before_save :clean_up_label
+  before_save :clean_up_label, if: -> { !obf_id.blank? }
 
   after_save :update_board_images, if: -> { need_to_update_board_images? }
   after_save :update_background_color, if: -> { part_of_speech_changed? }
