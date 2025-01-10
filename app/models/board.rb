@@ -294,7 +294,6 @@ class Board < ApplicationRecord
       type_name.downcase!
       has_source_type = board_name.include?(type_name) if board_name
       has_source_type = source_type == type_name if source_type && !has_source_type
-      puts "Has source type final: #{has_source_type} - #{type_name}"
 
       if has_source_type
         original_type_name = type_name.gsub("-", "").strip
@@ -1095,7 +1094,6 @@ class Board < ApplicationRecord
   end
 
   def assign_parent(board_type, current_user)
-    puts "Assigning parent for board: #{name} - #{board_type}"
     if board_type == "dynamic"
       predefined_resource = PredefinedResource.find_or_create_by!(name: "Default", resource_type: "Board")
       self.parent_id = predefined_resource.id
@@ -1211,10 +1209,7 @@ class Board < ApplicationRecord
       is_root = root_board_id == obf_id
 
       board = Board.find_by(name: board_name, user_id: current_user.id, obf_id: obf_id, board_group: board_group)
-      # if board
-      #   Rails.logger.error "Board already exists for name: #{board_name} and user_id: #{current_user.id} and obf_id: #{obf_id}"
-      #   return
-      # end
+
       dynamic_images = obj["buttons"].select { |item| item["load_board"] != nil }
       board_type = determine_board_type(dynamic_images, is_root)
 
@@ -1226,17 +1221,12 @@ class Board < ApplicationRecord
       board.board_type = board_type
 
       board.assign_parent(board_type, current_user)
-      puts "Board parent - #{board.parent.inspect}"
-      if board.save!
-        puts "Board created: #{board.name} - #{board.id}"
-        # Whoo hoo
-      else
-        puts "Board not saved"
+      unless board.save!
+        Rails.logger.warn "Board not saved"
         return
       end
       if is_root
         Rails.logger.debug "Root board found: #{board_name}"
-        puts "board_group found: #{board_group.inspect}"
         board_group.update(root_board_id: board.id)
       end
       grid = obj["grid"]
@@ -1260,9 +1250,6 @@ class Board < ApplicationRecord
         image = Image.new(label: label, user_id: current_user.id, obf_id: item["image_id"]) unless image
         image.clean_up_label
         image.save!
-
-        puts "Image found: #{image.label} - #{image.id}" if found_image
-        puts "Image created: #{image.label} - #{image.id}" unless found_image
 
         if !image
           Rails.logger.error "Image not found for label: #{label}"
@@ -1323,7 +1310,6 @@ class Board < ApplicationRecord
 
         existing_image = board.board_images.find_by(image_id: image.id)
         if existing_image
-          puts "Image already exists"
           new_board_image = existing_image
         else
           new_board_image = board.board_images.create!(image_id: image.id.to_i, voice: board.voice, position: board.board_images.count)
@@ -1345,8 +1331,6 @@ class Board < ApplicationRecord
                                    "board_image_id" => new_board_image.id }
       end
       board.update!(display_image_url: temp_display_image) if temp_display_image
-
-      puts "end Board created: #{board.name} - #{board.id}"
 
       return [board, dynamic_data]
     rescue => e
@@ -1467,9 +1451,7 @@ class Board < ApplicationRecord
   end
 
   def self.extract_manifest(zip_path, manifest_filename = "manifest.json")
-    puts "Extracting manifest from ZIP file: #{zip_path}"
     Zip::File.open(zip_path) do |zip_file|
-      puts "Searching for manifest file '#{manifest_filename}' in the archive"
       manifest_entry = zip_file.find_entry(manifest_filename)
 
       raise "Manifest file '#{manifest_filename}' not found in the archive" unless manifest_entry
@@ -1482,8 +1464,6 @@ class Board < ApplicationRecord
   end
 
   def self.analyze_manifest(manifest_data)
-    puts "Analyzing manifest data: "
-
     manifest_data = JSON.parse(manifest_data)
     parsed_data = manifest_data.with_indifferent_access
     root_board_id = parsed_data[:root]
@@ -1494,7 +1474,6 @@ class Board < ApplicationRecord
     images = data[:images]
     sounds = data[:sounds]
     first_image = images&.first
-    puts "First image: #{first_image.inspect}"
     {
       board_count: boards&.count,
       button_count: buttons&.count,
