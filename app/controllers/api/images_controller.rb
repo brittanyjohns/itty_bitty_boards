@@ -301,6 +301,15 @@ class API::ImagesController < API::ApplicationController
 
   def create_predictive_board
     @image = Image.find(params[:id])
+    board_id = params[:board_id]
+    @board = Board.with_artifacts.find_by(id: board_id) if board_id.present?
+    unless @board.nil?
+      @board_image = @board.board_images.find_by(image_id: @image.id)
+      if @board_image.nil?
+        @board_image = @board.add_image(@image.id)
+      end
+    end
+
     user_id = current_user.id
     word_list = params[:word_list] ? params[:word_list].compact : nil
     board_settings = params[:board_settings] || {}
@@ -310,7 +319,8 @@ class API::ImagesController < API::ApplicationController
     Rails.logger.info("Creating predictive board for image: #{@image.label} -- use_preview_model: #{use_preview_model} -- word_list: #{word_list}")
     board_settings[:board_id] = params[:board_id] if params[:board_id].present?
     board = @image.create_predictive_board(user_id, word_list, use_preview_model, board_settings)
-    if board.nil?
+    @board_image.update(predictive_board_id: board.id) if @board_image && board
+    if board.nil? || !board.persisted?
       render json: { status: "error", message: "Could not create predictive board." }
       return
     end
