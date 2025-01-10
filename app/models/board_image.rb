@@ -271,6 +271,7 @@ class BoardImage < ApplicationRecord
       next_words: next_words,
       data: data,
       predictive_board_id: predictive_board_id,
+      can_edit: viewing_user == board.user,
     }
   end
 
