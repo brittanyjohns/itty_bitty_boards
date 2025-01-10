@@ -187,17 +187,19 @@ class Image < ApplicationRecord
     board_images.includes(:board).find_each do |bi|
       next if user_id && bi.board.user_id != user_id
 
-      bi.board.updated_at = Time.now
       if bi.display_image_url.present?
         is_current_url_valid = authorized_to_view_url?(bi.display_image_url)
         unless is_current_url_valid
-          bi.display_image_url = url if authorized_to_view_url?(url)
+          image_result = authorized_to_view_url?(url)
+          puts "Image result: #{image_result}"
+          bi.display_image_url = url if image_result
         end
       else
-        bi.display_image_url = url if authorized_to_view_url?(url)
+        bi.display_image_url = display_image_url if authorized_to_view_url?(display_image_url)
       end
 
       bi.save!
+      bi.board.updated_at = Time.now
       bi.board.save!
     end
   end
