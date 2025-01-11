@@ -186,8 +186,10 @@ class Image < ApplicationRecord
     url ||= src_url
     updated_ids = []
     board_images.includes(:board).find_each do |bi|
-      puts "Skipping board image #{bi.id} - #{bi.board.name} - user_id: #{user_id} - bi.user_id: #{bi.board.user_id}" if user_id && bi.board.user_id != user_id
-      # next if user_id && bi.board.user_id != user_id
+      if user_id && (bi.board.user_id != user_id) && bi.board.user_id != User::DEFAULT_ADMIN_ID
+        puts "Skipping board image #{bi.id} - #{bi.board.name} - user_id: #{user_id} - bi.user_id: #{bi.board.user_id}"
+        next
+      end
 
       if bi.display_image_url.present?
         is_current_url_valid = authorized_to_view_url?(bi.display_image_url)
