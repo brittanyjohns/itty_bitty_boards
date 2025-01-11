@@ -250,8 +250,7 @@ Rails.application.routes.draw do
     end
     resources :board_images do
       member do
-        put "move_up"
-        put "move_down"
+        post "move"
       end
     end
     resources :scenarios do

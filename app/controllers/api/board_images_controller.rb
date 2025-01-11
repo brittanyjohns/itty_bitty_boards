@@ -42,6 +42,21 @@ class API::BoardImagesController < API::ApplicationController
     end
   end
 
+  def move
+    @board_image = BoardImage.includes(:image).find(params[:id])
+    @image = Image.find(params[:image_id])
+    @board_image.image_id = @image.id
+    if @image.user_id != current_user.id
+      render json: { error: "You do not have permission to move this image" }, status: :unprocessable_entity
+    end
+
+    if @board_image.save
+      render json: @board_image.api_view(current_user)
+    else
+      render json: @board_image.errors, status: :unprocessable_entity
+    end
+  end
+
   # DELETE /board_images/1 or /board_images/1.json
   def destroy
     @board_image.destroy!

@@ -1127,52 +1127,60 @@ class Board < ApplicationRecord
   def get_words(name_to_send, number_of_words, words_to_exclude = [], use_preview_model = false)
     words_to_exclude = board_images.pluck(:label).map { |w| w.downcase }
     response = OpenAiClient.new({}).get_additional_words(self, name_to_send, number_of_words, words_to_exclude, use_preview_model)
-    if response
-      if response[:content].blank?
-        Rails.logger.error "*** ERROR - get_words *** \nDid not receive valid response. Response: #{response}\n"
-        return
-      end
-      words = response[:content].gsub("```json", "").gsub("```", "").strip
-      if words.blank? || words.include?("NO ADDITIONAL WORDS")
-        return
-      end
-      if valid_json?(words)
-        words = JSON.parse(words)
+    begin
+      if response
+        if response[:content].blank?
+          Rails.logger.error "*** ERROR - get_words *** \nDid not receive valid response. Response: #{response}\n"
+          return
+        end
+        words = response[:content].gsub("```json", "").gsub("```", "").strip
+        if words.blank? || words.include?("NO ADDITIONAL WORDS")
+          return
+        end
+        if valid_json?(words)
+          words = JSON.parse(words)
+        else
+          start_index = words.index("{")
+          end_index = words.rindex("}")
+          words = words[start_index..end_index]
+          words = transform_into_json(words)
+        end
       else
-        start_index = words.index("{")
-        end_index = words.rindex("}")
-        words = words[start_index..end_index]
-        words = transform_into_json(words)
+        Rails.logger.error "*** ERROR - get_words *** \nDid not receive valid response. Response: #{response}\n"
       end
-    else
-      Rails.logger.error "*** ERROR - get_words *** \nDid not receive valid response. Response: #{response}\n"
+      words_to_include = words["additional_words"] || []
+      words_to_include = words_to_include.map { |w| w.downcase }
+      words_to_include = words_to_include - words_to_exclude
+      words_to_include = words_to_include.uniq
+      words_to_include
+    rescue => e
+      Rails.logger.error "Error getting words: #{e}"
     end
-    words_to_include = words["additional_words"] || []
-    words_to_include = words_to_include.map { |w| w.downcase }
-    words_to_include = words_to_include - words_to_exclude
-    words_to_include = words_to_include.uniq
-    words_to_include
   end
 
   def get_word_suggestions(name_to_use, number_of_words)
     response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words)
-    if response
-      word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip
-      if word_suggestions.blank? || word_suggestions.include?("NO WORDS")
-        return
-      end
-      if valid_json?(word_suggestions)
-        word_suggestions = JSON.parse(word_suggestions)
+    begin
+      if response
+        word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip
+        if word_suggestions.blank? || word_suggestions.include?("NO WORDS")
+          return
+        end
+        if valid_json?(word_suggestions)
+          word_suggestions = JSON.parse(word_suggestions)
+        else
+          start_index = word_suggestions.index("{")
+          end_index = word_suggestions.rindex("}")
+          word_suggestions = word_suggestions[start_index..end_index]
+          word_suggestions = transform_into_json(word_suggestions)
+        end
       else
-        start_index = word_suggestions.index("{")
-        end_index = word_suggestions.rindex("}")
-        word_suggestions = word_suggestions[start_index..end_index]
-        word_suggestions = transform_into_json(word_suggestions)
+        Rails.logger.error "*** ERROR - get_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
       end
-    else
-      Rails.logger.error "*** ERROR - get_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
+      word_suggestions["words"]
+    rescue => e
+      Rails.logger.error "Error getting word suggestions: #{e}"
     end
-    word_suggestions["words"]
   end
 
   def self.determine_board_type(dynamic_images, is_root = false)

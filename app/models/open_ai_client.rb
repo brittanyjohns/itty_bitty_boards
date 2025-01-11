@@ -287,10 +287,9 @@ class OpenAiClient
       text = "I have an AAC button labeled '#{name}'. Please provide #{number_of_words} words that are related to the category '#{name}'."
       ending = "If the board is 'feeling', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
         If the board is 'drink', words like 'water', 'milk', 'juice', etc. would be appropriate.
-        If the board is 'food', words like 'apple', 'banana', 'cookie', etc. would be appropriate.
-        Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
+        If the board is 'food', words like 'apple', 'banana', 'cookie', etc. would be appropriate."
     end
-    format_instructions = "Do not repeat any words that are already on the board & only provide #{number_of_words} words. DO NOT INCLUDE [#{exclude_words_prompt}]."
+    format_instructions = "Do not repeat any words that are already on the board & only provide #{number_of_words} words. DO NOT INCLUDE [#{exclude_words_prompt}]. Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
 
     text = "#{text} #{format_instructions} #{ending}"
     @messages = [{ role: "user",
@@ -298,13 +297,13 @@ class OpenAiClient
       type: "text",
       text: text,
     }] }]
-    if use_preview_model
-      @model = PREVIEW_MODEL
-      response = create_completion
-    else
-      @model = GPT_4_MODEL
-      response = create_chat
-    end
+    # if use_preview_model
+    #   @model = PREVIEW_MODEL
+    #   response = create_completion
+    # else
+    @model = GPT_4_MODEL
+    response = create_chat
+    # end
     Rails.logger.debug "*** ERROR *** Invaild Additional Words Response: #{response}" unless response
     response
   end

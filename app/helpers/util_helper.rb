@@ -11,10 +11,14 @@ module UtilHelper
     json_str = json_str.gsub("=>", ": ") # Replace hash rockets with colons
 
     # Now parse the string as JSON
+    puts "json_str: #{json_str}"
     begin
       data = JSON.parse(json_str)
     rescue JSON::ParserError => e
       puts "Error parsing JSON: #{e.message}"
+      result = {}
+      result["next_words"] = json_str.split(", ")
+      return result
       # Handle invalid JSON here
     end
 

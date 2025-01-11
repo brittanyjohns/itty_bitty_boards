@@ -165,23 +165,6 @@ class Image < ApplicationRecord
     end
   end
 
-  # def update_all_boards_image_belongs_to(url)
-  #   board_images.includes(:board).each do |bi|
-  #     next if user_id && bi.board.user_id != user_id
-  #     bi.board.updated_at = Time.now
-  #     if bi.display_image_url.present?
-  #       is_current_url_valid = authorized_to_view_url?(bi.display_image_url)
-  #       unless is_current_url_valid
-  #         bi.display_image_url = url
-  #       end
-  #     else
-  #       bi.display_image_url = url
-  #     end
-
-  #     bi.save!
-  #     bi.board.save!
-  #   end
-  # end
   def update_all_boards_image_belongs_to(url = nil)
     url ||= src_url
     updated_ids = []
@@ -283,7 +266,6 @@ class Image < ApplicationRecord
     if category_board
       Rails.logger.debug "Setting image type to Category - #{category_board.name}"
       self.image_type = "category"
-      # self.predictive_board_id = category_board.id
     end
 
     if image_type.blank? || image_type == "Static"
@@ -1310,7 +1292,6 @@ class Image < ApplicationRecord
       data: data,
       src: doc_img_url,
       src_url: @board_image&.display_image_url,
-      # board_images: @current_user.boards.includes(board_images: :image).where(board_images: { image_id: id }).order(name: :asc).map { |board_img| board_img.api_view(@current_user) },
       predictive_board_board_type: @predictive_board&.board_type,
       audio: @default_audio_url,
       audio_url: @default_audio_url,

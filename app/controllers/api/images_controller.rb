@@ -319,13 +319,16 @@ class API::ImagesController < API::ApplicationController
     Rails.logger.info("Creating predictive board for image: #{@image.label} -- use_preview_model: #{use_preview_model} -- word_list: #{word_list}")
     board_settings[:board_id] = params[:board_id] if params[:board_id].present?
     board = @image.create_predictive_board(user_id, word_list, use_preview_model, board_settings)
-    @board_image.update(predictive_board_id: board.id) if @board_image && board
-    if board.nil? || !board.persisted?
+    puts "Board created: #{board.inspect}"
+    unless @board_image && board
       render json: { status: "error", message: "Could not create predictive board." }
       return
     end
-    # CreatePredictiveBoardJob.perform_async(@image.id, current_user.id)
-    render json: { status: "ok", message: "Creating predictive board for image.", board: board }
+    if @board_image.update(predictive_board_id: board.id)
+      render json: { status: "ok", message: "Creating predictive board for image.", board: board }
+    else
+      render json: { status: "error", message: "Could not create predictive board." }
+    end
   end
 
   def create_symbol
