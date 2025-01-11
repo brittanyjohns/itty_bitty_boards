@@ -184,23 +184,34 @@ class Image < ApplicationRecord
   # end
   def update_all_boards_image_belongs_to(url = nil)
     url ||= src_url
+    updated_ids = []
     board_images.includes(:board).find_each do |bi|
+      puts "Skipping board image #{bi.id} - #{bi.board.name}" if user_id && bi.board.user_id != user_id
       next if user_id && bi.board.user_id != user_id
 
       if bi.display_image_url.present?
         is_current_url_valid = authorized_to_view_url?(bi.display_image_url)
-        unless is_current_url_valid
+        if is_current_url_valid
+          puts "display_image_url is valid for #{bi.id} - #{bi.board.name} - #{bi.display_image_url}"
+          next
+        else
           image_result = authorized_to_view_url?(url)
+          puts "Updating board image #{bi.id} - #{bi.board.name} - #{bi.display_image_url} - #{url} - #{image_result}"
           bi.display_image_url = url if image_result
         end
       else
-        bi.display_image_url = display_image_url if authorized_to_view_url?(display_image_url)
+        bi.display_image_url = url if authorized_to_view_url?(url)
       end
 
-      bi.save!
-      bi.board.updated_at = Time.now
-      bi.board.save!
+      if bi.save
+        updated_ids << bi.id
+        bi.board.updated_at = Time.now
+        bi.board.save!
+      else
+        puts "Error saving board image #{bi.id} - #{bi.board.name} - #{bi.errors.full_messages}"
+      end
     end
+    updated_ids
   end
 
   def update_predictive_boards
