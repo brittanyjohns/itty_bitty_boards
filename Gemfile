@@ -145,3 +145,5 @@ gem "lograge"
 gem "obf", "~> 0.9.9"
 
 gem "active_storage_base64", "~> 3.0"
+
+gem "groupdate", "~> 6.5"

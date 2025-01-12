@@ -202,6 +202,8 @@ GEM
     foreman (0.88.1)
     globalid (1.2.1)
       activesupport (>= 6.1)
+    groupdate (6.5.1)
+      activesupport (>= 7)
     http (5.2.0)
       addressable (~> 2.8)
       base64 (~> 0.1)
@@ -518,6 +520,7 @@ DEPENDENCIES
   figaro
   font-awesome-sass (~> 6.4.0)
   foreman
+  groupdate (~> 6.5)
   http
   image_processing (~> 1.2)
   jbuilder

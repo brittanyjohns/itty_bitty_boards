@@ -32,7 +32,10 @@ class ChildAccount < ApplicationRecord
   has_many :child_boards, dependent: :destroy
   has_many :boards, through: :child_boards
   has_many :images, through: :boards
+  has_many :word_events, dependent: :destroy
   has_secure_token :authentication_token
+
+  include WordEventsHelper
 
   validates :passcode, presence: true, on: :create
   validates :passcode, length: { minimum: 6 }, on: :create
@@ -115,6 +118,7 @@ class ChildAccount < ApplicationRecord
       passcode: passcode,
       parent_name: user.display_name,
       name: name,
+      heat_map: heat_map,
       settings: settings,
       details: details,
       user_id: user_id,

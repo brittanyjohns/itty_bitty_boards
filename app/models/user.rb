@@ -76,6 +76,7 @@ class User < ApplicationRecord
   scope :non_admin, -> { where.not(role: "admin") }
   scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
 
+  include WordEventsHelper
   # Constants
   # DEFAULT_ADMIN_ID = self.admin.first&.id
   DEFAULT_ADMIN_ID = Rails.env.development? ? 2 : 1
@@ -369,6 +370,7 @@ class User < ApplicationRecord
     view["boards"] = boards.distinct.order(name: :asc).map(&:user_api_view)
     view["board_groups"] = board_groups.order(name: :asc).map(&:user_api_view)
     view["dynamic_boards"] = dynamic_boards.map(&:user_api_view)
+    view["heat_map"] = heat_map
     view
   end
 end
