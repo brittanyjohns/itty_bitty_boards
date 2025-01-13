@@ -1,5 +1,5 @@
 class API::TeamsController < API::ApplicationController
-  before_action :set_team, only: %i[ show edit update destroy add_board remove_board invite]
+  before_action :set_team, only: %i[ show edit update destroy add_board remove_board invite ]
   after_action :verify_policy_scoped, only: :index
 
   # GET /teams or /teams.json
@@ -14,20 +14,6 @@ class API::TeamsController < API::ApplicationController
     @team_creator = @team.created_by
     render json: @team.show_api_view(current_user)
   end
-
-  # def set_current
-  #   @team = policy_scope(Team).find(params[:team_id])
-    
-  #   respond_to do |format|
-  #     if current_user.update(current_team: @team)
-  #       format.html { redirect_to team_url(@team), notice: "Your current team has been set to: #{current_user.current_team&.name}. You can change this at any time from your profile page." }
-  #       format.json { render :show, status: :ok, location: @team }
-  #     else
-  #       format.html { render :show, status: :unprocessable_entity }
-  #       format.json { render json: current_user.errors, status: :unprocessable_entity }
-  #     end
-  #   end
-  # end
 
   # GET /teams/new
   def new
@@ -49,7 +35,7 @@ class API::TeamsController < API::ApplicationController
       puts "User not found"
       @user = User.invite!({ email: user_email }, current_user)
       puts "User created: #{@user}"
-    end    
+    end
     @team_user = @team.add_member!(@user, user_role)
     respond_to do |format|
       if @team_user.save
@@ -136,17 +122,18 @@ class API::TeamsController < API::ApplicationController
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_team
-      @team = policy_scope(Team).find(params[:id])
-    end
 
-    def team_user_params
-      params.require(:team_user).permit(:email, :role)
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_team
+    @team = policy_scope(Team).find(params[:id])
+  end
 
-    # Only allow a list of trusted parameters through.
-    def team_params
-      params.require(:team).permit(:name)
-    end
+  def team_user_params
+    params.require(:team_user).permit(:email, :role)
+  end
+
+  # Only allow a list of trusted parameters through.
+  def team_params
+    params.require(:team).permit(:name)
+  end
 end

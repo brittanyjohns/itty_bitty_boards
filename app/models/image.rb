@@ -1205,7 +1205,8 @@ class Image < ApplicationRecord
     return [] unless current_user
     # boards.user_made_with_scenarios_and_menus.where(user_id: current_user.id)
     # Board.joins(:board_images).where(board_images: { image_id: id }).user_made_with_scenarios_and_menus.where(user_id: current_user.id)
-    current_user.boards.includes(:board_images).where(board_images: { image_id: id }).order(name: :asc)
+    # current_user.boards.includes(:board_images).where(board_images: { image_id: id }).order(name: :asc)
+    current_user.boards.includes(:board_images).order(name: :asc)
   end
 
   def user_board_images(current_user)

@@ -244,6 +244,16 @@ class BoardImage < ApplicationRecord
     board.user
   end
 
+  def predictive_board_data
+    return nil unless predictive_board_id
+    {
+      id: predictive_board_id,
+      name: predictive_board&.name,
+      board_type: predictive_board&.board_type,
+      display_image_url: predictive_board&.display_image_url,
+    }
+  end
+
   def api_view(viewing_user = nil)
     viewing_user ||= user
     all_img_board_images = board.board_images.includes(:image).distinct
@@ -253,6 +263,7 @@ class BoardImage < ApplicationRecord
       label: label,
       board_name: board.name,
       board_type: board.board_type,
+      predictive_board: predictive_board_data,
       dynamic: is_dynamic?,
       voice: voice,
       src: display_image_url,
