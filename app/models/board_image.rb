@@ -32,6 +32,7 @@ class BoardImage < ApplicationRecord
   # after_create :set_next_words
   before_save :set_label, if: -> { label.blank? }
   before_save :save_display_image_url, if: -> { display_image_url.blank? }
+  before_save :check_predictive_board
 
   include BoardsHelper
 
@@ -56,6 +57,14 @@ class BoardImage < ApplicationRecord
 
   def set_voice
     create_voice_audio(voice)
+  end
+
+  def check_predictive_board
+    return unless predictive_board_id
+    predictive_board = Board.find_by(id: predictive_board_id)
+    unless predictive_board
+      self.predictive_board_id = nil
+    end
   end
 
   def layout_invalid?
@@ -272,6 +281,7 @@ class BoardImage < ApplicationRecord
       position: position,
       board_name: board.name,
       bg_color: bg_color,
+      bg_class: bg_class,
       text_color: text_color,
       font_size: font_size,
       border_color: border_color,
@@ -297,6 +307,7 @@ class BoardImage < ApplicationRecord
       audio_file = image.find_custom_audio_file
     else
       self.voice = board.voice
+
       audio_file = image.find_audio_for_voice(voice)
     end
 
