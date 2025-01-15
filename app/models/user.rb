@@ -298,8 +298,13 @@ class User < ApplicationRecord
   end
 
   def send_welcome_email
-    UserMailer.welcome_email(self).deliver_now
-    AdminMailer.new_user_email(self).deliver_now
+    begin
+      UserMailer.welcome_email(self).deliver_now
+      AdminMailer.new_user_email(self).deliver_now
+    rescue => e
+      puts "Error sending welcome email: #{e.message}"
+      Rails.logger.error("Error sending welcome email: #{e.message}")
+    end
   end
 
   def subscription_expired?

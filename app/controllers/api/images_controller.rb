@@ -230,7 +230,7 @@ class API::ImagesController < API::ApplicationController
       )
 
       audio_data = response
-      send_data audio_data, type: "audio/mpeg", disposition: "attachment", filename: "output.mp3"
+      send_data audio_data, type: "audio/mpeg", disposition: "attachment", filename: "#{input_text.parameterize}_#{voice}_#{speed}.mp3"
     rescue StandardError => e
       Rails.logger.error("Error generating audio: #{e.message}")
       render json: { error: "Failed to generate audio" }, status: :internal_server_error

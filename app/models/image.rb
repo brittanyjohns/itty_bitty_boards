@@ -424,7 +424,10 @@ class Image < ApplicationRecord
   end
 
   def bg_class
-    bg_color ? "bg-#{bg_color}-400" : "bg-black"
+    return "bg-white" if bg_color.blank? || bg_color == "white"
+    bg_color = self.bg_color || "gray"
+    color = bg_color.include?("bg-") ? bg_color : "bg-#{bg_color}-400"
+    color || "bg-#{image.bg_class}-400" || "bg-white"
   end
 
   def create_image_doc(user_id = nil)
@@ -715,7 +718,7 @@ class Image < ApplicationRecord
   end
 
   def self.voices
-    ["alloy", "fable", "onyx", "nova", "shimmer", "echo"]
+    ["alloy", "onyx", "shimmer", "nova", "fable", "ash", "coral", "sage"]
   end
 
   def self.languages
@@ -1312,7 +1315,8 @@ class Image < ApplicationRecord
       is_category: is_category,
       category_boards: @category_boards.map { |board| board.api_view(@current_user) },
       category_board_images: category_board_images&.map { |img| { id: img.id, label: img.label, src: img.display_image_url(@current_user) } },
-      bg_color: bg_class,
+      bg_color: bg_color,
+      bg_class: bg_class,
       open_symbol_status: open_symbol_status,
       created_at: created_at,
       updated_at: updated_at,

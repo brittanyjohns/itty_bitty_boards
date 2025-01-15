@@ -51,14 +51,21 @@ Rails.application.configure do
   config.action_mailer.perform_deliveries = true
   config.action_mailer.raise_delivery_errors = true
 
-  config.action_mailer.perform_caching = false
+  # SMTP Settings
+  # Username: your e-mail address
+  # Password: the password set in cPanel during the e-mail account set-up
+  # Incoming server type: IMAP or POP3
+  # Incoming server (IMAP): 993 port for SSL, 143 for TLS.
+  # Incoming server (POP3): 995 port for SSL, 110 for TLS.
+  # Outgoing server (SMTP): 465 port for SSL, 25/587 port for TLS.
+
   puts "ENV['SMTP_USERNAME']: #{ENV["SMTP_USERNAME"]}"
   puts "ENV['SMTP_PASSWORD']: #{ENV["SMTP_PASSWORD"]}"
   config.action_mailer.delivery_method = :smtp
   config.action_mailer.smtp_settings = {
-    address: "smtp.gmail.com",
-    port: 587,
-    domain: "speakanyway.com",
+    address: "smtp.speakanyway.com",
+    # port: 465,
+    domain: "smtp.speakanyway.com",
     user_name: ENV["SMTP_USERNAME"],
     password: ENV["SMTP_PASSWORD"],
     authentication: "plain",
