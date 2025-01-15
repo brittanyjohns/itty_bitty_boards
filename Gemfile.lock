@@ -427,7 +427,7 @@ GEM
       rspec-mocks (~> 3.13)
       rspec-support (~> 3.13)
     rspec-support (3.13.2)
-    ruby-openai (7.0.1)
+    ruby-openai (7.3.1)
       event_stream_parser (>= 0.3.0, < 2.0.0)
       faraday (>= 1)
       faraday-multipart (>= 1)
@@ -544,7 +544,7 @@ DEPENDENCIES
   receipts (~> 2.0)
   redis (>= 4.0.1)
   rspec-rails
-  ruby-openai (~> 7.0.0)
+  ruby-openai (~> 7.3.0)
   selenium-webdriver
   sidekiq (~> 7.1)
   simple_form

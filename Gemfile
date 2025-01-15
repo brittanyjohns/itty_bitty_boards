@@ -90,7 +90,7 @@ gem "faraday"
 gem "figaro"
 
 # Open AI
-gem "ruby-openai", "~> 7.0.0"
+gem "ruby-openai", "~> 7.3.0"
 
 # Sidekiq
 gem "sidekiq", "~> 7.1"
