@@ -144,7 +144,6 @@ class BoardImage < ApplicationRecord
   end
 
   def bg_class
-    puts "bg_color: #{bg_color}"
     return "bg-white" if bg_color.blank? || bg_color == "white"
     bg_color = self.bg_color || "gray"
     color = bg_color.include?("bg-") ? bg_color : "bg-#{bg_color}-400"
