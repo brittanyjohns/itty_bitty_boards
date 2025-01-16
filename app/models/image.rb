@@ -263,9 +263,13 @@ class Image < ApplicationRecord
       self.voice = user_voice || "alloy"
     end
 
-    if category_board
+    if category_board && image_type.blank?
       Rails.logger.debug "Setting image type to Category - #{category_board.name}"
       self.image_type = "category"
+    end
+
+    if image_type.blank? && predictive_board_id
+      self.image_type = "predictive"
     end
 
     if image_type.blank? || image_type == "Static"

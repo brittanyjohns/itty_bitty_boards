@@ -43,10 +43,26 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   def move
-    @board_image = BoardImage.includes(:image).find(params[:id])
-    @image = Image.find(params[:image_id])
-    @board_image.image_id = @image.id
-    if @image.user_id != current_user.id
+    puts "move params: #{params}"
+    @board_id = params[:board_id].to_i
+    @image_id = params[:image_id].to_i
+
+    puts "board_id: #{@board_id}, image_id: #{@image_id}"
+    @board = Board.find(@board_id)
+    if @board.nil?
+      render json: { error: "Board not found" }, status: :unprocessable_entity
+      return
+    end
+
+    @board_image = BoardImage.find_by(board_id: @board_id, image_id: @image_id)
+    if @board_image.nil?
+      puts "Board image not found"
+      render json: { error: "Board image not found" }, status: :unprocessable_entity
+      return
+    end
+    @new_image = Image.find(params[:new_image_id]&.to_i)
+    @board_image.image = @new_image
+    if @new_image.user_id != current_user.id
       render json: { error: "You do not have permission to move this image" }, status: :unprocessable_entity
     end
 

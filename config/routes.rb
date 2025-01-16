@@ -249,7 +249,7 @@ Rails.application.routes.draw do
       end
     end
     resources :board_images do
-      member do
+      collection do
         post "move"
       end
     end

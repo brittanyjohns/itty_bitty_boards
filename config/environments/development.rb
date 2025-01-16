@@ -65,7 +65,7 @@ Rails.application.configure do
   config.action_mailer.smtp_settings = {
     address: "smtp.speakanyway.com",
     # port: 465,
-    domain: "smtp.speakanyway.com",
+    domain: "speakanyway.com",
     user_name: ENV["SMTP_USERNAME"],
     password: ENV["SMTP_PASSWORD"],
     authentication: "plain",
