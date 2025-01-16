@@ -268,7 +268,7 @@ class Image < ApplicationRecord
       self.image_type = "category"
     end
 
-    if image_type.blank? && predictive_board_id
+    if image_type.blank? && predictive_boards.any?
       self.image_type = "predictive"
     end
 
