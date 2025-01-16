@@ -117,7 +117,6 @@ class BoardGroup < ApplicationRecord
           display_image_url: board.display_image_url,
           audio_url: board.audio_url }
       end,
-      predefined: predefined,
     }
   end
 
