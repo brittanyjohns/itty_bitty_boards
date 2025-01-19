@@ -1449,6 +1449,7 @@ class Image < ApplicationRecord
     @cloned_image.image_prompt = @source.image_prompt
     @cloned_image.part_of_speech = @source.part_of_speech
     @cloned_image.status = @source.status
+    @cloned_image.obf_id = nil
     @cloned_image.save
     if @source.user_id != @cloned_user.id
       @old_board_images_for_cloned_user = @cloned_user.board_images.includes(:image).where(image_id: @source.id)
