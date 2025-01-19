@@ -165,16 +165,17 @@ class Image < ApplicationRecord
     end
   end
 
-  def update_all_boards_image_belongs_to(url = nil)
-    url ||= src_url
+  def update_all_boards_image_belongs_to(url = nil, override_existing = false)
     updated_ids = []
     board_images.includes(:board).find_each do |bi|
       if user_id && (bi.board.user_id != user_id) && bi.board.user_id != User::DEFAULT_ADMIN_ID
         puts "Skipping board image #{bi.id} - #{bi.board.name} - user_id: #{user_id} - bi.user_id: #{bi.board.user_id}"
         next
       end
+      original_url = bi.display_image_url
 
-      if bi.display_image_url.present?
+      if bi.display_image_url.present? && !override_existing
+        puts "NOT overriding"
         is_current_url_valid = authorized_to_view_url?(bi.display_image_url)
         if is_current_url_valid
           puts "display_image_url is valid for #{bi.id} - #{bi.board.name} - #{bi.display_image_url}"
@@ -190,6 +191,9 @@ class Image < ApplicationRecord
 
       if bi.save
         updated_ids << bi.id
+        if !bi.board.display_image_url.blank? && original_url === bi.board.display_image_url
+          bi.board.display_image_url = url
+        end
         bi.board.updated_at = Time.now
         bi.board.save!
       else
@@ -197,22 +201,6 @@ class Image < ApplicationRecord
       end
     end
     updated_ids
-  end
-
-  def update_predictive_boards
-    predictive_boards.includes(:user).each do |board|
-      board_user = board.user
-      updated_image_url = display_image_url(board_user)
-
-      board.update!(display_image_url: updated_image_url)
-    end
-  end
-
-  def self.update_all_predictive_boards
-    boards_to_update = Board.predictive.includes(:parent).where(parent_type: "Image")
-    boards_to_update.each do |board|
-      board.parent.update_predictive_boards
-    end
   end
 
   def self.category

@@ -106,9 +106,8 @@ class Board < ApplicationRecord
 
   before_save :set_display_margin_settings, unless: :margin_settings_valid_for_all_screen_sizes?
 
-  before_create :set_number_of_columns
+  before_create :set_screen_sizes, :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
-  after_initialize :set_screen_sizes, unless: :all_validate_screen_sizes?
   after_initialize :set_initial_layout, if: :layout_empty?
 
   def self.dynamic
@@ -144,14 +143,6 @@ class Board < ApplicationRecord
   end
 
   validates :name, presence: true
-
-  def all_validate_screen_sizes?
-    if small_screen_columns&.zero? || medium_screen_columns&.zero? || large_screen_columns&.zero?
-      errors.add(:screen_sizes, "can't be zero")
-      return false
-    end
-    true
-  end
 
   def clean_up_scenarios
     Scenario.where(board_id: id).destroy_all

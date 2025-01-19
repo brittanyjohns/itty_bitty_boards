@@ -31,7 +31,7 @@ class BoardImage < ApplicationRecord
   before_create :set_defaults
   # after_create :set_next_words
   before_save :set_label, if: -> { label.blank? }
-  before_save :save_display_image_url, if: -> { display_image_url.blank? }
+  # before_save :save_display_image_url, if: -> { display_image_url.blank? }
   before_save :check_predictive_board
 
   include BoardsHelper

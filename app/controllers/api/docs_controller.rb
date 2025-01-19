@@ -140,7 +140,10 @@ class API::DocsController < API::ApplicationController
         end
         @board.update!(updated_at: Time.zone.now)
       end
-      # UpdateBoardImagesJob.perform_async(@image.id, @doc.display_url)
+      puts "PARAMS: #{params}"
+      if params[:update_all]
+        @image.update_all_boards_image_belongs_to(@doc.display_url, true)
+      end
       # @image.update_all_boards_image_belongs_to(@doc.display_url)
       @user = @image.user
       is_owner = false
@@ -151,54 +154,7 @@ class API::DocsController < API::ApplicationController
         is_owner = @user&.id == current_user.id
       end
 
-      # if @user.id == current_user.id
-      #   @image.board_images.where(image_id: @image.id).each do |bi|
-      #     bi.update!(display_image_url: @doc.display_url)
-      #   end
-      # end
-
-      # if @user.nil? && current_user.admin?
-      #   @user = current_user
-      #   @image.update!(src_url: nil)
-      #   board_imgs = BoardImage.where(image_id: @image.id).map { |bi| bi.update(display_image_url: nil) }
-      # end
-      # if @user.id == current_user.id
-      #   @image.update!(src_url: nil)
-      #   board_imgs = @user.board_images.where(image_id: @image.id).map { |bi| bi.update(display_image_url: nil) }
-      # end
-
-      @image_docs = @image.docs.for_user(current_user).excluding(@doc).order(created_at: :desc).to_a
-      # @doc_with_image = { doc: @doc, image: @image, current_doc: @doc, image_docs: @image_docs }
-      @image_with_display_doc = {
-        id: @image.id,
-        label: @image.label.upcase,
-        image_prompt: @image.image_prompt,
-        image_type: @image.image_type,
-        bg_color: @image.bg_class,
-        text_color: @image.text_color,
-        display_doc: {
-          id: @current_doc&.id,
-          label: @image&.label,
-          user_id: @current_doc&.user_id,
-          src: @current_doc&.display_url,
-          is_current: true,
-          deleted_at: @current_doc&.deleted_at,
-        },
-        private: @image.private,
-        user_id: @image.user_id,
-        next_words: @image.next_words,
-        no_next: @image.no_next,
-        src: @current_doc&.display_url,
-        docs: @image_docs.map do |doc|
-          {
-            id: doc.id,
-            label: @image.label,
-            user_id: doc.user_id,
-            src: doc.display_url,
-            is_current: doc.id == @current_doc_id,
-          }
-        end,
-      }
+      @image_with_display_doc = @image.with_display_doc(current_user)
     rescue => e
       puts "Error: #{e.message}"
       render json: { error: e.message }, status: :unprocessable_entity
