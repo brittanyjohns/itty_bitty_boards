@@ -65,7 +65,7 @@ class Image < ApplicationRecord
   end
 
   scope :without_attached_audio_files, -> { where.missing(:audio_files_attachments) }
-  scope :searchable, -> { non_sample_voices.non_menu_images }
+  scope :searchable, -> { non_sample_voices.non_menu_images.where(obf_id: nil) }
   scope :with_image_docs_for_user, ->(userId) { order(created_at: :desc) }
   scope :menu_images, -> { where(image_type: ["menu", "Menu"]) }
   scope :non_menu_images, -> { where.not(image_type: ["menu", "Menu"]).or(where(image_type: nil)) }
@@ -925,8 +925,6 @@ class Image < ApplicationRecord
       # Log the number of duplicate labels and the total number of images in those labels
       Rails.logger.debug "Found #{@duplicate_labels.count} labels with duplicates."
       Rails.logger.debug "Total images with duplicate labels: #{@duplicate_labels.values.sum}"
-      puts "RUNNING FOR #{@duplicate_labels.count} IMAGES - Limit: #{limit} - Dry Run: #{dry_run}"
-      puts "Would you like to continue? (y/n)"
       response = gets.chomp
       return unless response == "y"
       @duplicate_labels.each do |label, image_count|
@@ -1184,10 +1182,19 @@ class Image < ApplicationRecord
 
   def api_view(viewing_user = nil)
     @default_audio_url = default_audio_url
+    user_board_imgs = user_board_images(viewing_user)
+    any_board_imgs = BoardImage.includes(board: :user).where(image_id: id)
+    any_board_imgs = any_board_imgs.where(boards: { user_id: User::DEFAULT_ADMIN_ID, predefined: true })
     {
       id: id,
       image_type: image_type,
       label: label,
+      user_id: user_id,
+      obf_id: obf_id,
+      user_board_images: user_board_imgs.map { |board_image| { id: board_image.id, board_id: board_image.board_id, name: board_image.board.name } },
+      # predictive_board_id: predictive_board_id,
+      any_board_imgs: any_board_imgs.map { |board_image| { id: board_image.id, board_id: board_image.board_id, name: board_image.board.name } },
+      matching_viewer_boards: matching_viewer_boards(viewing_user).map { |board| { id: board.id, name: board.name } },
       image_prompt: image_prompt,
       next_words: next_words,
       bg_color: bg_class,

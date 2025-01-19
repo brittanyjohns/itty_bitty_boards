@@ -279,7 +279,6 @@ class BoardImage < ApplicationRecord
       display_image_url: display_image_url,
       board_id: board_id,
       position: position,
-      board_name: board.name,
       bg_color: bg_color,
       bg_class: bg_class,
       text_color: text_color,

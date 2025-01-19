@@ -471,23 +471,7 @@ class API::ImagesController < API::ApplicationController
       @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
       @board_image = BoardImage.where(image_id: @image.id, board_id: @board.id).first
       @board_images.update(display_image_url: nil) if @board_image
-      # @image.update_all_boards_image_belongs_to(nil)
-      # UpdateBoardImagesJob.perform_async(@image.id, saved_image_url)
-      # if @user.nil? && current_user.admin?
-      #   @user = current_user
-      #   @image.update!(src_url: nil)
-      #   board_imgs = BoardImage.includes(:board).where(image_id: @image.id)
-      #   board = board_imgs.first.board
-      #   board_imgs.map { |bi| bi.update(display_image_url: nil) }
-      #   board.update!(updated_at: Time.now)
-      # end
-      # if @user.id == current_user.id
-      #   @image.update!(src_url: nil)
-      #   board_imgs = BoardImage.includes(:board).where(image_id: @image.id)
-      #   board = board_imgs.first.board
-      #   board_imgs.map { |bi| bi.update(display_image_url: nil) }
-      #   board.update!(updated_at: Time.now)
-      # end
+
       @image_docs = @image.docs.for_user(current_user).order(created_at: :desc)
       @image_docs.update_all(current: false)
 

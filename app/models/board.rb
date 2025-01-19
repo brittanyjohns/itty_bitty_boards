@@ -66,6 +66,7 @@ class Board < ApplicationRecord
 
   scope :for_user, ->(user) { where(user: user).or(where(user_id: User::DEFAULT_ADMIN_ID, predefined: true)) }
   scope :with_image_parent, -> { where.associated(:image_parent) }
+  scope :searchable, -> { where(board_type: ["static", "dynamic", "category"]) }
   scope :menus, -> { where(parent_type: "Menu") }
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
@@ -472,7 +473,7 @@ class Board < ApplicationRecord
     word_list.each do |word|
       word = word.downcase.gsub('"', "").gsub("'", "")
       image = user.images.find_by(label: word)
-      image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
+      image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil], obf_id: nil) unless image
       image = Image.create(label: word, user_id: user.id) unless image
       self.add_image(image.id)
     end
@@ -1093,6 +1094,20 @@ class Board < ApplicationRecord
       name: name,
       board_type: board_type,
     }
+  end
+
+  def matching_image
+    normalized_name = name.downcase.strip
+    puts "Matching image: #{normalized_name}"
+    image = Image.find_by(label: normalized_name, user_id: user_id, obf_id: nil)
+    image = Image.find_by(label: normalized_name, user_id: [User::DEFAULT_ADMIN_ID, nil], obf_id: nil) unless image
+    image
+  end
+
+  def create_matching_image
+    normalized_name = name.downcase.strip
+    image = Image.create(label: normalized_name, user_id: user_id)
+    image
   end
 
   def assign_parent(board_type, current_user)

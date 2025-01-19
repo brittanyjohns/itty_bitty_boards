@@ -12,7 +12,7 @@ class API::BoardsController < API::ApplicationController
   # GET /boards or /boards.json
   def index
     if params[:query].present?
-      @search_results = Board.for_user(current_user).search_by_name(params[:query]).order(name: :asc).page params[:page]
+      @search_results = Board.for_user(current_user).searchable.search_by_name(params[:query]).order(name: :asc).page params[:page]
       render json: { search_results: @search_results } and return
     end
     ActiveRecord::Base.logger.silence do
@@ -177,7 +177,6 @@ class API::BoardsController < API::ApplicationController
     Rails.logger.info "Initial predictive board ID: #{@board&.id}"
     if @board.nil?
       @board = Board.with_artifacts.find_by(user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
-      # CreateCustomPredictiveDefaultJob.perform_async(current_user.id)
       current_user.settings["dynamic_board_id"] = nil
       current_user.save!
     end
@@ -238,9 +237,9 @@ class API::BoardsController < API::ApplicationController
     current_page = params[:page] || 1
     if params[:query].present? && params[:query] != "null"
       @query = params[:query]
-      @images = Image.non_menu_images.with_artifacts.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc)
+      @images = Image.searchable.with_artifacts.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc)
     else
-      @images = Image.non_menu_images.with_artifacts.all.order(label: :asc)
+      @images = Image.searchable.with_artifacts.all.order(label: :asc)
     end
     @images = @images.excluding(@board.images)
 
@@ -255,35 +254,21 @@ class API::BoardsController < API::ApplicationController
       end
     end
     @images = @images.where(user_id: [current_user.id, User::DEFAULT_ADMIN_ID, nil]).distinct.page(current_page)
-    # @remaining_images = @images.map do |image|
-    #   {
-    #     id: image.id,
-    #     label: image.label,
-    #     image_prompt: image.image_prompt,
-    #     bg_color: image.bg_class,
-    #     text_color: image.text_color,
-    #     src: image.display_image_url(current_user),
-    #   }
-    # end
-
-    @images_with_display_doc = @images.map do |image|
-      is_owner = image.user_id == @current_user.id
-      {
-        id: image.id,
-        user_id: image.user_id,
-
-        label: image.label,
-        image_prompt: image.image_prompt,
-        image_type: image.image_type,
-        bg_color: image.bg_class,
-        text_color: image.text_color,
-        src: image.display_image_url(@current_user),
-        next_words: image.next_words,
-        can_edit: is_owner || @current_user.admin?,
-        is_admin_image: image.user_id == User::DEFAULT_ADMIN_ID,
-        dynamic: image.dynamic?,
-      }
+    if params[:scope] == "predictive"
+      @images_with_display_doc = @images.map do |image|
+        api_view = image.api_view(current_user)
+        any_board_imgs = api_view[:any_board_imgs]
+        puts "Any board images: #{any_board_imgs}"
+        if any_board_imgs.any?
+          api_view
+        else
+          nil
+        end
+      end
+    else
+      @images_with_display_doc = @images.map(&:api_view)
     end
+    @images_with_display_doc = @images_with_display_doc.compact
     render json: @images_with_display_doc.sort { |a, b| a[:label] <=> b[:label] }
   end
 
@@ -341,7 +326,6 @@ class API::BoardsController < API::ApplicationController
         image = Image.find(image_id)
         @board.remove_image(image&.id) if @board && image
       end
-      Rails.logger.info "Board images after removal: #{@board&.images}"
       render json: @board.api_view_with_images(current_user)
       return
     else
@@ -359,7 +343,7 @@ class API::BoardsController < API::ApplicationController
       board_type = params[:board_type] || board_params[:board_type]
       settings = params[:settings] || board_params[:settings] || {}
       settings["board_type"] = board_type
-      matching_image = nil
+      matching_image = @board.matching_image
       Rails.logger.debug "Board type: #{board_type}"
       if board_type == "dynamic"
         predefined_resource = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board")
@@ -369,8 +353,9 @@ class API::BoardsController < API::ApplicationController
       elsif board_type == "predictive"
         puts "Creating predictive board"
         @board.parent_type = "Image"
-        matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "predictive")
+        # matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "predictive")
         @board.board_type = "predictive"
+        matching_image ||= @board.create_matching_image
         if matching_image
           @board.parent_id = matching_image.id
           @board.image_parent_id = matching_image.id
@@ -380,13 +365,14 @@ class API::BoardsController < API::ApplicationController
         @board.board_type = "category"
         @board.parent_type = "PredefinedResource"
         @board.parent_id = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Category").id
-        matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "category")
+        # matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "category")
+        matching_image ||= @board.create_matching_image
         if matching_image
           @board.image_parent_id = matching_image.id
         end
       elsif board_type == "static"
         @board.parent_type = "User"
-        @board.parent_id = @board.user.id
+        @board.parent_id = @board_user.id
         @board.board_type = "static"
       end
       new_board_settings = @board.settings.merge(settings)
@@ -403,7 +389,6 @@ class API::BoardsController < API::ApplicationController
       #     board_image.image
       #   end
       # end
-      Rails.logger.info "#{board_type} -- Board type before save: #{@board.board_type}"
       respond_to do |format|
         if @board.save
           format.json { render json: @board.api_view_with_images(current_user), status: :ok }
@@ -427,11 +412,7 @@ class API::BoardsController < API::ApplicationController
       file_name = uploaded_file.original_filename
 
       if file_extension == ".obz"
-        # decompressed_data = decompress_obz(uploaded_file.read)
         extracted_obz_data = OBF::OBZ.to_external(uploaded_file, {})
-        # puts "Extracted OBZ data: #{extracted_obz_data}"
-        # extracted_obz_data = JSON.parse(decompressed_data)
-        # created_boards = Board.from_obz(extracted_obz_data, current_user)
         @get_manifest_data = Board.extract_manifest(uploaded_file.path)
         parsed_manifest = JSON.parse(@get_manifest_data)
 
@@ -508,7 +489,6 @@ class API::BoardsController < API::ApplicationController
     else
       @image = Image.new
       @image.user = current_user
-      @image.private = true
       @image.label = image_params[:label]
       img_saved = @image.save!
     end
@@ -552,15 +532,6 @@ class API::BoardsController < API::ApplicationController
     else
       render json: { error: "Error adding image to board" }, status: :unprocessable_entity
     end
-
-    # new_board_image = @board.board_images.new(image_id: image.id, position: @board.board_images.count)
-    # new_board_image.layout = new_board_image.initial_layout
-    # if new_board_image.save
-    #   @board.board_images.reset
-    #   render json: { board: @board, new_board_image: new_board_image, label: image.label }
-    # else
-    #   render json: { error: "Error adding image to board: #{new_board_image.errors.full_messages.join(", ")}" }, status: :unprocessable_entity
-    # end
   end
 
   def associate_images
