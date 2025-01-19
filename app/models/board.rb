@@ -464,8 +464,8 @@ class Board < ApplicationRecord
     word_list.each do |word|
       word = word.downcase.gsub('"', "").gsub("'", "")
       image = user.images.find_by(label: word)
-      image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil], obf_id: nil) unless image
-      image = Image.create(label: word, user_id: user.id) unless image
+      image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
+      image = Image.create(label: word) unless image
       self.add_image(image.id)
     end
     # self.reset_layouts
@@ -1090,8 +1090,8 @@ class Board < ApplicationRecord
   def matching_image
     normalized_name = name.downcase.strip
     puts "Matching image: #{normalized_name}"
-    image = Image.find_by(label: normalized_name, user_id: user_id, obf_id: nil)
-    image = Image.find_by(label: normalized_name, user_id: [User::DEFAULT_ADMIN_ID, nil], obf_id: nil) unless image
+    image = Image.find_by(label: normalized_name, user_id: user_id)
+    image = Image.find_by(label: normalized_name, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
     image
   end
 

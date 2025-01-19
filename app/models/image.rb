@@ -65,7 +65,8 @@ class Image < ApplicationRecord
   end
 
   scope :without_attached_audio_files, -> { where.missing(:audio_files_attachments) }
-  scope :searchable, -> { non_sample_voices.non_menu_images.where(obf_id: nil) }
+  # scope :searchable, -> { non_sample_voices.non_menu_images.where(obf_id: nil) }
+  scope :searchable, -> { non_sample_voices.non_menu_images }
   scope :with_image_docs_for_user, ->(userId) { order(created_at: :desc) }
   scope :menu_images, -> { where(image_type: ["menu", "Menu"]) }
   scope :non_menu_images, -> { where.not(image_type: ["menu", "Menu"]).or(where(image_type: nil)) }
@@ -1224,14 +1225,14 @@ class Image < ApplicationRecord
   end
 
   def matching_viewer_images(viewing_user = nil)
-    imgs = Image.where(label: label, user_id: [viewing_user&.id], obf_id: nil).where.not(id: id)
+    imgs = Image.where(label: label, user_id: [viewing_user&.id]).where.not(id: id)
     imgs = imgs.where.not(status: "marked_for_deletion")
     imgs.order(created_at: :desc)
   end
 
   def matching_viewer_boards(viewing_user)
     return [] unless viewing_user
-    viewing_user.boards.where(name: label, obf_id: nil).order(created_at: :desc)
+    viewing_user.boards.where(name: label).order(created_at: :desc)
   end
 
   def dynamic?
