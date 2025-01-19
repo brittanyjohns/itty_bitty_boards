@@ -1305,6 +1305,7 @@ class Image < ApplicationRecord
       image_prompt: image_prompt,
       display_doc: doc_img_url,
       data: data,
+      obf_id: obf_id,
       src: doc_img_url,
       src_url: @board_image&.display_image_url,
       predictive_board_board_type: @predictive_board&.board_type,
