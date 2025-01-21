@@ -553,6 +553,7 @@ class Board < ApplicationRecord
     @cloned_board.name = new_name
     @cloned_board.predefined = false
     @cloned_board.obf_id = nil
+    @cloned_board.board_group_id = nil
     @cloned_board.data = nil
     @cloned_board.save
     @images.each do |image|
