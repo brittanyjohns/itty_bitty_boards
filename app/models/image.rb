@@ -93,6 +93,7 @@ class Image < ApplicationRecord
 
   after_save :update_board_images, if: -> { need_to_update_board_images? }
   after_save :update_background_color, if: -> { part_of_speech_changed? }
+  after_save :update_category_boards
 
   before_save :update_src_url, if: -> { src_url.blank? && docs.any? }
 
@@ -100,6 +101,14 @@ class Image < ApplicationRecord
 
   def need_to_update_board_images?
     use_custom_audio || voice_changed?
+  end
+
+  def update_category_boards
+    if category_boards.any?
+      category_boards.each do |board|
+        board.update!(display_image_url: src_url)
+      end
+    end
   end
 
   def update_board_images
@@ -166,11 +175,11 @@ class Image < ApplicationRecord
     end
   end
 
-  def update_all_boards_image_belongs_to(url = nil, override_existing = false)
+  def update_all_boards_image_belongs_to(url = nil, override_existing = false, current_user_id = nil)
     updated_ids = []
     board_images.includes(:board).find_each do |bi|
-      if user_id && (bi.board.user_id != user_id) && bi.board.user_id != User::DEFAULT_ADMIN_ID
-        puts "Skipping board image #{bi.id} - #{bi.board.name} - user_id: #{user_id} - bi.user_id: #{bi.board.user_id}"
+      if current_user_id && (bi.board.user_id != current_user_id) && bi.board.user_id != User::DEFAULT_ADMIN_ID
+        puts "Skipping board image #{bi.id} - #{bi.board.name} - current_user_id: #{current_user_id} - bi.user_id: #{bi.board.user_id}"
         next
       end
       original_url = bi.display_image_url

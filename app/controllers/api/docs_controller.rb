@@ -142,7 +142,7 @@ class API::DocsController < API::ApplicationController
       end
       puts "PARAMS: #{params}"
       if params[:update_all]
-        @image.update_all_boards_image_belongs_to(@doc.display_url, true)
+        @image.update_all_boards_image_belongs_to(@doc.display_url, true, current_user.id)
       end
       # @image.update_all_boards_image_belongs_to(@doc.display_url)
       @user = @image.user

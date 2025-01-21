@@ -81,7 +81,7 @@ class API::ImagesController < API::ApplicationController
     end
     saved_image = @image.save_from_url(params[:imageUrl], params[:snippet], params[:title], "image/webp", @current_user.id)
     saved_image_url = saved_image.display_url
-    @image.update_all_boards_image_belongs_to(saved_image_url)
+    @image.update_all_boards_image_belongs_to(saved_image_url, false, @current_user.id)
     # UpdateBoardImagesJob.perform_async(@image.id, saved_image_url)
     @doc = @image.docs.last
     user_docs_to_delete = @current_user.user_docs.where(image_id: @image.id)
