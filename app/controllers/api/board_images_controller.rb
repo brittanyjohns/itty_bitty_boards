@@ -36,6 +36,7 @@ class API::BoardImagesController < API::ApplicationController
     updatedData = @board_image.data.merge(data.to_unsafe_h)
     @board_image.data = updatedData
     if @board_image.update(board_image_params)
+      @board_image.board.touch
       render json: @board_image.api_view(current_user)
     else
       render json: @board_image.errors, status: :unprocessable_entity
