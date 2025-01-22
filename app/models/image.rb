@@ -29,7 +29,6 @@
 #  use_custom_audio    :boolean          default(FALSE)
 #  voice               :string
 #  src_url             :string
-#  predictive_board_id :integer
 #  data                :jsonb
 #  license             :jsonb
 #  obf_id              :string
@@ -1218,7 +1217,15 @@ class Image < ApplicationRecord
     # boards.user_made_with_scenarios_and_menus.where(user_id: current_user.id)
     # Board.joins(:board_images).where(board_images: { image_id: id }).user_made_with_scenarios_and_menus.where(user_id: current_user.id)
     # current_user.boards.includes(:board_images).where(board_images: { image_id: id }).order(name: :asc)
-    current_user.boards.includes(:board_images).order(name: :asc)
+    current_user.boards.includes(:board_images).distinct.order(name: :asc)
+  end
+
+  def all_useable_boards(current_user, board_image)
+    puts "All useable boards for image: #{id} - #{label}"
+    user_boards = user_boards(current_user)
+    category_boards = board_image.category_boards(current_user)
+
+    [user_boards, category_boards].flatten.uniq
   end
 
   def user_board_images(current_user)
@@ -1275,8 +1282,9 @@ class Image < ApplicationRecord
     doc_img_url = current_doc&.display_url
     image_docs = docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
     remaining = remaining_user_boards(@current_user)
-    user_image_boards = user_boards(@current_user)
-    Rails.logger.debug "User image boards: #{user_image_boards.inspect}"
+    user_image_boards = user_boards(@current_user) unless @board_image
+    user_image_boards = all_useable_boards(@current_user, @board_image) if @board_image
+    Rails.logger.debug "User image boards: #{user_image_boards.pluck(:id, :name)}" if user_image_boards
     @default_audio_url = default_audio_url
     # is_owner = @current_user && user_id == @current_user&.id
     is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
@@ -1289,7 +1297,8 @@ class Image < ApplicationRecord
     img_is_dynamic = dynamic?
     img_is_predictive = predictive?
     is_owner = @current_user && user_id == @current_user&.id
-    @category_boards = category_boards.order(name: :asc)
+    @category_boards = @board_image&.category_boards(@current_user.id)
+    @category_boards = category_boards.order(name: :asc) if @category_boards.blank?
     is_category = @category_boards.where(user_id: [@current_user&.id, nil, User::DEFAULT_ADMIN_ID]).any?
     # board_image_data = self.board_images_for_user(@current_user).map { |board_image| board_image.api_view(@current_user) }
     if is_category

@@ -29,7 +29,6 @@
 #  use_custom_audio    :boolean          default(FALSE)
 #  voice               :string
 #  src_url             :string
-#  predictive_board_id :integer
 #  data                :jsonb
 #  license             :jsonb
 #  obf_id              :string
