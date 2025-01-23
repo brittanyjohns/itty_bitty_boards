@@ -296,12 +296,12 @@ class Image < ApplicationRecord
 
   def category_board
     # category_boards.first
-    if predictive_board_id
-      category_board_id = predictive_board_id
-      category_board_id ? Board.with_artifacts.find_by(id: category_board_id) : nil
-    else
-      category_boards.first
-    end
+    # if predictive_board_id
+    #   category_board_id = predictive_board_id
+    #   category_board_id ? Board.with_artifacts.find_by(id: category_board_id) : nil
+    # else
+    category_boards.first
+    # end
   end
 
   def create_predictive_board(new_user_id, words_to_use = nil, use_preview_model = false, board_settings = {})
