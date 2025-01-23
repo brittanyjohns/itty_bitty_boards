@@ -58,7 +58,7 @@ class API::BoardsController < API::ApplicationController
       end
       @categories = @predefined_boards.map(&:category).uniq.compact
       @welcome_boards = Board.welcome
-      render json: { predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.board_categories, welcome_boards: @welcome_boards.map(&:api_view_with_images) }
+      render json: { predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.board_categories }
     end
   end
 
@@ -246,7 +246,7 @@ class API::BoardsController < API::ApplicationController
     if params[:scope]
       case params[:scope]
       when "predictive"
-        @images = @images.predictive
+        @images = @images.category
       when "category"
         @images = @images.category
       when "static"

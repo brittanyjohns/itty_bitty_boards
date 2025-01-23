@@ -39,6 +39,8 @@ class BoardImage < ApplicationRecord
 
   scope :updated_today, -> { where("updated_at > ?", 1.hour.ago) }
 
+  delegate :user_id, to: :board, allow_nil: false
+
   def set_initial_layout!
     self.layout = { "lg" => { "i" => id.to_s, "x" => grid_x("lg"), "y" => grid_y("lg"), "w" => 1, "h" => 1 },
                     "md" => { "i" => id.to_s, "x" => grid_x("md"), "y" => grid_y("md"), "w" => 1, "h" => 1 },
@@ -62,14 +64,22 @@ class BoardImage < ApplicationRecord
 
   def check_predictive_board
     return unless predictive_board_id
+    puts "Checking predictive board"
     predictive_board = Board.find_by(id: predictive_board_id)
+    puts "Predictive board: #{predictive_board.inspect}"
     unless predictive_board
       self.predictive_board_id = nil
     end
   end
 
-  def category_boards(viewing_user_id)
-    Board.where(image_parent_id: image_id, user_id: viewing_user_id)
+  def category_boards(viewing_user_id = nil)
+    viewing_user ||= board.user
+    user_category_boards = Board.where(image_parent_id: image_id, user_id: viewing_user_id)
+    if user_category_boards.present?
+      return user_category_boards
+    else
+      return Board.where(image_parent_id: image_id, user_id: User::DEFAULT_ADMIN_ID, predefined: true)
+    end
   end
 
   def layout_invalid?
@@ -326,6 +336,9 @@ class BoardImage < ApplicationRecord
     else
       image.start_create_all_audio_job unless Rails.env.test? || Rails.env.development?
     end
+    default_next_board = image.matching_viewer_boards(board.user).first
+    puts "default_next_board: #{default_next_board}"
+    self.predictive_board_id = default_next_board.id if default_next_board
   end
 
   def save_defaults
