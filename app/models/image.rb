@@ -922,6 +922,7 @@ class Image < ApplicationRecord
       # Log the number of duplicate labels and the total number of images in those labels
       Rails.logger.debug "Found #{@duplicate_labels.count} labels with duplicates."
       Rails.logger.debug "Total images with duplicate labels: #{@duplicate_labels.values.sum}"
+      puts "Found #{@duplicate_labels} labels with duplicates.\n Do you want to continue? (y/n)"
       response = gets.chomp
       return unless response == "y"
       @duplicate_labels.each do |label, image_count|
