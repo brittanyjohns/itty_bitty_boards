@@ -100,21 +100,16 @@ class API::ImagesController < API::ApplicationController
     @current_user = current_user
     @image = Image.find(params[:id])
     @image_to_merge = Image.find(params[:merge_image_id])
-    puts "Image to merge: #{@image_to_merge.inspect}"
     @docs = @image_to_merge.docs
-    puts "Docs to merge: #{@docs.count}"
     @docs.each do |doc|
-      puts "Merging doc: #{doc.id}"
       doc.documentable = @image
       doc.user = @current_user
       result = doc.save!
-
-      puts "DocResult: #{result}"
     end
-    puts "MERGE DONE"
     @board_images = BoardImage.where(image_id: @image_to_merge.id)
     @board_images.each do |board_image|
       board_image.update(image_id: @image.id, display_image_url: @image.src_url)
+      board_image.save_defaults
     end
 
     @image_to_merge.update(status: "marked_for_deletion")

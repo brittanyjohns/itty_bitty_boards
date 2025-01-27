@@ -64,9 +64,7 @@ class BoardImage < ApplicationRecord
 
   def check_predictive_board
     return unless predictive_board_id
-    puts "Checking predictive board"
     predictive_board = Board.find_by(id: predictive_board_id)
-    puts "Predictive board: #{predictive_board.inspect}"
     unless predictive_board
       self.predictive_board_id = nil
     end
@@ -337,7 +335,6 @@ class BoardImage < ApplicationRecord
       image.start_create_all_audio_job unless Rails.env.test? || Rails.env.development?
     end
     default_next_board = image.matching_viewer_boards(board.user).first
-    puts "default_next_board: #{default_next_board}"
     self.predictive_board_id = default_next_board.id if default_next_board
   end
 

@@ -797,10 +797,7 @@ class Board < ApplicationRecord
 
     @board_images.each do |bi|
       image = bi.image
-      @category_board = image&.category_board
-      if @category_board
-        @predictive_board_id = @category_board.id
-      end
+      @predictive_board_id = bi.predictive_board_id
       @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
       bi_layout = bi.layout[screen_size]
       bi.predictive_board_id = @predictive_board_id
@@ -982,7 +979,6 @@ class Board < ApplicationRecord
         is_owner = viewing_user && image.user_id == viewing_user&.id
         is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
 
-        # @category_board = image&.category_board
         @predictive_board_id = @board_image.predictive_board_id
         @predictive_board = @board_image.predictive_board
 

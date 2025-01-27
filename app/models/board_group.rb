@@ -177,7 +177,6 @@ class BoardGroup < ApplicationRecord
     ActiveRecord::Base.logger.silence do
       boards.order(:position).each_slice(number_of_columns) do |row|
         row.each_with_index do |board, index|
-          puts "Board #{board.id} board name: #{board.name} index: #{index} row_count: #{row_count}"
           new_layout = { i: board.id, x: index, y: row_count, w: 1, h: 1 }
           board.update(group_layout: new_layout)
           grid_layout << new_layout

@@ -178,20 +178,16 @@ class Image < ApplicationRecord
     updated_ids = []
     board_images.includes(:board).find_each do |bi|
       if current_user_id && (bi.board.user_id != current_user_id) && bi.board.user_id != User::DEFAULT_ADMIN_ID
-        puts "Skipping board image #{bi.id} - #{bi.board.name} - current_user_id: #{current_user_id} - bi.user_id: #{bi.board.user_id}"
         next
       end
       original_url = bi.display_image_url
 
       if bi.display_image_url.present? && !override_existing
-        puts "NOT overriding"
         is_current_url_valid = authorized_to_view_url?(bi.display_image_url)
         if is_current_url_valid
-          puts "display_image_url is valid for #{bi.id} - #{bi.board.name} - #{bi.display_image_url}"
           next
         else
           image_result = authorized_to_view_url?(url)
-          puts "Updating board image #{bi.id} - #{bi.board.name} - #{bi.display_image_url} - #{url} - #{image_result}"
           bi.display_image_url = url if image_result
         end
       else
@@ -260,11 +256,6 @@ class Image < ApplicationRecord
       self.voice = user_voice || "alloy"
     end
 
-    if category_board && image_type.blank?
-      Rails.logger.debug "Setting image type to Category - #{category_board.name}"
-      self.image_type = "category"
-    end
-
     if image_type.blank? && predictive_boards.any?
       self.image_type = "predictive"
     end
@@ -292,16 +283,6 @@ class Image < ApplicationRecord
   def run_set_next_words_job
     Rails.logger.debug "Starting set next words job for #{label}"
     SetNextWordsJob.perform_async([id])
-  end
-
-  def category_board
-    # category_boards.first
-    # if predictive_board_id
-    #   category_board_id = predictive_board_id
-    #   category_board_id ? Board.with_artifacts.find_by(id: category_board_id) : nil
-    # else
-    category_boards.first
-    # end
   end
 
   def create_predictive_board(new_user_id, words_to_use = nil, use_preview_model = false, board_settings = {})
@@ -1022,13 +1003,7 @@ class Image < ApplicationRecord
   end
 
   def display_image_url(viewing_user = nil)
-    # if category_board
-    #   img = Image.with_artifacts.find_by(id: category_board&.image_parent_id)
-    #   doc = img.display_doc(viewing_user) if img
-    # else
     doc = display_doc(viewing_user)
-    # end
-
     doc ? doc.display_url : nil
   end
 
