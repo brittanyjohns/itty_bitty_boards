@@ -144,6 +144,11 @@ class API::DocsController < API::ApplicationController
       if params[:update_all]
         @image.update_all_boards_image_belongs_to(@doc.display_url, true, current_user.id)
       end
+      if current_user.admin?
+        @image.src_url = @doc.display_url
+        @image.save
+      end
+
       # @image.update_all_boards_image_belongs_to(@doc.display_url)
       @user = @image.user
       is_owner = false

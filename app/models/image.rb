@@ -90,7 +90,8 @@ class Image < ApplicationRecord
   before_save :set_label, :ensure_defaults
   before_save :clean_up_label, if: -> { !obf_id.blank? }
 
-  after_save :update_board_images, if: -> { need_to_update_board_images? }
+  after_save :update_board_images_audio, if: -> { need_to_update_board_images_audio? }
+  after_save :update_board_images_display_image, if: -> { src_url_changed? }
   after_save :update_background_color, if: -> { part_of_speech_changed? }
   after_save :update_category_boards
 
@@ -98,7 +99,7 @@ class Image < ApplicationRecord
 
   scope :menu_images_without_docs, -> { menu_images.without_docs }
 
-  def need_to_update_board_images?
+  def need_to_update_board_images_audio?
     use_custom_audio || voice_changed?
   end
 
@@ -110,7 +111,13 @@ class Image < ApplicationRecord
     end
   end
 
-  def update_board_images
+  def update_board_images_display_image
+    board_images.each do |bi|
+      bi.update!(display_image_url: src_url) if bi.display_image_url.blank?
+    end
+  end
+
+  def update_board_images_audio
     BoardImage.where(image_id: id).each do |bi|
       bi.update!(audio_url: audio_url, voice: voice)
     end
