@@ -1069,6 +1069,22 @@ class Board < ApplicationRecord
     data["professional_explanation"]
   end
 
+  def rows_for_screen_size(screen_size = "sm")
+    layout = self.layout[screen_size] || []
+    number_of_rows = 0
+    begin
+      layout.each do |l|
+        y = l["y"]
+        h = l["h"]
+        number_of_rows = y + h if y + h > number_of_rows
+      end
+    rescue => e
+      Rails.logger.error "Error getting rows for screen size: #{e}"
+    end
+
+    number_of_rows
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,
@@ -1082,6 +1098,9 @@ class Board < ApplicationRecord
       large_screen_columns: large_screen_columns,
       medium_screen_columns: medium_screen_columns,
       small_screen_columns: small_screen_columns,
+      large_screen_rows: rows_for_screen_size("lg"),
+      medium_screen_rows: rows_for_screen_size("md"),
+      small_screen_rows: rows_for_screen_size("sm"),
       personable_explanation: personable_explanation,
       professional_explanation: professional_explanation,
       description: description,
