@@ -103,6 +103,7 @@ class Board < ApplicationRecord
   before_save :update_display_image, unless: :display_image_url?
   # before_save :set_board_type
   before_save :clean_up_name
+  before_save :validate_data
 
   before_save :set_display_margin_settings, unless: :margin_settings_valid_for_all_screen_sizes?
 
@@ -146,6 +147,13 @@ class Board < ApplicationRecord
 
   def clean_up_scenarios
     Scenario.where(board_id: id).destroy_all
+  end
+
+  def validate_data
+    return unless data
+    # data["personable_explanation"].gsub("Personable Explanation: ", "") if data["personable_explanation"]
+    self.data["personable_explanation"] = data["personable_explanation"].gsub("Personable Explanation: ", "") if data["personable_explanation"]
+    self.data["professional_explanation"] = data["professional_explanation"].gsub("Professional Explanation: ", "") if data["professional_explanation"]
   end
 
   def label_for_filename
@@ -600,7 +608,7 @@ class Board < ApplicationRecord
   end
 
   def words
-    @words ||= board_images.pluck(:label)
+    @words ||= board_images.order(:position).pluck(:label)
   end
 
   def get_commons_words
@@ -1051,15 +1059,31 @@ class Board < ApplicationRecord
     api_view_with_predictive_images(viewing_user)
   end
 
+  def personable_explanation
+    return unless data
+    data["personable_explanation"]
+  end
+
+  def professional_explanation
+    return unless data
+    data["professional_explanation"]
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,
+      user_name: user.to_s,
       name: name,
       layout: layout,
       audio_url: audio_url,
       group_layout: group_layout,
       position: position,
       data: data,
+      large_screen_columns: large_screen_columns,
+      medium_screen_columns: medium_screen_columns,
+      small_screen_columns: small_screen_columns,
+      personable_explanation: personable_explanation,
+      professional_explanation: professional_explanation,
       description: description,
       parent_type: parent_type,
       predefined: predefined,
@@ -1071,8 +1095,11 @@ class Board < ApplicationRecord
       board_type: board_type,
       user_id: user_id,
       voice: voice,
+      word_list: words,
+      settings: settings,
       margin_settings: margin_settings,
       board_images: board_images.map { |bi| bi.api_view(viewing_user) },
+      obf_id: obf_id,
     }
   end
 
