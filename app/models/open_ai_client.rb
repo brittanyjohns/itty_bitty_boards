@@ -329,7 +329,7 @@ class OpenAiClient
   end
 
   def get_board_description(name, word_list, grid_info)
-    @model = GPT_4_MODEL
+    # @model = GPT_4_MODEL
     text = "I have an AAC board titled, '#{name}'. The board contains the following words: #{word_list.join(", ")}. The grid sizes are: #{grid_info}.
 
     Please provide a brief description of it, including intended use, target age/experience level & why it's laid out how it is, etc.
@@ -342,7 +342,10 @@ class OpenAiClient
       type: "text",
       text: text,
     }] }]
-    response = create_chat(false)
+
+    @model = PREVIEW_MODEL
+    response = create_completion
+    # response = create_chat(false)
     Rails.logger.debug "*** ERROR *** Invaild board description Response: #{response}" unless response
     response
   end
