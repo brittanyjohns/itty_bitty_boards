@@ -332,7 +332,10 @@ class OpenAiClient
     @model = GPT_4_MODEL
     text = "I have an AAC board titled, '#{name}'. The board contains the following words: #{word_list.join(", ")}. The grid sizes are: #{grid_info}.
 
-    Please provide a brief description of it, including intended use, target age/experience level & why it's laid out how it is, etc."
+    Please provide a brief description of it, including intended use, target age/experience level & why it's laid out how it is, etc.
+    
+    If the board is designed for a specific age group, experience level, or purpose, please include that information in the description.
+    Keep the description concise and easy to understand. Respond in HTML format."
 
     @messages = [{ role: "user",
                   content: [{

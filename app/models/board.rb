@@ -37,6 +37,7 @@
 require "zip"
 
 class Board < ApplicationRecord
+  has_rich_text :display_description
   belongs_to :user
   paginates_per 100
   belongs_to :parent, polymorphic: true
@@ -1206,6 +1207,7 @@ class Board < ApplicationRecord
         return
       end
       description = response[:content]
+      description = description.gsub("```html", "").gsub("```", "").strip
       self.description = description
       self.save!
     end
