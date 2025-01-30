@@ -466,6 +466,12 @@ class API::BoardsController < API::ApplicationController
     render json: additional_words
   end
 
+  def get_description
+    set_board
+    description = @board.get_description
+    render json: { description: description }
+  end
+
   def words
     additional_words = Board.new.get_word_suggestions(params[:name], params[:num_of_words])
 

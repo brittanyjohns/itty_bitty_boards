@@ -328,6 +328,22 @@ class OpenAiClient
     response
   end
 
+  def get_board_description(name, word_list, grid_info)
+    @model = GPT_4_MODEL
+    text = "I have an AAC board titled, '#{name}'. The board contains the following words: #{word_list.join(", ")}. The grid sizes are: #{grid_info}.
+
+    Please provide a brief description of it, including intended use, target age/experience level & why it's laid out how it is, etc."
+
+    @messages = [{ role: "user",
+                  content: [{
+      type: "text",
+      text: text,
+    }] }]
+    response = create_chat(false)
+    Rails.logger.debug "*** ERROR *** Invaild board description Response: #{response}" unless response
+    response
+  end
+
   def strip_image_description(image_description)
     Rails.logger.debug "Missing image description.\n" && return unless image_description
     stripped_description = image_description.gsub(/[^a-z ]/i, "")
@@ -374,15 +390,18 @@ class OpenAiClient
     img_variation_url
   end
 
-  def create_chat
+  def create_chat(format_json = true)
     @model ||= GPT_3_MODEL
     Rails.logger.debug "**** ERROR **** \nNo messages provided.\n" unless @messages
     opts = {
       model: @model, # Required.
       messages: @messages, # Required.
       temperature: 0.7,
-      response_format: { type: "json_object" },
+    # response_format: { type: "json_object" },
     }
+    if format_json
+      opts[:response_format] = { type: "json_object" }
+    end
     begin
       response = openai_client.chat(
         parameters: opts,

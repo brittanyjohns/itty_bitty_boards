@@ -1090,6 +1090,22 @@ class Board < ApplicationRecord
     number_of_rows
   end
 
+  def large_screen_rows
+    rows_for_screen_size("lg")
+  end
+
+  def medium_screen_rows
+    rows_for_screen_size("md")
+  end
+
+  def small_screen_rows
+    rows_for_screen_size("sm")
+  end
+
+  def grid_info
+    "Large Screen: #{large_screen_columns}x#{large_screen_rows} | Medium Screen: #{medium_screen_columns}x#{medium_screen_rows} | Small Screen: #{small_screen_columns}x#{small_screen_rows}"
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,
@@ -1177,6 +1193,21 @@ class Board < ApplicationRecord
       self.board_type = "static"
       self.parent_type = "User"
       self.parent_id = current_user.id
+    end
+  end
+
+  def get_description
+    response = OpenAiClient.new({}).get_board_description(name, words, grid_info)
+    if response
+      puts "Response: #{response}"
+
+      if response[:content].blank?
+        Rails.logger.error "*** ERROR - get_description *** \nDid not receive valid response. Response: #{response}\n"
+        return
+      end
+      description = response[:content]
+      self.description = description
+      self.save!
     end
   end
 
