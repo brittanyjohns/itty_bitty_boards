@@ -735,11 +735,11 @@ class Board < ApplicationRecord
   def get_number_of_columns(screen_size = "lg")
     case screen_size
     when "sm"
-      num_of_columns = self.small_screen_columns > 0 ? self.small_screen_columns : 3
+      num_of_columns = self.small_screen_columns > 0 ? self.small_screen_columns : 4
     when "md"
-      num_of_columns = self.medium_screen_columns > 0 ? self.medium_screen_columns : 8
+      num_of_columns = self.medium_screen_columns > 0 ? self.medium_screen_columns : 6
     when "lg"
-      num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 12
+      num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 8
     else
       num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 12
     end
@@ -926,6 +926,11 @@ class Board < ApplicationRecord
   def root_board
     return board_group.root_board if board_group
     self unless board_group
+  end
+
+  def preset_display_image_url
+    return settings["preset_display_image_url"] if settings && settings["preset_display_image_url"]
+    display_image_url
   end
 
   def api_view_with_predictive_images(viewing_user = nil)
@@ -1117,6 +1122,7 @@ class Board < ApplicationRecord
       word_list: words,
       settings: settings,
       margin_settings: margin_settings,
+      preset_display_image_url: preset_display_image_url,
       board_images: board_images.map { |bi| bi.api_view(viewing_user) },
       obf_id: obf_id,
     }

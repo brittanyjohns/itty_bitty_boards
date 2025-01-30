@@ -340,6 +340,7 @@ class API::BoardsController < API::ApplicationController
       @board.display_image_url = board_params["display_image_url"]
       @board.predefined = board_params["predefined"]
       @board.category = board_params["category"]
+      @board.display_image_url = board_params["display_image_url"]
 
       board_type = params[:board_type] || board_params[:board_type]
       settings = params[:settings] || board_params[:settings] || {}

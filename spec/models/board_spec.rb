@@ -236,10 +236,10 @@ RSpec.describe Board, type: :model do
         data = JSON.parse(File.read(obf_file))
         grid_order = data["grid"]["order"]
         expected_board_image_count = data["images"].size
-        board, _dynamic_data = Board.from_obf(obf_file, user)
+        board, dynamic_data = Board.from_obf(obf_file, user)
 
         last_bi_layout = board.board_images.last.layout
-        pp last_bi_layout
+        pp dynamic_data
 
         expect(board).to be_present
         expect(board.board_images.size).to eq(expected_board_image_count)
