@@ -4,3 +4,6 @@ import "./controllers"
 
 import "./custom/companion"
 import "./src/turbo_native/bridge"
+
+import "trix"
+import "@rails/actiontext"

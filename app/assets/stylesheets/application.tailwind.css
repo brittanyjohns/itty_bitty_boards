@@ -42,3 +42,4 @@
 .badge:hover + .tooltip {
   opacity: 100;
 }
+@import 'actiontext.css';
