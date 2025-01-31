@@ -1107,6 +1107,35 @@ class Board < ApplicationRecord
     "Large Screen: #{large_screen_columns}x#{large_screen_rows} | Medium Screen: #{medium_screen_columns}x#{medium_screen_rows} | Small Screen: #{small_screen_columns}x#{small_screen_rows}"
   end
 
+  def word_tree
+    @buttons = []
+    @board_images = board_images.includes(predictive_board: :board_images).order(:position)
+    @board_images.each do |bi|
+      image = bi.image
+      @predictive_board_id = bi.predictive_board_id
+      @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
+      @predictive_images = @predictive_board&.board_images&.order(:position) || []
+      button = {
+        label: bi.label,
+      # image_id: bi.id,
+      # predictive_images: @predictive_images.map { |pi| { label: pi.label, image_id: pi.id } },
+      # predictive_board_id: @predictive_board_id,
+      # audio_url: bi.audio_url,
+      # src: bi.display_image_url,
+      # layout: bi.layout,
+      # part_of_speech: image.part_of_speech,
+      }
+      if @predictive_images.any?
+        button[:button_type] = @predictive_board.board_type
+        button[:predictive_images] = @predictive_images.map(&:label)
+      else
+        button[:button_type] = "static"
+      end
+      @buttons << button
+    end
+    @buttons
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,
