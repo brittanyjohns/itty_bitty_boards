@@ -1085,7 +1085,7 @@ class Board < ApplicationRecord
         number_of_rows = y + h if y + h > number_of_rows
       end
     rescue => e
-      Rails.logger.error "Error getting rows for screen size: #{e}"
+      # Rails.logger.error "Error getting rows for screen size: #{e}"
     end
 
     number_of_rows
@@ -1127,7 +1127,7 @@ class Board < ApplicationRecord
       # layout: bi.layout,
       # part_of_speech: image.part_of_speech,
       }
-      if @predictive_images.any?
+      if @predictive_images&.any?
         button[:button_type] = @predictive_board.board_type
         button[:predictive_images] = @predictive_images.map(&:label)
       else
