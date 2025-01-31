@@ -328,14 +328,91 @@ class OpenAiClient
     response
   end
 
-  def get_board_description(name, word_list, grid_info)
-    @model = GPT_4_MODEL
-    text = "I have an AAC board titled, '#{name}'. The board contains the following words: #{word_list.join(", ")}. The grid sizes are: #{grid_info}.
+  # def get_board_description(name, word_tree, grid_info)
+  #   @model = GPT_4_MODEL
+  #   text = "I have an AAC board titled, '#{name}'. The board is designed to help users communicate using a grid layout with words and phrases. The board includes the following words: #{word_tree}.
+  #    The grid sizes are: #{grid_info}.
 
-    Please provide a brief description of it, including intended use, target age/experience level & why it's laid out how it is, etc.
-    
-    If the board is designed for a specific age group, experience level, or purpose, please include that information in the description.
-    Keep the description concise and easy to understand. Respond in HTML format."
+  #   Please provide a brief description of it, including intended use, target age/experience level & why it's laid out how it is, etc.
+  #   Please don't include the words on the board in the description. Keep the description concise and easy to understand.
+  #    Respond in HTML format."
+
+  #   @messages = [{ role: "user",
+  #                 content: [{
+  #     type: "text",
+  #     text: text,
+  #   }] }]
+  #   response = create_chat(false)
+  #   Rails.logger.debug "*** ERROR *** Invaild board description Response: #{response}" unless response
+  #   response
+  # end
+
+  # def get_board_description(name, word_tree, grid_info)
+  #   @model = GPT_4_MODEL
+  #   text = <<~TEXT
+  #     I have an AAC board titled, "#{name}". This board is designed to help users communicate effectively using a structured grid layout.
+
+  #     **Board Details:**
+  #     - Grid sizes: #{grid_info}
+  #     - The board includes a variety of core and fringe vocabulary words but do not list them in the description.
+
+  #     **Instructions:**
+  #     - Provide a **concise, well-structured HTML response** describing the board's **purpose, target audience (age/experience level), and layout rationale**.
+  #     - Use **clear, easy-to-read language**.
+  #     - **Do not list the words** on the board.
+  #     - Structure the response in **HTML format**, using `<p>` for paragraphs and `<strong>` for key terms.
+
+  #     **Example Output Format:**
+  #     ```html
+  #     <p><strong>Purpose:</strong> This AAC board supports communication in [specific scenario, e.g., outdoor play, school, daily routines]. It allows users to express needs, actions, and social interactions efficiently.</p>
+  #     <p><strong>Target Audience:</strong> Suitable for [age/experience level, e.g., young children, emerging communicators, individuals with limited speech].</p>
+  #     <p><strong>Layout:</strong> The grid is designed to balance core words for flexibility and fringe words for specific contexts. The layout promotes quick access to high-frequency terms.</p>
+  #     ```
+  #   TEXT
+
+  #   @messages = [{ role: "user",
+  #                 content: [{
+  #     type: "text",
+  #     text: text,
+  #   }] }]
+  #   response = create_chat(false)
+  #   Rails.logger.debug "*** ERROR *** Invalid board description Response: #{response}" unless response
+  #   response
+  # end
+
+  def get_board_description(name, word_tree, grid_info)
+    @model = GPT_4_MODEL
+    text = <<~TEXT
+      I have an AAC board titled, "#{name}". This board is designed to help users communicate effectively using a structured grid layout. 
+  
+      **Board Details:**
+      - Grid sizes: #{grid_info}
+      - The board includes a variety of core and fringe vocabulary words but do not list them in the description.
+      
+      **Instructions:**
+      - Provide a **concise, well-structured HTML response** describing the board's **purpose, target audience (age/experience level), and layout rationale**.
+      - Use **clear, easy-to-read language**.
+      - **Do not list the words** on the board.
+      - Format the response using **semantic HTML**, including `<h2>` for headings, `<p>` for descriptions, and `<ul>` for lists.
+      
+      **Example Output Format:**
+      ```html
+      <div class="aac-board-info">
+        <h2>Purpose</h2>
+        <p>This AAC board is designed to support communication in <strong>[specific scenario, e.g., daily routines, school, social interactions]</strong>. It helps users express their needs, emotions, and actions efficiently.</p>
+      
+        <h2>Target Audience</h2>
+        <p>Ideal for <strong>[age/experience level, e.g., young children, beginners, or individuals with communication challenges]</strong>. The board provides a structured way to engage in conversation.</p>
+      
+        <h2>Grid Layout & Design</h2>
+        <ul>
+          <li><strong>Grid Size:</strong> Optimized for #{grid_info}, ensuring accessibility on different screen sizes.</li>
+          <li><strong>Core & Fringe Vocabulary:</strong> Includes essential words for flexibility while incorporating context-specific words for richer communication.</li>
+          <li><strong>Intuitive Placement:</strong> Words are arranged to promote quick selection and ease of use.</li>
+        </ul>
+      </div>
+      ```
+    TEXT
 
     @messages = [{ role: "user",
                   content: [{
@@ -343,7 +420,7 @@ class OpenAiClient
       text: text,
     }] }]
     response = create_chat(false)
-    Rails.logger.debug "*** ERROR *** Invaild board description Response: #{response}" unless response
+    Rails.logger.debug "*** ERROR *** Invalid board description Response: #{response}" unless response
     response
   end
 

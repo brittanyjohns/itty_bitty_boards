@@ -101,7 +101,6 @@ module ImageHelper
   end
 
   def save_audio_file(audio_file, voice)
-    puts "from helper: self.label_for_filename: #{self.label_for_filename}"
     self.audio_files.attach(io: audio_file, filename: "#{self.label_for_filename}_#{voice}.aac")
     new_audio_file = self.audio_files.last
     new_audio_file

@@ -1112,9 +1112,11 @@ class Board < ApplicationRecord
     @board_images = board_images.includes(predictive_board: :board_images).order(:position)
     @board_images.each do |bi|
       image = bi.image
-      @predictive_board_id = bi.predictive_board_id
-      @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
-      @predictive_images = @predictive_board&.board_images&.order(:position) || []
+      if dynamic?
+        @predictive_board_id = bi.predictive_board_id
+        @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
+        @predictive_images = @predictive_board&.board_images&.order(:position) || []
+      end
       button = {
         label: bi.label,
       # image_id: bi.id,
@@ -1175,7 +1177,7 @@ class Board < ApplicationRecord
       @image = Image.create(label: image_data["label"]) unless @image
       new_board_image = @board.add_image(@image.id)
       if image_data["predictive_images"]&.any?
-        puts "Predictive Images: #{image_data["predictive_images"].count}"
+        puts "#{@image.label} - Predictive Images: #{image_data["predictive_images"].count}"
         @predictive_board = Board.create!(name: @image.label, board_type: "predictive", user_id: user_id, parent_type: "Image", parent_id: @image.id)
         image_data["predictive_images"].each do |predictive_image_label|
           @predictive_image = Image.searchable.where(user_id: @board.user_id).find_by(label: predictive_image_label)
@@ -1280,7 +1282,7 @@ class Board < ApplicationRecord
   end
 
   def get_description
-    response = OpenAiClient.new({}).get_board_description(name, words, grid_info)
+    response = OpenAiClient.new({}).get_board_description(name, word_tree, grid_info)
     if response
       puts "Response: #{response}"
 
