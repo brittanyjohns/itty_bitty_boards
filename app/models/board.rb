@@ -1136,6 +1136,59 @@ class Board < ApplicationRecord
     @buttons
   end
 
+  def to_obf(screen_size = "lg")
+    @board_images = board_images.with_artifacts.order(:position)
+    obf_data = {}
+    obf_data["name"] = name
+    # obf_data["description"] = description
+    obf_data["board_type"] = board_type
+    obf_data["images"] = @board_images.map do |bi|
+      image = bi.image
+      {
+        label: bi.label,
+        src: bi.display_image_url,
+        audio: bi.audio_url,
+        part_of_speech: image.part_of_speech,
+        layout: bi.layout[screen_size],
+      }
+    end
+    obf_data
+  end
+
+  def self.create_from_word_tree(name, word_tree)
+    # @board = Board.create!(name: name, board_type: "dynamic")
+    word_tree.each do |button|
+      puts "Button: #{button}"
+      # @image = Image.find_by(label: button[:label])
+      # @board.add_image(@image.id)
+    end
+    # @board
+  end
+
+  def self.create_from_obf(obf_data, user_id)
+    obf_data = obf_data.with_indifferent_access
+    user = User.find(user_id)
+    @board = Board.create!(name: obf_data["name"], board_type: "dynamic", user_id: user_id, parent_type: "User", parent_id: user_id)
+    obf_data["images"].each do |image_data|
+      image_data = image_data.with_indifferent_access
+      @image = Image.searchable.where(user_id: @board.user_id).find_by(label: image_data["label"])
+      @image = Image.create(label: image_data["label"]) unless @image
+      new_board_image = @board.add_image(@image.id)
+      if image_data["predictive_images"]&.any?
+        puts "Predictive Images: #{image_data["predictive_images"].count}"
+        @predictive_board = Board.create!(name: @image.label, board_type: "predictive", user_id: user_id, parent_type: "Image", parent_id: @image.id)
+        image_data["predictive_images"].each do |predictive_image_label|
+          @predictive_image = Image.searchable.where(user_id: @board.user_id).find_by(label: predictive_image_label)
+          @predictive_image = Image.create(label: predictive_image_label) unless @predictive_image
+          @predictive_board.add_image(@predictive_image.id) if @predictive_image
+        end
+        new_board_image.predictive_board_id = @predictive_board&.id
+        new_board_image.save!
+      end
+    end
+    @board
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,

@@ -650,6 +650,14 @@ class API::BoardsController < API::ApplicationController
     render json: @new_board.api_view_with_images(current_user)
   end
 
+  def create_from_template
+    obf_data = params[:data]
+    user_id = current_user.id
+    json_data = JSON.parse(obf_data)
+    @board = Board.create_from_obf(json_data, user_id)
+    render json: @board.api_view_with_images(current_user)
+  end
+
   private
 
   # Use callbacks to share common setup or constraints between actions.
