@@ -117,10 +117,18 @@ Rails.application.configure do
   #   enable_starttls_auto: true,
   # }
 
-  config.action_mailer.delivery_method = :mailgun
-  config.action_mailer.mailgun_settings = {
-    api_key: ENV["MAILGUN_API_KEY"],
-    domain: "mail.speakanyway.com",
-  # timeout: 20 # Default depends on rest-client, whose default is 60s. Added in 1.2.3.
+  # config.action_mailer.delivery_method = :mailgun
+  # config.action_mailer.mailgun_settings = {
+  #   api_key: ENV["MAILGUN_API_KEY"],
+  #   domain: "mail.speakanyway.com",
+  # }
+
+  config.action_mailer.delivery_method = :smtp
+  config.action_mailer.smtp_settings = {
+    address: "smtp.oxcs.bluehost.com",
+    port: 587,
+    user_name: ENV["SMTP_USERNAME"],
+    password: ENV["SMTP_PASSWORD"],
+    authentication: "plain",
   }
 end
