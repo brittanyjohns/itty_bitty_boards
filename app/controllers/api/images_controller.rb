@@ -42,7 +42,7 @@ class API::ImagesController < API::ApplicationController
     @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
 
     @image_with_display_doc = @image.with_display_doc(@current_user, @board)
-    render json: @image_with_display_doc
+    render json: { image: @image_with_display_doc, board: @board }
   end
 
   def crop

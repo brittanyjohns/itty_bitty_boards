@@ -219,9 +219,9 @@ class Board < ApplicationRecord
   end
 
   def set_screen_sizes
-    self.small_screen_columns = 4
-    self.medium_screen_columns = 6
-    self.large_screen_columns = 8
+    self.small_screen_columns = 4 if small_screen_columns.nil?
+    self.medium_screen_columns = 6 if medium_screen_columns.nil?
+    self.large_screen_columns = 8 if large_screen_columns.nil?
   end
 
   def parent_type_menu?
