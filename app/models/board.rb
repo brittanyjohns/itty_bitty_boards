@@ -1138,9 +1138,10 @@ class Board < ApplicationRecord
     @buttons
   end
 
-  def to_obf(screen_size = "lg")
+  def to_obf_tmp(screen_size = "lg")
     @board_images = board_images.with_artifacts.order(:position)
     obf_data = {}
+    obf_
     obf_data["name"] = name
     # obf_data["description"] = description
     obf_data["board_type"] = board_type
