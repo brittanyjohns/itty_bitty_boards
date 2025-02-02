@@ -1196,6 +1196,7 @@ class Board < ApplicationRecord
       id: id,
       user_name: user.to_s,
       name: name,
+      can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
       layout: layout,
       audio_url: audio_url,
       group_layout: group_layout,
