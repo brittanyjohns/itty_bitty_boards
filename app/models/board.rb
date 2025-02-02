@@ -67,7 +67,7 @@ class Board < ApplicationRecord
 
   scope :for_user, ->(user) { where(user: user).or(where(user_id: User::DEFAULT_ADMIN_ID, predefined: true)) }
   scope :with_image_parent, -> { where.associated(:image_parent) }
-  scope :searchable, -> { where(board_type: ["static", "dynamic", "category"]) }
+  scope :searchable, -> { where(board_type: ["static", "dynamic", "category", "predictive"]) }
   scope :menus, -> { where(parent_type: "Menu") }
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
@@ -113,7 +113,7 @@ class Board < ApplicationRecord
   after_initialize :set_initial_layout, if: :layout_empty?
 
   def self.dynamic
-    where(board_type: "dynamic")
+    where(board_type: ["dynamic", "predictive"])
   end
 
   def self.categories
