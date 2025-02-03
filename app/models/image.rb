@@ -1279,7 +1279,7 @@ class Image < ApplicationRecord
 
     @board_images = user_board_images(@current_user)
 
-    @board_image = BoardImage.where(image_id: id, board_id: board.id).first if board
+    @board_image = board_images.where(board_id: board.id).first if board
     @predictive_board = @board_image&.predictive_board if @board_image
 
     # user_image_boards = all_useable_boards(@current_user, @board_image) if @board_image
