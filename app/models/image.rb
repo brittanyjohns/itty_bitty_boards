@@ -1189,27 +1189,12 @@ class Image < ApplicationRecord
     }
   end
 
-  def remaining_user_boards(current_user)
-    return [] unless current_user
-    current_user.boards.where(obf_id: nil).excluding(boards).order(name: :asc)
-  end
-
   def user_boards(current_user)
     return [] unless current_user
     # boards.user_made_with_scenarios_and_menus.where(user_id: current_user.id)
     # Board.joins(:board_images).where(board_images: { image_id: id }).user_made_with_scenarios_and_menus.where(user_id: current_user.id)
     # current_user.boards.includes(:board_images).where(board_images: { image_id: id }).order(name: :asc)
     current_user.boards.includes(:board_images).distinct.order(name: :asc)
-  end
-
-  def all_useable_boards(current_user, board_image)
-    puts "All useable boards for image: #{id} - #{label}"
-    # user_boards = user_boards(current_user)
-    category_boards = Board.for_user(current_user).where(image_parent_id: id)
-    puts "Category boards: #{category_boards.pluck(:id, :name)}"
-    category_boards
-
-    # [user_boards, category_boards].flatten.uniq
   end
 
   def user_board_images(current_user)
@@ -1261,15 +1246,15 @@ class Image < ApplicationRecord
     viewing_user.board_images.where.not(predictive_board_id: nil).where(image_id: id).first
   end
 
-  def with_display_doc(current_user = nil, board = nil)
+  def with_display_doc(current_user = nil, board = nil, board_image = nil)
     @current_user = current_user
     @predictive_board = predictive_board
+    @board_image = board_image
     @global_default_id = Board.predictive_default_id
     current_doc = display_doc(@current_user)
     current_doc_id = current_doc.id if current_doc
     doc_img_url = current_doc&.display_url
     image_docs = docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
-    remaining = remaining_user_boards(@current_user)
     user_image_boards = user_boards(@current_user)
     Rails.logger.debug "User image boards: #{user_image_boards.pluck(:id, :name)}" if user_image_boards
     @default_audio_url = default_audio_url
@@ -1279,10 +1264,9 @@ class Image < ApplicationRecord
 
     @board_images = user_board_images(@current_user)
 
-    @board_image = board_images.where(board_id: board.id).first if board
     @predictive_board = @board_image&.predictive_board if @board_image
 
-    # user_image_boards = all_useable_boards(@current_user, @board_image) if @board_image
+    all_boards = Board.for_user(@current_user).alphabetical
 
     img_is_dynamic = dynamic?
     img_is_predictive = predictive?
@@ -1330,8 +1314,7 @@ class Image < ApplicationRecord
       part_of_speech: part_of_speech,
       can_edit: (current_user && user_id == current_user.id) || current_user&.admin?,
       user_boards: user_image_boards.map { |board| board.api_view(@current_user) },
-      # all_useable_boards: all_useable_boards.map { |board| { id: board.id, name: board.name, user_id: board.user_id } },
-      remaining_boards: remaining.map { |board| { id: board.id, name: board.name, board_type: board.board_type, user_id: board.user_id } },
+      all_boards: all_boards.map { |board| board.user_api_view(@current_user) },
       matching_viewer_images: matching_viewer_images(@current_user).map { |image| { id: image.id, label: image.label, src: image.display_image_url(@current_user) || image.src_url, created_at: image.created_at.strftime("%b %d, %Y"), user_id: image.user_id } },
       matching_viewer_boards: @matching_boards.map { |board|
         { id: board.id, name: board.name, voice: board.voice, user_id: board.user_id, board_type: board.board_type, display_image_url: board.display_image_url || board.image_parent&.src_url, created_at: board.created_at.strftime("%b %d, %Y") }

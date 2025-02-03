@@ -38,11 +38,12 @@ class API::ImagesController < API::ApplicationController
     id = params[:id]
     puts "Image ID: #{id}"
 
-    @image = Image.find(id)
-    @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
+    @image = Image.with_artifacts.find(id)
+    @board = Board.with_artifacts.find_by(id: params[:board_id]) if params[:board_id].present?
+    @board_image = BoardImage.with_artifacts.find_by(image_id: @image.id, board_id: @board.id) if @board
 
-    @image_with_display_doc = @image.with_display_doc(@current_user, @board)
-    render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user) }
+    @image_with_display_doc = @image.with_display_doc(@current_user, @board, @board_image)
+    render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view }
   end
 
   def crop

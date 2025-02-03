@@ -66,6 +66,7 @@ class Board < ApplicationRecord
                   }
 
   scope :for_user, ->(user) { where(user: user).or(where(user_id: User::DEFAULT_ADMIN_ID, predefined: true)) }
+  scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
   scope :with_image_parent, -> { where.associated(:image_parent) }
   scope :searchable, -> { where(board_type: ["static", "dynamic", "category", "predictive"]) }
   scope :menus, -> { where(parent_type: "Menu") }
@@ -113,7 +114,7 @@ class Board < ApplicationRecord
   after_initialize :set_initial_layout, if: :layout_empty?
 
   def self.dynamic
-    where(board_type: ["dynamic", "predictive"])
+    where(board_type: ["dynamic", "predictive"]).distinct
   end
 
   def self.categories
@@ -1231,11 +1232,15 @@ class Board < ApplicationRecord
     }
   end
 
-  def user_api_view
+  def user_api_view(viewing_user = nil)
     {
       id: id,
       name: name,
       board_type: board_type,
+      image_count: board_images.count,
+      can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
+      display_image_url: display_image_url,
+      word_sample: words.join(", ").truncate(150),
     }
   end
 

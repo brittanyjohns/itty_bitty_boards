@@ -38,7 +38,7 @@ class BoardImage < ApplicationRecord
   include BoardsHelper
 
   scope :updated_today, -> { where("updated_at > ?", 1.hour.ago) }
-  scope :with_artifacts, -> { includes({ predictive_board: [{ board_images: :image }] }, :image) }
+  scope :with_artifacts, -> { includes({ predictive_board: [{ board_images: :image }] }, :image, :board) }
 
   delegate :user_id, to: :board, allow_nil: false
 
