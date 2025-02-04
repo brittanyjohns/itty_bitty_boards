@@ -160,16 +160,16 @@ class API::BoardsController < API::ApplicationController
   def show
     # board = Board.with_artifacts.find(params[:id])
     set_board
-    user_permissions = {
-      can_edit: (@board.user == current_user || current_user.admin?),
-      can_delete: (@board.user == current_user || current_user.admin?),
-    }
+    # user_permissions = {
+    #   can_edit: (@board.user == current_user || current_user.admin?),
+    #   can_delete: (@board.user == current_user || current_user.admin?),
+    # }
     if stale?(etag: @board, last_modified: @board.updated_at)
       RailsPerformance.measure("Show Board") do
         # @loaded_board = Board.with_artifacts.find(@board.id)
         @board_with_images = @board.api_view_with_predictive_images(current_user)
       end
-      render json: @board_with_images.merge(user_permissions)
+      render json: @board_with_images
     end
   end
 

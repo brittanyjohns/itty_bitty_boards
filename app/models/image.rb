@@ -1230,15 +1230,20 @@ class Image < ApplicationRecord
 
   def describe_image(doc_url)
     response = OpenAiClient.new(open_ai_opts).describe_image(doc_url)
-    response_content = response[:content]&.downcase
+    puts "Response: #{response}"
+    response_content = response.dig("choices", 0, "message", "content").strip
     puts "Response content: #{response_content}"
-    parsed_response = response_content ? JSON.parse(response_content) : nil
-    puts "Parsed response: #{parsed_response}"
-    if parsed_response
-      parsed_response["output"]["image"]
-    else
-      nil
-    end
+    self.image_prompt = response_content
+    self.save!
+    response_content
+
+    # parsed_response = response_content ? JSON.parse(response_content) : nil
+    # puts "Parsed response: #{parsed_response}"
+    # if parsed_response
+    #   parsed_response["output"]["image"]
+    # else
+    #   nil
+    # end
   end
 
   def predictive_board_image_for_user(viewing_user = nil)

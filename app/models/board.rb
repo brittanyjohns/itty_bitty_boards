@@ -1289,7 +1289,7 @@ class Board < ApplicationRecord
   end
 
   def get_description
-    response = OpenAiClient.new({}).get_board_description(name, word_tree, grid_info)
+    response = OpenAiClient.new({}).get_board_description(self)
     if response
       puts "Response: #{response}"
 

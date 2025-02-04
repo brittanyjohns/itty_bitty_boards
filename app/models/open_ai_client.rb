@@ -380,7 +380,11 @@ class OpenAiClient
   #   response
   # end
 
-  def get_board_description(name, word_tree, grid_info)
+  def get_board_description(board)
+    name = board.name
+    grid_info = board.grid_info
+    word_tree = board.word_tree
+
     @model = GPT_4_MODEL
     text = <<~TEXT
       I have an AAC board titled, "#{name}". This board is designed to help users communicate effectively using a structured grid layout. 
@@ -388,6 +392,12 @@ class OpenAiClient
       **Board Details:**
       - Grid sizes: #{grid_info}
       - The board includes a variety of core and fringe vocabulary words but do not list them in the description.
+      - Word Tree with predictive words for the dynamic buttons:
+      \n #{word_tree} 
+      \n
+
+      With the information provided, please provide a brief description of the board, including its purpose, target audience, and layout rationale.
+
       
       **Instructions:**
       - Provide a **concise, well-structured HTML response** describing the board's **purpose, target audience (age/experience level), and layout rationale**.
