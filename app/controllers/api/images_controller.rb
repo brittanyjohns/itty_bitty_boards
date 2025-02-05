@@ -1,4 +1,7 @@
 class API::ImagesController < API::ApplicationController
+  skip_before_action :authenticate_token!, only: %i[generate_audio]
+  before_action :authenticate_signed_in!, only: %i[generate_audio]
+
   def index
     @current_user = current_user
     sort_order = params[:sort_order] || "asc"
@@ -210,7 +213,8 @@ class API::ImagesController < API::ApplicationController
       client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"], log_errors: true)
 
       voice = params[:voice] || "alloy"
-      user_speed = current_user.settings["voice"]["speed"] || 1.0
+      user_speed = current_user&.settings["voice"]["speed"] if current_user && current_user.settings["voice"]
+      user_speed = user_speed.blank? ? 1.0 : user_speed
       speed = params[:speed].blank? ? user_speed : params[:speed]
 
       valid_speeds = 0.25..4.0
