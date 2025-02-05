@@ -85,7 +85,7 @@ class API::SubscriptionsController < API::ApplicationController
     # Create a billing portal
     session = Stripe::BillingPortal::Session.create({
       customer: current_user.stripe_customer_id,
-      return_url: "http://localhost:8100/dashboard",
+      return_url: "#{DOMAIN}/dashboard",
     })
     render json: { url: session.url }, status: 200
   end

@@ -38,13 +38,15 @@ class Subscription < ApplicationRecord
       expires_at = Time.now.to_i + 1.month
     end
     user.stripe_customer_id = data_object["customer"]
-    user.plan_type = "Pro"
+    user.plan_type = "pro"
     user.plan_status = data_object["payment_status"] == "paid" ? "active" : "inactive"
     user.plan_expires_at = Time.at(expires_at)
     user.save!
-    subscription = Subscription.new
+    stripe_subscription_id = data_object["subscription"]
+    subscription = Subscription.find_by(stripe_subscription_id: stripe_subscription_id)
+    subscription = Subscription.new unless subscription
     subscription.user = user
-    subscription.stripe_subscription_id = data_object["subscription"]
+    subscription.stripe_subscription_id = stripe_subscription_id
     subscription.stripe_customer_id = data_object["customer"]
     subscription.stripe_invoice_id = data_object["invoice"]
     subscription.stripe_payment_status = data_object["payment_status"]
@@ -59,7 +61,7 @@ class Subscription < ApplicationRecord
     self.status = "canceled"
     user.plan_status = "active"
     user.plan_expires_at = Time.now
-    user.plan_type = "Free"
+    user.plan_type = "free"
     user.save!
     self.save
   end
