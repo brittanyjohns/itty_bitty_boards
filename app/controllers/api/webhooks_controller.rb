@@ -55,7 +55,7 @@ class API::WebhooksController < API::ApplicationController
       }.to_json
 
       CreateSubscriptionJob.perform_async(subscription_data)
-      Rails logger.info "Subscription created: #{subscription_data}\n Adding 300 tokens to user"
+      Rails.logger.info "Subscription created: #{subscription_data}\n Adding 300 tokens to user"
       user_uuid = subscription_data["client_reference_id"]
       raise "User UUID not found" if user_uuid.nil?
       @user = User.find_by(uuid: user_uuid) rescue nil
