@@ -28,12 +28,12 @@ class API::WebhooksController < API::ApplicationController
     data_object = data["object"]
     object_type = data_object["object"]
 
-    # @existing_user = User.find_by(stripe_customer_id: data_object.customer)
-    # if @existing_user
-    #   puts "Existing user found: #{@existing_user}"
-    # else
-    #   puts "No existing user found for customer: #{data_object.customer}"
-    # end
+    @existing_user = User.find_by(stripe_customer_id: data_object.customer)
+    if @existing_user
+      puts "Existing user found: #{@existing_user}"
+    else
+      puts "No existing user found for customer: #{data_object.customer}"
+    end
     case event_type
     when "checkout.session.completed"
       # puts "Checkout session completed\n #{event_type}"
