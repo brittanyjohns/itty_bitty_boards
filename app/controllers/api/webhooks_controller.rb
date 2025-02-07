@@ -57,10 +57,11 @@ class API::WebhooksController < API::ApplicationController
       CreateSubscriptionJob.perform_async(subscription_data)
       Rails.logger.info "Subscription created: #{subscription_data}\n Adding 300 tokens to user"
       user_uuid = subscription_data["client_reference_id"]
+      puts "User UUID: #{user_uuid}"
       raise "User UUID not found" if user_uuid.nil?
       @user = User.find_by(uuid: user_uuid) rescue nil
-      raise "User not found" if @user.nil?
-      @user.add_tokens(300)
+      # raise "User not found" if @user.nil?
+      @user.add_tokens(300) if @user
 
       # Payment is successful and the subscription is created.
       # You should provision the subscription and save the customer ID to your database.
