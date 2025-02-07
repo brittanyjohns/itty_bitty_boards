@@ -4,9 +4,10 @@ require "json"
 class GoogleResultsService
   BASE_URL = "https://customsearch.googleapis.com/customsearch/v1"
 
-  def initialize(query, start_index = 1)
+  def initialize(query, start_index = 1, language = "en")
     @query = query
     @start_index = start_index
+    @language = language
     @google_custom_search_api_key = ENV["GOOGLE_CUSTOM_SEARCH_API_KEY"]
     @google_custom_search_cx = ENV["GOOGLE_CUSTOM_SEARCH_CX"]
     @rights = "cc_publicdomain,cc_sharealike,cc_nonderived"  # Default rights
@@ -18,6 +19,7 @@ class GoogleResultsService
       q: @query,
       rights: @rights,
       start: @start_index,
+      lr: "lang_#{@language}",
       num: 10, # Number of results per page (max 10)
     }
   end
@@ -77,7 +79,10 @@ class GoogleResultsService
         context: image["image"]["contextLink"],
         fileFormat: image["fileFormat"],
       }.with_indifferent_access
-      unless image["fileFormat"].blank? || image["fileFormat"].include?("svg")
+      # unless image["fileFormat"].blank? || image["fileFormat"].include?("svg")
+      #   filtered << img_obj
+      # end
+      unless image["fileFormat"].blank?
         filtered << img_obj
       end
     end

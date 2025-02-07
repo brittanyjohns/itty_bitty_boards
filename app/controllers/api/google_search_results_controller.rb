@@ -45,7 +45,7 @@ class API::GoogleSearchResultsController < API::ApplicationController
   end
 
   def add_optional_params
-    %i[imgType rights safe orTerms imgColorType].each do |param|
+    %i[imgType rights safe orTerms imgColorType language].each do |param|
       @image_search_service.add_params(param => params[param]) if params[param].present?
     end
   end

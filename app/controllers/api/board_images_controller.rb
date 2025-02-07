@@ -98,6 +98,7 @@ class API::BoardImagesController < API::ApplicationController
     params.require(:board_image).permit(:board_id, :predictive_board_id,
                                         :image_id, :position, :voice, :bg_color,
                                         :text_color, :font_size, :border_color,
+                                        :display_label,
                                         :layout, :status, :audio_url)
   end
 end

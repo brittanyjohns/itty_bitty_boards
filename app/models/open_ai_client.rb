@@ -284,10 +284,26 @@ class OpenAiClient
     response
   end
 
+  LONG_LANGUAGE_NAMES = { 'en': "English",
+                          'es': "Spanish",
+                          'fr': "French",
+                          'de': "German",
+                          'it': "Italian",
+                          'pt': "Portuguese",
+                          'nl': "Dutch",
+                          'ru': "Russian",
+                          'ja': "Japanese",
+                          'ko': "Korean",
+                          'zh': "Chinese",
+                          'ar': "Arabic",
+                          'hi': "Hindi",
+                          'tr': "Turkish",
+                          'vi': "Vietnamese",
+                          'pl': "Polish",
+                          'th': "Thai" }.freeze
+
   def get_additional_words(board, name, number_of_words = 24, exclude_words = [], use_preview_model = false, language = "en")
     exclude_words_prompt = exclude_words.blank? ? "and no words to exclude." : "excluding the words '#{exclude_words.join("', '")}'."
-    puts "Exclude Words: #{exclude_words}"
-    puts "use_preview_model: #{use_preview_model}"
 
     text = ""
     if board&.dynamic?
@@ -322,7 +338,11 @@ class OpenAiClient
         If the board is 'food', words like 'apple', 'banana', 'cookie', etc. would be appropriate."
     end
     format_instructions = "Do not repeat any words that are already on the board & only provide #{number_of_words} words. DO NOT INCLUDE [#{exclude_words_prompt}]. Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
-
+    language = language || "en"
+    if language != "en"
+      formatted_language = LONG_LANGUAGE_NAMES[language.to_sym]
+      format_instructions += " Respond in #{formatted_language}." if formatted_language
+    end
     text = "#{text} #{format_instructions} #{ending}"
     @messages = [{ role: "user",
                   content: [{

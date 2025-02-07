@@ -106,7 +106,7 @@ module ImageHelper
     else
       self.audio_files.attach(io: audio_file, filename: "#{self.label_for_filename}_#{voice}_#{language}.aac")
     end
-    self.audio_files.reload
+
     new_audio_file = self.audio_files.last
     new_audio_file
   end

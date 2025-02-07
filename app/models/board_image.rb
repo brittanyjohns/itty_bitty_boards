@@ -34,7 +34,7 @@ class BoardImage < ApplicationRecord
 
   before_create :set_defaults
   # after_create :set_next_words
-  # before_save :set_label, if: -> { label.blank? }
+  # before_save :set_labels_and_language_settings, if: -> { label.blank? }
   before_save :set_display_label, if: -> { display_label.blank? }
   # before_save :save_display_image_url, if: -> { display_image_url.blank? }
   before_save :check_predictive_board
@@ -56,8 +56,10 @@ class BoardImage < ApplicationRecord
   end
 
   def set_labels
-    lang = language || "en"
+    lang = language || board.language || "en"
     image_language_settings = image.language_settings[lang.to_sym] || {}
+    puts "image_language_settings: #{image_language_settings}"
+    self.language = lang
     self.label = image_language_settings[:label] || image.label
     self.display_label = image_language_settings[:display_label] || label
   end
@@ -298,6 +300,7 @@ class BoardImage < ApplicationRecord
       id: id,
       image_id: image_id,
       label: label,
+      display_label: display_label,
       board_name: board.name,
       board_type: board.board_type,
       predictive_board: predictive_board_data,

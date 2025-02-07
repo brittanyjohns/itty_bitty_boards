@@ -1038,7 +1038,7 @@ class Image < ApplicationRecord
     item_name = label
     item_name.downcase!
     item_name.strip!
-    item_name.gsub!(/[^0-9a-zA-Z!? ]/, "")
+    # item_name.gsub!(/[^0-9a-zA-Z!? ]/, "")
     if item_name.blank?
       item_name = "image #{id || "new"}"
     end

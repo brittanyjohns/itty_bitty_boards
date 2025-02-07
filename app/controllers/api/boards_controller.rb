@@ -294,8 +294,8 @@ class API::BoardsController < API::ApplicationController
     @board.small_screen_columns = board_params["small_screen_columns"].to_i
     @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
     @board.large_screen_columns = board_params["large_screen_columns"].to_i
-    @board.voice = params["voice"]
-    @board.language = params["language"]
+    @board.voice = params["voice"] if params["voice"].present?
+    @board.language = board_params["language"] if board_params["language"].present?
 
     word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
 
@@ -380,7 +380,7 @@ class API::BoardsController < API::ApplicationController
       @board.predefined = board_params["predefined"]
       @board.category = board_params["category"]
       @board.display_image_url = board_params["display_image_url"]
-      @board.language = board_params["language"]
+      @board.language = board_params["language"] if board_params["language"].present?
 
       board_type = params[:board_type] || board_params[:board_type]
       settings = params[:settings] || board_params[:settings] || {}
@@ -688,6 +688,7 @@ class API::BoardsController < API::ApplicationController
                                   :predefined,
                                   :number_of_columns,
                                   :voice,
+                                  :language,
                                   :small_screen_columns,
                                   :medium_screen_columns,
                                   :large_screen_columns,

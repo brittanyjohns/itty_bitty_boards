@@ -503,8 +503,8 @@ class Board < ApplicationRecord
       # Don't add the same image twice
       new_board_image = board_images.find_by(image_id: image_id.to_i)
     else
-      # language_settings = @image.language_settings || {}
-      # language_settings[self.language] = { "display_label" => @image.display_label, "label" => @image.label }
+      language_settings = @image.language_settings || {}
+      language_settings[self.language] = { "display_label" => @image.label, "label" => @image.label }
       new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images.count, language: self.language)
       new_board_image.set_labels
       if layout
@@ -1024,6 +1024,7 @@ class Board < ApplicationRecord
         {
           id: image.id,
           label: @board_image.label,
+          display_label: @board_image.display_label,
           root_board_id: @root_board&.id,
           root_board_name: @root_board&.name,
           image_user_id: image.user_id,
