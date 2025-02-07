@@ -4,7 +4,7 @@ class AuthMailer < Devise::Mailer
   default template_path: "devise/mailer" # to make sure that your mailer uses the devise views
   # If there is an object in your application that returns a contact email, you can use it as follows
   # Note that Devise passes a Devise::Mailer object to your proc, hence the parameter throwaway (*).
-  default from: "noreply@speakanyway.com"
+  default from: "hello@speakanyway.com"
 
   def reset_password_instructions(record, token, opts = {})
     @token = token
