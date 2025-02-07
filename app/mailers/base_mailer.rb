@@ -23,4 +23,34 @@ class BaseMailer < ApplicationMailer
     Rails.logger.info "Mail result: #{mail_result}"
     mail_result
   end
+
+  def invite_new_user_to_team_email(email, inviter, team)
+    unless email && inviter && team
+      puts "Missing required parameters: email: #{email}, inviter: #{inviter}, team: #{team}"
+      raise "Missing required parameters"
+    end
+
+    temp_passowrd = Devise.friendly_token.first(12)
+    user = User.new(email: email, password: temp_passowrd)
+    if user.save
+      puts "User created: #{user.inspect}"
+    else
+      puts "User not created: #{user.errors.full_messages}"
+    end
+
+    # @invitation_link = url_for(controller: 'teams', action: 'accept_invite', id: team.id, email: invitee.email)
+    frontend_url = Rails.env.production? ? "https://speakanyway.com" : "http://localhost:8100"
+    @invitation_link = frontend_url + "/accept-new-invite/#{team.id}/#{temp_passowrd}"
+    @invitee = user
+    @inviter = inviter
+    @team = team
+    @invitee_name = @invitee.name
+    @inviter_name = @inviter.email || @inviter.to_s
+    @team_name = @team.name
+
+    subject = "You have been invited to join a team on SpeakAnyWay AAC!"
+    mail_result = mail(to: @invitee.email, subject: subject)
+    Rails.logger.info "Mail result: #{mail_result}"
+    mail_result
+  end
 end

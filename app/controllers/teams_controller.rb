@@ -16,7 +16,6 @@ class TeamsController < ApplicationController
 
   def set_current
     @team = policy_scope(Team).find(params[:team_id])
-    
 
     respond_to do |format|
       if current_user.update(current_team: @team)
@@ -27,7 +26,6 @@ class TeamsController < ApplicationController
         format.json { render json: current_user.errors, status: :unprocessable_entity }
       end
     end
-
   end
 
   # GET /teams/new
@@ -48,9 +46,10 @@ class TeamsController < ApplicationController
       @user.invite_to_team!(@team, current_user)
     else
       puts "User not found"
-      @user = User.invite!({ email: user_email }, current_user)
+      # @user = User.invite!({ email: user_email }, current_user)
+      current_user.invite_new_user_to_team!(user_email, @team)
       puts "User created: #{@user}"
-    end    
+    end
     @team_user = @team.add_member!(@user, user_role)
     respond_to do |format|
       if @team_user.save
@@ -132,17 +131,18 @@ class TeamsController < ApplicationController
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_team
-      @team = policy_scope(Team).find(params[:id])
-    end
 
-    def team_user_params
-      params.require(:team_user).permit(:email, :role)
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_team
+    @team = policy_scope(Team).find(params[:id])
+  end
 
-    # Only allow a list of trusted parameters through.
-    def team_params
-      params.require(:team).permit(:name)
-    end
+  def team_user_params
+    params.require(:team_user).permit(:email, :role)
+  end
+
+  # Only allow a list of trusted parameters through.
+  def team_params
+    params.require(:team).permit(:name)
+  end
 end

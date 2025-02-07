@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>NEW User - Team Invitation</title>
+    <style>
+        body {
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background-color: #ffffff;
+            margin: auto;
+            max-width: 600px;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #333333;
+        }
+        .content {
+            font-size: 16px;
+            color: #666666;
+            line-height: 1.6;
+            text-align: center;
+        }
+        .button {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            text-decoration: none;
+            border-radius: 5px;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            You're Invited to Join SpeakAnyWay AAC! 
+        </div>
+        <div class="content">
+            <p>Hi <%= @invitee.name.blank? ? "there" : @invitee.name %>,</p>
+            <p>You've been invited by <%= @inviter.name %> to join the team "<%= @team.name %>" on SpeakAnyWay. This team allows for sharing boards with family members, therapists, or educators, making collaboration easy and efficient.</p>
+            <p>To accept the invitation and start collaborating, just click the button below:</p>
+                  <p style="text-align: center;"><a href="<%= @invitation_link %>" class="button">Accept Invitation</a></p>
+
+            <p>If you have any questions or need assistance, feel free to contact our support team at <a href="mailto:help@speakanyway.com">help@speakanyway.com</a>.</p>
+            <p>Happy Communicating,</p>
+            <p>The SpeakAnyWay Team</p>
+        </div>
+    </div>
+</body>
+</html>

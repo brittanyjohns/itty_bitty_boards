@@ -297,6 +297,10 @@ class User < ApplicationRecord
     BaseMailer.team_invitation_email(self, inviter, team).deliver_now
   end
 
+  def invite_new_user_to_team!(email, team)
+    BaseMailer.invite_new_user_to_team_email(email, self, team).deliver_now
+  end
+
   def send_welcome_email
     begin
       UserMailer.welcome_email(self).deliver_now
