@@ -29,14 +29,18 @@ class API::TeamsController < API::ApplicationController
     user_role = team_user_params[:role]
     @team = Team.find(params[:id])
     @user = User.find_by(email: user_email)
-    if @user
-      @user.invite_to_team!(@team, current_user)
-    else
-      puts "User not found"
-      @user = User.invite!({ email: user_email }, current_user)
-      puts "User created: #{@user}"
+    begin
+      if @user
+        @user.invite_to_team!(@team, current_user)
+      else
+        puts "User not found"
+        @user = User.invite!({ email: user_email }, current_user)
+        puts "User created: #{@user}"
+      end
+      @team_user = @team.add_member!(@user, user_role)
+    rescue StandardError => e
+      puts "Error: #{e}"
     end
-    @team_user = @team.add_member!(@user, user_role)
     respond_to do |format|
       if @team_user.save
         format.json { render json: @team.show_api_view, status: :created }
