@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_01_30_182036) do
+ActiveRecord::Schema[7.1].define(version: 2025_02_07_155233) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -108,6 +108,9 @@ ActiveRecord::Schema[7.1].define(version: 2025_01_30_182036) do
     t.string "label"
     t.string "display_image_url"
     t.integer "predictive_board_id"
+    t.string "language", default: "en"
+    t.string "display_label"
+    t.jsonb "language_settings", default: {}
     t.index ["board_id"], name: "index_board_images_on_board_id"
     t.index ["data"], name: "index_board_images_on_data", using: :gin
     t.index ["image_id"], name: "index_board_images_on_image_id"
@@ -146,6 +149,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_01_30_182036) do
     t.string "board_type"
     t.string "obf_id"
     t.integer "board_group_id"
+    t.string "language", default: "en"
     t.index ["board_group_id"], name: "index_boards_on_board_group_id"
     t.index ["board_type"], name: "index_boards_on_board_type"
     t.index ["category"], name: "index_boards_on_category"
@@ -244,6 +248,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_01_30_182036) do
     t.jsonb "data", default: {}
     t.jsonb "license", default: {}
     t.string "obf_id"
+    t.jsonb "language_settings", default: {}
+    t.string "language", default: "en"
     t.index ["category"], name: "index_images_on_category"
     t.index ["obf_id"], name: "index_images_on_obf_id"
     t.index ["use_custom_audio"], name: "index_images_on_use_custom_audio"

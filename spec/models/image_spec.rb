@@ -32,6 +32,8 @@
 #  data                :jsonb
 #  license             :jsonb
 #  obf_id              :string
+#  language_settings   :jsonb
+#  language            :string           default("en")
 #
 require "rails_helper"
 

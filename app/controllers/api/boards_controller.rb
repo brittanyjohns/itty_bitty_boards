@@ -295,6 +295,8 @@ class API::BoardsController < API::ApplicationController
     @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
     @board.large_screen_columns = board_params["large_screen_columns"].to_i
     @board.voice = params["voice"]
+    @board.language = params["language"]
+
     word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
 
     board_type = params[:board_type] || board_params[:board_type]
@@ -378,6 +380,7 @@ class API::BoardsController < API::ApplicationController
       @board.predefined = board_params["predefined"]
       @board.category = board_params["category"]
       @board.display_image_url = board_params["display_image_url"]
+      @board.language = board_params["language"]
 
       board_type = params[:board_type] || board_params[:board_type]
       settings = params[:settings] || board_params[:settings] || {}

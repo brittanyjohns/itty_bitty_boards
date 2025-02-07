@@ -53,10 +53,10 @@ class OpenAiClient
     { img_url: img_url, revised_prompt: revised_prompt, edited_prompt: new_prompt }
   end
 
-  def create_audio_from_text(text, voice = "alloy")
+  def create_audio_from_text(text, voice = "alloy", language = "en")
     return if Rails.env.test?
     voice = voice || "alloy"
-    Rails.logger.debug "FROM OpenAiClient: text: #{text} -- voice: #{voice}"
+    Rails.logger.debug "FROM OpenAiClient: text: #{text} -- voice: #{voice}, language: #{language}"
     begin
       response = openai_client.audio.speech(parameters: {
                                               input: text,
@@ -70,6 +70,38 @@ class OpenAiClient
     # Rails.logger.debug "*** Audio File *** #{audio_file}"
     Rails.logger.debug "*** ERROR *** Invaild Audio Response: #{response}" unless response
     response
+  end
+
+  def translate_text(text, source_language, target_language)
+    return if Rails.env.test?
+    Rails.logger.debug "FROM OpenAiClient: text: #{text} -- target_language: #{target_language}"
+    begin
+      translation_prompt = "Translate the following text from #{source_language} to #{target_language}:\n #{text}
+      Respond with the JSON object in the following format: {\"translation\": \"translated text\"}"
+      puts "Translation Prompt: #{translation_prompt}"
+      # response = openai_client.chat(parameters: {
+      #                                 model: GPT_4_MODEL,
+      #                                 messages: [{ role: "user",
+      #                                              content: [{ type: "text", text: translation_prompt }] }],
+      #                               })
+      @model = GPT_4_MODEL
+      @messages = [{ role: "user", content: [{ type: "text", text: translation_prompt }] }]
+      response = create_chat
+      translated_text = nil
+      if response
+        response = response.with_indifferent_access
+        puts "Translate Response: #{response}"
+        translated_data = JSON.parse(response[:content]) if response[:content]
+        translated_text = translated_data["translation"] if translated_data
+        Rails.logger.debug "Translated Text: #{translated_text}"
+      else
+        Rails.logger.debug "**** ERROR **** \nDid not receive valid response.\n"
+      end
+    rescue => e
+      Rails.logger.debug "**** ERROR **** \n#{e.message}\n#{e.inspect}"
+    end
+    Rails.logger.debug "*** ERROR *** Invaild Translation Response: #{response}" unless response
+    translated_text
   end
 
   GPT_VISION_MODEL = "gpt-4o-mini"
@@ -252,7 +284,7 @@ class OpenAiClient
     response
   end
 
-  def get_additional_words(board, name, number_of_words = 24, exclude_words = [], use_preview_model = false)
+  def get_additional_words(board, name, number_of_words = 24, exclude_words = [], use_preview_model = false, language = "en")
     exclude_words_prompt = exclude_words.blank? ? "and no words to exclude." : "excluding the words '#{exclude_words.join("', '")}'."
     puts "Exclude Words: #{exclude_words}"
     puts "use_preview_model: #{use_preview_model}"

@@ -21,6 +21,9 @@
 #  label               :string
 #  display_image_url   :string
 #  predictive_board_id :integer
+#  language            :string           default("en")
+#  display_label       :string
+#  language_settings   :jsonb
 #
 
 one:

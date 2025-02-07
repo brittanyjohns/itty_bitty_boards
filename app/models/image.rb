@@ -32,6 +32,8 @@
 #  data                :jsonb
 #  license             :jsonb
 #  obf_id              :string
+#  language_settings   :jsonb
+#  language            :string           default("en")
 #
 class Image < ApplicationRecord
   paginates_per 100
@@ -437,17 +439,18 @@ class Image < ApplicationRecord
     label
   end
 
-  def start_create_all_audio_job
-    CreateAllAudioJob.perform_async(id)
+  def start_create_all_audio_job(language_to_use = "en")
+    CreateAllAudioJob.perform_async(id, language_to_use)
   end
 
-  def create_voice_audio_files
+  def create_voice_audio_files(language_to_use = "en")
     Image.voices.each do |voice|
-      if !audio_file_exists_for?(voice)
-        create_audio_from_text(label, voice)
+      voice_file = find_audio_for_voice(voice, language_to_use)
+      if voice_file
+        puts "Audio file found for #{label} - #{voice} - #{language_to_use}"
       else
-        voice = user_id ? user.voice : "alloy"
-        create_audio_from_text(label, voice)
+        puts "Creating audio file for #{label} - #{voice} - #{language_to_use}"
+        create_audio_from_text(label, voice, language_to_use)
       end
     end
   end
@@ -538,8 +541,12 @@ class Image < ApplicationRecord
     end
   end
 
-  def audio_file_exists_for?(voice)
-    audio_files_blobs.where(filename: "#{label}_#{voice}.aac").any?
+  def audio_file_exists_for?(voice, lang = "en")
+    if lang == "en"
+      audio_files_blobs.where(filename: "#{label}_#{voice}.aac").any?
+    else
+      audio_files_blobs.where(filename: "#{label}_#{voice}_#{lang}.aac").any?
+    end
   end
 
   def menu?
@@ -604,8 +611,12 @@ class Image < ApplicationRecord
     end
   end
 
-  def find_or_create_audio_file_for_voice(voice = "alloy")
-    filename = "#{label_for_filename}_#{voice}.aac"
+  def find_or_create_audio_file_for_voice(voice = "alloy", lang = "en")
+    if lang == "en"
+      filename = "#{label_for_filename}_#{voice}.aac"
+    else
+      filename = "#{label_for_filename}_#{voice}_#{lang}.aac"
+    end
 
     audio_file = ActiveStorage::Attachment.joins(:blob)
       .where(record: self, name: :audio_files, active_storage_blobs: { filename: filename })
@@ -614,24 +625,38 @@ class Image < ApplicationRecord
     if audio_file.present?
       audio_file
     else
-      create_audio_from_text(label, voice)
+      create_audio_from_text(label, voice, lang)
     end
+  end
+
+  def translate_to(language)
+    current_language = language_from_filename(audio_url)
+    translation = OpenAiClient.new(open_ai_opts).translate_text(label, current_language, language)
+    puts "Translation: #{translation}"
+    lang_settings = language_settings || {}
+    lang_settings[language] = { label: translation, display_label: translation }
+    self.language_settings = lang_settings
+    translation
   end
 
   def label_for_filename
     label.parameterize
   end
 
-  def find_audio_for_voice(voice = "alloy")
-    filename = "#{label_for_filename}_#{voice}.aac"
+  def find_audio_for_voice(voice = "alloy", lang = "en")
+    if lang == "en"
+      filename = "#{label_for_filename}_#{voice}.aac"
+    else
+      filename = "#{label_for_filename}_#{voice}_#{lang}.aac"
+    end
     # TODO - this should be unscoped & check all audio files -- maybe?
     audio_file = ActiveStorage::Attachment.joins(:blob)
       .where(record: self, name: :audio_files, active_storage_blobs: { filename: filename })
       .first
 
     unless audio_file
-      Rails.logger.debug "Audio file not found: #{filename}"
-      audio_file = find_or_create_audio_file_for_voice(voice)
+      Rails.logger.debug "Audio file not found: #{filename} - creating new audio file for #{label} - #{voice} - #{lang}"
+      audio_file = find_or_create_audio_file_for_voice(voice, lang)
       self.audio_url = default_audio_url(audio_file)
     end
 
@@ -706,6 +731,21 @@ class Image < ApplicationRecord
     filename.split("_")[0..1].join("_")
   end
 
+  def language_from_filename(filename)
+    file_language = filename.split("_")[2]
+    puts "File language: #{file_language}"
+    if file_language.blank?
+      file_language = "en"
+    else
+      file_language = file_language.split(".")[0]
+      unless Image.languages.include?(file_language)
+        Rails.logger.debug "Invalid language: #{file_language} - #{filename}"
+        file_language = "en"
+      end
+    end
+    file_language
+  end
+
   def self.voices
     ["alloy", "onyx", "shimmer", "nova", "fable", "ash", "coral", "sage"]
   end
@@ -746,16 +786,16 @@ class Image < ApplicationRecord
     missing
   end
 
-  def self.create_sample_audio_for_voices
+  def self.create_sample_audio_for_voices(language = "en")
     audio_files = []
     voices.each do |voice|
-      audio_image = Image.find_by(label: "This is the voice #{voice}", private: true, image_type: "SampleVoice")
+      audio_image = Image.find_by(label: "This is the voice #{voice}", private: true, image_type: "SampleVoice", language: language)
       if audio_image
         Rails.logger.debug "Sample voice already exists: #{audio_image.id}"
         audio_files << audio_image.audio_files
       else
         audio_image = Image.create!(label: "This is the voice #{voice}", private: true, image_type: "SampleVoice")
-        audio_image.create_audio_from_text("This is the voice #{voice}", voice)
+        audio_image.create_audio_from_text("This is the voice #{voice}", voice, language)
         audio_files << audio_image.audio_files
       end
     end
@@ -1023,8 +1063,8 @@ class Image < ApplicationRecord
     audio_blob ? cdn_url : nil
   end
 
-  def save_audio_file_to_s3!(voice = "alloy")
-    create_audio_from_text(label, voice)
+  def save_audio_file_to_s3!(voice = "alloy", lang = "en")
+    create_audio_from_text(label, voice, lang)
     voices_needed = missing_voices || []
     voices_needed = voices_needed - [voice]
   end
@@ -1294,6 +1334,8 @@ class Image < ApplicationRecord
       audio_url: @default_audio_url,
       audio_files: audio_files_for_api,
       custom_audio_files: custom_audio_files_for_api,
+      language: language,
+      language_settings: language_settings,
       status: status,
       error: error,
       text_color: text_color,

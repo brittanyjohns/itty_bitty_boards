@@ -142,7 +142,6 @@ class API::ImagesController < API::ApplicationController
       end
     end
 
-    # @audio_file = @image_clone.create_audio_from_text(text, voice)
     @image_with_display_doc = @image_clone.with_display_doc(@current_user)
     render json: @image_with_display_doc
   end
@@ -196,11 +195,12 @@ class API::ImagesController < API::ApplicationController
     @image = Image.with_artifacts.find(params[:id])
     voice = params[:voice] || "alloy"
     text = params[:text] || @image.label
+    language = params[:language] || "en"
     if text != @image.label
       @image.update(label: text)
     end
 
-    @audio_file = @image.create_audio_from_text(text, voice)
+    @audio_file = @image.create_audio_from_text(text, voice, language)
     @image.reload
     @image_with_display_doc = @image.with_display_doc(current_user)
     render json: @image_with_display_doc

@@ -21,6 +21,9 @@
 #  label               :string
 #  display_image_url   :string
 #  predictive_board_id :integer
+#  language            :string           default("en")
+#  display_label       :string
+#  language_settings   :jsonb
 #
 class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
@@ -31,7 +34,8 @@ class BoardImage < ApplicationRecord
 
   before_create :set_defaults
   # after_create :set_next_words
-  before_save :set_label, if: -> { label.blank? }
+  # before_save :set_label, if: -> { label.blank? }
+  before_save :set_display_label, if: -> { display_label.blank? }
   # before_save :save_display_image_url, if: -> { display_image_url.blank? }
   before_save :check_predictive_board
 
@@ -51,16 +55,19 @@ class BoardImage < ApplicationRecord
     self.save
   end
 
-  def set_label
-    self.label = image.label
+  def set_labels
+    lang = language || "en"
+    image_language_settings = image.language_settings[lang.to_sym] || {}
+    self.label = image_language_settings[:label] || image.label
+    self.display_label = image_language_settings[:display_label] || label
+  end
+
+  def set_display_label
+    self.display_label = label
   end
 
   def is_dynamic?
     predictive_board_id.present? && predictive_board_id != board_id
-  end
-
-  def set_voice
-    create_voice_audio(voice)
   end
 
   def check_predictive_board
@@ -107,7 +114,8 @@ class BoardImage < ApplicationRecord
     self.with_non_cdn_audio.each do |bi|
       img = bi.image
       voice = bi.voice
-      audio_file = img.find_audio_for_voice(voice)
+      lang = bi.language
+      audio_file = img.find_audio_for_voice(voice, lang)
 
       bi.audio_url = img.default_audio_url(audio_file)
       bi.save
@@ -213,7 +221,7 @@ class BoardImage < ApplicationRecord
   end
 
   def to_obf_sound_format
-    audio_file = image.find_audio_for_voice(voice)
+    audio_file = image.find_audio_for_voice(voice, language)
     {
       id: audio_file&.id.to_s,
       ext_saw_label: label,
@@ -239,23 +247,29 @@ class BoardImage < ApplicationRecord
   end
 
   def audio_file
-    image.find_audio_for_voice(voice)
+    image.find_audio_for_voice(voice, language)
   end
 
-  def create_voice_audio(voice = nil)
+  def create_voice_audio(voice = nil, language = "en")
     voice ||= self.voice
+    language ||= self.language
     return if @skip_create_voice_audio || Rails.env.test?
     label_voice = "#{image.label_for_filename}_#{voice}"
+    if language != "en"
+      label_voice = "#{label_voice}_#{language}"
+    end
     filename = "#{label_voice}.aac"
+    puts "Creating audio file for #{filename}"
     already_has_audio_file = image.existing_audio_files.include?(filename)
     self.voice = voice
-    audio_file = image.find_audio_for_voice(voice)
+    self.language = language
+    audio_file = image.find_audio_for_voice(voice, language)
 
     if already_has_audio_file && audio_file
       self.audio_url = image.default_audio_url(audio_file)
     else
-      image.find_or_create_audio_file_for_voice(voice)
-      audio_file = image.find_audio_for_voice(voice)
+      image.find_or_create_audio_file_for_voice(voice, language)
+      audio_file = image.find_audio_for_voice(voice, language)
       self.audio_url = image.default_audio_url(audio_file)
     end
     @skip_create_voice_audio = true
@@ -306,6 +320,9 @@ class BoardImage < ApplicationRecord
       data: data,
       predictive_board_id: predictive_board_id,
       can_edit: viewing_user == board.user,
+      language: language,
+      display_label: display_label,
+      language_settings: language_settings,
     }
   end
 
@@ -320,8 +337,11 @@ class BoardImage < ApplicationRecord
       audio_file = image.find_custom_audio_file
     else
       self.voice = board.voice
+      self.language = board.language
+      self.display_label = image.display_label
+      self.language_settings = image.language_settings
 
-      audio_file = image.find_audio_for_voice(voice)
+      audio_file = image.find_audio_for_voice(voice, language)
     end
 
     self.bg_color = image.bg_color
@@ -333,7 +353,7 @@ class BoardImage < ApplicationRecord
     if audio_file
       self.audio_url = image.default_audio_url(audio_file)
     else
-      image.start_create_all_audio_job unless Rails.env.test? || Rails.env.development?
+      image.start_create_all_audio_job(language) unless Rails.env.test? || Rails.env.development?
     end
     default_next_board = image.matching_viewer_boards(board.user).first
     self.predictive_board_id = default_next_board.id if default_next_board

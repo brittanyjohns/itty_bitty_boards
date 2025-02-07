@@ -33,6 +33,7 @@
 #  board_type            :string
 #  obf_id                :string
 #  board_group_id        :integer
+#  language              :string           default("en")
 #
 require "zip"
 
@@ -191,27 +192,27 @@ class Board < ApplicationRecord
     bg_color
   end
 
-  def create_voice_audio
-    return if @skip_create_voice_audio
-    label_voice = "#{label_for_filename}_#{voice}"
-    filename = "#{label_voice}.aac"
-    already_has_audio_file = false
+  # def create_voice_audio
+  #   return if @skip_create_voice_audio
+  #   label_voice = "#{label_for_filename}_#{voice}"
+  #   filename = "#{label_voice}.aac"
+  #   already_has_audio_file = false
 
-    audio_file = audio_files.last
+  #   audio_file = audio_files.last
 
-    if already_has_audio_file && audio_file
-      self.audio_url = default_audio_url(audio_file)
-    else
-      audio_file = create_audio_from_text(name, voice)
-      if audio_file.is_a?(Integer) || audio_file.nil?
-        Rails.logger.error "Error creating audio file: #{audio_file}"
-        return
-      end
-      self.audio_url = default_audio_url(audio_file)
-    end
-    @skip_create_voice_audio = true
-    save
-  end
+  #   if already_has_audio_file && audio_file
+  #     self.audio_url = default_audio_url(audio_file)
+  #   else
+  #     audio_file = create_audio_from_text(name, voice)
+  #     if audio_file.is_a?(Integer) || audio_file.nil?
+  #       Rails.logger.error "Error creating audio file: #{audio_file}"
+  #       return
+  #     end
+  #     self.audio_url = default_audio_url(audio_file)
+  #   end
+  #   @skip_create_voice_audio = true
+  #   save
+  # end
 
   def existing_audio_files
     return [] unless audio_files.attached?
@@ -416,7 +417,7 @@ class Board < ApplicationRecord
 
   def set_voice
     board_images.includes(:image).each do |bi|
-      bi.create_voice_audio(voice)
+      bi.create_voice_audio(voice, language)
     end
   end
 
@@ -502,7 +503,10 @@ class Board < ApplicationRecord
       # Don't add the same image twice
       new_board_image = board_images.find_by(image_id: image_id.to_i)
     else
-      new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images.count)
+      # language_settings = @image.language_settings || {}
+      # language_settings[self.language] = { "display_label" => @image.display_label, "label" => @image.label }
+      new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images.count, language: self.language)
+      new_board_image.set_labels
       if layout
         new_board_image.layout = layout
         if new_board_image.layout_invalid?
@@ -951,6 +955,7 @@ class Board < ApplicationRecord
       menu_id: board_type === "menu" ? parent_id : nil,
       name: name,
       root_board: @root_board,
+      language: language,
       missing_common_words: missing_common_words,
       existing_words: existing_words,
       description: description,
@@ -1306,7 +1311,7 @@ class Board < ApplicationRecord
 
   def get_words(name_to_send, number_of_words, words_to_exclude = [], use_preview_model = false)
     words_to_exclude = board_images.pluck(:label).map { |w| w.downcase }
-    response = OpenAiClient.new({}).get_additional_words(self, name_to_send, number_of_words, words_to_exclude, use_preview_model)
+    response = OpenAiClient.new({}).get_additional_words(self, name_to_send, number_of_words, words_to_exclude, use_preview_model, language)
     begin
       if response
         if response[:content].blank?

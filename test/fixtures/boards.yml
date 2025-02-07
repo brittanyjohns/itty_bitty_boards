@@ -33,6 +33,7 @@
 #  board_type            :string
 #  obf_id                :string
 #  board_group_id        :integer
+#  language              :string           default("en")
 #
 
 one:
