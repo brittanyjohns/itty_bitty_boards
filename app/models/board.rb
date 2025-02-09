@@ -218,6 +218,14 @@ class Board < ApplicationRecord
     audio_blob ? cdn_url : nil
   end
 
+  def display_preset_image_url
+    image_key = preset_display_image&.key
+
+    cdn_url = "#{ENV["CDN_HOST"]}/#{image_key}" if image_key
+
+    image_key ? cdn_url : nil
+  end
+
   # OBF helper methods
 
   def url

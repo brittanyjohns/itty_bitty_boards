@@ -443,8 +443,17 @@ class API::BoardsController < API::ApplicationController
 
   def update_preset_display_image
     set_board
-    file_extension = params[:preset_display_image].content_type.split("/").last
-    attach_image_to_board(params[:preset_display_image], file_extension)
+    puts "PARAMS: #{board_params.inspect}"
+    image_data = board_params[:preset_display_image]
+    puts "Image data: #{image_data.inspect}"
+    if image_data.blank?
+      render json: { error: "No image data provided" }, status: :unprocessable_entity
+      return
+    end
+
+    file_extension = board_params[:preset_display_image]
+    file_extension = file_extension.content_type.split("/").last if file_extension
+    attach_image_to_board(image_data, file_extension)
     render json: @board.api_view_with_images(current_user)
   end
 
@@ -694,6 +703,7 @@ class API::BoardsController < API::ApplicationController
                                   :description,
                                   :predefined,
                                   :number_of_columns,
+                                  :preset_display_image,
                                   :voice,
                                   :language,
                                   :small_screen_columns,
@@ -710,11 +720,11 @@ class API::BoardsController < API::ApplicationController
   end
 
   def attach_image_to_board(image_data, file_extension)
-    preset_display_img = @board.preset_display_image.attach(io: StringIO.new(Base64.decode64(image_data)),
-                                                            filename: "boards/#{@board.name}/preset_display_image.#{file_extension}",
-                                                            content_type: "image/#{file_extension}")
-    preset_display_img.save
-    preset_display_image_url = url_for(@board.preset_display_image)
+    throw "No image data provided" unless image_data
+    preset_display_img = @board.preset_display_image.attach(io: image_data, filename: "preset_display_image.#{file_extension}", content_type: image_data.content_type)
+    @board.save!
+
+    preset_display_image_url = @board.display_preset_image_url
     @board.update_preset_display_image_url(preset_display_image_url)
   end
 end
