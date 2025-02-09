@@ -1281,7 +1281,7 @@ class Board < ApplicationRecord
       board_type: board_type,
       user_id: user_id,
       voice: voice,
-      word_list: data["current_word_list"],
+      word_list: data ? data["current_word_list"] : nil,
       settings: settings,
       margin_settings: margin_settings,
       preset_display_image_url: preset_display_image_url,
