@@ -15,6 +15,20 @@ class API::TeamsController < API::ApplicationController
     render json: @team.show_api_view(current_user)
   end
 
+  def remaining_boards
+    @team = Team.find(params[:id])
+    user_boards = current_user.boards
+    remaining_boards = user_boards.where.not(id: @team.boards.pluck(:id)).alphabetical
+    render json: remaining_boards
+  end
+
+  def unassigned_accounts
+    @team = Team.find(params[:id])
+    user_accounts = current_user.child_accounts
+    unassigned_accounts = user_accounts.where.not(id: @team.accounts.pluck(:id)).alphabetical
+    render json: unassigned_accounts
+  end
+
   # GET /teams/new
   def new
     @team = Team.new
@@ -89,12 +103,13 @@ class API::TeamsController < API::ApplicationController
 
   def create_board
     @team = Team.find(params[:id])
-    @board = Board.new
-    @board.name = params[:name]
-    @board.user = current_user
-    @board.save
-    @team.add_board!(@board)
-    render json: @team.show_api_view
+    @board = Board.find(params[:board_id])
+    @team_board = @team.add_board!(@board)
+    if @team_board.save
+      render json: @team.show_api_view
+    else
+      render json: @team_board.errors, status: :unprocessable_entity
+    end
   end
 
   def remove_board

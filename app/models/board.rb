@@ -51,6 +51,7 @@ class Board < ApplicationRecord
   has_many :team_users, through: :teams
   has_many :users, through: :team_users
   has_many_attached :audio_files
+  has_one_attached :preset_display_image
   has_many :child_boards, dependent: :destroy
   belongs_to :image_parent, class_name: "Image", optional: true
 
@@ -138,6 +139,50 @@ class Board < ApplicationRecord
     where(board_type: "static")
   end
 
+  def self.with_identical_images(name, user)
+    user_boards = Board.where(name: name, user_id: user.id)
+    puts "User Boards: #{user_boards.count}"
+    board_data = {}
+    user_boards.each do |b|
+      img_ids = b.images.pluck(:id)
+      board_data[b.id] = img_ids
+    end
+    board_ids = []
+    puts "Board Data: #{board_data}"
+    board_data.each do |k, v|
+      board_data.each do |k2, v2|
+        next if k == k2
+        if v.sort == v2.sort
+          board_ids << k2
+        end
+      end
+    end
+    puts "Board IDs: #{board_ids}"
+    boards = user_boards.where(id: board_ids)
+    boards.count > 1 ? boards : []
+  end
+
+  def self.clean_up_idential_boards_for(name, user)
+    boards = with_identical_images(name, user)
+    return unless boards.any?
+    board_to_keep = boards.first
+    boards.each do |board|
+      puts "Board: #{board.id}"
+      next if board == board_to_keep
+      # board.board_images.destroy_all
+      board.destroy!
+    end
+  end
+
+  def self.clean_up_all_identical_for(user_id)
+    user = User.includes({ boards: [{ board_images: :image }] }).find(user_id)
+    user.boards.each do |board|
+      clean_up_idential_boards_for(board.name, user)
+      sleep 1
+      puts "Cleaned up #{board.name}"
+    end
+  end
+
   def set_initial_layout
     self.layout = { "lg" => [], "md" => [], "sm" => [] }
   end
@@ -157,6 +202,7 @@ class Board < ApplicationRecord
     # data["personable_explanation"].gsub("Personable Explanation: ", "") if data["personable_explanation"]
     self.data["personable_explanation"] = data["personable_explanation"].gsub("Personable Explanation: ", "") if data["personable_explanation"]
     self.data["professional_explanation"] = data["professional_explanation"].gsub("Professional Explanation: ", "") if data["professional_explanation"]
+    self.data["current_word_list"] = words
   end
 
   def label_for_filename
@@ -939,6 +985,12 @@ class Board < ApplicationRecord
     display_image_url
   end
 
+  def update_preset_display_image_url(url)
+    self.settings ||= {}
+    self.settings["preset_display_image_url"] = url
+    save
+  end
+
   def api_view_with_predictive_images(viewing_user = nil)
     @board_settings = settings || {}
     @board_images = board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).order(:position).uniq
@@ -1229,7 +1281,7 @@ class Board < ApplicationRecord
       board_type: board_type,
       user_id: user_id,
       voice: voice,
-      word_list: words,
+      word_list: data["current_word_list"],
       settings: settings,
       margin_settings: margin_settings,
       preset_display_image_url: preset_display_image_url,
@@ -1239,6 +1291,8 @@ class Board < ApplicationRecord
   end
 
   def user_api_view(viewing_user = nil)
+    data = self.data || {}
+    current_word_list = data["current_word_list"]
     {
       id: id,
       name: name,
@@ -1246,7 +1300,7 @@ class Board < ApplicationRecord
       image_count: board_images.count,
       can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
       display_image_url: display_image_url,
-      word_sample: words.join(", ").truncate(150),
+      word_sample: current_word_list ? current_word_list.join(", ").truncate(150) : nil,
     }
   end
 

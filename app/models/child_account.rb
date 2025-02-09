@@ -44,6 +44,8 @@ class ChildAccount < ApplicationRecord
 
   delegate :display_docs_for_image, to: :user
 
+  scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
+
   def self.valid_credentials?(username, password_to_set)
     account = ChildAccount.find_by(username: username, passcode: password_to_set)
     if account

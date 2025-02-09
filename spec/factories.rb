@@ -1,4 +1,11 @@
 FactoryBot.define do
+  factory :team_account do
+    team { nil }
+    account { nil }
+    active { false }
+    settings { "MyString" }
+  end
+
   factory :scenario do
     questions { "" }
     answers { "" }

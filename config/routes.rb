@@ -171,8 +171,11 @@ Rails.application.routes.draw do
         post "add_board"
         delete "remove_board"
         post "create_board"
+        get "remaining_boards"
+        get "unassigned_accounts"
       end
     end
+    resources :team_accounts
     resources :images do
       member do
         post "hide_doc"
@@ -248,6 +251,7 @@ Rails.application.routes.draw do
         get "additional_words"
         get "get_description"
         get "download_obf"
+        post "update_preset_display_image"
       end
     end
     resources :board_images do

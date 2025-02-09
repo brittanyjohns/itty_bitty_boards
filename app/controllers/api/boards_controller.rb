@@ -441,6 +441,13 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
+  def update_preset_display_image
+    set_board
+    file_extension = params[:preset_display_image].content_type.split("/").last
+    attach_image_to_board(params[:preset_display_image], file_extension)
+    render json: @board.api_view_with_images(current_user)
+  end
+
   def download_obf
     set_board
     obf_board = @board.to_obf(current_user)
@@ -700,5 +707,14 @@ class API::BoardsController < API::ApplicationController
                                   :query,
                                   :page,
                                   :display_image_url, :category, :word_list, :image_ids_to_remove, :board_type, settings: {})
+  end
+
+  def attach_image_to_board(image_data, file_extension)
+    preset_display_img = @board.preset_display_image.attach(io: StringIO.new(Base64.decode64(image_data)),
+                                                            filename: "boards/#{@board.name}/preset_display_image.#{file_extension}",
+                                                            content_type: "image/#{file_extension}")
+    preset_display_img.save
+    preset_display_image_url = url_for(@board.preset_display_image)
+    @board.update_preset_display_image_url(preset_display_image_url)
   end
 end

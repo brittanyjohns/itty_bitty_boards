@@ -13,6 +13,8 @@ class Team < ApplicationRecord
   has_many :users, through: :team_users
   has_many :team_boards, dependent: :destroy
   has_many :boards, through: :team_boards
+  has_many :team_accounts, dependent: :destroy
+  has_many :accounts, through: :team_accounts
 
   belongs_to :created_by, class_name: "User", foreign_key: "created_by"
 
@@ -73,6 +75,7 @@ class Team < ApplicationRecord
       created_by: created_by&.email,
       members: team_users.map(&:api_view),
       boards: boards.map(&:api_view_with_images),
+      accounts: accounts.map(&:api_view),
     }
   end
 
