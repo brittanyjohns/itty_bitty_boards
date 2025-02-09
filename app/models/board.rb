@@ -198,7 +198,7 @@ class Board < ApplicationRecord
   end
 
   def validate_data
-    return unless data
+    self.data ||= {}
     # data["personable_explanation"].gsub("Personable Explanation: ", "") if data["personable_explanation"]
     self.data["personable_explanation"] = data["personable_explanation"].gsub("Personable Explanation: ", "") if data["personable_explanation"]
     self.data["professional_explanation"] = data["professional_explanation"].gsub("Professional Explanation: ", "") if data["professional_explanation"]
