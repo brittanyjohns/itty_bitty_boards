@@ -89,6 +89,7 @@ class Board < ApplicationRecord
   scope :created_yesterday, -> { where("created_at > ? AND created_at < ?", 1.day.ago.beginning_of_day, Time.zone.now.beginning_of_day) }
   scope :communikate_boards, -> { where("name ILIKE ?", "%CommuniKate%") }
 
+  scope :without_preset_display_image, -> { where.missing(:preset_display_image_attachment) }
   scope :preset, -> { where(predefined: true) }
   scope :welcome, -> { where(category: "welcome", predefined: true) }
   POSSIBLE_BOARD_TYPES = %w[board category user image menu].freeze
@@ -203,6 +204,15 @@ class Board < ApplicationRecord
     self.data["personable_explanation"] = data["personable_explanation"].gsub("Personable Explanation: ", "") if data["personable_explanation"]
     self.data["professional_explanation"] = data["professional_explanation"].gsub("Professional Explanation: ", "") if data["professional_explanation"]
     self.data["current_word_list"] = words
+  end
+
+  def self.set_preset_display_image_from_url(boards)
+    boards.each do |board|
+      next if board.preset_display_image.attached?
+      board_data = board.data || {}
+      next unless board_data["display_image_url"]
+      board.preset_display_image.attach(io: URI.open(board_data["display_image_url"]), filename: "display_image.jpg")
+    end
   end
 
   def label_for_filename
@@ -1225,16 +1235,6 @@ class Board < ApplicationRecord
     obf_data
   end
 
-  def self.create_from_word_tree(name, word_tree)
-    # @board = Board.create!(name: name, board_type: "dynamic")
-    word_tree.each do |button|
-      puts "Button: #{button}"
-      # @image = Image.find_by(label: button[:label])
-      # @board.add_image(@image.id)
-    end
-    # @board
-  end
-
   def self.create_from_obf(obf_data, user_id)
     obf_data = obf_data.with_indifferent_access
     user = User.find(user_id)
@@ -1245,7 +1245,6 @@ class Board < ApplicationRecord
       @image = Image.create(label: image_data["label"]) unless @image
       new_board_image = @board.add_image(@image.id)
       if image_data["predictive_images"]&.any?
-        puts "#{@image.label} - Predictive Images: #{image_data["predictive_images"].count}"
         @predictive_board = Board.create!(name: @image.label, board_type: "predictive", user_id: user_id, parent_type: "Image", parent_id: @image.id)
         image_data["predictive_images"].each do |predictive_image_label|
           @predictive_image = Image.searchable.where(user_id: @board.user_id).find_by(label: predictive_image_label)
