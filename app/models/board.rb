@@ -1304,10 +1304,14 @@ class Board < ApplicationRecord
       id: id,
       name: name,
       board_type: board_type,
-      image_count: board_images.count,
+      # image_count: board_images.count,
       can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
       display_image_url: display_image_url,
       word_sample: current_word_list ? current_word_list.join(", ").truncate(150) : nil,
+      board_type: board_type,
+      created_at: created_at,
+      updated_at: updated_at,
+      voice: voice,
     }
   end
 

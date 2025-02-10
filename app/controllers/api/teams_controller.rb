@@ -26,7 +26,7 @@ class API::TeamsController < API::ApplicationController
     @team = Team.find(params[:id])
     user_accounts = current_user.child_accounts
     unassigned_accounts = user_accounts.where.not(id: @team.accounts.pluck(:id)).alphabetical
-    render json: unassigned_accounts
+    render json: unassigned_accounts.map(&:api_view)
   end
 
   # GET /teams/new

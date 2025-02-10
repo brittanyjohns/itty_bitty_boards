@@ -285,7 +285,6 @@ Rails.application.routes.draw do
     resources :users do
       member do
         put "update_settings"
-        put "admin_update_settings"
       end
     end
 
@@ -337,6 +336,11 @@ Rails.application.routes.draw do
           post "find_or_create"
         end
       end
+    end
+    namespace :admin do
+      resources :users
+      resources :teams
+      get "word_events", to: "word_events#index", as: :word_events
     end
   end
 

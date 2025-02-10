@@ -247,14 +247,6 @@ class User < ApplicationRecord
   end
 
   def display_docs_for_image(image_id)
-    # image = Image.includes(:docs).find_by(id: image_id)
-    # return [] unless image
-    # docs = image.docs.where(user_id: id)
-    # return docs if docs.present?
-    # docs = image.docs.where(user_id: [nil, DEFAULT_ADMIN_ID])
-    # return docs if docs.present?
-    # []
-
     ActiveRecord::Base.logger.silence do
       docs = Doc.joins(:user_docs)
         .where(user_docs: { user_id: id, image_id: image_id })
@@ -354,6 +346,33 @@ class User < ApplicationRecord
     board_group = BoardGroup.includes(:boards).find_by(id: startup_board_group_id) if startup_board_group_id
     return board_group if board_group
     BoardGroup.startup
+  end
+
+  def admin_api_view
+    view = as_json
+    view["admin"] = admin?
+    view["free"] = free?
+    view["pro"] = pro?
+    view["team"] = current_team
+    view["free_trial"] = free_trial?
+    view["trial_expired"] = trial_expired?
+    view["trial_days_left"] = trial_days_left
+    view["last_sign_in_at"] = last_sign_in_at
+    view["last_sign_in_ip"] = last_sign_in_ip
+    view["current_sign_in_at"] = current_sign_in_at
+    view["current_sign_in_ip"] = current_sign_in_ip
+    view["sign_in_count"] = sign_in_count
+    view["tokens"] = tokens
+    view["phrase_board_id"] = settings["phrase_board_id"]
+    view["dynamic_board_id"] = settings["dynamic_board_id"]
+    view["global_board_id"] = Board.predictive_default_id
+    view["has_dynamic_default"] = dynamic_default_board.present?
+    view["startup_board_group_id"] = settings["startup_board_group_id"]
+    view["child_accounts"] = child_accounts.map(&:api_view)
+    view["boards"] = boards.distinct.order(name: :asc).map(&:user_api_view)
+    view["scenarios"] = scenarios.map(&:api_view)
+    view["images"] = images.order(:created_at).limit(10).map { |image| { id: image.id, name: image.name, src: image.src_url } }
+    view
   end
 
   def api_view

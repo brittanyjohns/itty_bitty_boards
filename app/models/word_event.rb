@@ -17,6 +17,22 @@ class WordEvent < ApplicationRecord
   belongs_to :user
   belongs_to :child_account, optional: true
 
+  def admin_api_view
+    {
+      id: id,
+      user_id: user_id,
+      user_email: user.email,
+      child_username: child_account&.username,
+      word: word,
+      previous_word: previous_word,
+      board_id: board_id,
+      team_id: team_id,
+      timestamp: timestamp,
+      created_at: created_at,
+      updated_at: updated_at,
+    }
+  end
+
   def self.session_analysis
     # Define a session as a series of clicks within a certain time window, e.g., 30 minutes
     session_gap = 30.minutes

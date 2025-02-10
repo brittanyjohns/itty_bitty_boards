@@ -46,6 +46,20 @@ class Scenario < ApplicationRecord
     view
   end
 
+  def api_view
+    {
+      id: id,
+      name: name,
+      initial_description: initial_description,
+      age_range: age_range,
+      user_id: user_id,
+      status: status,
+      created_at: created_at,
+      updated_at: updated_at,
+      word_list: word_list,
+    }
+  end
+
   def transform_word_list_response(raw_word_list)
     # Transform the word list response to remove any special characters
     # and ensure that each word is a string

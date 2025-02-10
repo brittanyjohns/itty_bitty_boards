@@ -2,13 +2,11 @@ class API::TeamAccountsController < API::ApplicationController
   before_action :set_team_account, only: %i[ show update destroy ]
   after_action :verify_policy_scoped, only: :index
 
-  # GET /team_accounts or /team_accounts.json
   def index
     @team_accounts = policy_scope(TeamAccount)
     render json: @team_accounts.map { |team_account| team_account.index_api_view(current_user) }
   end
 
-  # GET /team_accounts/1 or /team_accounts/1.json
   def show
     render json: @team_account.show_api_view(current_user)
   end
@@ -20,7 +18,6 @@ class API::TeamAccountsController < API::ApplicationController
     render json: remaining_boards
   end
 
-  # POST /team_accounts or /team_accounts.json
   def create
     @team_account = TeamAccount.new
     @team = Team.find(params[:team_id])
