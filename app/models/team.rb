@@ -15,10 +15,15 @@ class Team < ApplicationRecord
   has_many :boards, through: :team_boards
   has_many :team_accounts, dependent: :destroy
   has_many :accounts, through: :team_accounts
-
+  has_many :account_boards, through: :team_accounts, source: :boards
   belongs_to :created_by, class_name: "User", foreign_key: "created_by"
 
   after_create :create_first_user
+
+  def available_team_account_boards
+    # team_accounts.includes(account: :boards).map(&:boards).flatten.uniq
+    account_boards.where.not(id: team_boards.pluck(:board_id))
+  end
 
   def create_first_user
     user = created_by
@@ -74,7 +79,7 @@ class Team < ApplicationRecord
       name: name,
       created_by: created_by&.email,
       members: team_users.map(&:api_view),
-      boards: boards.map(&:api_view_with_images),
+      boards: available_team_account_boards.map(&:api_view),
       accounts: accounts.map(&:api_view),
     }
   end

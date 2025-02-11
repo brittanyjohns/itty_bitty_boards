@@ -1,7 +1,7 @@
 module API
   module V1
     class AuthsController < ApplicationController
-      skip_before_action :authenticate_token!, only: [:create, :sign_up, :current, :destroy, :forgot_password, :reset_password]
+      skip_before_action :authenticate_token!, only: [:create, :sign_up, :current, :destroy, :forgot_password, :reset_password, :reset_password_invite]
 
       def sign_up
         if params["auth"] && params["auth"]["first_name"] && params["auth"]["last_name"]
@@ -60,6 +60,22 @@ module API
         if user
           user.reset_password(params[:password], params[:password_confirmation])
           render json: { message: "Password reset successfully" }
+        else
+          render json: { error: "Invalid reset password token" }, status: :not_found
+        end
+      end
+
+      def reset_password_invite
+        unless params[:invitation_token]
+          puts params
+          render json: { error: "No invitation token provided" }, status: :not_found
+          return
+        end
+        user = User.accept_invitation!(invitation_token: params[:invitation_token], password: params[:password], password_confirmation: params[:password_confirmation])
+
+        puts "User: #{user}"
+        if user
+          render json: { message: "Password set. Please sign in.", user: user, token: user.authentication_token }
         else
           render json: { error: "Invalid reset password token" }, status: :not_found
         end

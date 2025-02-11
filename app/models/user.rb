@@ -73,6 +73,9 @@ class User < ApplicationRecord
   scope :admin, -> { where(role: "admin") }
   scope :pro, -> { where(plan_type: "pro") }
   scope :free, -> { where(plan_type: "free") }
+  scope :basic, -> { where(plan_type: "basic") }
+  scope :pro_plus, -> { where(plan_type: "pro_plus") }
+
   scope :non_admin, -> { where.not(role: "admin") }
   scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
 
@@ -101,6 +104,19 @@ class User < ApplicationRecord
     self.all.each do |user|
       user.clear_custom_default_board
     end
+  end
+
+  def self.create_from_email(email)
+    user = User.invite!(email: email, skip_invitation: true)
+    # temp_passowrd = Devise.friendly_token.first(12)
+    # user = User.new(email: email, password: temp_passowrd)
+    if user
+      user.send_welcome_invitation_email
+      puts "User created: #{user.inspect}"
+    else
+      puts "User not created: #{user.errors.full_messages}"
+    end
+    user
   end
 
   def clear_custom_default_board
@@ -303,6 +319,16 @@ class User < ApplicationRecord
     end
   end
 
+  def send_welcome_invitation_email
+    begin
+      UserMailer.welcome_invitation_email(self).deliver_now
+      AdminMailer.new_user_email(self).deliver_now
+    rescue => e
+      puts "Error sending welcome invitation email: #{e.message}"
+      Rails.logger.error("Error sending welcome invitation email: #{e.message}")
+    end
+  end
+
   def subscription_expired?
     plan_expires_at && plan_expires_at < Time.now
   end
@@ -317,6 +343,18 @@ class User < ApplicationRecord
 
   def free?
     plan_type.downcase == "free"
+  end
+
+  def basic?
+    plan_type.downcase == "basic"
+  end
+
+  def pro_plus?
+    plan_type.downcase == "pro_plus"
+  end
+
+  def paid_plan?
+    plan_type.downcase != "free"
   end
 
   def to_s
@@ -353,6 +391,7 @@ class User < ApplicationRecord
     view["admin"] = admin?
     view["free"] = free?
     view["pro"] = pro?
+    view["plan_type"] = plan_type
     view["team"] = current_team
     view["free_trial"] = free_trial?
     view["trial_expired"] = trial_expired?

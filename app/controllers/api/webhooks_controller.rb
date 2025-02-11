@@ -28,6 +28,10 @@ class API::WebhooksController < API::ApplicationController
     data_object = data["object"]
     object_type = data_object["object"]
 
+    puts "Event type: #{event_type}"
+    puts "Object type: #{object_type}"
+    puts "Data object: #{data_object.inspect}"
+
     @existing_user = User.find_by(stripe_customer_id: data_object.customer)
     if @existing_user
       puts "Existing user found: #{@existing_user}"
@@ -35,6 +39,12 @@ class API::WebhooksController < API::ApplicationController
       puts "No existing user found for customer: #{data_object.customer}"
     end
     case event_type
+    when "customer.subscription.created"
+      puts "Customer subscription created\n #{event_type}"
+      puts "Subscription ID: #{data_object.id}"
+      puts "Customer ID: #{data_object.customer}"
+      puts "Customer email: #{data_object.customer_email}"
+      puts "Invoice ID: #{data_object.invoice}"
     when "checkout.session.completed"
       # puts "Checkout session completed\n #{event_type}"
       # puts "User UUID: #{data_object.client_reference_id}"
@@ -45,6 +55,7 @@ class API::WebhooksController < API::ApplicationController
       subscription_data = {
         subscription: data_object.subscription,
         customer: data_object.customer,
+        customer_email: data_object.customer_details["email"],
         invoice: data_object.invoice,
         payment_status: data_object.payment_status,
         amount_total: data_object.amount_total,
@@ -56,11 +67,13 @@ class API::WebhooksController < API::ApplicationController
 
       CreateSubscriptionJob.perform_async(subscription_data)
       Rails.logger.info "Subscription created: #{subscription_data}\n Adding 300 tokens to user"
-      user_uuid = subscription_data["client_reference_id"]
+      user_uuid = data_object.client_reference_id
       puts "User UUID: #{user_uuid}"
-      raise "User UUID not found" if user_uuid.nil?
-      @user = User.find_by(uuid: user_uuid) rescue nil
-      # raise "User not found" if @user.nil?
+      # raise "User UUID not found" if user_uuid.nil?
+      @user = User.find_by(uuid: user_uuid) if user_uuid
+      @user = User.find_by(email: data_object.customer_details["email"]) unless @user
+      @user = User.create_from_email(data_object.customer_details["email"]) unless @user
+      raise "User not found" if @user.nil?
       @user.add_tokens(300) if @user
 
       # Payment is successful and the subscription is created.
@@ -101,7 +114,6 @@ class API::WebhooksController < API::ApplicationController
         puts "No subscription found for stripe_subscription: #{sub_id}"
         return
       end
-      pp data_object
       Rails.logger.info "Subscription Updated: #{data_object.inspect}"
       if data_object.cancel_at_period_end == true
         puts "Subscription will be canceled at the end of the billing period - #{data_object["current_period_end"]}"

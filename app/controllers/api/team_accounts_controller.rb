@@ -11,13 +11,6 @@ class API::TeamAccountsController < API::ApplicationController
     render json: @team_account.show_api_view(current_user)
   end
 
-  def remaining_boards
-    @team_account = TeamAccount.find(params[:id])
-    user_boards = current_user.boards
-    remaining_boards = user_boards.where.not(id: @team_account.boards.pluck(:id)).alphabetical
-    render json: remaining_boards
-  end
-
   def create
     @team_account = TeamAccount.new
     @team = Team.find(params[:team_id])

@@ -38,7 +38,7 @@ class Subscription < ApplicationRecord
       expires_at = Time.now.to_i + 1.month
     end
     user.stripe_customer_id = data_object["customer"]
-    user.plan_type = "pro"
+    user.plan_type = "basic"
     user.plan_status = data_object["payment_status"] == "paid" ? "active" : "inactive"
     user.plan_expires_at = Time.at(expires_at)
     user.save!

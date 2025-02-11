@@ -312,6 +312,7 @@ Rails.application.routes.draw do
       post "login", to: "auths#create"
       post "forgot_password", to: "auths#forgot_password"
       post "reset_password", to: "auths#reset_password"
+      post "reset_password_invite", to: "auths#reset_password_invite"
       # resources :notification_tokens, only: :create
     end
     namespace :account do
