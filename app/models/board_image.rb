@@ -294,7 +294,6 @@ class BoardImage < ApplicationRecord
   end
 
   def api_view(viewing_user = nil)
-    viewing_user ||= user
     all_img_board_images = board.board_images.includes(:image).distinct
     {
       id: id,

@@ -25,6 +25,10 @@ class Team < ApplicationRecord
     account_boards.where.not(id: team_boards.pluck(:board_id))
   end
 
+  def supporters
+    team_users.where(role: ["supporter", "member"])
+  end
+
   def create_first_user
     user = created_by
     puts "Creating first user for team: #{user&.email}"
@@ -77,6 +81,7 @@ class Team < ApplicationRecord
     {
       id: id,
       name: name,
+      can_edit: viewing_user&.admin? || viewing_user == created_by,
       created_by: created_by&.email,
       members: team_users.map(&:api_view),
       boards: available_team_account_boards.map(&:api_view),

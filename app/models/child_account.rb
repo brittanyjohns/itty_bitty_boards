@@ -113,11 +113,12 @@ class ChildAccount < ApplicationRecord
     user.boards.where.not(id: current_boards.pluck(:id)).order(:name)
   end
 
-  def api_view
+  def api_view(viewing_user = nil)
     {
       id: id,
       username: username,
       passcode: passcode,
+      can_edit: viewing_user&.admin? || viewing_user&.id == user_id,
       pro: user.pro?,
       free_trial: user.free_trial?,
       admin: user.admin?,

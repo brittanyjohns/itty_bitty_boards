@@ -74,7 +74,7 @@ class User < ApplicationRecord
   scope :pro, -> { where(plan_type: "pro") }
   scope :free, -> { where(plan_type: "free") }
   scope :basic, -> { where(plan_type: "basic") }
-  scope :pro_plus, -> { where(plan_type: "pro_plus") }
+  scope :plus, -> { where(plan_type: "plus") }
 
   scope :non_admin, -> { where.not(role: "admin") }
   scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
@@ -352,8 +352,8 @@ class User < ApplicationRecord
     plan_type.downcase == "basic"
   end
 
-  def pro_plus?
-    plan_type.downcase == "pro_plus"
+  def plus?
+    plan_type.downcase == "plus"
   end
 
   def paid_plan?
@@ -417,11 +417,30 @@ class User < ApplicationRecord
     view
   end
 
+  def teams_with_read_access
+    team_users.where(role: "member").map(&:team)
+  end
+
+  def accounts_with_read_access
+    teams_with_read_access.map(&:accounts).flatten
+  end
+
+  def communicator_accounts
+    child_accounts.order(:name).map(&:api_view)
+  end
+
   def api_view
     view = self.as_json
+    view["plan_expires_at"] = plan_expires_at.strftime("%x") if plan_expires_at
     view["admin"] = admin?
     view["free"] = free?
     view["pro"] = pro?
+    view["basic"] = basic?
+    view["plus"] = plus?
+    view["teams_with_read_access"] = teams_with_read_access.map(&:index_api_view)
+    view["communicator_accounts"] = communicator_accounts
+    view["paid_plan"] = paid_plan?
+    view["plan_type"] = plan_type
     view["team"] = current_team
     view["free_trial"] = free_trial?
     view["trial_expired"] = trial_expired?
