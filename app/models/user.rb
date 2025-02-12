@@ -111,11 +111,13 @@ class User < ApplicationRecord
     # temp_passowrd = Devise.friendly_token.first(12)
     # user = User.new(email: email, password: temp_passowrd)
     if user
-      puts "setting stripe_customer_id: #{stripe_customer_id}"
-      user.stripe_customer_id = stripe_customer_id
-      user.save
+      # puts "setting stripe_customer_id: #{stripe_customer_id}"
+      # user.stripe_customer_id = stripe_customer_id
+      # user.save
       user.send_welcome_invitation_email
       puts "User created: #{user.inspect}"
+      user.stripe_customer_id = stripe_customer_id
+      user.save
     else
       puts "User not created: #{user.errors.full_messages}"
     end
@@ -323,6 +325,7 @@ class User < ApplicationRecord
   end
 
   def send_welcome_invitation_email
+    puts ">> Sending welcome invitation email to #{email}"
     begin
       UserMailer.welcome_invitation_email(self).deliver_now
       AdminMailer.new_user_email(self).deliver_now
