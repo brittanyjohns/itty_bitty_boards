@@ -32,69 +32,145 @@ class API::WebhooksController < API::ApplicationController
     puts "Object type: #{object_type}"
     puts "Data object: #{data_object.inspect}"
 
-    @existing_user = User.find_by(stripe_customer_id: data_object.customer)
-    if @existing_user
-      puts "Existing user found: #{@existing_user}"
-    else
-      puts "No existing user found for customer: #{data_object.customer}"
-    end
     case event_type
-    when "customer.subscription.created"
+    when "customer.subscription.created", "customer.subscription.updated"
       puts "Customer subscription created\n #{event_type}"
       puts "Subscription ID: #{data_object.id}"
       puts "Customer ID: #{data_object.customer}"
       puts "Customer email: #{data_object.customer_email}"
-      puts "Invoice ID: #{data_object.invoice}"
+      subscription_data = {
+        subscription: data_object.id,
+        customer: data_object.customer,
+        customer_email: data_object.customer_email,
+      }.to_json
+
+      subscription_data[:plan] = data_object.plan
+      subscription_data[:product] = data_object.plan.product
+      subscription_data[:plan_type] = data_object.plan.nickname
+      subscription_data[:status] = data_object.status
+      subscription_data[:trial_end] = data_object.trial_end
+      subscription_data[:current_period_end] = data_object.current_period_end
+      subscription_data[:current_period_start] = data_object.current_period_start
+      subscription_data[:customer_email] = data_object.customer_email
+      subscription_data[:customer_name] = data_object.customer_name
+      subscription_data[:invoice] = data_object.invoice
+      @user = User.find_by(stripe_customer_id: data_object.customer)
+      if @user
+        puts "Existing user found: #{@user}"
+      else
+        puts "No existing user found for stripe_customer_id: #{data_object.customer}"
+        @user = User.find_by(email: data_object.customer_email) unless @user
+      end
+      CreateSubscriptionJob.perform_async(subscription_data, @user) if @user
+      if @user
+        puts ">>> NEW Subscribed User: #{@user}"
+      else
+        puts "No user found for subscription"
+      end
+
+      # invoice: data_object.invoice,
+
+    when "customer.created"
+      @user = User.find_by(stripe_customer_id: data_object.id)
+      if @user
+        puts "Existing user found: #{@existing_user}"
+      else
+        puts "No existing user found for stripe_customer_id: #{data_object.id}"
+
+        @user = User.find_by(email: data_object.email) unless @user
+        if @user && @user.stripe_customer_id.nil?
+          @user.stripe_customer_id = data_object.id
+          @user.save!
+        end
+        @user = User.create_from_email(data_object.email, data_object.id) unless @user
+      end
+      puts ">>> NEW User Created: #{@user}"
+    when "customer.subscription.trial_will_end"
+      puts "Customer subscription trial will end\n #{event_type}"
+      puts "Subscription ID: #{data_object.id}"
+      puts "Customer ID: #{data_object.customer}"
+      puts "Plan ID: #{data_object.plan.id}"
+      puts "Plan type: #{data_object.plan.nickname}"
+      puts "status: #{data_object.status}" # trialing
+      # Send email to user
+    when "customer.subscription.paused"
+      puts "Customer subscription paused\n #{event_type}"
+      puts "Subscription ID: #{data_object.id}"
+      puts "Customer ID: #{data_object.customer}"
+      puts "Plan ID: #{data_object.plan.id}"
+      puts "Plan type: #{data_object.plan.nickname}"
+      puts "status: #{data_object.status}" # paused
+      # Send email to user
+    when "customer.subscription.pending_update_applied"
+      puts "Customer subscription pending update applied\n #{event_type}"
     when "checkout.session.completed"
       # puts "Checkout session completed\n #{event_type}"
       # puts "User UUID: #{data_object.client_reference_id}"
       # puts "Subscription ID: #{data_object.subscription}"
-      stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
+      # stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
+      # subscription_data[:current_period_end] = stripe_subscription.current_period_end
+      # subscription_data[:expires_at] = stripe_subscription.current_period_end
       # puts "Stripe subscription: #{stripe_subscription.inspect}"
 
-      subscription_data = {
-        subscription: data_object.subscription,
-        customer: data_object.customer,
-        customer_email: data_object.customer_details["email"],
-        invoice: data_object.invoice,
-        payment_status: data_object.payment_status,
-        amount_total: data_object.amount_total,
-        client_reference_id: data_object.client_reference_id,
-        current_period_end: stripe_subscription.current_period_end,
-        expires_at: stripe_subscription.current_period_end,
-
-      }.to_json
-
-      CreateSubscriptionJob.perform_async(subscription_data)
-      Rails.logger.info "Subscription created: #{subscription_data}\n Adding 300 tokens to user"
-      user_uuid = data_object.client_reference_id
-      puts "User UUID: #{user_uuid}"
-      # raise "User UUID not found" if user_uuid.nil?
-      @user = User.find_by(uuid: user_uuid) if user_uuid
-      @user = User.find_by(email: data_object.customer_details["email"]) unless @user
-      @user = User.create_from_email(data_object.customer_details["email"]) unless @user
-      raise "User not found" if @user.nil?
-      @user.add_tokens(300) if @user
+      # user_uuid = data_object.client_reference_id
+      # puts "User UUID: #{user_uuid}"
+      # # raise "User UUID not found" if user_uuid.nil?
+      # @user = User.find_by(uuid: user_uuid) if user_uuid
+      # @user = User.find_by(email: data_object.customer_details["email"]) unless @user
+      # @found_user = @user
+      # @user = User.create_from_email(data_object.customer_details["email"]) unless @user
+      # puts ">>> User: #{@user}"
+      # subscription_data = {
+      #   subscription: data_object.subscription,
+      #   customer: data_object.customer,
+      #   customer_email: data_object.customer_email,
+      # }.to_json
+      # CreateSubscriptionJob.perform_async(subscription_data, @user)
+      Rails.logger.info "Checkout completed. Adding 5 tokens to user #{@user}"
+      @user.add_tokens(5) if @user
 
       # Payment is successful and the subscription is created.
       # You should provision the subscription and save the customer ID to your database.
+    when "invoice.created"
+      puts "Invoice created\n #{data_object.customer}"
     when "invoice.paid"
+      @user = User.find_by(stripe_customer_id: data_object.customer)
       stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
       puts "stripe_subscription: #{stripe_subscription.inspect}"
-      @subscription = Subscription.find_by(stripe_subscription_id: stripe_subscription.id)
-      puts "Recorded subscription: #{@subscription.inspect}"
-      #  TODO - Send email to user
-      if @subscription
-        @subscription.update(status: stripe_subscription.status, expires_at: Time.at(stripe_subscription.current_period_end))
-        @user = @subscription.user
+      plan_id = stripe_subscription.plan.product
+      puts "Plan ID: #{plan_id}"
+      plan_type_name = stripe_subscription.plan.nickname
+      puts "Plan type name: #{plan_type_name}"
+      plan_type = Subscription.get_plan_type(plan_type_name)
+      # puts "Plan type: #{plan_type}"
+      hosted_invoice_url = data_object.hosted_invoice_url
+      if @user
+        puts "Existing user found: #{@user}"
+        @user.settings ||= {}
+        @user.settings["hosted_invoice_url"] = hosted_invoice_url
+        @user.settings["plan_id"] = plan_id
+
+        @user.plan_type = plan_type
+        @user.plan_status = "active"
         @user.plan_expires_at = Time.at(stripe_subscription.current_period_end)
-        Rails.logger.info "Subscription Paid: user: #{@user}, adding 100 tokens"
-        @user.add_tokens(100)
         @user.save!
-        Rails.logger.info "Subscription Paid: User: #{@user}, Tokens: #{@user.tokens}"
       else
-        puts "No subscription found for stripe_subscription: #{stripe_subscription.id}"
+        puts "No existing user found for customer: #{data_object.customer}"
       end
+      # @subscription = Subscription.find_by(stripe_subscription_id: stripe_subscription.id)
+      # puts "Recorded subscription: #{@subscription.inspect}"
+      # #  TODO - Send email to user
+      # if @subscription
+      #   @subscription.update(status: stripe_subscription.status, expires_at: Time.at(stripe_subscription.current_period_end))
+      #   @user = @subscription.user
+      #   @user.plan_expires_at = Time.at(stripe_subscription.current_period_end)
+      #   Rails.logger.info "Subscription Paid: user: #{@user}, adding 100 tokens"
+      #   @user.add_tokens(100)
+      #   @user.save!
+      #   Rails.logger.info "Subscription Paid: User: #{@user}, Tokens: #{@user.tokens}"
+      # else
+      #   puts "No subscription found for stripe_subscription: #{stripe_subscription.id}"
+      # end
       # Continue to provision the subscription as payments continue to be made.
       # Store the status in your database and check when a user accesses your service.
       # This approach helps you avoid hitting rate limits.

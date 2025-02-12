@@ -27,10 +27,11 @@ class Subscription < ApplicationRecord
   scope :expiring_soon, -> { where("expires_at < ?", Time.now + 1.week) }
   scope :expired, -> { where("expires_at < ?", Time.now) }
 
-  def self.build_from_stripe_event(data_object)
+  def self.build_from_stripe_event(data_object, user = nil)
     user_uuid = data_object["client_reference_id"]
-    raise "User UUID not found" if user_uuid.nil?
-    user = User.find_by(uuid: user_uuid) rescue nil
+    raise "User UUID not found" if user_uuid.nil? && user.nil?
+    user = User.find_by(uuid: user_uuid) if user_uuid && user.nil?
+
     raise "User not found" if user.nil?
     expires_at = data_object["current_period_end"] || data_object["expires_at"]
     if expires_at.nil?
@@ -38,8 +39,8 @@ class Subscription < ApplicationRecord
       expires_at = Time.now.to_i + 1.month
     end
     user.stripe_customer_id = data_object["customer"]
-    user.plan_type = "basic"
-    user.plan_status = data_object["payment_status"] == "paid" ? "active" : "inactive"
+    user.plan_type = get_plan_type(data_object["plan"]["nickname"])
+    user.plan_status = data_object["status"]
     user.plan_expires_at = Time.at(expires_at)
     user.save!
     stripe_subscription_id = data_object["subscription"]
@@ -54,7 +55,20 @@ class Subscription < ApplicationRecord
     subscription.price_in_cents = data_object["amount_total"]
     subscription.stripe_client_reference_id = data_object["client_reference_id"]
     subscription.expires_at = Time.at(expires_at)
+    subscription.save!
     subscription
+  end
+
+  def self.get_plan_type(plan)
+    if plan.include?("basic")
+      "basic"
+    elsif plan.include?("pro")
+      "pro"
+    elsif plan.include?("plus")
+      "plus"
+    else
+      "free"
+    end
   end
 
   def cancel
