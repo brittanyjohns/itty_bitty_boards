@@ -107,6 +107,7 @@ class User < ApplicationRecord
   end
 
   def self.create_from_email(email, stripe_customer_id)
+    puts "*** Inviting user with email: #{email}"
     user = User.invite!(email: email, skip_invitation: true)
     # temp_passowrd = Devise.friendly_token.first(12)
     # user = User.new(email: email, password: temp_passowrd)
