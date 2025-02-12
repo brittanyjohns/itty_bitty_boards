@@ -30,7 +30,6 @@ class API::WebhooksController < API::ApplicationController
 
     puts "Event type: #{event_type}"
     puts "Object type: #{object_type}"
-    puts "Data object: #{data_object.inspect}"
 
     case event_type
     when "customer.subscription.created", "customer.subscription.updated"
@@ -135,6 +134,13 @@ class API::WebhooksController < API::ApplicationController
       puts "Invoice created\n #{data_object.customer}"
     when "invoice.paid"
       @user = User.find_by(stripe_customer_id: data_object.customer)
+      @user = User.find_by(email: data_object.customer_email) unless @user
+      if @user
+        puts "Existing user found: #{@user}"
+      else
+        puts "No existing user found for stripe_customer_id: #{data_object.customer}"
+        User.create_from_email(data_object.customer_email, data_object.customer) unless @user
+      end
       stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
       puts "stripe_subscription: #{stripe_subscription.inspect}"
       plan_id = stripe_subscription.plan.product
@@ -174,30 +180,7 @@ class API::WebhooksController < API::ApplicationController
       # Continue to provision the subscription as payments continue to be made.
       # Store the status in your database and check when a user accesses your service.
       # This approach helps you avoid hitting rate limits.
-    when "invoice.payment_failed"
-      puts "Invoice payment failed\n #{event_type}"
-      # TODO - Send email to user
-      render json: { error: "Invoice payment failed" }, status: 400
-      # The payment failed or the customer does not have a valid payment method.
-      # The subscription becomes past_due. Notify your customer and send them to the
-      # customer portal to update their payment information.
-    when "customer.subscription.updated"
-      puts "Customer subscription updated\n #{event_type}"
-      sub_id = data_object.id
-      puts "Subscription ID: #{sub_id}"
-      @subscription = Subscription.find_by(stripe_subscription_id: sub_id)
-      unless @subscription
-        puts "No subscription found for stripe_subscription: #{sub_id}"
-        return
-      end
-      Rails.logger.info "Subscription Updated: #{data_object.inspect}"
-      if data_object.cancel_at_period_end == true
-        puts "Subscription will be canceled at the end of the billing period - #{data_object["current_period_end"]}"
-        @subscription.cancel_at_period_end(data_object["current_period_end"])
-      else
-        puts "Subscription will continue"
-        @subscription.update(expires_at: Time.at(data_object.current_period_end), status: data_object.status)
-      end
+
     when "customer.subscription.deleted"
       puts "Customer subscription deleted\n #{event_type}"
       # Handle subscription cancelled automatically based
