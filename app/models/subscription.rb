@@ -60,6 +60,7 @@ class Subscription < ApplicationRecord
   end
 
   def self.get_plan_type(plan)
+    return "free" if plan.nil?
     if plan.include?("basic")
       "basic"
     elsif plan.include?("pro")

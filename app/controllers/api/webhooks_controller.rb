@@ -107,16 +107,16 @@ class API::WebhooksController < API::ApplicationController
       # puts "Checkout session completed\n #{event_type}"
       # puts "User UUID: #{data_object.client_reference_id}"
       # puts "Subscription ID: #{data_object.subscription}"
-      # stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
+      stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
       # subscription_data[:current_period_end] = stripe_subscription.current_period_end
       # subscription_data[:expires_at] = stripe_subscription.current_period_end
-      # puts "Stripe subscription: #{stripe_subscription.inspect}"
+      puts "Stripe subscription: #{stripe_subscription.inspect}"
 
       # user_uuid = data_object.client_reference_id
       # puts "User UUID: #{user_uuid}"
       # # raise "User UUID not found" if user_uuid.nil?
       # @user = User.find_by(uuid: user_uuid) if user_uuid
-      # @user = User.find_by(email: data_object.customer_details["email"]) unless @user
+      @user = User.find_by(email: data_object.customer_details["email"]) unless @user
       # @found_user = @user
       # @user = User.create_from_email(data_object.customer_details["email"]) unless @user
       # puts ">>> User: #{@user}"
