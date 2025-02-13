@@ -77,13 +77,17 @@ class Team < ApplicationRecord
     }
   end
 
+  def members_without(viewing_user = nil)
+    team_users.includes(:user).where.not(user_id: viewing_user&.id)
+  end
+
   def show_api_view(viewing_user = nil)
     {
       id: id,
       name: name,
       can_edit: viewing_user&.admin? || viewing_user == created_by,
       created_by: created_by&.email,
-      members: team_users.map(&:api_view),
+      members: members_without(viewing_user).map(&:api_view),
       boards: available_team_account_boards.map(&:api_view),
       accounts: accounts.map(&:api_view),
     }

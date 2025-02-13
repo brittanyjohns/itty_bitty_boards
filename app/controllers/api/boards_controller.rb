@@ -36,31 +36,29 @@ class API::BoardsController < API::ApplicationController
   end
 
   def preset
-    ActiveRecord::Base.logger.silence do
-      if params[:query].present?
-        @predefined_boards = Board.predefined.search_by_name(params[:query]).order(name: :asc).page params[:page]
-      elsif params[:filter].present?
-        filter = params[:filter]
-        unless Board::SAFE_FILTERS.include?(filter)
-          render json: { error: "Invalid filter" }, status: :unprocessable_entity
-          return
-        end
-
-        result = Board.predefined.send(filter)
-        if result.is_a?(ActiveRecord::Relation)
-          @predefined_boards = result.order(name: :asc).page params[:page]
-        else
-          @predefined_boards = result
-        end
-        # @predefined_boards = Board.predefined.where(category: params[:filter]).order(name: :asc).page params[:page]
-      else
-        @predefined_boards = Board.predefined.order(name: :asc)
+    if params[:query].present?
+      @predefined_boards = Board.predefined.search_by_name(params[:query]).order(name: :asc).page params[:page]
+    elsif params[:filter].present?
+      filter = params[:filter]
+      unless Board::SAFE_FILTERS.include?(filter)
+        render json: { error: "Invalid filter" }, status: :unprocessable_entity
+        return
       end
-      @categories = @predefined_boards.map(&:category).uniq.compact
-      @welcome_boards = Board.welcome
-      # render json: { predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.board_categories }
-      render json: { predefined_boards: @predefined_boards.map(&:api_view) }
+
+      result = Board.predefined.send(filter)
+      if result.is_a?(ActiveRecord::Relation)
+        @predefined_boards = result.order(name: :asc).page params[:page]
+      else
+        @predefined_boards = result
+      end
+      # @predefined_boards = Board.predefined.where(category: params[:filter]).order(name: :asc).page params[:page]
+    else
+      @predefined_boards = Board.predefined.order(name: :asc)
     end
+    @categories = @predefined_boards.map(&:category).uniq.compact
+    @welcome_boards = Board.welcome
+    # render json: { predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.board_categories }
+    render json: { predefined_boards: @predefined_boards.map(&:api_view) }
   end
 
   def categories
@@ -616,7 +614,7 @@ class API::BoardsController < API::ApplicationController
       if @board.images.include?(image)
         next
       end
-      new_board_image = @board.board_images.new(image_id: image.id, position: @board.board_images.count)
+      new_board_image = @board.board_images.new(image_id: image.id, position: @board.board_images_count)
       new_board_image.layout = new_board_image.initial_layout
       new_board_image.save
       new_board_images << new_board_image

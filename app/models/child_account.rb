@@ -34,6 +34,8 @@ class ChildAccount < ApplicationRecord
   has_many :images, through: :boards
   has_many :word_events, dependent: :destroy
   has_secure_token :authentication_token
+  has_many :team_accounts, dependent: :destroy
+  has_many :teams, through: :team_accounts
 
   include WordEventsHelper
 
@@ -125,6 +127,7 @@ class ChildAccount < ApplicationRecord
       parent_name: user.display_name,
       name: name,
       heat_map: heat_map,
+      teams: teams.map { |t| t.index_api_view(viewing_user) },
       settings: settings,
       details: details,
       user_id: user_id,

@@ -282,7 +282,7 @@ RSpec.describe Board, type: :model do
       expect(second_board).to be_present
       expect(second_board.board_type).to eq("predictive")
 
-      # expect(first_board.board_images.count).to eq(expected_board_image_count)
+      # expect(first_board.board_images_count).to eq(expected_board_image_count)
       # first_board_board_image = first_board.board_images.first
       # first_board_image = first_board_board_image.image
       # docs = first_board_image.docs

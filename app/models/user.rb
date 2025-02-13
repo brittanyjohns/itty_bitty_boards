@@ -379,6 +379,7 @@ class User < ApplicationRecord
   end
 
   def trial_expired_at
+    return plan_expires_at if plan_expires_at
     created_at + TRAIL_PERIOD
   end
 

@@ -27,7 +27,7 @@
 #
 class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
-  belongs_to :board, touch: true
+  belongs_to :board, counter_cache: true, touch: true
   belongs_to :image
   belongs_to :predictive_board, class_name: "Board", optional: true
   attr_accessor :skip_create_voice_audio, :skip_initial_layout, :src
@@ -294,7 +294,6 @@ class BoardImage < ApplicationRecord
   end
 
   def api_view(viewing_user = nil)
-    all_img_board_images = board.board_images.includes(:image).distinct
     {
       id: id,
       image_id: image_id,
@@ -325,7 +324,14 @@ class BoardImage < ApplicationRecord
       language: language,
       display_label: display_label,
       language_settings: language_settings,
+      remaining_user_boards: remaining_user_boards,
     }
+  end
+
+  def remaining_user_boards
+    user_boards = user.boards
+    used_boards = image.board_images.map(&:board)
+    user_boards = user_boards.where.not(id: used_boards.map(&:id))
   end
 
   def description
@@ -367,7 +373,7 @@ class BoardImage < ApplicationRecord
   end
 
   def set_position
-    self.position = board_images.count + 1
+    self.position = board_images_count + 1
   end
 
   def get_coordinates_for_screen_size(screen_size)

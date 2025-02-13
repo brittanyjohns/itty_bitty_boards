@@ -569,7 +569,7 @@ class Board < ApplicationRecord
     else
       language_settings = @image.language_settings || {}
       language_settings[self.language] = { "display_label" => @image.label, "label" => @image.label }
-      new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images.count, language: self.language)
+      new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images_count, language: self.language)
       new_board_image.set_labels
       if layout
         new_board_image.layout = layout
@@ -716,7 +716,7 @@ class Board < ApplicationRecord
 
     # position_all_board_images
     row_count = 0
-    bi_count = board_images.count
+    bi_count = board_images_count
     rows = (bi_count / num_of_columns.to_f).ceil
     ActiveRecord::Base.logger.silence do
       board_images.order(:position).each_slice(num_of_columns) do |row|
@@ -1292,7 +1292,7 @@ class Board < ApplicationRecord
       settings: settings,
       margin_settings: margin_settings,
       preset_display_image_url: preset_display_image_url,
-      board_images: board_images.map { |bi| bi.api_view(viewing_user) },
+      board_images_count: board_images_count,
       obf_id: obf_id,
     }
   end
@@ -1304,7 +1304,7 @@ class Board < ApplicationRecord
       id: id,
       name: name,
       board_type: board_type,
-      # image_count: board_images.count,
+      # image_count: board_images_count,
       can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
       display_image_url: display_image_url,
       word_sample: current_word_list ? current_word_list.join(", ").truncate(150) : nil,
@@ -1572,7 +1572,7 @@ class Board < ApplicationRecord
         if existing_image
           new_board_image = existing_image
         else
-          new_board_image = board.board_images.create!(image_id: image.id.to_i, voice: board.voice, position: board.board_images.count, display_image_url: temp_display_image)
+          new_board_image = board.board_images.create!(image_id: image.id.to_i, voice: board.voice, position: board.board_images_count, display_image_url: temp_display_image)
         end
         if new_board_image
           new_board_image_layout = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }

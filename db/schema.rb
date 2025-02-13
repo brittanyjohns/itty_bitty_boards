@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_02_09_181431) do
+ActiveRecord::Schema[7.1].define(version: 2025_02_13_173738) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -150,6 +150,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_02_09_181431) do
     t.string "obf_id"
     t.integer "board_group_id"
     t.string "language", default: "en"
+    t.integer "board_images_count", default: 0, null: false
     t.index ["board_group_id"], name: "index_boards_on_board_group_id"
     t.index ["board_type"], name: "index_boards_on_board_type"
     t.index ["category"], name: "index_boards_on_category"

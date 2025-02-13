@@ -37,7 +37,7 @@ module BoardsHelper
     new_grid = Hash.new { |hash, key| hash[key] = [] }
     screen_size = "lg"
     columns = large_screen_columns
-    board_image_count = board_images.count
+    board_image_count = board_images_count
     og_grid = print_grid_layout_for_screen_size(screen_size)
     puts "screen_size #{screen_size} - og_grid: #{og_grid}"
     grid = self.layout[screen_size] || []

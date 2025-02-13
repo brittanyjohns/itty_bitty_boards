@@ -11,7 +11,7 @@ class API::ChildAccountsController < API::ApplicationController
   # GET /child_accounts/1
   # GET /child_accounts/1.json
   def show
-    render json: @child_account.api_view
+    render json: @child_account.api_view(current_user)
   end
 
   # POST /child_accounts
@@ -33,14 +33,14 @@ class API::ChildAccountsController < API::ApplicationController
     if settings
       @child_account.settings = settings
     end
-    details = params[:details] 
+    details = params[:details]
     if details
       @child_account.details = details
     end
     @child_account.user = current_user
     @child_account.passcode = password
     if @child_account.save
-      render json: @child_account.api_view, status: :created
+      render json: @child_account.api_view(current_user), status: :created
     else
       puts "Invalid Child Account: errors: #{@child_account.errors.inspect}"
       render json: { errors: @child_account.errors }, status: :unprocessable_entity
@@ -64,13 +64,13 @@ class API::ChildAccountsController < API::ApplicationController
       @child_account.settings = settings
     end
 
-    details = params[:details] 
+    details = params[:details]
     if details
       @child_account.details = details
     end
 
     if @child_account.save
-      render json: @child_account.api_view, status: :ok
+      render json: @child_account.api_view(current_user), status: :ok
     else
       render json: @child_account.errors, status: :unprocessable_entity
     end
@@ -81,7 +81,7 @@ class API::ChildAccountsController < API::ApplicationController
     @board = Board.find(params[:board_id])
     if @child_account.child_boards.where(board_id: @board.id).empty?
       if @child_account.child_boards.create!(board: @board)
-        render json: @child_account.api_view, status: :ok
+        render json: @child_account.api_view(current_user), status: :ok
       else
         render json: @child_account.errors, status: :unprocessable_entity
       end

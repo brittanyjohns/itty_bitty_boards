@@ -1295,10 +1295,16 @@ class Image < ApplicationRecord
     @current_user = current_user
     @predictive_board = predictive_board
     @board_image = board_image
+    @board = board
     @global_default_id = Board.predictive_default_id
-    current_doc = display_doc(@current_user)
-    current_doc_id = current_doc.id if current_doc
-    doc_img_url = current_doc&.display_url
+    @board_images = user_board_images(@current_user)
+    if @board_image
+      doc_img_url = @board_image.display_image_url
+    else
+      current_doc = display_doc(@current_user)
+      current_doc_id = current_doc.id if current_doc
+      doc_img_url = current_doc&.display_url
+    end
     image_docs = docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
     user_image_boards = user_boards(@current_user)
     Rails.logger.debug "User image boards: #{user_image_boards.pluck(:id, :name)}" if user_image_boards
@@ -1306,8 +1312,6 @@ class Image < ApplicationRecord
     # is_owner = @current_user && user_id == @current_user&.id
     is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
     @matching_boards = matching_viewer_boards(@current_user)
-
-    @board_images = user_board_images(@current_user)
 
     @predictive_board = @board_image&.predictive_board if @board_image
 
@@ -1362,6 +1366,7 @@ class Image < ApplicationRecord
       can_edit: (current_user && user_id == current_user.id) || current_user&.admin?,
       user_boards: user_image_boards.map { |board| board.api_view(@current_user) },
       all_boards: all_boards.map { |board| board.user_api_view(@current_user) },
+      remaining_boards: @board_image&.remaining_user_boards || [],
       matching_viewer_images: matching_viewer_images(@current_user).map { |image| { id: image.id, label: image.label, src: image.display_image_url(@current_user) || image.src_url, created_at: image.created_at.strftime("%b %d, %Y"), user_id: image.user_id } },
       matching_viewer_boards: @matching_boards.map { |board|
         { id: board.id, name: board.name, voice: board.voice, user_id: board.user_id, board_type: board.board_type, display_image_url: board.display_image_url || board.image_parent&.src_url, created_at: board.created_at.strftime("%b %d, %Y") }
