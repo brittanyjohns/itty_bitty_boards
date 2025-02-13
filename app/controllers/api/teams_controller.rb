@@ -83,10 +83,8 @@ class API::TeamsController < API::ApplicationController
   # POST /teams or /teams.json
   def create
     @team = Team.new
-    puts "PARAMS: #{params.inspect}"
     # @team.name = team_params[:name]&.upcase
     @team.name = team_params[:name]
-    puts "Team: #{@team}"
     @team.created_by = current_user
 
     respond_to do |format|

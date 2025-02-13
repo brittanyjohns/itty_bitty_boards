@@ -364,6 +364,10 @@ class User < ApplicationRecord
     plan_type.downcase != "free"
   end
 
+  def professional?
+    !free? && !basic?
+  end
+
   def to_s
     display_name
   end

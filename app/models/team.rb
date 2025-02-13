@@ -51,6 +51,18 @@ class Team < ApplicationRecord
     team_user
   end
 
+  def add_communicator!(account)
+    puts "Adding communicator to team: #{account&.name}"
+    team_account = nil
+    if account && !accounts.include?(account)
+      team_account = team_accounts.new(account: account)
+      team_account.save
+    else
+      team_account = team_accounts.find_by(account: account)
+    end
+    team_account
+  end
+
   def add_board!(board)
     puts "Adding board to team: #{board&.name}"
     team_board = nil

@@ -29,7 +29,6 @@ class API::ChildAccountsController < API::ApplicationController
     name = @child_account.name
     param_name = params[:name]
     settings = params[:settings]
-    puts "Settings: #{settings.inspect}"
     if settings
       @child_account.settings = settings
     end
@@ -40,6 +39,12 @@ class API::ChildAccountsController < API::ApplicationController
     @child_account.user = current_user
     @child_account.passcode = password
     if @child_account.save
+      if current_user.professional?
+        team = Team.new(name: name, created_by: current_user)
+        team.save!
+        team.add_member!(current_user, "admin")
+        team.add_communicator!(@child_account)
+      end
       render json: @child_account.api_view(current_user), status: :created
     else
       puts "Invalid Child Account: errors: #{@child_account.errors.inspect}"
