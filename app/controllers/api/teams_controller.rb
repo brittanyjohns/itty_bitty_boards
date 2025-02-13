@@ -17,24 +17,26 @@ class API::TeamsController < API::ApplicationController
 
   def remaining_boards
     @team = Team.find(params[:id])
-    board_ids = @team.boards.pluck(:id)
+    board_ids = @team.account_boards.pluck(:board_id)
+    @boards = current_user.boards.where.not(id: board_ids).alphabetical
     puts "Board IDs: #{board_ids.inspect}"
-    @accounts = @team.accounts
-    # @boards = @team.available_team_account_boards
-    @boards = @accounts.map do |account|
-      account_id = account.id
-      account.boards.map do |board|
-        if board_ids.include?(board.id)
-          {
-            id: board.id,
-            name: board.name,
-            account_id: account_id,
 
-          }
-        end
-      end
-    end.flatten.compact
-    user_boards = current_user.boards
+    # @accounts = @team.accounts
+    # # @boards = @team.available_team_account_boards
+    # @boards = @accounts.map do |account|
+    #   account_id = account.id
+    #   account.boards.map do |board|
+    #     if board_ids.include?(board.id)
+    #       {
+    #         id: board.id,
+    #         name: board.name,
+    #         account_id: account_id,
+
+    #       }
+    #     end
+    #   end
+    # end.flatten.compact
+    # user_boards = current_user.boards
     render json: @boards
   end
 

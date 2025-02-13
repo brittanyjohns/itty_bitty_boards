@@ -25,6 +25,14 @@ class Team < ApplicationRecord
     account_boards.where.not(id: team_boards.pluck(:board_id))
   end
 
+  def single_account
+    if !created_by.premium?
+      accounts.includes(:child_boards).first
+    else
+      nil
+    end
+  end
+
   def supporters
     team_users.where(role: ["supporter", "member"])
   end
@@ -97,11 +105,12 @@ class Team < ApplicationRecord
     {
       id: id,
       name: name,
-      can_edit: viewing_user&.admin? || viewing_user == created_by,
+      can_edit: viewing_user == created_by,
       created_by: created_by&.email,
       members: members_without(viewing_user).map(&:api_view),
-      boards: available_team_account_boards.map(&:api_view),
+      boards: boards.map(&:api_view),
       accounts: accounts.map(&:api_view),
+      single_account: single_account ? single_account.api_view : nil,
     }
   end
 

@@ -115,6 +115,12 @@ class ChildAccount < ApplicationRecord
     user.boards.where.not(id: current_boards.pluck(:id)).order(:name)
   end
 
+  def available_teams_boards
+    current_board_ids = self.child_boards.distinct.pluck(:board_id)
+    current_boards = Board.where(id: current_board_ids)
+    teams.map { |t| t.boards.where.not(id: current_boards.pluck(:id)).order(:name) }.flatten
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,
@@ -134,7 +140,7 @@ class ChildAccount < ApplicationRecord
       boards: child_boards.map { |cb| { id: cb.id, name: cb.board.name, board_type: cb.board.board_type, board_id: cb.board_id, display_image_url: cb.board.display_image_url } },
       can_sign_in: can_sign_in?,
       available_boards: available_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type } },
-
+      teams_boards: available_teams_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type } },
     }
   end
 

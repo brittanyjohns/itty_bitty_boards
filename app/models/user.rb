@@ -368,6 +368,10 @@ class User < ApplicationRecord
     !free? && !basic?
   end
 
+  def premium?
+    plan_type.downcase == "premium"
+  end
+
   def to_s
     display_name
   end
@@ -404,6 +408,8 @@ class User < ApplicationRecord
     view["free"] = free?
     view["pro"] = pro?
     view["plan_type"] = plan_type
+    view["plan_expires_at"] = plan_expires_at.strftime("%x") if plan_expires_at
+    view["premium"] = premium?
     view["team"] = current_team
     view["free_trial"] = free_trial?
     view["trial_expired"] = trial_expired?
