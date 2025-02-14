@@ -37,31 +37,27 @@ class API::WebhooksController < API::ApplicationController
         puts "Customer subscription created\n #{event_type}"
         puts "Subscription ID: #{data_object.id}"
         puts "Customer ID: #{data_object.customer}"
-        puts "Customer email: #{data_object.customer_email}"
         subscription_data = {
           subscription: data_object.id,
           customer: data_object.customer,
-          customer_email: data_object.customer_email,
-        }.to_json
+        }
 
         subscription_data[:plan] = data_object.plan
-        subscription_data[:product] = data_object.plan.product
-        subscription_data[:plan_type] = data_object.plan.nickname
+        subscription_data[:product] = data_object.plan&.product
+        subscription_data[:plan_type] = data_object.plan&.nickname
         subscription_data[:status] = data_object.status
         subscription_data[:trial_end] = data_object.trial_end
         subscription_data[:current_period_end] = data_object.current_period_end
         subscription_data[:current_period_start] = data_object.current_period_start
-        subscription_data[:customer_email] = data_object.customer_email
-        subscription_data[:customer_name] = data_object.customer_name
-        subscription_data[:invoice] = data_object.invoice
         @user = User.find_by(stripe_customer_id: data_object.customer)
         if @user
           puts "Existing user found: #{@user}"
         else
           puts "No existing user found for stripe_customer_id: #{data_object.customer}"
-          @user = User.find_by(email: data_object.customer_email) unless @user
+          return
         end
-        CreateSubscriptionJob.perform_async(subscription_data, @user) if @user
+        subscription_json = subscription_data.to_json
+        CreateSubscriptionJob.perform_async(subscription_json, @user) if @user
         if @user
           puts ">>> NEW Subscribed User: #{@user}"
         else
@@ -103,6 +99,20 @@ class API::WebhooksController < API::ApplicationController
         # Send email to user
       when "customer.subscription.pending_update_applied"
         puts "Customer subscription pending update applied\n #{event_type}"
+      when "customer.subscription.deleted"
+        puts "Customer subscription deleted\n #{event_type}"
+        puts "Subscription ID: #{data_object.id}"
+        puts "Customer ID: #{data_object.customer}"
+        @user = User.find_by(stripe_customer_id: data_object.customer)
+        if @user
+          puts "Existing user found: #{@user}"
+          @user.plan_status = "canceled"
+          @user.plan_type = "free"
+          @user.save!
+        else
+          puts "No existing user found for stripe_customer_id: #{data_object.customer}"
+          render json: { error: "No user found for subscription" }, status: 400 and return
+        end
       when "checkout.session.completed"
         # puts "Checkout session completed\n #{event_type}"
         # puts "User UUID: #{data_object.client_reference_id}"
@@ -153,6 +163,10 @@ class API::WebhooksController < API::ApplicationController
           puts "Existing user found: #{@user}"
           @user.settings ||= {}
           @user.settings["hosted_invoice_url"] = hosted_invoice_url
+          communicator_limit = plan_type_name.split("_").last || 1
+          puts "Communicator limit: #{communicator_limit}"
+          @user.settings["communicator_limit"] = communicator_limit.to_i if communicator_limit
+          @user.settings["plan_nickname"] = plan_type_name
 
           @user.plan_type = plan_type
           @user.plan_status = data_object.status
@@ -160,16 +174,6 @@ class API::WebhooksController < API::ApplicationController
           @user.save!
         else
           puts "No existing user found for customer: #{data_object.customer}"
-        end
-      when "customer.subscription.deleted"
-        puts "Customer subscription deleted\n #{event_type}"
-        # Handle subscription cancelled automatically based
-        puts "Subscription ID: #{data_object.id}"
-        @subscription = Subscription.find_by(stripe_subscription_id: data_object.id)
-        if @subscription&.cancel
-          puts "Subscription canceled: #{@subscription.inspect}"
-        else
-          puts "Could not cancel subscription \n Errors: #{@subscription&.errors}"
         end
       when "billing_portal.session.created"
         puts "Billing portal session created\n #{event_type}"

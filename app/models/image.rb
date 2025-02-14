@@ -1366,7 +1366,7 @@ class Image < ApplicationRecord
       can_edit: (current_user && user_id == current_user.id) || current_user&.admin?,
       user_boards: user_image_boards.map { |board| board.api_view(@current_user) },
       all_boards: all_boards.map { |board| board.user_api_view(@current_user) },
-      remaining_boards: @board_image&.remaining_user_boards || [],
+      remaining_boards: @board_image&.remaining_user_boards || user_image_boards.map { |board| board.api_view(@current_user) },
       matching_viewer_images: matching_viewer_images(@current_user).map { |image| { id: image.id, label: image.label, src: image.display_image_url(@current_user) || image.src_url, created_at: image.created_at.strftime("%b %d, %Y"), user_id: image.user_id } },
       matching_viewer_boards: @matching_boards.map { |board|
         { id: board.id, name: board.name, voice: board.voice, user_id: board.user_id, board_type: board.board_type, display_image_url: board.display_image_url || board.image_parent&.src_url, created_at: board.created_at.strftime("%b %d, %Y") }

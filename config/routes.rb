@@ -150,9 +150,10 @@ Rails.application.routes.draw do
     post "webhooks", to: "webhooks#webhooks"
     resources :subscriptions do
       collection do
-        post "create_customer"
-        post "create_subscription"
         post "billing_portal"
+        post "add_item"
+        post "create_customer_session"
+        get "list"
       end
       member do
         post "cancel_subscription"
