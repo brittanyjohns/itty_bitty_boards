@@ -679,9 +679,7 @@ class API::BoardsController < API::ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_board
-    ActiveRecord::Base.logger.silence do
-      @board = Board.with_artifacts.find(params[:id])
-    end
+    @board = Board.with_artifacts.find(params[:id])
   end
 
   def boards_for_user

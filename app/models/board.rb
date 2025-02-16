@@ -1017,6 +1017,7 @@ class Board < ApplicationRecord
     existing_words = word_data[:existing_words]
     missing_common_words = word_data[:missing_common_words]
     @root_board = root_board
+    same_user = viewing_user && user_id == viewing_user.id
 
     {
       id: id,
@@ -1029,7 +1030,7 @@ class Board < ApplicationRecord
       missing_common_words: missing_common_words,
       existing_words: existing_words,
       description: description,
-      can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
+      can_edit: same_user || viewing_user&.admin?,
       category: category,
       parent_type: parent_type,
       parent_id: parent_id,
