@@ -5,9 +5,7 @@ module API
 
       def authenticate_child_token!
         @child ||= child_from_token
-        puts "Child token: #{@child.inspect}"
         if @child
-          puts "Child authenticated"
           # sign_in @child
         else
           puts "Unauthorized"
