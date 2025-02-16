@@ -1,4 +1,3 @@
-require "faker"
 namespace :users do
   desc "Create a new user"
   task create_basic_user: :environment do
