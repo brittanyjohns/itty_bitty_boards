@@ -329,10 +329,10 @@ class BoardImage < ApplicationRecord
 
   def remaining_user_boards
     user_boards = user.boards
-    used_boards = image.board_images.map(&:board)
-    user_boards = user_boards.where.not(id: used_boards.map(&:id))
-    puts "remaining_user_boards: #{user_boards.count}"
-    user_boards
+    image_boards = image.board_images.map(&:board)
+    remaining = user_boards.where.not(id: image_boards.map(&:id))
+    puts "remaining_user_boards: #{remaining.count}"
+    remaining
   end
 
   def description

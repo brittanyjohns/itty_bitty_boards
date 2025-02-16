@@ -17,7 +17,7 @@ class API::Account::ChildBoardsController < API::Account::ApplicationController
   def current
     @boards = boards_for_child
     @boards_with_images = @boards.map do |board|
-      board.api_view_with_images
+      board.api_view
     end
     render json: @boards_with_images
   end

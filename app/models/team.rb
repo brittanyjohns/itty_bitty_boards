@@ -98,7 +98,8 @@ class Team < ApplicationRecord
   end
 
   def members_without(viewing_user = nil)
-    team_users.includes(:user).where.not(user_id: viewing_user&.id)
+    # team_users.includes(:user).where.not(user_id: viewing_user&.id)
+    team_users.includes(:user)
   end
 
   def show_api_view(viewing_user = nil)
