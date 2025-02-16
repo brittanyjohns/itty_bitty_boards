@@ -58,7 +58,6 @@ class BoardImage < ApplicationRecord
   def set_labels
     lang = language || board.language || "en"
     image_language_settings = image.language_settings[lang.to_sym] || {}
-    puts "image_language_settings: #{image_language_settings}"
     self.language = lang
     self.label = image_language_settings[:label] || image.label
     self.display_label = image_language_settings[:display_label] || label
@@ -332,6 +331,8 @@ class BoardImage < ApplicationRecord
     user_boards = user.boards
     used_boards = image.board_images.map(&:board)
     user_boards = user_boards.where.not(id: used_boards.map(&:id))
+    puts "remaining_user_boards: #{user_boards.count}"
+    user_boards
   end
 
   def description

@@ -1307,7 +1307,6 @@ class Image < ApplicationRecord
     end
     image_docs = docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
     user_image_boards = user_boards(@current_user)
-    Rails.logger.debug "User image boards: #{user_image_boards.pluck(:id, :name)}" if user_image_boards
     @default_audio_url = default_audio_url
     # is_owner = @current_user && user_id == @current_user&.id
     is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
