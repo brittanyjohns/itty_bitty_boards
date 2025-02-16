@@ -19,7 +19,6 @@ module API
     def authenticate_child_token!
       @child ||= child_from_token
       if @child
-        puts "Child authenticated"
         # sign_in @child
       else
         puts "Unauthorized"
