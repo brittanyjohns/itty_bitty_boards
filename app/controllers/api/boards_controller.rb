@@ -3,7 +3,7 @@ class API::BoardsController < API::ApplicationController
   # respond_to :json
 
   # before_action :authenticate_user!
-  skip_before_action :authenticate_token!, only: %i[ predictive_index first_predictive_board predictive_image_board preset ]
+  skip_before_action :authenticate_token!, only: %i[ index predictive_index first_predictive_board predictive_image_board preset ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images ]
   # layout "fullscreen", only: [:fullscreen]
@@ -11,6 +11,14 @@ class API::BoardsController < API::ApplicationController
 
   # GET /boards or /boards.json
   def index
+    unless current_user
+      @static_preset_boards = Board.static.predefined.order(name: :asc).page params[:page]
+      @dynamic_preset_boards = Board.dynamic.predefined.order(name: :asc).page params[:page]
+      @predictive_preset_boards = Board.predictive.predefined.order(name: :asc).page params[:page]
+      @category_preset_boards = Board.categories.predefined.order(name: :asc).page params[:page]
+      render json: { static_preset_boards: @static_preset_boards, dynamic_preset_boards: @dynamic_preset_boards, predictive_preset_boards: @predictive_preset_boards, category_preset_boards: @category_preset_boards }
+      return
+    end
     if params[:query].present?
       @search_results = Board.for_user(current_user).searchable.search_by_name(params[:query]).order(name: :asc).page params[:page]
       render json: { search_results: @search_results } and return
