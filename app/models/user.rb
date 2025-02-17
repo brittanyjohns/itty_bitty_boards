@@ -454,6 +454,10 @@ class User < ApplicationRecord
     view["plus"] = plus?
     view["teams_with_read_access"] = teams_with_read_access.map(&:index_api_view)
     view["communicator_accounts"] = communicator_accounts
+    view["comm_account_limit"] = settings["communicator_limit"] || 0
+    view["supervisor_limit"] = settings["supervisor_limit"] || 0
+    view["board_limit"] = settings["board_limit"] || 0
+    view["premium"] = premium?
     view["paid_plan"] = paid_plan?
     view["plan_type"] = plan_type
     view["team"] = current_team

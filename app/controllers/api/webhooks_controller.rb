@@ -153,7 +153,6 @@ class API::WebhooksController < API::ApplicationController
           @user = User.create_from_email(data_object.customer_email, data_object.customer) unless @user
         end
         stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
-        puts "stripe_subscription: #{stripe_subscription.inspect}"
         plan_type_name = stripe_subscription.plan.nickname
         puts "Plan type name: #{plan_type_name}"
         plan_type = Subscription.get_plan_type(plan_type_name)
@@ -163,11 +162,11 @@ class API::WebhooksController < API::ApplicationController
           puts "Existing user found: #{@user}"
           @user.settings ||= {}
           @user.settings["hosted_invoice_url"] = hosted_invoice_url
-          communicator_limit = plan_type_name.split("_").last || 1
-          puts "Communicator limit: #{communicator_limit}"
+          communicator_limit = Subscription.get_communicator_limit(plan_type_name)
+          puts "Communicator limit: #{communicator_limit} for plan_type_name: #{plan_type_name}"
           @user.settings["communicator_limit"] = communicator_limit.to_i if communicator_limit
           @user.settings["plan_nickname"] = plan_type_name
-
+          @user.settings["board_limit"] = Subscription.get_board_limit(plan_type_name)
           @user.plan_type = plan_type
           @user.plan_status = data_object.status
           @user.plan_expires_at = Time.at(stripe_subscription.current_period_end)

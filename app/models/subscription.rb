@@ -27,10 +27,11 @@ class Subscription < ApplicationRecord
   scope :expiring_soon, -> { where("expires_at < ?", Time.now + 1.week) }
   scope :expired, -> { where("expires_at < ?", Time.now) }
 
-  def self.build_from_stripe_event(data_object, user = nil)
+  def self.build_from_stripe_event(data_object, user_id = nil)
     user_uuid = data_object["client_reference_id"]
-    raise "User UUID not found" if user_uuid.nil? && user.nil?
-    user = User.find_by(uuid: user_uuid) if user_uuid && user.nil?
+    raise "User UUID not found" if user_uuid.nil? && user_id.nil?
+    user = User.find_by(uuid: user_uuid) if user_uuid && user_id.nil?
+    user = User.find(user_id) if user_id && user.nil?
 
     raise "User not found" if user.nil?
     expires_at = data_object["current_period_end"] || data_object["expires_at"]
@@ -40,6 +41,11 @@ class Subscription < ApplicationRecord
     end
     user.stripe_customer_id = data_object["customer"]
     user.plan_type = get_plan_type(data_object["plan"]["nickname"])
+    comm_account_limit = get_communicator_limit(data_object["plan"]["nickname"])
+    user.settings ||= {}
+    user.settings["communicator_limit"] = comm_account_limit
+    user.settings["plan_nickname"] = data_object["plan"]["nickname"]
+    user.settings["board_limit"] = get_board_limit(data_object["plan"]["nickname"])
     user.plan_status = data_object["status"]
     user.plan_expires_at = Time.at(expires_at)
     user.save!
@@ -71,6 +77,80 @@ class Subscription < ApplicationRecord
       "free"
     end
   end
+
+  def self.get_communicator_limit(plan_type_name)
+    return 0 if plan_type_name.nil?
+    plan_name = plan_type_name.downcase.split("_").first
+    comm_account_limit = plan_type_name.split("_").last || 1
+    if plan_name.include?("basic")
+      comm_account_limit = comm_account_limit&.to_i || 1
+    elsif plan_name.include?("pro")
+      comm_account_limit = comm_account_limit&.to_i || 3
+    elsif plan_name.include?("plus")
+      comm_account_limit = comm_account_limit&.to_i || 5
+    elsif plan_name.include?("premium")
+      comm_account_limit = comm_account_limit&.to_i || 10
+    else
+      comm_account_limit = 0
+    end
+  end
+
+  def self.get_board_limit(plan_type_name)
+    return 0 if plan_type_name.nil?
+    plan_name = plan_type_name.downcase.split("_").first
+    comm_account_limit = get_communicator_limit(plan_type_name)
+    if plan_name.include?("basic")
+      comm_account_limit * 25
+    elsif plan_name.include?("pro")
+      comm_account_limit * 25
+    elsif plan_name.include?("plus")
+      comm_account_limit * 25
+    elsif plan_name.include?("premium")
+      comm_account_limit * 25
+    else
+      0
+    end
+  end
+end
+
+def self.get_token_limit(plan_type_name)
+  return 0 if plan_type_name.nil?
+  plan_name = plan_type_name.downcase.split("_").first
+  token_limit = plan_type_name.split("_").last || 1
+  if plan_name.include?("basic")
+    token_limit = token_limit&.to_i || 1
+  elsif plan_name.include?("pro")
+    token_limit = token_limit&.to_i || 3
+  elsif plan_name.include?("plus")
+    token_limit = token_limit&.to_i || 5
+  elsif plan_name.include?("premium")
+    token_limit = token_limit&.to_i || 10
+  else
+    token_limit = 0
+  end
+end
+
+def self.get_word_event_limit(plan_type_name)
+  return 0 if plan_type_name.nil?
+  plan_name = plan_type_name.downcase.split("_").first
+  word_event_limit = plan_type_name.split("_").last || 1
+  if plan_name.include?("basic")
+    word_event_limit = word_event_limit&.to_i || 1
+  elsif plan_name.include?("pro")
+    word_event_limit = word_event_limit&.to_i || 3
+  elsif plan_name.include?("plus")
+    word_event_limit = word_event_limit&.to_i || 5
+  elsif plan_name.include?("premium")
+    word_event_limit = word_event_limit&.to_i || 10
+  else
+    word_event_limit = 0
+  end
+end
+
+def self.get_communicator_limit(plan_type_name)
+  return 0 if plan_type_name.nil?
+  plan_name = plan_type_name.downcase.split("_").first
+  comm_account_limit = plan_type
 
   def cancel
     self.status = "canceled"
