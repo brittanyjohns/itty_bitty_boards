@@ -12,7 +12,10 @@ class API::ChildBoardsController < API::ApplicationController
       can_edit: false,
       can_delete: false,
     }
-    render json: @board_with_images.merge(child_permissions)
+    child_board_info = {
+      child_board_id: @child_board.id,
+    }
+    render json: @board_with_images.merge(child_permissions).merge(child_board_info)
   end
 
   def current

@@ -180,9 +180,9 @@ class API::Account::BoardsController < API::Account::ApplicationController
   end
 
   def initial_predictive_board
-    dynamic_board_id = current_account&.settings["dynamic_board_id"] ? current_account.settings["dynamic_board_id"].to_i : nil
-    @board = Board.find_by(id: dynamic_board_id) if dynamic_board_id
-    Rails.logger.info "Initial predictive board ID: #{@board&.id}"
+    opening_board_id = current_account&.settings["opening_board_id"] ? current_account.settings["opening_board_id"].to_i : nil
+    @board = Board.find_by(id: opening_board_id) if opening_board_id
+
     if @board.nil?
       @board = Board.predictive_default(current_account)
       # CreateCustomPredictiveDefaultJob.perform_async(current_account.id)

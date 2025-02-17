@@ -28,7 +28,7 @@ class API::V1::ChildAuthsController < API::ApplicationController
   def current
     @current_account = current_account
     if @current_account
-      @current_account.reload
+      # @current_account.reload
       @view = @current_account.api_view
       render json: { account: @view }
     else
