@@ -184,10 +184,11 @@ class API::Account::BoardsController < API::Account::ApplicationController
     @board = Board.find_by(id: opening_board_id) if opening_board_id
 
     if @board.nil?
-      @board = Board.predictive_default(current_account)
+      # @board = Board.predictive_default(current_account)
       # CreateCustomPredictiveDefaultJob.perform_async(current_account.id)
-      current_account.settings["dynamic_board_id"] = nil
-      current_account.save!
+      # current_account.settings["dynamic_board_id"] = nil
+      # current_account.save!
+      @board = child_account.boards.first
     end
     render json: @board.api_view_with_images(current_account)
   end
