@@ -16,11 +16,18 @@
   - `AWS_ACCESS_KEY_ID` - AWS Access Key ID
   - `AWS_SECRET_ACCESS_KEY` - AWS Secret Access Key
   - `AWS_REGION` - AWS Region
+  - `API_URL` - API URL (for OBF exports)
   - `OPENAI_ACCESS_TOKEN` - OpenAI Access Token
   - `OPENAI_ORGANIZATION` - OpenAI Organization (optional)
   - `STRIPE_PUBLIC_KEY` - Stripe Public Key
   - `STRIPE_PRIVATE_KEY` - Stripe Private Key
   - `STRIPE_SIGNING_SECRET` - Stripe Signing Secret
+  - `CDN_HOST` - CDN Host (optional)
+  - `DEVISE_JWT_SECRET_KEY` - Devise JWT Secret Key
+  - `DOMAIN` - Domain
+  - `GOOGLE_CUSTOM_SEARCH_API_KEY` - Google Custom Search API Key
+  - `GOOGLE_CUSTOM_SEARCH_CX` - Google Custom Search CX
+  - `PREDICTIVE_DEFAULT_ID` - Predictive Default ID (going to be removed)
 
 - Database creation:
 
@@ -70,10 +77,10 @@ Images - Search, upload, or generate images for your boards
 - Generate images from text using AI
 - Browse our library of images
 
-Child accounts
+Communicator accounts
 
-- Create child accounts to manage their access & content
-- Share boards with child accounts
+- Create communicator accounts to manage their access & content
+- Share boards with communicator accounts
 - Monitor usage and progress
 - View usage statistics & word patterns
 - Manage everything from your parent account, on any device
@@ -110,9 +117,9 @@ b. Dynamic Board: A board that _can_ change screens - This is based on the image
 
 8. Usage Statistics: Data on how a board is used, including the number of times it is accessed, the most frequently accessed cells, and other relevant metrics.
 
-9. Parent Account: The primary account holder, responsible for managing child accounts, subscriptions, and other account-related features.
+9. Parent Account: The primary account holder, responsible for managing communicator accounts, subscriptions, and other account-related features.
 
-10. Child Account: A user profile designed for a child, allowing caregivers to manage and customize the content and features for that specific user.
+10. Communicator Account: A user profile designed for a communicator, allowing caregivers to manage and customize the content and features for that specific user.
 
 11. Subscription: A paid service that provides access to premium features, such as ad-free experience, AI image generation, and other exclusive tools or functionalities.
 
