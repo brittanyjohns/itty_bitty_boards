@@ -94,6 +94,7 @@ class Image < ApplicationRecord
 
   after_save :update_board_images_audio, if: -> { need_to_update_board_images_audio? }
   after_save :update_board_images_display_image, if: -> { src_url_changed? }
+  after_save :update_board_images_next_words, if: -> { next_words_changed? }
   after_save :update_background_color, if: -> { part_of_speech_changed? }
   after_save :update_category_boards
 
@@ -116,6 +117,12 @@ class Image < ApplicationRecord
   def update_board_images_display_image
     board_images.each do |bi|
       bi.update!(display_image_url: src_url) if bi.display_image_url.blank?
+    end
+  end
+
+  def update_board_images_next_words
+    board_images.each do |bi|
+      bi.update!(next_words: next_words) if bi.next_words.blank?
     end
   end
 

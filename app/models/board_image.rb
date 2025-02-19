@@ -33,8 +33,6 @@ class BoardImage < ApplicationRecord
   attr_accessor :skip_create_voice_audio, :skip_initial_layout, :src
 
   before_create :set_defaults
-  # after_create :set_next_words
-  # before_save :set_labels_and_language_settings, if: -> { label.blank? }
   before_save :set_display_label, if: -> { display_label.blank? }
   # before_save :save_display_image_url, if: -> { display_image_url.blank? }
   before_save :check_predictive_board
@@ -137,12 +135,6 @@ class BoardImage < ApplicationRecord
   def initialize(*args)
     super
     @skip_create_voice_audio = false
-  end
-
-  def set_next_words
-    return if next_words.present? || Rails.env.test?
-    self.next_words = image.next_words
-    save
   end
 
   def get_predictive_image_for(viewing_user)
@@ -331,7 +323,6 @@ class BoardImage < ApplicationRecord
     user_boards = user.boards
     image_boards = image.board_images.map(&:board)
     remaining = user_boards.where.not(id: image_boards.map(&:id))
-    puts "remaining_user_boards: #{remaining.count}"
     remaining
   end
 
@@ -359,13 +350,22 @@ class BoardImage < ApplicationRecord
     self.border_color = image.border_color
     self.label = image.label
     self.display_image_url = image.display_image_url(user)
+    self.next_words = image.next_words || []
+    Rails.logger.info("Next words: #{next_words}")
+    if next_words.blank?
+      Rails.logger.info("Setting next words for image #{image.label}")
+      SetNextWordsJob.perform_async([image.id])
+    end
+
     if audio_file
       self.audio_url = image.default_audio_url(audio_file)
     else
       image.start_create_all_audio_job(language) unless Rails.env.test? || Rails.env.development?
     end
-    default_next_board = image.matching_viewer_boards(board.user).first
-    self.predictive_board_id = default_next_board.id if default_next_board
+    if board.board_type != "static"
+      default_next_board = image.matching_viewer_boards(board.user).first
+      self.predictive_board_id = default_next_board.id if default_next_board
+    end
   end
 
   def save_defaults
