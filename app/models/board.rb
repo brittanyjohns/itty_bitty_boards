@@ -1075,9 +1075,8 @@ class Board < ApplicationRecord
 
         @viewer_settings = viewing_user&.settings || {}
         @predictive_board_settings = @predictive_board&.settings || {}
-        @global_default_id = Board.predictive_default_id
 
-        @user_custom_default_id = @viewer_settings["dynamic_board_id"] || @global_default_id
+        @user_custom_default_id = @viewer_settings["opening_board_id"]
 
         is_dynamic = @board_image.is_dynamic?
         is_predictive = image.predictive?
@@ -1102,7 +1101,6 @@ class Board < ApplicationRecord
           predictive_board_id: is_dynamic ? @predictive_board_id : @user_custom_default_id,
           user_custom_default_id: @user_custom_default_id,
           predictive_board_board_type: @predictive_board&.board_type,
-          global_default_id: @global_default_id,
           is_owner: is_owner,
           is_category: is_category,
           is_admin_image: is_admin_image,

@@ -265,7 +265,6 @@ class API::BoardsController < API::ApplicationController
       @images_with_display_doc = @images.map do |image|
         api_view = image.api_view(current_user)
         any_board_imgs = api_view[:any_board_imgs]
-        puts "Any board images: #{any_board_imgs}"
         if any_board_imgs.any?
           api_view
         else
@@ -316,7 +315,6 @@ class API::BoardsController < API::ApplicationController
       @board.parent_type = "PredefinedResource"
       @board.board_type = "dynamic"
     elsif board_type == "predictive"
-      puts "Creating predictive board"
       @board.parent_type = "Image"
       # matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "predictive")
       @board.board_type = "predictive"
@@ -352,14 +350,6 @@ class API::BoardsController < API::ApplicationController
         format.json { render json: @board.errors, status: :unprocessable_entity }
       end
     end
-  end
-
-  def create_custom_predictive_board
-    @user = current_user
-    # @user.create_dynamic_default_board
-    @board = @user.fix_user_predictive_default_board # Fix for existing users - remove after a while
-    Rails.logger.info "Created dynamic default board for user #{current_user.id} - board images: #{@board.image_ids.count}"
-    render json: @board.api_view_with_images(@user)
   end
 
   # PATCH/PUT /boards/1 or /boards/1.json
@@ -399,7 +389,6 @@ class API::BoardsController < API::ApplicationController
         @board.parent_type = "PredefinedResource"
         @board.board_type = "dynamic"
       elsif board_type == "predictive"
-        puts "Creating predictive board"
         @board.parent_type = "Image"
         # matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "predictive")
         @board.board_type = "predictive"
@@ -449,9 +438,7 @@ class API::BoardsController < API::ApplicationController
 
   def update_preset_display_image
     set_board
-    puts "PARAMS: #{board_params.inspect}"
     image_data = board_params[:preset_display_image]
-    puts "Image data: #{image_data.inspect}"
     if image_data.blank?
       render json: { error: "No image data provided" }, status: :unprocessable_entity
       return
@@ -653,8 +640,6 @@ class API::BoardsController < API::ApplicationController
       end
     end
     @board.destroy!
-
-    puts "Board destroyed"
 
     respond_to do |format|
       format.json { head :no_content }

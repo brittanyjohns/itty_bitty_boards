@@ -6,7 +6,6 @@ class API::ImagesController < API::ApplicationController
     @current_user = current_user
     sort_order = params[:sort_order] || "asc"
     sort_field = params[:sort_field] || "label"
-    puts "Sort order: #{sort_order} -- Sort field: #{sort_field}"
     if sort_field == "undefined" || sort_field.blank?
       sort_field = "label"
     end
@@ -14,10 +13,8 @@ class API::ImagesController < API::ApplicationController
       sort_order = "asc"
     end
     if params[:user_only] == "1"
-      # @images = Image.searchable_images_for(@current_user, true)
       @images = Image.searchable.with_artifacts.where(user_id: @current_user.id)
     else
-      # @images = Image.searchable_images_for(@current_user)
       @images = Image.searchable.with_artifacts.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
     end
 
@@ -37,9 +34,7 @@ class API::ImagesController < API::ApplicationController
   def show
     @current_user = current_user
 
-    puts "Show image params: #{params}"
     id = params[:id]
-    puts "Image ID: #{id}"
 
     @image = Image.with_artifacts.find(id)
     @board = Board.with_artifacts.find_by(id: params[:board_id]) if params[:board_id].present?
@@ -100,7 +95,6 @@ class API::ImagesController < API::ApplicationController
   end
 
   def merge
-    puts "Merging images params: #{params}"
     @current_user = current_user
     @image = Image.find(params[:id])
     @image_to_merge = Image.find(params[:merge_image_id])
@@ -174,13 +168,9 @@ class API::ImagesController < API::ApplicationController
     @file_name = @file_name.downcase.gsub(" ", "-")
     @file_name = @file_name.downcase.gsub("_", "-")
     @file_name_to_save = "#{@file_name}_custom"
-    puts "File name to save: #{@file_name_to_save}"
-
-    puts "Audio file: #{params[:audio_file]}"
 
     @audio_file = @image.audio_files.attach(io: params[:audio_file], filename: @file_name_to_save)
     new_audio_file_url = @image.default_audio_url(@audio_file.first)
-    puts "New audio file url: #{new_audio_file_url}"
     voice = @image.voice_from_filename(@audio_file.blob.filename.to_s)
 
     if @image.update(audio_url: new_audio_file_url, voice: @image.voice_from_filename(@file_name_to_save), use_custom_audio: true)
@@ -321,7 +311,6 @@ class API::ImagesController < API::ApplicationController
     board = @image.create_predictive_board(user_id, word_list, use_preview_model, board_settings)
     board.display_image_url = @board_image.display_image_url if @board_image
 
-    puts "Board created: #{board.inspect}"
     unless @board_image && board
       render json: { status: "error", message: "Could not create predictive board." }
       return
@@ -398,15 +387,15 @@ class API::ImagesController < API::ApplicationController
     generate_image = params["generate_image"] == "1"
     duplicate_image = params["duplicate"] == "1"
     label = image_params["label"]&.downcase
-    puts "Label: #{label} -- Generate Image: #{generate_image} -- Duplicate Image: #{duplicate_image}"
 
     is_private = image_params["private"] || false
     @image = Image.find_by(label: label, user_id: @current_user.id)
     @image = Image.public_img.find_by(label: label) unless @image
     @found_image = @image
-    @image = Image.create(label: label, private: is_private, user_id: @current_user.id, image_prompt: image_params[:image_prompt], image_type: "User") unless @image || duplicate_image
+    @image = Image.create(label: label, private: is_private, user_id: @current_user.id, image_prompt: image_params[:image_prompt], image_type: "User") unless @image || (@found_image && duplicate_image)
+
     @board = Board.find_by(id: image_params[:board_id]) unless image_params[:board_id].blank?
-    if @board.nil? && duplicate_image && !generate_image && @image&.id
+    if @board.nil? && duplicate_image && !generate_image && !@image.blank?
       return render json: @image.api_view(@current_user), status: :ok
     end
 
@@ -452,7 +441,6 @@ class API::ImagesController < API::ApplicationController
 
   def update
     @image = Image.find(params[:id])
-    puts "Image params: #{image_params}"
 
     if @image.update(image_params)
       render json: @image.with_display_doc(current_user)
@@ -463,7 +451,6 @@ class API::ImagesController < API::ApplicationController
 
   def clear_current
     @image = Image.find(params[:id])
-    puts "Params: #{params}"
     if @image.nil?
       render json: { status: "error", message: "Image not found." }
     else
@@ -563,7 +550,6 @@ class API::ImagesController < API::ApplicationController
   def describe
     @image = Image.find(params[:id])
     image_url = params[:image_url] || @image.display_image_url(current_user)
-    puts "Describing image #{@image.label}: #{image_url}"
     @image.update(status: "describing")
     @image.describe_image(image_url)
     @image.reload

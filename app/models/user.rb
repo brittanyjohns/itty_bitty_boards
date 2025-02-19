@@ -87,7 +87,7 @@ class User < ApplicationRecord
   # Callbacks
   before_save :set_default_settings, unless: :settings?
   after_create :add_welcome_tokens
-  # after_create :create_dynamic_default_board
+  # after_create :create_opening_board
   before_validation :set_uuid, on: :create
   before_save :ensure_settings, unless: :has_all_settings?
 
@@ -107,60 +107,49 @@ class User < ApplicationRecord
   end
 
   def self.create_from_email(email, stripe_customer_id)
-    puts "*** Inviting user with email: #{email}"
     user = User.invite!(email: email, skip_invitation: true)
-    # temp_passowrd = Devise.friendly_token.first(12)
-    # user = User.new(email: email, password: temp_passowrd)
     if user
-      # puts "setting stripe_customer_id: #{stripe_customer_id}"
-      # user.stripe_customer_id = stripe_customer_id
-      # user.save
       user.send_welcome_invitation_email
-      puts "User created: #{user.inspect}"
       user.stripe_customer_id = stripe_customer_id
       user.save
     else
-      puts "User not created: #{user.errors.full_messages}"
+      Rails.logger.error("User not created: #{email}")
     end
     user
   end
 
   def clear_custom_default_board
-    custom_board = dynamic_default_board
+    custom_board = opening_board
     custom_board.destroy! if custom_board && custom_board.user_id == id
-    self.settings["dynamic_board_id"] = nil
+    self.settings["opening_board_id"] = nil
     save
   end
 
-  def dynamic_default_board
-    Board.find_by(id: settings["dynamic_board_id"]&.to_i)
+  def opening_board
+    Board.find_by(id: settings["opening_board_id"]&.to_i)
   end
 
-  def self.without_custom_predictive_board
-    # search user setting for predictive_default_id
-    self.where("settings->>'dynamic_board_id' IS NULL")
+  def self.without_opening_board
+    self.where("settings->>'opening_board_id' IS NULL")
   end
 
-  def self.fix_user_predictive_default_boards
+  def self.fix_user_opening_boards
     self.non_admin.each do |user|
-      user.fix_user_predictive_default_board
+      user.fix_user_opening_board
     end
   end
 
-  def fix_user_predictive_default_board
-    custom_board = dynamic_default_board
-
-    if custom_board.nil? || custom_board&.id == Board.predictive_default_id
-      puts "Creating dynamic default board for user #{id}"
-      custom_board = create_dynamic_default_board
+  def fix_user_opening_board
+    new_opening_board = nil
+    if opening_board.nil?
+      new_opening_board = create_opening_board
     else
-      puts "Checking dynamic default board for user #{id}"
-      if custom_board.images.count < 10
-        custom_board.destroy
-        custom_board = create_dynamic_default_board
+      if opening_board.images.count < 10
+        opening_board.destroy
+        new_opening_board = create_opening_board
       end
     end
-    custom_board
+    new_opening_board
   end
 
   def required_settings
@@ -178,7 +167,7 @@ class User < ApplicationRecord
     end
   end
 
-  def create_dynamic_default_board
+  def create_opening_board
     Board.create_dynamic_default_for_user(self)
   end
 
@@ -320,18 +309,15 @@ class User < ApplicationRecord
       UserMailer.welcome_email(self).deliver_now
       AdminMailer.new_user_email(self).deliver_now
     rescue => e
-      puts "Error sending welcome email: #{e.message}"
       Rails.logger.error("Error sending welcome email: #{e.message}")
     end
   end
 
   def send_welcome_invitation_email
-    puts ">> Sending welcome invitation email to #{email}"
     begin
       UserMailer.welcome_invitation_email(self).deliver_now
       AdminMailer.new_user_email(self).deliver_now
     rescue => e
-      puts "Error sending welcome invitation email: #{e.message}"
       Rails.logger.error("Error sending welcome invitation email: #{e.message}")
     end
   end
@@ -421,9 +407,8 @@ class User < ApplicationRecord
     view["sign_in_count"] = sign_in_count
     view["tokens"] = tokens
     view["phrase_board_id"] = settings["phrase_board_id"]
-    view["dynamic_board_id"] = settings["dynamic_board_id"]
-    view["global_board_id"] = Board.predictive_default_id
-    view["has_dynamic_default"] = dynamic_default_board.present?
+    view["opening_board_id"] = settings["opening_board_id"]
+    view["has_dynamic_default"] = opening_board.present?
     view["startup_board_group_id"] = settings["startup_board_group_id"]
     view["child_accounts"] = child_accounts.map(&:api_view)
     view["boards"] = boards.distinct.order(name: :asc).map(&:user_api_view)
@@ -471,9 +456,8 @@ class User < ApplicationRecord
     view["sign_in_count"] = sign_in_count
     view["tokens"] = tokens
     view["phrase_board_id"] = settings["phrase_board_id"]
-    view["dynamic_board_id"] = settings["dynamic_board_id"]
-    view["global_board_id"] = Board.predictive_default_id
-    view["has_dynamic_default"] = dynamic_default_board.present?
+    view["opening_board_id"] = settings["opening_board_id"]
+    view["has_dynamic_default"] = opening_board.present?
     view["startup_board_group_id"] = settings["startup_board_group_id"]
     view["boards"] = boards.distinct.order(name: :asc).map(&:user_api_view)
     view["board_groups"] = board_groups.order(name: :asc).map(&:user_api_view)

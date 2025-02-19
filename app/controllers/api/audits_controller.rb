@@ -28,7 +28,6 @@ class API::AuditsController < API::ApplicationController
       @word_events = @user.word_events.limit(200)
       # @word_events = WordEvent.where(user_id: params[:user_id]).limit(200)
     elsif params[:account_id]
-      puts "params[:account_id]: #{params[:account_id]}"
       @word_events = WordEvent.where(child_account_id: params[:account_id])
     else
       @word_events = WordEvent.all.limit(200)

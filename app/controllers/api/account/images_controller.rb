@@ -8,7 +8,6 @@ class API::Account::ImagesController < API::Account::ApplicationController
     @current_user = @current_account.user
 
     label = params[:last_word] || params[:label]
-    puts "Label: #{label}"
 
     is_private = params["private"] || false
     @image = Image.find_by(label: label, user_id: @current_user.id)

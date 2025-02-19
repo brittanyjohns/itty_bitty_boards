@@ -19,24 +19,7 @@ class API::TeamsController < API::ApplicationController
     @team = Team.find(params[:id])
     board_ids = @team.account_boards.pluck(:board_id)
     @boards = current_user.boards.where.not(id: board_ids).alphabetical
-    puts "Board IDs: #{board_ids.inspect}"
 
-    # @accounts = @team.accounts
-    # # @boards = @team.available_team_account_boards
-    # @boards = @accounts.map do |account|
-    #   account_id = account.id
-    #   account.boards.map do |board|
-    #     if board_ids.include?(board.id)
-    #       {
-    #         id: board.id,
-    #         name: board.name,
-    #         account_id: account_id,
-
-    #       }
-    #     end
-    #   end
-    # end.flatten.compact
-    # user_boards = current_user.boards
     render json: @boards
   end
 
@@ -65,9 +48,7 @@ class API::TeamsController < API::ApplicationController
       if @user
         @user.invite_to_team!(@team, current_user)
       else
-        puts "User not found"
         @user = User.invite!({ email: user_email }, current_user)
-        puts "User created: #{@user}"
       end
       @team_user = @team.add_member!(@user, user_role)
     rescue StandardError => e

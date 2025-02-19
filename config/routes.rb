@@ -231,7 +231,6 @@ Rails.application.routes.draw do
         get "categories"
         get "preset"
         get "initial_predictive_board"
-        get "create_custom_predictive_board"
         post "import_obf"
         post "create_from_template"
       end

@@ -733,7 +733,6 @@ class Image < ApplicationRecord
 
   def language_from_filename(filename)
     file_language = filename.split("_")[2]
-    puts "File language: #{file_language}"
     if file_language.blank?
       file_language = "en"
     else
@@ -1100,37 +1099,6 @@ class Image < ApplicationRecord
     base_doc
   end
 
-  def self.set_user_docs_for_docs_without(dry_run: true)
-    user = User.admin.first
-    docs_changed = []
-    public_img.each do |image|
-      has_docs = image.docs.any?
-      if !has_docs
-        puts "No docs for image: #{image.id} - #{image.label} - Skipping"
-        next
-      end
-      image.docs.each do |doc|
-        if doc.user_id == user.id
-          puts "Marking user doc for doc: #{doc.id} - #{doc.user_id}"
-          doc.update!(current: true) unless dry_run
-          docs_changed << doc
-        else
-          existing_user_doc = UserDoc.find_by(user_id: user.id, doc_id: doc.id, image_id: image.id)
-          if existing_user_doc
-            puts "User doc already exists: #{existing_user_doc.id}"
-            existing_user_doc
-          else
-            UserDoc.create!(user_id: user.id, doc_id: doc.id, image_id: image.id) unless dry_run
-            docs_changed << doc
-            puts "User doc created for doc: #{doc.id}"
-          end
-        end
-      end
-    end
-    puts "Docs changed: #{docs_changed.count}"
-    docs_changed
-  end
-
   def display_label
     label&.titleize&.truncate(27, separator: " ")
   end
@@ -1239,7 +1207,7 @@ class Image < ApplicationRecord
 
   def user_board_images(current_user)
     return [] unless current_user
-    board_images.includes(:board).where(boards: { user_id: current_user.id, obf_id: nil }).order(created_at: :desc)
+    board_images.includes(:board).where(boards: { user_id: current_user.id }).order(created_at: :desc)
   end
 
   def update_src_url
@@ -1296,7 +1264,6 @@ class Image < ApplicationRecord
     @predictive_board = predictive_board
     @board_image = board_image
     @board = board
-    @global_default_id = Board.predictive_default_id
     @board_images = user_board_images(@current_user)
     if @board_image
       doc_img_url = @board_image.display_image_url
@@ -1344,7 +1311,6 @@ class Image < ApplicationRecord
       text_color: text_color,
       predictive_board_id: @board_image&.predictive_board_id,
       board_images: @board_images.map { |board_image| board_image.api_view(@current_user) },
-      global_default_id: @global_default_id,
       dynamic: img_is_dynamic,
       dynamic_board: predictive_board,
       is_predictive: img_is_predictive,

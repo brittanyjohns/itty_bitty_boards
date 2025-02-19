@@ -126,6 +126,8 @@ class ChildAccount < ApplicationRecord
       id: id,
       username: username,
       passcode: passcode,
+      last_sign_in_at: last_sign_in_at,
+      sign_in_count: sign_in_count,
       can_edit: viewing_user&.admin? || viewing_user&.id == user_id,
       pro: user.pro?,
       free_trial: user.free_trial?,

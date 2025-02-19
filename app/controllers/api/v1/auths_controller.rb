@@ -18,7 +18,6 @@ module API
           user.send_welcome_email
           render json: { token: user.authentication_token, user: user }
         else
-          puts "\n***\nUser Errors: #{user.errors.full_messages.join(", ")}"
           render json: { error: user.errors.full_messages.join(", ") }, status: :unprocessable_entity
         end
       end
@@ -42,12 +41,10 @@ module API
       end
 
       def forgot_password
-        puts "\n***\nForgot Password: #{params[:email]}"
         user = User.find_by(email: params[:email])
         if user
           reset_token = user.send_reset_password_instructions
           user.update(reset_password_token: reset_token)
-          puts "\n***\nReset user: #{user.email} with token: #{reset_token}"
 
           render json: { message: "Password reset instructions sent to #{user.email}" }
         else
@@ -67,13 +64,11 @@ module API
 
       def reset_password_invite
         unless params[:invitation_token]
-          puts params
           render json: { error: "No invitation token provided" }, status: :not_found
           return
         end
         user = User.accept_invitation!(invitation_token: params[:invitation_token], password: params[:password], password_confirmation: params[:password_confirmation])
 
-        puts "User: #{user}"
         if user
           render json: { message: "Password set. Please sign in.", user: user, token: user.authentication_token }
         else
@@ -88,7 +83,6 @@ module API
           @view = @current_user.api_view
           render json: { user: @view }
         else
-          puts "No current user"
           @current_user = user_from_token
           if @current_user
             render json: { user: @current_user.api_view }
