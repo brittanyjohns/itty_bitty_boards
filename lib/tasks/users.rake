@@ -60,7 +60,6 @@ namespace :users do
       words = board_to_use.board_images.map(&:label).uniq if board_to_use
       puts "Creating word events for user: word count: #{words.count}"
     end
-    puts "Communicator account created with username: #{communicator_account.username} and password: 111111"
 
     puts "Creating word events for user: word count: #{words.count}"
     words.each do |word|
