@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+
+docker compose run -it --service-ports --remove-orphans backend "/bin/bash"
+docker compose down
