@@ -18,16 +18,23 @@ default: &default
   # For details on connection pooling, see Rails configuration guide
   # https://guides.rubyonrails.org/configuring.html#database-pooling
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 } %>
+  database: <%= ENV.fetch("ITTY_BITTY_BOARDS_DATABASE_NAME") { "itty_bitty_boards_development" } %>
+  username: <%= ENV.fetch("ITTY_BITTY_BOARDS_DATABASE_USERNAME") { "itty_bitty_boards" } %>
+  password: <%= ENV.fetch("ITTY_BITTY_BOARDS_DATABASE_PASSWORD") { "password" } %>
+  port: <%= ENV.fetch("ITTY_BITTY_BOARDS_DATABASE_PORT") { 5432 } %>
 
 development:
   <<: *default
-  database: itty_bitty_boards_development
+  database: <%= ENV.fetch("ITTY_BITTY_BOARDS_DATABASE_NAME") { "itty_bitty_boards_development" } %>
 
   # The specified database role being used to connect to PostgreSQL.
   # To create additional roles in PostgreSQL see `$ createuser --help`.
   # When left blank, PostgreSQL will use the default role. This is
   # the same name as the operating system user running Rails.
-  #username: itty_bitty_boards
+  # username: <%= ENV.fetch("ITTY_BITTY_BOARDS_DATABASE_USERNAME") { "itty_bitty_boards" } %>
+  # password: <%= ENV.fetch("ITTY_BITTY_BOARDS_DATABASE_PASSWORD") { "password" } %>
+  # host: <%= ENV.fetch("ITTY_BITTY_BOARDS_DATABASE_HOST") { "localhost" } %>
+  # port: <%= ENV.fetch("ITTY_BITTY_BOARDS_DATABASE_PORT") { 5432 } %>
 
   # The password associated with the PostgreSQL role (username).
   #password:
