@@ -34,6 +34,7 @@ services:
       - DATABASE_PASSWORD=itty_bitty_password
       - DATABASE_HOST=postgres
       - DATABASE_PORT=5432
+      - ACTIVE_STORAGE_SERVICE=local
     depends_on:
       - redis
       - postgres
