@@ -43,7 +43,7 @@ Rails.application.configure do
 
   config.action_controller.default_url_options = { host: "http://localhost:4000" }
   # Store uploaded files on the local file system (see config/storage.yml for options).
-  config.active_storage.service = :amazon
+  config.active_storage.service = ENV["ACTIVE_STORAGE_SERVICE"] || :amazon
   config.active_storage.content_types_to_serve_as_binary -= ["image/svg+xml", "image/svg"]
   config.active_storage.content_types_allowed_inline += ["image/svg+xml", "image/svg"]
   # Don't care if the mailer can't send.
