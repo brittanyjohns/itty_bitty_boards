@@ -43,7 +43,7 @@ class API::UsersController < API::ApplicationController
     voice_settings = params[:voice] || {}
     @user.settings = user_settings.merge(voice: voice_settings)
     params.each do |key, value|
-      @user.settings[key] = value unless value.nil?
+      @user.settings[key] = value
     end
 
     @user.base_words = params[:base_words]

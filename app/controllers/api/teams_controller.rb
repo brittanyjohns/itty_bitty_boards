@@ -17,8 +17,10 @@ class API::TeamsController < API::ApplicationController
 
   def remaining_boards
     @team = Team.find(params[:id])
-    board_ids = @team.account_boards.pluck(:board_id)
+    board_ids = @team.boards.pluck(:id)
+    puts "Board IDs: #{board_ids}"
     @boards = current_user.boards.where.not(id: board_ids).alphabetical
+    puts "Remaining Boards: #{@boards.pluck(:id)}"
 
     render json: @boards
   end
@@ -56,7 +58,7 @@ class API::TeamsController < API::ApplicationController
     end
     respond_to do |format|
       if @team_user.save
-        format.json { render json: @team.show_api_view, status: :created }
+        format.json { render json: @team.show_api_view(current_user), status: :created }
       else
         format.json { render json: @team_user.errors, status: :unprocessable_entity }
       end
@@ -72,7 +74,7 @@ class API::TeamsController < API::ApplicationController
 
     respond_to do |format|
       if @team.save
-        format.json { render json: @team, status: :created }
+        format.json { render json: @team.show_api_view(current_user), status: :created }
       else
         format.json { render json: @team.errors, status: :unprocessable_entity }
       end
@@ -103,7 +105,7 @@ class API::TeamsController < API::ApplicationController
     @board = Board.find(params[:board_id])
     @team_board = @team.add_board!(@board)
     if @team_board.save
-      render json: @team.show_api_view
+      render json: @team.show_api_view(current_user)
     else
       render json: @team_board.errors, status: :unprocessable_entity
     end
