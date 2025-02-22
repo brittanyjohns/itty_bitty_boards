@@ -26,7 +26,7 @@ class Team < ApplicationRecord
   end
 
   def single_account
-    if !created_by.premium?
+    if !created_by&.premium?
       accounts.includes(:child_boards).first
     else
       nil

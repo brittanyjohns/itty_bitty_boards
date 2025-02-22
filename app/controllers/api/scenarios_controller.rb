@@ -87,7 +87,6 @@ class API::ScenariosController < API::ApplicationController
 
     question_key = "question_#{question_number}"
     question = @scenario.questions[question_key]
-    puts "question: #{question}\n\n#{question_key}"
     @scenario.answers[question_key] = answer
     @scenario.save
 
@@ -99,7 +98,7 @@ class API::ScenariosController < API::ApplicationController
     token_limit = @scenario.token_limit
     user_id = @scenario.user_id
 
-    board = Board.create!(user: current_user, name: name, token_limit: token_limit, description: initial_description, parent_id: user_id, parent_type: "User")
+    board = Board.create!(user: current_user, name: name, token_limit: token_limit, description: initial_description, parent_id: user_id, parent_type: "User", board_type: "scenario")
 
     @scenario.board_id = board.id
     @scenario.save

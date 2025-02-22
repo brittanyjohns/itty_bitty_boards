@@ -70,7 +70,7 @@ class Board < ApplicationRecord
   scope :for_user, ->(user) { where(user: user).or(where(user_id: User::DEFAULT_ADMIN_ID, predefined: true)) }
   scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
   scope :with_image_parent, -> { where.associated(:image_parent) }
-  scope :searchable, -> { where(board_type: ["static", "dynamic", "category", "predictive"]) }
+  scope :searchable, -> { where(board_type: ["static", "dynamic", "category", "predictive", "scenario"]) }
   scope :menus, -> { where(parent_type: "Menu") }
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
@@ -137,7 +137,7 @@ class Board < ApplicationRecord
   end
 
   def self.static
-    where(board_type: "static")
+    where(board_type: ["static", "scenario"])
   end
 
   def self.with_identical_images(name, user)

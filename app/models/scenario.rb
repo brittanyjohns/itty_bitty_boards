@@ -25,6 +25,14 @@ class Scenario < ApplicationRecord
   belongs_to :board, optional: true
   include UtilHelper
 
+  before_save :set_board_type
+
+  def set_board_type
+    return unless board_id
+    board = Board.find_by(id: board_id)
+    board.update(board_type: "scenario") if board
+  end
+
   def api_view_with_images(viewing_user)
     self.answers ||= {}
     self.questions ||= {}
