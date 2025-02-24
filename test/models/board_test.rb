@@ -34,6 +34,7 @@
 #  obf_id                :string
 #  board_group_id        :integer
 #  language              :string           default("en")
+#  board_images_count    :integer          default(0), not null
 #
 require "test_helper"
 

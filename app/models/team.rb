@@ -45,12 +45,17 @@ class Team < ApplicationRecord
   end
 
   def add_member!(user, role = "member")
+    return nil if user.nil?
     puts "Adding member to team: #{user&.email} as a #{role}"
     if user && !users.include?(user)
       team_user = team_users.new(user: user, role: role)
       team_user.save
     else
       team_user = team_users.find_by(user: user)
+      unless team_user
+        team_user = team_users.new(user: user, role: role)
+        team_user.save
+      end
       if role != team_user.role
         team_user.role = role
         team_user.save

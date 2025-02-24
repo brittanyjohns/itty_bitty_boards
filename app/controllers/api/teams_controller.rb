@@ -47,12 +47,22 @@ class API::TeamsController < API::ApplicationController
     @team = Team.find(params[:id])
     @user = User.find_by(email: user_email)
     begin
+      puts "Inviting user to team: #{user_email} with role: #{user_role}"
       if @user
+        puts ">>User found: #{@user}"
         @user.invite_to_team!(@team, current_user)
       else
-        @user = User.invite!({ email: user_email }, current_user)
+        # @user = User.invite!({ email: user_email }, current_user)
+        puts ">>Inviting new user to team: #{user_email}"
+        @user = current_user.invite_new_user_to_team!(user_email, @team, current_user)
       end
-      @team_user = @team.add_member!(@user, user_role)
+      @user = User.find_by(email: user_email)
+      unless @user
+        puts "User not found"
+        return render json: { error: "User not found" }, status: :unprocessable_entity
+      end
+      puts "User INVITED: #{@user.email} to team: #{@team}"
+      @team_user = @team.add_member!(@user, user_role) if @user
     rescue StandardError => e
       puts "Error: #{e}"
     end

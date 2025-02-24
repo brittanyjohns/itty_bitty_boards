@@ -5,7 +5,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
   def index
     sort_order = params[:sort_order] || "desc"
     sort_field = params[:sort_field] || "created_at"
-    @users = User.all
+    @users = User.includes(:child_accounts, :word_events, :boards)
     @users = @users.order(sort_field => sort_order.to_sym)
 
     render json: @users.map(&:admin_api_view)

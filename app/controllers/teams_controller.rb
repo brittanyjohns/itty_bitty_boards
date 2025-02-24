@@ -47,7 +47,7 @@ class TeamsController < ApplicationController
     else
       puts "User not found"
       # @user = User.invite!({ email: user_email }, current_user)
-      current_user.invite_new_user_to_team!(user_email, @team)
+      current_user.invite_new_user_to_team!(user_email, @team, current_user)
       puts "User created: #{@user}"
     end
     @team_user = @team.add_member!(@user, user_role)

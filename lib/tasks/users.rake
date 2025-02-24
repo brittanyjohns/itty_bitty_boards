@@ -36,6 +36,7 @@ namespace :users do
       WordEvent.create(payload)
     end
   end
+  desc "Create word events for a communicator account Example: rake users:create_word_events_for_communicator[1]"
   task :create_word_events_for_communicator, [:account_id, :create_board] => :environment do |t, args|
     communicator_account = ChildAccount.includes(:user, :child_boards).find(args[:account_id])
     user = communicator_account.user

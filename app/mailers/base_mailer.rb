@@ -19,12 +19,13 @@ class BaseMailer < ApplicationMailer
     @team_name = @team.name
 
     subject = "You have been invited to join a team on SpeakAnyWay AAC!"
-    mail_result = mail(to: @invitee.email, subject: subject, from: "hello@speakanyway.com")
-    Rails.logger.info "Mail result: #{mail_result}"
-    mail_result
+    mail(to: @invitee.email, subject: subject, from: "hello@speakanyway.com")
+    invitee.update!(invitation_sent_at: Time.now)
+    invitee
   end
 
   def invite_new_user_to_team_email(email, inviter, team)
+    puts "Inviting new user to team: #{email}, #{inviter}, #{team}"
     unless email && inviter && team
       puts "Missing required parameters: email: #{email}, inviter: #{inviter}, team: #{team}"
       raise "Missing required parameters"
@@ -50,7 +51,6 @@ class BaseMailer < ApplicationMailer
 
     subject = "You have been invited to join a team on SpeakAnyWay AAC!"
     mail_result = mail(to: @invitee.email, subject: subject)
-    Rails.logger.info "Mail result: #{mail_result}"
     mail_result
   end
 end
