@@ -9,13 +9,16 @@ class API::AuditsController < API::ApplicationController
       return
     end
 
+    # TODO - team tracking needs work - not using current_team_id anymore
+
     payload = {
       word: params[:word],
       previous_word: params[:previousWord],
+      image_id: params[:imageId],
       timestamp: params[:timestamp],
       user_id: user.id,
       board_id: params[:boardId],
-      team_id: user.current_team_id,
+      team_id: user.current_team_id, # current_team_id is not being set
       child_account_id: current_account&.id,
     }
     WordEvent.create(payload)

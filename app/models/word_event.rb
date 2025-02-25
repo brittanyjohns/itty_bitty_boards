@@ -12,9 +12,13 @@
 #  created_at       :datetime         not null
 #  updated_at       :datetime         not null
 #  child_account_id :bigint
+#  image_id         :integer
 #
 class WordEvent < ApplicationRecord
   belongs_to :user
+  belongs_to :image, optional: true
+  belongs_to :board, optional: true
+  belongs_to :team, optional: true
   belongs_to :child_account, optional: true
 
   def admin_api_view
@@ -26,11 +30,16 @@ class WordEvent < ApplicationRecord
       word: word,
       previous_word: previous_word,
       board_id: board_id,
+      image_id: image_id,
       team_id: team_id,
       timestamp: timestamp,
       created_at: created_at,
       updated_at: updated_at,
     }
+  end
+
+  def part_of_speech
+    image&.part_of_speech
   end
 
   def self.session_analysis

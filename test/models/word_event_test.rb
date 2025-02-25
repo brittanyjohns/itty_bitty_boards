@@ -12,6 +12,7 @@
 #  created_at       :datetime         not null
 #  updated_at       :datetime         not null
 #  child_account_id :bigint
+#  image_id         :integer
 #
 require "test_helper"
 
