@@ -1065,8 +1065,12 @@ class Image < ApplicationRecord
     audio_blob = audio_file&.blob
 
     # first_audio_file = audio_files_attachments.first&.blob
-    cdn_url = "#{ENV["CDN_HOST"]}/#{audio_blob.key}" if audio_blob
-    audio_blob ? cdn_url : nil
+    if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
+      url = "#{ENV["CDN_HOST"]}/#{audio_blob.key}" if audio_blob
+    else
+      url = audio_file&.url
+    end
+    url
   end
 
   def save_audio_file_to_s3!(voice = "alloy", lang = "en")
