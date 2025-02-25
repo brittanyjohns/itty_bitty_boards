@@ -659,7 +659,7 @@ class API::ImagesController < API::ApplicationController
     doc.user = user
     doc.processed = true
     doc.image.attach(io: StringIO.new(Base64.decode64(image_data)),
-                     filename: "img_#{image.id}_img_doc_#{doc.id}_cropped.#{file_extension}",
+                     filename: "img_#{image.label}_#{image.id}_doc_#{doc.id}.#{file_extension}",
                      content_type: "image/#{file_extension}")
     doc.save
     doc

@@ -2,6 +2,7 @@ module API
   class ApplicationController < ApplicationController
     prepend_before_action :authenticate_token!
     skip_before_action :authenticate_token!, only: %i[authenticate_child_token!]
+    include ActiveStorage::SetCurrent
 
     def authenticate_token!
       @user ||= user_from_token

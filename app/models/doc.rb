@@ -171,21 +171,17 @@ class Doc < ApplicationRecord
 
   include Rails.application.routes.url_helpers
 
-  def attached_image_url
-    if image.attached?
-      url = image.url
-      return url
-    end
-  end
-
   def display_url
-    if image.attached?
+    return original_image_url if !image.attached?
+    if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
       cdn_host = ENV["CDN_HOST"]
       if cdn_host
         "#{cdn_host}/#{image.key}" # Construct CloudFront URL
       else
-        attached_image_url # Fallback to the direct Active Storage URL
+        image.url # Fallback to the direct Active Storage URL
       end
+    else
+      image.url
     end
   end
 
