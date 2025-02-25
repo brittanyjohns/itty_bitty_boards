@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+
+PGPASSWORD="${DATABASE_PASSWORD}" psql -h "${DATABASE_HOST:-localhost}" -p "${DATABASE_PORT:-5432}" -U "${DATABASE_USERNAME:-root}" itty_bitty_boards_development
