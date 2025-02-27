@@ -1,23 +1,20 @@
 class TeamPolicy < ApplicationPolicy
-    class Scope
-        def initialize(user, scope)
-          @user  = user
-          @scope = scope
-        end
-    
-        def resolve
-          return [] unless user
-          if user&.admin?
-            scope.all
-          else
-            scope.joins(:team_users).where(team_users: { user_id: user.id })
-          end
-        end
-    
-        private
-    
-        attr_reader :user, :scope
+  class Scope
+    def initialize(user, scope)
+      @user = user
+      @scope = scope
     end
+
+    def resolve
+      return [] unless user
+      scope.joins(:team_users).where(team_users: { user_id: user.id })
+    end
+
+    private
+
+    attr_reader :user, :scope
+  end
+
   def create?
     user.present?
   end

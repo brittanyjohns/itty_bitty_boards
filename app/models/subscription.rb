@@ -145,12 +145,6 @@ def self.get_word_event_limit(plan_type_name)
   else
     word_event_limit = 0
   end
-end
-
-def self.get_communicator_limit(plan_type_name)
-  return 0 if plan_type_name.nil?
-  plan_name = plan_type_name.downcase.split("_").first
-  comm_account_limit = plan_type
 
   def cancel
     self.status = "canceled"
