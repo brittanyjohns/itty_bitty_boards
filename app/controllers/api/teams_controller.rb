@@ -75,6 +75,14 @@ class API::TeamsController < API::ApplicationController
     end
   end
 
+  def remove_member
+    @team = Team.find(params[:id])
+    @user = User.find_by(email: params[:email])
+    @team_user = TeamUser.find_by(user_id: @user.id, team_id: @team.id)
+    @team_user.destroy!
+    render json: @team.show_api_view(current_user)
+  end
+
   # POST /teams or /teams.json
   def create
     @team = Team.new
