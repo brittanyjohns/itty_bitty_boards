@@ -57,6 +57,14 @@ class Menu < ApplicationRecord
   end
 
   def create_board_from_image(new_doc, board_id = nil)
+    unless new_doc
+      puts "NO NEW DOC FOUND"
+      return nil
+    end
+    unless new_doc.processed
+      puts "NO PROCESSED DESCRIPTION FOUND"
+      return nil
+    end
     Rails.logger.debug "Creating board from image for #{name} - board_id: #{board_id}"
     board = board_id ? Board.find(board_id) : self.boards.new
     board.user = self.user
@@ -72,9 +80,13 @@ class Menu < ApplicationRecord
 
     create_images_from_description(board)
     board.reset_layouts
-
-    board.display_image_url = new_doc.image&.url if new_doc.image.attached?
-    board.save!
+    begin
+      board.display_image_url = new_doc.image&.url if new_doc.image.attached?
+      board.save!
+    rescue => e
+      puts "create_board_from_image **** ERROR **** \n#{e.message}\n"
+      puts e.backtrace
+    end
     # board.update!(status: "complete")
     board
   end
@@ -118,7 +130,10 @@ class Menu < ApplicationRecord
     Rails.logger.debug "Creating images from description for board: #{board.description}"
     Rails.logger.debug "Description: #{description}"
     Rails.logger.debug "JSON Description: #{json_description}"
-
+    if json_description && json_description["menu_items"].blank?
+      puts "No menu items found in description"
+      return nil
+    end
     json_description["menu_items"].each do |food|
       if food["name"].blank? || food["image_description"].blank?
         puts "Blank name or image description for #{food.inspect}"
@@ -241,23 +256,22 @@ class Menu < ApplicationRecord
     # self.update!(description: new_doc.processed)
     begin
       if new_doc
-        # new_doc.processed, messages_sent = clarify_image_description(new_doc.raw)
         puts "Processed: #{new_doc.processed}\n"
-        # puts "Messages sent: #{messages_sent}\n"
         Rails.logger.info "Processed: #{new_doc.processed}\n"
-        # Rails.logger.info "Messages sent: #{messages_sent}\n"
-        # return nil unless new_doc.processed
 
-        new_processed = describe_menu(new_doc)
+        new_processed = describe_menu(@board.display_image_url)
         @board.update(status: "error") unless new_processed
         @board.update!(description: new_processed) if new_processed
         Rails.logger.debug "New processed: #{new_processed}\n"
         from_text, messages_sent = clarify_image_description(new_doc.raw)
 
+        Rails.logger.debug "Clarified: #{from_text}\n"
+
         if valid_json?(from_text)
           puts "Valid JSON: #{from_text}"
-          new_from_text = JSON.parse(from_text)
-          self.prompt_used = new_from_text
+          @board.update!(description: from_text)
+          self.prompt_used = from_text
+          self.save!
         else
           puts "INVALID JSON: #{new_processed}"
           new_from_text = transform_into_json(new_processed)
@@ -295,12 +309,16 @@ class Menu < ApplicationRecord
     end
   end
 
-  def describe_menu(doc)
+  def describe_menu(url)
+    unless url.present? && url.is_a?(String)
+      Rails.logger.error "Invalid URL: #{url.class} - #{url}"
+      return nil
+    end
+    menu_items = nil
     begin
       # image_data = doc.active_storage_to_data_url
-      image_data = doc.display_url
-      Rails.logger.debug "Image data: #{image_data.present?}\n Running describe_menu\n #{image_data}"
-      response = OpenAiClient.new(open_ai_opts).describe_menu(image_data)
+      Rails.logger.debug "Image data: #{url.present?}\n Running describe_menu\n #{url}"
+      response = OpenAiClient.new(open_ai_opts).describe_menu(url)
       Rails.logger.debug "describe_menu - Response: #{response}\n"
       menu_items = response[:content] if response
     rescue => e
@@ -326,12 +344,6 @@ class Menu < ApplicationRecord
 
         # Parse the JSON string into a Ruby hash
         menu_items = JSON.parse(json_content)
-
-        # Output the parsed menu items
-        puts "Menu Items:"
-        menu_items["menu_items"].each do |item|
-          puts " - #{item["name"]}: #{item["description"]}"
-        end
       rescue JSON::ParserError => e
         puts "Failed to parse JSON: #{e.message}"
       rescue => e
@@ -341,7 +353,7 @@ class Menu < ApplicationRecord
     else
       Rails.logger.error "*** ERROR - get_menu_items *** \nDid not receive valid response. Response: #{response}\n"
     end
-    puts "menu_items: #{menu_items}"
+    Rails.logger.debug "menu_items: #{menu_items}"
     menu_items
   end
 

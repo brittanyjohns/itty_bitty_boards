@@ -57,28 +57,6 @@ module ImageHelper
     doc
   end
 
-  # def create_image_from_google_search(src, title, long_title, user_id = nil)
-  #   return if Rails.env.test?
-  #   user_id ||= self.user_id
-  #   title.downcase!
-
-  #   img_url = src
-  #   revised_prompt = long_title
-  #   edited_prompt = title
-  #   label = title
-  #   new_img = self.create(label: label, user_id: user_id, status: "processing", source_type: "GoogleSearch", image_prompt: revised_prompt).save
-
-  #   puts "new_img: #{new_img.inspect}"
-
-  #   doc = nil
-  #   if img_url
-  #     doc = save_image(img_url, user_id, revised_prompt, edited_prompt)
-  #   else
-  #     Rails.logger.error "**** ERROR **** \nDid not receive valid response.\n #{image_obj&.inspect}"
-  #   end
-  #   doc
-  # end
-
   def create_audio_from_text(text = nil, voice = "alloy", language = "en")
     text = text || self.label
     new_audio_file = nil
@@ -114,27 +92,34 @@ module ImageHelper
   def clarify_image_description(raw)
     return if Rails.env.test?
     response, messages_sent = OpenAiClient.new(open_ai_opts).clarify_image_description(raw)
-    if response
-      response_text = response[:content].gsub("```json", "").gsub("```", "").strip
-      if valid_json?(response_text)
-        response_text
+    Rails.logger.info "clarify_image_description response: #{response}\n messages_sent: #{messages_sent}"
+    begin
+      response_text = nil
+      response_hash = nil
+      if response
+        response_text = response[:content].gsub("```json", "").gsub("```", "").strip
+        if valid_json?(response_text)
+          response_text
+        else
+          puts "INVALID JSON: #{response_text}"
+          response_text = transform_into_json(response_text)
+        end
       else
-        puts "INVALID JSON: #{response_text}"
-        response_text = transform_into_json(response_text)
+        Rails.logger.error "*** ERROR - clarify_image_description *** \nDid not receive valid response. Response: #{response}\n"
       end
-    else
-      Rails.logger.error "*** ERROR - clarify_image_description *** \nDid not receive valid response. Response: #{response}\n"
+
+      response_hash = JSON.parse(response_text) if response_text
+
+      if response_hash["menu_items"].blank?
+        puts "NO DESCRIPTION"
+        return nil
+      end
+      puts "response_hash: #{response_hash["menu_items"]} "
+    rescue => e
+      puts "****clarify_image_description--ERROR: #{e.inspect}"
     end
 
-    response_hash = JSON.parse(response_text) if response_text
-
-    puts "response_hash: #{response_hash["menu_items"]} "
-
-    if response_hash["menu_items"].blank?
-      puts "NO DESCRIPTION"
-      return nil
-    end
-    [response_text, messages_sent]
+    [response_hash, messages_sent]
   end
 
   def get_next_words(label)

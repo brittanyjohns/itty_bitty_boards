@@ -153,6 +153,13 @@ class ChildAccount < ApplicationRecord
       name: name,
       parent_name: user.display_name,
       user_id: user_id,
+      last_sign_in_at: last_sign_in_at&.strftime("%a, %b %e at %l:%M %p"),
+      sign_in_count: sign_in_count,
+      can_edit: user.admin?,
+      pro: user.pro?,
+      free_trial: user.free_trial?,
+      admin: user.admin?,
+      can_sign_in: can_sign_in?,
     }
   end
 end

@@ -114,7 +114,7 @@ class API::MenusController < API::ApplicationController
         description: @menu.description,
         boardId: @board.id,
         board: @board.api_view(@current_user),
-        displayImage: @menu.docs.last&.image&.url,
+        displayImage: @board.display_image_url,
         predefined: @menu.predefined,
         user_id: @menu.user_id,
         can_edit: @current_user.admin? || @current_user.id == @menu.user_id,

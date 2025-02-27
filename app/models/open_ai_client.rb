@@ -198,7 +198,7 @@ class OpenAiClient
                                                 The description is optional. If no description is provided, then try to create a description based on the name.
                                                 Respond as json.
                                                 Here is an EXAMPLE RESPONSE: #{expected_json_schema}\n
-                                                This is the text to parse: #{strip_image_description(menu_description)}\n\n" }] }]
+                                                This is the text to parse: #{strip_image_description(menu_description)}\n" }] }]
     response = create_chat
     Rails.logger.debug "*** ERROR *** Invaild Menu Description Response: #{response}" unless response
     puts "format_menu_description Response: #{response}"

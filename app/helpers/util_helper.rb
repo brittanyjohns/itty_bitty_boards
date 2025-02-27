@@ -1,5 +1,12 @@
 module UtilHelper
   def valid_json?(json)
+    if json.blank?
+      return false
+    end
+    if json.is_a?(Hash) || json.is_a?(Array)
+      json.to_json
+      return true
+    end
     JSON.parse(json)
     return true
   rescue JSON::ParserError => e

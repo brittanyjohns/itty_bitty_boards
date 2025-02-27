@@ -16,7 +16,7 @@ module API
           # Send welcome email
           # UserMailer.welcome_email(user).deliver_now
           user.send_welcome_email
-          render json: { token: user.authentication_token, user: user }
+          render json: { token: user.authentication_token, user: user.api_view }
         else
           render json: { error: user.errors.full_messages.join(", ") }, status: :unprocessable_entity
         end
@@ -34,7 +34,7 @@ module API
           if user.subscription_expired?
             user.update(plan_type: "free")
           end
-          render json: { token: user.authentication_token, user: user }
+          render json: { token: user.authentication_token, user: user.api_view }
         else
           render json: { error: error_message }, status: :unauthorized
         end

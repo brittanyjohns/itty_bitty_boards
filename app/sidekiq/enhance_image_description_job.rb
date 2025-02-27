@@ -5,7 +5,6 @@ class EnhanceImageDescriptionJob
   def perform(menu_id, board_id = nil, screen_size = nil)
     menu = Menu.find(menu_id)
     begin
-      Rails.logger.info "Enhancing image description for menu #{menu_id} - board #{board_id}"
       result = menu.enhance_image_description(board_id)
       unless result
         Rails.logger.error "An error occurred while enhancing the image description."
