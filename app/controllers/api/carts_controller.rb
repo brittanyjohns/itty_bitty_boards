@@ -1,6 +1,6 @@
 class API::CartsController < API::ApplicationController
   before_action :authenticate_user!
-  DOMAIN = ENV["FRONT_END_DOMAIN"] || "http://localhost:8100"
+  DOMAIN = ENV["FRONT_END_URL"] || "http://localhost:8100"
 
   def show
     @current_order = current_order

@@ -1,5 +1,5 @@
 class API::SubscriptionsController < API::ApplicationController
-  DOMAIN = ENV["FRONT_END_DOMAIN"] || "http://localhost:8100"
+  DOMAIN = ENV["FRONT_END_URL"] || "http://localhost:8100"
   PRO_PLAN_PRICE_ID = ENV["PRO_PLAN_PRICE_ID"]
 
   def index

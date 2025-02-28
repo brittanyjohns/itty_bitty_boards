@@ -240,7 +240,7 @@ class Board < ApplicationRecord
   # OBF helper methods
 
   def url
-    base_url = ENV["FRONT_END_DOMAIN"] || "localhost:8100"
+    base_url = ENV["FRONT_END_URL"] || "localhost:8100"
     "#{base_url}/boards/#{id}"
   end
 
