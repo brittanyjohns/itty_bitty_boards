@@ -351,7 +351,6 @@ class BoardImage < ApplicationRecord
     self.label = image.label
     self.display_image_url = image.display_image_url(user)
     self.next_words = image.next_words || []
-    Rails.logger.info("Next words: #{next_words}")
     if next_words.blank?
       Rails.logger.info("Setting next words for image #{image.label}")
       SetNextWordsJob.perform_async([image.id])

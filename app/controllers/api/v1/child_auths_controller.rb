@@ -19,7 +19,7 @@ class API::V1::ChildAuthsController < API::ApplicationController
         # return render json: { error: "Account not active. Please upgrade to a pro account to continue.", token: "" }, status: :unauthorized
       end
       child.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip, sign_in_count: child.sign_in_count + 1)
-      return render json: { token: auth_token, account: child }
+      return render json: { token: auth_token, account: child.api_view }
     else
       return render json: { error: error_message }, status: :unauthorized
     end

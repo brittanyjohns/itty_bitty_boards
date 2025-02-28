@@ -99,12 +99,8 @@ class Team < ApplicationRecord
       name: name,
       current: id == viewing_user&.current_team_id,
       created_by: created_by&.email,
+      members: team_users.includes(:user).map(&:api_view),
     }
-  end
-
-  def members_without(viewing_user = nil)
-    # team_users.includes(:user).where.not(user_id: viewing_user&.id)
-    team_users.includes(:user)
   end
 
   def show_api_view(viewing_user = nil)
@@ -113,7 +109,7 @@ class Team < ApplicationRecord
       name: name,
       can_edit: viewing_user == created_by,
       created_by: created_by&.email,
-      members: members_without(viewing_user).map(&:api_view),
+      members: team_users.includes(:user).map(&:api_view),
       boards: boards.map(&:api_view),
       accounts: accounts.map(&:api_view),
       single_account: single_account ? single_account.api_view : nil,
