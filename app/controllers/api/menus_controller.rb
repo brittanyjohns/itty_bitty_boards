@@ -62,19 +62,19 @@ class API::MenusController < API::ApplicationController
       # redirect_to menu_url(@menu), notice: "No board found for this menu."
       return
     end
-    if current_user.tokens < 1 && !current_user.admin?
-      message = "Not enough tokens to re-run image description job."
-      render json: { error: message }, status: :unprocessable_entity
-      # redirect_to menu_url(@menu), notice: "Not enough tokens to re-run image description job."
-      return
-    end
-    if @board.cost >= @menu.token_limit && !current_user.admin?
-      Rails.logger.info "Board cost: #{@board.cost} >= Menu token limit: #{@menu.token_limit}"
-      message = "This menu has already used all of its tokens. Menu token limit: #{@menu.token_limit}"
-      render json: { error: message }, status: :unprocessable_entity
-      # redirect_to menu_url(@menu), notice: "This menu has already used all of its tokens."
-      return
-    end
+    # if current_user.tokens < 1 && !current_user.admin?
+    #   message = "Not enough tokens to re-run image description job."
+    #   render json: { error: message }, status: :unprocessable_entity
+    #   # redirect_to menu_url(@menu), notice: "Not enough tokens to re-run image description job."
+    #   return
+    # end
+    # if @board.cost >= @menu.token_limit && !current_user.admin?
+    #   Rails.logger.info "Board cost: #{@board.cost} >= Menu token limit: #{@menu.token_limit}"
+    #   message = "This menu has already used all of its tokens. Menu token limit: #{@menu.token_limit}"
+    #   render json: { error: message }, status: :unprocessable_entity
+    #   # redirect_to menu_url(@menu), notice: "This menu has already used all of its tokens."
+    #   return
+    # end
     Rails.logger.info "Re-running image description job."
     # @menu.rerun_image_description_job
     @menu.enhance_image_description(@board.id)
@@ -107,6 +107,7 @@ class API::MenusController < API::ApplicationController
     if doc.save
       Rails.logger.info "Running image description job. #{doc.id} - #{doc.display_url}"
       @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.display_url)
+      @board.update(large_screen_columns: 10, medium_screen_columns: 8, small_screen_columns: 4)
       @menu.run_image_description_job(@board.id, screen_size)
       @menu_with_display_doc = {
         id: @menu.id,
