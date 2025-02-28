@@ -16,7 +16,10 @@ class API::BoardsController < API::ApplicationController
       @dynamic_preset_boards = Board.dynamic.predefined.order(name: :asc).page params[:page]
       @predictive_preset_boards = Board.predictive.predefined.order(name: :asc).page params[:page]
       @category_preset_boards = Board.categories.predefined.order(name: :asc).page params[:page]
-      render json: { static_preset_boards: @static_preset_boards, dynamic_preset_boards: @dynamic_preset_boards, predictive_preset_boards: @predictive_preset_boards, category_preset_boards: @category_preset_boards }
+      render json: { static_preset_boards: @static_preset_boards.map(&:api_view),
+                     dynamic_preset_boards: @dynamic_preset_boards.map(&:api_view),
+                     predictive_preset_boards: @predictive_preset_boards.map(&:api_view),
+                     category_preset_boards: @category_preset_boards.map(&:api_view) }
       return
     end
     if params[:query].present?
@@ -34,12 +37,14 @@ class API::BoardsController < API::ApplicationController
       @predictive_preset_boards = Board.predictive.predefined.order(name: :asc).page params[:page]
       @category_preset_boards = Board.categories.predefined.order(name: :asc).page params[:page]
 
-      render json: { category_preset_boards: @category_preset_boards,
-                     static_preset_boards: @static_preset_boards,
-                     dynamic_preset_boards: @dynamic_preset_boards,
-                     predictive_preset_boards: @predictive_preset_boards,
-                     predictive_boards: @predictive_boards,
-                     dynamic_boards: @dynamic_boards, category_boards: @category_boards, boards: @static_boards, search_results: @search_results }
+      render json: { category_preset_boards: @category_preset_boards.map(&:api_view),
+                     static_preset_boards: @static_preset_boards.map(&:api_view),
+                     dynamic_preset_boards: @dynamic_preset_boards.map(&:api_view),
+                     predictive_preset_boards: @predictive_preset_boards.map(&:api_view),
+                     predictive_boards: @predictive_boards.map(&:api_view),
+                     dynamic_boards: @dynamic_boards.map(&:api_view),
+                     category_boards: @category_boards.map(&:api_view),
+                     boards: @static_boards.map(&:api_view) }
     end
   end
 

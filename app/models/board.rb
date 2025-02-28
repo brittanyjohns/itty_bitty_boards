@@ -1297,6 +1297,9 @@ class Board < ApplicationRecord
       preset_display_image_url: preset_display_image_url,
       board_images_count: board_images_count,
       obf_id: obf_id,
+      word_list: words,
+      created_at: created_at,
+      updated_at: updated_at,
     }
   end
 
