@@ -8,9 +8,7 @@ namespace :users do
     else
       puts "No communicator account created"
     end
-    puts "Done! User basic created"
-    puts "Login credentials: email: #{user.email}, password: 111111"
-    puts "Communicator account credentials: username: #{communicator_account&.username}, password: 111111" if communicator_account
+    puts "Done!"
   end
 
   desc "Create word events for an existing communicator account Example: rake users:create_word_events_for_communicator[1]"
