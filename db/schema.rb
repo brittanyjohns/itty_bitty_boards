@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_02_25_155312) do
+ActiveRecord::Schema[7.1].define(version: 2025_03_02_162209) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -572,7 +572,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_02_25_155312) do
 
   create_table "teams", force: :cascade do |t|
     t.string "name"
-    t.integer "created_by", null: false
+    t.integer "created_by_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end

@@ -477,7 +477,9 @@ class Board < ApplicationRecord
   end
 
   def set_default_voice
-    self.voice = user.settings["voice"]["name"] || "alloy"
+    user_voice_settings = user.settings["voice"] || {}
+    user_voice = user_voice_settings.is_a?(Hash) ? user_voice_settings["name"] : nil
+    self.voice = user_voice
   end
 
   def set_voice
@@ -542,6 +544,7 @@ class Board < ApplicationRecord
       image = user.images.find_by(label: word)
       image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
       image = Image.create(label: word) unless image
+      puts "Image: #{image.inspect}"
       self.add_image(image.id)
     end
     # self.reset_layouts
@@ -680,6 +683,15 @@ class Board < ApplicationRecord
 
   def words
     @words ||= board_images.order(:position).pluck(:label)
+  end
+
+  def current_word_list
+    data ||= {}
+    if data["current_word_list"].blank?
+      data["current_word_list"] = words
+      save
+    end
+    data["current_word_list"]
   end
 
   def get_commons_words
@@ -1305,7 +1317,6 @@ class Board < ApplicationRecord
 
   def user_api_view(viewing_user = nil)
     data = self.data || {}
-    current_word_list = data["current_word_list"]
     {
       id: id,
       name: name,

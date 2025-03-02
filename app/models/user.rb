@@ -68,6 +68,7 @@ class User < ApplicationRecord
   has_secure_token :authentication_token
   has_many :child_accounts, dependent: :destroy
   has_many :scenarios, dependent: :destroy
+  has_many :created_teams, class_name: "Team", foreign_key: "created_by_id", dependent: :destroy
 
   # Scopes
   scope :admin, -> { where(role: "admin") }
@@ -152,19 +153,29 @@ class User < ApplicationRecord
     new_opening_board
   end
 
-  def required_settings
-    %w[voice wait_to_speak disable_audit_logging enable_image_display enable_text_display show_labels show_tutorial]
+  def all_required_settings
+    %w[wait_to_speak disable_audit_logging enable_image_display enable_text_display show_labels show_tutorial]
+  end
+
+  def false_settings
+    %w[wait_to_speak disable_audit_logging]
+  end
+
+  def true_settings
+    %w[enable_image_display enable_text_display show_labels show_tutorial]
   end
 
   def has_all_settings?
-    required_settings.all? { |setting| settings[setting] }
+    all_required_settings.all? { |setting| settings[setting] }
   end
 
   def ensure_settings
     self.settings = {} unless settings
-    required_settings.each do |setting|
-      settings[setting] = true if settings[setting].nil?
+    all_required_settings.each do |setting|
+      settings[setting] = false if false_settings.include?(setting) && settings[setting].nil?
+      settings[setting] = true if true_settings.include?(setting) && settings[setting].nil?
     end
+    settings
   end
 
   def create_opening_board
@@ -173,9 +184,12 @@ class User < ApplicationRecord
 
   # Methods for user settings
   def set_default_settings
+    default_settings = ensure_settings
     voice_settings = { name: "alloy", speed: 1.0, pitch: 1.0, volume: 1.0, rate: 1.0, language: "en-US" }
-    self.settings = { voice: voice_settings, wait_to_speak: false, disable_audit_logging: false,
-                      enable_image_display: true, enable_text_display: true, show_labels: true, show_tutorial: true }
+    default_settings["voice"] = voice_settings unless settings["voice"]
+    # self.settings = { voice: voice_settings, wait_to_speak: false, disable_audit_logging: false,
+    #                   enable_image_display: true, enable_text_display: true, show_labels: true, show_tutorial: true }
+    self.settings = default_settings
     save
   end
 

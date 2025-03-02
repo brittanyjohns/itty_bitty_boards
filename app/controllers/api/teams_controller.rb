@@ -10,17 +10,13 @@ class API::TeamsController < API::ApplicationController
 
   # GET /teams/1 or /teams/1.json
   def show
-    @team_user = TeamUser.new
-    @team_creator = @team.created_by
     render json: @team.show_api_view(current_user)
   end
 
   def remaining_boards
     @team = Team.find(params[:id])
     board_ids = @team.boards.pluck(:id)
-    puts "Board IDs: #{board_ids}"
     @boards = current_user.boards.where.not(id: board_ids).alphabetical
-    puts "Remaining Boards: #{@boards.pluck(:id)}"
 
     render json: @boards
   end
@@ -46,26 +42,17 @@ class API::TeamsController < API::ApplicationController
     user_role = team_user_params[:role]
     @team = Team.find(params[:id])
     @user = User.find_by(email: user_email)
-    begin
-      puts "Inviting user to team: #{user_email} with role: #{user_role}"
-      if @user
-        puts ">>User found: #{@user}"
-        @user.invite_to_team!(@team, current_user)
-      else
-        # @user = User.invite!({ email: user_email }, current_user)
-        puts ">>Inviting new user to team: #{user_email}"
-        @user = current_user.invite_new_user_to_team!(user_email, @team, current_user)
-      end
-      @user = User.find_by(email: user_email)
-      unless @user
-        puts "User not found"
-        return render json: { error: "User not found" }, status: :unprocessable_entity
-      end
-      puts "User INVITED: #{@user.email} to team: #{@team}"
-      @team_user = @team.add_member!(@user, user_role) if @user
-    rescue StandardError => e
-      puts "Error: #{e}"
+    if @user
+      @user.invite_to_team!(@team, current_user)
+    else
+      @user = current_user.invite_new_user_to_team!(user_email, @team, current_user)
     end
+    @user = User.find_by(email: user_email)
+    unless @user
+      return render json: { error: "User not found" }, status: :unprocessable_entity
+    end
+    @team_user = @team.add_member!(@user, user_role) if @user
+
     respond_to do |format|
       if @team_user.save
         format.json { render json: @team.show_api_view(current_user), status: :created }
@@ -86,12 +73,18 @@ class API::TeamsController < API::ApplicationController
   # POST /teams or /teams.json
   def create
     @team = Team.new
+    puts "Params: #{params}"
     # @team.name = team_params[:name]&.upcase
     @team.name = team_params[:name]
+    account_id = team_params[:account_id]
     @team.created_by = current_user
 
     respond_to do |format|
       if @team.save
+        @team.add_member!(current_user, "admin")
+        initial_account = current_user.child_accounts.find(account_id) if account_id
+        @team.add_communicator!(initial_account) if initial_account
+
         format.json { render json: @team.show_api_view(current_user), status: :created }
       else
         format.json { render json: @team.errors, status: :unprocessable_entity }
@@ -170,6 +163,6 @@ class API::TeamsController < API::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def team_params
-    params.require(:team).permit(:name)
+    params.require(:team).permit(:name, :account_id)
   end
 end

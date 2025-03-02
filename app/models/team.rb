@@ -16,9 +16,7 @@ class Team < ApplicationRecord
   has_many :team_accounts, dependent: :destroy
   has_many :accounts, through: :team_accounts
   has_many :account_boards, through: :team_accounts, source: :boards
-  belongs_to :created_by, class_name: "User", foreign_key: "created_by"
-
-  after_create :create_first_user
+  belongs_to :created_by, class_name: "User", foreign_key: "created_by_id"
 
   def available_team_account_boards
     # team_accounts.includes(account: :boards).map(&:boards).flatten.uniq
@@ -35,13 +33,6 @@ class Team < ApplicationRecord
 
   def supporters
     team_users.where(role: ["supporter", "member"])
-  end
-
-  def create_first_user
-    user = created_by
-    puts "Creating first user for team: #{user&.email}"
-    TeamUser.create(team: self, user: user, role: "admin", can_edit: true)
-    user.update(current_team: self)
   end
 
   def add_member!(user, role = "member")
@@ -98,7 +89,8 @@ class Team < ApplicationRecord
       id: id,
       name: name,
       current: id == viewing_user&.current_team_id,
-      created_by: created_by&.email,
+      created_by: created_by,
+      created_by_email: created_by&.email,
       members: team_users.includes(:user).map(&:api_view),
     }
   end
@@ -108,7 +100,8 @@ class Team < ApplicationRecord
       id: id,
       name: name,
       can_edit: viewing_user == created_by,
-      created_by: created_by&.email,
+      created_by: created_by,
+      created_by_email: created_by&.email,
       members: team_users.includes(:user).map(&:api_view),
       boards: boards.map(&:api_view),
       accounts: accounts.map(&:api_view),
