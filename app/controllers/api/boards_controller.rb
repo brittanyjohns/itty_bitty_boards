@@ -253,7 +253,6 @@ class API::BoardsController < API::ApplicationController
     else
       @images = Image.searchable.with_artifacts.all.order(label: :asc)
     end
-    @images = @images.excluding(@board.images)
 
     if params[:scope]
       case params[:scope]
@@ -265,7 +264,9 @@ class API::BoardsController < API::ApplicationController
         @images = @images.static
       end
     end
-    @images = @images.where(user_id: [current_user.id, User::DEFAULT_ADMIN_ID, nil]).distinct.page(current_page)
+    @images = @images.where(user_id: [current_user.id, User::DEFAULT_ADMIN_ID, nil]).distinct
+    @images = @images.excluding(@board.images).page(current_page)
+
     if params[:scope] == "predictive"
       @images_with_display_doc = @images.map do |image|
         api_view = image.api_view(current_user)
@@ -279,8 +280,15 @@ class API::BoardsController < API::ApplicationController
     else
       @images_with_display_doc = @images.map(&:api_view)
     end
+
     @images_with_display_doc = @images_with_display_doc.compact
-    render json: @images_with_display_doc.sort { |a, b| a[:label] <=> b[:label] }
+
+    return_data = {
+      total_pages: @images.total_pages,
+      page_size: @images.limit_value,
+      data: @images_with_display_doc.sort { |a, b| a[:label] <=> b[:label] },
+    }
+    render json: return_data
   end
 
   def rearrange_images
