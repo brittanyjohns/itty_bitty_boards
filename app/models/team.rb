@@ -89,9 +89,13 @@ class Team < ApplicationRecord
       id: id,
       name: name,
       current: id == viewing_user&.current_team_id,
-      created_by: created_by,
+      created_by_id: created_by_id,
+      created_by_name: created_by&.name,
       created_by_email: created_by&.email,
-      members: team_users.includes(:user).map(&:api_view),
+      members: team_users.includes(:user).map { |tu|
+        { id: tu.id, name: tu.user.name, email: tu.user.email,
+          role: tu.role, plan_type: tu.user.plan_type }
+      },
     }
   end
 
@@ -100,7 +104,8 @@ class Team < ApplicationRecord
       id: id,
       name: name,
       can_edit: viewing_user == created_by,
-      created_by: created_by,
+      created_by_id: created_by_id,
+      created_by_name: created_by&.name,
       created_by_email: created_by&.email,
       members: team_users.includes(:user).map(&:api_view),
       boards: boards.map(&:api_view),

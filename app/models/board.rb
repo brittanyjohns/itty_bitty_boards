@@ -638,9 +638,19 @@ class Board < ApplicationRecord
     @cloned_board.board_group_id = nil
     @cloned_board.data = nil
     @cloned_board.save
-    @images.each do |image|
+    @board_images.each do |board_image|
+      image = board_image.image
       layout = @layouts.find { |l| l[0] == image.id }&.second
-      @cloned_board.add_image(image.id, layout)
+      new_board_image = @cloned_board.add_image(image.id, layout)
+      label = board_image.label
+      Rails.logger.debug "Label: #{label}"
+      Rails.logger.debug "New Board Image: #{new_board_image.inspect}"
+      Rails.logger.debug "board_image: #{board_image.inspect}"
+      if new_board_image
+        new_board_image.voice = board_image.voice
+        new_board_image.predictive_board_id = board_image.predictive_board_id
+        new_board_image.save
+      end
     end
     if @cloned_board.save
       @cloned_board
@@ -1309,7 +1319,7 @@ class Board < ApplicationRecord
       preset_display_image_url: preset_display_image_url,
       board_images_count: board_images_count,
       obf_id: obf_id,
-      word_list: words,
+      word_list: current_word_list,
       created_at: created_at,
       updated_at: updated_at,
     }
