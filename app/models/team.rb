@@ -96,6 +96,8 @@ class Team < ApplicationRecord
         { id: tu.id, name: tu.user.name, email: tu.user.email,
           role: tu.role, plan_type: tu.user.plan_type }
       },
+      created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
+      updated_at: updated_at.strftime("%Y-%m-%d %H:%M:%S"),
     }
   end
 
@@ -111,6 +113,8 @@ class Team < ApplicationRecord
       boards: boards.map(&:api_view),
       accounts: accounts.map(&:api_view),
       single_account: single_account ? single_account.api_view : nil,
+      created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
+      updated_at: updated_at.strftime("%Y-%m-%d %H:%M:%S"),
     }
   end
 
