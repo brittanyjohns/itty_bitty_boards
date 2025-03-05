@@ -10,8 +10,6 @@ module API
         # sign_in @user
         true
       else
-        puts "Unauthorized"
-        # direct to login page
         render json: { error: "Unauthorized" }, status: :unauthorized
         # head :unauthorized
       end
@@ -22,10 +20,7 @@ module API
       if @child
         # sign_in @child
       else
-        puts "Unauthorized"
-        # direct to login page
         render json: { error: "Unauthorized child account" }, status: :unauthorized
-        # head :unauthorized
       end
     end
 

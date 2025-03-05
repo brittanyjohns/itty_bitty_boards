@@ -283,12 +283,14 @@ class API::BoardsController < API::ApplicationController
 
     @images_with_display_doc = @images_with_display_doc.compact
 
-    return_data = {
-      total_pages: @images.total_pages,
-      page_size: @images.limit_value,
-      data: @images_with_display_doc.sort { |a, b| a[:label] <=> b[:label] },
-    }
-    render json: return_data
+    # return_data = {
+    #   total_pages: @images.total_pages,
+    #   page_size: @images.limit_value,
+    #   data: @images_with_display_doc.sort { |a, b| a[:label] <=> b[:label] },
+    # }
+    # render json: return_data
+    # TEMPORARY - unbreak production :)
+    render json: @images_with_display_doc.sort { |a, b| a[:label] <=> b[:label] }
   end
 
   def rearrange_images
