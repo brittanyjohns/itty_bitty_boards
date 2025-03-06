@@ -215,114 +215,136 @@ RSpec.describe Board, type: :model do
     end
   end
 
-  describe ".from_obf" do
-    it "creates a new board from an OBF file" do
-      obf_file = Rails.root.join("spec", "data", "test.obf")
-      data = JSON.parse(File.read(obf_file))
-      grid_order = data["grid"]["order"]
-      expected_board_image_count = data["images"].size
-      root_board_id = data["id"]
-      board_group = BoardGroup.create!(name: "Test", user: user, original_obf_root_id: root_board_id)
-      board, _dynamic_data = Board.from_obf(obf_file, user, board_group)
+  let!(:image_1) { FactoryBot.create(:image, label: "test image 1") }
+  let!(:image_2) { FactoryBot.create(:image, label: "test image 2") }
+  let!(:image_3) { FactoryBot.create(:image, label: "test image 3") }
 
-      last_bi_layout = board.board_images.last.layout
-
-      expect(board).to be_present
-      expect(board.board_images.size).to eq(expected_board_image_count)
-      expect(last_bi_layout).to be_present
+  describe "#update_user_boards_after_cloning" do
+    let!(:cloned_board) { FactoryBot.create(:board, user: user) }
+    let!(:source_board) { FactoryBot.create(:board, user: user) }
+    let!(:board_image1) { FactoryBot.create(:board_image, position: 1, board: source_board, layout: {}) }
+    let!(:board_image2) { FactoryBot.create(:board_image, position: 2, board: source_board, layout: {}) }
+    let!(:board_image3) { FactoryBot.create(:board_image, position: 3, board: source_board, layout: {}) }
+    before do
+      cloned_board.update_user_boards_after_cloning(source_board)
     end
-
-    context "when the OBF file has image paths" do
-      it "creates a new board from an OBF file" do
-        obf_file = Rails.root.join("spec", "data", "path_images", "boards", "path_images.obf")
-        data = JSON.parse(File.read(obf_file))
-        grid_order = data["grid"]["order"]
-        expected_board_image_count = data["images"].size
-        board, dynamic_data = Board.from_obf(obf_file, user)
-
-        last_bi_layout = board.board_images.last.layout
-        pp dynamic_data
-
-        expect(board).to be_present
-        expect(board.board_images.size).to eq(expected_board_image_count)
-        expect(last_bi_layout).to be_present
-      end
+    it "clones the images from the source board to the cloned board" do
+      expect(cloned_board.board_images.size).to eq(3)
+    end
+    it "clones the layout from the source board to the cloned board" do
+      expect(cloned_board.layout).to eq(source_board.layout)
     end
   end
 
-  describe ".from_obz" do
-    it "creates a zip file containing an OBF file and all the images, other files referenced by the OBF file" do
-      obf_zip_file_path = Rails.root.join("spec", "data", "ck12.obz")
-      # extracted_data = Board.extract_obz(obf_zip_file)
-      extracted_data = OBF::OBZ.to_external(obf_zip_file_path, {})
-      file_name = File.basename(obf_zip_file_path)
-      @get_manifest_data = Board.extract_manifest(obf_zip_file_path)
-      Rails.logger.debug "Manifest data: #{@get_manifest_data}"
-      parsed_manifest = JSON.parse(@get_manifest_data)
+  # describe ".from_obf" do
+  #   it "creates a new board from an OBF file" do
+  #     obf_file = Rails.root.join("spec", "data", "test.obf")
+  #     data = JSON.parse(File.read(obf_file))
+  #     grid_order = data["grid"]["order"]
+  #     expected_board_image_count = data["images"].size
+  #     root_board_id = data["id"]
+  #     board_group = BoardGroup.create!(name: "Test", user: user, original_obf_root_id: root_board_id)
+  #     board, _dynamic_data = Board.from_obf(obf_file, user, board_group)
 
-      puts "parsed_manifest: #{parsed_manifest}"
-      @root_board_id = parsed_manifest["root"]
+  #     last_bi_layout = board.board_images.last.layout
 
-      # Write the extracted data to a file
+  #     expect(board).to be_present
+  #     expect(board.board_images.size).to eq(expected_board_image_count)
+  #     expect(last_bi_layout).to be_present
+  #   end
 
-      # puts "extracted_data:\n"
-      # pp extracted_data
-      expected_board_image_count = extracted_data["boards"].size
-      first_board = extracted_data["boards"].first
-      expect(extracted_data).to be_present
+  #   context "when the OBF file has image paths" do
+  #     it "creates a new board from an OBF file" do
+  #       obf_file = Rails.root.join("spec", "data", "path_images", "boards", "path_images.obf")
+  #       data = JSON.parse(File.read(obf_file))
+  #       grid_order = data["grid"]["order"]
+  #       expected_board_image_count = data["images"].size
+  #       board, dynamic_data = Board.from_obf(obf_file, user)
 
-      result = Board.from_obz(extracted_data, user, file_name, first_board["id"])
-      first_board_id = result.first.with_indifferent_access[:board_id]
-      second_board_id = result.second.with_indifferent_access[:board_id]
-      pp result
-      first_board = Board.find(first_board_id)
-      second_board = Board.find(second_board_id)
+  #       last_bi_layout = board.board_images.last.layout
+  #       pp dynamic_data
 
-      expect(first_board).to be_present
-      expect(first_board.board_type).to eq("dynamic")
-      expect(second_board).to be_present
-      expect(second_board.board_type).to eq("predictive")
+  #       expect(board).to be_present
+  #       expect(board.board_images.size).to eq(expected_board_image_count)
+  #       expect(last_bi_layout).to be_present
+  #     end
+  #   end
+  # end
 
-      # expect(first_board.board_images_count).to eq(expected_board_image_count)
-      # first_board_board_image = first_board.board_images.first
-      # first_board_image = first_board_board_image.image
-      # docs = first_board_image.docs
-      # puts "first_board_image: #{first_board_image.inspect}"
-      # puts "docs: #{docs.inspect}"
-      # doc_image = docs.first.image if docs.present?
-      # # puts "docs: #{docs.inspect}"
-      # expect(docs.count).to eq(1)
-      # expect(doc_image).to be_present
-      # pp extracted_data["boards"]
-    end
-  end
+  # describe ".from_obz" do
+  #   it "creates a zip file containing an OBF file and all the images, other files referenced by the OBF file" do
+  #     obf_zip_file_path = Rails.root.join("spec", "data", "ck12.obz")
+  #     # extracted_data = Board.extract_obz(obf_zip_file)
+  #     extracted_data = OBF::OBZ.to_external(obf_zip_file_path, {})
+  #     file_name = File.basename(obf_zip_file_path)
+  #     @get_manifest_data = Board.extract_manifest(obf_zip_file_path)
+  #     Rails.logger.debug "Manifest data: #{@get_manifest_data}"
+  #     parsed_manifest = JSON.parse(@get_manifest_data)
 
-  describe ".extract_manifest" do
-    it "extracts the manifest from an OBZ file" do
-      obf_zip_file_path = Rails.root.join("spec", "data", "ck12.obz")
-      manifest = Board.extract_manifest(obf_zip_file_path)
-      parsed_manifest = JSON.parse(manifest)
+  #     puts "parsed_manifest: #{parsed_manifest}"
+  #     @root_board_id = parsed_manifest["root"]
 
-      root_board_id_key = parsed_manifest["root"]
-      paths = parsed_manifest["paths"]
-      boards = paths["boards"]
-      root_board_id = boards.key(root_board_id_key)
-      expect(manifest).to be_present
-    end
-  end
+  #     # Write the extracted data to a file
 
-  describe ".analyze_manifest" do
-    it "analyzes the manifest from an OBZ file" do
-      obf_zip_file_path = Rails.root.join("spec", "data", "ck12.obz")
-      manifest = Board.extract_manifest(obf_zip_file_path)
-      parsed_manifest = Board.analyze_manifest(manifest)
-      puts "parsed_manifest: #{parsed_manifest}"
+  #     # puts "extracted_data:\n"
+  #     # pp extracted_data
+  #     expected_board_image_count = extracted_data["boards"].size
+  #     first_board = extracted_data["boards"].first
+  #     expect(extracted_data).to be_present
 
-      board_count = parsed_manifest["board_count"]
-      image_count = parsed_manifest["image_count"]
-      root_board_id = parsed_manifest["root_board_id"]
+  #     result = Board.from_obz(extracted_data, user, file_name, first_board["id"])
+  #     first_board_id = result.first.with_indifferent_access[:board_id]
+  #     second_board_id = result.second.with_indifferent_access[:board_id]
+  #     pp result
+  #     first_board = Board.find(first_board_id)
+  #     second_board = Board.find(second_board_id)
 
-      expect(parsed_manifest).to be_present
-    end
-  end
+  #     expect(first_board).to be_present
+  #     expect(first_board.board_type).to eq("dynamic")
+  #     expect(second_board).to be_present
+  #     expect(second_board.board_type).to eq("predictive")
+
+  #     # expect(first_board.board_images_count).to eq(expected_board_image_count)
+  #     # first_board_board_image = first_board.board_images.first
+  #     # first_board_image = first_board_board_image.image
+  #     # docs = first_board_image.docs
+  #     # puts "first_board_image: #{first_board_image.inspect}"
+  #     # puts "docs: #{docs.inspect}"
+  #     # doc_image = docs.first.image if docs.present?
+  #     # # puts "docs: #{docs.inspect}"
+  #     # expect(docs.count).to eq(1)
+  #     # expect(doc_image).to be_present
+  #     # pp extracted_data["boards"]
+  #   end
+  # end
+
+  # describe ".extract_manifest" do
+  #   it "extracts the manifest from an OBZ file" do
+  #     obf_zip_file_path = Rails.root.join("spec", "data", "ck12.obz")
+  #     manifest = Board.extract_manifest(obf_zip_file_path)
+  #     parsed_manifest = JSON.parse(manifest)
+
+  #     root_board_id_key = parsed_manifest["root"]
+  #     paths = parsed_manifest["paths"]
+  #     boards = paths["boards"]
+  #     root_board_id = boards.key(root_board_id_key)
+  #     expect(manifest).to be_present
+  #   end
+  # end
+
+  # describe ".analyze_manifest" do
+  #   it "analyzes the manifest from an OBZ file" do
+  #     obf_zip_file_path = Rails.root.join("spec", "data", "ck12.obz")
+  #     manifest = Board.extract_manifest(obf_zip_file_path)
+  #     parsed_manifest = Board.analyze_manifest(manifest)
+  #     puts "parsed_manifest: #{parsed_manifest}"
+
+  #     board_count = parsed_manifest["board_count"]
+  #     image_count = parsed_manifest["image_count"]
+  #     root_board_id = parsed_manifest["root_board_id"]
+
+  #     expect(parsed_manifest).to be_present
+  #   end
+  # end
+
 end

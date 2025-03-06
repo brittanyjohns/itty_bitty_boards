@@ -668,7 +668,8 @@ class API::BoardsController < API::ApplicationController
 
   def clone
     set_board
-    new_name = "Copy of " + @board.name
+    # new_name = "Copy of " + @board.name
+    new_name = @board.name
     @new_board = @board.clone_with_images(current_user.id, new_name)
     render json: @new_board.api_view_with_images(current_user)
   end

@@ -636,6 +636,7 @@ class Board < ApplicationRecord
     @cloned_board.predefined = false
     @cloned_board.obf_id = nil
     @cloned_board.board_group_id = nil
+    @cloned_board.board_type = @source.board_type
     @cloned_board.data = nil
     @cloned_board.save
     @board_images.each do |board_image|
@@ -643,9 +644,7 @@ class Board < ApplicationRecord
       layout = @layouts.find { |l| l[0] == image.id }&.second
       new_board_image = @cloned_board.add_image(image.id, layout)
       label = board_image.label
-      Rails.logger.debug "Label: #{label}"
-      Rails.logger.debug "New Board Image: #{new_board_image.inspect}"
-      Rails.logger.debug "board_image: #{board_image.inspect}"
+
       if new_board_image
         new_board_image.voice = board_image.voice
         new_board_image.predictive_board_id = board_image.predictive_board_id
@@ -653,9 +652,24 @@ class Board < ApplicationRecord
       end
     end
     if @cloned_board.save
+      UpdateUserBoardsJob.perform_async(@cloned_board.id, @source.id) if @source.user_id != cloned_user_id
       @cloned_board
     else
       Rails.logger.error "Error cloning board: #{@cloned_board}"
+    end
+  end
+
+  def update_user_boards_after_cloning(source_board)
+    user_boards = user.board_images.where(predictive_board_id: source_board.id)
+    cloned_board = self
+    user_boards.each do |bi|
+      puts "Board Image: #{bi.id}"
+      bi.predictive_board_id = cloned_board.id
+      if bi.save
+        puts "Saved"
+      else
+        puts "Error saving"
+      end
     end
   end
 
