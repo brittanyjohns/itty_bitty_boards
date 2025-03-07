@@ -64,15 +64,15 @@ class API::WebhooksController < API::ApplicationController
             @user.save!
           end
           @user = User.create_from_email(stripe_customer.email, data_object.customer) unless @user
-          render json: { error: "No user found for subscription" }, status: 400 and return
         end
         subscription_json = subscription_data.to_json
         @user.update_from_stripe_event(subscription_data, data_object.plan&.nickname) if @user
         # CreateSubscriptionJob.perform_async(subscription_json, @user.id) if @user
         if @user
           puts ">>> NEW Subscribed User: #{@user}"
+          render json: { success: true }, status: 200
         else
-          puts "No user found for subscription"
+          render json: { error: "No user found for subscription" }, status: 400 and return unless @user
         end
 
         # invoice: data_object.invoice,
