@@ -7,6 +7,6 @@ class API::Admin::WordEventsController < API::Admin::ApplicationController
     @word_events = WordEvent.includes(:user, :child_account).where.not(user_id: current_admin.id)
     @word_events = @word_events.order(sort_field => sort_order.to_sym)
 
-    render json: @word_events.map(&:admin_api_view)
+    render json: @word_events.map(&:api_view)
   end
 end
