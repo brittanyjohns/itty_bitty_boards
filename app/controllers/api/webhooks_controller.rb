@@ -49,6 +49,8 @@ class API::WebhooksController < API::ApplicationController
         subscription_data[:trial_end] = data_object.trial_end
         subscription_data[:current_period_end] = data_object.current_period_end
         subscription_data[:current_period_start] = data_object.current_period_start
+        subscription_data[:cancel_at_period_end] = data_object.cancel_at_period_end
+        subscription_data[:cancel_at] = data_object.cancel_at
         @user = User.find_by(stripe_customer_id: data_object.customer)
         if @user
           puts "Existing user found: #{@user}"
@@ -57,7 +59,7 @@ class API::WebhooksController < API::ApplicationController
           return
         end
         subscription_json = subscription_data.to_json
-        CreateSubscriptionJob.perform_async(subscription_json, @user) if @user
+        CreateSubscriptionJob.perform_async(subscription_json, @user.id) if @user
         if @user
           puts ">>> NEW Subscribed User: #{@user}"
         else

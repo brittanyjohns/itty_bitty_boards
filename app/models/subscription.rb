@@ -46,7 +46,14 @@ class Subscription < ApplicationRecord
     user.settings["communicator_limit"] = comm_account_limit
     user.settings["plan_nickname"] = data_object["plan"]["nickname"]
     user.settings["board_limit"] = get_board_limit(data_object["plan"]["nickname"])
-    user.plan_status = data_object["status"]
+    if data_object["cancel_at_period_end"]
+      Rails.logger.info "Canceling at period end"
+      user.plan_status = "pending cancelation"
+      user.settings["cancel_at"] = data_object["cancel_at"]
+      user.settings["cancel_at_period_end"] = data_object["cancel_at_period_end"]
+    else
+      user.plan_status = data_object["status"]
+    end
     user.plan_expires_at = Time.at(expires_at)
     user.save!
     stripe_subscription_id = data_object["subscription"]
