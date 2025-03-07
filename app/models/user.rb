@@ -81,6 +81,7 @@ class User < ApplicationRecord
   scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
 
   include WordEventsHelper
+  include API::WebhooksHelper
   # Constants
   # DEFAULT_ADMIN_ID = self.admin.first&.id
   DEFAULT_ADMIN_ID = Rails.env.development? ? 2 : 1
@@ -117,6 +118,34 @@ class User < ApplicationRecord
       Rails.logger.error("User not created: #{email}")
     end
     user
+  end
+
+  def update_from_stripe_event(data_object, plan_nickname)
+    puts "Updating user from stripe event"
+    pp data_object
+    expires_at = data_object["current_period_end"] || data_object["expires_at"]
+    self.stripe_customer_id = data_object["customer"]
+    self.plan_type = API::WebhooksHelper.get_plan_type(plan_nickname)
+    comm_account_limit = API::WebhooksHelper.get_communicator_limit(plan_nickname)
+    self.settings ||= {}
+    self.settings["communicator_limit"] = comm_account_limit
+    self.settings["plan_nickname"] = plan_nickname
+    self.settings["board_limit"] = API::WebhooksHelper.get_board_limit(plan_nickname)
+    if data_object["cancel_at_period_end"]
+      Rails.logger.info "Canceling at period end"
+      self.plan_status = "pending cancelation"
+      self.settings["cancel_at"] = Time.at(data_object["cancel_at"])
+      self.settings["cancel_at_period_end"] = data_object["cancel_at_period_end"]
+    else
+      self.plan_status = data_object["status"]
+    end
+    is_free_access = plan_nickname.split("_").last == "free"
+    if is_free_access
+      self.settings["free_access"] = true
+    end
+    puts "Expires at: #{expires_at}"
+    self.plan_expires_at = Time.at(expires_at) if expires_at
+    self.save!
   end
 
   def clear_custom_default_board

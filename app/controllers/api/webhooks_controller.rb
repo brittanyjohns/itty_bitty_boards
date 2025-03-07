@@ -59,7 +59,8 @@ class API::WebhooksController < API::ApplicationController
           return
         end
         subscription_json = subscription_data.to_json
-        CreateSubscriptionJob.perform_async(subscription_json, @user.id) if @user
+        @user.update_from_stripe_event(subscription_data, data_object.plan&.nickname) if @user
+        # CreateSubscriptionJob.perform_async(subscription_json, @user.id) if @user
         if @user
           puts ">>> NEW Subscribed User: #{@user}"
         else
@@ -98,24 +99,9 @@ class API::WebhooksController < API::ApplicationController
         # puts "User UUID: #{data_object.client_reference_id}"
         # puts "Subscription ID: #{data_object.subscription}"
         stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
-        # subscription_data[:current_period_end] = stripe_subscription.current_period_end
-        # subscription_data[:expires_at] = stripe_subscription.current_period_end
-        puts "Stripe subscription: #{stripe_subscription.inspect}"
 
-        # user_uuid = data_object.client_reference_id
-        # puts "User UUID: #{user_uuid}"
-        # # raise "User UUID not found" if user_uuid.nil?
-        # @user = User.find_by(uuid: user_uuid) if user_uuid
         @user = User.find_by(email: data_object.customer_details["email"]) unless @user
-        # @found_user = @user
-        # @user = User.create_from_email(data_object.customer_details["email"]) unless @user
-        # puts ">>> User: #{@user}"
-        # subscription_data = {
-        #   subscription: data_object.subscription,
-        #   customer: data_object.customer,
-        #   customer_email: data_object.customer_email,
-        # }.to_json
-        # CreateSubscriptionJob.perform_async(subscription_data, @user)
+
         Rails.logger.info "Checkout completed. Adding 5 tokens to user #{@user}"
         @user.add_tokens(5) if @user
 
@@ -130,34 +116,28 @@ class API::WebhooksController < API::ApplicationController
           puts "Existing user found: #{@user}"
         else
           puts "No existing user found for stripe_customer_id: #{data_object.customer}"
-          @user = User.create_from_email(data_object.customer_email, data_object.customer) unless @user
+          render json: { error: "No user found for subscription" }, status: 400 and return
+          # @user = User.create_from_email(data_object.customer_email, data_object.customer) unless @user
         end
         stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
         plan_type_name = stripe_subscription.plan.nickname
         puts "Plan type name: #{plan_type_name}"
-        plan_type = Subscription.get_plan_type(plan_type_name)
+        # plan_type = Subscription.get_plan_type(plan_type_name)
         # puts "Plan type: #{plan_type}"
         hosted_invoice_url = data_object.hosted_invoice_url
         if @user
-          puts "Existing user found: #{@user}"
-          @user.settings ||= {}
-          @user.settings["hosted_invoice_url"] = hosted_invoice_url
-          communicator_limit = Subscription.get_communicator_limit(plan_type_name)
-          puts "Communicator limit: #{communicator_limit} for plan_type_name: #{plan_type_name}"
-          @user.settings["communicator_limit"] = communicator_limit.to_i if communicator_limit
-          @user.settings["plan_nickname"] = plan_type_name
-          @user.settings["board_limit"] = Subscription.get_board_limit(plan_type_name)
-          @user.plan_type = plan_type
-          @user.plan_status = data_object.status
-          @user.plan_expires_at = Time.at(stripe_subscription.current_period_end)
-          @user.save!
+          subscription_data = {
+            subscription: data_object.subscription,
+            customer: data_object.customer,
+            hosted_invoice_url: hosted_invoice_url,
+            plan_nickname: plan_type_name,
+            plan: stripe_subscription.plan,
+          }
+          @user.update_from_stripe_event(subscription_data, plan_type_name)
+          puts ">>> NEW Subscribed User: #{@user}"
         else
           puts "No existing user found for customer: #{data_object.customer}"
         end
-      when "billing_portal.session.created"
-        puts "Billing portal session created\n #{event_type}"
-      else
-        puts "Unhandled event type: #{event.type}"
       end
     rescue StandardError => e
       puts "Error: #{e.inspect}\n #{e.backtrace}"
