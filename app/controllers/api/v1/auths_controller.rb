@@ -29,7 +29,7 @@ module API
             return
           end
           if user.plan_status == "pending cancelation"
-            if user.plan_expires_at && user.plan_expires_at < Time.now
+            if user.subscription_expired?
               user.plan_status = "active"
               user.plan_expires_at = nil
               user.plan_type = "free"
@@ -41,9 +41,7 @@ module API
           sign_in user
           user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
           #  Check if subscription is expired
-          if user.subscription_expired?
-            user.update(plan_type: "free")
-          end
+
           render json: { token: user.authentication_token, user: user.api_view }
         else
           render json: { error: error_message }, status: :unauthorized
