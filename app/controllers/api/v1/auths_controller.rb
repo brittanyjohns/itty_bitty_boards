@@ -33,7 +33,7 @@ module API
               user.plan_status = "active"
               user.plan_expires_at = nil
               user.plan_type = "free"
-              user.settings["comm_account_limit"] = 0
+              user.settings["communicator_limit"] = 0
               user.settings["board_limit"] = 5
               user.save!
             end
