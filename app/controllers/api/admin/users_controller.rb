@@ -17,7 +17,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
       @user.settings["locked"] = true
     end
     @word_events = @user.word_events.order(created_at: :desc).limit(25)
-    @user_api_view = @user.admin_api_view.merge(word_events: @word_events.map(&:admin_api_view))
+    @user_api_view = @user.admin_api_view.merge(word_events: @word_events.map(&:api_view))
     render json: @user_api_view
   end
 

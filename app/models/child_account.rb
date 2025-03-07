@@ -36,6 +36,7 @@ class ChildAccount < ApplicationRecord
   has_secure_token :authentication_token
   has_many :team_accounts, dependent: :destroy
   has_many :teams, through: :team_accounts
+  has_many :team_users, through: :teams
 
   include WordEventsHelper
 
@@ -47,6 +48,9 @@ class ChildAccount < ApplicationRecord
   delegate :display_docs_for_image, to: :user
 
   scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
+
+  scope :with_artifacts, -> { includes(:child_boards, :boards, :images, :word_events, :user, teams: [:team_users]) }
+  scope :with_teams, -> { includes(teams: [:team_users]) }
 
   def self.valid_credentials?(username, password_to_set)
     account = ChildAccount.find_by(username: username, passcode: password_to_set)
@@ -121,6 +125,14 @@ class ChildAccount < ApplicationRecord
     teams.map { |t| t.boards.where.not(id: current_boards.pluck(:id)).order(:name) }.flatten
   end
 
+  def supporters
+    team_users.where(role: ["supporter", "member"]).distinct.map(&:user)
+  end
+
+  def supervisors
+    team_users.where(role: ["supervisor", "admin"]).distinct.map(&:user)
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,
@@ -139,6 +151,8 @@ class ChildAccount < ApplicationRecord
       settings: settings,
       details: details,
       user_id: user_id,
+      supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
+      supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
       boards: child_boards.map { |cb| { id: cb.id, name: cb.board.name, board_type: cb.board.board_type, board_id: cb.board_id, display_image_url: cb.board.display_image_url } },
       can_sign_in: can_sign_in?,
       available_boards: available_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type } },
@@ -160,6 +174,8 @@ class ChildAccount < ApplicationRecord
       free_trial: user.free_trial?,
       admin: user.admin?,
       can_sign_in: can_sign_in?,
+      supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
+      supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
     }
   end
 end

@@ -21,7 +21,7 @@ class WordEvent < ApplicationRecord
   belongs_to :team, optional: true
   belongs_to :child_account, optional: true
 
-  def admin_api_view
+  def api_view
     {
       id: id,
       user_id: user_id,
@@ -32,6 +32,7 @@ class WordEvent < ApplicationRecord
       board_id: board_id,
       image_id: image_id,
       team_id: team_id,
+      part_of_speech: part_of_speech,
       timestamp: timestamp,
       created_at: created_at,
       updated_at: updated_at,
@@ -59,5 +60,15 @@ class WordEvent < ApplicationRecord
             LAG(timestamp) OVER (ORDER BY timestamp) AS previous_timestamp")
       .where(user_id: user_id)
       .chunk_while { |prev, curr| curr.timestamp - prev.timestamp <= session_gap }
+  end
+
+  def self.set_missing_image_ids
+    without_image = WordEvent.where(image_id: nil)
+    puts "Events without image: #{without_image.count}"
+    without_image.each do |event|
+      user = event.user || event.child_account&.user
+      image = Image.find_by(label: event.word, user_id: [user.id, nil])
+      event.update(image_id: image&.id)
+    end
   end
 end

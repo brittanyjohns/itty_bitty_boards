@@ -9,6 +9,12 @@ class API::AuditsController < API::ApplicationController
       return
     end
 
+    image = Image.find(params[:imageId]) if params[:imageId]
+    unless image
+      image = current_account.images.find_by(label: params[:word]) if current_account
+      image = current_user.images.find_by(label: params[:word]) if current_user
+    end
+
     # TODO - team tracking needs work - not using current_team_id anymore
 
     payload = {
@@ -16,6 +22,7 @@ class API::AuditsController < API::ApplicationController
       previous_word: params[:previousWord],
       image_id: params[:imageId],
       timestamp: params[:timestamp],
+      image_id: image&.id,
       user_id: user.id,
       board_id: params[:boardId],
       team_id: user.current_team_id, # current_team_id is not being set
@@ -27,14 +34,14 @@ class API::AuditsController < API::ApplicationController
 
   def word_events
     if params[:user_id]
-      @user = User.find(params[:user_id])
-      @word_events = @user.word_events.limit(200)
+      @user = User.includes(:word_events).find(params[:user_id])
+      @word_events = @user.word_events.limit(500)
       # @word_events = WordEvent.where(user_id: params[:user_id]).limit(200)
     elsif params[:account_id]
-      @word_events = WordEvent.where(child_account_id: params[:account_id])
+      @word_events = WordEvent.where(child_account_id: params[:account_id]).order(timestamp: :desc).all
     else
-      @word_events = WordEvent.all.limit(200)
+      @word_events = WordEvent.order(timestamp: :desc).all
     end
-    render json: @word_events.order(created_at: :desc)
+    render json: @word_events.order(created_at: :desc).map(&:api_view)
   end
 end
