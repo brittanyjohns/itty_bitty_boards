@@ -35,10 +35,6 @@ class Subscription < ApplicationRecord
 
     raise "User not found" if user.nil?
     expires_at = data_object["current_period_end"] || data_object["expires_at"]
-    if expires_at.nil?
-      puts "Expires at not found"
-      expires_at = Time.now.to_i + 1.month
-    end
     user.stripe_customer_id = data_object["customer"]
     user.plan_type = get_plan_type(data_object["plan"]["nickname"])
     comm_account_limit = get_communicator_limit(data_object["plan"]["nickname"])
@@ -49,7 +45,7 @@ class Subscription < ApplicationRecord
     if data_object["cancel_at_period_end"]
       Rails.logger.info "Canceling at period end"
       user.plan_status = "pending cancelation"
-      user.settings["cancel_at"] = data_object["cancel_at"]
+      user.settings["cancel_at"] = Time.at(data_object["cancel_at"])
       user.settings["cancel_at_period_end"] = data_object["cancel_at_period_end"]
     else
       user.plan_status = data_object["status"]

@@ -28,6 +28,16 @@ module API
             render json: { error: "Your account is locked. Please contact support." }, status: :unauthorized
             return
           end
+          if user.plan_status == "pending cancelation"
+            if user.plan_expires_at && user.plan_expires_at < Time.now
+              user.plan_status = "active"
+              user.plan_expires_at = nil
+              user.plan_type = "free"
+              user.settings["comm_account_limit"] = 0
+              user.settings["board_limit"] = 5
+              user.save!
+            end
+          end
           sign_in user
           user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
           #  Check if subscription is expired
