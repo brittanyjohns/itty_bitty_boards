@@ -82,29 +82,7 @@ class API::WebhooksController < API::ApplicationController
           end
           @user = User.create_from_email(data_object.email, data_object.id) unless @user
         end
-        puts ">>> NEW User Created: #{@user}"
-      when "customer.subscription.trial_will_end"
-        puts "Customer subscription trial will end\n #{event_type}"
-        puts "Subscription ID: #{data_object.id}"
-        puts "Customer ID: #{data_object.customer}"
-        puts "Plan ID: #{data_object.plan.id}"
-        puts "Plan type: #{data_object.plan.nickname}"
-        puts "status: #{data_object.status}" # trialing
-        # Send email to user
-      when "customer.subscription.paused"
-        puts "Customer subscription paused\n #{event_type}"
-        puts "Subscription ID: #{data_object.id}"
-        puts "Customer ID: #{data_object.customer}"
-        puts "Plan ID: #{data_object.plan.id}"
-        puts "Plan type: #{data_object.plan.nickname}"
-        puts "status: #{data_object.status}" # paused
-        # Send email to user
-      when "customer.subscription.pending_update_applied"
-        puts "Customer subscription pending update applied\n #{event_type}"
       when "customer.subscription.deleted"
-        puts "Customer subscription deleted\n #{event_type}"
-        puts "Subscription ID: #{data_object.id}"
-        puts "Customer ID: #{data_object.customer}"
         @user = User.find_by(stripe_customer_id: data_object.customer)
         if @user
           puts "Existing user found: #{@user}"

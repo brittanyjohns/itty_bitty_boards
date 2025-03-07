@@ -84,7 +84,7 @@ class Subscription < ApplicationRecord
   def self.get_communicator_limit(plan_type_name)
     return 0 if plan_type_name.nil?
     plan_name = plan_type_name.downcase.split("_").first
-    comm_account_limit = plan_type_name.split("_").last || 1
+    comm_account_limit = plan_type_name.split("_").second || 1
     if plan_name.include?("basic")
       comm_account_limit = comm_account_limit&.to_i || 1
     elsif plan_name.include?("pro")
