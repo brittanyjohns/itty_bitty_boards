@@ -52,11 +52,19 @@ class API::WebhooksController < API::ApplicationController
         subscription_data[:cancel_at_period_end] = data_object.cancel_at_period_end
         subscription_data[:cancel_at] = data_object.cancel_at
         @user = User.find_by(stripe_customer_id: data_object.customer)
+
         if @user
           puts "Existing user found: #{@user}"
         else
           puts "No existing user found for stripe_customer_id: #{data_object.customer}"
-          return
+          stripe_customer = Stripe::Customer.retrieve(data_object.customer)
+          @user = User.find_by(email: stripe_customer.email) unless @user
+          if @user && @user.stripe_customer_id.nil?
+            @user.stripe_customer_id = data_object.customer
+            @user.save!
+          end
+          @user = User.create_from_email(stripe_customer.email, data_object.customer) unless @user
+          render json: { error: "No user found for subscription" }, status: 400 and return
         end
         subscription_json = subscription_data.to_json
         @user.update_from_stripe_event(subscription_data, data_object.plan&.nickname) if @user
@@ -74,7 +82,7 @@ class API::WebhooksController < API::ApplicationController
         if @user
           puts "Existing user found: #{@existing_user}"
         else
-          puts "No existing user found for stripe_customer_id: #{data_object.id}"
+          puts "No existing user found for stripe_customer_id - Creating one: #{data_object.id}"
 
           @user = User.find_by(email: data_object.email) unless @user
           if @user && @user.stripe_customer_id.nil?
@@ -91,7 +99,7 @@ class API::WebhooksController < API::ApplicationController
           @user.plan_type = "free"
           @user.save!
         else
-          puts "No existing user found for stripe_customer_id: #{data_object.customer}"
+          puts "No existing user found for stripe_customer_id - Nothing to cancel: #{data_object.customer}"
           render json: { error: "No user found for subscription" }, status: 400 and return
         end
       when "checkout.session.completed"
