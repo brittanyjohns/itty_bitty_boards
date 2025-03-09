@@ -143,14 +143,12 @@ class Board < ApplicationRecord
 
   def self.with_identical_images(name, user)
     user_boards = Board.where(name: name, user_id: user.id)
-    puts "User Boards: #{user_boards.count}"
     board_data = {}
     user_boards.each do |b|
       img_ids = b.images.pluck(:id)
       board_data[b.id] = img_ids
     end
     board_ids = []
-    puts "Board Data: #{board_data}"
     board_data.each do |k, v|
       board_data.each do |k2, v2|
         next if k == k2
@@ -159,7 +157,6 @@ class Board < ApplicationRecord
         end
       end
     end
-    puts "Board IDs: #{board_ids}"
     boards = user_boards.where(id: board_ids)
     boards.count > 1 ? boards : []
   end
@@ -169,7 +166,6 @@ class Board < ApplicationRecord
     return unless boards.any?
     board_to_keep = boards.first
     boards.each do |board|
-      puts "Board: #{board.id}"
       next if board == board_to_keep
       # board.board_images.destroy_all
       board.destroy!
@@ -181,7 +177,6 @@ class Board < ApplicationRecord
     user.boards.each do |board|
       clean_up_idential_boards_for(board.name, user)
       sleep 1
-      puts "Cleaned up #{board.name}"
     end
   end
 
@@ -544,7 +539,6 @@ class Board < ApplicationRecord
       image = user.images.find_by(label: word)
       image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
       image = Image.create(label: word) unless image
-      puts "Image: #{image.inspect}"
       self.add_image(image.id)
     end
     # self.reset_layouts
@@ -663,7 +657,6 @@ class Board < ApplicationRecord
     user_boards = user.board_images.where(predictive_board_id: source_board.id)
     cloned_board = self
     user_boards.each do |bi|
-      puts "Board Image: #{bi.id}"
       bi.predictive_board_id = cloned_board.id
       if bi.save
         puts "Saved"
@@ -1046,7 +1039,8 @@ class Board < ApplicationRecord
     save
   end
 
-  def api_view_with_predictive_images(viewing_user = nil)
+  def api_view_with_predictive_images(viewing_user = nil, communicator_account = nil)
+    @viewer_settings = viewing_user&.settings || {}
     @board_settings = settings || {}
     @board_images = board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).order(:position).uniq
     # @board_images = board_images.includes(:image)
@@ -1055,7 +1049,10 @@ class Board < ApplicationRecord
     missing_common_words = word_data[:missing_common_words]
     @root_board = root_board
     same_user = viewing_user && user_id == viewing_user.id
-
+    can_edit = same_user || viewing_user&.admin?
+    if communicator_account
+      can_edit = communicator_account.settings["can_edit_boards"] == true
+    end
     {
       id: id,
       board_type: board_type,
@@ -1067,7 +1064,7 @@ class Board < ApplicationRecord
       missing_common_words: missing_common_words,
       existing_words: existing_words,
       description: description,
-      can_edit: same_user || viewing_user&.admin?,
+      can_edit: can_edit,
       category: category,
       parent_type: parent_type,
       parent_id: parent_id,
@@ -1358,7 +1355,6 @@ class Board < ApplicationRecord
 
   def matching_image
     normalized_name = name.downcase.strip
-    puts "Matching image: #{normalized_name}"
     image = Image.find_by(label: normalized_name, user_id: user_id)
     image = Image.find_by(label: normalized_name, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
     image
@@ -1403,8 +1399,6 @@ class Board < ApplicationRecord
   def get_description
     response = OpenAiClient.new({}).get_board_description(self)
     if response
-      puts "Response: #{response}"
-
       if response[:content].blank?
         Rails.logger.error "*** ERROR - get_description *** \nDid not receive valid response. Response: #{response}\n"
         return
