@@ -147,6 +147,8 @@ class ChildAccount < ApplicationRecord
       parent_name: user.display_name,
       name: name,
       heat_map: heat_map,
+      week_chart: week_chart,
+      most_clicked_words: most_clicked_words,
       teams: teams.map { |t| t.index_api_view(viewing_user) },
       settings: settings,
       details: details,
@@ -174,6 +176,7 @@ class ChildAccount < ApplicationRecord
       free_trial: user.free_trial?,
       admin: user.admin?,
       can_sign_in: can_sign_in?,
+      week_chart: week_chart,
       supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
     }

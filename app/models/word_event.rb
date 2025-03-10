@@ -64,7 +64,6 @@ class WordEvent < ApplicationRecord
 
   def self.set_missing_image_ids
     without_image = WordEvent.where(image_id: nil)
-    puts "Events without image: #{without_image.count}"
     without_image.each do |event|
       user = event.user || event.child_account&.user
       image = Image.find_by(label: event.word, user_id: [user.id, nil])

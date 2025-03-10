@@ -507,6 +507,8 @@ class User < ApplicationRecord
     view["board_groups"] = board_groups.order(name: :asc).map(&:user_api_view)
     # view["dynamic_boards"] = dynamic_boards.map(&:user_api_view)
     view["heat_map"] = heat_map
+    view["week_chart"] = week_chart
+    view["most_clicked_words"] = most_clicked_words
     view
   end
 end

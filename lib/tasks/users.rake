@@ -23,7 +23,7 @@ namespace :users do
     if communicator_account.child_boards.empty? || args[:create_board]
       puts "No boards found for account"
       sample_board = Board.predefined.sample
-      new_name = "Copy of #{sample_board.name}"
+      new_name = sample_board.name
       board_to_use = user.boards.find_by(name: new_name)
       if board_to_use.nil?
         board_to_use = sample_board.clone_with_images(user.id, new_name)
@@ -65,7 +65,7 @@ end
 def create_word_events(words, user, board, communicator_account)
   words.each do |word|
     puts "Creating word event for word: #{word}"
-    random_days_ago = rand(60..180)
+    random_days_ago = rand(0..7)
     payload = {
       word: word,
       previous_word: words.sample,
