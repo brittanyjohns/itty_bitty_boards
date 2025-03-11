@@ -1,15 +1,61 @@
 
-<div class="container">
-    <div class="header">
-        <p>Welcome to SpeakAnyWay!</p>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>NEW User - Team Invitation</title>
+    <style>
+        body {
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background-color: #ffffff;
+            margin: auto;
+            max-width: 600px;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #333333;
+        }
+        .content {
+            font-size: 16px;
+            color: #666666;
+            line-height: 1.6;
+            text-align: center;
+        }
+        .button {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            text-decoration: none;
+            border-radius: 5px;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <p>Welcome to SpeakAnyWay!</p>
+        </div>
+        <div class="content">
+            <p>Hi <%= @user.name.blank? ? "there" : @user.name %>,</p>
+            <p>Thank you for joining SpeakAnyWay! We're excited to have you on board.</p>
+            <p>SpeakAnyWay is a powerful tool that allows you to create and share communication boards with family members, therapists, or educators. With SpeakAnyWay, you can collaborate in real-time, making communication more efficient and effective.</p>
+            <p>To get started, just click the button below to log in to your account:</p>
+            <p style="text-align: center;"><a href="<%= @login_link %>" class="button">Log In</a></p>
+            <p>If you have any questions or need assistance, please don't hesitate to <a href="mailto:help@speakanyway.com">contact us</a>. We're here to help!</p>
+            <p>Thanks again for joining SpeakAnyWay!</p>
+            <p>Best,<br>The SpeakAnyWay Team</p>
+        </div>
     </div>
-    <div class="content">
-        <p>Hi <%= @user.name %>,</p>
-        <p>Thank you for joining SpeakAnyWay! We're excited to have you on board.</p>
-        <p>SpeakAnyWay is a powerful tool that allows you to create and share communication boards with family members, therapists, or educators. With SpeakAnyWay, you can collaborate in real-time, making communication more efficient and effective.</p>
-        <p>To get started, just click the button below to log in to your account:</p>
-        <p style="text-align: center;"><a href="<%= @login_link %>" class="button">Log In</a></p>
-        <p>If you have any questions or need assistance, please don't hesitate to <a href="mailto:help@speakanyway.com">contact us</a>. We're here to help!</p>
-        <p>Thanks again for joining SpeakAnyWay!</p>
-        <p>Best,<br>The SpeakAnyWay Team</p>
-</div>
+</body>
+</html>
