@@ -635,6 +635,12 @@ class Board < ApplicationRecord
     @cloned_board.save
     @board_images.each do |board_image|
       image = board_image.image
+      image_label = image.label
+
+      unless image.user_id && image.user_id == @cloned_board.user_id
+        image = Image.find_by(label: image.label, user_id: @cloned_board.user_id)
+      end
+      image = Image.create(label: image_label, user_id: @cloned_board.user_id) unless image
       layout = @layouts.find { |l| l[0] == image.id }&.second
       new_board_image = @cloned_board.add_image(image.id, layout)
       label = board_image.label
