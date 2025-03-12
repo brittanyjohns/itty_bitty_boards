@@ -28,7 +28,7 @@ class Profile < ApplicationRecord
       public_url: public_url,
       intro: intro,
       settings: settings,
-      avatar: avatar.attached? ? Rails.application.routes.url_helpers.rails_blob_url(avatar) : nil,
+      avatar: avatar.attached? ? avatar_url : nil,
     }
   end
 
@@ -54,6 +54,14 @@ class Profile < ApplicationRecord
   def public_url
     base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
     "#{base_url}/my/#{slug}"
+  end
+
+  def avatar_url
+    image_key = avatar&.key
+
+    cdn_url = "#{ENV["CDN_HOST"]}/#{image_key}" if image_key
+
+    image_key ? cdn_url : nil
   end
 
   private
