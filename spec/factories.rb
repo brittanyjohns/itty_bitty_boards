@@ -1,4 +1,10 @@
 FactoryBot.define do
+  factory :profile do
+    profileable { nil }
+    username { "MyString" }
+    slug { "MyString" }
+  end
+
   factory :team_account do
     team { nil }
     account { nil }

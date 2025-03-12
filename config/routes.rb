@@ -296,6 +296,12 @@ Rails.application.routes.draw do
       end
     end
 
+    resources :profiles do
+      collection do
+        get "public/:slug", to: "profiles#public"
+      end
+    end
+
     resources :child_boards do
       collection do
         get "current"
@@ -324,6 +330,12 @@ Rails.application.routes.draw do
         # member do
         #   get "predictive_image_board"
         # end
+      end
+      resources :profiles do
+        collection do
+          get "me"
+          put "update_me"
+        end
       end
       resources :child_boards do
         collection do

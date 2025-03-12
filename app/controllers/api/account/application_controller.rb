@@ -1,6 +1,6 @@
 module API
   module Account
-    class ApplicationController < ActionController::Base
+    class ApplicationController < ApplicationController
       prepend_before_action :authenticate_child_token!
 
       def authenticate_child_token!

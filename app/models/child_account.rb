@@ -37,6 +37,7 @@ class ChildAccount < ApplicationRecord
   has_many :team_accounts, dependent: :destroy
   has_many :teams, through: :team_accounts
   has_many :team_users, through: :teams
+  has_one :profile, as: :profileable
 
   include WordEventsHelper
 
@@ -46,6 +47,8 @@ class ChildAccount < ApplicationRecord
   validates :username, presence: true, uniqueness: true
 
   delegate :display_docs_for_image, to: :user
+
+  after_create :create_profile
 
   scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
 
@@ -83,6 +86,11 @@ class ChildAccount < ApplicationRecord
     account = new(username: username, password: password, user: user, password_confirmation: password)
     account.save!
     account
+  end
+
+  def create_profile!
+    return if profile.present?
+    Profile.create!(profileable: self, username: username)
   end
 
   def print_credentials
@@ -147,6 +155,7 @@ class ChildAccount < ApplicationRecord
       parent_name: user.display_name,
       name: name,
       heat_map: heat_map,
+      profile: profile&.api_view,
       week_chart: week_chart,
       most_clicked_words: most_clicked_words,
       teams: teams.map { |t| t.index_api_view(viewing_user) },
@@ -176,6 +185,7 @@ class ChildAccount < ApplicationRecord
       free_trial: user.free_trial?,
       admin: user.admin?,
       can_sign_in: can_sign_in?,
+      profile: profile&.api_view,
       week_chart: week_chart,
       supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },

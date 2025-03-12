@@ -3,7 +3,7 @@ class API::BoardsController < API::ApplicationController
   # respond_to :json
 
   # before_action :authenticate_user!
-  skip_before_action :authenticate_token!, only: %i[ index predictive_index first_predictive_board predictive_image_board preset ]
+  skip_before_action :authenticate_token!, only: %i[ index predictive_index first_predictive_board predictive_image_board preset show ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images ]
   # layout "fullscreen", only: [:fullscreen]

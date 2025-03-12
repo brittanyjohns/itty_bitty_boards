@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_03_02_162209) do
+ActiveRecord::Schema[7.1].define(version: 2025_03_12_141326) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -481,6 +481,20 @@ ActiveRecord::Schema[7.1].define(version: 2025_03_02_162209) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["product_category_id"], name: "index_products_on_product_category_id"
+  end
+
+  create_table "profiles", force: :cascade do |t|
+    t.string "profileable_type", null: false
+    t.bigint "profileable_id", null: false
+    t.string "username"
+    t.string "slug"
+    t.text "bio"
+    t.string "intro"
+    t.jsonb "settings", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["profileable_type", "profileable_id"], name: "index_profiles_on_profileable"
+    t.index ["slug"], name: "index_profiles_on_slug", unique: true
   end
 
   create_table "prompt_templates", force: :cascade do |t|
