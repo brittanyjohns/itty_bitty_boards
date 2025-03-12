@@ -1,6 +1,5 @@
 class API::ImagesController < API::ApplicationController
   skip_before_action :authenticate_token!, only: %i[generate_audio]
-  before_action :authenticate_signed_in!, only: %i[generate_audio]
 
   def index
     @current_user = current_user
