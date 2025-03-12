@@ -42,7 +42,7 @@ class Profile < ApplicationRecord
       public_url: public_url,
       intro: intro,
       public_boards: communication_boards.map(&:api_view),
-      avatar: avatar.attached? ? Rails.application.routes.url_helpers.rails_blob_url(avatar) : nil,
+      avatar: avatar.attached? ? avatar_url : nil,
 
     }
   end
