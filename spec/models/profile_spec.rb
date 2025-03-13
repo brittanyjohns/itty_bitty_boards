@@ -7,6 +7,9 @@
 #  profileable_id   :bigint           not null
 #  username         :string
 #  slug             :string
+#  bio              :text
+#  intro            :string
+#  settings         :jsonb
 #  created_at       :datetime         not null
 #  updated_at       :datetime         not null
 #

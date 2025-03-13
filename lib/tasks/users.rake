@@ -35,6 +35,9 @@ namespace :users do
     communicator_account.update!(last_sign_in_at: Time.current)
 
     create_word_events(words, user, board_to_use, communicator_account)
+    profile = communicator_account.profile
+    update_profile(profile) if profile.intro.blank? || profile.bio.blank?
+    puts "Done!"
   end
 end
 
@@ -59,7 +62,18 @@ def create_seed_communicator(user)
                                                      passcode: "111111",
                                                      username: comm_account_username)
   puts "Communicator account created with username: #{communicator_account.username} and password: 111111"
+  profile = communicator_account.profile
+  update_profile(profile)
   communicator_account
+end
+
+def update_profile(profile)
+  profile.bio = Faker::TvShows::TheOffice.quote
+  profile.intro = Faker::Quote::mitch_hedberg
+  unless profile.avatar.attached?
+    profile.set_fake_avatar
+  end
+  profile.save!
 end
 
 def create_word_events(words, user, board, communicator_account)

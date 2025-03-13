@@ -7,6 +7,9 @@
 #  profileable_id   :bigint           not null
 #  username         :string
 #  slug             :string
+#  bio              :text
+#  intro            :string
+#  settings         :jsonb
 #  created_at       :datetime         not null
 #  updated_at       :datetime         not null
 #
@@ -62,6 +65,11 @@ class Profile < ApplicationRecord
     cdn_url = "#{ENV["CDN_HOST"]}/#{image_key}" if image_key
 
     image_key ? cdn_url : nil
+  end
+
+  def set_fake_avatar
+    url = Faker::Avatar.image(slug: slug, size: "300x300", format: "png")
+    avatar.attach(io: URI.open(url), filename: "#{slug}.png")
   end
 
   private

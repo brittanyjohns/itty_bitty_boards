@@ -48,7 +48,7 @@ class ChildAccount < ApplicationRecord
 
   delegate :display_docs_for_image, to: :user
 
-  after_create :create_profile
+  after_save :create_profile!
 
   scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
 
@@ -90,7 +90,9 @@ class ChildAccount < ApplicationRecord
 
   def create_profile!
     return if profile.present?
-    Profile.create!(profileable: self, username: username)
+    profile = Profile.create!(profileable: self, username: username, slug: username.parameterize)
+    profile.set_fake_avatar
+    profile.save!
   end
 
   def print_credentials
