@@ -637,8 +637,14 @@ class Board < ApplicationRecord
       image = board_image.image
       original_image = image
 
-      unless image.user_id && image.user_id == @cloned_board.user_id
-        image = Image.find_by(label: image.label, user_id: @cloned_board.user_id)
+      # unless image.user_id && image.user_id == @cloned_board.user_id
+      #   image = Image.find_by(label: image.label, user_id: @cloned_board.user_id)
+      # end
+
+      if image.user_id
+        image = Image.find_by(label: image.label, user_id: @cloned_board.user_id) if image.user_id == @cloned_board.user_id
+      else
+        image = Image.find_by(label: image.label, user_id: [nil, @cloned_board.user_id, User::DEFAULT_ADMIN_ID])
       end
       image = Image.create(label: original_image.label, user_id: @cloned_board.user_id) unless image
       layout = @layouts.find { |l| l[0] == original_image.id }&.second
