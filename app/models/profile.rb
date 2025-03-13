@@ -17,7 +17,7 @@ class Profile < ApplicationRecord
   validates :username, presence: true, uniqueness: true
   validates :slug, presence: true, uniqueness: true
 
-  before_validation :set_slug
+  before_save :set_slug
 
   def api_view
     {
@@ -67,6 +67,7 @@ class Profile < ApplicationRecord
   private
 
   def set_slug
+    return if username.blank? || slug.present?
     self.slug = username.parameterize
   end
 end
