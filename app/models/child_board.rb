@@ -9,6 +9,8 @@
 #  settings         :jsonb
 #  created_at       :datetime         not null
 #  updated_at       :datetime         not null
+#  published        :boolean          default(FALSE)
+#  favorite         :boolean          default(FALSE)
 #
 class ChildBoard < ApplicationRecord
   belongs_to :board
@@ -27,6 +29,21 @@ class ChildBoard < ApplicationRecord
     board.display_image_url
   end
 
+  def other_boards
+    child_account.child_boards.where.not(id: id)
+  end
+
+  def total_favorite_boards
+    other_boards.where(favorite: true).count
+  end
+
+  def toggle_favorite
+    if !favorite && total_favorite_boards >= 8
+      return false
+    end
+    update(favorite: !favorite)
+  end
+
   def api_view
     {
       id: id,
@@ -37,6 +54,8 @@ class ChildBoard < ApplicationRecord
       settings: settings,
       display_image_url: display_image_url,
       board_type: board.board_type,
+      published: published,
+      favorite: favorite,
     }
   end
 
@@ -51,6 +70,9 @@ class ChildBoard < ApplicationRecord
       display_image_url: display_image_url,
       # images: board.images.map(&:api_view),
       images: board.board_images.map(&:api_view),
+      favorite: favorite,
+      board_type: board.board_type,
+      published: published,
 
       layout: board.layout,
     }

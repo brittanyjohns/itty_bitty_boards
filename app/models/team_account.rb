@@ -15,6 +15,12 @@ class TeamAccount < ApplicationRecord
   belongs_to :account, class_name: "ChildAccount", foreign_key: "child_account_id"
   has_many :boards, through: :account
 
+  before_destroy :destroy_team, if: -> { team.team_accounts.count <= 1 }
+
+  def destroy_team
+    team.destroy
+  end
+
   def show_api_view
     {
       id: id,

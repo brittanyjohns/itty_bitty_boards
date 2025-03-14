@@ -11,6 +11,33 @@ namespace :users do
     puts "Done!"
   end
 
+  desc "Find a user by id and add x number of communicator accounts. Example: rake users:add_communicator_accounts[1,5]"
+  task :add_communicator_accounts, [:user_id, :num_accounts] => :environment do |t, args|
+    user = User.find(args[:user_id])
+    name = user.name
+    if user.nil?
+      puts "User not found"
+      return
+    end
+    if user.name.blank?
+      user.update!(name: Faker::Name.name)
+    end
+    num_accounts = args[:num_accounts].to_i
+    acct_ids = []
+    num_accounts.times do
+      account_name = Faker::Name.name
+      communicator_account = create_seed_communicator(user, account_name)
+      board_to_use = communicator_account.child_boards.sample.board
+      words = board_to_use.current_word_list
+      communicator_account.update!(last_sign_in_at: Time.current)
+
+      create_word_events(words, user, board_to_use, communicator_account)
+      acct_ids << communicator_account.id
+      puts "Created communicator account with username: #{communicator_account.username} and ID #{communicator_account.id}"
+    end
+    puts "Done! : #{acct_ids}"
+  end
+
   desc "Create word events for an existing communicator account Example: rake users:create_word_events_for_communicator[1]"
   task :create_word_events_for_communicator, [:account_id, :create_board] => :environment do |t, args|
     communicator_account = ChildAccount.includes(:user, :child_boards).find(args[:account_id])
@@ -22,15 +49,11 @@ namespace :users do
     board_to_use = nil
     if communicator_account.child_boards.empty? || args[:create_board]
       puts "No boards found for account"
-      sample_board = Board.predefined.sample
-      new_name = sample_board.name
-      board_to_use = user.boards.find_by(name: new_name)
-      if board_to_use.nil?
-        board_to_use = sample_board.clone_with_images(user.id, new_name)
-      end
-    else
-      board_to_use = communicator_account.child_boards.sample.board
+      create_board_for_communicator(communicator_account)
+      communicator_account.reload
     end
+
+    board_to_use = communicator_account.child_boards.sample.board
     words = board_to_use.current_word_list
     communicator_account.update!(last_sign_in_at: Time.current)
 
@@ -39,6 +62,24 @@ namespace :users do
     update_profile(profile) if profile.intro.blank? || profile.bio.blank?
     puts "Done!"
   end
+end
+
+def create_board_for_communicator(communicator_account)
+  user = communicator_account.user
+  sample_board = Board.predefined.sample
+  new_name = sample_board.name
+  board_to_use = user.boards.find_by(name: new_name)
+  if board_to_use.nil?
+    board_to_use = sample_board.clone_with_images(user.id, new_name)
+  end
+  communication_board = communicator_account.child_boards.create!(board: board_to_use)
+  if communicator_account
+    puts "Comm: #{communicator_account}"
+  else
+    puts "Nothing"
+  end
+  puts "Created board for communicator account: #{communication_board.board.name}"
+  communication_board
 end
 
 def create_seed_user(plan_type: "basic", communicator_limit: 1, board_limit: 25)
@@ -55,15 +96,21 @@ def create_seed_user(plan_type: "basic", communicator_limit: 1, board_limit: 25)
   user
 end
 
-def create_seed_communicator(user)
-  comm_account_name = "#{user.name}'s Communicator Account"
-  comm_account_username = Faker::Internet.username(specifier: 6..12, separators: %w(. _ -))
+def create_seed_communicator(user, name = nil)
+  short_name = name.split(" ").first if name
+  puts "short_name: #{short_name}"
+  comm_account_name = name || "#{user.name}'s Communicator Account"
+  comm_account_username = Faker::Internet.username(specifier: "#{short_name} Demo", separators: %w(. _ -))
   communicator_account = user.child_accounts.create!(name: comm_account_name,
                                                      passcode: "111111",
                                                      username: comm_account_username)
   puts "Communicator account created with username: #{communicator_account.username} and password: 111111"
+  communicator_account.reload
+  create_board_for_communicator(communicator_account)
   profile = communicator_account.profile
   update_profile(profile)
+  communicator_account.reload
+
   communicator_account
 end
 

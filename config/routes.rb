@@ -306,6 +306,9 @@ Rails.application.routes.draw do
       collection do
         get "current"
       end
+      member do
+        put "toggle_favorite"
+      end
     end
     namespace :v1 do
       resource :auth, only: [:create, :destroy]

@@ -535,7 +535,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def words
-    additional_words = Board.new.get_word_suggestions(params[:name], params[:num_of_words])
+    additional_words = Board.new.get_word_suggestions(params[:name], params[:num_of_words], params[:words_to_exclude])
 
     render json: additional_words
   end

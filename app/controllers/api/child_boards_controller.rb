@@ -7,7 +7,7 @@ class API::ChildBoardsController < API::ApplicationController
   # GET /boards/1 or /boards/1.json
   def show
     set_child_board
-    @board_with_images = @board.api_view_with_images(current_account.user)
+    @board_with_images = @child_board.api_view_with_images(current_account.user)
     child_permissions = {
       can_edit: false,
       can_delete: false,
@@ -20,50 +20,63 @@ class API::ChildBoardsController < API::ApplicationController
 
   def current
     @boards = boards_for_child
-    @boards_with_images = @boards.map do |board|
-      board.api_view_with_images
+    @boards_with_images = @boards.map do |child_board|
+      child_board.api_view_with_images
     end
     render json: @boards_with_images
+  end
+
+  def toggle_favorite
+    @child_board = ChildBoard.find(params[:id])
+
+    result = @child_board.toggle_favorite
+    # render json: @child_board.api_view
+    unless result
+      render json: { error: "You can only favorite 8 boards" }, status: :unprocessable_entity
+      return
+    end
+    @child_board.reload
+    @board_with_images = @child_board.api_view_with_images
+    child_permissions = {
+      can_edit: false,
+      can_delete: false,
+    }
+    child_board_info = {
+      child_board_id: @child_board.id,
+    }
+
+    render json: @board_with_images.merge(child_permissions).merge(child_board_info)
+  end
+
+  def update
+    @child_board = ChildBoard.find(params[:id])
+    if @child_board.update(board_params)
+      render json: @child_board.api_view
+    else
+      render json: @child_board.errors, status: :unprocessable_entity
+    end
   end
 
   def destroy
     @child_board = ChildBoard.find(params[:id])
     @child_board.destroy
-    render json: { message: "Board deleted" }
+    render json: { message: "child_board deleted" }
   end
 
   private
 
   # Use callbacks to share common setup or constraints between actions.
   def set_child_board
-    @child_board = ChildBoard.includes(board: { board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }).find(params[:id])
-    @board = @child_board.board
+    @child_board = ChildBoard.includes(child_board: { board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }).find(params[:id])
+    @child_board = @child_board.child_board
   end
 
   def boards_for_child
     current_account.child_boards.with_artifacts
   end
 
-  def image_params
-    params.require(:image).permit(:label, :image_prompt, :display_image, audio_files: [], docs: [:id, :child_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
-  end
-
   # Only allow a list of trusted parameters through.
   def board_params
-    params.require(:board).permit(:child_id,
-                                  :name,
-                                  :parent_id,
-                                  :parent_type,
-                                  :description,
-                                  :predefined,
-                                  :number_of_columns,
-                                  :next_words,
-                                  :images,
-                                  :layout,
-                                  :image_ids,
-                                  :image_id,
-                                  :query,
-                                  :page,
-                                  :display_image_url)
+    params.require(:child_board).permit(:favorite)
   end
 end

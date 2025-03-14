@@ -48,12 +48,13 @@ class ChildAccount < ApplicationRecord
 
   delegate :display_docs_for_image, to: :user
 
-  after_save :create_profile!
+  after_save :create_profile!, if: -> { profile.nil? }
 
   scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
 
-  scope :with_artifacts, -> { includes(:child_boards, :boards, :images, :word_events, :user, teams: [:team_users]) }
+  scope :with_artifacts, -> { includes(:profile, :child_boards, :boards, :images, :word_events, :user, teams: [:team_users]) }
   scope :with_teams, -> { includes(teams: [:team_users]) }
+  scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
 
   def self.valid_credentials?(username, password_to_set)
     account = ChildAccount.find_by(username: username, passcode: password_to_set)
@@ -82,6 +83,10 @@ class ChildAccount < ApplicationRecord
     find_by(authentication_token: token)
   end
 
+  def favorite_boards
+    child_boards.where(favorite: true)
+  end
+
   def self.create_for_user(user, username, password)
     account = new(username: username, password: password, user: user, password_confirmation: password)
     account.save!
@@ -90,7 +95,11 @@ class ChildAccount < ApplicationRecord
 
   def create_profile!
     return if profile.present?
-    profile = Profile.create!(profileable: self, username: username, slug: username.parameterize)
+    slug = username.parameterize
+    if Profile.find_by(slug: slug)
+      slug = "#{slug}-#{id}"
+    end
+    profile = Profile.create!(profileable: self, username: username, slug: slug)
     profile.set_fake_avatar
     profile.save!
   end
@@ -164,9 +173,10 @@ class ChildAccount < ApplicationRecord
       settings: settings,
       details: details,
       user_id: user_id,
+      avatar_url: profile&.avatar_url,
       supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
-      boards: child_boards.map { |cb| { id: cb.id, name: cb.board.name, board_type: cb.board.board_type, board_id: cb.board_id, display_image_url: cb.board.display_image_url } },
+      boards: child_boards.map { |cb| { id: cb.id, name: cb.board.name, board_type: cb.board.board_type, board_id: cb.board_id, display_image_url: cb.board.display_image_url, favorite: cb.favorite, published: cb.published } },
       can_sign_in: can_sign_in?,
       available_boards: available_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type } },
       teams_boards: available_teams_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type } },
@@ -189,6 +199,7 @@ class ChildAccount < ApplicationRecord
       can_sign_in: can_sign_in?,
       profile: profile&.api_view,
       week_chart: week_chart,
+      avatar_url: profile&.avatar_url,
       supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
     }

@@ -725,7 +725,7 @@ class Board < ApplicationRecord
   def get_commons_words
     @board_images = board_images.includes(:image).uniq
     downcased_common_words = Board.common_words.map(&:downcase)
-    existing_words = @board_images.pluck(:label).map(&:downcase)
+    existing_words = current_word_list.map(&:downcase)
     missing_common_words = downcased_common_words - existing_words
     { missing_common_words: missing_common_words, existing_words: existing_words }
   end
@@ -1074,6 +1074,7 @@ class Board < ApplicationRecord
       language: language,
       missing_common_words: missing_common_words,
       existing_words: existing_words,
+      word_list: current_word_list,
       description: description,
       can_edit: can_edit,
       category: category,
@@ -1455,8 +1456,8 @@ class Board < ApplicationRecord
     end
   end
 
-  def get_word_suggestions(name_to_use, number_of_words)
-    response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words)
+  def get_word_suggestions(name_to_use, number_of_words, words_to_exclude = [])
+    response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words, words_to_exclude)
     begin
       if response
         word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip

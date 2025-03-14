@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_03_12_141326) do
+ActiveRecord::Schema[7.1].define(version: 2025_03_14_161643) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -151,13 +151,17 @@ ActiveRecord::Schema[7.1].define(version: 2025_03_12_141326) do
     t.integer "board_group_id"
     t.string "language", default: "en"
     t.integer "board_images_count", default: 0, null: false
+    t.boolean "published", default: false
+    t.boolean "favorite", default: false
     t.index ["board_group_id"], name: "index_boards_on_board_group_id"
     t.index ["board_type"], name: "index_boards_on_board_type"
     t.index ["category"], name: "index_boards_on_category"
     t.index ["data"], name: "index_boards_on_data", using: :gin
+    t.index ["favorite"], name: "index_boards_on_favorite"
     t.index ["image_parent_id"], name: "index_boards_on_image_parent_id"
     t.index ["obf_id"], name: "index_boards_on_obf_id"
     t.index ["parent_type", "parent_id"], name: "index_boards_on_parent"
+    t.index ["published"], name: "index_boards_on_published"
     t.index ["user_id"], name: "index_boards_on_user_id"
   end
 
@@ -193,8 +197,12 @@ ActiveRecord::Schema[7.1].define(version: 2025_03_12_141326) do
     t.jsonb "settings", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "published", default: false
+    t.boolean "favorite", default: false
     t.index ["board_id"], name: "index_child_boards_on_board_id"
     t.index ["child_account_id"], name: "index_child_boards_on_child_account_id"
+    t.index ["favorite"], name: "index_child_boards_on_favorite"
+    t.index ["published"], name: "index_child_boards_on_published"
   end
 
   create_table "docs", force: :cascade do |t|

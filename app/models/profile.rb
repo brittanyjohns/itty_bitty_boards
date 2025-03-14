@@ -51,7 +51,7 @@ class Profile < ApplicationRecord
   end
 
   def communication_boards
-    profileable.boards.order(Arel.sql("LOWER(name) ASC"))
+    profileable.favorite_boards
   end
 
   def public_url

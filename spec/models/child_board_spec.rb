@@ -9,6 +9,8 @@
 #  settings         :jsonb
 #  created_at       :datetime         not null
 #  updated_at       :datetime         not null
+#  published        :boolean          default(FALSE)
+#  favorite         :boolean          default(FALSE)
 #
 require 'rails_helper'
 

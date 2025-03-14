@@ -360,10 +360,11 @@ class OpenAiClient
     response
   end
 
-  def get_word_suggestions(name, number_of_words = 24)
+  def get_word_suggestions(name, number_of_words = 24, words_to_exclude = [])
     @model = GPT_4_MODEL
     text = "I have an existing AAC board titled, '#{name}'. Inferring the context from the name, please provide #{number_of_words} words that are foundational for basic communication in an AAC device.
     These words should relate to the context of the board and be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. 
+    Do not repeat any words that are already on the board & only provide #{number_of_words} words. #{words_to_exclude ? "DO NOT INCLUDE [#{words_to_exclude}]" : ""}.
     Examples: If the board is named 'drink', words like 'water', 'milk', 'juice', 'thirsty', etc. would be appropriate. 
     If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate. 
     If the board is 'feelings', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.

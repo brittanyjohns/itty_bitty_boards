@@ -31,13 +31,18 @@ class Team < ApplicationRecord
     end
   end
 
+  def self.cleanup_ophaned
+    self.includes(:team_accounts).each do |team|
+      team.destroy if team.team_accounts.empty?
+    end
+  end
+
   def supporters
     team_users.where(role: ["supporter", "member"])
   end
 
   def add_member!(user, role = "member")
     return nil if user.nil?
-    puts "Adding member to team: #{user&.email} as a #{role}"
     if user && !users.include?(user)
       team_user = team_users.new(user: user, role: role)
       team_user.save
@@ -56,7 +61,6 @@ class Team < ApplicationRecord
   end
 
   def add_communicator!(account)
-    puts "Adding communicator to team: #{account&.name}"
     team_account = nil
     if account && !accounts.include?(account)
       team_account = team_accounts.new(account: account)
@@ -68,7 +72,6 @@ class Team < ApplicationRecord
   end
 
   def add_board!(board)
-    puts "Adding board to team: #{board&.name}"
     team_board = nil
     if board && !boards.include?(board)
       team_board = team_boards.new(board: board)
