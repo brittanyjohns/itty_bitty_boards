@@ -458,6 +458,7 @@ class User < ApplicationRecord
     view["boards"] = boards.distinct.order(name: :asc).map(&:user_api_view)
     view["scenarios"] = scenarios.map(&:api_view)
     view["images"] = images.order(:created_at).limit(10).map { |image| { id: image.id, name: image.name, src: image.src_url } }
+    view["display_name"] = display_name
     view
   end
 
@@ -509,6 +510,7 @@ class User < ApplicationRecord
     view["heat_map"] = heat_map
     view["week_chart"] = week_chart
     view["most_clicked_words"] = most_clicked_words
+    view["display_name"] = display_name
     view
   end
 end

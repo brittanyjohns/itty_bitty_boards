@@ -1350,6 +1350,10 @@ class Board < ApplicationRecord
     }
   end
 
+  def word_sample
+    current_word_list ? current_word_list.join(", ").truncate(150) : nil
+  end
+
   def user_api_view(viewing_user = nil)
     data = self.data || {}
     {
@@ -1359,7 +1363,7 @@ class Board < ApplicationRecord
       # image_count: board_images_count,
       can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
       display_image_url: display_image_url,
-      word_sample: current_word_list ? current_word_list.join(", ").truncate(150) : nil,
+      word_sample: word_sample,
       board_type: board_type,
       created_at: created_at,
       updated_at: updated_at,

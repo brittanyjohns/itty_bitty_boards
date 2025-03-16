@@ -35,6 +35,14 @@ class ChildBoard < ApplicationRecord
     child_account.child_boards.where.not(id: id)
   end
 
+  def added_to_team_by
+    settings["added_to_team_by"]
+  end
+
+  def team_board_id
+    settings["team_board_id"]
+  end
+
   def total_favorite_boards
     other_boards.where(favorite: true).count
   end
