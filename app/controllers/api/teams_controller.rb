@@ -1,5 +1,5 @@
 class API::TeamsController < API::ApplicationController
-  before_action :set_team, only: %i[ show edit update destroy add_board remove_board invite ]
+  before_action :set_team, only: %i[ show edit update destroy remove_board invite ]
   after_action :verify_policy_scoped, only: :index
 
   # GET /teams or /teams.json
@@ -105,16 +105,10 @@ class API::TeamsController < API::ApplicationController
     @team_user.accept_invitation!
   end
 
-  def add_board
-    # @team = Team.find(params[:id])
-    @board = Board.find(params[:board_id])
-    @team.add_board!(@board)
-  end
-
   def create_board
     @team = Team.find(params[:id])
     @board = Board.find(params[:board_id])
-    @team_board = @team.add_board!(@board)
+    @team_board = @team.add_board!(@board, current_user.id)
     if @team_board.save
       render json: @team.show_api_view(current_user)
     else
@@ -126,6 +120,7 @@ class API::TeamsController < API::ApplicationController
     # @team = Team.find(params[:id])
     @board = Board.find(params[:board_id])
     @team.remove_board!(@board)
+    render json: @team.show_api_view(current_user)
   end
 
   # PATCH/PUT /teams/1 or /teams/1.json
@@ -154,7 +149,8 @@ class API::TeamsController < API::ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_team
-    @team = policy_scope(Team).find(params[:id])
+    # @team = policy_scope(Team).find(params[:id])
+    @team = Team.with_artifacts.find(params[:id])
   end
 
   def team_user_params

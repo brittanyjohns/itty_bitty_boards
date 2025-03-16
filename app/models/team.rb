@@ -18,6 +18,8 @@ class Team < ApplicationRecord
   has_many :account_boards, through: :team_accounts, source: :boards
   belongs_to :created_by, class_name: "User", foreign_key: "created_by_id"
 
+  scope :with_artifacts, -> { includes(team_users: :user, team_boards: :board, team_accounts: :account) }
+
   def available_team_account_boards
     # team_accounts.includes(account: :boards).map(&:boards).flatten.uniq
     account_boards.where.not(id: team_boards.pluck(:board_id))
@@ -71,13 +73,13 @@ class Team < ApplicationRecord
     team_account
   end
 
-  def add_board!(board)
+  def add_board!(board, user_id)
     team_board = nil
     if board && !boards.include?(board)
-      team_board = team_boards.new(board: board)
+      team_board = team_boards.new(board: board, created_by_id: user_id)
       team_board.save
     else
-      team_board = team_boards.find_by(board: board)
+      team_board = team_boards.find_by(board: board, created_by_id: user_id)
     end
     team_board
   end
@@ -113,7 +115,7 @@ class Team < ApplicationRecord
       created_by_name: created_by&.name,
       created_by_email: created_by&.email,
       members: team_users.includes(:user).map(&:api_view),
-      boards: boards.map(&:api_view),
+      boards: team_boards.map { |tb| { id: tb.board_id, name: tb.board.name, board_type: tb.board.board_type, display_image_url: tb.board.display_image_url, added_by: tb.created_by&.display_name } },
       accounts: accounts.map(&:api_view),
       single_account: single_account ? single_account.api_view : nil,
       created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),

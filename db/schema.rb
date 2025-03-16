@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_03_14_161643) do
+ActiveRecord::Schema[7.1].define(version: 2025_03_16_173734) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -199,6 +199,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_03_14_161643) do
     t.datetime "updated_at", null: false
     t.boolean "published", default: false
     t.boolean "favorite", default: false
+    t.bigint "created_by_id"
     t.index ["board_id"], name: "index_child_boards_on_board_id"
     t.index ["child_account_id"], name: "index_child_boards_on_child_account_id"
     t.index ["favorite"], name: "index_child_boards_on_favorite"
@@ -575,6 +576,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_03_14_161643) do
     t.boolean "allow_edit", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "created_by_id"
     t.index ["board_id"], name: "index_team_boards_on_board_id"
     t.index ["team_id"], name: "index_team_boards_on_team_id"
   end
@@ -686,6 +688,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_03_14_161643) do
   add_foreign_key "child_accounts", "users"
   add_foreign_key "child_boards", "boards"
   add_foreign_key "child_boards", "child_accounts"
+  add_foreign_key "child_boards", "users", column: "created_by_id"
   add_foreign_key "menus", "users"
   add_foreign_key "openai_prompts", "users"
   add_foreign_key "order_items", "orders"
@@ -702,6 +705,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_03_14_161643) do
   add_foreign_key "team_accounts", "teams"
   add_foreign_key "team_boards", "boards"
   add_foreign_key "team_boards", "teams"
+  add_foreign_key "team_boards", "users", column: "created_by_id"
   add_foreign_key "team_users", "teams"
   add_foreign_key "team_users", "users"
   add_foreign_key "user_docs", "docs"

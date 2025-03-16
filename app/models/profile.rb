@@ -29,6 +29,7 @@ class Profile < ApplicationRecord
       bio: bio,
       slug: slug,
       public_url: public_url,
+      startup_url: startup_url,
       intro: intro,
       settings: settings,
       avatar: avatar.attached? ? avatar_url : nil,
@@ -43,6 +44,7 @@ class Profile < ApplicationRecord
       name: profileable.name,
       slug: slug,
       public_url: public_url,
+      startup_url: startup_url,
       intro: intro,
       public_boards: communication_boards.map(&:api_view),
       avatar: avatar.attached? ? avatar_url : nil,
@@ -57,6 +59,10 @@ class Profile < ApplicationRecord
   def public_url
     base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
     "#{base_url}/my/#{slug}"
+  end
+
+  def startup_url
+    profileable.startup_url
   end
 
   def avatar_url

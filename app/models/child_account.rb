@@ -37,6 +37,7 @@ class ChildAccount < ApplicationRecord
   has_many :team_accounts, dependent: :destroy
   has_many :teams, through: :team_accounts
   has_many :team_users, through: :teams
+  has_many :team_boards, through: :teams
   has_one :profile, as: :profileable
 
   include WordEventsHelper
@@ -140,8 +141,12 @@ class ChildAccount < ApplicationRecord
 
   def available_teams_boards
     current_board_ids = self.child_boards.distinct.pluck(:board_id)
-    current_boards = Board.where(id: current_board_ids)
-    teams.map { |t| t.boards.where.not(id: current_boards.pluck(:id)).order(:name) }.flatten
+    # current_boards = Board.where(id: current_board_ids)
+    # # teams.map { |t| t.boards.where.not(id: current_boards.pluck(:id)).order(:name) }.flatten
+    # team_boards = teams.map { |t| t.boards.where.not(id: current_boards.pluck(:id)).order(:name) }
+    team_boards = teams.map { |t| t.team_boards.includes(:board).where.not(board_id: current_board_ids) }
+    team_boards.flatten
+    # []
   end
 
   def supporters
@@ -150,6 +155,11 @@ class ChildAccount < ApplicationRecord
 
   def supervisors
     team_users.where(role: ["supervisor", "admin"]).distinct.map(&:user)
+  end
+
+  def startup_url
+    base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    "#{base_url}/accounts/sign-in?username=#{username}"
   end
 
   def api_view(viewing_user = nil)
@@ -167,6 +177,7 @@ class ChildAccount < ApplicationRecord
       name: name,
       heat_map: heat_map,
       profile: profile&.api_view,
+      startup_url: startup_url,
       week_chart: week_chart,
       most_clicked_words: most_clicked_words,
       teams: teams.map { |t| t.index_api_view(viewing_user) },
@@ -176,10 +187,11 @@ class ChildAccount < ApplicationRecord
       avatar_url: profile&.avatar_url,
       supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
-      boards: child_boards.map { |cb| { id: cb.id, name: cb.board.name, board_type: cb.board.board_type, board_id: cb.board_id, display_image_url: cb.board.display_image_url, favorite: cb.favorite, published: cb.published } },
+      boards: child_boards.map { |cb| { id: cb.id, name: cb.board.name, board_type: cb.board.board_type, board_id: cb.board_id, display_image_url: cb.board.display_image_url, favorite: cb.favorite, published: cb.published, added_by: cb.created_by&.display_name } },
       can_sign_in: can_sign_in?,
       available_boards: available_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type } },
-      teams_boards: available_teams_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type } },
+      # teams_boards: available_teams_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type } },
+      teams_boards: available_teams_boards.map { |tb| { id: tb.board_id, name: tb.board.name, board_type: tb.board.board_type, display_image_url: tb.board.display_image_url, added_by: tb.created_by&.display_name } },
     }
   end
 
