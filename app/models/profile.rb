@@ -74,7 +74,7 @@ class Profile < ApplicationRecord
   end
 
   def set_fake_avatar
-    url = Faker::Avatar.image(slug: slug, size: "300x300", format: "png")
+    url = FFaker::Avatar.image(slug: slug, size: "300x300", format: "png")
     avatar.attach(io: URI.open(url), filename: "#{slug}.png")
   end
 

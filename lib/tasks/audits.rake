@@ -15,7 +15,7 @@ namespace :audits do
       payload = {
         word: word,
         previous_word: words.sample,
-        timestamp: Faker::Time.between_dates(from: Date.today - 45, to: Date.today - 31, period: :afternoon, format: :default),
+        timestamp: FFaker::Time.between_dates(from: Date.today - 45, to: Date.today - 31, period: :afternoon, format: :default),
         user_id: user.id,
         board_id: board_to_use.id,
         team_id: user.current_team_id,

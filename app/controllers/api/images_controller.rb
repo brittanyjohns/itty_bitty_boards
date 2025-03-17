@@ -263,7 +263,7 @@ class API::ImagesController < API::ApplicationController
   end
 
   def set_next_words
-    @image = Image.find(params[:id])
+    @image = Image.includes(predictive_board: :current_word_list).find(params[:id])
     if params[:next_words].present?
       @image.next_words = params[:next_words]&.compact_blank
       @image.save

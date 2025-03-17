@@ -43,23 +43,12 @@ class WordEvent < ApplicationRecord
     image&.part_of_speech
   end
 
-  def self.session_analysis
-    # Define a session as a series of clicks within a certain time window, e.g., 30 minutes
-    session_gap = 30.minutes
-    @user_sessions = select("user_id, word, previous_word, timestamp, 
-                                       LAG(timestamp) OVER (PARTITION BY user_id ORDER BY timestamp) AS previous_timestamp")
-      .to_a.group_by(&:user_id)
-      .transform_values do |events|
-      events.chunk_while { |prev, curr| curr.timestamp - prev.timestamp <= session_gap }
-    end
+  def self.grouped_by_hour(last: 24)
+    self.group_by_hour(:created_at, last: last).count
   end
 
-  def self.sessions_for_user(user_id)
-    session_gap = 30.minutes
-    select("word, previous_word, timestamp, 
-            LAG(timestamp) OVER (ORDER BY timestamp) AS previous_timestamp")
-      .where(user_id: user_id)
-      .chunk_while { |prev, curr| curr.timestamp - prev.timestamp <= session_gap }
+  def self.grouped_by_day(last: 7)
+    self.group_by_day(:created_at, last: last).count
   end
 
   def self.set_missing_image_ids

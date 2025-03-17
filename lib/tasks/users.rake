@@ -20,12 +20,13 @@ namespace :users do
       return
     end
     if user.name.blank?
-      user.update!(name: Faker::Name.name)
+      user.update!(name: FFaker::Name.name)
     end
     num_accounts = args[:num_accounts].to_i
     acct_ids = []
     num_accounts.times do
-      account_name = Faker::Name.name
+      account_name = FFaker::Name.html_safe_name
+      puts "Account name: #{account_name}"
       communicator_account = create_seed_communicator(user, account_name)
       board_to_use = communicator_account.child_boards.sample.board
       words = board_to_use.current_word_list
@@ -83,9 +84,9 @@ def create_board_for_communicator(communicator_account)
 end
 
 def create_seed_user(plan_type: "basic", communicator_limit: 1, board_limit: 25)
-  user = User.create!(email: Faker::Internet.email,
+  user = User.create!(email: FFaker::Internet.safe_email,
                       password: "111111", password_confirmation: "111111",
-                      name: Faker::Name.name, plan_type: plan_type, settings: { "communicator_limit" => communicator_limit, "board_limit" => board_limit })
+                      name: FFaker::Name.name, plan_type: plan_type, settings: { "communicator_limit" => communicator_limit, "board_limit" => board_limit })
   puts "User created with email: #{user.email} and password: 111111"
   stripe_customer = Stripe::Customer.create({
     name: user.name,
@@ -97,10 +98,11 @@ def create_seed_user(plan_type: "basic", communicator_limit: 1, board_limit: 25)
 end
 
 def create_seed_communicator(user, name = nil)
+  puts "Name is a #{name.class} - #{name}"
   short_name = name.split(" ").first if name
   puts "short_name: #{short_name}"
   comm_account_name = name || "#{user.name}'s Communicator Account"
-  comm_account_username = Faker::Internet.username(specifier: "#{short_name} Demo", separators: %w(. _ -))
+  comm_account_username = FFaker::Internet.user_name
   communicator_account = user.child_accounts.create!(name: comm_account_name,
                                                      passcode: "111111",
                                                      username: comm_account_username)
@@ -115,8 +117,8 @@ def create_seed_communicator(user, name = nil)
 end
 
 def update_profile(profile)
-  profile.bio = Faker::TvShows::TheOffice.quote
-  profile.intro = Faker::Quote::mitch_hedberg
+  profile.bio = FFaker::TvShows::TheOffice.quote
+  profile.intro = FFaker::Quote::mitch_hedberg
   unless profile.avatar.attached?
     profile.set_fake_avatar
   end
@@ -126,14 +128,14 @@ end
 def create_word_events(words, user, board, communicator_account)
   words.each do |word|
     puts "Creating word event for word: #{word}"
-    random_days_ago = rand(0..7)
+    random_days_ago = rand(0..30)
     payload = {
       word: word,
       previous_word: words.sample,
-      timestamp: Faker::Time.backward(days: random_days_ago),
+      timestamp: FFaker::Time.backward(days: random_days_ago),
       user_id: user.id,
       board_id: board.id,
-      team_id: user.current_team_id,
+      team_id: user.current_team_id, # This doesn't do anything anymore
       child_account_id: communicator_account&.id,
     }
     WordEvent.create(payload)

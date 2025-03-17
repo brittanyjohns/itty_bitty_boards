@@ -162,6 +162,15 @@ class ChildAccount < ApplicationRecord
     "#{base_url}/accounts/sign-in?username=#{username}"
   end
 
+  def boards_by_most_used
+    board_ids = word_events.group(:board_id).count.sort_by { |_k, v| v }.reverse.to_h.keys
+    Board.where(id: board_ids)
+  end
+
+  def most_used_board
+    @most_used_board ||= boards_by_most_used.first
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,
@@ -175,6 +184,7 @@ class ChildAccount < ApplicationRecord
       admin: user.admin?,
       parent_name: user.display_name,
       name: name,
+      most_used_board: { id: most_used_board&.id, name: most_used_board&.name },
       heat_map: heat_map,
       profile: profile&.api_view,
       startup_url: startup_url,
@@ -187,7 +197,7 @@ class ChildAccount < ApplicationRecord
       avatar_url: profile&.avatar_url,
       supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
-      boards: child_boards.map { |cb| { id: cb.id, name: cb.board.name, board_type: cb.board.board_type, board_id: cb.board_id, display_image_url: cb.board.display_image_url, favorite: cb.favorite, published: cb.published, added_by: cb.created_by&.display_name, board_owner: cb.board.user&.display_name } },
+      boards: child_boards.map { |cb| { id: cb.id, name: cb.board.name, board_type: cb.board.board_type, board_id: cb.board_id, display_image_url: cb.board.display_image_url, favorite: cb.favorite, published: cb.published, added_by: cb.created_by&.display_name, board_owner: cb.board.user&.display_name, most_used: cb.board_id == most_used_board&.id } },
       can_sign_in: can_sign_in?,
       available_boards: available_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type, word_sample: b.word_sample } },
       # teams_boards: available_teams_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type } },
