@@ -3,7 +3,7 @@ require "openai"
 class OpenAiClient
   GPT_4_MODEL = "gpt-4o"
   GPT_3_MODEL = "gpt-3.5-turbo-0125"
-  IMAGE_MODEL = "dall-e-2"
+  IMAGE_MODEL = ENV.fetch("OPENAI_IMAGE_MODEL", "dall-e-2")
   TTS_MODEL = "tts-1"
   PREVIEW_MODEL = "o1-preview"
 
