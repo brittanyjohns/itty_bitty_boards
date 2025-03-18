@@ -33,9 +33,17 @@ class OpenAiClient
     Use as much detail as possible to ensure clarity and simplicity. Respond with the prompt only, not the image or any other text. Respond in JSON format."
   end
 
+  def static_image_prompt
+    "Create a simple, clear, and colorful clipart-style image representing the concept of '{userInput}'. 
+    The image should be easily recognizable at a glance and suitable for use on AAC communication boards. 
+    Use a minimalistic design with bold, high-contrast colors. Avoid backgrounds, unnecessary details, or text in the image. 
+    Ensure the visual meaning is obvious and aligns with how the word is commonly represented in communication aids.".gsub("{userInput}", @prompt)
+  end
+
   def create_image
     Rails.logger.debug "Prompt: #{@prompt}"
-    new_prompt = create_image_prompt
+    puts "*** Prompt: #{@prompt}"
+    new_prompt = static_image_prompt
     Rails.logger.debug "New Prompt: #{new_prompt}"
 
     response = openai_client.images.generate(parameters: { prompt: new_prompt, model: IMAGE_MODEL })

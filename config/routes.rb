@@ -76,7 +76,6 @@ Rails.application.routes.draw do
 
   resources :boards do
     collection do
-      get "first_predictive_board"
       get "predictive_index"
     end
     member do
@@ -225,7 +224,6 @@ Rails.application.routes.draw do
     resources :boards do
       resources :images
       collection do
-        get "first_predictive_board"
         get "predictive_index"
         get "user_boards"
         get "words"
@@ -358,6 +356,7 @@ Rails.application.routes.draw do
       resources :users
       resources :teams
       get "word_events", to: "word_events#index", as: :word_events
+      resources :boards
     end
   end
 

@@ -315,16 +315,16 @@ class BoardImage < ApplicationRecord
       language: language,
       display_label: display_label,
       language_settings: language_settings,
-      remaining_user_boards: remaining_user_boards,
+    # remaining_user_boards: remaining_user_boards,
     }
   end
 
-  def remaining_user_boards
-    user_boards = user.boards
-    image_boards = image.board_images.map(&:board)
-    remaining = user_boards.where.not(id: image_boards.map(&:id))
-    remaining
-  end
+  # def remaining_user_boards
+  #   user_boards = user.boards
+  #   image_boards = image.board_images.map(&:board)
+  #   remaining = user_boards.where.not(id: image_boards.map(&:id))
+  #   remaining
+  # end
 
   def description
     image.image_prompt || board.description

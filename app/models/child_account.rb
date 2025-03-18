@@ -150,11 +150,11 @@ class ChildAccount < ApplicationRecord
   end
 
   def supporters
-    team_users.where(role: ["supporter", "member"]).distinct.map(&:user)
+    team_users.includes(:user).where(role: ["supporter", "member"]).distinct.map(&:user)
   end
 
   def supervisors
-    team_users.where(role: ["supervisor", "admin"]).distinct.map(&:user)
+    team_users.includes(:user).where(role: ["supervisor", "admin"]).distinct.map(&:user)
   end
 
   def startup_url

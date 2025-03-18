@@ -3,7 +3,7 @@ class API::BoardsController < API::ApplicationController
   # respond_to :json
 
   # before_action :authenticate_user!
-  skip_before_action :authenticate_token!, only: %i[ index predictive_index first_predictive_board predictive_image_board preset show ]
+  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board preset show ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images ]
   # layout "fullscreen", only: [:fullscreen]
@@ -86,64 +86,34 @@ class API::BoardsController < API::ApplicationController
     render json: { boards: @boards, dynamic_boards: current_user.boards.dynamic.order(name: :asc) }
   end
 
-  def predictive_index
-    @boards = Board.with_artifacts.predictive
-    @predictive_boards = @boards.map do |board|
-      {
-        id: board.id,
-        name: board.name,
-        description: board.description,
-        can_edit: (board.user == current_user || current_user.admin?),
-        parent_type: board.parent_type,
-        predefined: board.predefined,
-        number_of_columns: board.number_of_columns,
-        images: board.board_images.map do |board_image|
-          {
-            id: board_image.image.id,
-            label: board_image.image.label,
-            image_prompt: board_image.image.image_prompt,
-            bg_color: board_image.image.bg_class,
-            text_color: board_image.image.text_color,
-            next_words: board_image.next_words,
-            position: board_image.position,
-            src: board_image.image.display_image_url(current_user),
-            audio: board_image.audio_url,
-          }
-        end,
-      }
-    end
-    render json: @predictive_boards
-  end
-
-  def first_predictive_board
-    @user_type = params[:user_type] || "user"
-    viewing_user = current_user
-
-    id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
-
-    user_predictive_board_id = viewing_user&.settings["dynamic_board_id"] ? viewing_user.settings["dynamic_board_id"].to_i : nil
-    custom_board = nil
-    if user_predictive_board_id && Board.exists?(user_predictive_board_id) && user_predictive_board_id != id_from_env.to_i
-      @board = Board.find_by(id: user_predictive_board_id)
-      custom_board = true
-    else
-      @board = Board.find_by(id: id_from_env)
-      custom_board = false
-    end
-
-    if @board.nil?
-      @board = Board.find_by(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
-      custom_board = false
-    end
-
-    if stale?(etag: @board, last_modified: @board.updated_at)
-      RailsPerformance.measure("First Predictive Board") do
-        @loaded_board = Board.with_artifacts.find(@board.id)
-        @board_with_images = @loaded_board.api_view_with_predictive_images(viewing_user)
-      end
-      render json: @board_with_images
-    end
-  end
+  # def predictive_index
+  #   @boards = Board.with_artifacts.predictive
+  #   @predictive_boards = @boards.map do |board|
+  #     {
+  #       id: board.id,
+  #       name: board.name,
+  #       description: board.description,
+  #       can_edit: (board.user == current_user || current_user.admin?),
+  #       parent_type: board.parent_type,
+  #       predefined: board.predefined,
+  #       number_of_columns: board.number_of_columns,
+  #       images: board.board_images.map do |board_image|
+  #         {
+  #           id: board_image.image.id,
+  #           label: board_image.image.label,
+  #           image_prompt: board_image.image.image_prompt,
+  #           bg_color: board_image.image.bg_class,
+  #           text_color: board_image.image.text_color,
+  #           next_words: board_image.next_words,
+  #           position: board_image.position,
+  #           src: board_image.image.display_image_url(current_user),
+  #           audio: board_image.audio_url,
+  #         }
+  #       end,
+  #     }
+  #   end
+  #   render json: @predictive_boards
+  # end
 
   def predictive_image_board
     @board = Board.with_artifacts.find_by(id: params[:id])
@@ -169,12 +139,8 @@ class API::BoardsController < API::ApplicationController
   end
 
   def show
-    # board = Board.with_artifacts.find(params[:id])
     set_board
-    # user_permissions = {
-    #   can_edit: (@board.user == current_user || current_user.admin?),
-    #   can_delete: (@board.user == current_user || current_user.admin?),
-    # }
+
     if stale?(etag: @board, last_modified: @board.updated_at)
       RailsPerformance.measure("Show Board") do
         # @loaded_board = Board.with_artifacts.find(@board.id)

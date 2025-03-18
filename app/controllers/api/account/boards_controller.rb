@@ -106,42 +106,6 @@ class API::Account::BoardsController < API::Account::ApplicationController
     render json: @predictive_boards
   end
 
-  def first_predictive_board
-    @user_type = params[:user_type] || "user"
-
-    if @user_type == "user"
-      viewing_user = current_account
-    elsif @user_type == "child"
-      viewing_user = current_account.user
-    end
-
-    id_from_env = ENV["PREDICTIVE_DEFAULT_ID"]
-
-    user_predictive_board_id = viewing_user&.settings["dynamic_board_id"] ? viewing_user.settings["dynamic_board_id"].to_i : nil
-
-    custom_board = nil
-    if user_predictive_board_id && Board.exists?(user_predictive_board_id) && user_predictive_board_id != id_from_env.to_i
-      @board = Board.find_by(id: user_predictive_board_id)
-      custom_board = true
-    else
-      @board = Board.find_by(id: id_from_env)
-      custom_board = false
-    end
-
-    if @board.nil?
-      @board = Board.find_by(name: "Predictive Default", user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
-      custom_board = false
-    end
-
-    if stale?(etag: @board, last_modified: @board.updated_at)
-      RailsPerformance.measure("First Predictive Board") do
-        @loaded_board = Board.with_artifacts.find(@board.id)
-        @board_with_images = @loaded_board.api_view_with_predictive_images(viewing_user)
-      end
-      render json: @board_with_images
-    end
-  end
-
   def predictive_image_board
     @board = Board.with_artifacts.find_by(id: params[:id])
     if @board.nil?

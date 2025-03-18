@@ -201,7 +201,7 @@ class Board < ApplicationRecord
     # data["personable_explanation"].gsub("Personable Explanation: ", "") if data["personable_explanation"]
     self.data["personable_explanation"] = data["personable_explanation"].gsub("Personable Explanation: ", "") if data["personable_explanation"]
     self.data["professional_explanation"] = data["professional_explanation"].gsub("Professional Explanation: ", "") if data["professional_explanation"]
-    self.data["current_word_list"] = words
+    # self.data["current_word_list"] = words
   end
 
   def self.set_preset_display_image_from_url(boards)
@@ -711,23 +711,33 @@ class Board < ApplicationRecord
     ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"]
   end
 
-  def words
-    @words ||= board_images.order(:position).pluck(:label)
-  end
+  # def words
+  #   @words ||= board_images.order(:position).pluck(:label)
+  # end
 
   def current_word_list
-    data ||= {}
-    if data["current_word_list"].blank?
-      data["current_word_list"] = words
-      save
+    ActiveRecord::Base.logger.silence do
+      data ||= {}
+      if data["current_word_list"].blank?
+        self.data ||= {}
+        words = board_images.order(:position).pluck(:label)
+        if words.blank?
+          if user_id == User::DEFAULT_ADMIN_ID
+            destroy
+          end
+          return []
+        end
+        self.data["current_word_list"] = words
+        save
+      end
+      data["current_word_list"]
     end
-    data["current_word_list"]
   end
 
   def get_commons_words
     @board_images = board_images.includes(:image).uniq
     downcased_common_words = Board.common_words.map(&:downcase)
-    existing_words = current_word_list.map(&:downcase)
+    existing_words = current_word_list ? current_word_list.map(&:downcase) : []
     missing_common_words = downcased_common_words - existing_words
     { missing_common_words: missing_common_words, existing_words: existing_words }
   end
@@ -934,7 +944,7 @@ class Board < ApplicationRecord
       existing_layout << w
     end
 
-    max_num_of_rows = (words.count / num_of_columns.to_f).ceil
+    max_num_of_rows = (board_images_count / num_of_columns.to_f).ceil
     response = OpenAiClient.new({}).generate_formatted_board(name, num_of_columns, existing_layout, max_num_of_rows, maintain_existing_layout)
     if response
       parsed_response = response.gsub("```json", "").gsub("```", "").strip

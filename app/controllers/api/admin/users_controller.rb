@@ -8,7 +8,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @users = User.includes(:child_accounts, :word_events, :boards)
     @users = @users.order(sort_field => sort_order.to_sym)
 
-    render json: @users.map(&:admin_api_view)
+    render json: @users
   end
 
   # GET /users/1 or /users/1.json
