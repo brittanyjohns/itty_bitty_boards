@@ -179,6 +179,7 @@ Rails.application.routes.draw do
     resources :team_accounts
     resources :images do
       member do
+        get "prompt_suggestion"
         post "hide_doc"
         post "describe"
         post "create_symbol"

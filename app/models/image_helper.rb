@@ -57,6 +57,20 @@ module ImageHelper
     doc
   end
 
+  def get_image_prompt_suggestion(viewing_user_id = nil)
+    return if Rails.env.test?
+    prompt = OpenAiClient.new(open_ai_opts).get_image_prompt_suggestion
+    if prompt
+      if user_id == viewing_user_id
+        self.update(revised_prompt: prompt)
+      end
+      puts "Returning prompt: #{prompt}"
+      prompt
+    else
+      Rails.logger.error "**** ERROR - get_image_prompt_suggestion **** \nDid not receive valid response"
+    end
+  end
+
   def create_audio_from_text(text = nil, voice = "alloy", language = "en")
     text = text || self.label
     new_audio_file = nil
@@ -249,7 +263,7 @@ module ImageHelper
     if response && response[:role]
       role = response[:role] || "assistant"
       response_content = response[:content]
-      self.ai_prompt = response_content
+      self.revised_prompt = response_content
     else
       Rails.logger.debug "*** ERROR - ask_ai_for_image_prompt *** \nDid not receive valid response. Response: #{response}\n"
     end

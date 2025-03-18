@@ -379,6 +379,14 @@ class API::ImagesController < API::ApplicationController
     render json: @image_with_display_doc
   end
 
+  def prompt_suggestion
+    @current_user = current_user
+    @image = Image.find(params[:id])
+    prompt = @image.get_image_prompt_suggestion
+    scrubbed_prompt = prompt.gsub('"', "")
+    render json: { prompt: scrubbed_prompt }
+  end
+
   def find_or_create
     @current_user = current_user
 

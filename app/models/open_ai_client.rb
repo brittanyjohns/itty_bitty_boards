@@ -3,7 +3,7 @@ require "openai"
 class OpenAiClient
   GPT_4_MODEL = "gpt-4o"
   GPT_3_MODEL = "gpt-3.5-turbo-0125"
-  IMAGE_MODEL = ENV.fetch("OPENAI_IMAGE_MODEL", "dall-e-2")
+  IMAGE_MODEL = ENV.fetch("OPENAI_IMAGE_MODEL", "dall-e-3")
   TTS_MODEL = "tts-1"
   PREVIEW_MODEL = "o1-preview"
 
@@ -40,11 +40,65 @@ class OpenAiClient
     Ensure the visual meaning is obvious and aligns with how the word is commonly represented in communication aids.".gsub("{userInput}", @prompt)
   end
 
+  # def get_image_prompt_suggestion
+  #   @model = GPT_4_MODEL
+  #   @messages = [{
+  #     role: "user",
+  #     content: [{
+  #       type: "text",
+  #       text: <<~PROMPT,
+  #         Generate a concise prompt to instruct #{IMAGE_MODEL} to create a clipart-style illustration representing the concept "#{@prompt}" for AAC communication boards.
+
+  #         Guidelines:
+  #         - Minimalist, clean, flat vector design.
+  #         - High visual clarity and recognizability.
+  #         - High-contrast colors suitable for visibility on AAC devices.
+  #         - Single main subject only, without extra or unnecessary details.
+  #         - Transparent background; avoid scenery or additional elements.
+  #         - Absolutely no text or letters in the image.
+  #         - Ensure universal understanding aligned with common AAC visual aids.
+
+  #         Provide ONLY the prompt text, no other explanations or additional text.
+  #       PROMPT
+  #     }],
+  #   }]
+
+  #   response = create_chat(false)
+  #   puts "Prompt Response: #{response}"
+  #   response = response.with_indifferent_access
+  #   prompt = response.dig("content")
+  #   puts ">>>Prompt from response: #{prompt}"
+  #   prompt
+  # end
+  def get_image_prompt_suggestion
+    @model = GPT_4_MODEL
+    base_prompt = <<~PROMPT
+      Generate a detailed yet minimalistic description for creating an image with #{IMAGE_MODEL}. 
+      The image should clearly represent the concept "#{@prompt}" specifically for AAC (Augmentative and Alternative Communication) boards. 
+  
+      Guidelines for the prompt:
+      - Minimalistic and clear visual style.
+      - Bold, high-contrast colors suitable for quick recognition.
+      - No backgrounds, text, or unnecessary decorative details.
+      - Use widely recognized symbols or universally understood visuals related to the concept.
+      - Ensure the representation aligns with common AAC communication standards and practices.
+      Respond only with the concise, detailed prompt for image generation-no additional explanation or context.
+    PROMPT
+
+    @messages = [{
+      role: "user",
+      content: [{ type: "text", text: base_prompt }],
+    }]
+
+    response = create_chat(false)
+    prompt = response.with_indifferent_access.dig("content")
+
+    prompt
+  end
+
   def create_image
-    Rails.logger.debug "Prompt: #{@prompt}"
-    puts "*** Prompt: #{@prompt}"
-    new_prompt = static_image_prompt
-    Rails.logger.debug "New Prompt: #{new_prompt}"
+    # new_prompt = static_image_prompt
+    new_prompt = @prompt
 
     response = openai_client.images.generate(parameters: { prompt: new_prompt, model: IMAGE_MODEL })
     if response
@@ -547,7 +601,7 @@ class OpenAiClient
     opts = {
       model: @model, # Required.
       messages: @messages, # Required.
-      temperature: 0.7,
+    # temperature: 0.7,
     # response_format: { type: "json_object" },
     }
     if format_json
