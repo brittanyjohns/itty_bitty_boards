@@ -729,8 +729,10 @@ class Board < ApplicationRecord
         end
         self.data["current_word_list"] = words
         save
+        words
+      else
+        data["current_word_list"]
       end
-      data["current_word_list"]
     end
   end
 
@@ -1354,7 +1356,6 @@ class Board < ApplicationRecord
       preset_display_image_url: preset_display_image_url,
       board_images_count: board_images_count,
       obf_id: obf_id,
-      word_list: current_word_list,
       created_at: created_at,
       updated_at: updated_at,
     }
@@ -1374,6 +1375,7 @@ class Board < ApplicationRecord
       can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
       display_image_url: display_image_url,
       word_sample: word_sample,
+      word_list: data["current_word_list"],
       board_type: board_type,
       created_at: created_at,
       updated_at: updated_at,

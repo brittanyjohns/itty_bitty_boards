@@ -1342,7 +1342,7 @@ class Image < ApplicationRecord
       no_next: no_next,
       part_of_speech: part_of_speech,
       can_edit: (current_user && user_id == current_user.id) || current_user&.admin?,
-      user_boards: user_image_boards.map { |board| board.api_view(@current_user) },
+      user_boards: user_image_boards.map { |board| board.user_api_view(@current_user) },
       all_boards: all_boards.map { |board| board.user_api_view(@current_user) },
       # remaining_boards: @board_image&.remaining_user_boards || user_image_boards.map { |board| board.api_view(@current_user) },
       matching_viewer_images: matching_viewer_images(@current_user).map { |image| { id: image.id, label: image.label, src: image.display_image_url(@current_user) || image.src_url, created_at: image.created_at.strftime("%b %d, %Y"), user_id: image.user_id } },
