@@ -13,12 +13,17 @@ module API::WebhooksHelper
   end
 
   def self.get_communicator_limit(plan_type_name)
-    return 0 if plan_type_name.nil?
+    return 0 if plan_type_name.blank? || plan_type_name.include?("free")
     plan_name = plan_type_name.downcase.split("_").first
     comm_account_limit = plan_type_name.split("_").second || 1
+    if comm_account_limit.to_i == 0
+      comm_account_limit = nil
+    end
+
     if plan_name.include?("basic")
       comm_account_limit = comm_account_limit&.to_i || 1
     elsif plan_name.include?("pro")
+      puts "PRO PLAN"
       comm_account_limit = comm_account_limit&.to_i || 3
     elsif plan_name.include?("plus")
       comm_account_limit = comm_account_limit&.to_i || 5
@@ -27,6 +32,8 @@ module API::WebhooksHelper
     else
       comm_account_limit = 0
     end
+    puts "GET_COMMUNICATOR_LIMIT: #{comm_account_limit.to_i} - #{plan_name}"
+    comm_account_limit.to_i
   end
 
   def self.get_board_limit(plan_type_name)

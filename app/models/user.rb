@@ -121,13 +121,11 @@ class User < ApplicationRecord
   end
 
   def update_from_stripe_event(data_object, plan_nickname)
-    puts "Updating user from stripe event"
-    pp data_object
-    expires_at = data_object["current_period_end"] || data_object["expires_at"]
     self.stripe_customer_id = data_object["customer"]
     self.plan_type = API::WebhooksHelper.get_plan_type(plan_nickname)
     comm_account_limit = API::WebhooksHelper.get_communicator_limit(plan_nickname)
     self.settings ||= {}
+    Rails.logger.info "Updating user settings => comm_account_limit: #{comm_account_limit}, plan_nickname: #{plan_nickname}, plan_type: #{plan_type}"
     self.settings["communicator_limit"] = comm_account_limit
     self.settings["plan_nickname"] = plan_nickname
     self.settings["board_limit"] = API::WebhooksHelper.get_board_limit(plan_nickname)
@@ -143,7 +141,7 @@ class User < ApplicationRecord
     if is_free_access
       self.settings["free_access"] = true
     end
-    puts "Expires at: #{expires_at}"
+    expires_at = data_object["current_period_end"] || data_object["expires_at"]
     self.plan_expires_at = Time.at(expires_at) if expires_at
     self.save!
   end

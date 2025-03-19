@@ -28,15 +28,9 @@ class API::WebhooksController < API::ApplicationController
     data_object = data["object"]
     object_type = data_object["object"]
 
-    puts "Event type: #{event_type}"
-    puts "Object type: #{object_type}"
-
     begin
       case event_type
       when "customer.subscription.created", "customer.subscription.updated"
-        puts "Customer subscription created\n #{event_type}"
-        puts "Subscription ID: #{data_object.id}"
-        puts "Customer ID: #{data_object.customer}"
         subscription_data = {
           subscription: data_object.id,
           customer: data_object.customer,
@@ -63,6 +57,7 @@ class API::WebhooksController < API::ApplicationController
             @user.stripe_customer_id = data_object.customer
             @user.save!
           end
+          Rails.logger.info "Creating user from email: #{stripe_customer.email}"
           @user = User.create_from_email(stripe_customer.email, data_object.customer) unless @user
         end
         subscription_json = subscription_data.to_json
@@ -70,7 +65,7 @@ class API::WebhooksController < API::ApplicationController
         # CreateSubscriptionJob.perform_async(subscription_json, @user.id) if @user
         if @user
           puts ">>> NEW Subscribed User: #{@user}"
-          render json: { success: true }, status: 200
+          render json: { success: true }, status: 200 and return
         else
           render json: { error: "No user found for subscription" }, status: 400 and return unless @user
         end
