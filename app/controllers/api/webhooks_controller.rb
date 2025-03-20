@@ -61,7 +61,9 @@ class API::WebhooksController < API::ApplicationController
           @user = User.create_from_email(stripe_customer.email, data_object.customer) unless @user
         end
         subscription_json = subscription_data.to_json
-        @user.update_from_stripe_event(subscription_data, data_object.plan&.nickname) if @user
+        plan_nickname = data_object.plan.nickname
+        Rails.logger.info "Subscription data: #{subscription_json} \n Plan nickname: #{plan_nickname}"
+        @user.update_from_stripe_event(subscription_data, plan_nickname) if @user
         # CreateSubscriptionJob.perform_async(subscription_json, @user.id) if @user
         if @user
           puts ">>> NEW Subscribed User: #{@user}"
