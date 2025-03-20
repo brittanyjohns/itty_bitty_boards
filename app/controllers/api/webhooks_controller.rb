@@ -57,8 +57,12 @@ class API::WebhooksController < API::ApplicationController
             @user.stripe_customer_id = data_object.customer
             @user.save!
           end
-          Rails.logger.info "Creating user from email: #{stripe_customer.email}"
-          @user = User.create_from_email(stripe_customer.email, data_object.customer) unless @user
+          stripe_customer_id = data_object.customer || stripe_customer.id
+
+          Rails.logger.info "#{data_object.customer} >>> stripe_customer_id: #{stripe_customer_id}"
+
+          Rails.logger.info "Creating user from email: #{stripe_customer.email}" unless @user
+          @user = User.create_from_email(stripe_customer.email, stripe_customer_id) unless @user
         end
         subscription_json = subscription_data.to_json
         plan_nickname = data_object.plan.nickname
