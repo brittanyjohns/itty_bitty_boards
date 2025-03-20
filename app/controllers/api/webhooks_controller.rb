@@ -53,7 +53,8 @@ class API::WebhooksController < API::ApplicationController
           puts "No existing user found for stripe_customer_id: #{data_object.customer}"
           stripe_customer = Stripe::Customer.retrieve(data_object.customer)
           @user = User.find_by(email: stripe_customer.email) unless @user
-          if @user && @user.stripe_customer_id.nil?
+          if @user
+            puts "Existing user found: #{@user} - Saving stripe_customer_id: #{data_object.customer}"
             @user.stripe_customer_id = data_object.customer
             @user.save!
           end
@@ -130,9 +131,7 @@ class API::WebhooksController < API::ApplicationController
         end
         stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
         plan_type_name = stripe_subscription.plan.nickname
-        puts "Plan type name: #{plan_type_name}"
-        # plan_type = Subscription.get_plan_type(plan_type_name)
-        # puts "Plan type: #{plan_type}"
+
         hosted_invoice_url = data_object.hosted_invoice_url
         if @user
           subscription_data = {
@@ -143,7 +142,9 @@ class API::WebhooksController < API::ApplicationController
             plan: stripe_subscription.plan,
           }
           @user.update_from_stripe_event(subscription_data, plan_type_name)
-          puts ">>> NEW Subscribed User: #{@user}"
+          @user.stripe_customer_id = data_object.customer if data_object.customer
+          @user.save!
+          puts "Saved user: #{@user} - Strripe customer ID: #{@user&.stripe_customer_id}"
         else
           puts "No existing user found for customer: #{data_object.customer}"
         end

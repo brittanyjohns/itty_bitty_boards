@@ -125,7 +125,10 @@ class User < ApplicationRecord
 
   def update_from_stripe_event(data_object, plan_nickname)
     plan_nickname = plan_nickname || "free"
-    self.stripe_customer_id = data_object["customer"]
+    if data_object["customer"]
+      puts ">>> Updating user stripe customer id: #{data_object["customer"]}"
+      self.stripe_customer_id = data_object["customer"]
+    end
     self.plan_type = API::WebhooksHelper.get_plan_type(plan_nickname)
     comm_account_limit = API::WebhooksHelper.get_communicator_limit(plan_nickname)
     self.settings ||= {}

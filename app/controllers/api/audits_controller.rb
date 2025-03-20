@@ -38,9 +38,9 @@ class API::AuditsController < API::ApplicationController
       @word_events = @user.word_events.limit(500)
       # @word_events = WordEvent.where(user_id: params[:user_id]).limit(200)
     elsif params[:account_id]
-      @word_events = WordEvent.where(child_account_id: params[:account_id]).order(timestamp: :desc).limit(500)
+      @word_events = WordEvent.includes(:image, :board, :child_account).where(child_account_id: params[:account_id]).order(timestamp: :desc).limit(500)
     else
-      @word_events = WordEvent.order(timestamp: :desc).limit(500)
+      @word_events = WordEvent.includes(:image, :board, :child_account).order(timestamp: :desc).limit(500)
     end
     render json: @word_events.order(created_at: :desc).map(&:api_view)
   end

@@ -40,7 +40,9 @@ class WordEvent < ApplicationRecord
   end
 
   def part_of_speech
-    image&.part_of_speech
+    ActiveRecord::Base.logger.silence do
+      image&.part_of_speech
+    end
   end
 
   def self.grouped_by_hour(last: 24)
