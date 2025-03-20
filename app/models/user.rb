@@ -129,7 +129,7 @@ class User < ApplicationRecord
     self.settings ||= {}
     Rails.logger.info "Updating user settings => comm_account_limit: #{comm_account_limit}, plan_nickname: #{plan_nickname}, plan_type: #{plan_type}"
     self.settings["communicator_limit"] = comm_account_limit
-    self.settings["plan_nickname"] = plan_nickname
+    self.settings["plan_nickname"] = plan_nickname || "free"
     self.settings["board_limit"] = API::WebhooksHelper.get_board_limit(plan_nickname)
     if data_object["cancel_at_period_end"]
       Rails.logger.info "Canceling at period end"
