@@ -143,7 +143,7 @@ class API::WebhooksController < API::ApplicationController
         end
       end
     rescue StandardError => e
-      puts "Error: #{e.inspect}\n #{e.backtrace}"
+      Rails.logger.error "Error: #{e.inspect}\n #{e.backtrace}"
       render json: { error: e.inspect }, status: 400
       return
     end

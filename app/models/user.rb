@@ -188,6 +188,12 @@ class User < ApplicationRecord
     Rails.logger.info "Deleted stripe customer: #{result}" if result["deleted"]
   end
 
+  def self.create_stripe_customer(email)
+    result = Stripe::Customer.create({ email: email })
+    Rails.logger.info "Created stripe customer: #{result}"
+    result["id"]
+  end
+
   def all_required_settings
     %w[wait_to_speak disable_audit_logging enable_image_display enable_text_display show_labels show_tutorial]
   end
@@ -346,11 +352,14 @@ class User < ApplicationRecord
   end
 
   def invite_to_team!(team, inviter)
-    BaseMailer.team_invitation_email(self, inviter, team).deliver_now
+    BaseMailer.team_invitation_email(self.email, inviter, team).deliver_now
   end
 
   def invite_new_user_to_team!(new_user_email, team, inviter)
-    BaseMailer.invite_new_user_to_team_email(new_user_email, inviter, team).deliver_now
+    stripe_customer_id = User.create_stripe_customer(new_user_email)
+    # new_user = User.create_from_email(new_user_email, stripe_customer_id)
+    BaseMailer.team_invitation_email(new_user_email, inviter, team).deliver_later(wait: 15.seconds)
+    # BaseMailer.invite_new_user_to_team_email(new_user_email, inviter, team).deliver_now
     puts "DONE INVITING NEW USER"
   end
 

@@ -1,16 +1,22 @@
 class BaseMailer < ApplicationMailer
-  def team_invitation_email(invitee, inviter, team)
-    unless invitee && inviter && team
-      puts "Missing required parameters: invitee: #{invitee}, inviter: #{inviter}, team: #{team}"
+  def team_invitation_email(invitee_email, inviter, team)
+    unless invitee_email && inviter && team
+      puts "Missing required parameters: invitee_email: #{invitee_email}, inviter: #{inviter}, team: #{team}"
       raise "Missing required parameters"
     end
-    if invitee.raw_invitation_token
-      @invitation_link = accept_team_invitation_url(invitation_token: invitee.raw_invitation_token, team_id: team.id)
-    else
-      # @invitation_link = url_for(controller: 'teams', action: 'accept_invite', id: team.id, email: invitee.email)
-      frontend_url = Rails.env.production? ? "https://speakanyway.com" : "http://localhost:8100"
-      @invitation_link = frontend_url + "/accept-invite/#{team.id}/#{invitee.uuid}"
+    invitee = User.find_by(email: invitee_email)
+    unless invitee
+      puts "Invitee not found: #{invitee_email}"
+      raise "Invitee not found"
     end
+    team.add_member!(invitee, "member")
+    # if invitee.raw_invitation_token
+    #   @invitation_link = accept_team_invitation_url(invitation_token: invitee.raw_invitation_token, team_id: team.id)
+    # else
+    # @invitation_link = url_for(controller: 'teams', action: 'accept_invite', id: team.id, email: invitee.email)
+    frontend_url = Rails.env.production? ? "https://speakanyway.com" : "http://localhost:8100"
+    @invitation_link = frontend_url + "/accept-invite/#{team.id}/#{invitee.uuid}"
+    # end
     @invitee = invitee
     @inviter = inviter
     @team = team
