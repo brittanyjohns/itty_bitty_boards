@@ -195,6 +195,11 @@ class User < ApplicationRecord
 
   def self.create_stripe_customer(email)
     result = Stripe::Customer.create({ email: email })
+    free_plan_id = ENV["STRIPE_FREE_PLAN_ID"] || "price_1QrmMGGfsUBE8bl39Anm4Pyg"
+    Stripe::Subscription.create({
+      customer: result["id"],
+      items: [{ price: free_plan_id }],
+    })
     Rails.logger.info "Created stripe customer: #{result}"
     result["id"]
   end
@@ -362,6 +367,9 @@ class User < ApplicationRecord
 
   def invite_new_user_to_team!(new_user_email, team, inviter)
     stripe_customer_id = User.create_stripe_customer(new_user_email)
+
+    puts "Stripe customer created: #{stripe_customer_id} - Inviting new user: #{new_user_email}"
+
     # new_user = User.create_from_email(new_user_email, stripe_customer_id)
     BaseMailer.team_invitation_email(new_user_email, inviter, team).deliver_later(wait: 15.seconds)
     # BaseMailer.invite_new_user_to_team_email(new_user_email, inviter, team).deliver_now

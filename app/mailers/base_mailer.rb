@@ -4,7 +4,18 @@ class BaseMailer < ApplicationMailer
       puts "Missing required parameters: invitee_email: #{invitee_email}, inviter: #{inviter}, team: #{team}"
       raise "Missing required parameters"
     end
-    invitee = User.find_by(email: invitee_email)
+    attempt = 0
+    while attempt < 3
+      begin
+        invitee = User.find_by(email: invitee_email)
+        break if invitee
+        sleep 2
+      rescue StandardError => e
+        puts "Error finding invitee: #{e.inspect}"
+      ensure
+        attempt += 1
+      end
+    end
     unless invitee
       puts "Invitee not found: #{invitee_email}"
       raise "Invitee not found"

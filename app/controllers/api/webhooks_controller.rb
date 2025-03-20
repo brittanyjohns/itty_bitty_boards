@@ -80,7 +80,7 @@ class API::WebhooksController < API::ApplicationController
           puts "No existing user found for stripe_customer_id - Creating one: #{data_object.id}"
 
           @user = User.find_by(email: data_object.email) unless @user
-          if @user && @user.stripe_customer_id.nil?
+          if @user && data_object.id
             @user.stripe_customer_id = data_object.id
             @user.save!
           end
