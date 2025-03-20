@@ -116,6 +116,7 @@ class User < ApplicationRecord
       user.send_welcome_invitation_email
       user.stripe_customer_id = stripe_customer_id
       user.save
+      Rails.logger.info("User created: #{email}")
     else
       Rails.logger.error("User not created: #{email}")
     end
