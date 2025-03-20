@@ -50,28 +50,21 @@ class API::WebhooksController < API::ApplicationController
         if @user
           puts "Existing user found: #{@user}"
         else
-          puts "No existing user found for stripe_customer_id: #{data_object.customer}"
           stripe_customer = Stripe::Customer.retrieve(data_object.customer)
           @user = User.find_by(email: stripe_customer.email) unless @user
           if @user
-            puts "Existing user found: #{@user} - Saving stripe_customer_id: #{data_object.customer}"
             @user.stripe_customer_id = data_object.customer
             @user.save!
           end
           stripe_customer_id = data_object.customer || stripe_customer.id
 
-          Rails.logger.info "#{data_object.customer} >>> stripe_customer_id: #{stripe_customer_id}"
-
-          Rails.logger.info "Creating user from email: #{stripe_customer.email}" unless @user
           @user = User.create_from_email(stripe_customer.email, stripe_customer_id) unless @user
         end
         subscription_json = subscription_data.to_json
         plan_nickname = data_object.plan.nickname
-        Rails.logger.info "Subscription data: #{subscription_json} \n Plan nickname: #{plan_nickname}"
         @user.update_from_stripe_event(subscription_data, plan_nickname) if @user
         # CreateSubscriptionJob.perform_async(subscription_json, @user.id) if @user
         if @user
-          puts ">>> NEW Subscribed User: #{@user}"
           render json: { success: true }, status: 200 and return
         else
           render json: { error: "No user found for subscription" }, status: 400 and return unless @user
