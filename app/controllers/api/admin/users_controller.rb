@@ -6,9 +6,16 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     sort_order = params[:sort_order] || "desc"
     sort_field = params[:sort_field] || "created_at"
     @users = User.includes(:child_accounts, :word_events, :boards)
-    @users = @users.order(sort_field => sort_order.to_sym)
+    if sort_field == "board_count"
+      @users = @users.sort_by { |u| u.boards.count }
+      if sort_order == "desc"
+        @users = @users.reverse
+      end
+    else
+      @users = @users.order(sort_field => sort_order.to_sym)
+    end
 
-    render json: @users
+    render json: @users.map(&:admin_index_view)
   end
 
   # GET /users/1 or /users/1.json
@@ -37,6 +44,8 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user.plan_type = params[:plan_type]
     @user.locked = params[:locked] || false
     @user.settings["locked"] = params[:locked] || false
+    @user.settings["board_limit"] = params[:board_limit] || 0
+    @user.settings["communicator_limit"] = params[:communicator_limit] || 0
     if @user.save
       render json: @user, status: :ok
     else
@@ -76,13 +85,28 @@ class API::Admin::UsersController < API::Admin::ApplicationController
 
   # DELETE /users/1 or /users/1.json
   def destroy
-    unless current_user&.admin?
+    unless current_admin
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
     @user.destroy!
 
     render json: { success: true }
+  end
+
+  def destroy_users
+    puts "CURRENT USER: #{current_admin.display_name} - admin? #{current_admin&.admin?}"
+    unless current_admin&.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+    unless params[:user_ids].present?
+      render json: { error: "No user_ids provided" }, status: :unprocessable_entity
+      return
+    end
+    result = User.where(id: params[:user_ids]).map(&:destroy!)
+    response = result.all? ? { status: :ok } : { status: :unprocessable_entity }
+    render json: response
   end
 
   private

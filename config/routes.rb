@@ -354,7 +354,11 @@ Rails.application.routes.draw do
       end
     end
     namespace :admin do
-      resources :users
+      resources :users do
+        collection do
+          delete "destroy_users"
+        end
+      end
       resources :teams
       get "word_events", to: "word_events#index", as: :word_events
       resources :boards

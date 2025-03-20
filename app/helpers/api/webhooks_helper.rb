@@ -23,7 +23,6 @@ module API::WebhooksHelper
     if plan_name.include?("basic")
       comm_account_limit = comm_account_limit&.to_i || 1
     elsif plan_name.include?("pro")
-      puts "PRO PLAN"
       comm_account_limit = comm_account_limit&.to_i || 3
     elsif plan_name.include?("plus")
       comm_account_limit = comm_account_limit&.to_i || 5
@@ -32,7 +31,6 @@ module API::WebhooksHelper
     else
       comm_account_limit = 0
     end
-    puts "GET_COMMUNICATOR_LIMIT: #{comm_account_limit.to_i} - #{plan_name}"
     comm_account_limit.to_i
   end
 

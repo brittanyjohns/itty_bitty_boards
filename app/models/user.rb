@@ -93,6 +93,8 @@ class User < ApplicationRecord
   before_validation :set_uuid, on: :create
   before_save :ensure_settings, unless: :has_all_settings?
 
+  before_destroy :delete_stripe_customer
+
   def set_uuid
     return if self.uuid.present?
     self.uuid = SecureRandom.uuid
@@ -178,6 +180,12 @@ class User < ApplicationRecord
       end
     end
     new_opening_board
+  end
+
+  def delete_stripe_customer
+    return unless stripe_customer_id
+    result = Stripe::Customer.delete(stripe_customer_id)
+    Rails.logger.info "Deleted stripe customer: #{result}" if result["deleted"]
   end
 
   def all_required_settings
@@ -430,6 +438,13 @@ class User < ApplicationRecord
     BoardGroup.startup
   end
 
+  def admin_index_view
+    view = as_json
+    view["board_count"] = boards.count
+    view["stripe_customer_id"] = stripe_customer_id
+    view
+  end
+
   def admin_api_view
     view = as_json
     view["admin"] = admin?
@@ -457,6 +472,7 @@ class User < ApplicationRecord
     view["scenarios"] = scenarios.map(&:api_view)
     view["images"] = images.order(:created_at).limit(10).map { |image| { id: image.id, name: image.name, src: image.src_url } }
     view["display_name"] = display_name
+    view["stripe_customer_id"] = stripe_customer_id
     view
   end
 
