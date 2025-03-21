@@ -319,6 +319,25 @@ class BoardImage < ApplicationRecord
     }
   end
 
+  def index_view(viewing_user = nil)
+    {
+      id: id,
+      image_id: image_id,
+      label: label,
+      board_id: board_id,
+      board_name: board.name,
+      board_type: board.board_type,
+      dynamic: is_dynamic?,
+      can_edit: viewing_user == board.user,
+      voice: voice,
+      # predictive_board_id: predictive_board_id,
+      bg_color: bg_color,
+      bg_class: bg_class,
+      display_image_url: display_image_url,
+      predictive_board: predictive_board_data,
+    }
+  end
+
   # def remaining_user_boards
   #   user_boards = user.boards
   #   image_boards = image.board_images.map(&:board)

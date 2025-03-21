@@ -1286,7 +1286,12 @@ class Image < ApplicationRecord
       doc_img_url = current_doc&.display_url
     end
     image_docs = docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
-    user_image_boards = user_boards(@current_user)
+    # user_image_boards = user_boards(@current_user)
+    if @current_user.admin?
+      user_image_boards = @current_user&.boards&.includes(:board_images).distinct.order(name: :asc).limit(10)
+    else
+      user_image_boards = @current_user&.boards&.includes(:board_images).distinct.order(name: :asc)
+    end
     @default_audio_url = default_audio_url
     # is_owner = @current_user && user_id == @current_user&.id
     is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
@@ -1323,7 +1328,7 @@ class Image < ApplicationRecord
       error: error,
       text_color: text_color,
       predictive_board_id: @board_image&.predictive_board_id,
-      board_images: @board_images.map { |board_image| board_image.api_view(@current_user) },
+      board_images: @board_images.map { |board_image| board_image.index_view(@current_user) },
       dynamic: img_is_dynamic,
       dynamic_board: predictive_board,
       is_predictive: img_is_predictive,
