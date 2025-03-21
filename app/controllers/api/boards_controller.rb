@@ -27,7 +27,7 @@ class API::BoardsController < API::ApplicationController
       render json: { search_results: @search_results } and return
     end
     ActiveRecord::Base.logger.silence do
-      @user_boards = current_user.boards
+      @user_boards = current_user.boards.where(predefined: false)
       @predictive_boards = @user_boards.predictive.order(name: :asc).page params[:page]
       @dynamic_boards = @user_boards.dynamic.order(name: :asc).page params[:page]
       @category_boards = @user_boards.categories.order(name: :asc).page params[:page]
