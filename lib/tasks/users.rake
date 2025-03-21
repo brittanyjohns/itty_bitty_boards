@@ -132,7 +132,7 @@ def create_word_events(words, user, board, communicator_account)
     payload = {
       word: word,
       previous_word: words.sample,
-      timestamp: FFaker::Time.backward(days: random_days_ago),
+      timestamp: FFaker::Time.between(Date.today - random_days_ago, Date.today),
       user_id: user.id,
       board_id: board.id,
       team_id: user.current_team_id, # This doesn't do anything anymore
