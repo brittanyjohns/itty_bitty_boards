@@ -523,6 +523,7 @@ class User < ApplicationRecord
     view["comm_account_limit"] = settings["communicator_limit"] || 0
     view["supervisor_limit"] = settings["supervisor_limit"] || 0
     view["board_limit"] = settings["board_limit"] || 0
+    view["go_to_words"] = settings["go_to_words"] || Board.common_words
     view["premium"] = premium?
     view["paid_plan"] = paid_plan?
     view["plan_type"] = plan_type

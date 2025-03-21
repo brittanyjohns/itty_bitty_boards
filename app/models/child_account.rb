@@ -171,6 +171,10 @@ class ChildAccount < ApplicationRecord
     @most_used_board ||= boards_by_most_used.first
   end
 
+  def go_to_words
+    settings["go_to_words"] || Board.common_words
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,
@@ -194,6 +198,7 @@ class ChildAccount < ApplicationRecord
       settings: settings,
       details: details,
       user_id: user_id,
+      go_to_words: go_to_words,
       avatar_url: profile&.avatar_url,
       supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
