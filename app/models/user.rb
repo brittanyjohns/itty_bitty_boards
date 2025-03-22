@@ -541,7 +541,7 @@ class User < ApplicationRecord
     view["opening_board_id"] = settings["opening_board_id"]
     view["has_dynamic_default"] = opening_board.present?
     view["startup_board_group_id"] = settings["startup_board_group_id"]
-    # view["boards"] = boards.distinct.order(name: :asc).map(&:user_api_view)
+    view["boards"] = boards.alphabetical.map { |board| { id: board.id, name: board.name } }
     # view["board_groups"] = board_groups.order(name: :asc).map(&:user_api_view)
     # view["dynamic_boards"] = dynamic_boards.map(&:user_api_view)
     view["heat_map"] = heat_map
