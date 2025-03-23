@@ -33,8 +33,9 @@ class API::BoardImagesController < API::ApplicationController
   # PATCH/PUT /board_images/1 or /board_images/1.json
   def update
     data = params[:board_image][:data]
-    updatedData = @board_image.data.merge(data.to_unsafe_h)
-    @board_image.data = updatedData
+    updatedData = @board_image.data.merge(data.to_unsafe_h) if data
+
+    @board_image.data = updatedData if updatedData
     if @board_image.update(board_image_params)
       @board_image.board.touch
       render json: @board_image.api_view(current_user)
