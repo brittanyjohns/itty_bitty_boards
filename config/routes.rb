@@ -290,7 +290,7 @@ Rails.application.routes.draw do
 
     resources :child_accounts do
       member do
-        post "assign_board"
+        post "assign_boards"
         delete "remove_board"
       end
     end

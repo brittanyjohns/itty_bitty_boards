@@ -326,6 +326,9 @@ class Board < ApplicationRecord
     elsif parent_type == "Image"
       self.display_image_url = parent.display_image_url(user)
       self.status = "complete"
+    elsif matching_viewer_images.any?
+      self.display_image_url = matching_viewer_images.first.display_image_url(user)
+      self.status = "complete"
     end
   end
 
@@ -1075,6 +1078,8 @@ class Board < ApplicationRecord
     @root_board = root_board
     same_user = viewing_user && user_id == viewing_user.id
     can_edit = same_user || viewing_user&.admin?
+    @matching_viewer_images = matching_viewer_images(viewing_user)
+    puts "Matching viewer images: #{@matching_viewer_images.inspect}"
     if communicator_account
       can_edit = communicator_account.settings["can_edit_boards"] == true
     end
@@ -1123,6 +1128,9 @@ class Board < ApplicationRecord
       settings: settings,
       has_generating_images: has_generating_images?,
       current_user_teams: [],
+      hello: "world",
+
+      matching_viewer_images: @matching_viewer_images.map { |i| i.api_view(viewing_user) },
       images: @board_images.map do |board_image|
         @board_image = board_image
 
@@ -1394,6 +1402,16 @@ class Board < ApplicationRecord
     normalized_name = name.downcase.strip
     image = Image.create(label: normalized_name, user_id: user_id)
     image
+  end
+
+  def matching_viewer_images(viewing_user = nil)
+    viewing_user ||= user
+    if viewing_user
+      viewing_user.images.where("lower(label) = ?", name.downcase).order(label: :asc)
+      # Board.where(name: label, user_id: viewing_user.id).order(created_at: :desc)
+    else
+      Image.where("lower(label) = ?", name.downcase).where(user_id: User::DEFAULT_ADMIN_ID, predefined: true).order(label: :asc)
+    end
   end
 
   def assign_parent(board_type, current_user)

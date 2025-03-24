@@ -81,19 +81,28 @@ class API::ChildAccountsController < API::ApplicationController
     end
   end
 
-  def assign_board
+  def assign_boards
     @child_account = ChildAccount.find(params[:id])
-    @board = Board.find(params[:board_id])
-    if @child_account.child_boards.where(board_id: @board.id).empty?
-      @comm_board = @child_account.child_boards.create!(board: @board, created_by: current_user)
-      if @comm_board
-        @child_account.reload
+    board_ids = params[:board_ids]
+    if board_ids
+      all_records_saved = nil
+      board_ids.each do |board_id|
+        board = Board.find(board_id)
+        if @child_account.child_boards.where(board_id: board.id).empty?
+          comm_board = @child_account.child_boards.create!(board: board, created_by: current_user)
+          all_records_saved = comm_board.persisted?
+        else
+          all_records_saved = false
+          break
+        end
+      end
+      if all_records_saved
         render json: @child_account.api_view(current_user), status: :ok
       else
         render json: @comm_board.errors, status: :unprocessable_entity
       end
     else
-      render json: { error: "Board already assigned" }, status: :unprocessable_entity
+      render json: { error: "No board_ids provided" }, status: :unprocessable_entity
     end
   end
 

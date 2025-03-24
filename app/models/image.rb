@@ -1239,9 +1239,10 @@ class Image < ApplicationRecord
   def matching_viewer_boards(viewing_user = nil)
     viewing_user ||= user
     if viewing_user
-      Board.where(name: label, user_id: viewing_user.id).order(created_at: :desc)
+      viewing_user.boards.where("lower(name) = ?", label.downcase).order(name: :asc)
+      # Board.where(name: label, user_id: viewing_user.id).order(created_at: :desc)
     else
-      Board.where(name: label, user_id: User::DEFAULT_ADMIN_ID, predefined: true).order(created_at: :desc)
+      Board.where("lower(name) = ?", label.downcase).where(name: label, user_id: User::DEFAULT_ADMIN_ID, predefined: true).order(name: :asc)
     end
   end
 

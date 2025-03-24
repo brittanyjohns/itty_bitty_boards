@@ -162,6 +162,10 @@ class ChildAccount < ApplicationRecord
     "#{base_url}/accounts/sign-in?username=#{username}"
   end
 
+  def public_url
+    profile&.public_url
+  end
+
   def boards_by_most_used
     board_ids = word_events.group(:board_id).count.sort_by { |_k, v| v }.reverse.to_h.keys
     Board.where(id: board_ids)
@@ -192,6 +196,7 @@ class ChildAccount < ApplicationRecord
       heat_map: heat_map,
       profile: profile&.api_view,
       startup_url: startup_url,
+      public_url: public_url,
       week_chart: week_chart,
       most_clicked_words: most_clicked_words,
       teams: teams.map { |t| t.index_api_view(viewing_user) },
