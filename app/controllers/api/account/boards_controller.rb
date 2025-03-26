@@ -154,7 +154,7 @@ class API::Account::BoardsController < API::Account::ApplicationController
       # current_account.save!
       @board = current_account.boards.first
     end
-    render json: @board.api_view_with_images(current_account)
+    render json: @board.api_view_with_predictive_images(current_account)
   end
 
   private

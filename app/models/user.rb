@@ -510,6 +510,14 @@ class User < ApplicationRecord
     child_accounts.order(:name).map(&:api_view)
   end
 
+  def favorite_boards
+    boards.where(favorite: true).order(name: :asc)
+  end
+
+  def go_to_boards
+    favorite_boards.any? ? favorite_boards : boards.alphabetical.limit(10)
+  end
+
   def api_view
     view = self.as_json
     view["plan_expires_at"] = plan_expires_at.strftime("%x") if plan_expires_at
@@ -524,6 +532,7 @@ class User < ApplicationRecord
     view["supervisor_limit"] = settings["supervisor_limit"] || 0
     view["board_limit"] = settings["board_limit"] || 0
     view["go_to_words"] = settings["go_to_words"] || Board.common_words
+    view["go_to_boards"] = go_to_boards.map { |board| { id: board.id, name: board.name, display_image_url: board.display_image_url } }
     view["premium"] = premium?
     view["paid_plan"] = paid_plan?
     view["plan_type"] = plan_type

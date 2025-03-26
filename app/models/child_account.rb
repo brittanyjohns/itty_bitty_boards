@@ -180,6 +180,10 @@ class ChildAccount < ApplicationRecord
     Board.where(id: board_ids)
   end
 
+  def go_to_boards
+    favorite_boards.any? ? favorite_boards : boards_by_most_used
+  end
+
   def most_used_board
     @most_used_board ||= boards_by_most_used.first
   end
@@ -213,6 +217,7 @@ class ChildAccount < ApplicationRecord
       details: details,
       user_id: user_id,
       go_to_words: go_to_words,
+      go_to_boards: go_to_boards,
       avatar_url: profile&.avatar_url,
       supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },

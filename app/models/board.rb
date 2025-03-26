@@ -1087,6 +1087,7 @@ class Board < ApplicationRecord
 
   def api_view_with_predictive_images(viewing_user = nil, communicator_account = nil)
     @viewer_settings = viewing_user&.settings || {}
+    is_a_user = viewing_user.class == "User"
     @board_settings = settings || {}
     @board_images = board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).order(:position).uniq
     # @board_images = board_images.includes(:image)
@@ -1147,7 +1148,7 @@ class Board < ApplicationRecord
       current_user_teams: [],
       hello: "world",
 
-      matching_viewer_images: @matching_viewer_images.map { |i| i.api_view(viewing_user) },
+      matching_viewer_images: is_a_user ? @matching_viewer_images.map { |i| i.api_view(viewing_user) } : [],
       images: @board_images.map do |board_image|
         @board_image = board_image
 
