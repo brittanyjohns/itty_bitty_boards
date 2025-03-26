@@ -14,6 +14,12 @@ class API::ChildAccountsController < API::ApplicationController
     render json: @child_account.api_view(current_user)
   end
 
+  def send_setup_email
+    @child_account = ChildAccount.find(params[:id])
+    @child_account.send_setup_email(current_user)
+    render json: { success: true }
+  end
+
   # POST /child_accounts
   # POST /child_accounts.json
   def create

@@ -40,7 +40,16 @@ class API::ImagesController < API::ApplicationController
     @board_image = BoardImage.with_artifacts.find_by(image_id: @image.id, board_id: @board.id) if @board
 
     @image_with_display_doc = @image.with_display_doc(@current_user, @board, @board_image)
-    render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view }
+    render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) }
+  end
+
+  def user_docs
+    @current_user = current_user
+    label = params[:label]
+    @docs = @current_user.docs.includes(:documentable).with_matching_label(label).order(created_at: :desc).page params[:page] if label.present?
+    @docs = @current_user.docs.includes(:documentable).where(documentable_type: "Image").order(created_at: :desc).page params[:page] unless label.present?
+
+    render json: { docs: @docs.map(&:api_view) }
   end
 
   def crop

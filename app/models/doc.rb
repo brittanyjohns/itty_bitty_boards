@@ -48,6 +48,28 @@ class Doc < ApplicationRecord
     update(deleted_at: Time.now)
   end
 
+  def api_view(viewing_user = nil)
+    {
+      id: id,
+      raw: raw,
+      can_edit: user_id == viewing_user&.id,
+      processed: processed,
+      current: current,
+      created_at: created_at,
+      updated_at: updated_at,
+      board_id: board_id,
+      user_id: user_id,
+      source_type: source_type,
+      original_image_url: original_image_url,
+      prompt_for_prompt: prompt_for_prompt,
+      data: data,
+      license: license,
+      documentable_type: documentable_type,
+      documentable_id: documentable_id,
+      src: display_url,
+    }
+  end
+
   def extension
     original_image_url&.split(".")&.last
     # image&.blob&.filename.to_s&.split(".")&.last
@@ -163,6 +185,16 @@ class Doc < ApplicationRecord
 
   def matching_open_symbols
     OpenSymbol.where(search_string: raw)
+  end
+
+  def self.with_matching_label(label)
+    self.preload(:documentable).joins
+  end
+
+  def self.matching_doc_urls_for_label(label)
+    docs = self.with_matching_label(label)
+
+    docs.map(&:display_url)
   end
 
   def image_url

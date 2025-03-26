@@ -208,6 +208,7 @@ Rails.application.routes.draw do
         get "user_images"
         post "crop"
         post "save_temp_doc"
+        get "user_docs"
       end
     end
     resources :board_groups do
@@ -291,6 +292,7 @@ Rails.application.routes.draw do
     resources :child_accounts do
       member do
         post "assign_boards"
+        post "send_setup_email"
         delete "remove_board"
       end
     end

@@ -94,6 +94,15 @@ class ChildAccount < ApplicationRecord
     account
   end
 
+  def email
+    settings = self.settings || {}
+    settings["email"]
+  end
+
+  def send_setup_email(sending_user)
+    CommunicationAccountMailer.setup_email(self, sending_user).deliver_now
+  end
+
   def create_profile!
     return if profile.present?
     slug = username.parameterize

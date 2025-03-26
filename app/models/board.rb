@@ -143,8 +143,9 @@ class Board < ApplicationRecord
     where(board_type: ["static", "scenario"])
   end
 
-  def self.with_identical_images(name, user)
-    user_boards = Board.where(name: name, user_id: user.id)
+  def self.with_identical_images(name, user = nil)
+    user_id = user ? user.id : User::DEFAULT_ADMIN_ID
+    user_boards = Board.includes(:images).where(name: name, user_id: user_id)
     board_data = {}
     user_boards.each do |b|
       img_ids = b.images.pluck(:id)
@@ -163,9 +164,10 @@ class Board < ApplicationRecord
     boards.count > 1 ? boards : []
   end
 
-  def self.clean_up_idential_boards_for(name, user)
+  def self.clean_up_idential_boards_for(name, user = nil)
     boards = with_identical_images(name, user)
     return unless boards.any?
+    puts "Cleaning up boards: #{boards.count} for #{name}"
     board_to_keep = boards.first
     boards.each do |board|
       next if board == board_to_keep
@@ -180,6 +182,22 @@ class Board < ApplicationRecord
       clean_up_idential_boards_for(board.name, user)
       sleep 1
     end
+  end
+
+  def self.clean_up_duplicate(name, user = nil, dry_run = true)
+    user_id = user ? user.id : User::DEFAULT_ADMIN_ID
+    boards = Board.includes(:images).where(name: name, user_id: user_id)
+    return unless boards.count > 1
+    puts "Cleaning up boards: #{boards.count} for #{name}"
+    board_to_keep = boards.max_by { |b| b.images.count }
+    board_count = 0
+    boards.each do |board|
+      next if board == board_to_keep
+      # board.board_images.destroy_all
+      board_count += 1
+      board.destroy! unless dry_run
+    end
+    puts "#{board_count - 1} boards deleted"
   end
 
   def set_initial_layout
@@ -1079,7 +1097,6 @@ class Board < ApplicationRecord
     same_user = viewing_user && user_id == viewing_user.id
     can_edit = same_user || viewing_user&.admin?
     @matching_viewer_images = matching_viewer_images(viewing_user)
-    puts "Matching viewer images: #{@matching_viewer_images.inspect}"
     if communicator_account
       can_edit = communicator_account.settings["can_edit_boards"] == true
     end

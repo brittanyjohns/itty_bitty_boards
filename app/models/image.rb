@@ -1361,6 +1361,7 @@ class Image < ApplicationRecord
           label: label,
           user_id: doc.user_id,
           src: doc.display_url,
+          display_url: doc.display_url,
           raw: doc.raw,
           is_current: doc.id == current_doc_id,
           can_edit: (current_user && doc.user_id == current_user.id) || current_user&.admin?,
