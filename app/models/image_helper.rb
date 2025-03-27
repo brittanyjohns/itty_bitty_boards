@@ -103,9 +103,9 @@ module ImageHelper
     new_audio_file
   end
 
-  def clarify_image_description(raw)
+  def clarify_image_description(raw, restaurant_name)
     return if Rails.env.test?
-    response, messages_sent = OpenAiClient.new(open_ai_opts).clarify_image_description(raw)
+    response, messages_sent = OpenAiClient.new(open_ai_opts).clarify_image_description(raw, restaurant_name)
     Rails.logger.info "clarify_image_description response: #{response}\n messages_sent: #{messages_sent}"
     begin
       response_text = nil

@@ -231,11 +231,12 @@ class OpenAiClient
     response[:content] if response
   end
 
-  def clarify_image_description(image_description)
+  def clarify_image_description(image_description, restaurant_name)
     Rails.logger.debug "Missing image description.\n" && return unless image_description
     @model = GPT_4_MODEL
     @messages = [{ role: "user", content: [{ type: "text",
-                                           text: "Please parse the following text from a restaurant menu to 
+                                           text: "Please parse the following text from a restaurant menu from the
+                                                restaurant '#{restaurant_name}' to
                                                 form a clear list of the food and beverage options ONLY.
                                                 Create a short image description for each item based on the name and description.
                                                 The NAME of the food or beverage is the most important part. Ensure that the name is accurate.

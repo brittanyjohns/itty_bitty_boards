@@ -656,12 +656,9 @@ class Image < ApplicationRecord
     else
       filename = "#{label_for_filename}_#{voice}_#{lang}.aac"
     end
-    # TODO - this should be unscoped & check all audio files -- maybe?
     audio_file = ActiveStorage::Attachment.joins(:blob)
       .where(name: :audio_files, active_storage_blobs: { filename: filename })
-      .first
-
-    puts "\n\nFOUND AUDIO FILE: #{audio_file&.blob&.filename}\n\n"
+      .last
 
     unless audio_file
       Rails.logger.debug "Audio file not found: #{filename} - creating new audio file for #{label} - #{voice} - #{lang}"

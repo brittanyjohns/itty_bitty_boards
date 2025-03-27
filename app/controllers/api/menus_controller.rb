@@ -55,6 +55,7 @@ class API::MenusController < API::ApplicationController
     @menu = Menu.find(params[:id])
     screen_size = params[:screen_size] || "lg"
     @board = @menu.boards.last
+    @board.update(board_type: "menu")
     message = "Re-running image description job."
     unless @board
       message = "No board found for this menu."
@@ -95,7 +96,6 @@ class API::MenusController < API::ApplicationController
     @menu.raw = menu_params[:description]
     @menu.token_limit = menu_params[:token_limit] || 10
     @menu.user = @current_user
-    @board = @menu.boards.new(user: current_user, name: menu_name, token_limit: @menu.token_limit, predefined: @menu.predefined, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4)
     unless @menu.save
       render json: @menu.errors, status: :unprocessable_entity
       return
@@ -106,8 +106,8 @@ class API::MenusController < API::ApplicationController
     doc.raw = params[:menu][:description]
     if doc.save
       Rails.logger.info "Running image description job. #{doc.id} - #{doc.display_url}"
-      @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.display_url)
-      @board.update(large_screen_columns: 10, medium_screen_columns: 8, small_screen_columns: 4)
+      @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu")
+      # @board.update(large_screen_columns: 10, medium_screen_columns: 8, small_screen_columns: 4)
       @menu.run_image_description_job(@board.id, screen_size)
       @menu_with_display_doc = {
         id: @menu.id,

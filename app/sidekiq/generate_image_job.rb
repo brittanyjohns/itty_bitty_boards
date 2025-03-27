@@ -14,13 +14,13 @@ class GenerateImageJob
       board_image.update(status: "generating")
     end
     begin
-      image.create_image_doc(user_id)
+      new_doc = image.create_image_doc(user_id)
       if image.menu? && image.image_prompt.include?(Menu::PROMPT_ADDITION)
         image.image_prompt = image.image_prompt.gsub(Menu::PROMPT_ADDITION, "")
         image.save!
       end
       if board_image
-        board_image.update(status: "complete")
+        board_image.update(status: "complete", display_image_url: new_doc.display_url)
       end
       if board_id
         board = Board.find(board_id)

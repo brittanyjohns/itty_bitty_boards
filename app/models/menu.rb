@@ -101,7 +101,7 @@ class Menu < ApplicationRecord
     images_generated = 0
     board_images.each_slice(8) do |board_image_slice|
       board_image_slice.each do |board_image|
-        if should_generate_image(board_image.image, self.user, tokens_used, total_cost)
+        if should_generate_image(board_image.image, self.user, tokens_used, total_cost, true)
           board_image.update!(status: "generating")
           puts "Generating image for #{board_image.image.label} - user: #{self.user_id}"
           board_image.image.start_generate_image_job(minutes_to_wait, self.user_id, nil, board.id)
@@ -115,9 +115,11 @@ class Menu < ApplicationRecord
       end
       minutes_to_wait += 1
     end
-    @user.remove_tokens(tokens_used)
-    puts "USED #{tokens_used} tokens for #{images_generated} images"
-    board.add_to_cost(tokens_used) if board
+    #  Disabling token usage for now
+
+    # @user.remove_tokens(tokens_used)
+    # puts "USED #{tokens_used} tokens for #{images_generated} images"
+    # board.add_to_cost(tokens_used) if board
   end
 
   def create_images_from_description(board)
@@ -262,13 +264,11 @@ class Menu < ApplicationRecord
         new_processed = describe_menu(@board.display_image_url)
         @board.update(status: "error") unless new_processed
         @board.update!(description: new_processed) if new_processed
-        Rails.logger.debug "New processed: #{new_processed}\n"
-        from_text, messages_sent = clarify_image_description(new_doc.raw)
-
-        Rails.logger.debug "Clarified: #{from_text}\n"
+        restaurant_name = name || "Restaurant"
+        Rails.logger.debug "New processed: #{new_processed}\n Restaurant: #{restaurant_name}\n"
+        from_text, messages_sent = clarify_image_description(new_doc.raw, restaurant_name)
 
         if valid_json?(from_text)
-          puts "Valid JSON: #{from_text}"
           @board.update!(description: from_text)
           self.prompt_used = from_text
           self.save!
@@ -281,7 +281,6 @@ class Menu < ApplicationRecord
         # new_new_processed = new_processed["menu_items"].to_json
         new_new_processed = new_processed.to_json
 
-        Rails.logger.debug "new_new_processed: #{new_processed}\n"
         new_doc.processed = new_new_processed
         new_doc.current = true
         new_doc.user_id = self.user_id
