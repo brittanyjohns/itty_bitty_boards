@@ -159,13 +159,15 @@ class API::DocsController < API::ApplicationController
         is_owner = @user&.id == current_user.id
       end
 
-      @image_with_display_doc = @image.with_display_doc(current_user)
+      # @image_with_display_doc = @image.with_display_doc(current_user)
     rescue => e
       puts "Error: #{e.message}"
       render json: { error: e.message }, status: :unprocessable_entity
       return
     end
-    render json: @image_with_display_doc
+    @image_with_display_doc = @image.with_display_doc(@current_user, @board, @board_image)
+    render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) }
+    # render json: { image: @image_with_display_doc, board_image: @board_image, board: @board, doc: @current_doc, user: @user, is_owner: is_owner }
   end
 
   # DELETE /docs/1 or /docs/1.json
