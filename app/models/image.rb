@@ -1286,7 +1286,7 @@ class Image < ApplicationRecord
     image_docs = docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
     # user_image_boards = user_boards(@current_user)
     if @current_user.admin?
-      user_image_boards = @current_user&.boards&.includes(:board_images).distinct.order(name: :asc).limit(10)
+      user_image_boards = @current_user&.boards&.includes(:board_images).where(predefined: false).distinct.order(name: :asc).limit(30)
     else
       user_image_boards = @current_user&.boards&.includes(:board_images).distinct.order(name: :asc)
     end
