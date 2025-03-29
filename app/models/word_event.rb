@@ -21,13 +21,14 @@ class WordEvent < ApplicationRecord
   belongs_to :team, optional: true
   belongs_to :child_account, optional: true
 
-  def api_view
+  def api_view(viewing_user = nil)
     {
       id: id,
       user_id: user_id,
       user_email: user.email,
       child_username: child_account&.username,
       word: word,
+      can_edit: user == viewing_user,
       previous_word: previous_word,
       board_id: board_id,
       image_id: image_id,
