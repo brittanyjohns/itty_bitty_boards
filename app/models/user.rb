@@ -555,6 +555,7 @@ class User < ApplicationRecord
     # view["dynamic_boards"] = dynamic_boards.map(&:user_api_view)
     view["heat_map"] = heat_map
     view["week_chart"] = week_chart
+    view["group_week_chart"] = group_week_chart
     view["most_clicked_words"] = most_clicked_words
     view["display_name"] = display_name
     view

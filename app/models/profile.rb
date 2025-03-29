@@ -36,6 +36,14 @@ class Profile < ApplicationRecord
     }
   end
 
+  RANDOM_COLORS = ["#FF5733", "#33FF57", "#3357FF", "#F1C40F", "#E74C3C", "#8E44AD", "#3498DB", "#2ECC71"].freeze
+
+  def bg_color
+    random_color = RANDOM_COLORS.sample
+    puts "Random color: #{random_color}"
+    random_color
+  end
+
   def public_view
     {
       id: id,

@@ -175,6 +175,10 @@ class ChildAccount < ApplicationRecord
     profile&.public_url
   end
 
+  def bg_color
+    profile&.bg_color
+  end
+
   def boards_by_most_used
     board_ids = word_events.group(:board_id).count.sort_by { |_k, v| v }.reverse.to_h.keys
     Board.where(id: board_ids)
