@@ -119,9 +119,6 @@ class API::BoardsController < API::ApplicationController
     @board = Board.with_artifacts.find_by(id: params[:id])
     if @board.nil?
       @board = Board.predictive_default(current_user)
-      Rails.logger.info "#{Board.predictive_default_id} -- No user predictive default board found - setting default board : #{@board.id}"
-      current_user.settings["dynamic_board_id"] = nil
-      current_user.save!
     end
     # expires_in 8.hours, public: true # Cache control header
     @board_group = BoardGroup.find_by(id: params[:board_group_id]) if params[:board_group_id].present?

@@ -42,6 +42,8 @@ class API::AuditsController < API::ApplicationController
     else
       @word_events = WordEvent.includes(:image, :board, :child_account).order(timestamp: :desc).limit(500)
     end
-    render json: @word_events.order(created_at: :desc).map(&:api_view)
+    render json: @word_events.order(created_at: :desc).map { |event|
+      event.api_view(current_user || current_account.user)
+    }
   end
 end

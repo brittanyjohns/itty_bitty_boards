@@ -15,6 +15,12 @@ module WordEventsHelper
     week_chart_data(7.days.ago, Time.current)
   end
 
+  def group_week_chart
+    charts = child_accounts.map { |child_account| { label: child_account.name, data: child_account.week_chart, bg_color: child_account.bg_color } }
+    puts "CHARTS: #{charts.inspect}"
+    charts
+  end
+
   def most_clicked_words(range = 7.days.ago..Time.current, limit = 20)
     word_events.group(:word).where(timestamp: range).count.sort_by { |_, v| -v }.first(limit).sort_by { |_, v| -v }.map do |word, count|
       { word: word, count: count }
