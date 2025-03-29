@@ -40,7 +40,6 @@ class Profile < ApplicationRecord
 
   def bg_color
     random_color = RANDOM_COLORS.sample
-    puts "Random color: #{random_color}"
     random_color
   end
 
