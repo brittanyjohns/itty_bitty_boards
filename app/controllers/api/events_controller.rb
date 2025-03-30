@@ -1,4 +1,6 @@
 class API::EventsController < API::ApplicationController
+  skip_before_action :authenticate_token!
+
   def show
     @event = Event.find_by(slug: params[:slug])
     if @event.nil?
