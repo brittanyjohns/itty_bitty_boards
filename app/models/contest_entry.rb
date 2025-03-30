@@ -15,6 +15,7 @@ class ContestEntry < ApplicationRecord
 
   validates :name, presence: true
   validates :email, presence: true, format: { with: URI::MailTo::EMAIL_REGEXP }
+  validates :email, uniqueness: { scope: :event_id, message: "has already entered this event" }
 
   def api_view
     {

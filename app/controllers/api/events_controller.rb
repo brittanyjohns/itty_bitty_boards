@@ -1,6 +1,6 @@
 class API::EventsController < API::ApplicationController
   def show
-    @event = Event.find(params[:slug])
+    @event = Event.find_by(slug: params[:slug])
     if @event.nil?
       render json: { error: "Event not found" }, status: :not_found
       return
@@ -9,11 +9,8 @@ class API::EventsController < API::ApplicationController
   end
 
   def save_entry
-    @event = Event.find(params[:slug])
-    puts "Parameters: #{params.inspect}"
-    puts "Entry Params: #{entry_params.inspect}"
+    @event = Event.find_by(slug: params[:slug])
     new_entry = @event.contest_entries.create(entry_params)
-    puts "New entry created: #{new_entry.inspect}"
     if new_entry.persisted?
       render json: { success: true, entry: new_entry.api_view }, status: :created
     else
