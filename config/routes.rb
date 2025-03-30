@@ -356,6 +356,7 @@ Rails.application.routes.draw do
       end
     end
     namespace :admin do
+      resources :events
       resources :users do
         collection do
           delete "destroy_users"
@@ -365,6 +366,8 @@ Rails.application.routes.draw do
       get "word_events", to: "word_events#index", as: :word_events
       resources :boards
     end
+    get "events/:slug", to: "events#show"
+    post "events/:slug/save_entry", to: "events#save_entry"
   end
 
   namespace :turbo do

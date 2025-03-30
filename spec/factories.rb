@@ -1,4 +1,16 @@
 FactoryBot.define do
+  factory :contest_entry do
+    name { "MyString" }
+    email { "MyString" }
+    data { "MyString" }
+  end
+
+  factory :event do
+    name { "MyString" }
+    slug { "MyString" }
+    date { "MyString" }
+  end
+
   factory :profile do
     profileable { nil }
     username { "MyString" }

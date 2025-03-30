@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_03_16_173734) do
+ActiveRecord::Schema[7.1].define(version: 2025_03_30_115432) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -206,6 +206,16 @@ ActiveRecord::Schema[7.1].define(version: 2025_03_16_173734) do
     t.index ["published"], name: "index_child_boards_on_published"
   end
 
+  create_table "contest_entries", force: :cascade do |t|
+    t.string "name"
+    t.string "email"
+    t.jsonb "data", default: {}
+    t.bigint "event_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["event_id"], name: "index_contest_entries_on_event_id"
+  end
+
   create_table "docs", force: :cascade do |t|
     t.string "documentable_type", null: false
     t.bigint "documentable_id", null: false
@@ -226,6 +236,14 @@ ActiveRecord::Schema[7.1].define(version: 2025_03_16_173734) do
     t.index ["documentable_id", "documentable_type", "deleted_at"], name: "idx_on_documentable_id_documentable_type_deleted_at_a6715ad541"
     t.index ["documentable_type", "documentable_id"], name: "index_docs_on_documentable"
     t.index ["user_id"], name: "index_docs_on_user_id"
+  end
+
+  create_table "events", force: :cascade do |t|
+    t.string "name"
+    t.string "slug"
+    t.string "date"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "images", force: :cascade do |t|
@@ -689,6 +707,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_03_16_173734) do
   add_foreign_key "child_boards", "boards"
   add_foreign_key "child_boards", "child_accounts"
   add_foreign_key "child_boards", "users", column: "created_by_id"
+  add_foreign_key "contest_entries", "events"
   add_foreign_key "menus", "users"
   add_foreign_key "openai_prompts", "users"
   add_foreign_key "order_items", "orders"

@@ -36,7 +36,7 @@ class BaseMailer < ApplicationMailer
     @team_name = @team.name
 
     subject = "You have been invited to join a team on SpeakAnyWay AAC!"
-    mail(to: @invitee.email, subject: subject, from: "hello@speakanyway.com")
+    mail(to: @invitee.email, subject: subject, from: "noreply@speakanyway.com")
     invitee.update!(invitation_sent_at: Time.now)
     invitee
   end
