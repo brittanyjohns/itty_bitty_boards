@@ -48,20 +48,6 @@ RSpec.describe Doc, type: :model do
       subject
     end
 
-    #  I'm okay with this test failing because it's not a critical test & is most likely due to the way the test is written & my test environment setup -_-
-
-    # it "does not delete docs with valid URLs" do
-    #   puts "Doc1: #{doc1.display_url}"
-    #   puts "Doc count: #{Doc.count}"
-    #   puts "Unscoped doc count: #{Doc.unscoped.count}"
-
-    #   puts "After Doc count: #{Doc.count}"
-    #   puts "After Unscoped doc count: #{Doc.unscoped.count}"
-
-    #   # expect(Doc.unscoped.exists?(doc1.id)).to be_truthy
-    #   expect(doc1.reload.deleted_at).to be_nil
-    # end
-
     it "marks docs with broken URLs as hidden using soft delete" do
       expect(doc2.reload.deleted_at).not_to be_nil
       expect(doc3.reload.deleted_at).not_to be_nil

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_03_30_115432) do
+ActiveRecord::Schema[7.1].define(version: 2025_04_01_125216) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -111,8 +111,10 @@ ActiveRecord::Schema[7.1].define(version: 2025_03_30_115432) do
     t.string "language", default: "en"
     t.string "display_label"
     t.jsonb "language_settings", default: {}
+    t.boolean "hidden", default: false
     t.index ["board_id"], name: "index_board_images_on_board_id"
     t.index ["data"], name: "index_board_images_on_data", using: :gin
+    t.index ["hidden"], name: "index_board_images_on_hidden"
     t.index ["image_id"], name: "index_board_images_on_image_id"
     t.index ["label"], name: "index_board_images_on_label"
     t.index ["predictive_board_id"], name: "index_board_images_on_predictive_board_id"

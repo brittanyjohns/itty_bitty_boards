@@ -24,6 +24,7 @@
 #  language            :string           default("en")
 #  display_label       :string
 #  language_settings   :jsonb
+#  hidden              :boolean          default(FALSE)
 #
 class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
@@ -41,6 +42,8 @@ class BoardImage < ApplicationRecord
 
   scope :updated_today, -> { where("updated_at > ?", 1.hour.ago) }
   scope :with_artifacts, -> { includes({ predictive_board: [{ board_images: :image }] }, :image, :board) }
+  scope :visible, -> { where(hidden: false) }
+  scope :hidden, -> { where(hidden: true) }
 
   delegate :user_id, to: :board, allow_nil: false
 
@@ -290,6 +293,7 @@ class BoardImage < ApplicationRecord
       image_id: image_id,
       label: label,
       display_label: display_label,
+      hidden: hidden,
       board_name: board.name,
       board_type: board.board_type,
       predictive_board: predictive_board_data,
@@ -330,6 +334,7 @@ class BoardImage < ApplicationRecord
       dynamic: is_dynamic?,
       can_edit: viewing_user == board.user,
       voice: voice,
+      hidden: hidden,
       # predictive_board_id: predictive_board_id,
       bg_color: bg_color,
       bg_class: bg_class,

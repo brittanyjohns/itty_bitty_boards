@@ -16,9 +16,7 @@ module WordEventsHelper
   end
 
   def group_week_chart
-    charts = child_accounts.map { |child_account| { label: child_account.name, data: child_account.week_chart, bg_color: child_account.bg_color } }
-    puts "CHARTS: #{charts.inspect}"
-    charts
+    child_accounts.map { |child_account| { label: child_account.name, data: child_account.week_chart, bg_color: child_account.bg_color } }
   end
 
   def most_clicked_words(range = 7.days.ago..Time.current, limit = 20)

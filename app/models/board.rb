@@ -47,6 +47,7 @@ class Board < ApplicationRecord
   belongs_to :parent, polymorphic: true
   belongs_to :board_group, optional: true
   has_many :board_images, dependent: :destroy
+  has_many :visible_board_images, -> { where(hidden: false) }, class_name: "BoardImage"
   has_many :images, through: :board_images
   has_many :docs
   has_many :team_boards, dependent: :destroy
@@ -1085,12 +1086,16 @@ class Board < ApplicationRecord
     save
   end
 
-  def api_view_with_predictive_images(viewing_user = nil, communicator_account = nil)
+  def api_view_with_predictive_images(viewing_user = nil, communicator_account = nil, show_hidden = false)
     @viewer_settings = viewing_user&.settings || {}
     is_a_user = viewing_user.class == "User"
     @board_settings = settings || {}
-    @board_images = board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).order(:position).uniq
-    # @board_images = board_images.includes(:image)
+    unless show_hidden
+      @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).distinct
+    else
+      @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).distinct
+    end
+    @board_images = board_images.where(hidden: false)
     word_data = get_commons_words
     existing_words = word_data[:existing_words]
     missing_common_words = word_data[:missing_common_words]
@@ -1184,6 +1189,7 @@ class Board < ApplicationRecord
           id: image.id,
           label: @board_image.label,
           display_label: @board_image.display_label,
+          hidden: @board_image.hidden,
           root_board_id: @root_board&.id,
           root_board_name: @root_board&.name,
           image_user_id: image.user_id,

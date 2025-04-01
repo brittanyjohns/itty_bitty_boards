@@ -327,13 +327,6 @@ class Menu < ApplicationRecord
     end
 
     if response
-      # if valid_json?(menu_items)
-      #   menu_items = JSON.parse(menu_items)
-      # else
-      #   puts "INVALID JSON: #{menu_items}"
-      #   menu_items = transform_into_json(menu_items)
-      # end
-
       begin
         # Extract the "content" field from the first choice
         content = response["choices"].first["message"]["content"]

@@ -17,7 +17,7 @@ class API::BoardImagesController < API::ApplicationController
     layout = params[:layout]
     screen_size = params[:screen_size]
     @board_image.update_layout(layout, screen_size)
-    render json: @board_image
+    render json: @board_image.api_view(current_user)
   end
 
   def move_up
@@ -45,11 +45,9 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   def move
-    puts "move params: #{params}"
     @board_id = params[:board_id].to_i
     @image_id = params[:image_id].to_i
 
-    puts "board_id: #{@board_id}, image_id: #{@image_id}"
     @board = Board.find(@board_id)
     if @board.nil?
       render json: { error: "Board not found" }, status: :unprocessable_entity
@@ -58,7 +56,6 @@ class API::BoardImagesController < API::ApplicationController
 
     @board_image = BoardImage.find_by(board_id: @board_id, image_id: @image_id)
     if @board_image.nil?
-      puts "Board image not found"
       render json: { error: "Board image not found" }, status: :unprocessable_entity
       return
     end
@@ -88,10 +85,7 @@ class API::BoardImagesController < API::ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_board_image
-    puts "set_board_image"
-    puts params
     @board_image = BoardImage.find(params[:id])
-    puts "set_board_image done #{@board_image}"
   end
 
   # Only allow a list of trusted parameters through.
@@ -100,6 +94,6 @@ class API::BoardImagesController < API::ApplicationController
                                         :image_id, :position, :voice, :bg_color,
                                         :text_color, :font_size, :border_color,
                                         :display_label,
-                                        :layout, :status, :audio_url)
+                                        :layout, :status, :audio_url, :hidden)
   end
 end

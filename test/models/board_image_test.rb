@@ -24,6 +24,7 @@
 #  language            :string           default("en")
 #  display_label       :string
 #  language_settings   :jsonb
+#  hidden              :boolean          default(FALSE)
 #
 require "test_helper"
 
