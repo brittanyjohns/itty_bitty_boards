@@ -30,6 +30,17 @@ class API::WebhooksController < API::ApplicationController
 
     begin
       case event_type
+      when "customer.subscription.paused"
+        @user = User.find_by(stripe_customer_id: data_object.customer)
+        if @user
+          puts "Existing user found: #{@user}"
+          @user.plan_status = "paused"
+          @user.plan_type = "free"
+          @user.save!
+        else
+          puts "No existing user found for stripe_customer_id - Nothing to pause: #{data_object.customer}"
+          render json: { error: "No user found for subscription" }, status: 400 and return
+        end
       when "customer.subscription.created", "customer.subscription.updated"
         subscription_data = {
           subscription: data_object.id,
@@ -98,9 +109,6 @@ class API::WebhooksController < API::ApplicationController
           render json: { error: "No user found for subscription" }, status: 400 and return
         end
       when "checkout.session.completed"
-        # puts "Checkout session completed\n #{event_type}"
-        # puts "User UUID: #{data_object.client_reference_id}"
-        # puts "Subscription ID: #{data_object.subscription}"
         stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
 
         @user = User.find_by(email: data_object.customer_details["email"]) unless @user

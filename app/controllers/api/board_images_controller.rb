@@ -44,6 +44,88 @@ class API::BoardImagesController < API::ApplicationController
     end
   end
 
+  def update_multiple
+    puts "Updating multiple board images: #{params.inspect}"
+    board_image_ids = params[:board_image_ids]
+    @board = Board.find(params[:board_id])
+    if @board.nil?
+      render json: { error: "Board not found" }, status: :unprocessable_entity
+      return
+    end
+    board_images = BoardImage.where(id: board_image_ids, board_id: @board.id)
+    if board_images.empty?
+      render json: { error: "No board images found" }, status: :unprocessable_entity
+      return
+    end
+    payload = params[:payload]
+    if payload.nil?
+      render json: { error: "No payload provided" }, status: :unprocessable_entity
+      return
+    end
+    bg_color = payload[:bg_color] if payload[:bg_color]
+    text_color = payload[:text_color] if payload[:text_color]
+    hide_images = payload[:hide_images] if payload[:hide_images]
+    puts "Updating board images with payload: #{payload.inspect}"
+    results = []
+    board_images.each do |board_image|
+      if !bg_color.blank?
+        board_image.bg_color = bg_color
+      end
+      if !text_color.blank?
+        board_image.text_color = text_color
+      end
+      if hide_images
+        board_image.hidden = true
+      else
+        board_image.hidden = false
+      end
+      if board_image.save
+        results << true
+      else
+        results << false
+      end
+    end
+    # @board.touch
+    # @board.reload
+
+    if results.all?
+      puts "All board images updated successfully"
+      render json: { board: @board.api_view_with_predictive_images(current_user, nil, true) }
+    else
+      render json: { error: "Failed to update some board images" }, status: :unprocessable_entity
+    end
+  end
+
+  def remove_multiple
+    puts "Removing multiple board images: #{params.inspect}"
+    board_image_ids = params[:board_image_ids]
+    @board = Board.find(params[:board_id])
+    if @board.nil?
+      render json: { error: "Board not found" }, status: :unprocessable_entity
+      return
+    end
+    board_images = BoardImage.where(id: board_image_ids, board_id: @board.id)
+    if board_images.empty?
+      render json: { error: "No board images found" }, status: :unprocessable_entity
+      return
+    end
+    puts "Removing board images: #{board_images.inspect}"
+    results = []
+    board_images.each do |board_image|
+      if board_image.destroy
+        results << true
+      else
+        results << false
+      end
+    end
+    if results.all?
+      puts "All board images removed successfully"
+      render json: { board: @board.api_view_with_predictive_images(current_user, nil, true) }
+    else
+      render json: { error: "Failed to remove some board images" }, status: :unprocessable_entity
+    end
+  end
+
   def move
     @board_id = params[:board_id].to_i
     @image_id = params[:image_id].to_i

@@ -257,7 +257,8 @@ Rails.application.routes.draw do
     end
     resources :board_images do
       collection do
-        post "move"
+        put "update", to: "board_images#update_multiple"
+        delete "remove", to: "board_images#remove_multiple"
       end
     end
     resources :scenarios do
