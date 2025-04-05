@@ -357,7 +357,10 @@ Rails.application.routes.draw do
       end
     end
     namespace :admin do
-      resources :events
+      resources :events do
+        get "download_entries", on: :member
+        post "pick_winner", on: :member
+      end
       resources :users do
         collection do
           delete "destroy_users"

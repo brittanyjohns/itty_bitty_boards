@@ -8,6 +8,7 @@
 #  date       :string
 #  created_at :datetime         not null
 #  updated_at :datetime         not null
+#  promo_code :string
 #
 require 'rails_helper'
 

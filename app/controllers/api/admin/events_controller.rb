@@ -12,6 +12,23 @@ class API::Admin::EventsController < API::Admin::ApplicationController
     render json: @event.api_view
   end
 
+  def pick_winner
+    @event = Event.find(params[:id])
+    @event.contest_entries.update_all(winner: false)
+    @contest_entries = @event.contest_entries
+    @contest_entry = @contest_entries.sample
+
+    @contest_entry.update(winner: true)
+    @event.reload
+    render json: @event.api_view
+  end
+
+  def download_entries
+    @event = Event.find(params[:id])
+    @contest_entries = @event.contest_entries.order(name: :asc)
+    send_data @contest_entries.to_csv, filename: "#{@event.name.parameterize}-entries-#{DateTime.now.strftime("%d%m%Y%H%M")}.csv", type: "text/csv"
+  end
+
   # GET /events/new
   def new
     @event = Event.new
@@ -53,7 +70,7 @@ class API::Admin::EventsController < API::Admin::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def event_params
-    params.require(:event).permit(:name, :slug, :date)
+    params.require(:event).permit(:name, :slug, :date, :promo_code, :promo_code_details)
   end
 
   def entry_params
