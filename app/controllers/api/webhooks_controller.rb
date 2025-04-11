@@ -127,8 +127,10 @@ class API::WebhooksController < API::ApplicationController
           puts "Existing user found: #{@user}"
         else
           puts "No existing user found for stripe_customer_id: #{data_object.customer}"
-          render json: { error: "No user found for subscription" }, status: 400 and return
-          # @user = User.create_from_email(data_object.customer_email, data_object.customer) unless @user
+          @user = User.create_from_email(data_object.customer_email, data_object.customer) unless @user
+          unless @user
+            render json: { error: "No user found for subscription" }, status: 400 and return
+          end
         end
         stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
         plan_type_name = stripe_subscription.plan.nickname
