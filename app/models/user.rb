@@ -113,9 +113,15 @@ class User < ApplicationRecord
   def self.create_from_email(email, stripe_customer_id = nil, inviting_user_id = nil)
     user = User.invite!(email: email, skip_invitation: true)
     if user
-      user.invited_by_id = inviting_user_id if inviting_user_id
-      user.invited_by_type = "User"
-      user.send_welcome_invitation_email(inviting_user_id) if inviting_user_id
+      if inviting_user_id
+        user.invited_by_id = inviting_user_id if inviting_user_id
+        user.invited_by_type = "User"
+        puts "Sending welcome invitation email to #{email}"
+        user.send_welcome_invitation_email(inviting_user_id) if inviting_user_id
+      else
+        puts "Sending welcome email to #{email}"
+        user.send_welcome_email
+      end
       if stripe_customer_id.nil?
         stripe_customer_id = User.create_stripe_customer(email)
       end
