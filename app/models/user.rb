@@ -110,10 +110,15 @@ class User < ApplicationRecord
     end
   end
 
-  def self.create_from_email(email, stripe_customer_id)
+  def self.create_from_email(email, stripe_customer_id = nil, inviting_user_id = nil)
     user = User.invite!(email: email, skip_invitation: true)
     if user
-      user.send_welcome_invitation_email
+      user.invited_by_id = inviting_user_id if inviting_user_id
+      user.invited_by_type = "User"
+      user.send_welcome_invitation_email(inviting_user_id) if inviting_user_id
+      if stripe_customer_id.nil?
+        stripe_customer_id = User.create_stripe_customer(email)
+      end
       user.stripe_customer_id = stripe_customer_id
       user.save
       Rails.logger.info("User created: #{email}")
@@ -126,7 +131,6 @@ class User < ApplicationRecord
   def update_from_stripe_event(data_object, plan_nickname)
     plan_nickname = plan_nickname || "free"
     if data_object["customer"]
-      puts ">>> Updating user stripe customer id: #{data_object["customer"]}"
       self.stripe_customer_id = data_object["customer"]
     end
     self.plan_type = API::WebhooksHelper.get_plan_type(plan_nickname)
@@ -365,15 +369,19 @@ class User < ApplicationRecord
     BaseMailer.team_invitation_email(self.email, inviter, team).deliver_now
   end
 
-  def invite_new_user_to_team!(new_user_email, team, inviter)
+  def invite_new_user_to_team!(new_user_email, team)
+    new_user = User.invite!({ email: new_user_email }, self)
+    if new_user.errors.any?
+      puts "Errors: #{new_user.errors.full_messages}"
+      raise "User not created: #{new_user.errors.full_messages}"
+    end
+    # BaseMailer.team_invitation_email(new_user_email, self, team).deliver_now
+    BaseMailer.team_invitation_email(new_user.email, self, team).deliver_now
+
     stripe_customer_id = User.create_stripe_customer(new_user_email)
+    new_user.update!(stripe_customer_id: stripe_customer_id)
 
-    puts "Stripe customer created: #{stripe_customer_id} - Inviting new user: #{new_user_email}"
-
-    # new_user = User.create_from_email(new_user_email, stripe_customer_id)
-    BaseMailer.team_invitation_email(new_user_email, inviter, team).deliver_later(wait: 15.seconds)
-    # BaseMailer.invite_new_user_to_team_email(new_user_email, inviter, team).deliver_now
-    puts "DONE INVITING NEW USER"
+    new_user
   end
 
   def send_welcome_email
@@ -385,10 +393,11 @@ class User < ApplicationRecord
     end
   end
 
-  def send_welcome_invitation_email
+  def send_welcome_invitation_email(inviter_id)
+    Rails.logger.info "Sending welcome invitation email to #{email} from user ID #{inviter_id}"
     begin
-      UserMailer.welcome_invitation_email(self).deliver_now
-      AdminMailer.new_user_email(self).deliver_now
+      UserMailer.welcome_invitation_email(self, inviter_id).deliver_now
+      # AdminMailer.new_user_email(self).deliver_now
     rescue => e
       Rails.logger.error("Error sending welcome invitation email: #{e.message}")
     end

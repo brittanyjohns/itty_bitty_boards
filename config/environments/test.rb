@@ -4,6 +4,7 @@ require "active_support/core_ext/integer/time"
 # test suite. You never need to work with it otherwise. Remember that
 # your test database is "scratch space" for the test suite and is wiped
 # and recreated between test runs. Don't rely on the data there!
+Rails.application.routes.default_url_options[:host] = "localhost:4000"
 
 Rails.application.configure do
   config.log_file_size = 50.megabytes
@@ -21,7 +22,7 @@ Rails.application.configure do
   # Configure public file server for tests with Cache-Control for performance.
   config.public_file_server.enabled = true
   config.public_file_server.headers = {
-    "Cache-Control" => "public, max-age=#{1.hour.to_i}"
+    "Cache-Control" => "public, max-age=#{1.hour.to_i}",
   }
 
   # Show full error reports and disable caching.

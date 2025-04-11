@@ -43,7 +43,7 @@ class Team < ApplicationRecord
     team_users.where(role: ["supporter", "member"])
   end
 
-  def add_member!(user, role = "member")
+  def add_member!(user, role = "supporter")
     return nil if user.nil?
     if user && !users.include?(user)
       team_user = team_users.new(user: user, role: role)

@@ -37,31 +37,6 @@ class TeamsController < ApplicationController
   def edit
   end
 
-  def invite
-    user_email = team_user_params[:email]
-    user_role = team_user_params[:role]
-    @team = Team.find(params[:id])
-    @user = User.find_by(email: user_email)
-    if @user
-      @user.invite_to_team!(@team, current_user)
-    else
-      puts "User not found"
-      # @user = User.invite!({ email: user_email }, current_user)
-      current_user.invite_new_user_to_team!(user_email, @team, current_user)
-      puts "User created: #{@user}"
-    end
-    @team_user = @team.add_member!(@user, user_role)
-    respond_to do |format|
-      if @team_user.save
-        format.html { redirect_to team_url(@team), notice: "Sent invite to #{user_email}" }
-        format.json { render :show, status: :created, location: @team }
-      else
-        format.html { render :show, status: :unprocessable_entity }
-        format.json { render json: @team_user.errors, status: :unprocessable_entity }
-      end
-    end
-  end
-
   # POST /teams or /teams.json
   def create
     @team = Team.new

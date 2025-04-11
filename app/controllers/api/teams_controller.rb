@@ -45,9 +45,10 @@ class API::TeamsController < API::ApplicationController
     if @user
       @user.invite_to_team!(@team, current_user)
     else
-      @user = current_user.invite_new_user_to_team!(user_email, @team, current_user)
+      # @user = current_user.invite_new_user_to_team!(user_email, @team, current_user)
+      @user = User.create_from_email(user_email, nil, current_user.id)
     end
-    @user = User.find_by(email: user_email)
+    @user = User.find_by(email: user_email) unless @user && @user.persisted?
     unless @user
       return render json: { error: "User not found" }, status: :unprocessable_entity
     end
@@ -73,7 +74,6 @@ class API::TeamsController < API::ApplicationController
   # POST /teams or /teams.json
   def create
     @team = Team.new
-    puts "Params: #{params}"
     # @team.name = team_params[:name]&.upcase
     @team.name = team_params[:name]
     account_id = team_params[:account_id]

@@ -20,7 +20,7 @@ class BaseMailer < ApplicationMailer
       puts "Invitee not found: #{invitee_email}"
       raise "Invitee not found"
     end
-    team.add_member!(invitee, "member")
+    team.add_member!(invitee, "supporter")
     # if invitee.raw_invitation_token
     #   @invitation_link = accept_team_invitation_url(invitation_token: invitee.raw_invitation_token, team_id: team.id)
     # else
@@ -42,23 +42,18 @@ class BaseMailer < ApplicationMailer
   end
 
   def invite_new_user_to_team_email(email, inviter, team)
-    puts "Inviting new user to team: #{email}, #{inviter}, #{team}"
     unless email && inviter && team
       puts "Missing required parameters: email: #{email}, inviter: #{inviter}, team: #{team}"
       raise "Missing required parameters"
     end
 
-    temp_passowrd = Devise.friendly_token.first(12)
-    user = User.new(email: email, password: temp_passowrd)
-    if user.save
-      puts "User created: #{user.inspect}"
-    else
-      puts "User not created: #{user.errors.full_messages}"
+    user ||= User.find_by(email: email)
+    unless user
+      puts "User not found: #{email}"
+      raise "User not found"
     end
+    team.add_member!(user, "supporter")
 
-    # @invitation_link = url_for(controller: 'teams', action: 'accept_invite', id: team.id, email: invitee.email)
-    frontend_url = Rails.env.production? ? "https://speakanyway.com" : "http://localhost:8100"
-    @invitation_link = frontend_url + "/accept-new-invite/#{team.id}/#{temp_passowrd}"
     @invitee = user
     @inviter = inviter
     @team = team

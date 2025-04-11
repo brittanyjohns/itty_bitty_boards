@@ -7,6 +7,8 @@ class UserMailerPreview < ActionMailer::Preview
 
   def welcome_invitation_email
     @user = User.first
-    UserMailer.welcome_invitation_email(@user)
+    email = "bhannajohns+new_user@gmail.com"
+    new_user = User.invite!(email: email, skip_invitation: true)
+    UserMailer.welcome_invitation_email(new_user, @user.id)
   end
 end

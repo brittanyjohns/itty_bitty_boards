@@ -117,8 +117,6 @@ def create_seed_communicator(user, name = nil)
 end
 
 def update_profile(profile)
-  # profile.bio = FFaker::TvShows::TheOffice.quote
-  # profile.intro = FFaker::Quote::mitch_hedberg
   unless profile.avatar.attached?
     profile.set_fake_avatar
   end
@@ -127,7 +125,6 @@ end
 
 def create_word_events(words, user, board, communicator_account)
   words.each do |word|
-    puts "Creating word event for word: #{word}"
     random_days_ago = rand(0..30)
     payload = {
       word: word,
