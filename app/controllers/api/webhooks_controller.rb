@@ -60,6 +60,7 @@ class API::WebhooksController < API::ApplicationController
 
         if @user
           puts "Existing user found: #{@user}"
+          @user.send_welcome_email
         else
           stripe_customer = Stripe::Customer.retrieve(data_object.customer)
           @user = User.find_by(email: stripe_customer.email) unless @user
