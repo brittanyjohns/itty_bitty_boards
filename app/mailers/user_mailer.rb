@@ -3,7 +3,8 @@ class UserMailer < BaseMailer
     @user = user
     @user_name = @user.name
     @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
-    @login_link += "/dashboard"
+    @login_link += "/welcome/token/#{user.raw_invitation_token}"
+    @login_link += "?email=#{user.email}"
     subject = "Welcome to SpeakAnyWay AAC!"
     mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
   end
