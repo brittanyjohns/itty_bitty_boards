@@ -1123,6 +1123,7 @@ class Board < ApplicationRecord
       parent_type: parent_type,
       parent_id: parent_id,
       obf_id: obf_id,
+      image_count: board_images_count,
       image_parent_id: image_parent_id,
       parent_description: parent_type === "User" ? "User" : parent&.to_s,
       menu_description: parent_type === "Menu" ? parent&.description : nil,
