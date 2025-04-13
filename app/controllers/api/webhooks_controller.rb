@@ -81,9 +81,6 @@ class API::WebhooksController < API::ApplicationController
         else
           render json: { error: "No user found for subscription" }, status: 400 and return unless @user
         end
-
-        # invoice: data_object.invoice,
-
       when "customer.created"
         @user = User.find_by(stripe_customer_id: data_object.id)
         if @user
@@ -101,7 +98,6 @@ class API::WebhooksController < API::ApplicationController
       when "customer.subscription.deleted"
         @user = User.find_by(stripe_customer_id: data_object.customer)
         if @user
-          puts "Existing user found: #{@user}"
           @user.plan_status = "canceled"
           @user.plan_type = "free"
           @user.save!
@@ -120,13 +116,10 @@ class API::WebhooksController < API::ApplicationController
         # Payment is successful and the subscription is created.
         # You should provision the subscription and save the customer ID to your database.
       when "invoice.created"
-        puts "Invoice created\n #{data_object.customer}"
       when "invoice.paid"
         @user = User.find_by(stripe_customer_id: data_object.customer)
         @user = User.find_by(email: data_object.customer_email) unless @user
-        if @user
-          puts "Existing user found: #{@user}"
-        else
+        unless @user
           puts "No existing user found for stripe_customer_id: #{data_object.customer}"
           @user = User.create_from_email(data_object.customer_email, data_object.customer) unless @user
           unless @user
@@ -148,7 +141,6 @@ class API::WebhooksController < API::ApplicationController
           @user.update_from_stripe_event(subscription_data, plan_type_name)
           @user.stripe_customer_id = data_object.customer if data_object.customer
           @user.save!
-          puts "Saved user: #{@user} - Strripe customer ID: #{@user&.stripe_customer_id}"
         else
           puts "No existing user found for customer: #{data_object.customer}"
         end
