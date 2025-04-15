@@ -16,6 +16,7 @@
 class Profile < ApplicationRecord
   belongs_to :profileable, polymorphic: true
   has_one_attached :avatar
+  has_one_attached :intro_audio
 
   validates :username, presence: true, uniqueness: true
   validates :slug, presence: true, uniqueness: true
@@ -33,6 +34,9 @@ class Profile < ApplicationRecord
       intro: intro,
       settings: settings,
       avatar: avatar.attached? ? avatar_url : nil,
+      intro_audio: intro_audio.attached? ? intro_audio_url : nil,
+      profileable_type: profileable_type,
+      profileable_id: profileable_id,
     }
   end
 
@@ -54,7 +58,12 @@ class Profile < ApplicationRecord
       startup_url: startup_url,
       intro: intro,
       public_boards: communication_boards.map(&:api_view),
+      profileable_type: profileable_type,
+      profileable_id: profileable_id,
+      user_id: profileable_type == "User" ? profileable.id : profileable.user_id,
+      account_id: profileable_type == "User" ? nil : profileable.id,
       avatar: avatar.attached? ? avatar_url : nil,
+      settings: settings,
 
     }
   end
@@ -83,6 +92,17 @@ class Profile < ApplicationRecord
   def set_fake_avatar
     url = FFaker::Avatar.image(slug: slug, size: "300x300", format: "png")
     avatar.attach(io: URI.open(url), filename: "#{slug}.png")
+  end
+
+  def intro_audio_url
+    audio_key = intro_audio&.key
+    cdn_url = "#{ENV["CDN_HOST"]}/#{audio_key}" if audio_key
+    audio_key ? cdn_url : nil
+  end
+
+  def set_fake_intro_audio
+    url = FFaker::Audio.audio(slug: slug, format: "mp3")
+    intro_audio.attach(io: URI.open(url), filename: "#{slug}.mp3")
   end
 
   private

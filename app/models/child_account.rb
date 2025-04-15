@@ -85,7 +85,7 @@ class ChildAccount < ApplicationRecord
   end
 
   def favorite_boards
-    child_boards.where(favorite: true)
+    child_boards.where(favorite: true).includes(:board).map(&:board)
   end
 
   def self.create_for_user(user, username, password)
@@ -221,7 +221,7 @@ class ChildAccount < ApplicationRecord
       details: details,
       user_id: user_id,
       go_to_words: go_to_words,
-      go_to_boards: go_to_boards,
+      go_to_boards: go_to_boards.map { |board| { id: board.id, name: board.name, display_image_url: board.display_image_url } },
       avatar_url: profile&.avatar_url,
       supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
