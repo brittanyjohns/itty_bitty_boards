@@ -47,6 +47,10 @@ class Profile < ApplicationRecord
     random_color
   end
 
+  def public_boards
+    communication_boards.any? ? communication_boards : Board.public_boards
+  end
+
   def public_view
     {
       id: id,
@@ -57,11 +61,11 @@ class Profile < ApplicationRecord
       public_url: public_url,
       startup_url: startup_url,
       intro: intro,
-      public_boards: communication_boards.map(&:api_view),
+      public_boards: public_boards.map(&:api_view),
       profileable_type: profileable_type,
       profileable_id: profileable_id,
       user_id: profileable_type == "User" ? profileable.id : profileable.user_id,
-      account_id: profileable_type == "User" ? nil : profileable.id,
+      communicator_account_id: profileable_type == "User" ? nil : profileable.id,
       avatar: avatar.attached? ? avatar_url : nil,
       settings: settings,
 
