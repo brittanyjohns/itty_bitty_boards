@@ -276,7 +276,7 @@ class API::BoardsController < API::ApplicationController
       @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
       @board.large_screen_columns = board_params["large_screen_columns"].to_i
       @board.voice = board_params["voice"]
-      @board.name = board_params["name"]
+      @board.name = board_params["name"] unless board_params["name"].blank?
       @board.description = board_params["description"]
       @board.display_image_url = board_params["display_image_url"]
       @board.predefined = board_params["predefined"]
