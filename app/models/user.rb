@@ -321,6 +321,36 @@ class User < ApplicationRecord
     model&.user_id == id
   end
 
+  def can_edit_profile?(profile_id)
+    return false unless profile_id
+    account_profile = Profile.find_by(id: profile_id)
+    return false unless account_profile
+    return true if admin?
+    comm_account = ChildAccount.find_by(id: account_profile.profileable_id)
+    teams = comm_account.teams if comm_account
+    if teams && teams.any? { |team| team.team_users.where(user_id: id, role: "admin").exists? }
+      return true
+    end
+    false
+  end
+
+  def can_add_boards_to_account?(account_ids)
+    return false unless account_ids
+    account_id = account_ids.first
+
+    puts "\n\n****Account ID: #{account_id}****\n\n"
+    account = ChildAccount.includes(teams: :team_users).find_by(id: account_id)
+    return false unless account
+    return true if account.user_id == id
+    return true if admin?
+    account_teams = account.teams
+    return true if account.team_users.where(user_id: id, role: "admin").exists?
+    return true if account.team_users.where(user_id: id, role: "member").exists?
+    return true if account.team_users.where(user_id: id, role: "supporter").exists?
+    return false if account.team_users.where(user_id: id, role: "restricted").exists?
+    false
+  end
+
   def can_favorite?(model)
     return false unless model
     return true if admin? || !model.user_id || model.user_id == DEFAULT_ADMIN_ID

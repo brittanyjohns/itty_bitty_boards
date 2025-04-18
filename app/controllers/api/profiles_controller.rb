@@ -17,7 +17,7 @@ class API::ProfilesController < API::ApplicationController
     puts "Profile Params: #{profile_params.inspect}"
     puts "Profile: #{@profile.inspect}"
     if @profile.update(profile_params)
-      render json: @profile
+      render json: @profile.api_view(current_user)
     else
       render json: @profile.errors, status: :unprocessable_entity
     end

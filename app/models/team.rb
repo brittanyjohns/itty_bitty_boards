@@ -40,7 +40,7 @@ class Team < ApplicationRecord
   end
 
   def supporters
-    team_users.where(role: ["supporter", "member"])
+    team_users.where(role: ["supporter", "member", "restricted"]).includes(:user)
   end
 
   def add_member!(user, role = "supporter")
@@ -110,13 +110,13 @@ class Team < ApplicationRecord
     {
       id: id,
       name: name,
-      can_edit: viewing_user == created_by,
+      can_edit: viewing_user.can_add_boards_to_account?(account_ids),
       created_by_id: created_by_id,
       created_by_name: created_by&.name,
       created_by_email: created_by&.email,
       members: team_users.includes(:user).map(&:api_view),
       boards: team_boards.map { |tb| { id: tb.board_id, name: tb.board.name, board_type: tb.board.board_type, display_image_url: tb.board.display_image_url, added_by: tb.created_by&.display_name, board_owner: tb.board.user&.display_name } },
-      accounts: accounts.map(&:api_view),
+      accounts: accounts.map { |a| a.api_view(viewing_user) },
       single_account: single_account ? single_account.api_view : nil,
       created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
       updated_at: updated_at.strftime("%Y-%m-%d %H:%M:%S"),

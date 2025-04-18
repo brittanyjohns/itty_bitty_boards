@@ -23,7 +23,7 @@ class Profile < ApplicationRecord
 
   before_save :set_slug
 
-  def api_view
+  def api_view(viewer = nil)
     {
       id: id,
       username: username,
@@ -37,6 +37,7 @@ class Profile < ApplicationRecord
       intro_audio: intro_audio.attached? ? intro_audio_url : nil,
       profileable_type: profileable_type,
       profileable_id: profileable_id,
+      can_edit: viewer&.can_edit_profile?(id),
     }
   end
 

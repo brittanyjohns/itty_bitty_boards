@@ -159,7 +159,7 @@ class ChildAccount < ApplicationRecord
   end
 
   def supporters
-    team_users.includes(:user).where(role: ["supporter", "member"]).distinct.map(&:user)
+    team_users.includes(:user).where(role: ["supporter", "member", "restricted"]).distinct.map(&:user)
   end
 
   def supervisors
@@ -197,13 +197,16 @@ class ChildAccount < ApplicationRecord
   end
 
   def api_view(viewing_user = nil)
+    puts "API VIEW"
+    puts "Viewing User: #{viewing_user.inspect}"
+    puts "Child Account: #{id}"
     {
       id: id,
       username: username,
       passcode: passcode,
       last_sign_in_at: last_sign_in_at,
       sign_in_count: sign_in_count,
-      can_edit: viewing_user&.admin? || viewing_user&.id == user_id,
+      can_edit: viewing_user&.can_add_boards_to_account?([id]),
       pro: user.pro?,
       free_trial: user.free_trial?,
       admin: user.admin?,
@@ -211,7 +214,7 @@ class ChildAccount < ApplicationRecord
       name: name,
       most_used_board: { id: most_used_board&.id, name: most_used_board&.name },
       heat_map: heat_map,
-      profile: profile&.api_view,
+      profile: profile&.api_view(viewing_user),
       startup_url: startup_url,
       public_url: public_url,
       week_chart: week_chart,

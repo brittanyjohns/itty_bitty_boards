@@ -19,7 +19,7 @@ class TeamUser < ApplicationRecord
   before_create :set_defaults
 
   def set_defaults
-    self.role.blank? ? self.role = 'member' : self.role
+    self.role.blank? ? self.role = "member" : self.role
   end
 
   def email
@@ -36,7 +36,7 @@ class TeamUser < ApplicationRecord
   end
 
   def self.roles
-    { 'admin' => 'Admin', 'member' => 'Member'}
+    { "admin" => "Admin", "member" => "Member" }
   end
 
   def api_view
@@ -45,8 +45,11 @@ class TeamUser < ApplicationRecord
       email: email,
       name: name,
       role: role,
-      can_edit: can_edit,
+      can_edit: user.can_add_boards_to_account?(team.account_ids),
       invitation_accepted_at: invitation_accepted_at,
+      user_id: user_id,
+      team_id: team_id,
+      created_at: created_at,
     }
   end
 end
