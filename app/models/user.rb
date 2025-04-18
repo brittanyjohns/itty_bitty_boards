@@ -338,7 +338,6 @@ class User < ApplicationRecord
     return false unless account_ids
     account_id = account_ids.first
 
-    puts "\n\n****Account ID: #{account_id}****\n\n"
     account = ChildAccount.includes(teams: :team_users).find_by(id: account_id)
     return false unless account
     return true if account.user_id == id

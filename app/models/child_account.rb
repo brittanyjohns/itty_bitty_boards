@@ -197,9 +197,6 @@ class ChildAccount < ApplicationRecord
   end
 
   def api_view(viewing_user = nil)
-    puts "API VIEW"
-    puts "Viewing User: #{viewing_user.inspect}"
-    puts "Child Account: #{id}"
     {
       id: id,
       username: username,
