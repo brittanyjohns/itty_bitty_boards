@@ -514,7 +514,7 @@ class User < ApplicationRecord
   end
 
   def teams_with_read_access
-    team_users.where(role: "member").map(&:team)
+    team_users.map(&:team)
   end
 
   def accounts_with_read_access

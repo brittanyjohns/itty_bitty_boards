@@ -288,7 +288,6 @@ class API::BoardsController < API::ApplicationController
       settings = params[:settings] || board_params[:settings] || {}
       settings["board_type"] = board_type
       matching_image = @board.matching_image
-      Rails.logger.debug "Board type: #{board_type}"
       if board_type == "dynamic"
         predefined_resource = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board")
         @board.parent_id = predefined_resource.id

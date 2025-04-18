@@ -60,7 +60,12 @@ class API::WebhooksController < API::ApplicationController
 
         if @user
           puts "Existing user found: #{@user}"
-          @user.send_welcome_email
+          if @user.invited_by_id
+            puts "User was invited by another user - not sending welcome email"
+          else
+            puts "User was not invited by another user - sending welcome email"
+            @user.send_welcome_email
+          end
         else
           stripe_customer = Stripe::Customer.retrieve(data_object.customer)
           @user = User.find_by(email: stripe_customer.email) unless @user
@@ -89,11 +94,23 @@ class API::WebhooksController < API::ApplicationController
           puts "No existing user found for stripe_customer_id - Creating one: #{data_object.id}"
 
           @user = User.find_by(email: data_object.email) unless @user
-          if @user && data_object.id
+          if @user && data_object.id && @user.stripe_customer_id != data_object.id
+            puts "Updating existing user with new stripe_customer_id: #{data_object.id}"
+            @user.stripe_customer_id = data_object.id
+            @user.save!
+            @user = User.create_from_email(data_object.email, data_object.id) unless @user
+          elsif @user && data_object.id && @user.stripe_customer_id == data_object.id
+            puts "User already exists with stripe_customer_id: #{data_object.id}"
+            render json: { success: true }, status: 304 and return
+          else
+            puts "Creating new user with stripe_customer_id: #{data_object.id}"
+            @user = User.create_from_email(data_object.email, data_object.id) unless @user
+            unless @user
+              render json: { error: "No user found for subscription" }, status: 400 and return
+            end
             @user.stripe_customer_id = data_object.id
             @user.save!
           end
-          @user = User.create_from_email(data_object.email, data_object.id) unless @user
         end
       when "customer.subscription.deleted"
         @user = User.find_by(stripe_customer_id: data_object.customer)
