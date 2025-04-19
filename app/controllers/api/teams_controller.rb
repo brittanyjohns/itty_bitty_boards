@@ -1,10 +1,11 @@
 class API::TeamsController < API::ApplicationController
   before_action :set_team, only: %i[ show edit update destroy remove_board invite ]
-  after_action :verify_policy_scoped, only: :index
+  # after_action :verify_policy_scoped, only: :index
 
   # GET /teams or /teams.json
   def index
-    @teams = policy_scope(Team)
+    # @teams = policy_scope(Team)
+    @teams = current_user.teams.where.not(created_by: current_user).includes(:team_users)
     render json: @teams.map { |team| team.index_api_view(current_user) }
   end
 
