@@ -110,7 +110,8 @@ class Team < ApplicationRecord
     {
       id: id,
       name: name,
-      can_edit: viewing_user.can_add_boards_to_account?(account_ids),
+      can_edit: viewing_user&.can_add_boards_to_account?(account_ids),
+      can_invite: viewing_user && viewing_user.id == created_by_id,
       created_by_id: created_by_id,
       created_by_name: created_by&.name,
       created_by_email: created_by&.email,
