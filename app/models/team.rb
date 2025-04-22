@@ -25,14 +25,6 @@ class Team < ApplicationRecord
     account_boards.where.not(id: team_boards.pluck(:board_id))
   end
 
-  def single_account
-    if !created_by&.premium?
-      accounts.includes(:child_boards).first
-    else
-      nil
-    end
-  end
-
   def self.cleanup_ophaned
     self.includes(:team_accounts).each do |team|
       team.destroy if team.team_accounts.empty?
@@ -93,7 +85,6 @@ class Team < ApplicationRecord
     {
       id: id,
       name: name,
-      current: id == viewing_user&.current_team_id,
       created_by_id: created_by_id,
       created_by_name: created_by&.name,
       created_by_email: created_by&.email,
@@ -101,6 +92,8 @@ class Team < ApplicationRecord
         { id: tu.id, name: tu.user.name, email: tu.user.email,
           role: tu.role, plan_type: tu.user.plan_type }
       },
+      accounts: accounts.includes(:user).map { |a| { id: a.id, name: a.name, created_by_id: a.user_id, created_by_name: a.user&.name, created_by_email: a.user&.email, avatar_url: a.avatar_url } },
+
       created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
       updated_at: updated_at.strftime("%Y-%m-%d %H:%M:%S"),
     }
@@ -112,13 +105,14 @@ class Team < ApplicationRecord
       name: name,
       can_edit: viewing_user&.can_add_boards_to_account?(account_ids),
       can_invite: viewing_user && viewing_user.id == created_by_id,
+      is_owner: viewing_user && viewing_user.id == created_by_id,
       created_by_id: created_by_id,
       created_by_name: created_by&.name,
       created_by_email: created_by&.email,
+      accounts: accounts.includes(:user).map { |a| { id: a.id, name: a.name, created_by_id: a.user_id, created_by_name: a.user&.name, created_by_email: a.user&.email } },
+
       members: team_users.includes(:user).map(&:api_view),
-      boards: team_boards.map { |tb| { id: tb.board_id, name: tb.board.name, board_type: tb.board.board_type, display_image_url: tb.board.display_image_url, added_by: tb.created_by&.display_name, board_owner: tb.board.user&.display_name } },
-      accounts: accounts.map { |a| a.api_view(viewing_user) },
-      single_account: single_account ? single_account.api_view : nil,
+      boards: team_boards.includes(board: :user).map { |tb| { id: tb.board_id, name: tb.board.name, board_type: tb.board.board_type, display_image_url: tb.board.display_image_url, added_by_id: tb.created_by_id, board_owner_name: tb.board.user&.display_name, board_owner_id: tb.board.user_id } },
       created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
       updated_at: updated_at.strftime("%Y-%m-%d %H:%M:%S"),
     }

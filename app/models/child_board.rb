@@ -67,6 +67,9 @@ class ChildBoard < ApplicationRecord
       published: published,
       favorite: favorite,
       added_by: created_by&.email,
+      added_by_id: created_by&.id,
+      board_owner_id: board.user_id,
+      board_owner_name: board.user&.display_name,
     }
   end
 

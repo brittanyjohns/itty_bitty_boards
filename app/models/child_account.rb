@@ -72,6 +72,14 @@ class ChildAccount < ApplicationRecord
     user.user_docs
   end
 
+  def avatar_url
+    if profile
+      profile.avatar_url
+    else
+      ""
+    end
+  end
+
   def reset_password(new_password, new_password_confirmation)
     if new_password == new_password_confirmation
       update!(password: new_password, password_confirmation: new_password_confirmation)
@@ -225,11 +233,11 @@ class ChildAccount < ApplicationRecord
       avatar_url: profile&.avatar_url,
       supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
-      boards: child_boards.map { |cb| { id: cb.id, name: cb.board.name, board_type: cb.board.board_type, board_id: cb.board_id, display_image_url: cb.board.display_image_url, favorite: cb.favorite, published: cb.published, added_by: cb.created_by&.display_name, board_owner: cb.board.user&.display_name, most_used: cb.board_id == most_used_board&.id, can_edit: viewing_user&.id == user_id } },
+      boards: child_boards.map { |cb| { id: cb.id, name: cb.board.name, board_type: cb.board.board_type, board_id: cb.board_id, display_image_url: cb.board.display_image_url, favorite: cb.favorite, published: cb.published, added_by: cb.created_by&.display_name, added_by_id: cb.created_by&.id, board_owner_id: cb.board.user_id, board_owner_name: cb.board.user&.display_name, most_used: cb.board_id == most_used_board&.id, can_edit: viewing_user&.id == user_id } },
       can_sign_in: can_sign_in?,
       available_boards: available_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type, word_sample: b.word_sample } },
       # teams_boards: available_teams_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type } },
-      teams_boards: available_teams_boards.map { |tb| { id: tb.board_id, name: tb.board.name, board_type: tb.board.board_type, display_image_url: tb.board.display_image_url, added_by: tb.created_by&.display_name, word_sample: tb.board.word_sample } },
+      teams_boards: available_teams_boards.map { |tb| { id: tb.board_id, name: tb.board.name, board_type: tb.board.board_type, display_image_url: tb.board.display_image_url, added_by: tb.created_by&.display_name, added_by_id: tb.created_by&.id, word_sample: tb.board.word_sample } },
     }
   end
 
