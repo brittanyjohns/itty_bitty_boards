@@ -212,6 +212,7 @@ class ChildAccount < ApplicationRecord
       last_sign_in_at: last_sign_in_at,
       sign_in_count: sign_in_count,
       can_edit: viewing_user&.can_add_boards_to_account?([id]),
+      is_owner: viewing_user&.id == user_id,
       pro: user.pro?,
       free_trial: user.free_trial?,
       admin: user.admin?,
