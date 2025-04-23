@@ -543,7 +543,8 @@ class User < ApplicationRecord
   end
 
   def teams_with_read_access
-    team_users.where(role: ["supporter", "member"]).includes(:team).map(&:team).uniq
+    teams = Team.where(id: team_users.select(:team_id)).where.not(created_by_id: id)
+    # team_users.where(role: ["supporter", "member"]).includes(:team).map(&:team).uniq
   end
 
   def accounts_with_read_access

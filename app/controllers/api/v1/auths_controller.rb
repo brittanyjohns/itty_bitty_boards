@@ -76,7 +76,15 @@ module API
           return
         end
         user = User.accept_invitation!(invitation_token: params[:invitation_token], password: params[:password], password_confirmation: params[:password_confirmation])
-
+        name = params[:name] unless params[:name].blank?
+        role = params[:role] unless params[:role].blank?
+        if user && user.errors.empty?
+          user.update(name: name) unless name.blank?
+          team_user = TeamUser.find_by(user_id: user.id)
+          if team_user
+            team_user.update(role: role) unless role.blank?
+          end
+        end
         if user
           render json: { message: "Password set. Please sign in.", user: user, token: user.authentication_token }
         else
