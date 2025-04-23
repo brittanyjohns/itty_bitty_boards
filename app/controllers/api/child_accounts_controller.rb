@@ -61,6 +61,11 @@ class API::ChildAccountsController < API::ApplicationController
   # PATCH/PUT /child_accounts/1
   # PATCH/PUT /child_accounts/1.json
   def update
+    name = params[:name]
+    username = params[:username]
+    @child_account.username = username unless username.blank?
+    @child_account.name = name unless name.blank?
+
     if params[:password] && params[:password_confirmation]
       if params[:password] != params[:password_confirmation]
         render json: { error: "Passwords do not match" }, status: :unprocessable_entity
