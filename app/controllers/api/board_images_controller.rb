@@ -97,7 +97,6 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   def remove_multiple
-    puts "Removing multiple board images: #{params.inspect}"
     board_image_ids = params[:board_image_ids]
     @board = Board.find(params[:board_id])
     if @board.nil?

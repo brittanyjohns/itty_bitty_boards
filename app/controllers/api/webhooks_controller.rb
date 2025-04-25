@@ -138,7 +138,12 @@ class API::WebhooksController < API::ApplicationController
         @user = User.find_by(email: data_object.customer_email) unless @user
         unless @user
           puts "No existing user found for stripe_customer_id: #{data_object.customer}"
-          @user = User.create_from_email(data_object.customer_email, data_object.customer) unless @user
+          begin
+            @user = User.create_from_email(data_object.customer_email, data_object.customer) unless @user
+          rescue ActiveRecord::RecordInvalid => e
+            Rails.logger.error "invoice.paid -> Error creating user from email: #{e.inspect}"
+            render json: { error: "Error creating user from email." }, status: 400 and return
+          end
           unless @user
             render json: { error: "No user found for subscription" }, status: 400 and return
           end
