@@ -5,9 +5,9 @@ class API::MenusController < API::ApplicationController
   def index
     @current_user = current_user
     @menus = @current_user.menus.user_defined.order(created_at: :desc).page params[:page]
-    # if @current_user.admin?
-    #   @menus = Menu.user_defined.order(created_at: :desc).page params[:page]
-    # end
+    if @current_user.admin?
+      @menus = Menu.all.order(created_at: :desc).page params[:page]
+    end
     @menus_with_display_docs = @menus.map do |menu|
       {
         id: menu.id,
