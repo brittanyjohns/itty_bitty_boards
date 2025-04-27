@@ -1,4 +1,10 @@
 FactoryBot.define do
+  factory :organization do
+    name { "MyString" }
+    slug { "MyString" }
+    admin_user_id { 1 }
+  end
+
   factory :contest_entry do
     name { "MyString" }
     email { "MyString" }

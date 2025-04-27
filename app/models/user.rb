@@ -41,6 +41,7 @@
 #  uuid                   :uuid
 #  child_lookup_key       :string
 #  locked                 :boolean          default(FALSE)
+#  organization_id        :bigint
 #
 
 class User < ApplicationRecord
@@ -52,6 +53,7 @@ class User < ApplicationRecord
          :jwt_authenticatable, jwt_revocation_strategy: self
 
   # Associations
+  belongs_to :organization, optional: true
   has_many :boards, dependent: :destroy
   has_many :board_images, through: :boards
   has_many :board_groups, dependent: :destroy

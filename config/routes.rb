@@ -357,6 +357,7 @@ Rails.application.routes.draw do
       end
     end
     namespace :admin do
+      resources :organizations
       resources :events do
         get "download_entries", on: :member
         post "pick_winner", on: :member

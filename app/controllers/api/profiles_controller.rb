@@ -13,9 +13,6 @@ class API::ProfilesController < API::ApplicationController
 
   def update
     @profile = Profile.find(params[:id])
-    puts "Settings: #{params[:profile][:settings]}"
-    puts "Profile Params: #{profile_params.inspect}"
-    puts "Profile: #{@profile.inspect}"
     if @profile.update(profile_params)
       render json: @profile.api_view(current_user)
     else

@@ -9,6 +9,7 @@
 #  event_id   :bigint           not null
 #  created_at :datetime         not null
 #  updated_at :datetime         not null
+#  winner     :boolean          default(FALSE)
 #
 require "csv"
 

@@ -41,6 +41,7 @@
 #  uuid                   :uuid
 #  child_lookup_key       :string
 #  locked                 :boolean          default(FALSE)
+#  organization_id        :bigint
 #
 require "rails_helper"
 

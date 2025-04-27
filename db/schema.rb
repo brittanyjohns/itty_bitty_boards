@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_04_13_143203) do
+ActiveRecord::Schema[7.1].define(version: 2025_04_27_122732) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -391,6 +391,18 @@ ActiveRecord::Schema[7.1].define(version: 2025_04_13_143203) do
     t.index ["user_id"], name: "index_orders_on_user_id"
   end
 
+  create_table "organizations", force: :cascade do |t|
+    t.string "name"
+    t.string "slug"
+    t.bigint "admin_user_id", null: false
+    t.jsonb "settings", default: {}
+    t.string "stripe_customer_id"
+    t.string "plan_type"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["admin_user_id"], name: "index_organizations_on_admin_user_id"
+  end
+
   create_table "pay_charges", force: :cascade do |t|
     t.bigint "customer_id", null: false
     t.bigint "subscription_id"
@@ -624,6 +636,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_04_13_143203) do
     t.integer "created_by_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "organization_id"
   end
 
   create_table "user_docs", force: :cascade do |t|
@@ -675,6 +688,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_04_13_143203) do
     t.uuid "uuid", default: -> { "gen_random_uuid()" }
     t.string "child_lookup_key"
     t.boolean "locked", default: false
+    t.bigint "organization_id"
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
     t.index ["child_lookup_key"], name: "index_users_on_child_lookup_key", unique: true
     t.index ["current_team_id"], name: "index_users_on_current_team_id"
@@ -720,6 +734,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_04_13_143203) do
   add_foreign_key "order_items", "orders"
   add_foreign_key "order_items", "products"
   add_foreign_key "orders", "users"
+  add_foreign_key "organizations", "users", column: "admin_user_id"
   add_foreign_key "pay_charges", "pay_customers", column: "customer_id"
   add_foreign_key "pay_charges", "pay_subscriptions", column: "subscription_id"
   add_foreign_key "pay_payment_methods", "pay_customers", column: "customer_id"
@@ -734,7 +749,9 @@ ActiveRecord::Schema[7.1].define(version: 2025_04_13_143203) do
   add_foreign_key "team_boards", "users", column: "created_by_id"
   add_foreign_key "team_users", "teams"
   add_foreign_key "team_users", "users"
+  add_foreign_key "teams", "organizations"
   add_foreign_key "user_docs", "docs"
   add_foreign_key "user_docs", "users"
+  add_foreign_key "users", "organizations"
   add_foreign_key "word_events", "users"
 end

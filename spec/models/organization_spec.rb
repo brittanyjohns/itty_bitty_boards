@@ -1,18 +1,19 @@
 # == Schema Information
 #
-# Table name: events
+# Table name: organizations
 #
 #  id                 :bigint           not null, primary key
 #  name               :string
 #  slug               :string
-#  date               :string
+#  admin_user_id      :bigint           not null
+#  settings           :jsonb
+#  stripe_customer_id :string
+#  plan_type          :string
 #  created_at         :datetime         not null
 #  updated_at         :datetime         not null
-#  promo_code         :string
-#  promo_code_details :string
 #
 require 'rails_helper'
 
-RSpec.describe Event, type: :model do
+RSpec.describe Organization, type: :model do
   pending "add some examples to (or delete) #{__FILE__}"
 end

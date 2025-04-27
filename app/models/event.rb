@@ -2,13 +2,14 @@
 #
 # Table name: events
 #
-#  id         :bigint           not null, primary key
-#  name       :string
-#  slug       :string
-#  date       :string
-#  created_at :datetime         not null
-#  updated_at :datetime         not null
-#  promo_code :string
+#  id                 :bigint           not null, primary key
+#  name               :string
+#  slug               :string
+#  date               :string
+#  created_at         :datetime         not null
+#  updated_at         :datetime         not null
+#  promo_code         :string
+#  promo_code_details :string
 #
 class Event < ApplicationRecord
   has_many :contest_entries, dependent: :destroy
