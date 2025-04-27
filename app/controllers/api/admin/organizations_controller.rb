@@ -27,6 +27,35 @@ class API::Admin::OrganizationsController < API::Admin::ApplicationController
     end
   end
 
+  def assign_user
+    @organization = Organization.find(params[:id])
+    @user = User.find(params[:user_id])
+    if @organization.users << @user
+      render json: @organization.api_view(current_admin)
+    else
+      render json: { error: "Failed to assign user" }, status: :unprocessable_entity
+    end
+  end
+
+  def remove_user
+    @organization = Organization.find(params[:id])
+    @user = User.find(params[:user_id])
+    if @organization.users.delete(@user)
+      render json: @organization.api_view(current_admin)
+    else
+      render json: { error: "Failed to remove user" }, status: :unprocessable_entity
+    end
+  end
+
+  def destroy
+    @organization = Organization.find(params[:id])
+    if @organization.destroy
+      render json: { message: "Organization deleted successfully" }, status: :ok
+    else
+      render json: { error: "Failed to delete organization" }, status: :unprocessable_entity
+    end
+  end
+
   private
 
   def organization_params
