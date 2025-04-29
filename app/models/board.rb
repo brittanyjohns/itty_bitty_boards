@@ -58,6 +58,7 @@ class Board < ApplicationRecord
   has_one_attached :preset_display_image
   has_many :child_boards, dependent: :destroy
   belongs_to :image_parent, class_name: "Image", optional: true
+  has_many :word_events
 
   attr_accessor :skip_create_voice_audio
 
@@ -121,6 +122,14 @@ class Board < ApplicationRecord
   before_create :set_screen_sizes, :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
   after_initialize :set_initial_layout, if: :layout_empty?
+
+  def self.recently_used(viewing_user)
+    if viewing_user.is_a?(User)
+      Board.joins(:word_events).where(user_id: viewing_user.id).order("word_events.created_at DESC").limit(10)
+    else
+      boards = Board.with_artifacts.where(user_id: User::DEFAULT_ADMIN_ID).order("updated_at DESC").limit(10)
+    end
+  end
 
   def self.dynamic
     where(board_type: ["dynamic", "predictive"]).distinct
@@ -1088,6 +1097,11 @@ class Board < ApplicationRecord
     save
   end
 
+  def is_frozen?
+    return false unless settings
+    settings["freeze_board"] == true
+  end
+
   def api_view_with_predictive_images(viewing_user = nil, communicator_account = nil, show_hidden = false)
     @viewer_settings = viewing_user&.settings || {}
     is_a_user = viewing_user.class == "User"
@@ -1184,9 +1198,8 @@ class Board < ApplicationRecord
         is_category = @predictive_board && @predictive_board.board_type == "category"
         freeze_board = @predictive_board_settings["freeze_board"] == true
         is_first_image = @board_image.position == 0
-        freeze_parent_board = @board_settings["freeze_board"] == true && is_first_image
+        freeze_parent_board = @board_settings["freeze_board"] == true
         @board_image.data ||= {}
-        override_frozen = @board_image.data["override_frozen"] == true
         mute_name = @board_image.data["mute_name"] == true
         {
           id: image.id,
@@ -1205,7 +1218,7 @@ class Board < ApplicationRecord
           freeze_board: freeze_board,
           freeze_parent_board: freeze_parent_board,
           is_first_image: is_first_image,
-          override_frozen: override_frozen,
+          override_frozen: @board_image.override_frozen,
           position: @board_image.position,
           dynamic: is_dynamic,
           is_predictive: is_predictive,

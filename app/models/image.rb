@@ -1304,6 +1304,7 @@ class Image < ApplicationRecord
     is_owner = @current_user && user_id == @current_user&.id
     @category_boards = @board_image&.category_boards(@current_user) || @matching_boards || []
     is_category = @category_boards.any?
+    @board_settings = @board&.settings || {}
 
     {
       id: id,
@@ -1325,6 +1326,7 @@ class Image < ApplicationRecord
       status: status,
       error: error,
       text_color: text_color,
+      freeze_parent_board: @board_settings["freeze_parent_board"],
       predictive_board_id: @board_image&.predictive_board_id,
       board_images: @board_images.map { |board_image| board_image.index_view(@current_user) },
       dynamic: img_is_dynamic,

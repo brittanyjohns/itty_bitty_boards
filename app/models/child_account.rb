@@ -204,6 +204,11 @@ class ChildAccount < ApplicationRecord
     settings["go_to_words"] || Board.common_words
   end
 
+  def recently_used_boards
+    # word_events.includes(:board).where("created_at >= ?", 1.week.ago).order("created_at DESC").map(&:board).uniq
+    child_boards.includes(board: :word_events).where("word_events.created_at >= ?", 1.week.ago).order("word_events.created_at DESC").uniq
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,
@@ -219,6 +224,7 @@ class ChildAccount < ApplicationRecord
       parent_name: user.display_name,
       name: name,
       most_used_board: { id: most_used_board&.id, name: most_used_board&.name },
+      recently_used_boards: recently_used_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type, board_id: b.board_id } },
       heat_map: heat_map,
       profile: profile&.api_view(viewing_user),
       startup_url: startup_url,

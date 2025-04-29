@@ -54,6 +54,10 @@ class ChildBoard < ApplicationRecord
     update(favorite: !favorite)
   end
 
+  def board_type
+    board.board_type
+  end
+
   def api_view
     {
       id: id,

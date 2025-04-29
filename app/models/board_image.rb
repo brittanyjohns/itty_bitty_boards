@@ -287,6 +287,13 @@ class BoardImage < ApplicationRecord
     }
   end
 
+  def override_frozen
+    return unless board.is_frozen?
+    # override_frozen = @board_image.data["override_frozen"] == true
+    data = self.data || {}
+    data["override_frozen"] == true
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,
@@ -308,6 +315,8 @@ class BoardImage < ApplicationRecord
       text_color: text_color,
       font_size: font_size,
       border_color: border_color,
+      frozen_board: board.is_frozen?,
+
       layout: layout,
       status: status,
       audio_url: audio_url,

@@ -136,6 +136,12 @@ class User < ApplicationRecord
     user
   end
 
+  def recently_used_boards
+    recent_word_events = word_events.where("created_at >= ?", 1.week.ago)
+    board_ids = recent_word_events.pluck(:board_id).uniq
+    boards.where(id: board_ids).limit(10)
+  end
+
   def update_from_stripe_event(data_object, plan_nickname)
     plan_nickname = plan_nickname || "free"
     if data_object["customer"]
