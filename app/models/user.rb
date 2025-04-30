@@ -512,10 +512,19 @@ class User < ApplicationRecord
     BoardGroup.startup
   end
 
+  include ActionView::Helpers::DateHelper
+
   def admin_index_view
     view = as_json
     view["board_count"] = boards.count
     view["stripe_customer_id"] = stripe_customer_id
+    view["trial_days_left"] = trial_days_left
+    view["last_sign_in_at"] = time_ago_in_words(last_sign_in_at) if last_sign_in_at
+    view["last_sign_in_ip"] = last_sign_in_ip
+    view["current_sign_in_at"] = current_sign_in_at
+    view["current_sign_in_ip"] = current_sign_in_ip
+    view["sign_in_count"] = sign_in_count
+
     view
   end
 

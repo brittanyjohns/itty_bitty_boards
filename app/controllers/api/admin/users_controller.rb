@@ -15,6 +15,8 @@ class API::Admin::UsersController < API::Admin::ApplicationController
       @users = @users.order(sort_field => sort_order.to_sym)
     end
 
+    puts "USERS: #{@users.map(&:last_sign_in_at)}"
+
     render json: @users.map(&:admin_index_view)
   end
 
