@@ -551,8 +551,8 @@ class API::BoardsController < API::ApplicationController
   # # DELETE /boards/1 or /boards/1.json
   def destroy
     if @board.board_type == "predictive"
-      Image.where(predictive_board_id: @board.id).all.each do |image|
-        image.update!(predictive_board_id: nil)
+      BoardImage.where(predictive_board_id: @board.id).all.each do |board_image|
+        board_image.update(predictive_board_id: nil)
       end
     end
     @board.destroy!
