@@ -21,13 +21,13 @@ module API::WebhooksHelper
     end
 
     if plan_name.include?("basic")
-      comm_account_limit = comm_account_limit&.to_i || 1
+      comm_account_limit = 1
     elsif plan_name.include?("pro")
-      comm_account_limit = comm_account_limit&.to_i || 3
+      comm_account_limit = 3
     elsif plan_name.include?("plus")
-      comm_account_limit = comm_account_limit&.to_i || 5
+      comm_account_limit = 5
     elsif plan_name.include?("premium")
-      comm_account_limit = comm_account_limit&.to_i || 10
+      comm_account_limit = 10
     else
       comm_account_limit = 0
     end

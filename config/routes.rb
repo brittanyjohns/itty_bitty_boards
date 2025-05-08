@@ -130,23 +130,13 @@ Rails.application.routes.draw do
   get "main/faq", as: :faq
   get "boards", to: "boards#index", as: :user_root
 
-  get "charges/new"
-  get "checkouts/payment", as: :payment
-  get "carts/show"
-  get "billing/show", to: "billing#show", as: :billing
-  get "success", to: "checkouts#success", as: :success
-  get "cancel", to: "checkouts#cancel", as: :cancel
-  resources :order_items
-  resources :products
-  resources :checkouts, only: [:new, :create, :show]
-  resources :orders, only: [:index, :show]
-
   #  API routes
   namespace :api, defaults: { format: :json } do
     post "google_images", to: "google_search_results#image_search"
 
     get "word_events", to: "audits#word_events", as: :word_events
     post "webhooks", to: "webhooks#webhooks"
+    post "checkout", to: "checkouts#create"
     resources :subscriptions do
       collection do
         post "billing_portal"

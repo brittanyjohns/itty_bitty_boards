@@ -3,7 +3,7 @@ class API::SubscriptionsController < API::ApplicationController
   PRO_PLAN_PRICE_ID = ENV["PRO_PLAN_PRICE_ID"]
 
   def index
-    @subscriptions = current_user.subscriptions.distinct
+    @subscriptions = Stripe::Subscription.list({ customer: current_user.stripe_customer_id })
     render json: { subscriptions: @subscriptions }, status: 200
   end
 

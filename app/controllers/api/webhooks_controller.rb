@@ -48,6 +48,7 @@ class API::WebhooksController < API::ApplicationController
         }
 
         subscription_data[:plan] = data_object.plan
+        subscription_data[:interval] = data_object.plan.interval
         subscription_data[:product] = data_object.plan&.product
         subscription_data[:plan_type] = data_object.plan&.nickname
         subscription_data[:status] = data_object.status
@@ -56,7 +57,10 @@ class API::WebhooksController < API::ApplicationController
         subscription_data[:current_period_start] = data_object.current_period_start
         subscription_data[:cancel_at_period_end] = data_object.cancel_at_period_end
         subscription_data[:cancel_at] = data_object.cancel_at
+
         @user = User.find_by(stripe_customer_id: data_object.customer)
+
+        pp data_object
 
         if @user
           puts "Existing user found: #{@user}"
@@ -64,7 +68,7 @@ class API::WebhooksController < API::ApplicationController
             puts "User was invited by another user - not sending welcome email"
           else
             puts "User was not invited by another user - sending welcome email"
-            @user.send_welcome_email
+            @user.send_welcome_email if @user.should_send_welcome_email?
           end
         else
           stripe_customer = Stripe::Customer.retrieve(data_object.customer)
@@ -78,7 +82,8 @@ class API::WebhooksController < API::ApplicationController
           @user = User.create_from_email(stripe_customer.email, stripe_customer_id) unless @user
         end
         subscription_json = subscription_data.to_json
-        plan_nickname = data_object.plan.nickname
+        sub_items = data_object&.items&.data
+        plan_nickname = data_object&.plan&.nickname || data_object&.items&.data&.first&.plan&.nickname
         @user.update_from_stripe_event(subscription_data, plan_nickname) if @user
         # CreateSubscriptionJob.perform_async(subscription_json, @user.id) if @user
         if @user
@@ -149,7 +154,7 @@ class API::WebhooksController < API::ApplicationController
           end
         end
         stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
-        plan_type_name = stripe_subscription.plan.nickname
+        plan_type_name = stripe_subscription&.plan&.nickname || stripe_subscription&.items&.data&.first&.plan&.nickname
 
         hosted_invoice_url = data_object.hosted_invoice_url
         if @user

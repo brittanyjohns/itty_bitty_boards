@@ -118,10 +118,8 @@ class User < ApplicationRecord
       if inviting_user_id
         user.invited_by_id = inviting_user_id if inviting_user_id
         user.invited_by_type = "User"
-        puts "Sending welcome invitation email to #{email}"
         user.send_welcome_invitation_email(inviting_user_id) if inviting_user_id
       else
-        puts "Sending welcome email to #{email}"
         user.send_welcome_email
       end
       if stripe_customer_id.nil?
@@ -147,13 +145,21 @@ class User < ApplicationRecord
     if data_object["customer"]
       self.stripe_customer_id = data_object["customer"]
     end
-    self.plan_type = API::WebhooksHelper.get_plan_type(plan_nickname)
-    comm_account_limit = API::WebhooksHelper.get_communicator_limit(plan_nickname)
     self.settings ||= {}
-    Rails.logger.info "Updating user settings => comm_account_limit: #{comm_account_limit}, plan_nickname: #{plan_nickname}, plan_type: #{plan_type}"
-    self.settings["communicator_limit"] = comm_account_limit
-    self.settings["plan_nickname"] = plan_nickname
-    self.settings["board_limit"] = API::WebhooksHelper.get_board_limit(plan_nickname)
+
+    if new_user?
+      self.plan_type = API::WebhooksHelper.get_plan_type(plan_nickname)
+      comm_account_limit = API::WebhooksHelper.get_communicator_limit(plan_nickname)
+
+      self.settings["communicator_limit"] = comm_account_limit if comm_account_limit && !self.settings["communicator_limit"]
+      self.settings["plan_nickname"] = plan_nickname
+      extra_communicators = settings["extra_communicators"] || 0
+      self.settings["extra_communicators"] = extra_communicators
+      total_communicators = comm_account_limit + extra_communicators
+      self.settings["total_communicators"] = total_communicators
+      board_limit = total_communicators * 25
+      self.settings["board_limit"] = board_limit
+    end
     if data_object["cancel_at_period_end"]
       Rails.logger.info "Canceling at period end"
       self.plan_status = "pending cancelation"
@@ -169,6 +175,19 @@ class User < ApplicationRecord
     expires_at = data_object["current_period_end"] || data_object["expires_at"]
     self.plan_expires_at = Time.at(expires_at) if expires_at
     self.save!
+  end
+
+  def get_stripe_subscriptions
+    begin
+      subscriptions = Stripe::Subscription.list({ customer: stripe_customer_id })
+      subscriptions.each do |subscription|
+        puts "Subscription ID: #{subscription.inspect}"
+        puts "-----------------------------"
+      end
+    rescue Stripe::StripeError => e
+      puts "Error retrieving subscriptions: #{e.message}"
+    end
+    subscriptions
   end
 
   def clear_custom_default_board
@@ -486,6 +505,19 @@ class User < ApplicationRecord
     display_name
   end
 
+  def should_send_welcome_email?
+    return false if admin?
+    # if updated today don't send email
+    return false if created_at > 1.day.ago
+    true
+  end
+
+  def new_user?
+    return false if admin?
+    return false if created_at < 1.hour.ago
+    true
+  end
+
   TRAIL_PERIOD = 8.days
 
   def free_trial?
@@ -581,6 +613,8 @@ class User < ApplicationRecord
   end
 
   def api_view
+    accounts_included = settings["communicator_limit"] || 0
+    extra_communicators = settings["extra_communicators"] || 0
     view = self.as_json
     view["plan_expires_at"] = plan_expires_at.strftime("%x") if plan_expires_at
     view["admin"] = admin?
@@ -590,7 +624,9 @@ class User < ApplicationRecord
     view["plus"] = plus?
     view["teams_with_read_access"] = teams_with_read_access.map(&:index_api_view)
     view["communicator_accounts"] = communicator_accounts
-    view["comm_account_limit"] = settings["communicator_limit"] || 0
+    view["accounts_included"] = accounts_included
+    view["extra_communicators"] = extra_communicators
+    view["comm_account_limit"] = accounts_included + extra_communicators
     view["supervisor_limit"] = settings["supervisor_limit"] || 0
     view["board_limit"] = settings["board_limit"] || 0
     view["go_to_words"] = settings["go_to_words"] || Board.common_words
