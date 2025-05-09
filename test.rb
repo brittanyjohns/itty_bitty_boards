@@ -19,7 +19,6 @@ def from_obf(path)
       image = Image.find_or_create_by(label: label)
     end
 
-    puts "Item: #{item}"
     if item["path"]
       opts[type] ||= {}
       opts[type][item["path"]] ||= item

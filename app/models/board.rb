@@ -1145,6 +1145,8 @@ class Board < ApplicationRecord
       menu_description: parent_type === "Menu" ? parent&.description : nil,
       parent_prompt: parent_type === "OpenaiPrompt" ? parent.prompt_text : nil,
       predefined: predefined,
+      favorite: favorite,
+      published: published,
       number_of_columns: number_of_columns,
       small_screen_columns: small_screen_columns,
       medium_screen_columns: medium_screen_columns,

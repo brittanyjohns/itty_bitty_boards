@@ -132,6 +132,7 @@ Rails.application.routes.draw do
 
   #  API routes
   namespace :api, defaults: { format: :json } do
+    get "public_boards", to: "boards#public_boards"
     post "google_images", to: "google_search_results#image_search"
 
     get "word_events", to: "audits#word_events", as: :word_events

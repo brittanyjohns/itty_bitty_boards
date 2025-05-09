@@ -3,7 +3,7 @@ class API::BoardsController < API::ApplicationController
   # respond_to :json
 
   # before_action :authenticate_user!
-  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board preset show ]
+  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board preset show public_boards ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images ]
   # layout "fullscreen", only: [:fullscreen]
@@ -49,6 +49,11 @@ class API::BoardsController < API::ApplicationController
                    newly_created_boards: @newly_created_boards.map(&:api_view),
                    recently_used_boards: @recently_used_boards.map(&:api_view),
                    boards: @static_boards.map(&:api_view) }
+  end
+
+  def public_boards
+    @public_boards = Board.public_boards
+    render json: { public_boards: @public_boards.map(&:api_view) }
   end
 
   def preset
@@ -286,6 +291,8 @@ class API::BoardsController < API::ApplicationController
       @board.category = board_params["category"]
       @board.display_image_url = board_params["display_image_url"]
       @board.language = board_params["language"] if board_params["language"].present?
+      @board.favorite = board_params["favorite"] if board_params["favorite"].present?
+      @board.published = board_params["published"] if board_params["published"].present?
 
       board_type = params[:board_type] || board_params[:board_type]
       settings = params[:settings] || board_params[:settings] || {}
@@ -608,6 +615,8 @@ class API::BoardsController < API::ApplicationController
                                   :parent_type,
                                   :description,
                                   :predefined,
+                                  :favorite,
+                                  :published,
                                   :number_of_columns,
                                   :preset_display_image,
                                   :voice,
@@ -642,7 +651,6 @@ class API::BoardsController < API::ApplicationController
 
     board_image_ids = []
     sorted_layout.each_with_index do |item, i|
-      Rails.logger.debug "Item: #{item}"
       board_image_id = item["i"].to_i
       board_image = @board.board_images.find_by(id: board_image_id)
       if board_image
