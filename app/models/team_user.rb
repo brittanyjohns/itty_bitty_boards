@@ -50,6 +50,7 @@ class TeamUser < ApplicationRecord
       user_id: user_id,
       team_id: team_id,
       created_at: created_at,
+      user: user.api_view,
     }
   end
 end
