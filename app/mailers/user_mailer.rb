@@ -21,4 +21,18 @@ class UserMailer < BaseMailer
     Rails.logger.info "Login link: #{@login_link}"
     mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
   end
+
+  def message_notification_email(message)
+    @message = message
+    @sender = message.sender
+    @recipient = message.recipient
+    @message_body = message.body
+    @message_subject = message.subject
+    @message_sent_at = message.sent_at
+    @message_read_at = message.read_at
+    @message_url = "#{ENV["FRONT_END_URL"]}/messages/#{message.id}"
+    subject = "New message from #{@sender.name}"
+    Rails.logger.info "Sending message notification email to #{@recipient.email}"
+    mail(to: @recipient.email, subject: subject, from: @sender.email)
+  end
 end

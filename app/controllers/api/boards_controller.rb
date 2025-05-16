@@ -183,6 +183,7 @@ class API::BoardsController < API::ApplicationController
     end
 
     @images_with_display_doc = @images_with_display_doc.compact
+    puts "remaining_images: #{@images_with_display_doc.count} images found"
 
     return_data = {
       total_pages: @images.total_pages,

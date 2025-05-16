@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_04_27_122732) do
+ActiveRecord::Schema[7.1].define(version: 2025_05_14_164621) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -309,10 +309,20 @@ ActiveRecord::Schema[7.1].define(version: 2025_04_27_122732) do
   create_table "messages", force: :cascade do |t|
     t.string "subject"
     t.text "body"
-    t.integer "user_id"
-    t.string "user_email"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "sender_id"
+    t.integer "recipient_id"
+    t.datetime "sent_at"
+    t.datetime "read_at"
+    t.datetime "sender_deleted_at"
+    t.datetime "recipient_deleted_at"
+    t.index ["read_at"], name: "index_messages_on_read_at"
+    t.index ["recipient_deleted_at"], name: "index_messages_on_recipient_deleted_at"
+    t.index ["recipient_id"], name: "index_messages_on_recipient_id"
+    t.index ["sender_deleted_at"], name: "index_messages_on_sender_deleted_at"
+    t.index ["sender_id"], name: "index_messages_on_sender_id"
+    t.index ["sent_at"], name: "index_messages_on_sent_at"
   end
 
   create_table "open_symbols", force: :cascade do |t|

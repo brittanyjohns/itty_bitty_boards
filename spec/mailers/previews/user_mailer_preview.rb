@@ -11,4 +11,11 @@ class UserMailerPreview < ActionMailer::Preview
     new_user = User.invite!(email: email, skip_invitation: true)
     UserMailer.welcome_invitation_email(new_user, @user.id)
   end
+
+  def message_notification_email
+    @message = Message.first
+    @sender = @message.sender
+    @recipient = @message.recipient
+    UserMailer.message_notification_email(@message)
+  end
 end

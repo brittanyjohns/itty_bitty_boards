@@ -72,6 +72,9 @@ class User < ApplicationRecord
   has_many :scenarios, dependent: :destroy
   has_many :created_teams, class_name: "Team", foreign_key: "created_by_id", dependent: :destroy
 
+  has_many :sent_messages, class_name: "Message", foreign_key: "sender_id", dependent: :destroy
+  has_many :received_messages, class_name: "Message", foreign_key: "recipient_id", dependent: :destroy
+
   # Scopes
   scope :admin, -> { where(role: "admin") }
   scope :pro, -> { where(plan_type: "pro") }
@@ -110,6 +113,10 @@ class User < ApplicationRecord
     self.all.each do |user|
       user.clear_custom_default_board
     end
+  end
+
+  def messages
+    Message.where("sender_id = ? OR recipient_id = ?", id, id)
   end
 
   def self.create_from_email(email, stripe_customer_id = nil, inviting_user_id = nil)
@@ -469,6 +476,24 @@ class User < ApplicationRecord
     plan_expires_at && plan_expires_at < Time.now
   end
 
+  def should_receive_notifications?
+    return false if admin?
+    return false if locked?
+    return false if settings["disable_notifications"] == true
+    return false if settings["disable_notifications"] == "true"
+    return false if settings["disable_notifications"] == "1"
+    return false if settings["disable_notifications"] == 1
+    recently_notified = settings["recently_notified"]
+    puts "Recently notified: #{recently_notified}"
+    return false if recently_notified && recently_notified > 2.hours.ago
+    true
+  end
+
+  def set_recently_notified!
+    settings["recently_notified"] = Time.now
+    save!
+  end
+
   def resource_type
     "User"
   end
@@ -656,6 +681,7 @@ class User < ApplicationRecord
     view["group_week_chart"] = group_week_chart
     view["most_clicked_words"] = most_clicked_words
     view["display_name"] = display_name
+    view["unread_messages"] = messages.where(recipient_id: id, read_at: nil, recipient_deleted_at: nil).count
     view
   end
 end

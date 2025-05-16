@@ -167,6 +167,12 @@ Rails.application.routes.draw do
         get "unassigned_accounts"
       end
     end
+    resources :messages do
+      member do
+        post "read", to: "messages#mark_as_read"
+        post "unread", to: "messages#mark_as_unread"
+      end
+    end
     resources :team_accounts
     resources :images do
       member do
