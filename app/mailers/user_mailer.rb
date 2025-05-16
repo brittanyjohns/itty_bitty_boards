@@ -33,6 +33,6 @@ class UserMailer < BaseMailer
     @message_url = "#{ENV["FRONT_END_URL"]}/messages/#{message.id}"
     subject = "New message from #{@sender.name}"
     Rails.logger.info "Sending message notification email to #{@recipient.email}"
-    mail(to: @recipient.email, subject: subject, from: @sender.email)
+    mail(to: @recipient.email, subject: subject, from: "noreply@speakanyway.com")
   end
 end
