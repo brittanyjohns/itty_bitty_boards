@@ -35,14 +35,20 @@ class Message < ApplicationRecord
     where("sender_id = ? OR recipient_id = ?", user_id, user_id)
   end
 
-  def mark_as_deleted_by(user_id)
+  def mark_as_deleted_by(user_id, user_type)
+    @messages = []
     if sender_id == user_id
-      update(sender_deleted_at: Time.current)
+      user_type = "sender"
+      self.update(sender_deleted_at: Time.current)
+      @messages = recipient.received_messages.reload
     elsif recipient_id == user_id
-      update(recipient_deleted_at: Time.current)
+      user_type = "recipient"
+      self.update(recipient_deleted_at: Time.current)
+      @messages = sender.sent_messages.reload
     else
       raise "User is neither sender nor recipient"
     end
+    @messages
   end
 
   def mark_as_read

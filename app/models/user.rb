@@ -72,8 +72,8 @@ class User < ApplicationRecord
   has_many :scenarios, dependent: :destroy
   has_many :created_teams, class_name: "Team", foreign_key: "created_by_id", dependent: :destroy
 
-  has_many :sent_messages, class_name: "Message", foreign_key: "sender_id", dependent: :destroy
-  has_many :received_messages, class_name: "Message", foreign_key: "recipient_id", dependent: :destroy
+  # has_many :sent_messages, class_name: "Message", foreign_key: "sender_id", dependent: :destroy
+  # has_many :received_messages, class_name: "Message", foreign_key: "recipient_id", dependent: :destroy
 
   # Scopes
   scope :admin, -> { where(role: "admin") }
@@ -117,6 +117,14 @@ class User < ApplicationRecord
 
   def messages
     Message.where("sender_id = ? OR recipient_id = ?", id, id)
+  end
+
+  def sent_messages
+    Message.where(sender_id: id, sender_deleted_at: nil)
+  end
+
+  def received_messages
+    Message.where(recipient_id: id, recipient_deleted_at: nil)
   end
 
   def self.create_from_email(email, stripe_customer_id = nil, inviting_user_id = nil)

@@ -94,13 +94,23 @@ class API::MessagesController < API::ApplicationController
   # DELETE /messages/1 or /messages/1.json
   def destroy
     # @message.destroy
+    @remaining_messages = []
     if params["hard_delete"]
       @message.destroy
     else
-      @message.mark_as_deleted_by(current_user.id)
+      puts "Recipient ID: #{@message.recipient_id} - Sender ID: #{@message.sender_id}"
+      puts "Current User ID: #{current_user.id}"
+      if @message.sender_id == current_user.id
+        @remaining_messages = @message.mark_as_deleted_by(current_user.id, "sender")
+      elsif @message.recipient_id == current_user.id
+        @remaining_messages = @message.mark_as_deleted_by(current_user.id, "recipient")
+      else
+        render json: { error: "Unauthorized" }, status: :unauthorized
+        return
+      end
     end
 
-    render json: { status: "ok" }
+    render json: @remaining_messages.map { |message| message.api_view(current_user) }, status: :ok
   end
 
   private
