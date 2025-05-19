@@ -300,6 +300,8 @@ Rails.application.routes.draw do
         get "public/:slug", to: "profiles#public"
       end
     end
+    get "profiles/:slug/check_placeholder", to: "profiles#check_placeholder"
+    # post "profiles/:claim_token/claim", to: "profiles#claim"
 
     resources :child_boards do
       collection do

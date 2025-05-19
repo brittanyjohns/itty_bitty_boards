@@ -14,13 +14,14 @@
 #  last_sign_in_at        :datetime
 #  current_sign_in_ip     :string
 #  last_sign_in_ip        :string
-#  user_id                :bigint           not null
+#  user_id                :bigint
 #  authentication_token   :string
 #  settings               :jsonb
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
 #  passcode               :string
 #  details                :jsonb
+#  placeholder            :boolean          default(FALSE)
 #
 class ChildAccount < ApplicationRecord
   # devise :database_authenticatable, :trackable
@@ -28,7 +29,7 @@ class ChildAccount < ApplicationRecord
   #        :recoverable, :rememberable, :validatable,
   #        authentication_keys: [:username]
 
-  belongs_to :user
+  belongs_to :user, optional: true
   has_many :child_boards, dependent: :destroy
   has_many :boards, through: :child_boards
   has_many :images, through: :boards
@@ -42,14 +43,14 @@ class ChildAccount < ApplicationRecord
 
   include WordEventsHelper
 
-  validates :passcode, presence: true, on: :create
-  validates :passcode, length: { minimum: 6 }, on: :create
+  # validates :passcode, presence: true, on: :create
+  # validates :passcode, length: { minimum: 6 }, on: :create
 
   validates :username, presence: true, uniqueness: true
 
   delegate :display_docs_for_image, to: :user
 
-  after_save :create_profile!, if: -> { profile.nil? }
+  # after_save :create_profile!, if: -> { profile.nil? }
 
   scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
 
@@ -112,8 +113,10 @@ class ChildAccount < ApplicationRecord
   end
 
   def create_profile!
+    puts "PROFILE: #{profile.inspect}"
     return if profile.present?
     slug = username.parameterize
+    puts "Slug: #{slug}"
     if Profile.find_by(slug: slug)
       slug = "#{slug}-#{id}"
     end

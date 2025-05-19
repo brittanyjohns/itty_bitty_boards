@@ -1,5 +1,5 @@
 class API::ProfilesController < API::ApplicationController
-  skip_before_action :authenticate_token!, only: %i[public]
+  skip_before_action :authenticate_token!, only: %i[public check_placeholder]
 
   def show
     @profile = Profile.find(params[:id])
@@ -8,6 +8,15 @@ class API::ProfilesController < API::ApplicationController
 
   def public
     @profile = Profile.find_by(slug: params[:slug])
+    if @profile.nil?
+      render json: { error: "Profile not found" }, status: :not_found
+      return
+    end
+
+    if @profile.placeholder? && @profile.claimed_at.nil?
+      render json: @profile.placeholder_view
+      return
+    end
     render json: @profile.public_view
   end
 
@@ -18,6 +27,11 @@ class API::ProfilesController < API::ApplicationController
     else
       render json: @profile.errors, status: :unprocessable_entity
     end
+  end
+
+  def check_placeholder
+    profile = Profile.find_by!(slug: params[:slug], placeholder: true)
+    render json: profile
   end
 
   private

@@ -127,6 +127,10 @@ class User < ApplicationRecord
     Message.where(recipient_id: id, recipient_deleted_at: nil)
   end
 
+  def has_available_communicator?
+    true # TODO: Implement logic to check if the user has available communicators
+  end
+
   def self.create_from_email(email, stripe_customer_id = nil, inviting_user_id = nil)
     user = User.invite!(email: email, skip_invitation: true)
     if user

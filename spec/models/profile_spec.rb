@@ -3,8 +3,8 @@
 # Table name: profiles
 #
 #  id               :bigint           not null, primary key
-#  profileable_type :string           not null
-#  profileable_id   :bigint           not null
+#  profileable_type :string
+#  profileable_id   :bigint
 #  username         :string
 #  slug             :string
 #  bio              :text
@@ -12,6 +12,9 @@
 #  settings         :jsonb
 #  created_at       :datetime         not null
 #  updated_at       :datetime         not null
+#  placeholder      :boolean          default(FALSE)
+#  claim_token      :string
+#  claimed_at       :datetime
 #
 require 'rails_helper'
 

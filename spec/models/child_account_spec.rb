@@ -14,13 +14,14 @@
 #  last_sign_in_at        :datetime
 #  current_sign_in_ip     :string
 #  last_sign_in_ip        :string
-#  user_id                :bigint           not null
+#  user_id                :bigint
 #  authentication_token   :string
 #  settings               :jsonb
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
 #  passcode               :string
 #  details                :jsonb
+#  placeholder            :boolean          default(FALSE)
 #
 require 'rails_helper'
 

@@ -3,8 +3,8 @@
 # Table name: profiles
 #
 #  id               :bigint           not null, primary key
-#  profileable_type :string           not null
-#  profileable_id   :bigint           not null
+#  profileable_type :string
+#  profileable_id   :bigint
 #  username         :string
 #  slug             :string
 #  bio              :text
@@ -12,16 +12,20 @@
 #  settings         :jsonb
 #  created_at       :datetime         not null
 #  updated_at       :datetime         not null
+#  placeholder      :boolean          default(FALSE)
+#  claim_token      :string
+#  claimed_at       :datetime
 #
 class Profile < ApplicationRecord
-  belongs_to :profileable, polymorphic: true
+  belongs_to :profileable, polymorphic: true, optional: true
   has_one_attached :avatar
   has_one_attached :intro_audio
 
   validates :username, presence: true, uniqueness: true
   validates :slug, presence: true, uniqueness: true
+  validates :claim_token, presence: true, uniqueness: true, if: -> { placeholder? }
 
-  before_save :set_slug
+  before_create :set_slug
 
   def api_view(viewer = nil)
     {
@@ -57,7 +61,7 @@ class Profile < ApplicationRecord
       id: id,
       username: username,
       bio: bio,
-      name: profileable.name,
+      name: profileable&.name,
       slug: slug,
       public_url: public_url,
       startup_url: startup_url,
@@ -73,13 +77,32 @@ class Profile < ApplicationRecord
     }
   end
 
+  def placeholder_view
+    {
+      id: id,
+      username: username,
+      bio: bio,
+      slug: slug,
+      placeholder: true,
+      public_url: public_url,
+    }
+  end
+
   def communication_boards
     profileable.favorite_boards
   end
 
   def public_url
+    return nil if slug.blank?
     base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
+
     "#{base_url}/my/#{slug}"
+
+    # if placeholder
+    #   "#{base_url}/claim/#{claim_token}"
+    # else
+    #   "#{base_url}/my/#{slug}"
+    # end
   end
 
   def startup_url
@@ -108,6 +131,16 @@ class Profile < ApplicationRecord
   def set_fake_intro_audio
     url = FFaker::Audio.audio(slug: slug, format: "mp3")
     intro_audio.attach(io: URI.open(url), filename: "#{slug}.mp3")
+  end
+
+  def claim!(communicator)
+    update!(
+      profileable: communicator,
+      claim_token: nil,
+      placeholder: false,
+      claimed_at: Time.zone.now,
+      username: communicator.username.presence || self.username,
+    )
   end
 
   private

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_05_14_164621) do
+ActiveRecord::Schema[7.1].define(version: 2025_05_19_113842) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -179,13 +179,14 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_14_164621) do
     t.datetime "last_sign_in_at"
     t.string "current_sign_in_ip"
     t.string "last_sign_in_ip"
-    t.bigint "user_id", null: false
+    t.bigint "user_id"
     t.string "authentication_token"
     t.jsonb "settings", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "passcode"
     t.jsonb "details"
+    t.boolean "placeholder", default: false
     t.index ["authentication_token"], name: "index_child_accounts_on_authentication_token", unique: true
     t.index ["reset_password_token"], name: "index_child_accounts_on_reset_password_token", unique: true
     t.index ["user_id"], name: "index_child_accounts_on_user_id"
@@ -540,8 +541,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_14_164621) do
   end
 
   create_table "profiles", force: :cascade do |t|
-    t.string "profileable_type", null: false
-    t.bigint "profileable_id", null: false
+    t.string "profileable_type"
+    t.bigint "profileable_id"
     t.string "username"
     t.string "slug"
     t.text "bio"
@@ -549,6 +550,9 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_14_164621) do
     t.jsonb "settings", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "placeholder", default: false
+    t.string "claim_token"
+    t.datetime "claimed_at"
     t.index ["profileable_type", "profileable_id"], name: "index_profiles_on_profileable"
     t.index ["slug"], name: "index_profiles_on_slug", unique: true
   end

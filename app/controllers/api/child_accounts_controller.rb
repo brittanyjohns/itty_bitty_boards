@@ -42,6 +42,10 @@ class API::ChildAccountsController < API::ApplicationController
     if details
       @child_account.details = details
     end
+    if params[:profile_id]
+      profile = Profile.find(params[:profile_id])
+      profile.update!(profileable: @child_account, placeholder: false, claimed_at: Time.now, claim_token: nil)
+    end
     @child_account.user = current_user
     @child_account.passcode = password
     if @child_account.save
