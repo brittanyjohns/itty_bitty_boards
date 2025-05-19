@@ -113,10 +113,8 @@ class ChildAccount < ApplicationRecord
   end
 
   def create_profile!
-    puts "PROFILE: #{profile.inspect}"
     return if profile.present?
     slug = username.parameterize
-    puts "Slug: #{slug}"
     if Profile.find_by(slug: slug)
       slug = "#{slug}-#{id}"
     end

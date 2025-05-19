@@ -53,6 +53,7 @@ class Profile < ApplicationRecord
   end
 
   def public_boards
+    return [] if profileable.nil? || communication_boards.nil?
     communication_boards.any? ? communication_boards : Board.public_boards
   end
 
@@ -69,8 +70,8 @@ class Profile < ApplicationRecord
       public_boards: public_boards.map(&:api_view),
       profileable_type: profileable_type,
       profileable_id: profileable_id,
-      user_id: profileable_type == "User" ? profileable.id : profileable.user_id,
-      communicator_account_id: profileable_type == "User" ? nil : profileable.id,
+      user_id: profileable_type == "User" ? profileable&.id : profileable&.user_id,
+      communicator_account_id: profileable_type == "User" ? nil : profileable&.id,
       avatar: avatar.attached? ? avatar_url : nil,
       settings: settings,
 
@@ -89,7 +90,7 @@ class Profile < ApplicationRecord
   end
 
   def communication_boards
-    profileable.favorite_boards
+    profileable&.favorite_boards
   end
 
   def public_url
@@ -106,7 +107,7 @@ class Profile < ApplicationRecord
   end
 
   def startup_url
-    profileable.startup_url
+    profileable&.startup_url
   end
 
   def avatar_url

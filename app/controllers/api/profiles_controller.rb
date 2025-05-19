@@ -6,6 +6,11 @@ class API::ProfilesController < API::ApplicationController
     render json: @profile
   end
 
+  def placeholders
+    @profiles = Profile.where(placeholder: true)
+    render json: @profiles.map(&:public_view)
+  end
+
   def public
     @profile = Profile.find_by(slug: params[:slug])
     if @profile.nil?

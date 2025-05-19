@@ -297,6 +297,7 @@ Rails.application.routes.draw do
 
     resources :profiles do
       collection do
+        get "placeholders"
         get "public/:slug", to: "profiles#public"
       end
     end
