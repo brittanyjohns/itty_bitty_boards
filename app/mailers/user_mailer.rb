@@ -22,6 +22,38 @@ class UserMailer < BaseMailer
     mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
   end
 
+  def welcome_to_organization_email(user, organization)
+    @user = user
+    @user_name = @user.name
+    @organization = organization
+    @organization_name = @organization.name
+    @organization_admin = @organization.admin_user
+    @organization_admin_name = @organization_admin.name
+    @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    @login_link += "/welcome/token/#{user.raw_invitation_token}"
+    @login_link += "?email=#{user.email}"
+    subject = "You have been invited to join #{@organization_name} on SpeakAnyWay AAC!"
+    Rails.logger.info "Sending welcome to organization email to #{@user.email} from #{@organization_admin.id}"
+    Rails.logger.info "Login link: #{@login_link}"
+    mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
+  end
+
+  def welcome_with_claim_link_email(user, slug)
+    @user = user
+    @user_name = @user.name
+    @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    @login_link += "/welcome/token/#{user.raw_invitation_token}"
+    @login_link += "?email=#{user.email}"
+    @login_link += "&claim=#{slug}"
+    @claim_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    @claim_link += "/claim/#{slug}"
+    @mymyspeak_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    @mymyspeak_link += "/my/#{slug}"
+    subject = "Welcome to MySpeak - Claim your profile!"
+    Rails.logger.info "Sending welcome email to #{@user.email} with claim link"
+    mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
+  end
+
   def message_notification_email(message)
     @message = message
     @sender = message.sender

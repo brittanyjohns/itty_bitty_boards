@@ -299,6 +299,7 @@ Rails.application.routes.draw do
       collection do
         get "placeholders"
         get "public/:slug", to: "profiles#public"
+        post "generate"
       end
     end
     get "profiles/:slug/check_placeholder", to: "profiles#check_placeholder"

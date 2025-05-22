@@ -1,5 +1,5 @@
 class API::ProfilesController < API::ApplicationController
-  skip_before_action :authenticate_token!, only: %i[public check_placeholder]
+  skip_before_action :authenticate_token!, only: %i[public check_placeholder generate]
 
   def show
     @profile = Profile.find(params[:id])
@@ -23,6 +23,44 @@ class API::ProfilesController < API::ApplicationController
       return
     end
     render json: @profile.public_view
+  end
+
+  def generate
+    username = params[:username]
+    if username.blank?
+      username = SecureRandom.hex(4)
+      params[:username] = username
+    end
+    @profile = Profile.find_by(username: username)
+    slug = username.parameterize
+    @profile = Profile.find_by(slug: slug) if @profile.nil?
+    if @profile
+      render json: { error: "Profile with this slug already exists" }, status: :unprocessable_entity
+      return
+    end
+    if params[:user_email].blank?
+      render json: { error: "User email is required" }, status: :unprocessable_entity
+      return
+    end
+    if params[:user_email].present?
+      # invite the user
+      user = User.find_by(email: params[:user_email])
+      user = User.create_from_email(params[:user_email], nil, nil, slug) if user.nil?
+      if user
+        params[:user_id] = user.id
+        params[:user_email] = user.email
+      else
+        render json: { error: "Failed to invite user" }, status: :unprocessable_entity
+        return
+      end
+    end
+
+    @profile = Profile.generate_with_username(username) if user
+    if @profile
+      render json: @profile.placeholder_view
+    else
+      render json: { error: "Failed to generate placeholder" }, status: :unprocessable_entity
+    end
   end
 
   def update

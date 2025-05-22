@@ -131,15 +131,19 @@ class User < ApplicationRecord
     true # TODO: Implement logic to check if the user has available communicators
   end
 
-  def self.create_from_email(email, stripe_customer_id = nil, inviting_user_id = nil)
+  def self.create_from_email(email, stripe_customer_id = nil, inviting_user_id = nil, slug = nil)
     user = User.invite!(email: email, skip_invitation: true)
     if user
       if inviting_user_id
-        user.invited_by_id = inviting_user_id if inviting_user_id
+        user.invited_by_id = inviting_user_id
         user.invited_by_type = "User"
-        user.send_welcome_invitation_email(inviting_user_id) if inviting_user_id
+        user.send_welcome_invitation_email(inviting_user_id)
       else
-        user.send_welcome_email
+        if !slug
+          user.send_welcome_email
+        else
+          user.send_welcome_with_claim_link_email(slug)
+        end
       end
       if stripe_customer_id.nil?
         stripe_customer_id = User.create_stripe_customer(email)
@@ -484,6 +488,24 @@ class User < ApplicationRecord
     end
   end
 
+  def send_welcome_to_organization_email(inviter_id)
+    Rails.logger.info "Sending welcome to organization email to #{email} from user ID #{inviter_id}"
+    begin
+      UserMailer.welcome_to_organization_email(self, inviter_id).deliver_now
+    rescue => e
+      Rails.logger.error("Error sending welcome to organization email: #{e.message}")
+    end
+  end
+
+  def send_welcome_with_claim_link_email(slug)
+    Rails.logger.info "Sending welcome with claim link email to #{email} with slug #{slug}"
+    begin
+      UserMailer.welcome_with_claim_link_email(self, slug).deliver_now
+    rescue => e
+      Rails.logger.error("Error sending welcome with claim link email: #{e.message}")
+    end
+  end
+
   def subscription_expired?
     plan_expires_at && plan_expires_at < Time.now
   end
@@ -649,51 +671,108 @@ class User < ApplicationRecord
     favorite_boards.any? ? favorite_boards : boards.alphabetical.limit(10)
   end
 
+  # def api_view
+  #   accounts_included = settings["communicator_limit"] || 0
+  #   extra_communicators = settings["extra_communicators"] || 0
+  #   view = self.as_json
+  #   view["plan_expires_at"] = plan_expires_at.strftime("%x") if plan_expires_at
+  #   view["admin"] = admin?
+  #   view["free"] = free?
+  #   view["pro"] = pro?
+  #   view["basic"] = basic?
+  #   view["plus"] = plus?
+  #   view["teams_with_read_access"] = teams_with_read_access.map(&:index_api_view)
+  #   view["communicator_accounts"] = communicator_accounts
+  #   view["accounts_included"] = accounts_included
+  #   view["extra_communicators"] = extra_communicators
+  #   view["comm_account_limit"] = accounts_included + extra_communicators
+  #   view["supervisor_limit"] = settings["supervisor_limit"] || 0
+  #   view["board_limit"] = settings["board_limit"] || 0
+  #   view["go_to_words"] = settings["go_to_words"] || Board.common_words
+  #   view["go_to_boards"] = go_to_boards.map { |board| { id: board.id, name: board.name, display_image_url: board.display_image_url } }
+  #   view["premium"] = premium?
+  #   view["paid_plan"] = paid_plan?
+  #   view["plan_type"] = plan_type
+  #   view["team"] = current_team
+  #   view["free_trial"] = free_trial?
+  #   view["trial_expired"] = trial_expired?
+  #   view["trial_days_left"] = trial_days_left
+  #   view["last_sign_in_at"] = last_sign_in_at
+  #   view["last_sign_in_ip"] = last_sign_in_ip
+  #   view["current_sign_in_at"] = current_sign_in_at
+  #   view["current_sign_in_ip"] = current_sign_in_ip
+  #   view["sign_in_count"] = sign_in_count
+  #   view["tokens"] = tokens
+  #   view["phrase_board_id"] = settings["phrase_board_id"]
+  #   view["opening_board_id"] = settings["opening_board_id"]
+  #   view["has_dynamic_default"] = opening_board.present?
+  #   view["startup_board_group_id"] = settings["startup_board_group_id"]
+  #   view["boards"] = boards.alphabetical.map { |board| { id: board.id, name: board.name } }
+  #   # view["board_groups"] = board_groups.order(name: :asc).map(&:user_api_view)
+  #   # view["dynamic_boards"] = dynamic_boards.map(&:user_api_view)
+  #   view["heat_map"] = heat_map
+  #   view["week_chart"] = week_chart
+  #   view["group_week_chart"] = group_week_chart
+  #   view["most_clicked_words"] = most_clicked_words
+  #   view["display_name"] = display_name
+  #   view["unread_messages"] = messages.where(recipient_id: id, read_at: nil, recipient_deleted_at: nil).count
+  #   view
+  # end
   def api_view
-    accounts_included = settings["communicator_limit"] || 0
-    extra_communicators = settings["extra_communicators"] || 0
-    view = self.as_json
-    view["plan_expires_at"] = plan_expires_at.strftime("%x") if plan_expires_at
-    view["admin"] = admin?
-    view["free"] = free?
-    view["pro"] = pro?
-    view["basic"] = basic?
-    view["plus"] = plus?
-    view["teams_with_read_access"] = teams_with_read_access.map(&:index_api_view)
-    view["communicator_accounts"] = communicator_accounts
-    view["accounts_included"] = accounts_included
-    view["extra_communicators"] = extra_communicators
-    view["comm_account_limit"] = accounts_included + extra_communicators
-    view["supervisor_limit"] = settings["supervisor_limit"] || 0
-    view["board_limit"] = settings["board_limit"] || 0
-    view["go_to_words"] = settings["go_to_words"] || Board.common_words
-    view["go_to_boards"] = go_to_boards.map { |board| { id: board.id, name: board.name, display_image_url: board.display_image_url } }
-    view["premium"] = premium?
-    view["paid_plan"] = paid_plan?
-    view["plan_type"] = plan_type
-    view["team"] = current_team
-    view["free_trial"] = free_trial?
-    view["trial_expired"] = trial_expired?
-    view["trial_days_left"] = trial_days_left
-    view["last_sign_in_at"] = last_sign_in_at
-    view["last_sign_in_ip"] = last_sign_in_ip
-    view["current_sign_in_at"] = current_sign_in_at
-    view["current_sign_in_ip"] = current_sign_in_ip
-    view["sign_in_count"] = sign_in_count
-    view["tokens"] = tokens
-    view["phrase_board_id"] = settings["phrase_board_id"]
-    view["opening_board_id"] = settings["opening_board_id"]
-    view["has_dynamic_default"] = opening_board.present?
-    view["startup_board_group_id"] = settings["startup_board_group_id"]
-    view["boards"] = boards.alphabetical.map { |board| { id: board.id, name: board.name } }
-    # view["board_groups"] = board_groups.order(name: :asc).map(&:user_api_view)
-    # view["dynamic_boards"] = dynamic_boards.map(&:user_api_view)
-    view["heat_map"] = heat_map
-    view["week_chart"] = week_chart
-    view["group_week_chart"] = group_week_chart
-    view["most_clicked_words"] = most_clicked_words
-    view["display_name"] = display_name
-    view["unread_messages"] = messages.where(recipient_id: id, read_at: nil, recipient_deleted_at: nil).count
-    view
+    plan_exp = plan_expires_at&.strftime("%x")
+    comm_limit = settings["communicator_limit"] || 0
+    extra_comms = settings["extra_communicators"] || 0
+    board_limit = settings["board_limit"] || 0
+    go_words = settings["go_to_words"] || Board.common_words
+
+    memoized_teams = teams_with_read_access
+    memoized_communicators = communicator_accounts
+    memoized_boards = boards.alphabetical
+
+    {
+      id: id,
+      organization_id: organization_id,
+      email: email,
+      name: name,
+      display_name: display_name,
+      admin: admin?,
+      free: free?,
+      pro: pro?,
+      basic: basic?,
+      plus: plus?,
+      premium: premium?,
+      paid_plan: paid_plan?,
+      plan_type: plan_type,
+      plan_expires_at: plan_exp,
+      free_trial: free_trial?,
+      trial_expired: trial_expired?,
+      trial_days_left: trial_days_left,
+      accounts_included: comm_limit,
+      extra_communicators: extra_comms,
+      comm_account_limit: comm_limit + extra_comms,
+      supervisor_limit: settings["supervisor_limit"] || 0,
+      board_limit: board_limit,
+      phrase_board_id: settings["phrase_board_id"],
+      opening_board_id: settings["opening_board_id"],
+      has_dynamic_default: opening_board.present?,
+      startup_board_group_id: settings["startup_board_group_id"],
+      current_team: current_team,
+      teams_with_read_access: memoized_teams.map(&:index_api_view),
+      communicator_accounts: memoized_communicators,
+      go_to_words: go_words,
+      go_to_boards: go_to_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url } },
+      boards: memoized_boards.map { |b| { id: b.id, name: b.name } },
+      heat_map: heat_map,
+      week_chart: week_chart,
+      group_week_chart: group_week_chart,
+      most_clicked_words: most_clicked_words,
+      last_sign_in_at: last_sign_in_at,
+      last_sign_in_ip: last_sign_in_ip,
+      current_sign_in_at: current_sign_in_at,
+      current_sign_in_ip: current_sign_in_ip,
+      sign_in_count: sign_in_count,
+      tokens: tokens,
+      unread_messages: messages.where(recipient_id: id, read_at: nil, recipient_deleted_at: nil).count,
+    }
   end
 end

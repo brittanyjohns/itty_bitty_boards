@@ -54,7 +54,19 @@ class ChildAccount < ApplicationRecord
 
   scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
 
-  scope :with_artifacts, -> { includes(:profile, :child_boards, :boards, :images, :word_events, :user, teams: [:team_users]) }
+  # scope :with_artifacts, -> { includes(:profile, :images, :word_events, :user, teams: [:team_users, :team_boards], child_boards: [:board]) }
+  scope :with_artifacts, -> {
+          includes(
+            :profile,
+            :user,
+            :word_events,
+            child_boards: :board,
+            teams: [
+              :team_users,
+              :team_boards,
+            ],
+          )
+        }
   scope :with_teams, -> { includes(teams: [:team_users]) }
   scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
 
@@ -151,20 +163,28 @@ class ChildAccount < ApplicationRecord
     user.admin?
   end
 
+  # def available_boards
+  #   current_board_ids = self.child_boards.distinct.pluck(:board_id)
+  #   current_boards = Board.where(id: current_board_ids)
+  #   user.boards.where.not(id: current_boards.pluck(:id)).order(:name)
+  # end
+
   def available_boards
-    current_board_ids = self.child_boards.distinct.pluck(:board_id)
-    current_boards = Board.where(id: current_board_ids)
-    user.boards.where.not(id: current_boards.pluck(:id)).order(:name)
+    used_ids = child_boards.select(:board_id)
+    user.boards.where.not(id: used_ids).order(:name) # add includes as needed
   end
 
+  # def available_teams_boards
+  #   current_board_ids = self.child_boards.distinct.pluck(:board_id)
+  #   team_boards = teams.map { |t| t.team_boards.includes(:board).where.not(board_id: current_board_ids) }
+  #   team_boards.flatten
+  # end
+
   def available_teams_boards
-    current_board_ids = self.child_boards.distinct.pluck(:board_id)
-    # current_boards = Board.where(id: current_board_ids)
-    # # teams.map { |t| t.boards.where.not(id: current_boards.pluck(:id)).order(:name) }.flatten
-    # team_boards = teams.map { |t| t.boards.where.not(id: current_boards.pluck(:id)).order(:name) }
-    team_boards = teams.map { |t| t.team_boards.includes(:board).where.not(board_id: current_board_ids) }
-    team_boards.flatten
-    # []
+    used_ids = child_boards.select(:board_id)
+    TeamBoard.includes(:board, :created_by)
+             .where(team_id: teams.select(:id))
+             .where.not(board_id: used_ids)
   end
 
   def supporters
@@ -210,7 +230,53 @@ class ChildAccount < ApplicationRecord
     child_boards.includes(board: :word_events).where("word_events.created_at >= ?", 1.week.ago).order("word_events.created_at DESC").uniq
   end
 
+  # def api_view(viewing_user = nil)
+  #   {
+  #     id: id,
+  #     username: username,
+  #     passcode: passcode,
+  #     last_sign_in_at: last_sign_in_at,
+  #     sign_in_count: sign_in_count,
+  #     can_edit: viewing_user&.can_add_boards_to_account?([id]),
+  #     is_owner: viewing_user&.id == user_id,
+  #     pro: user.pro?,
+  #     free_trial: user.free_trial?,
+  #     admin: user.admin?,
+  #     parent_name: user.display_name,
+  #     name: name,
+  #     most_used_board: { id: most_used_board&.id, name: most_used_board&.name },
+  #     recently_used_boards: recently_used_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type, board_id: b.board_id } },
+  #     heat_map: heat_map,
+  #     profile: profile&.api_view(viewing_user),
+  #     startup_url: startup_url,
+  #     public_url: public_url,
+  #     week_chart: week_chart,
+  #     most_clicked_words: most_clicked_words,
+  #     teams: teams.map { |t| t.index_api_view(viewing_user) },
+  #     settings: settings,
+  #     details: details,
+  #     user_id: user_id,
+  #     go_to_words: go_to_words,
+  #     go_to_boards: go_to_boards.map { |board| { id: board.id, name: board.name, display_image_url: board.display_image_url } },
+  #     avatar_url: profile&.avatar_url,
+  #     supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
+  #     supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
+  #     boards: child_boards.map { |cb| { id: cb.id, name: cb.board.name, board_type: cb.board.board_type, board_id: cb.board_id, display_image_url: cb.board.display_image_url, favorite: cb.favorite, published: cb.published, added_by: cb.created_by&.display_name, added_by_id: cb.created_by&.id, board_owner_id: cb.board.user_id, board_owner_name: cb.board.user&.display_name, most_used: cb.board_id == most_used_board&.id, can_edit: viewing_user&.id == user_id } },
+  #     can_sign_in: can_sign_in?,
+  #     available_boards: available_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type, word_sample: b.word_sample } },
+  #     # teams_boards: available_teams_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type } },
+  #     teams_boards: available_teams_boards.map { |tb| { id: tb.board_id, name: tb.board.name, board_type: tb.board.board_type, display_image_url: tb.board.display_image_url, added_by: tb.created_by&.display_name, added_by_id: tb.created_by&.id, word_sample: tb.board.word_sample } },
+  #   }
+  # end
+
   def api_view(viewing_user = nil)
+    cached_user = user
+    cached_profile = profile
+    cached_most_used_board = most_used_board
+    cached_supporters = supporters
+    cached_supervisors = supervisors
+    cached_go_to_boards = go_to_boards
+
     {
       id: id,
       username: username,
@@ -219,15 +285,26 @@ class ChildAccount < ApplicationRecord
       sign_in_count: sign_in_count,
       can_edit: viewing_user&.can_add_boards_to_account?([id]),
       is_owner: viewing_user&.id == user_id,
-      pro: user.pro?,
-      free_trial: user.free_trial?,
-      admin: user.admin?,
-      parent_name: user.display_name,
+      pro: cached_user.pro?,
+      free_trial: cached_user.free_trial?,
+      admin: cached_user.admin?,
+      parent_name: cached_user.display_name,
       name: name,
-      most_used_board: { id: most_used_board&.id, name: most_used_board&.name },
-      recently_used_boards: recently_used_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type, board_id: b.board_id } },
+      most_used_board: {
+        id: cached_most_used_board&.id,
+        name: cached_most_used_board&.name,
+      },
+      recently_used_boards: recently_used_boards.map do |b|
+        {
+          id: b.id,
+          name: b.name,
+          display_image_url: b.display_image_url,
+          board_type: b.board_type,
+          board_id: b.board_id,
+        }
+      end,
       heat_map: heat_map,
-      profile: profile&.api_view(viewing_user),
+      profile: cached_profile&.api_view(viewing_user),
       startup_url: startup_url,
       public_url: public_url,
       week_chart: week_chart,
@@ -237,15 +314,56 @@ class ChildAccount < ApplicationRecord
       details: details,
       user_id: user_id,
       go_to_words: go_to_words,
-      go_to_boards: go_to_boards.map { |board| { id: board.id, name: board.name, display_image_url: board.display_image_url } },
-      avatar_url: profile&.avatar_url,
-      supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
-      supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
-      boards: child_boards.map { |cb| { id: cb.id, name: cb.board.name, board_type: cb.board.board_type, board_id: cb.board_id, display_image_url: cb.board.display_image_url, favorite: cb.favorite, published: cb.published, added_by: cb.created_by&.display_name, added_by_id: cb.created_by&.id, board_owner_id: cb.board.user_id, board_owner_name: cb.board.user&.display_name, most_used: cb.board_id == most_used_board&.id, can_edit: viewing_user&.id == user_id } },
+      go_to_boards: cached_go_to_boards.map do |board|
+        {
+          id: board.id,
+          name: board.name,
+          display_image_url: board.display_image_url,
+        }
+      end,
+      avatar_url: cached_profile&.avatar_url,
+      supporters: cached_supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
+      supervisors: cached_supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
+      boards: child_boards.map do |cb|
+        b = cb.board
+        {
+          id: cb.id,
+          name: b.name,
+          board_type: b.board_type,
+          board_id: cb.board_id,
+          display_image_url: b.display_image_url,
+          favorite: cb.favorite,
+          published: cb.published,
+          added_by: cb.created_by&.display_name,
+          added_by_id: cb.created_by&.id,
+          board_owner_id: b.user_id,
+          board_owner_name: b.user&.display_name,
+          most_used: cb.board_id == cached_most_used_board&.id,
+          can_edit: viewing_user&.id == user_id,
+        }
+      end,
       can_sign_in: can_sign_in?,
-      available_boards: available_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type, word_sample: b.word_sample } },
-      # teams_boards: available_teams_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, board_type: b.board_type } },
-      teams_boards: available_teams_boards.map { |tb| { id: tb.board_id, name: tb.board.name, board_type: tb.board.board_type, display_image_url: tb.board.display_image_url, added_by: tb.created_by&.display_name, added_by_id: tb.created_by&.id, word_sample: tb.board.word_sample } },
+      available_boards: available_boards.map do |b|
+        {
+          id: b.id,
+          name: b.name,
+          display_image_url: b.display_image_url,
+          board_type: b.board_type,
+          word_sample: b.word_sample,
+        }
+      end,
+      teams_boards: available_teams_boards.map do |tb|
+        b = tb.board
+        {
+          id: tb.board_id,
+          name: b.name,
+          board_type: b.board_type,
+          display_image_url: b.display_image_url,
+          added_by: tb.created_by&.display_name,
+          added_by_id: tb.created_by&.id,
+          word_sample: b.word_sample,
+        }
+      end,
     }
   end
 

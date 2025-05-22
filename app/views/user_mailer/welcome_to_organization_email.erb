@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>You've Been Invited!</title>
+  <title>Welcome to SpeakAnyWay!</title>
   <style>
     body {
       background-color: #f4f4f4;
@@ -62,11 +62,13 @@
     <div class="logo">
       <img src="https://speakanyway.com/assets/favicon-76TnrIHG.ico" alt="SpeakAnyWay Logo">
     </div>
-    <div class="header">You've Been Invited!</div>
+    <div class="header">You've Been Invited to Join!</div>
     <div class="content">
-      <p><strong><%= @inviter_name %></strong> has invited you to join their team on <strong>SpeakAnyWay</strong>, and we're thrilled to have you!</p>
-      <p>SpeakAnyWay helps you build and share communication boards with family members, therapists, or educators. Collaborate in real-time and make communication more effective for everyone.</p>
+      <p><strong><%= @organization_admin_name %></strong> has invited you to join <strong><%= @organization_name %></strong> on SpeakAnyWay.</p>
+      <p>We are excited to have you on board! SpeakAnyWay is a powerful tool designed to enhance communication for individuals with speech and language challenges.</p>
+      <p>As a member of the <strong><%= @organization_name %></strong> organization, you will have access to a variety of features that will help you create and share personalized communication boards.</p>
       <p>To get started, simply click the button below to log in to your account:</p>
+
       <p style="text-align: center;">
         <a href="<%= @login_link %>" class="button">Finish Setting Up Your Account</a>
       </p>

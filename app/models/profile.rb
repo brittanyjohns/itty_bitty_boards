@@ -144,6 +144,43 @@ class Profile < ApplicationRecord
     )
   end
 
+  def self.create_placeholders(number)
+    urls = []
+    number.times do
+      placeholder_name = "MySpeak #{SecureRandom.hex(4)}"
+      slug = placeholder_name.parameterize
+
+      profile = Profile.create!(
+        username: placeholder_name,
+        slug: slug,
+        bio: "This is a placeholder profile.",
+        intro: "Welcome to MySpeak!",
+        placeholder: true,
+        claimed_at: nil,
+        claim_token: SecureRandom.hex(10),
+      )
+      urls << profile.public_url
+      Rails.logger.info "Created placeholder profile with username: #{profile.username} and slug #{profile.slug}"
+    end
+    urls
+  end
+
+  def self.generate_with_username(username)
+    slug = username.parameterize
+
+    profile = Profile.create!(
+      username: username,
+      slug: slug,
+      bio: "Write a short bio about yourself.",
+      intro: "This is a placeholder intro.",
+      placeholder: true,
+      claimed_at: nil,
+      claim_token: SecureRandom.hex(10),
+    )
+    Rails.logger.info "Created placeholder profile with username: #{profile.username} and slug #{profile.slug}"
+    profile
+  end
+
   private
 
   def set_slug
