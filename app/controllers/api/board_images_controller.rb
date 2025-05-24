@@ -65,6 +65,7 @@ class API::BoardImagesController < API::ApplicationController
     bg_color = payload[:bg_color] if payload[:bg_color]
     text_color = payload[:text_color] if payload[:text_color]
     hide_images = payload[:hide_images] if payload[:hide_images]
+    make_static = payload[:make_static] if payload[:make_static]
     puts "Updating board images with payload: #{payload.inspect}"
     results = []
     board_images.each do |board_image|
@@ -78,6 +79,9 @@ class API::BoardImagesController < API::ApplicationController
         board_image.hidden = true
       else
         board_image.hidden = false
+      end
+      if make_static
+        board_image.predictive_board_id = nil
       end
       if board_image.save
         results << true
