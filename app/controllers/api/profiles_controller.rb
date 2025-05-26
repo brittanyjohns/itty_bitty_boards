@@ -43,9 +43,10 @@ class API::ProfilesController < API::ApplicationController
       return
     end
     if params[:user_email].present?
-      # invite the user
       user = User.find_by(email: params[:user_email])
-      user = User.create_from_email(params[:user_email], nil, nil, slug) if user.nil?
+      existing_user = user
+
+      user = User.create_from_email(params[:user_email], nil, nil, slug)
       if user
         params[:user_id] = user.id
         params[:user_email] = user.email
@@ -55,7 +56,7 @@ class API::ProfilesController < API::ApplicationController
       end
     end
 
-    @profile = Profile.generate_with_username(username) if user
+    @profile = Profile.generate_with_username(username, existing_user) if user
     if @profile
       render json: @profile.placeholder_view
     else
@@ -73,7 +74,8 @@ class API::ProfilesController < API::ApplicationController
   end
 
   def check_placeholder
-    profile = Profile.find_by!(slug: params[:slug], placeholder: true)
+    profile = Profile.find_by!(slug: params[:slug])
+
     render json: profile
   end
 

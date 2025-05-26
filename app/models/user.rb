@@ -145,6 +145,7 @@ class User < ApplicationRecord
           user.send_welcome_with_claim_link_email(slug)
         end
       end
+      stripe_customer_id ||= user.stripe_customer_id
       if stripe_customer_id.nil?
         stripe_customer_id = User.create_stripe_customer(email)
       end

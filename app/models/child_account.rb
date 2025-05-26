@@ -105,8 +105,16 @@ class ChildAccount < ApplicationRecord
     find_by(authentication_token: token)
   end
 
+  def paid_plan?
+    user&.paid_plan? || false
+  end
+
   def favorite_boards
-    child_boards.where(favorite: true).includes(:board).map(&:board)
+    if paid_plan?
+      child_boards.where(favorite: true).includes(:board).map(&:board)
+    else
+      Board.public_boards
+    end
   end
 
   def self.create_for_user(user, username, password)

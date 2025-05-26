@@ -165,7 +165,7 @@ class Profile < ApplicationRecord
     urls
   end
 
-  def self.generate_with_username(username)
+  def self.generate_with_username(username, existing_user = nil)
     slug = username.parameterize
 
     profile = Profile.create!(
@@ -177,6 +177,21 @@ class Profile < ApplicationRecord
       claimed_at: nil,
       claim_token: SecureRandom.hex(10),
     )
+    if existing_user
+      new_communicatore_account = existing_user.child_accounts.create!(
+        username: username,
+        name: username,
+        placeholder: true,
+      )
+      profile.profileable = new_communicatore_account
+      profile.save!
+      if !existing_user.paid_plan?
+        Rails.logger.warn "Existing user #{existing_user.email} does not have a paid plan."
+        profile.profileable = existing_user
+        profile.save!
+      end
+    end
+    profile.set_fake_avatar
     Rails.logger.info "Created placeholder profile with username: #{profile.username} and slug #{profile.slug}"
     profile
   end

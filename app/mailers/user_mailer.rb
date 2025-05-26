@@ -42,9 +42,16 @@ class UserMailer < BaseMailer
     @user = user
     @user_name = @user.name
     @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
-    @login_link += "/welcome/token/#{user.raw_invitation_token}"
-    @login_link += "?email=#{user.email}"
-    @login_link += "&claim=#{slug}"
+    if user.raw_invitation_token.nil?
+      # Existing user, just need to login
+      @login_link += "/users/sign-in/welcome/#{@user.email}"
+      @login_link += "?claim=#{slug}"
+    else
+      token = user.raw_invitation_token
+      @login_link += "/welcome/token/#{token}"
+      @login_link += "?email=#{ERB::Util.url_encode(user.email)}&claim=#{slug}"
+    end
+
     @claim_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
     @claim_link += "/claim/#{slug}"
     @mymyspeak_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
