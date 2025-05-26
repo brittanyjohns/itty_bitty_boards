@@ -171,8 +171,8 @@ class Profile < ApplicationRecord
     profile = Profile.create!(
       username: username,
       slug: slug,
-      bio: "Write a short bio about yourself.",
-      intro: "This is a placeholder intro.",
+      bio: "Write a short bio about yourself. This will help others understand who you are and what you do.",
+      intro: "Welcome to MySpeak! Personalize your profile by adding a short introduction about yourself.",
       placeholder: true,
       claimed_at: nil,
       claim_token: SecureRandom.hex(10),
