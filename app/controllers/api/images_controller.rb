@@ -46,8 +46,7 @@ class API::ImagesController < API::ApplicationController
   def user_docs
     @current_user = current_user
     label = params[:label]
-    @docs = @current_user.docs.includes(:documentable).with_matching_label(label).order(created_at: :desc).page params[:page] if label.present?
-    @docs = @current_user.docs.includes(:documentable).where(documentable_type: "Image").order(created_at: :desc).page params[:page] unless label.present?
+    @docs = @current_user.docs.where(documentable_type: "Image").order(created_at: :desc).page params[:page]
 
     render json: { docs: @docs.map(&:api_view) }
   end

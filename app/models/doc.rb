@@ -187,16 +187,6 @@ class Doc < ApplicationRecord
     OpenSymbol.where(search_string: raw)
   end
 
-  def self.with_matching_label(label)
-    self.preload(:documentable).joins
-  end
-
-  def self.matching_doc_urls_for_label(label)
-    docs = self.with_matching_label(label)
-
-    docs.map(&:display_url)
-  end
-
   def image_url
     matching_open_symbols.first&.image_url
   end

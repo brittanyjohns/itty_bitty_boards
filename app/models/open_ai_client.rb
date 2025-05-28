@@ -40,6 +40,12 @@ class OpenAiClient
     Ensure the visual meaning is obvious and aligns with how the word is commonly represented in communication aids.".gsub("{userInput}", @prompt)
   end
 
+  def image_style
+    "clipart-style illustration"
+    # "an image that is clear and simple, similar to AAC and other accessibility signs"
+    # "clear photo-style illustration"
+  end
+
   # def get_image_prompt_suggestion
   #   @model = GPT_4_MODEL
   #   @messages = [{
@@ -72,17 +78,20 @@ class OpenAiClient
   # end
   def get_image_prompt_suggestion
     @model = GPT_4_MODEL
+    # base_prompt = <<~PROMPT
+    #   Generate a detailed yet minimalistic description for creating an image with #{IMAGE_MODEL}.
+    #   The image should clearly represent the concept "#{@prompt}" specifically for AAC (Augmentative and Alternative Communication) boards.
+
+    #   Guidelines for the prompt:
+    #   - Minimalistic and clear visual style.
+    #   - Bold, high-contrast colors suitable for quick recognition.
+    #   - No backgrounds, text, or unnecessary decorative details.
+    #   - Use widely recognized symbols or universally understood visuals related to the concept.
+    #   - Ensure the representation aligns with common AAC communication standards and practices.
+    #   Respond only with the concise, detailed prompt for image generation-no additional explanation or context.
+    # PROMPT
     base_prompt = <<~PROMPT
-      Generate a detailed yet minimalistic description for creating an image with #{IMAGE_MODEL}. 
-      The image should clearly represent the concept "#{@prompt}" specifically for AAC (Augmentative and Alternative Communication) boards. 
-  
-      Guidelines for the prompt:
-      - Minimalistic and clear visual style.
-      - Bold, high-contrast colors suitable for quick recognition.
-      - No backgrounds, text, or unnecessary decorative details.
-      - Use widely recognized symbols or universally understood visuals related to the concept.
-      - Ensure the representation aligns with common AAC communication standards and practices.
-      Respond only with the concise, detailed prompt for image generation-no additional explanation or context.
+      Generate a descriptive and concise prompt to instruct #{IMAGE_MODEL} to create a #{image_style} representing the concept "#{@prompt}" for AAC communication boards.
     PROMPT
 
     @messages = [{
