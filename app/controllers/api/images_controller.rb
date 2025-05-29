@@ -363,6 +363,7 @@ class API::ImagesController < API::ApplicationController
       bg_color: @image.bg_class,
       image_type: @image.image_type,
       text_color: @image.text_color,
+      generating_status: "generating",
       display_doc: {
         id: @current_doc&.id,
         label: @image&.label,

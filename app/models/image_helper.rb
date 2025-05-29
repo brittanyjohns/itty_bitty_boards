@@ -24,6 +24,24 @@ module ImageHelper
     doc
   end
 
+  def save_image_from_base64(b64_json, user_id = nil, revised_prompt = nil, edited_prompt = nil, source_type = "OpenAI")
+    return if Rails.env.test?
+    begin
+      decoded_image = Base64.decode64(b64_json)
+      user_id ||= self.user_id
+      raw_txt = edited_prompt || name_to_send
+      doc = self.docs.create!(raw: raw_txt, user_id: user_id, processed: revised_prompt, source_type: source_type)
+      doc.image.attach(io: StringIO.new(decoded_image), filename: "img_#{self.id}_doc_#{doc.id}.webp", content_type: "image/webp")
+      self.update(status: "finished")
+
+      update_all_boards_image_belongs_to(doc.display_url)
+    rescue => e
+      puts "ImageHelper ERROR: #{e.inspect}"
+      raise e
+    end
+    doc
+  end
+
   def save_from_url(url, processed, raw_txt, file_format = "image/webp", user_id = nil, source_type = "GoogleSearch")
     return if Rails.env.test?
     begin
@@ -48,6 +66,11 @@ module ImageHelper
     img_url = response[:img_url]
     revised_prompt = response[:revised_prompt]
     edited_prompt = response[:edited_prompt]
+    b64_json = response[:b64_json]
+    if b64_json
+      doc = save_image_from_base64(b64_json, user_id, revised_prompt, edited_prompt)
+      return doc
+    end
     doc = nil
     if img_url
       doc = save_image(img_url, user_id, revised_prompt, edited_prompt)

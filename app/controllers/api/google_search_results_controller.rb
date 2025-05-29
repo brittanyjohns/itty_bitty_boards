@@ -39,8 +39,6 @@ class API::GoogleSearchResultsController < API::ApplicationController
       query_to_run = query
     end
 
-    puts "query_to_run: #{query_to_run}"
-
     @image_search_service = GoogleResultsService.new(query_to_run, params[:start] || 1)
   end
 

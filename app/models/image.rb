@@ -254,9 +254,6 @@ class Image < ApplicationRecord
   end
 
   def ensure_defaults
-    Rails.logger.debug "Ensuring defaults for #{label}"
-    Rails.logger.debug "Image type: #{image_type} - any category boards? #{category_boards.any?}"
-
     if image_type == "menu"
       self.part_of_speech = "noun"
     else

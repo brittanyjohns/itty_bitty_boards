@@ -3,7 +3,8 @@ require "openai"
 class OpenAiClient
   GPT_4_MODEL = "gpt-4o"
   GPT_3_MODEL = "gpt-3.5-turbo-0125"
-  IMAGE_MODEL = ENV.fetch("OPENAI_IMAGE_MODEL", "dall-e-2")
+  # IMAGE_MODEL = ENV.fetch("OPENAI_IMAGE_MODEL", "dall-e-2")
+  IMAGE_MODEL = "gpt-image-1"
   TTS_MODEL = "tts-1"
   PREVIEW_MODEL = "o1-preview"
 
@@ -92,6 +93,7 @@ class OpenAiClient
     # PROMPT
     base_prompt = <<~PROMPT
       Generate a descriptive and concise prompt to instruct #{IMAGE_MODEL} to create a #{image_style} representing the concept "#{@prompt}" for AAC communication boards.
+      No text or letters should be included in the image.
     PROMPT
 
     @messages = [{
@@ -112,8 +114,9 @@ class OpenAiClient
     response = openai_client.images.generate(parameters: { prompt: new_prompt, model: IMAGE_MODEL })
     if response
       img_url = response.dig("data", 0, "url")
+      b64_json = response.dig("data", 0, "b64_json")
       revised_prompt = response.dig("data", 0, "revised_prompt")
-      Rails.logger.debug "*** ERROR *** Invaild Image Response: #{response}" unless img_url
+      Rails.logger.debug "*** ERROR *** Invaild Image Response: #{response}" unless img_url || b64_json
       if response.dig("error", "type") == "invalid_request_error"
         Rails.logger.debug "**** ERROR **** \n#{response.dig("error", "message")}\n"
         throw "Invaild OpenAI Image Response"
@@ -121,7 +124,7 @@ class OpenAiClient
     else
       Rails.logger.debug "**** Client ERROR **** \nDid not receive valid response.\n#{response}"
     end
-    { img_url: img_url, revised_prompt: revised_prompt, edited_prompt: new_prompt }
+    { img_url: img_url, revised_prompt: revised_prompt, edited_prompt: new_prompt, b64_json: b64_json }
   end
 
   def create_audio_from_text(text, voice = "alloy", language = "en")
