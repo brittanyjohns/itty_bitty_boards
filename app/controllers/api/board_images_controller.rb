@@ -66,8 +66,27 @@ class API::BoardImagesController < API::ApplicationController
     text_color = payload[:text_color] if payload[:text_color]
     hide_images = payload[:hide_images] if payload[:hide_images]
     make_static = payload[:make_static] if payload[:make_static]
+    new_board_name = payload[:new_board_name] if payload[:new_board_name]
+    create_new_board = payload[:create_new_board] || !new_board_name.blank?
+
+    puts "Payload: #{payload.inspect}"
+    if create_new_board
+      new_board_name ||= "New Board"
+      new_board = Board.create(name: new_board_name, user: current_user, parent_id: @board.id, parent_type: "Board")
+    end
     results = []
+    first_board_image = board_images.first
+    first_image = first_board_image&.image
+    if create_new_board && new_board
+      puts "Creating new board for image #{first_board_image.id}"
+      new_board.display_image_url = first_image.display_image_url(current_user) if first_image
+    end
+
     board_images.each do |board_image|
+      if create_new_board && new_board
+        puts "Creating new board for image #{board_image.id}"
+        board_image.board = new_board
+      end
       if !bg_color.blank?
         board_image.bg_color = bg_color
       end
@@ -90,6 +109,9 @@ class API::BoardImagesController < API::ApplicationController
     end
     # @board.touch
     # @board.reload
+    if create_new_board && new_board
+      new_board.reset_layouts
+    end
 
     if results.all?
       puts "All board images updated successfully"

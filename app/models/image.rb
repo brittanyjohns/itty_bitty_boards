@@ -67,7 +67,8 @@ class Image < ApplicationRecord
 
   scope :without_attached_audio_files, -> { where.missing(:audio_files_attachments) }
   # scope :searchable, -> { non_sample_voices.non_menu_images.where(obf_id: nil) }
-  scope :searchable, -> { non_sample_voices.non_menu_images }
+  # scope :searchable, -> { non_sample_voices.non_menu_images }
+  scope :searchable, -> { non_sample_voices }
   scope :with_image_docs_for_user, ->(userId) { order(created_at: :desc) }
   scope :menu_images, -> { where(image_type: ["menu", "Menu"]) }
   scope :non_menu_images, -> { where.not(image_type: ["menu", "Menu"]).or(where(image_type: nil)) }
@@ -1107,7 +1108,7 @@ class Image < ApplicationRecord
   end
 
   def display_label
-    label&.titleize&.truncate(27, separator: " ")
+    label&.titleize
   end
 
   def prompt_to_send
@@ -1397,7 +1398,7 @@ class Image < ApplicationRecord
     if only_user_images
       Image.with_artifacts.non_sample_voices.where(user_id: user.id).distinct
     else
-      Image.with_artifacts.non_sample_voices.public_img.non_menu_images.or(Image.with_artifacts.where(user_id: user.id)).or(Image.where(user_id: user.id)).distinct
+      Image.with_artifacts.non_sample_voices.public_img.or(Image.with_artifacts.where(user_id: user.id)).or(Image.where(user_id: user.id)).distinct
     end
   end
 
