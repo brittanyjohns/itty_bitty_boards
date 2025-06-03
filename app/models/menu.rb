@@ -31,8 +31,32 @@ class Menu < ApplicationRecord
 
   accepts_nested_attributes_for :docs
 
-  scope :predefined, -> { where(predefined: true) }
+  # scope :predefined, -> { where(predefined: true) }
   scope :user_defined, -> { where(predefined: false) }
+
+  def self.predefined
+    joins(:boards).where(boards: { predefined: true, user_id: User::DEFAULT_ADMIN_ID }).distinct
+  end
+
+  def self.public_menus
+    joins(:boards).where(boards: { predefined: true, user_id: User::DEFAULT_ADMIN_ID, favorite: true }).distinct
+  end
+
+  def self.user_menus(user_id)
+    where(user_id: user_id)
+  end
+
+  def self.predefined_menus
+    where(predefined: true)
+  end
+
+  def self.user_defined_menus
+    where(predefined: false)
+  end
+
+  def self.default_menu
+    predefined.first || new(name: "Default Menu")
+  end
 
   def main_board
     doc_boards.first
@@ -223,6 +247,7 @@ class Menu < ApplicationRecord
       created_at: created_at,
       updated_at: updated_at,
       has_generating_images: main_board&.has_generating_images?,
+      predefined: predefined,
     }
   end
 

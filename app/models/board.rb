@@ -94,8 +94,8 @@ class Board < ApplicationRecord
   scope :created_yesterday, -> { where("created_at > ? AND created_at < ?", 1.day.ago.beginning_of_day, Time.zone.now.beginning_of_day) }
   scope :communikate_boards, -> { where("name ILIKE ?", "%CommuniKate%") }
 
-  scope :public_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, favorite: true) }
-
+  scope :public_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, favorite: true).where.not(parent_type: "Menu") }
+  scope :public_menu_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, favorite: true, parent_type: "Menu") }
   scope :without_preset_display_image, -> { where.missing(:preset_display_image_attachment) }
   scope :preset, -> { where(predefined: true) }
   scope :welcome, -> { where(category: "welcome", predefined: true) }

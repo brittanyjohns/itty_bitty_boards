@@ -163,7 +163,7 @@ class API::MenusController < API::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def menu_params
-    params.require(:menu).permit(:user_id, :name, :description, :token_limit,
+    params.require(:menu).permit(:user_id, :name, :description, :token_limit, :predefined,
                                  docs: [:id, :raw, :image, :_destroy, :user_id, :source_type])
   end
 end

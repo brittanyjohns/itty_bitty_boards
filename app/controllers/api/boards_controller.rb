@@ -3,7 +3,7 @@ class API::BoardsController < API::ApplicationController
   # respond_to :json
 
   # before_action :authenticate_user!
-  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board preset show public_boards ]
+  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board preset show public_boards public_menu_boards ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images ]
   # layout "fullscreen", only: [:fullscreen]
@@ -54,6 +54,11 @@ class API::BoardsController < API::ApplicationController
   def public_boards
     @public_boards = Board.public_boards
     render json: { public_boards: @public_boards.map(&:api_view) }
+  end
+
+  def public_menu_boards
+    @public_menu_boards = Board.public_menu_boards
+    render json: { public_menu_boards: @public_menu_boards.map(&:api_view) }
   end
 
   def preset
