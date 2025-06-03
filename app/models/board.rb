@@ -120,7 +120,7 @@ class Board < ApplicationRecord
   before_save :set_display_margin_settings, unless: :margin_settings_valid_for_all_screen_sizes?
 
   before_create :set_screen_sizes, :set_number_of_columns
-  before_destroy :delete_menu, if: :parent_type_menu?
+  # before_destroy :delete_menu, if: :parent_type_menu?
   after_initialize :set_initial_layout, if: :layout_empty?
 
   def self.recently_used(viewing_user)

@@ -14,6 +14,10 @@ module UtilHelper
   end
 
   def transform_into_json(content_str)
+    unless content_str.is_a?(String)
+      puts "Content is not a string: #{content_str.class}"
+      return {}
+    end
     json_str = content_str.gsub(/:([a-zA-z_]+)/, '"\1"') # Convert symbols to strings
     json_str = json_str.gsub("=>", ": ") # Replace hash rockets with colons
 

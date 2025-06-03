@@ -105,10 +105,15 @@ class API::MenusController < API::ApplicationController
     # doc.processed = true
     doc.raw = params[:menu][:description]
     if doc.save
-      Rails.logger.info "Running image description job. #{doc.id} - #{doc.display_url}"
-      @board = @menu.boards.create!(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu")
-      # @board.update(large_screen_columns: 10, medium_screen_columns: 8, small_screen_columns: 4)
-      @menu.run_image_description_job(@board.id, screen_size)
+      @board = @menu.boards.create(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu")
+      if @board.nil?
+        Rails.logger.error "Failed to create board for menu: #{@menu.id} - #{@menu.name}"
+        render json: { error: "Failed to create board for menu." }, status: :unprocessable_entity
+        return
+      end
+      # @menu.run_image_description_job(@board.id, screen_size)
+      @menu.enhance_image_description(@board.id)
+      Rails.logger.info "Image description job started for menu: #{@menu.id} - #{@menu.name} - Board: #{@board.id} - #{@board.name}"
       @menu_with_display_doc = {
         id: @menu.id,
         name: @menu.name,
@@ -116,6 +121,7 @@ class API::MenusController < API::ApplicationController
         boardId: @board.id,
         board: @board.api_view(@current_user),
         displayImage: @board.display_image_url,
+        status: @board.status,
         predefined: @menu.predefined,
         user_id: @menu.user_id,
         can_edit: @current_user.admin? || @current_user.id == @menu.user_id,

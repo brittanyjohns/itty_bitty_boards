@@ -13,7 +13,7 @@ RSpec.describe API::BoardsController, type: :controller do
   end
 
   before do
-    sign_in user  # Assuming you're using Devise or similar for authentication
+    request.headers["Authorization"] = "Bearer #{user.authentication_token}" if user.authentication_token.present?
   end
 
   describe "POST #save_layout" do

@@ -98,4 +98,17 @@ FactoryBot.define do
     board
     image
   end
+
+  factory(:menu) do
+    name { "My Menu" }
+    description { "A sample menu for testing." }
+    user
+    predefined { false }
+  end
+
+  factory(:menu_doc) do
+    menu
+    doc { FactoryBot.create(:doc) }
+    user
+  end
 end

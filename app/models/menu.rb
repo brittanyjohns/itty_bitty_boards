@@ -75,8 +75,8 @@ class Menu < ApplicationRecord
     board.save!
     new_doc.update!(board_id: board.id)
 
-    puts "Creating images from description for board: #{board.id}"
-    puts "Description: #{new_doc.processed}"
+    Rails.logger.debug "Creating images from description for board: #{board.id}"
+    Rails.logger.debug "Description: #{new_doc.processed}"
 
     create_images_from_description(board)
     board.reset_layouts
@@ -84,8 +84,8 @@ class Menu < ApplicationRecord
       board.display_image_url = new_doc.image&.url if new_doc.image.attached?
       board.save!
     rescue => e
-      puts "create_board_from_image **** ERROR **** \n#{e.message}\n"
-      puts e.backtrace
+      Rails.logger.error "create_board_from_image **** ERROR **** \n#{e.message}\n"
+      Rails.logger.error e.backtrace
     end
     # board.update!(status: "complete")
     board
@@ -248,25 +248,23 @@ class Menu < ApplicationRecord
   def enhance_image_description(board_id = nil)
     board_id ||= self.boards.last&.id
     @board = Board.find_by(id: board_id) if board_id
-    Rails.logger.debug "Enhancing image description for #{name} - board_id: #{@board&.id}"
+    unless @board
+      Rails.logger.error "No board found for this menu."
+      puts "No board found for this menu."
+      return nil
+    end
     new_doc = self.docs.last
-    Rails.logger.debug "New doc: #{new_doc.inspect}"
-    # if valid_json?(description)
-    #   puts "DESCRIPTION Valid JSON: #{description}"
-    # end
     raise "NO NEW DOC FOUND" && return unless new_doc
     # self.update!(description: new_doc.processed)
     begin
       if new_doc
-        puts "Processed: #{new_doc.processed}\n"
-        Rails.logger.info "Processed: #{new_doc.processed}\n"
 
-        new_processed = describe_menu(@board.display_image_url)
-        @board.update(status: "error") unless new_processed
-        @board.update!(description: new_processed) if new_processed
+        # new_processed = describe_menu(@board.display_image_url)
+        # @board.update(status: "error") unless new_processed
+        # @board.update!(description: new_processed) if new_processed
         restaurant_name = name || "Restaurant"
-        Rails.logger.debug "New processed: #{new_processed}\n Restaurant: #{restaurant_name}\n"
         from_text, messages_sent = clarify_image_description(new_doc.raw, restaurant_name)
+        new_processed = from_text || describe_menu(@board.display_image_url)
 
         if valid_json?(from_text)
           @board.update!(description: from_text)
