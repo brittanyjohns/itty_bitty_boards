@@ -35,11 +35,11 @@ class API::ProfilesController < API::ApplicationController
     slug = username.parameterize
     @profile = Profile.find_by(slug: slug) if @profile.nil?
     if @profile
-      render json: { error: "Profile with this slug already exists" }, status: :unprocessable_entity
+      render json: { error: "This username has been taken. Please try again." }, status: :unprocessable_entity
       return
     end
     if params[:user_email].blank?
-      render json: { error: "User email is required" }, status: :unprocessable_entity
+      render json: { error: "Email is required" }, status: :unprocessable_entity
       return
     end
     if params[:user_email].present?

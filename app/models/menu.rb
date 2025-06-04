@@ -127,7 +127,6 @@ class Menu < ApplicationRecord
       board_image_slice.each do |board_image|
         if should_generate_image(board_image.image, self.user, tokens_used, total_cost, true)
           board_image.update!(status: "generating")
-          puts "Generating image for #{board_image.image.label} - user: #{self.user_id}"
           board_image.image.start_generate_image_job(minutes_to_wait, self.user_id, nil, board.id)
           tokens_used += 1
           total_cost += 1
@@ -146,6 +145,12 @@ class Menu < ApplicationRecord
     # board.add_to_cost(tokens_used) if board
   end
 
+  def public_url
+    board_id = main_board&.id || boards.first&.id
+    base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    "#{base_url}/boards/#{board_id}/?returnUrl=http://localhost:8100/mymenu"
+  end
+
   def create_images_from_description(board)
     json_description = JSON.parse(description)
     images = []
@@ -153,9 +158,6 @@ class Menu < ApplicationRecord
     tokens_used = 0
     menu_item_list = []
 
-    Rails.logger.debug "Creating images from description for board: #{board.description}"
-    Rails.logger.debug "Description: #{description}"
-    Rails.logger.debug "JSON Description: #{json_description}"
     if json_description && json_description["menu_items"].blank?
       puts "No menu items found in description"
       return nil
@@ -211,14 +213,12 @@ class Menu < ApplicationRecord
             images_generated += 1
           else
             Rails.logger.info "Not generating image for #{board_image.image.label}"
-            puts "Not generating image for #{board_image.image.label}"
             board_image.update!(status: "skipped")
           end
         end
         minutes_to_wait += 1
       end
     rescue => e
-      puts "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"
       Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"
       # board.update(status: "error") if board
       board.update(status: "error - #{e.message}\n#{e.backtrace}\n") if board
@@ -248,6 +248,7 @@ class Menu < ApplicationRecord
       updated_at: updated_at,
       has_generating_images: main_board&.has_generating_images?,
       predefined: predefined,
+      public_url: public_url,
     }
   end
 
