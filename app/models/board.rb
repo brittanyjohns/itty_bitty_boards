@@ -132,7 +132,7 @@ class Board < ApplicationRecord
   end
 
   def self.common_boards
-    board_names = ["Numbers", "Sizes", "Greetings"]
+    board_names = ["Numbers", "Sizes", "Greetings", "Little Words"]
     Board.with_artifacts.where(user_id: User::DEFAULT_ADMIN_ID, name: board_names, predefined: true)
   end
 
