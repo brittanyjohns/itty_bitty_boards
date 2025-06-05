@@ -148,7 +148,7 @@ class Menu < ApplicationRecord
   def public_url
     board_id = main_board&.id || boards.first&.id
     base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
-    "#{base_url}/public-board/#{board_id}/?returnUrl=http://localhost:8100/mymenu"
+    "#{base_url}/public-board/#{board_id}?returnUrl=http://localhost:8100/mymenu"
   end
 
   def create_images_from_description(board)
