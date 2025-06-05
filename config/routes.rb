@@ -232,6 +232,7 @@ Rails.application.routes.draw do
         get "initial_predictive_board"
         post "import_obf"
         post "create_from_template"
+        get "common_boards"
       end
       member do
         post "format_with_ai"

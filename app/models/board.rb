@@ -131,6 +131,11 @@ class Board < ApplicationRecord
     end
   end
 
+  def self.common_boards
+    board_names = ["Numbers", "Sizes", "Greetings"]
+    Board.with_artifacts.where(user_id: User::DEFAULT_ADMIN_ID, name: board_names, predefined: true)
+  end
+
   def self.dynamic
     where(board_type: ["dynamic", "predictive"]).distinct
   end
