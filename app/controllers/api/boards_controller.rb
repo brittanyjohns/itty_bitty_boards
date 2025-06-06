@@ -62,7 +62,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def public_menu_boards
-    @public_menu_boards = Board.public_menu_boards
+    @public_menu_boards = Board.public_menu_boards.order(name: :asc).page params[:page]
     render json: { public_menu_boards: @public_menu_boards.map(&:api_view) }
   end
 
