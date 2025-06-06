@@ -247,14 +247,25 @@ class API::ImagesController < API::ApplicationController
     else
       @image = Image.create(user: @current_user, label: label, private: true, image_prompt: image_params[:image_prompt], image_type: "User")
     end
-    doc = @image.docs.new(image_params[:docs])
-    doc.user = @current_user
-    doc.processed = true
-    if doc.save
-      @image_with_display_doc = @image.attributes.merge({ display_doc: doc.attributes, src: doc.display_url })
-      render json: @image.with_display_doc(@current_user), status: :created
+    if image_params[:docs]
+      doc = @image.docs.new(image_params[:docs])
+      doc.user = @current_user
+      doc.processed = true
+      if doc.save
+        @image_with_display_doc = @image.attributes.merge({ display_doc: doc.attributes, src: doc.display_url })
+        render json: @image.with_display_doc(@current_user), status: :created
+      else
+        render json: @image.errors, status: :unprocessable_entity
+      end
     else
-      render json: @image.errors, status: :unprocessable_entity
+      if @image.save
+        display_doc = @image.display_doc(@current_user)
+        @image.start_generate_image_job(0, @current_user.id, image_params[:image_prompt], params[:board_id]) unless display_doc
+        @image_with_display_doc = @image.with_display_doc(@current_user)
+        render json: @image_with_display_doc, status: :created
+      else
+        render json: @image.errors, status: :unprocessable_entity
+      end
     end
   end
 

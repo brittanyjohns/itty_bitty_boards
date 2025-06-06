@@ -5,7 +5,6 @@ class GenerateImageJob
   def perform(image_id, user_id = nil, image_prompt = nil, board_id = nil, screen_size = nil)
     image = Image.find(image_id)
     board_image = nil
-    image.update(status: "generating") unless image.status == "generating"
     if image_prompt
       image.temp_prompt = image_prompt
     end

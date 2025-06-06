@@ -1103,7 +1103,7 @@ class Image < ApplicationRecord
       return docs.current.first if docs.current.any?
       return docs.first if docs.any?
     end
-    base_doc = self.docs.includes(image_attachment: :blob).first
+    base_doc = self.docs.includes(image_attachment: :blob).last
     base_doc
   end
 
