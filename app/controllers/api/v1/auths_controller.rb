@@ -95,7 +95,6 @@ module API
       def current
         @current_user = current_user
         if @current_user
-          @current_user.reload
           @view = @current_user.api_view
           render json: { user: @view }
         else

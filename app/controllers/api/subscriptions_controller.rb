@@ -3,8 +3,9 @@ class API::SubscriptionsController < API::ApplicationController
   PRO_PLAN_PRICE_ID = ENV["PRO_PLAN_PRICE_ID"]
 
   def index
-    @subscriptions = Stripe::Subscription.list({ customer: current_user.stripe_customer_id })
-    render json: { subscriptions: @subscriptions }, status: 200
+    stripe_customer_id = current_user.stripe_customer_id
+    @subscriptions = Stripe::Subscription.list({ customer: stripe_customer_id })
+    render json: { subscriptions: @subscriptions, stripe_customer_id: stripe_customer_id }, status: 200
   end
 
   def billing_portal

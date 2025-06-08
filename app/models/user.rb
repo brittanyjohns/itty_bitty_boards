@@ -773,6 +773,8 @@ class User < ApplicationRecord
       current_sign_in_ip: current_sign_in_ip,
       sign_in_count: sign_in_count,
       tokens: tokens,
+      settings: settings,
+      stripe_customer_id: stripe_customer_id,
       unread_messages: messages.where(recipient_id: id, read_at: nil, recipient_deleted_at: nil).count,
     }
   end
