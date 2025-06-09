@@ -3,8 +3,8 @@ require "openai"
 class OpenAiClient
   GPT_4_MODEL = "gpt-4o"
   GPT_3_MODEL = "gpt-3.5-turbo-0125"
-  # IMAGE_MODEL = ENV.fetch("OPENAI_IMAGE_MODEL", "dall-e-2")
-  IMAGE_MODEL = "gpt-image-1"
+  IMAGE_MODEL = ENV.fetch("OPENAI_IMAGE_MODEL", "dall-e-3")
+  # IMAGE_MODEL = "gpt-image-1"
   TTS_MODEL = "tts-1"
   PREVIEW_MODEL = "o1-preview"
 
@@ -110,6 +110,7 @@ class OpenAiClient
   def create_image
     # new_prompt = static_image_prompt
     new_prompt = @prompt
+    Rails.logger.debug "Using Image Model: #{IMAGE_MODEL}"
 
     response = openai_client.images.generate(parameters: { prompt: new_prompt, model: IMAGE_MODEL })
     if response
