@@ -125,7 +125,7 @@ end
 
 def create_word_events(words, user, board, communicator_account)
   words.each do |word|
-    random_days_ago = rand(0..30)
+    random_days_ago = rand(0..7)
     payload = {
       word: word,
       previous_word: words.sample,
