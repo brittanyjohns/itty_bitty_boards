@@ -6,6 +6,8 @@ class API::BoardsController < API::ApplicationController
   skip_before_action :authenticate_token!, only: %i[ index predictive_image_board preset show public_boards public_menu_boards common_boards ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images ]
+  before_action :check_board_view_edit_permissions, only: %i[update destroy]
+  before_action :check_board_create_permissions, only: %i[ create clone ]
   # layout "fullscreen", only: [:fullscreen]
   # layout "locked", only: [:locked]
 
@@ -589,8 +591,8 @@ class API::BoardsController < API::ApplicationController
 
   def clone
     set_board
-    # new_name = "Copy of " + @board.name
-    new_name = @board.name
+    new_name = "Copy of " + @board.name
+    # new_name = @board.name
     @new_board = @board.clone_with_images(current_user.id, new_name)
     render json: @new_board.api_view_with_images(current_user)
   end
@@ -608,6 +610,24 @@ class API::BoardsController < API::ApplicationController
   # Use callbacks to share common setup or constraints between actions.
   def set_board
     @board = Board.with_artifacts.find(params[:id])
+  end
+
+  def check_board_view_edit_permissions
+    unless @board.user == current_user || current_user.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+  end
+
+  def check_board_create_permissions
+    unless current_user
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+    unless current_user.admin? || current_user.boards.count < current_user.board_limit
+      render json: { error: "Maximum number of boards reached" }, status: :unprocessable_entity
+      return
+    end
   end
 
   def boards_for_user

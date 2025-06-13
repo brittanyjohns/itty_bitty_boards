@@ -1,5 +1,6 @@
 class API::ChildAccountsController < API::ApplicationController
   before_action :set_child_account, only: %i[ show update destroy ]
+  before_action :check_child_account_create_permissions, only: %i[ create ]
 
   # GET /child_accounts
   # GET /child_accounts.json
@@ -134,6 +135,17 @@ class API::ChildAccountsController < API::ApplicationController
   end
 
   private
+
+  def check_child_account_create_permissions
+    unless current_user
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+    unless current_user.admin? || current_user.child_accounts.count < current_user.comm_account_limit
+      render json: { error: "Maximum number of communicatior accounts reached" }, status: :unprocessable_entity
+      return
+    end
+  end
 
   # Use callbacks to share common setup or constraints between actions.
   def set_child_account

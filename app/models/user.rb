@@ -145,6 +145,7 @@ class User < ApplicationRecord
           user.send_welcome_with_claim_link_email(slug)
         end
       end
+      user.save
       stripe_customer_id ||= user.stripe_customer_id
       if stripe_customer_id.nil?
         stripe_customer_id = User.create_stripe_customer(email)
@@ -164,6 +165,14 @@ class User < ApplicationRecord
     boards.where(id: board_ids).limit(10)
   end
 
+  def board_limit
+    settings["board_limit"] || 3
+  end
+
+  def comm_account_limit
+    settings["communicator_limit"] || 1
+  end
+
   def update_from_stripe_event(data_object, plan_nickname)
     plan_nickname = plan_nickname || "free"
     if data_object["customer"]
@@ -173,16 +182,21 @@ class User < ApplicationRecord
 
     if new_user?
       self.plan_type = API::WebhooksHelper.get_plan_type(plan_nickname)
-      comm_account_limit = API::WebhooksHelper.get_communicator_limit(plan_nickname)
+      initial_comm_account_limit = API::WebhooksHelper.get_communicator_limit(plan_nickname)
 
-      self.settings["communicator_limit"] = comm_account_limit if comm_account_limit && !self.settings["communicator_limit"]
+      self.settings["communicator_limit"] = initial_comm_account_limit if initial_comm_account_limit && !self.settings["communicator_limit"]
       self.settings["plan_nickname"] = plan_nickname
       extra_communicators = settings["extra_communicators"] || 0
       self.settings["extra_communicators"] = extra_communicators
-      total_communicators = comm_account_limit + extra_communicators
+      total_communicators = initial_comm_account_limit + extra_communicators
       self.settings["total_communicators"] = total_communicators
-      board_limit = total_communicators * 25
-      self.settings["board_limit"] = board_limit
+      initial_board_limit = total_communicators * 25
+      if plan_nickname == "free"
+        # For free plan, set a default board limit
+        initial_board_limit = 3
+        self.settings["communicator_limit"] = 1
+      end
+      self.settings["board_limit"] = initial_board_limit
     end
     if data_object["cancel_at_period_end"]
       Rails.logger.info "Canceling at period end"
@@ -433,6 +447,10 @@ class User < ApplicationRecord
     voice_settings["name"]
   end
 
+  def language
+    voice_settings["language"] || "en-US"
+  end
+
   def is_a_favorite?(doc)
     favorite_docs.include?(doc)
   end
@@ -672,58 +690,10 @@ class User < ApplicationRecord
     favorite_boards.any? ? favorite_boards : boards.alphabetical.limit(10)
   end
 
-  # def api_view
-  #   accounts_included = settings["communicator_limit"] || 0
-  #   extra_communicators = settings["extra_communicators"] || 0
-  #   view = self.as_json
-  #   view["plan_expires_at"] = plan_expires_at.strftime("%x") if plan_expires_at
-  #   view["admin"] = admin?
-  #   view["free"] = free?
-  #   view["pro"] = pro?
-  #   view["basic"] = basic?
-  #   view["plus"] = plus?
-  #   view["teams_with_read_access"] = teams_with_read_access.map(&:index_api_view)
-  #   view["communicator_accounts"] = communicator_accounts
-  #   view["accounts_included"] = accounts_included
-  #   view["extra_communicators"] = extra_communicators
-  #   view["comm_account_limit"] = accounts_included + extra_communicators
-  #   view["supervisor_limit"] = settings["supervisor_limit"] || 0
-  #   view["board_limit"] = settings["board_limit"] || 0
-  #   view["go_to_words"] = settings["go_to_words"] || Board.common_words
-  #   view["go_to_boards"] = go_to_boards.map { |board| { id: board.id, name: board.name, display_image_url: board.display_image_url } }
-  #   view["premium"] = premium?
-  #   view["paid_plan"] = paid_plan?
-  #   view["plan_type"] = plan_type
-  #   view["team"] = current_team
-  #   view["free_trial"] = free_trial?
-  #   view["trial_expired"] = trial_expired?
-  #   view["trial_days_left"] = trial_days_left
-  #   view["last_sign_in_at"] = last_sign_in_at
-  #   view["last_sign_in_ip"] = last_sign_in_ip
-  #   view["current_sign_in_at"] = current_sign_in_at
-  #   view["current_sign_in_ip"] = current_sign_in_ip
-  #   view["sign_in_count"] = sign_in_count
-  #   view["tokens"] = tokens
-  #   view["phrase_board_id"] = settings["phrase_board_id"]
-  #   view["opening_board_id"] = settings["opening_board_id"]
-  #   view["has_dynamic_default"] = opening_board.present?
-  #   view["startup_board_group_id"] = settings["startup_board_group_id"]
-  #   view["boards"] = boards.alphabetical.map { |board| { id: board.id, name: board.name } }
-  #   # view["board_groups"] = board_groups.order(name: :asc).map(&:user_api_view)
-  #   # view["dynamic_boards"] = dynamic_boards.map(&:user_api_view)
-  #   view["heat_map"] = heat_map
-  #   view["week_chart"] = week_chart
-  #   view["group_week_chart"] = group_week_chart
-  #   view["most_clicked_words"] = most_clicked_words
-  #   view["display_name"] = display_name
-  #   view["unread_messages"] = messages.where(recipient_id: id, read_at: nil, recipient_deleted_at: nil).count
-  #   view
-  # end
   def api_view
     plan_exp = plan_expires_at&.strftime("%x")
     comm_limit = settings["communicator_limit"] || 0
     extra_comms = settings["extra_communicators"] || 0
-    board_limit = settings["board_limit"] || 0
     go_words = settings["go_to_words"] || Board.common_words
 
     memoized_teams = teams_with_read_access
