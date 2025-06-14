@@ -1,73 +1,133 @@
-
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>Welcome to SpeakAnyWay!</title>
-    <style>
-        body {
-            background-color: #f0f0f0;
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-        }
-        .container {
-            background-color: #ffffff;
-            margin: auto;
-            max-width: 600px;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .header {
-            font-size: 24px;
-            margin-bottom: 20px;
-            color: #333333;
-        }
-        .content {
-            font-size: 16px;
-            color: #666666;
-            line-height: 1.6;
-            text-align: center;
-        }
-        .button {
-            display: inline-block;
-            margin-top: 10px;
-            padding: 10px 20px;
-            background-color: #007bff;
-            text-decoration: none;
-            border-radius: 5px;
-            color: white;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Welcome to MySpeak+</title>
+  <style>
+    body {
+      background-color:rgb(221, 249, 255);
+      font-family: 'Lato', sans-serif;
+      font-size: 16px;
+      margin: 0;
+      padding: 30px;
+      color: #333;
+    }
+    .container {
+      background-color: #ffffff;
+      max-width: 600px;
+      margin: auto;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+    .header {
+      font-size: 26px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      text-align: center;
+      color: #222;
+    }
+    .subheader {
+      font-size: 16px;
+      color: #666;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .content {
+      font-size: 16px;
+      line-height: 1.6;
+    }
+    .button {
+      display: inline-block;
+      background-color: #28a745;
+      color: white;
+      text-decoration: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 16px;
+      margin-top: 20px;
+    }
+    .footer {
+      font-size: 14px;
+      color: #888;
+      margin-top: 40px;
+      text-align: center;
+    }
+    a {
+      color: #007bff;
+      text-decoration: none;
+    }
+    ul {
+      padding-left: 20px;
+      margin-top: 10px;
+      list-style-type: none;
+      text-align: left;
+    }
+    .lead-text {
+      font-weight: bold;
+      margin-top: 20px;
+      margin-bottom: 10px;
+      margin-left: 20px;
+      font-size: 18px;
+      text-align: left;
+      line-height: 1.4;
+      color: #333;
+    }
+    .secondary-text {
+      font-size: 16px;
+      font-weight: 600;
+      color: #555;
+      margin-top: 20px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .signature {
+      margin-top: 30px;
+      font-style: italic;
+      color: #555;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <p>Welcome to SpeakAnyWay!</p>
-        </div>
-        <div class="content">
-        
-            <p>Hi <%= @user.name.blank? ? "there" : @user.name %>,</p>
-            <p>Thank you for signing up for MySpeak, by SpeakAnyWay! We are excited to have you on board.</p>
-            <p>MySpeak a free, personalized profile that can store emergency information, medical history, and other important details. 
-            It can be shared via a QR code so family members, caregivers, and first responders can access it in case of an emergency.</p>
-            <p>We are also thrilled to introduce you to SpeakAnyWay, our innovative communication board platform designed to enhance communication for individuals with speech and language challenges.</p>
-            <p>With SpeakAnyWay, you can create customized communication boards tailored to your specific needs. Whether you're using it for personal use or in a professional setting, our platform is designed to be user-friendly and accessible.</p>
+  <div class="container">
+    <div class="header">Welcome to MySpeak+</div>
+    <div class="subheader">You're all set—let's make your voice heard.</div>
 
-            <p>To get started, please click the button below to finish setting up your account:</p>
-            <p style="text-align: center;">Set your password and claim your MySpeak page:</p>
-            <p style="text-align: center;">
-                <a href="<%= @login_link %>" class="button"
-                     style="background-color: #28a745; color: white; text-decoration: none; padding: 10px 20px; border-radius: 5px;">
-                    Claim your MySpeak page
-                </a>
-            </p>
-            <p>Once you've claimed your MySpeak page, you can access it <a href="<%= @mymyspeak_link %>" target="_blank">here</a>.</p>
-            <p>If you have any questions or need assistance, please don't hesitate to <a href="mailto:help@speakanyway.com">contact us</a>. We're here to help!</p>
-            <p>Thanks again for joining SpeakAnyWay!</p>
-            <p>Best,<br>The SpeakAnyWay Team</p>
-        </div>
+    <div class="content">
+      <p>Hi <%= @user.name.blank? ? "there" : @user.name %>,</p>
+
+      <p>Thank you for upgrading to <strong>MySpeak+</strong>! </p>
+      <p>Your personalized page is now ready to be set up.</p>
+
+      <p class="lead-text">As a MySpeak+ member, you can:</p>
+      <ul>
+        <li>✅ Create a scannable profile with emergency contact (ICE) info</li>
+        <li>✅ Add key medical and safety details</li>
+        <li>✅ Help first responders, caregivers, and loved ones support you faster</li>
+      </ul>
+
+      <p class="secondary-text">All of this lives behind your own QR code! <br>Simple, shareable, and always available.</p>
+
+      <p style="text-align: center;">
+        <a href="<%= @login_link %>" class="button">Claim Your MySpeak Page</a>
+      </p>
+
+      <p>Once you've set it up, you can always access your page <a href="<%= @mymyspeak_link %>" target="_blank">here</a>.</p>
+
+      <p>Need help or have questions? Just reply to this email or reach out to <a href="mailto:help@speakanyway.com">help@speakanyway.com</a> — we've got your back.</p>
+
+      <p>Thanks again for supporting SpeakAnyWay.<br>We're so glad you're here.</p>
+
+      <p class="signature">
+      Warmly,<br>The SpeakAnyWay Team</p>
     </div>
+
+    <div class="footer">
+      You're receiving this email because you signed up for MySpeak+.<br>
+      Want to manage your subscription? Visit your account settings.
+    </div>
+  </div>
 </body>
 </html>

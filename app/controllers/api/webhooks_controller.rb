@@ -62,30 +62,42 @@ class API::WebhooksController < API::ApplicationController
 
         pp data_object
 
+        plan_nickname = data_object&.plan&.nickname || data_object&.items&.data&.first&.plan&.nickname
+
         if @user
           puts "Existing user found: #{@user}"
           if @user.invited_by_id
             puts "User was invited by another user - not sending welcome email"
           else
-            puts "User was not invited by another user - sending welcome email"
+            puts "User was not invited by another user - sending welcome email @user.should_send_welcome_email?: #{@user.should_send_welcome_email?}"
             @user.send_welcome_email if @user.should_send_welcome_email?
           end
         else
           stripe_customer = Stripe::Customer.retrieve(data_object.customer)
+          puts "No existing user found for stripe_customer_id - Creating one: #{data_object.customer}"
           @user = User.find_by(email: stripe_customer.email) unless @user
           if @user
             @user.stripe_customer_id = data_object.customer
             @user.save!
           end
           stripe_customer_id = data_object.customer || stripe_customer.id
-
-          @user = User.create_from_email(stripe_customer.email, stripe_customer_id) unless @user
+          if plan_nickname.include?("myspeak")
+            temp_slug = stripe_customer.email.split("@").first
+            temp_slug = temp_slug.parameterize
+            puts "Creating new user temp_slug: #{temp_slug}"
+            @user = User.create_from_email(stripe_customer.email, stripe_customer_id, nil, temp_slug) unless @user
+            @user.plan_type = "myspeak"
+            @user.plan_status = "active"
+            @user.save!
+            @profile = Profile.generate_with_username(temp_slug, @user) if @user
+          else
+            @user = User.create_from_email(stripe_customer.email, stripe_customer_id) unless @user
+          end
         end
         subscription_json = subscription_data.to_json
         sub_items = data_object&.items&.data
-        plan_nickname = data_object&.plan&.nickname || data_object&.items&.data&.first&.plan&.nickname
         @user.update_from_stripe_event(subscription_data, plan_nickname) if @user
-        # CreateSubscriptionJob.perform_async(subscription_json, @user.id) if @user
+
         if @user
           render json: { success: true }, status: 200 and return
         else
@@ -109,7 +121,18 @@ class API::WebhooksController < API::ApplicationController
             render json: { success: true }, status: 304 and return
           else
             puts "Creating new user with stripe_customer_id: #{data_object.id}"
-            @user = User.create_from_email(data_object.email, data_object.id) unless @user
+            if plan_nickname.include?("myspeak")
+              temp_slug = data_object.email.split("@").first
+              temp_slug = temp_slug.parameterize
+              puts "Creating new user temp_slug: #{temp_slug}"
+              @user = User.create_from_email(data_object.email, data_object.id, nil, temp_slug) unless @user
+              @user.plan_type = "myspeak"
+              @user.plan_status = "active"
+              @user.save!
+              @profile = Profile.generate_with_username(temp_slug, @user) if @user
+            else
+              @user = User.create_from_email(data_object.email, data_object.id) unless @user
+            end
             unless @user
               render json: { error: "No user found for subscription" }, status: 400 and return
             end

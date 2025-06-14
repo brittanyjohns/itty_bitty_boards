@@ -268,15 +268,13 @@ class Profile < ApplicationRecord
       new_communicatore_account = existing_user.child_accounts.create!(
         username: username,
         name: username,
-        placeholder: true,
+        placeholder: false,
       )
       profile.profileable = new_communicatore_account
+      profile.placeholder = false
+      profile.claimed_at = Time.zone.now
+      profile.username = username
       profile.save!
-      if !existing_user.paid_plan?
-        Rails.logger.warn "Existing user #{existing_user.email} does not have a paid plan."
-        profile.profileable = existing_user
-        profile.save!
-      end
     end
     profile.set_fake_avatar
     Rails.logger.info "Created placeholder profile with username: #{profile.username} and slug #{profile.slug}"

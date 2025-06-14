@@ -175,6 +175,7 @@ class User < ApplicationRecord
 
   def update_from_stripe_event(data_object, plan_nickname)
     plan_nickname = plan_nickname || "free"
+
     if data_object["customer"]
       self.stripe_customer_id = data_object["customer"]
     end
@@ -191,7 +192,8 @@ class User < ApplicationRecord
       total_communicators = initial_comm_account_limit + extra_communicators
       self.settings["total_communicators"] = total_communicators
       initial_board_limit = total_communicators * 25
-      if plan_nickname == "free"
+      puts "Initial board limit: #{initial_board_limit} for plan: #{plan_nickname}"
+      if plan_type == "free" || plan_type == "myspeak"
         # For free plan, set a default board limit
         initial_board_limit = 3
         self.settings["communicator_limit"] = 1
@@ -264,6 +266,7 @@ class User < ApplicationRecord
 
   def delete_stripe_customer
     return unless stripe_customer_id
+    return if Rails.env.production? && !ENV["STRIPE_DELETE_CUSTOMERS"]
     result = Stripe::Customer.delete(stripe_customer_id)
     Rails.logger.info "Deleted stripe customer: #{result}" if result["deleted"]
   end
@@ -559,6 +562,10 @@ class User < ApplicationRecord
     plan_type.downcase == "free"
   end
 
+  def myspeak?
+    plan_type.downcase == "myspeak"
+  end
+
   def basic?
     plan_type.downcase == "basic"
   end
@@ -568,11 +575,11 @@ class User < ApplicationRecord
   end
 
   def paid_plan?
-    plan_type.downcase != "free"
+    basic? || pro? || plus? || premium?
   end
 
   def professional?
-    !free? && !basic?
+    pro? || plus? || premium?
   end
 
   def premium?
