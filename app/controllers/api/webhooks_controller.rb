@@ -157,7 +157,7 @@ class API::WebhooksController < API::ApplicationController
                   Rails.logger.error "Failed to create vendor user for email: #{email}"
                   render json: { error: "Failed to create vendor user." }, status: 400 and return
                 end
-                @vendor = @user.vendor
+                @vendor = @user.vendors.last if @user.vendors.any?
               elsif @vendor && custom_field["text"] && custom_field["text"]["value"].present?
                 value = custom_field["text"]["value"]
                 @vendor.business_name = value
