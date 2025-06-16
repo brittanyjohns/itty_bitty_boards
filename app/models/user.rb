@@ -72,6 +72,7 @@ class User < ApplicationRecord
   has_many :scenarios, dependent: :destroy
   has_many :created_teams, class_name: "Team", foreign_key: "created_by_id", dependent: :destroy
   has_many :vendors, dependent: :destroy
+  has_one :profile, as: :profileable, dependent: :destroy
 
   # has_many :sent_messages, class_name: "Message", foreign_key: "sender_id", dependent: :destroy
   # has_many :received_messages, class_name: "Message", foreign_key: "recipient_id", dependent: :destroy
@@ -248,7 +249,6 @@ class User < ApplicationRecord
       total_communicators = initial_comm_account_limit + extra_communicators
       self.settings["total_communicators"] = total_communicators
       initial_board_limit = total_communicators * 25
-      puts "Initial board limit: #{initial_board_limit} for plan: #{plan_nickname}"
       if plan_type == "free" || plan_type == "myspeak" || plan_type == "vendor"
         # For free plan, set a default board limit
         initial_board_limit = 3
@@ -281,7 +281,7 @@ class User < ApplicationRecord
         puts "-----------------------------"
       end
     rescue Stripe::StripeError => e
-      puts "Error retrieving subscriptions: #{e.message}"
+      Rails.logger.error "Error retrieving subscriptions: #{e.message}"
     end
     subscriptions
   end
@@ -544,7 +544,7 @@ class User < ApplicationRecord
   def invite_new_user_to_team!(new_user_email, team)
     new_user = User.invite!({ email: new_user_email }, self)
     if new_user.errors.any?
-      puts "Errors: #{new_user.errors.full_messages}"
+      Rails.logger.error "Errors: #{new_user.errors.full_messages}"
       raise "User not created: #{new_user.errors.full_messages}"
     end
     # BaseMailer.team_invitation_email(new_user_email, self, team).deliver_now
@@ -614,7 +614,6 @@ class User < ApplicationRecord
     return false if settings["disable_notifications"] == "1"
     return false if settings["disable_notifications"] == 1
     recently_notified = settings["recently_notified"]
-    puts "Recently notified: #{recently_notified}"
     return false if recently_notified && recently_notified > 2.hours.ago
     true
   end
@@ -771,6 +770,10 @@ class User < ApplicationRecord
     favorite_boards.any? ? favorite_boards : boards.alphabetical.limit(10)
   end
 
+  def vendor?
+    role == "vendor" || plan_type == "vendor"
+  end
+
   def api_view
     plan_exp = plan_expires_at&.strftime("%x")
     comm_limit = settings["communicator_limit"] || 0
@@ -784,6 +787,8 @@ class User < ApplicationRecord
     {
       id: id,
       organization_id: organization_id,
+      profile: profile&.api_view,
+      vendor: vendor?,
       email: email,
       name: name,
       display_name: display_name,

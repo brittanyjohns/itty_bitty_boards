@@ -1,6 +1,6 @@
 class API::AuditsController < API::ApplicationController
   skip_before_action :authenticate_token!
-  before_action :authenticate_signed_in!
+  before_action :authenticate_signed_in!, only: [:word_click, :word_events]
 
   def word_click
     user = current_user || current_account.user
@@ -45,5 +45,22 @@ class API::AuditsController < API::ApplicationController
     render json: @word_events.order(created_at: :desc).map { |event|
       event.api_view(current_user || current_account.user)
     }
+  end
+
+  def public_word_click
+    image = Image.find(params[:imageId]) if params[:imageId]
+    board = Board.includes(:user).find(params[:boardId]) if params[:boardId]
+    payload = {
+      word: params[:word],
+      previous_word: params[:previousWord],
+      image_id: params[:imageId],
+      timestamp: params[:timestamp],
+      image_id: image&.id,
+      user_id: board&.user&.id,
+      board_id: params[:boardId],
+      child_account_id: current_account&.id,
+    }
+    WordEvent.create(payload)
+    render json: { message: "Word click recorded" }
   end
 end

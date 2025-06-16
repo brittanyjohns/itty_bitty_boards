@@ -151,6 +151,7 @@ Rails.application.routes.draw do
       end
     end
     post "word_click", to: "audits#word_click"
+    post "public_word_click", to: "audits#public_word_click"
     resources :beta_requests
     resources :teams do
       collection do
@@ -405,13 +406,9 @@ Rails.application.routes.draw do
 
   # config/routes.rb
   direct :cdn_image do |model, options|
-    puts "model: #{model.inspect}"
-    puts "options: #{options}"
-
     expires_in = options.delete(:expires_in) { ActiveStorage.urls_expire_in }
 
     if model.respond_to?(:signed_id)
-      puts "model.signed_id(expires_in: expires_in): #{model.signed_id(expires_in: expires_in)}"
       route_for(
         :rails_service_blob_proxy,
         model.signed_id(expires_in: expires_in),
@@ -419,7 +416,6 @@ Rails.application.routes.draw do
         options.merge(host: ENV["CDN_HOST"])
       )
     else
-      puts "No model.signed_id(expires_in: expires_in): #{model.blob.signed_id(expires_in: expires_in)}"
       signed_blob_id = model.blob.signed_id(expires_in: expires_in)
       variation_key = model.variation.key
       filename = model.blob.filename

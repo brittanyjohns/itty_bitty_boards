@@ -1,7 +1,22 @@
 class API::VendorsController < API::ApplicationController
+  def index
+    @vendors = Vendor.all
+    render json: @vendors.map { |vendor| vendor.api_view(current_user) }
+  end
+
+  def search
+    query = params[:query]
+    if query.present?
+      @vendors = Vendor.where("business_name ILIKE ?", "%#{query}%")
+    else
+      @vendors = Vendor.all
+    end
+    render json: @vendors.map { |vendor| vendor.api_view(current_user) }
+  end
+
   def show
     @vendor = Vendor.find(params[:id])
-    render json: @vendor
+    render json: @vendor.api_view(current_user)
   end
 
   def create
@@ -11,6 +26,14 @@ class API::VendorsController < API::ApplicationController
       params[:business_email],
       params[:website]
     )
+    location = params[:location]
+    category = params[:category]
+    if location.present?
+      @vendor.location = location
+    end
+    if category.present?
+      @vendor.category = category
+    end
     if @vendor
       render json: @vendor.api_view(current_user), status: :created
     else

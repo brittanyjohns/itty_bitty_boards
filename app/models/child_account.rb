@@ -110,7 +110,7 @@ class ChildAccount < ApplicationRecord
   end
 
   def favorite_boards
-    if paid_plan?
+    if paid_plan? || user&.vendor?
       child_boards.where(favorite: true).includes(:board).map(&:board)
     else
       Board.public_boards
@@ -206,6 +206,10 @@ class ChildAccount < ApplicationRecord
   def startup_url
     base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
     "#{base_url}/accounts/sign-in?username=#{username}"
+  end
+
+  def plan_type
+    user&.plan_type || "free"
   end
 
   def public_url

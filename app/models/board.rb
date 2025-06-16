@@ -331,7 +331,7 @@ class Board < ApplicationRecord
     begin
       parent.destroy!
     rescue => e
-      Rails.logger.debug "Error deleting parent: #{e.inspect}"
+      Rails.logger.error "Error deleting parent: #{e.inspect}"
     end
   end
 
@@ -612,7 +612,6 @@ class Board < ApplicationRecord
       if layout
         new_board_image.layout = layout
         if new_board_image.layout_invalid?
-          Rails.logger.debug "Invalid layout: #{new_board_image.layout}"
           new_board_image.set_initial_layout!
         end
         new_board_image.skip_initial_layout = true
@@ -622,7 +621,7 @@ class Board < ApplicationRecord
         new_board_image.set_initial_layout!
       end
       unless @image
-        Rails.logger.debug "Image not found: #{image_id}"
+        Rails.logger.error "Image not found: #{image_id}"
         return
       end
 
@@ -652,11 +651,9 @@ class Board < ApplicationRecord
     @source = self
     cloned_user = User.find(cloned_user_id)
     unless cloned_user
-      Rails.logger.debug "User not found: #{cloned_user_id} - defaulting to admin"
       cloned_user_id = User::DEFAULT_ADMIN_ID
       cloned_user = User.find(cloned_user_id)
       if !cloned_user
-        Rails.logger.debug "Default admin user not found: #{cloned_user_id}"
         return
       end
     end
@@ -882,7 +879,6 @@ class Board < ApplicationRecord
       bi = board_images.find_by(image_id: id_key) if bi.nil?
 
       if bi.nil?
-        Rails.logger.debug "BoardImage not found for image_id: #{id_key}"
         next
       end
       bi.layout[screen_size] = layout_hash

@@ -110,7 +110,6 @@ class OpenAiClient
   def create_image
     # new_prompt = static_image_prompt
     new_prompt = @prompt
-    Rails.logger.debug "Using Image Model: #{IMAGE_MODEL}"
 
     response = openai_client.images.generate(parameters: { prompt: new_prompt, model: IMAGE_MODEL })
     if response
@@ -196,7 +195,6 @@ class OpenAiClient
   end
 
   def describe_menu(img_url)
-    Rails.logger.debug "Image URL: #{img_url}"
     begin
       response = openai_client.chat(parameters: {
                                       model: GPT_VISION_MODEL,

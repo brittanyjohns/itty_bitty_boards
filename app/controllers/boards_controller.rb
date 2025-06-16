@@ -148,7 +148,7 @@ class BoardsController < ApplicationController
     unless @board.images.include?(image)
       new_board_image = @board.board_images.new(image: image)
       unless new_board_image.save
-        Rails.logger.debug "new_board_image.errors: #{new_board_image.errors.full_messages}"
+        Rails.logger.error "new_board_image.errors: #{new_board_image.errors.full_messages}"
       end
     end
 
