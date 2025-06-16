@@ -19,7 +19,7 @@ class Vendor < ApplicationRecord
   has_one :profile, as: :profileable, dependent: :destroy
   belongs_to :user, optional: true
 
-  validates :business_name, presence: true
+  # validates :business_name, presence: true
   validates :website, format: { with: URI::regexp(%w[http https]), allow_blank: true }
 
   CATEGORIES = [

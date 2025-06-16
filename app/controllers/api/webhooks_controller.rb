@@ -92,7 +92,8 @@ class API::WebhooksController < API::ApplicationController
           if plan_nickname&.include?("myspeak")
             @user = handle_myspeak_user(stripe_customer.email, stripe_customer_id)
           elsif plan_nickname&.include?("vendor")
-            business_name = stripe_customer.metadata["business_name"] || nil
+            # business_name = stripe_customer.metadata["business_name"] || nil
+            business_name = nil
             @user = handle_vendor_user(stripe_customer.email, business_name, stripe_customer_id)
           else
             @user = User.create_from_email(stripe_customer.email, stripe_customer_id) unless @user
