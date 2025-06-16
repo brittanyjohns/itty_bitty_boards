@@ -62,7 +62,6 @@ class Vendor < ApplicationRecord
       new_communicator_account = user.child_accounts.create!(
         username: username,
         name: business_name,
-        placeholder: false,
       )
       profile.profileable = new_communicator_account
       profile.placeholder = false
