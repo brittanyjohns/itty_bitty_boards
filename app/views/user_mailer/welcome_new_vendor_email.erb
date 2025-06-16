@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Welcome to SpeakAnyWay!</title>
+  <style>
+    body {
+      background-color: #f4f4f4;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      background-color: #ffffff;
+      max-width: 600px;
+      margin: auto;
+      padding: 30px 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .logo img {
+      max-width: 150px;
+      height: auto;
+    }
+    .header {
+      font-size: 24px;
+      font-weight: bold;
+      color: #333333;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .content {
+      font-size: 16px;
+      color: #555555;
+      line-height: 1.6;
+    }
+    .button {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 25px;
+      background-color: #007bff;
+      color: #ffffff !important;
+      text-decoration: none;
+      font-weight: bold;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+    .footer {
+      font-size: 14px;
+      color: #888888;
+      text-align: center;
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <img src="https://speakanyway.com/assets/favicon-76TnrIHG.ico" alt="SpeakAnyWay Logo">
+    </div>
+    <div class="header">Welcome to SpeakAnyWay, Vendor!</div>
+    <div class="content">
+      <p><strong><%= @vendor_name %></strong>, your business is now listed on <strong>SpeakAnyWay</strong> — a communication support platform that helps make the world more accessible for everyone.</p>
+
+      <p>Your vendor profile has been created and is ready to be claimed. Once you claim your listing, you can:</p>
+      <ul>
+        <li>Customize your public page</li>
+        <li>Create communication boards for customers</li>
+        <li>Generate QR codes to display on your menu, counter, or website</li>
+        <li>Upgrade to unlock premium features and branding</li>
+      </ul>
+
+      <p style="text-align: center;">
+        <a href="<%= @login_link %>" class="button">Claim Your Business Profile</a>
+      </p>
+
+      <p>Need help or have questions? <a href="mailto:help@speakanyway.com">Email our support team</a> anytime.</p>
+      <p>Thanks for being part of a more inclusive world.</p>
+      <p>- The SpeakAnyWay Team</p>
+    </div>
+    <div class="footer">
+      &copy; <%= Time.now.year %> SpeakAnyWay. All rights reserved.
+    </div>
+  </div>
+</body>
+</html>

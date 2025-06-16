@@ -195,7 +195,6 @@ class API::BoardsController < API::ApplicationController
     end
 
     @images_with_display_doc = @images_with_display_doc.compact
-    puts "remaining_images: #{@images_with_display_doc.count} images found"
 
     return_data = {
       total_pages: @images.total_pages,
@@ -221,7 +220,6 @@ class API::BoardsController < API::ApplicationController
     settings["board_type"] = board_type
     @board.assign_parent(board_type, current_user)
 
-    Rails.logger.info "Board Parent type: #{@board.parent_type} - Parent ID: #{@board.parent_id}"
     @board.predefined = false
     @board.small_screen_columns = board_params["small_screen_columns"].to_i
     @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
@@ -235,7 +233,6 @@ class API::BoardsController < API::ApplicationController
     settings = params[:settings] || board_params[:settings] || {}
     settings["board_type"] = board_type
     matching_image = @board.matching_image
-    Rails.logger.debug "Board type: #{board_type}"
     if board_type == "dynamic"
       predefined_resource = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board")
       @board.parent_id = predefined_resource.id
@@ -341,7 +338,6 @@ class API::BoardsController < API::ApplicationController
         @board.board_type = "static"
       end
       new_board_settings = @board.settings.merge(settings)
-      Rails.logger.info "New board settings: #{new_board_settings}"
       @board.settings = new_board_settings
       word_list = params["word_list"] || []
       words_to_create = []
@@ -407,8 +403,6 @@ class API::BoardsController < API::ApplicationController
         paths = parsed_manifest["paths"]
         boards = paths["boards"]
         @root_board_id = boards.key(@root_board_id_key)
-
-        Rails.logger.debug "Root board ID: #{@root_board_id}"
 
         json_input = { extracted_obz_data: extracted_obz_data, current_user_id: current_user&.id, group_name: file_name, root_board_id: @root_board_id }
         ImportFromObfJob.perform_async(json_input.to_json)
@@ -613,6 +607,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def check_board_view_edit_permissions
+    set_board
     unless @board.user == current_user || current_user.admin?
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
@@ -625,7 +620,7 @@ class API::BoardsController < API::ApplicationController
       return
     end
     unless current_user.admin? || current_user.boards.count < current_user.board_limit
-      render json: { error: "Maximum number of boards reached" }, status: :unprocessable_entity
+      render json: { error: "Maximum number of boards reached. Please upgrade to add more." }, status: :unprocessable_entity
       return
     end
   end
@@ -687,7 +682,7 @@ class API::BoardsController < API::ApplicationController
       if board_image
         board_image.update!(position: i)
       else
-        Rails.logger.debug "Board image not found for ID: #{board_image_id}"
+        Rails.logger.error "Board image not found for ID: #{board_image_id}"
       end
     end
 
@@ -712,7 +707,6 @@ class API::BoardsController < API::ApplicationController
 
     # Update the grid layout
     begin
-      Rails.logger.debug ">>>Updating grid layout for screen size: #{screen_size}"
       @board.update_grid_layout(sorted_layout, screen_size)
     rescue => e
       Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"

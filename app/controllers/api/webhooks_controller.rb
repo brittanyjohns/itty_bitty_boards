@@ -12,12 +12,12 @@ class API::WebhooksController < API::ApplicationController
         payload, sig_header, ENV["STRIPE_WEBHOOK_SECRET"]
       )
     rescue JSON::ParserError => e
-      puts "Error parsing JSON: #{e.inspect}"
+      Rails.logger.error "Error parsing JSON: #{e.inspect}"
       # Invalid payload
       render json: { error: "Invalid payload" }, status: 400
       return
     rescue Stripe::SignatureVerificationError => e
-      puts "Signature error: #{e.inspect}"
+      Rails.logger.error "Signature error: #{e.inspect}"
       # Invalid signature
       render json: { error: "Invalid signature" }, status: 400
       return
@@ -33,12 +33,11 @@ class API::WebhooksController < API::ApplicationController
       when "customer.subscription.paused"
         @user = User.find_by(stripe_customer_id: data_object.customer)
         if @user
-          puts "Existing user found: #{@user}"
           @user.plan_status = "paused"
           @user.plan_type = "free"
           @user.save!
         else
-          puts "No existing user found for stripe_customer_id - Nothing to pause: #{data_object.customer}"
+          Rails.logger.error "No existing user found for stripe_customer_id - Nothing to pause: #{data_object.customer}"
           render json: { error: "No user found for subscription" }, status: 400 and return
         end
       when "customer.subscription.created", "customer.subscription.updated"
@@ -60,36 +59,41 @@ class API::WebhooksController < API::ApplicationController
 
         @user = User.find_by(stripe_customer_id: data_object.customer)
 
-        pp data_object
+        Rails.logger.info "Processing subscription event: #{event_type} "
+        Rails.logger.info "PLAN: #{data_object.plan&.inspect}"
 
         plan_nickname = data_object&.plan&.nickname || data_object&.items&.data&.first&.plan&.nickname
+        Rails.logger.info "Plan nickname: #{plan_nickname}"
+        if plan_nickname.nil?
+          render json: { error: "Plan nickname is nil for subscription." }, status: 400 and return
+        end
 
         if @user
-          puts "Existing user found: #{@user}"
+          Rails.logger.info "Existing user found: #{@user}"
           if @user.invited_by_id
-            puts "User was invited by another user - not sending welcome email"
+            Rails.logger.info "User was invited by another user - not sending welcome email"
           else
-            puts "User was not invited by another user - sending welcome email @user.should_send_welcome_email?: #{@user.should_send_welcome_email?}"
-            @user.send_welcome_email if @user.should_send_welcome_email?
+            Rails.logger.info "User was not invited by another user - sending welcome email @user.should_send_welcome_email?: #{@user.should_send_welcome_email?}"
+            @user.send_welcome_email if @user.should_send_welcome_email? && regular_plan?(plan_nickname)
           end
         else
           stripe_customer = Stripe::Customer.retrieve(data_object.customer)
-          puts "No existing user found for stripe_customer_id - Creating one: #{data_object.customer}"
+          deleted = stripe_customer.deleted? if stripe_customer
+          if deleted
+            render json: { error: "Stripe customer was deleted." }, status: 400 and return
+          end
+
           @user = User.find_by(email: stripe_customer.email) unless @user
           if @user
             @user.stripe_customer_id = data_object.customer
             @user.save!
           end
           stripe_customer_id = data_object.customer || stripe_customer.id
-          if plan_nickname.include?("myspeak")
-            temp_slug = stripe_customer.email.split("@").first
-            temp_slug = temp_slug.parameterize
-            puts "Creating new user temp_slug: #{temp_slug}"
-            @user = User.create_from_email(stripe_customer.email, stripe_customer_id, nil, temp_slug) unless @user
-            @user.plan_type = "myspeak"
-            @user.plan_status = "active"
-            @user.save!
-            @profile = Profile.generate_with_username(temp_slug, @user) if @user
+          if plan_nickname&.include?("myspeak")
+            @user = handle_myspeak_user(stripe_customer.email, stripe_customer_id)
+          elsif plan_nickname&.include?("vendor")
+            business_name = stripe_customer.metadata["business_name"] || nil
+            @user = handle_vendor_user(stripe_customer.email, business_name, stripe_customer_id)
           else
             @user = User.create_from_email(stripe_customer.email, stripe_customer_id) unless @user
           end
@@ -105,39 +109,19 @@ class API::WebhooksController < API::ApplicationController
         end
       when "customer.created"
         @user = User.find_by(stripe_customer_id: data_object.id)
-        if @user
-          puts "Existing user found: #{@existing_user}"
-        else
-          puts "No existing user found for stripe_customer_id - Creating one: #{data_object.id}"
-
-          @user = User.find_by(email: data_object.email) unless @user
+        unless @user
+          @user = User.find_by(email: data_object.email)
           if @user && data_object.id && @user.stripe_customer_id != data_object.id
-            puts "Updating existing user with new stripe_customer_id: #{data_object.id}"
             @user.stripe_customer_id = data_object.id
             @user.save!
-            @user = User.create_from_email(data_object.email, data_object.id) unless @user
           elsif @user && data_object.id && @user.stripe_customer_id == data_object.id
-            puts "User already exists with stripe_customer_id: #{data_object.id}"
+            Rails.logger.debug "User already exists with stripe_customer_id: #{data_object.id}"
             render json: { success: true }, status: 304 and return
           else
-            puts "Creating new user with stripe_customer_id: #{data_object.id}"
-            if plan_nickname.include?("myspeak")
-              temp_slug = data_object.email.split("@").first
-              temp_slug = temp_slug.parameterize
-              puts "Creating new user temp_slug: #{temp_slug}"
-              @user = User.create_from_email(data_object.email, data_object.id, nil, temp_slug) unless @user
-              @user.plan_type = "myspeak"
-              @user.plan_status = "active"
-              @user.save!
-              @profile = Profile.generate_with_username(temp_slug, @user) if @user
-            else
-              @user = User.create_from_email(data_object.email, data_object.id) unless @user
-            end
             unless @user
               render json: { error: "No user found for subscription" }, status: 400 and return
             end
-            @user.stripe_customer_id = data_object.id
-            @user.save!
+            render json: { success: true }, status: 200 and return
           end
         end
       when "customer.subscription.deleted"
@@ -147,7 +131,7 @@ class API::WebhooksController < API::ApplicationController
           @user.plan_type = "free"
           @user.save!
         else
-          puts "No existing user found for stripe_customer_id - Nothing to cancel: #{data_object.customer}"
+          Rails.logger.error "No existing user found for stripe_customer_id - Nothing to cancel: #{data_object.customer}"
           render json: { error: "No user found for subscription" }, status: 400 and return
         end
       when "checkout.session.completed"
@@ -155,45 +139,40 @@ class API::WebhooksController < API::ApplicationController
 
         @user = User.find_by(email: data_object.customer_details["email"]) unless @user
 
-        Rails.logger.info "Checkout completed. Adding 5 tokens to user #{@user}"
-        @user.add_tokens(5) if @user
-
-        # Payment is successful and the subscription is created.
-        # You should provision the subscription and save the customer ID to your database.
-      when "invoice.created"
-      when "invoice.paid"
-        @user = User.find_by(stripe_customer_id: data_object.customer)
-        @user = User.find_by(email: data_object.customer_email) unless @user
+        session = data_object
+        @user = User.find_by(stripe_customer_id: session.customer)
+        custom_fields = session.custom_fields
+        custom_fields.each do |custom_field|
+          if custom_field
+            if custom_field["key"] == "businessname"
+              email = session.customer_details["email"]
+              @user ||= User.find_by(email: email) unless @user
+              @vendor = Vendor.find_by(user_id: @user.id) if @user
+              @vendor ||= Vendor.find_by(business_email: email) unless @vendor
+              if @vendor.nil? && custom_field["text"] && custom_field["text"]["value"].present?
+                business_name = custom_field["text"]["value"]
+                @user = handle_vendor_user(email, business_name, session.customer)
+                if @user.nil?
+                  Rails.logger.error "Failed to create vendor user for email: #{email}"
+                  render json: { error: "Failed to create vendor user." }, status: 400 and return
+                end
+                @vendor = @user.vendor
+              elsif @vendor && custom_field["text"] && custom_field["text"]["value"].present?
+                value = custom_field["text"]["value"]
+                @vendor.business_name = value
+                @vendor.save!
+              else
+                Rails.logger.error "No existing vendor found for user: #{@user.id}"
+              end
+            end
+          end
+        end
         unless @user
-          puts "No existing user found for stripe_customer_id: #{data_object.customer}"
-          begin
-            @user = User.create_from_email(data_object.customer_email, data_object.customer) unless @user
-          rescue ActiveRecord::RecordInvalid => e
-            Rails.logger.error "invoice.paid -> Error creating user from email: #{e.inspect}"
-            render json: { error: "Error creating user from email." }, status: 400 and return
-          end
-          unless @user
-            render json: { error: "No user found for subscription" }, status: 400 and return
-          end
+          Rails.logger.error "No existing user found for stripe_customer_id - Nothing to add tokens: #{data_object.customer}"
+          render json: { error: "No user found for payment intent" }, status: 400 and return
         end
-        stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
-        plan_type_name = stripe_subscription&.plan&.nickname || stripe_subscription&.items&.data&.first&.plan&.nickname
-
-        hosted_invoice_url = data_object.hosted_invoice_url
-        if @user
-          subscription_data = {
-            subscription: data_object.subscription,
-            customer: data_object.customer,
-            hosted_invoice_url: hosted_invoice_url,
-            plan_nickname: plan_type_name,
-            plan: stripe_subscription.plan,
-          }
-          @user.update_from_stripe_event(subscription_data, plan_type_name)
-          @user.stripe_customer_id = data_object.customer if data_object.customer
-          @user.save!
-        else
-          puts "No existing user found for customer: #{data_object.customer}"
-        end
+      when "invoice.created"
+        Rails.logger.info "Invoice created event received: #{data_object.inspect}"
       end
     rescue StandardError => e
       Rails.logger.error "Error: #{e.inspect}\n #{e.backtrace}"
@@ -202,5 +181,82 @@ class API::WebhooksController < API::ApplicationController
     end
 
     render json: { success: true }, status: 200
+  end
+
+  private
+
+  def handle_myspeak_user(email, stripe_customer_id)
+    begin
+      temp_slug = stripe_customer.email.split("@").first
+      temp_slug = temp_slug.parameterize
+      @user = User.create_from_email(email, stripe_customer_id, nil, temp_slug) unless @user
+      @user.plan_type = "myspeak"
+      @user.plan_status = "active"
+      @user.save!
+      @profile = Profile.generate_with_username(temp_slug, @user) if @user
+    rescue ActiveRecord::RecordInvalid => e
+      Rails.logger.error "Error creating user from email: #{e.inspect}"
+    rescue StandardError => e
+      Rails.logger.error "Error handling myspeak user: #{e.inspect}"
+    end
+    unless @user
+      Rails.logger.error "Error creating myspeak user from email: #{email}"
+      return nil
+    end
+    @user.stripe_customer_id = stripe_customer_id if stripe_customer_id
+    @user.save! if @user
+    @user
+  rescue StandardError => e
+    Rails.logger.error "Error handling myspeak user: #{e.inspect}"
+    nil
+  end
+
+  def handle_vendor_user(email, business_name, stripe_customer_id = nil)
+    Rails.logger.debug "Handling vendor user for email: #{email} with stripe_customer_id: #{stripe_customer_id}"
+    begin
+      @vendor = Vendor.find_or_create_by(business_email: email, user_id: nil)
+      if @vendor.business_name.blank? && business_name.present?
+        Rails.logger.info "Setting business name for vendor: #{business_name}"
+        @vendor.business_name = business_name
+      end
+      @vendor.verified = true
+      @vendor.description = "Welcome to #{@vendor.business_name}. Please complete your profile."
+      @user = User.create_new_vendor_user(email, business_name, stripe_customer_id) unless @user
+      if @user
+        @user.plan_type = "vendor"
+        @user.plan_status = "active"
+        @user.save!
+        @vendor.user = @user
+
+        @vendor.save!
+      else
+        Rails.logger.error "Error creating vendor user from email: #{email}"
+      end
+      @vendor.create_profile! if @vendor
+    rescue ActiveRecord::RecordInvalid => e
+      Rails.logger.error "Error creating vendor user from email: #{e.inspect}"
+    rescue StandardError => e
+      Rails.logger.error "Error handling vendor user: #{e.inspect}"
+    end
+
+    if @user
+      @user.stripe_customer_id = stripe_customer_id if stripe_customer_id
+      Rails.logger.info "Vendor user created successfully: #{@user.email}"
+      @user.save!
+    else
+      Rails.logger.error "Error creating vendor user from email: #{email}"
+      return nil
+    end
+    @user
+  end
+
+  def regular_plan?(plan_nickname)
+    Rails.logger.info "Checking if plan is regular: #{plan_nickname}"
+    return false if plan_nickname.nil?
+    regular_plans = ["free", "basic", "pro", "premium"]
+    regular_plans.any? { |plan| plan_nickname.downcase.include?(plan) }
+  rescue StandardError => e
+    Rails.logger.error "Error checking regular plan: #{e.inspect}"
+    false
   end
 end

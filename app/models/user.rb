@@ -71,6 +71,8 @@ class User < ApplicationRecord
   has_many :child_accounts, dependent: :destroy
   has_many :scenarios, dependent: :destroy
   has_many :created_teams, class_name: "Team", foreign_key: "created_by_id", dependent: :destroy
+  has_many :vendors, dependent: :destroy
+  has_one :profile, as: :profileable, dependent: :destroy
 
   # has_many :sent_messages, class_name: "Message", foreign_key: "sender_id", dependent: :destroy
   # has_many :received_messages, class_name: "Message", foreign_key: "recipient_id", dependent: :destroy
@@ -135,28 +137,82 @@ class User < ApplicationRecord
     user = User.invite!(email: email, skip_invitation: true)
     if user
       if inviting_user_id
-        user.invited_by_id = inviting_user_id
-        user.invited_by_type = "User"
-        user.send_welcome_invitation_email(inviting_user_id)
+        create_from_invitation(email, inviting_user_id)
       else
         if !slug
           user.send_welcome_email
         else
           user.send_welcome_with_claim_link_email(slug)
         end
+        user.save
+        stripe_customer_id ||= user.stripe_customer_id
+        if stripe_customer_id.nil?
+          stripe_customer_id = User.create_stripe_customer(email)
+        end
+        user.stripe_customer_id = stripe_customer_id
+        user.save
       end
-      user.save
-      stripe_customer_id ||= user.stripe_customer_id
-      if stripe_customer_id.nil?
-        stripe_customer_id = User.create_stripe_customer(email)
-      end
-      user.stripe_customer_id = stripe_customer_id
-      user.save
+
       Rails.logger.info("User created: #{email}")
     else
       Rails.logger.error("User not created: #{email}")
     end
     user
+  end
+
+  def self.create_from_invitation(email, invited_by_id)
+    user = User.invite!(email: email, skip_invitation: true)
+    if user
+      user.invited_by_id = invited_by_id
+      user.invited_by_type = "User"
+      user.send_welcome_invitation_email(invited_by_id)
+      user.save
+      stripe_customer_id = User.create_stripe_customer(email)
+      user.stripe_customer_id = stripe_customer_id
+      user.save
+      Rails.logger.info("User created from invitation: #{email}")
+    else
+      Rails.logger.error("User not created from invitation: #{email}")
+    end
+    user
+  end
+
+  def self.create_new_vendor_user(email, business_name, stripe_customer_id)
+    if email.blank? || stripe_customer_id.blank?
+      Rails.logger.error("Invalid parameters for creating new vendor user: email: #{email}, business_name: #{business_name}, stripe_customer_id: #{stripe_customer_id}")
+      return nil
+    end
+    user = User.find_by_email(email)
+    found_user = user
+    user = User.invite!(email: email, skip_invitation: true) unless user
+    Rails.logger.info("found_user: #{found_user} --Creating new vendor user with email: #{email}, business_name: #{business_name}, stripe_customer_id: #{stripe_customer_id}")
+    if user
+      user.plan_type = "vendor"
+      user.plan_status = "active"
+      user.stripe_customer_id = stripe_customer_id
+      user.role = "vendor"
+      user.save!
+      Rails.logger.info("#{business_name} - New vendor user created: #{user.email}")
+
+      user.send_welcome_new_vendor(business_name) unless business_name.blank?
+
+      Rails.logger.info("New vendor user created: #{email}")
+    else
+      Rails.logger.error("Failed to create new vendor user: #{email}")
+    end
+    user
+  end
+
+  def self.find_by_email(email)
+    find_by(email: email)
+  end
+
+  def self.find_by_id(id)
+    find(id)
+  end
+
+  def self.non_admin_users
+    where.not(role: "admin")
   end
 
   def recently_used_boards
@@ -175,6 +231,7 @@ class User < ApplicationRecord
 
   def update_from_stripe_event(data_object, plan_nickname)
     plan_nickname = plan_nickname || "free"
+    Rails.logger.info "Updating user from Stripe event with plan: #{plan_nickname}"
 
     if data_object["customer"]
       self.stripe_customer_id = data_object["customer"]
@@ -192,8 +249,7 @@ class User < ApplicationRecord
       total_communicators = initial_comm_account_limit + extra_communicators
       self.settings["total_communicators"] = total_communicators
       initial_board_limit = total_communicators * 25
-      puts "Initial board limit: #{initial_board_limit} for plan: #{plan_nickname}"
-      if plan_type == "free" || plan_type == "myspeak"
+      if plan_type == "free" || plan_type == "myspeak" || plan_type == "vendor"
         # For free plan, set a default board limit
         initial_board_limit = 3
         self.settings["communicator_limit"] = 1
@@ -225,7 +281,7 @@ class User < ApplicationRecord
         puts "-----------------------------"
       end
     rescue Stripe::StripeError => e
-      puts "Error retrieving subscriptions: #{e.message}"
+      Rails.logger.error "Error retrieving subscriptions: #{e.message}"
     end
     subscriptions
   end
@@ -402,6 +458,15 @@ class User < ApplicationRecord
     false
   end
 
+  def can_edit_vendor?(vendor_id)
+    return false unless vendor_id
+    vendor = Vendor.find_by(id: vendor_id)
+    return false unless vendor
+    return true if admin?
+    return true if vendor.user_id == id
+    false
+  end
+
   def can_add_boards_to_account?(account_ids)
     return false unless account_ids
     account_id = account_ids.first
@@ -479,7 +544,7 @@ class User < ApplicationRecord
   def invite_new_user_to_team!(new_user_email, team)
     new_user = User.invite!({ email: new_user_email }, self)
     if new_user.errors.any?
-      puts "Errors: #{new_user.errors.full_messages}"
+      Rails.logger.error "Errors: #{new_user.errors.full_messages}"
       raise "User not created: #{new_user.errors.full_messages}"
     end
     # BaseMailer.team_invitation_email(new_user_email, self, team).deliver_now
@@ -507,6 +572,15 @@ class User < ApplicationRecord
       # AdminMailer.new_user_email(self).deliver_now
     rescue => e
       Rails.logger.error("Error sending welcome invitation email: #{e.message}")
+    end
+  end
+
+  def send_welcome_new_vendor(business_name)
+    Rails.logger.info "Sending welcome new vendor email to #{email} for business #{business_name}"
+    begin
+      UserMailer.welcome_new_vendor_email(self, business_name).deliver_now
+    rescue => e
+      Rails.logger.error("Error sending welcome new vendor email: #{e.message}")
     end
   end
 
@@ -540,7 +614,6 @@ class User < ApplicationRecord
     return false if settings["disable_notifications"] == "1"
     return false if settings["disable_notifications"] == 1
     recently_notified = settings["recently_notified"]
-    puts "Recently notified: #{recently_notified}"
     return false if recently_notified && recently_notified > 2.hours.ago
     true
   end
@@ -697,6 +770,10 @@ class User < ApplicationRecord
     favorite_boards.any? ? favorite_boards : boards.alphabetical.limit(10)
   end
 
+  def vendor?
+    role == "vendor" || plan_type == "vendor"
+  end
+
   def api_view
     plan_exp = plan_expires_at&.strftime("%x")
     comm_limit = settings["communicator_limit"] || 0
@@ -710,6 +787,8 @@ class User < ApplicationRecord
     {
       id: id,
       organization_id: organization_id,
+      profile: profile&.api_view,
+      vendor: vendor?,
       email: email,
       name: name,
       display_name: display_name,

@@ -9,6 +9,12 @@ module API::WebhooksHelper
       "plus"
     elsif plan.include?("myspeak")
       "myspeak"
+    elsif plan.include?("premium")
+      "premium"
+    elsif plan.include?("vendor")
+      "vendor"
+    elsif plan.include?("free")
+      "free"
     else
       "free"
     end
@@ -31,6 +37,8 @@ module API::WebhooksHelper
     elsif plan_name.include?("premium")
       initial_comm_account_limit = 10
     elsif plan_name.include?("myspeak")
+      initial_comm_account_limit = 1
+    elsif plan_name.include?("vendor")
       initial_comm_account_limit = 1
     else
       # Free plan or unknown plan

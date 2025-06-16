@@ -53,6 +53,11 @@ class Profile < ApplicationRecord
   end
 
   def start_audio_job
+    if id.blank?
+      Rails.logger.warn "Profile ID is blank, skipping audio job start."
+      return
+    end
+
     SaveProfileAudioJob.perform_async(id) if intro.present? && !intro_audio&.attached?
     SaveProfileAudioJob.perform_async(id) if intro_audio&.attached? && intro_changed?
   end
@@ -62,13 +67,13 @@ class Profile < ApplicationRecord
   end
 
   def update_intro_audio_url
+    return unless intro.present?
     voice = profileable&.voice || "alloy"
     language = profileable&.language || "en"
     begin
       response = OpenAiClient.new(open_ai_opts).create_audio_from_text(intro, voice, language)
       if response
         filename = "#{label_for_filename}_intro.aac"
-        Rails.logger.info "Creating audio file with filename: #{filename} for profile #{slug}"
         File.open(filename, "wb") { |f| f.write(response) }
         audio_file = File.open(filename)
         new_audio_file = self.intro_audio.attach(
@@ -76,20 +81,17 @@ class Profile < ApplicationRecord
           filename: filename,
           content_type: "audio/aac",
         )
-        Rails.logger.info "Audio file created: #{new_audio_file.inspect}"
         file_exists = File.exist?(filename)
         File.delete(filename) if file_exists
-        Rails.logger.info "Audio file saved to profile: #{new_audio_file.id}"
         return new_audio_file
       else
         Rails.logger.error "**** ERROR - create_audio_from_text **** \nDid not receive valid response.\n #{response&.inspect}"
       end
     rescue => e
-      Rails.logger.debug "**** ERROR **** \n#{e.message}\n#{e.inspect}"
+      Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.inspect}"
     end
     if new_audio_file
       intro_audio.attach(io: new_audio_file, filename: "#{slug}_intro.mp3")
-      Rails.logger.info "Intro audio updated for profile #{slug}"
     else
       Rails.logger.error "Failed to create intro audio for profile #{slug}"
     end
@@ -102,7 +104,6 @@ class Profile < ApplicationRecord
       response = OpenAiClient.new(open_ai_opts).create_audio_from_text(bio, voice, language)
       if response
         filename = "#{label_for_filename}_bio.aac"
-        Rails.logger.info "Creating audio file with filename: #{filename} for profile #{slug}"
         File.open(filename, "wb") { |f| f.write(response) }
         audio_file = File.open(filename)
         new_audio_file = self.bio_audio.attach(
@@ -110,20 +111,17 @@ class Profile < ApplicationRecord
           filename: filename,
           content_type: "audio/aac",
         )
-        Rails.logger.info "Audio file created: #{new_audio_file.inspect}"
         file_exists = File.exist?(filename)
         File.delete(filename) if file_exists
-        Rails.logger.info "Audio file saved to profile: #{new_audio_file.id}"
         return new_audio_file
       else
         Rails.logger.error "**** ERROR - create_audio_from_text **** \nDid not receive valid response.\n #{response&.inspect}"
       end
     rescue => e
-      Rails.logger.debug "**** ERROR **** \n#{e.message}\n#{e.inspect}"
+      Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.inspect}"
     end
     if new_audio_file
       bio_audio.attach(io: new_audio_file, filename: "#{slug}_bio.mp3")
-      Rails.logger.info "Bio audio updated for profile #{slug}"
     else
       Rails.logger.error "Failed to create bio audio for profile #{slug}"
     end
@@ -182,14 +180,12 @@ class Profile < ApplicationRecord
   def public_url
     return nil if slug.blank?
     base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
-
-    "#{base_url}/my/#{slug}"
-
-    # if placeholder
-    #   "#{base_url}/claim/#{claim_token}"
-    # else
-    #   "#{base_url}/my/#{slug}"
-    # end
+    plan_type = profileable&.plan_type || "free"
+    if plan_type.include?("vendor")
+      "#{base_url}/v/#{slug}"
+    else
+      "#{base_url}/my/#{slug}"
+    end
   end
 
   def startup_url
@@ -247,7 +243,6 @@ class Profile < ApplicationRecord
         claim_token: SecureRandom.hex(10),
       )
       urls << profile.public_url
-      Rails.logger.info "Created placeholder profile with username: #{profile.username} and slug #{profile.slug}"
     end
     urls
   end
@@ -265,19 +260,18 @@ class Profile < ApplicationRecord
       claim_token: SecureRandom.hex(10),
     )
     if existing_user
-      new_communicatore_account = existing_user.child_accounts.create!(
+      new_communicator_account = existing_user.child_accounts.create!(
         username: username,
         name: username,
         placeholder: false,
       )
-      profile.profileable = new_communicatore_account
+      profile.profileable = new_communicator_account
       profile.placeholder = false
       profile.claimed_at = Time.zone.now
       profile.username = username
       profile.save!
     end
     profile.set_fake_avatar
-    Rails.logger.info "Created placeholder profile with username: #{profile.username} and slug #{profile.slug}"
     profile
   end
 
