@@ -53,6 +53,11 @@ class Profile < ApplicationRecord
   end
 
   def start_audio_job
+    if id.blank?
+      Rails.logger.warn "Profile ID is blank, skipping audio job start."
+      return
+    end
+
     SaveProfileAudioJob.perform_async(id) if intro.present? && !intro_audio&.attached?
     SaveProfileAudioJob.perform_async(id) if intro_audio&.attached? && intro_changed?
   end
@@ -62,6 +67,7 @@ class Profile < ApplicationRecord
   end
 
   def update_intro_audio_url
+    return unless intro.present?
     voice = profileable&.voice || "alloy"
     language = profileable&.language || "en"
     begin
@@ -265,12 +271,12 @@ class Profile < ApplicationRecord
       claim_token: SecureRandom.hex(10),
     )
     if existing_user
-      new_communicatore_account = existing_user.child_accounts.create!(
+      new_communicator_account = existing_user.child_accounts.create!(
         username: username,
         name: username,
         placeholder: false,
       )
-      profile.profileable = new_communicatore_account
+      profile.profileable = new_communicator_account
       profile.placeholder = false
       profile.claimed_at = Time.zone.now
       profile.username = username

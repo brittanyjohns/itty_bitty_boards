@@ -22,6 +22,17 @@ class UserMailer < BaseMailer
     mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
   end
 
+  def welcome_new_vendor_email(user, vendor_business_name)
+    @user = user
+    @user_name = @user.name
+    @vendor_name = vendor_business_name
+    @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    @login_link += "/welcome/token/#{user.raw_invitation_token}"
+    @login_link += "?email=#{user.email}"
+    subject = "You have been invited to join #{@vendor_name} on SpeakAnyWay AAC!"
+    mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
+  end
+
   def welcome_to_organization_email(user, organization)
     @user = user
     @user_name = @user.name

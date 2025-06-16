@@ -305,7 +305,16 @@ Rails.application.routes.draw do
       end
     end
     get "profiles/:slug/check_placeholder", to: "profiles#check_placeholder"
-    # post "profiles/:claim_token/claim", to: "profiles#claim"
+
+    resources :vendors do
+      collection do
+        post "generate"
+        get "search"
+        get "categories"
+        get "popular"
+        get "featured"
+      end
+    end
 
     resources :child_boards do
       collection do

@@ -12,6 +12,15 @@ class UserMailerPreview < ActionMailer::Preview
     UserMailer.welcome_invitation_email(new_user, @user.id)
   end
 
+  def welcome_new_vendor_email
+    vendor = Vendor.first
+    return unless vendor && vendor.user
+    @user = vendor.user
+    email = "bhannajohns+vendor@gmail.com"
+    new_user = User.invite!(email: email, skip_invitation: true)
+    UserMailer.welcome_new_vendor_email(new_user, vendor)
+  end
+
   def welcome_to_organization_email
     email = "brittany+org-email-test@speakanyway.com"
     @organization_admin = User.where.not(organization_id: nil).first

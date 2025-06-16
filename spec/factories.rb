@@ -1,4 +1,14 @@
 FactoryBot.define do
+  factory :vendor do
+    user_id { 1 }
+    business_name { "MyString" }
+    business_email { "MyString" }
+    website { "MyString" }
+    location { "MyString" }
+    category { "MyString" }
+    verified { false }
+  end
+
   factory :organization do
     name { "MyString" }
     slug { "MyString" }

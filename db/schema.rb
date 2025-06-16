@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_05_19_113842) do
+ActiveRecord::Schema[7.1].define(version: 2025_06_15_171001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -714,6 +714,21 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_19_113842) do
     t.index ["uuid"], name: "index_users_on_uuid", unique: true
   end
 
+  create_table "vendors", force: :cascade do |t|
+    t.bigint "user_id"
+    t.string "business_name"
+    t.string "business_email"
+    t.string "website"
+    t.string "location"
+    t.string "category"
+    t.boolean "verified", default: false
+    t.text "description"
+    t.jsonb "configuration", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_vendors_on_user_id"
+  end
+
   create_table "word_events", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "word"
@@ -767,5 +782,6 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_19_113842) do
   add_foreign_key "user_docs", "docs"
   add_foreign_key "user_docs", "users"
   add_foreign_key "users", "organizations"
+  add_foreign_key "vendors", "users"
   add_foreign_key "word_events", "users"
 end
