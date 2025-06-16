@@ -203,10 +203,8 @@ class OpenAiClient
                                                               text: "This is a restaurant menu. Please describe the menu items in a list like your were reading them to the server. Please respond as json in the following format: #{expected_json_schema}" },
                                                             { type: "image_url", image_url: { url: img_url } }] }],
                                     })
-      puts "Menu OPENAI Response: #{response}"
       Rails.logger.debug "*** ERROR *** Invaild Menu Description Response: #{response}" unless response
     rescue => e
-      puts "**** ERROR **** \n#{e.message}\n#{e.inspect}"
       Rails.logger.debug "**** ERROR **** \n#{e.message}\n#{e.inspect}"
     end
     # save_response_locally(response)
