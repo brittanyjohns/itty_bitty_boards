@@ -64,22 +64,26 @@
     </div>
     <div class="header">Welcome to SpeakAnyWay, Vendor!</div>
     <div class="content">
-      <p><strong><%= @vendor_name %></strong>, your business is now listed on <strong>SpeakAnyWay</strong> — a communication support platform that helps make the world more accessible for everyone.</p>
+      <p><strong><%= @vendor_name %></strong>, thank you for joining SpeakAnyWay and helping make communication more inclusive for everyone.</p>
 
-      <p>Your vendor profile has been created and is ready to be claimed. Once you claim your listing, you can:</p>
-      <ul>
-        <li>Customize your public page</li>
-        <li>Create communication boards for customers</li>
-        <li>Generate QR codes to display on your menu, counter, or website</li>
-        <li>Upgrade to unlock premium features and branding</li>
+      <p>You're now offering an accessible menu that helps nonverbal, autistic, and speech-limited customers order independently—with confidence.</p>
+
+      <p>Here's how to get started:</p>
+      <ul style="list-style-type: none;">
+        <li>Check your live menu at <a href="<%= @menu_url %>"><%= @menu_url %></a></li>
+        <li>Download and print your QR code from your dashboard</li>
+        <a href="<%= @startup_url %>"><%=@startup_url%></a>
+        <li>Display it at your counter, register, or menu</li>
+        <li>Let your community know you’re communication-friendly!</li>
       </ul>
 
       <p style="text-align: center;">
-        <a href="<%= @login_link %>" class="button">Claim Your Business Profile</a>
+        <a href="<%= @login_link %>" class="button">Visit Your Vendor Dashboard</a>
       </p>
 
-      <p>Need help or have questions? <a href="mailto:help@speakanyway.com">Email our support team</a> anytime.</p>
-      <p>Thanks for being part of a more inclusive world.</p>
+      <p>Need any help? Just <a href="mailto:help@speakanyway.com">email our team</a> and we’ll be happy to assist.</p>
+
+      <p>Thanks again for making a difference.</p>
       <p>- The SpeakAnyWay Team</p>
     </div>
     <div class="footer">

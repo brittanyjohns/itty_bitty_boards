@@ -93,6 +93,11 @@ class Vendor < ApplicationRecord
     "#{base_url}/vendors/sign-in?username=#{username}"
   end
 
+  def setup_url
+    base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    "#{base_url}/vendor-accounts/#{id}/qr"
+  end
+
   def public_url
     return nil if slug.blank?
     base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"

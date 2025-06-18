@@ -447,7 +447,7 @@ class User < ApplicationRecord
 
   def can_edit_profile?(profile_id)
     return false unless profile_id
-    account_profile = Profile.find_by(id: profile_id)
+    account_profile = Profile.find_by(id: profile_id.to_i)
     return false unless account_profile
     return true if admin?
     comm_account = ChildAccount.find_by(id: account_profile.profileable_id)
@@ -575,10 +575,10 @@ class User < ApplicationRecord
     end
   end
 
-  def send_welcome_new_vendor(business_name)
+  def send_welcome_new_vendor(vendor)
     Rails.logger.info "Sending welcome new vendor email to #{email} for business #{business_name}"
     begin
-      UserMailer.welcome_new_vendor_email(self, business_name).deliver_now
+      UserMailer.welcome_new_vendor_email(self, vendor).deliver_now
     rescue => e
       Rails.logger.error("Error sending welcome new vendor email: #{e.message}")
     end
@@ -772,6 +772,11 @@ class User < ApplicationRecord
 
   def vendor?
     role == "vendor" || plan_type == "vendor"
+  end
+
+  def default_vendor
+    return nil unless vendor?
+    Vendor.find_by(user_id: id)
   end
 
   def api_view

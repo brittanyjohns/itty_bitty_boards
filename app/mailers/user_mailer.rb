@@ -22,12 +22,22 @@ class UserMailer < BaseMailer
     mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
   end
 
-  def welcome_new_vendor_email(user, vendor_business_name)
+  def welcome_new_vendor_email(user, vendor)
     @user = user
     @user_name = @user.name
-    @vendor_name = vendor_business_name
+    @vendor = vendor
+    Rails.logger.info "Sending welcome new vendor email to #{@user.email} for vendor #{@vendor.id}"
+    @vendor_name = @vendor.business_name
+    @menu_url = @vendor.public_url
+    @startup_url = @vendor.setup_url
     @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
-    @login_link += "/welcome/token/#{user.raw_invitation_token}"
+    if user.raw_invitation_token.nil?
+      # Existing user, just need to login
+      @login_link += "/users/sign-in"
+    else
+      # New user, need to use the token
+      @login_link += "/welcome/token/#{user.raw_invitation_token}"
+    end
     @login_link += "?email=#{user.email}"
     subject = "You have been invited to join #{@vendor_name} on SpeakAnyWay AAC!"
     mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
@@ -41,7 +51,13 @@ class UserMailer < BaseMailer
     @organization_admin = @organization.admin_user
     @organization_admin_name = @organization_admin.name
     @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
-    @login_link += "/welcome/token/#{user.raw_invitation_token}"
+    if user.raw_invitation_token.nil?
+      # Existing user, just need to login
+      @login_link += "/users/sign-in"
+    else
+      # New user, need to use the token
+      @login_link += "/welcome/token/#{user.raw_invitation_token}"
+    end
     @login_link += "?email=#{user.email}"
     subject = "You have been invited to join #{@organization_name} on SpeakAnyWay AAC!"
     Rails.logger.info "Sending welcome to organization email to #{@user.email} from #{@organization_admin.id}"

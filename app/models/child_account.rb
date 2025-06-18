@@ -257,6 +257,7 @@ class ChildAccount < ApplicationRecord
 
   def api_view(viewing_user = nil)
     cached_user = user
+    is_vendor = cached_user&.vendor?
     cached_profile = profile
     cached_most_used_board = most_used_board
     cached_supporters = supporters
@@ -271,6 +272,9 @@ class ChildAccount < ApplicationRecord
       sign_in_count: sign_in_count,
       can_edit: viewing_user&.can_add_boards_to_account?([id]),
       is_owner: viewing_user&.id == user_id,
+      is_vendor: is_vendor,
+      vendor: is_vendor ? cached_user.default_vendor.api_view(viewing_user) : nil,
+      vendor_profile: is_vendor ? cached_profile.api_view(viewing_user) : nil,
       pro: cached_user.pro?,
       free_trial: cached_user.free_trial?,
       admin: cached_user.admin?,
