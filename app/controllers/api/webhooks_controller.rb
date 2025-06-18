@@ -286,6 +286,7 @@ class API::WebhooksController < API::ApplicationController
       if @user
         @vendor.user = @user
         @vendor.save!
+        Rails.logger.info "handle_vendor_user -Vendor user created successfully: #{@user.email}"
       else
         Rails.logger.debug "handle_vendor_user - No User for email: #{email}"
       end
