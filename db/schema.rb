@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_06_15_171001) do
+ActiveRecord::Schema[7.1].define(version: 2025_06_18_155202) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -155,6 +155,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_15_171001) do
     t.integer "board_images_count", default: 0, null: false
     t.boolean "published", default: false
     t.boolean "favorite", default: false
+    t.bigint "vendor_id"
     t.index ["board_group_id"], name: "index_boards_on_board_group_id"
     t.index ["board_type"], name: "index_boards_on_board_type"
     t.index ["category"], name: "index_boards_on_category"
@@ -165,6 +166,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_15_171001) do
     t.index ["parent_type", "parent_id"], name: "index_boards_on_parent"
     t.index ["published"], name: "index_boards_on_published"
     t.index ["user_id"], name: "index_boards_on_user_id"
+    t.index ["vendor_id"], name: "index_boards_on_vendor_id"
   end
 
   create_table "child_accounts", force: :cascade do |t|
@@ -187,10 +189,12 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_15_171001) do
     t.string "passcode"
     t.jsonb "details"
     t.boolean "placeholder", default: false
+    t.bigint "vendor_id"
     t.index ["authentication_token"], name: "index_child_accounts_on_authentication_token", unique: true
     t.index ["reset_password_token"], name: "index_child_accounts_on_reset_password_token", unique: true
     t.index ["user_id"], name: "index_child_accounts_on_user_id"
     t.index ["username"], name: "index_child_accounts_on_username", unique: true
+    t.index ["vendor_id"], name: "index_child_accounts_on_vendor_id"
   end
 
   create_table "child_boards", force: :cascade do |t|
@@ -703,6 +707,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_15_171001) do
     t.string "child_lookup_key"
     t.boolean "locked", default: false
     t.bigint "organization_id"
+    t.bigint "vendor_id"
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
     t.index ["child_lookup_key"], name: "index_users_on_child_lookup_key", unique: true
     t.index ["current_team_id"], name: "index_users_on_current_team_id"
@@ -712,6 +717,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_15_171001) do
     t.index ["locked"], name: "index_users_on_locked"
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
     t.index ["uuid"], name: "index_users_on_uuid", unique: true
+    t.index ["vendor_id"], name: "index_users_on_vendor_id"
   end
 
   create_table "vendors", force: :cascade do |t|
@@ -740,9 +746,11 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_15_171001) do
     t.datetime "updated_at", null: false
     t.bigint "child_account_id"
     t.integer "image_id"
+    t.bigint "vendor_id"
     t.index ["child_account_id"], name: "index_word_events_on_child_account_id"
     t.index ["image_id"], name: "index_word_events_on_image_id"
     t.index ["user_id"], name: "index_word_events_on_user_id"
+    t.index ["vendor_id"], name: "index_word_events_on_vendor_id"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
@@ -753,7 +761,9 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_15_171001) do
   add_foreign_key "board_images", "boards"
   add_foreign_key "board_images", "images"
   add_foreign_key "boards", "users"
+  add_foreign_key "boards", "vendors"
   add_foreign_key "child_accounts", "users"
+  add_foreign_key "child_accounts", "vendors"
   add_foreign_key "child_boards", "boards"
   add_foreign_key "child_boards", "child_accounts"
   add_foreign_key "child_boards", "users", column: "created_by_id"
@@ -782,6 +792,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_15_171001) do
   add_foreign_key "user_docs", "docs"
   add_foreign_key "user_docs", "users"
   add_foreign_key "users", "organizations"
+  add_foreign_key "users", "vendors"
   add_foreign_key "vendors", "users"
   add_foreign_key "word_events", "users"
+  add_foreign_key "word_events", "vendors"
 end

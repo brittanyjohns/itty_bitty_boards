@@ -22,6 +22,7 @@
 #  passcode               :string
 #  details                :jsonb
 #  placeholder            :boolean          default(FALSE)
+#  vendor_id              :bigint
 #
 require 'rails_helper'
 

@@ -27,44 +27,44 @@ class Subscription < ApplicationRecord
   scope :expiring_soon, -> { where("expires_at < ?", Time.now + 1.week) }
   scope :expired, -> { where("expires_at < ?", Time.now) }
 
-  def self.build_from_stripe_event(data_object, user_id = nil)
-    user_uuid = data_object["client_reference_id"]
-    raise "User UUID not found" if user_uuid.nil? && user_id.nil?
-    user = User.find_by(uuid: user_uuid) if user_uuid && user_id.nil?
-    user = User.find(user_id) if user_id && user.nil?
+  # def self.build_from_stripe_event(data_object, user_id = nil)
+  #   user_uuid = data_object["client_reference_id"]
+  #   raise "User UUID not found" if user_uuid.nil? && user_id.nil?
+  #   user = User.find_by(uuid: user_uuid) if user_uuid && user_id.nil?
+  #   user = User.find(user_id) if user_id && user.nil?
 
-    raise "User not found" if user.nil?
-    expires_at = data_object["current_period_end"] || data_object["expires_at"]
-    user.stripe_customer_id = data_object["customer"]
-    user.plan_type = get_plan_type(data_object["plan"]["nickname"])
-    comm_account_limit = get_communicator_limit(data_object["plan"]["nickname"])
-    user.settings ||= {}
-    user.settings["communicator_limit"] = comm_account_limit
-    user.settings["plan_nickname"] = data_object["plan"]["nickname"]
-    user.settings["board_limit"] = get_board_limit(data_object["plan"]["nickname"])
-    if data_object["cancel_at_period_end"]
-      Rails.logger.info "Canceling at period end"
-      user.plan_status = "pending cancelation"
-      user.settings["cancel_at"] = Time.at(data_object["cancel_at"])
-      user.settings["cancel_at_period_end"] = data_object["cancel_at_period_end"]
-    else
-      user.plan_status = data_object["status"]
-    end
-    user.plan_expires_at = Time.at(expires_at)
-    user.save!
-    stripe_subscription_id = data_object["subscription"]
-    subscription = Subscription.find_by(stripe_subscription_id: stripe_subscription_id)
-    subscription = Subscription.new unless subscription
-    subscription.user = user
-    subscription.stripe_subscription_id = stripe_subscription_id
-    subscription.stripe_customer_id = data_object["customer"]
-    subscription.stripe_invoice_id = data_object["invoice"]
-    subscription.stripe_payment_status = data_object["payment_status"]
-    subscription.status = data_object["payment_status"] == "paid" ? "active" : "inactive"
-    subscription.price_in_cents = data_object["amount_total"]
-    subscription.stripe_client_reference_id = data_object["client_reference_id"]
-    subscription.expires_at = Time.at(expires_at)
-    subscription.save!
-    subscription
-  end
+  #   raise "User not found" if user.nil?
+  #   expires_at = data_object["current_period_end"] || data_object["expires_at"]
+  #   user.stripe_customer_id = data_object["customer"]
+  #   user.plan_type = get_plan_type(data_object["plan"]["nickname"])
+  #   comm_account_limit = get_communicator_limit(data_object["plan"]["nickname"])
+  #   user.settings ||= {}
+  #   user.settings["communicator_limit"] = comm_account_limit
+  #   user.settings["plan_nickname"] = data_object["plan"]["nickname"]
+  #   user.settings["board_limit"] = get_board_limit(data_object["plan"]["nickname"])
+  #   if data_object["cancel_at_period_end"]
+  #     Rails.logger.info "Canceling at period end"
+  #     user.plan_status = "pending cancelation"
+  #     user.settings["cancel_at"] = Time.at(data_object["cancel_at"])
+  #     user.settings["cancel_at_period_end"] = data_object["cancel_at_period_end"]
+  #   else
+  #     user.plan_status = data_object["status"]
+  #   end
+  #   user.plan_expires_at = Time.at(expires_at)
+  #   user.save!
+  #   stripe_subscription_id = data_object["subscription"]
+  #   subscription = Subscription.find_by(stripe_subscription_id: stripe_subscription_id)
+  #   subscription = Subscription.new unless subscription
+  #   subscription.user = user
+  #   subscription.stripe_subscription_id = stripe_subscription_id
+  #   subscription.stripe_customer_id = data_object["customer"]
+  #   subscription.stripe_invoice_id = data_object["invoice"]
+  #   subscription.stripe_payment_status = data_object["payment_status"]
+  #   subscription.status = data_object["payment_status"] == "paid" ? "active" : "inactive"
+  #   subscription.price_in_cents = data_object["amount_total"]
+  #   subscription.stripe_client_reference_id = data_object["client_reference_id"]
+  #   subscription.expires_at = Time.at(expires_at)
+  #   subscription.save!
+  #   subscription
+  # end
 end

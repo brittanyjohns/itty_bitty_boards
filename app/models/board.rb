@@ -37,6 +37,7 @@
 #  board_images_count    :integer          default(0), not null
 #  published             :boolean          default(FALSE)
 #  favorite              :boolean          default(FALSE)
+#  vendor_id             :bigint
 #
 require "zip"
 
@@ -116,6 +117,7 @@ class Board < ApplicationRecord
   # before_save :set_board_type
   before_save :clean_up_name
   before_save :validate_data
+  before_save :set_vendor_id
 
   before_save :set_display_margin_settings, unless: :margin_settings_valid_for_all_screen_sizes?
 
@@ -219,6 +221,11 @@ class Board < ApplicationRecord
 
   def set_initial_layout
     self.layout = { "lg" => [], "md" => [], "sm" => [] }
+  end
+
+  def set_vendor_id
+    return if vendor_id.present? || !user
+    self.vendor_id = user.vendor_id if user && user.vendor_id
   end
 
   def layout_empty?
@@ -1139,6 +1146,7 @@ class Board < ApplicationRecord
       category: category,
       parent_type: parent_type,
       parent_id: parent_id,
+      vendor_id: vendor_id,
       obf_id: obf_id,
       image_count: board_images_count,
       image_parent_id: image_parent_id,
@@ -1457,12 +1465,9 @@ class Board < ApplicationRecord
     end
   end
 
-  def assign_parent(board_type, current_user)
-    if board_type == "dynamic"
-      predefined_resource = PredefinedResource.find_or_create_by!(name: "Default", resource_type: "Board")
-      self.parent_id = predefined_resource.id
-      self.parent_type = "PredefinedResource"
-    elsif board_type == "predictive"
+  def assign_parent
+    current_user ||= user
+    if board_type == "predictive"
       self.parent_type = "Image"
       matching_image = self.user.images.find_or_create_by!(label: self.name, image_type: "predictive")
       if matching_image
@@ -1470,20 +1475,20 @@ class Board < ApplicationRecord
         self.image_parent_id = matching_image.id
       end
     elsif board_type == "category"
-      self.parent_type = "PredefinedResource"
-      self.parent_id = PredefinedResource.find_or_create_by!(name: "Default", resource_type: "category").id
-      self.save!
       matching_image = self.user.images.find_or_create_by!(label: self.name, image_type: "category")
-      if matching_image
-        self.image_parent_id = matching_image.id
-      end
+      self.image_parent_id = matching_image.id if matching_image
+      self.parent_id = matching_image.id if matching_image
+      self.parent_type = "Image" if matching_image
     elsif board_type == "static"
       self.parent_type = "User"
-      self.parent_id = current_user.id
+      self.parent_id = user.id
+    elsif board_type == "dynamic"
+      self.parent_type = "User"
+      self.parent_id = user.id
     else
       self.board_type = "static"
       self.parent_type = "User"
-      self.parent_id = current_user.id
+      self.parent_id = user.id
     end
   end
 
@@ -1606,7 +1611,7 @@ class Board < ApplicationRecord
                         data: board_data, number_of_columns: number_of_columns, obf_id: obf_id, board_group: board_group) unless board
       board.board_type = board_type
 
-      board.assign_parent(board_type, current_user)
+      board.assign_parent
       unless board.save!
         Rails.logger.warn "Board not saved"
         return
