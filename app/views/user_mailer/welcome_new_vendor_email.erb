@@ -49,6 +49,17 @@
       border-radius: 6px;
       font-size: 16px;
     }
+    .download-button {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 25px;
+      background-color:rgb(50, 191, 130);
+      color: #ffffff !important;
+      text-decoration: none;
+      font-weight: bold;
+      border-radius: 6px;
+      font-size: 16px;
+    }
     .footer {
       font-size: 14px;
       color: #888888;
@@ -62,24 +73,25 @@
     <div class="logo">
       <img src="https://speakanyway.com/assets/favicon-76TnrIHG.ico" alt="SpeakAnyWay Logo">
     </div>
-    <div class="header">Welcome to SpeakAnyWay, Vendor!</div>
+    <div class="header">Welcome to SpeakAnyWay, <%= @vendor_name %>!</div>
     <div class="content">
       <p><strong><%= @vendor_name %></strong>, thank you for joining SpeakAnyWay and helping make communication more inclusive for everyone.</p>
 
       <p>You're now offering an accessible menu that helps nonverbal, autistic, and speech-limited customers order independently—with confidence.</p>
 
       <p>Here's how to get started:</p>
-      <ul style="list-style-type: none;">
-        <li>Check your live menu at <a href="<%= @menu_url %>"><%= @menu_url %></a></li>
-        <li>Download and print your QR code from your dashboard</li>
-        <a href="<%= @startup_url %>"><%=@startup_url%></a>
-        <li>Display it at your counter, register, or menu</li>
-        <li>Let your community know you’re communication-friendly!</li>
-      </ul>
+      <div>
+     Check your live menu at <a href="<%= @menu_url %>"><%= @menu_url %></a>
+        <a href="<%= @setup_url %>" class="download-button">
+        View Your Setup Guide to Get Started
+        </a>
+        <p>Display it at your counter, register, or menu</p>
+        <p>Let your community know you’re communication-friendly!</p>
+      </div>
+      <p>To manage your menu, view orders, and access resources, visit your vendor dashboard:</p>
+      <p><strong>Vendor Dashboard:</strong> <%= @menu_url %></p>
 
-      <p style="text-align: center;">
         <a href="<%= @login_link %>" class="button">Visit Your Vendor Dashboard</a>
-      </p>
 
       <p>Need any help? Just <a href="mailto:help@speakanyway.com">email our team</a> and we’ll be happy to assist.</p>
 

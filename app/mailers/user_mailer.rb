@@ -29,7 +29,7 @@ class UserMailer < BaseMailer
     Rails.logger.info "Sending welcome new vendor email to #{@user.email} for vendor #{@vendor.id}"
     @vendor_name = @vendor.business_name
     @menu_url = @vendor.public_url
-    @startup_url = @vendor.setup_url
+    @setup_url = @vendor.setup_url
     @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
     if user.raw_invitation_token.nil?
       # Existing user, just need to login
@@ -38,8 +38,9 @@ class UserMailer < BaseMailer
       # New user, need to use the token
       @login_link += "/welcome/token/#{user.raw_invitation_token}"
     end
-    @login_link += "?email=#{user.email}"
-    subject = "You have been invited to join #{@vendor_name} on SpeakAnyWay AAC!"
+    encoded_email = ERB::Util.url_encode(@user.email)
+    @login_link += "?email=#{encoded_email}"
+    subject = "Welcome to SpeakAnyWay AAC - #{@vendor_name}!"
     mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
   end
 
