@@ -1030,7 +1030,11 @@ class Image < ApplicationRecord
   end
 
   def doc_exists_for_user?(user)
-    docs.where(user_id: user.id).first
+    return false unless user
+    doc_exists = display_image_url(user).present?
+    Rails.logger.debug "Doc exists for user #{user.id} - #{label}: #{doc_exists}"
+    doc_exists
+    # docs.where(user_id: user.id).first
   end
 
   def label_param

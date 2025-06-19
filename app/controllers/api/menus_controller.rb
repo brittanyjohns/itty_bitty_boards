@@ -1,5 +1,6 @@
 class API::MenusController < API::ApplicationController
   before_action :set_menu, only: %i[ show edit update destroy ]
+  before_action :check_board_create_permissions, only: %i[ create ]
 
   # GET /menus or /menus.json
   def index
@@ -165,5 +166,16 @@ class API::MenusController < API::ApplicationController
   def menu_params
     params.require(:menu).permit(:user_id, :name, :description, :token_limit, :predefined,
                                  docs: [:id, :raw, :image, :_destroy, :user_id, :source_type])
+  end
+
+  def check_board_create_permissions
+    unless current_user
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+    unless current_user.admin? || current_user.boards.count < current_user.board_limit
+      render json: { error: "Maximum number of boards reached. Please upgrade to add more." }, status: :unprocessable_entity
+      return
+    end
   end
 end

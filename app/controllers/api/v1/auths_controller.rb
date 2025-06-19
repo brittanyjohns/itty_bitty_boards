@@ -86,6 +86,8 @@ module API
           end
         end
         if user
+          sign_in user
+          user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
           render json: { message: "Password set. Please sign in.", user: user, token: user.authentication_token }
         else
           render json: { error: "Invalid reset password token" }, status: :not_found

@@ -71,7 +71,6 @@ module API::WebhooksHelper
 
   def self.get_board_limit(plan_type, user_role)
     return 0 if plan_type.nil?
-    # plan_type = plan_type.downcase.split("_").first
     if user_role == "vendor"
       puts "Vendor role detected"
       if plan_type.include?("basic")

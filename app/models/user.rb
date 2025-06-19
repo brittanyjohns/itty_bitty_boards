@@ -239,9 +239,10 @@ class User < ApplicationRecord
       plan_type = API::WebhooksHelper.get_plan_type(plan_nickname)
       Rails.logger.info "Setting plan type: #{plan_type}"
       self.plan_type = plan_type
-      initial_comm_account_limit = API::WebhooksHelper.get_communicator_limit(plan_type)
-      initial_board_limit = API::WebhooksHelper.get_board_limit(plan_type)
       user_role = API::WebhooksHelper.get_user_role(plan_type)
+
+      initial_comm_account_limit = API::WebhooksHelper.get_communicator_limit(plan_type)
+      initial_board_limit = API::WebhooksHelper.get_board_limit(plan_type, user_role)
       self.role = user_role if user_role && !self.admin?
       Rails.logger.info "Setting plan type: #{self.plan_type}, role: #{self.role}, initial_comm_account_limit: #{initial_comm_account_limit}"
 

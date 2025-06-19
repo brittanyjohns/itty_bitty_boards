@@ -147,6 +147,7 @@ class ChildAccount < ApplicationRecord
     profile = Profile.create!(profileable: self, username: username, slug: slug)
     profile.set_fake_avatar
     profile.save!
+    profile
   end
 
   def print_credentials
