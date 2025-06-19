@@ -229,37 +229,6 @@ class API::BoardsController < API::ApplicationController
     @board.language = board_params["language"] if board_params["language"].present?
 
     word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
-
-    # matching_image = @board.matching_image
-    # if board_type == "dynamic"
-    #   predefined_resource = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board")
-    #   @board.parent_id = predefined_resource.id
-    #   @board.parent_type = "PredefinedResource"
-    #   @board.board_type = "dynamic"
-    # elsif board_type == "predictive"
-    #   @board.parent_type = "Image"
-    #   # matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "predictive")
-    #   @board.board_type = "predictive"
-    #   matching_image ||= @board.create_matching_image
-    #   if matching_image
-    #     @board.parent_id = matching_image.id
-    #     @board.image_parent_id = matching_image.id
-    #     # matching_image.update(image_type: "predictive")
-    #   end
-    # elsif board_type == "category"
-    #   @board.board_type = "category"
-    #   @board.parent_type = "PredefinedResource"
-    #   @board.parent_id = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Category").id
-    #   # matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "category")
-    #   matching_image ||= @board.create_matching_image
-    #   if matching_image
-    #     @board.image_parent_id = matching_image.id
-    #   end
-    # elsif board_type == "static"
-    #   @board.parent_type = "User"
-    #   @board.parent_id = @board_user.id
-    #   @board.board_type = "static"
-    # end
     @board.settings = settings
 
     @board.find_or_create_images_from_word_list(word_list) if word_list.present?

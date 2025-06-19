@@ -230,22 +230,16 @@ class API::WebhooksController < API::ApplicationController
 
       @vendor.description = "Welcome to #{@vendor.business_name}. Please complete your profile."
       @user = User.find_by(email: email)
-      Rails.logger.info "handle_vendor_user - Found existing user: #{@user.email}" if @user
       @user = User.create_new_vendor_user(email, @vendor, stripe_customer_id) unless @user
-      Rails.logger.info "handle_vendor_user - Created vendor user: #{@user.email} for vendor: #{@vendor.business_name}" if @user
-      Rails.logger.info "handle_vendor_user - Vendor user created with business name: #{@vendor.business_name}" if @vendor.business_name
 
       if @user
         @vendor.user = @user
         @vendor.save!
-        Rails.logger.info "handle_vendor_user -Vendor user created successfully: #{@user.email}"
       else
         Rails.logger.error "handle_vendor_user - Error creating vendor user from email: #{email}"
       end
       @user.send_welcome_new_vendor(@vendor) if @user && @vendor && business_name
-      Rails.logger.info "handle_vendor_user - Welcome email sent to vendor user: #{@user.email}" if @user && @vendor && business_name
       @vendor.create_profile! if @vendor
-      Rails.logger.info "handle_vendor_user - Vendor profile created for: #{@vendor.business_name}" if @vendor.profile
     rescue ActiveRecord::RecordInvalid => e
       Rails.logger.error "handle_vendor_user - Error creating vendor user from email: #{e.inspect}"
     rescue StandardError => e
@@ -254,13 +248,12 @@ class API::WebhooksController < API::ApplicationController
 
     if @user
       @user.stripe_customer_id = stripe_customer_id if stripe_customer_id
-      Rails.logger.info "handle_vendor_user - Vendor user created successfully: #{@user.email}"
       @user.save!
     else
       Rails.logger.error "handle_vendor_user - Error creating vendor user from email: #{email}"
       return nil
     end
-    Rails.logger.info "handle_vendor_user - Returning vendor user: #{@user.email}"
+    Rails.logger.info "Vendor user created successfully: #{@user.email} with business name: #{@vendor.business_name}"
     @user
   end
 
