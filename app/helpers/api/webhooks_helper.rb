@@ -1,12 +1,9 @@
 module API::WebhooksHelper
   def self.get_plan_type(plan)
-    puts "get_plan_type: #{plan}"
     return "free" if plan.nil?
     if plan.include?("basic")
-      puts "Basic plan detected"
       "basic"
     elsif plan.include?("pro")
-      puts "Pro plan detected"
       "pro"
     elsif plan.include?("plus")
       "plus"
@@ -37,11 +34,8 @@ module API::WebhooksHelper
       initial_comm_account_limit = 10
     elsif plan_type.include?("myspeak")
       initial_comm_account_limit = 1
-      # elsif plan_type.include?("vendor")
-      #   initial_comm_account_limit = 1
     else
       # Free plan or unknown plan
-      puts "Free or unknown plan detected"
       initial_comm_account_limit = 0
     end
     Rails.logger.debug "Returning communicator limit: #{initial_comm_account_limit}"
