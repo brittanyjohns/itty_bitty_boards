@@ -137,12 +137,15 @@ class User < ApplicationRecord
   end
 
   def self.create_from_email(email, stripe_customer_id = nil, inviting_user_id = nil, slug = nil)
-    user = User.invite!(email: email, skip_invitation: true)
+    user = User.find_by(email: email)
+    user = User.invite!(email: email, skip_invitation: true) unless user
+    Rails.logger.info("Creating user from email: #{email}, inviting_user_id: #{inviting_user_id}, slug: #{slug}, stripe_customer_id: #{stripe_customer_id}")
     if user
       if inviting_user_id
         create_from_invitation(email, inviting_user_id)
       else
         if !slug
+          Rails.logger.info("Sending welcome email to user: #{email}")
           user.send_welcome_email
         else
           user.send_welcome_with_claim_link_email(slug)
@@ -156,9 +159,9 @@ class User < ApplicationRecord
         user.save
       end
 
-      Rails.logger.info("User created: #{email}")
+      Rails.logger.info("=User created: #{email} with stripe_customer_id: #{stripe_customer_id}")
     else
-      Rails.logger.error("User not created: #{email}")
+      Rails.logger.error("=User not created: #{email}")
     end
     user
   end
@@ -575,9 +578,15 @@ class User < ApplicationRecord
   end
 
   def send_welcome_email
+    Rails.logger.info "About to send welcome email to #{email}"
+    puts "ABOUT TO SEND WELCOME EMAIL TO #{email}"
     begin
+      Rails.logger.info ">>>Sending welcome email to #{email}"
       UserMailer.welcome_email(self).deliver_now
       AdminMailer.new_user_email(self).deliver_now
+      self.settings["welcome_email_sent"] = true
+      self.save
+      Rails.logger.info "Welcome email sent to #{email}"
     rescue => e
       Rails.logger.error("Error sending welcome email: #{e.message}")
     end

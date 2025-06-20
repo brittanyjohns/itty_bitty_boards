@@ -65,7 +65,7 @@ class API::WebhooksController < API::ApplicationController
         plan_nickname = data_object&.plan&.nickname || data_object&.items&.data&.first&.plan&.nickname
         Rails.logger.info "Plan nickname: #{plan_nickname}"
         if plan_nickname.nil?
-          render json: { error: "Plan nickname is nil for subscription." }, status: 400 and return
+          Rails.logger.warn "No plan nickname found in subscription data"
         end
 
         if @user
@@ -74,7 +74,12 @@ class API::WebhooksController < API::ApplicationController
             Rails.logger.info "User was invited by another user - not sending welcome email"
           else
             Rails.logger.info "User was not invited by another user - sending welcome email @user.should_send_welcome_email?: #{@user.should_send_welcome_email?}"
-            @user.send_welcome_email if @user.should_send_welcome_email? && regular_plan?(plan_nickname)
+            if regular_plan?(plan_nickname)
+              @user.send_welcome_email
+              Rails.logger.info "Welcome email sent to user: #{@user.email} for plan: #{plan_nickname}"
+            else
+              Rails.logger.warn "Skipping welcome email for plan: #{plan_nickname}"
+            end
           end
         else
           stripe_customer = Stripe::Customer.retrieve(data_object.customer)
@@ -89,13 +94,15 @@ class API::WebhooksController < API::ApplicationController
             @user.save!
           end
           stripe_customer_id = data_object.customer || stripe_customer.id
+          Rails.logger.info ">>> stripe_customer_id: #{stripe_customer_id} - plan_nickname: #{plan_nickname}"
           if plan_nickname&.include?("myspeak")
-            @user = handle_myspeak_user(stripe_customer.email, stripe_customer_id)
+            @user = handle_myspeak_user(stripe_customer)
           elsif plan_nickname&.include?("vendor")
             # @user = handle_vendor_user(stripe_customer.email, nil, stripe_customer_id, plan_nickname)
 
             Rails.logger.info "xxxxCreated vendor user: #{@user&.email} with stripe_customer_id: #{stripe_customer_id}"
           else
+            Rails.logger.info "Creating regular: #{@user&.email} with stripe_customer_id: #{stripe_customer_id}"
             @user = User.create_from_email(stripe_customer.email, stripe_customer_id) unless @user
           end
         end
@@ -106,25 +113,25 @@ class API::WebhooksController < API::ApplicationController
         if @user
           render json: { success: true }, status: 200 and return
         else
-          render json: { error: "No user found for subscription" }, status: 400 and return unless @user
+          render json: { error: "No user found for subscription" }, status: 400 and return
         end
       when "customer.created"
-        @user = User.find_by(stripe_customer_id: data_object.id)
-        unless @user
-          @user = User.find_by(email: data_object.email)
-          if @user && data_object.id && @user.stripe_customer_id != data_object.id
-            @user.stripe_customer_id = data_object.id
-            @user.save!
-          elsif @user && data_object.id && @user.stripe_customer_id == data_object.id
-            Rails.logger.debug "User already exists with stripe_customer_id: #{data_object.id}"
-            render json: { success: true }, status: 304 and return
-          else
-            unless @user
-              render json: { error: "No user found for subscription" }, status: 400 and return
-            end
-            render json: { success: true }, status: 200 and return
-          end
-        end
+        # @user = User.find_by(stripe_customer_id: data_object.id)
+        # unless @user
+        #   @user = User.find_by(email: data_object.email)
+        #   if @user && data_object.id && @user.stripe_customer_id != data_object.id
+        #     @user.stripe_customer_id = data_object.id
+        #     @user.save!
+        #   elsif @user && data_object.id && @user.stripe_customer_id == data_object.id
+        #     Rails.logger.debug "User already exists with stripe_customer_id: #{data_object.id}"
+        #     render json: { success: true }, status: 304 and return
+        #   else
+        #     unless @user
+        #       render json: { error: "No user found for subscription" }, status: 400 and return
+        #     end
+        #     render json: { success: true }, status: 200 and return
+        #   end
+        # end
       when "customer.subscription.deleted"
         @user = User.find_by(stripe_customer_id: data_object.customer)
         if @user
@@ -142,13 +149,32 @@ class API::WebhooksController < API::ApplicationController
         @user ||= User.find_by(stripe_customer_id: data_object.customer)
 
         Rails.logger.info "stripe_subscription: #{stripe_subscription.inspect}"
-        Rails.logger.debug "User found by email: #{@user&.email} - stripe_customer_id: #{data_object.customer}"
 
         session = data_object
-        @user = User.find_by(stripe_customer_id: session.customer)
         custom_fields = session.custom_fields
         metadata = session.metadata || {}
         plan_type = metadata["plan_type"]
+        @user = User.find_by(stripe_customer_id: session.customer)
+        Rails.logger.debug "User found by email: #{@user&.email} - stripe_customer_id: #{data_object.customer}" if @user
+        if @user.nil?
+          Rails.logger.error "No user found for stripe_customer_id: #{data_object.customer}"
+          @user = User.create_from_email(
+            session.customer_details["email"],
+            session.customer,
+            nil,
+            nil
+          )
+          Rails.logger.info "Created new user: #{@user&.email} with stripe_customer_id: #{session.customer}"
+          if @user.nil?
+            Rails.logger.error "Failed to create user for email: #{session.customer_details["email"]}"
+            render json: { error: "Failed to create user." }, status: 400 and return
+          end
+          @user.plan_type = plan_type || "free"
+          @user.plan_status = "active"
+          @user.save!
+          Rails.logger.info "New user created: #{@user&.email} with plan type: #{@user.plan_type}"
+        end
+
         Rails.logger.info "Processing checkout session completed event for user: #{@user&.email} with plan type: #{plan_type}"
         Rails.logger.info "Session metadata: #{metadata.inspect}"
         Rails.logger.info "Checkout session completed for user: #{@user&.email} with custom fields: #{custom_fields.inspect}"
@@ -172,11 +198,10 @@ class API::WebhooksController < API::ApplicationController
                   Rails.logger.info "Creating new FREE Vendor user for email: #{email} - plan_nickname: #{plan_nickname}"
                   # plan_nickname = "vendor_free"
                 end
-                Rails.logger.info "Plan nickname for vendor user: #{plan_nickname} - user: #{@user&.email} - business name: #{business_name}"
 
                 Rails.logger.info "Creating vendor user with email: #{email}, business_name: #{business_name}, stripe_customer_id: #{session.customer}, plan_nickname: #{plan_nickname}"
                 @user = handle_vendor_user(email, business_name, session.customer, plan_nickname)
-                Rails.logger.info "SESSION COMPLETE #{@user&.email} with business name: #{@vendor&.business_name} and stripe_customer_id: #{session.customer}"
+                Rails.logger.info "SESSION COMPLETE #{@user&.email} with business name: #{@vendor&.business_name} and stripe_customer_id: #{session.customer} - plan_nickname: #{plan_nickname} - plan_type: #{@user&.plan_type}"
                 if @user.nil?
                   Rails.logger.error "Failed to create vendor user for email: #{email}"
                   render json: { error: "Failed to create vendor user." }, status: 400 and return
@@ -210,8 +235,10 @@ class API::WebhooksController < API::ApplicationController
 
   private
 
-  def handle_myspeak_user(email, stripe_customer_id)
+  def handle_myspeak_user(stripe_customer)
     begin
+      email = stripe_customer.email
+      stripe_customer_id = stripe_customer.id
       temp_slug = stripe_customer.email.split("@").first
       temp_slug = temp_slug.parameterize
       @user = User.create_from_email(email, stripe_customer_id, nil, temp_slug) unless @user

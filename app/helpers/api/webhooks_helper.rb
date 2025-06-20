@@ -55,10 +55,8 @@ module API::WebhooksHelper
   def self.get_board_limit(comm_account_limit, user_role)
     return 0 if comm_account_limit.nil? || comm_account_limit <= 0
     if user_role == "vendor"
-      puts "Vendor role detected - plan type: #{comm_account_limit}"
       comm_account_limit * 3
     else
-      puts "User role detected: #{user_role} - plan type: #{plan_type}"
       comm_account_limit * 25
     end
   end
