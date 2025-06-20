@@ -103,6 +103,7 @@ class User < ApplicationRecord
   before_save :ensure_settings, unless: :has_all_settings?
 
   before_destroy :delete_stripe_customer
+  before_destroy :unassign_vendor
 
   def set_uuid
     return if self.uuid.present?
@@ -179,7 +180,7 @@ class User < ApplicationRecord
     user
   end
 
-  def self.create_new_vendor_user(email, vendor, stripe_customer_id)
+  def self.create_new_vendor_user(email, vendor, stripe_customer_id, plan_nickname)
     if email.blank? || stripe_customer_id.blank?
       Rails.logger.error("Invalid parameters for creating new vendor user: email: #{email}, business_name: #{business_name}, stripe_customer_id: #{stripe_customer_id}")
       return nil
@@ -190,7 +191,9 @@ class User < ApplicationRecord
     user = User.invite!(email: email, skip_invitation: true) unless user
     Rails.logger.info("found_user: #{found_user} --Creating new vendor user with email: #{email}, business_name: #{business_name}, stripe_customer_id: #{stripe_customer_id}")
     if user && !found_user
-      user.plan_type = "vendor_basic" # TODO: Need to add vendor_pro
+      user.plan_type = plan_nickname
+      user.settings ||= {}
+      user.settings["plan_nickname"] = plan_nickname
       user.plan_status = "active"
       user.stripe_customer_id = stripe_customer_id
       user.role = "vendor"
@@ -242,7 +245,7 @@ class User < ApplicationRecord
       user_role = API::WebhooksHelper.get_user_role(plan_type)
 
       initial_comm_account_limit = API::WebhooksHelper.get_communicator_limit(plan_type)
-      initial_board_limit = API::WebhooksHelper.get_board_limit(plan_type, user_role)
+      initial_board_limit = API::WebhooksHelper.get_board_limit(initial_comm_account_limit, user_role)
       self.role = user_role if user_role && !self.admin?
       Rails.logger.info "Setting plan type: #{self.plan_type}, role: #{self.role}, initial_comm_account_limit: #{initial_comm_account_limit}"
 
@@ -322,6 +325,21 @@ class User < ApplicationRecord
       end
     end
     new_opening_board
+  end
+
+  def unassign_vendor
+    return unless vendor_id
+    Rails.logger.info "Unassigning vendor for user #{id} with vendor_id #{vendor_id}"
+    vendor = Vendor.find_by(user_id: id, id: vendor_id)
+    if vendor
+      Rails.logger.info "Found vendor #{vendor.business_name} for user #{id}, unassigning..."
+      vendor.user_id = nil
+      vendor.save
+      self.vendor_id = nil
+      self.save
+    else
+      Rails.logger.warn "No vendor found for user #{id} with vendor_id #{vendor_id}"
+    end
   end
 
   def delete_stripe_customer

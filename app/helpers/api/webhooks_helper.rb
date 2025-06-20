@@ -22,6 +22,7 @@ module API::WebhooksHelper
   end
 
   def self.get_communicator_limit(plan_type)
+    Rails.logger.debug "Determining communicator limit for plan type: #{plan_type}"
     if plan_type.include?("basic")
       # Basic plan has a default of 1 communicator account
       initial_comm_account_limit = 1
@@ -51,23 +52,14 @@ module API::WebhooksHelper
     end
   end
 
-  def self.get_board_limit(plan_type, user_role)
-    return 0 if plan_type.nil?
+  def self.get_board_limit(comm_account_limit, user_role)
+    return 0 if comm_account_limit.nil? || comm_account_limit <= 0
     if user_role == "vendor"
-      puts "Vendor role detected: #{user_role} - plan type: #{plan_type}"
-      if plan_type.include?("basic")
-        initial_board_limit_limit = 3
-      elsif plan_type.include?("pro")
-        initial_board_limit_limit = 10
-      elsif plan_type.include?("plus")
-        initial_board_limit_limit = 50
-      elsif plan_type.include?("premium")
-        initial_board_limit_limit = 100
-      else
-        # Free plans
-        initial_board_limit_limit = 1
-      end
-      return initial_board_limit_limit
+      puts "Vendor role detected - plan type: #{comm_account_limit}"
+      comm_account_limit * 3
+    else
+      puts "User role detected: #{user_role} - plan type: #{plan_type}"
+      comm_account_limit * 25
     end
   end
 end

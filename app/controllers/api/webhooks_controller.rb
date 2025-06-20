@@ -92,7 +92,9 @@ class API::WebhooksController < API::ApplicationController
           if plan_nickname&.include?("myspeak")
             @user = handle_myspeak_user(stripe_customer.email, stripe_customer_id)
           elsif plan_nickname&.include?("vendor")
-            @user = handle_vendor_user(stripe_customer.email, nil, stripe_customer_id, plan_nickname)
+            # @user = handle_vendor_user(stripe_customer.email, nil, stripe_customer_id, plan_nickname)
+
+            Rails.logger.info "xxxxCreated vendor user: #{@user&.email} with stripe_customer_id: #{stripe_customer_id}"
           else
             @user = User.create_from_email(stripe_customer.email, stripe_customer_id) unless @user
           end
@@ -137,24 +139,44 @@ class API::WebhooksController < API::ApplicationController
         stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
 
         @user = User.find_by(email: data_object.customer_details["email"]) unless @user
+        @user ||= User.find_by(stripe_customer_id: data_object.customer)
+
+        Rails.logger.info "stripe_subscription: #{stripe_subscription.inspect}"
+        Rails.logger.debug "User found by email: #{@user&.email} - stripe_customer_id: #{data_object.customer}"
 
         session = data_object
         @user = User.find_by(stripe_customer_id: session.customer)
         custom_fields = session.custom_fields
+        metadata = session.metadata || {}
+        plan_type = metadata["plan_type"]
+        Rails.logger.info "Processing checkout session completed event for user: #{@user&.email} with plan type: #{plan_type}"
+        Rails.logger.info "Session metadata: #{metadata.inspect}"
         Rails.logger.info "Checkout session completed for user: #{@user&.email} with custom fields: #{custom_fields.inspect}"
         custom_fields.each do |custom_field|
           if custom_field
             if custom_field["key"] == "businessname"
               email = session.customer_details["email"]
-              @user ||= User.find_by(email: email) unless @user
+              @user ||= User.find_by(email: email)
+              Rails.logger.info "Processing business name for email: #{email} - user: #{@user&.email}"
               @vendor = Vendor.find_by(user_id: @user.id) if @user
               @vendor ||= Vendor.find_by(business_email: email) unless @vendor
+              Rails.logger.info "Found vendor: #{@vendor&.business_email} for user: #{@user&.email}" if @vendor
               if @vendor.nil? && custom_field["text"] && custom_field["text"]["value"].present?
                 business_name = custom_field["text"]["value"]
                 Rails.logger.info "Creating new vendor user for email: #{email} with business name: #{business_name}"
-                plan_nickname = @user&.settings&.dig("plan_nickname") || "error"
-                Rails.logger.info "Plan nickname for vendor user: #{plan_nickname}"
+                plan_nickname = "vendor_#{plan_type}" if plan_type
+                if @user
+                  Rails.logger.info "User already exists: #{@user.email} - plan type: #{@user.plan_type}"
+                  plan_nickname = "vendor_#{@user.plan_type}" if @user.plan_type
+                else
+                  Rails.logger.info "Creating new FREE Vendor user for email: #{email} - plan_nickname: #{plan_nickname}"
+                  # plan_nickname = "vendor_free"
+                end
+                Rails.logger.info "Plan nickname for vendor user: #{plan_nickname} - user: #{@user&.email} - business name: #{business_name}"
+
+                Rails.logger.info "Creating vendor user with email: #{email}, business_name: #{business_name}, stripe_customer_id: #{session.customer}, plan_nickname: #{plan_nickname}"
                 @user = handle_vendor_user(email, business_name, session.customer, plan_nickname)
+                Rails.logger.info "SESSION COMPLETE #{@user&.email} with business name: #{@vendor&.business_name} and stripe_customer_id: #{session.customer}"
                 if @user.nil?
                   Rails.logger.error "Failed to create vendor user for email: #{email}"
                   render json: { error: "Failed to create vendor user." }, status: 400 and return
@@ -222,7 +244,6 @@ class API::WebhooksController < API::ApplicationController
     begin
       @vendor = Vendor.find_or_create_by(business_email: email, user_id: nil)
       if @vendor.business_name.blank? && business_name_to_use.present?
-        Rails.logger.info "Setting business name for vendor: #{business_name_to_use}"
         @vendor.business_name = business_name_to_use
       end
       @vendor.verified = !business_name.blank?
@@ -230,16 +251,18 @@ class API::WebhooksController < API::ApplicationController
 
       @vendor.description = "Welcome to #{@vendor.business_name}. Please complete your profile."
       @user = User.find_by(email: email)
-      @user = User.create_new_vendor_user(email, @vendor, stripe_customer_id) unless @user
+      @user = User.create_new_vendor_user(email, @vendor, stripe_customer_id, plan_nickname)
+
+      Rails.logger.info "handle_vendor_user: plan_nickname: #{plan_nickname}"
 
       if @user
         @vendor.user = @user
         @vendor.save!
       else
-        Rails.logger.error "handle_vendor_user - Error creating vendor user from email: #{email}"
+        Rails.logger.debug "handle_vendor_user - No User for email: #{email}"
       end
       @user.send_welcome_new_vendor(@vendor) if @user && @vendor && business_name
-      @vendor.create_profile! if @vendor
+      @vendor_profile = @vendor.create_profile! if @vendor
     rescue ActiveRecord::RecordInvalid => e
       Rails.logger.error "handle_vendor_user - Error creating vendor user from email: #{e.inspect}"
     rescue StandardError => e
@@ -253,7 +276,7 @@ class API::WebhooksController < API::ApplicationController
       Rails.logger.error "handle_vendor_user - Error creating vendor user from email: #{email}"
       return nil
     end
-    Rails.logger.info "Vendor user created successfully: #{@user.email} with business name: #{@vendor.business_name}"
+    Rails.logger.info "Vendor user created successfully: #{@vendor.business_email} with business name: #{@vendor.business_name}"
     @user
   end
 

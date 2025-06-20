@@ -44,17 +44,6 @@ class Vendor < ApplicationRecord
   end
 
   def create_profile!
-    # return if profile.present?
-
-    # existing_profile = Profile.find_by(slug: slug, profileable_type: "Vendor")
-    # if existing_profile
-    #   raise "Profile with slug '#{slug}' already exists for Vendor #{business_name}. Please choose a different business name."
-    # end
-    # existing_profile = Profile.find_by(username: username, profileable_type: "Vendor")
-    # if existing_profile
-    #   raise "Profile with username '#{username}' already exists for Vendor #{business_name}. Please choose a different username."
-    # end
-    # return if business_name.blank? || slug.blank?
     Rails.logger.info "Creating profile for Vendor: #{business_name} with slug: #{slug}"
     account = build_child_account(
       username: username,
@@ -63,24 +52,33 @@ class Vendor < ApplicationRecord
       user_id: user_id,
     )
     new_communicator_account = account.save ? account : nil
-    Rails.logger.info "New communicator account created: #{new_communicator_account.inspect}"
+    Rails.logger.info "New communicator account created: #{new_communicator_account.inspect}" unless new_communicator_account.nil?
+    if new_communicator_account.nil?
+      Rails.logger.error "Failed to create communicator account for Vendor: #{business_name}"
+      return
+    end
+
     description = self.description.presence || "Welcome to #{business_name}. Please complete your profile."
     configuration = self.configuration || { "default_language" => "en", "currency" => "USD" }
-    # profile = build_profile(
-    #   username: slug,
-    #   slug: slug,
-    #   bio: description,
-    #   intro: "Welcome to #{business_name}",
-    #   settings: configuration,
-    #   profileable_type: "Vendor",
-    #   profileable_id: id,
-    #   placeholder: verified ? false : true,
-    #   claimed_at: verified ? Time.current : nil,
-    #   claim_token: SecureRandom.hex(10),
-    # )
+
     Rails.logger.info "Creating profile for new communicator account: #{new_communicator_account.inspect}"
-    profile = new_communicator_account.create_profile!
-    Rails.logger.info "Profile created: #{profile.inspect}"
+    profile = Profile.create(profileable: new_communicator_account, username: username, slug: slug,
+                             bio: description, intro: "Welcome to #{business_name}", claim_token: SecureRandom.hex(10))
+    if profile.nil?
+      profile ||= Profile.new(
+        username: username,
+        slug: slug,
+        bio: description,
+        intro: "Welcome to #{business_name}",
+        settings: configuration,
+        profileable_type: "Vendor",
+        profileable_id: id,
+        placeholder: verified ? false : true,
+        claimed_at: verified ? Time.current : nil,
+        claim_token: SecureRandom.hex(10),
+      )
+    end
+    Rails.logger.info "Profile before save: #{profile.inspect}"
     profile.save!
     profile.set_fake_avatar
     if new_communicator_account

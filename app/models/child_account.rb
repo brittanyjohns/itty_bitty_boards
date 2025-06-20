@@ -119,6 +119,14 @@ class ChildAccount < ApplicationRecord
     end
   end
 
+  def role
+    if user&.vendor?
+      "vendor"
+    else
+      "user"
+    end
+  end
+
   def self.create_for_user(user, username, password)
     account = new(username: username, password: password, user: user, password_confirmation: password)
     account.save!
