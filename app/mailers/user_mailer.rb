@@ -6,7 +6,10 @@ class UserMailer < BaseMailer
     @login_link += "/welcome/token/#{user.raw_invitation_token}"
     @login_link += "?email=#{user.email}"
     subject = "Welcome to SpeakAnyWay AAC!"
-    mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
+    mail_result = mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
+    Rails.logger.info "Sending welcome email to #{@user.email} with login link: #{@login_link}"
+    Rails.logger.info "Mail result: #{mail_result}"
+    mail_result
   end
 
   def welcome_invitation_email(user, inviter_id)

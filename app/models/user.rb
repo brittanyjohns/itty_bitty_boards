@@ -137,9 +137,26 @@ class User < ApplicationRecord
   end
 
   def self.create_from_email(email, stripe_customer_id = nil, inviting_user_id = nil, slug = nil)
-    user = User.find_by(email: email)
-    user = User.invite!(email: email, skip_invitation: true) unless user
-    Rails.logger.info("Creating user from email: #{email}, inviting_user_id: #{inviting_user_id}, slug: #{slug}, stripe_customer_id: #{stripe_customer_id}")
+    begin
+      user = User.find_by(email: email)
+      user = User.invite!(email: email, skip_invitation: true) unless user
+    rescue ActiveRecord::RecordNotUnique => e
+      Rails.logger.error("Error creating user from email: #{email} - #{e.message}")
+
+      user = User.find_by(stripe_customer_id: stripe_customer_id) if stripe_customer_id
+      if user.nil?
+        user = User.find_by(email: email)
+      end
+
+      # If we still don't have a user, log an error
+      Rails.logger.error("User not found after RecordNotUnique error for email: #{email}")
+      if user.nil?
+        Rails.logger.error("User not found after RecordNotUnique error for email: #{email}")
+      else
+        Rails.logger.info("Found existing user after RecordNotUnique error: #{user.email}")
+      end
+    end
+    Rails.logger.info("Creating user from email: #{email}, inviting_user_id: #{inviting_user_id}, slug: #{slug}, stripe_customer_id: #{stripe_customer_id}") if user.nil? || user.errors.any?
     if user
       if inviting_user_id
         create_from_invitation(email, inviting_user_id)

@@ -66,6 +66,7 @@ class API::WebhooksController < API::ApplicationController
         Rails.logger.info "Plan nickname: #{plan_nickname}"
         if plan_nickname.nil?
           Rails.logger.warn "No plan nickname found in subscription data"
+          plan_nickname = "free"
         end
 
         if @user
