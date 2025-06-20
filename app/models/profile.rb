@@ -180,8 +180,8 @@ class Profile < ApplicationRecord
   def public_url
     return nil if slug.blank?
     base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
-    plan_type = profileable&.plan_type || "free"
-    if plan_type.include?("vendor")
+    role = profileable&.role || "user"
+    if role.include?("vendor")
       "#{base_url}/v/#{slug}"
     else
       "#{base_url}/my/#{slug}"

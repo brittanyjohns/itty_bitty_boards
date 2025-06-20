@@ -1,6 +1,6 @@
 class GenerateImageJob
   include Sidekiq::Job
-  sidekiq_options queue: :default, retry: false
+  sidekiq_options queue: :default, retry: 3, backtrace: true
 
   def perform(image_id, user_id = nil, image_prompt = nil, board_id = nil, screen_size = nil)
     image = Image.find(image_id)

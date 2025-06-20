@@ -13,6 +13,7 @@
 #  updated_at       :datetime         not null
 #  child_account_id :bigint
 #  image_id         :integer
+#  vendor_id        :bigint
 #
 class WordEvent < ApplicationRecord
   belongs_to :user

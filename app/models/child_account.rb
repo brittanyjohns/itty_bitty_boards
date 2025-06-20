@@ -22,6 +22,7 @@
 #  passcode               :string
 #  details                :jsonb
 #  placeholder            :boolean          default(FALSE)
+#  vendor_id              :bigint
 #
 class ChildAccount < ApplicationRecord
   # devise :database_authenticatable, :trackable
@@ -30,6 +31,7 @@ class ChildAccount < ApplicationRecord
   #        authentication_keys: [:username]
 
   belongs_to :user, optional: true
+  belongs_to :vendor, optional: true
   has_many :child_boards, dependent: :destroy
   has_many :boards, through: :child_boards
   has_many :images, through: :boards
@@ -117,6 +119,14 @@ class ChildAccount < ApplicationRecord
     end
   end
 
+  def role
+    if user&.vendor?
+      "vendor"
+    else
+      "user"
+    end
+  end
+
   def self.create_for_user(user, username, password)
     account = new(username: username, password: password, user: user, password_confirmation: password)
     account.save!
@@ -134,13 +144,18 @@ class ChildAccount < ApplicationRecord
 
   def create_profile!
     return if profile.present?
-    slug = username.parameterize
+    slug = username&.parameterize
+    unless slug
+      Rails.logger.error "\nUsername is nil, cannot create profile\n"
+      return
+    end
     if Profile.find_by(slug: slug)
       slug = "#{slug}-#{id}"
     end
     profile = Profile.create!(profileable: self, username: username, slug: slug)
     profile.set_fake_avatar
     profile.save!
+    profile
   end
 
   def print_credentials
@@ -273,7 +288,7 @@ class ChildAccount < ApplicationRecord
       can_edit: viewing_user&.can_add_boards_to_account?([id]),
       is_owner: viewing_user&.id == user_id,
       is_vendor: is_vendor,
-      vendor: is_vendor ? cached_user.default_vendor.api_view(viewing_user) : nil,
+      vendor: is_vendor ? cached_user.vendor.api_view(viewing_user) : nil,
       vendor_profile: is_vendor ? cached_profile.api_view(viewing_user) : nil,
       pro: cached_user.pro?,
       free_trial: cached_user.free_trial?,

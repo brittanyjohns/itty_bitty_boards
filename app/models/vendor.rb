@@ -17,7 +17,13 @@
 #
 class Vendor < ApplicationRecord
   has_one :profile, as: :profileable, dependent: :destroy
-  belongs_to :user, optional: true
+  belongs_to :owner, class_name: "User", foreign_key: "user_id", optional: true
+  has_many :users, dependent: :nullify
+  belongs_to :user, class_name: "User", foreign_key: "user_id", optional: true
+  has_one :child_account, dependent: :destroy
+  has_many :boards, dependent: :destroy
+  has_many :word_events, dependent: :destroy
+  has_many :child_accounts, dependent: :destroy
 
   # validates :business_name, presence: true
   validates :website, format: { with: URI::regexp(%w[http https]), allow_blank: true }
@@ -34,39 +40,53 @@ class Vendor < ApplicationRecord
   validates :category, inclusion: { in: CATEGORIES }, allow_blank: true
 
   def slug
-    profile&.slug || business_name.parameterize
+    profile&.slug || business_name&.parameterize
   end
 
   def create_profile!
-    return if profile.present?
-
-    existing_profile = Profile.find_by(slug: slug, profileable_type: "Vendor")
-    if existing_profile
-      raise "Profile with slug '#{slug}' already exists for Vendor #{business_name}. Please choose a different business name."
-    end
-    profile = build_profile(
-      username: slug,
-      slug: slug,
-      bio: description,
-      intro: "Welcome to #{business_name}",
-      settings: configuration,
-      profileable_type: "Vendor",
-      profileable_id: id,
-      placeholder: verified ? false : true,
-      claimed_at: verified ? Time.current : nil,
-      claim_token: SecureRandom.hex(10),
+    Rails.logger.info "Creating profile for Vendor: #{business_name} with slug: #{slug}"
+    account = build_child_account(
+      username: username,
+      name: business_name,
+      vendor_id: id,
+      user_id: user_id,
     )
+    new_communicator_account = account.save ? account : nil
+    Rails.logger.info "New communicator account created: #{new_communicator_account.inspect}" unless new_communicator_account.nil?
+    if new_communicator_account.nil?
+      Rails.logger.error "Failed to create communicator account for Vendor: #{business_name}"
+      return
+    end
+
+    description = self.description.presence || "Welcome to #{business_name}. Please complete your profile."
+    configuration = self.configuration || { "default_language" => "en", "currency" => "USD" }
+
+    Rails.logger.info "Creating profile for new communicator account: #{new_communicator_account.inspect}"
+    profile = Profile.create(profileable: new_communicator_account, username: username, slug: slug,
+                             bio: description, intro: "Welcome to #{business_name}", claim_token: SecureRandom.hex(10))
+    if profile.nil?
+      profile ||= Profile.new(
+        username: username,
+        slug: slug,
+        bio: description,
+        intro: "Welcome to #{business_name}",
+        settings: configuration,
+        profileable_type: "Vendor",
+        profileable_id: id,
+        placeholder: verified ? false : true,
+        claimed_at: verified ? Time.current : nil,
+        claim_token: SecureRandom.hex(10),
+      )
+    end
+    Rails.logger.info "Profile before save: #{profile.inspect}"
     profile.save!
     profile.set_fake_avatar
-    if user
-      new_communicator_account = user.child_accounts.create!(
-        username: username,
-        name: business_name,
-      )
-      profile.profileable = new_communicator_account
+    if new_communicator_account
+      # profile.profileable = new_communicator_account
       profile.placeholder = false
       profile.claimed_at = Time.zone.now
-      profile.username = username
+      # profile.username = username
+      Rails.logger.info "Setting profileable to new communicator account: #{new_communicator_account.inspect}"
       profile.save!
     end
   end
@@ -85,7 +105,7 @@ class Vendor < ApplicationRecord
   end
 
   def username
-    profile&.username || business_name.parameterize
+    child_account&.username || business_name.parameterize
   end
 
   def startup_url
@@ -155,7 +175,7 @@ class Vendor < ApplicationRecord
       public_url: public_url,
       profile: profile&.api_view(viewer),
       user_id: user_id,
-      can_edit: viewer&.can_edit_vendor?(id),
+      can_edit: viewer&.vendor_id == id,
       is_owner: viewer&.id == user_id,
       created_by_email: user&.email,
       created_by_name: user&.name,

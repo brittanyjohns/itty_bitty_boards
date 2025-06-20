@@ -42,6 +42,7 @@
 #  child_lookup_key       :string
 #  locked                 :boolean          default(FALSE)
 #  organization_id        :bigint
+#  vendor_id              :bigint
 #
 
 # This model initially had no columns defined. If you add columns to the

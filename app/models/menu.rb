@@ -203,7 +203,7 @@ class Menu < ApplicationRecord
     minutes_to_wait = 0
     images_generated = 0
     begin
-      new_board_images.each_slice(8) do |board_image_slice|
+      new_board_images.each_slice(10) do |board_image_slice|
         board_image_slice.each do |board_image|
           if should_generate_image(board_image.image, self.user, tokens_used, total_cost)
             board_image.update!(status: "generating")

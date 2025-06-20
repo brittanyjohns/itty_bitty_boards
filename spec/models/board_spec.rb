@@ -37,6 +37,7 @@
 #  board_images_count    :integer          default(0), not null
 #  published             :boolean          default(FALSE)
 #  favorite              :boolean          default(FALSE)
+#  vendor_id             :bigint
 #
 require "rails_helper"
 

@@ -42,6 +42,7 @@
 #  child_lookup_key       :string
 #  locked                 :boolean          default(FALSE)
 #  organization_id        :bigint
+#  vendor_id              :bigint
 #
 
 class User < ApplicationRecord
@@ -71,8 +72,8 @@ class User < ApplicationRecord
   has_many :child_accounts, dependent: :destroy
   has_many :scenarios, dependent: :destroy
   has_many :created_teams, class_name: "Team", foreign_key: "created_by_id", dependent: :destroy
-  has_many :vendors, dependent: :destroy
   has_one :profile, as: :profileable, dependent: :destroy
+  belongs_to :vendor, optional: true
 
   # has_many :sent_messages, class_name: "Message", foreign_key: "sender_id", dependent: :destroy
   # has_many :received_messages, class_name: "Message", foreign_key: "recipient_id", dependent: :destroy
@@ -83,6 +84,7 @@ class User < ApplicationRecord
   scope :free, -> { where(plan_type: "free") }
   scope :basic, -> { where(plan_type: "basic") }
   scope :plus, -> { where(plan_type: "plus") }
+  scope :vendor, -> { where(role: "vendor") }
 
   scope :non_admin, -> { where.not(role: "admin") }
   scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
@@ -101,6 +103,7 @@ class User < ApplicationRecord
   before_save :ensure_settings, unless: :has_all_settings?
 
   before_destroy :delete_stripe_customer
+  before_destroy :unassign_vendor
 
   def set_uuid
     return if self.uuid.present?
@@ -134,12 +137,32 @@ class User < ApplicationRecord
   end
 
   def self.create_from_email(email, stripe_customer_id = nil, inviting_user_id = nil, slug = nil)
-    user = User.invite!(email: email, skip_invitation: true)
+    begin
+      user = User.find_by(email: email)
+      user = User.invite!(email: email, skip_invitation: true) unless user
+    rescue ActiveRecord::RecordNotUnique => e
+      Rails.logger.error("Error creating user from email: #{email} - #{e.message}")
+
+      user = User.find_by(stripe_customer_id: stripe_customer_id) if stripe_customer_id
+      if user.nil?
+        user = User.find_by(email: email)
+      end
+
+      # If we still don't have a user, log an error
+      Rails.logger.error("User not found after RecordNotUnique error for email: #{email}")
+      if user.nil?
+        Rails.logger.error("User not found after RecordNotUnique error for email: #{email}")
+      else
+        Rails.logger.info("Found existing user after RecordNotUnique error: #{user.email}")
+      end
+    end
+    Rails.logger.info("Creating user from email: #{email}, inviting_user_id: #{inviting_user_id}, slug: #{slug}, stripe_customer_id: #{stripe_customer_id}") if user.nil? || user.errors.any?
     if user
       if inviting_user_id
         create_from_invitation(email, inviting_user_id)
       else
         if !slug
+          Rails.logger.info("Sending welcome email to user: #{email}")
           user.send_welcome_email
         else
           user.send_welcome_with_claim_link_email(slug)
@@ -153,9 +176,9 @@ class User < ApplicationRecord
         user.save
       end
 
-      Rails.logger.info("User created: #{email}")
+      Rails.logger.info("=User created: #{email} with stripe_customer_id: #{stripe_customer_id}")
     else
-      Rails.logger.error("User not created: #{email}")
+      Rails.logger.error("=User not created: #{email}")
     end
     user
   end
@@ -177,38 +200,34 @@ class User < ApplicationRecord
     user
   end
 
-  def self.create_new_vendor_user(email, business_name, stripe_customer_id)
+  def self.create_new_vendor_user(email, vendor, stripe_customer_id, plan_nickname)
     if email.blank? || stripe_customer_id.blank?
       Rails.logger.error("Invalid parameters for creating new vendor user: email: #{email}, business_name: #{business_name}, stripe_customer_id: #{stripe_customer_id}")
       return nil
     end
-    user = User.find_by_email(email)
+    business_name = vendor.business_name
+    user = User.find_by(email: email)
     found_user = user
     user = User.invite!(email: email, skip_invitation: true) unless user
     Rails.logger.info("found_user: #{found_user} --Creating new vendor user with email: #{email}, business_name: #{business_name}, stripe_customer_id: #{stripe_customer_id}")
-    if user
-      user.plan_type = "vendor"
+    if user && !found_user
+      user.plan_type = plan_nickname
+      user.settings ||= {}
+      user.settings["plan_nickname"] = plan_nickname
       user.plan_status = "active"
       user.stripe_customer_id = stripe_customer_id
       user.role = "vendor"
+      user.vendor = vendor
       user.save!
       Rails.logger.info("#{business_name} - New vendor user created: #{user.email}")
 
-      user.send_welcome_new_vendor(business_name) unless business_name.blank?
+      # user.send_welcome_new_vendor(vendor) if vendor
 
       Rails.logger.info("New vendor user created: #{email}")
     else
       Rails.logger.error("Failed to create new vendor user: #{email}")
     end
     user
-  end
-
-  def self.find_by_email(email)
-    find_by(email: email)
-  end
-
-  def self.find_by_id(id)
-    find(id)
   end
 
   def self.non_admin_users
@@ -239,8 +258,16 @@ class User < ApplicationRecord
     self.settings ||= {}
 
     if new_user?
-      self.plan_type = API::WebhooksHelper.get_plan_type(plan_nickname)
-      initial_comm_account_limit = API::WebhooksHelper.get_communicator_limit(plan_nickname)
+      Rails.logger.info "New user detected, setting up initial plan and settings"
+      plan_type = API::WebhooksHelper.get_plan_type(plan_nickname)
+      Rails.logger.info "Setting plan type: #{plan_type}"
+      self.plan_type = plan_type
+      user_role = API::WebhooksHelper.get_user_role(plan_type)
+
+      initial_comm_account_limit = API::WebhooksHelper.get_communicator_limit(plan_type)
+      initial_board_limit = API::WebhooksHelper.get_board_limit(initial_comm_account_limit, user_role)
+      self.role = user_role if user_role && !self.admin?
+      Rails.logger.info "Setting plan type: #{self.plan_type}, role: #{self.role}, initial_comm_account_limit: #{initial_comm_account_limit}"
 
       self.settings["communicator_limit"] = initial_comm_account_limit if initial_comm_account_limit && !self.settings["communicator_limit"]
       self.settings["plan_nickname"] = plan_nickname
@@ -248,13 +275,13 @@ class User < ApplicationRecord
       self.settings["extra_communicators"] = extra_communicators
       total_communicators = initial_comm_account_limit + extra_communicators
       self.settings["total_communicators"] = total_communicators
-      initial_board_limit = total_communicators * 25
-      if plan_type == "free" || plan_type == "myspeak" || plan_type == "vendor"
+      if plan_type == "free" || plan_type == "myspeak"
         # For free plan, set a default board limit
         initial_board_limit = 3
         self.settings["communicator_limit"] = 1
       end
       self.settings["board_limit"] = initial_board_limit
+      Rails.logger.info "Initial board limit set to: #{initial_board_limit}"
     end
     if data_object["cancel_at_period_end"]
       Rails.logger.info "Canceling at period end"
@@ -320,10 +347,30 @@ class User < ApplicationRecord
     new_opening_board
   end
 
+  def unassign_vendor
+    return unless vendor_id
+    Rails.logger.info "Unassigning vendor for user #{id} with vendor_id #{vendor_id}"
+    vendor = Vendor.find_by(user_id: id, id: vendor_id)
+    if vendor
+      Rails.logger.info "Found vendor #{vendor.business_name} for user #{id}, unassigning..."
+      vendor.user_id = nil
+      vendor.save
+      self.vendor_id = nil
+      self.save
+    else
+      Rails.logger.warn "No vendor found for user #{id} with vendor_id #{vendor_id}"
+    end
+  end
+
   def delete_stripe_customer
     return unless stripe_customer_id
     return if Rails.env.production? && !ENV["STRIPE_DELETE_CUSTOMERS"]
-    result = Stripe::Customer.delete(stripe_customer_id)
+    begin
+      result = Stripe::Customer.delete(stripe_customer_id)
+    rescue StandardError => e
+      Rails.logger.error "Error deleting Stripe customer: #{e.message}"
+      return
+    end
     Rails.logger.info "Deleted stripe customer: #{result}" if result["deleted"]
   end
 
@@ -458,15 +505,6 @@ class User < ApplicationRecord
     false
   end
 
-  def can_edit_vendor?(vendor_id)
-    return false unless vendor_id
-    vendor = Vendor.find_by(id: vendor_id)
-    return false unless vendor
-    return true if admin?
-    return true if vendor.user_id == id
-    false
-  end
-
   def can_add_boards_to_account?(account_ids)
     return false unless account_ids
     account_id = account_ids.first
@@ -557,9 +595,15 @@ class User < ApplicationRecord
   end
 
   def send_welcome_email
+    Rails.logger.info "About to send welcome email to #{email}"
+    puts "ABOUT TO SEND WELCOME EMAIL TO #{email}"
     begin
+      Rails.logger.info ">>>Sending welcome email to #{email}"
       UserMailer.welcome_email(self).deliver_now
       AdminMailer.new_user_email(self).deliver_now
+      self.settings["welcome_email_sent"] = true
+      self.save
+      Rails.logger.info "Welcome email sent to #{email}"
     rescue => e
       Rails.logger.error("Error sending welcome email: #{e.message}")
     end
@@ -576,6 +620,7 @@ class User < ApplicationRecord
   end
 
   def send_welcome_new_vendor(vendor)
+    business_name = vendor.business_name
     Rails.logger.info "Sending welcome new vendor email to #{email} for business #{business_name}"
     begin
       UserMailer.welcome_new_vendor_email(self, vendor).deliver_now
@@ -628,23 +673,23 @@ class User < ApplicationRecord
   end
 
   def pro?
-    plan_type.downcase == "pro"
+    plan_type.include? "pro"
   end
 
   def free?
-    plan_type.downcase == "free"
+    plan_type.include? "free"
   end
 
   def myspeak?
-    plan_type.downcase == "myspeak"
+    plan_type.include? "myspeak"
   end
 
   def basic?
-    plan_type.downcase == "basic"
+    plan_type.include? "basic"
   end
 
   def plus?
-    plan_type.downcase == "plus"
+    plan_type.include? "plus"
   end
 
   def paid_plan?
@@ -656,7 +701,7 @@ class User < ApplicationRecord
   end
 
   def premium?
-    plan_type.downcase == "premium"
+    plan_type.include? "premium"
   end
 
   def to_s
@@ -771,12 +816,12 @@ class User < ApplicationRecord
   end
 
   def vendor?
-    role == "vendor" || plan_type == "vendor"
+    role == "vendor"
   end
 
-  def default_vendor
+  def vendor_account
     return nil unless vendor?
-    Vendor.find_by(user_id: id)
+    ChildAccount.find_by(user_id: id, vendor_id: vendor_id) if vendor_id
   end
 
   def api_view
@@ -804,6 +849,8 @@ class User < ApplicationRecord
       plus: plus?,
       premium: premium?,
       paid_plan: paid_plan?,
+      pro_vendor: vendor?,
+      basic_vendor: vendor? && basic?,
       plan_type: plan_type,
       plan_expires_at: plan_exp,
       free_trial: free_trial?,

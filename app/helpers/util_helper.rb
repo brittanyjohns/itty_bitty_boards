@@ -43,7 +43,7 @@ module UtilHelper
     return true if rerun
     existing_doc = image.doc_exists_for_user?(user)
     if existing_doc
-      puts "Doc exists for #{image.label}"
+      Rails.logger.debug "Doc exists for #{image.label}"
       existing_doc.update_user_docs
       existing_doc.update!(current: true)
       return false

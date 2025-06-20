@@ -58,7 +58,8 @@ class API::AuditsController < API::ApplicationController
       image_id: image&.id,
       user_id: board&.user&.id,
       board_id: params[:boardId],
-      child_account_id: current_account&.id,
+      child_account_id: params[:childAccountId],
+      vendor_id: params[:vendorId],
     }
     WordEvent.create(payload)
     render json: { message: "Word click recorded" }
