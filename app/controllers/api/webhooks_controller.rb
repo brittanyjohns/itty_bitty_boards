@@ -117,22 +117,7 @@ class API::WebhooksController < API::ApplicationController
           render json: { error: "No user found for subscription" }, status: 400 and return
         end
       when "customer.created"
-        # @user = User.find_by(stripe_customer_id: data_object.id)
-        # unless @user
-        #   @user = User.find_by(email: data_object.email)
-        #   if @user && data_object.id && @user.stripe_customer_id != data_object.id
-        #     @user.stripe_customer_id = data_object.id
-        #     @user.save!
-        #   elsif @user && data_object.id && @user.stripe_customer_id == data_object.id
-        #     Rails.logger.debug "User already exists with stripe_customer_id: #{data_object.id}"
-        #     render json: { success: true }, status: 304 and return
-        #   else
-        #     unless @user
-        #       render json: { error: "No user found for subscription" }, status: 400 and return
-        #     end
-        #     render json: { success: true }, status: 200 and return
-        #   end
-        # end
+        Rails.logger.info "Customer created event received: #{data_object["email"]}"
       when "customer.subscription.deleted"
         @user = User.find_by(stripe_customer_id: data_object.customer)
         if @user
@@ -148,15 +133,15 @@ class API::WebhooksController < API::ApplicationController
 
         @user = User.find_by(email: data_object.customer_details["email"]) unless @user
         @user ||= User.find_by(stripe_customer_id: data_object.customer)
-
-        Rails.logger.info "stripe_subscription: #{stripe_subscription.inspect}"
+        Rails.logger.info "Checkout session completed for user: #{@user&.email} with stripe_customer_id: #{data_object.customer}" if @user
 
         session = data_object
         custom_fields = session.custom_fields
         metadata = session.metadata || {}
         plan_type = metadata["plan_type"]
         @user = User.find_by(stripe_customer_id: session.customer)
-        Rails.logger.debug "User found by email: #{@user&.email} - stripe_customer_id: #{data_object.customer}" if @user
+
+        Rails.logger.debug "User found: #{@user&.email} - stripe_customer_id: #{session.customer}" if @user
         if @user.nil?
           Rails.logger.error "No user found for stripe_customer_id: #{data_object.customer}"
           @user = User.create_from_email(
