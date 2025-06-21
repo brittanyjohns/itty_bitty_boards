@@ -1,4 +1,6 @@
 class UserMailer < BaseMailer
+  default from: "SpeakAnyWay <noreply@speakanyway.com>"
+
   def welcome_email(user)
     @user = user
     @user_name = @user.name
@@ -6,10 +8,7 @@ class UserMailer < BaseMailer
     @login_link += "/welcome/token/#{user.raw_invitation_token}"
     @login_link += "?email=#{user.email}"
     subject = "Welcome to SpeakAnyWay AAC!"
-    mail_result = mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
-    Rails.logger.info "Sending welcome email to #{@user.email} with login link: #{@login_link}"
-    Rails.logger.info "Mail result: #{mail_result}"
-    mail_result
+    mail(to: @user.email, subject: subject)
   end
 
   def welcome_invitation_email(user, inviter_id)
@@ -22,7 +21,7 @@ class UserMailer < BaseMailer
     subject = "You have been invited to join SpeakAnyWay AAC!"
     Rails.logger.info "Sending welcome invitation email to #{user.email} from #{inviter_id}"
     Rails.logger.info "Login link: #{@login_link}"
-    mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
+    mail(to: @user.email, subject: subject)
   end
 
   def welcome_new_vendor_email(user, vendor)
@@ -44,7 +43,7 @@ class UserMailer < BaseMailer
     encoded_email = ERB::Util.url_encode(@user.email)
     @login_link += "?email=#{encoded_email}"
     subject = "Welcome to SpeakAnyWay AAC - #{@vendor_name}!"
-    mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
+    mail(to: @user.email, subject: subject)
   end
 
   def welcome_to_organization_email(user, organization)
@@ -66,7 +65,7 @@ class UserMailer < BaseMailer
     subject = "You have been invited to join #{@organization_name} on SpeakAnyWay AAC!"
     Rails.logger.info "Sending welcome to organization email to #{@user.email} from #{@organization_admin.id}"
     Rails.logger.info "Login link: #{@login_link}"
-    mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
+    mail(to: @user.email, subject: subject)
   end
 
   def welcome_with_claim_link_email(user, slug)
@@ -89,7 +88,7 @@ class UserMailer < BaseMailer
     @mymyspeak_link += "/my/#{slug}"
     subject = "Welcome to MySpeak - Claim your profile!"
     Rails.logger.info "Sending welcome email to #{@user.email} with claim link"
-    mail(to: @user.email, subject: subject, from: "noreply@speakanyway.com")
+    mail(to: @user.email, subject: subject)
   end
 
   def message_notification_email(message)
@@ -103,6 +102,6 @@ class UserMailer < BaseMailer
     @message_url = "#{ENV["FRONT_END_URL"]}/messages/#{message.id}"
     subject = "New message from #{@sender.name}"
     Rails.logger.info "Sending message notification email to #{@recipient.email}"
-    mail(to: @recipient.email, subject: subject, from: "noreply@speakanyway.com")
+    mail(to: @recipient.email, subject: subject)
   end
 end
