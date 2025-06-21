@@ -62,6 +62,8 @@ class Board < ApplicationRecord
   belongs_to :image_parent, class_name: "Image", optional: true
   has_many :word_events
 
+  include WordEventsHelper
+
   attr_accessor :skip_create_voice_audio
 
   include UtilHelper
@@ -1136,6 +1138,7 @@ class Board < ApplicationRecord
       board_type: board_type,
       source_type: source_type,
       vendor: vendor,
+      week_chart: week_chart,
       menu_id: board_type === "menu" ? parent_id : nil,
       name: name,
       root_board: @root_board,

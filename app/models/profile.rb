@@ -249,13 +249,13 @@ class Profile < ApplicationRecord
 
   def self.generate_with_username(username, existing_user = nil)
     slug = username.parameterize
+    Rails.logger.info "Generating profile with user: #{username}, slug: #{slug}, existing_user: #{existing_user.inspect}"
 
     profile = Profile.create!(
       username: username,
       slug: slug,
       bio: "Write a short bio about yourself. This will help others understand who you are and what you do.",
       intro: "Welcome to MySpeak! Personalize your profile by adding a short introduction about yourself.",
-      placeholder: true,
       claimed_at: nil,
       claim_token: SecureRandom.hex(10),
     )
@@ -263,10 +263,8 @@ class Profile < ApplicationRecord
       new_communicator_account = existing_user.child_accounts.create!(
         username: username,
         name: username,
-        placeholder: false,
       )
       profile.profileable = new_communicator_account
-      profile.placeholder = false
       profile.claimed_at = Time.zone.now
       profile.username = username
       profile.save!

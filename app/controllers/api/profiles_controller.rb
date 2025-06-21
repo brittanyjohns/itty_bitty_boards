@@ -56,7 +56,7 @@ class API::ProfilesController < API::ApplicationController
       end
     end
 
-    @profile = Profile.generate_with_username(username, existing_user) if user
+    @profile = Profile.generate_with_username(username, user) if user
     if @profile
       render json: @profile.placeholder_view
     else
