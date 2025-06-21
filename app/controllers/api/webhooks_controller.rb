@@ -68,6 +68,7 @@ class API::WebhooksController < API::ApplicationController
           Rails.logger.warn "No plan nickname found in subscription data"
           plan_nickname = "free"
         end
+        stripe_customer = Stripe::Customer.retrieve(data_object.customer)
 
         if @user
           Rails.logger.info "Existing user found: #{@user}"
@@ -79,10 +80,11 @@ class API::WebhooksController < API::ApplicationController
               Rails.logger.info "Welcome email sent to user: #{@user.email} for plan: #{plan_nickname}"
             else
               Rails.logger.warn "Skipping welcome email for plan: #{plan_nickname}"
+              @user = handle_myspeak_user(stripe_customer)
+              Rails.logger.info "Myspeak user handled: #{@user&.email} with stripe_customer_id: #{stripe_customer.id}" if @user
             end
           end
         else
-          stripe_customer = Stripe::Customer.retrieve(data_object.customer)
           deleted = stripe_customer.deleted? if stripe_customer
           if deleted
             render json: { error: "Stripe customer was deleted." }, status: 400 and return
