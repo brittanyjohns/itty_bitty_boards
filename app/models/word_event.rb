@@ -14,6 +14,7 @@
 #  child_account_id :bigint
 #  image_id         :integer
 #  vendor_id        :bigint
+#  profile_id       :bigint
 #
 class WordEvent < ApplicationRecord
   belongs_to :user
@@ -21,6 +22,24 @@ class WordEvent < ApplicationRecord
   belongs_to :board, optional: true
   belongs_to :team, optional: true
   belongs_to :child_account, optional: true
+  belongs_to :vendor, optional: true
+  belongs_to :profile, optional: true
+
+  before_save :set_child_account!
+
+  def set_child_account!
+    return if child_account_id.present?
+    return unless profile_id.present?
+    profile = Profile.find_by(id: profile_id)
+    return unless profile.present? && profile.profileable_type == "ChildAccount"
+    self.child_account = profile.profileable
+    self.child_account_id = child_account.id if child_account.present?
+    Rails.logger.info "Setting child_account_id to #{child_account_id} for WordEvent ID: #{id}" if child_account_id.present?
+    save
+  rescue StandardError => e
+    Rails.logger.error "Error setting child_account for WordEvent ID: #{id}, Error: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
+  end
 
   def api_view(viewing_user = nil)
     {
@@ -28,6 +47,8 @@ class WordEvent < ApplicationRecord
       user_id: user_id,
       user_email: user.email,
       child_username: child_account&.username,
+      child_account: child_account&.api_view,
+      profile_id: profile&.id,
       word: word,
       can_edit: user == viewing_user,
       previous_word: previous_word,

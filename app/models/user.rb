@@ -161,13 +161,7 @@ class User < ApplicationRecord
       if inviting_user_id
         create_from_invitation(email, inviting_user_id)
       else
-        if !slug
-          Rails.logger.info("Sending welcome email to user: #{email}")
-          user.send_welcome_email
-        else
-          user.send_welcome_with_claim_link_email(slug)
-        end
-        user.save
+        user.send_welcome_email if user.should_send_welcome_email?
         stripe_customer_id ||= user.stripe_customer_id
         if stripe_customer_id.nil?
           stripe_customer_id = User.create_stripe_customer(email)
@@ -224,8 +218,26 @@ class User < ApplicationRecord
       # user.send_welcome_new_vendor(vendor) if vendor
 
       Rails.logger.info("New vendor user created: #{email}")
+    elsif found_user
+      Rails.logger.info("Found existing user for vendor: #{email}")
+      if found_user.raw_invitation_token
+        Rails.logger.info("User already has an invitation token: #{found_user.raw_invitation_token}")
+      else
+        Rails.logger.info("User does not have an invitation token, generating a new one")
+        found_user.skip_invitation = true
+        found_user.invite!
+        token = found_user.raw_invitation_token
+        Rails.logger.info("Generated new invitation token: #{token} for user: #{email}")
+      end
+      found_user.send_welcome_new_vendor(vendor) if vendor
+
+      user = found_user
+      user.role = "vendor"
+      user.vendor = vendor
+      user.save!
     else
-      Rails.logger.error("Failed to create new vendor user: #{email}")
+      Rails.logger.error("User not created for vendor: #{email}")
+      return nil
     end
     user
   end
@@ -260,7 +272,6 @@ class User < ApplicationRecord
     if new_user?
       Rails.logger.info "New user detected, setting up initial plan and settings"
       plan_type = API::WebhooksHelper.get_plan_type(plan_nickname)
-      Rails.logger.info "Setting plan type: #{plan_type}"
       self.plan_type = plan_type
       user_role = API::WebhooksHelper.get_user_role(plan_type)
 
@@ -673,7 +684,11 @@ class User < ApplicationRecord
   end
 
   def pro?
-    plan_type.include? "pro"
+    plan_type == "pro" && role != "vendor"
+  end
+
+  def pro_vendor?
+    plan_type.include?("pro") && role == "vendor"
   end
 
   def free?
@@ -710,6 +725,14 @@ class User < ApplicationRecord
 
   def should_send_welcome_email?
     return false if admin?
+    if settings["welcome_email_sent"] == true
+      Rails.logger.info "Welcome email already sent to #{email}"
+      return false
+    end
+    if plan_type == "myspeak"
+      Rails.logger.info "Skipping welcome email for myspeak user #{email}"
+      return false
+    end
     # if updated today don't send email
     return false if created_at > 1.day.ago
     true
@@ -768,6 +791,8 @@ class User < ApplicationRecord
     view["admin"] = admin?
     view["free"] = free?
     view["pro"] = pro?
+    view["basic"] = basic?
+    view["pro_vendor"] = pro_vendor?
     view["plan_type"] = plan_type
     view["plan_expires_at"] = plan_expires_at.strftime("%x") if plan_expires_at
     view["premium"] = premium?
@@ -840,6 +865,8 @@ class User < ApplicationRecord
       profile: profile&.api_view,
       vendor: vendor?,
       email: email,
+      pro_vendor: pro_vendor?,
+      role: role,
       name: name,
       display_name: display_name,
       admin: admin?,

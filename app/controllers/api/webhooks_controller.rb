@@ -74,7 +74,6 @@ class API::WebhooksController < API::ApplicationController
           if @user.invited_by_id
             Rails.logger.info "User was invited by another user - not sending welcome email"
           else
-            Rails.logger.info "User was not invited by another user - sending welcome email @user.should_send_welcome_email?: #{@user.should_send_welcome_email?}"
             if regular_plan?(plan_nickname)
               @user.send_welcome_email
               Rails.logger.info "Welcome email sent to user: #{@user.email} for plan: #{plan_nickname}"
@@ -95,13 +94,12 @@ class API::WebhooksController < API::ApplicationController
             @user.save!
           end
           stripe_customer_id = data_object.customer || stripe_customer.id
-          Rails.logger.info ">>> stripe_customer_id: #{stripe_customer_id} - plan_nickname: #{plan_nickname}"
           if plan_nickname&.include?("myspeak")
             @user = handle_myspeak_user(stripe_customer)
           elsif plan_nickname&.include?("vendor")
             # @user = handle_vendor_user(stripe_customer.email, nil, stripe_customer_id, plan_nickname)
 
-            Rails.logger.info "xxxxCreated vendor user: #{@user&.email} with stripe_customer_id: #{stripe_customer_id}"
+            Rails.logger.info " Not vendor for user: #{@user&.email} with stripe_customer_id: #{stripe_customer_id}"
           else
             Rails.logger.info "Creating regular: #{@user&.email} with stripe_customer_id: #{stripe_customer_id}"
             @user = User.create_from_email(stripe_customer.email, stripe_customer_id) unless @user
@@ -117,22 +115,7 @@ class API::WebhooksController < API::ApplicationController
           render json: { error: "No user found for subscription" }, status: 400 and return
         end
       when "customer.created"
-        # @user = User.find_by(stripe_customer_id: data_object.id)
-        # unless @user
-        #   @user = User.find_by(email: data_object.email)
-        #   if @user && data_object.id && @user.stripe_customer_id != data_object.id
-        #     @user.stripe_customer_id = data_object.id
-        #     @user.save!
-        #   elsif @user && data_object.id && @user.stripe_customer_id == data_object.id
-        #     Rails.logger.debug "User already exists with stripe_customer_id: #{data_object.id}"
-        #     render json: { success: true }, status: 304 and return
-        #   else
-        #     unless @user
-        #       render json: { error: "No user found for subscription" }, status: 400 and return
-        #     end
-        #     render json: { success: true }, status: 200 and return
-        #   end
-        # end
+        Rails.logger.info "Customer created event received: #{data_object["email"]}"
       when "customer.subscription.deleted"
         @user = User.find_by(stripe_customer_id: data_object.customer)
         if @user
@@ -148,15 +131,15 @@ class API::WebhooksController < API::ApplicationController
 
         @user = User.find_by(email: data_object.customer_details["email"]) unless @user
         @user ||= User.find_by(stripe_customer_id: data_object.customer)
-
-        Rails.logger.info "stripe_subscription: #{stripe_subscription.inspect}"
+        Rails.logger.info "Checkout session completed for user: #{@user&.email} with stripe_customer_id: #{data_object.customer}" if @user
 
         session = data_object
         custom_fields = session.custom_fields
         metadata = session.metadata || {}
         plan_type = metadata["plan_type"]
-        @user = User.find_by(stripe_customer_id: session.customer)
-        Rails.logger.debug "User found by email: #{@user&.email} - stripe_customer_id: #{data_object.customer}" if @user
+        @user = User.find_by(stripe_customer_id: session.customer) unless @user
+
+        Rails.logger.debug "User found: #{@user&.email} - stripe_customer_id: #{session.customer}" if @user
         if @user.nil?
           Rails.logger.error "No user found for stripe_customer_id: #{data_object.customer}"
           @user = User.create_from_email(
@@ -242,9 +225,16 @@ class API::WebhooksController < API::ApplicationController
       stripe_customer_id = stripe_customer.id
       temp_slug = stripe_customer.email.split("@").first
       temp_slug = temp_slug.parameterize
-      @user = User.create_from_email(email, stripe_customer_id, nil, temp_slug) unless @user
+      # @user = User.create_from_email(email, stripe_customer_id, nil, temp_slug) unless @user
+      @user = User.find_by(email: email)
+      found_user = @user
+      Rails.logger.info "Found user: #{found_user&.email} for email: #{email}" if found_user
+      @user = User.invite!(email: email, skip_invitation: true) unless @user
+      @user.send_welcome_with_claim_link_email(temp_slug)
+      Rails.logger.info "Myspeak user created: #{@user.email} with slug: #{temp_slug}"
       @user.plan_type = "myspeak"
       @user.plan_status = "active"
+      @user.stripe_customer_id = stripe_customer_id if stripe_customer_id
       @user.save!
       @profile = Profile.generate_with_username(temp_slug, @user) if @user
     rescue ActiveRecord::RecordInvalid => e
@@ -289,7 +279,7 @@ class API::WebhooksController < API::ApplicationController
       else
         Rails.logger.debug "handle_vendor_user - No User for email: #{email}"
       end
-      @user.send_welcome_new_vendor(@vendor) if @user && @vendor && business_name
+
       @vendor_profile = @vendor.create_profile! if @vendor
     rescue ActiveRecord::RecordInvalid => e
       Rails.logger.error "handle_vendor_user - Error creating vendor user from email: #{e.inspect}"
