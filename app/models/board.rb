@@ -44,6 +44,7 @@ require "zip"
 class Board < ApplicationRecord
   has_rich_text :display_description
   belongs_to :user
+  belongs_to :vendor, optional: true
   paginates_per 100
   belongs_to :parent, polymorphic: true
   belongs_to :board_group, optional: true
@@ -1134,6 +1135,7 @@ class Board < ApplicationRecord
       id: id,
       board_type: board_type,
       source_type: source_type,
+      vendor: vendor,
       menu_id: board_type === "menu" ? parent_id : nil,
       name: name,
       root_board: @root_board,

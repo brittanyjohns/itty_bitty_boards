@@ -14,6 +14,7 @@
 #  child_account_id :bigint
 #  image_id         :integer
 #  vendor_id        :bigint
+#  profile_id       :bigint
 #
 require "test_helper"
 

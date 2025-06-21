@@ -107,7 +107,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def predictive_image_board
-    @board = Board.with_artifacts.find_by(id: params[:id])
+    @board = Board.find_by(id: params[:id])
     if @board.nil?
       @board = Board.predictive_default(current_user)
     end
@@ -270,6 +270,8 @@ class API::BoardsController < API::ApplicationController
       @board.language = board_params["language"] if board_params["language"].present?
       @board.favorite = board_params["favorite"] if board_params["favorite"].present?
       @board.published = board_params["published"] if board_params["published"].present?
+
+      @board.vendor_id = current_user.vendor_id if current_user.vendor_id.present?
 
       board_type = params[:board_type] || board_params[:board_type]
       settings = params[:settings] || board_params[:settings] || {}
@@ -555,6 +557,8 @@ class API::BoardsController < API::ApplicationController
     new_name = "Copy of " + @board.name
     # new_name = @board.name
     @new_board = @board.clone_with_images(current_user.id, new_name)
+    @new_board.vendor_id = current_user.vendor_id if current_user.vendor_id.present?
+    @new_board.save!
     render json: @new_board.api_view_with_images(current_user)
   end
 

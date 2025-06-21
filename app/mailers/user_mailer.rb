@@ -35,7 +35,11 @@ class UserMailer < BaseMailer
     @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
     if user.raw_invitation_token.nil?
       # Existing user, just need to login
-      @login_link += "/users/sign-in"
+      # @login_link += "/users/sign-in"
+      user = User.find_by(id: user.id) # Reload user to ensure raw_invitation_token is up-to-date
+      Rails.logger.info "User #{user.id} has raw_invitation_token: #{user.raw_invitation_token}"
+      user.invite!(user.email, skip_invitation: true) if user.raw_invitation_token.nil?
+      @login_link += "/welcome/token/#{user.raw_invitation_token}"
     else
       # New user, need to use the token
       @login_link += "/welcome/token/#{user.raw_invitation_token}"
@@ -72,15 +76,23 @@ class UserMailer < BaseMailer
     @user = user
     @user_name = @user.name
     @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
-    if user.raw_invitation_token.nil?
+    if @user.raw_invitation_token.nil?
       # Existing user, just need to login
-      @login_link += "/users/sign-in/welcome/#{@user.email}"
-      @login_link += "?claim=#{slug}"
+      @user = User.find(user.id) # Reload user to ensure raw_invitation_token is up-to-date
+      @user.invite!(user.email, skip_invitation: true) if @user.raw_invitation_token.nil?
+      # @login_link += "/users/sign-in/welcome/#{@user.email}"
+      # @login_link += "?claim=#{slug}"
     else
-      token = user.raw_invitation_token
-      @login_link += "/welcome/token/#{token}"
-      @login_link += "?email=#{ERB::Util.url_encode(user.email)}&claim=#{slug}"
+      # token = @user.raw_invitation_token
+      # Rails.logger.info "User #{@user.id} has raw_invitation_token: #{token}"
+      # @login_link += "/welcome/token/#{token}"
+      # @login_link += "?email=#{ERB::Util.url_encode(user.email)}&claim=#{slug}"
+      Rails.logger.info "User #{@user.id} already has a raw_invitation_token, using it for welcome link"
     end
+    token = @user.raw_invitation_token
+    Rails.logger.info "User #{@user.id} has raw_invitation_token: #{token}"
+    @login_link += "/welcome/token/#{token}"
+    @login_link += "?email=#{ERB::Util.url_encode(user.email)}&claim=#{slug}"
 
     @claim_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
     @claim_link += "/claim/#{slug}"
