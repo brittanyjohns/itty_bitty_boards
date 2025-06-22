@@ -15,8 +15,6 @@ class API::Admin::UsersController < API::Admin::ApplicationController
       @users = @users.order(sort_field => sort_order.to_sym)
     end
 
-    puts "USERS: #{@users.map(&:last_sign_in_at)}"
-
     render json: @users.map(&:admin_index_view)
   end
 
@@ -43,7 +41,8 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user.settings["enable_text_display"] = params[:enable_text_display] || false
 
     # ADMIN ONLY
-    @user.plan_type = params[:plan_type]
+    plan_type = params[:plan_type] || @user.plan_type || "free"
+    @user.plan_type = plan_type
     @user.locked = params[:locked] || false
     @user.settings["locked"] = params[:locked] || false
     @user.settings["board_limit"] = params[:board_limit] || 0

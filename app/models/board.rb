@@ -580,16 +580,24 @@ class Board < ApplicationRecord
     if word_list.is_a?(String)
       word_list = word_list.split(" ")
     end
-    if word_list.count > 60
-      Rails.logger.debug "Too many words - will only use the first 25"
-      word_list = word_list[0..25]
+    if word_list.count > 50
+      Rails.logger.error "Too many words - will only use the first 50"
+      word_list = word_list[0..50]
     end
     word_list.each do |word|
       word = word.downcase.gsub('"', "").gsub("'", "")
       image = user.images.find_by(label: word)
       image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
       image = Image.create(label: word) unless image
-      self.add_image(image.id)
+      display_doc = image.display_image_url(user)
+      if display_doc.blank?
+        Rails.logger.error "No display image for word: #{word}"
+        image.create_image_doc(user_id) unless image.docs.any? { |doc| doc.user_id == user_id }
+        image_prompt = "Create an image of #{word}"
+        GenerateImageJob.perform(image.id, user_id, image_prompt, id)
+        image.reload
+      end
+      self.add_image(image.id) if image && !image_ids.include?(image.id)
     end
     # self.reset_layouts
     self.save!
