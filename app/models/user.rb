@@ -855,6 +855,9 @@ class User < ApplicationRecord
     extra_comms = settings["extra_communicators"] || 0
     go_words = settings["go_to_words"] || Board.common_words
 
+    comm_limit = comm_limit.to_i
+    extra_comms = extra_comms.to_i
+
     memoized_teams = teams_with_read_access
     memoized_communicators = communicator_accounts
     memoized_boards = boards.alphabetical
