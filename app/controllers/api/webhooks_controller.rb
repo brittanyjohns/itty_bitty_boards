@@ -80,8 +80,19 @@ class API::WebhooksController < API::ApplicationController
               Rails.logger.info "Welcome email sent to user: #{@user.email} for plan: #{plan_nickname}"
             else
               Rails.logger.warn "Skipping welcome email for plan: #{plan_nickname}"
-              @user = handle_myspeak_user(stripe_customer)
-              Rails.logger.info "Myspeak user handled: #{@user&.email} with stripe_customer_id: #{stripe_customer.id}" if @user
+              if plan_nickname&.include?("myspeak")
+                Rails.logger.info "Handling myspeak user for plan: #{plan_nickname}"
+                @user = handle_myspeak_user(stripe_customer)
+                Rails.logger.info "Myspeak user handled: #{@user&.email} with stripe_customer_id: #{stripe_customer.id}" if @user
+              elsif plan_nickname&.include?("vendor")
+                Rails.logger.info "Handling vendor user for plan: #{plan_nickname}"
+                # @user = handle_vendor_user(stripe_customer.email, nil, stripe_customer.id, plan_nickname)
+                Rails.logger.info "Vendor user handled: #{@user&.email} with stripe_customer_id: #{stripe_customer.id}" if @user
+              else
+                Rails.logger.info "Regular user for plan: #{plan_nickname}"
+                @user.update_from_stripe_event(subscription_data, plan_nickname)
+                Rails.logger.info "User updated from Stripe event: #{@user&.email} with plan type: #{@user.plan_type}"
+              end
             end
           end
         else
