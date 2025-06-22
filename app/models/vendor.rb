@@ -45,18 +45,24 @@ class Vendor < ApplicationRecord
 
   def create_profile!
     Rails.logger.info "Creating profile for Vendor: #{business_name} with slug: #{slug}"
-    account = build_child_account(
-      username: username,
-      name: business_name,
-      vendor_id: id,
-      user_id: user_id,
-    )
-    new_communicator_account = account.save ? account : nil
-    Rails.logger.info "New communicator account created: #{new_communicator_account.inspect}" unless new_communicator_account.nil?
-    if new_communicator_account.nil?
-      Rails.logger.error "Failed to create communicator account for Vendor: #{business_name}"
-      return
+    begin
+      @account = build_child_account(
+        username: username,
+        name: business_name,
+        vendor_id: id,
+        user_id: user_id,
+      )
+      Rails.logger.info "Account before save: #{@account.inspect}"
+      @account.save!
+    rescue ActiveRecord::RecordInvalid => e
+      Rails.logger.error "Error creating child account: #{e.message}"
+      account_username = "#{business_name.parameterize}-#{id}"
+      @account.username = account_username
+      @account.save!
     end
+    Rails.logger.info "Account created: #{@account.inspect}" if @account.persisted?
+    Rails.logger.error "Failed to create account for Vendor: #{business_name}" unless @account.persisted?
+    new_communicator_account = @account
 
     description = self.description.presence || "Welcome to #{business_name}. Please complete your profile."
     configuration = self.configuration || { "default_language" => "en", "currency" => "USD" }
