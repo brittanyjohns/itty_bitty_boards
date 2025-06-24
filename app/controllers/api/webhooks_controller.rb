@@ -203,6 +203,8 @@ class API::WebhooksController < API::ApplicationController
               end
               Rails.logger.info "Creating vendor user with email: #{email}, business_name: #{business_name}, stripe_customer_id: #{session.customer}, plan_nickname: #{plan_nickname}"
               @user = handle_vendor_user(email, business_name, session.customer, plan_nickname)
+              @user = User.find_by(email: email) unless @user
+              Rails.logger.info "Vendor user created: #{@user&.email} with business name: #{@vendor&.business_name} and stripe_customer_id: #{session.customer} - plan_nickname: #{plan_nickname} - plan_type: #{@user&.plan_type}" if @user
               Rails.logger.info "SESSION COMPLETE #{@user&.email} with business name: #{@vendor&.business_name} and stripe_customer_id: #{session.customer} - plan_nickname: #{plan_nickname} - plan_type: #{@user&.plan_type}"
               if @user.nil?
                 Rails.logger.error "Failed to create vendor user for email: #{email}"
@@ -267,8 +269,7 @@ class API::WebhooksController < API::ApplicationController
   end
 
   def handle_vendor_user(email, business_name, stripe_customer_id = nil, plan_nickname = nil)
-    temp_business_name = ERB::Util.url_encode(email)
-    business_name_to_use = business_name || temp_business_name
+    return nil unless email.present? && business_name.present?
 
     Rails.logger.debug "Handling vendor user for email: #{email} with stripe_customer_id: #{stripe_customer_id}"
     begin
