@@ -164,10 +164,12 @@ class API::WebhooksController < API::ApplicationController
             render json: { error: "Failed to create user." }, status: 400 and return
           end
           @user.plan_type = plan_type || "free"
+          @user.role = "vendor"
           @user.plan_status = "active"
           @user.save!
           Rails.logger.info "New user created: #{@user&.email} with plan type: #{@user.plan_type}"
         end
+        plan_nickname = "vendor_#{plan_type}" if plan_type
 
         Rails.logger.info "Processing checkout session completed event for user: #{@user&.email} with plan type: #{plan_type}"
         Rails.logger.info "Session metadata: #{metadata.inspect}"
@@ -176,15 +178,14 @@ class API::WebhooksController < API::ApplicationController
           if custom_field
             if custom_field["key"] == "businessname"
               email = session.customer_details["email"]
+              business_name = custom_field["text"]["value"]
               @user ||= User.find_by(email: email)
               Rails.logger.info "Processing business name for email: #{email} - user: #{@user&.email}"
               @vendor = Vendor.find_by(user_id: @user.id) if @user
               @vendor ||= Vendor.find_by(business_email: email) unless @vendor
               Rails.logger.info "Found vendor: #{@vendor&.business_email} for user: #{@user&.email}" if @vendor
               if @vendor.nil? && custom_field["text"] && custom_field["text"]["value"].present?
-                business_name = custom_field["text"]["value"]
                 Rails.logger.info "Creating new vendor user for email: #{email} with business name: #{business_name}"
-                plan_nickname = "vendor_#{plan_type}" if plan_type
                 if @user
                   Rails.logger.info "User already exists: #{@user.email} - plan type: #{@user.plan_type}"
                   plan_nickname = "vendor_#{@user.plan_type}" if @user.plan_type
@@ -195,8 +196,7 @@ class API::WebhooksController < API::ApplicationController
 
                 @vendor = @user.vendor
               elsif @vendor && custom_field["text"] && custom_field["text"]["value"].present?
-                value = custom_field["text"]["value"]
-                @vendor.business_name = value
+                @vendor.business_name = business_name
                 @vendor.save!
               else
                 Rails.logger.error "No existing vendor found for user: #{@user.id}"
@@ -273,10 +273,21 @@ class API::WebhooksController < API::ApplicationController
       Rails.logger.error "handle_vendor_user - Missing email or business_name: email: #{email}, business_name: #{business_name}"
       return nil
     end
+    @user = User.find_by(email: email)
+    if @user
+      Rails.logger.info "handle_vendor_user - Found existing user: #{@user.email} for email: #{email}"
+      if @user.vendor
+        Rails.logger.info "handle_vendor_user - User already has a vendor: #{@user.vendor.business_email}"
+        @vendor = @user.vendor
+        Rails.logger.info "handle_vendor_user - Updated existing vendor: #{@vendor.business_email} with business name: #{@vendor.business_name}"
+      else
+        Rails.logger.info "handle_vendor_user - User does not have a vendor, creating new one"
+      end
+    end
 
     Rails.logger.debug "Handling vendor user for email: #{email} with stripe_customer_id: #{stripe_customer_id}"
     begin
-      @vendor = Vendor.find_or_create_by(business_email: email, user_id: nil)
+      @vendor = Vendor.find_or_create_by(business_email: email, user_id: @user&.id) unless @vendor
       if @vendor.business_name.blank? && business_name_to_use.present?
         @vendor.business_name = business_name_to_use
       end
@@ -284,7 +295,6 @@ class API::WebhooksController < API::ApplicationController
       @vendor.configuration ||= {}
 
       @vendor.description = "Welcome to #{@vendor.business_name}. Please complete your profile."
-      @user = User.find_by(email: email)
       @user = User.create_new_vendor_user(email, @vendor, stripe_customer_id, plan_nickname)
 
       Rails.logger.info "handle_vendor_user: plan_nickname: #{plan_nickname}"
@@ -292,6 +302,9 @@ class API::WebhooksController < API::ApplicationController
       if @user
         @vendor.user = @user
         @vendor.save!
+        @user.stripe_customer_id = stripe_customer_id if stripe_customer_id
+        @user.save!
+        Rails.logger.info "handle_vendor_user - Created vendor user: #{@user.email} with business name: #{@vendor.business_name} and stripe_customer_id: #{stripe_customer_id}"
       else
         Rails.logger.debug "handle_vendor_user - No User for email: #{email}"
       end
@@ -304,7 +317,6 @@ class API::WebhooksController < API::ApplicationController
     end
 
     if @user
-      @user.stripe_customer_id = stripe_customer_id if stripe_customer_id
       @user.save!
     else
       Rails.logger.error "handle_vendor_user - Error creating vendor user from email: #{email}"
