@@ -25,6 +25,8 @@ class WordEvent < ApplicationRecord
   belongs_to :vendor, optional: true
   belongs_to :profile, optional: true
 
+  include ActionView::Helpers::DateHelper
+
   before_save :set_child_account!
 
   def set_child_account!
@@ -47,7 +49,7 @@ class WordEvent < ApplicationRecord
       user_id: user_id,
       user_email: user.email,
       child_username: child_account&.username,
-      child_account: child_account&.api_view,
+      # child_account: child_account&.api_view,
       profile_id: profile&.id,
       word: word,
       can_edit: user == viewing_user,
@@ -57,6 +59,11 @@ class WordEvent < ApplicationRecord
       team_id: team_id,
       part_of_speech: part_of_speech,
       timestamp: timestamp,
+      time_ago_in_words: time_ago_in_words(timestamp),
+      board_name: board&.name,
+      ip_address: data&.dig("ip"),
+      location: data&.dig("location"),
+      data: data,
       created_at: created_at,
       updated_at: updated_at,
     }

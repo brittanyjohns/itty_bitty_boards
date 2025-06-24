@@ -71,6 +71,24 @@ class API::AuditsController < API::ApplicationController
       Rails.logger.info "No Profile ID provided, using default logic"
       profile = nil
     end
+    request_ip = request.remote_ip
+    request_ip = "8.8.8.8" if request_ip == "::1"
+    location_data = get_ip_location(request_ip)
+    Rails.logger.info "IP Location Data: #{location_data.inspect}"
+    request_data = {
+      path: request.fullpath,
+      params: params.to_unsafe_h,
+      ip: request_ip,
+      location: {
+        city: location_data["city"],
+        region: location_data["region"],
+        country: location_data["country_name"],
+        latitude: location_data["latitude"],
+        longitude: location_data["longitude"],
+      },
+      user_agent: request.user_agent,
+      referer: request.referer,
+    }
     payload = {
       word: params[:word],
       previous_word: params[:previousWord],
@@ -82,9 +100,24 @@ class API::AuditsController < API::ApplicationController
       child_account_id: comm_account,
       vendor_id: params[:vendorId],
       profile_id: profile&.id,
+      data: request_data,
     }
+    Rails.logger.info "Payload for WordEvent: #{payload.inspect}"
     word_event = WordEvent.create(payload)
     Rails.logger.info "Public word click recorded: #{params[:childAccountId]}, Word Event ID: #{word_event.id}"
     render json: { message: "Word click recorded", word_event: word_event&.api_view }
+  end
+
+  def get_ip_location(ip = request.remote_ip)
+    ip = "8.8.8.8" if ip == "::1"
+
+    Rails.cache.fetch("ip-location-#{ip}", expires_in: 12.hours) do
+      uri = URI("http://ip-api.com/json/#{ip}")
+      response = Net::HTTP.get_response(uri)
+      JSON.parse(response.body)
+    end
+  rescue => e
+    Rails.logger.error("IP location fetch failed: #{e.message}")
+    { "error" => "Unable to get location" }
   end
 end

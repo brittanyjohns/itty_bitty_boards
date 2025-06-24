@@ -15,8 +15,18 @@ module WordEventsHelper
     week_chart_data(7.days.ago, Time.current)
   end
 
+  def two_day_chart
+    word_events.group_by_day(:timestamp, range: 2.days.ago..Time.current).count.map do |date, count|
+      { date: date.strftime("%m-%d"), count: count }
+    end
+  end
+
   def group_week_chart
     child_accounts.map { |child_account| { label: child_account.name, data: child_account.week_chart, bg_color: child_account.bg_color } }
+  end
+
+  def board_week_chart
+    boards.map { |board| { label: board.name, data: board.week_chart, bg_color: board.chart_bg_color } }
   end
 
   def most_clicked_words(range = 7.days.ago..Time.current, limit = 20)

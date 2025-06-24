@@ -12,6 +12,10 @@ class API::ChildAccountsController < API::ApplicationController
   # GET /child_accounts/1
   # GET /child_accounts/1.json
   def show
+    if @child_account.vendor?
+      render json: @child_account.vendor_api_view(current_user)
+      return
+    end
     render json: @child_account.api_view(current_user)
   end
 

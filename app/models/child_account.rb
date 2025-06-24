@@ -127,6 +127,116 @@ class ChildAccount < ApplicationRecord
     end
   end
 
+  def vendor?
+    user&.vendor? || false
+  end
+
+  def vendor_api_view(viewing_user = nil)
+    cached_user = user
+    is_vendor = cached_user&.vendor?
+    cached_profile = profile
+    cached_most_used_board = most_used_board
+    cached_supporters = supporters
+    cached_supervisors = supervisors
+    cached_go_to_boards = go_to_boards
+    cached_most_used_words = most_clicked_words
+
+    {
+      id: id,
+      username: username,
+      passcode: passcode,
+      last_sign_in_at: last_sign_in_at,
+      sign_in_count: sign_in_count,
+      board_week_chart: board_week_chart,
+      can_edit: viewing_user&.can_add_boards_to_account?([id]),
+      is_owner: viewing_user&.id == user_id,
+      is_vendor: is_vendor,
+      vendor: is_vendor ? cached_user.vendor.api_view(viewing_user) : nil,
+      vendor_profile: is_vendor ? cached_profile.api_view(viewing_user) : nil,
+      pro: cached_user.pro?,
+      free_trial: cached_user.free_trial?,
+      admin: cached_user.admin?,
+      parent_name: cached_user.display_name,
+      name: name,
+      most_used_board: {
+        id: cached_most_used_board&.id,
+        name: cached_most_used_board&.name,
+      },
+      recently_used_boards: recently_used_boards.map do |b|
+        {
+          id: b.id,
+          name: b.name,
+          display_image_url: b.display_image_url,
+          board_type: b.board_type,
+          board_id: b.board_id,
+        }
+      end,
+      heat_map: heat_map,
+      profile: cached_profile&.api_view(viewing_user),
+      startup_url: startup_url,
+      public_url: public_url,
+      week_chart: week_chart,
+      most_clicked_words: most_clicked_words,
+      teams: teams.map { |t| t.index_api_view(viewing_user) },
+      settings: settings,
+      details: details,
+      user_id: user_id,
+      go_to_words: go_to_words,
+      go_to_boards: cached_go_to_boards.map do |board|
+        {
+          id: board.id,
+          name: board.name,
+          display_image_url: board.display_image_url,
+        }
+      end,
+      avatar_url: cached_profile&.avatar_url,
+      intro_audio_url: cached_profile&.intro_audio_url,
+      bio_audio_url: cached_profile&.bio_audio_url,
+      supporters: cached_supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
+      supervisors: cached_supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
+      boards: child_boards.map do |cb|
+        b = cb.board
+        {
+          id: cb.id,
+          name: b.name,
+          board_type: b.board_type,
+          board_id: cb.board_id,
+          display_image_url: b.display_image_url,
+          favorite: cb.favorite,
+          published: cb.published,
+          added_by: cb.created_by&.display_name,
+          added_by_id: cb.created_by&.id,
+          board_owner_id: b.user_id,
+          board_owner_name: b.user&.display_name,
+          most_used: cb.board_id == cached_most_used_board&.id,
+          can_edit: viewing_user&.id == user_id,
+        }
+      end,
+      can_sign_in: can_sign_in?,
+      available_boards: available_boards.map do |b|
+        {
+          id: b.id,
+          name: b.name,
+          display_image_url: b.display_image_url,
+          board_type: b.board_type,
+          word_sample: b.word_sample,
+        }
+      end,
+      teams_boards: available_teams_boards.map do |tb|
+        b = tb.board
+        {
+          id: tb.board_id,
+          name: b.name,
+          board_type: b.board_type,
+          display_image_url: b.display_image_url,
+          added_by: tb.created_by&.display_name,
+          added_by_id: tb.created_by&.id,
+          word_sample: b.word_sample,
+        }
+      end,
+    }
+  end
+
   def self.create_for_user(user, username, password)
     account = new(username: username, password: password, user: user, password_confirmation: password)
     account.save!

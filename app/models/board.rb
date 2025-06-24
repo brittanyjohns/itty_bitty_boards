@@ -299,6 +299,10 @@ class Board < ApplicationRecord
     bg_color
   end
 
+  def chart_bg_color
+    Profile::RANDOM_COLORS.sample
+  end
+
   # def create_voice_audio
   #   return if @skip_create_voice_audio
   #   label_voice = "#{label_for_filename}_#{voice}"
@@ -594,8 +598,7 @@ class Board < ApplicationRecord
         Rails.logger.error "No display image for word: #{word}"
         image.create_image_doc(user_id) unless image.docs.any? { |doc| doc.user_id == user_id }
         image_prompt = "Create an image of #{word}"
-        GenerateImageJob.perform(image.id, user_id, image_prompt, id)
-        image.reload
+        GenerateImageJob.perform_async(image.id, user_id, image_prompt, id)
       end
       self.add_image(image.id) if image && !image_ids.include?(image.id)
     end

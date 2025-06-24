@@ -905,6 +905,7 @@ class User < ApplicationRecord
       heat_map: heat_map,
       week_chart: week_chart,
       group_week_chart: group_week_chart,
+      board_week_chart: board_week_chart,
       most_clicked_words: most_clicked_words,
       last_sign_in_at: last_sign_in_at,
       last_sign_in_ip: last_sign_in_ip,

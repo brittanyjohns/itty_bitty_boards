@@ -27,6 +27,10 @@ class ChildBoard < ApplicationRecord
     board.name
   end
 
+  def word_events
+    WordEvent.where(board_id: board.id, child_account_id: child_account.id).order(created_at: :desc)
+  end
+
   def display_image_url
     board.display_image_url
   end
