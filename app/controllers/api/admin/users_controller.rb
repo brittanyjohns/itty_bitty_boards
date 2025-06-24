@@ -54,6 +54,18 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     end
   end
 
+  def export
+    unless current_admin&.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+    @users = User.includes(:child_accounts, :word_events, :boards)
+
+    send_data @users.to_csv,
+              filename: "users-#{Time.now.strftime("%Y-%m-%d")}.csv",
+              type: "text/csv"
+  end
+
   # def admin_update_settings
   #   unless current_user&.admin?
   #     render json: { error: "Unauthorized" }, status: :unauthorized
@@ -90,7 +102,17 @@ class API::Admin::UsersController < API::Admin::ApplicationController
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
-    @user.destroy!
+    if @user.admin?
+      render json: { error: "Cannot delete an admin user" }, status: :unprocessable_entity
+      return
+    end
+    begin
+      @user.destroy!
+    rescue ActiveRecord::RecordNotDestroyed => e
+      render json: { error: e.message }, status: :unprocessable_entity
+      return
+    end
+    puts "User #{@user.id} deleted by #{current_admin.display_name}"
 
     render json: { success: true }
   end

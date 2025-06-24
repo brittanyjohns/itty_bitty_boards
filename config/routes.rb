@@ -383,6 +383,7 @@ Rails.application.routes.draw do
       resources :users do
         collection do
           delete "destroy_users"
+          get "export"
         end
       end
       resources :teams

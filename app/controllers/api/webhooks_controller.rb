@@ -85,9 +85,7 @@ class API::WebhooksController < API::ApplicationController
                 @user = handle_myspeak_user(stripe_customer)
                 Rails.logger.info "Myspeak user handled: #{@user&.email} with stripe_customer_id: #{stripe_customer.id}" if @user
               elsif plan_nickname&.include?("vendor")
-                Rails.logger.info "Handling vendor user for plan: #{plan_nickname}"
-                # @user = handle_vendor_user(stripe_customer.email, nil, stripe_customer.id, plan_nickname)
-                Rails.logger.info "Vendor user handled: #{@user&.email} with stripe_customer_id: #{stripe_customer.id}" if @user
+                Rails.logger.info "Skip vendor user for plan: #{plan_nickname}"
               else
                 Rails.logger.info "Regular user for plan: #{plan_nickname}"
                 @user.update_from_stripe_event(subscription_data, plan_nickname)
@@ -111,8 +109,8 @@ class API::WebhooksController < API::ApplicationController
             @user = handle_myspeak_user(stripe_customer)
           elsif plan_nickname&.include?("vendor")
             # @user = handle_vendor_user(stripe_customer.email, nil, stripe_customer_id, plan_nickname)
-
-            Rails.logger.info " Not vendor for user: #{@user&.email} with stripe_customer_id: #{stripe_customer_id}"
+            Rails.logger.info "Vendor user for plan: #{plan_nickname} - not handled yet"
+            render json: { success: true }, status: 200 and return
           else
             Rails.logger.info "Creating regular: #{@user&.email} with stripe_customer_id: #{stripe_customer_id}"
             @user = User.create_from_email(stripe_customer.email, stripe_customer_id) unless @user
