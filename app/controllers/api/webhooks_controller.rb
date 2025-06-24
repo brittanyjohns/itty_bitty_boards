@@ -142,7 +142,6 @@ class API::WebhooksController < API::ApplicationController
 
         @user = User.find_by(email: data_object.customer_details["email"]) unless @user
         @user ||= User.find_by(stripe_customer_id: data_object.customer)
-        Rails.logger.info "Checkout session completed for user: #{@user&.email} with stripe_customer_id: #{data_object.customer}" if @user
 
         session = data_object
         custom_fields = session.custom_fields
@@ -194,13 +193,6 @@ class API::WebhooksController < API::ApplicationController
                   # plan_nickname = "vendor_free"
                 end
 
-                Rails.logger.info "Creating vendor user with email: #{email}, business_name: #{business_name}, stripe_customer_id: #{session.customer}, plan_nickname: #{plan_nickname}"
-                @user = handle_vendor_user(email, business_name, session.customer, plan_nickname)
-                Rails.logger.info "SESSION COMPLETE #{@user&.email} with business name: #{@vendor&.business_name} and stripe_customer_id: #{session.customer} - plan_nickname: #{plan_nickname} - plan_type: #{@user&.plan_type}"
-                if @user.nil?
-                  Rails.logger.error "Failed to create vendor user for email: #{email}"
-                  render json: { error: "Failed to create vendor user." }, status: 400 and return
-                end
                 @vendor = @user.vendor
               elsif @vendor && custom_field["text"] && custom_field["text"]["value"].present?
                 value = custom_field["text"]["value"]
@@ -209,6 +201,15 @@ class API::WebhooksController < API::ApplicationController
               else
                 Rails.logger.error "No existing vendor found for user: #{@user.id}"
               end
+              Rails.logger.info "Creating vendor user with email: #{email}, business_name: #{business_name}, stripe_customer_id: #{session.customer}, plan_nickname: #{plan_nickname}"
+              @user = handle_vendor_user(email, business_name, session.customer, plan_nickname)
+              Rails.logger.info "SESSION COMPLETE #{@user&.email} with business name: #{@vendor&.business_name} and stripe_customer_id: #{session.customer} - plan_nickname: #{plan_nickname} - plan_type: #{@user&.plan_type}"
+              if @user.nil?
+                Rails.logger.error "Failed to create vendor user for email: #{email}"
+                render json: { error: "Failed to create vendor user." }, status: 400 and return
+              end
+              @user.vendor ||= @vendor
+              render json: { success: true }, status: 200 and return
             end
           end
         end
