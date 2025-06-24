@@ -638,6 +638,8 @@ class API::BoardsController < API::ApplicationController
 
     preset_display_image_url = @board.display_preset_image_url
     @board.update_preset_display_image_url(preset_display_image_url)
+    @board.display_image_url = preset_display_image_url
+    @board.save!
   end
 
   def save_layout!

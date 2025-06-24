@@ -59,7 +59,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
-    @users = User.includes(:child_accounts, :word_events, :boards)
+    @users = User.all
 
     send_data @users.to_csv,
               filename: "users-#{Time.now.strftime("%Y-%m-%d")}.csv",

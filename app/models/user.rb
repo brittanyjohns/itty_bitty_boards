@@ -44,6 +44,7 @@
 #  organization_id        :bigint
 #  vendor_id              :bigint
 #
+require "csv"
 
 class User < ApplicationRecord
   # Payment and authentication setup
@@ -917,5 +918,16 @@ class User < ApplicationRecord
       stripe_customer_id: stripe_customer_id,
       unread_messages: messages.where(recipient_id: id, read_at: nil, recipient_deleted_at: nil).count,
     }
+  end
+
+  def self.to_csv
+    users = all
+    csv_column_names = %w[id email name role created_at updated_at plan_type plan_expires_at plan_status tokens stripe_customer_id]
+    CSV.generate do |csv|
+      csv << csv_column_names
+      users.each do |user|
+        csv << user.attributes.values_at(*csv_column_names)
+      end
+    end
   end
 end
