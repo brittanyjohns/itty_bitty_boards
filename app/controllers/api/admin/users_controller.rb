@@ -42,6 +42,14 @@ class API::Admin::UsersController < API::Admin::ApplicationController
 
     # ADMIN ONLY
     plan_type = params[:plan_type] || @user.plan_type || "free"
+    role = params[:role] || @user.role || "user"
+    if role == "admin"
+      unless current_admin&.admin?
+        render json: { error: "Unauthorized" }, status: :unauthorized
+        return
+      end
+    end
+    @user.role = role
     @user.plan_type = plan_type
     @user.locked = params[:locked] || false
     @user.settings["locked"] = params[:locked] || false
