@@ -269,7 +269,10 @@ class API::WebhooksController < API::ApplicationController
   end
 
   def handle_vendor_user(email, business_name, stripe_customer_id = nil, plan_nickname = nil)
-    return nil unless email.present? && business_name.present?
+    unless email.present? && business_name.present?
+      Rails.logger.error "handle_vendor_user - Missing email or business_name: email: #{email}, business_name: #{business_name}"
+      return nil
+    end
 
     Rails.logger.debug "Handling vendor user for email: #{email} with stripe_customer_id: #{stripe_customer_id}"
     begin
