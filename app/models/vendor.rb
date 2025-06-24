@@ -68,8 +68,10 @@ class Vendor < ApplicationRecord
     configuration = self.configuration || { "default_language" => "en", "currency" => "USD" }
 
     Rails.logger.info "Creating profile for new communicator account: #{new_communicator_account.inspect}"
+    profile = Profile.find_or_initialize_by(profileable: new_communicator_account)
+    Rails.logger.info "Profile found or initialized: #{profile.inspect}"
     profile = Profile.create(profileable: new_communicator_account, username: username, slug: slug,
-                             bio: description, intro: "Welcome to #{business_name}", claim_token: SecureRandom.hex(10))
+                             bio: description, intro: "Welcome to #{business_name}", claim_token: SecureRandom.hex(10)) unless profile.persisted?
     if profile.nil?
       profile ||= Profile.new(
         username: username,
