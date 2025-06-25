@@ -111,7 +111,7 @@ class API::AuditsController < API::ApplicationController
   def get_ip_location(ip = request.remote_ip)
     ip = "8.8.8.8" if ip == "::1"
 
-    Rails.cache.fetch("ip-location-#{ip}", expires_in: 12.hours) do
+    Rails.cache.fetch("ip-location-#{ip}", expires_in: 10.minutes) do
       uri = URI("http://ip-api.com/json/#{ip}")
       response = Net::HTTP.get_response(uri)
       JSON.parse(response.body)
