@@ -147,6 +147,13 @@ class API::WebhooksController < API::ApplicationController
         custom_fields = session.custom_fields
         metadata = session.metadata || {}
         plan_type = metadata["plan_type"]
+        Rails.logger.info "Processing checkout session completed event: #{event_type} for user: #{@user&.email} with plan type: #{plan_type}"
+        Rails.logger.info "Session metadata: #{metadata.inspect}"
+        Rails.logger.info "Checkout session completed for user: #{@user&.email} with custom fields: #{custom_fields.inspect}"
+        unless plan_type == "vendor"
+          Rails.logger.info "Plan type is not vendor: #{plan_type} - skipping vendor user creation"
+          render json: { success: true }, status: 200 and return
+        end
         @user = User.find_by(stripe_customer_id: session.customer) unless @user
 
         Rails.logger.debug "User found: #{@user&.email} - stripe_customer_id: #{session.customer}" if @user

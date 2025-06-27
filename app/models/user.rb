@@ -140,7 +140,9 @@ class User < ApplicationRecord
   def self.create_from_email(email, stripe_customer_id = nil, inviting_user_id = nil, slug = nil)
     begin
       user = User.find_by(email: email)
+      Rails.logger.info("Create: Found existing user: #{user.email}") if user
       user = User.invite!(email: email, skip_invitation: true) unless user
+      Rails.logger.info("Create: User created from email: #{email}, inviting_user_id: #{inviting_user_id}, slug: #{slug}, stripe_customer_id: #{stripe_customer_id}") if user
     rescue ActiveRecord::RecordNotUnique => e
       Rails.logger.error("Error creating user from email: #{email} - #{e.message}")
 
@@ -157,11 +159,23 @@ class User < ApplicationRecord
         Rails.logger.info("Found existing user after RecordNotUnique error: #{user.email}")
       end
     end
-    Rails.logger.info("Creating user from email: #{email}, inviting_user_id: #{inviting_user_id}, slug: #{slug}, stripe_customer_id: #{stripe_customer_id}") if user.nil? || user.errors.any?
+    Rails.logger.info("FAILED while creating user from email: #{email}, inviting_user_id: #{inviting_user_id}, slug: #{slug}, stripe_customer_id: #{stripe_customer_id} errors: #{user.errors.full_messages.join(", ")}") if user && user.errors.any?
+    user.slug = slug if slug
+    user.ensure_settings
+    user.role = "user" unless user.role
+    user.plan_type ||= "free"
+    user.plan_status ||= "active"
+    user.settings ||= {}
+    user.settings["plan_nickname"] = user.plan_type
+    user.settings["slug"] = slug if slug
+
+    Rails.logger.info("=User created from email: #{email}, inviting_user_id: #{inviting_user_id}, stripe_customer_id: #{stripe_customer_id}") if user.nil? || user.errors.any?
     if user
       if inviting_user_id
+        Rails.logger.info("Creating user from invitation with inviting_user_id: #{inviting_user_id}")
         create_from_invitation(email, inviting_user_id)
       else
+        Rails.logger.debug("No inviting user ID provided, skipping invitation creation for email: #{email}")
         user.send_welcome_email if user.should_send_welcome_email?
         stripe_customer_id ||= user.stripe_customer_id
         if stripe_customer_id.nil?
@@ -726,6 +740,7 @@ class User < ApplicationRecord
   end
 
   def should_send_welcome_email?
+    Rails.logger.info "Checking if welcome email should be sent to #{email} - created at: #{created_at}, plan type: #{plan_type}, admin: #{admin?}"
     return false if admin?
     if settings["welcome_email_sent"] == true
       Rails.logger.info "Welcome email already sent to #{email}"
@@ -735,8 +750,6 @@ class User < ApplicationRecord
       Rails.logger.info "Skipping welcome email for myspeak user #{email}"
       return false
     end
-    # if updated today don't send email
-    return false if created_at > 1.day.ago
     true
   end
 
