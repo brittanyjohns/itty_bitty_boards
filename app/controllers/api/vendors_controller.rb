@@ -65,6 +65,19 @@ class API::VendorsController < API::ApplicationController
     end
   end
 
+  def destroy
+    if !current_user.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+    @vendor = Vendor.find(params[:id])
+    if @vendor.destroy
+      render json: { message: "Vendor deleted successfully" }, status: :ok
+    else
+      render json: { error: "Failed to delete vendor" }, status: :unprocessable_entity
+    end
+  end
+
   private
 
   def vendor_params

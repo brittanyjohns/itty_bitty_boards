@@ -16,7 +16,7 @@
 #  updated_at     :datetime         not null
 #
 class Vendor < ApplicationRecord
-  has_one :profile, as: :profileable, dependent: :destroy
+  # has_one :profile, as: :profileable, dependent: :destroy
   belongs_to :owner, class_name: "User", foreign_key: "user_id", optional: true
   has_many :users, dependent: :nullify
   belongs_to :user, class_name: "User", foreign_key: "user_id", optional: true
@@ -46,7 +46,7 @@ class Vendor < ApplicationRecord
   def create_profile!
     Rails.logger.info "Creating profile for Vendor: #{business_name} with slug: #{slug}"
     begin
-      @account = build_child_account(
+      @account = child_accounts.new(
         username: username,
         name: business_name,
         vendor_id: id,
@@ -74,7 +74,7 @@ class Vendor < ApplicationRecord
                              bio: description, intro: "Welcome to #{business_name}", claim_token: SecureRandom.hex(10)) unless profile.persisted?
     if profile.nil?
       profile ||= Profile.new(
-        username: username,
+        username: @account.username,
         slug: slug,
         bio: description,
         intro: "Welcome to #{business_name}",
@@ -110,6 +110,18 @@ class Vendor < ApplicationRecord
 
   def favorite_boards
     user&.favorite_boards || []
+  end
+
+  def profiles
+    @profiles ||= child_accounts.map(&:profile).compact
+  end
+
+  def child_account
+    @child_account ||= child_accounts.first
+  end
+
+  def profile
+    @profile ||= child_account&.profile
   end
 
   def username
@@ -164,7 +176,7 @@ class Vendor < ApplicationRecord
   end
 
   def account_id
-    profile&.profileable_type == "ChildAccount" ? profileable_id : user&.id
+    child_account&.id
   end
 
   def api_view(viewer = nil)
@@ -186,6 +198,8 @@ class Vendor < ApplicationRecord
       can_edit: viewer&.vendor_id == id,
       is_owner: viewer&.id == user_id,
       created_by_email: user&.email,
+      users: users.map { |u| { id: u.id, name: u.name, email: u.email } },
+      child_accounts: child_accounts.map { |ca| { id: ca.id, username: ca.username, name: ca.name, profile_id: ca.profile&.id, profile_slug: ca.profile&.slug } },
       created_by_name: user&.name,
     }
   end
