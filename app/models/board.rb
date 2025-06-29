@@ -117,6 +117,7 @@ class Board < ApplicationRecord
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
   before_save :update_display_image, unless: :display_image_url?
+  before_save :update_preset_display_image_url, if: :display_image_url_changed?
 
   # before_save :set_board_type
   before_save :clean_up_name
@@ -1114,8 +1115,18 @@ class Board < ApplicationRecord
     display_image_url
   end
 
-  def update_preset_display_image_url(url)
+  def update_preset_display_image_url(url = nil)
+    if url.blank?
+      url = display_image_url
+    end
     self.settings ||= {}
+    if settings["preset_display_image_url"] == url
+      return
+    end
+    if url.blank?
+      Rails.logger.error "No URL provided for preset_display_image_url"
+      return
+    end
     self.settings["preset_display_image_url"] = url
     save
   end
@@ -1184,7 +1195,7 @@ class Board < ApplicationRecord
       token_limit: token_limit,
       cost: cost,
       audio_url: audio_url,
-      display_image_url: display_image_url,
+      display_image_url: display_image_url || preset_display_image_url,
       # floating_words: words,
       common_words: Board.common_words,
       user_id: user_id,
