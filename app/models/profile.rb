@@ -158,7 +158,6 @@ class Profile < ApplicationRecord
       communicator_account_id: profileable_type == "User" ? nil : profileable&.id,
       avatar: avatar.attached? ? avatar_url : nil,
       settings: settings,
-
     }
   end
 

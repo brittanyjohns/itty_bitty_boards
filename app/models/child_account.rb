@@ -202,6 +202,7 @@ class ChildAccount < ApplicationRecord
           board_type: b.board_type,
           board_id: cb.board_id,
           display_image_url: b.display_image_url,
+          preset_display_image_url: b.preset_display_image_url,
           favorite: cb.favorite,
           published: cb.published,
           added_by: cb.created_by&.display_name,

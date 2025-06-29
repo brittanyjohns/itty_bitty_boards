@@ -112,7 +112,7 @@ class API::WebhooksController < API::ApplicationController
             Rails.logger.info "Vendor user for plan: #{plan_nickname} - not handled yet"
             render json: { success: true }, status: 200 and return
           else
-            Rails.logger.info "Creating regular: #{@user&.email} with stripe_customer_id: #{stripe_customer_id}"
+            Rails.logger.info "Creating regular user: #{stripe_customer&.email} with stripe_customer_id: #{stripe_customer_id}"
             @user = User.create_from_email(stripe_customer.email, stripe_customer_id) unless @user
           end
         end

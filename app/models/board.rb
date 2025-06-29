@@ -117,6 +117,7 @@ class Board < ApplicationRecord
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
   before_save :update_display_image, unless: :display_image_url?
+
   # before_save :set_board_type
   before_save :clean_up_name
   before_save :validate_data
@@ -1109,7 +1110,7 @@ class Board < ApplicationRecord
   end
 
   def preset_display_image_url
-    return settings["preset_display_image_url"] if settings && settings["preset_display_image_url"]
+    return settings["preset_display_image_url"] if settings && !settings["preset_display_image_url"].blank?
     display_image_url
   end
 

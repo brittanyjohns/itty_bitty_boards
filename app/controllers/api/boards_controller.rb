@@ -264,9 +264,9 @@ class API::BoardsController < API::ApplicationController
       @board.name = board_params["name"] unless board_params["name"].blank?
       @board.description = board_params["description"]
       @board.display_image_url = board_params["display_image_url"]
+      # @board.update_preset_display_image_url(board_params["display_image_url"]) if board_params["display_image_url"].present?
       @board.predefined = board_params["predefined"]
       @board.category = board_params["category"]
-      @board.display_image_url = board_params["display_image_url"]
       @board.language = board_params["language"] if board_params["language"].present?
       @board.favorite = board_params["favorite"] if board_params["favorite"].present?
       @board.published = board_params["published"] if board_params["published"].present?
