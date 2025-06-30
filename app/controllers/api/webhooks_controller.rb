@@ -40,7 +40,7 @@ class API::WebhooksController < API::ApplicationController
           Rails.logger.error "No existing user found for stripe_customer_id - Nothing to pause: #{data_object.customer}"
           render json: { error: "No user found for subscription" }, status: 400 and return
         end
-      when "customer.subscription.created", "customer.subscription.updated"
+      when "customer.subscription.created"
         subscription_data = {
           subscription: data_object.id,
           customer: data_object.customer,
@@ -127,6 +127,20 @@ class API::WebhooksController < API::ApplicationController
         end
       when "customer.created"
         Rails.logger.info "Customer created event received: #{data_object["email"]}"
+      when "customer.subscription.updated"
+        @user = User.find_by(stripe_customer_id: data_object.customer)
+        if @user
+          Rails.logger.info "Update event received for user: #{@user.email} with plan type: #{data_object.plan&.nickname}"
+          if @user.update_from_stripe_event(data_object, data_object.plan&.nickname)
+            render json: { success: true }, status: 200 and return
+          else
+            Rails.logger.error "Failed to update user from Stripe event: #{data_object.customer}"
+            render json: { error: "Failed to update user from Stripe event" }, status: 400 and return
+          end
+        else
+          Rails.logger.error "No existing user found for stripe_customer_id - Nothing to update: #{data_object.customer}"
+          render json: { error: "No user found for subscription" }, status: 400 and return
+        end
       when "customer.subscription.deleted"
         @user = User.find_by(stripe_customer_id: data_object.customer)
         if @user

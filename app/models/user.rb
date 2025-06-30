@@ -325,6 +325,8 @@ class User < ApplicationRecord
     expires_at = data_object["current_period_end"] || data_object["expires_at"]
     self.plan_expires_at = Time.at(expires_at) if expires_at
     self.save!
+    Rails.logger.info "User updated from Stripe event: #{self.email}, plan_type: #{self.plan_type}, plan_expires_at: #{self.plan_expires_at}"
+    return true
   end
 
   def get_stripe_subscriptions
