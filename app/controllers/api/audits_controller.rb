@@ -50,31 +50,24 @@ class API::AuditsController < API::ApplicationController
   def public_word_click
     image = Image.find(params[:imageId]) if params[:imageId]
     board = Board.includes(:user).find(params[:boardId]) if params[:boardId]
-    Rails.logger.info "Public word click: #{params.inspect}, Image ID: #{image&.id}, Board ID: #{board&.id}"
+
     profileId = params[:profileId]
     comm_account = nil
     if profileId
-      Rails.logger.info "Profile ID provided: #{profileId}"
       profile = Profile.find_by(id: profileId.to_i)
-      if profile.nil?
-        Rails.logger.error "Profile not found for ID: #{profileId}"
-      else
-        Rails.logger.info "Found Profile: #{profile.inspect}"
+      unless profile.nil?
         comm_account = profile.profileable
         if comm_account.nil?
           Rails.logger.error "No Communicator Account found for Profile ID: #{profileId}"
-        else
-          Rails.logger.info "Communicator Account: #{comm_account.inspect}"
         end
       end
     else
-      Rails.logger.info "No Profile ID provided, using default logic"
+      Rails.logger.error "No Profile ID provided."
       profile = nil
     end
     request_ip = request.remote_ip
     request_ip = "8.8.8.8" if request_ip == "::1"
     location_data = get_ip_location(request_ip)
-    Rails.logger.info "IP Location Data: #{location_data.inspect}"
     request_data = {
       path: request.fullpath,
       params: params.to_unsafe_h,
@@ -102,9 +95,7 @@ class API::AuditsController < API::ApplicationController
       profile_id: profile&.id,
       data: request_data,
     }
-    Rails.logger.info "Payload for WordEvent: #{payload.inspect}"
     word_event = WordEvent.create(payload)
-    Rails.logger.info "Public word click recorded: #{params[:childAccountId]}, Word Event ID: #{word_event.id}"
     render json: { message: "Word click recorded", word_event: word_event&.api_view }
   end
 
