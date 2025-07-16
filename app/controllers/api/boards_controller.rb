@@ -14,10 +14,10 @@ class API::BoardsController < API::ApplicationController
   # GET /boards or /boards.json
   def index
     unless current_user
-      @static_preset_boards = Board.static.predefined.order(name: :asc).page params[:page]
-      @dynamic_preset_boards = Board.dynamic.predefined.order(name: :asc).page params[:page]
-      @predictive_preset_boards = Board.predictive.predefined.order(name: :asc).page params[:page]
-      @category_preset_boards = Board.categories.predefined.order(name: :asc).page params[:page]
+      @static_preset_boards = Board.predefined.order(name: :asc).page params[:page]
+      # @dynamic_preset_boards = Board.dynamic.predefined.order(name: :asc).page params[:page]
+      # @predictive_preset_boards = Board.predictive.predefined.order(name: :asc).page params[:page]
+      # @category_preset_boards = Board.categories.predefined.order(name: :asc).page params[:page]
       render json: { static_preset_boards: @static_preset_boards.map(&:api_view),
                      dynamic_preset_boards: @dynamic_preset_boards.map(&:api_view),
                      predictive_preset_boards: @predictive_preset_boards.map(&:api_view),
