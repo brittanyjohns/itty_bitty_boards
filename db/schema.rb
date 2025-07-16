@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_06_24_114222) do
+ActiveRecord::Schema[7.1].define(version: 2025_07_16_164358) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -156,6 +156,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_24_114222) do
     t.boolean "published", default: false
     t.boolean "favorite", default: false
     t.bigint "vendor_id"
+    t.string "slug", default: ""
     t.index ["board_group_id"], name: "index_boards_on_board_group_id"
     t.index ["board_type"], name: "index_boards_on_board_type"
     t.index ["category"], name: "index_boards_on_category"
@@ -165,6 +166,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_24_114222) do
     t.index ["obf_id"], name: "index_boards_on_obf_id"
     t.index ["parent_type", "parent_id"], name: "index_boards_on_parent"
     t.index ["published"], name: "index_boards_on_published"
+    t.index ["slug"], name: "index_boards_on_slug"
     t.index ["user_id"], name: "index_boards_on_user_id"
     t.index ["vendor_id"], name: "index_boards_on_vendor_id"
   end

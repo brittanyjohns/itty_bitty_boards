@@ -726,7 +726,7 @@ class User < ApplicationRecord
   end
 
   def paid_plan?
-    basic? || pro? || plus? || premium?
+    basic? || pro? || plus? || premium? || admin?
   end
 
   def professional?

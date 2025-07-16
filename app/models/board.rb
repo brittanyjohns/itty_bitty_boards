@@ -66,6 +66,8 @@ class Board < ApplicationRecord
 
   attr_accessor :skip_create_voice_audio
 
+  validates :slug, uniqueness: true
+
   include UtilHelper
   include BoardsHelper
 
@@ -125,6 +127,8 @@ class Board < ApplicationRecord
   before_save :set_vendor_id
 
   before_save :set_display_margin_settings, unless: :margin_settings_valid_for_all_screen_sizes?
+
+  before_create :set_slug
 
   before_create :set_screen_sizes, :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
@@ -226,6 +230,23 @@ class Board < ApplicationRecord
 
   def set_initial_layout
     self.layout = { "lg" => [], "md" => [], "sm" => [] }
+  end
+
+  def set_slug
+    return unless name.present? && slug.blank?
+
+    slug = board.name.parameterize
+    existing_board = Board.find_by(slug: slug)
+    if existing_board && existing_board.id != board.id
+      Rails.logger.warn "Board #{board.id} has a duplicate slug '#{slug}', generating a new one."
+      slug = "#{slug}-#{board.id}"
+    end
+    board.slug = slug
+    if saved
+      Rails.logger.info "Board #{board.id} slug set to '#{board.slug}'"
+    else
+      Rails.logger.error "Failed to set slug for board #{board.id}: #{board.errors.full_messages.join(", ")}"
+    end
   end
 
   def set_vendor_id
@@ -656,6 +677,12 @@ class Board < ApplicationRecord
     if new_name.blank?
       new_name = name + " copy"
     end
+    cloned_slug = new_name.parameterize
+    existing_board = Board.find_by(slug: cloned_slug)
+    if existing_board && existing_board.id != id
+      Rails.logger.warn "Board #{id} has a duplicate slug '#{cloned_slug}', generating a new one."
+      slug = "#{cloned_slug}-#{id}"
+    end
     @source = self
     cloned_user = User.find(cloned_user_id)
     unless cloned_user
@@ -670,6 +697,7 @@ class Board < ApplicationRecord
     @layouts = @board_images.pluck(:image_id, :layout)
 
     @cloned_board = @source.dup
+    @cloned_board.slug = cloned_slug
     @cloned_board.user_id = cloned_user_id
     @cloned_board.name = new_name
     @cloned_board.predefined = false
@@ -677,6 +705,7 @@ class Board < ApplicationRecord
     @cloned_board.board_group_id = nil
     @cloned_board.board_type = @source.board_type
     @cloned_board.data = nil
+    Rails.logger.info "Cloning board: #{@source.id} to new board: #{@cloned_board.id} for user: #{cloned_user_id} SLUG: #{@cloned_board.slug}"
     @cloned_board.save
     @board_images.each do |board_image|
       image = board_image.image
@@ -1121,6 +1150,11 @@ class Board < ApplicationRecord
     settings["freeze_board"] == true
   end
 
+  def public_url
+    base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    "#{base_url}/public-board/#{slug}"
+  end
+
   def api_view_with_predictive_images(viewing_user = nil, communicator_account = nil, show_hidden = false)
     @viewer_settings = viewing_user&.settings || {}
     is_a_user = viewing_user.class == "User"
@@ -1144,6 +1178,8 @@ class Board < ApplicationRecord
     {
       id: id,
       board_type: board_type,
+      public_url: public_url,
+      slug: slug,
       source_type: source_type,
       vendor: vendor,
       week_chart: week_chart,
@@ -1448,7 +1484,6 @@ class Board < ApplicationRecord
       display_image_url: display_image_url,
       word_sample: word_sample,
       word_list: data["current_word_list"],
-      board_type: board_type,
       created_at: created_at,
       updated_at: updated_at,
       voice: voice,

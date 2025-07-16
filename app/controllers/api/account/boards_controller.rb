@@ -108,6 +108,7 @@ class API::Account::BoardsController < API::Account::ApplicationController
 
   def predictive_image_board
     @board = Board.with_artifacts.find_by(id: params[:id])
+    @board = Board.with_artifacts.find_by(slug: params[:id]) unless @board
     if @board.nil?
       @board = Board.predictive_default(current_account)
       Rails.logger.info "#{Board.predictive_default_id} -- No user predictive default board found - setting default board : #{@board.id}"

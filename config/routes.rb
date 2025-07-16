@@ -443,5 +443,5 @@ Rails.application.routes.draw do
   root "main#index"
 
   # Catch-all route for handling 404 errors. This should be the last route in the file to ensure it catches all unmatched routes.
-  match '*path', via: :all, to: 'error#not_found'
+  match "*path", via: :all, to: "error#not_found"
 end
