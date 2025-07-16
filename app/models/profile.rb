@@ -26,7 +26,7 @@ class Profile < ApplicationRecord
   validates :slug, presence: true, uniqueness: true
   validates :claim_token, presence: true, uniqueness: true, if: -> { placeholder? }
 
-  before_create :set_slug
+  before_create :set_defaults
   before_save :start_audio_job, if: -> { intro_changed? || bio_changed? || (!intro_audio&.attached? && intro.present?) || (!bio_audio&.attached? && bio.present?) }
 
   def open_ai_opts
@@ -200,7 +200,12 @@ class Profile < ApplicationRecord
   end
 
   def set_fake_avatar
-    url = FFaker::Avatar.image(slug: slug, size: "300x300", format: "png")
+    # url = FFaker::Avatar.image(slug: slug, size: "300x300", format: "png")
+    if profileable_type == "Vendor"
+      url = "https://api.dicebear.com/9.x/icons/svg?backgroundColor=b6e3f4,c0aede,d1d4f9&seed=#{slug}"
+    else
+      url = "https://api.dicebear.com/9.x/adventurer/svg?backgroundColor=b6e3f4,c0aede,d1d4f9&seed=#{slug}"
+    end
     avatar.attach(io: URI.open(url), filename: "#{slug}.png")
   end
 
@@ -272,9 +277,13 @@ class Profile < ApplicationRecord
     profile
   end
 
-  private
-
-  def set_slug
+  def set_defaults
+    if intro.blank?
+      self.intro = "Welcome to MySpeak! Personalize your profile by adding a short introduction about yourself."
+    end
+    if bio.blank?
+      self.bio = "Write a short bio about yourself. This will help others understand who you are and what you do."
+    end
     return if username.blank? || slug.present?
     self.slug = username.parameterize
   end

@@ -31,14 +31,16 @@ class BoardImage < ApplicationRecord
   belongs_to :board, counter_cache: true, touch: true
   belongs_to :image
   belongs_to :predictive_board, class_name: "Board", optional: true
+  has_many_attached :audio_files
   attr_accessor :skip_create_voice_audio, :skip_initial_layout, :src
 
   before_create :set_defaults
-  before_save :set_display_label, if: -> { display_label.blank? }
   # before_save :save_display_image_url, if: -> { display_image_url.blank? }
   before_save :check_predictive_board
 
   include BoardsHelper
+  include ImageHelper
+  include AudioHelper
 
   scope :updated_today, -> { where("updated_at > ?", 1.hour.ago) }
   scope :with_artifacts, -> { includes({ predictive_board: [{ board_images: :image }] }, :image, :board) }
@@ -56,16 +58,18 @@ class BoardImage < ApplicationRecord
     self.save
   end
 
+  def open_ai_opts
+    {
+      prompt: label,
+    }
+  end
+
   def set_labels
     lang = language || board.language || "en"
     image_language_settings = image.language_settings[lang.to_sym] || {}
     self.language = lang
     self.label = image_language_settings[:label] || image.label
     self.display_label = image_language_settings[:display_label] || label
-  end
-
-  def set_display_label
-    self.display_label = label
   end
 
   def is_dynamic?
@@ -246,16 +250,13 @@ class BoardImage < ApplicationRecord
     image.find_audio_for_voice(voice, language)
   end
 
-  def create_voice_audio(voice = nil, language = "en")
-    voice ||= self.voice
-    language ||= self.language
+  def create_voice_audio
     return if @skip_create_voice_audio || Rails.env.test?
     label_voice = "#{image.label_for_filename}_#{voice}"
     if language != "en"
       label_voice = "#{label_voice}_#{language}"
     end
     filename = "#{label_voice}.aac"
-    puts "Creating audio file for #{filename}"
     already_has_audio_file = image.existing_audio_files.include?(filename)
     self.voice = voice
     self.language = language
@@ -264,13 +265,12 @@ class BoardImage < ApplicationRecord
     if already_has_audio_file && audio_file
       self.audio_url = image.default_audio_url(audio_file)
     else
-      image.find_or_create_audio_file_for_voice(voice, language)
-      audio_file = image.find_audio_for_voice(voice, language)
-      self.audio_url = image.default_audio_url(audio_file)
+      find_or_create_audio_file_for_voice(voice, language)
+      audio_file = find_audio_for_voice(voice, language)
+      self.audio_url = default_audio_url(audio_file)
     end
     @skip_create_voice_audio = true
     save
-    # board.update!(updated_at: Time.zone.now)
   end
 
   def user
@@ -316,7 +316,7 @@ class BoardImage < ApplicationRecord
       font_size: font_size,
       border_color: border_color,
       frozen_board: board.is_frozen?,
-
+      audio_files: audio_files_for_api,
       layout: layout,
       status: status,
       audio_url: audio_url,
@@ -344,7 +344,9 @@ class BoardImage < ApplicationRecord
       can_edit: viewing_user == board.user,
       voice: voice,
       hidden: hidden,
+      audio_files: audio_files.map { |af| { id: af.id, url: af.to_s, content_type: af.inspect } },
       # predictive_board_id: predictive_board_id,
+      display_label: display_label,
       bg_color: bg_color,
       bg_class: bg_class,
       display_image_url: display_image_url,

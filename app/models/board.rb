@@ -535,7 +535,8 @@ class Board < ApplicationRecord
 
   def set_voice
     board_images.includes(:image).each do |bi|
-      bi.create_voice_audio(voice, language)
+      bi.update!(voice: voice) if bi.voice != voice
+      bi.create_voice_audio
     end
   end
 
@@ -561,22 +562,6 @@ class Board < ApplicationRecord
   def image_docs_for_user(user = nil)
     user ||= self.user
     image_docs.select { |doc| doc.user_id == user.id }
-  end
-
-  def create_audio_files_for_images
-    board_images.each do |bi|
-      bi.create_voice_audio
-    end
-  end
-
-  def self.create_audio_files_for_images(scope = nil)
-    scope ||= self
-    scope.
-      includes(:board_images).find_each do |board|
-      board.board_images.each do |bi|
-        bi.create_voice_audio
-      end
-    end
   end
 
   def find_or_create_images_from_word_list(word_list)
@@ -1145,7 +1130,7 @@ class Board < ApplicationRecord
     else
       @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).distinct
     end
-    @board_images = board_images.where(hidden: false)
+    # @board_images = board_images.where(hidden: false)
     word_data = get_commons_words
     existing_words = word_data[:existing_words]
     missing_common_words = word_data[:missing_common_words]
@@ -1273,8 +1258,8 @@ class Board < ApplicationRecord
           # src: image.src_url || @board_image.display_image_url || image.display_image_url(viewing_user),
           src: @board_image.display_image_url || image.display_image_url(viewing_user),
           display_image_url: @board_image.display_image_url,
-          audio: @board_image.audio_url,
           audio_url: @board_image.audio_url,
+          audio: @board_image.audio_url || image.audio_url(viewing_user),
           voice: @board_image.voice,
           layout: @board_image.layout.with_indifferent_access,
           added_at: @board_image.added_at,

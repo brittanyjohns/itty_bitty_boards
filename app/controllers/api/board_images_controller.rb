@@ -200,6 +200,7 @@ class API::BoardImagesController < API::ApplicationController
                                         :image_id, :position, :voice, :bg_color,
                                         :text_color, :font_size, :border_color,
                                         :display_label,
+                                        :label,
                                         :layout, :status, :audio_url, :hidden)
   end
 end

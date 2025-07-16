@@ -2,6 +2,7 @@ require "open-uri"
 
 module ImageHelper
   include UtilHelper
+  include AudioHelper
 
   def name_to_send
     open_ai_opts[:prompt] || name
@@ -94,36 +95,8 @@ module ImageHelper
     end
   end
 
-  def create_audio_from_text(text = nil, voice = "alloy", language = "en")
-    text = text || self.label
-    new_audio_file = nil
-    if Rails.env.test?
-      return
-    end
-    response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice, language)
-    if response
-      # response.stream_to_file("output.aac")
-      # audio_file = File.binwrite("audio.mp3", response)
-      File.open("output.aac", "wb") { |f| f.write(response) }
-      audio_file = File.open("output.aac")
-      new_audio_file = save_audio_file(audio_file, voice, language)
-      file_exists = File.exist?("output.aac")
-      File.delete("output.aac") if file_exists
-    else
-      Rails.logger.error "**** ERROR - create_audio_from_text **** \nDid not receive valid response.\n #{response&.inspect}"
-    end
-    new_audio_file
-  end
-
-  def save_audio_file(audio_file, voice, language = "en")
-    if language == "en"
-      self.audio_files.attach(io: audio_file, filename: "#{self.label_for_filename}_#{voice}.aac")
-    else
-      self.audio_files.attach(io: audio_file, filename: "#{self.label_for_filename}_#{voice}_#{language}.aac")
-    end
-
-    new_audio_file = self.audio_files.last
-    new_audio_file
+  def label_for_filename
+    label.parameterize
   end
 
   def clarify_image_description(raw, restaurant_name)

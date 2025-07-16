@@ -188,6 +188,24 @@ class API::ImagesController < API::ApplicationController
   end
 
   def create_audio
+    if params[:board_image_id].present?
+      @board_image = BoardImage.includes(:board, :image).find(params[:board_image_id])
+      @board = @board_image.board
+      @image = @board_image.image
+      voice = params[:voice] || @board_image.voice || "alloy"
+      language = params[:language] || "en"
+      label = params[:label] || @board_image.label
+
+      @board_image.create_audio_from_text(label, voice, language)
+
+      @board_image.reload
+      @image_with_display_doc = @image.with_display_doc(current_user, @board, @board_image)
+      # render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) } and return
+      render json: { audio_files: @board_image.audio_files_for_api, image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) } and return
+    else
+      @board = Board.find_by(id: params[:board_id]) if params[:board_id].present?
+      @image = Image.with_artifacts.find(params[:id])
+    end
     @image = Image.with_artifacts.find(params[:id])
     voice = params[:voice] || "alloy"
     text = params[:text] || @image.label

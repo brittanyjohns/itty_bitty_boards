@@ -56,6 +56,7 @@ class Image < ApplicationRecord
   validates :label, presence: true
 
   include ImageHelper
+  include AudioHelper
   include Rails.application.routes.url_helpers
   include PgSearch::Model
   pg_search_scope :search_by_label, against: :label, using: { tsearch: { prefix: true } }
@@ -578,27 +579,6 @@ class Image < ApplicationRecord
     image_type == "predictive"
   end
 
-  def default_audio_files
-    audio_files.select { |audio| audio.blob.filename.to_s.exclude?("custom") }
-  end
-
-  def audio_files_for_api
-    default_audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: default_audio_url(audio), id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at, current: is_audio_current?(audio) } }
-  end
-
-  def custom_audio_files
-    audio_files.select { |audio| audio.blob.filename.to_s.include?("custom") }
-  end
-
-  def custom_audio_files_for_api
-    custom_audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: default_audio_url(audio), id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at, current: is_audio_current?(audio) } }
-  end
-
-  def is_audio_current?(audio)
-    url = default_audio_url(audio)
-    url == audio_url
-  end
-
   def remove_audio_files_before_may_2024
     date = Date.new(2024, 5, 1)
     removed_count = 0
@@ -616,24 +596,6 @@ class Image < ApplicationRecord
     end
   end
 
-  def find_or_create_audio_file_for_voice(voice = "alloy", lang = "en")
-    if lang == "en"
-      filename = "#{label_for_filename}_#{voice}.aac"
-    else
-      filename = "#{label_for_filename}_#{voice}_#{lang}.aac"
-    end
-
-    audio_file = ActiveStorage::Attachment.joins(:blob)
-      .where(record: self, name: :audio_files, active_storage_blobs: { filename: filename })
-      .first
-
-    if audio_file.present?
-      audio_file
-    else
-      create_audio_from_text(label, voice, lang)
-    end
-  end
-
   def translate_to(language)
     current_language = language_from_filename(audio_url)
     translation = OpenAiClient.new(open_ai_opts).translate_text(label, current_language, language)
@@ -642,46 +604,6 @@ class Image < ApplicationRecord
     lang_settings[language] = { label: translation, display_label: translation }
     self.language_settings = lang_settings
     translation
-  end
-
-  def label_for_filename
-    label.parameterize
-  end
-
-  def find_audio_for_voice(voice = "alloy", lang = "en")
-    if lang == "en"
-      filename = "#{label_for_filename}_#{voice}.aac"
-    else
-      filename = "#{label_for_filename}_#{voice}_#{lang}.aac"
-    end
-    audio_file = ActiveStorage::Attachment.joins(:blob)
-      .where(name: :audio_files, active_storage_blobs: { filename: filename })
-      .last
-
-    unless audio_file
-      Rails.logger.debug "Audio file not found: #{filename} - creating new audio file for #{label} - #{voice} - #{lang}"
-      audio_file = find_or_create_audio_file_for_voice(voice, lang)
-      self.audio_url = default_audio_url(audio_file)
-    end
-
-    audio_file
-  end
-
-  def existing_voices
-    # Ex: filename = scared_nova_22.aac
-    audio_files.map { |audio| voice_from_filename(audio.blob.filename.to_s) }.uniq.compact
-  end
-
-  def existing_audio_files
-    audio_files.map { |audio| audio.blob.filename.to_s }
-  end
-
-  def find_custom_audio_file
-    # audio_file = ActiveStorage::Attachment.joins(:blob)
-    #   .where(record: self, name: :audio_files, active_storage_blobs: { "filename ILIKE ?" => "%custom%" })
-    #   .first
-    custom_file = audio_files.find { |audio| audio.blob.filename.to_s.include?("custom") }
-    custom_file
   end
 
   def rename_audio_files
@@ -720,19 +642,6 @@ class Image < ApplicationRecord
         break
       end
     end
-  end
-
-  def voice_from_filename(filename)
-    # Ex: scared_nova.aac
-    filename.split("_")[1].split(".")[0]
-  end
-
-  def label_from_filename(filename)
-    filename.split("_")[0]
-  end
-
-  def label_voice_from_filename(filename)
-    filename.split("_")[0..1].join("_")
   end
 
   def language_from_filename(filename)
@@ -1061,19 +970,6 @@ class Image < ApplicationRecord
     doc ? doc.display_url : nil
   end
 
-  def default_audio_url(audio_file = nil)
-    audio_file ||= audio_files.first
-    audio_blob = audio_file&.blob
-
-    # first_audio_file = audio_files_attachments.first&.blob
-    if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
-      url = "#{ENV["CDN_HOST"]}/#{audio_blob.key}" if audio_blob
-    else
-      url = audio_file&.url
-    end
-    url
-  end
-
   def save_audio_file_to_s3!(voice = "alloy", lang = "en")
     create_audio_from_text(label, voice, lang)
     voices_needed = missing_voices || []
@@ -1276,6 +1172,7 @@ class Image < ApplicationRecord
     @current_user = current_user
     @predictive_board = predictive_board
     @board_image = board_image
+    Rails.logger.debug "with_display_doc: current_user: #{@current_user&.id} - board_image: #{@board_image&.id} - board: #{board&.id} - image_id: #{id}"
     @board = board
     @board_images = user_board_images(@current_user)
     if @board_image
