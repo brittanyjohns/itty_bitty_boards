@@ -34,7 +34,7 @@ class API::BoardsController < API::ApplicationController
     @dynamic_boards = @user_boards.dynamic.order(name: :asc).page params[:page]
     @category_boards = @user_boards.categories.order(name: :asc).page params[:page]
     @static_boards = @user_boards.static.order(name: :asc).page params[:page]
-    @static_preset_boards = @predefined_boards.static.order(name: :asc).page params[:page]
+    @static_preset_boards = @predefined_boards.order(name: :asc).page params[:page]
     @dynamic_preset_boards = @predefined_boards.dynamic.order(name: :asc).page params[:page]
     @predictive_preset_boards = @predefined_boards.predictive.order(name: :asc).page params[:page]
     @category_preset_boards = @predefined_boards.categories.order(name: :asc).page params[:page]
