@@ -678,11 +678,12 @@ class Board < ApplicationRecord
       new_name = name + " copy"
     end
     cloned_slug = new_name.parameterize
+    Rails.logger.info ">>>Cloning board: #{id} to new board with slug: #{cloned_slug} for user: #{cloned_user_id}"
     existing_board = Board.find_by(slug: cloned_slug)
-    if existing_board && existing_board.id != id
+    if existing_board
       random_string = SecureRandom.hex(4)
       Rails.logger.warn "Board #{id} has a duplicate slug '#{cloned_slug}', generating a new one."
-      slug = "#{cloned_slug}-#{random_string}"
+      cloned_slug = "#{cloned_slug}-#{random_string}"
     end
     @source = self
     cloned_user = User.find(cloned_user_id)
@@ -706,8 +707,14 @@ class Board < ApplicationRecord
     @cloned_board.board_group_id = nil
     @cloned_board.board_type = @source.board_type
     @cloned_board.data = nil
-    Rails.logger.info "Cloning board: #{@source.id} to new board: #{@cloned_board.id} for user: #{cloned_user_id} SLUG: #{@cloned_board.slug}"
     @cloned_board.save
+    Rails.logger.info "Cloning board: #{@source.id} to new board: #{@cloned_board.id} for user: #{cloned_user_id} SLUG: #{@cloned_board.slug}"
+    unless @cloned_board.persisted?
+      Rails.logger.error "Slug: #{@cloned_board.slug}"
+      Rails.logger.error "Error cloning board: #{@source.id} to new board: #{@cloned_board.id} for user: #{cloned_user_id}"
+      Rails.logger.error @cloned_board.errors.full_messages.join(", ")
+      return
+    end
     @board_images.each do |board_image|
       image = board_image.image
       original_image = image
