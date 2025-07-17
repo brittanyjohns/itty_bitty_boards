@@ -680,8 +680,9 @@ class Board < ApplicationRecord
     cloned_slug = new_name.parameterize
     existing_board = Board.find_by(slug: cloned_slug)
     if existing_board && existing_board.id != id
+      random_string = SecureRandom.hex(4)
       Rails.logger.warn "Board #{id} has a duplicate slug '#{cloned_slug}', generating a new one."
-      slug = "#{cloned_slug}-#{id}"
+      slug = "#{cloned_slug}-#{random_string}"
     end
     @source = self
     cloned_user = User.find(cloned_user_id)
