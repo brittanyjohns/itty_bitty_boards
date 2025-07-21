@@ -53,13 +53,15 @@ class Profile < ApplicationRecord
   end
 
   def start_audio_job
+    Rails.logger.info "Starting audio job for profile: #{slug}"
     if id.blank?
       Rails.logger.warn "Profile ID is blank, skipping audio job start."
       return
     end
 
-    SaveProfileAudioJob.perform_async(id) if intro.present? && !intro_audio&.attached?
-    SaveProfileAudioJob.perform_async(id) if intro_audio&.attached? && intro_changed?
+    # SaveProfileAudioJob.perform_async(id) if intro.present? && !intro_audio&.attached?
+    # SaveProfileAudioJob.perform_async(id) if intro_audio&.attached? && intro_changed?
+    SaveProfileAudioJob.perform_async(id) if intro_changed? || bio_changed?
   end
 
   def label_for_filename

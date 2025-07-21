@@ -83,6 +83,18 @@ class ChildAccount < ApplicationRecord
     end
   end
 
+  def update_audio
+    Rails.logger.info "Updating audio for profile: #{profile.slug}"
+    if profile
+      profile.update_intro_audio_url
+      profile.update_bio_audio_url
+      profile.save!
+      Rails.logger.info "Audio updated for profile: #{profile.slug}"
+    else
+      Rails.logger.error "Profile not found for audio update"
+    end
+  end
+
   def user_docs
     user.user_docs
   end

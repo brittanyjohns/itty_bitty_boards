@@ -86,7 +86,16 @@ class API::ChildAccountsController < API::ApplicationController
       @child_account.passcode = passcode unless passcode.blank?
     end
     settings = params[:settings]
-    puts "Update Settings: #{settings.inspect}"
+    Rails.logger.debug "Update Settings: #{settings.inspect}"
+
+    voice_name = settings&.dig("voice", "name")
+    current_voice = @child_account.voice_settings["name"]
+    if voice_name
+      if current_voice != voice_name
+        @child_account.update_audio
+      end
+    end
+
     if settings
       @child_account.settings = settings
     end
@@ -145,7 +154,10 @@ class API::ChildAccountsController < API::ApplicationController
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
-    unless current_user.admin? || current_user.child_accounts.count < current_user.comm_account_limit
+    account_count = current_user.child_accounts.count
+    comm_account_limit = current_user.comm_account_limit || 0
+    # Check if the user has reached their limit for child accounts
+    unless current_user.child_accounts.count < comm_account_limit&.to_i
       render json: { error: "Maximum number of communicatior accounts reached" }, status: :unprocessable_entity
       return
     end
