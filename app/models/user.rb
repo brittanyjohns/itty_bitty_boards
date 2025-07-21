@@ -897,6 +897,8 @@ class User < ApplicationRecord
       premium: premium?,
       paid_plan: paid_plan?,
       pro_vendor: vendor?,
+      myspeak: myspeak?,
+      professional: professional?,
       basic_vendor: vendor? && basic?,
       plan_type: plan_type,
       plan_expires_at: plan_exp,
