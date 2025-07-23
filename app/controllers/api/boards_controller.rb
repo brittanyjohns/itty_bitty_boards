@@ -108,12 +108,8 @@ class API::BoardsController < API::ApplicationController
 
   def predictive_image_board
     @board = Board.find_by(id: params[:id])
-    Rails.logger.debug("1Predictive Image Board ID: param[:id] - Board ID: #{@board&.id}") if @board
     @board = Board.find_by(slug: params[:id]) unless @board
-    Rails.logger.debug("2Predictive Image Board ID: param[:id] - Slug: #{params[:id]} - Board ID: #{@board&.id} - Slug: #{@board&.slug}") if @board
     @board = Board.find_by(slug: params[:slug]) unless @board
-    Rails.logger.info "3Predictive Image Board ID: param[:id] - Slug: #{params[:id]} - Board ID: #{@board&.id} - Slug: #{@board&.slug}"
-    Rails.logger.info "4Predictive Image Board ID: #{@board&.id} - Slug: #{params[:slug]}"
     if @board.nil?
       @board = Board.predictive_default(current_user)
     end

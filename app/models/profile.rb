@@ -34,6 +34,7 @@ class Profile < ApplicationRecord
   end
 
   def api_view(viewer = nil)
+    puts "Generating API view for profile: #{slug} with viewer: #{viewer.inspect}"
     {
       id: id,
       username: username,
@@ -43,6 +44,7 @@ class Profile < ApplicationRecord
       startup_url: startup_url,
       intro: intro,
       settings: settings,
+      user_boards: user_boards.map(&:api_view),
       avatar: avatar.attached? ? avatar_url : nil,
       intro_audio_url: intro_audio&.attached? ? intro_audio_url : nil,
       bio_audio_url: bio_audio&.attached? ? bio_audio_url : nil,
@@ -141,12 +143,26 @@ class Profile < ApplicationRecord
     communication_boards.any? ? communication_boards : Board.public_boards
   end
 
+  def user_boards
+    puts "PROFILE USER BOARDS: #{profileable_type} - #{profileable_id}"
+    return [] if profileable.nil?
+    if profileable_type == "User"
+      boards = profileable.boards.published
+      puts "User boards found: #{boards.count}" if boards.any?
+      boards
+    else
+      []
+    end
+  end
+
   def public_view
     {
       id: id,
       username: username,
       bio: bio,
-      name: profileable&.name,
+      name: profileable&.display_name,
+      email: profileable&.email,
+      user_boards: user_boards.map(&:api_view),
       slug: slug,
       public_url: public_url,
       intro_audio_url: intro_audio&.attached? ? intro_audio_url : nil,
@@ -185,7 +201,11 @@ class Profile < ApplicationRecord
     if role.include?("vendor")
       "#{base_url}/v/#{slug}"
     else
-      "#{base_url}/my/#{slug}"
+      if profileable_type == "User"
+        "#{base_url}/u/#{slug}"
+      else
+        "#{base_url}/my/#{slug}"
+      end
     end
   end
 
@@ -251,6 +271,34 @@ class Profile < ApplicationRecord
       urls << profile.public_url
     end
     urls
+  end
+
+  def self.create_for_user(user, username = nil)
+    username ||= user.username || SecureRandom.hex(4)
+    slug = username.parameterize
+    existing_profile = Profile.find_by(username: username) || Profile.find_by(slug: slug)
+    if existing_profile
+      if existing_profile.profileable_type == "User" && existing_profile.profileable_id == user.id
+        Rails.logger.info "Profile for user #{user.id} already exists with username '#{username}' or slug '#{slug}'."
+        return existing_profile
+      end
+      Rails.logger.warn "Profile with username '#{username}' or slug '#{slug}' already exists for another user."
+      return nil
+    end
+    Rails.logger.info "Creating new profile for user #{user.id} with username '#{username}' and slug '#{slug}'."
+    profile = Profile.create!(
+      username: username,
+      profileable_type: "User",
+      profileable_id: user.id,
+      slug: slug,
+      bio: "Write a short bio about yourself. This will help others understand who you are and what you do.",
+      intro: "Welcome to MySpeak! Personalize your profile by adding a short introduction about yourself.",
+      placeholder: false,
+      claimed_at: Time.zone.now,
+      claim_token: nil,
+    )
+    profile.set_fake_avatar
+    profile
   end
 
   def self.generate_with_username(username, existing_user = nil)

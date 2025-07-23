@@ -346,6 +346,10 @@ class ChildAccount < ApplicationRecord
     "#{base_url}/accounts/sign-in?username=#{username}"
   end
 
+  def display_name
+    name.presence || username
+  end
+
   def plan_type
     user&.plan_type || "free"
   end

@@ -525,6 +525,10 @@ class User < ApplicationRecord
     return false unless profile_id
     account_profile = Profile.find_by(id: profile_id.to_i)
     return false unless account_profile
+
+    if account_profile.profileable_type == "User" && account_profile.profileable_id == id
+      return true
+    end
     return true if admin?
     comm_account = ChildAccount.find_by(id: account_profile.profileable_id)
     teams = comm_account.teams if comm_account
@@ -883,7 +887,9 @@ class User < ApplicationRecord
       id: id,
       organization_id: organization_id,
       profile: profile&.api_view,
-      vendor: vendor?,
+      vendor_profile: profile&.api_view,
+      vendor: vendor&.api_view,
+      is_vendor: vendor?,
       email: email,
       pro_vendor: pro_vendor?,
       role: role,
@@ -935,6 +941,31 @@ class User < ApplicationRecord
       stripe_customer_id: stripe_customer_id,
       unread_messages: messages.where(recipient_id: id, read_at: nil, recipient_deleted_at: nil).count,
     }
+  end
+
+  def username
+    email.split("@").first
+  end
+
+  def slug
+    profile&.slug || "#{username}-#{id}".parameterize
+  end
+
+  def startup_url
+    base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    "#{base_url}/vendors/sign-in?username=#{username}"
+  end
+
+  def setup_url
+    base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    "#{base_url}/pro-accounts/#{id}/qr"
+  end
+
+  def public_url
+    return nil if slug.blank?
+    base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
+
+    "#{base_url}/u/#{slug}"
   end
 
   def self.to_csv

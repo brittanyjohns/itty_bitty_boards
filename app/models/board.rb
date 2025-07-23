@@ -105,6 +105,7 @@ class Board < ApplicationRecord
   scope :without_preset_display_image, -> { where.missing(:preset_display_image_attachment) }
   scope :preset, -> { where(predefined: true) }
   scope :welcome, -> { where(category: "welcome", predefined: true) }
+  scope :published, -> { where(published: true) }
   POSSIBLE_BOARD_TYPES = %w[board category user image menu].freeze
 
   scope :dynamic_defaults, -> { where(name: "Dynamic Default", parent_type: "PredefinedResource") }
@@ -235,18 +236,14 @@ class Board < ApplicationRecord
   def set_slug
     return unless name.present? && slug.blank?
 
-    slug = board.name.parameterize
+    slug = name.parameterize
     existing_board = Board.find_by(slug: slug)
-    if existing_board && existing_board.id != board.id
-      Rails.logger.warn "Board #{board.id} has a duplicate slug '#{slug}', generating a new one."
-      slug = "#{slug}-#{board.id}"
+    if existing_board
+      Rails.logger.warn "Board with slug '#{slug}' already exists. Generating a new slug."
+      random = SecureRandom.hex(8)
+      slug = "#{slug}-#{random}"
     end
-    board.slug = slug
-    if saved
-      Rails.logger.info "Board #{board.id} slug set to '#{board.slug}'"
-    else
-      Rails.logger.error "Failed to set slug for board #{board.id}: #{board.errors.full_messages.join(", ")}"
-    end
+    self.slug = slug
   end
 
   def set_vendor_id

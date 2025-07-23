@@ -1,9 +1,15 @@
 class API::ProfilesController < API::ApplicationController
   skip_before_action :authenticate_token!, only: %i[public check_placeholder generate]
 
+  def index
+    @profile = current_user&.profile
+    puts "Current user profile: #{@profile.inspect}" if @profile
+    render json: @profile.api_view(current_user)
+  end
+
   def show
     @profile = Profile.find(params[:id])
-    render json: @profile
+    render json: @profile.api_view(current_user)
   end
 
   def placeholders
@@ -23,6 +29,17 @@ class API::ProfilesController < API::ApplicationController
       return
     end
     render json: @profile.public_view
+  end
+
+  def create
+    @profile = Profile.new(profile_params)
+    @profile.user = current_user
+    @profile.slug = params[:slug] if params[:slug].present?
+    if @profile.save
+      render json: @profile.api_view(current_user), status: :created
+    else
+      render json: @profile.errors, status: :unprocessable_entity
+    end
   end
 
   def generate
