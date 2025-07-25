@@ -882,6 +882,7 @@ class User < ApplicationRecord
     memoized_teams = teams_with_read_access
     memoized_communicators = communicator_accounts
     memoized_boards = boards.alphabetical
+    puts "Memoized teams: #{memoized_teams.count}, communicators: #{memoized_communicators.count}, boards: #{memoized_boards.count}"
 
     {
       id: id,
