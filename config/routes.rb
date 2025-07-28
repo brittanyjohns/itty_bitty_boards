@@ -262,6 +262,10 @@ Rails.application.routes.draw do
       end
     end
     resources :scenarios do
+      collection do
+        post "suggestion"
+        post "get_words"
+      end
       member do
         post "answer"
         post "finalize"

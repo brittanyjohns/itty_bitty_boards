@@ -882,7 +882,7 @@ class User < ApplicationRecord
     memoized_teams = teams_with_read_access
     memoized_communicators = communicator_accounts
     memoized_boards = boards.alphabetical
-    puts "Memoized teams: #{memoized_teams.count}, communicators: #{memoized_communicators.count}, boards: #{memoized_boards.count}"
+    Rails.logger.info "Memoized teams: #{memoized_teams.count}, communicators: #{memoized_communicators.count}, boards: #{memoized_boards.count}"
 
     {
       id: id,
@@ -927,10 +927,10 @@ class User < ApplicationRecord
       go_to_words: go_words,
       go_to_boards: go_to_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url } },
       boards: memoized_boards.map { |b| { id: b.id, name: b.name } },
-      heat_map: heat_map,
-      week_chart: week_chart,
-      group_week_chart: group_week_chart,
-      board_week_chart: board_week_chart,
+      # heat_map: heat_map,
+      # week_chart: week_chart,
+      # group_week_chart: group_week_chart,
+      # board_week_chart: board_week_chart,
       most_clicked_words: most_clicked_words,
       last_sign_in_at: last_sign_in_at,
       last_sign_in_ip: last_sign_in_ip,

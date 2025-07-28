@@ -139,4 +139,40 @@ class Scenario < ApplicationRecord
     item_name.gsub(/[^a-z ]/i, "")
     item_name
   end
+
+  def get_words_for_scenario(description, number_of_words)
+    if description.blank? || number_of_words.blank?
+      Rails.logger.error "*** ERROR - get_words_for_scenario *** \nDescription or number_of_words is blank. Description: #{description}, Number of words: #{number_of_words}\n"
+      return
+    end
+    response = OpenAiClient.new({}).get_words_for_scenario(description, number_of_words)
+    begin
+      if response
+        if response[:content].blank?
+          Rails.logger.error "*** ERROR - get_words_for_scenario *** \nDid not receive valid response. Response: #{response}\n"
+          return
+        end
+        words = response[:content].gsub("```json", "").gsub("```", "").strip
+        if words.blank? || words.include?("NO ADDITIONAL WORDS")
+          return
+        end
+        if valid_json?(words)
+          words = JSON.parse(words)
+        else
+          start_index = words.index("{")
+          end_index = words.rindex("}")
+          words = words[start_index..end_index]
+          words = transform_into_json(words)
+        end
+      else
+        Rails.logger.error "*** ERROR - get_words_for_scenario *** \nDid not receive valid response. Response: #{response}\n"
+      end
+      words_to_include = words["words"] || []
+      words_to_include = words_to_include.map { |w| w.downcase }
+      words_to_include = words_to_include.uniq
+      words_to_include
+    rescue => e
+      Rails.logger.error "Error getting words for scenario: #{e}"
+    end
+  end
 end

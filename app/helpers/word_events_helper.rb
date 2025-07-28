@@ -6,7 +6,8 @@ module WordEventsHelper
   end
 
   def week_chart_data(start_date, end_date)
-    word_events.group_by_day(:timestamp, range: start_date..end_date).count.map do |date, count|
+    word_events_to_use = word_events.where(timestamp: start_date..end_date)
+    word_events_to_use.group_by_day(:timestamp, range: start_date..end_date).count.map do |date, count|
       { date: date.strftime("%m-%d"), count: count }
     end
   end

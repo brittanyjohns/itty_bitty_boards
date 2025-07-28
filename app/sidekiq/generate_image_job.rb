@@ -8,12 +8,14 @@ class GenerateImageJob
     if image_prompt
       image.temp_prompt = image_prompt
     end
+    admin_image_present = image.docs.any? { |doc| doc.user_id == User::DEFAULT_ADMIN_ID }
+    user_image_present = image.docs.any? { |doc| doc.user_id == user.id }
     board_image = BoardImage.find_by(board_id: board_id, image_id: image_id) if board_id
     if board_image
       board_image.update(status: "generating")
     end
     begin
-      new_doc = image.create_image_doc(user_id)
+      new_doc = image.create_image_doc(user_id) unless admin_image_present || user_image_present
       if image.menu? && image.image_prompt.include?(Menu::PROMPT_ADDITION)
         image.image_prompt = image.image_prompt.gsub(Menu::PROMPT_ADDITION, "")
         image.save!

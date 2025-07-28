@@ -601,7 +601,7 @@ class Board < ApplicationRecord
       display_doc = image.display_image_url(user)
       if display_doc.blank?
         Rails.logger.error "No display image for word: #{word}"
-        image.create_image_doc(user_id) unless image.docs.any? { |doc| doc.user_id == user_id }
+        # image.create_image_doc(user_id) unless user_image_present
         image_prompt = "Create an image of #{word}"
         GenerateImageJob.perform_async(image.id, user_id, image_prompt, id)
       end

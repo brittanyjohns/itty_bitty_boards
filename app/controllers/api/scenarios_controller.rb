@@ -27,10 +27,10 @@ class API::ScenariosController < API::ApplicationController
     @scenario.token_limit = scenario_params[:token_limit] || 10
     # Temporarily set send_now to true
     board_name = params[:name]
-    puts "board_name: #{board_name}"
+    Rails.logger.debug "board_name: #{board_name}"
     name = scenario_params[:name]
     age_range = scenario_params[:age_range]
-    puts "PARAMS: #{scenario_params}"
+    Rails.logger.debug "PARAMS: #{scenario_params}"
     initial_description = params[:prompt_text]
     if initial_description.blank?
       render json: { error: "Initial description cannot be blank" }, status: :unprocessable_entity
@@ -80,7 +80,7 @@ class API::ScenariosController < API::ApplicationController
   end
 
   def finalize
-    # puts "Finalizing scenario #{params}"
+    # Rails.logger.debug "Finalizing scenario #{params}"
     # @scenario = Scenario.find(params[:id])
     answer = params[:answer]
     question_number = params[:question_number]
@@ -107,10 +107,39 @@ class API::ScenariosController < API::ApplicationController
     render json: @scenario.api_view_with_images(current_user)
   end
 
+  def get_words
+    @name = params[:name]
+    @age_range = params[:age_range]
+    @num_of_images = params[:number_of_images] || 12
+    if @name.blank? || @age_range.blank?
+      render json: { error: "Name and age range cannot be blank" }, status: :unprocessable_entity
+      return
+    end
+    @description = params[:prompt_text]
+    @scenario = Scenario.new(name: @name, age_range: @age_range, initial_description: @description, user: current_user)
+    Rails.logger.debug "Generating words for scenario with name: #{@name}, age_range: #{@age_range}, description: #{@description}"
+
+    additional_words = @scenario.get_words_for_scenario(@description, @num_of_images)
+    Rails.logger.debug "Additional words: #{additional_words.inspect}"
+
+    render json: { words: additional_words }
+  end
+
+  def suggestion
+    name = params[:name]
+    age_range = params[:age_range]
+    if name.blank? || age_range.blank?
+      render json: { error: "Name and age range cannot be blank" }, status: :unprocessable_entity
+      return
+    end
+    description = generate_scenario_description(name, age_range)
+    render json: { description: description }
+  end
+
   # PATCH/PUT /scenarios/1 or /scenarios/1.json
   def update
     if scenario_params[:finalize]
-      puts "Finalizing scenario"
+      Rails.logger.debug "Finalizing scenario"
       word_list = generate_word_list(@scenario)
       @scenario.word_list = word_list
       @scenario.save
@@ -169,7 +198,7 @@ class API::ScenariosController < API::ApplicationController
 
     prompt = <<~PROMPT
       The scenario is name: #{scenario.name} and was described as: #{initial_scenario}. The age range of the person in the given scenario is: #{age_range}.
-        Please ask one follow-up question to gather more details about this scenario and the person in it.
+        Please ask one follow-up question to gather more details about this scenario.
     PROMPT
 
     response = client.chat(
@@ -206,7 +235,7 @@ class API::ScenariosController < API::ApplicationController
       parameters: {
         model: GPT_4_MODEL,
         messages: [
-          { role: "system", content: system_message },
+          # { role: "system", content: system_message },
           { role: "user", content: prompt },
         ],
         max_tokens: 100,
@@ -221,7 +250,7 @@ class API::ScenariosController < API::ApplicationController
     initial_scenario = scenario.initial_description
     age_range = scenario.age_range
     scenario.answers ||= {}
-    number_of_images = scenario.number_of_images || 6
+    number_of_images = scenario.number_of_images || 12
 
     answer_1 = scenario.answers["question_1"]
     question_1 = scenario.questions["question_1"]
@@ -242,7 +271,7 @@ class API::ScenariosController < API::ApplicationController
       parameters: {
         model: GPT_4_MODEL,
         messages: [
-          { role: "system", content: system_message },
+          # { role: "system", content: system_message },
           { role: "user", content: prompt },
         ],
         max_tokens: 100,
@@ -251,6 +280,38 @@ class API::ScenariosController < API::ApplicationController
     )
 
     response.dig("choices", 0, "message", "content").split(",").map(&:strip)
+  end
+
+  def generate_scenario_description(name, age_range)
+    client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"])
+
+    # prompt = <<~PROMPT
+    #   Please generate a brief description of a scenario for a person named #{name} who is #{age_range} years old.
+    #   The description should be engaging and suitable for a #{age_range} year old.
+    #   Include what typically happens, who's involved, what they might see, hear, feel, and do. Focus on sensory details, emotions, routines, and vocabulary likely needed to communicate before, during, and after.
+    #   Use clear, age-appropriate language in paragraph form and keep it to 100 words or less.
+    # PROMPT
+    prompt = <<~PROMPT
+                              Give a factual description of the scenario "#{name}" for a student aged #{age_range} who uses AAC. 
+    Do not invent names or characters. Just describe what typically happens, what they might see, hear, feel, and do. Focus on real-world routines, sensory details, emotions, and vocabulary they may need. 
+      Use clear, simple language. Do not write it as a story. Do not include fictional events or dialogue.
+      Keep it to 100 words or less.
+    PROMPT
+
+    Rails.logger.debug "Generating scenario description with prompt: #{prompt}"
+    response = client.chat(
+      parameters: {
+        model: GPT_4_MODEL,
+        messages: [
+          { role: "system", content: system_message },
+          { role: "user", content: prompt },
+        ],
+        # max_tokens: 50,
+        temperature: 0.7,
+      },
+    )
+
+    response.dig("choices", 0, "message", "content").strip
   end
 
   def system_message

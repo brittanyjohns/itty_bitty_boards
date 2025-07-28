@@ -374,6 +374,25 @@ class OpenAiClient
                           'pl': "Polish",
                           'th': "Thai" }.freeze
 
+  def get_words_for_scenario(scenario_description, number_of_words = 24, language = "en")
+    prompt = <<~PROMPT
+      I have a scenario description: "#{scenario_description}".
+      
+      Please provide #{number_of_words} words that are foundational for basic communication in an AAC device.
+      These words should relate to the context of the scenario and be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations.
+      Do not repeat any words that are already on the board & only provide #{number_of_words} words.
+      Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}
+    PROMPT
+
+    @model = GPT_4_MODEL
+    @messages = [{ role: "user",
+                   content: [{ type: "text", text: prompt }] }]
+    response = create_chat
+    Rails.logger.debug "*** ERROR *** Invaild Words for Scenario Response: #{response}" unless response
+    Rails.logger.debug "Words for Scenario Response: #{response.inspect}"
+    response
+  end
+
   def get_additional_words(board, name, number_of_words = 24, exclude_words = [], use_preview_model = false, language = "en")
     exclude_words_prompt = exclude_words.blank? ? "and no words to exclude." : "excluding the words '#{exclude_words.join("', '")}'."
 
