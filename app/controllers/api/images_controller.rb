@@ -381,6 +381,7 @@ class API::ImagesController < API::ApplicationController
     end
     @image.update(status: "generating")
     image_prompt = image_params[:image_prompt] || image_params["image_prompt"]
+    Rails.logger.info("Generating image for user: #{@current_user.id}, image: #{@image.id}, prompt: #{image_prompt}")
     GenerateImageJob.perform_async(@image.id, @current_user.id, image_prompt)
     @current_user.remove_tokens(1)
     @image_docs = @image.docs.for_user(@current_user).order(created_at: :desc)
