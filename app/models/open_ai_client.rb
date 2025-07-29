@@ -4,6 +4,7 @@ class OpenAiClient
   GPT_4_MODEL = "gpt-4o"
   GPT_3_MODEL = "gpt-3.5-turbo-0125"
   IMAGE_MODEL = ENV.fetch("OPENAI_IMAGE_MODEL", "dall-e-3")
+  IMAGE_MOBEL_STYLE = ENV.fetch("OPENAI_IMAGE_MODEL_STYLE", "natural")
   # IMAGE_MODEL = "gpt-image-1"
   TTS_MODEL = "tts-1"
   PREVIEW_MODEL = "o1-preview"
@@ -114,7 +115,7 @@ class OpenAiClient
     # new_prompt = static_image_prompt
     new_prompt = @prompt
 
-    response = openai_client.images.generate(parameters: { prompt: new_prompt, model: IMAGE_MODEL })
+    response = openai_client.images.generate(parameters: { prompt: new_prompt, model: IMAGE_MODEL, style: IMAGE_MOBEL_STYLE })
     if response
       img_url = response.dig("data", 0, "url")
       b64_json = response.dig("data", 0, "b64_json")
