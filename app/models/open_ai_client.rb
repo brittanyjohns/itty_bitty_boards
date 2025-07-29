@@ -95,7 +95,7 @@ class OpenAiClient
     base_prompt = <<~PROMPT
       Generate a descriptive and concise prompt to instruct #{IMAGE_MODEL} to create a #{image_style} representing the word/phrase "#{@prompt}".
       If the word is an object, the image should clearly depict that object in a simple and recognizable way.
-      If the word is an action or emotion, descriibe a simple person or character performing that action or expressing that emotion.
+      If the word is an action or emotion, descriibe a happy person performing that action or expressing that emotion.
       No text or letters should be included in the image.
     PROMPT
 
