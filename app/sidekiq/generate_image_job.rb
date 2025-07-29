@@ -4,6 +4,15 @@ class GenerateImageJob
 
   def perform(image_id, user_id = nil, image_prompt = nil, board_id = nil, screen_size = nil)
     image = Image.find(image_id)
+    user = User.find(user_id) if user_id
+    if user.nil?
+      user = User.find_by(id: User::DEFAULT_ADMIN_ID)
+      user_id = User::DEFAULT_ADMIN_ID
+      unless user
+        puts "**** ERROR **** \nUser with ID #{user_id} not found. Using default admin user."
+        return
+      end
+    end
     board_image = nil
     if image_prompt
       image.temp_prompt = image_prompt
