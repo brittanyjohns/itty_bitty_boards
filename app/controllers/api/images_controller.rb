@@ -380,7 +380,7 @@ class API::ImagesController < API::ApplicationController
       @image = Image.find_or_create_by(label: label, user_id: @current_user.id, private: false, image_prompt: image_params[:image_prompt], image_type: "Generated")
     end
     image_prompt = image_params[:image_prompt] || image_params["image_prompt"]
-    if current_user.admin? && @image.image_prompt.blank?
+    if current_user.admin?
       @image.image_prompt = image_params[:image_prompt] || image_params["image_prompt"] || @image.label
     end
     @image.status = "generating"
