@@ -603,7 +603,10 @@ class Board < ApplicationRecord
         Rails.logger.error "No display image for word: #{word}"
         # image.create_image_doc(user_id) unless user_image_present
         image_prompt = "Create an image of #{word}"
-        GenerateImageJob.perform_async(image.id, user_id, image_prompt, id)
+        admin_image_present = image.docs.any? { |doc| doc.user_id == User::DEFAULT_ADMIN_ID }
+        user_image_present = image.docs.any? { |doc| doc.user_id == user_id }
+        GenerateImageJob.perform_async(image.id, user_id, image_prompt, id) unless admin_image_present || user_image_present
+        next
       end
       self.add_image(image.id) if image && !image_ids.include?(image.id)
     end
