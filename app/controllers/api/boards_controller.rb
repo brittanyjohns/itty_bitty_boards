@@ -21,7 +21,8 @@ class API::BoardsController < API::ApplicationController
       render json: { static_preset_boards: @static_preset_boards.map(&:api_view),
                      dynamic_preset_boards: @dynamic_preset_boards.map(&:api_view),
                      predictive_preset_boards: @predictive_preset_boards.map(&:api_view),
-                     category_preset_boards: @category_preset_boards.map(&:api_view) }
+                     category_preset_boards: @category_preset_boards.map(&:api_view),
+                     preset_boards: @static_preset_boards.map(&:api_view) }
       return
     end
     if params[:query].present?
@@ -44,7 +45,7 @@ class API::BoardsController < API::ApplicationController
     render json: {
              newly_created_boards: @newly_created_boards.map(&:api_view),
              recently_used_boards: @recently_used_boards.map(&:api_view),
-             predefined_boards: @predefined_boards.map(&:api_view),
+             preset_boards: @predefined_boards.map(&:api_view),
              boards: @user_boards.map(&:api_view),
            }
   end
