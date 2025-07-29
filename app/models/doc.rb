@@ -61,7 +61,7 @@ class Doc < ApplicationRecord
       user_id: user_id,
       source_type: source_type,
       original_image_url: original_image_url,
-      prompt_for_prompt: prompt_for_prompt,
+      # prompt_for_prompt: prompt_for_prompt,
       data: data,
       license: license,
       documentable_type: documentable_type,
