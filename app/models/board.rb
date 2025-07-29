@@ -1300,7 +1300,7 @@ class Board < ApplicationRecord
           src: @board_image.display_image_url || image.display_image_url(viewing_user),
           display_image_url: @board_image.display_image_url,
           audio_url: @board_image.audio_url,
-          audio: @board_image.audio_url || image.audio_url(viewing_user),
+          audio: @board_image.audio_url || image.audio_url,
           voice: @board_image.voice,
           layout: @board_image.layout.with_indifferent_access,
           added_at: @board_image.added_at,
