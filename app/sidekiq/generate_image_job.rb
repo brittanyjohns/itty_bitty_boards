@@ -4,7 +4,8 @@ class GenerateImageJob
 
   def perform(image_id, user_id = nil, image_prompt = nil, board_id = nil, screen_size = nil)
     image = Image.find(image_id)
-    user = User.find(user_id) if user_id
+    user = User.find_by(id: user_id) if user_id
+    Rails.logger.info "Generating image for user: #{user_id}, image: #{image_id}, board: #{board_id}, screen_size: #{screen_size}"
     if user.nil?
       user = User.find_by(id: User::DEFAULT_ADMIN_ID)
       user_id = User::DEFAULT_ADMIN_ID
@@ -13,6 +14,7 @@ class GenerateImageJob
         return
       end
     end
+    Rails.logger.info "Using user: #{user.id} for image generation"
     board_image = nil
     if image_prompt
       image.temp_prompt = image_prompt
