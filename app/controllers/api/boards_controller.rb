@@ -29,28 +29,23 @@ class API::BoardsController < API::ApplicationController
       render json: { search_results: @search_results } and return
     end
     @predefined_boards = Board.predefined.non_menus
-    @user_boards = current_user.boards.where(predefined: false)
-    @predictive_boards = @user_boards.predictive.order(name: :asc).page params[:page]
-    @dynamic_boards = @user_boards.dynamic.order(name: :asc).page params[:page]
-    @category_boards = @user_boards.categories.order(name: :asc).page params[:page]
-    @static_boards = @user_boards.static.order(name: :asc).page params[:page]
-    @static_preset_boards = @predefined_boards.order(name: :asc).page params[:page]
-    @dynamic_preset_boards = @predefined_boards.dynamic.order(name: :asc).page params[:page]
-    @predictive_preset_boards = @predefined_boards.predictive.order(name: :asc).page params[:page]
-    @category_preset_boards = @predefined_boards.categories.order(name: :asc).page params[:page]
+    @user_boards = current_user.boards.non_menus.where(predefined: false).order(name: :asc).page params[:page]
+    # @predictive_boards = @user_boards.predictive.order(name: :asc).page params[:page]
+    # @dynamic_boards = @user_boards.dynamic.order(name: :asc).page params[:page]
+    # @category_boards = @user_boards.categories.order(name: :asc).page params[:page]
+    # @static_boards = @user_boards.static.order(name: :asc).page params[:page]
+    # @static_preset_boards = @predefined_boards.order(name: :asc).page params[:page]
+    # @dynamic_preset_boards = @predefined_boards.dynamic.order(name: :asc).page params[:page]
+    # @predictive_preset_boards = @predefined_boards.predictive.order(name: :asc).page params[:page]
+    # @category_preset_boards = @predefined_boards.categories.order(name: :asc).page params[:page]
     @newly_created_boards = @user_boards.where("created_at >= ?", 1.week.ago).order(created_at: :desc).limit(10)
     @recently_used_boards = current_user.recently_used_boards
 
-    render json: { category_preset_boards: @category_preset_boards.map(&:api_view),
-                   static_preset_boards: @static_preset_boards.map(&:api_view),
-                   dynamic_preset_boards: @dynamic_preset_boards.map(&:api_view),
-                   predictive_preset_boards: @predictive_preset_boards.map(&:api_view),
-                   predictive_boards: @predictive_boards.map(&:api_view),
-                   dynamic_boards: @dynamic_boards.map(&:api_view),
-                   category_boards: @category_boards.map(&:api_view),
-                   newly_created_boards: @newly_created_boards.map(&:api_view),
-                   recently_used_boards: @recently_used_boards.map(&:api_view),
-                   boards: @user_boards.map(&:api_view) }
+    render json: {
+             newly_created_boards: @newly_created_boards.map(&:api_view),
+             recently_used_boards: @recently_used_boards.map(&:api_view),
+             boards: @user_boards.map(&:api_view),
+           }
   end
 
   def public_boards
