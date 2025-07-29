@@ -379,8 +379,13 @@ class API::ImagesController < API::ApplicationController
       label = image_params[:label].present? ? image_params[:label].downcase : image_params[:image_prompt]
       @image = Image.find_or_create_by(label: label, user_id: @current_user.id, private: false, image_prompt: image_params[:image_prompt], image_type: "Generated")
     end
-    @image.update(status: "generating")
     image_prompt = image_params[:image_prompt] || image_params["image_prompt"]
+    if current_user.admin? && @image.image_prompt.blank?
+      @image.image_prompt = image_params[:image_prompt] || image_params["image_prompt"] || @image.label
+    end
+    @image.status = "generating"
+    @image.save!
+
     Rails.logger.info("Generating image for user: #{@current_user.id}, image: #{@image.id}, prompt: #{image_prompt}")
     GenerateImageJob.perform_async(@image.id, @current_user.id, image_prompt)
     @current_user.remove_tokens(1)

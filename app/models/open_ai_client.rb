@@ -42,9 +42,10 @@ class OpenAiClient
   end
 
   def image_style
-    "clipart-style illustration"
+    # "clipart-style illustration"
     # "an image that is clear and simple, similar to AAC and other accessibility signs"
     # "clear photo-style illustration"
+    "simple, clear, and colorful clipart-style image"
   end
 
   # def get_image_prompt_suggestion
@@ -92,7 +93,9 @@ class OpenAiClient
     #   Respond only with the concise, detailed prompt for image generation-no additional explanation or context.
     # PROMPT
     base_prompt = <<~PROMPT
-      Generate a descriptive and concise prompt to instruct #{IMAGE_MODEL} to create a #{image_style} representing the concept "#{@prompt}" for AAC communication boards.
+      Generate a descriptive and concise prompt to instruct #{IMAGE_MODEL} to create a #{image_style} representing the word/phrase "#{@prompt}".
+      If the word is an object, the image should clearly depict that object in a simple and recognizable way.
+      If the word is an action or emotion, descriibe a simple person or character performing that action or expressing that emotion.
       No text or letters should be included in the image.
     PROMPT
 
