@@ -44,6 +44,7 @@ class API::BoardsController < API::ApplicationController
     render json: {
              newly_created_boards: @newly_created_boards.map(&:api_view),
              recently_used_boards: @recently_used_boards.map(&:api_view),
+             predefined_boards: @predefined_boards.map(&:api_view),
              boards: @user_boards.map(&:api_view),
            }
   end
