@@ -29,7 +29,7 @@ class API::BoardsController < API::ApplicationController
       @search_results = Board.for_user(current_user).searchable.search_by_name(params[:query]).order(name: :asc).page params[:page]
       render json: { search_results: @search_results } and return
     end
-    @predefined_boards = Board.predefined.non_menus
+    @predefined_boards = Board.predefined.non_menus.order(name: :asc).page params[:page]
     @user_boards = current_user.boards.non_menus.where(predefined: false).order(name: :asc).page params[:page]
     # @predictive_boards = @user_boards.predictive.order(name: :asc).page params[:page]
     # @dynamic_boards = @user_boards.dynamic.order(name: :asc).page params[:page]
