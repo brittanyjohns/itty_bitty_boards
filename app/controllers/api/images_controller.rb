@@ -1,5 +1,5 @@
 class API::ImagesController < API::ApplicationController
-  skip_before_action :authenticate_token!, only: %i[generate_audio]
+  skip_before_action :authenticate_token!, only: %i[generate_audio public_audio]
 
   def index
     @current_user = current_user
@@ -248,6 +248,31 @@ class API::ImagesController < API::ApplicationController
     rescue StandardError => e
       Rails.logger.error("Error generating audio: #{e.message}")
       render json: { error: "Failed to generate audio" }, status: :internal_server_error
+    end
+  end
+
+  def public_audio
+    @image = Image.find(params[:id])
+    # voice = params[:voice] || @image.voice || "alloy"
+    voice = @image.voice || "alloy"
+    language_to_use = params[:language] || "en"
+    audio_url = @image.default_audio_url
+    Rails.logger.info "Public audio URL for image: #{@image.id}, voice: #{voice}, language: #{language_to_use} is #{audio_url}"
+    if audio_url.blank?
+      render json: { status: "error", message: "Audio file URL is blank." }, status: :not_found
+      return
+    end
+    begin
+      render json: { status: "ok", audio_url: audio_url, voice: voice, language: language_to_use, label: @image.label }
+
+      # audio_file = URI.open(audio_url)
+      # send_data audio_file, type: "audio/mpeg", disposition: "inline", filename: "#{@image.label.parameterize}_#{voice}_#{language_to_use}.mp3"
+    rescue OpenURI::HTTPError => e
+      Rails.logger.error("Error fetching audio file: #{e.message}")
+      render json: { status: "error", message: "Failed to fetch audio file." }, status: :internal_server_error
+    rescue StandardError => e
+      Rails.logger.error("Error sending audio data: #{e.message}")
+      render json: { status: "error", message: "Failed to send audio data." }, status: :internal_server_error
     end
   end
 

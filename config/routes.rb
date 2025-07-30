@@ -178,6 +178,7 @@ Rails.application.routes.draw do
     resources :team_accounts
     resources :images do
       member do
+        get "public_audio"
         get "prompt_suggestion"
         post "hide_doc"
         post "describe"

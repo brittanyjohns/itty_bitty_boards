@@ -116,10 +116,15 @@ module AudioHelper
   end
 
   def default_audio_url(audio_file = nil)
-    if self.class.name == "BoardImage"
-      Rails.logger.debug "Getting default audio URL for BoardImage: #{self.id} - voice: #{self.voice}, language: #{self.language}"
+    if self.class.name == "BoardImage" || self.class.name == "Image"
       audio_file = find_audio_for_voice(self.voice, self.language)
-      audio_blob = audio_file&.blob
+      if audio_file.nil?
+        audio_file = audio_files.first
+      end
+      audio_blob = audio_file&.blob if audio_file
+      if audio_blob.nil?
+        return nil
+      end
     else
       audio_file ||= audio_files.first
       audio_blob = audio_file&.blob
