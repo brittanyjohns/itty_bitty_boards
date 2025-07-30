@@ -220,7 +220,7 @@ class Image < ApplicationRecord
         bi.board.updated_at = Time.now
         bi.board.save!
       else
-        puts "Error saving board image #{bi.id} - #{bi.board.name} - #{bi.errors.full_messages}"
+        Rails.logger.debug "Error saving board image #{bi.id} - #{bi.board.name} - #{bi.errors.full_messages}"
       end
     end
     updated_ids
@@ -277,7 +277,6 @@ class Image < ApplicationRecord
 
     if image_type.blank? || image_type == "Static"
       self.image_type = "static"
-      Rails.logger.debug "Would have set image type to Static for #{label}"
     end
   end
 
@@ -352,11 +351,11 @@ class Image < ApplicationRecord
   def self.ensure_parts_of_speech(limit = 100)
     imgs = Image.where.not(part_of_speech: Image.valid_parts_of_speech).or(Image.where(part_of_speech: nil))
     total_without_part_of_speech = imgs.count
-    puts "Total images without part of speech: #{total_without_part_of_speech} - limit: #{limit} \nContinue? (y/n)"
+    Rails.logger.debug "Total images without part of speech: #{total_without_part_of_speech} - limit: #{limit} \nContinue? (y/n)"
     response = gets.chomp
     return unless response == "y"
     images_without_part_of_speech = imgs.limit(limit)
-    puts "Images without part of speech: #{images_without_part_of_speech.count} - labels: #{images_without_part_of_speech.pluck(:label)}\n\n"
+    Rails.logger.debug "Images without part of speech: #{images_without_part_of_speech.count} - labels: #{images_without_part_of_speech.pluck(:label)}\n\n"
     images_without_part_of_speech.each do |image|
       image.categorize!
     end
@@ -429,6 +428,8 @@ class Image < ApplicationRecord
 
   def create_image_doc(user_id = nil)
     response = create_image(user_id)
+    Rails.logger.info "Image created with response: #{response.inspect}" if response
+    Rails.logger.info "No response for image creation" unless response
     if response
       doc = response
       doc.update_user_docs
@@ -453,10 +454,15 @@ class Image < ApplicationRecord
     Image.voices.each do |voice|
       voice_file = find_audio_for_voice(voice, language_to_use)
       if voice_file
-        puts "Audio file found for #{label} - #{voice} - #{language_to_use}"
+        Rails.logger.debug "Audio file found for #{label} - #{voice} - #{language_to_use}"
       else
-        puts "Creating audio file for #{label} - #{voice} - #{language_to_use}"
-        create_audio_from_text(label, voice, language_to_use)
+        Rails.logger.debug "Creating audio file for #{label} - #{voice} - #{language_to_use}"
+        result = create_audio_from_text(label, voice, language_to_use)
+        if result
+          Rails.logger.debug "Audio file created for #{label} - #{voice} - #{language_to_use}"
+        else
+          Rails.logger.debug "Failed to create audio file for #{label} - #{voice} - #{language_to_use}"
+        end
       end
     end
   end
@@ -465,10 +471,10 @@ class Image < ApplicationRecord
     voice = "alloy"
     group_num = 0
     Image.without_attached_audio_files.find_in_batches(batch_size: 20) do |images|
-      puts "\nStarting create audio job for group #{group_num} for #{images.count} images"
+      Rails.logger.debug "\nStarting create audio job for group #{group_num} for #{images.count} images"
       SaveAudioJob.perform_async(images.pluck(:id), voice)
       group_num += 1
-      puts "Sleeping for 2 seconds"
+      Rails.logger.debug "Sleeping for 2 seconds"
       sleep 2
       break if group_num >= limit
     end
@@ -599,7 +605,7 @@ class Image < ApplicationRecord
   def translate_to(language)
     current_language = language_from_filename(audio_url)
     translation = OpenAiClient.new(open_ai_opts).translate_text(label, current_language, language)
-    puts "Translation: #{translation}"
+    Rails.logger.debug "Translation: #{translation}"
     lang_settings = language_settings || {}
     lang_settings[language] = { label: translation, display_label: translation }
     self.language_settings = lang_settings
@@ -638,7 +644,7 @@ class Image < ApplicationRecord
 
       count += 1
       if count >= limit
-        puts "Limit reached: #{limit}"
+        Rails.logger.debug "Limit reached: #{limit}"
         break
       end
     end
@@ -862,7 +868,7 @@ class Image < ApplicationRecord
       # Log the number of duplicate labels and the total number of images in those labels
       Rails.logger.debug "Found #{@duplicate_labels.count} labels with duplicates."
       Rails.logger.debug "Total images with duplicate labels: #{@duplicate_labels.values.sum}"
-      puts "Found #{@duplicate_labels} labels with duplicates.\n Do you want to continue? (y/n)"
+      Rails.logger.debug "Found #{@duplicate_labels} labels with duplicates.\n Do you want to continue? (y/n)"
       response = gets.chomp
       return unless response == "y"
       @duplicate_labels.each do |label, image_count|
@@ -870,27 +876,27 @@ class Image < ApplicationRecord
         images = Image.where(user_id: user_ids, label: label).order(created_at: :desc)
         # Skip the first image (which we want to keep) and destroy the rest
         # images.drop(1).each(&:destroy)
-        puts "\nDuplicate images for #{label}: #{images.count}" if images.count > 1
+        Rails.logger.debug "\nDuplicate images for #{label}: #{images.count}" if images.count > 1
         keep = images.select { |image| image.user_id != nil }.first
         keep ||= images.first
         keeping_docs = keep.docs
-        puts "Urls: #{keeping_docs.pluck(:original_image_url)}" if keeping_docs.any?
+        Rails.logger.debug "Urls: #{keeping_docs.pluck(:original_image_url)}" if keeping_docs.any?
         kept_urls = keeping_docs.pluck(:original_image_url).compact
 
         keep.save! unless dry_run
         images_to_run = images.excluding(keep)
-        puts "Images: #{images.count} - Images to run: #{images_to_run.count}"
+        Rails.logger.debug "Images: #{images.count} - Images to run: #{images_to_run.count}"
         images_to_run.each do |image|
           destroying_docs = image.docs
 
           Rails.logger.debug "Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at} - docs: #{destroying_docs.count}"
           destroying_docs.each do |doc|
             if kept_urls.include?(doc.original_image_url)
-              puts "Skipping doc: #{doc.id} - #{doc.original_image_url}"
+              Rails.logger.debug "Skipping doc: #{doc.id} - #{doc.original_image_url}"
               next
             end
             doc.update!(documentable_id: keep.id) unless dry_run
-            # puts "Reassigning doc #{doc.id} to image #{keep.id} - #{dry_run ? "DRY RUN" : "FOR REAL LIFE"}"
+            # Rails.logger.debug "Reassigning doc #{doc.id} to image #{keep.id} - #{dry_run ? "DRY RUN" : "FOR REAL LIFE"}"
             total_docs_saved += 1
           end
 
@@ -901,36 +907,36 @@ class Image < ApplicationRecord
 
           next_words = image.next_words
           if next_words.any?
-            # puts "Next words: #{next_words}"
+            # Rails.logger.debug "Next words: #{next_words}"
             keep.next_words = (keep.next_words + next_words).uniq
             keep.save! unless dry_run
           end
 
           total_images_destroyed += 1
 
-          # puts "Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
+          # Rails.logger.debug "Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
           # This reload is IMPORTANT! Otherwise, the keep docs WILL be destroyed & removed from S3!
           image.reload
-          # puts "AFTER RELOAD - Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
-          puts "dry_run: #{dry_run} - Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at}"
+          # Rails.logger.debug "AFTER RELOAD - Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
+          Rails.logger.debug "dry_run: #{dry_run} - Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at}"
           image.destroy! unless dry_run
           if total_images_destroyed >= limit
-            puts "in Limit reached: #{limit}"
+            Rails.logger.debug "in Limit reached: #{limit}"
             break
           end
         end
 
         keep.reload
         keep.update_all_boards_image_belongs_to(keep.src_url) unless dry_run
-        puts "Total images destroyed: #{total_images_destroyed} - Total docs saved: #{total_docs_saved}\n"
+        Rails.logger.debug "Total images destroyed: #{total_images_destroyed} - Total docs saved: #{total_docs_saved}\n"
 
         if total_images_destroyed >= limit
-          puts "Limit reached: #{limit}"
+          Rails.logger.debug "Limit reached: #{limit}"
           break
         end
       end
     end
-    puts "\nTotal images destroyed: #{total_images_destroyed} - Total docs saved: #{total_docs_saved}\n"
+    Rails.logger.debug "\nTotal images destroyed: #{total_images_destroyed} - Total docs saved: #{total_docs_saved}\n"
     nil
   end
 
@@ -1147,15 +1153,15 @@ class Image < ApplicationRecord
 
   def describe_image(doc_url)
     response = OpenAiClient.new(open_ai_opts).describe_image(doc_url)
-    puts "Response: #{response}"
+    Rails.logger.debug "Response: #{response}"
     response_content = response.dig("choices", 0, "message", "content").strip
-    puts "Response content: #{response_content}"
+    Rails.logger.debug "Response content: #{response_content}"
     self.image_prompt = response_content
     self.save!
     response_content
 
     # parsed_response = response_content ? JSON.parse(response_content) : nil
-    # puts "Parsed response: #{parsed_response}"
+    # Rails.logger.debug "Parsed response: #{parsed_response}"
     # if parsed_response
     #   parsed_response["output"]["image"]
     # else

@@ -119,7 +119,7 @@ class Board < ApplicationRecord
 
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
-  before_save :update_display_image, unless: :display_image_url?
+  # before_save :update_display_image, unless: :display_image_url?
   before_save :update_preset_display_image_url, if: :display_image_url_changed?
 
   # before_save :set_board_type
@@ -586,6 +586,7 @@ class Board < ApplicationRecord
     unless word_list && word_list.any?
       return
     end
+    Rails.logger.info "Finding or creating images for word list: #{word_list.inspect}"
     if word_list.is_a?(String)
       word_list = word_list.split(" ")
     end
@@ -601,12 +602,14 @@ class Board < ApplicationRecord
       display_doc = image.display_image_url(user)
       if display_doc.blank?
         Rails.logger.error "No display image for word: #{word}"
-        # image.create_image_doc(user_id) unless user_image_present
         image_prompt = "Create an image of #{word}"
         admin_image_present = image.docs.any? { |doc| doc.user_id == User::DEFAULT_ADMIN_ID }
         user_image_present = image.docs.any? { |doc| doc.user_id == user_id }
+        Rails.logger.info "Admin image present: #{admin_image_present}, User image present: #{user_image_present}"
+        # image.create_image_doc(user_id) unless user_image_present
+
         GenerateImageJob.perform_async(image.id, user_id, image_prompt, id) unless admin_image_present || user_image_present
-        next
+        # next
       end
       self.add_image(image.id) if image && !image_ids.include?(image.id)
     end

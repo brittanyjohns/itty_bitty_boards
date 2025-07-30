@@ -585,12 +585,14 @@ class API::BoardsController < API::ApplicationController
   end
 
   def check_board_create_permissions
+    return if current_user.admin?
     unless current_user
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
-    unless current_user.admin? || current_user.boards.count < current_user.board_limit
-      render json: { error: "Maximum number of boards reached. Please upgrade to add more." }, status: :unprocessable_entity
+    user_board_count = current_user.boards.non_menus.where(predefined: false).count
+    if user_board_count > current_user.board_limit
+      render json: { error: "Maximum number of boards reached (#{user_board_count}/#{current_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_entity
       return
     end
   end

@@ -1,5 +1,6 @@
 module AudioHelper
   def create_audio_from_text(text = nil, voice = "alloy", language = "en")
+    Rails.logger.info "Creating audio from text: #{text}, voice: #{voice}, language: #{language}"
     text = text || self.label
     new_audio_file = nil
     if Rails.env.test?
@@ -116,7 +117,7 @@ module AudioHelper
   end
 
   def default_audio_url(audio_file = nil)
-    if self.class.name == "BoardImage" || self.class.name == "Image"
+    if self.class.name == "BoardImage"
       audio_file = find_audio_for_voice(self.voice, self.language)
       if audio_file.nil?
         audio_file = audio_files.first

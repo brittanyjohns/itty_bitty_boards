@@ -256,6 +256,7 @@ class BoardImage < ApplicationRecord
     if language != "en"
       label_voice = "#{label_voice}_#{language}"
     end
+    Rails.logger.info "BOARD IMAGE - Creating voice audio for image: #{self.id}, voice: #{voice}, language: #{language}, label_voice: #{label_voice}"
     filename = "#{label_voice}.aac"
     already_has_audio_file = image.existing_audio_files.include?(filename)
     self.voice = voice
