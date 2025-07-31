@@ -746,20 +746,14 @@ class Image < ApplicationRecord
       if url.include?(" ")
         url_with_spaces = url
         url = url_with_spaces.gsub(" ", "%20")
-        if authorized_to_view_url?(url)
-          Rails.logger.debug "Replaced spaces with %20: #{url}"
-        else
+        if !authorized_to_view_url?(url)
           url = url_with_spaces.gsub(" ", "_")
           if !authorized_to_view_url?(url)
             url = url_with_spaces.gsub(" ", "-")
           end
         end
-        Rails.logger.debug "Replaced spaces with underscores or hyphens: #{url}" if url != url_with_spaces
-        Rails.logger.debug "Replaced spaces: #{url}"
       end
-      # uri = URI.parse(url)
-      # uri.path = URI::DEFAULT_PARSER.escape(uri.path)
-      # sanitized = uri.to_s
+      Rails.logger.debug "Sanitized URL after space handling: #{url}"
       sanitized = url
       unless authorized_to_view_url?(sanitized)
         Rails.logger.error "URL not authorized: #{sanitized}"
@@ -834,6 +828,7 @@ class Image < ApplicationRecord
           end
           symbol_name = new_symbol.name.parameterize if new_symbol
           if new_symbol && should_create_symbol_image?(new_symbol)
+            Rails.logger.debug ">> Creating symbol image for #{symbol_name} - ID: #{new_symbol.id} - URL: #{new_symbol.image_url}"
             count += 1
 
             downloaded_image = new_symbol.get_downloaded_image
@@ -908,7 +903,19 @@ class Image < ApplicationRecord
     symbol_name = new_symbol.name.parameterize
     return false if symbol_name.blank?
     # symbol_name_like_label?(symbol_name) && !doc_text_matches(symbol_name)
-    symbol_name_like_label?(symbol_name) && !matching_urls?(new_symbol.image_url)
+    # symbol_name_like_label?(symbol_name) && !matching_urls?(new_symbol.image_url)
+    if matching_urls?(new_symbol.image_url)
+      Rails.logger.debug "Symbol URL matches existing docs: #{new_symbol.image_url}"
+      return false
+    end
+    Rails.logger.debug "SHOULD CREATE SYMBOL IMAGE: #{symbol_name} - #{new_symbol.id} - URL: #{new_symbol.image_url}"
+    true
+    # if symbol_name_like_label?(symbol_name) || doc_text_matches(symbol_name)
+    #   Rails.logger.debug "Symbol name matches label or doc text: #{symbol_name}"
+    #   return true
+    # end
+    # Rails.logger.debug "Symbol name does not match label or doc text: #{symbol_name}"
+    # false
   end
 
   def symbol_name_like_label?(symbol_name)
@@ -923,7 +930,8 @@ class Image < ApplicationRecord
   end
 
   def matching_urls?(symbol_url)
-    return [] if symbol_url.blank?
+    return false if symbol_url.blank?
+    Rails.logger.debug "Checking matching URLs for symbol URL: #{symbol_url}"
     matching_docs = docs.unscoped.where(original_image_url: symbol_url)
     Rails.logger.debug "Checking matching URLs for symbol URL: #{symbol_url} - Matching docs count: #{matching_docs.count}"
     if matching_docs.any?
