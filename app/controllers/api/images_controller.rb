@@ -405,7 +405,7 @@ class API::ImagesController < API::ApplicationController
     @image_with_display_doc = @image.with_display_doc(@current_user, @board, @board_image)
     if result[:total] == 0
       @image.update(open_symbol_status: "disabled")
-      render json: { status: "error", message: "No symbols created for image." }
+      render json: { status: "error", message: "No symbols created for image.", image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) }, status: :unprocessable_entity
       return
     end
     render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user), status: "ok", created: result[:created], skipped: result[:skipped], total: result[:total] }
