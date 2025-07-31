@@ -144,7 +144,6 @@ class OpenSymbol < ApplicationRecord
     #                           "Referer" => "http://www.ruby-lang.org/")
     downloaded_img = Down.download(url)
     if downloaded_img
-      puts "\nDownloaded Image: #{downloaded_img.inspect}\n\n****"
       return downloaded_img
     else
       raise "OpenSymbol ERROR: Image not found"

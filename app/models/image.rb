@@ -765,6 +765,7 @@ class Image < ApplicationRecord
     # return if open_symbol_status == "skipped"
     query = label&.downcase
     response = OpenSymbol.generate_symbol(query)
+    Rails.logger.debug "Response from OpenSymbol: #{response.inspect} - Query: #{query} - Limit: #{limit}"
 
     if response
       symbols = JSON.parse(response)
