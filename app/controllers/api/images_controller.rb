@@ -390,9 +390,16 @@ class API::ImagesController < API::ApplicationController
     limit = current_user.admin? ? ADMIN_SYMBOL_LIMIT : SYMBOL_LIMMIT
     # @image.update(status: "generating") unless @image.generating?
     Rails.logger.info("Creating #{limit} symbols for image: #{@image.label}")
-    @image.generate_matching_symbol(limit)
+    result = @image.generate_matching_symbol(limit)
+    Rails.logger.info("Result of symbol generation: #{result}")
     # @image.update(status: "finished") unless @image.finished?
-    render json: { status: "ok", message: "Creating #{limit} symbols for image.", image: @image }
+    # render json: { status: "ok", message: "Creating #{limit} symbols for image.", image: @image }
+    @image.reload
+    @board = Board.find_by(id: params[:board_id]) if params[:board_id]
+    @board_image = @board.board_images.find_by(image_id: @image.id) if @board
+    @current_user = current_user
+    @image_with_display_doc = @image.with_display_doc(@current_user, @board, @board_image)
+    render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user), status: "ok", created: result[:created], skipped: result[:skipped], total: result[:total] }
   end
 
   def new
@@ -550,38 +557,8 @@ class API::ImagesController < API::ApplicationController
 
       @image_with_display_doc = @image.with_display_doc(current_user)
       @image_with_display_doc[:src] = nil
-      # @image_with_display_doc = {
-      #   id: @image.id,
-      #   label: @image.label.upcase,
-      #   image_prompt: @image.image_prompt,
-      #   image_type: @image.image_type,
-      #   bg_color: @image.bg_class,
-      #   text_color: @image.text_color,
-      #   display_doc: {
-      #     id: nil,
-      #     label: @image.label,
-      #     user_id: nil,
-      #     src: nil,
-      #     is_current: true,
-
-      #   },
-      #   private: @image.private,
-      #   user_id: @image.user_id,
-      #   next_words: @image.next_words,
-      #   no_next: @image.no_next,
-      #   src: nil,
-      #   docs: @image_docs.map do |doc|
-      #     {
-      #       id: doc.id,
-      #       label: @image.label,
-      #       user_id: doc.user_id,
-      #       src: params[:update_all] ? nil : doc.display_url,
-      #       is_current: doc.id == @current_doc_id,
-      #     }
-      #   end,
-      # }
-
-      render json: @image_with_display_doc
+      @current_user = current_user
+      render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) }
     end
   end
 
@@ -659,8 +636,9 @@ class API::ImagesController < API::ApplicationController
     rescue StandardError => e
       render json: { status: "error", message: e.message } and return
     end
-
+    @image_with_display_doc = @image.with_display_doc(current_user)
     render json: { status: "ok" }
+    render json: { image: @image_with_display_doc }
   end
 
   def destroy

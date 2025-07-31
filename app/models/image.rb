@@ -753,13 +753,11 @@ class Image < ApplicationRecord
           end
         end
       end
-      Rails.logger.debug "Sanitized URL after space handling: #{url}"
       sanitized = url
       unless authorized_to_view_url?(sanitized)
         Rails.logger.error "URL not authorized: #{sanitized}"
         sanitized = nil
       end
-      Rails.logger.debug "Sanitized URL: #{sanitized}"
       sanitized
     rescue URI::InvalidURIError => e
       Rails.logger.error "Invalid URL: #{url} - Error: #{e.message}"
@@ -774,7 +772,6 @@ class Image < ApplicationRecord
     # return if open_symbol_status == "skipped"
     query = label&.downcase
     response = OpenSymbol.generate_symbol(query)
-    Rails.logger.debug "Response from OpenSymbol: #{response.inspect} - Query: #{query} - Limit: #{limit}"
 
     if response
       symbols = JSON.parse(response)
@@ -787,7 +784,6 @@ class Image < ApplicationRecord
         symbols.each do |symbol|
           existing_symbol = OpenSymbol.find_by(original_os_id: symbol["id"])
           if existing_symbol || OpenSymbol::IMAGE_EXTENSIONS.exclude?(symbol["extension"])
-            Rails.logger.debug "Symbol already exists: #{existing_symbol&.id} Or not an image: #{symbol["extension"]}"
             new_symbol = existing_symbol
             sym_url = sanitize_url(symbol["image_url"])
             if sym_url.blank?
@@ -835,17 +831,6 @@ class Image < ApplicationRecord
             processed = nil
             svg_url = nil
             sanitized_svg_url = nil
-            # if new_symbol.svg?
-            #   svg_url = new_symbol.image_url
-            #   processed = true
-            #   Rails.logger.debug "Disabling SVG processing for now"
-            # else
-            #   processed = downloaded_image
-            # end
-
-            # ext = new_symbol.svg? ? "png" : new_symbol.extension
-            # new_image_doc = self.docs.create!(processed: symbol_name, raw: new_symbol.search_string, source_type: "OpenSymbol", original_image_url: svg_url) if processed
-            # new_image_doc.image.attach(io: processed, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{ext}") if processed
             if new_symbol.svg?
               svg_url = new_symbol.image_url
               sanitized_svg_url = sanitize_url(svg_url)
@@ -881,6 +866,10 @@ class Image < ApplicationRecord
         Rails.logger.debug "Error creating symbols: #{e.message}\n\n#{e.backtrace.join("\n")}"
         skipped_count += 1
       end
+      { created: count, skipped: skipped_count, total: symbols_count }
+    else
+      Rails.logger.debug "No response from OpenSymbol for label: #{label}"
+      { created: 0, skipped: 0, total: 0 }
     end
   end
 
