@@ -382,9 +382,12 @@ class API::ImagesController < API::ApplicationController
     end
   end
 
+  SYMBOL_LIMMIT = ENV["SYMBOL_LIMIT"] || 1
+  ADMIN_SYMBOL_LIMIT = ENV["ADMIN_SYMBOL_LIMIT"] || 10
+
   def create_symbol
     @image = Image.find(params[:id])
-    limit = current_user.admin? ? 20 : 1
+    limit = current_user.admin? ? ADMIN_SYMBOL_LIMIT : SYMBOL_LIMMIT
     # @image.update(status: "generating") unless @image.generating?
     Rails.logger.info("Creating #{limit} symbols for image: #{@image.label}")
     @image.generate_matching_symbol(limit)
