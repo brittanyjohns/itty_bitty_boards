@@ -773,6 +773,8 @@ class Image < ApplicationRecord
     query = label&.downcase
     response = OpenSymbol.generate_symbol(query)
 
+    Rails.logger.debug "Response from OpenSymbol for label: #{label} - Query: #{query} - Response: #{response.inspect}"
+
     if response
       symbols = JSON.parse(response)
       symbols_count = symbols.count
@@ -878,12 +880,15 @@ class Image < ApplicationRecord
     images_without_docs = Image.public_img.active.non_menu_images.without_docs
     Rails.logger.debug "Images without docs: #{images_without_docs.to_a.count}"
     sleep 3
+    image_data = []
     images_without_docs.each do |image|
       Rails.logger.debug "Creating symbol image for #{image.label} - sym_limit: #{sym_limit} - count: #{count}"
-      image.generate_matching_symbol(sym_limit)
+      result = image.generate_matching_symbol(sym_limit)
       count += 1
+      image_data << { id: image.id, label: image.label, created_symbols: result[:created], skipped_symbols: result[:skipped], total_symbols: result[:total] }
       break if count >= limit
     end
+    Rails.logger.debug "Created symbols for images: #{image_data.inspect}"
   end
 
   def should_create_symbol_image?(new_symbol)

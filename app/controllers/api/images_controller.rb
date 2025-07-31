@@ -387,6 +387,10 @@ class API::ImagesController < API::ApplicationController
 
   def create_symbol
     @image = Image.find(params[:id])
+    if @image.open_symbol_status == "disabled"
+      render json: { status: "error", message: "Symbol generation is disabled for this image." }, status: :unprocessable_entity
+      return
+    end
     limit = current_user.admin? ? ADMIN_SYMBOL_LIMIT : SYMBOL_LIMMIT
     # @image.update(status: "generating") unless @image.generating?
     Rails.logger.info("Creating #{limit} symbols for image: #{@image.label}")
@@ -399,6 +403,11 @@ class API::ImagesController < API::ApplicationController
     @board_image = @board.board_images.find_by(image_id: @image.id) if @board
     @current_user = current_user
     @image_with_display_doc = @image.with_display_doc(@current_user, @board, @board_image)
+    if result[:total] == 0
+      @image.update(open_symbol_status: "disabled")
+      render json: { status: "error", message: "No symbols created for image." }
+      return
+    end
     render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user), status: "ok", created: result[:created], skipped: result[:skipped], total: result[:total] }
   end
 
