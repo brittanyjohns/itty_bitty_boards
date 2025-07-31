@@ -1082,6 +1082,18 @@ class Image < ApplicationRecord
     end
   end
 
+  def public_audio_url(viewing_user = nil)
+    base_url = ENV["FRONT_END_URL"] || "localhost:8100"
+    if user_id == User::DEFAULT_ADMIN_ID || user_id.blank?
+      "#{base_url}/images/#{id}/audio"
+    else
+      if viewing_user && viewing_user.id == user_id
+        "#{base_url}/images/#{id}/audio"
+      end
+      # "#{ENV["FRONT_END_URL"]}/users/#{user_id}/images/#{id}/audio"
+    end
+  end
+
   def api_view(viewing_user = nil)
     @default_audio_url = default_audio_url
     user_board_imgs = user_board_images(viewing_user)
@@ -1097,6 +1109,7 @@ class Image < ApplicationRecord
       any_board_imgs: any_board_imgs.map { |board_image| { id: board_image.id, board_id: board_image.board_id, name: board_image.board.name } },
       matching_viewer_boards: matching_viewer_boards(viewing_user).map { |board| { id: board.id, name: board.name } },
       image_prompt: image_prompt,
+      public_audio_url: public_audio_url,
       next_words: next_words,
       bg_color: bg_class,
       text_color: text_color,
@@ -1222,6 +1235,7 @@ class Image < ApplicationRecord
       src: doc_img_url,
       src_url: @board_image&.display_image_url,
       predictive_board_board_type: @predictive_board&.board_type,
+      public_audio_url: public_audio_url,
       audio: @default_audio_url,
       audio_url: @default_audio_url,
       audio_files: audio_files_for_api,

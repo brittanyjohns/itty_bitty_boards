@@ -52,7 +52,7 @@ class ChildBoard < ApplicationRecord
   end
 
   def toggle_favorite
-    if !favorite && total_favorite_boards >= 8
+    if !favorite && total_favorite_boards >= 80
       return false
     end
     update(favorite: !favorite)
