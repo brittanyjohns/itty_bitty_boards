@@ -35,6 +35,10 @@
 #  language_settings   :jsonb
 #  language            :string           default("en")
 #
+
+require "open-uri"
+require "uri"
+
 class Image < ApplicationRecord
   paginates_per 100
   normalizes :label, with: ->label { label.downcase.strip }
@@ -735,6 +739,28 @@ class Image < ApplicationRecord
     Image.find_by(label: "This is the voice #{voice}").audio_files&.last
   end
 
+  def sanitize_url(url)
+    Rails.logger.debug "Original URL: #{url}"
+
+    begin
+      if url.include?(" ")
+        url = url.gsub(" ", "%20")
+        Rails.logger.debug "Replaced spaces with underscores: #{url}"
+      end
+      uri = URI.parse(url)
+      uri.path = URI::DEFAULT_PARSER.escape(uri.path)
+      sanitized = uri.to_s
+      Rails.logger.debug "Sanitized URL: #{sanitized}"
+      sanitized
+    rescue URI::InvalidURIError => e
+      Rails.logger.error "Invalid URL: #{url} - Error: #{e.message}"
+      nil
+    rescue StandardError => e
+      Rails.logger.error "Error sanitizing URL: #{url} - Error: #{e.message}"
+      nil
+    end
+  end
+
   def generate_matching_symbol(limit = 1)
     # return if open_symbol_status == "skipped"
     query = label&.downcase
@@ -753,12 +779,17 @@ class Image < ApplicationRecord
           if existing_symbol || OpenSymbol::IMAGE_EXTENSIONS.exclude?(symbol["extension"])
             Rails.logger.debug "Symbol already exists: #{existing_symbol&.id} Or not an image: #{symbol["extension"]}"
             new_symbol = existing_symbol
+            sanitized_url = sanitize_url(symbol["image_url"])
+            if new_symbol && new_symbol.image_url != sanitized_url
+              new_symbol.update!(image_url: sanitized_url)
+            end
           else
+            sanitized_url = sanitize_url(symbol["image_url"])
             break if count >= limit
             new_symbol =
               OpenSymbol.create!(
                 name: symbol["name"],
-                image_url: symbol["image_url"],
+                image_url: sanitized_url,
                 label: query,
                 search_string: symbol["search_string"],
                 symbol_key: symbol["symbol_key"],
@@ -782,17 +813,38 @@ class Image < ApplicationRecord
             downloaded_image = new_symbol.get_downloaded_image
             processed = nil
             svg_url = nil
+            sanitized_svg_url = nil
+            # if new_symbol.svg?
+            #   svg_url = new_symbol.image_url
+            #   processed = true
+            #   Rails.logger.debug "Disabling SVG processing for now"
+            # else
+            #   processed = downloaded_image
+            # end
+
+            # ext = new_symbol.svg? ? "png" : new_symbol.extension
+            # new_image_doc = self.docs.create!(processed: symbol_name, raw: new_symbol.search_string, source_type: "OpenSymbol", original_image_url: svg_url) if processed
+            # new_image_doc.image.attach(io: processed, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{ext}") if processed
             if new_symbol.svg?
               svg_url = new_symbol.image_url
-              processed = false
-              Rails.logger.debug "Disabling SVG processing for now"
+              sanitized_svg_url = sanitize_url(svg_url)
+              svg_data = URI.open(sanitized_svg_url).read
+              processed = StringIO.new(svg_data)
+              ext = "svg"
             else
               processed = downloaded_image
+              ext = new_symbol.extension
             end
 
-            ext = new_symbol.svg? ? "png" : new_symbol.extension
-            new_image_doc = self.docs.create!(processed: symbol_name, raw: new_symbol.search_string, source_type: "OpenSymbol", original_image_url: svg_url) if processed
-            new_image_doc.image.attach(io: processed, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{ext}") if processed
+            if processed
+              new_image_doc = self.docs.create!(
+                processed: symbol_name,
+                raw: new_symbol.search_string,
+                source_type: "OpenSymbol",
+                original_image_url: sanitized_svg_url || new_symbol.image_url,
+              )
+              new_image_doc.image.attach(io: processed, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{ext}")
+            end
           else
             skipped_count += 1
           end
@@ -825,10 +877,12 @@ class Image < ApplicationRecord
   end
 
   def should_create_symbol_image?(new_symbol)
+    Rails.logger.debug "Checking if should create symbol image for #{new_symbol.name} - #{new_symbol.id}"
     return false if new_symbol.blank?
     symbol_name = new_symbol.name.parameterize
     return false if symbol_name.blank?
-    symbol_name_like_label?(symbol_name) && !doc_text_matches(symbol_name)
+    # symbol_name_like_label?(symbol_name) && !doc_text_matches(symbol_name)
+    symbol_name_like_label?(symbol_name) && !matching_urls?(new_symbol.image_url)
   end
 
   def symbol_name_like_label?(symbol_name)
@@ -836,14 +890,35 @@ class Image < ApplicationRecord
     result = false
     label.split(" ").each do |label_word|
       result = symbol_name.split("-").any? { |word| label_word.downcase.include?(word) }
+      Rails.logger.debug "Checking label word: #{label_word} - symbol name: #{symbol_name} - result: #{result}"
       break if result
     end
     result
   end
 
+  def matching_urls?(symbol_url)
+    return [] if symbol_url.blank?
+    matching_docs = docs.unscoped.where(original_image_url: symbol_url)
+    Rails.logger.debug "Checking matching URLs for symbol URL: #{symbol_url} - Matching docs count: #{matching_docs.count}"
+    if matching_docs.any?
+      Rails.logger.debug "Matching docs found for symbol URL: #{symbol_url} - Count: #{matching_docs.count}"
+      true
+    else
+      Rails.logger.debug "No matching docs found for symbol URL: #{symbol_url}"
+      false
+    end
+  end
+
   def doc_text_matches(symbol_name)
     return false if symbol_name.blank?
-    docs.unscoped.any? { |doc| doc.processed === symbol_name }
+    docs.unscoped.each do |doc|
+      if doc.processed && doc.processed.include?(symbol_name)
+        Rails.logger.debug "Doc matches symbol name: #{doc.processed} - #{symbol_name}"
+        return true
+      end
+    end
+    Rails.logger.debug "No doc matches symbol name: #{symbol_name}"
+    false
   end
 
   def label_and_user_id
