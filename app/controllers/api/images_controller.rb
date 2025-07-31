@@ -385,9 +385,10 @@ class API::ImagesController < API::ApplicationController
   def create_symbol
     @image = Image.find(params[:id])
     limit = current_user.admin? ? 20 : 1
-    @image.update(status: "generating") unless @image.generating?
+    # @image.update(status: "generating") unless @image.generating?
+    Rails.logger.info("Creating #{limit} symbols for image: #{@image.label}")
     @image.generate_matching_symbol(limit)
-    @image.update(status: "finished") unless @image.finished?
+    # @image.update(status: "finished") unless @image.finished?
     render json: { status: "ok", message: "Creating #{limit} symbols for image.", image: @image }
   end
 

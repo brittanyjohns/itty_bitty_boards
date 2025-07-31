@@ -744,12 +744,27 @@ class Image < ApplicationRecord
 
     begin
       if url.include?(" ")
-        url = url.gsub(" ", "%20")
-        Rails.logger.debug "Replaced spaces with underscores: #{url}"
+        url_with_spaces = url
+        url = url_with_spaces.gsub(" ", "%20")
+        if authorized_to_view_url?(url)
+          Rails.logger.debug "Replaced spaces with %20: #{url}"
+        else
+          url = url_with_spaces.gsub(" ", "_")
+          if !authorized_to_view_url?(url)
+            url = url_with_spaces.gsub(" ", "-")
+          end
+        end
+        Rails.logger.debug "Replaced spaces with underscores or hyphens: #{url}" if url != url_with_spaces
+        Rails.logger.debug "Replaced spaces: #{url}"
       end
-      uri = URI.parse(url)
-      uri.path = URI::DEFAULT_PARSER.escape(uri.path)
-      sanitized = uri.to_s
+      # uri = URI.parse(url)
+      # uri.path = URI::DEFAULT_PARSER.escape(uri.path)
+      # sanitized = uri.to_s
+      sanitized = url
+      unless authorized_to_view_url?(sanitized)
+        Rails.logger.error "URL not authorized: #{sanitized}"
+        sanitized = nil
+      end
       Rails.logger.debug "Sanitized URL: #{sanitized}"
       sanitized
     rescue URI::InvalidURIError => e
@@ -780,17 +795,27 @@ class Image < ApplicationRecord
           if existing_symbol || OpenSymbol::IMAGE_EXTENSIONS.exclude?(symbol["extension"])
             Rails.logger.debug "Symbol already exists: #{existing_symbol&.id} Or not an image: #{symbol["extension"]}"
             new_symbol = existing_symbol
-            sanitized_url = sanitize_url(symbol["image_url"])
-            if new_symbol && new_symbol.image_url != sanitized_url
-              new_symbol.update!(image_url: sanitized_url)
+            sym_url = sanitize_url(symbol["image_url"])
+            if sym_url.blank?
+              Rails.logger.debug "Sanitized URL is blank for symbol: #{symbol["name"]}"
+              skipped_count += 1
+              next
+            end
+            if new_symbol && new_symbol.image_url != sym_url
+              new_symbol.update!(image_url: sym_url)
             end
           else
-            sanitized_url = sanitize_url(symbol["image_url"])
+            sym_url = sanitize_url(symbol["image_url"])
+            if sym_url.blank?
+              Rails.logger.debug "Sanitized URL is blank for symbol: #{symbol["name"]}"
+              skipped_count += 1
+              next
+            end
             break if count >= limit
             new_symbol =
               OpenSymbol.create!(
                 name: symbol["name"],
-                image_url: sanitized_url,
+                image_url: sym_url,
                 label: query,
                 search_string: symbol["search_string"],
                 symbol_key: symbol["symbol_key"],
