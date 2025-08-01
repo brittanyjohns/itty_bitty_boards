@@ -6,7 +6,7 @@ class SetupMailer < BaseMailer
     slug = @user.slug
     @frontend_url = frontend_url
     @mymyspeak_link = @frontend_url + "/my/#{slug}"
-    mail(to: @user.email, subject: "MySpeaker Setup Instructions")
+    mail(to: @user.email, subject: "MySpeak Setup Instructions")
   end
 
   def vendor_setup_email(user)
