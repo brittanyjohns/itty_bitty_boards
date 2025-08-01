@@ -386,6 +386,10 @@ Rails.application.routes.draw do
         post "pick_winner", on: :member
       end
       resources :users do
+        member do
+          post "send_welcome_email"
+          post "send_setup_email"
+        end
         collection do
           delete "destroy_users"
           get "export"

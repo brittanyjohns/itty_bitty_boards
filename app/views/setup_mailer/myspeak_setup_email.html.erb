@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f6f8fb;
+        color: #333;
+        padding: 20px;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-radius: 8px;
+        padding: 30px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+      }
+      .btn {
+        display: inline-block;
+        background-color: #3b82f6;
+        color: #ffffff;
+        text-decoration: none;
+        padding: 12px 20px;
+        border-radius: 5px;
+        font-weight: bold;
+        margin-top: 20px;
+      }
+      h1 {
+        color: #111827;
+      }
+      ul {
+        padding-left: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Welcome to MySpeak!</h1>
+
+      <p>Hi <%= @user.name || "there" %>,</p>
+
+      <p>We're so excited to have you join SpeakAnyWay. Your MySpeak profile helps others understand how you communicate best. Here's how to get set up:</p>
+
+      <h2>🛠️ Getting Started</h2>
+      <ol>
+        <li><strong>Log in:</strong> Visit <a href="<%= @frontend_url %>"><%= @frontend_url %></a> and log into your account.</li>
+        <li><strong>Go to MySpeak Settings:</strong> Click your profile icon and choose <em>“MySpeak Settings.”</em></li>
+        <li><strong>Fill out your info:</strong> Add your emergency contacts, allergies, communication preferences, and anything you want others to know.</li>
+        <li><strong>Generate your QR code:</strong> Once your profile is saved, your personal QR code will be created automatically!</li>
+        <li><strong>Print or share:</strong> You can print your MySpeak QR, add it to stickers, ID cards, or save it on your device.</li>
+      </ol>
+
+      <p>Your MySpeak page makes it easier for others to connect and communicate with you — your way.</p>
+
+      <a href="<%= @mymyspeak_link %>" class="btn">Your MySpeak Profile</a>
+
+      <p style="margin-top: 30px;">Need help? Just reply to this email or visit our <a href="<%= @frontend_url %>support">Support Center</a>.</p>
+
+      <p>Thanks for being part of our community,<br/>- The SpeakAnyWay Team 💬</p>
+    </div>
+  </body>
+</html>

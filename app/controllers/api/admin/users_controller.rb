@@ -62,6 +62,41 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     end
   end
 
+  def send_welcome_email
+    unless current_admin&.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+    @user = User.find(params[:id])
+    if @user.nil?
+      render json: { error: "User not found" }, status: :not_found
+      return
+    end
+    if @user.send_welcome_email
+      render json: { success: true }, status: :ok
+    else
+      render json: { error: "Failed to send welcome email" }, status: :unprocessable_entity
+    end
+  end
+
+  def send_setup_email
+    unless current_admin&.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+    @user = User.find(params[:id])
+    if @user.nil?
+      render json: { error: "User not found" }, status: :not_found
+      return
+    end
+    Rails.logger.info "Sending setup email to user: #{@user.email}"
+    if @user.send_setup_email
+      render json: { success: true }, status: :ok
+    else
+      render json: { error: "Failed to send set up email" }, status: :unprocessable_entity
+    end
+  end
+
   def export
     unless current_admin&.admin?
       render json: { error: "Unauthorized" }, status: :unauthorized

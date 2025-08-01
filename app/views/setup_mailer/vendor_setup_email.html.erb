@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      body {
+        background-color: #f6f8fb;
+        font-family: Arial, sans-serif;
+        color: #333;
+        padding: 20px;
+      }
+      .container {
+        max-width: 640px;
+        background-color: #ffffff;
+        padding: 30px;
+        border-radius: 8px;
+        margin: 0 auto;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      }
+      h1 {
+        color: #111827;
+        font-size: 24px;
+        margin-bottom: 20px;
+      }
+      h2 {
+        color: #1f2937;
+        font-size: 18px;
+        margin-top: 30px;
+      }
+      .btn {
+        display: inline-block;
+        padding: 12px 20px;
+        background-color: #10b981;
+        color: #fff;
+        text-decoration: none;
+        font-weight: bold;
+        border-radius: 6px;
+        margin-top: 20px;
+      }
+      ul, ol {
+        padding-left: 20px;
+      }
+      p {
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Welcome to SpeakAnyWay Vendor Hub!</h1>
+
+      <p>Hi <%= @vendor.name || "there" %>,</p>
+
+      <p>
+        Thanks for joining the SpeakAnyWay community! We're excited to help you make your business more accessible and inclusive for everyone — especially nonverbal customers and those who benefit from visual communication.
+      </p>
+
+      <h2>🚀 Let's Get You Set Up</h2>
+      <ol>
+        <li>Log in at <a href="<%= @frontend_url %>"><%= @frontend_url %></a>.</li>
+        <li>Click on <strong>“My Vendor Profile”</strong> in your dashboard.</li>
+        <li>Add your menu, services, photos, and accessibility details.</li>
+        <li>Generate your custom <strong>QR code</strong> to display on signs, food trucks, or counters.</li>
+        <li>Customers can scan the code to view your business in a communication-friendly format — no app required.</li>
+      </ol>
+
+      <h2>✨ Why It Matters</h2>
+      <ul>
+        <li>✅ Make your business more inclusive and communication-accessible</li>
+        <li>✅ Help nonverbal and AAC users order with confidence</li>
+        <li>✅ Show your commitment to disability-friendly service</li>
+        <li>✅ Get listed in the growing <strong>SpeakAnyWay Vendor Directory</strong></li>
+      </ul>
+
+      <a href="<%= @frontend_url %>vendors/dashboard" class="btn">Set Up My Vendor Page</a>
+
+      <p style="margin-top: 30px;">
+        Need help with setup or QR code printing? Just reply to this email or visit our <a href="<%= @frontend_url %>support">Support Center</a>.
+      </p>
+
+      <p>Thanks for being part of the movement,<br/>- The SpeakAnyWay Team 💬</p>
+    </div>
+  </body>
+</html>

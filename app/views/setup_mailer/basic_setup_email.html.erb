@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      body {
+        background-color: #f6f8fb;
+        font-family: Arial, sans-serif;
+        color: #333;
+        padding: 20px;
+      }
+      .container {
+        max-width: 640px;
+        background-color: #ffffff;
+        padding: 30px;
+        border-radius: 8px;
+        margin: 0 auto;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      }
+      h1 {
+        color: #111827;
+        font-size: 24px;
+        margin-bottom: 20px;
+      }
+      h2 {
+        color: #1f2937;
+        font-size: 18px;
+        margin-top: 30px;
+      }
+      .btn {
+        display: inline-block;
+        padding: 12px 20px;
+        background-color: #3b82f6;
+        color: #fff;
+        text-decoration: none;
+        font-weight: bold;
+        border-radius: 6px;
+        margin-top: 20px;
+      }
+      ul, ol {
+        padding-left: 20px;
+      }
+      p {
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Welcome to SpeakAnyWay Basic!</h1>
+
+      <p>Hi <%= @user.name || "there" %>,</p>
+
+      <p>
+        We're so glad you've joined the SpeakAnyWay community. Your Basic account gives you everything you need to get started with one Communicator and access to the tools that make communication easier and more personal.
+      </p>
+
+      <h2>🎁 What's Included in Basic</h2>
+      <ul>
+        <li>✅ 1 Communicator Account</li>
+        <li>✅ MySpeak profile and QR code for your Communicator</li>
+        <li>✅ Emergency contact info, allergies, communication preferences</li>
+        <li>✅ Access to all core tools and AI features</li>
+        <li>✅ Ability to build and save communication boards</li>
+      </ul>
+
+      <h2>🚀 How to Get Set Up</h2>
+      <ol>
+        <li>Log in at <a href="<%= @frontend_url %>"><%= @frontend_url %></a>.</li>
+        <li>Go to <strong>"My Boards"</strong> to start building your first communication board.</li>
+        <li>Visit <strong>"Communicator Accounts"</strong> to fill out your Communicator's info and generate your QR code.</li>
+        <li>Explore our AI-powered board tools and image search features!</li>
+      </ol>
+
+      <a href="<%= @frontend_url %>dashboard" class="btn">Start Setting Up</a>
+
+      <p style="margin-top: 30px;">Have questions or need help? Just reply to this email or check out our <a href="<%= @frontend_url %>support">Support Center</a>.</p>
+
+      <p>Thanks for choosing SpeakAnyWay,<br/>- The SpeakAnyWay Team 💬</p>
+    </div>
+  </body>
+</html>

@@ -642,6 +642,64 @@ class User < ApplicationRecord
     end
   end
 
+  def send_pro_setup_email
+    Rails.logger.info "Sending pro setup email to #{email}"
+    begin
+      SetupMailer.pro_setup_email(self).deliver_now
+      Rails.logger.info "Pro setup email sent to #{email}"
+    rescue => e
+      Rails.logger.error("Error sending pro setup email: #{e.message}")
+    end
+  end
+
+  def send_free_setup_email
+    Rails.logger.info "Sending free setup email to #{email}"
+    begin
+      SetupMailer.free_setup_email(self).deliver_now
+      Rails.logger.info "Free setup email sent to #{email}"
+    rescue => e
+      Rails.logger.error("Error sending free setup email: #{e.message}")
+    end
+  end
+
+  def send_vendor_setup_email
+    Rails.logger.info "Sending vendor setup email to #{email}"
+    begin
+      SetupMailer.vendor_setup_email(self).deliver_now
+      Rails.logger.info "Vendor setup email sent to #{email}"
+    rescue => e
+      Rails.logger.error("Error sending vendor setup email: #{e.message}")
+    end
+  end
+
+  def send_myspeak_setup_email
+    Rails.logger.info "Sending myspeak setup email to #{email}"
+    begin
+      SetupMailer.myspeak_setup_email(self).deliver_now
+      Rails.logger.info "Myspeak setup email sent to #{email}"
+    rescue => e
+      Rails.logger.error("Error sending myspeak setup email: #{e.message}")
+    end
+  end
+
+  def send_setup_email
+    Rails.logger.info "Sending setup email to #{email}"
+    begin
+      if vendor?
+        send_vendor_setup_email
+      elsif myspeak?
+        send_myspeak_setup_email
+      elsif pro? || plus? || premium?
+        send_pro_setup_email
+      elsif free?
+        send_free_setup_email
+      end
+      Rails.logger.info "Setup email sent to #{email}"
+    rescue => e
+      Rails.logger.error("Error sending setup email: #{e.message}")
+    end
+  end
+
   def send_welcome_invitation_email(inviter_id)
     Rails.logger.info "Sending welcome invitation email to #{email} from user ID #{inviter_id}"
     begin

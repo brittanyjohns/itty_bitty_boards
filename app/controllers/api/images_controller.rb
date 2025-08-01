@@ -634,20 +634,30 @@ class API::ImagesController < API::ApplicationController
         @image.update(src_url: nil)
       end
       @image.docs.delete(@doc)
+      @image.docs.reload
       if params[:hard_delete]
+        Rails.logger.info("Hard deleting document: #{@doc.id} for image: #{@image.id}")
         @doc.destroy
       else
+        Rails.logger.info("Hiding document: #{@doc.id} for image: #{@image.id}")
         @doc.hide!
       end
+      Rails.logger.info(">> Document hidden: #{@doc.id} for image: #{@image.id}")
+      @image.reload
+      Rails.logger.info("Document hidden: #{@doc.id} for image: #{@image.id}")
+      @image_with_display_doc = @image.with_display_doc(current_user)
+      Rails.logger.info("Image with display doc after hiding: #{@image_with_display_doc.inspect}")
+      Rails.logger.info("Document hidden: #{@doc.id} for image: #{@image.id}")
+      render json: { image: @image_with_display_doc, status: "ok" } and return
     rescue FrozenError => e
+      render json: { image: @image_with_display_doc, status: "ok" }
+
+      # render json: { image: @image_with_display_doc, status: "ok" } and return
       # Ignore frozen error
-      render json: { status: "ok", message: e.message } and return
+      # render json: { status: "ok", message: e.message } and return
     rescue StandardError => e
       render json: { status: "error", message: e.message } and return
     end
-    @image_with_display_doc = @image.with_display_doc(current_user)
-    render json: { status: "ok" }
-    render json: { image: @image_with_display_doc }
   end
 
   def destroy
