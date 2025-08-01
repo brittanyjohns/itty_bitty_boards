@@ -73,6 +73,7 @@ class Image < ApplicationRecord
   scope :without_attached_audio_files, -> { where.missing(:audio_files_attachments) }
   # scope :searchable, -> { non_sample_voices.non_menu_images.where(obf_id: nil) }
   # scope :searchable, -> { non_sample_voices.non_menu_images }
+  scope :active_symbols, -> { where.not(open_symbol_status: "disabled") }
   scope :searchable, -> { non_sample_voices }
   scope :with_image_docs_for_user, ->(userId) { order(created_at: :desc) }
   scope :menu_images, -> { where(image_type: ["menu", "Menu"]) }
@@ -877,7 +878,7 @@ class Image < ApplicationRecord
 
   def self.create_symbols_for_missing_images(limit = 50, sym_limit = 3)
     count = 0
-    images_without_docs = Image.public_img.active.non_menu_images.without_docs
+    images_without_docs = Image.public_img.active.non_menu_images.without_docs.active_symbols.limit(limit)
     sleep 3
     image_data = []
     images_without_docs.each do |image|
