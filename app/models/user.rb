@@ -788,7 +788,7 @@ class User < ApplicationRecord
   end
 
   def paid_plan?
-    basic? || pro? || plus? || premium? || admin?
+    basic? || pro? || plus? || premium? || admin? || myspeak?
   end
 
   def professional?
@@ -928,10 +928,15 @@ class User < ApplicationRecord
     ChildAccount.find_by(user_id: id, vendor_id: vendor_id) if vendor_id
   end
 
+  def can_use_ai?
+    pro? || plus? || premium? || vendor? || basic?
+  end
+
   def api_view
     plan_exp = plan_expires_at&.strftime("%x")
     comm_limit = settings["communicator_limit"] || 0
     extra_comms = settings["extra_communicators"] || 0
+    board_limit = settings["board_limit"] || 0
     go_words = settings["go_to_words"] || Board.common_words
 
     comm_limit = comm_limit.to_i
@@ -940,6 +945,8 @@ class User < ApplicationRecord
     memoized_teams = teams_with_read_access
     memoized_communicators = communicator_accounts
     memoized_boards = boards.alphabetical
+    board_count = memoized_boards.count
+    can_create_boards = board_count < board_limit
     Rails.logger.info "Memoized teams: #{memoized_teams.count}, communicators: #{memoized_communicators.count}, boards: #{memoized_boards.count}"
 
     {
@@ -949,6 +956,10 @@ class User < ApplicationRecord
       vendor_profile: profile&.api_view,
       vendor: vendor&.api_view,
       is_vendor: vendor?,
+      board_limit: board_limit,
+      can_create_boards: can_create_boards,
+      board_count: board_count,
+      can_use_ai: can_use_ai?,
       email: email,
       pro_vendor: pro_vendor?,
       role: role,
