@@ -1,6 +1,6 @@
 class BaseMailer < ApplicationMailer
   def frontend_url
-    Rails.env.production? ? "https://speakanyway.com" : "http://localhost:8100"
+    ENV["FRONT_END_URL"] || "http://localhost:8100"
   end
 
   def team_invitation_email(invitee_email, inviter, team)
