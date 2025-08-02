@@ -733,7 +733,25 @@ class Board < ApplicationRecord
       end
       image = Image.create(label: original_image.label, user_id: @cloned_board.user_id) unless image
       layout = @layouts.find { |l| l[0] == original_image.id }&.second
-      new_board_image = @cloned_board.add_image(image.id, layout)
+      # new_board_image = @cloned_board.add_image(image.id, layout)
+      new_board_image = board_image.dup
+      new_board_image.image = image
+      new_board_image.board = @cloned_board
+      new_board_image.image_id = image.id
+      new_board_image.layout = layout if layout
+      new_board_image.skip_create_voice_audio = true
+      new_board_image.skip_initial_layout = true
+      new_board_image.save
+      Rails.logger.error "Error saving new_board_image: #{new_board_image.errors.full_messages.join(", ")}" unless new_board_image.persisted?
+      Rails.logger.info "Cloned board image: #{new_board_image.id} for board: #{@cloned_board.id} with image: #{image.id} and layout: #{layout.inspect}" if new_board_image.persisted?
+
+      # If the original board image has a voice, set it on the new board image
+      # This is important for predictive boards
+      next unless board_image.voice.present?
+      Rails.logger.info "Setting voice: #{board_image.voice} for new board image: #{new_board_image.id}"
+      new_board_image.voice = board_image.voice
+      new_board_image.skip_create_voice_audio = true
+      new_board_image.skip_initial_layout = true
 
       if new_board_image
         new_board_image.voice = board_image.voice
