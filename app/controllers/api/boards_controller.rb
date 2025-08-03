@@ -15,9 +15,6 @@ class API::BoardsController < API::ApplicationController
   def index
     unless current_user
       @static_preset_boards = Board.predefined.order(name: :asc).page params[:page]
-      # @dynamic_preset_boards = Board.dynamic.predefined.order(name: :asc).page params[:page]
-      # @predictive_preset_boards = Board.predictive.predefined.order(name: :asc).page params[:page]
-      # @category_preset_boards = Board.categories.predefined.order(name: :asc).page params[:page]
       render json: { static_preset_boards: @static_preset_boards.map(&:api_view),
                      dynamic_preset_boards: @dynamic_preset_boards.map(&:api_view),
                      predictive_preset_boards: @predictive_preset_boards.map(&:api_view),
@@ -31,14 +28,6 @@ class API::BoardsController < API::ApplicationController
     end
     @predefined_boards = Board.predefined.non_menus.order(name: :asc).page params[:page]
     @user_boards = current_user.boards.non_menus.where(predefined: false).order(name: :asc).page params[:page]
-    # @predictive_boards = @user_boards.predictive.order(name: :asc).page params[:page]
-    # @dynamic_boards = @user_boards.dynamic.order(name: :asc).page params[:page]
-    # @category_boards = @user_boards.categories.order(name: :asc).page params[:page]
-    # @static_boards = @user_boards.static.order(name: :asc).page params[:page]
-    # @static_preset_boards = @predefined_boards.order(name: :asc).page params[:page]
-    # @dynamic_preset_boards = @predefined_boards.dynamic.order(name: :asc).page params[:page]
-    # @predictive_preset_boards = @predefined_boards.predictive.order(name: :asc).page params[:page]
-    # @category_preset_boards = @predefined_boards.categories.order(name: :asc).page params[:page]
     @newly_created_boards = @user_boards.where("created_at >= ?", 1.week.ago).order(created_at: :desc).limit(10)
     @recently_used_boards = current_user.recently_used_boards
 
