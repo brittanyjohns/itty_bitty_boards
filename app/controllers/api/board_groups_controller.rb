@@ -1,5 +1,5 @@
 class API::BoardGroupsController < API::ApplicationController
-  skip_before_action :authenticate_token!, only: %i[ preset ]
+  skip_before_action :authenticate_token!, only: %i[ preset index show_by_slug ]
 
   def index
     unless current_user&.admin?
@@ -25,9 +25,24 @@ class API::BoardGroupsController < API::ApplicationController
   end
 
   def show
-    @board_group = BoardGroup.find(params[:id])
+    @board_group = BoardGroup.find_by(id: params[:id]) if params[:id].present?
+    @board_group = BoardGroup.find_by(slug: params[:id]) if params[:id].present? && @board_group.nil?
+    unless @board_group
+      render json: { error: "Board Group not found" }, status: :not_found
+      return
+    end
 
     render json: @board_group.api_view_with_boards(current_user)
+  end
+
+  def show_by_slug
+    puts "Finding Board Group by slug: #{params[:slug]}"
+    @board_group = BoardGroup.find_by(slug: params[:slug])
+    if @board_group
+      render json: @board_group.api_view_with_boards(current_user)
+    else
+      render json: { error: "Board Group not found" }, status: :not_found
+    end
   end
 
   def create

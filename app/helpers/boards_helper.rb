@@ -105,4 +105,17 @@ module BoardsHelper
     end
     COLORS[color]
   end
+
+  def set_slug
+    return unless name.present? && slug.blank?
+
+    slug = name.parameterize
+    existing_board = Board.find_by(slug: slug)
+    if existing_board
+      Rails.logger.warn "Board with slug '#{slug}' already exists. Generating a new slug."
+      random = SecureRandom.hex(8)
+      slug = "#{slug}-#{random}"
+    end
+    self.slug = slug
+  end
 end

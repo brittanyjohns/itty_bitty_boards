@@ -35,12 +35,16 @@ class BoardGroup < ApplicationRecord
 
   validates :name, presence: true
 
+  include BoardsHelper
+
   include PgSearch::Model
   pg_search_scope :search_by_name,
                   against: :name,
                   using: {
                     tsearch: { prefix: true },
                   }
+
+  before_create :set_slug
 
   after_initialize :set_initial_layout, if: :layout_empty?
   after_save :calculate_grid_layout
@@ -86,11 +90,18 @@ class BoardGroup < ApplicationRecord
     self.layout = calculate_grid_layout
   end
 
+  def public_url
+    base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    "#{base_url}/board-sets/#{slug}"
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,
       name: name,
       user_id: user_id,
+      slug: slug,
+      public_url: public_url,
       featured: featured,
       predefined: predefined,
       root_board_id: root_board_id,
@@ -111,6 +122,8 @@ class BoardGroup < ApplicationRecord
       layout: print_grid_layout,
       number_of_columns: number_of_columns,
       display_image_url: display_image_url,
+      slug: slug,
+      public_url: public_url,
       featured: featured,
       created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
       boards: boards.map do |board|

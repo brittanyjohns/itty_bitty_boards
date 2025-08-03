@@ -233,18 +233,18 @@ class Board < ApplicationRecord
     self.layout = { "lg" => [], "md" => [], "sm" => [] }
   end
 
-  def set_slug
-    return unless name.present? && slug.blank?
+  # def set_slug
+  #   return unless name.present? && slug.blank?
 
-    slug = name.parameterize
-    existing_board = Board.find_by(slug: slug)
-    if existing_board
-      Rails.logger.warn "Board with slug '#{slug}' already exists. Generating a new slug."
-      random = SecureRandom.hex(8)
-      slug = "#{slug}-#{random}"
-    end
-    self.slug = slug
-  end
+  #   slug = name.parameterize
+  #   existing_board = Board.find_by(slug: slug)
+  #   if existing_board
+  #     Rails.logger.warn "Board with slug '#{slug}' already exists. Generating a new slug."
+  #     random = SecureRandom.hex(8)
+  #     slug = "#{slug}-#{random}"
+  #   end
+  #   self.slug = slug
+  # end
 
   def set_vendor_id
     return if vendor_id.present? || !user
