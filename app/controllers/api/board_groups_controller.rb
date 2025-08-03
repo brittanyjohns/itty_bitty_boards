@@ -1,13 +1,11 @@
 class API::BoardGroupsController < API::ApplicationController
-  skip_before_action :authenticate_token!, only: %i[ preset index show_by_slug ]
+  skip_before_action :authenticate_token!, only: %i[ preset index ]
 
   def index
-    unless current_user&.admin?
-      render json: { error: "Unauthorized" }, status: :unauthorized and return
-    end
+    @featured_board_groups = BoardGroup.featured.order(created_at: :desc).page params[:page]
     @board_groups = current_user.board_groups.where(predefined: [false, nil])
     @predefined = BoardGroup.predefined
-    render json: { predefined: @predefined.map(&:api_view), user: @board_groups.map(&:api_view) }
+    render json: { predefined: @predefined.map(&:api_view), user: @board_groups.map(&:api_view), featured: @featured_board_groups.map(&:api_view) }
   end
 
   def preset
