@@ -2,9 +2,12 @@ class API::BoardGroupsController < API::ApplicationController
   skip_before_action :authenticate_token!, only: %i[ preset ]
 
   def index
+    unless current_user&.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized and return
+    end
     @board_groups = current_user.board_groups.where(predefined: [false, nil])
     @predefined = BoardGroup.predefined
-    render json: { predefined: @predefined.map(&:api_view_with_boards), user: @board_groups.map(&:api_view_with_boards) }
+    render json: { predefined: @predefined.map(&:api_view), user: @board_groups.map(&:api_view) }
   end
 
   def preset
@@ -14,10 +17,10 @@ class API::BoardGroupsController < API::ApplicationController
       else
         @predefined_board_groups = BoardGroup.predefined.order(created_at: :desc).page params[:page]
       end
-      @welcome_group = BoardGroup.welcome_group
+      @featured_board_groups = BoardGroup.featured.order(created_at: :desc).page params[:page]
+      puts "Featured Board Groups: #{@featured_board_groups.count}"
       @welcome_board = @welcome_group&.boards&.first
-      puts "Welcome group: #{@welcome_group}"
-      render json: { predefined_board_groups: @predefined_board_groups.map(&:api_view_with_boards), welcome_group: @welcome_group&.api_view_with_boards, welcome_board: @welcome_board&.api_view_with_images }
+      render json: { predefined_board_groups: @predefined_board_groups.map(&:api_view), featured_board_groups: @featured_board_groups.map(&:api_view), welcome_board: @welcome_board&.api_view }
     end
   end
 
@@ -32,6 +35,7 @@ class API::BoardGroupsController < API::ApplicationController
     board_group.user = current_user
     board_group.predefined = board_group_params[:predefined]
     board_group.number_of_columns = board_group_params[:number_of_columns]
+    board_group.featured = board_group_params[:featured] || false
 
     if board_group.save
       mark_default(board_group)
@@ -78,6 +82,7 @@ class API::BoardGroupsController < API::ApplicationController
     board_group = BoardGroup.find(params[:id])
     board_group.predefined = board_group_params[:predefined]
     board_group.number_of_columns = board_group_params[:number_of_columns]
+    board_group.featured = board_group_params[:featured] || false
     if board_group.update(board_group_params)
       mark_default(board_group)
       board_group.adjust_layouts
@@ -97,7 +102,7 @@ class API::BoardGroupsController < API::ApplicationController
   private
 
   def board_group_params
-    params.require(:board_group).permit(:name, :display_image_url, :make_default, :predefined, :number_of_columns, board_ids: [])
+    params.require(:board_group).permit(:name, :featured, :display_image_url, :predefined, :number_of_columns, board_ids: [])
   end
 
   def mark_default(board_group)

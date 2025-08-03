@@ -25,6 +25,12 @@ class BoardGroup < ApplicationRecord
   belongs_to :root_board, class_name: "Board", optional: true
 
   scope :predefined, -> { where(predefined: true) }
+  scope :featured, -> { where(predefined: true, featured: true) }
+  scope :by_name, ->(name) { where("name ILIKE ?", "%#{name}%") }
+  scope :by_user, ->(user_id) { where(user_id: user_id) }
+  scope :recent, -> { order(created_at: :desc) }
+  scope :with_boards, -> { includes(:boards) }
+
   scope :with_artifacts, -> { includes(boards: [:images, :board_images]) }
 
   validates :name, presence: true
@@ -85,6 +91,7 @@ class BoardGroup < ApplicationRecord
       id: id,
       name: name,
       user_id: user_id,
+      featured: featured,
       predefined: predefined,
       root_board_id: root_board_id,
       original_obf_root_id: original_obf_root_id,
@@ -104,6 +111,7 @@ class BoardGroup < ApplicationRecord
       layout: print_grid_layout,
       number_of_columns: number_of_columns,
       display_image_url: display_image_url,
+      featured: featured,
       created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
       boards: boards.map do |board|
         { id: board.id,

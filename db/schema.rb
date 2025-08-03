@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_07_16_164358) do
+ActiveRecord::Schema[7.1].define(version: 2025_08_03_170628) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -85,6 +85,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_07_16_164358) do
     t.datetime "updated_at", null: false
     t.integer "root_board_id"
     t.string "original_obf_root_id"
+    t.boolean "featured", default: false, null: false
+    t.index ["featured"], name: "index_board_groups_on_featured"
     t.index ["original_obf_root_id"], name: "index_board_groups_on_original_obf_root_id"
     t.index ["root_board_id"], name: "index_board_groups_on_root_board_id"
   end
