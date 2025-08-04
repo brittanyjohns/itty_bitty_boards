@@ -34,7 +34,6 @@ class Profile < ApplicationRecord
   end
 
   def api_view(viewer = nil)
-    puts "Generating API view for profile: #{slug} with viewer: #{viewer.inspect}"
     {
       id: id,
       username: username,

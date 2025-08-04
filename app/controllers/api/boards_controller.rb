@@ -14,18 +14,18 @@ class API::BoardsController < API::ApplicationController
   # GET /boards or /boards.json
   def index
     unless current_user
-      @static_preset_boards = Board.predefined.order(name: :asc).page params[:page]
+      @static_preset_boards = Board.predefined.alphabetical.page params[:page]
       render json: { static_preset_boards: @static_preset_boards.map(&:api_view),
                      preset_boards: @static_preset_boards.map(&:api_view) }
       return
     end
     if params[:query].present?
-      @search_results = Board.for_user(current_user).searchable.search_by_name(params[:query]).order(name: :asc).page params[:page]
+      @search_results = Board.for_user(current_user).searchable.search_by_name(params[:query]).alphabetical.page params[:page]
       render json: { search_results: @search_results } and return
     end
-    @predefined_boards = Board.predefined.non_menus.order(name: :asc).page params[:page]
-    @user_boards = current_user.boards.non_menus.where(predefined: false).order(name: :asc).page params[:page]
-    @newly_created_boards = @user_boards.where("created_at >= ?", 1.week.ago).order(created_at: :desc).limit(10)
+    @predefined_boards = Board.predefined.non_menus.alphabetical.page params[:page]
+    @user_boards = current_user.boards.non_menus.where(predefined: false).alphabetical.page params[:page]
+    @newly_created_boards = @user_boards.where("created_at >= ?", 1.week.ago).order(created_at: :desc).limit(20)
     @recently_used_boards = current_user.recently_used_boards
 
     render json: {
@@ -47,13 +47,13 @@ class API::BoardsController < API::ApplicationController
   end
 
   def public_menu_boards
-    @public_menu_boards = Board.public_menu_boards.order(name: :asc).page params[:page]
+    @public_menu_boards = Board.public_menu_boards.alphabetical.page params[:page]
     render json: { public_menu_boards: @public_menu_boards.map(&:api_view) }
   end
 
   def preset
     if params[:query].present?
-      @predefined_boards = Board.predefined.search_by_name(params[:query]).order(name: :asc).page params[:page]
+      @predefined_boards = Board.predefined.search_by_name(params[:query]).alphabetical.page params[:page]
     elsif params[:filter].present?
       filter = params[:filter]
       unless Board::SAFE_FILTERS.include?(filter)
@@ -63,13 +63,13 @@ class API::BoardsController < API::ApplicationController
 
       result = Board.predefined.send(filter)
       if result.is_a?(ActiveRecord::Relation)
-        @predefined_boards = result.order(name: :asc).page params[:page]
+        @predefined_boards = result.alphabetical.page params[:page]
       else
         @predefined_boards = result
       end
-      # @predefined_boards = Board.predefined.where(category: params[:filter]).order(name: :asc).page params[:page]
+      # @predefined_boards = Board.predefined.where(category: params[:filter]).alphabetical.page params[:page]
     else
-      @predefined_boards = Board.predefined.order(name: :asc)
+      @predefined_boards = Board.predefined.alphabetical
     end
     @categories = @predefined_boards.map(&:category).uniq.compact
     @welcome_boards = Board.welcome
@@ -83,10 +83,10 @@ class API::BoardsController < API::ApplicationController
   end
 
   def user_boards
-    # @boards = boards_for_user.user_made_with_scenarios_and_menus.order(name: :asc)
-    @boards = current_user.boards.user_made_with_scenarios.order(name: :asc)
+    # @boards = boards_for_user.user_made_with_scenarios_and_menus.alphabetical
+    @boards = current_user.boards.user_made_with_scenarios.alphabetical
 
-    render json: { boards: @boards, dynamic_boards: current_user.boards.dynamic.order(name: :asc) }
+    render json: { boards: @boards, dynamic_boards: current_user.boards.dynamic.alphabetical }
   end
 
   def predictive_image_board

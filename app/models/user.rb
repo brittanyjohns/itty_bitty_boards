@@ -952,7 +952,7 @@ class User < ApplicationRecord
     {
       id: id,
       organization_id: organization_id,
-      profile: profile&.api_view,
+      # profile: profile&.api_view,
       vendor_profile: profile&.api_view,
       vendor: vendor&.api_view,
       is_vendor: vendor?,

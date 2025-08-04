@@ -25,6 +25,7 @@ class BoardGroup < ApplicationRecord
   belongs_to :root_board, class_name: "Board", optional: true
 
   scope :predefined, -> { where(predefined: true) }
+  scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
   scope :featured, -> { where(predefined: true, featured: true) }
   scope :by_name, ->(name) { where("name ILIKE ?", "%#{name}%") }
   scope :by_user, ->(user_id) { where(user_id: user_id) }
