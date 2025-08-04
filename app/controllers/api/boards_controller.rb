@@ -25,6 +25,9 @@ class API::BoardsController < API::ApplicationController
     end
     @predefined_boards = Board.predefined.non_menus.alphabetical.page params[:page]
     @user_boards = current_user.boards.non_menus.where(predefined: false).alphabetical.page params[:page]
+    if current_user.admin?
+      @user_boards = current_user.boards.non_menus.alphabetical.all
+    end
     @newly_created_boards = @user_boards.where("created_at >= ?", 1.week.ago).order(created_at: :desc).limit(20)
     @recently_used_boards = current_user.recently_used_boards
 
