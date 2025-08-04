@@ -18,7 +18,8 @@
 #
 class BoardGroup < ApplicationRecord
   # has_many :board_group_boards, dependent: :destroy
-  has_many :boards
+  has_many :board_group_boards, dependent: :destroy
+  has_many :boards, through: :board_group_boards
   has_many :board_images, through: :boards
   has_many :images, through: :board_images
   belongs_to :user
@@ -71,6 +72,14 @@ class BoardGroup < ApplicationRecord
     end
   end
 
+  def add_board(board)
+    if boards.include?(board)
+      Rails.logger.info "Board #{board.id} already in group #{id}"
+      return
+    end
+    board_group_boards.create(board: board)
+  end
+
   def no_colmns_set
     number_of_columns.nil?
   end
@@ -107,7 +116,7 @@ class BoardGroup < ApplicationRecord
       predefined: predefined,
       root_board_id: root_board_id,
       original_obf_root_id: original_obf_root_id,
-      # layout: print_grid_layout,
+      layout: print_grid_layout,
       # number_of_columns: number_of_columns,
       display_image_url: display_image_url,
       created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
@@ -115,6 +124,7 @@ class BoardGroup < ApplicationRecord
   end
 
   def api_view_with_boards(viewing_user = nil)
+    cached_board_group_boards = board_group_boards.includes(:board)
     {
       id: id,
       name: name,
@@ -127,7 +137,8 @@ class BoardGroup < ApplicationRecord
       public_url: public_url,
       featured: featured,
       created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
-      boards: boards.map do |board|
+      boards: cached_board_group_boards.map do |board_group_board|
+        board = board_group_board.board
         { id: board.id,
           name: board.name,
           board_type: board.board_type,
@@ -135,7 +146,7 @@ class BoardGroup < ApplicationRecord
           user_id: board.user_id,
           parent_id: board.parent_id,
           parent_type: board.parent_type,
-          group_layout: board.group_layout,
+          group_layout: board_group_board.group_layout,
           display_image_url: board.display_image_url,
           audio_url: board.audio_url }
       end,
@@ -152,9 +163,9 @@ class BoardGroup < ApplicationRecord
 
   def position_all_boards
     ActiveRecord::Base.logger.silence do
-      boards.order(:position).each_with_index do |bi, index|
-        unless bi.position && bi.position == index
-          bi.update!(position: index)
+      board_group_boards.order(:position).each_with_index do |bgb, index|
+        unless bgb.position && bgb.position == index
+          bgb.update!(position: index)
         end
       end
     end
@@ -193,24 +204,25 @@ class BoardGroup < ApplicationRecord
     position_all_boards
     grid_layout = []
     row_count = 0
-    boards_count = boards.count
+    boards_count = board_group_boards.count
     number_of_columns = self.number_of_columns || 6
     rows = (boards_count / number_of_columns.to_f).ceil
     ActiveRecord::Base.logger.silence do
-      boards.order(:position).each_slice(number_of_columns) do |row|
-        row.each_with_index do |board, index|
-          new_layout = { i: board.id, x: index, y: row_count, w: 1, h: 1 }
-          board.update(group_layout: new_layout)
+      board_group_boards.order(:position).each_slice(number_of_columns) do |row|
+        row.each_with_index do |board_group_board, index|
+          new_layout = { i: board_group_board.id, x: index, y: row_count, w: 1, h: 1 }
+          board_group_board.update(group_layout: new_layout)
           grid_layout << new_layout
         end
         row_count += 1
       end
     end
+    self.layout = grid_layout
     grid_layout
   end
 
   def print_grid_layout
-    grid = boards.map(&:group_layout)
+    grid = board_group_boards.map(&:group_layout)
     grid.compact  # remove nils
   end
 

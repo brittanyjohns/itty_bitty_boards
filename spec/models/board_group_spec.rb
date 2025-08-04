@@ -36,7 +36,7 @@ RSpec.describe BoardGroup, type: :model do
     it "should include images and board_images" do
       board_group = BoardGroup.create(name: "Test", user: user)
       board = Board.create(name: "Test Board", user: user, parent: user, board_group: board_group)
-      board_group.boards << board
+      board_group.add_board(board)
       board_group.save
       expect(BoardGroup.with_artifacts.first.boards.first).to eq(board)
       expect(board.board_group).to eq(board_group)

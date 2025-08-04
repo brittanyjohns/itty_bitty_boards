@@ -844,7 +844,7 @@ class User < ApplicationRecord
 
   def startup_board_group
     startup_board_group_id = settings["startup_board_group_id"]
-    board_group = BoardGroup.includes(:boards).find_by(id: startup_board_group_id) if startup_board_group_id
+    board_group = BoardGroup.includes(board_group_boards: :board).find_by(id: startup_board_group_id) if startup_board_group_id
     return board_group if board_group
     BoardGroup.startup
   end

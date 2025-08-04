@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_08_03_184455) do
+ActiveRecord::Schema[7.1].define(version: 2025_08_04_135906) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -68,6 +68,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_08_03_184455) do
     t.bigint "board_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "position", default: 0, null: false
+    t.jsonb "group_layout", default: {}, null: false
     t.index ["board_group_id"], name: "index_board_group_boards_on_board_group_id"
     t.index ["board_id"], name: "index_board_group_boards_on_board_id"
   end
@@ -154,14 +156,12 @@ ActiveRecord::Schema[7.1].define(version: 2025_08_03_184455) do
     t.integer "image_parent_id"
     t.string "board_type"
     t.string "obf_id"
-    t.integer "board_group_id"
     t.string "language", default: "en"
     t.integer "board_images_count", default: 0, null: false
     t.boolean "published", default: false
     t.boolean "favorite", default: false
     t.bigint "vendor_id"
     t.string "slug", default: ""
-    t.index ["board_group_id"], name: "index_boards_on_board_group_id"
     t.index ["board_type"], name: "index_boards_on_board_type"
     t.index ["category"], name: "index_boards_on_category"
     t.index ["data"], name: "index_boards_on_data", using: :gin

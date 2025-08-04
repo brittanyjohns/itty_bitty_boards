@@ -24,8 +24,8 @@ class API::BoardGroupsController < API::ApplicationController
   end
 
   def show
-    @board_group = BoardGroup.find_by(id: params[:id]) if params[:id].present?
-    @board_group = BoardGroup.find_by(slug: params[:id]) if params[:id].present? && @board_group.nil?
+    @board_group = BoardGroup.includes(board_group_boards: :board).find_by(id: params[:id]) if params[:id].present?
+    @board_group = BoardGroup.includes(board_group_boards: :board).find_by(slug: params[:id]) if params[:id].present? && @board_group.nil?
     unless @board_group
       render json: { error: "Board Group not found" }, status: :not_found
       return
@@ -36,7 +36,7 @@ class API::BoardGroupsController < API::ApplicationController
 
   def show_by_slug
     puts "Finding Board Group by slug: #{params[:slug]}"
-    @board_group = BoardGroup.find_by(slug: params[:slug])
+    @board_group = BoardGroup.includes(board_group_boards: :board).find_by(slug: params[:slug])
     if @board_group
       render json: @board_group.api_view_with_boards(current_user)
     else
@@ -88,8 +88,19 @@ class API::BoardGroupsController < API::ApplicationController
   def remove_board
     board_group = BoardGroup.find(params[:id])
     board = Board.find(params[:board_id])
-    board_group.boards.delete(board)
+    board_group_boards = board_group.board_group_boards.find_by(board: board)
+    if board_group_boards.nil?
+      render json: { error: "Board not found in this group" }, status: :not_found
+      return
+    end
+    puts "Removing board #{board.id} from group #{board_group.id}"
+    puts "Board Group Boards: #{board_group.board_group_boards.count}"
+    board_group_boards.destroy
+    board_group.reload
+    puts "Board Group Boards after removal: #{board_group.board_group_boards.count}"
     render json: board_group.api_view_with_boards(current_user)
+  rescue ActiveRecord::RecordNotFound
+    render json: { error: "Board or Board Group not found" }, status: :not_found
   end
 
   def update

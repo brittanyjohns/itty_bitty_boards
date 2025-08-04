@@ -47,7 +47,8 @@ class Board < ApplicationRecord
   belongs_to :vendor, optional: true
   paginates_per 100
   belongs_to :parent, polymorphic: true
-  belongs_to :board_group, optional: true
+  has_many :board_group_boards, dependent: :destroy
+  has_many :board_groups, through: :board_group_boards
   has_many :board_images, dependent: :destroy
   has_many :visible_board_images, -> { where(hidden: false) }, class_name: "BoardImage"
   has_many :images, through: :board_images
@@ -707,7 +708,6 @@ class Board < ApplicationRecord
     @cloned_board.name = new_name
     @cloned_board.predefined = false
     @cloned_board.obf_id = nil
-    @cloned_board.board_group_id = nil
     @cloned_board.board_type = @source.board_type
     @cloned_board.data = nil
     @cloned_board.save
@@ -1137,8 +1137,7 @@ class Board < ApplicationRecord
   end
 
   def root_board
-    return board_group.root_board if board_group
-    self unless board_group
+    self
   end
 
   def preset_display_image_url
@@ -1664,7 +1663,7 @@ class Board < ApplicationRecord
       board_data = { obf_grid: obj["grid"] }
       is_root = root_board_id == obf_id
 
-      board = Board.find_by(name: board_name, user_id: current_user.id, obf_id: obf_id, board_group: board_group)
+      board = Board.find_by(name: board_name, user_id: current_user.id, obf_id: obf_id)
 
       dynamic_images = obj["buttons"].select { |item| item["load_board"] != nil }
       board_type = determine_board_type(dynamic_images, is_root)
@@ -1673,8 +1672,12 @@ class Board < ApplicationRecord
 
       board = Board.new(name: board_name, user_id: current_user.id, voice: voice,
                         large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns,
-                        data: board_data, number_of_columns: number_of_columns, obf_id: obf_id, board_group: board_group) unless board
+                        data: board_data, number_of_columns: number_of_columns, obf_id: obf_id) unless board
       board.board_type = board_type
+
+      if board_group
+        board_group.add_board(board)
+      end
 
       board.assign_parent
       unless board.save!
@@ -1848,7 +1851,7 @@ class Board < ApplicationRecord
       dynamic_data_array << dynamic_data
       if new_board
         Rails.logger.debug "Adding board to board group #{board_group.id} - #{new_board.name}"
-        new_board.board_group = board_group
+        new_board.board_groups << board_group
         new_board.save!
       else
         Rails.logger.error "Error creating board from OBF"
