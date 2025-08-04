@@ -374,7 +374,7 @@ class BoardImage < ApplicationRecord
     else
       self.voice = board.voice
       self.language = board.language
-      self.display_label = image.display_label
+      self.display_label = image.display_label if display_label.blank?
       self.language_settings = image.language_settings
 
       audio_file = image.find_audio_for_voice(voice, language)

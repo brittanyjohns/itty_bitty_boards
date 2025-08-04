@@ -735,13 +735,13 @@ class Board < ApplicationRecord
       layout = @layouts.find { |l| l[0] == original_image.id }&.second
       # new_board_image = @cloned_board.add_image(image.id, layout)
       new_board_image = board_image.dup
-      new_board_image.image = image
-      new_board_image.board = @cloned_board
-      new_board_image.image_id = image.id
-      new_board_image.layout = layout if layout
-      new_board_image.save
-
       if new_board_image
+        new_board_image.image = image
+        new_board_image.board = @cloned_board
+        new_board_image.image_id = image.id
+        new_board_image.layout = layout if layout
+        new_board_image.display_label = board_image.display_label
+
         new_board_image.voice = board_image.voice
         new_board_image.predictive_board_id = board_image.predictive_board_id
         new_board_image.save
