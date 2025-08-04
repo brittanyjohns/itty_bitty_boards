@@ -45,15 +45,21 @@ class API::BoardGroupsController < API::ApplicationController
   end
 
   def create
-    board_group = BoardGroup.new(board_group_params)
+    board_group = BoardGroup.new
     board_group.user = current_user
     board_group.predefined = board_group_params[:predefined]
     board_group.number_of_columns = board_group_params[:number_of_columns]
     board_group.featured = board_group_params[:featured] || false
+    screen_size = board_group_params[:screen_size] || "lg"
+    boards = board_group_params[:board_ids].map { |id| Board.find_by(id: id) if id.present? }.compact
+    boards.each do |board|
+      board_group_board = board_group.add_board(board)
+      board_group_board.save!
+    end
 
     if board_group.save
       mark_default(board_group)
-      board_group.calculate_grid_layout
+      board_group.calculate_grid_layout_for_screen_size(screen_size)
       render json: board_group.api_view_with_boards(current_user)
     else
       render json: { errors: board_group.errors.full_messages }, status: :unprocessable_entity
@@ -62,27 +68,18 @@ class API::BoardGroupsController < API::ApplicationController
 
   def rearrange_boards
     board_group = BoardGroup.find(params[:id])
-    board_group.calculate_grid_layout
+    screen_size = params[:screen_size] || "lg"
+    board_group.calculate_grid_layout_for_screen_size(screen_size)
     board_group.save
     render json: board_group.api_view_with_boards(current_user)
   end
 
   def save_layout
-    board_group = BoardGroup.find(params[:id])
-    layout = params[:layout]
-    layout.each_with_index do |layout_item, index|
-      board_id = layout_item["i"]
-      puts "Board ID: #{board_id}"
-      if board_id.blank?
-        puts "Skipping blank board ID at index #{index}"
-        next
-      end
-      board = board_group.boards.find(board_id.to_i)
-      board.group_layout = layout_item
-      board.save!
-    end
-    board_group.reload
-    render json: board_group.api_view_with_boards(current_user)
+    @board_group = BoardGroup.find(params[:id])
+    save_layout!
+
+    @board_group.reload
+    render json: @board_group.api_view_with_boards(current_user)
   end
 
   def remove_board
@@ -108,7 +105,12 @@ class API::BoardGroupsController < API::ApplicationController
     board_group.predefined = board_group_params[:predefined]
     board_group.number_of_columns = board_group_params[:number_of_columns]
     board_group.featured = board_group_params[:featured] || false
-    if board_group.update(board_group_params)
+    boards = board_group_params[:board_ids].map { |id| Board.find_by(id: id) if id.present? }.compact
+    boards.each do |board|
+      board_group_board = board_group.add_board(board)
+      board_group_board.save!
+    end
+    if board_group.save
       mark_default(board_group)
       board_group.adjust_layouts
       render json: board_group.api_view_with_boards(current_user)
@@ -127,7 +129,7 @@ class API::BoardGroupsController < API::ApplicationController
   private
 
   def board_group_params
-    params.require(:board_group).permit(:name, :featured, :display_image_url, :predefined, :number_of_columns, board_ids: [])
+    params.require(:board_group).permit(:name, :featured, :display_image_url, :predefined, :number_of_columns, :small_screen_columns, :medium_screen_columns, :large_screen_columns, board_ids: [])
   end
 
   def mark_default(board_group)
@@ -136,5 +138,51 @@ class API::BoardGroupsController < API::ApplicationController
       current_user.settings["startup_board_group_id"] = board_group.id
       current_user.save
     end
+  end
+
+  def save_layout!
+    layout = params[:layout].map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
+
+    # Sort layout by y and x coordinates
+    sorted_layout = layout.sort_by { |item| [item["y"].to_i, item["x"].to_i] }
+
+    board_group_board_ids = []
+    sorted_layout.each_with_index do |item, i|
+      board_group_board_id = item["i"].to_i
+      board_group_board = @board_group.board_group_boards.find_by(id: board_group_board_id)
+      if board_group_board
+        puts "Updating position for board group board ID: #{board_group_board_id} to #{i}"
+        board_group_board.update!(position: i)
+      else
+        Rails.logger.error "Board group board not found for ID: #{board_group_board_id}"
+      end
+    end
+
+    # Save screen size settings
+    screen_size = params[:screen_size] || "lg"
+    if params[:small_screen_columns].present? || params[:medium_screen_columns].present? || params[:large_screen_columns].present?
+      @board_group.small_screen_columns = params[:small_screen_columns].to_i if params[:small_screen_columns].present?
+      @board_group.medium_screen_columns = params[:medium_screen_columns].to_i if params[:medium_screen_columns].present?
+      @board_group.large_screen_columns = params[:large_screen_columns].to_i if params[:large_screen_columns].present?
+    end
+
+    # Save margin settings
+    margin_x = params[:xMargin].to_i
+    margin_y = params[:yMargin].to_i
+    if margin_x.present? && margin_y.present?
+      @board_group.margin_settings[screen_size] = { x: margin_x, y: margin_y }
+    end
+
+    # Save additional settings
+    @board_group.settings[screen_size] = params[:settings] if params[:settings].present?
+    @board_group.save!
+
+    # Update the grid layout
+    begin
+      @board_group.update_grid_layout(sorted_layout, screen_size)
+    rescue => e
+      Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
+    end
+    @board_group.reload
   end
 end

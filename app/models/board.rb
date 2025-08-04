@@ -889,17 +889,17 @@ class Board < ApplicationRecord
     self.save!
   end
 
-  def set_layouts_for_screen_sizes
-    calculate_grid_layout_for_screen_size("sm", true)
-    calculate_grid_layout_for_screen_size("md", true)
-    calculate_grid_layout_for_screen_size("lg", true)
-  end
+  # def set_layouts_for_screen_sizes
+  #   calculate_grid_layout_for_screen_size("sm", true)
+  #   calculate_grid_layout_for_screen_size("md", true)
+  #   calculate_grid_layout_for_screen_size("lg", true)
+  # end
 
-  def update_layouts_for_screen_sizes
-    update_board_layout("sm")
-    update_board_layout("md")
-    update_board_layout("lg")
-  end
+  # def update_layouts_for_screen_sizes
+  #   update_board_layout("sm")
+  #   update_board_layout("md")
+  #   update_board_layout("lg")
+  # end
 
   def update_board_layout(screen_size)
     self.layout = {}
@@ -945,18 +945,18 @@ class Board < ApplicationRecord
     self.save!
   end
 
-  def get_number_of_columns(screen_size = "lg")
-    case screen_size
-    when "sm"
-      num_of_columns = self.small_screen_columns > 0 ? self.small_screen_columns : 4
-    when "md"
-      num_of_columns = self.medium_screen_columns > 0 ? self.medium_screen_columns : 6
-    when "lg"
-      num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 8
-    else
-      num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 12
-    end
-  end
+  # def get_number_of_columns(screen_size = "lg")
+  #   case screen_size
+  #   when "sm"
+  #     num_of_columns = self.small_screen_columns > 0 ? self.small_screen_columns : 4
+  #   when "md"
+  #     num_of_columns = self.medium_screen_columns > 0 ? self.medium_screen_columns : 6
+  #   when "lg"
+  #     num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 8
+  #   else
+  #     num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 12
+  #   end
+  # end
 
   def grid_layout(screen_size = "lg")
     layout_to_set = []
@@ -978,38 +978,38 @@ class Board < ApplicationRecord
     (screen_dimension / num_of_columns).to_i
   end
 
-  def next_available_cell(screen_size = "lg")
-    # Create a hash to track occupied cells
-    occupied = Hash.new { |hash, key| hash[key] = [] }
-    self.update_board_layout(screen_size)
-    grid = self.layout[screen_size] || []
+  # def next_available_cell(screen_size = "lg")
+  #   # Create a hash to track occupied cells
+  #   occupied = Hash.new { |hash, key| hash[key] = [] }
+  #   self.update_board_layout(screen_size)
+  #   grid = self.layout[screen_size] || []
 
-    # Mark existing cells as occupied
-    grid.each do |cell|
-      cell_layout = cell[1]
-      x, y, w, h = cell_layout.values_at("x", "y", "w", "h")
-      x ||= 0
-      y ||= 0
-      w ||= 1
-      h ||= 1
-      w.times do |w_offset|
-        h.times do |h_offset|
-          occupied[y + h_offset] << (x + w_offset)
-        end
-      end
-    end
+  #   # Mark existing cells as occupied
+  #   grid.each do |cell|
+  #     cell_layout = cell[1]
+  #     x, y, w, h = cell_layout.values_at("x", "y", "w", "h")
+  #     x ||= 0
+  #     y ||= 0
+  #     w ||= 1
+  #     h ||= 1
+  #     w.times do |w_offset|
+  #       h.times do |h_offset|
+  #         occupied[y + h_offset] << (x + w_offset)
+  #       end
+  #     end
+  #   end
 
-    columns = get_number_of_columns(screen_size)
+  #   columns = get_number_of_columns(screen_size)
 
-    # Search for the first unoccupied 1x1 cell
-    (0..Float::INFINITY).each do |y|
-      (0...columns).each do |x|
-        unless occupied[y].include?(x)
-          return { "x" => x, "y" => y, "w" => 1, "h" => 1 }
-        end
-      end
-    end
-  end
+  #   # Search for the first unoccupied 1x1 cell
+  #   (0..Float::INFINITY).each do |y|
+  #     (0...columns).each do |x|
+  #       unless occupied[y].include?(x)
+  #         return { "x" => x, "y" => y, "w" => 1, "h" => 1 }
+  #       end
+  #     end
+  #   end
+  # end
 
   def format_board_with_ai(screen_size = "lg", maintain_existing_layout = false)
     num_of_columns = get_number_of_columns(screen_size)

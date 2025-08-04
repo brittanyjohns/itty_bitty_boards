@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_08_04_150544) do
+ActiveRecord::Schema[7.1].define(version: 2025_08_04_153843) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -89,6 +89,11 @@ ActiveRecord::Schema[7.1].define(version: 2025_08_04_150544) do
     t.string "original_obf_root_id"
     t.boolean "featured", default: false, null: false
     t.string "slug"
+    t.integer "small_screen_columns", default: 4, null: false
+    t.integer "medium_screen_columns", default: 5, null: false
+    t.integer "large_screen_columns", default: 6, null: false
+    t.jsonb "margin_settings", default: {}, null: false
+    t.jsonb "settings", default: {}, null: false
     t.index ["featured"], name: "index_board_groups_on_featured"
     t.index ["original_obf_root_id"], name: "index_board_groups_on_original_obf_root_id"
     t.index ["root_board_id"], name: "index_board_groups_on_root_board_id"
