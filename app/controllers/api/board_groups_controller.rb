@@ -57,8 +57,10 @@ class API::BoardGroupsController < API::ApplicationController
     board_group.margin_settings = board_group_params[:margin_settings] || {}
     board_group.name = board_group_params[:name]
     board_group.display_image_url = board_group_params[:display_image_url]
+    Rails.logger.debug "display_image_url: #{board_group.display_image_url.inspect}"
     screen_size = board_group_params[:screen_size] || "lg"
-    boards = board_group_params[:board_ids].map { |id| Board.find_by(id: id) if id.present? }.compact
+    boards = board_group_params[:board_ids].map { |id| Board.find_by(id: id) if id.present? }.compact if board_group_params[:board_ids].present?
+    Rails.logger.debug "Creating Board Group with parameters: #{board_group_params.inspect}"
     board_group.save!
     boards.each do |board|
       board_group_board = board_group.add_board(board)
@@ -110,7 +112,7 @@ class API::BoardGroupsController < API::ApplicationController
 
   def update
     board_group = BoardGroup.find(params[:id])
-    Rails.logger.debug "Updating parameters: #{board_group_params.inspect}"
+    Rails.logger.debug "Updating parameters: #{params.inspect}"
     board_group.predefined = board_group_params[:predefined]
     board_group.number_of_columns = board_group_params[:number_of_columns]
     board_group.featured = board_group_params[:featured] || false
@@ -121,29 +123,38 @@ class API::BoardGroupsController < API::ApplicationController
 
     board_group.settings = board_group_params[:settings] || {}
     board_group.margin_settings = board_group_params[:margin_settings] || {}
-    boards = board_group_params[:board_ids].map { |id| Board.find_by(id: id) if id.present? }.compact
-
-    existing_board_ids = board_group.board_group_boards.map(&:board_id)
-    boards_to_remove = []
-    board_ids = board_group_params[:board_ids] || []
-    board_group.board_group_boards.each do |bgb|
-      if board_ids.exclude?(bgb.board_id.to_s)
-        bgb.destroy
-        boards_to_remove << bgb.board_id
-      end
-    end
-    Rails.logger.debug "Boards to remove: #{boards_to_remove.inspect}"
-    boards.each do |board|
-      if board_group.boards.exclude?(board)
-        Rails.logger.debug "Adding board #{board.id} to group #{board_group.id}"
-        board_group_board = board_group.add_board(board)
-        if board_group_board
-          board_group_board.save!
-        else
-          Rails.logger.error "Failed to add board #{board.id} to group #{board_group.id}"
+    boards = board_group_params[:board_ids].map { |id| Board.find_by(id: id) if id.present? }.compact if board_group_params[:board_ids].present?
+    Rails.logger.debug "Boards to add: #{boards.map(&:id).inspect}" if boards.present?
+    Rails.logger.debug "Board Group before update: #{board_group.inspect}"
+    display_image_url = params[:display_image_url] || board_group_params[:display_image_url]
+    update_boards = params[:update_boards] || board_group_params[:update_boards]
+    Rails.logger.debug "Update boards: #{update_boards.inspect}"
+    if display_image_url.present? && !update_boards
+      Rails.logger.debug "Setting display_image_url: #{display_image_url.inspect} - #{update_boards.inspect}"
+      board_group.display_image_url = display_image_url
+    else
+      existing_board_ids = board_group.board_group_boards.map(&:board_id)
+      boards_to_remove = []
+      board_ids = board_group_params[:board_ids] || []
+      board_group.board_group_boards.each do |bgb|
+        if board_ids.exclude?(bgb.board_id.to_s)
+          bgb.destroy
+          boards_to_remove << bgb.board_id
         end
-      else
-        Rails.logger.debug "Board #{board.id} already in group #{board_group.id}"
+      end
+      Rails.logger.debug "Boards to remove: #{boards_to_remove.inspect}"
+      boards.each do |board|
+        if board_group.boards.exclude?(board)
+          Rails.logger.debug "Adding board #{board.id} to group #{board_group.id}"
+          board_group_board = board_group.add_board(board)
+          if board_group_board
+            board_group_board.save!
+          else
+            Rails.logger.error "Failed to add board #{board.id} to group #{board_group.id}"
+          end
+        else
+          Rails.logger.debug "Board #{board.id} already in group #{board_group.id}"
+        end
       end
     end
     if board_group.save
