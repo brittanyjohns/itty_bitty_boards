@@ -62,9 +62,13 @@ class API::BoardGroupsController < API::ApplicationController
     boards = board_group_params[:board_ids].map { |id| Board.find_by(id: id) if id.present? }.compact if board_group_params[:board_ids].present?
     Rails.logger.debug "Creating Board Group with parameters: #{board_group_params.inspect}"
     board_group.save!
-    boards.each do |board|
-      board_group_board = board_group.add_board(board)
-      board_group_board.save!
+    if boards.blank?
+      Rails.logger.debug "No boards provided, saving empty board group"
+    else
+      boards.each do |board|
+        board_group_board = board_group.add_board(board)
+        board_group_board.save!
+      end
     end
 
     if board_group.save
