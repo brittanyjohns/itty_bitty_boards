@@ -15,6 +15,12 @@
 #  updated_at           :datetime         not null
 #  root_board_id        :integer
 #  original_obf_root_id :string
+#  settings             :jsonb            default({}), not null
+#  featured             :boolean          default(FALSE)
+#  slug                 :string
+#  small_screen_columns :integer          default(2)
+#  medium_screen_columns :integer         default(4)
+#  large_screen_columns :integer          default(6)
 #
 class BoardGroup < ApplicationRecord
   # has_many :board_group_boards, dependent: :destroy
@@ -58,6 +64,15 @@ class BoardGroup < ApplicationRecord
     self.number_of_columns = 6
   end
 
+  def etsy_link
+    settings["etsy_link"]
+  end
+
+  def set_etsy_link(link)
+    self.settings["etsy_link"] = link
+    save
+  end
+
   def update_all_board_images
     images.includes(:board_images).find_each do |image|
       image.update_all_boards_image_belongs_to(image.src_url) if image.src_url.present?
@@ -96,7 +111,6 @@ class BoardGroup < ApplicationRecord
 
   def update_grid_layout(layout_to_set, screen_size)
     layout_for_screen_size = self.layout[screen_size] || []
-    Rails.logger.debug "Updating grid layout for screen size: #{screen_size} with layout: #{layout_to_set.inspect}"
     unless layout_to_set.is_a?(Array)
       Rails.logger.error "Invalid layout format for screen size #{screen_size}: #{layout_to_set.inspect}"
       return
@@ -185,6 +199,8 @@ class BoardGroup < ApplicationRecord
       small_screen_columns: small_screen_columns,
       medium_screen_columns: medium_screen_columns,
       large_screen_columns: large_screen_columns,
+      settings: settings,
+      margin_settings: margin_settings,
       slug: slug,
       public_url: public_url,
       featured: featured,
@@ -301,26 +317,14 @@ class BoardGroup < ApplicationRecord
     calculate_grid_layout_for_screen_size("lg", true)
   end
 
-  # def print_grid_layout
-  #   layout_to_set = {}
-  #   Board::SCREEN_SIZES.each do |screen_size|
-  #     puts "Setting layout for screen size: #{screen_size}"
-
-  #     layout_to_set[screen_size] = print_grid_layout_for_screen_size(screen_size)
-  #   end
-  #   layout_to_set
-  # end
-
   def print_grid_layout_for_screen_size(screen_size)
     layout_to_set = {}
-    Rails.logger.debug "Printing grid layout for screen size: #{screen_size}"
     board_group_boards.order(:position).each_with_index do |bgb, i|
       if bgb.group_layout[screen_size]
         layout_to_set[bgb.id] = bgb.group_layout[screen_size]
       end
     end
     layout_to_set = layout_to_set.compact # Remove nil values
-    Rails.logger.debug "Layout for screen size #{screen_size}: #{layout_to_set.inspect}"
     layout_to_set
   end
 

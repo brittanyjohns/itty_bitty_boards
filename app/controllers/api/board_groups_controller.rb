@@ -53,6 +53,8 @@ class API::BoardGroupsController < API::ApplicationController
     board_group.small_screen_columns = board_group_params[:small_screen_columns] || 1
     board_group.medium_screen_columns = board_group_params[:medium_screen_columns] || 2
     board_group.large_screen_columns = board_group_params[:large_screen_columns] || 3
+    board_group.settings = board_group_params[:settings] || {}
+    board_group.margin_settings = board_group_params[:margin_settings] || {}
     board_group.name = board_group_params[:name]
     board_group.display_image_url = board_group_params[:display_image_url]
     screen_size = board_group_params[:screen_size] || "lg"
@@ -108,20 +110,24 @@ class API::BoardGroupsController < API::ApplicationController
 
   def update
     board_group = BoardGroup.find(params[:id])
+    Rails.logger.debug "Updating parameters: #{board_group_params.inspect}"
     board_group.predefined = board_group_params[:predefined]
     board_group.number_of_columns = board_group_params[:number_of_columns]
     board_group.featured = board_group_params[:featured] || false
+    board_group.small_screen_columns = board_group_params[:small_screen_columns] || 4
+    board_group.medium_screen_columns = board_group_params[:medium_screen_columns] || 5
+    board_group.large_screen_columns = board_group_params[:large_screen_columns] || 6
+    Rails.logger.debug "Parameters settings: #{board_group_params[:settings].inspect}"
+
+    board_group.settings = board_group_params[:settings] || {}
+    board_group.margin_settings = board_group_params[:margin_settings] || {}
     boards = board_group_params[:board_ids].map { |id| Board.find_by(id: id) if id.present? }.compact
 
     existing_board_ids = board_group.board_group_boards.map(&:board_id)
-    Rails.logger.debug "Existing Board IDs: #{existing_board_ids.inspect}"
-    Rails.logger.debug "Boards to be added: #{boards.map(&:id).inspect}"
-    Rails.logger.debug "Boards to be removed: #{existing_board_ids - boards.map(&:id)}"
     boards_to_remove = []
     board_ids = board_group_params[:board_ids] || []
     board_group.board_group_boards.each do |bgb|
       if board_ids.exclude?(bgb.board_id.to_s)
-        Rails.logger.debug "Removing board #{bgb.board_id} from group #{board_group.id}"
         bgb.destroy
         boards_to_remove << bgb.board_id
       end
@@ -160,7 +166,7 @@ class API::BoardGroupsController < API::ApplicationController
   private
 
   def board_group_params
-    params.require(:board_group).permit(:name, :featured, :display_image_url, :predefined, :number_of_columns, :small_screen_columns, :medium_screen_columns, :large_screen_columns, board_ids: [])
+    params.require(:board_group).permit(:name, :featured, :display_image_url, :predefined, :number_of_columns, :small_screen_columns, :medium_screen_columns, :large_screen_columns, board_ids: [], settings: {}, margin_settings: {}, make_default: [true, false], screen_size: [:lg, :md, :sm], layout: [])
   end
 
   def mark_default(board_group)
