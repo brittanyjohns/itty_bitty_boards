@@ -57,6 +57,7 @@ class API::BoardGroupsController < API::ApplicationController
     board_group.display_image_url = board_group_params[:display_image_url]
     screen_size = board_group_params[:screen_size] || "lg"
     boards = board_group_params[:board_ids].map { |id| Board.find_by(id: id) if id.present? }.compact
+    board_group.save!
     boards.each do |board|
       board_group_board = board_group.add_board(board)
       board_group_board.save!

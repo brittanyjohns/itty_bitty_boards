@@ -80,8 +80,9 @@ class BoardGroup < ApplicationRecord
     end
     begin
       bgb = board_group_boards.create(board: board)
-      bgb.set_initial_layout! if bgb.layout_invalid?
+      # bgb.set_initial_layout! if bgb.layout_invalid?
       bgb.save!
+      bgb.set_initial_layout! if bgb.layout_invalid?
       bgb.clean_up_layout
       bgb
     rescue ActiveRecord::RecordInvalid => e
@@ -300,18 +301,6 @@ class BoardGroup < ApplicationRecord
     calculate_grid_layout_for_screen_size("lg", true)
   end
 
-  def print_grid_layout_for_screen_size(screen_size)
-    layout_to_set = []
-    board_group_boards.order(:position).each_with_index do |bgb, i|
-      if bgb.group_layout[screen_size]
-        layout_to_set[bgb.id] = bgb.group_layout[screen_size]
-      end
-    end
-    layout_to_set = layout_to_set.compact # Remove nil values
-    Rails.logger.debug "Layout for screen size #{screen_size}: #{layout_to_set.inspect}"
-    layout_to_set
-  end
-
   # def print_grid_layout
   #   layout_to_set = {}
   #   Board::SCREEN_SIZES.each do |screen_size|
@@ -321,6 +310,19 @@ class BoardGroup < ApplicationRecord
   #   end
   #   layout_to_set
   # end
+
+  def print_grid_layout_for_screen_size(screen_size)
+    layout_to_set = {}
+    Rails.logger.debug "Printing grid layout for screen size: #{screen_size}"
+    board_group_boards.order(:position).each_with_index do |bgb, i|
+      if bgb.group_layout[screen_size]
+        layout_to_set[bgb.id] = bgb.group_layout[screen_size]
+      end
+    end
+    layout_to_set = layout_to_set.compact # Remove nil values
+    Rails.logger.debug "Layout for screen size #{screen_size}: #{layout_to_set.inspect}"
+    layout_to_set
+  end
 
   def print_grid_layout
     layout_to_set = layout || {}
