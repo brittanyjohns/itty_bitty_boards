@@ -51,7 +51,7 @@ class BoardGroup < ApplicationRecord
   # after_initialize :set_initial_layout, if: :layout_empty?
   # after_save :set_layouts_for_screen_sizes
   # after_save :create_board_audio_files
-  before_save :set_root_board
+  before_create :set_root_board
   after_initialize :set_number_of_columns, if: :no_colmns_set
 
   def set_number_of_columns
@@ -95,22 +95,27 @@ class BoardGroup < ApplicationRecord
 
   def update_grid_layout(layout_to_set, screen_size)
     layout_for_screen_size = self.layout[screen_size] || []
+    Rails.logger.debug "Updating grid layout for screen size: #{screen_size} with layout: #{layout_to_set.inspect}"
     unless layout_to_set.is_a?(Array)
+      Rails.logger.error "Invalid layout format for screen size #{screen_size}: #{layout_to_set.inspect}"
       return
     end
     layout_to_set.each_with_index do |layout_item, i|
       id_key = layout_item[:i]
       layout_hash = layout_item.with_indifferent_access
       id_key = layout_hash[:i] || layout_hash["i"]
+      Rails.logger.debug "Processing layout item with ID: #{id_key} for screen size: #{screen_size}"
       bgb = board_group_boards.find(id_key) rescue nil
-      bgb = board_group_boards.find_by(image_id: id_key) if bgb.nil?
+      bgb = board_group_boards.find_by(board_id: id_key) if bgb.nil?
 
       if bgb.nil?
         next
       end
-      bgb.layout[screen_size] = layout_hash
+      bgb.group_layout[screen_size] = layout_hash
+      Rails.logger.debug "Setting layout for board group board ID: #{bgb.id} to #{layout_hash.inspect}"
+
       bgb.position = i
-      bgb.clean_up_layout
+      # bgb.clean_up_layout
       bgb.save!
     end
     self.layout[screen_size] = layout_to_set
@@ -154,6 +159,9 @@ class BoardGroup < ApplicationRecord
       predefined: predefined,
       root_board_id: root_board_id,
       original_obf_root_id: original_obf_root_id,
+      small_screen_columns: small_screen_columns,
+      medium_screen_columns: medium_screen_columns,
+      large_screen_columns: large_screen_columns,
       layout: print_grid_layout,
       saved_layout: layout,
       number_of_columns: number_of_columns,
@@ -173,6 +181,9 @@ class BoardGroup < ApplicationRecord
       saved_layout: layout,
       number_of_columns: number_of_columns,
       display_image_url: display_image_url,
+      small_screen_columns: small_screen_columns,
+      medium_screen_columns: medium_screen_columns,
+      large_screen_columns: large_screen_columns,
       slug: slug,
       public_url: public_url,
       featured: featured,
@@ -244,32 +255,6 @@ class BoardGroup < ApplicationRecord
     @startup ||= BoardGroup.find_or_create_by(name: "Startup", predefined: true)
   end
 
-  # def calculate_grid_layout
-  #   position_all_boards
-  #   grid_layout = []
-  #   row_count = 0
-  #   boards_count = board_group_boards.count
-  #   number_of_columns = self.number_of_columns || 6
-  #   rows = (boards_count / number_of_columns.to_f).ceil
-  #   ActiveRecord::Base.logger.silence do
-  #     board_group_boards.order(:position).each_slice(number_of_columns) do |row|
-  #       row.each_with_index do |board_group_board, index|
-  #         new_layout = { i: board_group_board.id, x: index, y: row_count, w: 1, h: 1 }
-  #         board_group_board.update(group_layout: new_layout)
-  #         grid_layout << new_layout
-  #       end
-  #       row_count += 1
-  #     end
-  #   end
-  #   self.layout = grid_layout
-  #   grid_layout
-  # end
-
-  # def print_grid_layout
-  #   grid = board_group_boards.map(&:group_layout)
-  #   grid.compact  # remove nils
-  # end
-
   def calculate_grid_layout_for_screen_size(screen_size, reset_layouts = false)
     num_of_columns = get_number_of_columns(screen_size)
     layout_to_set = [] # Initialize as an array
@@ -283,10 +268,13 @@ class BoardGroup < ApplicationRecord
         row.each_with_index do |bgb, index|
           new_layout = {}
           if bgb.group_layout[screen_size] && reset_layouts == false
+            Rails.logger.debug "Using existing layout for board group board #{bgb.id} on screen size #{screen_size}"
             new_layout = bgb.group_layout[screen_size]
           else
+            Rails.logger.debug "Setting initial layout for board group board #{bgb.id} on screen size #{screen_size}"
             width = bgb.group_layout[screen_size] ? bgb.group_layout[screen_size]["w"] : 1
             height = bgb.group_layout[screen_size] ? bgb.group_layout[screen_size]["h"] : 1
+            Rails.logger.debug "Width: #{width}, Height: #{height} for board group board #{bgb.id} on screen size #{screen_size}"
             new_layout = { "i" => bgb.id.to_s, "x" => index, "y" => row_count, "w" => width, "h" => height }
           end
 
@@ -320,6 +308,7 @@ class BoardGroup < ApplicationRecord
       end
     end
     layout_to_set = layout_to_set.compact # Remove nil values
+    Rails.logger.debug "Layout for screen size #{screen_size}: #{layout_to_set.inspect}"
     layout_to_set
   end
 

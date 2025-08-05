@@ -17,7 +17,7 @@ class API::BoardGroupsController < API::ApplicationController
       end
       @featured_board_groups = BoardGroup.featured.alphabetical.page params[:page]
       @user_board_groups = current_user.board_groups.where(predefined: [false, nil]).alphabetical.page params[:page]
-      puts "Featured Board Groups: #{@featured_board_groups.count}"
+      Rails.logger.debug "Featured Board Groups: #{@featured_board_groups.count}"
       @welcome_board = @welcome_group&.boards&.first
       render json: { predefined_board_groups: @predefined_board_groups.map(&:api_view), featured_board_groups: @featured_board_groups.map(&:api_view), welcome_board: @welcome_board&.api_view, user_board_groups: @user_board_groups.map(&:api_view) }
     end
@@ -35,7 +35,7 @@ class API::BoardGroupsController < API::ApplicationController
   end
 
   def show_by_slug
-    puts "Finding Board Group by slug: #{params[:slug]}"
+    Rails.logger.debug "Finding Board Group by slug: #{params[:slug]}"
     @board_group = BoardGroup.includes(board_group_boards: :board).find_by(slug: params[:slug])
     if @board_group
       render json: @board_group.api_view_with_boards(current_user)
@@ -50,6 +50,11 @@ class API::BoardGroupsController < API::ApplicationController
     board_group.predefined = board_group_params[:predefined]
     board_group.number_of_columns = board_group_params[:number_of_columns]
     board_group.featured = board_group_params[:featured] || false
+    board_group.small_screen_columns = board_group_params[:small_screen_columns] || 1
+    board_group.medium_screen_columns = board_group_params[:medium_screen_columns] || 2
+    board_group.large_screen_columns = board_group_params[:large_screen_columns] || 3
+    board_group.name = board_group_params[:name]
+    board_group.display_image_url = board_group_params[:display_image_url]
     screen_size = board_group_params[:screen_size] || "lg"
     boards = board_group_params[:board_ids].map { |id| Board.find_by(id: id) if id.present? }.compact
     boards.each do |board|
@@ -59,7 +64,7 @@ class API::BoardGroupsController < API::ApplicationController
 
     if board_group.save
       mark_default(board_group)
-      board_group.calculate_grid_layout_for_screen_size(screen_size)
+      # board_group.calculate_grid_layout_for_screen_size(screen_size)
       render json: board_group.api_view_with_boards(current_user)
     else
       render json: { errors: board_group.errors.full_messages }, status: :unprocessable_entity
@@ -90,11 +95,11 @@ class API::BoardGroupsController < API::ApplicationController
       render json: { error: "Board not found in this group" }, status: :not_found
       return
     end
-    puts "Removing board #{board.id} from group #{board_group.id}"
-    puts "Board Group Boards: #{board_group.board_group_boards.count}"
+    Rails.logger.debug "Removing board #{board.id} from group #{board_group.id}"
+    Rails.logger.debug "Board Group Boards: #{board_group.board_group_boards.count}"
     board_group_boards.destroy
     board_group.reload
-    puts "Board Group Boards after removal: #{board_group.board_group_boards.count}"
+    Rails.logger.debug "Board Group Boards after removal: #{board_group.board_group_boards.count}"
     render json: board_group.api_view_with_boards(current_user)
   rescue ActiveRecord::RecordNotFound
     render json: { error: "Board or Board Group not found" }, status: :not_found
@@ -106,13 +111,38 @@ class API::BoardGroupsController < API::ApplicationController
     board_group.number_of_columns = board_group_params[:number_of_columns]
     board_group.featured = board_group_params[:featured] || false
     boards = board_group_params[:board_ids].map { |id| Board.find_by(id: id) if id.present? }.compact
+
+    existing_board_ids = board_group.board_group_boards.map(&:board_id)
+    Rails.logger.debug "Existing Board IDs: #{existing_board_ids.inspect}"
+    Rails.logger.debug "Boards to be added: #{boards.map(&:id).inspect}"
+    Rails.logger.debug "Boards to be removed: #{existing_board_ids - boards.map(&:id)}"
+    boards_to_remove = []
+    board_ids = board_group_params[:board_ids] || []
+    board_group.board_group_boards.each do |bgb|
+      if board_ids.exclude?(bgb.board_id.to_s)
+        Rails.logger.debug "Removing board #{bgb.board_id} from group #{board_group.id}"
+        bgb.destroy
+        boards_to_remove << bgb.board_id
+      end
+    end
+    Rails.logger.debug "Boards to remove: #{boards_to_remove.inspect}"
     boards.each do |board|
-      board_group_board = board_group.add_board(board)
-      board_group_board.save!
+      if board_group.boards.exclude?(board)
+        Rails.logger.debug "Adding board #{board.id} to group #{board_group.id}"
+        board_group_board = board_group.add_board(board)
+        if board_group_board
+          board_group_board.save!
+        else
+          Rails.logger.error "Failed to add board #{board.id} to group #{board_group.id}"
+        end
+      else
+        Rails.logger.debug "Board #{board.id} already in group #{board_group.id}"
+      end
     end
     if board_group.save
       mark_default(board_group)
-      board_group.adjust_layouts
+      save_layout!
+      Rails.logger.debug "Board Group updated successfully: #{board_group.id}"
       render json: board_group.api_view_with_boards(current_user)
     else
       render json: { errors: board_group.errors.full_messages }, status: :unprocessable_entity
@@ -142,6 +172,7 @@ class API::BoardGroupsController < API::ApplicationController
 
   def save_layout!
     layout = params[:layout].map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
+    Rails.logger.debug "Received layout: #{layout.inspect}"
 
     # Sort layout by y and x coordinates
     sorted_layout = layout.sort_by { |item| [item["y"].to_i, item["x"].to_i] }
@@ -151,7 +182,19 @@ class API::BoardGroupsController < API::ApplicationController
       board_group_board_id = item["i"].to_i
       board_group_board = @board_group.board_group_boards.find_by(id: board_group_board_id)
       if board_group_board
-        puts "Updating position for board group board ID: #{board_group_board_id} to #{i}"
+        Rails.logger.debug "Updating position for board group board ID: #{board_group_board_id} to #{i}"
+        bgb_layout = {
+          "x" => item["x"].to_i,
+          "y" => item["y"].to_i,
+          "w" => item["w"].to_i,
+          "h" => item["h"].to_i,
+        }
+        board_group_board.group_layout ||= {}
+        board_group_board.group_layout[params[:screen_size] || "lg"] = bgb_layout
+        board_group_board.save!
+        board_group_board_ids << board_group_board_id
+        Rails.logger.debug "Board group board ID: #{board_group_board_id} updated with layout #{bgb_layout.inspect}"
+        # Update position
         board_group_board.update!(position: i)
       else
         Rails.logger.error "Board group board not found for ID: #{board_group_board_id}"

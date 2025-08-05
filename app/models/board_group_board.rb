@@ -12,7 +12,7 @@ class BoardGroupBoard < ApplicationRecord
   belongs_to :board_group
   belongs_to :board
 
-  before_save :set_initial_layout!, if: :layout_invalid?
+  # before_save :set_initial_layout!, if: :layout_invalid?
 
   include BoardsHelper
 
