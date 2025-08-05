@@ -142,7 +142,7 @@ class API::BoardGroupsController < API::ApplicationController
     end
     if board_group.save
       mark_default(board_group)
-      save_layout!
+      save_layout! if params[:layout].present?
       Rails.logger.debug "Board Group updated successfully: #{board_group.id}"
       render json: board_group.api_view_with_boards(current_user)
     else
