@@ -1,5 +1,5 @@
 class API::BoardGroupsController < API::ApplicationController
-  skip_before_action :authenticate_token!, only: %i[ preset index ]
+  skip_before_action :authenticate_token!, only: %i[ preset index show show_by_slug ]
 
   def index
     @featured_board_groups = BoardGroup.featured.alphabetical.page params[:page]
