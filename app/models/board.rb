@@ -1171,6 +1171,10 @@ class Board < ApplicationRecord
     "#{base_url}/public-board/#{slug}"
   end
 
+  def featured
+    predefined && favorite
+  end
+
   def api_view_with_predictive_images(viewing_user = nil, communicator_account = nil, show_hidden = false)
     @viewer_settings = viewing_user&.settings || {}
     is_a_user = viewing_user.class == "User"
@@ -1207,6 +1211,7 @@ class Board < ApplicationRecord
       existing_words: existing_words,
       word_list: current_word_list,
       description: description,
+      featured: featured,
       can_edit: can_edit,
       category: category,
       parent_type: parent_type,
