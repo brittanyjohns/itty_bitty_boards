@@ -8,7 +8,7 @@ class API::Admin::WordEventsController < API::Admin::ApplicationController
       sort_field = "created_at"
     end
     @word_events = WordEvent.includes(:user, :child_account).where.not(user_id: current_admin.id)
-    @word_events = @word_events.order(sort_field => sort_order.to_sym)
+    @word_events = @word_events.order(sort_field => sort_order.to_sym).limit(100)
 
     render json: @word_events.map(&:api_view)
   end
