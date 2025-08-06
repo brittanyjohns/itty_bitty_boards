@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_08_04_153843) do
+ActiveRecord::Schema[7.1].define(version: 2025_08_06_135006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -760,6 +760,10 @@ ActiveRecord::Schema[7.1].define(version: 2025_08_04_153843) do
     t.bigint "vendor_id"
     t.bigint "profile_id"
     t.jsonb "data", default: {}
+    t.bigint "board_group_id"
+    t.bigint "board_image_id"
+    t.index ["board_group_id"], name: "index_word_events_on_board_group_id"
+    t.index ["board_image_id"], name: "index_word_events_on_board_image_id"
     t.index ["child_account_id"], name: "index_word_events_on_child_account_id"
     t.index ["data"], name: "index_word_events_on_data", using: :gin
     t.index ["image_id"], name: "index_word_events_on_image_id"

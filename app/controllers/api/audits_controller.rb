@@ -82,6 +82,13 @@ class API::AuditsController < API::ApplicationController
       user_agent: request.user_agent,
       referer: request.referer,
     }
+    board_image = nil
+    if params[:boardImageId]
+      board_image = BoardImage.find_by(id: params[:boardImageId])
+    end
+    unless board_image
+      board_image = BoardImage.find_by(board_id: params[:boardId], image_id: params[:imageId]) if params[:boardId] && params[:imageId]
+    end
     payload = {
       word: params[:word],
       previous_word: params[:previousWord],
@@ -90,6 +97,8 @@ class API::AuditsController < API::ApplicationController
       image_id: image&.id,
       user_id: board&.user&.id,
       board_id: params[:boardId],
+      board_group_id: params[:boardGroupId],
+      board_image_id: board_image&.id,
       child_account_id: comm_account,
       vendor_id: params[:vendorId],
       profile_id: profile&.id,

@@ -24,6 +24,8 @@ class WordEvent < ApplicationRecord
   belongs_to :child_account, optional: true
   belongs_to :vendor, optional: true
   belongs_to :profile, optional: true
+  belongs_to :board_group, optional: true
+  belongs_to :board_image, optional: true
 
   include ActionView::Helpers::DateHelper
 
@@ -49,7 +51,8 @@ class WordEvent < ApplicationRecord
       user_id: user_id,
       user_email: user.email,
       child_username: child_account&.username,
-      # child_account: child_account&.api_view,
+      board_group_id: board_group_id,
+      board_image_id: board_image_id,
       profile_id: profile&.id,
       word: word,
       can_edit: user == viewing_user,
