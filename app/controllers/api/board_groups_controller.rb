@@ -3,25 +3,23 @@ class API::BoardGroupsController < API::ApplicationController
 
   def index
     @featured_board_groups = BoardGroup.featured.alphabetical.page params[:page]
-    @board_groups = current_user.board_groups.where(predefined: [false, nil])
+    @board_groups = current_user&.board_groups.where(predefined: [false, nil]) if current_user
     @predefined = BoardGroup.predefined
     @all = @board_groups + @predefined
     render json: { predefined: @predefined.map(&:api_view), user: @board_groups.map(&:api_view), featured: @featured_board_groups.map(&:api_view), all: @all.map(&:api_view) }
   end
 
   def preset
-    ActiveRecord::Base.logger.silence do
-      if params[:query].present?
-        @predefined_board_groups = BoardGroup.predefined.search_by_name(params[:query]).alphabetical.page params[:page]
-      else
-        @predefined_board_groups = BoardGroup.predefined.alphabetical.page params[:page]
-      end
-      @featured_board_groups = BoardGroup.featured.alphabetical.page params[:page]
-      @user_board_groups = current_user.board_groups.where(predefined: [false, nil]).alphabetical.page params[:page]
-      Rails.logger.debug "Featured Board Groups: #{@featured_board_groups.count}"
-      @welcome_board = @welcome_group&.boards&.first
-      render json: { predefined_board_groups: @predefined_board_groups.map(&:api_view), featured_board_groups: @featured_board_groups.map(&:api_view), welcome_board: @welcome_board&.api_view, user_board_groups: @user_board_groups.map(&:api_view) }
+    if params[:query].present?
+      @predefined_board_groups = BoardGroup.predefined.search_by_name(params[:query]).alphabetical.page params[:page]
+    else
+      @predefined_board_groups = BoardGroup.predefined.alphabetical.page params[:page]
     end
+    @featured_board_groups = BoardGroup.featured.alphabetical.page params[:page]
+    @user_board_groups = current_user.board_groups.where(predefined: [false, nil]).alphabetical.page params[:page] if current_user
+    Rails.logger.debug "Featured Board Groups: #{@featured_board_groups.count}"
+    @welcome_board = @welcome_group&.boards&.first
+    render json: { predefined_board_groups: @predefined_board_groups.map(&:api_view), featured_board_groups: @featured_board_groups&.map(&:api_view), welcome_board: @welcome_board&.api_view, user_board_groups: @user_board_groups&.map(&:api_view) }
   end
 
   def show
