@@ -58,6 +58,7 @@ class API::BoardGroupsController < API::ApplicationController
     board_group.margin_settings = board_group_params[:margin_settings] || {}
     board_group.name = board_group_params[:name]
     board_group.display_image_url = board_group_params[:display_image_url]
+    board_group.description = board_group_params[:description] if board_group_params[:description].present?
     Rails.logger.debug "display_image_url: #{board_group.display_image_url.inspect}"
     screen_size = board_group_params[:screen_size] || "lg"
     boards = board_group_params[:board_ids].map { |id| Board.find_by(id: id) if id.present? }.compact if board_group_params[:board_ids].present?
@@ -124,6 +125,8 @@ class API::BoardGroupsController < API::ApplicationController
     board_group.small_screen_columns = board_group_params[:small_screen_columns] || 4
     board_group.medium_screen_columns = board_group_params[:medium_screen_columns] || 5
     board_group.large_screen_columns = board_group_params[:large_screen_columns] || 6
+    board_group.name = board_group_params[:name]
+    board_group.description = board_group_params[:description] if board_group_params[:description].present?
     Rails.logger.debug "Parameters settings: #{board_group_params[:settings].inspect}"
 
     board_group.settings = board_group_params[:settings] || {}
@@ -182,7 +185,7 @@ class API::BoardGroupsController < API::ApplicationController
   private
 
   def board_group_params
-    params.require(:board_group).permit(:name, :featured, :display_image_url, :predefined, :number_of_columns, :small_screen_columns, :medium_screen_columns, :large_screen_columns, board_ids: [], settings: {}, margin_settings: {}, make_default: [true, false], screen_size: [:lg, :md, :sm], layout: [])
+    params.require(:board_group).permit(:name, :featured, :description, :display_image_url, :predefined, :number_of_columns, :small_screen_columns, :medium_screen_columns, :large_screen_columns, board_ids: [], settings: {}, margin_settings: {}, make_default: [true, false], screen_size: [:lg, :md, :sm], layout: [])
   end
 
   def mark_default(board_group)
@@ -194,7 +197,19 @@ class API::BoardGroupsController < API::ApplicationController
   end
 
   def save_layout!
-    layout = params[:layout].map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
+    if params[:layout].blank?
+      Rails.logger.debug "No layout provided, skipping layout save"
+      return
+    end
+    if params[:layout].is_a?(Array)
+      layout = params[:layout]
+    elsif params[:layout].is_a?(ActionController::Parameters)
+      layout = params[:layout].to_unsafe_h
+    else
+      Rails.logger.error "Invalid layout format: #{params[:layout].class}"
+      render json: { error: "Invalid layout format" }, status: :unprocessable_entity and return
+    end
+
     Rails.logger.debug "Received layout: #{layout.inspect}"
 
     # Sort layout by y and x coordinates
