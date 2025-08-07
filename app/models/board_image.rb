@@ -380,7 +380,8 @@ class BoardImage < ApplicationRecord
       audio_file = image.find_audio_for_voice(voice, language)
     end
 
-    self.bg_color = image.bg_color if bg_color.blank?
+    # self.bg_color = image.bg_color if bg_color.blank?
+    self.bg_color = "white"
     self.text_color = image.text_color
     self.font_size = image.font_size
     self.border_color = image.border_color

@@ -290,28 +290,26 @@ class BoardGroup < ApplicationRecord
     row_count = 0
     board_group_boards_count = board_group_boards.count
     rows = (board_group_boards_count / num_of_columns.to_f).ceil
-    ActiveRecord::Base.logger.silence do
-      board_group_boards.order(:position).each_slice(num_of_columns) do |row|
-        row.each_with_index do |bgb, index|
-          new_layout = {}
-          if bgb.group_layout[screen_size] && reset_layouts == false
-            Rails.logger.debug "Using existing layout for board group board #{bgb.id} on screen size #{screen_size}"
-            new_layout = bgb.group_layout[screen_size]
-          else
-            Rails.logger.debug "Setting initial layout for board group board #{bgb.id} on screen size #{screen_size}"
-            width = bgb.group_layout[screen_size] ? bgb.group_layout[screen_size]["w"] : 1
-            height = bgb.group_layout[screen_size] ? bgb.group_layout[screen_size]["h"] : 1
-            Rails.logger.debug "Width: #{width}, Height: #{height} for board group board #{bgb.id} on screen size #{screen_size}"
-            new_layout = { "i" => bgb.id.to_s, "x" => index, "y" => row_count, "w" => width, "h" => height }
-          end
-
-          bgb.group_layout[screen_size] = new_layout
-          bgb.save!
-          bgb.clean_up_layout
-          layout_to_set << new_layout
+    board_group_boards.order(:position).each_slice(num_of_columns) do |row|
+      row.each_with_index do |bgb, index|
+        new_layout = {}
+        if bgb.group_layout[screen_size] && reset_layouts == false
+          Rails.logger.debug "Using existing layout for board group board #{bgb.id} on screen size #{screen_size}"
+          new_layout = bgb.group_layout[screen_size]
+        else
+          Rails.logger.debug "Setting initial layout for board group board #{bgb.id} on screen size #{screen_size}"
+          width = bgb.group_layout[screen_size] ? bgb.group_layout[screen_size]["w"] : 1
+          height = bgb.group_layout[screen_size] ? bgb.group_layout[screen_size]["h"] : 1
+          Rails.logger.debug "Width: #{width}, Height: #{height} for board group board #{bgb.id} on screen size #{screen_size}"
+          new_layout = { "i" => bgb.id.to_s, "x" => index, "y" => row_count, "w" => width, "h" => height }
         end
-        row_count += 1
+
+        bgb.group_layout[screen_size] = new_layout
+        bgb.save!
+        bgb.clean_up_layout
+        layout_to_set << new_layout
       end
+      row_count += 1
     end
     layout = {}
 
