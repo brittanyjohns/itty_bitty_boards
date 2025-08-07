@@ -1199,6 +1199,7 @@ class Board < ApplicationRecord
       id: id,
       board_type: board_type,
       public_url: public_url,
+      board_groups: board_groups,
       slug: slug,
       source_type: source_type,
       vendor: vendor,

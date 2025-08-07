@@ -507,6 +507,46 @@ class API::BoardsController < API::ApplicationController
     render json: { board: @board, new_board_images: new_board_images }
   end
 
+  def add_to_groups
+    @board = Board.find(params[:id])
+    # @board_groups = BoardGroup.where(id: params[:board_group_ids])
+    # if @board_groups.empty?
+    #   render json: { error: "No board groups provided" }, status: :unprocessable_entity
+    #   return
+    # end
+    if params[:board_group_ids].blank?
+      render json: { error: "No board group IDs provided" }, status: :unprocessable_entity
+      return
+    elsif params[:board_group_ids].is_a?(String)
+      board_group_ids = params[:board_group_ids].split(",").map(&:strip).map(&:to_i)
+    elsif params[:board_group_ids].is_a?(Array)
+      board_group_ids = params[:board_group_ids].map(&:to_i)
+    else
+      render json: { error: "Invalid board group IDs format" }, status: :unprocessable_entity
+      return
+    end
+    board_group_ids.each do |board_group_id|
+      board_group = BoardGroup.find_by(id: board_group_id)
+      Rails.logger.debug "Processing board group #{board_group.id} for board #{@board.id}"
+      if board_group.nil?
+        Rails.logger.error "Board group with ID #{board_group_id} not found"
+        next
+      end
+      if board_group.boards.include?(@board)
+        Rails.logger.debug "Board #{@board.id} already exists in group #{board_group.id}"
+      else
+        Rails.logger.debug "Adding board #{@board.id} to group #{board_group.id}"
+        board_group.add_board(@board)
+        board_group.save
+      end
+    end
+    @board.reload
+    # render json: { message: "Board added to groups successfully" }
+    @board_with_images = @board.api_view_with_predictive_images(current_user, nil, true)
+    # end
+    render json: @board_with_images
+  end
+
   def remove_image
     if @board.predefined && !current_user.admin?
       render json: { error: "Cannot remove images from predefined boards" }, status: :unprocessable_entity

@@ -164,12 +164,20 @@ class BoardGroup < ApplicationRecord
   end
 
   def api_view(viewing_user = nil)
+    cached_board_group_boards = board_group_boards.includes(:board)
+    board_names = cached_board_group_boards.map { |bgb| bgb.board.name }.join(", ")
+
     {
       id: id,
       name: name,
       user_id: user_id,
       slug: slug,
       public_url: public_url,
+      board_names: board_names,
+      board_count: cached_board_group_boards.count,
+      bg_color: bg_color,
+      settings: settings,
+      margin_settings: margin_settings,
       featured: featured,
       predefined: predefined,
       root_board_id: root_board_id,

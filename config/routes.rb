@@ -247,6 +247,7 @@ Rails.application.routes.draw do
         put "associate_images"
         post "clone"
         put "add_to_team"
+        put "add_to_groups"
         put "remove_from_team"
         get "predictive_image_board"
         post "create_additional_images"

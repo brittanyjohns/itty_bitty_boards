@@ -5,7 +5,8 @@ class API::BoardGroupsController < API::ApplicationController
     @featured_board_groups = BoardGroup.featured.alphabetical.page params[:page]
     @board_groups = current_user.board_groups.where(predefined: [false, nil])
     @predefined = BoardGroup.predefined
-    render json: { predefined: @predefined.map(&:api_view), user: @board_groups.map(&:api_view), featured: @featured_board_groups.map(&:api_view) }
+    @all = @board_groups + @predefined
+    render json: { predefined: @predefined.map(&:api_view), user: @board_groups.map(&:api_view), featured: @featured_board_groups.map(&:api_view), all: @all.map(&:api_view) }
   end
 
   def preset
