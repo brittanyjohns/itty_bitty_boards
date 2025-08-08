@@ -197,7 +197,6 @@ class Board < ApplicationRecord
   def self.clean_up_idential_boards_for(name, user = nil)
     boards = with_identical_images(name, user)
     return unless boards.any?
-    puts "Cleaning up boards: #{boards.count} for #{name}"
     board_to_keep = boards.first
     boards.each do |board|
       next if board == board_to_keep
@@ -218,7 +217,6 @@ class Board < ApplicationRecord
     user_id = user ? user.id : User::DEFAULT_ADMIN_ID
     boards = Board.includes(:images).where(name: name, user_id: user_id)
     return unless boards.count > 1
-    puts "Cleaning up boards: #{boards.count} for #{name}"
     board_to_keep = boards.max_by { |b| b.images.count }
     board_count = 0
     boards.each do |board|
@@ -1011,105 +1009,175 @@ class Board < ApplicationRecord
   #   end
   # end
 
-  def format_board_with_ai(screen_size = "lg", maintain_existing_layout = false)
-    num_of_columns = get_number_of_columns(screen_size)
-    @board_images = board_images.includes(:image)
-    existing_layout = []
+  # def format_board_with_ai(screen_size = "lg", maintain_existing_layout = false)
+  #   num_of_columns = get_number_of_columns(screen_size)
+  #   @board_images = board_images.includes(:image)
+  #   existing_layout = []
 
-    @board_images.each do |bi|
-      image = bi.image
-      @predictive_board_id = bi.predictive_board_id
-      @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
-      bi_layout = bi.layout[screen_size]
-      bi.predictive_board_id = @predictive_board_id
-      bi_data_for_screen = bi.data[screen_size] || {}
-      w = {
+  #   @board_images.each do |bi|
+  #     image = bi.image
+  #     @predictive_board_id = bi.predictive_board_id
+  #     @predictive_board = @predictive_board_id ? Board.find_by(id: @predictive_board_id) : nil
+  #     bi_layout = bi.layout[screen_size]
+  #     bi.predictive_board_id = @predictive_board_id
+  #     bi_data_for_screen = bi.data[screen_size] || {}
+  #     w = {
+  #       word: bi.label,
+  #       size: [bi_layout["w"], bi_layout["h"]],
+  #       board_type: @predictive_board&.board_type,
+  #     # position: [bi_layout["x"], bi_layout["y"]],
+  #     # part_of_speech: bi.data["part_of_speech"] || bi.image.part_of_speech,
+  #     # frequency: bi_data_for_screen["frequency"] || "low",
+  #     }
+  #     existing_layout << w
+  #   end
+
+  #   max_num_of_rows = (board_images_count / num_of_columns.to_f).ceil
+  #   response = OpenAiClient.new({}).generate_formatted_board(name, num_of_columns, existing_layout, max_num_of_rows, maintain_existing_layout)
+  #   if response
+  #     parsed_response = response.gsub("```json", "").gsub("```", "").strip
+  #     if valid_json?(parsed_response)
+  #       parsed_response = JSON.parse(parsed_response)
+  #     else
+  #       parsed_response = transform_into_json(parsed_response)
+  #     end
+  #     # parsed_response = JSON.parse(response)
+  #     grid_response = parsed_response["grid"]
+  #     if parsed_response["personable_explanation"]
+  #       personable_explanation = "Personable Explanation: " + parsed_response["personable_explanation"]
+  #     end
+  #     if parsed_response["professional_explanation"]
+  #       professional_explanation = "Professional Explanation: " + parsed_response["professional_explanation"]
+  #     end
+  #     if personable_explanation && professional_explanation
+  #       explanation = personable_explanation + "\n" + professional_explanation
+  #       self.data["personable_explanation"] = personable_explanation
+  #       self.data["professional_explanation"] = professional_explanation
+  #     end
+
+  #     if grid_response.blank?
+  #       Rails.logger.debug "No grid response"
+  #       return
+  #     end
+
+  #     grid_response.each_with_index do |item, index|
+  #       label = item["word"]
+  #       board_image = @board_images.joins(:image).find_by(images: { label: label })
+  #       image = board_image&.image
+
+  #       if board_image
+  #         item["size"] ||= [1, 1]
+  #         # if item["frequency"].present?
+  #         #   if item["frequency"] === "high"
+  #         #     item["size"] = [2, 2]
+  #         #   end
+  #         # end
+
+  #         board_image.data["label"] = label
+  #         board_image.data[screen_size] ||= {}
+  #         board_image.data[screen_size]["frequency"] = item["frequency"]
+  #         board_image.data[screen_size]["size"] = item["size"]
+  #         board_image.data["part_of_speech"] = item["part_of_speech"]
+  #         board_image.data["bg_color"] = image.background_color_for(item["part_of_speech"])
+
+  #         board_image.position = index
+  #         board_image.save!
+
+  #         image.part_of_speech = item["part_of_speech"] if item["part_of_speech"].present? && image.part_of_speech.blank?
+  #         image.save!
+
+  #         x_coordinate = item["position"][0]
+  #         y_coordinate = item["position"][1]
+  #         if x_coordinate >= num_of_columns
+  #           x_coordinate = 0
+  #         end
+  #         # max_num_of_rows = (images.count / num_of_columns.to_f).ceil
+  #         if y_coordinate >= max_num_of_rows
+  #           y_coordinate = max_num_of_rows
+  #         end
+
+  #         board_image.layout ||= {}
+  #         board_image.layout[screen_size] = { "x" => x_coordinate, "y" => y_coordinate, "w" => item["size"][0], "h" => item["size"][1], "i" => board_image.id.to_s }
+  #         board_image.save!
+  #       else
+  #         Rails.logger.debug "Board Image not found for label: #{label}"
+  #       end
+  #     end
+  #     if explanation
+  #       self.description = explanation
+  #       self.save!
+  #     end
+  #   end
+  #   self
+  # end
+
+  def format_board_with_ai(screen_size: "lg", maintain_existing_layout: false)
+    columns = get_number_of_columns(screen_size)
+    images = board_images.includes(:image).to_a
+    rows = (images.size / columns.to_f).ceil
+
+    existing = images.map do |bi|
+      layout = (bi.layout || {}).dig(screen_size) || {}
+      {
         word: bi.label,
-        size: [bi_layout["w"], bi_layout["h"]],
-        board_type: @predictive_board&.board_type,
-      # position: [bi_layout["x"], bi_layout["y"]],
-      # part_of_speech: bi.data["part_of_speech"] || bi.image.part_of_speech,
-      # frequency: bi_data_for_screen["frequency"] || "low",
+        size: [layout["w"], layout["h"]].compact.presence || [1, 1],
+        board_type: bi.predictive_board_id ? Board.find_by(id: bi.predictive_board_id)&.board_type : nil,
       }
-      existing_layout << w
     end
 
-    max_num_of_rows = (board_images_count / num_of_columns.to_f).ceil
-    response = OpenAiClient.new({}).generate_formatted_board(name, num_of_columns, existing_layout, max_num_of_rows, maintain_existing_layout)
-    if response
-      parsed_response = response.gsub("```json", "").gsub("```", "").strip
-      if valid_json?(parsed_response)
-        parsed_response = JSON.parse(parsed_response)
-      else
-        parsed_response = transform_into_json(parsed_response)
-      end
-      # parsed_response = JSON.parse(response)
-      grid_response = parsed_response["grid"]
-      if parsed_response["personable_explanation"]
-        personable_explanation = "Personable Explanation: " + parsed_response["personable_explanation"]
-      end
-      if parsed_response["professional_explanation"]
-        professional_explanation = "Professional Explanation: " + parsed_response["professional_explanation"]
-      end
-      if personable_explanation && professional_explanation
-        explanation = personable_explanation + "\n" + professional_explanation
-        self.data["personable_explanation"] = personable_explanation
-        self.data["professional_explanation"] = professional_explanation
-      end
+    payload = AiBoardFormatter.call(
+      name: name,
+      columns: columns,
+      rows: rows,
+      existing: existing,
+      maintain_existing: maintain_existing_layout,
+    )
 
-      if grid_response.blank?
-        Rails.logger.debug "No grid response"
-        return
-      end
+    return self if payload.blank?
 
-      grid_response.each_with_index do |item, index|
-        label = item["word"]
-        board_image = @board_images.joins(:image).find_by(images: { label: label })
-        image = board_image&.image
+    grid = payload["grid"].to_a
+    by_label = images.index_by { |bi| bi.label.to_s.downcase }
 
-        if board_image
-          item["size"] ||= [1, 1]
-          # if item["frequency"].present?
-          #   if item["frequency"] === "high"
-          #     item["size"] = [2, 2]
-          #   end
-          # end
+    ActiveRecord::Base.transaction do
+      grid.each_with_index do |item, idx|
+        label = item["word"].to_s
+        bi = by_label[label.downcase]
+        next unless bi
 
-          board_image.data["label"] = label
-          board_image.data[screen_size] ||= {}
-          board_image.data[screen_size]["frequency"] = item["frequency"]
-          board_image.data[screen_size]["size"] = item["size"]
-          board_image.data["part_of_speech"] = item["part_of_speech"]
-          board_image.data["bg_color"] = image.background_color_for(item["part_of_speech"])
+        pos = Array(item["position"] || [0, 0])
+        size = Array(item["size"] || [1, 1])
+        x = pos[0].to_i.clamp(0, columns - 1)
+        y = pos[1].to_i.clamp(0, [rows - 1, 0].max)
 
-          board_image.position = index
-          board_image.save!
+        bi.data["label"] = label
+        bi.data[screen_size] ||= {}
+        bi.data[screen_size]["frequency"] = item["frequency"]
+        bi.data[screen_size]["size"] = size
+        bi.data["part_of_speech"] = item["part_of_speech"]
+        bi.data["bg_color"] = bi.image.background_color_for(item["part_of_speech"])
 
-          image.part_of_speech = item["part_of_speech"] if item["part_of_speech"].present? && image.part_of_speech.blank?
-          image.save!
+        bi.position = idx
+        bi.layout ||= {}
+        bi.layout[screen_size] = { "x" => x, "y" => y, "w" => size[0], "h" => size[1], "i" => bi.id.to_s }
+        bi.save!
 
-          x_coordinate = item["position"][0]
-          y_coordinate = item["position"][1]
-          if x_coordinate >= num_of_columns
-            x_coordinate = 0
-          end
-          # max_num_of_rows = (images.count / num_of_columns.to_f).ceil
-          if y_coordinate >= max_num_of_rows
-            y_coordinate = max_num_of_rows
-          end
-
-          board_image.layout ||= {}
-          board_image.layout[screen_size] = { "x" => x_coordinate, "y" => y_coordinate, "w" => item["size"][0], "h" => item["size"][1], "i" => board_image.id.to_s }
-          board_image.save!
-        else
-          Rails.logger.debug "Board Image not found for label: #{label}"
+        if item["part_of_speech"].present? && bi.image.part_of_speech.blank?
+          bi.image.update!(part_of_speech: item["part_of_speech"])
         end
       end
-      if explanation
-        self.description = explanation
-        self.save!
+
+      # optional explanations
+      personable = payload["personable_explanation"].presence
+      professional = payload["professional_explanation"].presence
+
+      if personable || professional
+        self.data["personable_explanation"] = "#{personable}" if personable
+        self.data["professional_explanation"] = "#{professional}" if professional
+        self.description = [self.data["personable_explanation"], self.data["professional_explanation"]].compact.join("\n") if description.blank?
+        save!
       end
     end
+
     self
   end
 

@@ -232,7 +232,7 @@ class OpenAiClient
   end
 
   def generate_formatted_board(name, num_of_columns, words = [], max_num_of_rows = 4, maintain_existing = false)
-    @model = PREVIEW_MODEL
+    @model = GPT_4_MODEL
     Rails.logger.debug "User - model: #{@model} -- name: #{name} -- num_of_columns: #{num_of_columns} -- words: #{words.count} -- max_num_of_rows: #{max_num_of_rows}"
     @messages = [{ role: "user",
                   content: [{ type: "text",
@@ -657,7 +657,8 @@ class OpenAiClient
   end
 
   def create_completion
-    @model ||= PREVIEW_MODEL
+    @model ||= GPT_4_MODEL
+    puts "CREATE COMPLETION - Model: #{@model}"
     Rails.logger.error "**** ERROR **** \nNo messages provided.\n" unless @messages
     Rails.logger.debug "Sending to model: #{@model}"
     opts = {
