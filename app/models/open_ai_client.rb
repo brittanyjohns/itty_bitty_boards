@@ -1,8 +1,9 @@
 require "openai"
 
 class OpenAiClient
-  GPT_4_MODEL = "gpt-4o"
-  GPT_3_MODEL = "gpt-3.5-turbo-0125"
+  # GTP_MODEL = "gpt-4o"
+  GTP_MODEL = ENV.fetch("OPENAI_GTP_MODEL", "gpt-4o")
+  QUICK_GTP_MODEL = ENV.fetch("OPENAI_QUICK_GTP_MODEL", "gpt-4o-mini")
   IMAGE_MODEL = ENV.fetch("OPENAI_IMAGE_MODEL", "dall-e-3")
   IMAGE_MOBEL_STYLE = ENV.fetch("OPENAI_IMAGE_MODEL_STYLE", "natural")
   # IMAGE_MODEL = "gpt-image-1"
@@ -50,7 +51,7 @@ class OpenAiClient
   end
 
   # def get_image_prompt_suggestion
-  #   @model = GPT_4_MODEL
+  #   @model = GTP_MODEL
   #   @messages = [{
   #     role: "user",
   #     content: [{
@@ -80,7 +81,7 @@ class OpenAiClient
   #   prompt
   # end
   def get_image_prompt_suggestion
-    @model = GPT_4_MODEL
+    @model = GTP_MODEL
     # base_prompt = <<~PROMPT
     #   Generate a detailed yet minimalistic description for creating an image with #{IMAGE_MODEL}.
     #   The image should clearly represent the concept "#{@prompt}" specifically for AAC (Augmentative and Alternative Communication) boards.
@@ -161,11 +162,11 @@ class OpenAiClient
       Respond with the JSON object in the following format: {\"translation\": \"translated text\"}"
       puts "Translation Prompt: #{translation_prompt}"
       # response = openai_client.chat(parameters: {
-      #                                 model: GPT_4_MODEL,
+      #                                 model: GTP_MODEL,
       #                                 messages: [{ role: "user",
       #                                              content: [{ type: "text", text: translation_prompt }] }],
       #                               })
-      @model = GPT_4_MODEL
+      @model = GTP_MODEL
       @messages = [{ role: "user", content: [{ type: "text", text: translation_prompt }] }]
       response = create_chat
       translated_text = nil
@@ -220,7 +221,7 @@ class OpenAiClient
 
   def create_image_prompt
     new_prompt = specific_image_prompt(@prompt)
-    response = openai_client.chat(parameters: { model: GPT_4_MODEL, messages: [{ role: "user", content: [{ type: "text", text: new_prompt }] }] })
+    response = openai_client.chat(parameters: { model: GTP_MODEL, messages: [{ role: "user", content: [{ type: "text", text: new_prompt }] }] })
     Rails.logger.debug "*** ERROR *** Invaild Image Prompt Response: #{response}" unless response
     Rails.logger.debug "Response: #{response.inspect}" if response
     image_prompt_content = nil
@@ -235,7 +236,7 @@ class OpenAiClient
   end
 
   def generate_formatted_board(name, num_of_columns, words = [], max_num_of_rows = 4, maintain_existing = false)
-    @model = GPT_4_MODEL
+    @model = GTP_MODEL
     Rails.logger.debug "User - model: #{@model} -- name: #{name} -- num_of_columns: #{num_of_columns} -- words: #{words.count} -- max_num_of_rows: #{max_num_of_rows}"
     @messages = [{ role: "user",
                   content: [{ type: "text",
@@ -249,7 +250,7 @@ class OpenAiClient
 
   def clarify_image_description(image_description, restaurant_name)
     Rails.logger.debug "Missing image description.\n" && return unless image_description
-    @model = GPT_4_MODEL
+    @model = GTP_MODEL
     @messages = [{ role: "user", content: [{ type: "text",
                                            text: "Please parse the following text from a restaurant menu from the
                                                 restaurant '#{restaurant_name}' to
@@ -268,7 +269,7 @@ class OpenAiClient
   end
 
   def format_menu_description(menu_description)
-    @model = GPT_4_MODEL
+    @model = GTP_MODEL
     @messages = [{ role: "user", content: [{ type: "text",
                                            text: "Please parse the following description from a restaurant menu to
                                                 form a clear list of the food and beverage options ONLY.
@@ -285,7 +286,7 @@ class OpenAiClient
   end
 
   def categorize_word(word)
-    @model = GPT_3_MODEL
+    @model = GTP_MODEL
     @messages = [{ role: "user",
                   content: [{ type: "text",
                               text: "Categorize the word '#{word}' into one of the following parts of speech: #{Image.valid_parts_of_speech} If the word can be used as multiple parts of speech, choose the most common one. If the word is not a part of speech, respond with 'other'. Respond as json. Example: {\"part_of_speech\": \"noun\"}" }] }]
@@ -352,7 +353,7 @@ class OpenAiClient
   end
 
   def get_next_words(label)
-    @model = GPT_4_MODEL
+    @model = GTP_MODEL
     @messages = [{ role: "user",
                   content: [{
       type: "text",
@@ -391,7 +392,7 @@ class OpenAiClient
       Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}
     PROMPT
 
-    @model = GPT_4_MODEL
+    @model = QUICK_GTP_MODEL
     @messages = [{ role: "user",
                    content: [{ type: "text", text: prompt }] }]
     response = create_chat
@@ -451,7 +452,7 @@ class OpenAiClient
     #   @model = PREVIEW_MODEL
     #   response = create_completion
     # else
-    @model = GPT_4_MODEL
+    @model = GTP_MODEL
     response = create_chat
     # end
     Rails.logger.debug "*** ERROR *** Invaild Additional Words Response: #{response}" unless response
@@ -459,7 +460,8 @@ class OpenAiClient
   end
 
   def get_word_suggestions(name, number_of_words = 24, words_to_exclude = [])
-    @model = GPT_4_MODEL
+    @model = QUICK_GTP_MODEL
+    Rails.logger.debug "User - model: #{@model} -- name: #{name} -- number_of_words: #{number_of_words} -- words_to_exclude: #{words_to_exclude.inspect}"
     text = "I have an existing AAC board titled, '#{name}'. Inferring the context from the name, please provide #{number_of_words} words that are foundational for basic communication in an AAC device.
     These words should relate to the context of the board and be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. 
     Do not repeat any words that are already on the board & only provide #{number_of_words} words. #{words_to_exclude ? "DO NOT INCLUDE [#{words_to_exclude}]" : ""}.
@@ -475,12 +477,12 @@ class OpenAiClient
       text: text,
     }] }]
     response = create_chat
-    Rails.logger.debug "*** ERROR *** Invaild Word Suggestion Response: #{response}" unless response
+    Rails.logger.debug "*** Word Suggestion Response: #{response}"
     response
   end
 
   # def get_board_description(name, word_tree, grid_info)
-  #   @model = GPT_4_MODEL
+  #   @model = GTP_MODEL
   #   text = "I have an AAC board titled, '#{name}'. The board is designed to help users communicate using a grid layout with words and phrases. The board includes the following words: #{word_tree}.
   #    The grid sizes are: #{grid_info}.
 
@@ -499,7 +501,7 @@ class OpenAiClient
   # end
 
   # def get_board_description(name, word_tree, grid_info)
-  #   @model = GPT_4_MODEL
+  #   @model = GTP_MODEL
   #   text = <<~TEXT
   #     I have an AAC board titled, "#{name}". This board is designed to help users communicate effectively using a structured grid layout.
 
@@ -536,7 +538,7 @@ class OpenAiClient
     grid_info = board.grid_info
     word_tree = board.word_tree
 
-    @model = GPT_4_MODEL
+    @model = GTP_MODEL
     text = <<~TEXT
       I have an AAC board titled, "#{name}". This board is designed to help users communicate effectively using a structured grid layout. 
   
@@ -632,7 +634,7 @@ class OpenAiClient
   end
 
   def create_chat(format_json = true)
-    @model ||= GPT_3_MODEL
+    @model ||= GTP_MODEL
     Rails.logger.debug "**** ERROR **** \nNo messages provided.\n" unless @messages
     opts = {
       model: @model, # Required.
@@ -660,7 +662,7 @@ class OpenAiClient
   end
 
   def create_completion
-    @model ||= GPT_4_MODEL
+    @model ||= GTP_MODEL
     puts "CREATE COMPLETION - Model: #{@model}"
     Rails.logger.error "**** ERROR **** \nNo messages provided.\n" unless @messages
     Rails.logger.debug "Sending to model: #{@model}"

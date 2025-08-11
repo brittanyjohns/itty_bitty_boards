@@ -2,6 +2,14 @@ require "active_support/core_ext/integer/time"
 Rails.application.routes.default_url_options[:host] = "speakanyway.com"
 Rails.application.configure do
   config.log_file_size = 50.megabytes
+  # ActiveRecord: only warn+
+  config.active_record.logger = ActiveSupport::Logger.new($stdout)
+  config.active_record.logger.level = Logger::WARN
+  config.active_record.verbose_query_logs = false
+
+  # ActiveStorage: only error+
+  config.active_storage.logger = ActiveSupport::Logger.new($stdout)
+  config.active_storage.logger.level = Logger::ERROR
   # Settings specified here will take precedence over those in config/application.rb.
 
   # Code is not reloaded between requests.

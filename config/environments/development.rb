@@ -9,6 +9,16 @@ Rails.application.configure do
   config.logger = ActiveSupport::TaggedLogging.new(logger)
   config.log_level = :debug
   config.log_file_size = 50.megabytes
+
+  # ActiveRecord: only warn+
+  config.active_record.logger = ActiveSupport::Logger.new($stdout)
+  config.active_record.logger.level = Logger::WARN
+  config.active_record.verbose_query_logs = false
+
+  # ActiveStorage: only error+
+  config.active_storage.logger = ActiveSupport::Logger.new($stdout)
+  config.active_storage.logger.level = Logger::ERROR
+
   # Settings specified here will take precedence over those in config/application.rb.
 
   # In the development environment your application's code is reloaded any time
