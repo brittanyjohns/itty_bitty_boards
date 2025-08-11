@@ -1435,7 +1435,7 @@ class Image < ApplicationRecord
     if part_of_speech && Image.valid_parts_of_speech.include?(part_of_speech)
       update!(part_of_speech: part_of_speech)
     else
-      Rails.logger.debug "Part of speech not valid or not found: '#{part_of_speech}' for image: '#{label}'"
+      puts "Part of speech not valid or not found: '#{part_of_speech}' for image: '#{label}'"
       update!(part_of_speech: "unknown")
       unknown_img = true
     end
@@ -1443,13 +1443,13 @@ class Image < ApplicationRecord
       puts "Would you like to delete this image? #{id} - #{label} - Part of speech: #{part_of_speech} (y/n)"
       response = gets.chomp
       if response.downcase == "y"
-        Rails.logger.debug "Deleting image: #{id} - #{label} due to unknown part of speech"
+        puts "Deleting image: #{id} - #{label} due to unknown part of speech"
         destroy
       else
-        Rails.logger.debug "Not deleting image: #{id} - #{label} - user chose not to delete"
+        puts "Not deleting image: #{id} - #{label} - user chose not to delete"
       end
     else
-      Rails.logger.debug "Categorized image: #{id} - #{label} with part of speech: #{part_of_speech}"
+      puts "Categorized image: #{id} - #{label} with part of speech: #{part_of_speech}"
     end
     part_of_speech
   end
