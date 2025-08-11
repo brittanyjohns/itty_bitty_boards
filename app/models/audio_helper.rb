@@ -1,20 +1,40 @@
 module AudioHelper
   def create_audio_from_text(text = nil, voice = "alloy", language = "en")
-    Rails.logger.info "Creating audio from text: #{text}, voice: #{voice}, language: #{language}"
     text = text || self.label
+    if voice.blank?
+      Rails.logger.warn "AudioHelper - No voice specified for audio creation. Defaulting to 'alloy'."
+      voice = "alloy"
+    end
+    if text.blank?
+      Rails.logger.error "AudioHelper - No text provided for audio creation. Returning nil."
+      return nil
+    end
     new_audio_file = nil
     if Rails.env.test?
+      Rails.logger.warn "Skipping audio creation in test environment."
       return
     end
     response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice, language)
+
+    random_filename = "#{SecureRandom.hex(10)}.aac"
+
     if response
-      # response.stream_to_file("output.aac")
-      # audio_file = File.binwrite("audio.mp3", response)
-      File.open("output.aac", "wb") { |f| f.write(response) }
-      audio_file = File.open("output.aac")
+      File.open(random_filename, "wb") do |file|
+        file.write(response)
+      end
+      Rails.logger.info "Audio file created: #{random_filename}"
+      audio_file = File.open(random_filename, "rb")
+      if audio_file.nil?
+        Rails.logger.error "Failed to create audio file from response."
+        return nil
+      end
       new_audio_file = save_audio_file(audio_file, voice, language)
-      file_exists = File.exist?("output.aac")
-      File.delete("output.aac") if file_exists
+      file_exists = File.exist?(random_filename)
+      if file_exists
+        File.delete(random_filename)
+      end
+      self.audio_url = default_audio_url(new_audio_file)
+      Rails.logger.info "Audio URL set to: #{self.audio_url}"
     else
       Rails.logger.error "**** ERROR - create_audio_from_text **** \nDid not receive valid response.\n #{response&.inspect}"
     end
@@ -22,8 +42,9 @@ module AudioHelper
   end
 
   def find_audio_for_voice(voice = "alloy", lang = "en")
-    Rails.logger.debug "#{self.class} - Finding audio file for voice: #{voice}, language: #{lang}"
-
+    if voice.blank?
+      voice = "alloy"
+    end
     if lang == "en"
       filename = "#{label_for_filename}_#{voice}.aac"
     else
