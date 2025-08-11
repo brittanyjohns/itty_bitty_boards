@@ -356,11 +356,11 @@ class Image < ApplicationRecord
   def self.ensure_parts_of_speech(limit = 100)
     imgs = Image.where.not(part_of_speech: Image.valid_parts_of_speech).or(Image.where(part_of_speech: nil))
     total_without_part_of_speech = imgs.count
-    Rails.logger.debug "Total images without part of speech: #{total_without_part_of_speech} - limit: #{limit} \nContinue? (y/n)"
+    puts "Total images without part of speech: #{total_without_part_of_speech} - limit: #{limit} \nContinue? (y/n)"
     response = gets.chomp
     return unless response == "y"
     images_without_part_of_speech = imgs.limit(limit)
-    Rails.logger.debug "Images without part of speech: #{images_without_part_of_speech.count} - labels: #{images_without_part_of_speech.pluck(:label)}\n\n"
+    puts "Images without part of speech: #{images_without_part_of_speech.count} - labels: #{images_without_part_of_speech.pluck(:label)}\n\n"
     images_without_part_of_speech.each do |image|
       image.categorize!
     end
