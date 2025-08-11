@@ -1440,7 +1440,7 @@ class Image < ApplicationRecord
       unknown_img = true
     end
     if unknown_img
-      puts "Would you like to delete this image? (y/n)"
+      puts "Would you like to delete this image? #{id} - #{label} - Part of speech: #{part_of_speech} (y/n)"
       response = gets.chomp
       if response.downcase == "y"
         Rails.logger.debug "Deleting image: #{id} - #{label} due to unknown part of speech"
