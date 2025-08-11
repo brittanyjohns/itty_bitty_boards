@@ -1430,11 +1430,28 @@ class Image < ApplicationRecord
     response = OpenAiClient.new(open_ai_opts).categorize_word(label)
     response_content = response[:content]&.downcase
     parsed_response = response_content ? JSON.parse(response_content) : nil
-
+    unknown_img = false
     part_of_speech = parsed_response&.with_indifferent_access["part_of_speech"] || parsed_response&.with_indifferent_access["partofspeech"] if parsed_response
     if part_of_speech && Image.valid_parts_of_speech.include?(part_of_speech)
       update!(part_of_speech: part_of_speech)
+    else
+      Rails.logger.debug "Part of speech not valid or not found: '#{part_of_speech}' for image: '#{label}'"
+      update!(part_of_speech: "unknown")
+      unknown_img = true
     end
+    if unknown_img
+      puts "Would you like to delete this image? (y/n)"
+      response = gets.chomp
+      if response.downcase == "y"
+        Rails.logger.debug "Deleting image: #{id} - #{label} due to unknown part of speech"
+        destroy
+      else
+        Rails.logger.debug "Not deleting image: #{id} - #{label} - user chose not to delete"
+      end
+    else
+      Rails.logger.debug "Categorized image: #{id} - #{label} with part of speech: #{part_of_speech}"
+    end
+    part_of_speech
   end
 
   def self.create_image_from_google_search(img_url, label, title, snippet, file_format, user_id = User::DEFAULT_ADMIN_ID)

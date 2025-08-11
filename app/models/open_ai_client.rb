@@ -286,7 +286,7 @@ class OpenAiClient
   end
 
   def categorize_word(word)
-    @model = GTP_MODEL
+    @model = QUICK_GTP_MODEL
     @messages = [{ role: "user",
                   content: [{ type: "text",
                               text: "Categorize the word '#{word}' into one of the following parts of speech: #{Image.valid_parts_of_speech} If the word can be used as multiple parts of speech, choose the most common one. If the word is not a part of speech, respond with 'other'. Respond as json. Example: {\"part_of_speech\": \"noun\"}" }] }]
