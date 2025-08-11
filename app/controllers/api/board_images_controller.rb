@@ -45,7 +45,6 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   def update_multiple
-    puts "Updating multiple board images: #{params.inspect}"
     board_image_ids = params[:board_image_ids]
     @board = Board.find(params[:board_id])
     if @board.nil?
@@ -69,7 +68,6 @@ class API::BoardImagesController < API::ApplicationController
     new_board_name = payload[:new_board_name] if payload[:new_board_name]
     create_new_board = payload[:create_new_board] || !new_board_name.blank?
 
-    puts "Payload: #{payload.inspect}"
     if create_new_board
       new_board_name ||= "New Board"
       new_board = Board.create(name: new_board_name, user: current_user, parent_id: @board.id, parent_type: "Board")
@@ -78,13 +76,11 @@ class API::BoardImagesController < API::ApplicationController
     first_board_image = board_images.first
     first_image = first_board_image&.image
     if create_new_board && new_board
-      puts "Creating new board for image #{first_board_image.id}"
       new_board.display_image_url = first_image.display_image_url(current_user) if first_image
     end
 
     board_images.each do |board_image|
       if create_new_board && new_board
-        puts "Creating new board for image #{board_image.id}"
         board_image.board = new_board
       end
       if !bg_color.blank?
@@ -114,7 +110,6 @@ class API::BoardImagesController < API::ApplicationController
     end
 
     if results.all?
-      puts "All board images updated successfully"
       render json: { board: @board.api_view_with_predictive_images(current_user, nil, true) }
     else
       render json: { error: "Failed to update some board images" }, status: :unprocessable_entity
@@ -133,7 +128,6 @@ class API::BoardImagesController < API::ApplicationController
       render json: { error: "No board images found" }, status: :unprocessable_entity
       return
     end
-    puts "Removing board images: #{board_images.inspect}"
     results = []
     board_images.each do |board_image|
       if board_image.destroy
@@ -143,7 +137,6 @@ class API::BoardImagesController < API::ApplicationController
       end
     end
     if results.all?
-      puts "All board images removed successfully"
       render json: { board: @board.api_view_with_predictive_images(current_user, nil, true) }
     else
       render json: { error: "Failed to remove some board images" }, status: :unprocessable_entity
