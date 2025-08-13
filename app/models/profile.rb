@@ -33,6 +33,11 @@ class Profile < ApplicationRecord
     {}
   end
 
+  def user_id
+    return nil if profileable.nil?
+    profileable_type == "User" ? profileable&.id : profileable&.user_id
+  end
+
   def api_view(viewer = nil)
     {
       id: id,
@@ -50,6 +55,8 @@ class Profile < ApplicationRecord
       profileable_type: profileable_type,
       profileable_id: profileable_id,
       can_edit: viewer&.can_edit_profile?(id),
+      viewer: viewer&.id || "anonymous",
+      user_id: user_id,
     }
   end
 
@@ -143,7 +150,6 @@ class Profile < ApplicationRecord
   end
 
   def user_boards
-    puts "PROFILE USER BOARDS: #{profileable_type} - #{profileable_id}"
     return [] if profileable.nil?
     if profileable_type == "User"
       boards = profileable.boards.published

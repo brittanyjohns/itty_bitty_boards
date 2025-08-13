@@ -526,7 +526,7 @@ class User < ApplicationRecord
     account_profile = Profile.find_by(id: profile_id.to_i)
     return false unless account_profile
 
-    if account_profile.profileable_type == "User" && account_profile.profileable_id == id
+    if account_profile.user_id == id
       return true
     end
     return true if admin?
@@ -928,6 +928,11 @@ class User < ApplicationRecord
     ChildAccount.find_by(user_id: id, vendor_id: vendor_id) if vendor_id
   end
 
+  def vendor_profile
+    return nil unless vendor?
+    vendor_account&.profile
+  end
+
   def can_use_ai?
     pro? || plus? || premium? || vendor? || basic?
   end
@@ -947,14 +952,13 @@ class User < ApplicationRecord
     memoized_boards = boards.alphabetical
     board_count = memoized_boards.count
     can_create_boards = board_count < board_limit
-    Rails.logger.info "Memoized teams: #{memoized_teams.count}, communicators: #{memoized_communicators.count}, boards: #{memoized_boards.count}"
 
     {
       id: id,
       organization_id: organization_id,
-      # profile: profile&.api_view,
-      vendor_profile: profile&.api_view,
-      vendor: vendor&.api_view,
+      profile: profile&.api_view,
+      vendor_profile: vendor_profile&.api_view,
+      # vendor: vendor&.api_view,
       is_vendor: vendor?,
       board_limit: board_limit,
       can_create_boards: can_create_boards,
