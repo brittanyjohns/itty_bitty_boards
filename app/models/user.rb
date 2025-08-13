@@ -788,7 +788,7 @@ class User < ApplicationRecord
   end
 
   def paid_plan?
-    basic? || pro? || plus? || premium? || admin? || myspeak?
+    basic? || pro? || plus? || premium? || admin? || myspeak? || pro_vendor?
   end
 
   def professional?
