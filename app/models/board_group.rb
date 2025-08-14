@@ -117,6 +117,10 @@ class BoardGroup < ApplicationRecord
     end
     layout_to_set.each_with_index do |layout_item, i|
       id_key = layout_item[:i]
+      if layout_item.is_a?(ActionController::Parameters)
+        layout_item = layout_item.to_unsafe_h
+        Rails.logger.debug "Updating grid layout for screen size: #{screen_size} with sorted layout: #{layout_item.inspect}"
+      end
       layout_hash = layout_item.with_indifferent_access
       id_key = layout_hash[:i] || layout_hash["i"]
       Rails.logger.debug "Processing layout item with ID: #{id_key} for screen size: #{screen_size}"

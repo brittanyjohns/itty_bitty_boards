@@ -115,6 +115,10 @@ class API::BoardGroupsController < API::ApplicationController
   end
 
   def update
+    unless current_user&.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
     board_group = BoardGroup.find(params[:id])
     Rails.logger.debug "Updating parameters: #{params.inspect}"
     board_group.predefined = board_group_params[:predefined]
@@ -174,6 +178,10 @@ class API::BoardGroupsController < API::ApplicationController
   end
 
   def destroy
+    unless current_user&.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
     board_group = BoardGroup.find(params[:id])
     board_group.destroy
 
@@ -218,7 +226,6 @@ class API::BoardGroupsController < API::ApplicationController
       board_group_board_id = item["i"].to_i
       board_group_board = @board_group.board_group_boards.find_by(id: board_group_board_id)
       if board_group_board
-        Rails.logger.debug "Updating position for board group board ID: #{board_group_board_id} to #{i}"
         bgb_layout = {
           "x" => item["x"].to_i,
           "y" => item["y"].to_i,
@@ -229,7 +236,6 @@ class API::BoardGroupsController < API::ApplicationController
         board_group_board.group_layout[params[:screen_size] || "lg"] = bgb_layout
         board_group_board.save!
         board_group_board_ids << board_group_board_id
-        Rails.logger.debug "Board group board ID: #{board_group_board_id} updated with layout #{bgb_layout.inspect}"
         # Update position
         board_group_board.update!(position: i)
       else
@@ -256,12 +262,12 @@ class API::BoardGroupsController < API::ApplicationController
     @board_group.settings[screen_size] = params[:settings] if params[:settings].present?
     @board_group.save!
 
-    # Update the grid layout
-    begin
-      @board_group.update_grid_layout(sorted_layout, screen_size)
-    rescue => e
-      Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
-    end
+    # # Update the grid layout
+    # begin
+    #   # @board_group.update_grid_layout(sorted_layout, screen_size)
+    # rescue => e
+    #   Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
+    # end
     @board_group.reload
   end
 end

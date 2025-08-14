@@ -989,7 +989,6 @@ class User < ApplicationRecord
       extra_communicators: extra_comms,
       comm_account_limit: comm_limit + extra_comms,
       supervisor_limit: settings["supervisor_limit"] || 0,
-      board_limit: board_limit,
       phrase_board_id: settings["phrase_board_id"],
       opening_board_id: settings["opening_board_id"],
       has_dynamic_default: opening_board.present?,
