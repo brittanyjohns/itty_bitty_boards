@@ -17,7 +17,6 @@ class API::BoardGroupsController < API::ApplicationController
     end
     @featured_board_groups = BoardGroup.featured.alphabetical.page params[:page]
     @user_board_groups = current_user.board_groups.where(predefined: [false, nil]).alphabetical.page params[:page] if current_user
-    Rails.logger.debug "Featured Board Groups: #{@featured_board_groups.count}"
     @welcome_board = @welcome_group&.boards&.first
     render json: { predefined_board_groups: @predefined_board_groups.map(&:api_view), featured_board_groups: @featured_board_groups&.map(&:api_view), welcome_board: @welcome_board&.api_view, user_board_groups: @user_board_groups&.map(&:api_view) }
   end

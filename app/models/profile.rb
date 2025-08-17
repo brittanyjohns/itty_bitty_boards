@@ -175,6 +175,7 @@ class Profile < ApplicationRecord
       startup_url: startup_url,
       intro: intro,
       public_boards: public_boards.map(&:api_view),
+      communication_boards: communication_boards.map(&:api_view),
       profileable_type: profileable_type,
       profileable_id: profileable_id,
       user_id: profileable_type == "User" ? profileable&.id : profileable&.user_id,
@@ -309,6 +310,20 @@ class Profile < ApplicationRecord
   def self.generate_with_username(username, existing_user = nil)
     slug = username.parameterize
     Rails.logger.info "Generating profile with user: #{username}, slug: #{slug}, existing_user: #{existing_user.inspect}"
+    existing_profile = Profile.find_by(username: username) || Profile.find_by(slug: slug)
+    existing_communicator = ChildAccount.find_by(username: username) || ChildAccount.find_by(slug: slug)
+    if (existing_communicator || existing_profile) && existing_user
+      Rails.logger.warn "Profile with username '#{username}' or slug '#{slug}' already exists for another user."
+      email = existing_user.email
+      username = email.split("@").first
+      slug = username.parameterize
+      backup_profile = Profile.find_by(username: username) || Profile.find_by(slug: slug)
+      if backup_profile
+        Rails.logger.error "Backup profile with username '#{username}' or slug '#{slug}' already exists."
+        return nil
+      end
+    end
+    Rails.logger.info "Creating new profile with user: #{username}, slug: #{slug}, existing_user: #{existing_user.inspect}"
 
     profile = Profile.create!(
       username: username,

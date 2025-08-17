@@ -1293,7 +1293,6 @@ class Image < ApplicationRecord
     @current_user = current_user
     @predictive_board = predictive_board
     @board_image = board_image
-    Rails.logger.debug "with_display_doc: current_user: #{@current_user&.id} - board_image: #{@board_image&.id} - board: #{board&.id} - image_id: #{id}"
     @board = board
     @board_images = user_board_images(@current_user)
     if @board_image

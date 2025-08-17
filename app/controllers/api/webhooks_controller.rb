@@ -81,9 +81,10 @@ class API::WebhooksController < API::ApplicationController
             else
               Rails.logger.warn "Skipping welcome email for plan: #{plan_nickname}"
               if plan_nickname&.include?("myspeak")
-                Rails.logger.info "Handling myspeak user for plan: #{plan_nickname}"
-                @user = handle_myspeak_user(stripe_customer)
-                Rails.logger.info "Myspeak user handled: #{@user&.email} with stripe_customer_id: #{stripe_customer.id}" if @user
+                # Rails.logger.info "Handling myspeak user for plan: #{plan_nickname}"
+                # @user = handle_myspeak_user(stripe_customer)
+                # Rails.logger.info "Myspeak user handled: #{@user&.email} with stripe_customer_id: #{stripe_customer.id}" if @user
+                Rails.logger.info "Skip myspeak user for plan: #{plan_nickname}"
               elsif plan_nickname&.include?("vendor")
                 Rails.logger.info "Skip vendor user for plan: #{plan_nickname}"
               else
@@ -106,7 +107,8 @@ class API::WebhooksController < API::ApplicationController
           end
           stripe_customer_id = data_object.customer || stripe_customer.id
           if plan_nickname&.include?("myspeak")
-            @user = handle_myspeak_user(stripe_customer)
+            # @user = handle_myspeak_user(stripe_customer)
+            Rails.logger.info "Handling myspeak user for plan: #{plan_nickname}"
           elsif plan_nickname&.include?("vendor")
             # @user = handle_vendor_user(stripe_customer.email, nil, stripe_customer_id, plan_nickname)
             Rails.logger.info "Vendor user for plan: #{plan_nickname} - not handled yet"
@@ -164,37 +166,43 @@ class API::WebhooksController < API::ApplicationController
         Rails.logger.info "Processing checkout session completed event: #{event_type} for user: #{@user&.email} with plan type: #{plan_type}"
         Rails.logger.info "Session metadata: #{metadata.inspect}"
         Rails.logger.info "Checkout session completed for user: #{@user&.email} with custom fields: #{custom_fields.inspect}"
-        unless plan_type == "vendor"
-          Rails.logger.info "Plan type is not vendor: #{plan_type} - skipping vendor user creation"
-          render json: { success: true }, status: 200 and return
-        end
+        # unless plan_type == "vendor"
+        #   Rails.logger.info "Plan type is not vendor: #{plan_type} - skipping vendor user creation"
+        #   render json: { success: true }, status: 200 and return
+        # end
         @user = User.find_by(stripe_customer_id: session.customer) unless @user
 
         Rails.logger.debug "User found: #{@user&.email} - stripe_customer_id: #{session.customer}" if @user
-        if @user.nil?
-          Rails.logger.error "No user found for stripe_customer_id: #{data_object.customer}"
-          @user = User.create_from_email(
-            session.customer_details["email"],
-            session.customer,
-            nil,
-            nil
-          )
-          Rails.logger.info "Created new user: #{@user&.email} with stripe_customer_id: #{session.customer}"
+        if plan_type == "vendor"
+          Rails.logger.info "Handling vendor user for plan: #{plan_type}"
           if @user.nil?
-            Rails.logger.error "Failed to create user for email: #{session.customer_details["email"]}"
-            render json: { error: "Failed to create user." }, status: 400 and return
+            Rails.logger.error "No user found for stripe_customer_id: #{data_object.customer}"
+            @user = User.create_from_email(
+              session.customer_details["email"],
+              session.customer,
+              nil,
+              nil
+            )
+            Rails.logger.info "Created new user: #{@user&.email} with stripe_customer_id: #{session.customer}"
+            if @user.nil?
+              Rails.logger.error "Failed to create user for email: #{session.customer_details["email"]}"
+              render json: { error: "Failed to create user." }, status: 400 and return
+            end
+            @user.plan_type = plan_type || "free"
+            @user.role = "vendor"
+            @user.plan_status = "active"
+            @user.save!
+            Rails.logger.info "New user created: #{@user&.email} with plan type: #{@user.plan_type}"
           end
-          @user.plan_type = plan_type || "free"
-          @user.role = "vendor"
-          @user.plan_status = "active"
-          @user.save!
-          Rails.logger.info "New user created: #{@user&.email} with plan type: #{@user.plan_type}"
-        end
-        plan_nickname = "vendor_#{plan_type}" if plan_type
+          plan_nickname = "vendor_#{plan_type}" if plan_type
+          Rails.logger.info "Plan nickname for vendor: #{plan_nickname}"
+        elsif plan_type == "myspeak"
+          Rails.logger.info "Handling myspeak user for plan: #{plan_type}"
 
-        Rails.logger.info "Processing checkout session completed event for user: #{@user&.email} with plan type: #{plan_type}"
-        Rails.logger.info "Session metadata: #{metadata.inspect}"
-        Rails.logger.info "Checkout session completed for user: #{@user&.email} with custom fields: #{custom_fields.inspect}"
+          Rails.logger.info "Myspeak user handled: #{@user&.email} with stripe_customer_id: #{session.customer}" if @user
+          plan_nickname = "myspeak_#{@user&.plan_type}" if @user&.plan_type
+          Rails.logger.info "Plan nickname for myspeak: #{plan_nickname}"
+        end
         custom_fields.each do |custom_field|
           if custom_field
             if custom_field["key"] == "businessname"
@@ -236,6 +244,18 @@ class API::WebhooksController < API::ApplicationController
               @user.vendor ||= @vendor
               render json: { success: true }, status: 200 and return
             end
+            if custom_field["key"] == "username"
+              email = session.customer_details["email"]
+              myspeak_slug = custom_field["text"]["value"]
+              Rails.logger.info "Processing myspeak slug #{myspeak_slug} for email: #{email}"
+              @user = handle_myspeak_user(session, myspeak_slug) if myspeak_slug.present?
+              if @user.nil?
+                Rails.logger.info "Creating new myspeak user for email: #{email} with slug: #{myspeak_slug}"
+                @user = User.create_from_email(email, session.customer, nil, myspeak_slug)
+              else
+                Rails.logger.info "Created myspeak user: #{@user.email} with slug: #{myspeak_slug}"
+              end
+            end
           end
         end
         unless @user
@@ -256,24 +276,32 @@ class API::WebhooksController < API::ApplicationController
 
   private
 
-  def handle_myspeak_user(stripe_customer)
+  def handle_myspeak_user(stripe_session, slug = nil)
     begin
-      email = stripe_customer.email
-      stripe_customer_id = stripe_customer.id
-      temp_slug = stripe_customer.email.split("@").first
-      temp_slug = temp_slug.parameterize
-      # @user = User.create_from_email(email, stripe_customer_id, nil, temp_slug) unless @user
+      stripe_customer_id = stripe_session.customer
+      email = stripe_session.customer_details["email"]
+      # email = stripe_customer.email
+      # stripe_customer_id = stripe_customer.id
+      if slug.nil?
+        slug = email.split("@").first.parameterize
+      end
+      slug = slug
+      # @user = User.create_from_email(email, stripe_customer_id, nil, slug) unless @user
       @user = User.find_by(email: email)
       found_user = @user
       Rails.logger.info "Found user: #{found_user&.email} for email: #{email}" if found_user
       @user = User.invite!(email: email, skip_invitation: true) unless @user
-      @user.send_welcome_with_claim_link_email(temp_slug)
-      Rails.logger.info "Myspeak user created: #{@user.email} with slug: #{temp_slug}"
+      @user.send_welcome_with_claim_link_email(slug)
+      Rails.logger.info "Myspeak user created: #{@user.email} with slug: #{slug}"
       @user.plan_type = "myspeak"
       @user.plan_status = "active"
       @user.stripe_customer_id = stripe_customer_id if stripe_customer_id
+      @user.settings ||= {}
+      @user.settings[:myspeak_slug] = slug
+      @user.settings["board_limit"] = 1
+      @user.settings["communicator_limit"] = 0
       @user.save!
-      @profile = Profile.generate_with_username(temp_slug, @user) if @user
+      @profile = Profile.generate_with_username(slug, @user) if @user
     rescue ActiveRecord::RecordInvalid => e
       Rails.logger.error "Error creating user from email: #{e.inspect}"
     rescue StandardError => e

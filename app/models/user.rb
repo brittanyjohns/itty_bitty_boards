@@ -160,7 +160,7 @@ class User < ApplicationRecord
       end
     end
     Rails.logger.info("FAILED while creating user from email: #{email}, inviting_user_id: #{inviting_user_id}, slug: #{slug}, stripe_customer_id: #{stripe_customer_id} errors: #{user.errors.full_messages.join(", ")}") if user && user.errors.any?
-    user.slug = slug if slug
+    # user.slug = slug if slug
     user.ensure_settings
     user.role = "user" unless user.role
     user.plan_type ||= "free"
@@ -867,6 +867,11 @@ class User < ApplicationRecord
 
   def admin_api_view
     view = as_json
+    comm_account_limit_reached = settings["communicator_limit"].to_i + settings["extra_communicators"].to_i <= communicator_accounts.count
+    board_limit = settings["board_limit"] || 0
+    board_count = boards.count
+    can_create_boards = board_count < board_limit
+    board_limit_reached = board_count >= board_limit
     view["admin"] = admin?
     view["free"] = free?
     view["pro"] = pro?
@@ -895,6 +900,9 @@ class User < ApplicationRecord
     view["images"] = images.order(:created_at).limit(10).map { |image| { id: image.id, name: image.name, src: image.src_url } }
     view["display_name"] = display_name
     view["stripe_customer_id"] = stripe_customer_id
+    view["board_limit"] = board_limit
+    view["comm_account_limit_reached"] = comm_account_limit_reached
+    view["board_limit_reached"] = board_limit_reached
     view
   end
 
@@ -952,6 +960,7 @@ class User < ApplicationRecord
     memoized_boards = boards.alphabetical
     board_count = memoized_boards.count
     can_create_boards = board_count < board_limit
+    comm_account_limit_reached = comm_limit + extra_comms <= memoized_communicators.count
 
     {
       id: id,
@@ -961,6 +970,8 @@ class User < ApplicationRecord
       # vendor: vendor&.api_view,
       is_vendor: vendor?,
       board_limit: board_limit,
+      comm_account_limit_reached: comm_account_limit_reached,
+      board_limit_reached: board_count >= board_limit,
       can_create_boards: can_create_boards,
       board_count: board_count,
       can_use_ai: can_use_ai?,
