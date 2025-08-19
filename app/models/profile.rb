@@ -164,6 +164,7 @@ class Profile < ApplicationRecord
     {
       id: id,
       username: username,
+      general_public_boards: Board.public_boards.map(&:api_view),
       bio: bio,
       name: profileable&.display_name,
       email: profileable&.email,
