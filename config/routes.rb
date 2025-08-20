@@ -413,6 +413,10 @@ Rails.application.routes.draw do
     end
   end
 
+  namespace :wix do
+    post "submit", to: "application#submit"
+  end
+
   #  CDN routes
 
   # config/routes.rb
@@ -451,6 +455,7 @@ Rails.application.routes.draw do
 
   # Defines the root path route ("/")
   root "main#index"
+  mount RailsPerformance::Engine, at: "rails/performance"
 
   # Catch-all route for handling 404 errors. This should be the last route in the file to ensure it catches all unmatched routes.
   match "*path", via: :all, to: "error#not_found"
