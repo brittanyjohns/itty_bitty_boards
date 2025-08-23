@@ -232,33 +232,6 @@ class Board < ApplicationRecord
     self.layout = { "lg" => [], "md" => [], "sm" => [] }
   end
 
-  # const getBoardIcon = (board: Board) => {
-  #   console.log("Getting icon for board:", board.name.includes("Numbers"));
-  #   if (board.name.toLowerCase().includes("numbers")) {
-  #     return <i className="fa-solid fa-hashtag"></i>;
-  #   } else if (board.name.toLowerCase().includes("greetings")) {
-  #     return <i className="fa-solid fa-handshake"></i>;
-  #   } else if (board.name.toLowerCase().includes("sizes")) {
-  #     return <IonIcon icon={expandOutline} />;
-  #   } else if (board.name.includes("Little Words")) {
-  #     return <IonIcon icon={diceOutline} />;
-  #   } else if (board.name.toLowerCase().includes("feelings")) {
-  #     return <IonIcon icon={happyOutline} />;
-  #   } else if (board.name.toLowerCase().includes("family")) {
-  #     return <IonIcon icon={peopleOutline} />;
-  #   } else if (board.name.toLowerCase().includes("home page")) {
-  #     return <IonIcon icon={homeOutline} />;
-  #   } else if (board.name.toLowerCase().includes("daily routine")) {
-  #     return <IonIcon icon={shirtOutline} />;
-  #   } else if (board.name.toLowerCase().includes("bathroom")) {
-  #     return <IonIcon icon={waterOutline} />;
-  #   } else if (board.name.toLowerCase().includes("sleep")) {
-  #     return <IonIcon icon={bedOutline} />;
-  #   } else {
-  #     return <IonLabel className="mx-2 text-xs">{board.slug}</IonLabel>;
-  #   }
-  # };
-
   def ionic_icon
     return "hash" if name&.downcase&.include?("numbers")
     return "handshake" if name&.downcase&.include?("greetings")
@@ -274,34 +247,6 @@ class Board < ApplicationRecord
 
     "default"
   end
-
-  # def ionic_icon
-  #   return "<i className='fa-solid fa-handshake'></i>" if name&.downcase&.include?("greetings")
-  #   return "<i className='fa-solid fa-expand'></i>" if name&.downcase&.include?("sizes")
-  #   return "<i className='fa-solid fa-dice'></i>" if name&.downcase&.include?("little words")
-  #   return "<i className='fa-solid fa-happy'></i>" if name&.downcase&.include?("feelings")
-  #   return "<i className='fa-solid fa-people'></i>" if name&.downcase&.include?("family")
-  #   return "<i className='fa-solid fa-home'></i>" if name&.downcase&.include?("home page")
-  #   return "<i className='fa-solid fa-shirt'></i>" if name&.downcase&.include?("daily routine")
-  #   return "<i className='fa-solid fa-water'></i>" if name&.downcase&.include?("bathroom")
-  #   return "<i className='fa-solid fa-bed'></i>" if name&.downcase&.include?("sleep")
-  #   return "<i className='fa-solid fa-shirt'></i>" if name&.downcase&.include?("routine")
-
-  #   "<i className='fa-solid fa-default'></i>"
-  # end
-
-  # def set_slug
-  #   return unless name.present? && slug.blank?
-
-  #   slug = name.parameterize
-  #   existing_board = Board.find_by(slug: slug)
-  #   if existing_board
-  #     Rails.logger.warn "Board with slug '#{slug}' already exists. Generating a new slug."
-  #     random = SecureRandom.hex(8)
-  #     slug = "#{slug}-#{random}"
-  #   end
-  #   self.slug = slug
-  # end
 
   def set_vendor_id
     return if vendor_id.present? || !user
@@ -320,10 +265,8 @@ class Board < ApplicationRecord
 
   def validate_data
     self.data ||= {}
-    # data["personable_explanation"].gsub("Personable Explanation: ", "") if data["personable_explanation"]
     self.data["personable_explanation"] = data["personable_explanation"].gsub("Personable Explanation: ", "") if data["personable_explanation"]
     self.data["professional_explanation"] = data["professional_explanation"].gsub("Professional Explanation: ", "") if data["professional_explanation"]
-    # self.data["current_word_list"] = words
   end
 
   def self.set_preset_display_image_from_url(boards)
