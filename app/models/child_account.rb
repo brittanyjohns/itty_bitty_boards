@@ -368,7 +368,12 @@ class ChildAccount < ApplicationRecord
   end
 
   def go_to_boards
-    favorite_boards.any? ? favorite_boards : boards_by_most_used
+    gt_boards = favorite_boards.any? ? favorite_boards : boards_by_most_used
+    if gt_boards.none?
+      # Handle case where there are no boards to go to
+      gt_boards = Board.public_boards.limit(3)
+    end
+    gt_boards
   end
 
   def most_used_board

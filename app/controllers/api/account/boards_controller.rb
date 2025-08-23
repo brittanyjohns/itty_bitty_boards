@@ -154,6 +154,11 @@ class API::Account::BoardsController < API::Account::ApplicationController
       # current_account.settings["dynamic_board_id"] = nil
       # current_account.save!
       @board = current_account.boards.first
+      @board = Board.predictive_default(current_account) if @board.nil?
+      if @board.nil?
+        Rails.logger.info "No board found for initial predictive board"
+        render json: { error: "No board found" }, status: :not_found
+      end
     end
     render json: @board.api_view_with_predictive_images(current_account)
   end
