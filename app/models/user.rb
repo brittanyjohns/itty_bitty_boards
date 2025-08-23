@@ -1008,7 +1008,7 @@ class User < ApplicationRecord
       teams_with_read_access: memoized_teams.map(&:index_api_view),
       communicator_accounts: memoized_communicators,
       go_to_words: go_words,
-      go_to_boards: go_to_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url } },
+      go_to_boards: go_to_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, slug: b.slug, ionic_icon: b.ionic_icon } },
       boards: memoized_boards.map { |b| { id: b.id, name: b.name } },
       # heat_map: heat_map,
       # week_chart: week_chart,

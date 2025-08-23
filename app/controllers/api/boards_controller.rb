@@ -620,7 +620,7 @@ class API::BoardsController < API::ApplicationController
       return
     end
     user_board_count = current_user.boards.non_menus.where(predefined: false).count
-    if user_board_count > current_user.board_limit
+    if user_board_count >= current_user.board_limit
       render json: { error: "Maximum number of boards reached (#{user_board_count}/#{current_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_entity
       return
     end

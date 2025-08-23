@@ -371,7 +371,7 @@ class ChildAccount < ApplicationRecord
     gt_boards = favorite_boards.any? ? favorite_boards : boards_by_most_used
     if gt_boards.none?
       # Handle case where there are no boards to go to
-      gt_boards = Board.public_boards.limit(3)
+      gt_boards = Board.public_boards.limit(5)
     end
     gt_boards
   end
@@ -455,6 +455,8 @@ class ChildAccount < ApplicationRecord
         {
           id: board.id,
           name: board.name,
+          slug: board.slug,
+          ionic_icon: board.ionic_icon,
           display_image_url: board.display_image_url,
         }
       end,

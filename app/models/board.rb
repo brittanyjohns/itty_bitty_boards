@@ -232,6 +232,64 @@ class Board < ApplicationRecord
     self.layout = { "lg" => [], "md" => [], "sm" => [] }
   end
 
+  # const getBoardIcon = (board: Board) => {
+  #   console.log("Getting icon for board:", board.name.includes("Numbers"));
+  #   if (board.name.toLowerCase().includes("numbers")) {
+  #     return <i className="fa-solid fa-hashtag"></i>;
+  #   } else if (board.name.toLowerCase().includes("greetings")) {
+  #     return <i className="fa-solid fa-handshake"></i>;
+  #   } else if (board.name.toLowerCase().includes("sizes")) {
+  #     return <IonIcon icon={expandOutline} />;
+  #   } else if (board.name.includes("Little Words")) {
+  #     return <IonIcon icon={diceOutline} />;
+  #   } else if (board.name.toLowerCase().includes("feelings")) {
+  #     return <IonIcon icon={happyOutline} />;
+  #   } else if (board.name.toLowerCase().includes("family")) {
+  #     return <IonIcon icon={peopleOutline} />;
+  #   } else if (board.name.toLowerCase().includes("home page")) {
+  #     return <IonIcon icon={homeOutline} />;
+  #   } else if (board.name.toLowerCase().includes("daily routine")) {
+  #     return <IonIcon icon={shirtOutline} />;
+  #   } else if (board.name.toLowerCase().includes("bathroom")) {
+  #     return <IonIcon icon={waterOutline} />;
+  #   } else if (board.name.toLowerCase().includes("sleep")) {
+  #     return <IonIcon icon={bedOutline} />;
+  #   } else {
+  #     return <IonLabel className="mx-2 text-xs">{board.slug}</IonLabel>;
+  #   }
+  # };
+
+  def ionic_icon
+    return "hash" if name&.downcase&.include?("numbers")
+    return "handshake" if name&.downcase&.include?("greetings")
+    return "expand" if name&.downcase&.include?("sizes")
+    return "dice" if name&.downcase&.include?("little words")
+    return "happy" if name&.downcase&.include?("feelings")
+    return "people" if name&.downcase&.include?("family")
+    return "home" if name&.downcase&.include?("home page")
+    return "shirt" if name&.downcase&.include?("daily routine")
+    return "water" if name&.downcase&.include?("bathroom")
+    return "bed" if name&.downcase&.include?("sleep")
+    return "shirt" if name&.downcase&.include?("routine")
+
+    "default"
+  end
+
+  # def ionic_icon
+  #   return "<i className='fa-solid fa-handshake'></i>" if name&.downcase&.include?("greetings")
+  #   return "<i className='fa-solid fa-expand'></i>" if name&.downcase&.include?("sizes")
+  #   return "<i className='fa-solid fa-dice'></i>" if name&.downcase&.include?("little words")
+  #   return "<i className='fa-solid fa-happy'></i>" if name&.downcase&.include?("feelings")
+  #   return "<i className='fa-solid fa-people'></i>" if name&.downcase&.include?("family")
+  #   return "<i className='fa-solid fa-home'></i>" if name&.downcase&.include?("home page")
+  #   return "<i className='fa-solid fa-shirt'></i>" if name&.downcase&.include?("daily routine")
+  #   return "<i className='fa-solid fa-water'></i>" if name&.downcase&.include?("bathroom")
+  #   return "<i className='fa-solid fa-bed'></i>" if name&.downcase&.include?("sleep")
+  #   return "<i className='fa-solid fa-shirt'></i>" if name&.downcase&.include?("routine")
+
+  #   "<i className='fa-solid fa-default'></i>"
+  # end
+
   # def set_slug
   #   return unless name.present? && slug.blank?
 
@@ -321,28 +379,6 @@ class Board < ApplicationRecord
   def chart_bg_color
     Profile::RANDOM_COLORS.sample
   end
-
-  # def create_voice_audio
-  #   return if @skip_create_voice_audio
-  #   label_voice = "#{label_for_filename}_#{voice}"
-  #   filename = "#{label_voice}.aac"
-  #   already_has_audio_file = false
-
-  #   audio_file = audio_files.last
-
-  #   if already_has_audio_file && audio_file
-  #     self.audio_url = default_audio_url(audio_file)
-  #   else
-  #     audio_file = create_audio_from_text(name, voice)
-  #     if audio_file.is_a?(Integer) || audio_file.nil?
-  #       Rails.logger.error "Error creating audio file: #{audio_file}"
-  #       return
-  #     end
-  #     self.audio_url = default_audio_url(audio_file)
-  #   end
-  #   @skip_create_voice_audio = true
-  #   save
-  # end
 
   def existing_audio_files
     return [] unless audio_files.attached?
@@ -1529,6 +1565,7 @@ class Board < ApplicationRecord
       group_layout: group_layout,
       position: position,
       data: data,
+      ionic_icon: ionic_icon,
       large_screen_columns: large_screen_columns,
       medium_screen_columns: medium_screen_columns,
       small_screen_columns: small_screen_columns,
