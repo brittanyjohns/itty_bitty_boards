@@ -176,7 +176,7 @@ class Profile < ApplicationRecord
       startup_url: startup_url,
       intro: intro,
       public_boards: public_boards.map(&:api_view),
-      communication_boards: communication_boards.map(&:api_view),
+      communication_boards: communication_boards&.map(&:api_view),
       profileable_type: profileable_type,
       profileable_id: profileable_id,
       user_id: profileable_type == "User" ? profileable&.id : profileable&.user_id,
@@ -198,7 +198,11 @@ class Profile < ApplicationRecord
   end
 
   def communication_boards
-    profileable&.favorite_boards
+    if profileable&.favorite_boards
+      profileable&.favorite_boards
+    else
+      Board.public_boards
+    end
   end
 
   def public_url
@@ -312,7 +316,7 @@ class Profile < ApplicationRecord
     slug = username.parameterize
     Rails.logger.info "Generating profile with user: #{username}, slug: #{slug}, existing_user: #{existing_user.inspect}"
     existing_profile = Profile.find_by(username: username) || Profile.find_by(slug: slug)
-    existing_communicator = ChildAccount.find_by(username: username) || ChildAccount.find_by(slug: slug)
+    existing_communicator = ChildAccount.find_by(username: username)
     if (existing_communicator || existing_profile) && existing_user
       Rails.logger.warn "Profile with username '#{username}' or slug '#{slug}' already exists for another user."
       email = existing_user.email

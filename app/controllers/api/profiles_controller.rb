@@ -60,10 +60,10 @@ class API::ProfilesController < API::ApplicationController
       return
     end
     if params[:user_email].present?
-      user = User.find_by(email: params[:user_email])
-      existing_user = user
-
-      user = User.create_from_email(params[:user_email], nil, nil, slug)
+      existing_user = User.find_by(email: params[:user_email])
+      new_user = User.create_from_email(params[:user_email], nil, nil, slug) unless existing_user
+      user = existing_user || new_user
+      Rails.logger.info("Generated user #{new_user ? "New" : "Existing"} user: #{user.email}")
       if user
         params[:user_id] = user.id
         params[:user_email] = user.email
