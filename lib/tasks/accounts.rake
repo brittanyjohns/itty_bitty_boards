@@ -16,7 +16,7 @@ namespace :accounts do
       profile = Profile.create!(
         username: placeholder_name,
         slug: slug,
-        bio: "This is a placeholder profile.",
+        bio: "This is a placeholder profile. Once claimed, you can customize it.",
         intro: "Welcome to MySpeak!",
         placeholder: true,
         claimed_at: nil,
@@ -26,7 +26,10 @@ namespace :accounts do
       puts "PUBLIC URL: #{profile.public_url}"
       puts "Claim token: #{profile.claim_token}"
       puts "Claim URL: #{profile.id}"
+      urls << profile.claim_url
     end
     puts "Done!"
+    puts "Claim URLs:"
+    urls.each { |url| puts url }
   end
 end
