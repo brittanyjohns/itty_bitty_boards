@@ -81,6 +81,9 @@ class API::WebhooksController < API::ApplicationController
             else
               Rails.logger.warn "Skipping welcome email for plan: #{plan_nickname}"
               if plan_nickname&.include?("myspeak")
+                @user.plan_type = "myspeak"
+                @user.plan_status = "active"
+                @user.save!
                 # Rails.logger.info "Handling myspeak user for plan: #{plan_nickname}"
                 # @user = handle_myspeak_user(stripe_customer)
                 # Rails.logger.info "Myspeak user handled: #{@user&.email} with stripe_customer_id: #{stripe_customer.id}" if @user
@@ -247,8 +250,8 @@ class API::WebhooksController < API::ApplicationController
             if custom_field["key"] == "username"
               email = session.customer_details["email"]
               myspeak_slug = custom_field["text"]["value"]
-              Rails.logger.info "Processing myspeak slug #{myspeak_slug} for email: #{email}"
               @user = handle_myspeak_user(session, myspeak_slug) if myspeak_slug.present?
+              Rails.logger.info "Processing myspeak slug #{myspeak_slug} for email: #{email}"
               if @user.nil?
                 Rails.logger.info "Creating new myspeak user for email: #{email} with slug: #{myspeak_slug}"
                 @user = User.create_from_email(email, session.customer, nil, myspeak_slug)

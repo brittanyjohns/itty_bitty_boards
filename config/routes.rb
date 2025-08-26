@@ -312,6 +312,7 @@ Rails.application.routes.draw do
       end
     end
     get "profiles/:slug/check_placeholder", to: "profiles#check_placeholder"
+    post "profiles/claim_placeholder", to: "profiles#claim_placeholder"
 
     resources :vendors do
       collection do

@@ -304,7 +304,7 @@ class User < ApplicationRecord
       self.settings["total_communicators"] = total_communicators
       if plan_type == "free" || plan_type == "myspeak"
         # For free plan, set a default board limit
-        initial_board_limit = 3
+        initial_board_limit = 1
         if plan_type == "free"
           self.settings["communicator_limit"] = 0
         else
@@ -953,7 +953,7 @@ class User < ApplicationRecord
     plan_exp = plan_expires_at&.strftime("%x")
     comm_limit = settings["communicator_limit"] || 0
     extra_comms = settings["extra_communicators"] || 0
-    board_limit = settings["board_limit"] || 0
+    board_limit = settings["board_limit"] || 1
     go_words = settings["go_to_words"] || Board.common_words
 
     comm_limit = comm_limit.to_i

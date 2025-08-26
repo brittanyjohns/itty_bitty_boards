@@ -57,6 +57,8 @@ class Profile < ApplicationRecord
       can_edit: viewer&.can_edit_profile?(id),
       viewer: viewer&.id || "anonymous",
       user_id: user_id,
+      claim_token: claim_token,
+      claim_url: claim_url,
     }
   end
 
@@ -158,6 +160,16 @@ class Profile < ApplicationRecord
     end
   end
 
+  def user_id
+    if profileable_type == "User"
+      profileable&.id
+    else
+      if profileable&.respond_to?(:user_id)
+        profileable&.user_id
+      end
+    end
+  end
+
   def public_view
     {
       id: id,
@@ -181,6 +193,9 @@ class Profile < ApplicationRecord
       communicator_account_id: profileable_type == "User" ? nil : profileable&.id,
       avatar: avatar.attached? ? avatar_url : nil,
       settings: settings,
+      claim_token: claim_token,
+      claim_url: claim_url,
+      user_id: user_id,
     }
   end
 
@@ -190,8 +205,10 @@ class Profile < ApplicationRecord
       username: username,
       bio: bio,
       slug: slug,
-      placeholder: true,
+      placeholder: placeholder?,
       public_url: public_url,
+      claim_token: claim_token,
+      general_public_boards: Board.public_boards.map(&:api_view),
     }
   end
 
@@ -216,6 +233,10 @@ class Profile < ApplicationRecord
         "#{base_url}/my/#{slug}"
       end
     end
+  end
+
+  def claim_url
+    "#{ENV["FRONT_END_URL"] || "http://localhost:8100"}/claim/#{claim_token}" if claim_token
   end
 
   def startup_url
@@ -252,16 +273,6 @@ class Profile < ApplicationRecord
     audio_key ? cdn_url : nil
   end
 
-  def claim!(communicator)
-    update!(
-      profileable: communicator,
-      claim_token: nil,
-      placeholder: false,
-      claimed_at: Time.zone.now,
-      username: communicator.username.presence || self.username,
-    )
-  end
-
   def self.create_placeholders(number)
     urls = []
     number.times do
@@ -272,7 +283,7 @@ class Profile < ApplicationRecord
         username: placeholder_name,
         slug: slug,
         bio: "This is a placeholder profile.",
-        intro: "Welcome to MySpeak!",
+        intro: "Welcome to MySpeak! Personalize your profile by adding a short introduction about yourself.",
         placeholder: true,
         claimed_at: nil,
         claim_token: SecureRandom.hex(10),
@@ -310,6 +321,36 @@ class Profile < ApplicationRecord
     profile
   end
 
+  def claim!(username, existing_user)
+    user_id = existing_user.id
+    existing_communicator = ChildAccount.find_by(username: username, user_id: user_id)
+    if existing_communicator
+      Rails.logger.info "Found existing communicator: #{existing_communicator.inspect}"
+      self.update!(
+        profileable: existing_communicator,
+        placeholder: false,
+        claimed_at: Time.zone.now,
+        username: username,
+        slug: username.parameterize,
+      )
+    else
+      new_communicator_account = ChildAccount.create!(
+        username: username,
+        user_id: user_id,
+      )
+      puts "Created new communicator account: #{new_communicator_account.inspect}"
+      self.update!(
+        profileable: new_communicator_account,
+        placeholder: false,
+        claimed_at: Time.zone.now,
+        username: username,
+        slug: username.parameterize,
+      )
+    end
+    set_fake_avatar if avatar.blank?
+    self
+  end
+
   def self.generate_with_username(username, existing_user = nil)
     slug = username.parameterize
     Rails.logger.info "Generating profile with user: #{username}, slug: #{slug}, existing_user: #{existing_user.inspect}"
@@ -343,6 +384,7 @@ class Profile < ApplicationRecord
       )
       profile.profileable = new_communicator_account
       profile.claimed_at = Time.zone.now
+
       profile.username = username
       profile.save!
     end
