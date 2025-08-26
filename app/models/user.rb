@@ -305,7 +305,11 @@ class User < ApplicationRecord
       if plan_type == "free" || plan_type == "myspeak"
         # For free plan, set a default board limit
         initial_board_limit = 3
-        self.settings["communicator_limit"] = 1
+        if plan_type == "free"
+          self.settings["communicator_limit"] = 0
+        else
+          self.settings["communicator_limit"] = 1
+        end
       end
       self.settings["board_limit"] = initial_board_limit
       Rails.logger.info "Initial board limit set to: #{initial_board_limit}"

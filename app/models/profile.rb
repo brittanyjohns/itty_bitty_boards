@@ -67,8 +67,6 @@ class Profile < ApplicationRecord
       return
     end
 
-    # SaveProfileAudioJob.perform_async(id) if intro.present? && !intro_audio&.attached?
-    # SaveProfileAudioJob.perform_async(id) if intro_audio&.attached? && intro_changed?
     SaveProfileAudioJob.perform_async(id) if intro_changed? || bio_changed?
   end
 
