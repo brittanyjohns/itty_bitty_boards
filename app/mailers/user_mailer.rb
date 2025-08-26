@@ -115,7 +115,7 @@ class UserMailer < BaseMailer
     @login_link += "?email=#{ERB::Util.url_encode(user.email)}&claim=#{slug}"
 
     @claim_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
-    @claim_link += "/claim/#{slug}"
+    @claim_link += "/c/#{slug}"
     @mymyspeak_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
     @mymyspeak_link += "/my/#{slug}"
     subject = "Welcome to MySpeak - Claim your profile!"

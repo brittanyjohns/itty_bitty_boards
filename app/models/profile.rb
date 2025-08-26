@@ -236,7 +236,7 @@ class Profile < ApplicationRecord
   end
 
   def claim_url
-    "#{ENV["FRONT_END_URL"] || "http://localhost:8100"}/claim/#{claim_token}" if claim_token
+    "#{ENV["FRONT_END_URL"] || "http://localhost:8100"}/c/#{claim_token}" if claim_token
   end
 
   def startup_url
