@@ -336,6 +336,7 @@ class Profile < ApplicationRecord
     else
       new_communicator_account = ChildAccount.create!(
         username: username,
+        name: username,
         user_id: user_id,
       )
       puts "Created new communicator account: #{new_communicator_account.inspect}"
