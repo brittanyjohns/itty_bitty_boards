@@ -81,7 +81,9 @@ class API::WebhooksController < API::ApplicationController
             else
               Rails.logger.warn "Skipping welcome email for plan: #{plan_nickname}"
               if plan_nickname&.include?("myspeak")
-                @user.plan_type = "myspeak"
+                unless @user.plan_type == "pro" || @user.plan_type == "basic"
+                  @user.plan_type = "myspeak"
+                end
                 @user.plan_status = "active"
                 @user.save!
                 # Rails.logger.info "Handling myspeak user for plan: #{plan_nickname}"

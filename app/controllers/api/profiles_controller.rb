@@ -1,5 +1,5 @@
 class API::ProfilesController < API::ApplicationController
-  skip_before_action :authenticate_token!, only: %i[public check_placeholder generate claim_placeholder]
+  skip_before_action :authenticate_token!, only: %i[public check_placeholder generate claim_placeholder next_placeholder]
 
   def index
     @profile = current_user&.profile
@@ -15,6 +15,15 @@ class API::ProfilesController < API::ApplicationController
   def placeholders
     @profiles = Profile.where(placeholder: true)
     render json: @profiles.map(&:public_view)
+  end
+
+  def next_placeholder
+    @profile = Profile.where(placeholder: true).where(claimed_at: nil).order(:created_at).first
+    if @profile
+      render json: @profile.placeholder_view
+    else
+      render json: { error: "No available placeholder profiles" }, status: :not_found
+    end
   end
 
   def public
@@ -63,7 +72,6 @@ class API::ProfilesController < API::ApplicationController
       existing_user = User.find_by(email: params[:user_email])
       new_user = User.create_from_email(params[:user_email], nil, nil, slug) unless existing_user
       user = existing_user || new_user
-      Rails.logger.debug("Generated user #{new_user ? "New" : "Existing"} user: #{user.email}")
       if user
         params[:user_id] = user.id
         params[:user_email] = user.email
@@ -83,8 +91,6 @@ class API::ProfilesController < API::ApplicationController
 
   def update
     @profile = Profile.find(params[:id])
-    Rails.logger.debug("Updating profile: #{@profile.id}")
-    Rails.logger.debug("Update params: #{profile_params.inspect}")
     if @profile.update(profile_params)
       render json: @profile.api_view(current_user)
     else
@@ -95,7 +101,6 @@ class API::ProfilesController < API::ApplicationController
   def check_placeholder
     profile = Profile.find_by(slug: params[:slug])
     profile = Profile.find_by(claim_token: params[:slug]) if profile.nil?
-    Rails.logger.debug "Found profile: #{profile.inspect}" if profile
     if profile.nil?
       render json: { error: "Profile not found" }, status: :not_found
       return
@@ -106,12 +111,10 @@ class API::ProfilesController < API::ApplicationController
 
   def claim_placeholder
     if params[:claim_token].blank?
-      Rails.logger.debug "Claim token is missing"
       render json: { error: "Claim token is required" }, status: :unprocessable_entity
       return
     end
     @profile = Profile.find_by(claim_token: params[:claim_token]) if params[:claim_token].present?
-    Rails.logger.debug "Claiming placeholder for profile: #{@profile.inspect}"
     if @profile.nil?
       render json: { error: "Profile not found" }, status: :not_found
       return
@@ -128,22 +131,23 @@ class API::ProfilesController < API::ApplicationController
     end
     @user = User.find_by(email: email)
     found_user = @user
-    Rails.logger.debug "Found user: #{found_user&.email} for email: #{email}" if found_user
     @user = User.invite!(email: email, skip_invitation: true) unless @user
-    Rails.logger.debug "Myspeak user created: #{@user.email} with slug: #{slug}"
-    @user.plan_type = "myspeak"
-    @user.plan_status = "pending"
-    # @user.stripe_customer_id = stripe_customer_id if stripe_customer_id
     @user.settings ||= {}
+    unless @user.plan_type == "pro" || @user.plan_type == "basic"
+      @user.plan_type = "myspeak"
+      @user.plan_status = "pending"
+      @user.settings["board_limit"] = 1
+      @user.settings["communicator_limit"] = 0
+    else
+      Rails.logger.debug "User already has plan_type: #{@user.plan_type}, skipping plan assignment"
+    end
+
     @user.settings[:myspeak_slug] = slug
-    @user.settings["board_limit"] = 1
-    @user.settings["communicator_limit"] = 0
+
     @user.save!
     @profile = @profile.claim!(slug, @user)
-    Rails.logger.debug "Profile claimed: #{@profile.inspect}"
     @profile.reload
     @slug = @profile.slug
-    Rails.logger.debug "Profile after claim: #{@profile.inspect}"
     @user.send_welcome_with_claim_link_email(@slug)
 
     render json: @profile

@@ -208,6 +208,7 @@ class Profile < ApplicationRecord
       placeholder: placeholder?,
       public_url: public_url,
       claim_token: claim_token,
+      claim_url: claim_url,
       general_public_boards: Board.public_boards.map(&:api_view),
     }
   end

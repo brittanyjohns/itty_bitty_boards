@@ -46,6 +46,7 @@ class WordEvent < ApplicationRecord
   end
 
   def api_view(viewing_user = nil)
+    time_ago = time_ago_in_words(timestamp) if timestamp.present?
     {
       id: id,
       user_id: user_id,
@@ -62,7 +63,7 @@ class WordEvent < ApplicationRecord
       team_id: team_id,
       part_of_speech: part_of_speech,
       timestamp: timestamp,
-      time_ago_in_words: time_ago_in_words(timestamp),
+      time_ago_in_words: time_ago,
       board_name: board&.name,
       ip_address: data&.dig("ip"),
       location: data&.dig("location"),
