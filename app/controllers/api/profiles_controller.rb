@@ -1,5 +1,6 @@
 class API::ProfilesController < API::ApplicationController
   skip_before_action :authenticate_token!, only: %i[public check_placeholder generate claim_placeholder next_placeholder]
+  before_action :set_available_placeholders, only: %i[check_placeholder claim_placeholder next_placeholder]
 
   def index
     @profile = current_user&.profile
@@ -14,11 +15,11 @@ class API::ProfilesController < API::ApplicationController
 
   def placeholders
     @profiles = Profile.where(placeholder: true)
-    render json: @profiles.map(&:public_view)
+    render json: @profiles.map(&:placeholder_view)
   end
 
   def next_placeholder
-    @profile = Profile.where(placeholder: true).where(claimed_at: nil).order(:created_at).first
+    @profile = @available_placeholders.order(:created_at).first
     if @profile
       render json: @profile.placeholder_view
     else
@@ -99,8 +100,8 @@ class API::ProfilesController < API::ApplicationController
   end
 
   def check_placeholder
-    profile = Profile.find_by(slug: params[:slug])
-    profile = Profile.find_by(claim_token: params[:slug]) if profile.nil?
+    profile = @available_placeholders.find_by(slug: params[:slug])
+    profile = @available_placeholders.find_by(claim_token: params[:slug]) if profile.nil?
     if profile.nil?
       render json: { error: "Profile not found" }, status: :not_found
       return
@@ -114,7 +115,7 @@ class API::ProfilesController < API::ApplicationController
       render json: { error: "Claim token is required" }, status: :unprocessable_entity
       return
     end
-    @profile = Profile.find_by(claim_token: params[:claim_token]) if params[:claim_token].present?
+    @profile = @available_placeholders.find_by(claim_token: params[:claim_token]) if params[:claim_token].present?
     if @profile.nil?
       render json: { error: "Profile not found" }, status: :not_found
       return
@@ -155,7 +156,11 @@ class API::ProfilesController < API::ApplicationController
 
   private
 
+  def set_available_placeholders
+    @available_placeholders = Profile.available_placeholders
+  end
+
   def profile_params
-    params.require(:profile).permit(:username, :bio, :intro, :avatar, :slug, settings: {})
+    params.require(:profile).permit(:username, :bio, :intro, :avatar, :sku, :slug, settings: {})
   end
 end

@@ -32,12 +32,12 @@
 #  image_parent_id       :integer
 #  board_type            :string
 #  obf_id                :string
-#  board_group_id        :integer
 #  language              :string           default("en")
 #  board_images_count    :integer          default(0), not null
 #  published             :boolean          default(FALSE)
 #  favorite              :boolean          default(FALSE)
 #  vendor_id             :bigint
+#  slug                  :string           default("")
 #
 
 one:

@@ -2,25 +2,27 @@
 #
 # Table name: board_groups
 #
-#  id                   :bigint           not null, primary key
-#  name                 :string
-#  layout               :jsonb
-#  predefined           :boolean          default(FALSE)
-#  display_image_url    :string
-#  position             :integer
-#  number_of_columns    :integer          default(6)
-#  user_id              :integer          not null
-#  bg_color             :string
-#  created_at           :datetime         not null
-#  updated_at           :datetime         not null
-#  root_board_id        :integer
-#  original_obf_root_id :string
-#  settings             :jsonb            default({}), not null
-#  featured             :boolean          default(FALSE)
-#  slug                 :string
-#  small_screen_columns :integer          default(2)
-#  medium_screen_columns :integer         default(4)
-#  large_screen_columns :integer          default(6)
+#  id                    :bigint           not null, primary key
+#  name                  :string
+#  layout                :jsonb
+#  predefined            :boolean          default(FALSE)
+#  display_image_url     :string
+#  position              :integer
+#  number_of_columns     :integer          default(6)
+#  user_id               :integer          not null
+#  bg_color              :string
+#  created_at            :datetime         not null
+#  updated_at            :datetime         not null
+#  root_board_id         :integer
+#  original_obf_root_id  :string
+#  featured              :boolean          default(FALSE), not null
+#  slug                  :string
+#  small_screen_columns  :integer          default(4), not null
+#  medium_screen_columns :integer          default(5), not null
+#  large_screen_columns  :integer          default(6), not null
+#  margin_settings       :jsonb            not null
+#  settings              :jsonb            not null
+#  description           :text
 #
 class BoardGroup < ApplicationRecord
   # has_many :board_group_boards, dependent: :destroy

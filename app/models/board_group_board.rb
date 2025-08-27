@@ -7,6 +7,8 @@
 #  board_id       :bigint           not null
 #  created_at     :datetime         not null
 #  updated_at     :datetime         not null
+#  position       :integer          default(0), not null
+#  group_layout   :jsonb            not null
 #
 class BoardGroupBoard < ApplicationRecord
   belongs_to :board_group

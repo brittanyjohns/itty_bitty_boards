@@ -15,6 +15,7 @@
 #  placeholder      :boolean          default(FALSE)
 #  claim_token      :string
 #  claimed_at       :datetime
+#  sku              :string
 #
 class Profile < ApplicationRecord
   belongs_to :profileable, polymorphic: true, optional: true
@@ -28,6 +29,8 @@ class Profile < ApplicationRecord
 
   before_create :set_defaults
   before_save :start_audio_job, if: -> { intro_changed? || bio_changed? || (!intro_audio&.attached? && intro.present?) || (!bio_audio&.attached? && bio.present?) }
+
+  scope :available_placeholders, -> { where(placeholder: true, claimed_at: nil, sku: nil) }
 
   def open_ai_opts
     {}
@@ -209,6 +212,7 @@ class Profile < ApplicationRecord
       public_url: public_url,
       claim_token: claim_token,
       claim_url: claim_url,
+      sku: sku,
       general_public_boards: Board.public_boards.map(&:api_view),
     }
   end

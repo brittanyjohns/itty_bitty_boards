@@ -15,6 +15,7 @@
 #  placeholder      :boolean          default(FALSE)
 #  claim_token      :string
 #  claimed_at       :datetime
+#  sku              :string
 #
 require 'rails_helper'
 
