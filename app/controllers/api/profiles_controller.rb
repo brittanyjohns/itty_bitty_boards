@@ -146,7 +146,12 @@ class API::ProfilesController < API::ApplicationController
     @user.settings[:myspeak_slug] = slug
 
     @user.save!
-    @profile = @profile.claim!(slug, @user)
+    begin
+      @profile = @profile.claim!(slug, @user)
+    rescue StandardError => e
+      Rails.logger.error "Failed to claim profile: #{e.message}"
+      render json: { errors: e.message }, status: :unprocessable_entity and return
+    end
     @profile.reload
     @slug = @profile.slug
     @user.send_welcome_with_claim_link_email(@slug)
