@@ -31,6 +31,7 @@ class Profile < ApplicationRecord
   before_save :start_audio_job, if: -> { intro_changed? || bio_changed? || (!intro_audio&.attached? && intro.present?) || (!bio_audio&.attached? && bio.present?) }
 
   scope :available_placeholders, -> { where(placeholder: true, claimed_at: nil, sku: nil) }
+  scope :unclaimed_placeholders, -> { where(placeholder: true, claimed_at: nil) }
 
   def open_ai_opts
     {}
