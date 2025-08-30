@@ -331,7 +331,6 @@ class Profile < ApplicationRecord
     user_id = existing_user.id
     existing_communicator = ChildAccount.find_by(username: username, user_id: user_id)
     if existing_communicator
-      Rails.logger.info "Found existing communicator: #{existing_communicator.inspect}"
       self.update!(
         profileable: existing_communicator,
         placeholder: false,
@@ -345,7 +344,6 @@ class Profile < ApplicationRecord
         name: username,
         user_id: user_id,
       )
-      puts "Created new communicator account: #{new_communicator_account.inspect}"
       self.update!(
         profileable: new_communicator_account,
         placeholder: false,
@@ -360,11 +358,9 @@ class Profile < ApplicationRecord
 
   def self.generate_with_username(username, existing_user = nil)
     slug = username.parameterize
-    Rails.logger.info "Generating profile with user: #{username}, slug: #{slug}, existing_user: #{existing_user.inspect}"
     existing_profile = Profile.find_by(username: username) || Profile.find_by(slug: slug)
     existing_communicator = ChildAccount.find_by(username: username)
     if (existing_communicator || existing_profile) && existing_user
-      Rails.logger.warn "Profile with username '#{username}' or slug '#{slug}' already exists for another user."
       email = existing_user.email
       username = email.split("@").first
       slug = username.parameterize
