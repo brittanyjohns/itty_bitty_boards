@@ -737,6 +737,7 @@ class User < ApplicationRecord
     Rails.logger.info "Sending welcome with claim link email to #{email} with slug #{slug}"
     begin
       UserMailer.welcome_with_claim_link_email(self, slug).deliver_now
+      AdminMailer.new_user_email(self).deliver_now
     rescue => e
       Rails.logger.error("Error sending welcome with claim link email: #{e.message}")
     end

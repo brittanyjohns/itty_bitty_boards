@@ -126,7 +126,7 @@ gem "http"
 gem "browser", "~> 5.3"
 gem "annotate", "~> 3.2"
 
-gem "devise_invitable", "~> 2.0"
+gem "devise_invitable", "~> 2.0.10"
 
 gem "pundit", "~> 2.3"
 
