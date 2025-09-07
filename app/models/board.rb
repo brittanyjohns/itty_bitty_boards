@@ -1362,6 +1362,19 @@ class Board < ApplicationRecord
     @board
   end
 
+  def columns_for_screen_size(screen_size = "lg")
+    case screen_size
+    when "sm"
+      small_screen_columns > 0 ? small_screen_columns : 4
+    when "md"
+      medium_screen_columns > 0 ? medium_screen_columns : 6
+    when "lg"
+      large_screen_columns > 0 ? large_screen_columns : 12
+    else
+      large_screen_columns > 0 ? large_screen_columns : 12
+    end
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,

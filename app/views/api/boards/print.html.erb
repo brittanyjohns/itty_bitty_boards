@@ -1,0 +1,43 @@
+<!-- app/views/api/boards/print.html.erb -->
+<div class="header">
+  <h3 class="lead-title">SpeakAnyWay AAC</h3>
+  <h1><%= @board.try(:name) || "Communication Board" %></h1>
+  <div class="meta">Learn more at <a href="https://www.speakanyway.com" target="_blank" rel="noopener">speakanyway.com</a>
+  </div>
+
+</div>
+
+<div class="board-wrap">
+  <div class="board-grid" style="grid-template-columns: repeat(<%= @columns %>, 1fr);">
+    <% @tiles.each do |t| %>
+      <% col_start = t["x"].to_i + 1
+         row_start = t["y"].to_i + 1
+         col_span = t["w"].to_i
+         row_span = t["h"].to_i %>
+
+      <div class="tile" style="grid-column:<%= col_start %>/span <%= col_span %>; grid-row:<%= row_start %>/span <%= row_span %>;">
+        <% if t["image_url"].present? %>
+          <img src="<%= t["image_url"] %>" alt="<%= t["label"] %>">
+        <% else %>
+          <div style="display:flex;align-items:center;justify-content:center;color:#aaa;font-size:9pt;">(no image)</div>
+        <% end %>
+        <div class="label"><%= t["label"] %></div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<div class="footer">
+  <div>
+    <div style="font-size: 9pt; color: #666;">
+      Scan the QR to open this board:<br>
+      <%= @qr_target_url %>
+    </div>
+    <br>
+  Generated: <%= Time.zone.now.strftime("%b %-d, %Y %H:%M") %>
+  </div>
+  <div class="qr-block">
+    <img src="<%= @qr_data_url %>" alt="QR code">
+    <div class="qr-caption">Scan for this board</div>
+  </div>
+</div>

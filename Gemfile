@@ -126,6 +126,9 @@ gem "http"
 gem "browser", "~> 5.3"
 gem "annotate", "~> 3.2"
 
+gem "grover"     # HTML → PDF via headless Chrome
+gem "rqrcode"    # Generate QR code PNGs
+
 gem "devise_invitable", "~> 2.0.10"
 
 gem "pundit", "~> 2.3"

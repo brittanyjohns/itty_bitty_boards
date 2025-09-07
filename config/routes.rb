@@ -239,6 +239,8 @@ Rails.application.routes.draw do
       member do
         post "format_with_ai"
         post "save_layout"
+        # get :print, defaults: { format: :html }
+        get :pdf, defaults: { format: :pdf }
         post "rearrange_images"
         post "add_image"
         post "remove_image"

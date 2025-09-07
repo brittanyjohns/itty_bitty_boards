@@ -1,11 +1,10 @@
 class API::BoardsController < API::ApplicationController
   # protect_from_forgery with: :null_session
   # respond_to :json
-
   # before_action :authenticate_user!
-  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board preset show public_boards public_menu_boards common_boards ]
+  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board preset show public_boards public_menu_boards common_boards pdf print ]
 
-  before_action :set_board, only: %i[ associate_image remove_image destroy associate_images ]
+  before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf ]
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
   before_action :check_board_create_permissions, only: %i[ create clone ]
   # layout "fullscreen", only: [:fullscreen]
@@ -598,7 +597,84 @@ class API::BoardsController < API::ApplicationController
     render json: @board.api_view_with_images(current_user)
   end
 
+  def print
+    # Make sure we render HTML, not JSON
+    request.format = :html
+
+    @qr_target_url = @board.public_url || board_url(@board) # change to your public/share URL if different
+    @qr_data_url = qr_data_url_for(@qr_target_url, size: 480)
+
+    @columns = @board.try(:columns) || 12
+    @rows = @board.try(:rows)
+    @tiles = normalize_tiles(@board)
+
+    render template: "api/boards/print", layout: "pdf", formats: [:html]
+  end
+
+  def pdf
+    # What the QR should open (public page/deeplink):
+    @qr_target_url = @board.public_url || board_url(@board) # change to your public/share URL if different
+    @qr_data_url = qr_data_url_for(@qr_target_url, size: 480)
+    screen_size = params[:screen_size] || "lg"
+
+    @columns = @board.columns_for_screen_size(screen_size)
+    @rows = @board.try(:rows)
+    @tiles = normalize_tiles(@board)
+
+    html = render_to_string(
+      template: "api/boards/print", # internal view only (no public route)
+      layout: "pdf",
+      formats: [:html],
+    )
+    pdf = Grover.new(html).to_pdf
+
+    send_data pdf,
+      filename: "board-#{@board.id}.pdf",
+      type: "application/pdf",
+      disposition: "attachment"
+  end
+
   private
+
+  # Map your tile fields to {x,y,w,h,label,image_url}
+  def normalize_tiles(board)
+    # EXAMPLE assuming board.tiles is an Array of JSON-like hashes
+    @board_tiles = board_tiles || []
+    @columns = board.try(:large_screen_columns) || 12
+    @board_tiles.map do |t|
+      {
+        "x" => t["x"] || t[:x] || 0,
+        "y" => t["y"] || t[:y] || 0,
+        "w" => t["w"] || t[:w] || 1,
+        "h" => t["h"] || t[:h] || 1,
+        "label" => t["label"] || t[:label] || "",
+        "image_url" => t["image_url"] || t[:image_url] || nil,
+      }
+    end
+  end
+
+  def board_tiles
+    if @board.respond_to?(:tiles) && @board.tiles.is_a?(Array)
+      @board.tiles
+    elsif @board.respond_to?(:board_images) && @board.board_images.any?
+      @board.board_images.map do |bi|
+        { "x" => bi.layout["lg"]["x"],
+          "y" => bi.layout["lg"]["y"],
+          "w" => bi.layout["lg"]["w"],
+          "h" => bi.layout["lg"]["h"],
+          "label" => bi.label,
+          "image_url" => bi.display_image_url }
+      end
+    else
+      []
+    end
+  end
+
+  def qr_data_url_for(url, size: 512, border_modules: 1)
+    qr = RQRCode::QRCode.new(url)
+    png = qr.as_png(size: size, border_modules: border_modules)
+    "data:image/png;base64,#{Base64.strict_encode64(png.to_s)}"
+  end
 
   # Use callbacks to share common setup or constraints between actions.
   def set_board
