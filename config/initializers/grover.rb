@@ -9,5 +9,6 @@ Grover.configure do |config|
     wait_until: "networkidle0",
     # If your host needs it, keep --no-sandbox; add --disable-dev-shm-usage for low-memory boxes
     launch_args: ["--no-sandbox", "--disable-dev-shm-usage"],
+    executablePath: ENV.fetch("CHROME_BIN", "/usr/bin/google-chrome-stable"),
   }
 end
