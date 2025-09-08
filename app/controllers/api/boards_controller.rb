@@ -2,7 +2,7 @@ class API::BoardsController < API::ApplicationController
   # protect_from_forgery with: :null_session
   # respond_to :json
   # before_action :authenticate_user!
-  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board preset show public_boards public_menu_boards common_boards pdf print ]
+  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board preset show public_boards public_menu_boards common_boards ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf ]
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
