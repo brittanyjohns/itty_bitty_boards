@@ -1080,7 +1080,7 @@ class Board < ApplicationRecord
 
   def public_url
     base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
-    "#{base_url}/public-board/#{slug}"
+    "#{base_url}/pb/#{slug}"
   end
 
   def featured

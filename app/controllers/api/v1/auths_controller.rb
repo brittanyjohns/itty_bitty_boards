@@ -40,12 +40,7 @@ module API
           end
           Rails.logger.info "User signed in: #{user.email} at #{Time.now}"
           sign_in user
-          Rails.logger.info "User signed in successfully: #{user.email} at #{Time.now}"
           user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
-          Rails.logger.info "User last sign in updated: #{user.email} at #{Time.now}"
-          Rails.logger.info "User authentication token: #{user.authentication_token}"
-          #  Check if subscription is expired
-
           render json: { token: user.authentication_token, user: user.api_view }
         else
           render json: { error: error_message }, status: :unauthorized
