@@ -875,7 +875,7 @@ class User < ApplicationRecord
     comm_account_limit_reached = settings["communicator_limit"].to_i + settings["extra_communicators"].to_i <= communicator_accounts.count
     board_limit = settings["board_limit"] || 0
     board_count = boards.count
-    can_create_boards = board_count < board_limit
+    can_create_boards = board_limit > board_count
     board_limit_reached = board_count >= board_limit
     view["admin"] = admin?
     view["free"] = free?
