@@ -477,7 +477,6 @@ class OpenAiClient
       text: text,
     }] }]
     response = create_chat
-    Rails.logger.debug "*** Word Suggestion Response: #{response}"
     response
   end
 

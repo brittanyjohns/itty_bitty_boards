@@ -288,8 +288,8 @@ class Profile < ApplicationRecord
       profile = Profile.create!(
         username: placeholder_name,
         slug: slug,
-        bio: "This is a placeholder profile.",
-        intro: "Welcome to MySpeak! Personalize your profile by adding a short introduction about yourself.",
+        bio: "This is a placeholder profile waiting to be claimed. Once claimed, you can customize it and make it your own. You can add your own bio, avatar, and other details.",
+        intro: "Welcome to MySpeak! Personalize your profile by adding a short introduction about yourself here.",
         placeholder: true,
         claimed_at: nil,
         claim_token: SecureRandom.hex(10),
