@@ -1,6 +1,19 @@
 <!-- app/views/api/boards/print.html.erb -->
 <div class="header">
-  <h3 class="lead-title">SpeakAnyWay AAC</h3>
+  <div style="display: flex; align-items: center; gap: 8mm;">
+    <div class="logo">
+      <% path = Rails.root.join("public/logo_bubble.png") %>
+      <% b64 = Base64.strict_encode64(File.binread(path)) %>
+      <img alt="SpeakAnyWay Logo" src="data:image/png;base64,<%= b64 %>">
+    </div>
+    <div class="lead-title"><p style="font-size: 8pt; color: #999;">
+      Created with SpeakAnyWay AAC.
+      <br>
+      <span style="font-size: 6pt; color: #999;"><%= Time.zone.now.strftime("%b %-d, %Y") %></span>
+    </p>
+  </div>
+</div>
+  
   <h1><%= @board.try(:name) || "Communication Board" %></h1>
   <div class="meta">Learn more at <a href="https://www.speakanyway.com" target="_blank" rel="noopener">speakanyway.com</a>
   </div>
@@ -27,26 +40,12 @@
   </div>
 </div>
 
-<div class="footer">
-  <div>
-    <div style="font-size: 9pt; color: #666;">
-      Scan the QR to open this board:<br>
-      <%= @qr_target_url %>
-    </div>
-    <br>
-    <p style="font-size: 8pt; color: #999;">
-      Created with <a href="https://www.speakanyway.com" target="_blank" rel="noopener">SpeakAnyWay AAC</a>.
-      <br>
-      Generated: <%= Time.zone.now.strftime("%b %-d, %Y %H:%M") %>
-    </p>
-  
-  </div>
+<div style="display: flex; align-items: center; gap: 8mm; width: 100%; justify-content: space-between;" class="footer">
+  <div style="font-size: 9pt; color: #666;">
+    Scan the QR to open this board:<br>
+    <%= @qr_target_url %>
+  </div>    
   <div class="qr-block">
     <img src="<%= @qr_data_url %>" alt="QR code">
-  </div>
-  <div class="logo">
-    <% path = Rails.root.join("public/logo_bubble.png") %>
-    <% b64 = Base64.strict_encode64(File.binread(path)) %>
-    <img alt="SpeakAnyWay Logo" src="data:image/png;base64,<%= b64 %>">
   </div>
 </div>
