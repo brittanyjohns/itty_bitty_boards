@@ -67,7 +67,7 @@
 
     <div class="badge">MySpeak+</div>
     <h1>Welcome to MySpeak+</h1>
-    <p class="sub">You’re all set — let’s make essential info accessible anywhere, instantly.</p>
+    <p class="sub">You're all set — let's make essential info accessible anywhere, instantly.</p>
 
     <p style="font-size:16px; line-height:1.6;">
       Hi <%= @user.name.blank? ? "there" : @user.name %>,<br>
@@ -78,7 +78,7 @@
     <div class="btn-row">
       <a href="<%= @login_link %>" class="button">Claim Your MySpeak Page</a>
     </div>
-    <p class="subtext">If the button doesn’t work, copy this link:<br>
+    <p class="subtext">If the button doesn't work, copy this link:<br>
       <span style="word-break:break-all;"><%= @login_link %></span>
     </p>
 
@@ -138,7 +138,7 @@
         <div class="row">
           <div class="col">Supporter accounts</div>
           <div class="col"><span class="dash">—</span></div>
-          <div class="col">2 included</div>
+          <div class="col"><span class="checkmark">2</span></span></div>
         </div>
       </div>
 
@@ -151,7 +151,7 @@
 
     <p style="font-size:14px; line-height:1.6; text-align:center;">
       Need help? Just reply to this email or contact us at
-      <a href="mailto:help@speakanyway.com">help@speakanyway.com</a>. We’ve got your back 💜
+      <a href="mailto:help@speakanyway.com">help@speakanyway.com</a>.<br> We've got your back 💜
     </p>
 
     <!-- Brand footer -->
@@ -160,7 +160,7 @@
     </a>
 
     <div class="footer">
-      You’re receiving this because you activated MySpeak+.<br>
+      You're receiving this because you activated MySpeak+.<br>
       Manage or cancel anytime in your account settings.
     </div>
   </div>
