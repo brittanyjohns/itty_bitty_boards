@@ -34,10 +34,19 @@
       <%= @qr_target_url %>
     </div>
     <br>
-  Generated: <%= Time.zone.now.strftime("%b %-d, %Y %H:%M") %>
+    <p style="font-size: 8pt; color: #999;">
+      Created with <a href="https://www.speakanyway.com" target="_blank" rel="noopener">SpeakAnyWay AAC</a>.
+      <br>
+      Generated: <%= Time.zone.now.strftime("%b %-d, %Y %H:%M") %>
+    </p>
+  
   </div>
   <div class="qr-block">
     <img src="<%= @qr_data_url %>" alt="QR code">
-    <div class="qr-caption">Scan for this board</div>
+  </div>
+  <div class="logo">
+    <% path = Rails.root.join("public/logo_bubble.png") %>
+    <% b64 = Base64.strict_encode64(File.binread(path)) %>
+    <img alt="SpeakAnyWay Logo" src="data:image/png;base64,<%= b64 %>">
   </div>
 </div>

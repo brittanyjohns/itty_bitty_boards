@@ -1,8 +1,23 @@
 # Preview all emails at http://localhost:3000/rails/mailers/user_mailer
 class UserMailerPreview < ActionMailer::Preview
-  def welcome_email
+  def welcome_free_email
     @user = User.first
-    UserMailer.welcome_email(@user)
+    UserMailer.welcome_free_email(@user)
+  end
+
+  def welcome_basic_email
+    # @user = User.first
+    @user = User.invite!(email: "brittany+basic_user9925x@speakanyway.com", skip_invitation: true)
+    puts "Created user with email: #{@user.email}, id: #{@user.id}"
+    @user.plan_type = "basic"
+    @user.save!
+    UserMailer.welcome_basic_email(@user)
+  end
+
+  def welcome_pro_email
+    @user = User.first
+    @user.plan_type = "pro"
+    UserMailer.welcome_pro_email(@user)
   end
 
   def welcome_invitation_email
@@ -36,8 +51,10 @@ class UserMailerPreview < ActionMailer::Preview
 
   def welcome_with_claim_link_email
     @user = User.first
-    email = "bhannajohns+new_user@gmail.com"
+    email = "bhannajohns+myspeak9925@gmail.com"
     new_user = User.invite!(email: email, skip_invitation: true)
+    new_user.plan_type = "myspeak"
+    new_user.save!
     UserMailer.welcome_with_claim_link_email(new_user, "test-claim-link")
   end
 

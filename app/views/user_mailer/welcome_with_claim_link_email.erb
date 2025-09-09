@@ -3,130 +3,165 @@
 <head>
   <meta charset="UTF-8">
   <title>Welcome to MySpeak+</title>
+  <meta name="color-scheme" content="light only">
   <style>
-    body {
-      background-color:rgb(221, 249, 255);
-      font-family: 'Lato', sans-serif;
-      font-size: 16px;
-      margin: 0;
-      padding: 30px;
-      color: #333;
-    }
-    .container {
-      background-color: #ffffff;
-      max-width: 600px;
-      margin: auto;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-    }
-    .header {
-      font-size: 26px;
-      font-weight: bold;
-      margin-bottom: 10px;
-      text-align: center;
-      color: #222;
-    }
-    .subheader {
-      font-size: 16px;
-      color: #666;
-      text-align: center;
-      margin-bottom: 30px;
-    }
-    .content {
-      font-size: 16px;
-      line-height: 1.6;
-    }
-    .button {
-      display: inline-block;
-      background-color: #28a745;
-      color: white;
-      text-decoration: none;
-      padding: 12px 24px;
-      border-radius: 6px;
-      font-weight: 600;
-      font-size: 16px;
-      margin-top: 20px;
-    }
-    .footer {
-      font-size: 14px;
-      color: #888;
-      margin-top: 40px;
-      text-align: center;
-    }
-    a {
-      color: #007bff;
-      text-decoration: none;
-    }
-    ul {
-      padding-left: 20px;
-      margin-top: 10px;
-      list-style-type: none;
-      text-align: left;
-    }
-    .lead-text {
-      font-weight: bold;
-      margin-top: 20px;
-      margin-bottom: 10px;
-      margin-left: 20px;
-      font-size: 18px;
-      text-align: left;
-      line-height: 1.4;
-      color: #333;
-    }
-    .secondary-text {
-      font-size: 16px;
-      font-weight: 600;
-      color: #555;
-      margin-top: 20px;
-      margin-bottom: 20px;
-      text-align: center;
-    }
-    .signature {
-      margin-top: 30px;
-      font-style: italic;
-      color: #555;
-      text-align: center;
+    body { background:#f7f9fc; font-family: Arial, sans-serif; margin:0; padding:20px; color:#333; }
+    .container { background:#fff; max-width:620px; margin:auto; padding:30px; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
+    .logo img { max-width:120px; display:block; margin:0 auto 20px; }
+
+    .badge { display:inline-block; padding:6px 10px; border-radius:999px; background:#eaf9fc; color:#2abed1; font-size:12px; font-weight:700; text-transform:uppercase; margin:0 auto 8px; }
+    h1 { font-size:26px; color:#2a2a2a; text-align:center; margin:8px 0 6px; }
+    .sub { font-size:16px; color:#555; text-align:center; margin:0 0 22px; }
+
+    .button { display:inline-block; padding:14px 28px; background:#7645ef; color:#fff !important; text-decoration:none; border-radius:8px; font-weight:700; font-size:16px; }
+    .btn-row { text-align:center; margin:16px 0 6px; }
+    .subtext { font-size:12px; color:#6b6b6b; text-align:center; margin-top:8px; }
+
+    .section { margin:28px 0; }
+    .section h2 { font-size:18px; color:#2a2a2a; margin:0 0 10px; }
+    ul.check { list-style:none; padding:0; margin:0; }
+    ul.check li { margin:10px 0; font-size:15px; color:#555; line-height:1.5; }
+    ul.check li::before { content:"✔"; color:#2abed1; font-weight:700; margin-right:8px; }
+
+    .quickstart { background:#f8ffef; border:1px solid #d7f0b2; border-radius:10px; padding:16px; }
+    .quickstart ol { margin:8px 0 0 18px; padding:0; color:#3f3f3f; }
+    .quickstart li { margin:8px 0; font-size:15px; line-height:1.5; }
+    .tip { font-size:13px; color:#666; margin-top:10px; }
+
+    .compare { border:1px solid #e9e9e9; border-radius:12px; overflow:hidden; margin-top:20px; }
+    .row { display:flex; border-top:1px solid #e9e9e9; }
+    .row:first-child { border-top:none; }
+    .col { flex:1; padding:12px 14px; font-size:14px; line-height:1.4; }
+    .head { background:#f7f9fc; font-weight:700; color:#333; text-align:center; }
+    .col + .col { border-left:1px solid #e9e9e9; }
+    .checkmark { color:#2abed1; font-weight:700; }
+    .dash { color:#bbb; }
+
+    .upgrade-box { background:#f3edff; border:1px solid #d6c8ff; border-radius:10px; padding:20px; margin:25px 0 10px; text-align:center; }
+    .upgrade-box h3 { margin:0 0 8px; color:#7645ef; font-size:18px; }
+    .upgrade-box p { font-size:14px; color:#444; line-height:1.5; margin:10px 0; }
+
+    .footer { margin-top:28px; font-size:13px; text-align:center; color:#777; }
+    .footer a { color:#7645ef; text-decoration:none; }
+
+    @media (max-width:480px) {
+      .container { padding:22px; }
+      h1 { font-size:24px; }
+      .row { display:block; }
+      .col { border-left:none !important; border-top:1px solid #e9e9e9; }
+      .head .col { border-top:none; }
     }
   </style>
 </head>
 <body>
+  <!-- Preheader -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+    MySpeak+ is live—add ICE info to your Communicator Account, claim your QR page, and see how Basic compares.
+  </div>
+
   <div class="container">
-    <div class="header">Welcome to MySpeak+</div>
-    <div class="subheader">You're all set—let's make your voice heard.</div>
+    <!-- MySpeak Logo -->
+    <a href="https://speakanyway.com/myspeak-info" target="_blank" rel="noopener" class="logo">
+      <%= image_tag @myspeak_logo.url, alt: "MySpeak Logo" %>
+    </a>
 
-    <div class="content">
-      <p>Hi <%= @user.name.blank? ? "there" : @user.name %>,</p>
+    <div class="badge">MySpeak+</div>
+    <h1>Welcome to MySpeak+</h1>
+    <p class="sub">You’re all set — let’s make essential info accessible anywhere, instantly.</p>
 
-      <p>Thank you for upgrading to <strong>MySpeak+</strong>! </p>
-      <p>Your personalized page is now ready to be set up.</p>
+    <p style="font-size:16px; line-height:1.6;">
+      Hi <%= @user.name.blank? ? "there" : @user.name %>,<br>
+      Thanks for upgrading to <strong>MySpeak+</strong>! Your personalized, scannable page helps first responders,
+      caregivers, teachers, and loved ones get the info they need <em>fast</em>.
+    </p>
 
-      <p class="lead-text">As a MySpeak+ member, you can:</p>
-      <ul>
-        <li>✅ Create a scannable profile with emergency contact (ICE) info</li>
-        <li>✅ Add key medical and safety details</li>
-        <li>✅ Help first responders, caregivers, and loved ones support you faster</li>
+    <div class="btn-row">
+      <a href="<%= @login_link %>" class="button">Claim Your MySpeak Page</a>
+    </div>
+    <p class="subtext">If the button doesn’t work, copy this link:<br>
+      <span style="word-break:break-all;"><%= @login_link %></span>
+    </p>
+
+    <div class="section">
+      <h2>What you get with MySpeak+</h2>
+      <ul class="check">
+        <li><strong>ICE info in your Communicator Account</strong> — emergency contacts & key medical notes.</li>
+        <li><strong>Your own QR page</strong> — scan to view essential info instantly.</li>
+        <li><strong>PDF export with QR code</strong> — print it for backpacks, wallets, or lanyards.</li>
+        <li><strong>Shareable link</strong> — give read-only access to trusted supporters.</li>
       </ul>
-
-      <p class="secondary-text">All of this lives behind your own QR code! <br>Simple, shareable, and always available.</p>
-
-      <p style="text-align: center;">
-        <a href="<%= @login_link %>" class="button">Claim Your MySpeak Page</a>
-      </p>
-
-      <p>Once you've set it up, you can always access your page <a href="<%= @mymyspeak_link %>" target="_blank">here</a>.</p>
-
-      <p>Need help or have questions? Just reply to this email or reach out to <a href="mailto:help@speakanyway.com">help@speakanyway.com</a> — we've got your back.</p>
-
-      <p>Thanks again for supporting SpeakAnyWay.<br>We're so glad you're here.</p>
-
-      <p class="signature">
-      Warmly,<br>The SpeakAnyWay Team</p>
     </div>
 
+    <div class="section quickstart">
+      <h2 style="margin:0 0 6px 0;">Quick start (2 minutes)</h2>
+      <ol>
+        <li>Update your <strong>Communicator Account</strong> with ICE info.</li>
+        <li><strong>Customize a board</strong> and add it to your MySpeak page.</li>
+        <li><strong>Share or print</strong> your QR page and PDF (or just keep it handy).</li>
+      </ol>
+      <p class="tip">Pro tip: Add your QR code to your phone lock screen so helpers can scan without unlocking.</p>
+    </div>
+
+    <div class="section">
+      <h2>See how Basic compares</h2>
+      <div class="compare">
+        <div class="row head">
+          <div class="col">Feature</div>
+          <div class="col">MySpeak+</div>
+          <div class="col">Basic</div>
+        </div>
+        <div class="row">
+          <div class="col">ICE info in Communicator Account</div>
+          <div class="col"><span class="checkmark">✔</span></div>
+          <div class="col"><span class="checkmark">✔</span></div>
+        </div>
+        <div class="row">
+          <div class="col">Personal QR page + PDF export</div>
+          <div class="col"><span class="checkmark">✔</span></div>
+          <div class="col"><span class="checkmark">✔</span></div>
+        </div>
+        <div class="row">
+          <div class="col">Communicator Login</div>
+          <div class="col"><span class="dash">—</span></div>
+          <div class="col"><span class="checkmark">✔</span></div>
+        </div>
+        <div class="row">
+          <div class="col">Custom boards</div>
+          <div class="col"><span class="checkmark">1</span></div>
+          <div class="col"><span class="checkmark">25</span></div>
+        </div>
+        <div class="row">
+          <div class="col">AI features</div>
+          <div class="col"><span class="dash">—</span></div>
+          <div class="col"><span class="checkmark">✔</span></div>
+        </div>
+        <div class="row">
+          <div class="col">Supporter accounts</div>
+          <div class="col"><span class="dash">—</span></div>
+          <div class="col">2 included</div>
+        </div>
+      </div>
+
+      <div class="upgrade-box">
+        <h3>Upgrade to Basic for $8/mo 🚀</h3>
+        <p>Go beyond your QR page: create custom boards, use AI features, and invite Supporters to collaborate.</p>
+        <p><a href="https://speakanyway.com/pricing" class="button">See Basic Plan</a></p>
+      </div>
+    </div>
+
+    <p style="font-size:14px; line-height:1.6; text-align:center;">
+      Need help? Just reply to this email or contact us at
+      <a href="mailto:help@speakanyway.com">help@speakanyway.com</a>. We’ve got your back 💜
+    </p>
+
+    <!-- Brand footer -->
+    <a href="https://speakanyway.com" target="_blank" rel="noopener" class="logo" style="margin-top:16px;">
+      <%= image_tag @logo.url, alt: "SpeakAnyWay Logo" %>
+    </a>
+
     <div class="footer">
-      You're receiving this email because you signed up for MySpeak+.<br>
-      Want to manage your subscription? Visit your account settings.
+      You’re receiving this because you activated MySpeak+.<br>
+      Manage or cancel anytime in your account settings.
     </div>
   </div>
 </body>

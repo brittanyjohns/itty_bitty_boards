@@ -44,56 +44,11 @@ class OpenAiClient
   end
 
   def image_style
-    # "clipart-style illustration"
-    # "an image that is clear and simple, similar to AAC and other accessibility signs"
-    # "clear photo-style illustration"
     "simple, clear, and colorful clipart-style image"
   end
 
-  # def get_image_prompt_suggestion
-  #   @model = GTP_MODEL
-  #   @messages = [{
-  #     role: "user",
-  #     content: [{
-  #       type: "text",
-  #       text: <<~PROMPT,
-  #         Generate a concise prompt to instruct #{IMAGE_MODEL} to create a clipart-style illustration representing the concept "#{@prompt}" for AAC communication boards.
-
-  #         Guidelines:
-  #         - Minimalist, clean, flat vector design.
-  #         - High visual clarity and recognizability.
-  #         - High-contrast colors suitable for visibility on AAC devices.
-  #         - Single main subject only, without extra or unnecessary details.
-  #         - Transparent background; avoid scenery or additional elements.
-  #         - Absolutely no text or letters in the image.
-  #         - Ensure universal understanding aligned with common AAC visual aids.
-
-  #         Provide ONLY the prompt text, no other explanations or additional text.
-  #       PROMPT
-  #     }],
-  #   }]
-
-  #   response = create_chat(false)
-  #   puts "Prompt Response: #{response}"
-  #   response = response.with_indifferent_access
-  #   prompt = response.dig("content")
-  #   puts ">>>Prompt from response: #{prompt}"
-  #   prompt
-  # end
   def get_image_prompt_suggestion
     @model = GTP_MODEL
-    # base_prompt = <<~PROMPT
-    #   Generate a detailed yet minimalistic description for creating an image with #{IMAGE_MODEL}.
-    #   The image should clearly represent the concept "#{@prompt}" specifically for AAC (Augmentative and Alternative Communication) boards.
-
-    #   Guidelines for the prompt:
-    #   - Minimalistic and clear visual style.
-    #   - Bold, high-contrast colors suitable for quick recognition.
-    #   - No backgrounds, text, or unnecessary decorative details.
-    #   - Use widely recognized symbols or universally understood visuals related to the concept.
-    #   - Ensure the representation aligns with common AAC communication standards and practices.
-    #   Respond only with the concise, detailed prompt for image generation-no additional explanation or context.
-    # PROMPT
     base_prompt = <<~PROMPT
       Generate a descriptive and concise prompt to instruct #{IMAGE_MODEL} to create a #{image_style} representing the word/phrase "#{@prompt}".
       If the word is an object, the image should clearly depict that object in a simple and recognizable way.
@@ -138,7 +93,6 @@ class OpenAiClient
       Rails.logger.warn "No voice specified for audio creation. Defaulting to 'alloy'."
       voice = "alloy"
     end
-    Rails.logger.debug "FROM OpenAiClient: text: #{text} -- voice: #{voice}, language: #{language}"
     begin
       response = openai_client.audio.speech(parameters: {
                                               input: text,
@@ -148,8 +102,6 @@ class OpenAiClient
     rescue => e
       Rails.logger.debug "**** ERROR **** \n#{e.message}\n#{e.inspect}"
     end
-    # audio_file = response.stream_to_file("output.mp3")
-    # Rails.logger.debug "*** Audio File *** #{audio_file}"
     Rails.logger.debug "*** ERROR *** Invaild Audio Response: #{response}" unless response
     response
   end
@@ -160,22 +112,15 @@ class OpenAiClient
     begin
       translation_prompt = "Translate the following text from #{source_language} to #{target_language}:\n #{text}
       Respond with the JSON object in the following format: {\"translation\": \"translated text\"}"
-      puts "Translation Prompt: #{translation_prompt}"
-      # response = openai_client.chat(parameters: {
-      #                                 model: GTP_MODEL,
-      #                                 messages: [{ role: "user",
-      #                                              content: [{ type: "text", text: translation_prompt }] }],
-      #                               })
+
       @model = GTP_MODEL
       @messages = [{ role: "user", content: [{ type: "text", text: translation_prompt }] }]
       response = create_chat
       translated_text = nil
       if response
         response = response.with_indifferent_access
-        puts "Translate Response: #{response}"
         translated_data = JSON.parse(response[:content]) if response[:content]
         translated_text = translated_data["translation"] if translated_data
-        Rails.logger.debug "Translated Text: #{translated_text}"
       else
         Rails.logger.debug "**** ERROR **** \nDid not receive valid response.\n"
       end
@@ -196,9 +141,7 @@ class OpenAiClient
                                                             text: "What's in this image?" },
                                                           { type: "image_url", image_url: { url: img_url } }] }],
                                   })
-    puts "OPENAI Response: #{response}"
     Rails.logger.debug "*** ERROR *** Invaild Image Description Response: #{response}" unless response
-    # save_response_locally(response)
     response
   end
 
@@ -263,8 +206,6 @@ class OpenAiClient
                                                 This is the text to parse: #{strip_image_description(image_description)}\n\n" }] }]
     response = create_chat
     Rails.logger.debug "*** ERROR *** Invaild Image Description Response: #{response}" unless response
-    puts "clarify_image_description Response: #{response}"
-    # response
     [response, @messages[0][:content][0][:text]]
   end
 
@@ -281,7 +222,6 @@ class OpenAiClient
                                                 This is the text to parse: #{strip_image_description(menu_description)}\n" }] }]
     response = create_chat
     Rails.logger.debug "*** ERROR *** Invaild Menu Description Response: #{response}" unless response
-    puts "format_menu_description Response: #{response}"
     response
   end
 
@@ -662,9 +602,7 @@ class OpenAiClient
 
   def create_completion
     @model ||= GTP_MODEL
-    puts "CREATE COMPLETION - Model: #{@model}"
     Rails.logger.error "**** ERROR **** \nNo messages provided.\n" unless @messages
-    Rails.logger.debug "Sending to model: #{@model}"
     opts = {
       model: @model, # Required.
       messages: @messages, # Required.
@@ -675,7 +613,6 @@ class OpenAiClient
       response = openai_client.chat(
         parameters: opts,
       )
-      Rails.logger.debug "create_completion Response: #{response.inspect}"
     rescue => e
       Rails.logger.debug "**** ERROR **** \n#{e.message}\n#response: #{response.inspect}"
     end

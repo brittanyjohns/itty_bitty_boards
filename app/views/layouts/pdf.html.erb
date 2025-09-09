@@ -33,7 +33,17 @@
       .qr-block { text-align: right; }
       .qr-block img { width: 24mm; height: 24mm; display: inline-block; }
       .qr-caption { font-size: 9pt; color: #444; margin-top: 2mm; }
+      .logo img {
+        max-width: 150px;
+        height: auto;
+      }
     </style>
   </head>
-  <body><div class="page"><%= yield %></div></body>
+  <body>
+    <div class="page">
+      <% @path = Rails.root.join("public/logo_bubble.png") %>
+      <% @logo = Base64.strict_encode64(File.binread(@path)) %>
+      <%= yield %>
+    </div>
+  </body>
 </html>

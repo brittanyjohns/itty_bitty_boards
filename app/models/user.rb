@@ -631,12 +631,41 @@ class User < ApplicationRecord
     new_user
   end
 
-  def send_welcome_email
+  def send_welcome_email_free
+    Rails.logger.info "Sending free welcome email to #{email}"
+    UserMailer.welcome_free_email(self).deliver_now
+  end
+
+  def send_welcome_email_basic
+    Rails.logger.info "Sending paid welcome email to #{email}"
+    UserMailer.welcome_basic_email(self).deliver_now
+  end
+
+  def send_welcome_email_pro
+    Rails.logger.info "Sending paid welcome email to #{email}"
+    UserMailer.welcome_pro_email(self).deliver_now
+  end
+
+  def send_welcome_email(plan_nickname = nil)
+    unless plan_nickname
+      plan_nickname = settings["plan_nickname"] || plan_type
+    end
+
     Rails.logger.info "About to send welcome email to #{email}"
     puts "ABOUT TO SEND WELCOME EMAIL TO #{email}"
     begin
       Rails.logger.info ">>>Sending welcome email to #{email}"
-      UserMailer.welcome_email(self).deliver_now
+      if plan_nickname.nil? || plan_nickname.include?("free")
+        send_welcome_email_free
+      elsif plan_nickname.include?("basic")
+        send_welcome_email_basic
+      elsif plan_nickname.include?("pro") || plan_nickname.include?("plus")
+        send_welcome_email_pro
+      else
+        Rails.logger.error "Unknown plan nickname: #{plan_nickname}, sending free welcome email"
+        send_welcome_email_free
+      end
+      # UserMailer.welcome_email(self).deliver_now
       AdminMailer.new_user_email(self).deliver_now
       self.settings["welcome_email_sent"] = true
       self.save

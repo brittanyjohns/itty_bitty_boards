@@ -72,7 +72,8 @@ class API::Admin::UsersController < API::Admin::ApplicationController
       render json: { error: "User not found" }, status: :not_found
       return
     end
-    if @user.send_welcome_email
+    plan_nickname = @user.plan_type || "free"
+    if @user.send_welcome_email(plan_nickname)
       render json: { success: true }, status: :ok
     else
       render json: { error: "Failed to send welcome email" }, status: :unprocessable_entity

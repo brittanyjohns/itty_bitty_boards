@@ -1,34 +1,97 @@
 class UserMailer < BaseMailer
   default from: "SpeakAnyWay <noreply@speakanyway.com>"
 
-  def welcome_email(user)
+  def welcome_free_email(user)
     @user = user
     @user_name = @user.name
     @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
-    begin
-      if user.raw_invitation_token.nil?
-        # Existing user, just need to login
-        # @login_link += "/users/sign-in"
-        user = User.find_by(id: user.id) # Reload user to ensure raw_invitation_token is up-to-date
-        # user.invite!(user.email, skip_invitation: true) if user.raw_invitation_token.nil?
-        Rails.logger.info "User #{user.id} has raw_invitation_token: #{user.raw_invitation_token}"
-
-        @login_link += "/welcome/token/#{user.raw_invitation_token}"
-      else
-        # New user, need to use the token
-        @login_link += "/welcome/token/#{user.raw_invitation_token}"
-      end
-      encoded_email = ERB::Util.url_encode(@user.email)
-      @login_link += "?email=#{encoded_email}"
-      Rails.logger.info "Sending welcome email to #{@user.email} with login link: #{@login_link}"
-      subject = "Welcome to SpeakAnyWay AAC!"
-      mail(to: @user.email, subject: subject)
-    rescue => e
-      Rails.logger.error "Error sending welcome email to #{@user.email}: #{e.message}"
-      Rails.logger.error e.backtrace.join("\n")
-      raise e
+    if @user.raw_invitation_token.nil?
+      @user = User.find(user.id) # Reload user to ensure raw_invitation_token is up-to-date
+      @login_link += "/users/sign-in"
+    else
+      Rails.logger.info "User #{@user.id} already has a raw_invitation_token, using it for welcome link"
+      token = @user.raw_invitation_token
+      Rails.logger.info "User #{@user.id} has raw_invitation_token: #{token}"
+      @login_link += "/welcome/token/#{token}"
     end
+
+    encoded_email = ERB::Util.url_encode(@user.email)
+    @login_link += "?email=#{encoded_email}"
+    subject = "Welcome to SpeakAnyWay AAC!"
+    Rails.logger.info "Sending welcome free email to #{@user.email} with login link: #{@login_link}"
+    mail(to: @user.email, subject: subject)
   end
+
+  def welcome_basic_email(user)
+    @user = user
+    @user_name = @user.name
+    @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    if @user.raw_invitation_token.nil?
+      @user = User.find(user.id) # Reload user to ensure raw_invitation_token is up-to-date
+      @login_link += "/users/sign-in"
+    else
+      Rails.logger.info "User #{@user.id} already has a raw_invitation_token, using it for welcome link"
+      token = @user.raw_invitation_token
+      Rails.logger.info "User #{@user.id} has raw_invitation_token: #{token}"
+      @login_link += "/welcome/token/#{token}"
+    end
+
+    encoded_email = ERB::Util.url_encode(@user.email)
+    @login_link += "?email=#{encoded_email}"
+    subject = "Welcome to SpeakAnyWay AAC!"
+    Rails.logger.info "Sending welcome free email to #{@user.email} with login link: #{@login_link}"
+    mail(to: @user.email, subject: subject)
+  end
+
+  def welcome_pro_email(user)
+    @user = user
+    @user_name = @user.name
+    @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    if @user.raw_invitation_token.nil?
+      @user = User.find(user.id) # Reload user to ensure raw_invitation_token is up-to-date
+      @login_link += "/users/sign-in"
+    else
+      Rails.logger.info "User #{@user.id} already has a raw_invitation_token, using it for welcome link"
+      token = @user.raw_invitation_token
+      Rails.logger.info "User #{@user.id} has raw_invitation_token: #{token}"
+      @login_link += "/welcome/token/#{token}"
+    end
+
+    encoded_email = ERB::Util.url_encode(@user.email)
+    @login_link += "?email=#{encoded_email}"
+    subject = "Welcome to SpeakAnyWay AAC!"
+    Rails.logger.info "Sending welcome free email to #{@user.email} with login link: #{@login_link}"
+    mail(to: @user.email, subject: subject)
+  end
+
+  # def welcome_email(user)
+  #   @user = user
+  #   @user_name = @user.name
+  #   @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
+  #   begin
+  #     if user.raw_invitation_token.nil?
+  #       # Existing user, just need to login
+  #       # @login_link += "/users/sign-in"
+  #       user = User.find_by(id: user.id) # Reload user to ensure raw_invitation_token is up-to-date
+  #       # user.invite!(user.email, skip_invitation: true) if user.raw_invitation_token.nil?
+  #       Rails.logger.info "User #{user.id} has raw_invitation_token: #{user.raw_invitation_token}"
+
+  #       @login_link += "/welcome/token/#{user.raw_invitation_token}"
+  #     else
+  #       # New user, need to use the token
+  #       @login_link += "/welcome/token/#{user.raw_invitation_token}"
+  #     end
+  #     encoded_email = ERB::Util.url_encode(@user.email)
+  #     @login_link += "?email=#{encoded_email}"
+  #     Rails.logger.info "Sending welcome email to #{@user.email} with login link: #{@login_link}"
+  #     subject = "Welcome to SpeakAnyWay AAC!"
+  #     mail(to: @user.email, subject: subject)
+  #   rescue => e
+  #     Rails.logger.error "Error sending welcome email to #{@user.email}: #{e.message}"
+  #     Rails.logger.error e.backtrace.join("\n")
+  #     raise e
+  #   end
+  # end
 
   def welcome_invitation_email(user, inviter_id)
     @user = user

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Welcome to SpeakAnyWay — Pro 🎉</title>
+  <meta name="color-scheme" content="light only">
+  <style>
+    body { background-color: #f7f9fc; font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+    .container { background-color: #ffffff; margin: auto; max-width: 620px; padding: 30px; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
+    .logo img { max-width: 120px; display: block; margin: 0 auto 20px auto; }
+    .badge { display: inline-block; padding: 6px 10px; border-radius: 999px; background: #efeaff; color: #7645ef; font-size: 12px; font-weight: 700; text-transform: uppercase; margin: 0 auto 10px auto; }
+    h1 { font-size: 26px; color: #2a2a2a; text-align: center; margin: 10px 0 6px 0; }
+    .intro { font-size: 16px; color: #444; line-height: 1.6; text-align: center; margin: 8px 0 22px 0; white-space: pre-line; }
+    .button { display: inline-block; margin: 14px auto 0 auto; padding: 14px 28px; background-color: #7645ef; text-decoration: none; border-radius: 8px; color: #ffffff !important; font-weight: bold; font-size: 16px; }
+    .subtext { font-size: 12px; color: #6b6b6b; text-align: center; margin-top: 8px; }
+    .section { margin: 28px 0; }
+    .section h2 { font-size: 18px; color: #2a2a2a; margin-bottom: 10px; }
+    ul.check { list-style: none; padding: 0; margin: 0; }
+    ul.check li { margin: 10px 0; font-size: 15px; color: #555; line-height: 1.5; }
+    ul.check li::before { content: "✔"; color: #2abed1; font-weight: 700; margin-right: 8px; }
+
+    .quickstart { background: #f8ffef; border: 1px solid #d7f0b2; border-radius: 10px; padding: 16px; }
+    .quickstart ol { margin: 8px 0 0 18px; padding: 0; color: #3f3f3f; }
+    .quickstart li { margin: 8px 0; font-size: 15px; line-height: 1.5; }
+
+    .card { border: 1px solid #e9e9e9; border-radius: 12px; padding: 16px; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .muted { color: #666; font-size: 13px; }
+
+    .footer { margin-top: 28px; font-size: 13px; text-align: center; color: #777; }
+    .footer a { color: #7645ef; text-decoration: none; }
+
+    @media (min-width: 560px) {
+      .grid.two { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 480px) {
+      .container { padding: 22px; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Preheader -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+    You’re on SpeakAnyWay Pro — 3 Communicator Accounts (expandable), AI features, advanced analytics, priority support, unlimited Supporters, and PDF+QR exports.
+  </div>
+
+  <div class="container">
+    <div class="logo">
+      <a href="https://speakanyway.com" target="_blank" rel="noopener">
+        <%= image_tag @logo.url, alt: "SpeakAnyWay Logo" %>
+      </a>
+    </div>
+
+    <div class="badge">Pro plan</div>
+    <h1>Welcome to SpeakAnyWay Pro 🎉</h1>
+
+    <p class="intro">
+      Hi <%= @user.name.blank? ? "there" : @user.name %> — amazing choice!
+      With <strong>Pro</strong> you’ve got everything you need to scale communication across home, school, and therapy — fast.
+    </p>
+
+    <p style="text-align:center;">
+      <a href="<%= @login_link %>" class="button">Open Your Pro Dashboard</a>
+    </p>
+    <p class="subtext">If the button doesn’t work, copy this link:<br>
+      <span style="word-break:break-all;color:#6b6b6b;"><%= @login_link %></span>
+    </p>
+
+    <div class="section">
+      <h2>What’s included with Pro</h2>
+      <ul class="check">
+        <li><strong>3 Communicator Accounts included</strong> (expandable as you grow).</li>
+        <li><strong>Unlimited Supporters</strong> (read-only: teachers, friends, therapists).</li>
+        <li><strong>AI features</strong> for words, layouts, and smarter board building.</li>
+        <li><strong>Advanced analytics</strong> to spot usage patterns and progress.</li>
+        <li><strong>Priority support</strong> for faster help when you need it.</li>
+        <li><strong>PDF export with QR codes</strong> for AAC on the go (no device required).</li>
+        <li><strong>MySpeak+</strong>: store ICE info (emergency & medical) in Communicator Accounts.</li>
+      </ul>
+    </div>
+
+    <div class="section quickstart">
+      <h2 style="margin:0 0 6px 0;">Pro quick start (3 steps)</h2>
+      <ol>
+        <li>Create or import your <strong>Communicator Accounts</strong> (add ICE info in each profile).</li>
+        <li>Build boards with <strong>AI suggestions</strong> (start with daily core words).</li>
+        <li>Invite <strong>Supporters</strong> (read-only) and share <strong>PDF+QR</strong> for instant access anywhere.</li>
+      </ol>
+    </div>
+
+    <div class="section grid two">
+      <div class="card">
+        <h2 style="margin-top:0;">Make the most of Pro</h2>
+        <ul class="check">
+          <li>Check the <strong>Analytics</strong> tab weekly to guide practice.</li>
+          <li>Use <strong>Templates</strong> (if available) for faster setup by context (home, school, outings).</li>
+          <li>Schedule a monthly <strong>board review</strong> to add/retire words based on usage.</li>
+        </ul>
+        <p class="muted">Tip: Keep a “Now” board for routines and a “Community” board for out-and-about.</p>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:0;">Priority support</h2>
+        <p style="margin:0 0 8px 0;">Need help or best-practice advice? You’re at the front of the line.</p>
+        <ul class="check">
+          <li>Email us at <a href="mailto:help@speakanyway.com">help@speakanyway.com</a></li>
+          <li>Share screenshots or board links for targeted help.</li>
+        </ul>
+        <p class="muted">We’re real humans who care. Say hi anytime 💜</p>
+      </div>
+    </div>
+
+    <div class="section" style="text-align:center;">
+      <p style="font-size:14px;color:#444;margin:0 0 6px 0;">
+        Questions? Just reply to this email or contact us at
+        <a href="mailto:help@speakanyway.com" style="color:#7645ef;text-decoration:none;">help@speakanyway.com</a>.
+      </p>
+    </div>
+
+    <div class="footer">
+      <p>Thank you for choosing SpeakAnyWay 💜<br>— The SpeakAnyWay Team</p>
+      <p><a href="https://speakanyway.com" target="_blank">Visit our website</a></p>
+    </div>
+  </div>
+</body>
+</html>

@@ -18,14 +18,6 @@
       border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
-    .logo {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    .logo img {
-      max-width: 150px;
-      height: auto;
-    }
     .header {
       font-size: 24px;
       font-weight: bold;
@@ -55,13 +47,19 @@
       text-align: center;
       margin-top: 30px;
     }
+    .logo img {
+      max-width: 100px;
+      height: auto;
+      display: block;
+      margin: 20px auto 0 auto;
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="logo">
-      <img src="https://speakanyway.com/assets/favicon-76TnrIHG.ico" alt="SpeakAnyWay Logo">
-    </div>
+    <a class="logo" href="https://speakanyway.com" target="_blank" rel="noopener">
+      <%= image_tag @logo.url, alt: "SpeakAnyWay Logo" %>
+    </a>
     <div class="header">You've Been Invited!</div>
     <div class="content">
       <p><strong><%= @inviter_name %></strong> has invited you to join their team on <strong>SpeakAnyWay</strong>, and we're thrilled to have you!</p>

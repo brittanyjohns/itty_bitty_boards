@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Welcome to SpeakAnyWay 🎉</title>
+  <meta name="color-scheme" content="light only">
+  <style>
+    body {
+      background-color: #f7f9fc;
+      font-family: Arial, sans-serif;
+      margin: 0; padding: 20px;
+    }
+    .container {
+      background-color: #ffffff;
+      margin: auto; max-width: 620px;
+      padding: 30px; border-radius: 12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    }
+    .logo img {
+      max-width: 120px; display: block; margin: 0 auto 20px auto;
+    }
+    .badge {
+      display: inline-block; padding: 6px 10px; border-radius: 999px;
+      background: #eaf9fc; color: #2abed1; font-size: 12px; font-weight: 700;
+      text-transform: uppercase; margin: 0 auto 10px auto;
+    }
+    h1 { font-size: 26px; color: #2a2a2a; text-align: center; margin: 10px 0 6px 0; }
+    .intro {
+      font-size: 16px; color: #444; line-height: 1.6; text-align: center;
+      margin: 8px 0 22px 0; white-space: pre-line;
+    }
+    .button {
+      display: inline-block; margin: 14px auto 0 auto; padding: 14px 28px;
+      background-color: #7645ef; text-decoration: none; border-radius: 8px;
+      color: #ffffff !important; font-weight: bold; font-size: 16px;
+    }
+    .subtext { font-size: 12px; color: #6b6b6b; text-align: center; margin-top: 8px; }
+    .section { margin: 28px 0; }
+    .section h2 { font-size: 18px; color: #2a2a2a; margin-bottom: 10px; }
+    ul.check { list-style: none; padding: 0; margin: 0; }
+    ul.check li { margin: 10px 0; font-size: 15px; color: #555; line-height: 1.5; }
+    ul.check li::before { content: "✔"; color: #2abed1; font-weight: 700; margin-right: 8px; }
+    .quickstart {
+      background: #f8ffef; border: 1px solid #d7f0b2; border-radius: 10px; padding: 16px;
+    }
+    .quickstart ol { margin: 8px 0 0 18px; padding: 0; color: #3f3f3f; }
+    .quickstart li { margin: 8px 0; font-size: 15px; line-height: 1.5; }
+    .compare { border: 1px solid #e9e9e9; border-radius: 12px; overflow: hidden; margin-top: 15px; }
+    .row { display: flex; border-top: 1px solid #e9e9e9; }
+    .row:first-child { border-top: none; }
+    .col { flex: 1; padding: 12px 14px; font-size: 14px; line-height: 1.4; }
+    .head { background: #f7f9fc; font-weight: 700; color: #333; text-align: center; }
+    .col + .col { border-left: 1px solid #e9e9e9; }
+    .checkmark { color: #2abed1; font-weight: 700; }
+    .dash { color: #bbb; }
+    .upgrade-box {
+      background-color: #f3edff; border: 1px solid #d6c8ff; border-radius: 10px;
+      padding: 20px; margin: 25px 0 10px 0; text-align: center;
+    }
+    .upgrade-box h3 { margin: 0 0 8px 0; color: #7645ef; font-size: 18px; }
+    .upgrade-box p { font-size: 14px; color: #444; line-height: 1.5; margin: 10px 0; }
+    .footer { margin-top: 28px; font-size: 13px; text-align: center; color: #777; }
+    .footer a { color: #7645ef; text-decoration: none; }
+    @media (max-width: 480px) {
+      .container { padding: 22px; }
+      h1 { font-size: 24px; }
+      .row { display: block; }
+      .col { border-left: none !important; border-top: 1px solid #e9e9e9; }
+      .head .col { border-top: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Preheader -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+    You’re on the Basic plan with MySpeak+, AI features, 2 Supporters, and PDF export. Pro adds analytics, priority support, and more.
+  </div>
+
+  <div class="container">
+    <div class="logo">
+      <a href="https://speakanyway.com" target="_blank" rel="noopener">
+        <%= image_tag @logo.url, alt: "SpeakAnyWay Logo" %>
+      </a>
+    </div>
+
+    <div class="badge">Basic plan</div>
+    <h1>Welcome to SpeakAnyWay 🎉</h1>
+
+    <p class="intro">
+      Hi <%= @user.name.blank? ? "there" : @user.name %> — you’re now on the <strong>Basic plan</strong>!  
+      That means you’ve unlocked <strong>MySpeak+</strong>, access to our <strong>AI features</strong>,  
+      and powerful tools to take communication anywhere.
+    </p>
+
+    <p style="text-align:center;">
+      <a href="<%= @login_link %>" class="button">Open Your Dashboard</a>
+    </p>
+    <p class="subtext">If the button doesn’t work, copy this link:<br>
+      <span style="word-break:break-all;color:#6b6b6b;"><%= @login_link %></span>
+    </p>
+
+    <div class="section">
+      <h2>What you can do on Basic</h2>
+      <ul class="check">
+        <li>Add <strong>ICE info</strong> (emergency contacts & medical notes) in your Communicator Account.</li>
+        <li>Use our <strong>AI features</strong> to suggest words, layouts, and boards.</li>
+        <li>Invite up to <strong>2 Supporters</strong> (teachers, friends, therapists) with read-only access.</li>
+        <li><strong>Export boards as PDFs with QR codes</strong> for AAC on the go — no device required.</li>
+        <li>Keep creating and sharing boards to fit your daily needs.</li>
+      </ul>
+    </div>
+
+    <div class="section quickstart">
+      <h2 style="margin:0 0 6px 0;">Quick start (2 minutes)</h2>
+      <ol>
+        <li>Update your <strong>Communicator Account</strong> with ICE info.</li>
+        <li>Create your first custom board — AI can help suggest words.</li>
+        <li>Invite 2 Supporters to view your boards in real time.</li>
+        <li>Export your board as a PDF + QR code for quick, portable access.</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <h2>Thinking about Pro?</h2>
+      <div class="compare">
+        <div class="row head">
+          <div class="col">Feature</div>
+          <div class="col">Basic</div>
+          <div class="col">Pro</div>
+        </div>
+        <div class="row">
+          <div class="col">MySpeak+ (ICE info + instant access)</div>
+          <div class="col"><span class="checkmark">✔</span></div>
+          <div class="col"><span class="checkmark">✔</span></div>
+        </div>
+        <div class="row">
+          <div class="col">Custom boards</div>
+          <div class="col"><span class="checkmark">25</span></div>
+          <div class="col"><span class="checkmark">Unlimited</span></div>
+        </div>
+        <div class="row">
+          <div class="col">AI features</div>
+          <div class="col"><span class="checkmark">✔</span></div>
+          <div class="col"><span class="checkmark">✔</span></div>
+        </div>
+        <div class="row">
+          <div class="col">Supporter accounts</div>
+          <div class="col"><span class="checkmark">2</span></div>
+          <div class="col"><span class="checkmark">Unlimited</span></div>
+        </div>
+        <div class="row">
+          <div class="col">Export boards as PDF + QR</div>
+          <div class="col"><span class="checkmark">✔</span></div>
+          <div class="col"><span class="checkmark">✔</span></div>
+        </div>
+        <div class="row">
+          <div class="col">Advanced analytics</div>
+          <div class="col"><span class="dash">—</span></div>
+          <div class="col"><span class="checkmark">✔</span></div>
+        </div>
+        <div class="row">
+          <div class="col">Priority support</div>
+          <div class="col"><span class="dash">—</span></div>
+          <div class="col"><span class="checkmark">✔</span></div>
+        </div>
+      </div>
+
+      <div class="upgrade-box">
+        <h3>Upgrade to Pro for $20/mo 🚀</h3>
+        <p>Pro is built for families, classrooms, and professionals who need <strong>unlimited supporters, analytics, and priority support</strong>.</p>
+        <p><a href="https://speakanyway.com/pricing" class="button">Go Pro Today</a></p>
+        <p style="font-size:12px;color:#666;margin-top:8px;">Cancel anytime. Your boards stay safe.</p>
+      </div>
+    </div>
+
+    <div class="section" style="text-align:center;">
+      <p style="font-size:14px;color:#444;margin:0 0 6px 0;">
+        Questions? Just reply to this email or contact us at
+        <a href="mailto:help@speakanyway.com" style="color:#7645ef;text-decoration:none;">help@speakanyway.com</a>.
+      </p>
+    </div>
+
+    <div class="footer">
+      <p>Thank you for choosing SpeakAnyWay 💜<br>— The SpeakAnyWay Team</p>
+      <p><a href="https://speakanyway.com" target="_blank">Visit our website</a></p>
+    </div>
+  </div>
+</body>
+</html>
