@@ -1,142 +1,149 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Welcome to SpeakAnyWay — Pro 🎉</title>
+  <meta charset="UTF-8" />
+  <title>Welcome to SpeakAnyWay Pro 🎉</title>
   <meta name="color-scheme" content="light only">
   <style>
-    body { background-color: #f7f9fc; font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-    .container { background-color: #ffffff; margin: auto; max-width: 620px; padding: 30px; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
-    .logo img { max-width: 120px; display: block; margin: 0 auto 20px auto; }
-    .badge { display: inline-block; padding: 6px 10px; border-radius: 999px; background: #efeaff; color: #7645ef; font-size: 12px; font-weight: 700; text-transform: uppercase; margin: 0 auto 10px auto; }
-    h1 { font-size: 26px; color: #2a2a2a; text-align: center; margin: 10px 0 6px 0; }
-    .intro { font-size: 16px; color: #444; line-height: 1.6; text-align: center; margin: 8px 0 22px 0; white-space: pre-line; }
-    .button { display: inline-block; margin: 14px auto 0 auto; padding: 14px 28px; background-color: #7645ef; text-decoration: none; border-radius: 8px; color: #ffffff !important; font-weight: bold; font-size: 16px; }
-    .subtext { font-size: 12px; color: #6b6b6b; text-align: center; margin-top: 8px; }
-    .section { margin: 28px 0; }
-    .section h2 { font-size: 18px; color: #2a2a2a; margin-bottom: 10px; }
-    ul.check { list-style: none; padding: 0; margin: 0; }
-    ul.check li { margin: 10px 0; font-size: 15px; color: #555; line-height: 1.5; }
-    ul.check li::before { content: "✔"; color: #2abed1; font-weight: 700; margin-right: 8px; }
+    body {
+      background-color: #f6f8fb;
+      font-family: Arial, sans-serif;
+      color: #333;
+      padding: 20px;
+      margin: 0;
+    }
+    .container {
+      max-width: 640px;
+      background-color: #ffffff;
+      padding: 30px;
+      border-radius: 8px;
+      margin: 0 auto;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    .logo img {
+      max-width: 120px;
+      display: block;
+      margin: 0 auto 16px auto;
+    }
+    h1 {
+      color: #111827;
+      font-size: 24px;
+      margin: 0 0 10px;
+      text-align: left;
+    }
+    .subtitle {
+      color: #4b5563;
+      font-size: 15px;
+      margin: 0 0 20px;
+    }
+    h2 {
+      color: #1f2937;
+      font-size: 18px;
+      margin: 28px 0 10px;
+    }
+    p { line-height: 1.6; margin: 12px 0; }
+    ul, ol { padding-left: 20px; margin: 10px 0; }
+    li { margin: 6px 0; }
 
-    .quickstart { background: #f8ffef; border: 1px solid #d7f0b2; border-radius: 10px; padding: 16px; }
-    .quickstart ol { margin: 8px 0 0 18px; padding: 0; color: #3f3f3f; }
-    .quickstart li { margin: 8px 0; font-size: 15px; line-height: 1.5; }
-
-    .card { border: 1px solid #e9e9e9; border-radius: 12px; padding: 16px; }
-    .grid { display: grid; grid-template-columns: 1fr; gap: 12px; } /* kept for preview clients; Gmail-safe table below handles real inboxes */
-    .muted { color: #666; font-size: 13px; }
-
-    .footer { margin-top: 28px; font-size: 13px; text-align: center; color: #777; }
+    .btn {
+      display: inline-block;
+      padding: 12px 20px;
+      background-color: rgb(59, 246, 215);
+      color: #000000 !important;
+      text-decoration: none;
+      font-weight: bold;
+      border-radius: 6px;
+      margin-top: 16px;
+    }
+    .muted {
+      color: #6b7280;
+      font-size: 13px;
+    }
+    .note {
+      background: #f7f9fc;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: #374151;
+      margin-top: 16px;
+    }
+    .divider {
+      height: 1px;
+      background: #eef0f4;
+      margin: 24px 0;
+    }
+    .footer {
+      margin-top: 26px;
+      font-size: 13px;
+      color: #6b7280;
+      text-align: left;
+    }
     .footer a { color: #7645ef; text-decoration: none; }
-
-    /* Prevent Gmail from recoloring links inside tables */
-    .container table[role="presentation"] a { color:#7645ef !important; text-decoration:none !important; }
-
-    @media (min-width: 560px) {
-      .grid.two { grid-template-columns: 1fr 1fr; gap: 12px; }
-    }
-    @media (max-width: 480px) {
-      .container { padding: 22px; }
-      h1 { font-size: 24px; }
-    }
   </style>
 </head>
 <body>
-  <!-- Preheader -->
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
-    You’re on SpeakAnyWay Pro — 3 Communicator Accounts (expandable), AI features, advanced analytics, priority support, unlimited Supporters, and PDF+QR exports.
-  </div>
-
   <div class="container">
+    <!-- Optional brand logo -->
     <div class="logo">
       <a href="https://speakanyway.com" target="_blank" rel="noopener">
         <%= image_tag @logo.url, alt: "SpeakAnyWay Logo" %>
       </a>
     </div>
 
-    <div class="badge">Pro plan</div>
-    <h1>Welcome to SpeakAnyWay Pro 🎉</h1>
+    <h1>Welcome to SpeakAnyWay Pro! 🎉</h1>
+    <p class="subtitle">Built for teachers & SLPs who support multiple communicators.</p>
 
-    <p class="intro">
-      Hi <%= @user.name.blank? ? "there" : @user.name %> — amazing choice!
-      With <strong>Pro</strong> you’ve got everything you need to scale communication across home, school, and therapy — fast.
+    <p>Hi <%= @user.name || "there" %>,</p>
+
+    <p>
+      Thanks for choosing a <strong>Pro Account</strong>! You now have the tools to scale communication across home, school, and therapy—without the busywork.
     </p>
 
-    <p style="text-align:center;">
-      <a href="<%= @login_link %>" class="button">Open Your Pro Dashboard</a>
+    <h2>🎉 What’s included in Pro</h2>
+    <ul>
+      <li>✅ <strong>3 Communicator Accounts</strong> included (buy more anytime as your caseload grows)</li>
+      <li>✅ <strong>MySpeak+</strong> in every Communicator (instant access to communication boards, emergency & medical info)</li>
+      <li>✅ <strong>Unlimited Supporters</strong> (read-only for teachers, aides, and families)</li>
+      <li>✅ Full access to <strong>AI features</strong> (smart words, layouts, board suggestions)</li>
+      <li>✅ <strong>Advanced analytics</strong> to track usage and progress</li>
+      <li>✅ <strong>Priority support</strong> when you need help fast</li>
+    </ul>
+
+    <div class="note">
+      <strong>Heads up:</strong> Basic includes <strong>1 Communicator Account</strong>. Your Pro plan starts with <strong>3</strong>—perfect for classrooms and caseloads.
+    </div>
+
+    <h2>🛠️ Get set up in minutes</h2>
+    <ol>
+      <li>Log in at <a href="<%= @frontend_url %>"><%= @frontend_url %></a> (or click the button below).</li>
+      <li>Open <strong>Communicator Accounts</strong> → create your first three profiles and add ICE info.</li>
+      <li>Go to <strong>My Boards</strong> → use AI to build starter boards (routines, classroom, community).</li>
+      <li>Share <strong>PDF + QR</strong> for on-the-go AAC—perfect for field trips and home carryovers.</li>
+      <li>Invite <strong>Supporters</strong> (read-only) to keep everyone aligned.</li>
+    </ol>
+
+    <a href="<%= @login_link || @frontend_url %>" class="btn">Open Your Pro Dashboard</a>
+    <p class="muted">If the button doesn’t work, copy this link: <br>
+      <span style="word-break:break-all;"><%= @login_link || @frontend_url %></span>
     </p>
-    <p class="subtext">If the button doesn’t work, copy this link:<br>
-      <span style="word-break:break-all;color:#6b6b6b;"><%= @login_link %></span>
+
+    <div class="divider"></div>
+
+    <h2>💡 Tips from our team</h2>
+    <ul>
+      <li>Name Communicator Accounts like <em>“Last, First — School/Grade”</em> for quick lookup.</li>
+      <li>Check <strong>Analytics</strong> weekly and adjust boards based on high/low-use words.</li>
+      <li>Add the <strong>QR</strong> image to a phone lock screen so helpers can scan instantly.</li>
+    </ul>
+
+    <p class="footer">
+      Need help or want to add more Communicator Accounts?<br>
+      Visit <a href="https://speakanyway.com/pricing" target="_blank" rel="noopener">pricing</a>, or just reply to this email.
+      You can also reach us at <a href="mailto:help@speakanyway.com">help@speakanyway.com</a>—we’re happy to help 💜
+      <br><br>
+      — The SpeakAnyWay Team
     </p>
-
-    <div class="section">
-      <h2>What’s included with Pro</h2>
-      <ul class="check">
-        <li><strong>3 Communicator Accounts included</strong> (expandable as you grow).</li>
-        <li><strong>Unlimited Supporters</strong> (parents,teachers, friends, therapists).</li>
-        <li><strong>AI features</strong> for words, layouts, and smarter board building.</li>
-        <li><strong>Advanced analytics</strong> to spot usage patterns and progress.</li>
-        <li><strong>Priority support</strong> for faster help when you need it.</li>
-        <li><strong>PDF export with QR codes</strong> for AAC on the go (no device required).</li>
-        <li><strong>MySpeak+</strong>: store ICE info (emergency & medical) in Communicator Accounts.</li>
-      </ul>
-    </div>
-
-    <div class="section quickstart">
-      <h2 style="margin:0 0 6px 0;">Pro quick start (3 steps)</h2>
-      <ol>
-        <li>Create or import your <strong>Communicator Accounts</strong> (add ICE info in each profile).</li>
-        <li>Build boards with <strong>AI suggestions</strong> (start with daily core words).</li>
-        <li>Invite <strong>Supporters</strong> (read-only) and share <strong>PDF+QR</strong> for instant access anywhere.</li>
-      </ol>
-    </div>
-
-    <!-- Gmail-safe replacement for the .grid.two card layout -->
-    <div class="section">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-        <tr>
-          <!-- Card 1 -->
-          <td width="50%" valign="top" style="padding:6px;">
-            <div class="card">
-              <h2 style="margin-top:0;">Make the most of Pro</h2>
-              <ul class="check" style="margin-top:8px;">
-                <li>Check the <strong>Analytics</strong> tab weekly to guide practice.</li>
-                <li>Use <strong>Templates</strong> (if available) for faster setup by context (home, school, outings).</li>
-                <li>Schedule a monthly <strong>board review</strong> to add/retire words based on usage.</li>
-              </ul>
-              <p class="muted" style="margin:10px 0 0;">Tip: Keep a “Now” board for routines and a “Community” board for out-and-about.</p>
-            </div>
-          </td>
-
-          <!-- Card 2 -->
-          <td width="50%" valign="top" style="padding:6px;">
-            <div class="card">
-              <h2 style="margin-top:0;">Priority support</h2>
-              <p style="margin:0 0 8px 0;">Need help or best-practice advice? You’re at the front of the line.</p>
-              <ul class="check" style="margin-top:8px;">
-                <li>Email us at <a href="mailto:help@speakanyway.com">help@speakanyway.com</a></li>
-                <li>Share screenshots or board links for targeted help.</li>
-              </ul>
-              <p class="muted" style="margin:10px 0 0;">We’re real humans who care. Say hi anytime 💜</p>
-            </div>
-          </td>
-        </tr>
-      </table>
-    </div>
-    <!-- End Gmail-safe two-column cards -->
-
-    <div class="section" style="text-align:center;">
-      <p style="font-size:14px;color:#444;margin:0 0 6px 0;">
-        Questions? Just reply to this email or contact us at
-        <a href="mailto:help@speakanyway.com" style="color:#7645ef;text-decoration:none;">help@speakanyway.com</a>.
-      </p>
-    </div>
-
-    <div class="footer">
-      <p>Thank you for choosing SpeakAnyWay 💜<br>— The SpeakAnyWay Team</p>
-      <p><a href="https://speakanyway.com" target="_blank">Visit our website</a></p>
-    </div>
   </div>
 </body>
 </html>
