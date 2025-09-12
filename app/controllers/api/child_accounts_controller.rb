@@ -31,6 +31,10 @@ class API::ChildAccountsController < API::ApplicationController
     @child_account = ChildAccount.new(child_account_params)
     parent_id = current_user.id
     username = @child_account.username
+    if !@child_account.valid?
+      render json: { errors: @child_account.errors }, status: :unprocessable_entity
+      return
+    end
     password = params[:password]
     password_confirmation = params[:password_confirmation]
     if password != password_confirmation
