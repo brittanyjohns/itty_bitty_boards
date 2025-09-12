@@ -869,7 +869,7 @@ class User < ApplicationRecord
   end
 
   def trial_expired?
-    free? && created_at < TRAIL_PERIOD.ago
+    free? && !free_trial?
   end
 
   def trial_expired_at
@@ -900,7 +900,11 @@ class User < ApplicationRecord
     view["current_sign_in_at"] = current_sign_in_at
     view["current_sign_in_ip"] = current_sign_in_ip
     view["sign_in_count"] = sign_in_count
-
+    view["plan_type"] = plan_type
+    view["plan_expires_at"] = plan_expires_at.strftime("%x") if plan_expires_at
+    view["free_trial"] = free_trial?
+    view["trial_expired"] = trial_expired?
+    view["free"] = free?
     view
   end
 
@@ -945,6 +949,9 @@ class User < ApplicationRecord
     view["board_limit"] = board_limit
     view["comm_account_limit_reached"] = comm_account_limit_reached
     view["board_limit_reached"] = board_limit_reached
+    view["can_create_boards"] = can_create_boards
+    view["settings"] = settings
+    view["settings"]["plan_type"] = plan_type
     view
   end
 

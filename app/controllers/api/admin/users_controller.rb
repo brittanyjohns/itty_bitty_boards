@@ -41,7 +41,13 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user.settings["enable_text_display"] = params[:enable_text_display] || false
 
     # ADMIN ONLY
-    plan_type = params[:plan_type] || @user.plan_type || "free"
+    param_plan_type = params[:plan_type]
+
+    plan_type = param_plan_type
+    if plan_type.blank?
+      plan_type = @user.plan_type || "free"
+    end
+    puts "*** Setting plan_type to #{plan_type} for user #{@user.email} (#{@user.id})"
     role = params[:role] || @user.role || "user"
     if role == "admin"
       unless current_admin&.admin?
@@ -56,7 +62,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user.settings["board_limit"] = params[:board_limit] || 0
     @user.settings["communicator_limit"] = params[:communicator_limit] || 0
     if @user.save
-      render json: @user, status: :ok
+      render json: @user.admin_api_view, status: :ok
     else
       render json: @user.errors, status: :unprocessable_entity
     end
