@@ -117,26 +117,12 @@
       border-radius: 12px;
       overflow: hidden;
     }
-    .row {
-      display: flex;
-      border-top: 1px solid #e9e9e9;
-    }
+    /* legacy flex classes kept but not used for Gmail */
+    .row { display: flex; border-top: 1px solid #e9e9e9; }
     .row:first-child { border-top: none; }
-    .col {
-      flex: 1;
-      padding: 12px 14px;
-      font-size: 14px;
-      line-height: 1.4;
-    }
-    .head {
-      background: #f7f9fc;
-      font-weight: 700;
-      color: #333;
-      text-align: center;
-    }
-    .col + .col {
-      border-left: 1px solid #e9e9e9;
-    }
+    .col { flex: 1; padding: 12px 14px; font-size: 14px; line-height: 1.4; }
+    .head { background: #f7f9fc; font-weight: 700; color: #333; text-align: center; }
+    .col + .col { border-left: 1px solid #e9e9e9; }
     .checkmark { color: #2abed1; font-weight: 700; }
     .dash { color: #bbb; }
 
@@ -170,6 +156,9 @@
       color: #7645ef;
       text-decoration: none;
     }
+
+    /* Keep links inside the compare table from turning Gmail-blue */
+    .container table[role="presentation"] a { color:#333 !important; text-decoration:none !important; }
 
     /* Mobile tweaks */
     @media (max-width: 480px) {
@@ -228,33 +217,42 @@
 
     <div class="section">
       <h2>Why upgrade to MySpeak+ ($3/mo)</h2>
+
+      <!-- BEGIN: Gmail-safe comparison table inside your .compare wrapper -->
       <div class="compare">
-        <div class="row head">
-          <div class="col">Feature</div>
-          <div class="col">Free</div>
-          <div class="col">MySpeak+</div>
-        </div>
-        <div class="row">
-          <div class="col">Emergency contacts (ICE) & medical info on every board</div>
-          <div class="col"><span class="dash">—</span></div>
-          <div class="col"><span class="checkmark">✔</span></div>
-        </div>
-        <div class="row">
-          <div class="col">First custom board included</div>
-          <div class="col"><span class="dash">—</span></div>
-          <div class="col"><span class="checkmark">✔</span></div>
-        </div>
-        <div class="row">
-          <div class="col">Public boards access</div>
-          <div class="col"><span class="checkmark">✔</span></div>
-          <div class="col"><span class="checkmark">✔</span></div>
-        </div>
-        <div class="row">
-          <div class="col">More custom boards & AI features (higher plans)</div>
-          <div class="col"><span class="dash">—</span></div>
-          <div class="col"><span class="checkmark">✔</span></div>
-        </div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+          <tr>
+            <td align="center" valign="middle" width="42%" style="background:#f7f9fc;font-weight:700;color:#333;padding:12px 10px;font-size:14px;border-right:1px solid #e9e9e9;">Feature</td>
+            <td align="center" valign="middle" width="29%" style="background:#f7f9fc;font-weight:700;color:#333;padding:12px 10px;font-size:14px;border-right:1px solid #e9e9e9;">Free</td>
+            <td align="center" valign="middle" width="29%" style="background:#f7f9fc;font-weight:700;color:#333;padding:12px 10px;font-size:14px;">MySpeak+</td>
+          </tr>
+
+          <tr>
+            <td style="padding:12px 14px;font-size:14px;line-height:1.4;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;">ICE info in <strong>Communicator Account</strong></td>
+            <td align="center" style="padding:12px 14px;font-size:16px;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;color:#bbb;">—</td>
+            <td align="center" style="padding:12px 14px;font-size:16px;border-top:1px solid #e9e9e9;color:#2abed1;font-weight:700;">✔</td>
+          </tr>
+
+          <tr>
+            <td style="padding:12px 14px;font-size:14px;line-height:1.4;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;">First custom board included</td>
+            <td align="center" style="padding:12px 14px;font-size:16px;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;color:#bbb;">—</td>
+            <td align="center" style="padding:12px 14px;font-size:16px;border-top:1px solid #e9e9e9;color:#2abed1;font-weight:700;">✔</td>
+          </tr>
+
+          <tr>
+            <td style="padding:12px 14px;font-size:14px;line-height:1.4;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;">Public boards access</td>
+            <td align="center" style="padding:12px 14px;font-size:16px;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;color:#2abed1;font-weight:700;">✔</td>
+            <td align="center" style="padding:12px 14px;font-size:16px;border-top:1px solid #e9e9e9;color:#2abed1;font-weight:700;">✔</td>
+          </tr>
+
+          <tr>
+            <td style="padding:12px 14px;font-size:14px;line-height:1.4;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;">Path to more boards & AI (higher plans)</td>
+            <td align="center" style="padding:12px 14px;font-size:16px;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;color:#bbb;">—</td>
+            <td align="center" style="padding:12px 14px;font-size:16px;border-top:1px solid #e9e9e9;color:#2abed1;font-weight:700;">✔</td>
+          </tr>
+        </table>
       </div>
+      <!-- END: Gmail-safe comparison table -->
 
       <div class="upgrade-box">
         <h3>Level up with MySpeak+ 🚀</h3>

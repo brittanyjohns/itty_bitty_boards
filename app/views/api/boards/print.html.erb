@@ -2,9 +2,7 @@
 <div class="header">
   <div style="display: flex; align-items: center; gap: 8mm;">
     <div class="logo">
-      <% path = Rails.root.join("public/logo_bubble.png") %>
-      <% b64 = Base64.strict_encode64(File.binread(path)) %>
-      <img alt="SpeakAnyWay Logo" src="data:image/png;base64,<%= b64 %>">
+      <img alt="SpeakAnyWay Logo" src="data:image/png;base64,<%= @logo %>">
     </div>
     <div class="lead-title"><p style="font-size: 8pt; color: #999;">
       Created with SpeakAnyWay AAC.

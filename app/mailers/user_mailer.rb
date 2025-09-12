@@ -164,13 +164,13 @@ class UserMailer < BaseMailer
         u.skip_invitation = true
       end
       @user = user if user.present?
+      token = @user.raw_invitation_token
+      @login_link += "/welcome/token/#{token}"
       Rails.logger.info "Generated new raw_invitation_token for user #{@user.id}: #{@user.raw_invitation_token}"
     else
       Rails.logger.info "User #{@user.id} already has a raw_invitation_token, using it for welcome link"
     end
-    token = @user.raw_invitation_token
-    Rails.logger.info "User #{@user.id} has raw_invitation_token: #{token}"
-    @login_link += "/welcome/token/#{token}"
+
     @login_link += "?email=#{ERB::Util.url_encode(user.email)}&claim=#{slug}"
 
     @claim_link = ENV["FRONT_END_URL"] || "http://localhost:8100"

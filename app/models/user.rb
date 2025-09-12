@@ -646,26 +646,31 @@ class User < ApplicationRecord
     UserMailer.welcome_pro_email(self).deliver_now
   end
 
-  def send_welcome_email(plan_nickname = nil)
+  def send_welcome_email_myspeak(slug)
+    Rails.logger.info "Sending myspeak welcome email to #{email} with slug #{slug}"
+    slug ||= settings["slug"] || email.split("@").first
+    UserMailer.welcome_with_claim_link_email(self, slug).deliver_now
+  end
+
+  def send_welcome_email(plan_nickname = nil, slug = nil)
     unless plan_nickname
       plan_nickname = settings["plan_nickname"] || plan_type
     end
 
     Rails.logger.info "About to send welcome email to #{email}"
-    puts "ABOUT TO SEND WELCOME EMAIL TO #{email}"
     begin
-      Rails.logger.info ">>>Sending welcome email to #{email}"
       if plan_nickname.nil? || plan_nickname.include?("free")
         send_welcome_email_free
       elsif plan_nickname.include?("basic")
         send_welcome_email_basic
       elsif plan_nickname.include?("pro") || plan_nickname.include?("plus")
         send_welcome_email_pro
+      elsif plan_nickname.include?("myspeak")
+        send_welcome_email_myspeak(slug)
       else
         Rails.logger.error "Unknown plan nickname: #{plan_nickname}, sending free welcome email"
         send_welcome_email_free
       end
-      # UserMailer.welcome_email(self).deliver_now
       AdminMailer.new_user_email(self).deliver_now
       self.settings["welcome_email_sent"] = true
       self.save
@@ -902,8 +907,11 @@ class User < ApplicationRecord
   def admin_api_view
     view = as_json
     comm_account_limit_reached = settings["communicator_limit"].to_i + settings["extra_communicators"].to_i <= communicator_accounts.count
-    board_limit = settings["board_limit"] || 0
+    board_limit = settings["board_limit"]
+    board_limit = board_limit.to_i if board_limit
+    board_limit = 1 unless board_limit && board_limit > 0
     board_count = boards.count
+    Rails.logger.info "User #{id} - Board limit: #{board_limit}, Board count: #{board_count}"
     can_create_boards = board_limit > board_count
     board_limit_reached = board_count >= board_limit
     view["admin"] = admin?

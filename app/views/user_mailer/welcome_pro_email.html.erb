@@ -24,14 +24,17 @@
     .quickstart li { margin: 8px 0; font-size: 15px; line-height: 1.5; }
 
     .card { border: 1px solid #e9e9e9; border-radius: 12px; padding: 16px; }
-    .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 12px; } /* kept for preview clients; Gmail-safe table below handles real inboxes */
     .muted { color: #666; font-size: 13px; }
 
     .footer { margin-top: 28px; font-size: 13px; text-align: center; color: #777; }
     .footer a { color: #7645ef; text-decoration: none; }
 
+    /* Prevent Gmail from recoloring links inside tables */
+    .container table[role="presentation"] a { color:#7645ef !important; text-decoration:none !important; }
+
     @media (min-width: 560px) {
-      .grid.two { grid-template-columns: 1fr 1fr; }
+      .grid.two { grid-template-columns: 1fr 1fr; gap: 12px; }
     }
     @media (max-width: 480px) {
       .container { padding: 22px; }
@@ -71,7 +74,7 @@
       <h2>What’s included with Pro</h2>
       <ul class="check">
         <li><strong>3 Communicator Accounts included</strong> (expandable as you grow).</li>
-        <li><strong>Unlimited Supporters</strong> (read-only: teachers, friends, therapists).</li>
+        <li><strong>Unlimited Supporters</strong> (parents,teachers, friends, therapists).</li>
         <li><strong>AI features</strong> for words, layouts, and smarter board building.</li>
         <li><strong>Advanced analytics</strong> to spot usage patterns and progress.</li>
         <li><strong>Priority support</strong> for faster help when you need it.</li>
@@ -89,26 +92,39 @@
       </ol>
     </div>
 
-    <div class="section grid two">
-      <div class="card">
-        <h2 style="margin-top:0;">Make the most of Pro</h2>
-        <ul class="check">
-          <li>Check the <strong>Analytics</strong> tab weekly to guide practice.</li>
-          <li>Use <strong>Templates</strong> (if available) for faster setup by context (home, school, outings).</li>
-          <li>Schedule a monthly <strong>board review</strong> to add/retire words based on usage.</li>
-        </ul>
-        <p class="muted">Tip: Keep a “Now” board for routines and a “Community” board for out-and-about.</p>
-      </div>
-      <div class="card">
-        <h2 style="margin-top:0;">Priority support</h2>
-        <p style="margin:0 0 8px 0;">Need help or best-practice advice? You’re at the front of the line.</p>
-        <ul class="check">
-          <li>Email us at <a href="mailto:help@speakanyway.com">help@speakanyway.com</a></li>
-          <li>Share screenshots or board links for targeted help.</li>
-        </ul>
-        <p class="muted">We’re real humans who care. Say hi anytime 💜</p>
-      </div>
+    <!-- Gmail-safe replacement for the .grid.two card layout -->
+    <div class="section">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <!-- Card 1 -->
+          <td width="50%" valign="top" style="padding:6px;">
+            <div class="card">
+              <h2 style="margin-top:0;">Make the most of Pro</h2>
+              <ul class="check" style="margin-top:8px;">
+                <li>Check the <strong>Analytics</strong> tab weekly to guide practice.</li>
+                <li>Use <strong>Templates</strong> (if available) for faster setup by context (home, school, outings).</li>
+                <li>Schedule a monthly <strong>board review</strong> to add/retire words based on usage.</li>
+              </ul>
+              <p class="muted" style="margin:10px 0 0;">Tip: Keep a “Now” board for routines and a “Community” board for out-and-about.</p>
+            </div>
+          </td>
+
+          <!-- Card 2 -->
+          <td width="50%" valign="top" style="padding:6px;">
+            <div class="card">
+              <h2 style="margin-top:0;">Priority support</h2>
+              <p style="margin:0 0 8px 0;">Need help or best-practice advice? You’re at the front of the line.</p>
+              <ul class="check" style="margin-top:8px;">
+                <li>Email us at <a href="mailto:help@speakanyway.com">help@speakanyway.com</a></li>
+                <li>Share screenshots or board links for targeted help.</li>
+              </ul>
+              <p class="muted" style="margin:10px 0 0;">We’re real humans who care. Say hi anytime 💜</p>
+            </div>
+          </td>
+        </tr>
+      </table>
     </div>
+    <!-- End Gmail-safe two-column cards -->
 
     <div class="section" style="text-align:center;">
       <p style="font-size:14px;color:#444;margin:0 0 6px 0;">

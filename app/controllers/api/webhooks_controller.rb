@@ -76,6 +76,7 @@ class API::WebhooksController < API::ApplicationController
             Rails.logger.info "User was invited by another user - not sending welcome email"
           else
             if regular_plan?(plan_nickname)
+              Rails.logger.info "Sending welcome email to user: #{@user.email} for plan: #{plan_nickname}"
               @user.send_welcome_email(plan_nickname)
               Rails.logger.info "Welcome email sent to user: #{@user.email} for plan: #{plan_nickname}"
             else
