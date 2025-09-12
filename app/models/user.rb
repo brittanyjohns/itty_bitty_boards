@@ -121,6 +121,24 @@ class User < ApplicationRecord
     end
   end
 
+  def self.reset_user_limits
+    self.non_admin.each do |user|
+      user.settings ||= {}
+      user.settings["extra_communicators"] = 0
+      user.settings["total_communicators"] = user.settings["communicator_limit"] || 0
+      comm_account_limit = API::WebhooksHelper.get_communicator_limit(user.plan_type || "free")
+
+      board_limit = API::WebhooksHelper.get_board_limit(comm_account_limit, user.role || "user")
+      if user.plan_type == "free" || user.plan_type == "myspeak"
+        board_limit = 1
+      end
+      user.settings["board_limit"] = board_limit
+      user.settings["communicator_limit"] = comm_account_limit
+      puts "Resetting limits for user #{user.email} (#{user.plan_type}): communicator_limit=#{comm_account_limit}, board_limit=#{board_limit}"
+      user.save
+    end
+  end
+
   def messages
     Message.where("sender_id = ? OR recipient_id = ?", id, id)
   end

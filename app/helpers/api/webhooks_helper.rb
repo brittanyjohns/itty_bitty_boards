@@ -53,7 +53,8 @@ module API::WebhooksHelper
   end
 
   def self.get_board_limit(comm_account_limit, user_role)
-    return 0 if comm_account_limit.nil? || comm_account_limit <= 0
+    return 0 if comm_account_limit.nil?
+    return 0 if comm_account_limit == 0
     if user_role == "vendor"
       comm_account_limit * 3
     else
