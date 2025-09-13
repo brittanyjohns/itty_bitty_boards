@@ -39,7 +39,6 @@ class Doc < ApplicationRecord
   scope :not_hidden, -> { where(deleted_at: nil) }
   scope :symbols, -> { where(source_type: "OpenSymbol") }
   scope :ai_generated, -> { where(source_type: "OpenAI") }
-  # scope :with_attached_image, -> { includes(image_attachment: :blob) }
   scope :without_attached_image, -> { where.missing(:image_attachment) }
   scope :no_user, -> { where(user_id: nil) }
   scope :with_user, -> { where.not(user_id: nil) }

@@ -12,7 +12,7 @@ Rails.application.configure do
 
   # ActiveRecord: only warn+
   config.active_record.logger = ActiveSupport::Logger.new($stdout)
-  config.active_record.logger.level = Logger::WARN
+  config.active_record.logger.level = Logger::DEBUG
   config.active_record.verbose_query_logs = false
 
   # ActiveStorage: only error+

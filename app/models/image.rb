@@ -82,8 +82,8 @@ class Image < ApplicationRecord
   scope :non_sample_voices, -> { where.not(image_type: "SampleVoice").or(where(image_type: nil)) }
   scope :sample_voices, -> { where(image_type: "SampleVoice") }
   scope :no_image_type, -> { where(image_type: nil) }
-  scope :public_img, -> { non_sample_voices.where(private: [false, nil]) }
-  scope :private_img, -> { where(private: true) }
+  scope :public_img, -> { non_sample_voices.where(is_private: [false, nil]) }
+  scope :private_img, -> { where(is_private: true) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
   scope :skipped, -> { where(open_symbol_status: "skipped") }
   scope :active, -> { where(open_symbol_status: "active") }
@@ -968,37 +968,37 @@ class Image < ApplicationRecord
       @duplicate_labels = @label_counts.select { |_label, count| count > 1 }
 
       # Log the number of duplicate labels and the total number of images in those labels
-      Rails.logger.debug "Found #{@duplicate_labels.count} labels with duplicates."
-      Rails.logger.debug "Total images with duplicate labels: #{@duplicate_labels.values.sum}"
-      Rails.logger.debug "Found #{@duplicate_labels} labels with duplicates.\n Do you want to continue? (y/n)"
+      puts "Found #{@duplicate_labels.count} labels with duplicates."
+      puts "Total images with duplicate labels: #{@duplicate_labels.values.sum}"
+      puts "Found #{@duplicate_labels} labels with duplicates.\n Do you want to continue? (y/n)"
       response = gets.chomp
       return unless response == "y"
       @duplicate_labels.each do |label, image_count|
-        Rails.logger.debug "Checking for duplicates for #{label} - #{image_count} images"
+        puts "Checking for duplicates for #{label} - #{image_count} images"
         images = Image.where(user_id: user_ids, label: label).order(created_at: :desc)
         # Skip the first image (which we want to keep) and destroy the rest
         # images.drop(1).each(&:destroy)
-        Rails.logger.debug "\nDuplicate images for #{label}: #{images.count}" if images.count > 1
+        puts "\nDuplicate images for #{label}: #{images.count}" if images.count > 1
         keep = images.select { |image| image.user_id != nil }.first
         keep ||= images.first
         keeping_docs = keep.docs
-        Rails.logger.debug "Urls: #{keeping_docs.pluck(:original_image_url)}" if keeping_docs.any?
+        puts "Urls: #{keeping_docs.pluck(:original_image_url)}" if keeping_docs.any?
         kept_urls = keeping_docs.pluck(:original_image_url).compact
 
         keep.save! unless dry_run
         images_to_run = images.excluding(keep)
-        Rails.logger.debug "Images: #{images.count} - Images to run: #{images_to_run.count}"
+        puts "Images: #{images.count} - Images to run: #{images_to_run.count}"
         images_to_run.each do |image|
           destroying_docs = image.docs
 
-          Rails.logger.debug "Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at} - docs: #{destroying_docs.count}"
+          puts "Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at} - docs: #{destroying_docs.count}"
           destroying_docs.each do |doc|
             if kept_urls.include?(doc.original_image_url)
-              Rails.logger.debug "Skipping doc: #{doc.id} - #{doc.original_image_url}"
+              puts "Skipping doc: #{doc.id} - #{doc.original_image_url}"
               next
             end
             doc.update!(documentable_id: keep.id) unless dry_run
-            # Rails.logger.debug "Reassigning doc #{doc.id} to image #{keep.id} - #{dry_run ? "DRY RUN" : "FOR REAL LIFE"}"
+            # puts "Reassigning doc #{doc.id} to image #{keep.id} - #{dry_run ? "DRY RUN" : "FOR REAL LIFE"}"
             total_docs_saved += 1
           end
 
@@ -1009,36 +1009,36 @@ class Image < ApplicationRecord
 
           next_words = image.next_words
           if next_words.any?
-            # Rails.logger.debug "Next words: #{next_words}"
+            # puts "Next words: #{next_words}"
             keep.next_words = (keep.next_words + next_words).uniq
             keep.save! unless dry_run
           end
 
           total_images_destroyed += 1
 
-          # Rails.logger.debug "Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
+          # puts "Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
           # This reload is IMPORTANT! Otherwise, the keep docs WILL be destroyed & removed from S3!
           image.reload
-          # Rails.logger.debug "AFTER RELOAD - Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
-          Rails.logger.debug "dry_run: #{dry_run} - Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at}"
+          # puts "AFTER RELOAD - Image docs: #{image.docs.count} - Keep docs: #{keep.docs.count}"  # Debug output
+          puts "dry_run: #{dry_run} - Destroying duplicate image: id: #{image.id} - label: #{image.label} - created_at: #{image.created_at}"
           image.destroy! unless dry_run
           if total_images_destroyed >= limit
-            Rails.logger.debug "in Limit reached: #{limit}"
+            puts "in Limit reached: #{limit}"
             break
           end
         end
 
         keep.reload
         keep.update_all_boards_image_belongs_to(keep.src_url) unless dry_run
-        Rails.logger.debug "Total images destroyed: #{total_images_destroyed} - Total docs saved: #{total_docs_saved}\n"
+        puts "Total images destroyed: #{total_images_destroyed} - Total docs saved: #{total_docs_saved}\n"
 
         if total_images_destroyed >= limit
-          Rails.logger.debug "Limit reached: #{limit}"
+          puts "Limit reached: #{limit}"
           break
         end
       end
     end
-    Rails.logger.debug "\nTotal images destroyed: #{total_images_destroyed} - Total docs saved: #{total_docs_saved}\n"
+    puts "\nTotal images destroyed: #{total_images_destroyed} - Total docs saved: #{total_docs_saved}\n"
     nil
   end
 
@@ -1303,6 +1303,8 @@ class Image < ApplicationRecord
       doc_img_url = current_doc&.display_url
     end
     image_docs = docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
+    Rails.logger.debug "Image docs count: #{image_docs.count} for image #{id} - #{label}"
+    Rails.logger.debug "Doc User Ids: #{image_docs.map(&:user_id)}"
     # user_image_boards = user_boards(@current_user)
     if @current_user.admin?
       user_image_boards = @current_user&.boards&.includes(:board_images).where(predefined: false).distinct.order(name: :asc).limit(30)
@@ -1361,7 +1363,7 @@ class Image < ApplicationRecord
       open_symbol_status: open_symbol_status,
       created_at: created_at,
       updated_at: updated_at,
-      private: self.private,
+      private: self.is_private,
       user_id: self.user_id,
       next_words: next_words,
       no_next: no_next,

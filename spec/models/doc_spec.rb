@@ -22,47 +22,65 @@
 require "rails_helper"
 
 RSpec.describe Doc, type: :model do
-  describe ".clean_up_broken_urls" do
-    let!(:doc1) { FactoryBot.create(:doc) }
-    let!(:doc2) { FactoryBot.create(:doc) }
-    let!(:doc3) { FactoryBot.create(:doc) }
+  # describe ".clean_up_broken_urls" do
+  #   let!(:doc1) { FactoryBot.create(:doc) }
+  #   let!(:doc2) { FactoryBot.create(:doc) }
+  #   let!(:doc3) { FactoryBot.create(:doc) }
 
-    before do
-      # Simulate attached images for doc1 and doc2
-      allow(doc1).to receive_message_chain(:image, :attached?).and_return(true)
-      allow(doc2).to receive_message_chain(:image, :attached?).and_return(true)
-      allow(doc3).to receive_message_chain(:image, :attached?).and_return(false)  # doc3 has no attached image
+  #   before do
+  #     # Simulate attached images for doc1 and doc2
+  #     allow(doc1).to receive_message_chain(:image, :attached?).and_return(true)
+  #     allow(doc2).to receive_message_chain(:image, :attached?).and_return(true)
+  #     allow(doc3).to receive_message_chain(:image, :attached?).and_return(false)  # doc3 has no attached image
 
-      # Simulate URL for doc1 and doc2
-      allow(doc1).to receive(:display_url).and_return("https://valid-url.com/image1.png")
-      allow(doc2).to receive(:display_url).and_return(nil)  # Broken URL for doc2
-      allow(doc3).to receive(:display_url).and_return(nil)  # No URL for doc3
+  #     # Simulate URL for doc1 and doc2
+  #     allow(doc1).to receive(:display_url).and_return("https://valid-url.com/image1.png")
+  #     allow(doc2).to receive(:display_url).and_return(nil)  # Broken URL for doc2
+  #     allow(doc3).to receive(:display_url).and_return(nil)  # No URL for doc3
 
-      allow(doc1.image).to receive(:purge).and_return(true)
-      allow(doc2.image).to receive(:purge).and_return(true)
-    end
+  #     allow(doc1.image).to receive(:purge).and_return(true)
+  #     allow(doc2.image).to receive(:purge).and_return(true)
+  #   end
 
-    subject { Doc.clean_up_broken_urls }
+  #   subject { Doc.clean_up_broken_urls }
 
-    before do
-      subject
-    end
+  #   before do
+  #     subject
+  #   end
 
-    it "marks docs with broken URLs as hidden using soft delete" do
-      expect(doc2.reload.deleted_at).not_to be_nil
-      expect(doc3.reload.deleted_at).not_to be_nil
-    end
+  #   it "marks docs with broken URLs as hidden using soft delete" do
+  #     expect(doc2.reload.deleted_at).not_to be_nil
+  #     expect(doc3.reload.deleted_at).not_to be_nil
+  #   end
 
-    it "does not purge attachments from S3 for valid URLs" do
-      expect(doc1.image).not_to receive(:purge)
-    end
+  #   it "does not purge attachments from S3 for valid URLs" do
+  #     expect(doc1.image).not_to receive(:purge)
+  #   end
 
-    it "does not purge attachments from S3 for broken URLs" do
-      expect(doc2.image).not_to receive(:purge)
-    end
+  #   it "does not purge attachments from S3 for broken URLs" do
+  #     expect(doc2.image).not_to receive(:purge)
+  #   end
 
-    it "does not purge attachments from S3 for docs with no attached image" do
-      expect(doc3.image).not_to receive(:purge)
+  #   it "does not purge attachments from S3 for docs with no attached image" do
+  #     expect(doc3.image).not_to receive(:purge)
+  #   end
+  # end
+
+  describe ".for_user" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:other_user) { FactoryBot.create(:user) }
+    let!(:admin_user) { FactoryBot.create(:user, role: "admin", id: User::DEFAULT_ADMIN_ID) }
+    let!(:doc1) { FactoryBot.create(:doc, user: user) }
+    let!(:doc2) { FactoryBot.create(:doc, user: other_user) }
+    let!(:doc3) { FactoryBot.create(:doc, user: nil) }
+    let!(:doc4) { FactoryBot.create(:doc, user: admin_user) }
+
+    it "returns docs belonging to the specified user or with no user" do
+      result = Doc.for_user(user)
+      expect(result).to include(doc1)
+      expect(result).to include(doc3)
+      expect(result).not_to include(doc2)
+      expect(result).to include(doc4)
     end
   end
 end

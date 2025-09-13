@@ -574,9 +574,14 @@ class Board < ApplicationRecord
     end
     word_list.each do |word|
       word = word.downcase.gsub('"', "").gsub("'", "")
+      Rails.logger.debug "Searching for word: #{word}"
       image = user.images.find_by(label: word)
+
       image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
-      image = Image.create(label: word) unless image
+      Rails.logger.debug "Found image: #{image.inspect}" if image
+      new_image = Image.create(label: word) unless image
+      Rails.logger.info "Created new image for word: #{word}" if new_image && new_image.persisted?
+      image ||= new_image
       display_doc = image.display_image_url(user)
       if display_doc.blank?
         Rails.logger.error "No display image for word: #{word}"
