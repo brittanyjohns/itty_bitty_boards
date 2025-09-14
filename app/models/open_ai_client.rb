@@ -400,16 +400,30 @@ class OpenAiClient
   end
 
   def get_word_suggestions(name, number_of_words = 24, words_to_exclude = [])
+    if words_to_exclude.is_a?(String)
+      words_to_exclude = words_to_exclude.split(",").map(&:strip)
+    end
     @model = QUICK_GTP_MODEL
     Rails.logger.debug "User - model: #{@model} -- name: #{name} -- number_of_words: #{number_of_words} -- words_to_exclude: #{words_to_exclude.inspect}"
-    text = "I have an existing AAC board titled, '#{name}'. Inferring the context from the name, please provide #{number_of_words} words that are foundational for basic communication in an AAC device.
-    These words should relate to the context of the board and be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. 
-    Do not repeat any words that are already on the board & only provide #{number_of_words} words. #{words_to_exclude ? "DO NOT INCLUDE [#{words_to_exclude}]" : ""}.
-    Examples: If the board is named 'drink', words like 'water', 'milk', 'juice', 'thirsty', etc. would be appropriate. 
-    If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate. 
-    If the board is 'feelings', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
-    If the board is 'family', words like 'mom', 'dad', 'sister', 'brother', etc. would be appropriate.
-    Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}"
+    text = "I have an AAC board titled, '#{name}'. Inferring the context from the name, please provide #{number_of_words} words. "
+
+    unless words_to_exclude.blank?
+      text += " Do not repeat any words that are already on the board & only provide #{number_of_words} words, excluding the words '#{words_to_exclude.join("', '")}'."
+    end
+    format_instructions = "Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}"
+    text += format_instructions
+    examples = <<~EXAMPLES
+      Examples: If the board is named 'drink', words like 'water', 'milk', 'juice', 'thirsty', etc. would be appropriate. 
+      If the board is 'food', words like 'apple', 'banana', 'cookie', 'eat', etc. would be appropriate.
+      If the board is 'Trip to the park', words like 'play', 'my turn', 'swing', 'slide', etc. would be appropriate.
+      If the board is 'nature', words like 'tree', 'flower', 'sun', 'rain', etc. would be appropriate.
+      If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate. 
+      If the board is 'feelings', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
+      If the board is 'family', words like 'mom', 'dad', 'sister', 'brother', etc. would be appropriate.
+    EXAMPLES
+    text += examples
+
+    Rails.logger.debug "Text:\n#{text}"
 
     @messages = [{ role: "user",
                   content: [{
@@ -417,6 +431,7 @@ class OpenAiClient
       text: text,
     }] }]
     response = create_chat
+    puts "*******\nResponse: #{response}\n"
     response
   end
 
