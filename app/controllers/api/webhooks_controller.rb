@@ -27,6 +27,7 @@ class API::WebhooksController < API::ApplicationController
     data = event["data"]
     data_object = data["object"]
     object_type = data_object["object"]
+    Rails.logger.info "Received Stripe webhook event: #{event_type} for object type: #{object_type} \n data class: #{data_object.class}"
 
     begin
       case event_type

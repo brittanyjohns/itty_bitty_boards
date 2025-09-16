@@ -568,9 +568,9 @@ class Board < ApplicationRecord
     if word_list.is_a?(String)
       word_list = word_list.split(" ")
     end
-    if word_list.count > 50
-      Rails.logger.error "Too many words - will only use the first 50"
-      word_list = word_list[0..50]
+    if word_list.count > 100
+      Rails.logger.error "Too many words - will only use the first 100"
+      word_list = word_list[0..99]
     end
     word_list.each do |word|
       word = word.downcase.gsub('"', "").gsub("'", "")
