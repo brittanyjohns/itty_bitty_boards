@@ -1338,6 +1338,7 @@ class Image < ApplicationRecord
       src: doc_img_url,
       src_url: @board_image&.display_image_url,
       predictive_board_board_type: @predictive_board&.board_type,
+      predictive_board_name: @predictive_board&.name,
       public_audio_url: public_audio_url,
       audio: @default_audio_url,
       audio_url: @default_audio_url,

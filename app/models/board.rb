@@ -1212,6 +1212,7 @@ class Board < ApplicationRecord
           predictive_board_id: is_dynamic ? @predictive_board_id : @user_custom_default_id,
           user_custom_default_id: @user_custom_default_id,
           predictive_board_board_type: @predictive_board&.board_type,
+          predictive_board_name: @predictive_board&.name,
           is_owner: is_owner,
           is_category: is_category,
           is_admin_image: is_admin_image,
