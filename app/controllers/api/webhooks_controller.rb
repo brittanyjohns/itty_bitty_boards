@@ -161,7 +161,11 @@ class API::WebhooksController < API::ApplicationController
           render json: { error: "No user found for subscription" }, status: 400 and return
         end
       when "checkout.session.completed"
-        stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
+        if data_object.is_a?(Stripe::StripeObject)
+          stripe_subscription = data_object
+        else
+          stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
+        end
 
         @user = User.find_by(email: data_object.customer_details["email"]) unless @user
         @user ||= User.find_by(stripe_customer_id: data_object.customer)

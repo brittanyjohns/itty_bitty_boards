@@ -1208,6 +1208,7 @@ class Board < ApplicationRecord
           root_board_id: @root_board&.id,
           root_board_name: @root_board&.name,
           image_user_id: image.user_id,
+          docs: image.docs.map { |doc| doc.api_view(viewing_user) },
           predictive_board_id: is_dynamic ? @predictive_board_id : @user_custom_default_id,
           user_custom_default_id: @user_custom_default_id,
           predictive_board_board_type: @predictive_board&.board_type,

@@ -1012,6 +1012,12 @@ class User < ApplicationRecord
     pro? || plus? || premium? || vendor? || basic?
   end
 
+  def can_create_boards
+    board_limit = settings["board_limit"] || 1
+    board_count = boards.count
+    board_count < board_limit
+  end
+
   def api_view
     plan_exp = plan_expires_at&.strftime("%x")
     comm_limit = settings["communicator_limit"] || 0
@@ -1026,7 +1032,6 @@ class User < ApplicationRecord
     memoized_communicators = communicator_accounts
     memoized_boards = boards.alphabetical
     board_count = memoized_boards.count
-    can_create_boards = board_count < board_limit
     comm_account_limit_reached = comm_limit + extra_comms <= memoized_communicators.count
 
     {
@@ -1076,7 +1081,7 @@ class User < ApplicationRecord
       communicator_accounts: memoized_communicators,
       go_to_words: go_words,
       go_to_boards: go_to_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, slug: b.slug, ionic_icon: b.ionic_icon } },
-      boards: memoized_boards.map { |b| { id: b.id, name: b.name } },
+      boards: memoized_boards.map { |b| { id: b.id, name: b.name, word_sample: b.word_sample } },
       # heat_map: heat_map,
       # week_chart: week_chart,
       # group_week_chart: group_week_chart,
