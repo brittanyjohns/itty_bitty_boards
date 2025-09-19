@@ -110,7 +110,7 @@ class API::BoardImagesController < API::ApplicationController
     end
 
     if results.all?
-      render json: { board: @board.api_view_with_predictive_images(current_user, nil, true) }
+      render json: { board: @board.api_view_with_predictive_images(current_user, true) }
     else
       render json: { error: "Failed to update some board images" }, status: :unprocessable_entity
     end
@@ -137,7 +137,7 @@ class API::BoardImagesController < API::ApplicationController
       end
     end
     if results.all?
-      render json: { board: @board.api_view_with_predictive_images(current_user, nil, true) }
+      render json: { board: @board.api_view_with_predictive_images(current_user, true) }
     else
       render json: { error: "Failed to remove some board images" }, status: :unprocessable_entity
     end

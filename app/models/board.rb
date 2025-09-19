@@ -38,6 +38,8 @@
 #  favorite              :boolean          default(FALSE)
 #  vendor_id             :bigint
 #  slug                  :string           default("")
+#  in_use                :boolean          default(FALSE), not null
+#  is_template           :boolean          default(FALSE), not null
 #
 require "zip"
 
@@ -60,6 +62,8 @@ class Board < ApplicationRecord
   has_many_attached :audio_files
   has_one_attached :preset_display_image
   has_many :child_boards, dependent: :destroy
+  has_many :original_child_boards, class_name: "ChildBoard", foreign_key: "original_board_id", dependent: :nullify
+  has_many :child_accounts, through: :child_boards
   belongs_to :image_parent, class_name: "Image", optional: true
   has_many :word_events
 
@@ -116,6 +120,9 @@ class Board < ApplicationRecord
   # scope :with_artifacts, -> { includes({ board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }) }
   scope :with_artifacts, -> { includes({ board_images: [{ image: [{ docs: [:image_attachment, :image_blob, :user_docs] }, :audio_files_attachments, :audio_files_blobs, :user, :category_boards] }] }, :image_parent) }
 
+  scope :in_use, -> { where(in_use: true) }
+  scope :templates, -> { where(is_template: true) }
+  scope :non_templates, -> { where(is_template: false) }
   include ImageHelper
 
   before_save :set_voice, if: :voice_changed?
@@ -127,6 +134,7 @@ class Board < ApplicationRecord
   before_save :clean_up_name
   before_save :validate_data
   before_save :set_vendor_id
+  before_save :check_in_use
 
   before_save :set_display_margin_settings, unless: :margin_settings_valid_for_all_screen_sizes?
 
@@ -401,6 +409,15 @@ class Board < ApplicationRecord
     self.board_type = tmp_board_type
   end
 
+  def check_in_use
+    child_board_templates = ChildBoard.where(original_board_id: id)
+    if child_board_templates.any? && !in_use
+      self.in_use = true
+    elsif !child_board_templates.any? && in_use
+      self.in_use = false
+    end
+  end
+
   def clean_up_name
     has_source_type = false
     original_type_name = nil
@@ -659,7 +676,7 @@ class Board < ApplicationRecord
     new_board_image
   end
 
-  def clone_with_images(cloned_user_id, new_name)
+  def clone_with_images(cloned_user_id, new_name = nil)
     if new_name.blank?
       new_name = name + " copy"
     end
@@ -1092,14 +1109,49 @@ class Board < ApplicationRecord
     predefined && favorite
   end
 
-  def api_view_with_predictive_images(viewing_user = nil, communicator_account = nil, show_hidden = false)
+  def communicator_board
+    if is_template
+      ChildBoard.includes(:child_account).find_by(board_id: id)
+    end
+  end
+
+  def communicator_account
+    if is_template
+      communicator_board&.child_account
+    end
+  end
+
+  def api_view_with_predictive_images(viewing_user = nil, show_hidden = false)
     @viewer_settings = viewing_user&.settings || {}
     is_a_user = viewing_user.class == "User"
+    Rails.logger.debug "Viewing user: #{viewing_user&.id} - Board user: #{user_id} - is_a_user: #{is_a_user}"
+    if is_a_user
+      current_account = viewing_user
+    else
+      current_account = nil
+    end
+    Rails.logger.debug "Current account: #{current_account&.id}"
     @board_settings = settings || {}
     unless show_hidden
       @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).distinct
     else
       @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).distinct
+    end
+    if in_use
+      Rails.logger.debug "Board is in use - finding child accounts"
+      child_accounts = []
+      child_boards = []
+      ChildBoard.includes(:child_account).where(original_board_id: id).each do |cb|
+        child_boards << cb
+        if cb.child_account && !child_accounts.map(&:id).include?(cb.child_account.id)
+          child_accounts << cb.child_account
+        end
+      end
+      @child_accounts = child_accounts
+      @child_boards = child_boards
+    else
+      @child_accounts = []
+      @child_boards = []
     end
     # @board_images = board_images.where(hidden: false)
     word_data = get_commons_words
@@ -1108,13 +1160,21 @@ class Board < ApplicationRecord
     @root_board = root_board
     same_user = viewing_user && user_id == viewing_user.id
     can_edit = same_user || viewing_user&.admin?
+    Rails.logger.debug "Can edit: #{can_edit} - User: #{viewing_user&.id} Board User: #{user_id}" unless current_account
     @matching_viewer_images = matching_viewer_images(viewing_user)
-    if communicator_account
-      can_edit = communicator_account.settings["can_edit_boards"] == true
+    if current_account
+      can_edit = current_account.settings["can_edit_boards"] == true
+      Rails.logger.debug "Can edit: #{can_edit} - current_account: #{viewing_user&.id} Board User: #{user_id}"
     end
     {
       id: id,
       board_type: board_type,
+      communicator_accounts: @child_accounts.map { |ca| { id: ca.id, name: ca.name } },
+      communicator_account: communicator_account ? { id: communicator_account.id, name: communicator_account.name } : nil,
+      communicator_board: communicator_board ? { id: communicator_board.id, name: communicator_board.name, board_id: communicator_board.board_id, original_board_id: communicator_board.original_board_id } : nil,
+      child_boards: @child_boards.map { |cb| { id: cb.id, name: cb.name, child_account_id: cb.child_account_id, username: cb.child_account&.username } },
+      in_use: in_use,
+      is_template: is_template,
       public_url: public_url,
       board_groups: board_groups,
       slug: slug,
@@ -1387,6 +1447,8 @@ class Board < ApplicationRecord
       id: id,
       user_name: user.to_s,
       name: name,
+      is_template: is_template,
+      in_use: in_use,
       can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
       layout: layout,
       audio_url: audio_url,

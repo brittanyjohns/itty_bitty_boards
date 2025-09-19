@@ -119,7 +119,7 @@ class API::BoardsController < API::ApplicationController
     # if stale?(etag: @board, last_modified: @board.updated_at)
     #   RailsPerformance.measure("Show Board") do
     # @loaded_board = Board.with_artifacts.find(@board.id)
-    @board_with_images = @board.api_view_with_predictive_images(current_user, nil, true)
+    @board_with_images = @board.api_view_with_predictive_images(current_user, true)
     # end
     render json: @board_with_images
     # end
@@ -541,7 +541,7 @@ class API::BoardsController < API::ApplicationController
     end
     @board.reload
     # render json: { message: "Board added to groups successfully" }
-    @board_with_images = @board.api_view_with_predictive_images(current_user, nil, true)
+    @board_with_images = @board.api_view_with_predictive_images(current_user, true)
     # end
     render json: @board_with_images
   end

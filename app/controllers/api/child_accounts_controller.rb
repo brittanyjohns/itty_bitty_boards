@@ -123,8 +123,11 @@ class API::ChildAccountsController < API::ApplicationController
       all_records_saved = nil
       board_ids.each do |board_id|
         board = Board.find(board_id)
+        child_board_copy = board.clone_with_images(current_user&.id, board.name)
+        child_board_copy.is_template = true
+        child_board_copy.save!
         if @child_account.child_boards.where(board_id: board.id).empty?
-          comm_board = @child_account.child_boards.create!(board: board, created_by: current_user)
+          comm_board = @child_account.child_boards.create!(board: child_board_copy, created_by: current_user, original_board: board)
           all_records_saved = comm_board.persisted?
         else
           all_records_saved = false

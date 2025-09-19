@@ -2,26 +2,28 @@
 #
 # Table name: child_boards
 #
-#  id               :bigint           not null, primary key
-#  board_id         :bigint           not null
-#  child_account_id :bigint           not null
-#  status           :string
-#  settings         :jsonb
-#  created_at       :datetime         not null
-#  updated_at       :datetime         not null
-#  published        :boolean          default(FALSE)
-#  favorite         :boolean          default(FALSE)
-#  created_by_id    :bigint
+#  id                :bigint           not null, primary key
+#  board_id          :bigint           not null
+#  child_account_id  :bigint           not null
+#  status            :string
+#  settings          :jsonb
+#  created_at        :datetime         not null
+#  updated_at        :datetime         not null
+#  published         :boolean          default(FALSE)
+#  favorite          :boolean          default(FALSE)
+#  created_by_id     :bigint
+#  original_board_id :bigint
 #
 class ChildBoard < ApplicationRecord
   belongs_to :board
   belongs_to :child_account
+  belongs_to :original_board, class_name: "Board", optional: true
   has_many :images, through: :board
   has_one :image_parent, through: :board
   belongs_to :created_by, class_name: "User", foreign_key: "created_by_id", optional: true
 
   # scope :with_artifacts, -> { includes(board: :images) }
-  scope :with_artifacts, -> { includes({ board: [{ images: [:docs, :audio_files_attachments, :audio_files_blobs, :user, :category_boards] }] }, :image_parent) }
+  scope :with_artifacts, -> { includes({ board: [{ images: [:docs, :audio_files_attachments, :audio_files_blobs, :category_boards] }] }, :image_parent) }
 
   def name
     board.name

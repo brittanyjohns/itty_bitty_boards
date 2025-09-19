@@ -56,7 +56,8 @@ class User < ApplicationRecord
 
   # Associations
   belongs_to :organization, optional: true
-  has_many :boards, dependent: :destroy
+  has_many :boards, -> { where(is_template: false) }, class_name: "Board"
+  has_many :template_boards, -> { where(is_template: true) }, class_name: "Board"
   has_many :board_images, through: :boards
   has_many :board_groups, dependent: :destroy
   has_many :menus, dependent: :destroy

@@ -2,16 +2,17 @@
 #
 # Table name: child_boards
 #
-#  id               :bigint           not null, primary key
-#  board_id         :bigint           not null
-#  child_account_id :bigint           not null
-#  status           :string
-#  settings         :jsonb
-#  created_at       :datetime         not null
-#  updated_at       :datetime         not null
-#  published        :boolean          default(FALSE)
-#  favorite         :boolean          default(FALSE)
-#  created_by_id    :bigint
+#  id                :bigint           not null, primary key
+#  board_id          :bigint           not null
+#  child_account_id  :bigint           not null
+#  status            :string
+#  settings          :jsonb
+#  created_at        :datetime         not null
+#  updated_at        :datetime         not null
+#  published         :boolean          default(FALSE)
+#  favorite          :boolean          default(FALSE)
+#  created_by_id     :bigint
+#  original_board_id :bigint
 #
 require 'rails_helper'
 

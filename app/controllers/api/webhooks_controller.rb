@@ -88,10 +88,6 @@ class API::WebhooksController < API::ApplicationController
                 end
                 @user.plan_status = "active"
                 @user.save!
-                # Rails.logger.info "Handling myspeak user for plan: #{plan_nickname}"
-                # @user = handle_myspeak_user(stripe_customer)
-                # Rails.logger.info "Myspeak user handled: #{@user&.email} with stripe_customer_id: #{stripe_customer.id}" if @user
-                Rails.logger.info "Skip myspeak user for plan: #{plan_nickname}"
               elsif plan_nickname&.include?("vendor")
                 Rails.logger.info "Skip vendor user for plan: #{plan_nickname}"
               else

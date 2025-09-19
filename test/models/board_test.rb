@@ -38,6 +38,8 @@
 #  favorite              :boolean          default(FALSE)
 #  vendor_id             :bigint
 #  slug                  :string           default("")
+#  in_use                :boolean          default(FALSE), not null
+#  is_template           :boolean          default(FALSE), not null
 #
 require "test_helper"
 

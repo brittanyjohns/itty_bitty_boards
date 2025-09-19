@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_08_27_190925) do
+ActiveRecord::Schema[7.1].define(version: 2025_09_19_181255) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -169,6 +169,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_08_27_190925) do
     t.boolean "favorite", default: false
     t.bigint "vendor_id"
     t.string "slug", default: ""
+    t.boolean "in_use", default: false, null: false
+    t.boolean "is_template", default: false, null: false
     t.index ["board_type"], name: "index_boards_on_board_type"
     t.index ["category"], name: "index_boards_on_category"
     t.index ["data"], name: "index_boards_on_data", using: :gin
@@ -220,9 +222,11 @@ ActiveRecord::Schema[7.1].define(version: 2025_08_27_190925) do
     t.boolean "published", default: false
     t.boolean "favorite", default: false
     t.bigint "created_by_id"
+    t.bigint "original_board_id"
     t.index ["board_id"], name: "index_child_boards_on_board_id"
     t.index ["child_account_id"], name: "index_child_boards_on_child_account_id"
     t.index ["favorite"], name: "index_child_boards_on_favorite"
+    t.index ["original_board_id"], name: "index_child_boards_on_original_board_id"
     t.index ["published"], name: "index_child_boards_on_published"
   end
 
@@ -788,6 +792,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_08_27_190925) do
   add_foreign_key "child_accounts", "users"
   add_foreign_key "child_accounts", "vendors"
   add_foreign_key "child_boards", "boards"
+  add_foreign_key "child_boards", "boards", column: "original_board_id"
   add_foreign_key "child_boards", "child_accounts"
   add_foreign_key "child_boards", "users", column: "created_by_id"
   add_foreign_key "contest_entries", "events"
