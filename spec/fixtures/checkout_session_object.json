@@ -1,0 +1,104 @@
+{
+  "object": {
+    "id": "cs_live_a11OPhYzpoOIUlOt7myaY7nJt3xceNlI6lkFEPpSrTYMmSNwVHPlQcdTeP",
+    "object": "checkout.session",
+    "adaptive_pricing": {
+      "enabled": false
+    },
+    "after_expiration": null,
+    "allow_promotion_codes": false,
+    "amount_subtotal": 0,
+    "amount_total": 0,
+    "automatic_tax": {
+      "enabled": false,
+      "liability": null,
+      "provider": null,
+      "status": null
+    },
+    "billing_address_collection": "auto",
+    "cancel_url": "https://stripe.com",
+    "client_reference_id": null,
+    "client_secret": null,
+    "collected_information": {
+      "shipping_details": null
+    },
+    "consent": null,
+    "consent_collection": {
+      "payment_method_reuse_agreement": null,
+      "promotions": "none",
+      "terms_of_service": "none"
+    },
+    "created": 1757959796,
+    "currency": "usd",
+    "currency_conversion": null,
+    "custom_fields": [],
+    "custom_text": {
+      "after_submit": null,
+      "shipping_address": null,
+      "submit": null,
+      "terms_of_service_acceptance": null
+    },
+    "customer": "cus_T3oTkks7SYrxJb",
+    "customer_creation": "always",
+    "customer_details": {
+      "address": null,
+      "email": "brittany+pilot@speakanyway.com",
+      "name": null,
+      "phone": null,
+      "tax_exempt": "none",
+      "tax_ids": []
+    },
+    "customer_email": null,
+    "discounts": [],
+    "expires_at": 1758046196,
+    "invoice": "in_1S7gquGfsUBE8bl3OM7HazGv",
+    "invoice_creation": null,
+    "livemode": true,
+    "locale": "en",
+    "metadata": {},
+    "mode": "subscription",
+    "origin_context": null,
+    "payment_intent": null,
+    "payment_link": null,
+    "payment_method_collection": "if_required",
+    "payment_method_configuration_details": {
+      "id": "pmc_1OZ2GtGfsUBE8bl3XL0AL78j",
+      "parent": null
+    },
+    "payment_method_options": {
+      "card": {
+        "request_three_d_secure": "automatic"
+      }
+    },
+    "payment_method_types": ["card", "link", "cashapp"],
+    "payment_status": "paid",
+    "permissions": null,
+    "phone_number_collection": {
+      "enabled": false
+    },
+    "recovered_from": null,
+    "saved_payment_method_options": {
+      "allow_redisplay_filters": ["always"],
+      "payment_method_remove": "disabled",
+      "payment_method_save": null
+    },
+    "setup_intent": null,
+    "shipping_address_collection": null,
+    "shipping_cost": null,
+    "shipping_details": null,
+    "shipping_options": [],
+    "status": "complete",
+    "submit_type": null,
+    "subscription": "sub_1S7gquGfsUBE8bl33IxCPbPb",
+    "success_url": "https://www.speakanyway.com/pilot-program",
+    "total_details": {
+      "amount_discount": 0,
+      "amount_shipping": 0,
+      "amount_tax": 0
+    },
+    "ui_mode": "hosted",
+    "url": null,
+    "wallet_options": null
+  },
+  "previous_attributes": null
+}
