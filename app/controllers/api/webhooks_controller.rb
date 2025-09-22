@@ -64,7 +64,7 @@ class API::WebhooksController < API::ApplicationController
         Rails.logger.info "PLAN: #{data_object.plan&.inspect}"
 
         plan_nickname = data_object&.plan&.nickname || data_object&.items&.data&.first&.plan&.nickname
-        Rails.logger.info "Plan nickname: #{plan_nickname}"
+        Rails.logger.info "*Plan nickname: #{plan_nickname}"
         if plan_nickname.nil?
           Rails.logger.warn "No plan nickname found in subscription data"
           plan_nickname = "free"
@@ -104,9 +104,13 @@ class API::WebhooksController < API::ApplicationController
           end
 
           @user = User.find_by(email: stripe_customer.email) unless @user
+          Rails.logger.info "No existing user found for stripe_customer_id - Creating new user for email: #{stripe_customer.email}" unless @user
           if @user
             @user.stripe_customer_id = data_object.customer
             @user.save!
+            Rails.logger.info "Updated existing user with stripe_customer_id: #{@user.email} - #{data_object.customer}"
+          else
+            Rails.logger.info "Creating new user for email: #{stripe_customer.email} with stripe_customer_id: #{data_object.customer}"
           end
           stripe_customer_id = data_object.customer || stripe_customer.id
           if plan_nickname&.include?("myspeak")
@@ -118,7 +122,14 @@ class API::WebhooksController < API::ApplicationController
             render json: { success: true }, status: 200 and return
           else
             Rails.logger.info "Creating regular user: #{stripe_customer&.email} with stripe_customer_id: #{stripe_customer_id}"
-            @user = User.create_from_email(stripe_customer.email, stripe_customer_id) unless @user
+            @user = User.invite!(email: stripe_customer.email, skip_invitation: true) unless @user
+            @user.plan_type = plan_nickname || "free"
+            @user.plan_status = "active"
+            @user.stripe_customer_id = stripe_customer_id if stripe_customer_id
+            @user.save!
+            @user.send_welcome_email(plan_nickname) if regular_plan?(plan_nickname)
+            Rails.logger.info "Regular user created: #{@user.email} with plan type: #{@user.plan_type}"
+            # @user = User.create_from_email(stripe_customer.email, stripe_customer_id) unless @user
           end
         end
         subscription_json = subscription_data.to_json
