@@ -94,16 +94,6 @@ class BoardImage < ApplicationRecord
     end
   end
 
-  # def layout_invalid?
-  #   return true if layout.blank?
-  #   return true if layout["lg"] == nil || layout["md"] == nil || layout["sm"] == nil
-  #   return true if layout["lg"].values.any?(&:nil?) || layout["md"].values.any?(&:nil?) || layout["sm"].values.any?(&:nil?)
-  #   return true if layout["lg"]["i"] != id.to_s || layout["md"]["i"] != id.to_s || layout["sm"]["i"] != id.to_s
-  #   return true if layout["lg"]["w"] != 1 || layout["md"]["w"] != 1 || layout["sm"]["w"] != 1
-  #   return true if layout["lg"]["h"] != 1 || layout["md"]["h"] != 1 || layout["sm"]["h"] != 1
-  #   return false
-  # end
-
   def save_display_image_url
     self.display_image_url = image.src_url
   end

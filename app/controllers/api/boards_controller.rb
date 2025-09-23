@@ -2,7 +2,7 @@ class API::BoardsController < API::ApplicationController
   # protect_from_forgery with: :null_session
   # respond_to :json
   # before_action :authenticate_user!
-  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board preset show public_boards public_menu_boards common_boards ]
+  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board preset show public_boards public_menu_boards common_boards pdf ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf ]
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
@@ -611,36 +611,69 @@ class API::BoardsController < API::ApplicationController
     render template: "api/boards/print", layout: "pdf", formats: [:html]
   end
 
-  def pdf
-    # What the QR should open (public page/deeplink):
-    @qr_target_url = @board.public_url || board_url(@board) # change to your public/share URL if different
-    @qr_data_url = qr_data_url_for(@qr_target_url, size: 480)
-    screen_size = params[:screen_size] || "lg"
+  # def pdf
+  #   # What the QR should open (public page/deeplink):
+  #   @qr_target_url = @board.public_url || board_url(@board) # change to your public/share URL if different
+  #   @qr_data_url = qr_data_url_for(@qr_target_url, size: 480)
+  #   screen_size = params[:screen_size] || "lg"
 
-    @columns = @board.columns_for_screen_size(screen_size)
+  #   @columns = @board.columns_for_screen_size(screen_size)
+  #   @rows = @board.try(:rows)
+  #   @tiles = normalize_tiles(@board)
+
+  #   html = render_to_string(
+  #     template: "api/boards/print", # internal view only (no public route)
+  #     layout: "pdf",
+  #     formats: [:html],
+  #   )
+  #   pdf = Grover.new(html).to_pdf
+
+  #   send_data pdf,
+  #     filename: "board-#{@board.id}.pdf",
+  #     type: "application/pdf",
+  #     disposition: "attachment"
+  # end
+
+  def pdf
+    @qr_target_url = @board.public_url || board_url(@board)
+    @qr_data_url = qr_data_url_for(@qr_target_url, size: 480)
+    @screen_size = params[:screen_size] || "lg"
+    @hide_colors = params[:hide_colors] == "1"
+    @columns = @board.columns_for_screen_size(@screen_size)
     @rows = @board.try(:rows)
-    @tiles = normalize_tiles(@board)
+    @tiles = normalize_tiles(@board, @screen_size)  #  pass screen_size (see #3)
+    @path = Rails.root.join("public/logo_bubble.png")
+    @logo = Base64.strict_encode64(File.read(@path)) if File.exist?(@path)
 
     html = render_to_string(
-      template: "api/boards/print", # internal view only (no public route)
+      template: "api/boards/print",
       layout: "pdf",
       formats: [:html],
     )
-    pdf = Grover.new(html).to_pdf
+
+    grover_options = {
+      # viewport: { width: 1280, height: 800 },
+      landscape: true,
+    }
+    pdf = Grover.new(html, **grover_options).to_pdf
+
+    # inline when preview=1, otherwise attachment
+    disp = params[:preview].present? ? "inline" : "attachment"
+    response.headers["Cache-Control"] = "no-store"
 
     send_data pdf,
       filename: "board-#{@board.id}.pdf",
       type: "application/pdf",
-      disposition: "attachment"
+      disposition: disp
   end
 
   private
 
   # Map your tile fields to {x,y,w,h,label,image_url}
-  def normalize_tiles(board)
+  def normalize_tiles(board, screen_size = "lg") #  accept screen_size (see #2)
     # EXAMPLE assuming board.tiles is an Array of JSON-like hashes
     @board_tiles = board_tiles || []
-    @columns = board.try(:large_screen_columns) || 12
+    @columns = board.get_number_of_columns(screen_size) #  get columns for the given screen_size (see #1)
     @board_tiles.map do |t|
       {
         "x" => t["x"] || t[:x] || 0,
@@ -649,6 +682,8 @@ class API::BoardsController < API::ApplicationController
         "h" => t["h"] || t[:h] || 1,
         "label" => t["label"] || t[:label] || "",
         "image_url" => t["image_url"] || t[:image_url] || nil,
+        "bg_color" => t["bg_color"] || t[:bg_color] || "black",
+        "i" => t["i"] || t[:i] || "", # unique identifier for the tile
       }
     end
   end
@@ -658,12 +693,14 @@ class API::BoardsController < API::ApplicationController
       @board.tiles
     elsif @board.respond_to?(:board_images) && @board.board_images.any?
       @board.board_images.map do |bi|
+        puts "Board Image Layout: #{bi.bg_color}"
         { "x" => bi.layout["lg"]["x"],
           "y" => bi.layout["lg"]["y"],
           "w" => bi.layout["lg"]["w"],
           "h" => bi.layout["lg"]["h"],
           "label" => bi.label,
-          "image_url" => bi.display_image_url }
+          "image_url" => bi.display_image_url,
+          "bg_color" => bi.bg_color || "black" }
       end
     else
       []

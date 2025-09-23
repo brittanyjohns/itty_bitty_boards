@@ -5,7 +5,6 @@
     <meta charset="utf-8" />
     <title>Board PDF</title>
     <style>
-      @page { size: Letter; margin: 12mm 12mm 14mm 12mm; }
       html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
 
@@ -19,10 +18,11 @@
       .board-grid { display: grid; grid-gap: 2pt; }
 
       .tile {
-        position: relative; border: 1pt solid #ccc; border-radius: 4pt; background: #fff; overflow: hidden;
+        position: relative; border: 2pt solid #ccc; border-radius: 4pt; background: #fff; overflow: hidden;
         display: grid; grid-template-rows: 1fr auto;
+        overflow: hidden;
       }
-      .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .tile img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
       .label {
         font-size: 10pt; text-align: center; padding: 3pt 4pt; line-height: 1.2;
@@ -50,12 +50,46 @@
       }
       .footer-left a { color: #666; text-decoration: none; }
       .footer-left a:hover { text-decoration: underline; }
+      .green {
+        background-color: #b7f399
+      }
+      .yellow {
+        background-color: #fdec00
+      }
+      .red {
+        background-color: #ff6464
+      }
+      .blue {
+        background-color: #81d9ff
+      }
+      .purple {
+        background-color: #cb91eb
+      }
+      .orange {
+        background-color: #ffc463
+      }
+      .black {
+        background-color: #000000d9;
+        color: white;
+      }
+      .white {
+        background-color: #ffffffd9;
+      }
+      .gray {
+        background-color: #808080d9;
+      }
+      .pink {
+        background-color: #ffc0e4
+      }
+      .teal {
+        background-color: #18ddda;
+      }
+
     </style>
   </head>
   <body>
     <div class="page">
-      <% @path = Rails.root.join("public/logo_bubble.png") %>
-      <% @logo = Base64.strict_encode64(File.binread(@path)) %>
+      
       <%= yield %>
     </div>
   </body>

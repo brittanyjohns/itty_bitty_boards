@@ -366,6 +366,8 @@ class Image < ApplicationRecord
     end
   end
 
+  POSSIBLE_BG_COLORS = %w[gray blue green yellow purple pink orange red teal white].freeze
+
   def background_color_for(category)
     color = "gray"
     case category
