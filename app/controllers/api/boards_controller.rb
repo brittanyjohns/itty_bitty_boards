@@ -677,7 +677,7 @@ class API::BoardsController < API::ApplicationController
     response.headers["Cache-Control"] = "no-store"
 
     send_data pdf,
-      filename: "board-#{@board.id}.pdf",
+      filename: "board-#{@board.slug}.pdf",
       type: "application/pdf",
       disposition: disp
   end
