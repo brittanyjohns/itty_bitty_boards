@@ -640,10 +640,13 @@ class API::BoardsController < API::ApplicationController
     @screen_size = params[:screen_size] || "lg"
     @hide_colors = params[:hide_colors] == "1"
     @columns = @board.columns_for_screen_size(@screen_size)
-    @rows = @board.try(:rows)
+    @num_of_words = @board.images.count
+    est_rows = (@num_of_words.to_f / @columns.to_f).ceil
+    @rows = est_rows > 0 ? est_rows : 1
     @tiles = normalize_tiles(@board, @screen_size)  #  pass screen_size (see #3)
     @path = Rails.root.join("public/logo_bubble.png")
     @logo = Base64.strict_encode64(File.read(@path)) if File.exist?(@path)
+    @board_title = @board.try(:name) || "Communication Board"
 
     html = render_to_string(
       template: "api/boards/print",
@@ -651,13 +654,25 @@ class API::BoardsController < API::ApplicationController
       formats: [:html],
     )
 
+    @landscape = @rows > @columns
+    if @num_of_words > 6
+      @landscape = true
+    end
+    puts "Landscape: #{@landscape}, Columns: #{@columns}, Rows: #{@rows}"
+
+    @scale = 1.0
+    if @screen_size == "sm"
+      scale = 0.75
+    elsif @screen_size == "xs"
+      @scale = 0.5
+    end
+
     grover_options = {
-      # viewport: { width: 1280, height: 800 },
-      landscape: true,
+      format: "Letter",
+      landscape: @landscape,
     }
     pdf = Grover.new(html, **grover_options).to_pdf
 
-    # inline when preview=1, otherwise attachment
     disp = params[:preview].present? ? "inline" : "attachment"
     response.headers["Cache-Control"] = "no-store"
 
@@ -682,7 +697,7 @@ class API::BoardsController < API::ApplicationController
         "h" => t["h"] || t[:h] || 1,
         "label" => t["label"] || t[:label] || "",
         "image_url" => t["image_url"] || t[:image_url] || nil,
-        "bg_color" => t["bg_color"] || t[:bg_color] || "black",
+        "bg_color" => t["bg_color"] || t[:bg_color] || "white",
         "i" => t["i"] || t[:i] || "", # unique identifier for the tile
       }
     end
@@ -693,14 +708,13 @@ class API::BoardsController < API::ApplicationController
       @board.tiles
     elsif @board.respond_to?(:board_images) && @board.board_images.any?
       @board.board_images.map do |bi|
-        puts "Board Image Layout: #{bi.bg_color}"
         { "x" => bi.layout["lg"]["x"],
           "y" => bi.layout["lg"]["y"],
           "w" => bi.layout["lg"]["w"],
           "h" => bi.layout["lg"]["h"],
           "label" => bi.label,
           "image_url" => bi.display_image_url,
-          "bg_color" => bi.bg_color || "black" }
+          "bg_color" => bi.bg_color || "white" }
       end
     else
       []

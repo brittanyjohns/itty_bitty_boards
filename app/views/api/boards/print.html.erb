@@ -4,48 +4,53 @@
     <div class="logo">
       <img alt="SpeakAnyWay Logo" src="data:image/png;base64,<%= @logo %>">
     </div>
-    <div class="lead-title"><p style="font-size: 8pt; color: #999;">
-      Created with SpeakAnyWay AAC.
-      <br>
-      <span style="font-size: 6pt; color: #999;"><%= Time.zone.now.strftime("%b %-d, %Y") %></span>
-    </p>
+    
+    <div class="lead-titlex">
+      <p style="font-size: 18pt; color: #000; margin: 0 2mm 0 0; font-weight: bold;">
+        <strong><%= @board_title %></strong>
+      </p>
+      <p style="font-size: 8pt; color: #999; margin: 2mm 2mm 0 0; font-weight: normal;">
+      Created with SpeakAnyWay AAC
+      </p>
+    </div>
+    
   </div>
+  <div class="qr-small">
+      <img src="<%= @qr_data_url %>" alt="QR code">
+    </div>
 </div>
 
-  <h1 style="font-size: 16pt; margin-right: 8mm;">
-    <%= @board.try(:name) || "Communication Board" %>
-  </h1>
-
-</div>
 
 <div class="board-wrap">
-  <div class="board-grid" style="grid-template-columns: repeat(<%= @columns %>, 1fr);">
-    <% @tiles.each do |t| %>
-    <% bg_color = @hide_colors ? "" : (t["bg_color"] || "black") %>
-      <% col_start = t["x"].to_i + 1
-         row_start = t["y"].to_i + 1
-         col_span = t["w"].to_i
-         row_span = t["h"].to_i %>
+  <div class="board-container">
+    <div class="board-grid" style="grid-template-columns: repeat(<%= @columns %>, 1fr);">
+      <% @tiles.each do |t| %>
+      <% bg_color = @hide_colors ? "" : (t["bg_color"] || "black") %>
+        <% col_start = t["x"].to_i + 1
+           row_start = t["y"].to_i + 1
+           col_span = t["w"].to_i
+           row_span = t["h"].to_i %>
 
-      <div class="tile <%= bg_color %>" style="grid-column:<%= col_start %>/span <%= col_span %>; grid-row:<%= row_start %>/span <%= row_span %>;">
-        <% if t["image_url"].present? %>
-          <img src="<%= t["image_url"] %>" alt="<%= bg_color %>">
-        <% else %>
-          <div style="display:flex;align-items:center;justify-content:center;color:#aaa;font-size:9pt;">(no image)</div>
-        <% end %>
-        <div class="label <%= bg_color %>" style="font-weight: <%= @hide_colors ? "normal" : "bold" %>;"
-        ><%= t["label"] %></div>
-      </div>
-    <% end %>
+        <div class="tile <%= bg_color %>" style="grid-column:<%= col_start %>/span <%= col_span %>; grid-row:<%= row_start %>/span <%= row_span %>;">
+          <% if t["image_url"].present? %>
+            <img src="<%= t["image_url"] %>" alt="<%= bg_color %>">
+          <% else %>
+            <div style="display:flex;align-items:center;justify-content:center;color:#aaa;font-size:9pt;">(no image)</div>
+          <% end %>
+          <div class="label <%= bg_color %>" style="font-weight: <%= @hide_colors ? "normal" : "bold" %>;"
+          ><%= t["label"] %></div>
+        </div>
+      <% end %>
+    </div>
   </div>
 </div>
 
 <div style="display: flex; align-items: center; gap: 8mm; width: 100%; justify-content: space-between;" class="footer">
-  <div style="font-size: 9pt; color: #666;">
-    Scan the QR to open this board:<br>
-    <%= @qr_target_url %>
-  </div>    
-  <div class="qr-block">
-    <img src="<%= @qr_data_url %>" alt="QR code">
+  <div style="font-size: 9pt; color: #666;" class="text-center">
+    Scan the code or visit
+    <a href="<%= @qr_target_url %>" style="color: #666; font-weight: bold;"
+      target="_blank" rel="noopener noreferrer"><%= @qr_target_url %></a>
+    to view and edit this board online.
   </div>
+  </div>    
 </div>

@@ -10,11 +10,12 @@
 
       .page { display: grid; grid-template-rows: auto auto auto; gap: 4mm; }
       .header { display: flex; align-items: center; justify-content: space-between; }
-      .header h1 { font-size: 12pt; margin: 0; }
+      .header h1 { font-size: 14pt; margin: 0; }
       .meta { font-size: 10pt; color: #555; }
-      .lead-title { font-size: 9pt; color: #888; margin: 0 8mm 0 0; font-weight: normal; }
+      .lead-title { font-size: 9pt; color: #888; margin: 0 4mm 0 0; font-weight: normal; }
+      .text-center { text-align: center; }
 
-      .board-wrap { break-inside: avoid; border: 1pt solid #ddd; border-radius: 8pt; padding: 4pt; }
+      .board-wrap { break-inside: avoid; padding: 2pt; }
       .board-grid { display: grid; grid-gap: 2pt; }
 
       .tile {
@@ -25,31 +26,27 @@
       .tile img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
       .label {
-        font-size: 10pt; text-align: center; padding: 3pt 4pt; line-height: 1.2;
+        font-size: 12pt; text-align: center; padding: 3pt 4pt; line-height: 1.2;
         background: #f7f7f7; border-top: 1px solid #e5e5e5;
       }
 
       .footer { display: grid; grid-template-columns: 1fr auto; gap: 8mm; align-items: end; }
       .qr-block { text-align: right; }
       .qr-block img { width: 24mm; height: 24mm; display: inline-block; }
+      .qr-small img {
+        width: 0.8in;
+        height: 0.8in;
+        display: inline-block;
+      }
       .qr-caption { font-size: 9pt; color: #444; margin-top: 2mm; }
       .logo img {
-        max-width: 35px;
+        max-width: 45px;
         height: auto;
       }
       .logo {
-        width: 35px;
+        width: 45px;
         height: auto;
       }
-      .footer-left { 
-        font-size: 9pt;
-        color: #666;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-      }
-      .footer-left a { color: #666; text-decoration: none; }
-      .footer-left a:hover { text-decoration: underline; }
       .green {
         background-color: #b7f399
       }
