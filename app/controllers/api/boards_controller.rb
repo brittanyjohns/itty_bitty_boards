@@ -655,7 +655,7 @@ class API::BoardsController < API::ApplicationController
     )
 
     @landscape = @rows > @columns
-    if @num_of_words > 6
+    if @num_of_words >= 6
       @landscape = true
     end
     puts "Landscape: #{@landscape}, Columns: #{@columns}, Rows: #{@rows}"
