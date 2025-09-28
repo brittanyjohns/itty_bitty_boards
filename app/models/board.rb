@@ -144,6 +144,10 @@ class Board < ApplicationRecord
   before_destroy :delete_menu, if: :parent_type_menu?
   after_initialize :set_initial_layout, if: :layout_empty?
 
+  attr_accessor :skip_broadcasting
+
+  after_commit :broadcast_board_update!, on: [:create, :update], unless: :skip_broadcasting
+
   def self.recently_used(viewing_user)
     if viewing_user.is_a?(User)
       Board.joins(:word_events).where(user_id: viewing_user.id).order("word_events.created_at DESC").limit(10)

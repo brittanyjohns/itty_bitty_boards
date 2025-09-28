@@ -544,6 +544,20 @@ class User < ApplicationRecord
     model&.user_id == id
   end
 
+  def can_view_account?(account_id)
+    return false unless account_id
+    account = ChildAccount.find_by(id: account_id)
+    return false unless account
+    return true if account.user_id == id
+    return true if admin?
+    account_teams = account.teams
+    return true if account.team_users.where(user_id: id, role: "admin").exists?
+    return true if account.team_users.where(user_id: id, role: "member").exists?
+    return true if account.team_users.where(user_id: id, role: "supporter").exists?
+    return false if account.team_users.where(user_id: id, role: "restricted").exists?
+    false
+  end
+
   def can_edit_profile?(profile_id)
     return false unless profile_id
     account_profile = Profile.find_by(id: profile_id.to_i)

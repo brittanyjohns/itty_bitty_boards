@@ -186,4 +186,23 @@ module BoardsHelper
     end
     self.slug = slug
   end
+
+  def broadcast_board_change!(communicator_account_id:, board_id:)
+    payload = {
+      type: "board.changed",
+      board_id: board_id,
+      communicator_account_id: communicator_account_id,
+      updated_at: Time.current.iso8601,
+    }
+    ActionCable.server.broadcast("boards:communicator_account:#{communicator_account_id}", payload)
+  end
+
+  def broadcast_board_update!
+    board_id = self.id.to_s
+    Rails.logger.info "Broadcasting board update for board_id: #{board_id}"
+    ActionCable.server.broadcast(
+      "boards:#{board_id}",
+      { type: "board.updated", board_id: board_id, version: Time.current.to_i }
+    )
+  end
 end
