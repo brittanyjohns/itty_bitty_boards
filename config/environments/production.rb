@@ -52,7 +52,8 @@ Rails.application.configure do
 
   # Mount Action Cable outside main process or domain.
   # config.action_cable.mount_path = nil
-  config.action_cable.url = "wss://app.speakanyway.com/cable"
+  # config.action_cable.url = "wss://app.speakanyway.com/cable"
+  config.action_cable.url = "wss://670kd.hatchboxapp.com/cable"
   config.action_cable.allowed_request_origins = ["http://app.speakanyway.com", /https:\/\/.*\.speakanyway\.com/]
   config.action_cable.allowed_request_origins = [
     "https://app.speakanyway.com",  # your SPA/PWA
