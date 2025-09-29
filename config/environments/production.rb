@@ -60,6 +60,7 @@ Rails.application.configure do
     "https://www.speakanyway.com",  # if you host the app there too
     "https://speakanyway.com",      # optional, only if app can run here
     "capacitor://localhost",         # Capacitor iOS/Android WebView origin
+    "https://realtime-boards--speakanyway.netlify.app", # branch preview
   # If Android WebView ever presents as http://localhost, add it explicitly:
   # "http://localhost"
   ]
