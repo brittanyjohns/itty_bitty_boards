@@ -107,8 +107,21 @@ Rails.application.configure do
 
   # Uncomment if you wish to allow Action Cable access from any origin.
   # config.action_cable.disable_request_forgery_protection = true
-  config.action_cable.allowed_request_origins = ["http://localhost:4000", /http:\/\/127\.0\.0\.1:\d+/]
+  # config.action_cable.allowed_request_origins = ["http://localhost:4000", /http:\/\/127\.0\.0\.1:\d+/]
 
   # Raise error when a before_action's only/except options reference missing actions
   config.action_controller.raise_on_missing_callback_actions = true
+
+  # Allow your dev app origins to connect
+  config.action_cable.allowed_request_origins = [
+    "http://localhost:8100",  # Ionic dev server
+    "http://localhost:5173",  # Vite
+    "http://localhost:3000",
+    "capacitor://localhost",
+  ]
+  # (optional) avoid CSRF checks for Cable in dev
+  config.action_cable.disable_request_forgery_protection = true
+
+  # (optional) make Rails advertise the URL explicitly
+  config.action_cable.url = "ws://localhost:4000/cable"
 end

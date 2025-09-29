@@ -198,8 +198,8 @@ module BoardsHelper
   end
 
   def broadcast_board_update!
+    return if skip_broadcasting
     board_id = self.id.to_s
-    Rails.logger.info "Broadcasting board update for board_id: #{board_id}"
     ActionCable.server.broadcast(
       "boards:#{board_id}",
       { type: "board.updated", board_id: board_id, version: Time.current.to_i }

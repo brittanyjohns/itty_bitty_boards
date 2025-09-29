@@ -195,6 +195,7 @@ class API::BoardsController < API::ApplicationController
     set_board
     @board.reset_layouts
     @board.save!
+    broadcast_board_update!
     render json: @board.api_view_with_images(current_user)
   end
 
@@ -316,6 +317,7 @@ class API::BoardsController < API::ApplicationController
             layout = params[:layout].map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
             save_layout!
           end
+          broadcast_board_update!
           format.json { render json: @board.api_view_with_images(current_user), status: :ok }
         else
           format.json { render json: @board.errors, status: :unprocessable_entity }
@@ -449,6 +451,7 @@ class API::BoardsController < API::ApplicationController
       # @board.calculate_grid_layout_for_screen_size(screen_size)
       @board.reload
       @board_with_images = @board.api_view_with_images(current_user)
+      broadcast_board_update!
 
       render json: @board_with_images
     else
@@ -471,6 +474,7 @@ class API::BoardsController < API::ApplicationController
     new_board_image = @board.add_image(@image.id) if @board
     notice = "Image added to board"
     if new_board_image
+      broadcast_board_update!
       render json: @board.api_view_with_images(current_user), notice: notice
     else
       render json: { error: "Error adding image to board" }, status: :unprocessable_entity
@@ -500,19 +504,14 @@ class API::BoardsController < API::ApplicationController
       new_board_image.save
       new_board_images << new_board_image
     end
-    # @board.reset_multiple_images_layout_all_screen_sizes(new_board_images)
-    # @board.calculate_layout_for_multiple_images(new_board_images, "lg")
-    @board.reload
+
+    broadcast_board_update!
     render json: { board: @board, new_board_images: new_board_images }
   end
 
   def add_to_groups
     @board = Board.find(params[:id])
-    # @board_groups = BoardGroup.where(id: params[:board_group_ids])
-    # if @board_groups.empty?
-    #   render json: { error: "No board groups provided" }, status: :unprocessable_entity
-    #   return
-    # end
+
     if params[:board_group_ids].blank?
       render json: { error: "No board group IDs provided" }, status: :unprocessable_entity
       return
@@ -683,6 +682,11 @@ class API::BoardsController < API::ApplicationController
   end
 
   private
+
+  def broadcast_board_update!
+    @board.reload
+    @board.broadcast_board_update!
+  end
 
   # Map your tile fields to {x,y,w,h,label,image_url}
   def normalize_tiles(board, screen_size = "lg") #  accept screen_size (see #2)

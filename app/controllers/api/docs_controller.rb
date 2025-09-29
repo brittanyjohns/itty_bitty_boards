@@ -139,6 +139,7 @@ class API::DocsController < API::ApplicationController
           @board_image.update!(display_image_url: @doc.display_url)
         end
         @board.update!(updated_at: Time.zone.now)
+        @board.broadcast_board_update!
       end
       puts "PARAMS: #{params}"
       if params[:update_all]
