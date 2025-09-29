@@ -95,6 +95,11 @@ class ChildAccount < ApplicationRecord
     end
   end
 
+  def reset_authentication_token!
+    self.authentication_token = SecureRandom.hex(10)
+    save!
+  end
+
   def user_docs
     user.user_docs
   end
@@ -307,6 +312,13 @@ class ChildAccount < ApplicationRecord
 
   def admin?
     user.admin?
+  end
+
+  def can_view_board?(board_id)
+    return false unless board_id
+    return true if child_boards.exists?(board_id: board_id)
+    return true if teams.joins(:team_boards).exists?(team_boards: { board_id: board_id })
+    false
   end
 
   # def available_boards

@@ -144,6 +144,8 @@ class Board < ApplicationRecord
   before_destroy :delete_menu, if: :parent_type_menu?
   after_initialize :set_initial_layout, if: :layout_empty?
 
+  attr_accessor :skip_broadcasting
+
   def self.recently_used(viewing_user)
     if viewing_user.is_a?(User)
       Board.joins(:word_events).where(user_id: viewing_user.id).order("word_events.created_at DESC").limit(10)
@@ -1124,11 +1126,13 @@ class Board < ApplicationRecord
   def api_view_with_predictive_images(viewing_user = nil, show_hidden = false)
     @viewer_settings = viewing_user&.settings || {}
     is_a_user = viewing_user.class == "User"
-    Rails.logger.debug "Viewing user: #{viewing_user&.id} - Board user: #{user_id} - is_a_user: #{is_a_user}"
+    is_a_communicator = viewing_user.class == "ChildAccount"
+    Rails.logger.debug "Viewing user: #{viewing_user&.id} - is_a_user: #{is_a_user} - is_a_communicator: #{is_a_communicator}"
+    current_account = nil
     if is_a_user
       current_account = viewing_user
-    else
-      current_account = nil
+    elsif is_a_communicator
+      current_account = viewing_user
     end
     Rails.logger.debug "Current account: #{current_account&.id}"
     @board_settings = settings || {}

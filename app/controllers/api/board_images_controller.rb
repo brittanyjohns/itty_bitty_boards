@@ -37,7 +37,8 @@ class API::BoardImagesController < API::ApplicationController
 
     @board_image.data = updatedData if updatedData
     if @board_image.update(board_image_params)
-      @board_image.board.touch
+      @board = @board_image.board
+      @board.broadcast_board_update!
       render json: @board_image.api_view(current_user)
     else
       render json: @board_image.errors, status: :unprocessable_entity
@@ -110,6 +111,7 @@ class API::BoardImagesController < API::ApplicationController
     end
 
     if results.all?
+      @board.broadcast_board_update!
       render json: { board: @board.api_view_with_predictive_images(current_user, true) }
     else
       render json: { error: "Failed to update some board images" }, status: :unprocessable_entity
@@ -137,6 +139,7 @@ class API::BoardImagesController < API::ApplicationController
       end
     end
     if results.all?
+      @board.broadcast_board_update!
       render json: { board: @board.api_view_with_predictive_images(current_user, true) }
     else
       render json: { error: "Failed to remove some board images" }, status: :unprocessable_entity
