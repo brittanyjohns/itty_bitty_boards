@@ -438,6 +438,8 @@ class ChildAccount < ApplicationRecord
       free_trial: cached_user.free_trial?,
       admin: cached_user.admin?,
       parent_name: cached_user.display_name,
+      parent_email: cached_user.email,
+      plan_type: plan_type,
       name: name,
       most_used_board: {
         id: cached_most_used_board&.id,
