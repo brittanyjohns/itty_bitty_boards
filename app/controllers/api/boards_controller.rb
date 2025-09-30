@@ -610,29 +610,6 @@ class API::BoardsController < API::ApplicationController
     render template: "api/boards/print", layout: "pdf", formats: [:html]
   end
 
-  # def pdf
-  #   # What the QR should open (public page/deeplink):
-  #   @qr_target_url = @board.public_url || board_url(@board) # change to your public/share URL if different
-  #   @qr_data_url = qr_data_url_for(@qr_target_url, size: 480)
-  #   screen_size = params[:screen_size] || "lg"
-
-  #   @columns = @board.columns_for_screen_size(screen_size)
-  #   @rows = @board.try(:rows)
-  #   @tiles = normalize_tiles(@board)
-
-  #   html = render_to_string(
-  #     template: "api/boards/print", # internal view only (no public route)
-  #     layout: "pdf",
-  #     formats: [:html],
-  #   )
-  #   pdf = Grover.new(html).to_pdf
-
-  #   send_data pdf,
-  #     filename: "board-#{@board.id}.pdf",
-  #     type: "application/pdf",
-  #     disposition: "attachment"
-  # end
-
   def pdf
     @qr_target_url = @board.public_url || board_url(@board)
     @qr_data_url = qr_data_url_for(@qr_target_url, size: 480)
@@ -657,7 +634,6 @@ class API::BoardsController < API::ApplicationController
     if @num_of_words >= 6
       @landscape = true
     end
-    puts "Landscape: #{@landscape}, Columns: #{@columns}, Rows: #{@rows}"
 
     @scale = 1.0
     if @screen_size == "sm"

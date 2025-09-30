@@ -10,14 +10,20 @@
         <strong><%= @board_title %></strong>
       </p>
       <p style="font-size: 8pt; color: #999; margin: 2mm 2mm 0 0; font-weight: normal;">
-      Created with SpeakAnyWay
+      Created with SpeakAnyWay AAC
       </p>
+        <div style="font-size: 8pt; color: #666; padding: 1mm 0;" class="text-center">
+          Scan the code or visit
+          <a href="<%= @qr_target_url %>" style="color: #666; font-weight: bold;"
+            target="_blank" rel="noopener noreferrer"><%= @qr_target_url %></a>
+          to view and edit this board online.
+        </div>
     </div>
+    <div class="qr-small">
+    <img src="<%= @qr_data_url %>" alt="QR code">
+  </div>
     
   </div>
-  <div class="qr-small">
-      <img src="<%= @qr_data_url %>" alt="QR code">
-    </div>
 </div>
 
 
@@ -43,14 +49,4 @@
       <% end %>
     </div>
   </div>
-</div>
-
-<div style="display: flex; align-items: center; gap: 8mm; width: 100%; justify-content: space-between;" class="footer">
-  <div style="font-size: 9pt; color: #666;" class="text-center">
-    Scan the code or visit
-    <a href="<%= @qr_target_url %>" style="color: #666; font-weight: bold;"
-      target="_blank" rel="noopener noreferrer"><%= @qr_target_url %></a>
-    to view and edit this board online.
-  </div>
-  </div>    
 </div>
