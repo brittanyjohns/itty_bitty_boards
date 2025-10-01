@@ -9,11 +9,11 @@
       body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
 
       .page { display: grid; grid-template-rows: auto auto auto; gap: 2mm; }
-      .header { display: flex; align-items: center; justify-content: space-between; }
+      .header { display: flex; align-items: center; justify-content: space-between; padding-left: 6mm; }
       .header h1 { font-size: 14pt; margin: 0; }
       .meta { font-size: 10pt; color: #555; }
 
-      .board-wrap { break-inside: avoid; padding: 2pt; }
+      .board-wrap { break-inside: avoid; padding: 2pt; padding-bottom: 6mm; }
       .board-grid { display: grid; grid-gap: 2pt; }
 
       .tile {
@@ -29,13 +29,11 @@
       }
 
       .footer { display: grid; grid-template-columns: 1fr auto; gap: 8mm; align-items: end; }
-      .qr-block { text-align: right; }
-      .qr-block img { width: 24mm; height: 24mm; display: inline-block; }
       .qr-small img {
-        width: 0.8in;
-        height: 0.8in;
+        width: 1.0in;
+        height: 1.0in;
         display: inline-block;
-        margin-right: 8mm;
+        margin-right: 0;
         margin-left: 8mm;
 
       }
@@ -47,8 +45,8 @@
       .logo {
         width: 20mm;
         height: auto;
-        margin-right: 1mm;
-        margin-left: 2mm;
+        margin-right: 0;
+        margin-left: 8mm;
       }
       .green {
         background-color: #b7f399
