@@ -642,18 +642,50 @@ class API::BoardsController < API::ApplicationController
       @scale = 0.5
     end
 
-    grover_options = {
-      format: "Letter",
-      landscape: @landscape,
-    }
-    pdf = Grover.new(html, **grover_options).to_pdf
-
     disp = params[:preview].present? ? "inline" : "attachment"
     response.headers["Cache-Control"] = "no-store"
 
-    send_data pdf,
-      filename: "board-#{@board.slug}.pdf",
-      type: "application/pdf",
+    if params[:png].present?
+      @scale = params[:scale].present? ? params[:scale].to_f : 2.0
+      page_width = @landscape ? 792 : 612
+      page_height = @landscape ? 612 : 792
+      margin = 36 # 0.5 inch margin
+      usable_width = page_width - (2 * margin)
+      usable_height = page_height - (2 * margin)
+      tile_width = usable_width / @columns
+      tile_height = usable_height / @rows
+      width = (page_width * @scale).to_i
+      width += 100
+      width = params[:width].to_i if params[:width].present?
+      header_height = 250 # Example header height
+      height = (page_height * @scale).to_i
+      height += header_height
+      height = params[:height].to_i if params[:height].present?
+      transparent = params[:transparent].present? && params[:transparent] == "1"
+      grover_options = {
+        format: "Letter",
+        landscape: @landscape,
+        viewport: { width: width, height: height },
+        scale: @scale,
+        full_page: false,
+        transparent: transparent,
+      }
+      extension = "png"
+      file_type = "image/png"
+      file_data = Grover.new(html, **grover_options).to_png
+    else
+      grover_options = {
+        format: "Letter",
+        landscape: @landscape,
+      }
+      extension = "pdf"
+      file_type = "application/pdf"
+      file_data = Grover.new(html, **grover_options).to_pdf
+    end
+
+    send_data file_data,
+      filename: "board-#{@board.slug}.#{extension}",
+      type: file_type,
       disposition: disp
   end
 
