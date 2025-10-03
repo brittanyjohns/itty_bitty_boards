@@ -583,7 +583,6 @@ class Board < ApplicationRecord
     unless word_list && word_list.any?
       return
     end
-    Rails.logger.info "Finding or creating images for word list: #{word_list.inspect}"
     if word_list.is_a?(String)
       word_list = word_list.split(" ")
     end
@@ -593,29 +592,21 @@ class Board < ApplicationRecord
     end
     word_list.each do |word|
       word = word.downcase.gsub('"', "").gsub("'", "")
-      Rails.logger.debug "Searching for word: #{word}"
       image = user.images.find_by(label: word)
 
       image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
-      Rails.logger.debug "Found image: #{image.inspect}" if image
       new_image = Image.create(label: word) unless image
-      Rails.logger.info "Created new image for word: #{word}" if new_image && new_image.persisted?
       image ||= new_image
       display_doc = image.display_image_url(user)
       if display_doc.blank?
-        Rails.logger.error "No display image for word: #{word}"
         image_prompt = "Create an image of #{word}"
         admin_image_present = image.docs.any? { |doc| doc.user_id == User::DEFAULT_ADMIN_ID }
         user_image_present = image.docs.any? { |doc| doc.user_id == user_id }
-        Rails.logger.info "Admin image present: #{admin_image_present}, User image present: #{user_image_present}"
-        # image.create_image_doc(user_id) unless user_image_present
 
         GenerateImageJob.perform_async(image.id, user_id, image_prompt, id) unless admin_image_present || user_image_present
-        # next
       end
       self.add_image(image.id) if image && !image_ids.include?(image.id)
     end
-    # self.reset_layouts
     self.save!
   end
 
@@ -683,7 +674,6 @@ class Board < ApplicationRecord
       new_name = name + " copy"
     end
     cloned_slug = new_name.parameterize
-    Rails.logger.info ">>>Cloning board: #{id} to new board with slug: #{cloned_slug} for user: #{cloned_user_id}"
     existing_board = Board.find_by(slug: cloned_slug)
     if existing_board
       random_string = SecureRandom.hex(4)
@@ -712,7 +702,6 @@ class Board < ApplicationRecord
     @cloned_board.board_type = @source.board_type
     @cloned_board.data = nil
     @cloned_board.save
-    Rails.logger.info "Cloning board: #{@source.id} to new board: #{@cloned_board.id} for user: #{cloned_user_id} SLUG: #{@cloned_board.slug}"
     unless @cloned_board.persisted?
       Rails.logger.error "Slug: #{@cloned_board.slug}"
       Rails.logger.error "Error cloning board: #{@source.id} to new board: #{@cloned_board.id} for user: #{cloned_user_id}"
@@ -1127,14 +1116,12 @@ class Board < ApplicationRecord
     @viewer_settings = viewing_user&.settings || {}
     is_a_user = viewing_user.class == "User"
     is_a_communicator = viewing_user.class == "ChildAccount"
-    Rails.logger.debug "Viewing user: #{viewing_user&.id} - is_a_user: #{is_a_user} - is_a_communicator: #{is_a_communicator}"
     current_account = nil
     if is_a_user
       current_account = viewing_user
     elsif is_a_communicator
       current_account = viewing_user
     end
-    Rails.logger.debug "Current account: #{current_account&.id}"
     @board_settings = settings || {}
     unless show_hidden
       @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).distinct
@@ -1142,7 +1129,6 @@ class Board < ApplicationRecord
       @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).distinct
     end
     if in_use
-      Rails.logger.debug "Board is in use - finding child accounts"
       child_accounts = []
       child_boards = []
       ChildBoard.includes(:child_account).where(original_board_id: id).each do |cb|
@@ -1164,11 +1150,9 @@ class Board < ApplicationRecord
     @root_board = root_board
     same_user = viewing_user && user_id == viewing_user.id
     can_edit = same_user || viewing_user&.admin?
-    Rails.logger.debug "Can edit: #{can_edit} - User: #{viewing_user&.id} Board User: #{user_id}" unless current_account
     @matching_viewer_images = matching_viewer_images(viewing_user)
     if current_account
       can_edit = current_account.settings["can_edit_boards"] == true
-      Rails.logger.debug "Can edit: #{can_edit} - current_account: #{viewing_user&.id} Board User: #{user_id}"
     end
     {
       id: id,
@@ -1653,10 +1637,17 @@ class Board < ApplicationRecord
         # Do nothing
       elsif data.is_a?(Pathname)
         data = data.read
+      else
+        Rails.logger.warn "Data is not a string or pathname - converting to string..."
+        data = data.to_s
       end
 
-      obj = JSON.parse(data)
-      Rails.logger.debug "Importing OBF: #{obj["name"]} - #{obj["id"]} -root_board_id: #{root_board_id}"
+      obj = JSON.parse(data) rescue nil
+      unless obj
+        Rails.logger.error "Error parsing JSON data"
+        obj = data
+      end
+
       board_name = obj["name"]
       obf_id = obj["id"]
       voice = obj["voice"] || "alloy"
@@ -1673,8 +1664,6 @@ class Board < ApplicationRecord
       dynamic_images = obj["buttons"].select { |item| item["load_board"] != nil }
       board_type = determine_board_type(dynamic_images, is_root)
 
-      Rails.logger.debug "NAme: #{board_name} -- Board Type: #{board_type} - is_root: #{is_root} - dynamic_images: #{dynamic_images.count} - buttons: #{obj["buttons"].count}"
-
       board = Board.new(name: board_name, user_id: current_user.id, voice: voice,
                         large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns,
                         data: board_data, number_of_columns: number_of_columns, obf_id: obf_id) unless board
@@ -1685,12 +1674,11 @@ class Board < ApplicationRecord
       end
 
       board.assign_parent
-      unless board.save!
+      unless board.save
         Rails.logger.warn "Board not saved"
         return
       end
       if is_root
-        Rails.logger.debug "Root board found: #{board_name}"
         board_group.update(root_board_id: board.id)
       end
       grid = obj["grid"]
@@ -1701,18 +1689,15 @@ class Board < ApplicationRecord
       end
 
       temp_display_image = nil
-      Rails.logger.debug "Importing images for board: #{board.name}"
+
       (obj["buttons"] || []).each do |item|
         label = item["label"]
         if item["ext_saw_image_id"]
           image = Image.find_by(id: item["ext_saw_image_id"].to_i, user_id: current_user.id)
         end
-        image = Image.find_by(user_id: current_user.id) unless image
+        image ||= Image.where(user_id: current_user.id, label: label, obf_id: item["image_id"]).first
         found_image = image
-        # image = Image.find_by(obf_id: item["image_id"], user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
-        # image = Image.static.public_img.find_by(label: label, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
-        image = Image.new(label: label, user_id: current_user.id) unless image
-        image.clean_up_label
+        image = Image.new(label: label, user_id: current_user.id, obf_id: item["image_id"]) unless image
         image.save!
 
         if !image

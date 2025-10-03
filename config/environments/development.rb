@@ -7,6 +7,8 @@ Rails.application.configure do
   logger = ActiveSupport::Logger.new("log/#{Rails.env}.log")
   logger.formatter = config.log_formatter
   config.logger = ActiveSupport::TaggedLogging.new(logger)
+  # config.log_level = :debug
+  #  set to capture all messages
   config.log_level = :debug
   config.log_file_size = 50.megabytes
 

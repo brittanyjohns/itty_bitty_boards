@@ -370,15 +370,23 @@ class API::BoardsController < API::ApplicationController
         render json: { error: "Unsupported file format" }, status: :unprocessable_entity
       end
     elsif params[:data].present?
-      boardData = params[:data].to_unsafe_h
+      boardData = params[:data]&.to_json
       params[:board_group_id] = params[:board_group_id].to_i
       board_group = BoardGroup.find_by(id: params[:board_group_id]) if params[:board_group_id].present?
       if board_group
         boardData = board_group.merge({ board_group: board_group })
       end
 
-      @board, _dynamic_data = Board.from_obf(boardData, current_user, boardData["name"], boardData["root_board_id"])
-      render json: { id: @board.id }
+      Rails.logger.info "data class: #{boardData.class}"
+
+      # Rails.logger.info "Board data received for import: #{boardData.keys}"
+
+      @board, _dynamic_data = Board.from_obf(boardData, current_user, board_group)
+      if @board.nil?
+        render json: { error: "Failed to create board from OBF data" }, status: :unprocessable_entity
+      else
+        render json: { id: @board.id }
+      end
     else
       render json: { error: "No file or data provided" }, status: :unprocessable_entity
     end

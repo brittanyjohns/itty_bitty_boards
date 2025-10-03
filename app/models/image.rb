@@ -145,6 +145,7 @@ class Image < ApplicationRecord
   end
 
   def clean_up_label
+    Rails.logger.debug "Cleaning up label: #{label}"
     has_source_type = false
     original_type_name = nil
     img_label = label
