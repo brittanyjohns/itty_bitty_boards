@@ -1785,7 +1785,7 @@ class Board < ApplicationRecord
 
           new_board_image.data ||= {}
           new_board_image.data["obf_id"] = item["image_id"]
-          new_base_board_image.skip_create_voice_audio = true
+          new_board_image.skip_create_voice_audio = true
           new_board_image.save!
         end
         if !grid_coordinates
