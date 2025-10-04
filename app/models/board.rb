@@ -1624,7 +1624,7 @@ class Board < ApplicationRecord
     return "category"
   end
 
-  def self.from_obf(data, current_user, board_group = nil)
+  def self.from_obf(data, current_user, board_group = nil, board_id = nil)
     if board_group
       root_board_id = board_group.original_obf_root_id
     else
@@ -1638,8 +1638,8 @@ class Board < ApplicationRecord
       elsif data.is_a?(Pathname)
         data = data.read
       else
-        Rails.logger.warn "Data is not a string or pathname - converting to string..."
-        data = data.to_s
+        Rails.logger.warn "Data is not a string or pathname - converting to string...#{data.class}"
+        data = data.to_json
       end
 
       obj = JSON.parse(data) rescue nil
@@ -1648,10 +1648,13 @@ class Board < ApplicationRecord
         obj = data
       end
 
+      reset_layouts_after_import = obj["reset_layouts_after_import"] || false
+
       board_name = obj["name"]
       obf_id = obj["id"]
       voice = obj["voice"] || "alloy"
       columns = obj["grid"]["columns"]
+      buttons = obj["buttons"] || []
       large_screen_columns = columns
       medium_screen_columns = columns
       small_screen_columns = columns
@@ -1659,21 +1662,29 @@ class Board < ApplicationRecord
       board_data = { obf_grid: obj["grid"] }
       is_root = root_board_id == obf_id
 
-      board = Board.find_by(name: board_name, user_id: current_user.id, obf_id: obf_id)
+      if board_id
+        board = Board.find_by(id: board_id, user_id: current_user.id)
+      end
 
-      dynamic_images = obj["buttons"].select { |item| item["load_board"] != nil }
+      board ||= Board.find_by(name: board_name, user_id: current_user.id, obf_id: obf_id)
+      if buttons.is_a?(String)
+        buttons = JSON.parse(buttons) rescue []
+      end
+
+      dynamic_images = buttons.select { |item| item["load_board"] != nil }
       board_type = determine_board_type(dynamic_images, is_root)
-
-      board = Board.new(name: board_name, user_id: current_user.id, voice: voice,
-                        large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns,
-                        data: board_data, number_of_columns: number_of_columns, obf_id: obf_id) unless board
+      unless board
+        board = Board.new(name: board_name, user_id: current_user.id, voice: voice,
+                          large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns,
+                          data: board_data, number_of_columns: number_of_columns, obf_id: obf_id)
+        board.assign_parent
+      end
       board.board_type = board_type
 
       if board_group
         board_group.add_board(board)
       end
 
-      board.assign_parent
       unless board.save
         Rails.logger.warn "Board not saved"
         return
@@ -1690,7 +1701,7 @@ class Board < ApplicationRecord
 
       temp_display_image = nil
 
-      (obj["buttons"] || []).each do |item|
+      buttons.each do |item|
         label = item["label"]
         if item["ext_saw_image_id"]
           image = Image.find_by(id: item["ext_saw_image_id"].to_i, user_id: current_user.id)
@@ -1719,6 +1730,9 @@ class Board < ApplicationRecord
               end
             end
           end
+        else
+          Rails.logger.warn "No grid order found"
+          grid_coordinates = [0, 0]
         end
         if doc
           url = doc["url"]
@@ -1741,7 +1755,6 @@ class Board < ApplicationRecord
           elsif doc_data
             data = Base64.decode64(doc_data)
             user_id = current_user.id
-            Rails.logger.debug "Attaching image - file_format: #{file_format}"
             doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
             doc.image.attach(data: doc_data, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}", content_type: file_format) if data
             unless doc.save
@@ -1756,14 +1769,15 @@ class Board < ApplicationRecord
         end
 
         dynamic_board = item["load_board"]
-
         existing_image = board.board_images.find_by(image_id: image.id)
         if existing_image
           new_board_image = existing_image
         else
-          new_board_image = board.board_images.create!(image_id: image.id.to_i, voice: board.voice, position: board.board_images_count, display_image_url: temp_display_image)
+          new_board_image = board.board_images.new(image_id: image.id.to_i, voice: board.voice, position: board.board_images_count, display_image_url: temp_display_image)
+          new_board_image.skip_create_voice_audio = true
+          new_board_image.save!
         end
-        if new_board_image
+        if new_board_image && !grid_coordinates.blank?
           new_board_image_layout = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }
           new_board_image.layout["lg"] = new_board_image_layout
           new_board_image.layout["md"] = new_board_image_layout
@@ -1771,8 +1785,12 @@ class Board < ApplicationRecord
 
           new_board_image.data ||= {}
           new_board_image.data["obf_id"] = item["image_id"]
-
+          new_base_board_image.skip_create_voice_audio = true
           new_board_image.save!
+        end
+        if !grid_coordinates
+          Rails.logger.warn "No grid coordinates found for image: #{image.label}"
+          reset_layouts_after_import = true
         end
         dynamic_data[image.id] = { "board_id" => board.id,
                                    "board" => board,
@@ -1783,10 +1801,19 @@ class Board < ApplicationRecord
                                    "board_image_id" => new_board_image.id }
       end
       board.update!(display_image_url: temp_display_image) if temp_display_image
+      if reset_layouts_after_import
+        board.reset_layouts
+        board.update(status: "active")
+        Rails.logger.debug "Resetting layouts after import for board: #{board.name}"
+        board
+      end
 
       return [board, dynamic_data]
     rescue => e
       Rails.logger.error "Error Importing from OBF: #{e}"
+      Rails.logger.error e.backtrace.join("\n")
+      @board&.reset_layouts
+      @board&.update(status: "error")
       return nil
     end
   end

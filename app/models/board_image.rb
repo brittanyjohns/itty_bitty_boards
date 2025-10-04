@@ -376,11 +376,6 @@ class BoardImage < ApplicationRecord
     self.label = image.label
     self.display_image_url = image.display_image_url(user)
     self.next_words = image.next_words || []
-    if next_words.blank? && board.parent_type != "Menu"
-      Rails.logger.info("Setting next words for image #{image.label}")
-      # SetNextWordsJob.perform_async([image.id])
-    end
-
     if audio_file
       self.audio_url = image.default_audio_url(audio_file)
     else

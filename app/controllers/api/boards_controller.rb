@@ -353,19 +353,20 @@ class API::BoardsController < API::ApplicationController
       file_name = uploaded_file.original_filename
 
       if file_extension == ".obz"
-        extracted_obz_data = OBF::OBZ.to_external(uploaded_file, {})
-        @get_manifest_data = Board.extract_manifest(uploaded_file.path)
-        parsed_manifest = JSON.parse(@get_manifest_data)
+        # extracted_obz_data = OBF::OBZ.to_external(uploaded_file, {})
+        # @get_manifest_data = Board.extract_manifest(uploaded_file.path)
+        # parsed_manifest = JSON.parse(@get_manifest_data)
 
-        @root_board_id_key = parsed_manifest["root"]
-        paths = parsed_manifest["paths"]
-        boards = paths["boards"]
-        @root_board_id = boards.key(@root_board_id_key)
+        # @root_board_id_key = parsed_manifest["root"]
+        # paths = parsed_manifest["paths"]
+        # boards = paths["boards"]
+        # @root_board_id = boards.key(@root_board_id_key)
 
-        json_input = { extracted_obz_data: extracted_obz_data, current_user_id: current_user&.id, group_name: file_name, root_board_id: @root_board_id }
-        ImportFromObfJob.perform_async(json_input.to_json)
-        render json: { status: "ok", message: "Importing OBZ file #{file_name} - Root board ID: #{@root_board_id}" }
+        # json_input = { extracted_obz_data: extracted_obz_data, current_user_id: current_user&.id, group_name: file_name, root_board_id: @root_board_id }
+        # ImportFromObfJob.perform_async(json_input, current_user&.id, nil)
+        # render json: { status: "ok", message: "Importing OBZ file #{file_name} - Root board ID: #{@root_board_id}" }
         # render json: { created_boards: created_boards }
+        render json: { error: "OBZ import temporarily disabled" }, status: :unprocessable_entity
       else
         render json: { error: "Unsupported file format" }, status: :unprocessable_entity
       end
@@ -380,12 +381,24 @@ class API::BoardsController < API::ApplicationController
       Rails.logger.info "data class: #{boardData.class}"
 
       # Rails.logger.info "Board data received for import: #{boardData.keys}"
-
-      @board, _dynamic_data = Board.from_obf(boardData, current_user, board_group)
-      if @board.nil?
-        render json: { error: "Failed to create board from OBF data" }, status: :unprocessable_entity
+      json_data = JSON.parse(boardData) rescue nil
+      unless json_data
+        render json: { error: "Invalid JSON data" }, status: :unprocessable_entity
+        return
+      end
+      board_name = json_data["name"] || "Imported Board"
+      Rails.logger.info "Importing board: #{board_name}"
+      @board = Board.new(name: board_name, user: current_user, status: "importing")
+      @board.assign_parent
+      if @board.save
+        # Board.from_obf(boardData, current_user, board_group, @board.id)
+        ImportFromObfJob.perform_async(json_data, current_user.id, board_group&.id, @board.id)
+        Rails.logger.info "Board created with ID: #{@board.id}"
+        render json: @board.api_view_with_images(current_user)
       else
-        render json: { id: @board.id }
+        Rails.logger.error "Failed to create board: #{@board.errors.full_messages.join(", ")}"
+        render json: { error: "Failed to create board" }, status: :unprocessable_entity
+        return
       end
     else
       render json: { error: "No file or data provided" }, status: :unprocessable_entity
