@@ -19,7 +19,8 @@ class Team < ApplicationRecord
   has_many :account_boards, through: :team_accounts, source: :boards
   belongs_to :created_by, class_name: "User", foreign_key: "created_by_id"
 
-  scope :with_artifacts, -> { includes(team_users: :user, team_boards: :board, team_accounts: :account) }
+  # scope :with_artifacts, -> { includes(team_users: :user, team_boards: :board, team_accounts: :account) }
+  scope :with_artifacts, -> { includes(:created_by, team_users: :user, team_boards: { board: :user }, team_accounts: { account: :user }) }
 
   def available_team_account_boards
     # team_accounts.includes(account: :boards).map(&:boards).flatten.uniq
@@ -111,7 +112,10 @@ class Team < ApplicationRecord
       created_by_name: created_by&.name,
       created_by_email: created_by&.email,
       accounts: accounts.includes(:user).map { |a| { id: a.id, name: a.name, created_by_id: a.user_id, created_by_name: a.user&.name, created_by_email: a.user&.email, avatar_url: a.avatar_url } },
-      members: team_users.includes(:user).map(&:api_view),
+      members: team_users.includes(:user).map { |tu|
+        { id: tu.id, name: tu.user.name, email: tu.user.email,
+          role: tu.role, plan_type: tu.user.plan_type }
+      },
       boards: team_boards.includes(board: :user).map { |tb| { id: tb.board_id, name: tb.board.name, board_type: tb.board.board_type, display_image_url: tb.board.display_image_url, added_by_id: tb.created_by_id, board_owner_name: tb.board.user&.display_name, board_owner_id: tb.board.user_id } },
       created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
       updated_at: updated_at.strftime("%Y-%m-%d %H:%M:%S"),
