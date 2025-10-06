@@ -25,5 +25,8 @@ RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential curl git libpq-dev libvips node-gyp pkg-config python-is-python3 postgresql-client && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
+# Redis is run as a separate service in docker-compose.yml. Replace redis-server with a script to avoid Foreman error.
+RUN echo 'echo "sleep infinity" > /usr/bin/redis-server' > /usr/bin/redis-server && chmod +x /usr/bin/redis-server
+
 EXPOSE 4000
 CMD ["sleep", "infinity"]
