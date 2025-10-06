@@ -24,9 +24,11 @@ services:
     ports:
       - "4000:4000"
     volumes:
+      - bundle_data:/usr/local/bundle
       - .:/app
     environment:
       - BINDING=0.0.0.0
+      - BUNDLE_PATH=/usr/local/bundle
       - DEVISE_JWT_SECRET_KEY=secret
       - REDIS_URL=redis://redis:6379/1
       - REDIS_PROVIDER=REDIS_URL
@@ -42,3 +44,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  bundle_data:

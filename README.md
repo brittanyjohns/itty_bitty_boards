@@ -130,3 +130,25 @@ b. Dynamic Board: A board that _can_ change screens - This is based on the image
 14. Premium Features: Exclusive tools or functionalities available to paying subscribers (e.g., ad-free experience, AI image generation).
 
 15. AI: Artificial Intelligence, used to generate word suggestions, images, and other content on the platform. This feature is powered by OpenAI.
+
+## Local Development in Docker
+
+The DB and backend services can be run in Docker using `docker compose`.
+
+To start the services, run the `bin/docker-dev` script.
+This will open the console to a docker container that has Ruby, node, yarn installed.
+From within the container
+```
+bin/dev
+```
+to start the Rails application.
+
+If you notice the service immediately exit with:
+```
+15:03:28 redis.1   | exited with code 0
+15:03:28 system    | sending SIGTERM to all processes
+```
+try running it again.
+
+When finished, run `exit` in the Docker conatiner to close the shell.
+This will then exit the Docker container and stop the Postgres and Redis containers.
