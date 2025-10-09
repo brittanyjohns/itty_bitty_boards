@@ -169,6 +169,9 @@ class UserMailer < BaseMailer
       Rails.logger.info "Generated new raw_invitation_token for user #{@user.id}: #{@user.raw_invitation_token}"
     else
       Rails.logger.info "User #{@user.id} already has a raw_invitation_token, using it for welcome link"
+      token = @user.raw_invitation_token
+      Rails.logger.info "User #{@user.id} has raw_invitation_token: #{token}"
+      @login_link += "/welcome/token/#{token}"
     end
 
     @login_link += "?email=#{ERB::Util.url_encode(user.email)}&claim=#{slug}"
