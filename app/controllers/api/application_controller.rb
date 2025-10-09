@@ -4,6 +4,12 @@ module API
     skip_before_action :authenticate_token!, only: %i[authenticate_child_token!]
     include ActiveStorage::SetCurrent
 
+    # application_controller.rb
+    rescue_from ActionController::InvalidAuthenticityToken do |e|
+      Rails.logger.warn "CSRF fail UA=#{request.user_agent} IP=#{request.remote_ip} Origin=#{request.headers["Origin"]} Referrer=#{request.referer} Cookies?=#{request.cookies.present?}"
+      raise
+    end
+
     def authenticate_token!
       @user ||= user_from_token
       if @user
