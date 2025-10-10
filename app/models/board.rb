@@ -599,7 +599,8 @@ class Board < ApplicationRecord
       image ||= new_image
       display_doc = image.display_image_url(user)
       if display_doc.blank?
-        image_prompt = "Create an image of #{word}"
+        # image_prompt = "Create an image of #{word}"
+        image_prompt = image.default_image_prompt
         admin_image_present = image.docs.any? { |doc| doc.user_id == User::DEFAULT_ADMIN_ID }
         user_image_present = image.docs.any? { |doc| doc.user_id == user_id }
 

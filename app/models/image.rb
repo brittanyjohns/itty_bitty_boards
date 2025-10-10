@@ -113,6 +113,10 @@ class Image < ApplicationRecord
     use_custom_audio || voice_changed?
   end
 
+  def default_image_prompt
+    "Create a simple, clear AAC-style illustration showing '#{label}' in a literal, easy-to-understand way, with a plain white background and no stylization or text."
+  end
+
   def update_category_boards
     if category_boards.any?
       category_boards.each do |board|
@@ -435,9 +439,11 @@ class Image < ApplicationRecord
   end
 
   def create_image_doc(user_id = nil)
+    user_id ||= self.user_id
+    self.image_prompt = default_image_prompt if image_prompt.blank?
+
     response = create_image(user_id)
-    Rails.logger.info "Image created with response: #{response.inspect}" if response
-    Rails.logger.info "No response for image creation" unless response
+    Rails.logger.error "No response for image creation" unless response
     if response
       doc = response
       doc.update_user_docs

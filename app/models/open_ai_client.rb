@@ -76,13 +76,13 @@ class OpenAiClient
       img_url = response.dig("data", 0, "url")
       b64_json = response.dig("data", 0, "b64_json")
       revised_prompt = response.dig("data", 0, "revised_prompt")
-      Rails.logger.debug "*** ERROR *** Invaild Image Response: #{response}" unless img_url || b64_json
+      Rails.logger.error "*** ERROR *** Invaild Image Response: #{response}" unless img_url || b64_json
       if response.dig("error", "type") == "invalid_request_error"
-        Rails.logger.debug "**** ERROR **** \n#{response.dig("error", "message")}\n"
+        Rails.logger.error "**** ERROR **** \n#{response.dig("error", "message")}\n"
         throw "Invaild OpenAI Image Response"
       end
     else
-      Rails.logger.debug "**** Client ERROR **** \nDid not receive valid response.\n#{response}"
+      Rails.logger.error "**** Client ERROR **** \nDid not receive a response.\n#{response}"
     end
     { img_url: img_url, revised_prompt: revised_prompt, edited_prompt: new_prompt, b64_json: b64_json }
   end
