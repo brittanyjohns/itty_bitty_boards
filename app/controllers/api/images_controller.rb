@@ -76,7 +76,7 @@ class API::ImagesController < API::ApplicationController
     if params[:imageId].present?
       @existing_image = Image.find(params[:imageId])
     end
-    label = params[:query]&.downcase
+    label = params[:query]
     @existing_image = Image.find_by(label: label, user_id: @current_user.id) unless @existing_image
     @image = nil
     if @existing_image
@@ -125,7 +125,7 @@ class API::ImagesController < API::ApplicationController
   def clone
     @current_user = current_user
     @image = Image.with_artifacts.find(params[:id])
-    label_to_set = params[:new_name]&.downcase || @image.label
+    label_to_set = params[:new_name] || @image.label
     user_id = @current_user.id
     make_dynamic = params[:make_dynamic] == "1"
     word_list = params[:word_list] ? params[:word_list].compact : nil
@@ -282,7 +282,7 @@ class API::ImagesController < API::ApplicationController
     find_first = image_params[:find_first] == "1"
     duplicate_image = image_params[:duplicate] == "1"
 
-    label = image_params[:label]&.downcase
+    label = image_params[:label]
     @existing_image = Image.find_by(label: label, user_id: @current_user.id)
     @image = nil
     if @existing_image && find_first && !duplicate_image
@@ -421,7 +421,7 @@ class API::ImagesController < API::ApplicationController
     if !params[:id].blank?
       @image = Image.find(params[:id])
     else
-      label = image_params[:label].present? ? image_params[:label].downcase : image_params[:image_prompt]
+      label = image_params[:label].present? ? image_params[:label] : image_params[:image_prompt]
       @image = Image.find_or_create_by(label: label, user_id: @current_user.id, private: false, image_prompt: image_params[:image_prompt], image_type: "Generated")
     end
     image_prompt = image_params[:image_prompt] || image_params["image_prompt"]
@@ -481,7 +481,7 @@ class API::ImagesController < API::ApplicationController
 
     generate_image = params["generate_image"] == "1"
     duplicate_image = params["duplicate"] == "1"
-    label = image_params["label"]&.downcase
+    label = image_params["label"]
 
     is_private = image_params["private"] || false
     @image = Image.find_by(label: label, user_id: @current_user.id)
@@ -523,7 +523,7 @@ class API::ImagesController < API::ApplicationController
 
   def find_by_label
     @current_user = current_user
-    label = params[:label].downcase
+    label = params[:label]
     @image = Image.find_by(label: label, user_id: @current_user.id)
     @image = Image.public_img.find_by(label: label) unless @image
     if @image

@@ -41,7 +41,7 @@ require "uri"
 
 class Image < ApplicationRecord
   paginates_per 100
-  normalizes :label, with: ->label { label.downcase.strip }
+  # normalizes :label, with: ->label { label.downcase.strip }
   attr_accessor :temp_prompt
   belongs_to :user, optional: true
   has_many :docs, as: :documentable, dependent: :destroy
@@ -97,7 +97,6 @@ class Image < ApplicationRecord
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
   after_create :categorize!, unless: :menu?
   before_save :set_label, :ensure_defaults
-  before_save :clean_up_label, if: -> { !obf_id.blank? }
 
   after_save :update_board_images_audio, if: -> { need_to_update_board_images_audio? }
   after_save :update_board_images_display_image, if: -> { src_url_changed? }
@@ -146,34 +145,6 @@ class Image < ApplicationRecord
   def source_type
     data = self.data || {}
     data["source_type"]
-  end
-
-  def clean_up_label
-    Rails.logger.debug "Cleaning up label: #{label}"
-    has_source_type = false
-    original_type_name = nil
-    img_label = label
-    SOURCE_TYPE_NAMES.each do |type_name|
-      img_label = label.downcase
-      type_name.downcase!
-      has_source_type = img_label.include?(type_name)
-
-      if has_source_type
-        original_type_name = type_name
-        img_label.gsub!(type_name, "")
-        break
-      end
-    end
-    self.data ||= {}
-    self.data["source_type"] = original_type_name if has_source_type
-    self.label = img_label.strip
-
-    if label.blank? || label == "Untitled Image"
-      self.label = original_type_name + " Image" if original_type_name
-      if label.blank?
-        self.name = "Untitled Image"
-      end
-    end
   end
 
   def predictive_board
@@ -1069,8 +1040,8 @@ class Image < ApplicationRecord
 
   def set_label
     item_name = label
-    item_name.downcase!
-    item_name.strip!
+    # item_name.downcase!
+    # item_name.strip!
     # item_name.gsub!(/[^0-9a-zA-Z!? ]/, "")
     if item_name.blank?
       item_name = "image #{id || "new"}"
@@ -1264,10 +1235,10 @@ class Image < ApplicationRecord
   def matching_viewer_boards(viewing_user = nil)
     viewing_user ||= user
     if viewing_user
-      viewing_user.boards.where("lower(name) = ?", label.downcase).order(name: :asc)
+      viewing_user.boards.where("lower(name) = ?", label).order(name: :asc)
       # Board.where(name: label, user_id: viewing_user.id).order(created_at: :desc)
     else
-      Board.where("lower(name) = ?", label.downcase).where(name: label, user_id: User::DEFAULT_ADMIN_ID, predefined: true).order(name: :asc)
+      Board.where("lower(name) = ?", label).where(name: label, user_id: User::DEFAULT_ADMIN_ID, predefined: true).order(name: :asc)
     end
   end
 
@@ -1467,8 +1438,6 @@ class Image < ApplicationRecord
 
   def self.create_image_from_google_search(img_url, label, title, snippet, file_format, user_id = User::DEFAULT_ADMIN_ID)
     return if Rails.env.test?
-    label = label.downcase
-
     existing_image = Image.public_img.find_by(label: label)
     image = nil
     if existing_image
