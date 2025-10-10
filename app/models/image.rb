@@ -1450,7 +1450,7 @@ class Image < ApplicationRecord
       update!(part_of_speech: "unknown")
       unknown_img = true
     end
-    if unknown_img
+    if unknown_img && !Rails.env.production?
       puts "Would you like to delete this image? #{id} - #{label} - Part of speech: #{part_of_speech} (y/n)"
       response = gets.chomp
       if response.downcase == "y"
