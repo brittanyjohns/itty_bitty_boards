@@ -1283,7 +1283,7 @@ class Board < ApplicationRecord
           mute_name: mute_name,
           # src: image.src_url || @board_image.display_image_url || image.display_image_url(viewing_user),
           src: @board_image.display_image_url || image.display_image_url(viewing_user),
-          display_image_url: @board_image.display_image_url,
+          display_image_url: @board_image.display_image_url_or_default(viewing_user),
           audio_url: @board_image.audio_url,
           audio: @board_image.audio_url || image.audio_url,
           voice: @board_image.voice,

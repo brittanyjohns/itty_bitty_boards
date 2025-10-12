@@ -134,6 +134,10 @@ class BoardImage < ApplicationRecord
     @skip_create_voice_audio = false
   end
 
+  def display_image_url_or_default(viewing_user = nil)
+    display_image_url || image.display_image_url(viewing_user) || image.src_url
+  end
+
   def get_predictive_image_for(viewing_user)
     user_id_to_search = viewing_user ? viewing_user.id : nil
     images = Image.with_artifacts.where(user_id: [user_id_to_search, User::DEFAULT_ADMIN_ID], label: label)

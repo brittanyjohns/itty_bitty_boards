@@ -746,7 +746,7 @@ class API::BoardsController < API::ApplicationController
           "w" => bi.layout["lg"]["w"],
           "h" => bi.layout["lg"]["h"],
           "label" => bi.label,
-          "image_url" => bi.display_image_url,
+          "image_url" => bi.display_image_url_or_default,
           "bg_color" => bi.bg_color || "white" }
       end
     else
