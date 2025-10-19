@@ -134,15 +134,21 @@ class OpenAiClient
   GPT_VISION_MODEL = "gpt-4o-mini"
 
   def describe_image(img_url)
-    response = openai_client.chat(parameters: {
-                                    model: GPT_VISION_MODEL,
-                                    messages: [{ role: "user",
-                                                content: [{ type: "text",
-                                                            text: "What's in this image?" },
-                                                          { type: "image_url", image_url: { url: img_url } }] }],
-                                  })
-    Rails.logger.debug "*** ERROR *** Invaild Image Description Response: #{response}" unless response
-    response
+    begin
+      response = openai_client.chat(parameters: {
+                                      model: GPT_VISION_MODEL,
+                                      messages: [{ role: "user",
+                                                  content: [{ type: "text",
+                                                              text: "Please describe the content of this image in detail. Provide a clear and concise description that captures the main elements and context of the image." },
+                                                            { type: "image_url", image_url: { url: img_url } }] }],
+                                    })
+      Rails.logger.debug "*** ERROR *** Invaild Image Description Response: #{response}" unless response
+      response
+    rescue => e
+      Rails.logger.error "OpenAI Error describing image: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
+      nil
+    end
   end
 
   def describe_menu(img_url)
@@ -580,8 +586,8 @@ class OpenAiClient
     File.open("response.json", "w") { |f| f.write(response) }
   end
 
-  def create_image_variation(img_url, num_of_images = 1)
-    response = openai_client.images.variations(parameters: { image: img_url, n: num_of_images })
+  def create_image_variation(img, num_of_images = 1)
+    response = openai_client.images.variations(parameters: { image: img, n: 1 })
     img_variation_url = response.dig("data", 0, "url")
     Rails.logger.debug "*** ERROR *** Invaild Image Variation Response: #{response}" unless img_variation_url
     img_variation_url

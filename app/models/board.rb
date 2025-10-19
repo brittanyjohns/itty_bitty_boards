@@ -1273,6 +1273,7 @@ class Board < ApplicationRecord
           dynamic: is_dynamic,
           is_predictive: is_predictive,
           board_image_id: @board_image.id,
+          data: @board_image.data,
           image_prompt: @board_image.image_prompt,
           bg_color: @board_image.bg_color,
           bg_class: @board_image.bg_class,
@@ -1652,6 +1653,7 @@ class Board < ApplicationRecord
       reset_layouts_after_import = obj["reset_layouts_after_import"] || false
 
       board_name = obj["name"]
+      Rails.logger.info "Importing board: #{board_name}"
       obf_id = obj["id"]
       voice = obj["voice"] || "alloy"
       columns = obj["grid"]["columns"]
@@ -1674,13 +1676,24 @@ class Board < ApplicationRecord
 
       dynamic_images = buttons.select { |item| item["load_board"] != nil }
       board_type = determine_board_type(dynamic_images, is_root)
-      unless board
+      if board
+        board.large_screen_columns = large_screen_columns
+        board.medium_screen_columns = medium_screen_columns
+        board.small_screen_columns = small_screen_columns
+        board.number_of_columns = number_of_columns
+        board.data = board_data
+        board.voice = voice
+        board.obf_id = obf_id
+        board.board_type = board_type
+        board.save!
+        Rails.logger.info "Updating existing board: #{board.name} (ID: #{board.id})"
+      else
         board = Board.new(name: board_name, user_id: current_user.id, voice: voice,
                           large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns,
-                          data: board_data, number_of_columns: number_of_columns, obf_id: obf_id)
+                          data: board_data, number_of_columns: number_of_columns, obf_id: obf_id, board_type: board_type)
+        Rails.logger.info "Creating new board: #{board.name}"
         board.assign_parent
       end
-      board.board_type = board_type
 
       if board_group
         board_group.add_board(board)
@@ -1690,7 +1703,7 @@ class Board < ApplicationRecord
         Rails.logger.warn "Board not saved"
         return
       end
-      if is_root
+      if is_root && board_group && board_group.root_board_id != board.id
         board_group.update(root_board_id: board.id)
       end
       grid = obj["grid"]
@@ -1701,6 +1714,7 @@ class Board < ApplicationRecord
       end
 
       temp_display_image = nil
+      @doc = nil
 
       buttons.each do |item|
         label = item["label"]
@@ -1742,6 +1756,7 @@ class Board < ApplicationRecord
           file_format = doc["content_type"] || "image/png"
           file_format = "image/svg+xml" if file_format == "image/svg"
           license = doc["license"]
+          Rails.logger.info "Importing image: #{label} - URL: #{url || "data provided"} \n- Format: #{file_format} \n- License: #{license || "none"}"
           raw_txt = "obf_id_#{doc["id"]}"
           processed = "processed: #{Time.now}"
           if url
@@ -1749,20 +1764,20 @@ class Board < ApplicationRecord
             if image.docs.where(original_image_url: url).none?
               downloaded_image = Down.download(url)
               user_id = current_user.id
-              doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
-              doc.image.attach(io: downloaded_image, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}", content_type: file_format) if downloaded_image
+              @doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
+              @doc.image.attach(io: downloaded_image, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{@doc.id}.#{@doc.extension}", content_type: file_format) if downloaded_image
               image.update(status: "finished")
             end
           elsif doc_data
             data = Base64.decode64(doc_data)
             user_id = current_user.id
-            doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
-            doc.image.attach(data: doc_data, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}", content_type: file_format) if data
-            unless doc.save
-              Rails.logger.error "Error saving doc: #{doc.errors.full_messages}"
+            @doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
+            @doc.image.attach(data: doc_data, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{@doc.id}.#{@doc.extension}", content_type: file_format) if data
+            unless @doc.save
+              Rails.logger.error "Error saving doc: #{@doc.errors.full_messages}"
             end
-            doc.reload
-            temp_display_image = doc.display_url
+            @doc.reload
+            temp_display_image = @doc.display_url
             image.update(status: "finished")
           else
             Rails.logger.debug "No URL or path found for image"
@@ -1778,6 +1793,7 @@ class Board < ApplicationRecord
           new_board_image.skip_create_voice_audio = true
           new_board_image.save!
         end
+        # new_board_image.create_image_variation!
         if new_board_image && !grid_coordinates.blank?
           new_board_image_layout = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }
           new_board_image.layout["lg"] = new_board_image_layout

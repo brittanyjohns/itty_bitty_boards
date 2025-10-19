@@ -1,30 +1,30 @@
 class ImportFromObfJob
   include Sidekiq::Job
 
-  def perform(board_data, user_id, board_group_id = nil, board_id = nil)
+  def perform(board_data, user_id, board_group_id = nil)
     current_user = User.find_by(id: user_id)
     return unless current_user
-    puts "Importing from OBF file"
-    board_group = BoardGroup.find_by(id: board_group_id, user_id: current_user.id) if board_group_id
-    if board_id.blank?
-      puts "No board ID provided for import"
-      board_name = board_data["name"] || "Imported Board"
-      @board = Board.new(name: board_name, user: current_user)
-      @board.assign_parent
-    else
-      @board = Board.find_by(id: board_id, user_id: current_user.id)
-      unless @board
-        puts "Board with ID #{board_id} not found for user #{current_user.id}"
-        return
-      end
-      puts "Found board with ID #{board_id} for import"
+    unless board_data.is_a?(Hash)
+      Rails.logger.error "Invalid board data provided for import: #{board_data.class.name}"
+      return
     end
+    Rails.logger.debug "Importing from OBF file"
+    board_group = BoardGroup.find_by(id: board_group_id, user_id: current_user.id) if board_group_id
+    board_name = board_data["name"] || "Imported Board"
+    @board = Board.new(name: board_name, user: current_user, status: "importing")
+    @board.assign_parent
+    unless @board.save
+      Rails.logger.debug "Failed to create board: #{@board.errors.full_messages.join(", ")}"
+      return
+    end
+    Rails.logger.debug "Created new board with ID #{@board.id} for import"
     @board, _data = Board.from_obf(board_data, current_user, board_group, @board.id)
     if @board
       @board.update(status: "active")
-      puts "Board import completed successfully for board ID #{@board.id}"
+      Rails.logger.debug "Board import completed successfully for board ID #{@board.id}"
     else
-      puts "Board import failed"
+      Rails.logger.debug "Board import failed"
+      @board.update(status: "error")
     end
   rescue => e
     Rails.logger.error "Error during board import: #{e.message}"

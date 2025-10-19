@@ -542,6 +542,7 @@ DEPENDENCIES
   lograge
   mailgun-ruby (~> 1.2.14)
   matrix (~> 0.4.2)
+  mini_magick
   obf (~> 0.9.9)
   paddle (~> 2.1)
   pay (~> 7.0)

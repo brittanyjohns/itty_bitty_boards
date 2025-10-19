@@ -430,4 +430,46 @@ class BoardImage < ApplicationRecord
   def image_last_added_at
     image.docs.last&.created_at&.strftime("%m/%d %I:%M %p")
   end
+
+  def create_image_variation!
+    begin
+      url = display_image_url || image.src_url
+      Rails.logger.debug "Creating image variation for board_image ID #{id} with URL: #{url}"
+      image_url = image.generate_image_variation(url, user_id)
+
+      if image_url.nil?
+        Rails.logger.error "Failed to create image variation for board_image ID #{id}"
+        return nil
+      end
+      Rails.logger.debug "Created image variation with ID #{image_url.class}"
+      Rails.logger.debug "Generated image variation URL: #{image_url}"
+      url = image_url
+      Rails.logger.debug "Generated image variation URL: #{url}"
+      self.display_image_url = url
+      self.save!
+      return url
+    rescue => e
+      Rails.logger.error "Error creating image variation: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
+      return nil
+    end
+  end
+
+  def describe_image(doc_url)
+    begin
+      response = OpenAiClient.new(open_ai_opts).describe_image(doc_url)
+      Rails.logger.debug "Response: #{response}"
+      response_content = response.dig("choices", 0, "message", "content").strip
+      Rails.logger.debug "Response content: #{response_content}"
+      self.data ||= {}
+      self.data["image_description_generated_at"] = Time.current
+      self.data["image_description"] = response_content
+      self.save!
+    rescue => e
+      Rails.logger.error "Error describing image: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
+      response_content = nil
+    end
+    response_content
+  end
 end

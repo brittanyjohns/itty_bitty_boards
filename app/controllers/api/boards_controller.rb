@@ -388,18 +388,10 @@ class API::BoardsController < API::ApplicationController
       end
       board_name = json_data["name"] || "Imported Board"
       Rails.logger.info "Importing board: #{board_name}"
-      @board = Board.new(name: board_name, user: current_user, status: "importing")
-      @board.assign_parent
-      if @board.save
-        # Board.from_obf(boardData, current_user, board_group, @board.id)
-        ImportFromObfJob.perform_async(json_data, current_user.id, board_group&.id, @board.id)
-        Rails.logger.info "Board created with ID: #{@board.id}"
-        render json: @board.api_view_with_images(current_user)
-      else
-        Rails.logger.error "Failed to create board: #{@board.errors.full_messages.join(", ")}"
-        render json: { error: "Failed to create board" }, status: :unprocessable_entity
-        return
-      end
+
+      # Board.from_obf(boardData, current_user, board_group, @board.id)
+      ImportFromObfJob.perform_async(json_data, current_user.id, board_group&.id)
+      render json: { status: "ok", message: "Importing OBF data for board #{board_name}" }
     else
       render json: { error: "No file or data provided" }, status: :unprocessable_entity
     end

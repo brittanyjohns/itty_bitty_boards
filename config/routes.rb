@@ -181,7 +181,6 @@ Rails.application.routes.draw do
         get "public_audio"
         get "prompt_suggestion"
         post "hide_doc"
-        post "describe"
         post "create_symbol"
         post "set_next_words"
         post "crop"
@@ -260,6 +259,9 @@ Rails.application.routes.draw do
       end
     end
     resources :board_images do
+      member do
+        post "create_variation", to: "board_images#create_image_variation"
+      end
       collection do
         put "update", to: "board_images#update_multiple"
         delete "remove", to: "board_images#remove_multiple"

@@ -154,13 +154,15 @@ module ImageHelper
     next_words["next_words"]
   end
 
-  def create_image_variation(img_url = nil, user = nil)
+  def create_image_variation(image_file = nil, user_id = nil)
     return if Rails.env.test?
     success = false
-    img_url ||= main_doc.main_image_on_disk
-    img_variation_url = OpenAiClient.new(open_ai_opts).create_image_variation(img_url)
+    Rails.logger.debug "Creating image variation for image ID #{self.id}"
+    user_id ||= self.user_id
+    img_variation_url = OpenAiClient.new(open_ai_opts).create_image_variation(image_file, user_id)
     if img_variation_url
-      save_image(img_variation_url)
+      Rails.logger.debug "Generated image variation URL: #{img_variation_url}"
+      save_image(img_variation_url, user_id)
       success = true
     else
       Rails.logger.error "**** ERROR - create_image_variation **** \nDid not receive valid response.\n"

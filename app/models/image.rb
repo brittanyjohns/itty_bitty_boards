@@ -1246,24 +1246,6 @@ class Image < ApplicationRecord
     image_type == "dynamic"
   end
 
-  def describe_image(doc_url)
-    response = OpenAiClient.new(open_ai_opts).describe_image(doc_url)
-    Rails.logger.debug "Response: #{response}"
-    response_content = response.dig("choices", 0, "message", "content").strip
-    Rails.logger.debug "Response content: #{response_content}"
-    self.image_prompt = response_content
-    self.save!
-    response_content
-
-    # parsed_response = response_content ? JSON.parse(response_content) : nil
-    # Rails.logger.debug "Parsed response: #{parsed_response}"
-    # if parsed_response
-    #   parsed_response["output"]["image"]
-    # else
-    #   nil
-    # end
-  end
-
   def predictive_board_image_for_user(viewing_user = nil)
     return nil unless viewing_user
     viewing_user.board_images.where.not(predictive_board_id: nil).where(image_id: id).first
@@ -1387,14 +1369,27 @@ class Image < ApplicationRecord
     end
   end
 
-  # def category_board_images
-  #   category_board_images = category_boards.map(&:images).flatten
-  #   category_board_images = category_board_images.select { |image| image.id != id }
-  # end
-
-  # def board_images_for_user(viewing_user)
-  #   category_board_images
-  # end
+  def generate_image_variation(url, user_id_to_set = nil)
+    if url.blank?
+      Rails.logger.error "No URL provided for image variation generation"
+      return nil
+    end
+    begin
+      image_service = ImageVariationService.new
+      variation_url = image_service.create_variation_from_url(url)
+      if variation_url
+        save_from_url(variation_url, "Variation of #{label}", "Generated variation of image #{label}", user_id_to_set)
+      else
+        Rails.logger.error "Failed to generate image variation for URL: #{url}"
+        nil
+      end
+      Rails.logger.debug "Generated image variation URL: #{variation_url}"
+      variation_url
+    rescue => e
+      Rails.logger.error "Error generating image variation: #{e.message}\n\n#{e.backtrace.join("\n")}"
+      nil
+    end
+  end
 
   def self.searchable_images_for(user, only_user_images = false)
     if !user
