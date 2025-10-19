@@ -1158,6 +1158,7 @@ class Board < ApplicationRecord
     {
       id: id,
       board_type: board_type,
+      board_id: id,
       communicator_accounts: @child_accounts.map { |ca| { id: ca.id, name: ca.name } },
       communicator_account: communicator_account ? { id: communicator_account.id, name: communicator_account.name } : nil,
       communicator_board: communicator_board ? { id: communicator_board.id, name: communicator_board.name, board_id: communicator_board.board_id, original_board_id: communicator_board.original_board_id } : nil,
@@ -1435,6 +1436,8 @@ class Board < ApplicationRecord
   def api_view(viewing_user = nil)
     {
       id: id,
+      board_id: id,
+      slug: slug,
       user_name: user.to_s,
       name: name,
       is_template: is_template,
