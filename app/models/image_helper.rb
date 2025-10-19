@@ -32,7 +32,8 @@ module ImageHelper
       user_id ||= self.user_id
       raw_txt = edited_prompt || name_to_send
       doc = self.docs.create!(raw: raw_txt, user_id: user_id, processed: revised_prompt, source_type: source_type)
-      doc.image.attach(io: StringIO.new(decoded_image), filename: "img_#{self.id}_doc_#{doc.id}.webp", content_type: "image/webp")
+      doc.data = { b64_json: true }
+      doc.image.attach(io: StringIO.new(decoded_image), filename: "img_#{self.id}_doc_#{doc.id}.png", content_type: "image/png")
       self.update(status: "finished")
 
       update_all_boards_image_belongs_to(doc.display_url)
@@ -70,6 +71,7 @@ module ImageHelper
     b64_json = response[:b64_json]
     if b64_json
       doc = save_image_from_base64(b64_json, user_id, revised_prompt, edited_prompt)
+      Rails.logger.debug "Created image from base64 for image ID #{self.id}: #{doc.inspect}"
       return doc
     end
     doc = nil

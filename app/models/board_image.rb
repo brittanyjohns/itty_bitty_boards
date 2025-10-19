@@ -431,6 +431,30 @@ class BoardImage < ApplicationRecord
     image.docs.last&.created_at&.strftime("%m/%d %I:%M %p")
   end
 
+  def create_image_edit!(prompt)
+    begin
+      url = display_image_url || image.src_url
+      Rails.logger.debug "Creating image edit for board_image ID #{id} with URL: #{url}"
+      image_url = image.generate_image_edit(url, user_id, prompt)
+
+      if image_url.nil?
+        Rails.logger.error "Failed to create image edit for board_image ID #{id}"
+        return nil
+      end
+      Rails.logger.debug "Created image edit with ID #{image_url.class}"
+      # strip quotes if present
+      url = image_url.gsub(/^"|"$/, "")
+      Rails.logger.debug "Generated image edit URL: #{url}"
+      self.display_image_url = url
+      self.save!
+      return url
+    rescue => e
+      Rails.logger.error "Error creating image edit: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
+      return nil
+    end
+  end
+
   def create_image_variation!
     begin
       url = display_image_url || image.src_url

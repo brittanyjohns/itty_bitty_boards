@@ -1369,6 +1369,37 @@ class Image < ApplicationRecord
     end
   end
 
+  def generate_image_edit(image_url, user_id_to_set = nil, prompt = "")
+    if image_url.blank?
+      Rails.logger.error "No URL provided for image edit"
+      return nil
+    end
+    if prompt.blank?
+      prompt = "Change the image slightly while keeping the main subject recognizable."
+    end
+
+    url = nil
+    Rails.logger.debug "Generating image edit for URL: #{image_url} with prompt: #{prompt}"
+    result = ImageEditService.new.edit_image_from_url(
+      image_url: image_url,
+      prompt: prompt,
+    )
+
+    if result&.start_with?("data:image")
+      Rails.logger.debug "Received data URL for edited image, saving to ActiveStorage"
+      # optional: convert data URL to ActiveStorage URL
+      b64 = result.split(",", 2).last
+      edited_doc = save_image_from_base64(b64, user_id_to_set, "Edited image for #{label}", "Edited image from prompt: #{prompt}")
+      Rails.logger.debug "Saved edited image as doc ID: #{edited_doc.inspect}" if edited_doc
+      url = edited_doc.display_url if edited_doc
+    else
+      Rails.logger.debug "Received standard URL for edited image"
+      url = edited_doc.display_url if edited_doc
+    end
+
+    url
+  end
+
   def generate_image_variation(url, user_id_to_set = nil)
     if url.blank?
       Rails.logger.error "No URL provided for image variation generation"

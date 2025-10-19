@@ -1,6 +1,6 @@
 class API::BoardImagesController < API::ApplicationController
   respond_to :json
-  before_action :set_board_image, only: %i[ show update destroy create_image_variation ]
+  before_action :set_board_image, only: %i[ show update destroy create_image_variation create_image_edit ]
 
   # GET /board_images or /board_images.json
   def index
@@ -143,6 +143,22 @@ class API::BoardImagesController < API::ApplicationController
       render json: { board: @board.api_view_with_predictive_images(current_user, true) }
     else
       render json: { error: "Failed to remove some board images" }, status: :unprocessable_entity
+    end
+  end
+
+  def create_image_edit
+    @board_image = BoardImage.find(params[:id])
+    if @board_image.nil?
+      render json: { error: "Board image not found" }, status: :unprocessable_entity
+      return
+    end
+    prompt = params[:prompt] || ""
+    @image_edit = @board_image.create_image_edit!(prompt)
+    @board_image.reload
+    if @image_edit
+      render json: @board_image.api_view(current_user)
+    else
+      render json: { error: "Failed to create image edit" }, status: :unprocessable_entity
     end
   end
 

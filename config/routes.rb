@@ -261,6 +261,7 @@ Rails.application.routes.draw do
     resources :board_images do
       member do
         post "create_variation", to: "board_images#create_image_variation"
+        post "create_edit", to: "board_images#create_image_edit"
       end
       collection do
         put "update", to: "board_images#update_multiple"
