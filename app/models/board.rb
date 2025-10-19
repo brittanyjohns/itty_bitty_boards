@@ -1725,6 +1725,7 @@ class Board < ApplicationRecord
           image = Image.find_by(id: item["ext_saw_image_id"].to_i, user_id: current_user.id)
         end
         image ||= Image.where(user_id: current_user.id, label: label, obf_id: item["image_id"]).first
+        image ||= Image.where(user_id: current_user.id, label: label).first
         found_image = image
         image = Image.new(label: label, user_id: current_user.id, obf_id: item["image_id"]) unless image
         image.save!
@@ -1770,6 +1771,8 @@ class Board < ApplicationRecord
               @doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
               @doc.image.attach(io: downloaded_image, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{@doc.id}.#{@doc.extension}", content_type: file_format) if downloaded_image
               image.update(status: "finished")
+            else
+              Rails.logger.info "Document with URL already exists for image: #{label}"
             end
           elsif doc_data
             data = Base64.decode64(doc_data)

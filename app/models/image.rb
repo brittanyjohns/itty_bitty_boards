@@ -1375,7 +1375,7 @@ class Image < ApplicationRecord
       return nil
     end
     if prompt.blank?
-      prompt = "Change the image slightly while keeping the main subject recognizable."
+      prompt = "Redraw this icon in a new style, not identical to the original. Make it more visually appealing with clear lines and a transparent background."
     end
 
     url = nil
@@ -1393,7 +1393,9 @@ class Image < ApplicationRecord
       Rails.logger.debug "Saved edited image as doc ID: #{edited_doc.inspect}" if edited_doc
       url = edited_doc.display_url if edited_doc
     else
-      Rails.logger.debug "Received standard URL for edited image"
+      Rails.logger.debug "Received standard URL for edited image: #{result}, saving from URL"
+      edited_doc = save_from_url(result, "Edited image for #{label}", "Edited image from prompt: #{prompt}", user_id_to_set)
+      Rails.logger.debug "Saved edited image as doc ID: #{edited_doc.inspect}" if edited_doc
       url = edited_doc.display_url if edited_doc
     end
 

@@ -8,8 +8,8 @@ require "base64"
 require "stringio"
 
 class ImageEditService
-  MAX_BYTES = 4 * 512 * 512 # 4 MB hard limit from OpenAI
-  DEFAULT_SIZE = "512x512".freeze
+  MAX_BYTES = 4 * 1024 * 1024 # 4 MB hard limit from OpenAI
+  DEFAULT_SIZE = "1024x1024".freeze
 
   def initialize(openai_client: default_openai_client, logger: default_logger)
     @client = openai_client
@@ -53,8 +53,9 @@ class ImageEditService
         model: "gpt-image-1",
         image: upload,
         prompt: prompt,
-        # size: size,
-        background: "transparent",
+        # input_fidelity: "high",
+        size: size,
+      # background: "transparent",
 
       },
     )
@@ -69,14 +70,6 @@ class ImageEditService
       data_url = "data:image/png;base64,#{b64}"
 
       return data_url
-      # If you prefer to upload to ActiveStorage and get an https URL instead:
-      # decoded = Base64.strict_decode64(b64)
-      # blob = ActiveStorage::Blob.create_and_upload!(
-      #   io: StringIO.new(decoded),
-      #   filename: "openai-edit.png",
-      #   content_type: "image/png"
-      # )
-      # return Rails.application.routes.url_helpers.rails_blob_url(blob, only_path: false)
     end
 
     log_error "*** ERROR *** Invalid Image Edit Response: #{response.inspect}"
