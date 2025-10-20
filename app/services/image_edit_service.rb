@@ -10,6 +10,7 @@ require "stringio"
 class ImageEditService
   MAX_BYTES = 4 * 1024 * 1024 # 4 MB hard limit from OpenAI
   DEFAULT_SIZE = "1024x1024".freeze
+  MODEL = ENV.fetch("OPENAI_EDIT_IMAGE_MODEL", "gpt-image-1").freeze
 
   def initialize(openai_client: default_openai_client, logger: default_logger)
     @client = openai_client
@@ -48,9 +49,10 @@ class ImageEditService
     upload = Faraday::UploadIO.new(io, "image/png", "image.png")
 
     @logger.debug "Sending image edit request to OpenAI with prompt: #{prompt}"
+    @logger.debug "Using model: #{MODEL}"
     response = @client.images.edit(
       parameters: {
-        model: "gpt-image-1",
+        model: MODEL,
         image: upload,
         prompt: prompt,
         # input_fidelity: "high",
