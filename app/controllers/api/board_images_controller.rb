@@ -20,16 +20,6 @@ class API::BoardImagesController < API::ApplicationController
     render json: @board_image.api_view(current_user)
   end
 
-  def move_up
-    @board_image = BoardImage.find(params[:id])
-    @board_image.move_higher
-  end
-
-  def move_down
-    @board_image = BoardImage.find(params[:id])
-    @board_image.move_lower
-  end
-
   # PATCH/PUT /board_images/1 or /board_images/1.json
   def update
     data = params[:board_image][:data]
@@ -150,10 +140,12 @@ class API::BoardImagesController < API::ApplicationController
   def create_image_edit
     Rails.logger.info "Received request to create image edit for BoardImage ID #{params[:id]}"
     @board_image = BoardImage.find(params[:id])
+    Rails.logger.debug "Found BoardImage: #{@board_image.inspect}"
     if @board_image.nil?
       render json: { error: "Board image not found" }, status: :unprocessable_entity
       return
     end
+    check_daily_limit("image_edits")
     prompt = params[:prompt] || ""
     transparent_background = params[:transparent_background] == "true"
     Rails.logger.info("Enqueuing EditBoardImageJob for BoardImage ID #{@board_image.id} with prompt: #{prompt}, transparent_background: #{transparent_background}")
@@ -172,6 +164,7 @@ class API::BoardImagesController < API::ApplicationController
       render json: { error: "Board image not found" }, status: :unprocessable_entity
       return
     end
+    check_daily_limit("image_variations")
 
     @image_variation = @board_image.create_image_variation!
     Rails.logger.debug "Created image variation: #{@image_variation.inspect}"
@@ -233,6 +226,7 @@ class API::BoardImagesController < API::ApplicationController
     end
   end
 
+  # TODO - I don't think this is used but need to check
   def move
     @board_id = params[:board_id].to_i
     @image_id = params[:image_id].to_i

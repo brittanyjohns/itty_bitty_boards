@@ -118,6 +118,16 @@ class User < ApplicationRecord
     locked == true
   end
 
+  def timezone
+    self.settings["timezone"] || "America/New_York"
+  end
+
+  def self.clear_all_custom_default_boards
+    self.all.each do |user|
+      user.clear_custom_default_board
+    end
+  end
+
   def self.reset_user_limits
     self.non_admin.each do |user|
       user.settings ||= {}

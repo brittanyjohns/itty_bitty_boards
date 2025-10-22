@@ -39,9 +39,25 @@ module API
       end
     end
 
+    def check_daily_limit(feature_key)
+      Rails.logger.debug "Checking daily limit for feature: #{feature_key}, User ID: #{current_user.id}"
+      limiter = DailyFeatureLimiter.new(
+        user_id: current_user.id,
+        feature_key: feature_key,
+        limit: 5,
+        tz: current_user.timezone || "America/New_York",
+      )
+      allowed, meta = limiter.increment_and_check!
+
+      unless allowed
+        render json: { error: "limit_reached", **meta }, status: 429 and return
+      end
+    end
+
     private
 
     def user_from_token
+      Rails.logger.debug "Fetching user from token"
       @user_from_token ||= User.find_by(authentication_token: token) if token.present?
     end
 
