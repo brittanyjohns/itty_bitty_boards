@@ -11,7 +11,7 @@ module AudioHelper
     end
     new_audio_file = nil
     if Rails.env.test?
-      Rails.logger.warn "Skipping audio creation in test environment."
+      Rails.logger.warn "create_audio_from_text: Skipping audio creation in test environment."
       return
     end
     response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice, language)
@@ -42,6 +42,10 @@ module AudioHelper
   end
 
   def find_audio_for_voice(voice = "alloy", lang = "en")
+    if Rails.env.test?
+      Rails.logger.warn "find_audio_for_voice: Skipping audio creation in test environment."
+      return
+    end
     if voice.blank?
       voice = "alloy"
     end
