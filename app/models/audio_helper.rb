@@ -11,7 +11,7 @@ module AudioHelper
     end
     new_audio_file = nil
     if Rails.env.test?
-      Rails.logger.warn "Skipping audio creation in test environment."
+      Rails.logger.warn "create_audio_from_text: Skipping audio creation in test environment."
       return
     end
     response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice, language)
@@ -42,6 +42,10 @@ module AudioHelper
   end
 
   def find_audio_for_voice(voice = "alloy", lang = "en")
+    if Rails.env.test?
+      Rails.logger.warn "find_audio_for_voice: Skipping audio creation in test environment."
+      return
+    end
     if voice.blank?
       voice = "alloy"
     end
@@ -138,10 +142,11 @@ module AudioHelper
   end
 
   def default_audio_url(audio_file = nil)
+    Rails.logger.debug "Generating default audio URL for audio_file: #{audio_file&.blob&.filename&.to_s}"
     if self.class.name == "BoardImage"
-      audio_file = find_audio_for_voice(self.voice, self.language)
       if audio_file.nil?
-        audio_file = audio_files.first
+        audio_file = find_audio_for_voice(self.voice, self.language)
+        audio_file = audio_files.first if audio_file.nil?
       end
       audio_blob = audio_file&.blob if audio_file
       if audio_blob.nil?

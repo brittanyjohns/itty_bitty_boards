@@ -1251,7 +1251,8 @@ class Board < ApplicationRecord
         @board_image.data ||= {}
         mute_name = @board_image.data["mute_name"] == true
         {
-          id: image.id,
+          id: @board_image.id,
+          image_id: image.id,
           label: @board_image.label,
           display_label: @board_image.display_label,
           hidden: @board_image.hidden,
