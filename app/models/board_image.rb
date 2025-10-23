@@ -310,7 +310,7 @@ class BoardImage < ApplicationRecord
       font_size: font_size,
       border_color: border_color,
       frozen_board: board.is_frozen?,
-      audio_files: audio_files_for_api,
+      audio_files: all_audio_files_for_api,
       layout: layout,
       status: status,
       audio_url: audio_url,
@@ -357,6 +357,15 @@ class BoardImage < ApplicationRecord
 
   def description
     image.image_prompt || board.description
+  end
+
+  def has_custom_audio?
+    audio_files.any? { |af| af.blob.filename.to_s.include?("custom") }
+  end
+
+  def using_custom_audio?
+    data ||= {}
+    data["using_custom_audio"] == true
   end
 
   def set_defaults

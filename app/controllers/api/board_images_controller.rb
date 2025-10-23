@@ -187,10 +187,11 @@ class API::BoardImagesController < API::ApplicationController
       return
     end
     default_file_name = @board_image.label.downcase.gsub(" ", "-").gsub("_", "-")
+    default_file_name = !default_file_name.blank? ? default_file_name : "board-image-audio"
     random_number = SecureRandom.hex(5)
     extention = params[:audio_file]&.original_filename&.split(".")&.last || "aac"
     default_file_name = "#{default_file_name}-#{random_number}-custom.#{extention}"
-    @file_name = params[:file_name] || default_file_name
+    @file_name = default_file_name
     @file_name = @file_name.downcase.gsub(" ", "-")
     @file_name = @file_name.downcase.gsub("_", "-")
     @file_name_to_save = @file_name.ends_with?(".#{extention}") ? @file_name : "#{@file_name}.#{extention}"
@@ -199,7 +200,29 @@ class API::BoardImagesController < API::ApplicationController
     @new_audio_file = @board_image.audio_files.last
     new_audio_file_url = @board_image.default_audio_url(@new_audio_file)
     # Determine the voice from the filename
+    @board_image.data ||= {}
+    @board_image.data["using_custom_audio"] = true
     if @board_image.update(audio_url: new_audio_file_url)
+      Rails.logger.info "Successfully uploaded audio file: #{@file_name_to_save} for BoardImage ID: #{@board_image.id}"
+      @board_image.reload
+      Rails.logger.debug "BoardImage after audio upload: #{@board_image.inspect}"
+      render json: @board_image.api_view(current_user)
+    else
+      render json: @board_image.errors, status: :unprocessable_entity
+    end
+  end
+
+  def reset_audio
+    @board_image = BoardImage.find(params[:id])
+    unless @board_image.user_id == current_user.id || current_user.admin?
+      render json: { status: "error", message: "You are not authorized to reset audio for this board image." }
+      return
+    end
+
+    default_audio_url = @board_image.default_audio_url
+    @board_image.data ||= {}
+    @board_image.data["using_custom_audio"] = false
+    if @board_image.update(audio_url: default_audio_url)
       render json: @board_image.api_view(current_user)
     else
       render json: @board_image.errors, status: :unprocessable_entity

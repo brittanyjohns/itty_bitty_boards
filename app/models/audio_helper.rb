@@ -131,6 +131,10 @@ module AudioHelper
     custom_audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: default_audio_url(audio), id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at, current: is_audio_current?(audio) } }
   end
 
+  def all_audio_files_for_api
+    audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: default_audio_url(audio), id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at, current: is_audio_current?(audio) } }
+  end
+
   def is_audio_current?(audio)
     url = default_audio_url(audio)
     url == audio_url
@@ -138,7 +142,14 @@ module AudioHelper
 
   def voice_from_filename(filename)
     # Ex: scared_nova.aac
-    filename.split("_")[1].split(".")[0]
+    if filename.include?("_")
+      if filename.count("_") >= 2
+        return filename.split("_")[1..-2].join("_")
+      else
+        return filename.split("_")[1].split(".")[0]
+      end
+    end
+    nil
   end
 
   def default_audio_url(audio_file = nil)

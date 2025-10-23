@@ -526,12 +526,8 @@ class ChildAccount < ApplicationRecord
   def index_api_view
     @boards = boards.all.order(:name)
     @child_boards = child_boards.includes(:board)
-    Rails.logger.info "Child Boards: #{@child_boards.count}"
-    Rails.logger.info "Boards: #{@boards.count}"
     current_board_list = @child_boards.map(&:name)
-    Rails.logger.info "Current Board List: #{current_board_list.inspect}"
     current_board_list = current_board_list ? current_board_list.join(", ").truncate(150) : nil
-    Rails.logger.info "Truncated Board List: #{current_board_list.inspect}"
     {
       id: id,
       username: username,
