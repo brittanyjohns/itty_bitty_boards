@@ -153,7 +153,6 @@ module AudioHelper
   end
 
   def default_audio_url(audio_file = nil)
-    Rails.logger.debug "Generating default audio URL for audio_file: #{audio_file&.blob&.filename&.to_s}"
     if self.class.name == "BoardImage"
       if audio_file.nil?
         audio_file = find_audio_for_voice(self.voice, self.language)
