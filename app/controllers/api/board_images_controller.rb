@@ -186,23 +186,18 @@ class API::BoardImagesController < API::ApplicationController
       render json: { status: "error", message: "You are not authorized to upload audio for this board image." }
       return
     end
-    Rails.logger.debug "Uploading audio file for BoardImage ID: #{@board_image.id}, User ID: #{current_user.id}"
     default_file_name = @board_image.label.downcase.gsub(" ", "-").gsub("_", "-")
     random_number = SecureRandom.hex(5)
     extention = params[:audio_file]&.original_filename&.split(".")&.last || "aac"
-    Rails.logger.debug "Original filename: #{params[:audio_file]&.original_filename}, extention: #{extention}"
     default_file_name = "#{default_file_name}-#{random_number}-custom.#{extention}"
     @file_name = params[:file_name] || default_file_name
     @file_name = @file_name.downcase.gsub(" ", "-")
     @file_name = @file_name.downcase.gsub("_", "-")
     @file_name_to_save = @file_name.ends_with?(".#{extention}") ? @file_name : "#{@file_name}.#{extention}"
-    Rails.logger.debug "Final filename to save: #{@file_name_to_save}"
     @audio_file = @board_image.audio_files.attach(io: params[:audio_file], filename: @file_name_to_save)
     @board_image.reload
     @new_audio_file = @board_image.audio_files.last
-    Rails.logger.debug "Attached audio file: #{@new_audio_file.inspect}"
     new_audio_file_url = @board_image.default_audio_url(@new_audio_file)
-    Rails.logger.debug "Uploaded audio file for BoardImage #{@board_image.id}, URL: #{new_audio_file_url}"
     # Determine the voice from the filename
     if @board_image.update(audio_url: new_audio_file_url)
       render json: @board_image.api_view(current_user)

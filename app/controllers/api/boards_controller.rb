@@ -4,7 +4,7 @@ class API::BoardsController < API::ApplicationController
   # before_action :authenticate_user!
   skip_before_action :authenticate_token!, only: %i[ index predictive_image_board preset show public_boards public_menu_boards common_boards pdf ]
 
-  before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf ]
+  before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts ]
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
   before_action :check_board_create_permissions, only: %i[ create clone ]
   # layout "fullscreen", only: [:fullscreen]
@@ -556,6 +556,34 @@ class API::BoardsController < API::ApplicationController
     @board_with_images = @board.api_view_with_predictive_images(current_user, true)
     # end
     render json: @board_with_images
+  end
+
+  def assign_accounts
+    communicator_account_ids = params[:communicator_account_ids] || []
+    if communicator_account_ids
+      all_records_saved = nil
+      communicator_account_ids.each do |communicator_account_id|
+        communicator_account = ChildAccount.find(communicator_account_id)
+        communicator_board_copy = @board.clone_with_images(current_user&.id, @board.name)
+        communicator_board_copy.is_template = true
+        communicator_board_copy.save!
+        if communicator_account.child_boards.where(board_id: @board.id).empty?
+          comm_board = communicator_account.child_boards.create!(board: communicator_board_copy, created_by: current_user, original_board: @board)
+          all_records_saved = comm_board.persisted?
+        else
+          all_records_saved = false
+          break
+        end
+      end
+      @board.reload
+      if all_records_saved
+        render json: @board.api_view_with_predictive_images(current_user, true), status: :ok
+      else
+        render json: @board.errors, status: :unprocessable_entity
+      end
+    else
+      render json: { error: "No board_ids provided" }, status: :unprocessable_entity
+    end
   end
 
   def remove_image

@@ -5,7 +5,7 @@ class API::ChildAccountsController < API::ApplicationController
   # GET /child_accounts
   # GET /child_accounts.json
   def index
-    @child_accounts = current_user.child_accounts
+    @child_accounts = ChildAccount.with_boards.where(user_id: current_user.id)
     render json: @child_accounts.map(&:index_api_view)
   end
 

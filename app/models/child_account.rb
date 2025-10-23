@@ -71,6 +71,7 @@ class ChildAccount < ApplicationRecord
         }
   scope :with_teams, -> { includes(teams: [:team_users]) }
   scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
+  scope :with_boards, -> { includes(child_boards: :board) }
 
   def self.valid_credentials?(username, password_to_set)
     account = ChildAccount.find_by(username: username, passcode: password_to_set)
@@ -523,11 +524,22 @@ class ChildAccount < ApplicationRecord
   end
 
   def index_api_view
+    @boards = boards.all.order(:name)
+    @child_boards = child_boards.includes(:board)
+    Rails.logger.info "Child Boards: #{@child_boards.count}"
+    Rails.logger.info "Boards: #{@boards.count}"
+    current_board_list = @child_boards.map(&:name)
+    Rails.logger.info "Current Board List: #{current_board_list.inspect}"
+    current_board_list = current_board_list ? current_board_list.join(", ").truncate(150) : nil
+    Rails.logger.info "Truncated Board List: #{current_board_list.inspect}"
     {
       id: id,
       username: username,
       name: name,
       parent_name: user.display_name,
+      board_count: @child_boards.size,
+      board_list_sample: current_board_list,
+      communicator_board_ids: @child_boards.pluck(:original_board_id),
       user_id: user_id,
       last_sign_in_at: last_sign_in_at&.strftime("%a, %b %e at %l:%M %p"),
       sign_in_count: sign_in_count,

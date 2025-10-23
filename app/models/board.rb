@@ -736,6 +736,9 @@ class Board < ApplicationRecord
         new_board_image.voice = board_image.voice
         new_board_image.predictive_board_id = board_image.predictive_board_id
         new_board_image.save
+        # TODO -  Should mark & only do this if it has custom audio
+        new_board_image.audio_url = board_image.audio_url
+        new_board_image.save
       end
     end
     if @cloned_board.save
