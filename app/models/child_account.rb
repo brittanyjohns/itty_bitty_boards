@@ -480,7 +480,7 @@ class ChildAccount < ApplicationRecord
       bio_audio_url: cached_profile&.bio_audio_url,
       supporters: cached_supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: cached_supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
-      boards: child_boards.map do |cb|
+      boards: child_boards.order(:created_at).map do |cb|
         b = cb.board
         {
           id: cb.id,
