@@ -7,7 +7,8 @@ class OpenAiClient
   IMAGE_MODEL = ENV.fetch("OPENAI_IMAGE_MODEL", "dall-e-3")
   IMAGE_MOBEL_STYLE = ENV.fetch("OPENAI_IMAGE_MODEL_STYLE", "natural")
   # IMAGE_MODEL = "gpt-image-1"
-  TTS_MODEL = "tts-1"
+  # TTS_MODEL = "tts-1"
+  TTS_MODEL = ENV.fetch("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
   PREVIEW_MODEL = "o1-preview"
 
   def initialize(opts)
@@ -94,6 +95,7 @@ class OpenAiClient
       voice = "alloy"
     end
     begin
+      Rails.logger.debug "Creating audio TTS model: #{TTS_MODEL} -- voice: #{voice} -- language: #{language} -- text: #{text}"
       response = openai_client.audio.speech(parameters: {
                                               input: text,
                                               model: TTS_MODEL,

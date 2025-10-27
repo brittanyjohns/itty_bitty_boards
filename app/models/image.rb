@@ -42,7 +42,7 @@ require "uri"
 class Image < ApplicationRecord
   paginates_per 100
   # normalizes :label, with: ->label { label.downcase.strip }
-  attr_accessor :temp_prompt
+  attr_accessor :temp_prompt, :skip_create_image
   belongs_to :user, optional: true
   has_many :docs, as: :documentable, dependent: :destroy
   has_many :board_images, dependent: :destroy
@@ -95,7 +95,7 @@ class Image < ApplicationRecord
   scope :created_before, ->(date) { where("created_at < ?", date) }
 
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
-  after_create :categorize!, unless: :menu?
+  after_create :categorize!, unless: :menu_or_sample_voice?
   before_save :set_label, :ensure_defaults
 
   after_save :update_board_images_audio, if: -> { need_to_update_board_images_audio? }
@@ -110,6 +110,10 @@ class Image < ApplicationRecord
 
   def need_to_update_board_images_audio?
     use_custom_audio || voice_changed?
+  end
+
+  def menu_or_sample_voice?
+    image_type == "menu" || image_type == "SampleVoice"
   end
 
   def default_image_prompt
@@ -650,7 +654,7 @@ class Image < ApplicationRecord
   end
 
   def self.voices
-    ["alloy", "onyx", "shimmer", "nova", "fable", "ash", "coral", "sage"]
+    ["alloy", "onyx", "shimmer", "nova", "fable", "ash", "coral", "sage", "echo"]
   end
 
   def self.languages
@@ -697,7 +701,9 @@ class Image < ApplicationRecord
         Rails.logger.debug "Sample voice already exists: #{audio_image.id}"
         audio_files << audio_image.audio_files
       else
-        audio_image = Image.create!(label: "This is the voice #{voice}", private: true, image_type: "SampleVoice")
+        audio_image = Image.new(label: "This is the voice #{voice}", private: true, image_type: "SampleVoice")
+        audio_image.skip_create_image = true
+        audio_image.save!
         audio_image.create_audio_from_text("This is the voice #{voice}", voice, language)
         audio_files << audio_image.audio_files
       end

@@ -701,7 +701,8 @@ class Board < ApplicationRecord
     @cloned_board.predefined = false
     @cloned_board.obf_id = nil
     @cloned_board.board_type = @source.board_type
-    @cloned_board.data = nil
+    @cloned_board.data = {}
+    @cloned_board.board_images_count = 0
     @cloned_board.save
     unless @cloned_board.persisted?
       Rails.logger.error "Slug: #{@cloned_board.slug}"
@@ -894,6 +895,16 @@ class Board < ApplicationRecord
   #   update_board_layout("md")
   #   update_board_layout("lg")
   # end
+
+  def self.generate_unique_slug(base_slug, board_id)
+    slug = base_slug
+    counter = 1
+    while Board.where(slug: slug).where.not(id: board_id).exists?
+      slug = "#{base_slug}-#{counter}"
+      counter += 1
+    end
+    slug
+  end
 
   def update_board_layout(screen_size)
     self.layout = {}
@@ -1254,7 +1265,6 @@ class Board < ApplicationRecord
         @board_image.data ||= {}
         mute_name = @board_image.data["mute_name"] == true
         using_custom_audio = @board_image.data["using_custom_audio"] == true
-        Rails.logger.debug "using_custom_audio for BoardImage #{@board_image.id}: #{using_custom_audio}"
         {
           id: @board_image.id,
           image_id: image.id,
