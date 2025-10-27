@@ -897,7 +897,7 @@ class Board < ApplicationRecord
   # end
 
   def self.generate_unique_slug(base_slug, board_id)
-    slug = base_slug
+    slug = base_slug.parameterize
     counter = 1
     while Board.where(slug: slug).where.not(id: board_id).exists?
       slug = "#{base_slug}-#{counter}"
