@@ -124,17 +124,17 @@ Rails.application.configure do
   # Incoming server (POP3): 995 port for SSL, 110 for TLS.
   # Outgoing server (SMTP): 465 port for SSL, 25/587 port for TLS.
 
-#   config.action_mailer.delivery_method = :smtp
-#   config.action_mailer.smtp_settings = {
-#     address: "smtp.oxcs.bluehost.com",
-#     port: 587,
-#     user_name: ENV["SMTP_USERNAME"],
-#     password: ENV["SMTP_PASSWORD"],
-#     authentication: "plain",
-#   }
-# end
+  #   config.action_mailer.delivery_method = :smtp
+  #   config.action_mailer.smtp_settings = {
+  #     address: "smtp.oxcs.bluehost.com",
+  #     port: 587,
+  #     user_name: ENV["SMTP_USERNAME"],
+  #     password: ENV["SMTP_PASSWORD"],
+  #     authentication: "plain",
+  #   }
+  # end
 
-config.action_mailer.smtp_settings = {
+  config.action_mailer.smtp_settings = {
     address: "smtp-relay.gmail.com",
     port: 587,
     domain: "speakanyway.com",
@@ -142,3 +142,4 @@ config.action_mailer.smtp_settings = {
     # If you use IP-based authentication only (no username/password):
     authentication: nil,
   }
+end
