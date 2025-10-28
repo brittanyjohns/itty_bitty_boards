@@ -1138,6 +1138,7 @@ class Board < ApplicationRecord
       current_account = viewing_user
     end
     @board_settings = settings || {}
+    freeze_parent_board = @board_settings["freeze_board"] == true
     unless show_hidden
       @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).distinct
     else
@@ -1201,6 +1202,7 @@ class Board < ApplicationRecord
       vendor_id: vendor_id,
       obf_id: obf_id,
       image_count: board_images_count,
+      frozen: is_frozen?,
       image_parent_id: image_parent_id,
       parent_description: parent_type === "User" ? "User" : parent&.to_s,
       menu_description: parent_type === "Menu" ? parent&.description : nil,
@@ -1261,7 +1263,7 @@ class Board < ApplicationRecord
         is_category = @predictive_board && @predictive_board.board_type == "category"
         freeze_board = @predictive_board_settings["freeze_board"] == true
         is_first_image = @board_image.position == 0
-        freeze_parent_board = @board_settings["freeze_board"] == true
+
         @board_image.data ||= {}
         mute_name = @board_image.data["mute_name"] == true
         using_custom_audio = @board_image.data["using_custom_audio"] == true
@@ -1273,6 +1275,8 @@ class Board < ApplicationRecord
           hidden: @board_image.hidden,
           root_board_id: @root_board&.id,
           root_board_name: @root_board&.name,
+          board_id: id,
+          board_name: name,
           image_user_id: image.user_id,
           using_custom_audio: using_custom_audio,
           docs: image.docs.order(created_at: :desc).limit(50).map { |doc| doc.api_view(viewing_user) },
@@ -1291,6 +1295,7 @@ class Board < ApplicationRecord
           dynamic: is_dynamic,
           is_predictive: is_predictive,
           board_image_id: @board_image.id,
+          board_frozen: freeze_parent_board,
           data: @board_image.data,
           image_prompt: @board_image.image_prompt,
           bg_color: @board_image.bg_color,
@@ -1510,6 +1515,7 @@ class Board < ApplicationRecord
       can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
       display_image_url: display_image_url,
       word_sample: word_sample,
+      frozen: is_frozen?,
       word_list: data["current_word_list"],
       created_at: created_at,
       updated_at: updated_at,

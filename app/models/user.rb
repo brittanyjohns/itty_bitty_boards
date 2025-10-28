@@ -1096,7 +1096,7 @@ class User < ApplicationRecord
       communicator_accounts: memoized_communicators,
       go_to_words: go_words,
       go_to_boards: go_to_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, slug: b.slug, ionic_icon: b.ionic_icon } },
-      boards: memoized_boards.map { |b| { id: b.id, name: b.name, word_sample: b.word_sample } },
+      boards: memoized_boards.map { |b| { id: b.id, name: b.name, word_sample: b.word_sample, frozen: b.is_frozen? } },
       # heat_map: heat_map,
       # week_chart: week_chart,
       # group_week_chart: group_week_chart,
