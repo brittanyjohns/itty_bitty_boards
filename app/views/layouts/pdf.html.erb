@@ -9,7 +9,7 @@
       body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
 
       .page { display: grid; grid-template-rows: auto auto auto; gap: 2mm; }
-      .header { display: flex; align-items: center; justify-content: space-between; padding-left: 6mm; }
+      .header { display: flex; align-items: center; justify-content: space-between; padding-left: 6mm; height: 90px; }
       .header h1 { font-size: 14pt; margin: 0; }
       .meta { font-size: 10pt; color: #555; }
 
@@ -30,8 +30,8 @@
 
       .footer { display: grid; grid-template-columns: 1fr auto; gap: 8mm; align-items: end; }
       .qr-small img {
-        width: 1.0in;
-        height: 1.0in;
+        width: 0.9in;
+        height: 0.9in;
         display: inline-block;
         margin-right: 0;
         margin-left: 8mm;
@@ -41,6 +41,7 @@
       .logo img {
         max-width: 20mm;
         height: auto;
+        object-fit: contain;
       }
       .logo {
         width: 20mm;
