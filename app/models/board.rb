@@ -183,6 +183,10 @@ class Board < ApplicationRecord
     where(board_type: ["static", "scenario"])
   end
 
+  def parent_boards
+    Board.joins(:board_images).where(board_images: { predictive_board_id: id }, user_id: user_id).where.not(id: id).distinct
+  end
+
   def self.with_identical_images(name, user = nil)
     user_id = user ? user.id : User::DEFAULT_ADMIN_ID
     user_boards = Board.includes(:images).where(name: name, user_id: user_id)
@@ -1159,6 +1163,8 @@ class Board < ApplicationRecord
       @child_accounts = []
       @child_boards = []
     end
+    @parent_boards = parent_boards
+
     # @board_images = board_images.where(hidden: false)
     word_data = get_commons_words
     existing_words = word_data[:existing_words]
@@ -1180,6 +1186,7 @@ class Board < ApplicationRecord
       child_boards: @child_boards.map { |cb| { id: cb.id, name: cb.name, child_account_id: cb.child_account_id, username: cb.child_account&.username } },
       in_use: in_use,
       is_template: is_template,
+      parent_boards: @parent_boards.map { |pb| { id: pb.id, name: pb.name, slug: pb.slug, board_type: pb.board_type } },
       public_url: public_url,
       board_groups: board_groups,
       slug: slug,
@@ -1280,7 +1287,7 @@ class Board < ApplicationRecord
           image_user_id: image.user_id,
           using_custom_audio: using_custom_audio,
           docs: image.docs.order(created_at: :desc).limit(50).map { |doc| doc.api_view(viewing_user) },
-          predictive_board_id: is_dynamic ? @predictive_board_id : @user_custom_default_id,
+          predictive_board_id: @predictive_board_id,
           user_custom_default_id: @user_custom_default_id,
           predictive_board_board_type: @predictive_board&.board_type,
           predictive_board_name: @predictive_board&.name,
