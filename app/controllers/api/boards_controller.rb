@@ -808,9 +808,11 @@ class API::BoardsController < API::ApplicationController
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
-    user_board_count = current_user.boards.non_menus.where(predefined: false).count
-    if user_board_count >= current_user.board_limit
-      render json: { error: "Maximum number of boards reached (#{user_board_count}/#{current_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_entity
+    refreshed_user = User.find(current_user.id)
+    refreshed_user.boards.reload
+    user_board_count = refreshed_user.boards.non_menus.where(predefined: false).count
+    if user_board_count >= refreshed_user.board_limit
+      render json: { error: "Maximum number of boards reached (#{user_board_count}/#{refreshed_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_entity
       return
     end
   end

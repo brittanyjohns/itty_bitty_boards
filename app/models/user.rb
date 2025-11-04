@@ -287,7 +287,7 @@ class User < ApplicationRecord
   end
 
   def board_limit
-    settings["board_limit"] || 3
+    settings["board_limit"] || 1
   end
 
   def comm_account_limit
@@ -1029,6 +1029,7 @@ class User < ApplicationRecord
 
   def can_create_boards
     board_limit = settings["board_limit"] || 1
+    self.boards.reload
     board_count = boards.count
     board_count < board_limit
   end
