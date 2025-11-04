@@ -138,8 +138,6 @@ class Board < ApplicationRecord
 
   before_save :set_display_margin_settings, unless: :margin_settings_valid_for_all_screen_sizes?
 
-  before_create :set_slug
-
   before_create :set_screen_sizes, :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
   after_initialize :set_initial_layout, if: :layout_empty?
@@ -678,13 +676,13 @@ class Board < ApplicationRecord
     if new_name.blank?
       new_name = name + " copy"
     end
-    cloned_slug = new_name.parameterize
-    existing_board = Board.find_by(slug: cloned_slug)
-    if existing_board
-      random_string = SecureRandom.hex(4)
-      Rails.logger.warn "Board #{id} has a duplicate slug '#{cloned_slug}', generating a new one."
-      cloned_slug = "#{cloned_slug}-#{random_string}"
-    end
+    # cloned_slug = Board.create_slug(new_name)
+    # existing_board = Board.find_by(slug: cloned_slug)
+    # if existing_board
+    #   random_string = SecureRandom.hex(4)
+    #   Rails.logger.warn "Board #{id} has a duplicate slug '#{cloned_slug}', generating a new one."
+    #   cloned_slug = "#{cloned_slug}-#{random_string}"
+    # end
     @source = self
     cloned_user = User.find(cloned_user_id)
     unless cloned_user
@@ -699,7 +697,7 @@ class Board < ApplicationRecord
     @layouts = @board_images.pluck(:image_id, :layout)
 
     @cloned_board = @source.dup
-    @cloned_board.slug = cloned_slug
+    # @cloned_board.slug = cloned_slug
     @cloned_board.user_id = cloned_user_id
     @cloned_board.name = new_name
     @cloned_board.predefined = false
@@ -707,6 +705,7 @@ class Board < ApplicationRecord
     @cloned_board.board_type = @source.board_type
     @cloned_board.data = {}
     @cloned_board.board_images_count = 0
+    @cloned_board.generate_unique_slug
     @cloned_board.save
     unless @cloned_board.persisted?
       Rails.logger.error "Slug: #{@cloned_board.slug}"
@@ -900,13 +899,26 @@ class Board < ApplicationRecord
   #   update_board_layout("lg")
   # end
 
-  def self.generate_unique_slug(base_slug, board_id)
-    slug = base_slug.parameterize
-    counter = 1
-    while Board.where(slug: slug).where.not(id: board_id).exists?
-      slug = "#{base_slug}-#{counter}"
-      counter += 1
+  def self.create_slug(name_to_use)
+    cleaned_name = name_to_use.gsub(/(copy[- ]of[\s_-]*)/i, "").squeeze(" ").strip
+    cleaned_name = cleaned_name.parameterize
+    cleaned_name
+  end
+
+  def generate_unique_slug(initial_slug = nil)
+    name_to_use = initial_slug || name
+    # Remove both "Copy of " and "copy-of-" (case-insensitive)
+    cleaned_name = Board.create_slug(name_to_use)
+    slug = cleaned_name
+    # counter = 1
+
+    while Board.where(slug: slug).where.not(id: id).exists?
+      random_string = SecureRandom.hex(4)
+      slug = "#{cleaned_name}-#{random_string}"
+      # counter += 1
     end
+    Rails.logger.info "Generated unique slug: #{slug} for board id: #{id}"
+    self.slug = slug
     slug
   end
 

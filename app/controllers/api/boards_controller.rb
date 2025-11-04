@@ -23,9 +23,9 @@ class API::BoardsController < API::ApplicationController
       render json: { search_results: @search_results } and return
     end
     @predefined_boards = Board.predefined.non_menus.alphabetical.page params[:page]
-    @user_boards = current_user.boards.non_menus.where(predefined: false).alphabetical.page params[:page]
+    @user_boards = current_user.boards.where(predefined: false).alphabetical.page params[:page]
     if current_user.admin?
-      @user_boards = current_user.boards.non_menus.alphabetical.all
+      @user_boards = current_user.boards.alphabetical.all
     end
     @newly_created_boards = @user_boards.where("created_at >= ?", 1.week.ago).order(created_at: :desc).limit(20)
     @recently_used_boards = current_user.recently_used_boards
@@ -261,7 +261,7 @@ class API::BoardsController < API::ApplicationController
       Rails.logger.info "Board slug before update: #{@board.slug} - Params slug: #{board_params["slug"]}"
       if board_params["slug"].present? && board_params["slug"] != @board.slug
         Rails.logger.info "Updating slug from #{board_params["slug"]} to #{@board.slug}"
-        new_slug = Board.generate_unique_slug(board_params["slug"], @board.id)
+        new_slug = @board.generate_unique_slug(board_params["slug"])
         @board.slug = new_slug
       end
 
@@ -270,36 +270,7 @@ class API::BoardsController < API::ApplicationController
       board_type = params[:board_type] || board_params[:board_type]
       settings = params[:settings] || board_params[:settings] || {}
       settings["board_type"] = board_type
-      # matching_image = @board.matching_image
-      # if board_type == "dynamic"
-      #   predefined_resource = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Board")
-      #   @board.parent_id = predefined_resource.id
-      #   @board.parent_type = "PredefinedResource"
-      #   @board.board_type = "dynamic"
-      # elsif board_type == "predictive"
-      #   @board.parent_type = "Image"
-      #   # matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "predictive")
-      #   @board.board_type = "predictive"
-      #   matching_image ||= @board.create_matching_image
-      #   if matching_image
-      #     @board.parent_id = matching_image.id
-      #     @board.image_parent_id = matching_image.id
-      #     # matching_image.update(image_type: "predictive")
-      #   end
-      # elsif board_type == "category"
-      #   @board.board_type = "category"
-      #   @board.parent_type = "PredefinedResource"
-      #   @board.parent_id = PredefinedResource.find_or_create_by(name: "Default", resource_type: "Category").id
-      #   # matching_image = @board.user.images.find_or_create_by(label: @board.name, image_type: "category")
-      #   matching_image ||= @board.create_matching_image
-      #   if matching_image
-      #     @board.image_parent_id = matching_image.id
-      #   end
-      # elsif board_type == "static"
-      #   @board.parent_type = "User"
-      #   @board.parent_id = @board_user.id
-      #   @board.board_type = "static"
-      # end
+
       @board.parent_type = "User"
       @board.parent_id = @board_user.id
       @board.board_type = "static"
@@ -810,7 +781,7 @@ class API::BoardsController < API::ApplicationController
     end
     refreshed_user = User.find(current_user.id)
     refreshed_user.boards.reload
-    user_board_count = refreshed_user.boards.non_menus.where(predefined: false).count
+    user_board_count = refreshed_user.boards.where(predefined: false).count
     if user_board_count >= refreshed_user.board_limit
       render json: { error: "Maximum number of boards reached (#{user_board_count}/#{refreshed_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_entity
       return

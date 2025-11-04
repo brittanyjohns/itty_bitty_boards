@@ -54,13 +54,25 @@ class BoardGroup < ApplicationRecord
                     tsearch: { prefix: true },
                   }
 
-  before_create :set_slug
+  after_save :set_slug
 
   # after_initialize :set_initial_layout, if: :layout_empty?
   # after_save :set_layouts_for_screen_sizes
   # after_save :create_board_audio_files
   before_create :set_root_board
   after_initialize :set_number_of_columns, if: :no_colmns_set
+
+  def set_slug
+    return unless name.present? && slug.blank?
+    existing_board = BoardGroup.find_by(slug: slug)
+    slug = name.parameterize
+    if existing_board
+      Rails.logger.warn "Board with slug '#{slug}' already exists. Generating a new slug."
+      random = SecureRandom.hex(8)
+      slug = "#{slug}-#{random}"
+    end
+    self.slug = slug
+  end
 
   def set_number_of_columns
     self.number_of_columns = 6
