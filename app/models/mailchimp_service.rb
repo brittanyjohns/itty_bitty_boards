@@ -33,7 +33,6 @@ class MailchimpService
       }
     )
   rescue MailchimpMarketing::ApiError => e
-    puts "Error recording sign-in event: #{e.message}"
     if e.status == 404
       puts "Subscriber not found for email #{email} in audience #{audience_id}"
       result = record_new_subscriber(user)
@@ -81,9 +80,6 @@ class MailchimpService
       end
     end
 
-    Rails.logger.info("[Mailchimp] Upserting subscriber #{email} into audience #{list_id}")
-    Rails.logger.info("[Mailchimp] Merge fields: #{merge_fields.inspect}")
-
     body = {
       email_address: email,
       status: "subscribed",
@@ -92,7 +88,6 @@ class MailchimpService
     response = @client.lists.set_list_member(list_id, subscriber_hash_email, body)
     # Add tags if provided
     unless tags.blank?
-      puts "Adding tags: #{tags.inspect}"
       @client.lists.update_list_member_tags(
         list_id,
         subscriber_hash_email,
