@@ -4,20 +4,20 @@ class MailchimpUpsertSubscriberJob
   sidekiq_options queue: :default, retry: 3, backtrace: true
   def perform(user_id, opts = {})
     user = User.find(user_id)
-    plan_type = user.plan_type || "free"
+    plan_type = user.plan_type&.downcase || "free"
 
     mailchimp_service = MailchimpService.new
-    case plan_type.downcase
-    when "free"
+
+    if plan_type.includes "free"
       mailchimp_service.record_new_subscriber(user, tags: ["FreePlan"])
-    when "myspeak+", "myspeak"
+    elsif plan_type.includes "myspeak"
       mailchimp_service.record_new_subscriber(user, tags: ["MySpeakPlan"])
-    when "basic"
-      mailchimp_service.record_new_subscriber(user, tags: ["BasicPlan"] )
-    when "pro"
+    elsif plan_type.includes "basic"
+      mailchimp_service.record_new_subscriber(user, tags: ["BasicPlan"])
+    elsif plan_type.includes "pro"
       mailchimp_service.record_new_subscriber(user, tags: ["ProPlan"])
-    when "premium"
-      mailchimp_service.record_new_subscriber(user,  tags: ["PremiumPlan"])
+    elsif plan_type.includes "premium"
+      mailchimp_service.record_new_subscriber(user, tags: ["PremiumPlan"])
     else
       Rails.logger.warn("[Mailchimp] Unknown plan type '#{plan_type}' for user #{user.id}")
       mailchimp_service.record_new_subscriber(user, tags: ["UnknownPlan"])

@@ -34,7 +34,6 @@ class MailchimpService
     )
   rescue MailchimpMarketing::ApiError => e
     if e.status == 404
-      puts "Subscriber not found for email #{email} in audience #{audience_id}"
       result = record_new_subscriber(user)
       if result
         puts "Successfully added subscriber for email #{email}. Retrying sign-in event."
