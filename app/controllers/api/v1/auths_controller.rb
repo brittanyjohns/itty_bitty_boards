@@ -41,6 +41,7 @@ module API
           Rails.logger.info "User signed in: #{user.email} at #{Time.now}"
           sign_in user
           user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
+          MailchimpEventJob.perform_async(user.id, "sign_in")
           render json: { token: user.authentication_token, user: user.api_view }
         else
           render json: { error: error_message }, status: :unauthorized

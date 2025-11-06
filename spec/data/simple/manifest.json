@@ -1,9 +1,0 @@
-{
-  "format": "open-board-0.1",
-  "root": "boards/simple.obf",
-  "paths": {
-    "boards": {
-      "simple": "boards/simple.obf"
-    }
-  }
-}

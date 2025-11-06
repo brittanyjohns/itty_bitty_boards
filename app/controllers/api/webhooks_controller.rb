@@ -60,11 +60,8 @@ class API::WebhooksController < API::ApplicationController
 
         @user = User.find_by(stripe_customer_id: data_object.customer)
 
-        Rails.logger.info "Processing subscription event: #{event_type} "
-        Rails.logger.info "PLAN: #{data_object.plan&.inspect}"
-
         plan_nickname = data_object&.plan&.nickname || data_object&.items&.data&.first&.plan&.nickname
-        Rails.logger.info "*Plan nickname: #{plan_nickname}"
+
         if plan_nickname.nil?
           Rails.logger.warn "No plan nickname found in subscription data"
           plan_nickname = "free"
@@ -141,8 +138,6 @@ class API::WebhooksController < API::ApplicationController
         else
           render json: { error: "No user found for subscription" }, status: 400 and return
         end
-      when "customer.created"
-        Rails.logger.info "Customer created event received: #{data_object["email"]}"
       when "customer.subscription.updated"
         @user = User.find_by(stripe_customer_id: data_object.customer)
         if @user
@@ -162,6 +157,7 @@ class API::WebhooksController < API::ApplicationController
         if @user
           @user.plan_status = "canceled"
           @user.plan_type = "free"
+          # TODO: SEND CANCELLATION EMAIL
           @user.save!
         else
           Rails.logger.error "No existing user found for stripe_customer_id - Nothing to cancel: #{data_object.customer}"
@@ -181,18 +177,9 @@ class API::WebhooksController < API::ApplicationController
         custom_fields = session.custom_fields
         metadata = session.metadata || {}
         plan_type = metadata["plan_type"]
-        Rails.logger.info "Processing checkout session completed event: #{event_type} for user: #{@user&.email} with plan type: #{plan_type}"
-        Rails.logger.info "Session metadata: #{metadata.inspect}"
-        Rails.logger.info "Checkout session completed for user: #{@user&.email} with custom fields: #{custom_fields.inspect}"
-        # unless plan_type == "vendor"
-        #   Rails.logger.info "Plan type is not vendor: #{plan_type} - skipping vendor user creation"
-        #   render json: { success: true }, status: 200 and return
-        # end
         @user = User.find_by(stripe_customer_id: session.customer) unless @user
 
-        Rails.logger.debug "User found: #{@user&.email} - stripe_customer_id: #{session.customer}" if @user
         if plan_type == "vendor"
-          Rails.logger.info "Handling vendor user for plan: #{plan_type}"
           if @user.nil?
             Rails.logger.error "No user found for stripe_customer_id: #{data_object.customer}"
             @user = User.create_from_email(
@@ -213,13 +200,8 @@ class API::WebhooksController < API::ApplicationController
             Rails.logger.info "New user created: #{@user&.email} with plan type: #{@user.plan_type}"
           end
           plan_nickname = "vendor_#{plan_type}" if plan_type
-          Rails.logger.info "Plan nickname for vendor: #{plan_nickname}"
         elsif plan_type == "myspeak"
-          Rails.logger.info "Handling myspeak user for plan: #{plan_type}"
-
-          Rails.logger.info "Myspeak user handled: #{@user&.email} with stripe_customer_id: #{session.customer}" if @user
           plan_nickname = "myspeak_#{@user&.plan_type}" if @user&.plan_type
-          Rails.logger.info "Plan nickname for myspeak: #{plan_nickname}"
         end
         custom_fields.each do |custom_field|
           if custom_field
@@ -298,19 +280,14 @@ class API::WebhooksController < API::ApplicationController
     begin
       stripe_customer_id = stripe_session.customer
       email = stripe_session.customer_details["email"]
-      # email = stripe_customer.email
-      # stripe_customer_id = stripe_customer.id
+
       if slug.nil?
         slug = email.split("@").first.parameterize
       end
       slug = slug
-      # @user = User.create_from_email(email, stripe_customer_id, nil, slug) unless @user
       @user = User.find_by(email: email)
-      found_user = @user
-      Rails.logger.info "Found user: #{found_user&.email} for email: #{email}" if found_user
       @user = User.invite!(email: email, skip_invitation: true) unless @user
-      @user.send_welcome_with_claim_link_email(slug)
-      Rails.logger.info "Myspeak user created: #{@user.email} with slug: #{slug}"
+      @user.send_welcome_email("myspeak", slug)
       @user.plan_type = "myspeak"
       @user.plan_status = "active"
       @user.stripe_customer_id = stripe_customer_id if stripe_customer_id
@@ -397,7 +374,6 @@ class API::WebhooksController < API::ApplicationController
   end
 
   def regular_plan?(plan_nickname)
-    Rails.logger.info "Checking if plan is regular: #{plan_nickname}"
     return false if plan_nickname.nil?
     regular_plans = ["free", "basic", "pro", "premium"]
     regular_plans.any? { |plan| plan_nickname.downcase.include?(plan) }

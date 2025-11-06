@@ -1,3 +1,11 @@
+GIT
+  remote: https://github.com/mailchimp/mailchimp-marketing-ruby.git
+  revision: dd4fd7adeb10cae5afbb0a4e8c332ae23345bb8b
+  specs:
+    MailchimpMarketing (3.0.80)
+      excon (>= 0.76.0, < 1)
+      json (~> 2.1, >= 2.1.0)
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -172,6 +180,7 @@ GEM
     ethon (0.16.0)
       ffi (>= 1.15.0)
     event_stream_parser (1.0.0)
+    excon (0.112.0)
     factory_bot (6.5.0)
       activesupport (>= 5.0.0)
     factory_bot_rails (6.4.4)
@@ -511,6 +520,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  MailchimpMarketing!
   active_storage_base64 (~> 3.0)
   acts_as_list (~> 1.1)
   annotate (~> 3.2)

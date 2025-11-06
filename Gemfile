@@ -110,6 +110,9 @@ gem "pay", "~> 7.0"
 # To use Stripe, also include:
 gem "stripe", "~> 12.0"
 
+# MAilCHIMP
+gem 'MailchimpMarketing', :git => 'https://github.com/mailchimp/mailchimp-marketing-ruby.git'
+
 # To use Braintree + PayPal, also include:
 gem "braintree", "~> 4.7"
 

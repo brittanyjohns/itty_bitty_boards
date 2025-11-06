@@ -636,6 +636,16 @@ class User < ApplicationRecord
     name.blank? ? email : name
   end
 
+  def first_name
+    return email.split("@").first if name.blank?
+    name.split(" ").first
+  end
+
+  def last_name
+    return "" if name.blank?
+    name.split(" ").last
+  end
+
   def self.default_admin
     admin.find(DEFAULT_ADMIN_ID)
   end
@@ -699,14 +709,19 @@ class User < ApplicationRecord
       elsif plan_nickname.include?("pro") || plan_nickname.include?("plus")
         send_welcome_email_pro
       elsif plan_nickname.include?("myspeak")
+        if slug.nil?
+          slug = settings["slug"] || email.split("@").first
+        end
         send_welcome_email_myspeak(slug)
       else
         Rails.logger.error "Unknown plan nickname: #{plan_nickname}, sending free welcome email"
         send_welcome_email_free
       end
-      AdminMailer.new_user_email(self).deliver_now
       self.settings["welcome_email_sent"] = true
       self.save
+      AdminMailer.new_user_email(self).deliver_now
+      update_mailchimp_subscription
+
       Rails.logger.info "Welcome email sent to #{email}"
     rescue => e
       Rails.logger.error("Error sending welcome email: #{e.message}")
@@ -804,14 +819,30 @@ class User < ApplicationRecord
     Rails.logger.info "Sending welcome with claim link email to #{email} with slug #{slug}"
     begin
       UserMailer.welcome_with_claim_link_email(self, slug).deliver_now
-      AdminMailer.new_user_email(self).deliver_now
     rescue => e
       Rails.logger.error("Error sending welcome with claim link email: #{e.message}")
     end
   end
 
+  def update_mailchimp_subscription(opts = {})
+    MailchimpUpsertSubscriberJob.perform_async(self.id, opts)
+  end
+
+  def demo_user?
+    email.include?("bhannajohns+") || email.include?("@speakanyway.com")
+  end
+
   def subscription_expired?
     plan_expires_at && plan_expires_at < Time.now
+  end
+
+  def partner_pro?
+    pro? && role == "partner"
+  end
+
+  def record_signin_event
+    mailchimp = MailchimpService.new
+    mailchimp.record_signin_event(self)
   end
 
   def should_receive_notifications?
