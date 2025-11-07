@@ -8,15 +8,15 @@ class MailchimpUpsertSubscriberJob
 
     mailchimp_service = MailchimpService.new
 
-    if plan_type.includes "free"
+    if plan_type.include? "free"
       mailchimp_service.record_new_subscriber(user, tags: ["FreePlan"])
-    elsif plan_type.includes "myspeak"
+    elsif plan_type.include? "myspeak"
       mailchimp_service.record_new_subscriber(user, tags: ["MySpeakPlan"])
-    elsif plan_type.includes "basic"
+    elsif plan_type.include? "basic"
       mailchimp_service.record_new_subscriber(user, tags: ["BasicPlan"])
-    elsif plan_type.includes "pro"
+    elsif plan_type.include? "pro"
       mailchimp_service.record_new_subscriber(user, tags: ["ProPlan"])
-    elsif plan_type.includes "premium"
+    elsif plan_type.include? "premium"
       mailchimp_service.record_new_subscriber(user, tags: ["PremiumPlan"])
     else
       Rails.logger.warn("[Mailchimp] Unknown plan type '#{plan_type}' for user #{user.id}")

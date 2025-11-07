@@ -99,6 +99,29 @@ class MailchimpService
     nil
   end
 
+  def update_subscriber_tags(email, tags_to_add = [], tags_to_remove = [])
+    list_id = ENV.fetch("MAILCHIMP_AUDIENCE_ID")
+    subscriber_hash_email = subscriber_hash(email)
+    body = {
+      tags: [],
+    }
+    tags_to_add.each do |tag|
+      body[:tags] << { name: tag, status: "active" }
+    end
+    tags_to_remove.each do |tag|
+      body[:tags] << { name: tag, status: "inactive" }
+    end
+    response = @client.lists.update_list_member_tags(
+      list_id,
+      subscriber_hash_email,
+      body
+    )
+    response
+  rescue MailchimpMarketing::ApiError => e
+    puts "Error updating subscriber tags: #{e.message}"
+    nil
+  end
+
   def create_audience(name, contact_info, campaign_defaults)
     response = @client.lists.create_list(
       name: name,
