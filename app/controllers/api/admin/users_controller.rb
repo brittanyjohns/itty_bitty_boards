@@ -39,15 +39,21 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user.settings["disable_audit_logging"] = params[:disable_audit_logging] || false
     @user.settings["enable_image_display"] = params[:enable_image_display] || false
     @user.settings["enable_text_display"] = params[:enable_text_display] || false
-    @user.settings["pilot_partner"] = params[:pilot_partner] || false
+    role = params[:role] || @user.role || "user"
+    if role == "partner"
+      @user.settings["pilot_partner"] = true
+    else
+      @user.settings["pilot_partner"] = false
+    end
     if @user.settings["pilot_partner"]
+      @user.settings["pilot_group"] = params[:pilot_group] || ""
       @user.settings["partner_code"] = params[:partner_code] || ""
-      #  Update Mailchimp tags
-      begin
-        MailchimpService.new.update_subscriber_tags(@user.email, ["pilot_partner"], [])
-      rescue => e
-        Rails.logger.error "Mailchimp tag update failed for pilot_partner: #{e.message}"
+      plan_nickname = params[:plan_nickname] || "partner_pro"
+      plan_expires_at = params[:plan_expires_at]
+      if plan_expires_at.present?
+        @user.plan_expires_at = Time.parse(plan_expires_at) rescue nil
       end
+      User.handle_new_partner_pro_subscription(@user, plan_nickname)
     end
 
     # ADMIN ONLY

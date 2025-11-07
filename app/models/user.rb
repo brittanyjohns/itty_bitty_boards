@@ -87,6 +87,7 @@ class User < ApplicationRecord
   scope :basic, -> { where(plan_type: "basic") }
   scope :plus, -> { where(plan_type: "plus") }
   scope :vendor, -> { where(role: "vendor") }
+  scope :partner, -> { where(role: "partner") }
 
   scope :non_admin, -> { where.not(role: "admin") }
   scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
@@ -114,12 +115,6 @@ class User < ApplicationRecord
 
   def locked?
     locked == true
-  end
-
-  def self.clear_all_custom_default_boards
-    self.all.each do |user|
-      user.clear_custom_default_board
-    end
   end
 
   def self.reset_user_limits
@@ -159,9 +154,7 @@ class User < ApplicationRecord
   def self.create_from_email(email, stripe_customer_id = nil, inviting_user_id = nil, slug = nil)
     begin
       user = User.find_by(email: email)
-      Rails.logger.info("Create: Found existing user: #{user.email}") if user
       user = User.invite!(email: email, skip_invitation: true) unless user
-      Rails.logger.info("Create: User created from email: #{email}, inviting_user_id: #{inviting_user_id}, slug: #{slug}, stripe_customer_id: #{stripe_customer_id}") if user
     rescue ActiveRecord::RecordNotUnique => e
       Rails.logger.error("Error creating user from email: #{email} - #{e.message}")
 
@@ -169,17 +162,10 @@ class User < ApplicationRecord
       if user.nil?
         user = User.find_by(email: email)
       end
-
-      # If we still don't have a user, log an error
-      Rails.logger.error("User not found after RecordNotUnique error for email: #{email}")
-      if user.nil?
-        Rails.logger.error("User not found after RecordNotUnique error for email: #{email}")
-      else
-        Rails.logger.info("Found existing user after RecordNotUnique error: #{user.email}")
-      end
+    rescue => e
+      Rails.logger.error("Unexpected error creating user from email: #{email} - #{e.message}")
     end
-    Rails.logger.info("FAILED while creating user from email: #{email}, inviting_user_id: #{inviting_user_id}, slug: #{slug}, stripe_customer_id: #{stripe_customer_id} errors: #{user.errors.full_messages.join(", ")}") if user && user.errors.any?
-    # user.slug = slug if slug
+    Rails.logger.error("FAILED while creating user from email: #{email}, inviting_user_id: #{inviting_user_id}, slug: #{slug}, stripe_customer_id: #{stripe_customer_id} errors: #{user.errors.full_messages.join(", ")}") if user && user.errors.any?
     user.ensure_settings
     user.role = "user" unless user.role
     user.plan_type ||= "free"
@@ -188,13 +174,11 @@ class User < ApplicationRecord
     user.settings["plan_nickname"] = user.plan_type
     user.settings["slug"] = slug if slug
 
-    Rails.logger.info("=User created from email: #{email}, inviting_user_id: #{inviting_user_id}, stripe_customer_id: #{stripe_customer_id}") if user.nil? || user.errors.any?
     if user
       if inviting_user_id
         Rails.logger.info("Creating user from invitation with inviting_user_id: #{inviting_user_id}")
         create_from_invitation(email, inviting_user_id)
       else
-        Rails.logger.debug("No inviting user ID provided, skipping invitation creation for email: #{email}")
         user.send_welcome_email if user.should_send_welcome_email?
         stripe_customer_id ||= user.stripe_customer_id
         if stripe_customer_id.nil?
@@ -203,10 +187,8 @@ class User < ApplicationRecord
         user.stripe_customer_id = stripe_customer_id
         user.save
       end
-
-      Rails.logger.info("=User created: #{email} with stripe_customer_id: #{stripe_customer_id}")
     else
-      Rails.logger.error("=User not created: #{email}")
+      Rails.logger.error("User not created: #{email}")
     end
     user
   end
@@ -304,16 +286,13 @@ class User < ApplicationRecord
     self.settings ||= {}
 
     if new_user?
-      Rails.logger.info "New user detected, setting up initial plan and settings"
       plan_type = API::WebhooksHelper.get_plan_type(plan_nickname)
       self.plan_type = plan_type
       user_role = API::WebhooksHelper.get_user_role(plan_type)
-      Rails.logger.info "Determined plan type: #{plan_type}, user role: #{user_role}"
 
       initial_comm_account_limit = API::WebhooksHelper.get_communicator_limit(plan_type)
       initial_board_limit = API::WebhooksHelper.get_board_limit(initial_comm_account_limit, user_role)
       self.role = user_role if user_role && !self.admin?
-      Rails.logger.info "Setting plan type: #{self.plan_type}, role: #{self.role}, initial_comm_account_limit: #{initial_comm_account_limit}"
 
       self.settings["communicator_limit"] = initial_comm_account_limit if initial_comm_account_limit && !self.settings["communicator_limit"]
       self.settings["plan_nickname"] = plan_nickname
@@ -348,7 +327,8 @@ class User < ApplicationRecord
     expires_at = data_object["current_period_end"] || data_object["expires_at"]
     self.plan_expires_at = Time.at(expires_at) if expires_at
     self.save!
-    Rails.logger.info "User updated from Stripe event: #{self.email}, plan_type: #{self.plan_type}, plan_expires_at: #{self.plan_expires_at}"
+    Rails.logger.info "User updated from Stripe event: #{self.email}, plan type: #{self.plan_type}, plan_expires_at: #{self.plan_expires_at}"
+
     return true
   end
 
@@ -365,11 +345,22 @@ class User < ApplicationRecord
     subscriptions
   end
 
-  def clear_custom_default_board
-    custom_board = opening_board
-    custom_board.destroy! if custom_board && custom_board.user_id == id
-    self.settings["opening_board_id"] = nil
-    save
+  def self.handle_new_partner_pro_subscription(user, plan_nickname = "partner_pro")
+    Rails.logger.info "Handling Partner Pro subscription for user: #{user.email} with plan_nickname: #{plan_nickname}"
+    user.role = "partner"
+    user.plan_status = "active"
+    user.plan_expires_at = Time.now + 3.months if user.plan_expires_at.nil?
+    partner_group = user.get_partner_group
+    user.settings["partner_group"] = partner_group
+    user.save!
+    pilot_group_tag = user.settings["pilot_group"].present? ? user.settings["pilot_group"] : "pilot_partner"
+    begin
+      MailchimpService.new.update_subscriber_tags(user.email, [pilot_group_tag], [])
+    rescue => e
+      Rails.logger.error "Mailchimp tag update failed for pilot_partner: #{e.message}"
+    end
+  rescue StandardError => e
+    Rails.logger.error "Error handling Partner Pro subscription for user #{user&.email}: #{e.inspect}"
   end
 
   def opening_board
@@ -699,8 +690,6 @@ class User < ApplicationRecord
     unless plan_nickname
       plan_nickname = settings["plan_nickname"] || plan_type
     end
-
-    Rails.logger.info "About to send welcome email to #{email}"
     begin
       if plan_nickname.nil? || plan_nickname.include?("free")
         send_welcome_email_free
@@ -838,6 +827,15 @@ class User < ApplicationRecord
 
   def partner_pro?
     pro? && role == "partner"
+  end
+
+  def get_partner_group
+    current_month = Time.now.month
+    current_month_name = Date::ABBR_MONTHNAMES[current_month]
+    "PartnerPro_#{current_month_name}"
+  rescue StandardError => e
+    Rails.logger.error "Error determining partner group: #{e.inspect}"
+    "PartnerPro_Unknown"
   end
 
   def record_signin_event
@@ -1016,6 +1014,7 @@ class User < ApplicationRecord
     view["can_create_boards"] = can_create_boards
     view["settings"] = settings
     view["settings"]["plan_type"] = plan_type
+    view["partner_pro"] = partner_pro?
     view
   end
 

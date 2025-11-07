@@ -47,14 +47,16 @@ module API::WebhooksHelper
     role = plan_type.downcase.split("_").first
     if role.include?("vendor")
       "vendor"
+    elsif role.include?("partner")
+      "partner"
     else
       "user"
     end
   end
 
   def self.get_board_limit(comm_account_limit, user_role)
-    return 0 if comm_account_limit.nil?
-    return 0 if comm_account_limit == 0
+    return 1 if comm_account_limit.nil?
+    return 1 if comm_account_limit == 0
     if user_role == "vendor"
       comm_account_limit * 3
     else

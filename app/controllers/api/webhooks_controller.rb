@@ -61,6 +61,8 @@ class API::WebhooksController < API::ApplicationController
         @user = User.find_by(stripe_customer_id: data_object.customer)
 
         plan_nickname = data_object&.plan&.nickname || data_object&.items&.data&.first&.plan&.nickname
+        plan_id = data_object&.plan&.id || data_object&.items&.data&.first&.plan&.id
+        Rails.logger.info "Subscription created event received for plan_nickname: #{plan_nickname}, plan_id: #{plan_id}"
 
         if plan_nickname.nil?
           Rails.logger.warn "No plan nickname found in subscription data"
@@ -70,30 +72,28 @@ class API::WebhooksController < API::ApplicationController
 
         if @user
           Rails.logger.info "Existing user found: #{@user}"
-          if @user.invited_by_id
-            Rails.logger.info "User was invited by another user - not sending welcome email"
-          else
-            if regular_plan?(plan_nickname)
-              Rails.logger.info "Sending welcome email to user: #{@user.email} for plan: #{plan_nickname}"
-              @user.send_welcome_email(plan_nickname)
-              Rails.logger.info "Welcome email sent to user: #{@user.email} for plan: #{plan_nickname}"
-            else
-              Rails.logger.warn "Skipping welcome email for plan: #{plan_nickname}"
-              if plan_nickname&.include?("myspeak")
-                unless @user.plan_type == "pro" || @user.plan_type == "basic"
-                  @user.plan_type = "myspeak"
-                end
-                @user.plan_status = "active"
-                @user.save!
-              elsif plan_nickname&.include?("vendor")
-                Rails.logger.info "Skip vendor user for plan: #{plan_nickname}"
-              else
-                Rails.logger.info "Regular user for plan: #{plan_nickname}"
-                @user.update_from_stripe_event(subscription_data, plan_nickname)
-                Rails.logger.info "User updated from Stripe event: #{@user&.email} with plan type: #{@user.plan_type}"
-              end
-            end
-          end
+          #  Commenting out welcome email on subscription created to avoid duplicates - this shouldn't be needed
+          # if @user.invited_by_id
+          #   Rails.logger.info "User was invited by another user - not sending welcome email"
+          # else
+          #   if regular_plan?(plan_nickname)
+          #     @user.send_welcome_email(plan_nickname)
+          #   else
+          #     if plan_nickname&.include?("myspeak")
+          #       unless @user.plan_type == "pro" || @user.plan_type == "basic"
+          #         @user.plan_type = "myspeak"
+          #       end
+          #       @user.plan_status = "active"
+          #       @user.save!
+          #     elsif plan_nickname&.include?("vendor")
+          #       Rails.logger.info "Skip vendor user for plan: #{plan_nickname}"
+          #     else
+          #       Rails.logger.info "Regular user for plan: #{plan_nickname}"
+          #       @user.update_from_stripe_event(subscription_data, plan_nickname)
+          #       Rails.logger.info "User updated from Stripe event: #{@user&.email} with plan type: #{@user.plan_type}"
+          #     end
+          #   end
+          # end
         else
           deleted = stripe_customer.deleted? if stripe_customer
           if deleted
@@ -101,32 +101,26 @@ class API::WebhooksController < API::ApplicationController
           end
 
           @user = User.find_by(email: stripe_customer.email) unless @user
-          Rails.logger.info "No existing user found for stripe_customer_id - Creating new user for email: #{stripe_customer.email}" unless @user
-          if @user
-            @user.stripe_customer_id = data_object.customer
-            @user.save!
-            Rails.logger.info "Updated existing user with stripe_customer_id: #{@user.email} - #{data_object.customer}"
-          else
-            Rails.logger.info "Creating new user for email: #{stripe_customer.email} with stripe_customer_id: #{data_object.customer}"
-          end
           stripe_customer_id = data_object.customer || stripe_customer.id
+          if @user && @user.stripe_customer_id != stripe_customer_id
+            Rails.logger.info "Linking existing user #{@user.email} to stripe_customer_id: #{stripe_customer_id}"
+            @user.stripe_customer_id = stripe_customer_id
+            @user.save!
+          end
+
           if plan_nickname&.include?("myspeak")
-            # @user = handle_myspeak_user(stripe_customer)
-            Rails.logger.info "Handling myspeak user for plan: #{plan_nickname}"
+            # Ignoring myspeak user for plan: #{plan_nickname} - processed at checkout.session.completed
           elsif plan_nickname&.include?("vendor")
-            # @user = handle_vendor_user(stripe_customer.email, nil, stripe_customer_id, plan_nickname)
-            Rails.logger.info "Vendor user for plan: #{plan_nickname} - not handled yet"
-            render json: { success: true }, status: 200 and return
+            # Ignoring vendor user for plan: #{plan_nickname} - processed at checkout.session.completed
           else
-            Rails.logger.info "Creating regular user: #{stripe_customer&.email} with stripe_customer_id: #{stripe_customer_id}"
+            Rails.logger.info "Creating regular user: #{stripe_customer&.email} with plan_nickname: #{plan_nickname} & stripe_customer_id: #{stripe_customer_id}"
             @user = User.invite!(email: stripe_customer.email, skip_invitation: true) unless @user
             @user.plan_type = plan_nickname || "free"
             @user.plan_status = "active"
             @user.stripe_customer_id = stripe_customer_id if stripe_customer_id
             @user.save!
             @user.send_welcome_email(plan_nickname) if regular_plan?(plan_nickname)
-            Rails.logger.info "Regular user created: #{@user.email} with plan type: #{@user.plan_type}"
-            # @user = User.create_from_email(stripe_customer.email, stripe_customer_id) unless @user
+            User.handle_new_partner_pro_subscription(@user, plan_nickname) if partner_plan?(plan_nickname)
           end
         end
         subscription_json = subscription_data.to_json
@@ -169,6 +163,8 @@ class API::WebhooksController < API::ApplicationController
         else
           stripe_subscription = Stripe::Subscription.retrieve(data_object.subscription)
         end
+
+        Rails.logger.info "Processing checkout.session.completed for subscription: #{stripe_subscription.inspect}"
 
         @user = User.find_by(email: data_object.customer_details["email"]) unless @user
         @user ||= User.find_by(stripe_customer_id: data_object.customer)
@@ -262,8 +258,6 @@ class API::WebhooksController < API::ApplicationController
           Rails.logger.error "No existing user found for stripe_customer_id - Nothing to add tokens: #{data_object.customer}"
           render json: { error: "No user found for payment intent" }, status: 400 and return
         end
-      when "invoice.created"
-        Rails.logger.info "Invoice created event received: #{data_object["customer_name"]}"
       end
     rescue StandardError => e
       Rails.logger.error "Error: #{e.inspect}\n #{e.backtrace}"
@@ -379,6 +373,15 @@ class API::WebhooksController < API::ApplicationController
     regular_plans.any? { |plan| plan_nickname.downcase.include?(plan) }
   rescue StandardError => e
     Rails.logger.error "Error checking regular plan: #{e.inspect}"
+    false
+  end
+
+  def partner_plan?(plan_nickname)
+    return false if plan_nickname.nil?
+    partner_plans = ["partner_pro", "partnerplus"]
+    partner_plans.any? { |plan| plan_nickname.downcase.include?(plan) }
+  rescue StandardError => e
+    Rails.logger.error "Error checking partner plan: #{e.inspect}"
     false
   end
 end

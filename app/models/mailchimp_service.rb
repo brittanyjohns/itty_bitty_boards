@@ -55,7 +55,6 @@ class MailchimpService
       PLAN_TYPE: user.plan_type,             # e.g. "Free", "MySpeak+", "Basic", "Pro"
       JOIN_DATE: user.created_at&.to_date&.to_s,
       PARTNERPRO: user.partner_pro? ? "TRUE" : "FALSE",
-      # LASTACTIVE: user.last_sign_in_at&.strftime("%m-%d-%Y") || user.current_sign_in_at&.strftime("%m-%d-%Y") || Time.now.beginning_of_year.strftime("%m-%d-%Y"),
       PLANSTATUS: user.plan_status || "N/A",
       USER_ID: user.id.to_s,
       STRIPE_ID: user.stripe_customer_id || "",
