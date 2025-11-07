@@ -816,6 +816,27 @@ class User < ApplicationRecord
     MailchimpUpsertSubscriberJob.perform_async(self.id, opts)
   end
 
+  def update_mailchimp_tags
+    tags = []
+    tags << "#{plan_type&.capitalize}Plan" || "FreePlan"
+    unless role.blank? || role == "user"
+      role_tag = role.capitalize
+      tags << role_tag
+    end
+
+    plan_status = self.plan_status || "active"
+    tags << plan_status.capitalize
+
+    if partner_pro?
+      partner_group = get_partner_group
+      tags << partner_group
+    end
+    puts "Updating Mailchimp tags for user #{email}: #{tags.inspect}"
+    MailchimpService.new.update_subscriber_tags(email, tags, [])
+  rescue => e
+    Rails.logger.error "Mailchimp tag update failed: #{e.message}"
+  end
+
   def demo_user?
     email.include?("bhannajohns+") || email.include?("@speakanyway.com")
   end

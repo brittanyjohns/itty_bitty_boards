@@ -51,15 +51,15 @@ class MailchimpService
       FNAME: user.first_name,
       LNAME: user.last_name,
       FULL_NAME: user.display_name,
-      USER_TYPE: user.paid_plan? ? "Paid" : "Free",
-      PLAN_TYPE: user.plan_type,             # e.g. "Free", "MySpeak+", "Basic", "Pro"
       JOIN_DATE: user.created_at&.to_date&.to_s,
-      PARTNERPRO: user.partner_pro? ? "TRUE" : "FALSE",
-      PLANSTATUS: user.plan_status || "N/A",
       USER_ID: user.id.to_s,
       STRIPE_ID: user.stripe_customer_id || "",
       DEMO_USER: user.demo_user? ? "TRUE" : "FALSE",
     }
+    plan_type = user.plan_type || "free"
+    tags << plan_type.capitalize
+    role = user.role || "user"
+    tags << role.capitalize
 
     list_id = ENV.fetch("MAILCHIMP_AUDIENCE_ID")
     subscriber_hash_email = subscriber_hash(email)
@@ -105,6 +105,11 @@ class MailchimpService
       tags: [],
     }
     tags_to_add.each do |tag|
+      puts "Adding tag: #{tag}"
+      if tag.nil? || tag.strip.empty?
+        puts "Skipping empty tag"
+        next
+      end
       body[:tags] << { name: tag, status: "active" }
     end
     tags_to_remove.each do |tag|
