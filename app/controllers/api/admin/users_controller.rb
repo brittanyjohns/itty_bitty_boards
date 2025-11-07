@@ -39,13 +39,17 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user.settings["disable_audit_logging"] = params[:disable_audit_logging] || false
     @user.settings["enable_image_display"] = params[:enable_image_display] || false
     @user.settings["enable_text_display"] = params[:enable_text_display] || false
+
     role = params[:role] || @user.role || "user"
+    new_partner_user = role == "partner" && @user.role != "partner"
     if role == "partner"
       @user.settings["pilot_partner"] = true
     else
       @user.settings["pilot_partner"] = false
     end
-    if @user.settings["pilot_partner"]
+    @user.role = role
+    if new_partner_user
+      Rails.logger.info "New partner user detected. Setting up partner attributes for user #{@user.email}."
       @user.settings["pilot_group"] = params[:pilot_group] || ""
       @user.settings["partner_code"] = params[:partner_code] || ""
       plan_nickname = params[:plan_nickname] || "partner_pro"
@@ -54,6 +58,8 @@ class API::Admin::UsersController < API::Admin::ApplicationController
         @user.plan_expires_at = Time.parse(plan_expires_at) rescue nil
       end
       User.handle_new_partner_pro_subscription(@user, plan_nickname)
+    else
+      Rails.logger.info "Not a new partner user, skipping partner setup."
     end
 
     # ADMIN ONLY
