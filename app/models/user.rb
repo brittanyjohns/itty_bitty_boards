@@ -353,9 +353,8 @@ class User < ApplicationRecord
     partner_group = user.get_partner_group
     user.settings["partner_group"] = partner_group
     user.save!
-    pilot_group_tag = user.settings["pilot_group"].present? ? user.settings["pilot_group"] : "pilot_partner"
     begin
-      MailchimpService.new.update_subscriber_tags(user.email, [pilot_group_tag], [])
+      MailchimpService.new.update_subscriber_tags(user.email, [pilot_group], [])
     rescue => e
       Rails.logger.error "Mailchimp tag update failed for pilot_partner: #{e.message}"
     end
