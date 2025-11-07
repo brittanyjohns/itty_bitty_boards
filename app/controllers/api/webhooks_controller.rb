@@ -120,7 +120,10 @@ class API::WebhooksController < API::ApplicationController
             @user.stripe_customer_id = stripe_customer_id if stripe_customer_id
             @user.save!
             @user.send_welcome_email(plan_nickname) if regular_plan?(plan_nickname)
-            User.handle_new_partner_pro_subscription(@user, plan_nickname) if partner_plan?(plan_nickname)
+            Rails.logger.info "New user created: #{@user&.email} with plan type: #{@user.plan_type}"
+            is_partner = partner_plan?(plan_nickname)
+            Rails.logger.info "if partner_plan?(plan_nickname) #{is_partner}"
+            User.handle_new_partner_pro_subscription(@user, plan_nickname) if is_partner
           end
         end
         subscription_json = subscription_data.to_json

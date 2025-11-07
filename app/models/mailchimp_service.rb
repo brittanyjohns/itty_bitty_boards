@@ -56,10 +56,12 @@ class MailchimpService
       STRIPE_ID: user.stripe_customer_id || "",
       DEMO_USER: user.demo_user? ? "TRUE" : "FALSE",
     }
+    # plan_type = user.plan_type || "free"
+    # tags << plan_type.capitalize
+    # role = user.role || "user"
+    # tags << role.capitalize
     plan_type = user.plan_type || "free"
-    tags << plan_type.capitalize
-    role = user.role || "user"
-    tags << role.capitalize
+    tags << "#{plan_type&.camelcase(:upper)}Plan" || "FreePlan"
 
     list_id = ENV.fetch("MAILCHIMP_AUDIENCE_ID")
     subscriber_hash_email = subscriber_hash(email)

@@ -818,7 +818,7 @@ class User < ApplicationRecord
 
   def update_mailchimp_tags
     tags = []
-    tags << "#{plan_type&.capitalize}Plan" || "FreePlan"
+    tags << "#{plan_type&.camelcase(:upper)}Plan" || "FreePlan"
     unless role.blank? || role == "user"
       role_tag = role.capitalize
       tags << role_tag
