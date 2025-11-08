@@ -582,6 +582,10 @@ class Board < ApplicationRecord
   end
 
   def find_or_create_images_from_word_list(word_list)
+    if id.blank?
+      Rails.logger.info "Board not saved yet - saving before adding images"
+      self.save!
+    end
     unless word_list && word_list.any?
       return
     end
