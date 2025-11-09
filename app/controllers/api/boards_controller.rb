@@ -408,8 +408,10 @@ class API::BoardsController < API::ApplicationController
 
   def words
     additional_words = Board.new.get_word_suggestions(params[:name], params[:num_of_words], params[:words_to_exclude])
-
-    render json: additional_words
+    normalize_words = additional_words.map do |word|
+      word.gsub("_", " ").strip
+    end
+    render json: normalize_words
   end
 
   def format_with_ai
