@@ -642,53 +642,64 @@ class API::BoardsController < API::ApplicationController
     @qr_data_url = qr_data_url_for(@qr_target_url, size: 480)
     @screen_size = params[:screen_size] || "lg"
     @hide_colors = params[:hide_colors] == "1"
+
+    # Tiles & grid
     @columns = @board.columns_for_screen_size(@screen_size)
-    @num_of_words = @board.images.count
+    @tiles = normalize_tiles(@board, @screen_size)
+
+    @num_of_words = @tiles.size
     est_rows = (@num_of_words.to_f / @columns.to_f).ceil
-    @rows = est_rows > 0 ? est_rows : 1
-    @tiles = normalize_tiles(@board, @screen_size)  #  pass screen_size (see #3)
+    @rows = est_rows.positive? ? est_rows : 1
+
+    # Orientation
+    @landscape = @rows > @columns
+    @landscape = true if @num_of_words >= 6
+
+    # Logo & title
     @path = Rails.root.join("public/logo_bubble.png")
     @logo = Base64.strict_encode64(File.read(@path)) if File.exist?(@path)
     @board_title = @board.try(:name) || "Communication Board"
 
+    # Base scale by screen size
+    @scale = 1.0
+    if @screen_size == "sm"
+      @scale = 0.75
+    elsif @screen_size == "xs"
+      @scale = 0.5
+    end
+
+    # Render HTML *after* all instance vars are set
     html = render_to_string(
       template: "api/boards/print",
       layout: "pdf",
       formats: [:html],
     )
 
-    @landscape = @rows > @columns
-    if @num_of_words >= 6
-      @landscape = true
-    end
-
-    @scale = 1.0
-    if @screen_size == "sm"
-      scale = 0.75
-    elsif @screen_size == "xs"
-      @scale = 0.5
-    end
-
     disp = params[:preview].present? ? "inline" : "attachment"
     response.headers["Cache-Control"] = "no-store"
 
     if params[:png].present?
-      @scale = params[:scale].present? ? params[:scale].to_f : 2.0
-      page_width = @landscape ? 792 : 612
+      # Allow override of scale/size via params, default to @scale
+      @scale = params[:scale].present? ? params[:scale].to_f : @scale
+
+      page_width = @landscape ? 792 : 612  # Letter in points (landscape vs portrait)
       page_height = @landscape ? 612 : 792
+
       margin = 36 # 0.5 inch margin
       usable_width = page_width - (2 * margin)
       usable_height = page_height - (2 * margin)
       tile_width = usable_width / @columns
       tile_height = usable_height / @rows
-      width = (page_width * @scale).to_i
-      width += 100
+
+      width = (page_width * @scale).to_i + 100
       width = params[:width].to_i if params[:width].present?
-      header_height = 250 # Example header height
-      height = (page_height * @scale).to_i
-      height += header_height
+
+      header_height = 250 # height to account for title/QR/etc
+      height = (page_height * @scale).to_i + header_height
       height = params[:height].to_i if params[:height].present?
+
       transparent = params[:transparent].present? && params[:transparent] == "1"
+
       grover_options = {
         format: "Letter",
         landscape: @landscape,
@@ -697,6 +708,7 @@ class API::BoardsController < API::ApplicationController
         full_page: false,
         transparent: transparent,
       }
+
       extension = "png"
       file_type = "image/png"
       file_data = Grover.new(html, **grover_options).to_png
@@ -705,6 +717,7 @@ class API::BoardsController < API::ApplicationController
         format: "Letter",
         landscape: @landscape,
       }
+
       extension = "pdf"
       file_type = "application/pdf"
       file_data = Grover.new(html, **grover_options).to_pdf
@@ -723,11 +736,10 @@ class API::BoardsController < API::ApplicationController
     @board.broadcast_board_update!
   end
 
-  # Map your tile fields to {x,y,w,h,label,image_url}
-  def normalize_tiles(board, screen_size = "lg") #  accept screen_size (see #2)
-    # EXAMPLE assuming board.tiles is an Array of JSON-like hashes
-    @board_tiles = board_tiles || []
-    @columns = board.get_number_of_columns(screen_size) #  get columns for the given screen_size (see #1)
+  # Normalize tiles into {x,y,w,h,label,image_url,bg_color,i}
+  def normalize_tiles(board, screen_size = "lg")
+    @board_tiles = board_tiles(screen_size) || []
+
     @board_tiles.map do |t|
       {
         "x" => t["x"] || t[:x] || 0,
@@ -735,25 +747,32 @@ class API::BoardsController < API::ApplicationController
         "w" => t["w"] || t[:w] || 1,
         "h" => t["h"] || t[:h] || 1,
         "label" => t["label"] || t[:label] || "",
-        "image_url" => t["image_url"] || t[:image_url] || nil,
+        "image_url" => t["image_url"] || t[:image_url],
         "bg_color" => t["bg_color"] || t[:bg_color] || "white",
-        "i" => t["i"] || t[:i] || "", # unique identifier for the tile
+        "i" => t["i"] || t[:i] || "",
       }
     end
   end
 
-  def board_tiles
+  def board_tiles(screen_size = "lg")
+    layout_key = screen_size.to_s
+
     if @board.respond_to?(:tiles) && @board.tiles.is_a?(Array)
       @board.tiles
     elsif @board.respond_to?(:board_images) && @board.board_images.any?
       @board.board_images.map do |bi|
-        { "x" => bi.layout["lg"]["x"],
-          "y" => bi.layout["lg"]["y"],
-          "w" => bi.layout["lg"]["w"],
-          "h" => bi.layout["lg"]["h"],
+        layout = bi.layout[layout_key] || bi.layout["lg"] || {}
+
+        {
+          "x" => layout["x"] || 0,
+          "y" => layout["y"] || 0,
+          "w" => layout["w"] || 1,
+          "h" => layout["h"] || 1,
           "label" => bi.label,
           "image_url" => bi.display_image_url_or_default,
-          "bg_color" => bi.bg_color || "white" }
+          "bg_color" => bi.bg_color || "white",
+          "i" => bi.id.to_s,
+        }
       end
     else
       []
