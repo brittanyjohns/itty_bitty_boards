@@ -48,7 +48,7 @@ class Board < ApplicationRecord
   belongs_to :user
   belongs_to :vendor, optional: true
   paginates_per 100
-  belongs_to :parent, polymorphic: true
+  belongs_to :parent, polymorphic: true, optional: true
   has_many :board_group_boards, dependent: :destroy
   has_many :board_groups, through: :board_group_boards
   has_many :board_images, dependent: :destroy
@@ -182,6 +182,7 @@ class Board < ApplicationRecord
   end
 
   def parent_boards
+    return [] unless resource_type == "Image"
     Board.joins(:board_images).where(board_images: { predictive_board_id: id }, user_id: user_id).where.not(id: id).distinct
   end
 

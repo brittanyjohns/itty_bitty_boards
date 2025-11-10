@@ -56,6 +56,15 @@ class API::MenusController < API::ApplicationController
     @menu = Menu.find(params[:id])
     screen_size = params[:screen_size] || "lg"
     @board = @menu.boards.last
+    @board = @menu.boards.new(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: false, display_image_url: @menu.docs.last.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent: @menu) if @board.nil?
+    @board.generate_unique_slug
+    @board.status = "pending"
+    unless @board.save
+      Rails.logger.error "Failed to create board for menu: #{@menu.id} - #{@menu.name}"
+      render json: { error: "Failed to create board for menu. #{@board.errors.full_messages.join(", ")}" }, status: :unprocessable_entity
+      return
+    end
+
     @board.update(board_type: "menu")
     message = "Re-running image description job."
     unless @board
@@ -77,7 +86,6 @@ class API::MenusController < API::ApplicationController
     #   # redirect_to menu_url(@menu), notice: "This menu has already used all of its tokens."
     #   return
     # end
-    Rails.logger.info "Re-running image description job."
     # @menu.rerun_image_description_job
     @menu.enhance_image_description(@board.id)
     render json: @menu.api_view(current_user), status: 200
@@ -106,15 +114,22 @@ class API::MenusController < API::ApplicationController
     # doc.processed = true
     doc.raw = params[:menu][:description]
     if doc.save
-      @board = @menu.boards.create(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu")
+      @board = @menu.boards.new(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent_id: doc.id, parent_type: "Doc")
+      @board.generate_unique_slug
+      @board.status = "pending"
       if @board.nil?
         Rails.logger.error "Failed to create board for menu: #{@menu.id} - #{@menu.name}"
         render json: { error: "Failed to create board for menu." }, status: :unprocessable_entity
         return
       end
+      unless @board.save
+        Rails.logger.error "Failed to save board for menu: #{@menu.id} - #{@menu.name} - Errors: #{@board.errors.full_messages.join(", ")}"
+        render json: { error: "Failed to save board for menu. #{@board.errors.full_messages.join(", ")}" }, status: :unprocessable_entity
+        return
+      end
       # @menu.run_image_description_job(@board.id, screen_size)
       @menu.enhance_image_description(@board.id)
-      Rails.logger.info "Image description job started for menu: #{@menu.id} - #{@menu.name} - Board: #{@board.id} - #{@board.name}"
+      Rails.logger.debug "Image description job started for menu: #{@menu.id} - #{@menu.name} - Board: #{@board.id} - #{@board.name}"
       @menu_with_display_doc = {
         id: @menu.id,
         name: @menu.name,

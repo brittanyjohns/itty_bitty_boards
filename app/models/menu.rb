@@ -59,7 +59,7 @@ class Menu < ApplicationRecord
   end
 
   def main_board
-    doc_boards.first
+    doc_boards.first || boards.first
   end
 
   def label
@@ -239,7 +239,7 @@ class Menu < ApplicationRecord
       prompt_used: prompt_used,
       raw: raw,
       token_limit: token_limit,
-      board: main_board&.api_view_with_images(viewing_user),
+      board: { name: main_board&.name, id: main_board&.id },
       displayImage: docs.last&.display_url,
       can_edit: viewing_user.admin? || viewing_user.id == user_id,
       user_id: user_id,
