@@ -72,6 +72,7 @@ class BoardGroup < ApplicationRecord
       slug = "#{slug}-#{random}"
     end
     self.slug = slug
+    save
   end
 
   def set_number_of_columns

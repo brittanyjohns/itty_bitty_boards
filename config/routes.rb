@@ -232,6 +232,7 @@ Rails.application.routes.draw do
         get "preset"
         get "initial_predictive_board"
         post "import_obf"
+        post "analyze_obz"
         post "create_from_template"
         get "common_boards"
       end

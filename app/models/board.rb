@@ -66,6 +66,7 @@ class Board < ApplicationRecord
   has_many :child_accounts, through: :child_boards
   belongs_to :image_parent, class_name: "Image", optional: true
   has_many :word_events
+  has_many :subgroups, class_name: "BoardGroup", foreign_key: "root_board_id", dependent: :nullify
 
   include WordEventsHelper
 
@@ -922,7 +923,6 @@ class Board < ApplicationRecord
       slug = "#{cleaned_name}-#{random_string}"
       # counter += 1
     end
-    Rails.logger.info "Generated unique slug: #{slug} for board id: #{id}"
     self.slug = slug
     slug
   end
@@ -1677,6 +1677,7 @@ class Board < ApplicationRecord
   end
 
   def self.from_obf(data, current_user, board_group = nil, board_id = nil)
+    Rails.logger.info "Starting import from OBF format...board_group: #{board_group ? board_group.id : "none"}, board_id: #{board_id || "none"}"
     if board_group
       root_board_id = board_group.original_obf_root_id
     else
@@ -1716,16 +1717,19 @@ class Board < ApplicationRecord
       is_root = root_board_id == obf_id
 
       if board_id
+        Rails.logger.info "Looking for existing board by ID: #{board_id}"
         board = Board.find_by(id: board_id, user_id: current_user.id)
       end
 
       board ||= Board.find_by(name: board_name, user_id: current_user.id, obf_id: obf_id)
+      Rails.logger.info "Existing board found: #{board ? "Yes (ID: #{board.id})" : "No"}"
       if buttons.is_a?(String)
         buttons = JSON.parse(buttons) rescue []
       end
 
       dynamic_images = buttons.select { |item| item["load_board"] != nil }
       board_type = determine_board_type(dynamic_images, is_root)
+      Rails.logger.info "Determined board type: #{board_type}"
       if board
         board.large_screen_columns = large_screen_columns
         board.medium_screen_columns = medium_screen_columns
@@ -1735,6 +1739,8 @@ class Board < ApplicationRecord
         board.voice = voice
         board.obf_id = obf_id
         board.board_type = board_type
+        board.assign_parent
+        board.generate_unique_slug if board.slug.blank?
         board.save!
         Rails.logger.info "Updating existing board: #{board.name} (ID: #{board.id})"
       else
@@ -1742,16 +1748,16 @@ class Board < ApplicationRecord
                           large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns,
                           data: board_data, number_of_columns: number_of_columns, obf_id: obf_id, board_type: board_type)
         Rails.logger.info "Creating new board: #{board.name}"
+        board.generate_unique_slug
         board.assign_parent
       end
 
+      unless board.save
+        Rails.logger.warn "Board not saved: #{board.errors.full_messages.join(", ")}"
+        return
+      end
       if board_group
         board_group.add_board(board)
-      end
-
-      unless board.save
-        Rails.logger.warn "Board not saved"
-        return
       end
       if is_root && board_group && board_group.root_board_id != board.id
         board_group.update(root_board_id: board.id)
@@ -1775,6 +1781,7 @@ class Board < ApplicationRecord
         image ||= Image.where(user_id: current_user.id, label: label).first
         found_image = image
         image = Image.new(label: label, user_id: current_user.id, obf_id: item["image_id"]) unless image
+        Rails.logger.info "Processing image for button: #{label} - Found existing image: #{found_image ? "Yes (ID: #{found_image.id})" : "No"}"
         image.save!
 
         if !image
@@ -1838,6 +1845,8 @@ class Board < ApplicationRecord
         end
 
         dynamic_board = item["load_board"]
+        Rails.logger.debug "BTN ITM: #{item.inspect}"
+        Rails.logger.info "Processing button: #{label} - Image ID: #{image.id} - Load Board: #{dynamic_board || "none"}"
         existing_image = board.board_images.find_by(image_id: image.id)
         if existing_image
           new_board_image = existing_image

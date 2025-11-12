@@ -330,27 +330,63 @@ class API::BoardsController < API::ApplicationController
     send_data obf_board.to_json, filename: "board.obf", type: "application/json", disposition: "attachment"
   end
 
+  def analyze_obz
+    uploaded_file = params[:file]
+    report = ObzAnalyzer.analyze(uploaded_file.read)
+    render json: report
+  end
+
   def import_obf
     if params[:file].present?
       uploaded_file = params[:file]
-      file_extension = File.extname(uploaded_file.original_filename)
       file_name = uploaded_file.original_filename
+      group_name = params[:group_name] || "Imported #{file_name || Time.now.to_i}"
+      file_extension = File.extname(file_name).downcase
 
       if file_extension == ".obz"
+        begin
+          Rails.logger.info "Starting OBZ import for file: #{file_name}"
+          file_bytes = uploaded_file.read
+          Rails.logger.info "import_obf >> Read #{file_bytes.length} bytes from uploaded OBZ file"
+          @board_group = BoardGroup.create!(name: group_name, user_id: current_user.id)
+          importer = ObzImporter.new(file_bytes, current_user, board_group: @board_group, import_all: true)
+          result = importer.import!
+          Rails.logger.info "OBZ import result: #{result.inspect}"
+          root_board = result[:root_board]
+        rescue => e
+          Rails.logger.error "OBZ import failed: #{e.message}"
+          render json: { error: "OBZ import failed: #{e.message}" }, status: :unprocessable_entity
+          return
+        end
         # extracted_obz_data = OBF::OBZ.to_external(uploaded_file, {})
+        # Rails.logger.info "Extracted OBZ data keys: #{extracted_obz_data.keys}"
         # @get_manifest_data = Board.extract_manifest(uploaded_file.path)
+        # Board.analyze_manifest(@get_manifest_data)
         # parsed_manifest = JSON.parse(@get_manifest_data)
+        # Rails.logger.info "Parsed manifest keys: #{parsed_manifest.keys}"
 
         # @root_board_id_key = parsed_manifest["root"]
+        # Rails.logger.info "Root board ID key from manifest: #{@root_board_id_key}"
         # paths = parsed_manifest["paths"]
         # boards = paths["boards"]
         # @root_board_id = boards.key(@root_board_id_key)
+        # Rails.logger.info "Determined root board ID: #{@root_board_id} - Boards: #{boards.inspect}"
+        # board_name = @root_board_id ? boards[@root_board_id] : "Imported Board"
 
-        # json_input = { extracted_obz_data: extracted_obz_data, current_user_id: current_user&.id, group_name: file_name, root_board_id: @root_board_id }
-        # ImportFromObfJob.perform_async(json_input, current_user&.id, nil)
+        # json_input = { extracted_obz_data: extracted_obz_data, current_user_id: current_user&.id, group_name: file_name, root_board_id: @root_board_id, board_name: board_name }.to_json
+        # json_data = JSON.parse(json_input) rescue nil
+        # Rails.logger.info "OBZ import JSON data keys: #{json_data.keys}"
+        # importer = ObzImporter.new(json_data, current_user)
+        # result = importer.import
+        if result
+          render json: { status: "ok", message: "Importing OBZ file #{file_name} - Root board ID: #{@root_board_id}" }
+        else
+          render json: { error: "OBZ import failed" }, status: :unprocessable_entity
+        end
+        # ImportFromObzJob.perform_async(json_data, current_user&.id)
         # render json: { status: "ok", message: "Importing OBZ file #{file_name} - Root board ID: #{@root_board_id}" }
         # render json: { created_boards: created_boards }
-        render json: { error: "OBZ import temporarily disabled" }, status: :unprocessable_entity
+        # render json: { error: "OBZ import temporarily disabled" }, status: :unprocessable_entity
       else
         render json: { error: "Unsupported file format" }, status: :unprocessable_entity
       end
