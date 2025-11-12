@@ -136,6 +136,9 @@ Rails.application.routes.draw do
     get "public_menu_boards", to: "boards#public_menu_boards"
     post "google_images", to: "google_search_results#image_search"
 
+    resources :board_image_imports, only: [:create, :show, :update]
+    post "board_image_imports/:id/commit", to: "board_image_imports#commit"
+
     get "word_events", to: "audits#word_events", as: :word_events
     post "webhooks", to: "webhooks#webhooks"
     post "checkout", to: "checkouts#create"
