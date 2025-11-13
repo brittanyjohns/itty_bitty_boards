@@ -1,0 +1,38 @@
+# == Schema Information
+#
+# Table name: board_screenshot_imports
+#
+#  id             :bigint           not null, primary key
+#  user_id        :bigint           not null
+#  status         :string
+#  guessed_rows   :integer
+#  guessed_cols   :integer
+#  confidence_avg :decimal(, )
+#  error_message  :text
+#  metadata       :jsonb
+#  created_at     :datetime         not null
+#  updated_at     :datetime         not null
+#
+class BoardScreenshotImport < ApplicationRecord
+  belongs_to :user
+  has_one_attached :image
+  has_many :board_screenshot_cells, dependent: :destroy
+
+  validates :status, inclusion: { in: %w[queued processing needs_review committed failed completed] }
+
+  include Rails.application.routes.url_helpers
+
+  def display_url
+    return if !image.attached?
+    if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
+      cdn_host = ENV["CDN_HOST"]
+      if cdn_host
+        "#{cdn_host}/#{image.key}" # Construct CloudFront URL
+      else
+        image.url # Fallback to the direct Active Storage URL
+      end
+    else
+      image.url
+    end
+  end
+end

@@ -76,6 +76,7 @@ class User < ApplicationRecord
   has_many :created_teams, class_name: "Team", foreign_key: "created_by_id", dependent: :destroy
   has_one :profile, as: :profileable, dependent: :destroy
   belongs_to :vendor, optional: true
+  has_many :board_screenshot_imports, dependent: :destroy
 
   # has_many :sent_messages, class_name: "Message", foreign_key: "sender_id", dependent: :destroy
   # has_many :received_messages, class_name: "Message", foreign_key: "recipient_id", dependent: :destroy
