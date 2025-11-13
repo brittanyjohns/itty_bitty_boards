@@ -95,7 +95,7 @@ class Image < ApplicationRecord
   scope :created_before, ->(date) { where("created_at < ?", date) }
 
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
-  after_create :categorize!, unless: :menu_or_sample_voice?
+  after_create :categorize!, unless: :do_not_categorize?
   before_save :set_label, :ensure_defaults
 
   after_save :update_board_images_audio, if: -> { need_to_update_board_images_audio? }
@@ -108,12 +108,14 @@ class Image < ApplicationRecord
 
   scope :menu_images_without_docs, -> { menu_images.without_docs }
 
+  attr_accessor :skip_categorize
+
   def need_to_update_board_images_audio?
     use_custom_audio || voice_changed?
   end
 
-  def menu_or_sample_voice?
-    image_type == "menu" || image_type == "SampleVoice"
+  def do_not_categorize?
+    image_type == "menu" || image_type == "SampleVoice" || skip_categorize
   end
 
   def default_image_prompt
@@ -1454,18 +1456,6 @@ class Image < ApplicationRecord
       puts "Part of speech not valid or not found: '#{part_of_speech}' for image: '#{label}'"
       update!(part_of_speech: "unknown")
       unknown_img = true
-    end
-    if unknown_img && !Rails.env.production?
-      puts "Would you like to delete this image? #{id} - #{label} - Part of speech: #{part_of_speech} (y/n)"
-      response = gets.chomp
-      if response.downcase == "y"
-        puts "Deleting image: #{id} - #{label} due to unknown part of speech"
-        destroy
-      else
-        puts "Not deleting image: #{id} - #{label} - user chose not to delete"
-      end
-    else
-      puts "Categorized image: #{id} - #{label} with part of speech: #{part_of_speech}"
     end
     part_of_speech
   end

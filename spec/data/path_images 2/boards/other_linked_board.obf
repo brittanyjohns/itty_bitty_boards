@@ -1,0 +1,45 @@
+{
+  "format": "open-board-0.1",
+  "id": "otherlink",
+  "locale": "en",
+  "name": "OtherLinked Board",
+  "grid": {
+    "rows": 2,
+    "columns": 2,
+    "order": [
+      [
+        1,
+        3
+      ],
+      [
+        null,
+        2
+      ]
+    ]
+  },
+  "buttons": [
+    {
+      "id": 1,
+      "label": "Really happy",
+      "background_color": "rgb(255, 255, 255)",
+      "border_color": "rgb(150, 150, 150)"
+    },
+    {
+      "id": 2,
+      "label": "Sort of happy",
+      "background_color": "rgb(255, 255, 255)",
+      "border_color": "rgb(150, 150, 150)"
+    },
+    {
+      "id": 3,
+      "label": "back",
+      "background_color": "rgb(255, 255, 255)",
+      "border_color": "rgb(150, 150, 150)",
+      "load_board": {
+        "path": "boards/path_images.obf"
+      }
+    }
+  ],
+  "images": [],
+  "sounds": []
+}

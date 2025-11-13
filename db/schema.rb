@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_09_19_181255) do
+ActiveRecord::Schema[7.1].define(version: 2025_11_13_145436) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -131,6 +131,34 @@ ActiveRecord::Schema[7.1].define(version: 2025_09_19_181255) do
     t.index ["image_id"], name: "index_board_images_on_image_id"
     t.index ["label"], name: "index_board_images_on_label"
     t.index ["predictive_board_id"], name: "index_board_images_on_predictive_board_id"
+  end
+
+  create_table "board_screenshot_cells", force: :cascade do |t|
+    t.bigint "board_screenshot_import_id", null: false
+    t.integer "row"
+    t.integer "col"
+    t.string "label_raw"
+    t.string "label_norm"
+    t.string "bg_color"
+    t.decimal "confidence"
+    t.json "bbox"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["board_screenshot_import_id"], name: "index_board_screenshot_cells_on_board_screenshot_import_id"
+  end
+
+  create_table "board_screenshot_imports", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "name"
+    t.string "status"
+    t.integer "guessed_rows"
+    t.integer "guessed_cols"
+    t.decimal "confidence_avg"
+    t.text "error_message"
+    t.jsonb "metadata"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_board_screenshot_imports_on_user_id"
   end
 
   create_table "boards", force: :cascade do |t|
@@ -787,6 +815,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_09_19_181255) do
   add_foreign_key "board_groups", "boards", column: "root_board_id"
   add_foreign_key "board_images", "boards"
   add_foreign_key "board_images", "images"
+  add_foreign_key "board_screenshot_cells", "board_screenshot_imports"
+  add_foreign_key "board_screenshot_imports", "users"
   add_foreign_key "boards", "users"
   add_foreign_key "boards", "vendors"
   add_foreign_key "child_accounts", "users"
