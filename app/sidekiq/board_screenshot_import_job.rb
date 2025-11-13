@@ -14,18 +14,14 @@ class BoardScreenshotImportJob
     # 1) Get a local temp path for the uploaded screenshot (works with S3, etc.)
     import.image.open(tmpdir: Rails.root.join("tmp")) do |file|
       original_path = file.path
-      Rails.logger.debug "[BoardScreenshotImportJob] Original image path: #{original_path}"
 
       # 2) Preprocess image (resize, deskew, contrast, etc.)
       preprocessed = ImagePreprocessor.new(original_path).process!
       processed_path = preprocessed[:path]
-      Rails.logger.debug "[BoardScreenshotImportJob] Preprocessed image path: #{processed_path}"
 
       # 3) Call OpenAI via service (like ImageEditService)
       vision_service = BoardScreenshotVisionService.new
       result = vision_service.parse_board(image_path: processed_path)
-
-      Rails.logger.debug "[BoardScreenshotImportJob] Vision result: #{result.inspect}"
 
       # 4) Persist candidates + import metadata
       BoardScreenshotImport.transaction do

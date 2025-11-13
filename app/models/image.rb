@@ -1455,18 +1455,6 @@ class Image < ApplicationRecord
       update!(part_of_speech: "unknown")
       unknown_img = true
     end
-    if unknown_img && !Rails.env.production?
-      puts "Would you like to delete this image? #{id} - #{label} - Part of speech: #{part_of_speech} (y/n)"
-      response = gets.chomp
-      if response.downcase == "y"
-        puts "Deleting image: #{id} - #{label} due to unknown part of speech"
-        destroy
-      else
-        puts "Not deleting image: #{id} - #{label} - user chose not to delete"
-      end
-    else
-      puts "Categorized image: #{id} - #{label} with part of speech: #{part_of_speech}"
-    end
     part_of_speech
   end
 
