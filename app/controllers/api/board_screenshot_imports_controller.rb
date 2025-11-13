@@ -3,7 +3,9 @@ class API::BoardScreenshotImportsController < API::ApplicationController
   before_action :authenticate_token!
 
   def create
+    name = params[:name]
     import = current_user.board_screenshot_imports.create!(
+      name: name,
       image: params.require(:image),
       status: "queued",
     )
@@ -14,7 +16,7 @@ class API::BoardScreenshotImportsController < API::ApplicationController
 
   def show
     import = current_user.board_screenshot_imports.find(params[:id])
-    cells = import.board_screenshot_cells.order(:row, :col).select(:id, :row, :col, :label_raw, :label_norm, :confidence, :bbox)
+    cells = import.board_screenshot_cells.order(:row, :col).select(:id, :row, :col, :label_raw, :label_norm, :confidence, :bbox, :bg_color)
     screenshot_url = import.display_url
     render json: {
       id: import.id,
@@ -31,9 +33,7 @@ class API::BoardScreenshotImportsController < API::ApplicationController
   def update
     import = current_user.board_screenshot_imports.find(params[:id])
     ActiveRecord::Base.transaction do
-      if params[:guessed_rows] && params[:guessed_cols]
-        import.update!(guessed_rows: params[:guessed_rows], guessed_cols: params[:guessed_cols])
-      end
+      import.update!(board_screenshot_import_update_params.except(:cells))
       (params[:cells] || []).each do |c|
         cand = import.board_screenshot_cells.find(c[:id])
         cand.update!(label_norm: c[:label_norm].to_s.strip)
@@ -47,5 +47,11 @@ class API::BoardScreenshotImportsController < API::ApplicationController
     import = current_user.board_screenshot_imports.find(params[:id])
     board = Board.transaction { BoardFromScreenshot.commit!(import) }
     render json: { ok: true, board_id: board.id, slug: board.slug }
+  end
+
+  private
+
+  def board_screenshot_import_update_params
+    params.permit(:guessed_rows, :guessed_cols, :name, cells: [:id, :label_norm])
   end
 end

@@ -13,42 +13,48 @@ class BoardScreenshotVisionService
     Your ONLY job is to detect the grid of buttons and describe every cell in the grid.
   PROMPT
 
-  USER_PROMPT = <<~PROMPT.freeze
+  USER_PROMPT = <<~PROMPT
     Analyze this AAC board screenshot.
 
     1. Determine the full button grid:
-       - Count how many rows of buttons.
-       - Count how many columns of buttons.
-       - The grid should include columns even if some cells in that column are blank.
+        - Count how many rows of buttons.
+        - Count how many columns of buttons.
+        - The grid should include columns even if some cells in that column are blank.
 
     2. For EVERY grid position (row, col), output a cell object:
-       - row: zero-based row index
-       - col: zero-based column index
-       - label_raw: the exact text shown on the button, or null if the cell is blank
-       - label_norm: a lowercase, normalized version of the label (no punctuation), or null if the cell is blank
-       - confidence: 0.0-1.0 confidence for the label (use 0.0 if blank)
-       - bbox: [x, y, width, height] in pixels for the cell area
+        - row: zero-based row index
+        - col: zero-based column index
+        - label_raw: the exact text shown on the button, or null if the cell is blank
+        - label_norm: lowercase normalized version of the label (no punctuation), or null
+        - confidence: 0.0-1.0 confidence
+        - bbox: [x, y, width, height]
+        - bg_color: **one of the following strings**, whichever is closest to the actual BACKGROUND fill color of the button:
+            #{Image::POSSIBLE_BG_COLORS.join(",")}
+
+        Ignore images, icons, borders, text, shadows - choose based only on the dominant BACKGROUND fill color.
+        If no color is close enough, choose "white".
 
     IMPORTANT:
     - rows * cols MUST equal the total number of cell objects.
-    - Even if a cell is blank or decorative, include it with label_raw = null, label_norm = null.
-    - Do NOT skip or renumber columns when there are blank cells.
+    - Even if a cell is blank, still include it with label_raw = null and label_norm = null.
+    - Do NOT skip columns even if some are blank.
 
-    Return ONLY valid JSON (a single JSON object), no extra text, exactly in this structure:
+    Return ONLY JSON with this exact shape:
 
     {
-      "rows": <integer>,
-      "cols": <integer>,
-      "cells": [
+        "rows": <integer>,
+        "cols": <integer>,
+        "cells": [
         {
-          "row": <integer>,
-          "col": <integer>,
-          "label_raw": <string or null>,
-          "label_norm": <string or null>,
-          "confidence": <number>,
-          "bbox": [<number>, <number>, <number>, <number>]
+            "row": <integer>,
+            "col": <integer>,
+            "label_raw": <string or null>,
+            "label_norm": <string or null>,
+            "confidence": <number>,
+            "bbox": [<number>, <number>, <number>, <number>],
+            "bg_color": <string>
         }
-      ]
+        ]
     }
   PROMPT
 
@@ -144,71 +150,40 @@ class BoardScreenshotVisionService
   # Ensure we:
   # - use label_raw / label_norm
   # - fill in EVERY (row, col) even if the model skips some
-    def normalize(obj)
-    rows = (obj["rows"] || 0).to_i
-    cols = (obj["cols"] || 0).to_i
+  def normalize(obj)
+    rows = (obj["rows"] || 6).to_i
+    cols = (obj["cols"] || 8).to_i
 
-    raw_cells = (obj["cells"] || []).map do |c|
-      # Prefer explicit label_raw/label_norm if the model ever outputs them,
-      # but fall back to the "label" field (which we see in your logs now).
-      label_raw  = c["label_raw"] || c["label"]
+    cells = (obj["cells"] || []).map do |c|
+      label_raw = c["label_raw"]
       label_norm = c["label_norm"]
-
-      # Auto-normalize if label_norm wasn’t provided
-      if label_norm.nil? && label_raw
-        label_norm = label_raw.downcase.gsub(/[^a-z0-9\s]/, "").strip
-      end
+      label = label_norm.presence || label_raw.to_s
+      Rails.logger.debug "[BoardScreenshotVisionService] Normalizing cell: #{c.inspect}"
 
       {
-        row:        c["row"].to_i,
-        col:        c["col"].to_i,
-        label_raw:  label_raw,
+        row: c["row"].to_i,
+        col: c["col"].to_i,
+        label_raw: label_raw,
         label_norm: label_norm,
+        label: label,
         confidence: (c["confidence"] || 0.0).to_f,
-        bbox:       Array(c["bbox"] || [0, 0, 0, 0]).map(&:to_f),
+        bbox: Array(c["bbox"] || [0, 0, 0, 0]).map(&:to_f),
+        bg_color: (c["bg_color"] || "").to_s,
       }
     end
-
-    # If you want every (row, col) filled, keep this; otherwise you can just
-    # set `cells = raw_cells` and skip the loop.
-    index = {}
-    raw_cells.each { |c| index[[c[:row], c[:col]]] = c }
-
-    cells = []
-    (0...rows).each do |r|
-      (0...cols).each do |c|
-        found = index[[r, c]]
-
-        cells << if found
-          found
-        else
-          {
-            row:        r,
-            col:        c,
-            label_raw:  nil,
-            label_norm: nil,
-            confidence: 0.0,
-            bbox:       [0.0, 0.0, 0.0, 0.0],
-          }
-        end
-      end
-    end
-
-    confidence_avg =
-      if cells.empty?
-        0.0
-      else
-        cells.sum { |c| c[:confidence] } / cells.size.to_f
-      end
 
     {
       rows: rows,
       cols: cols,
-      confidence_avg: (obj["confidence_avg"] || confidence_avg),
+      confidence_avg: (obj["confidence_avg"] || avg_conf(cells)),
       cells: cells,
     }
   end
 
+  def avg_conf(cells)
+    return 0.0 if cells.empty?
+    cells.sum { |c| c[:confidence].to_f } / cells.size.to_f
+  end
 
   def default_openai_client
     OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"])

@@ -87,6 +87,8 @@ class BoardFromScreenshot
               (c.respond_to?(:label_raw) && c.label_raw.presence)
 
       next if label.blank?
+      bg_color = c.respond_to?(:bg_color) ? c.bg_color : "white"
+      Rails.logger.info "[BoardFromScreenshot] Adding cell at (#{row}, #{col}): '#{label}' with bg_color='#{bg_color}'"
 
       normalized_label = label.to_s.strip.downcase
 
@@ -98,6 +100,7 @@ class BoardFromScreenshot
         label: normalized_label,
         display_label: label,
         language: board.language,
+        bg_color: bg_color,
       )
       # avoid any "initial layout" auto-logic from kicking in later
       board_image.skip_initial_layout = true
@@ -132,7 +135,11 @@ class BoardFromScreenshot
     image ||= Image.public_img.find_by("LOWER(label) = ?", normalized_label)
 
     # Fallback: create new
-    image ||= Image.create!(label: normalized_label, user_id: user.id)
+    image ||= Image.new(label: normalized_label, user_id: user.id)
+    image.skip_categorize = true
+    unless image.persisted?
+      image.save!
+    end
 
     image
   end

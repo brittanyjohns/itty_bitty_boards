@@ -5,6 +5,7 @@ class CreateBoardScreenshotImports < ActiveRecord::Migration[7.1]
     elsif !table_exists?(:board_screenshot_imports)
       create_table :board_screenshot_imports do |t|
         t.references :user, null: false, foreign_key: true
+        t.string :name
         t.string :status
         t.integer :guessed_rows
         t.integer :guessed_cols

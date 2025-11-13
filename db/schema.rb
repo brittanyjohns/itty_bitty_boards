@@ -139,6 +139,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_11_13_145436) do
     t.integer "col"
     t.string "label_raw"
     t.string "label_norm"
+    t.string "bg_color"
     t.decimal "confidence"
     t.json "bbox"
     t.datetime "created_at", null: false
@@ -148,6 +149,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_11_13_145436) do
 
   create_table "board_screenshot_imports", force: :cascade do |t|
     t.bigint "user_id", null: false
+    t.string "name"
     t.string "status"
     t.integer "guessed_rows"
     t.integer "guessed_cols"

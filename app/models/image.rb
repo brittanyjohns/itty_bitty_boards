@@ -95,7 +95,7 @@ class Image < ApplicationRecord
   scope :created_before, ->(date) { where("created_at < ?", date) }
 
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
-  after_create :categorize!, unless: :menu_or_sample_voice?
+  after_create :categorize!, unless: :do_not_categorize?
   before_save :set_label, :ensure_defaults
 
   after_save :update_board_images_audio, if: -> { need_to_update_board_images_audio? }
@@ -108,12 +108,14 @@ class Image < ApplicationRecord
 
   scope :menu_images_without_docs, -> { menu_images.without_docs }
 
+  attr_accessor :skip_categorize
+
   def need_to_update_board_images_audio?
     use_custom_audio || voice_changed?
   end
 
-  def menu_or_sample_voice?
-    image_type == "menu" || image_type == "SampleVoice"
+  def do_not_categorize?
+    image_type == "menu" || image_type == "SampleVoice" || skip_categorize
   end
 
   def default_image_prompt

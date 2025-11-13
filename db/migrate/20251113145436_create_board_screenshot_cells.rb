@@ -6,6 +6,7 @@ class CreateBoardScreenshotCells < ActiveRecord::Migration[7.1]
       t.integer :col
       t.string :label_raw
       t.string :label_norm
+      t.string :bg_color
       t.decimal :confidence
       t.json :bbox
 
