@@ -76,6 +76,7 @@ class API::ImagesController < API::ApplicationController
     if params[:imageId].present?
       @existing_image = Image.find(params[:imageId])
     end
+
     label = params[:query]
     @existing_image = Image.find_by(label: label, user_id: @current_user.id) unless @existing_image
     @image = nil
@@ -93,7 +94,18 @@ class API::ImagesController < API::ApplicationController
     user_docs_to_delete.destroy_all
     user_doc = UserDoc.create!(user_id: current_user.id, doc_id: @doc.id, image_id: @doc.documentable_id)
     did_update = @doc.update(current: true)
+
     if @doc.save
+      if params[:boardId].present?
+        @board = Board.find(params[:boardId])
+        if @board.user_id == @current_user.id
+          @board_image = @board.board_images.find_by(image_id: @image.id)
+          if @board_image
+            @board_image.update!(display_image_url: @doc.display_url)
+          end
+          render json: { image_url: saved_image_url, id: @image.id, doc_id: @doc.id, board_id: @board&.id, board_image_id: @board_image&.id } and return
+        end
+      end
       render json: { image_url: saved_image_url, id: @image.id, doc_id: @doc.id }
     else
       render json: @image.errors, status: :unprocessable_entity
