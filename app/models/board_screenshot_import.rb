@@ -22,6 +22,19 @@ class BoardScreenshotImport < ApplicationRecord
 
   include Rails.application.routes.url_helpers
 
+  def index_view
+    {
+      id: id,
+      name: name,
+      created_at: created_at,
+      status: status,
+      guessed_rows: guessed_rows,
+      guessed_cols: guessed_cols,
+      confidence_avg: confidence_avg,
+      screenshot_url: display_url,
+    }
+  end
+
   def display_url
     return if !image.attached?
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?

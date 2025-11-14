@@ -141,7 +141,6 @@ class API::DocsController < API::ApplicationController
         @board.update!(updated_at: Time.zone.now)
         @board.broadcast_board_update!
       end
-      puts "PARAMS: #{params}"
       if params[:update_all]
         @image.update_all_boards_image_belongs_to(@doc.display_url, true, current_user.id)
       end
@@ -168,7 +167,6 @@ class API::DocsController < API::ApplicationController
     end
     @image_with_display_doc = @image.with_display_doc(@current_user, @board, @board_image)
     render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) }
-    # render json: { image: @image_with_display_doc, board_image: @board_image, board: @board, doc: @current_doc, user: @user, is_owner: is_owner }
   end
 
   # DELETE /docs/1 or /docs/1.json

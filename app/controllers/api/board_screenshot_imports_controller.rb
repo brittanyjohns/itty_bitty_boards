@@ -2,6 +2,28 @@
 class API::BoardScreenshotImportsController < API::ApplicationController
   before_action :authenticate_token!
 
+  def index
+    @imports = current_user.board_screenshot_imports.order(created_at: :desc).all
+    render json: @imports.map(&:index_view)
+  end
+
+  def show
+    @import = current_user.board_screenshot_imports.find(params[:id])
+    cells = @import.board_screenshot_cells.order(:row, :col).select(:id, :row, :col, :label_raw, :label_norm, :confidence, :bbox, :bg_color)
+    screenshot_url = @import.display_url
+    render json: {
+      id: @import.id,
+      name: @import.name,
+      created_at: @import.created_at,
+      screenshot_url: screenshot_url,
+      status: @import.status,
+      guessed_rows: @import.guessed_rows,
+      guessed_cols: @import.guessed_cols,
+      confidence_avg: @import.confidence_avg,
+      cells: cells,
+    }
+  end
+
   def create
     name = params[:name]
     import = current_user.board_screenshot_imports.create!(
@@ -12,21 +34,6 @@ class API::BoardScreenshotImportsController < API::ApplicationController
     Rails.logger.info "Created BoardScreenshotImport ID=#{import.id} for User ID=#{current_user.id}"
     BoardScreenshotImportJob.perform_async(import.id)
     render json: { id: import.id, status: import.status }
-  end
-
-  def show
-    import = current_user.board_screenshot_imports.find(params[:id])
-    cells = import.board_screenshot_cells.order(:row, :col).select(:id, :row, :col, :label_raw, :label_norm, :confidence, :bbox, :bg_color)
-    screenshot_url = import.display_url
-    render json: {
-      id: import.id,
-      screenshot_url: screenshot_url,
-      status: import.status,
-      guessed_rows: import.guessed_rows,
-      guessed_cols: import.guessed_cols,
-      confidence_avg: import.confidence_avg,
-      cells: cells,
-    }
   end
 
   # Accept user-edited labels + (optional) rows/cols
