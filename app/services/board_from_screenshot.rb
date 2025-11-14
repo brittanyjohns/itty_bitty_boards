@@ -13,7 +13,7 @@ class BoardFromScreenshot
   end
 
   def commit!
-    raise "Import not ready (status=#{import.status})" unless import.status == "needs_review"
+    raise "Import not ready (status=#{import.status})" if import.status == "failed"
 
     ActiveRecord::Base.transaction do
       board = build_or_update_board!
