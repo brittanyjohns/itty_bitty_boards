@@ -52,6 +52,6 @@ class API::BoardScreenshotImportsController < API::ApplicationController
   private
 
   def board_screenshot_import_update_params
-    params.permit(:guessed_rows, :guessed_cols, :name, cells: [:id, :label_norm])
+    params.permit(:rows, :cols, :guessed_rows, :guessed_cols, :name, cells: [:id, :label_norm])
   end
 end
