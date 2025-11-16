@@ -9,19 +9,9 @@ class API::BoardScreenshotImportsController < API::ApplicationController
 
   def show
     @import = current_user.board_screenshot_imports.find(params[:id])
-    cells = @import.board_screenshot_cells.order(:row, :col).select(:id, :row, :col, :label_raw, :label_norm, :confidence, :bbox, :bg_color)
-    screenshot_url = @import.display_url
-    render json: {
-      id: @import.id,
-      name: @import.name,
-      created_at: @import.created_at,
-      screenshot_url: screenshot_url,
-      status: @import.status,
-      guessed_rows: @import.guessed_rows,
-      guessed_cols: @import.guessed_cols,
-      confidence_avg: @import.confidence_avg,
-      cells: cells,
-    }
+    Rails.logger.info "Showing BoardScreenshotImport ID=#{@import.inspect} for User ID=#{current_user.id}"
+
+    render json: @import.show_view
   end
 
   def create

@@ -1,6 +1,6 @@
 # == Schema Information
 #
-# Table name: board_cell_candidates
+# Table name: board_screenshot_cells
 #
 #  id                         :bigint           not null, primary key
 #  board_screenshot_import_id :bigint           not null
@@ -8,6 +8,7 @@
 #  col                        :integer
 #  label_raw                  :string
 #  label_norm                 :string
+#  bg_color                   :string
 #  confidence                 :decimal(, )
 #  bbox                       :json
 #  created_at                 :datetime         not null

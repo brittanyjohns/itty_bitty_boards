@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_11_13_145436) do
+ActiveRecord::Schema[7.1].define(version: 2025_11_16_164545) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -199,6 +199,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_11_13_145436) do
     t.string "slug", default: ""
     t.boolean "in_use", default: false, null: false
     t.boolean "is_template", default: false, null: false
+    t.bigint "board_screenshot_import_id"
+    t.index ["board_screenshot_import_id"], name: "index_boards_on_board_screenshot_import_id"
     t.index ["board_type"], name: "index_boards_on_board_type"
     t.index ["category"], name: "index_boards_on_category"
     t.index ["data"], name: "index_boards_on_data", using: :gin

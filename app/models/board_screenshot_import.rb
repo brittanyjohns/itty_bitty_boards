@@ -4,6 +4,7 @@
 #
 #  id             :bigint           not null, primary key
 #  user_id        :bigint           not null
+#  name           :string
 #  status         :string
 #  guessed_rows   :integer
 #  guessed_cols   :integer
@@ -17,6 +18,7 @@ class BoardScreenshotImport < ApplicationRecord
   belongs_to :user
   has_one_attached :image
   has_many :board_screenshot_cells, dependent: :destroy
+  has_many :boards, foreign_key: :board_screenshot_import_id
 
   validates :status, inclusion: { in: %w[queued processing needs_review committed failed completed] }
 
@@ -32,6 +34,24 @@ class BoardScreenshotImport < ApplicationRecord
       guessed_cols: guessed_cols,
       confidence_avg: confidence_avg,
       screenshot_url: display_url,
+    }
+  end
+
+  def show_view
+    cells = board_screenshot_cells.order(:row, :col).select(:id, :row, :col, :label_raw, :label_norm, :confidence, :bbox, :bg_color)
+    # boards = boards.select(:id, :name, :slug)
+    Rails.logger.info "BoardScreenshotImport Show View: ID=#{id}, Cells Count=#{cells.size}, Boards Count=#{boards.size}"
+    {
+      id: id,
+      name: name,
+      created_at: created_at,
+      status: status,
+      guessed_rows: guessed_rows,
+      guessed_cols: guessed_cols,
+      confidence_avg: confidence_avg,
+      screenshot_url: display_url,
+      cells: cells,
+      boards: boards,
     }
   end
 

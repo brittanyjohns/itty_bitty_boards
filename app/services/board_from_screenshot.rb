@@ -16,7 +16,7 @@ class BoardFromScreenshot
     raise "Import not ready (status=#{import.status})" if import.status == "failed"
 
     ActiveRecord::Base.transaction do
-      board = build_or_update_board!
+      board = build_board!
       add_cells_to_board!(board)
       finalize_import!(board)
       board
@@ -30,18 +30,7 @@ class BoardFromScreenshot
 
   private
 
-  def build_or_update_board!
-    if import.respond_to?(:board) && import.board.present?
-      board = import.board
-      cols = (import.guessed_cols || board.large_screen_columns || 6).to_i
-      board.large_screen_columns = cols
-      board.medium_screen_columns = cols
-      board.small_screen_columns = [cols, 4].min
-      board.number_of_columns = cols
-      board.save!
-      return board
-    end
-
+  def build_board!
     cols = (import.guessed_cols || 6).to_i
     cols = 1 if cols < 1
 
@@ -54,6 +43,7 @@ class BoardFromScreenshot
       large_screen_columns: cols,
       medium_screen_columns: cols,
       small_screen_columns: [cols, 4].min,
+      board_screenshot_import_id: import.id,
       number_of_columns: cols,
       data: (import.metadata || {}).merge("source_type" => "ScreenshotImport",
                                           "board_screenshot_import_id" => import.id),
