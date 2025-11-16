@@ -158,7 +158,6 @@ class BoardScreenshotVisionService
       label_raw = c["label_raw"]
       label_norm = c["label_norm"]
       label = label_norm.presence || label_raw.to_s
-      Rails.logger.debug "[BoardScreenshotVisionService] Normalizing cell: #{c.inspect}"
 
       {
         row: c["row"].to_i,

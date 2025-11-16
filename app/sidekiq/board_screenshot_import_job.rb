@@ -38,7 +38,7 @@ class BoardScreenshotImportJob
             row: c[:row],
             col: c[:col],
             label_raw: c[:label_raw] || c[:label].to_s || "",
-            label_norm: LabelMapper.normalize(c[:label_norm] || c[:label].to_s || ""),
+            label_norm: c[:label_norm] || c[:label].to_s || "",
             confidence: c[:confidence] || 0.0,
             bbox: c[:bbox],
             bg_color: c[:bg_color] || "white",

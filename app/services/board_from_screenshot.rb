@@ -88,7 +88,6 @@ class BoardFromScreenshot
 
       next if label.blank?
       bg_color = c.respond_to?(:bg_color) ? c.bg_color : "white"
-      Rails.logger.info "[BoardFromScreenshot] Adding cell at (#{row}, #{col}): '#{label}' with bg_color='#{bg_color}'"
 
       normalized_label = label.to_s.strip.downcase
 

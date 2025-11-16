@@ -207,7 +207,7 @@ class Image < ApplicationRecord
         bi.board.updated_at = Time.now
         bi.board.save!
       else
-        Rails.logger.debug "Error saving board image #{bi.id} - #{bi.board.name} - #{bi.errors.full_messages}"
+        Rails.logger.error "Error saving board image #{bi.id} - #{bi.board.name} - #{bi.errors.full_messages}"
       end
     end
     updated_ids
@@ -282,12 +282,10 @@ class Image < ApplicationRecord
   end
 
   def run_set_next_words_job
-    Rails.logger.debug "Starting set next words job for #{label}"
     SetNextWordsJob.perform_async([id])
   end
 
   def create_predictive_board(new_user_id, words_to_use = nil, use_preview_model = false, board_settings = {})
-    Rails.logger.debug "Creating predictive board for #{label} - #{new_user_id} - words: #{words_to_use}"
     new_board = false
     base_board_id = board_settings[:board_id]
     if base_board_id
@@ -302,7 +300,6 @@ class Image < ApplicationRecord
 
       # board.find_or_create_images_from_word_list(words_to_use)
     else
-      Rails.logger.debug "Creating new predictive board for #{label} - #{new_user_id} - settings: #{board_settings}"
       board = predictive_boards.create!(name: label, user_id: new_user_id, settings: board_settings)
       new_board = true
       if use_preview_model && words_to_use.blank?
@@ -312,7 +309,7 @@ class Image < ApplicationRecord
     end
 
     if !board
-      Rails.logger.debug "Could not create predictive board for #{label}"
+      Rails.logger.error "Could not create predictive board for #{label}"
       return
     end
     new_base_board_image = base_board.add_image(self.id) if base_board
@@ -444,15 +441,10 @@ class Image < ApplicationRecord
   def create_voice_audio_files(language_to_use = "en")
     Image.voices.each do |voice|
       voice_file = find_audio_for_voice(voice, language_to_use)
-      if voice_file
-        Rails.logger.debug "Audio file found for #{label} - #{voice} - #{language_to_use}"
-      else
-        Rails.logger.debug "Creating audio file for #{label} - #{voice} - #{language_to_use}"
+      if !voice_file
         result = create_audio_from_text(label, voice, language_to_use)
-        if result
-          Rails.logger.debug "Audio file created for #{label} - #{voice} - #{language_to_use}"
-        else
-          Rails.logger.debug "Failed to create audio file for #{label} - #{voice} - #{language_to_use}"
+        if !result
+          Rails.logger.error "Failed to create audio file for #{label} - #{voice} - #{language_to_use}"
         end
       end
     end
@@ -501,31 +493,29 @@ class Image < ApplicationRecord
     end
   end
 
-  def next_images(user_id = nil)
-    # imgs = Image.where(label: next_words).public_img.order(created_at: :desc).distinct(:label)
-    if next_words.blank? || next_words == [label]
-      return Board.predictive_default.images
-    end
-    imgs = []
-    next_words.each do |word|
-      img = Image.find_by(label: word, user_id: user_id) if user_id
-      img = Image.public_img.find_by(label: word) unless img
-      if img
-        imgs << img
-      else
-        Rails.logger.debug "Image not found: #{word}"
-        img = Image.create(label: word)
-        if img
-          imgs << img
-        else
-          Rails.logger.debug "Could not create image: #{word} - #{img.errors.full_messages}"
-        end
-      end
-    end
+  # def next_images(user_id = nil)
+  #   if next_words.blank? || next_words == [label]
+  #     return Board.predictive_default.images
+  #   end
+  #   imgs = []
+  #   next_words.each do |word|
+  #     img = Image.find_by(label: word, user_id: user_id) if user_id
+  #     img = Image.public_img.find_by(label: word) unless img
+  #     if img
+  #       imgs << img
+  #     else
+  #       img = Image.create(label: word)
+  #       if img
+  #         imgs << img
+  #       else
+  #         Rails.logger.debug "Could not create image: #{word} - #{img.errors.full_messages}"
+  #       end
+  #     end
+  #   end
 
-    return imgs if imgs.any?
-    Board.predictive_default.images
-  end
+  #   return imgs if imgs.any?
+  #   Board.predictive_default.images
+  # end
 
   def create_words_from_next_words
     return unless next_words
@@ -1273,16 +1263,12 @@ class Image < ApplicationRecord
       doc_img_url = current_doc&.display_url
     end
     image_docs = docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
-    Rails.logger.debug "Image docs count: #{image_docs.count} for image #{id} - #{label}"
-    Rails.logger.debug "Doc User Ids: #{image_docs.map(&:user_id)}"
-    # user_image_boards = user_boards(@current_user)
     if @current_user.admin?
       user_image_boards = @current_user&.boards&.includes(:board_images).where(predefined: false).distinct.order(name: :asc).limit(30)
     else
       user_image_boards = @current_user&.boards&.includes(:board_images).distinct.order(name: :asc)
     end
     @default_audio_url = default_audio_url
-    # is_owner = @current_user && user_id == @current_user&.id
     is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
     @matching_boards = matching_viewer_boards(@current_user)
 
@@ -1387,23 +1373,18 @@ class Image < ApplicationRecord
     end
 
     url = nil
-    Rails.logger.debug "Generating image edit for URL: #{image_url} with prompt: #{prompt}"
     result = ImageEditService.new.edit_image_from_url(
       image_url: image_url,
       prompt: prompt,
     )
 
     if result&.start_with?("data:image")
-      Rails.logger.debug "Received data URL for edited image, saving to ActiveStorage"
       # optional: convert data URL to ActiveStorage URL
       b64 = result.split(",", 2).last
       edited_doc = save_image_from_base64(b64, user_id_to_set, "Edited image for #{label}", "Edited image from prompt: #{prompt}")
-      Rails.logger.debug "Saved edited image as doc ID: #{edited_doc.inspect}" if edited_doc
       url = edited_doc.display_url if edited_doc
     else
-      Rails.logger.debug "Received standard URL for edited image: #{result}, saving from URL"
       edited_doc = save_from_url(result, "Edited image for #{label}", "Edited image from prompt: #{prompt}", user_id_to_set)
-      Rails.logger.debug "Saved edited image as doc ID: #{edited_doc.inspect}" if edited_doc
       url = edited_doc.display_url if edited_doc
     end
 
@@ -1424,7 +1405,6 @@ class Image < ApplicationRecord
         Rails.logger.error "Failed to generate image variation for URL: #{url}"
         nil
       end
-      Rails.logger.debug "Generated image variation URL: #{variation_url}"
       variation_url
     rescue => e
       Rails.logger.error "Error generating image variation: #{e.message}\n\n#{e.backtrace.join("\n")}"
@@ -1474,7 +1454,6 @@ class Image < ApplicationRecord
   end
 
   def clone_with_current_display_doc(cloned_user_id, new_name, make_dynamic = false, word_list = [])
-    Rails.logger.debug "Cloning image: #{id} - #{label} - #{cloned_user_id} - #{new_name} - #{make_dynamic} - #{word_list}"
     if new_name.blank?
       new_name = label
     end
@@ -1485,7 +1464,6 @@ class Image < ApplicationRecord
 
     @cloned_user = User.includes(:board_images).find(cloned_user_id)
     unless @cloned_user
-      Rails.logger.debug "User not found: #{cloned_user_id} - defaulting to admin"
       cloned_user_id = User::DEFAULT_ADMIN_ID
       @cloned_user = User.find(cloned_user_id)
       if !@cloned_user
