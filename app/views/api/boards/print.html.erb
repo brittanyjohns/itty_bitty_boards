@@ -41,7 +41,7 @@
           <% if t["image_url"].present? %>
             <img src="<%= t["image_url"] %>" alt="<%= bg_color %>">
           <% else %>
-            <div style="display:flex;align-items:center;justify-content:center;color:#aaa;font-size:9pt;">(no image)</div>
+            <div style="display:flex;align-items:center;justify-content:center;color:#aaa;font-size:9pt;"><%= t["label"] %></div>
           <% end %>
           <div class="label <%= bg_color %>" style="font-weight: <%= @hide_colors ? "normal" : "bold" %>;"
           ><%= t["label"] %></div>
