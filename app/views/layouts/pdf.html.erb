@@ -1,94 +1,166 @@
-<!-- app/views/layouts/pdf.html.erb -->
 <!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8" />
     <title>Board PDF</title>
     <style>
-      html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-
-      .page { display: grid; grid-template-rows: auto auto auto; gap: 2mm; }
-      .header { display: flex; align-items: center; justify-content: space-between; padding-left: 6mm; height: 90px; }
-      .header h1 { font-size: 14pt; margin: 0; }
-      .meta { font-size: 10pt; color: #555; }
-
-      .board-wrap { break-inside: avoid; padding: 2pt; padding-bottom: 6mm; }
-      .board-grid { display: grid; grid-gap: 2pt; }
-
-      .tile {
-        position: relative; border: 2pt solid #ccc; border-radius: 4pt; background: #fff; overflow: hidden;
-        display: grid; grid-template-rows: 1fr auto;
-        overflow: hidden;
-      }
-      .tile img { width: 100%; height: 100%; object-fit: contain; display: block; }
-
-      .label {
-        font-size: 12pt; text-align: center; padding: 3pt 4pt; line-height: 1.2;
-        background: #f7f7f7; border-top: 1px solid #e5e5e5;
+      /* Make colors print correctly */
+      html, body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        margin: 0;
+        padding: 0;
+        height: 100%;
       }
 
-      .footer { display: grid; grid-template-columns: 1fr auto; gap: 8mm; align-items: end; }
-      .qr-small img {
-        width: 0.9in;
-        height: 0.9in;
-        display: inline-block;
-        margin-right: 0;
-        margin-left: 8mm;
-
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
       }
-      .qr-caption { font-size: 9pt; color: #444; margin-top: 2mm; }
+
+      /* Remove default page margins in the PDF engine */
+      @page {
+        margin: 0;
+      }
+
+      .page {
+        display: grid;
+        grid-template-rows: auto auto;   /* header + content, both natural height */
+        box-sizing: border-box;
+        padding: 3mm;
+        page-break-inside: avoid !important;
+        page-break-after: avoid !important;
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0;
+        margin: 0;
+        min-height: 55px;              /* compact header */
+      }
+
+      .header h1 {
+        font-size: 14pt;
+        margin: 0;
+      }
+
+      .meta {
+        font-size: 10pt;
+        color: #555;
+      }
+
+      .header p {
+        margin: 0;
+        padding: 0;
+      }
+
+      .header p:first-child {
+        margin-bottom: 1mm;
+      }
+
+      .header p:last-child {
+        margin-top: 1mm;
+      }
+
+      .logo {
+        width: 14mm;                  /* smaller logo block */
+        height: auto;
+        margin-left: 4mm;
+      }
+
       .logo img {
-        max-width: 20mm;
+        max-width: 14mm;
         height: auto;
         object-fit: contain;
       }
-      .logo {
-        width: 20mm;
-        height: auto;
-        margin-right: 0;
-        margin-left: 8mm;
-      }
-      .green {
-        background-color: #b7f399
-      }
-      .yellow {
-        background-color: #fdec00
-      }
-      .red {
-        background-color: #ff6464
-      }
-      .blue {
-        background-color: #81d9ff
-      }
-      .purple {
-        background-color: #cb91eb
-      }
-      .orange {
-        background-color: #ffc463
-      }
-      .black {
-        background-color: #000000d9;
-        color: white;
-      }
-      .white {
-        background-color: #ffffffd9;
-      }
-      .gray {
-        background-color: #808080d9;
-      }
-      .pink {
-        background-color: #ffc0e4
-      }
-      .teal {
-        background-color: #18ddda;
+
+      .qr-small img {
+        width: 0.8in;                 /* requirement: at least 0.8" x 0.8" */
+        height: 0.8in;
+        display: inline-block;
+        margin-left: 4mm;
       }
 
+      .qr-caption {
+        font-size: 9pt;
+        color: #444;
+        margin-top: 2mm;
+      }
+
+      .board-wrap {
+        break-inside: avoid;
+        padding: 2pt;
+        padding-bottom: 0;
+        box-sizing: border-box;
+        /* no fixed height */
+      }
+
+      .board-container {
+        display: block;   /* simple flow container */
+        /* no fixed height */
+      }
+
+      .board-grid {
+        display: grid;
+        grid-gap: 2pt;
+        width: 100%;
+        /* natural height based on tile content */
+        /* no height: 100%; no grid-auto-rows */
+      }
+
+
+      .tile {
+        position: relative;
+        border: 2pt solid #ccc;
+        border-radius: 4pt;
+        background: #fff;
+        overflow: hidden;
+        display: grid;
+        grid-template-rows: 1fr auto;
+      }
+
+      .tile img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+      }
+
+      .label {
+        font-size: 10pt;
+        text-align: center;
+        padding: 2pt 3pt;
+        line-height: 1.2;
+        background: #f7f7f7;
+        border-top: 1px solid #e5e5e5;
+      }
+
+      /* Optional footer styles if you add a footer again later */
+      .footer {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8mm;
+        align-items: end;
+        font-size: 8pt;
+      }
+
+      /* Color classes (same as before) */
+      .green  { background-color: #b7f399; }
+      .yellow { background-color: #fdec00; }
+      .red    { background-color: #ff6464; }
+      .blue   { background-color: #81d9ff; }
+      .purple { background-color: #cb91eb; }
+      .orange { background-color: #ffc463; }
+      .black  { background-color: #000000d9; color: white; }
+      .white  { background-color: #ffffffd9; }
+      .gray   { background-color: #808080d9; }
+      .pink   { background-color: #ffc0e4; }
+      .teal   { background-color: #18ddda; }
     </style>
   </head>
   <body>
     <div class="page">
-      
       <%= yield %>
     </div>
   </body>

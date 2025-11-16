@@ -262,7 +262,6 @@ class API::BoardsController < API::ApplicationController
       @board.language = board_params["language"] if board_params["language"].present?
       @board.favorite = board_params["favorite"] if board_params["favorite"].present?
       @board.published = board_params["published"] if board_params["published"].present?
-      Rails.logger.info "Board slug before update: #{@board.slug} - Params slug: #{board_params["slug"]}"
       if board_params["slug"].present? && board_params["slug"] != @board.slug
         Rails.logger.info "Updating slug from #{board_params["slug"]} to #{@board.slug}"
         new_slug = @board.generate_unique_slug(board_params["slug"])
@@ -749,9 +748,15 @@ class API::BoardsController < API::ApplicationController
       file_type = "image/png"
       file_data = Grover.new(html, **grover_options).to_png
     else
+      page_width = @landscape ? 792 : 612
+      page_height = @landscape ? 612 : 792
+
       grover_options = {
         format: "Letter",
         landscape: @landscape,
+        # one-page viewport; content will be scaled to this
+        viewport: { width: page_width, height: page_height },
+        full_page: false,
       }
 
       extension = "pdf"
