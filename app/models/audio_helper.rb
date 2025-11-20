@@ -34,7 +34,6 @@ module AudioHelper
         File.delete(random_filename)
       end
       self.audio_url = default_audio_url(new_audio_file)
-      Rails.logger.info "Audio URL set to: #{self.audio_url}"
     else
       Rails.logger.error "**** ERROR - create_audio_from_text **** \nDid not receive valid response.\n #{response&.inspect}"
     end
@@ -86,7 +85,6 @@ module AudioHelper
   end
 
   def save_audio_file(audio_file, voice, language = "en")
-    Rails.logger.info "Saving audio file for image: #{self.id}, voice: #{voice}, language: #{language}"
     if language == "en"
       self.audio_files.attach(io: audio_file, filename: "#{self.label_for_filename}_#{voice}.aac")
     else

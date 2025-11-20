@@ -219,7 +219,6 @@ class API::BoardsController < API::ApplicationController
     word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
     @board.settings = settings
 
-    Rails.logger.info "Board settings: #{@board.settings.inspect}"
     new_slug = @board.generate_unique_slug(board_params["slug"])
     @board.slug = new_slug
 
@@ -866,6 +865,7 @@ class API::BoardsController < API::ApplicationController
   def board_params
     params.require(:board).permit(:user_id,
                                   :name,
+                                  :slug,
                                   :parent_id,
                                   :parent_type,
                                   :description,
@@ -886,8 +886,7 @@ class API::BoardsController < API::ApplicationController
                                   :image_id,
                                   :query,
                                   :page,
-                                  :margin_settings,
-                                  :display_image_url, :category, :word_list, :image_ids_to_remove, :board_type, settings: {})
+                                  :display_image_url, :category, :word_list, :image_ids_to_remove, :board_type, settings: {}, margin_settings: {})
   end
 
   def attach_image_to_board(image_data, file_extension)
