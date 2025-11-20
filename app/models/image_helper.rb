@@ -71,7 +71,6 @@ module ImageHelper
     b64_json = response[:b64_json]
     if b64_json
       doc = save_image_from_base64(b64_json, user_id, revised_prompt, edited_prompt)
-      Rails.logger.debug "Created image from base64 for image ID #{self.id}: #{doc.inspect}"
       return doc
     end
     doc = nil

@@ -22,7 +22,6 @@ module AudioHelper
       File.open(random_filename, "wb") do |file|
         file.write(response)
       end
-      Rails.logger.info "Audio file created: #{random_filename}"
       audio_file = File.open(random_filename, "rb")
       if audio_file.nil?
         Rails.logger.error "Failed to create audio file from response."
@@ -58,9 +57,7 @@ module AudioHelper
       .last
 
     unless audio_file
-      Rails.logger.debug "Audio file not found: #{filename} - creating new audio file for #{label} - #{voice} - #{lang}"
       audio_file = find_or_create_audio_file_for_voice(voice, lang)
-      Rails.logger.debug "New audio file created: #{audio_file&.blob&.filename&.to_s}"
       self.audio_url = default_audio_url(audio_file)
     end
 

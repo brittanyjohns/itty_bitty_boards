@@ -440,12 +440,15 @@ class BoardImage < ApplicationRecord
     image.docs.last&.created_at&.strftime("%m/%d %I:%M %p")
   end
 
-  def create_image_edit!(prompt)
+  def create_image_edit!(prompt, transparent_bg = false)
     begin
       url = display_image_url || image.src_url
       Rails.logger.debug "Creating image edit for board_image ID #{id} with URL: #{url}"
+      if transparent_bg
+        prompt_with_bg = "#{prompt} with a transparent background"
+        prompt = prompt_with_bg
+      end
       image_url = image.generate_image_edit(url, user_id, prompt)
-
       if image_url.nil?
         Rails.logger.error "Failed to create image edit for board_image ID #{id}"
         return nil

@@ -443,8 +443,12 @@ class API::ImagesController < API::ApplicationController
     @image.save!
 
     Rails.logger.info("Generating image for user: #{@current_user.id}, image: #{@image.id}, prompt: #{image_prompt}")
-    GenerateImageJob.perform_async(@image.id, @current_user.id, image_prompt)
-    @current_user.remove_tokens(1)
+    board_id = params[:board_id]
+    screen_size = params[:screen_size] || "lg"
+    transparent_background = params[:transparent_background] == "true"
+    Rails.logger.info("Enqueuing GenerateImageJob with transparent_background: #{transparent_background}")
+    GenerateImageJob.perform_async(@image.id, @current_user.id, image_prompt, board_id, screen_size, transparent_background)
+    # @current_user.remove_tokens(1)
     @image_docs = @image.docs.for_user(@current_user).order(created_at: :desc)
 
     @image_with_display_doc = {

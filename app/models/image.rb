@@ -300,7 +300,9 @@ class Image < ApplicationRecord
 
       # board.find_or_create_images_from_word_list(words_to_use)
     else
-      board = predictive_boards.create!(name: label, user_id: new_user_id, settings: board_settings)
+      board = predictive_boards.new(name: label, user_id: new_user_id, settings: board_settings)
+      board.generate_unique_slug
+      board.save!
       new_board = true
       if use_preview_model && words_to_use.blank?
         board_words = board.board_images.map(&:label).uniq

@@ -192,7 +192,6 @@ class OpenAiClient
     @messages = [{ role: "user",
                   content: [{ type: "text",
                               text: format_board_prompt(name, num_of_columns, words, max_num_of_rows, maintain_existing) }] }]
-    Rails.logger.debug "Text:\n#{@messages[0][:content][0][:text]}"
     response = create_completion
     Rails.logger.debug "*******\nResponse: #{response}\n"
     Rails.logger.debug "*** ERROR *** Invaild Formatted Board Response: #{response}" unless response
@@ -430,9 +429,6 @@ class OpenAiClient
       If the board is 'family', words like 'mom', 'dad', 'sister', 'brother', etc. would be appropriate.
     EXAMPLES
     text += examples
-
-    Rails.logger.debug "Text:\n#{text}"
-
     @messages = [{ role: "user",
                   content: [{
       type: "text",

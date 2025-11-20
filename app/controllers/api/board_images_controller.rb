@@ -36,6 +36,7 @@ class API::BoardImagesController < API::ApplicationController
     updatedData = @board_image.data.merge(data.to_unsafe_h) if data
 
     @board_image.data = updatedData if updatedData
+    @board_image.status = "updated"
     if @board_image.update(board_image_params)
       @board = @board_image.board
       @board.broadcast_board_update!
@@ -147,15 +148,18 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   def create_image_edit
+    Rails.logger.info "Received request to create image edit for BoardImage ID #{params[:id]}"
     @board_image = BoardImage.find(params[:id])
     if @board_image.nil?
       render json: { error: "Board image not found" }, status: :unprocessable_entity
       return
     end
     prompt = params[:prompt] || ""
-    @image_edit = @board_image.create_image_edit!(prompt)
-    @board_image.reload
-    if @image_edit
+    transparent_background = params[:transparent_background] == "true"
+    Rails.logger.info("Enqueuing EditBoardImageJob for BoardImage ID #{@board_image.id} with prompt: #{prompt}, transparent_background: #{transparent_background}")
+    EditBoardImageJob.perform_async(@board_image.id, prompt, transparent_background)
+    # @image_edit = @board_image.create_image_edit!(prompt, transparent_background)
+    if @board_image.update(status: "editing")
       render json: @board_image.api_view(current_user)
     else
       render json: { error: "Failed to create image edit" }, status: :unprocessable_entity

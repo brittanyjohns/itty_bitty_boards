@@ -2,7 +2,7 @@ class GenerateImageJob
   include Sidekiq::Job
   sidekiq_options queue: :default, retry: 3, backtrace: true
 
-  def perform(image_id, user_id = nil, image_prompt = nil, board_id = nil, screen_size = nil)
+  def perform(image_id, user_id = nil, image_prompt = nil, board_id = nil, screen_size = nil, transparent_bg = false)
     image = Image.find(image_id)
 
     board_image = nil
@@ -14,6 +14,12 @@ class GenerateImageJob
       board_image.update(status: "generating")
     end
     begin
+      if transparent_bg
+        prompt_with_bg = "#{image.temp_prompt} with a transparent background"
+        image.image_prompt = prompt_with_bg
+      else
+        image.image_prompt = image.temp_prompt
+      end
       new_doc = image.create_image_doc(user_id)
       new_doc.update(source_type: "OpenAI")
       if image.menu? && image.image_prompt.include?(Menu::PROMPT_ADDITION)
