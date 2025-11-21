@@ -323,7 +323,8 @@ class Image < ApplicationRecord
       new_base_board_image.save!
       base_board.update!(board_type: "dynamic")
     end
-
+    voice = board_settings[:voice] || voice
+    board.voice = voice if voice
     board.find_or_create_images_from_word_list(words_to_use)
     board.board_type = "predictive"
     board.reset_layouts if new_board

@@ -380,6 +380,7 @@ class API::ImagesController < API::ApplicationController
 
     Rails.logger.info("Creating predictive board for image: #{@image.label} -- use_preview_model: #{use_preview_model} -- word_list: #{word_list}")
     board_settings[:board_id] = params[:board_id] if params[:board_id].present?
+    board_settings[:voice] = @board.voice if @board && @board.voice.present?
     board = @image.create_predictive_board(user_id, word_list, use_preview_model, board_settings)
     board.display_image_url = @board_image.display_image_url if @board_image
 
