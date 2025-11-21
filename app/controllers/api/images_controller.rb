@@ -427,6 +427,7 @@ class API::ImagesController < API::ApplicationController
 
   def generate
     @current_user = current_user
+    return unless check_daily_limit("ai_image_generation")
 
     if !params[:id].blank?
       @image = Image.find(params[:id])
@@ -458,6 +459,7 @@ class API::ImagesController < API::ApplicationController
       image_type: @image.image_type,
       text_color: @image.text_color,
       generating_status: "generating",
+      status: "generating",
       display_doc: {
         id: @current_doc&.id,
         label: @image&.label,

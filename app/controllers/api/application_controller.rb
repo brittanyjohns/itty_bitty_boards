@@ -44,15 +44,18 @@ module API
       limiter = DailyFeatureLimiter.new(
         user_id: current_user.id,
         feature_key: feature_key,
-        limit: 5,
+        limit: current_user.daily_limit_for(feature_key),
         tz: current_user.timezone || "America/New_York",
       )
       allowed, meta = limiter.increment_and_check!
-      Rails.logger.debug "Daily limit check result for User ID: #{current_user.id}, Feature: #{feature_key} - Allowed: #{allowed}, Meta: #{meta}"
-
+      Rails.logger.debug "Daily limit check result for User ID: #{current_user.id}, " \
+                         "Feature: #{feature_key} - Allowed: #{allowed}, Meta: #{meta}"
+      error_message = "Daily limit reached for #{feature_key}. Please try again later."
       unless allowed
-        render json: { error: "limit_reached", **meta }, status: 429 and return
+        render json: { error: "limit_reached", message: error_message, **meta }, status: 429
+        return false
       end
+      true
     end
 
     private

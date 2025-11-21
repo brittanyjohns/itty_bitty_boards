@@ -94,6 +94,7 @@ class API::MenusController < API::ApplicationController
 
   # POST /menus or /menus.json
   def create
+    return unless check_daily_limit("ai_menu_generation")
     @current_user = current_user
     @menu = @current_user.menus.new
     @menu.user = current_user

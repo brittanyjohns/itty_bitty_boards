@@ -935,6 +935,46 @@ class User < ApplicationRecord
     display_name
   end
 
+  PRO_LIMITS = {
+    "ai_image_generation" => 50,
+    "ai_image_edit" => 50,
+    "ai_suggestions" => 100,
+    "ai_scenario" => 30,
+    "ai_format_board" => 50,
+    "ai_menu_generation" => 20,
+  }.freeze
+
+  BASIC_LIMITS = {
+    "ai_image_generation" => 10,
+    "ai_image_edit" => 10,
+    "ai_suggestions" => 20,
+    "ai_scenario" => 5,
+    "ai_format_board" => 10,
+    "ai_menu_generation" => 5,
+  }.freeze
+
+  FREE_LIMITS = {
+    "ai_image_generation" => 1,
+    "ai_image_edit" => 1,
+    "ai_suggestions" => 5,
+    "ai_scenario" => 1,
+    "ai_format_board" => 1,
+    "ai_menu_generation" => 1,
+  }.freeze
+
+  def daily_limit_for(feature_key)
+    if admin?
+      return 10000
+    end
+    if pro? || plus? || premium? || pro_vendor?
+      return PRO_LIMITS[feature_key] || 20
+    elsif basic?
+      return BASIC_LIMITS[feature_key] || 10
+    else
+      return FREE_LIMITS[feature_key] || 1
+    end
+  end
+
   def should_send_welcome_email?
     Rails.logger.info "Checking if welcome email should be sent to #{email} - created at: #{created_at}, plan type: #{plan_type}, admin: #{admin?}"
     return false if admin?

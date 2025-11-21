@@ -145,13 +145,22 @@ class API::BoardImagesController < API::ApplicationController
       render json: { error: "Board image not found" }, status: :unprocessable_entity
       return
     end
-    check_daily_limit("image_edits")
-    prompt = params[:prompt] || ""
-    transparent_background = params[:transparent_background] == "true"
-    Rails.logger.info("Enqueuing EditBoardImageJob for BoardImage ID #{@board_image.id} with prompt: #{prompt}, transparent_background: #{transparent_background}")
-    EditBoardImageJob.perform_async(@board_image.id, prompt, transparent_background)
+    begin
+      Rails.logger.debug "Checking daily limit for image edits for User ID #{current_user.id}"
+      return unless check_daily_limit("ai_image_edit")
+      prompt = params[:prompt] || ""
+      transparent_background = params[:transparent_background] == "true"
+      Rails.logger.info("Enqueuing EditBoardImageJob for BoardImage ID #{@board_image.id} with prompt: #{prompt}, transparent_background: #{transparent_background}")
+      EditBoardImageJob.perform_async(@board_image.id, prompt, transparent_background)
+    rescue => e
+      Rails.logger.error "Error while creating image edit for BoardImage ID #{@board_image.id}: #{e.message}"
+      render json: { error: "Failed to create image edit" }, status: :unprocessable_entity
+      return
+    end
+
+    @board_image.reload
     if @board_image.update(status: "editing")
-      render json: @board_image.api_view(current_user)
+      render json: @board_image.api_view(current_user) and return
     else
       render json: { error: "Failed to create image edit" }, status: :unprocessable_entity
     end
@@ -163,7 +172,7 @@ class API::BoardImagesController < API::ApplicationController
       render json: { error: "Board image not found" }, status: :unprocessable_entity
       return
     end
-    check_daily_limit("image_variations")
+    return unless check_daily_limit("ai_image_generation")
 
     @image_variation = @board_image.create_image_variation!
     Rails.logger.debug "Created image variation: #{@image_variation.inspect}"
@@ -267,7 +276,12 @@ class API::BoardImagesController < API::ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_board_image
-    @board_image = BoardImage.find(params[:id])
+    @board_image = BoardImage.find_by(id: params[:id])
+    if @board_image.nil?
+      Rails.logger.error "BoardImage with ID #{params[:id]} not found."
+      render json: { error: "Board image not found" }, status: :unprocessable_entity
+      return
+    end
   end
 
   # Only allow a list of trusted parameters through.
