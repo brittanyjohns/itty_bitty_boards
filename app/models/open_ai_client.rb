@@ -395,13 +395,9 @@ class OpenAiClient
       type: "text",
       text: text,
     }] }]
-    # if use_preview_model
-    #   @model = PREVIEW_MODEL
-    #   response = create_completion
-    # else
+
     @model = GTP_MODEL
     response = create_chat
-    # end
     Rails.logger.debug "*** ERROR *** Invaild Additional Words Response: #{response}" unless response
     response
   end

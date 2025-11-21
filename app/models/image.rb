@@ -285,30 +285,19 @@ class Image < ApplicationRecord
     SetNextWordsJob.perform_async([id])
   end
 
-  def create_predictive_board(new_user_id, words_to_use = nil, use_preview_model = false, board_settings = {})
+  def create_predictive_board(new_user_id, words_to_use = nil, board_name = false, board_settings = {})
     new_board = false
     base_board_id = board_settings[:board_id]
+    base_board = nil
     if base_board_id
       base_board = Board.find_by(id: base_board_id)
     end
-    board = predictive_boards.find_by(name: label, user_id: new_user_id) unless board
-    if board
-      if use_preview_model && words_to_use.blank?
-        board_words = board.board_images.map(&:label).uniq
-        self.next_words = board.get_words(name_to_send, 10, board_words, use_preview_model)
-      end
+    board_name ||= board_settings[:name] || "#{label.capitalize} Board"
 
-      # board.find_or_create_images_from_word_list(words_to_use)
-    else
-      board = predictive_boards.new(name: label, user_id: new_user_id, settings: board_settings)
-      board.generate_unique_slug
-      board.save!
-      new_board = true
-      if use_preview_model && words_to_use.blank?
-        board_words = board.board_images.map(&:label).uniq
-        self.next_words = board.get_words(name_to_send, 10, board_words, use_preview_model)
-      end
-    end
+    board = predictive_boards.new(name: board_name, user_id: new_user_id, settings: board_settings)
+    board.generate_unique_slug
+    board.save!
+    new_board = true
 
     if !board
       Rails.logger.error "Could not create predictive board for #{label}"
