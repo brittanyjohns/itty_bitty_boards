@@ -47,3 +47,12 @@ dump.rdb
 # Ignore vendor/bundle directory
 /vendor/bundle/
 .vscode/
+
+# macOS system files
+*/*/*/.DS_Store
+*/*/.DS_Store
+*/.DS_Store
+spec/.DS_Store
+.DS_Store
+
+spec/data/*.obf

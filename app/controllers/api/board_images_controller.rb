@@ -20,16 +20,6 @@ class API::BoardImagesController < API::ApplicationController
     render json: @board_image.api_view(current_user)
   end
 
-  def move_up
-    @board_image = BoardImage.find(params[:id])
-    @board_image.move_higher
-  end
-
-  def move_down
-    @board_image = BoardImage.find(params[:id])
-    @board_image.move_lower
-  end
-
   # PATCH/PUT /board_images/1 or /board_images/1.json
   def update
     data = params[:board_image][:data]
@@ -148,19 +138,25 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   def create_image_edit
-    Rails.logger.info "Received request to create image edit for BoardImage ID #{params[:id]}"
     @board_image = BoardImage.find(params[:id])
     if @board_image.nil?
       render json: { error: "Board image not found" }, status: :unprocessable_entity
       return
     end
-    prompt = params[:prompt] || ""
-    transparent_background = params[:transparent_background] == "true"
-    Rails.logger.info("Enqueuing EditBoardImageJob for BoardImage ID #{@board_image.id} with prompt: #{prompt}, transparent_background: #{transparent_background}")
-    EditBoardImageJob.perform_async(@board_image.id, prompt, transparent_background)
-    # @image_edit = @board_image.create_image_edit!(prompt, transparent_background)
+    begin
+      return unless check_daily_limit("ai_image_edit")
+      prompt = params[:prompt] || ""
+      transparent_background = params[:transparent_background] == "true"
+      EditBoardImageJob.perform_async(@board_image.id, prompt, transparent_background)
+    rescue => e
+      Rails.logger.error "Error while creating image edit for BoardImage ID #{@board_image.id}: #{e.message}"
+      render json: { error: "Failed to create image edit" }, status: :unprocessable_entity
+      return
+    end
+
+    @board_image.reload
     if @board_image.update(status: "editing")
-      render json: @board_image.api_view(current_user)
+      render json: @board_image.api_view(current_user) and return
     else
       render json: { error: "Failed to create image edit" }, status: :unprocessable_entity
     end
@@ -172,6 +168,7 @@ class API::BoardImagesController < API::ApplicationController
       render json: { error: "Board image not found" }, status: :unprocessable_entity
       return
     end
+    return unless check_daily_limit("ai_image_generation")
 
     @image_variation = @board_image.create_image_variation!
     Rails.logger.debug "Created image variation: #{@image_variation.inspect}"
@@ -207,7 +204,6 @@ class API::BoardImagesController < API::ApplicationController
     @board_image.data ||= {}
     @board_image.data["using_custom_audio"] = true
     if @board_image.update(audio_url: new_audio_file_url)
-      Rails.logger.info "Successfully uploaded audio file: #{@file_name_to_save} for BoardImage ID: #{@board_image.id}"
       @board_image.reload
       Rails.logger.debug "BoardImage after audio upload: #{@board_image.inspect}"
       render json: @board_image.api_view(current_user)
@@ -233,6 +229,7 @@ class API::BoardImagesController < API::ApplicationController
     end
   end
 
+  # TODO - I don't think this is used but need to check
   def move
     @board_id = params[:board_id].to_i
     @image_id = params[:image_id].to_i
@@ -274,7 +271,12 @@ class API::BoardImagesController < API::ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_board_image
-    @board_image = BoardImage.find(params[:id])
+    @board_image = BoardImage.find_by(id: params[:id])
+    if @board_image.nil?
+      Rails.logger.error "BoardImage with ID #{params[:id]} not found."
+      render json: { error: "Board image not found" }, status: :unprocessable_entity
+      return
+    end
   end
 
   # Only allow a list of trusted parameters through.
