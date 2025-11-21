@@ -48,6 +48,7 @@ module API
         tz: current_user.timezone || "America/New_York",
       )
       allowed, meta = limiter.increment_and_check!
+      Rails.logger.debug "Daily limit check result for User ID: #{current_user.id}, Feature: #{feature_key} - Allowed: #{allowed}, Meta: #{meta}"
 
       unless allowed
         render json: { error: "limit_reached", **meta }, status: 429 and return
@@ -57,7 +58,6 @@ module API
     private
 
     def user_from_token
-      Rails.logger.debug "Fetching user from token"
       @user_from_token ||= User.find_by(authentication_token: token) if token.present?
     end
 

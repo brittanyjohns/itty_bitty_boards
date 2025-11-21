@@ -1,6 +1,7 @@
 # app/services/daily_feature_limiter.rb
 class DailyFeatureLimiter
   def initialize(user_id:, feature_key:, limit: 5, tz: "UTC", window: :day)
+    Rails.logger.debug "Initializing DailyFeatureLimiter for User ID: #{user_id}, Feature: #{feature_key}, Limit: #{limit}, Timezone: #{tz}, Window: #{window}"
     @user_id = user_id
     @feature = feature_key.to_s
     @limit = limit

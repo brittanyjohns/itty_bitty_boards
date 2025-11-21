@@ -150,7 +150,6 @@ class API::BoardImagesController < API::ApplicationController
     transparent_background = params[:transparent_background] == "true"
     Rails.logger.info("Enqueuing EditBoardImageJob for BoardImage ID #{@board_image.id} with prompt: #{prompt}, transparent_background: #{transparent_background}")
     EditBoardImageJob.perform_async(@board_image.id, prompt, transparent_background)
-    # @image_edit = @board_image.create_image_edit!(prompt, transparent_background)
     if @board_image.update(status: "editing")
       render json: @board_image.api_view(current_user)
     else
