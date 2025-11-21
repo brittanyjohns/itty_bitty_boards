@@ -364,6 +364,7 @@ class API::ImagesController < API::ApplicationController
     @image = Image.find(params[:id])
     board_id = params[:board_id]
     @board = Board.with_artifacts.find_by(id: board_id) if board_id.present?
+    Rails.logger.info("Creating predictive board for image: #{@image.label} -- board_id: #{board_id}")
     unless @board.nil?
       @board_image = @board.board_images.find_by(image_id: @image.id)
       if @board_image.nil?

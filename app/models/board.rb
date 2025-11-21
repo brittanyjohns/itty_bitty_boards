@@ -479,7 +479,7 @@ class Board < ApplicationRecord
   end
 
   def resource_type
-    parent.resource_type
+    parent&.resource_type || parent_type
   end
 
   def dynamic?
@@ -1095,7 +1095,7 @@ class Board < ApplicationRecord
     when "OpenaiPrompt"
       return "scenario"
     else
-      return resource_type.downcase
+      return resource_type&.downcase
     end
   end
 
