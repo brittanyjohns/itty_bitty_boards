@@ -138,19 +138,15 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   def create_image_edit
-    Rails.logger.info "Received request to create image edit for BoardImage ID #{params[:id]}"
     @board_image = BoardImage.find(params[:id])
-    Rails.logger.debug "Found BoardImage: #{@board_image.inspect}"
     if @board_image.nil?
       render json: { error: "Board image not found" }, status: :unprocessable_entity
       return
     end
     begin
-      Rails.logger.debug "Checking daily limit for image edits for User ID #{current_user.id}"
       return unless check_daily_limit("ai_image_edit")
       prompt = params[:prompt] || ""
       transparent_background = params[:transparent_background] == "true"
-      Rails.logger.info("Enqueuing EditBoardImageJob for BoardImage ID #{@board_image.id} with prompt: #{prompt}, transparent_background: #{transparent_background}")
       EditBoardImageJob.perform_async(@board_image.id, prompt, transparent_background)
     rescue => e
       Rails.logger.error "Error while creating image edit for BoardImage ID #{@board_image.id}: #{e.message}"
@@ -208,7 +204,6 @@ class API::BoardImagesController < API::ApplicationController
     @board_image.data ||= {}
     @board_image.data["using_custom_audio"] = true
     if @board_image.update(audio_url: new_audio_file_url)
-      Rails.logger.info "Successfully uploaded audio file: #{@file_name_to_save} for BoardImage ID: #{@board_image.id}"
       @board_image.reload
       Rails.logger.debug "BoardImage after audio upload: #{@board_image.inspect}"
       render json: @board_image.api_view(current_user)
