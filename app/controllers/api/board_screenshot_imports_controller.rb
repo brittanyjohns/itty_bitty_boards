@@ -9,7 +9,6 @@ class API::BoardScreenshotImportsController < API::ApplicationController
 
   def show
     @import = current_user.board_screenshot_imports.find(params[:id])
-    Rails.logger.info "Showing BoardScreenshotImport ID=#{@import.inspect} for User ID=#{current_user.id}"
 
     render json: @import.show_view
   end
@@ -21,7 +20,6 @@ class API::BoardScreenshotImportsController < API::ApplicationController
       image: params.require(:image),
       status: "queued",
     )
-    Rails.logger.info "Created BoardScreenshotImport ID=#{import.id} for User ID=#{current_user.id}"
     BoardScreenshotImportJob.perform_async(import.id)
     render json: { id: import.id, status: import.status }
   end
@@ -46,7 +44,7 @@ class API::BoardScreenshotImportsController < API::ApplicationController
   def commit
     import = current_user.board_screenshot_imports.find(params[:id])
     board_image_id = params[:board_image_id]
-    @board = Board.transaction { BoardFromScreenshot.commit!(import) }
+    @board = BoardFromScreenshot.commit!(import)
     board_image = BoardImage.find_by(id: board_image_id) if board_image_id.present?
     if board_image
       if board_image.update(predictive_board_id: @board.id)

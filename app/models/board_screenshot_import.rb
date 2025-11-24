@@ -39,8 +39,6 @@ class BoardScreenshotImport < ApplicationRecord
 
   def show_view
     cells = board_screenshot_cells.order(:row, :col).select(:id, :row, :col, :label_raw, :label_norm, :confidence, :bbox, :bg_color)
-    # boards = boards.select(:id, :name, :slug)
-    Rails.logger.info "BoardScreenshotImport Show View: ID=#{id}, Cells Count=#{cells.size}, Boards Count=#{boards.size}"
     {
       id: id,
       name: name,
