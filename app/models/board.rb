@@ -185,8 +185,8 @@ class Board < ApplicationRecord
   end
 
   def parent_boards
-    return [] unless resource_type == "Image"
-    Board.joins(:board_images).where(board_images: { predictive_board_id: id }, user_id: user_id).where.not(id: id).distinct
+    # return [] unless resource_type == "Image"
+    Board.joins(:board_images).where(board_images: { predictive_board_id: id }, user_id: user_id, is_template: true).where.not(id: id).distinct
   end
 
   def self.with_identical_images(name, user = nil)
@@ -1305,7 +1305,7 @@ class Board < ApplicationRecord
           board_name: name,
           image_user_id: image.user_id,
           using_custom_audio: using_custom_audio,
-          docs: image.docs.order(created_at: :desc).limit(50).map { |doc| doc.api_view(viewing_user) },
+          docs: image.docs.order(created_at: :desc).limit(15).map { |doc| doc.api_view(viewing_user) },
           predictive_board_id: @predictive_board_id,
           user_custom_default_id: @user_custom_default_id,
           predictive_board_board_type: @predictive_board&.board_type,

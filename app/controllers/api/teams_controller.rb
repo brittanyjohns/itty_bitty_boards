@@ -5,7 +5,7 @@ class API::TeamsController < API::ApplicationController
   # GET /teams or /teams.json
   def index
     # @teams = policy_scope(Team)
-    @teams = current_user.teams.where.not(created_by: current_user).includes(:team_users)
+    @teams = current_user.teams.where(created_by: current_user).includes(:team_users)
     render json: @teams.map { |team| team.index_api_view(current_user) }
   end
 
@@ -79,11 +79,12 @@ class API::TeamsController < API::ApplicationController
     @team.name = team_params[:name]
     account_id = team_params[:account_id]
     @team.created_by = current_user
+    Rails.logger.info("Creating team with name: #{@team.name}, created_by: #{current_user.id}, account_id: #{account_id}")
 
     respond_to do |format|
       if @team.save
         @team.add_member!(current_user, "admin")
-        initial_account = current_user.child_accounts.find(account_id) if account_id
+        initial_account = current_user.child_accounts.find_by(id: account_id) if account_id.present?
         @team.add_communicator!(initial_account) if initial_account
 
         format.json { render json: @team.show_api_view(current_user), status: :created }

@@ -29,11 +29,14 @@ class API::BoardScreenshotImportsController < API::ApplicationController
   # Accept user-edited labels + (optional) rows/cols
   def update
     import = current_user.board_screenshot_imports.find(params[:id])
+    board_screenshot = params[:board_screenshot] || board_screenshot_import_update_params
+    cells_data = board_screenshot[:cells]
     ActiveRecord::Base.transaction do
       import.update!(board_screenshot_import_update_params.except(:cells))
-      (params[:cells] || []).each do |c|
+      (cells_data || []).each do |c|
         cand = import.board_screenshot_cells.find(c[:id])
-        cand.update!(label_norm: c[:label_norm].to_s.strip)
+        label_norm = c[:label_norm].to_s.strip
+        cand.update!(label_norm: label_norm)
       end
       import.update!(status: "needs_review")
     end
@@ -42,8 +45,13 @@ class API::BoardScreenshotImportsController < API::ApplicationController
 
   def commit
     import = current_user.board_screenshot_imports.find(params[:id])
-    board = Board.transaction { BoardFromScreenshot.commit!(import) }
-    render json: { ok: true, board_id: board.id, slug: board.slug }
+    board_image_id = params[:board_image_id]
+    @board = Board.transaction { BoardFromScreenshot.commit!(import) }
+    board_image = BoardImage.find_by(id: board_image_id)
+    if board_image
+      board_image.update!(predictive_board_id: @board.id)
+    end
+    render json: { ok: true, board_id: @board.id, slug: @board.slug }
   end
 
   private
