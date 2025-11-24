@@ -364,6 +364,8 @@ class API::ImagesController < API::ApplicationController
     @image = Image.find(params[:id])
     board_id = params[:board_id]
     @board = Board.with_artifacts.find_by(id: board_id) if board_id.present?
+    snap_to_screen = @board.settings["snap_to_screen"] if @board && @board.settings
+    Rails.logger.info "Snap to screen setting for board #{board_id} is #{snap_to_screen}"
     unless @board.nil?
       @board_image = @board.board_images.find_by(image_id: @image.id)
       if @board_image.nil?
@@ -378,15 +380,18 @@ class API::ImagesController < API::ApplicationController
     board_settings[:board_id] = params[:board_id] if params[:board_id].present?
     board_settings[:voice] = @board.voice if @board && @board.voice.present?
     new_board_name = params[:name] || "#{@image.label.capitalize} Board"
-    board = @image.create_predictive_board(user_id, word_list, new_board_name, board_settings)
-    board.display_image_url = @board_image.display_image_url if @board_image
+    predictive_board = @image.create_predictive_board(user_id, word_list, new_board_name, board_settings)
 
-    unless @board_image && board
+    predictive_board.display_image_url = @board_image.display_image_url if @board_image
+    predictive_board.settings["snap_to_screen"] = snap_to_screen if snap_to_screen
+    predictive_board.save!
+
+    unless @board_image && predictive_board
       render json: { status: "error", message: "Could not create predictive board." }
       return
     end
-    if @board_image.update(predictive_board_id: board.id)
-      render json: { status: "ok", message: "Creating predictive board for image.", board: board }
+    if @board_image.update(predictive_board_id: predictive_board.id)
+      render json: { status: "ok", message: "Creating predictive board for image.", board: predictive_board }
     else
       render json: { status: "error", message: "Could not create predictive board." }
     end

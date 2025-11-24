@@ -47,9 +47,15 @@ class API::BoardScreenshotImportsController < API::ApplicationController
     import = current_user.board_screenshot_imports.find(params[:id])
     board_image_id = params[:board_image_id]
     @board = Board.transaction { BoardFromScreenshot.commit!(import) }
-    board_image = BoardImage.find_by(id: board_image_id)
+    board_image = BoardImage.find_by(id: board_image_id) if board_image_id.present?
     if board_image
-      board_image.update!(predictive_board_id: @board.id)
+      if board_image.update(predictive_board_id: @board.id)
+        Rails.logger.info "Linked BoardImage ID=#{board_image.id} to predictive Board ID=#{@board.id}"
+      else
+        Rails.logger.error "Failed to link BoardImage ID=#{board_image.id} to predictive Board ID=#{@board.id}: #{board_image.errors.full_messages.join(", ")}"
+      end
+    else
+      Rails.logger.info "No BoardImage found with ID=#{board_image_id} to link to predictive board."
     end
     render json: { ok: true, board_id: @board.id, slug: @board.slug }
   end
