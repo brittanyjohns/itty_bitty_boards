@@ -15,11 +15,24 @@ class API::BoardScreenshotImportsController < API::ApplicationController
 
   def create
     name = params[:name]
-    import = current_user.board_screenshot_imports.create!(
+    cropped_image = params[:cropped_image]
+    image = params[:image]
+
+    import = current_user.board_screenshot_imports.new(
       name: name,
-      image: params.require(:image),
       status: "queued",
     )
+    if cropped_image.present?
+      import.image.attach(io: StringIO.new(Base64.decode64(cropped_image.split(",").last)),
+                          filename: "screenshot_#{Time.now.to_i}.png",
+                          content_type: "image/png")
+    elsif image.present?
+      import.image.attach(image)
+    else
+      render json: { error: "No image provided" }, status: :unprocessable_entity
+      return
+    end
+    import.save!
     BoardScreenshotImportJob.perform_async(import.id)
     render json: { id: import.id, status: import.status }
   end
@@ -48,6 +61,12 @@ class API::BoardScreenshotImportsController < API::ApplicationController
     board_image = BoardImage.find_by(id: board_image_id) if board_image_id.present?
     if board_image
       if board_image.update(predictive_board_id: @board.id)
+        old_board = board_image.board
+        snap_to_screen = @board.settings["snap_to_screen"] if @board && @board.settings
+        if snap_to_screen
+          @board.settings["snap_to_screen"] = snap_to_screen
+          @board.save!
+        end
         Rails.logger.info "Linked BoardImage ID=#{board_image.id} to predictive Board ID=#{@board.id}"
       else
         Rails.logger.error "Failed to link BoardImage ID=#{board_image.id} to predictive Board ID=#{@board.id}: #{board_image.errors.full_messages.join(", ")}"

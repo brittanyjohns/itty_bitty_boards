@@ -186,7 +186,7 @@ class Board < ApplicationRecord
 
   def parent_boards
     # return [] unless resource_type == "Image"
-    Board.joins(:board_images).where(board_images: { predictive_board_id: id }, user_id: user_id, is_template: true).where.not(id: id).distinct
+    Board.joins(:board_images).where(board_images: { predictive_board_id: id }, user_id: user_id, is_template: false).where.not(id: id).distinct
   end
 
   def self.with_identical_images(name, user = nil)
