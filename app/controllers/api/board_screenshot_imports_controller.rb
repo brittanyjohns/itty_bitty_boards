@@ -61,8 +61,8 @@ class API::BoardScreenshotImportsController < API::ApplicationController
     board_image = BoardImage.find_by(id: board_image_id) if board_image_id.present?
     if board_image
       if board_image.update(predictive_board_id: @board.id)
-        old_board = board_image.board
-        snap_to_screen = @board.settings["snap_to_screen"] if @board && @board.settings
+        og_board = board_image.board
+        snap_to_screen = og_board.settings["snap_to_screen"] if og_board.present?
         if snap_to_screen
           @board.settings["snap_to_screen"] = snap_to_screen
           @board.save!
