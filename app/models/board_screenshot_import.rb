@@ -37,12 +37,13 @@ class BoardScreenshotImport < ApplicationRecord
     }
   end
 
-  def show_view
+  def show_view(current_user = nil)
     cells = board_screenshot_cells.order(:row, :col).select(:id, :row, :col, :label_raw, :label_norm, :confidence, :bbox, :bg_color)
     {
       id: id,
       name: name,
       created_at: created_at,
+      can_edit: current_user && current_user.id == user_id,
       status: status,
       guessed_rows: guessed_rows,
       guessed_cols: guessed_cols,

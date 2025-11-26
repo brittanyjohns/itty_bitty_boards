@@ -942,6 +942,7 @@ class User < ApplicationRecord
     "ai_scenario" => 30,
     "ai_format_board" => 50,
     "ai_menu_generation" => 20,
+    "ai_screenshot_imports" => 20,
   }.freeze
 
   BASIC_LIMITS = {
@@ -951,6 +952,7 @@ class User < ApplicationRecord
     "ai_scenario" => 5,
     "ai_format_board" => 10,
     "ai_menu_generation" => 5,
+    "ai_screenshot_imports" => 5,
   }.freeze
 
   FREE_LIMITS = {
@@ -960,6 +962,7 @@ class User < ApplicationRecord
     "ai_scenario" => 1,
     "ai_format_board" => 1,
     "ai_menu_generation" => 1,
+    "ai_screenshot_imports" => 1,
   }.freeze
 
   def daily_limit_for(feature_key)

@@ -10,7 +10,7 @@ class API::BoardScreenshotImportsController < API::ApplicationController
   def show
     @import = current_user.board_screenshot_imports.find(params[:id])
 
-    render json: @import.show_view
+    render json: @import.show_view(current_user)
   end
 
   def create
@@ -33,6 +33,7 @@ class API::BoardScreenshotImportsController < API::ApplicationController
       return
     end
     import.save!
+    return unless check_daily_limit("ai_screenshot_imports")
     BoardScreenshotImportJob.perform_async(import.id)
     render json: { id: import.id, status: import.status }
   end
@@ -42,11 +43,14 @@ class API::BoardScreenshotImportsController < API::ApplicationController
     import = current_user.board_screenshot_imports.find(params[:id])
     board_screenshot = params[:board_screenshot] || board_screenshot_import_update_params
     cells_data = board_screenshot[:cells]
+    cols = params[:board_screenshot][:cols]
     ActiveRecord::Base.transaction do
-      import.update!(board_screenshot_import_update_params.except(:cells))
+      import.guessed_cols = cols if cols.present?
       (cells_data || []).each do |c|
         cand = import.board_screenshot_cells.find(c[:id])
         label_norm = c[:label_norm].to_s.strip
+        bg_color = c[:bg_color].to_s.strip
+        cand.update!(bg_color: bg_color) if bg_color.present?
         cand.update!(label_norm: label_norm)
       end
       import.update!(status: "needs_review")
@@ -80,6 +84,6 @@ class API::BoardScreenshotImportsController < API::ApplicationController
   private
 
   def board_screenshot_import_update_params
-    params.permit(:rows, :cols, :guessed_rows, :guessed_cols, :name, cells: [:id, :label_norm])
+    params.permit(:guessed_rows, :guessed_cols, :name, :cols, cells: [:id, :label_norm, :bg_color])
   end
 end
