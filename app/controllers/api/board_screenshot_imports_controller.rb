@@ -50,12 +50,20 @@ class API::BoardScreenshotImportsController < API::ApplicationController
         cand = import.board_screenshot_cells.find(c[:id])
         label_norm = c[:label_norm].to_s.strip
         bg_color = c[:bg_color].to_s.strip
-        cand.update!(bg_color: bg_color) if bg_color.present?
-        cand.update!(label_norm: label_norm)
+        row = c[:row].to_s.strip
+        col = c[:col].to_s.strip
+        cand.label_norm = label_norm if label_norm.present?
+        cand.bg_color = bg_color if bg_color.present?
+        cand.row = row.to_i if row.present?
+        cand.col = col.to_i if col.present?
+        cand.save!
       end
-      import.update!(status: "needs_review")
+      if import.update(status: "needs_review")
+        render json: { ok: true }
+      else
+        render json: { error: "Failed to update import" }, status: :unprocessable_entity
+      end
     end
-    render json: { ok: true }
   end
 
   def commit
