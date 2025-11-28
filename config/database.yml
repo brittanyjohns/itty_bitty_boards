@@ -82,3 +82,5 @@ production:
   database: itty_bitty_boards_production
   username: itty_bitty_boards
   password: <%= ENV["ITTY_BITTY_BOARDS_DATABASE_PASSWORD"] %>
+  pool: <%= ENV.fetch("DB_POOL", 20) %>
+  timeout: 5000

@@ -3,7 +3,7 @@ require "mini_magick"
 
 class BoardScreenshotImportJob
   include Sidekiq::Worker
-  sidekiq_options queue: :default
+  sidekiq_options queue: :ai_images, retry: 1, backtrace: true
 
   def perform(import_id)
     import = BoardScreenshotImport.find(import_id)

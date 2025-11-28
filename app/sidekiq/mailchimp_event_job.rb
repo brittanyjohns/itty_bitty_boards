@@ -1,5 +1,6 @@
 class MailchimpEventJob
   include Sidekiq::Job
+  sidekiq_options queue: :default, retry: 3, backtrace: true
 
   def perform(user_id, event_type, options = {})
     user = User.find_by(id: user_id)

@@ -1376,7 +1376,7 @@ class Image < ApplicationRecord
       edited_doc = save_image_from_base64(b64, user_id_to_set, "Edited image for #{label}", "Edited image from prompt: #{prompt}")
       url = edited_doc.display_url if edited_doc
     else
-      edited_doc = save_from_url(result, "Edited image for #{label}", "Edited image from prompt: #{prompt}", user_id_to_set)
+      edited_doc = save_from_url(result, "Edited image for #{label}", "Edited image from prompt: #{prompt}", user_id_to_set) if result
       url = edited_doc.display_url if edited_doc
     end
 

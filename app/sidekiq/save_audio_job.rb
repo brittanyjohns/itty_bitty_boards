@@ -1,6 +1,6 @@
 class SaveAudioJob
   include Sidekiq::Job
-  sidekiq_options queue: "default", retry: 1
+  sidekiq_options queue: :ai_images, retry: 2
 
   def perform(image_ids, voice)
     puts "\n\nSaveAudioJob.perform_async(#{image_ids}, #{voice})\n\n"

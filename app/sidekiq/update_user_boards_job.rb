@@ -1,5 +1,6 @@
 class UpdateUserBoardsJob
   include Sidekiq::Job
+  sidekiq_options queue: :critical, retry: 2
 
   def perform(cloned_board_id, source_board_id)
     cloned_board = Board.find(cloned_board_id)
