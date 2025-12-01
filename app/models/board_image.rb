@@ -106,8 +106,21 @@ class BoardImage < ApplicationRecord
     self.includes(:image).all.select { |bi| bi.audio_url && !bi.audio_url.include?("cloudfront") }
   end
 
-  def self.fix_non_cdn_audio
-    self.with_non_cdn_audio.each do |bi|
+  def self.fix_non_cdn_audio(limit = 100)
+    # This method will fix all board images that have audio URLs not using CDN
+    # It will set the audio_url to the default audio URL for the image and voice
+    # This is useful for images that were created before CDN was implemented
+    # or if the audio file was not created correctly.
+    broken_records = self.with_non_cdn_audio
+    puts "There are #{broken_records.count} board images with non-CDN audio URLs"
+    puts "Do you want to fix them? (y/n)"
+    answer = STDIN.gets.chomp
+    unless answer.downcase == "y"
+      puts "Aborting fix."
+      return
+    end
+    count = 0
+    broken_records.each do |bi|
       img = bi.image
       voice = bi.voice
       lang = bi.language
@@ -115,7 +128,10 @@ class BoardImage < ApplicationRecord
 
       bi.audio_url = img.default_audio_url(audio_file)
       bi.save
+      count += 1
+      break if count >= limit
     end
+    puts "Fixed #{count} board images with non-CDN audio URLs"
   end
 
   def self.fix_invalid_layouts
