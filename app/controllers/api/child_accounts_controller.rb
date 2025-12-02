@@ -109,6 +109,10 @@ class API::ChildAccountsController < API::ApplicationController
       @child_account.details = details
     end
 
+    if params[:layout]
+      @child_account.layout = params[:layout]
+    end
+
     if @child_account.save
       render json: @child_account.api_view(current_user), status: :ok
     else

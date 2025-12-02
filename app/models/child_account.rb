@@ -442,6 +442,7 @@ class ChildAccount < ApplicationRecord
       parent_email: cached_user.email,
       plan_type: plan_type,
       name: name,
+      layout: layout,
       most_used_board: {
         id: cached_most_used_board&.id,
         name: cached_most_used_board&.name,
