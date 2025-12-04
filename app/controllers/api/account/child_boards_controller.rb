@@ -17,9 +17,9 @@ class API::Account::ChildBoardsController < API::Account::ApplicationController
 
   def current
     @boards = boards_for_child
-    Rails.logger.debug "Boards for child: #{@boards.map(&:id)}"
-    @boards_with_images = @boards.map do |board|
-      board.api_view
+    Rails.logger.debug "Communicator Boards for child: #{@boards.map(&:id)}"
+    @boards_with_images = @boards.map do |comm_board|
+      comm_board.api_view
     end
     render json: @boards_with_images
   end

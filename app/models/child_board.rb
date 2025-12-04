@@ -68,6 +68,8 @@ class ChildBoard < ApplicationRecord
     {
       id: id,
       board_id: board_id,
+      communicator_board_id: id,
+      created_by: created_by&.display_name,
       name: board.name,
       child_account_id: child_account_id,
       status: status,
