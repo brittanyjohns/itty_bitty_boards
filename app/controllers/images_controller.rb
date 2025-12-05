@@ -191,7 +191,6 @@ class ImagesController < ApplicationController
     @image = Image.find(params[:id])
     voice = params[:voice]
     if voice.blank?
-      Rails.logger.warn "create_audio: No voice specified for audio creation. Defaulting to 'alloy'."
       voice = "alloy"
     end
     @audio = @image.create_audio_from_text(@image.label, voice)

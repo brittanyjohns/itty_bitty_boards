@@ -2,7 +2,6 @@ module AudioHelper
   def create_audio_from_text(text = nil, voice = "alloy", language = "en")
     text = text || self.label
     if voice.blank?
-      Rails.logger.warn "AudioHelper - No voice specified for audio creation. Defaulting to 'alloy'."
       voice = "alloy"
     end
     if text.blank?

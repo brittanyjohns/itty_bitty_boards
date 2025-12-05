@@ -91,7 +91,6 @@ class OpenAiClient
   def create_audio_from_text(text, voice = "alloy", language = "en")
     return if Rails.env.test?
     if voice.blank?
-      Rails.logger.warn "No voice specified for audio creation. Defaulting to 'alloy'."
       voice = "alloy"
     end
     begin

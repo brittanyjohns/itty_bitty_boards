@@ -68,12 +68,12 @@ class API::ChildBoardsController < API::ApplicationController
       return
     end
     if @board.is_template
-      Rails.logger.info "Not deleting template board ID: #{@board.id}"
-      @child_board.destroy
-    else
       Rails.logger.info "Deleting associated board ID: #{@board.id}"
       @child_board.destroy
       @board.destroy
+    else
+      Rails.logger.info "Deleting child board ID: #{@child_board.id} without deleting associated board ID: #{@board.id}"
+      @child_board.destroy
     end
 
     render json: { message: "child_board deleted" }
