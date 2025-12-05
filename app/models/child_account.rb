@@ -76,7 +76,7 @@ class ChildAccount < ApplicationRecord
   def self.valid_credentials?(username, password_to_set)
     account = ChildAccount.find_by(username: username, passcode: password_to_set)
     if account
-      puts "Account found: #{account.inspect}"
+      Rails.logger.info "Valid credentials for #{username} account id #{account.id}"
       account
     else
       Rails.logger.info "Invalid credentials for #{username}"

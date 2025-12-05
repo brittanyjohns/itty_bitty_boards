@@ -7,6 +7,7 @@ class API::V1::ChildAuthsController < API::ApplicationController
     password = params[:password]
 
     if (child = ChildAccount.valid_credentials?(username, password))
+      Rails.logger.info "Child account found: #{child.username} with ID: #{child.id}"
       auth_token = child.authentication_token
       user_context = child.user
 
@@ -28,6 +29,7 @@ class API::V1::ChildAuthsController < API::ApplicationController
       Rails.logger.info "Child account #{child.username} signed in from IP #{request.remote_ip}"
       return render json: { token: auth_token, account: child.api_view }
     else
+      Rails.logger.info "Invalid credentials for #{username}"
       return render json: { error: error_message }, status: :unauthorized
     end
   end
