@@ -58,8 +58,24 @@ class API::ChildBoardsController < API::ApplicationController
   end
 
   def destroy
+    Rails.logger.info "Deleting child board with ID: #{params[:id]}"
+
     @child_board = ChildBoard.find(params[:id])
-    @child_board.destroy
+    @board = @child_board.board
+    unless @board.user_id == current_user.id
+      Rails.logger.warn "Unauthorized attempt to delete child board ID: #{params[:id]} by user ID: #{current_user.id}"
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+    if @board.is_template
+      Rails.logger.info "Not deleting template board ID: #{@board.id}"
+      @child_board.destroy
+    else
+      Rails.logger.info "Deleting associated board ID: #{@board.id}"
+      @child_board.destroy
+      @board.destroy
+    end
+
     render json: { message: "child_board deleted" }
   end
 
