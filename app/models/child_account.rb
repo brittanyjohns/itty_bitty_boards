@@ -429,6 +429,7 @@ class ChildAccount < ApplicationRecord
       username: username,
       passcode: passcode,
       last_sign_in_at: last_sign_in_at,
+      created_at: created_at,
       sign_in_count: sign_in_count,
       can_edit: viewing_user&.can_add_boards_to_account?([id]),
       is_owner: viewing_user&.id == user_id,
