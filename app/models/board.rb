@@ -86,7 +86,7 @@ class Board < ApplicationRecord
                     tsearch: { prefix: true },
                   }
 
-  scope :for_user, ->(user) { where(user: user).or(where(user_id: User::DEFAULT_ADMIN_ID, predefined: true)) }
+  scope :for_user, ->(user) { where(user: user, is_template: false).or(where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, is_template: false)) }
   scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
   scope :with_image_parent, -> { where.associated(:image_parent) }
   scope :searchable, -> { where(board_type: ["static", "dynamic", "category", "predictive", "scenario"]) }
@@ -185,7 +185,6 @@ class Board < ApplicationRecord
   end
 
   def parent_boards
-    # return [] unless resource_type == "Image"
     Board.joins(:board_images).where(board_images: { predictive_board_id: id }, user_id: user_id, is_template: false).where.not(id: id).distinct
   end
 
