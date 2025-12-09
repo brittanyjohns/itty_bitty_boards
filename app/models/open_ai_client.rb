@@ -94,7 +94,6 @@ class OpenAiClient
       voice = "alloy"
     end
     begin
-      Rails.logger.debug "Creating audio TTS model: #{TTS_MODEL} -- voice: #{voice} -- language: #{language} -- text: #{text}"
       response = openai_client.audio.speech(parameters: {
                                               input: text,
                                               model: TTS_MODEL,

@@ -17,7 +17,6 @@ class API::Account::ChildBoardsController < API::Account::ApplicationController
 
   def current
     @boards = boards_for_child
-    Rails.logger.debug "Communicator Boards for child: #{@boards.map(&:id)}"
     @boards_with_images = @boards.map do |comm_board|
       comm_board.api_view
     end
@@ -25,7 +24,6 @@ class API::Account::ChildBoardsController < API::Account::ApplicationController
   end
 
   def predictive_board
-    Rails.logger.info "Fetching predictive board for child account #{current_account.id}"
     @board = Board.with_artifacts.find_by(id: params[:id])
     @user = current_account.user
     if @board.nil?
@@ -42,7 +40,6 @@ class API::Account::ChildBoardsController < API::Account::ApplicationController
         can_edit: false,
         can_delete: false,
       }
-      Rails.logger.debug "Child Permissions: #{child_permissions}"
       render json: @board_with_images.merge(child_permissions)
     end
 

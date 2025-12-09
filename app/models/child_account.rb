@@ -75,22 +75,15 @@ class ChildAccount < ApplicationRecord
 
   def self.valid_credentials?(username, password_to_set)
     account = ChildAccount.find_by(username: username, passcode: password_to_set)
-    if account
-      Rails.logger.info "Valid credentials for #{username} account id #{account.id}"
-      account
-    else
-      Rails.logger.info "Invalid credentials for #{username}"
-      nil
-    end
+    Rails.logger.error("Invalid credentials for #{username}") unless account
+    account
   end
 
   def update_audio
-    Rails.logger.info "Updating audio for profile: #{profile.slug}"
     if profile
       profile.update_intro_audio_url
       profile.update_bio_audio_url
       profile.save!
-      Rails.logger.info "Audio updated for profile: #{profile.slug}"
     else
       Rails.logger.error "Profile not found for audio update"
     end
@@ -301,12 +294,16 @@ class ChildAccount < ApplicationRecord
     end
 
     if user
-      user.pro? ? true : user.free_trial?
+      if user.paid_plan? || user.vendor?
+        return true
+      else
+        user.free_trial? || false
+      end
     else
       if self.user.admin?
         return true
       end
-      puts "No user provided"
+      Rails.logger.error "No user provided for can_sign_in check"
       false
     end
   end
