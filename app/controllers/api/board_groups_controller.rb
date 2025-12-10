@@ -45,6 +45,7 @@ class API::BoardGroupsController < API::ApplicationController
   def create
     board_group = BoardGroup.new
     board_group.user = current_user
+    Rails.logger.debug "Creating Board Group with parameters: #{board_group_params.inspect}"
     board_group.predefined = board_group_params[:predefined]
     board_group.number_of_columns = board_group_params[:number_of_columns]
     board_group.featured = board_group_params[:featured] || false
@@ -56,11 +57,16 @@ class API::BoardGroupsController < API::ApplicationController
     board_group.name = board_group_params[:name]
     board_group.display_image_url = board_group_params[:display_image_url]
     board_group.description = board_group_params[:description] if board_group_params[:description].present?
-    Rails.logger.debug "display_image_url: #{board_group.display_image_url.inspect}"
     screen_size = board_group_params[:screen_size] || "lg"
     boards = board_group_params[:board_ids].map { |id| Board.find_by(id: id) if id.present? }.compact if board_group_params[:board_ids].present?
     Rails.logger.debug "Creating Board Group with parameters: #{board_group_params.inspect}"
-    board_group.save!
+    if board_group.save
+      mark_default(board_group)
+      # board_group.calculate_grid_layout_for_screen_size(screen_size)
+      render json: board_group.api_view_with_boards(current_user)
+    else
+      render json: { errors: board_group.errors.full_messages }, status: :unprocessable_entity
+    end
     if boards.blank?
       Rails.logger.debug "No boards provided, saving empty board group"
     else
@@ -68,14 +74,6 @@ class API::BoardGroupsController < API::ApplicationController
         board_group_board = board_group.add_board(board)
         board_group_board.save!
       end
-    end
-
-    if board_group.save
-      mark_default(board_group)
-      # board_group.calculate_grid_layout_for_screen_size(screen_size)
-      render json: board_group.api_view_with_boards(current_user)
-    else
-      render json: { errors: board_group.errors.full_messages }, status: :unprocessable_entity
     end
   end
 
