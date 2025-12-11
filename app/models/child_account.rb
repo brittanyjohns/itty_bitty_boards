@@ -32,6 +32,7 @@ class ChildAccount < ApplicationRecord
 
   belongs_to :user, optional: true
   belongs_to :vendor, optional: true
+  belongs_to :owner, class_name: "User", optional: true
   has_many :child_boards, dependent: :destroy
   has_many :boards, through: :child_boards
   has_many :images, through: :boards
@@ -72,11 +73,37 @@ class ChildAccount < ApplicationRecord
   scope :with_teams, -> { includes(teams: [:team_users]) }
   scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
   scope :with_boards, -> { includes(child_boards: :board) }
+  scope :demo_accounts, -> { where(plan_type: "demo") }
+  scope :basic_accounts, -> { where(plan_type: "basic") }
+  scope :pro_accounts, -> { where(plan_type: "pro") }
+
+  before_save :set_owner_if_missing, if: -> { owner.nil? && user.present? }
+
+  def set_owner_if_missing
+    self.owner = user
+  end
+
+  def demo? = plan_type == "demo"
+  def basic? = plan_type == "basic"
+  def pro? = plan_type == "pro"
 
   def self.valid_credentials?(username, password_to_set)
     account = ChildAccount.find_by(username: username, passcode: password_to_set)
     Rails.logger.error("Invalid credentials for #{username}") unless account
     account
+  end
+
+  def primary_team
+    # For now, assume 1 team per communicator
+    teams.first
+  end
+
+  def ensure_team!(creator:)
+    return primary_team if primary_team.present?
+
+    team = Team.create!(name: "#{name || "Communicator"}'s Team", created_by: creator)
+    TeamAccount.create!(team: team, account: self)
+    team
   end
 
   def update_audio

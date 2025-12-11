@@ -29,46 +29,94 @@ class API::ChildAccountsController < API::ApplicationController
   # POST /child_accounts.json
   def create
     @child_account = ChildAccount.new(child_account_params)
-    parent_id = current_user.id
-    username = @child_account.username
-    if !@child_account.valid?
+
+    # Validate up front
+    unless @child_account.valid?
       render json: { errors: @child_account.errors }, status: :unprocessable_entity
       return
     end
+
     password = params[:password]
     password_confirmation = params[:password_confirmation]
+
     if password != password_confirmation
       render json: { error: "Passwords do not match" }, status: :unprocessable_entity
       return
     end
-    name = @child_account.name
-    param_name = params[:name]
+
+    # Optional attrs
     settings = params[:settings]
-    if settings
-      @child_account.settings = settings
-    end
+    @child_account.settings = settings if settings.present?
+
     details = params[:details]
-    if details
-      @child_account.details = details
-    end
+    @child_account.details = details if details.present?
+
+    # Profile linking (existing behavior)
     profile = nil
     if params[:profile_id]
       profile = Profile.find(params[:profile_id])
-      profile.update!(profileable: @child_account, placeholder: false, claimed_at: Time.now, claim_token: nil)
+      profile.update!(
+        profileable: @child_account,
+        placeholder: false,
+        claimed_at: Time.current,
+        claim_token: nil,
+      )
     end
+
+    # Legacy association: keep this for now so nothing breaks
     @child_account.user = current_user
+
+    # New: plan + owner
+    # Start life as demo unless you want to auto-upgrade here
+    @child_account.plan_type ||= "demo"
+
+    # If you want to treat the creator as the "potential owner", you can set this:
+    # Only do this if that matches your billing logic; otherwise leave owner nil until checkout.
+    @child_account.owner ||= current_user if current_user.paid_plan?
+
+    # Set passcode
     @child_account.passcode = password
+
     if @child_account.save
       @child_account.create_profile! unless profile.present?
-      if current_user.professional?
-        team = Team.new(name: name, created_by: current_user)
-        team.save!
-        team.add_member!(current_user, "admin")
-        team.add_communicator!(@child_account)
+
+      # --- TEAM SETUP (this is the important part) ---
+
+      # 1) Create a team for this communicator if none exists
+      # (For new accounts, there won't be one yet.)
+      team_name = if @child_account.name.present?
+          "#{@child_account.name}'s Communication Team"
+        else
+          "Communication Team"
+        end
+
+      # If somehow a team already exists for this account, reuse it
+      team = @child_account.teams.first
+      unless team
+        team = Team.create!(name: team_name, created_by: current_user)
+        TeamAccount.create!(team: team, account: @child_account)
       end
+
+      # 2) Add current user to the team with the correct role
+      # SLP / professional users should be "professional"
+      # Everyone else (parents, caregivers) should be "admin" by default
+      team_role = if current_user.professional?
+          "professional"
+        else
+          "admin"
+        end
+
+      team.add_member!(current_user, team_role)
+
+      # You no longer need the old conditional:
+      # if current_user.professional?
+      #   team = Team.new(name: name, created_by: current_user)
+      #   ...
+      # end
+
       render json: @child_account.api_view(current_user), status: :created
     else
-      puts "Invalid Child Account: errors: #{@child_account.errors.inspect}"
+      Rails.logger.info "Invalid Child Account: errors: #{@child_account.errors.inspect}"
       render json: { errors: @child_account.errors }, status: :unprocessable_entity
     end
   end

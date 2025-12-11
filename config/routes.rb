@@ -132,6 +132,10 @@ Rails.application.routes.draw do
 
   #  API routes
   namespace :api, defaults: { format: :json } do
+    namespace :stripe do
+      resources :checkout_sessions, only: :create
+    end
+
     get "public_boards", to: "boards#public_boards"
     get "public_menu_boards", to: "boards#public_menu_boards"
     post "google_images", to: "google_search_results#image_search"

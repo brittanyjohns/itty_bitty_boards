@@ -11,11 +11,20 @@ module API
         else
           name = ""
         end
+
         user = User.new(email: params["auth"]["email"], password: params["auth"]["password"], password_confirmation: params["auth"]["password_confirmation"], name: name)
         if user.save
+          Rails.logger.info "New user signed up: #{user.email} at #{Time.now}"
+          # result = Stripe::Customer.create({ email: user.email })
+          result = User.create_stripe_customer(user.email)
+          Rails.logger.info "Stripe customer created for new user #{user.email}: #{result}"
+          user.update(stripe_customer_id: result)
           # Send welcome email
           # UserMailer.welcome_email(user).deliver_now
-          user.send_welcome_email
+          # user.send_welcome_email
+          sign_in user
+          user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
+          MailchimpEventJob.perform_async(user.id, "sign_up")
           render json: { token: user.authentication_token, user: user.api_view }
         else
           render json: { error: user.errors.full_messages.join(", ") }, status: :unprocessable_entity

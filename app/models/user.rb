@@ -429,12 +429,11 @@ class User < ApplicationRecord
 
   def self.create_stripe_customer(email)
     result = Stripe::Customer.create({ email: email })
-    free_plan_id = ENV["STRIPE_FREE_PLAN_ID"] || "price_1QrmMGGfsUBE8bl39Anm4Pyg"
-    Stripe::Subscription.create({
-      customer: result["id"],
-      items: [{ price: free_plan_id }],
-    })
-    Rails.logger.info "Created stripe customer: #{result}"
+    # free_plan_id = ENV["STRIPE_FREE_PLAN_ID"] || "price_1QrmMGGfsUBE8bl39Anm4Pyg"
+    # Stripe::Subscription.create({
+    #   customer: result["id"],
+    #   items: [{ price: free_plan_id }],
+    # })
     result["id"]
   end
 
