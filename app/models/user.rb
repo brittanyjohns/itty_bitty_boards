@@ -1160,12 +1160,8 @@ class User < ApplicationRecord
     # ---- Counts ----
     board_count = memoized_boards.count
 
-    # IMPORTANT: split real vs demo
-    demo_communicators = memoized_communicators.select { |c| c.respond_to?(:is_demo) ? c.is_demo : c.try(:is_demo?) }
-    paid_communicators = memoized_communicators.reject { |c| c.respond_to?(:is_demo) ? c.is_demo : c.try(:is_demo?) }
-
-    paid_comm_count = paid_communicators.length
-    demo_comm_count = demo_communicators.length
+    paid_comm_count = paid_communicator_accounts.length
+    demo_comm_count = demo_communicator_accounts.length
 
     # ---- Derived limits ----
     paid_comm_limit_total = comm_limit + extra_comms
@@ -1239,7 +1235,9 @@ class User < ApplicationRecord
 
       # If these are AR objects, you may already have a serializer.
       # If not, consider mapping them to api_view here for consistency.
-      communicator_accounts: memoized_communicators,
+      communicator_accounts: memoized_communicators.map(&:index_api_view),
+      paid_communicator_accounts: paid_communicator_accounts.map(&:index_api_view),
+      demo_communicator_accounts: demo_communicator_accounts.map(&:index_api_view),
 
       go_to_words: go_words,
       go_to_boards: go_to_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, slug: b.slug, ionic_icon: b.ionic_icon } },

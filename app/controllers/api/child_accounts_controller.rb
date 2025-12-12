@@ -27,6 +27,7 @@ class API::ChildAccountsController < API::ApplicationController
   # POST /child_accounts
   def create
     is_demo = params[:is_demo] ? ActiveModel::Type::Boolean.new.cast(params[:is_demo]) : false
+    Rails.logger.info "Creating Child Account - is_demo: #{is_demo}"
 
     allowed, status, error = Permissions::CommunicatorLimits.can_create?(
       user: current_user,
@@ -39,6 +40,7 @@ class API::ChildAccountsController < API::ApplicationController
     end
 
     @child_account = ChildAccount.new(child_account_params)
+    Rails.logger.debug "Child Account Params: #{child_account_params.inspect}"
 
     # Type + ownership
     @child_account.is_demo = is_demo
@@ -116,6 +118,23 @@ class API::ChildAccountsController < API::ApplicationController
     username = params[:username]
     @child_account.username = username unless username.blank?
     @child_account.name = name unless name.blank?
+    was_a_demo = @child_account.is_demo
+
+    is_demo = params[:is_demo] ? ActiveModel::Type::Boolean.new.cast(params[:is_demo]) : false
+    Rails.logger.info "Creating Child Account - is_demo: #{is_demo}"
+    @child_account.is_demo = is_demo
+    if was_a_demo && !is_demo
+      # Changing from demo to paid - check limits
+      allowed, status, error = Permissions::CommunicatorLimits.can_create?(
+        user: current_user,
+        is_demo: is_demo,
+      )
+
+      unless allowed
+        render json: { error: error }, status: status
+        return
+      end
+    end
 
     if params[:password] && params[:password_confirmation]
       if params[:password] != params[:password_confirmation]

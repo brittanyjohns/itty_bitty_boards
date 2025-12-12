@@ -50,6 +50,8 @@ class ChildAccount < ApplicationRecord
   # validates :passcode, length: { minimum: 6 }, on: :create
 
   validates :username, presence: true, uniqueness: true
+  validate :demo_accounts_cannot_have_login
+  validate :paid_accounts_must_have_login
 
   delegate :display_docs_for_image, to: :user
 
@@ -86,6 +88,20 @@ class ChildAccount < ApplicationRecord
     account = ChildAccount.find_by(username: username, passcode: password_to_set)
     Rails.logger.error("Invalid credentials for #{username}") unless account
     account
+  end
+
+  def demo_accounts_cannot_have_login
+    return unless is_demo?
+    if username.present? || passcode.present?
+      errors.add(:base, "Demo communicators cannot have a username or passcode.")
+    end
+  end
+
+  def paid_accounts_must_have_login
+    return if is_demo?
+    if username.blank? || passcode.blank?
+      errors.add(:base, "Paid communicators must have a username and passcode.")
+    end
   end
 
   def primary_team
@@ -453,6 +469,7 @@ class ChildAccount < ApplicationRecord
       can_edit: viewing_user&.can_add_boards_to_account?([id]),
       is_owner: viewing_user&.id == user_id,
       is_vendor: is_vendor,
+      is_demo: is_demo?,
       vendor: is_vendor ? vendor&.api_view(viewing_user) : nil,
       vendor_profile: is_vendor ? cached_profile&.api_view(viewing_user) : nil,
       pro: cached_user.pro?,
