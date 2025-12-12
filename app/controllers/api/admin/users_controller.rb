@@ -5,7 +5,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
   def index
     sort_order = params[:sort_order] || "desc"
     sort_field = params[:sort_field] || "created_at"
-    @users = User.includes(:child_accounts, :word_events, :boards)
+    @users = User.includes(:communicator_accounts, :word_events, :boards)
     if sort_field == "board_count"
       @users = @users.sort_by { |u| u.boards.count }
       if sort_order == "desc"

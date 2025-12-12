@@ -7,6 +7,9 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     "myspeak" => ENV.fetch("STRIPE_PRICE_MYSPEAK", nil),
     "basic" => ENV.fetch("STRIPE_PRICE_BASIC", nil),
     "pro" => ENV.fetch("STRIPE_PRICE_PRO", nil),
+    "myspeak_yearly" => ENV.fetch("STRIPE_PRICE_MYSPEAK_YEAR", nil),
+    "basic_yearly" => ENV.fetch("STRIPE_PRICE_BASIC_YEAR", nil),
+    "pro_yearly" => ENV.fetch("STRIPE_PRICE_PRO_YEAR", nil),
   }.freeze
 
   def create

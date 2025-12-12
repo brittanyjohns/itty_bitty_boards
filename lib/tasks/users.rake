@@ -103,9 +103,9 @@ def create_seed_communicator(user, name = nil)
   puts "short_name: #{short_name}"
   comm_account_name = name || "#{user.name}'s Communicator Account"
   comm_account_username = FFaker::Internet.user_name
-  communicator_account = user.child_accounts.create!(name: comm_account_name,
-                                                     passcode: "111111",
-                                                     username: comm_account_username)
+  communicator_account = user.communicator_accounts.create!(name: comm_account_name,
+                                                            passcode: "111111",
+                                                            username: comm_account_username)
   puts "Communicator account created with username: #{communicator_account.username} and password: 111111"
   communicator_account.reload
   create_board_for_communicator(communicator_account)
@@ -133,7 +133,7 @@ def create_word_events(words, user, board, communicator_account)
       user_id: user.id,
       board_id: board.id,
       team_id: user.current_team_id, # This doesn't do anything anymore
-      child_account_id: communicator_account&.id,
+      communicator_account_id: communicator_account&.id,
     }
     WordEvent.create(payload)
   end

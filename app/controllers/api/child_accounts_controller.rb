@@ -1,6 +1,5 @@
 class API::ChildAccountsController < API::ApplicationController
   before_action :set_child_account, only: %i[ show update destroy ]
-  before_action :check_child_account_create_permissions, only: %i[ create ]
 
   # GET /child_accounts
   # GET /child_accounts.json
@@ -26,34 +25,55 @@ class API::ChildAccountsController < API::ApplicationController
   end
 
   # POST /child_accounts
-  # POST /child_accounts.json
   def create
+    is_demo = params[:is_demo] ? ActiveModel::Type::Boolean.new.cast(params[:is_demo]) : false
+
+    allowed, status, error = Permissions::CommunicatorLimits.can_create?(
+      user: current_user,
+      is_demo: is_demo,
+    )
+
+    unless allowed
+      render json: { error: error }, status: status
+      return
+    end
+
     @child_account = ChildAccount.new(child_account_params)
 
-    # Validate up front
+    # Type + ownership
+    @child_account.is_demo = is_demo
+    @child_account.owner = current_user
+    @child_account.user = current_user if @child_account.respond_to?(:user=) # legacy (optional)
+
+    # Validate basic fields first
     unless @child_account.valid?
       render json: { errors: @child_account.errors }, status: :unprocessable_entity
       return
     end
 
+    # Passcode (required)
     password = params[:password]
     password_confirmation = params[:password_confirmation]
+
+    if password.blank? && !is_demo
+      render json: { error: "Password is required" }, status: :unprocessable_entity
+      return
+    end
 
     if password != password_confirmation
       render json: { error: "Passwords do not match" }, status: :unprocessable_entity
       return
     end
 
-    # Optional attrs
-    settings = params[:settings]
-    @child_account.settings = settings if settings.present?
+    @child_account.passcode = password
 
-    details = params[:details]
-    @child_account.details = details if details.present?
+    # Optional attrs
+    @child_account.settings = params[:settings] if params[:settings].present?
+    @child_account.details = params[:details] if params[:details].present?
 
     # Profile linking (existing behavior)
     profile = nil
-    if params[:profile_id]
+    if params[:profile_id].present?
       profile = Profile.find(params[:profile_id])
       profile.update!(
         profileable: @child_account,
@@ -63,56 +83,24 @@ class API::ChildAccountsController < API::ApplicationController
       )
     end
 
-    # Legacy association: keep this for now so nothing breaks
-    @child_account.user = current_user
-
-    # New: plan + owner
-    # Start life as demo unless you want to auto-upgrade here
-    @child_account.plan_type ||= "demo"
-
-    # If you want to treat the creator as the "potential owner", you can set this:
-    # Only do this if that matches your billing logic; otherwise leave owner nil until checkout.
-    @child_account.owner ||= current_user if current_user.paid_plan?
-
-    # Set passcode
-    @child_account.passcode = password
-
     if @child_account.save
       @child_account.create_profile! unless profile.present?
 
-      # --- TEAM SETUP (this is the important part) ---
-
-      # 1) Create a team for this communicator if none exists
-      # (For new accounts, there won't be one yet.)
+      # Team setup
       team_name = if @child_account.name.present?
           "#{@child_account.name}'s Communication Team"
         else
           "Communication Team"
         end
 
-      # If somehow a team already exists for this account, reuse it
       team = @child_account.teams.first
       unless team
         team = Team.create!(name: team_name, created_by: current_user)
         TeamAccount.create!(team: team, account: @child_account)
       end
 
-      # 2) Add current user to the team with the correct role
-      # SLP / professional users should be "professional"
-      # Everyone else (parents, caregivers) should be "admin" by default
-      team_role = if current_user.professional?
-          "professional"
-        else
-          "admin"
-        end
-
+      team_role = current_user.professional? ? "professional" : "admin"
       team.add_member!(current_user, team_role)
-
-      # You no longer need the old conditional:
-      # if current_user.professional?
-      #   team = Team.new(name: name, created_by: current_user)
-      #   ...
-      # end
 
       render json: @child_account.api_view(current_user), status: :created
     else
@@ -208,19 +196,19 @@ class API::ChildAccountsController < API::ApplicationController
 
   private
 
-  def check_child_account_create_permissions
-    unless current_user
-      render json: { error: "Unauthorized" }, status: :unauthorized
-      return
-    end
-    account_count = current_user.child_accounts.count
-    comm_account_limit = current_user.comm_account_limit || 0
-    # Check if the user has reached their limit for child accounts
-    unless current_user.child_accounts.count < comm_account_limit&.to_i
-      render json: { error: "Maximum number of communicatior accounts reached" }, status: :unprocessable_entity
-      return
-    end
-  end
+  # def check_child_account_create_permissions
+  #   unless current_user
+  #     render json: { error: "Unauthorized" }, status: :unauthorized
+  #     return
+  #   end
+  #   account_count = current_user.communicator_accounts.count
+  #   comm_account_limit = current_user.comm_account_limit || 0
+  #   # Check if the user has reached their limit for child accounts
+  #   unless current_user.child_accounts.count < comm_account_limit&.to_i
+  #     render json: { error: "Maximum number of communicatior accounts reached" }, status: :unprocessable_entity
+  #     return
+  #   end
+  # end
 
   # Use callbacks to share common setup or constraints between actions.
   def set_child_account

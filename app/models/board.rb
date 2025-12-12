@@ -600,7 +600,6 @@ class Board < ApplicationRecord
       word_list = word_list[0..99]
     end
     word_list.each do |word|
-      word = word.downcase.gsub('"', "").gsub("'", "")
       image = user.images.find_by(label: word)
 
       image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image

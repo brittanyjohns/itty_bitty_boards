@@ -73,19 +73,14 @@ class ChildAccount < ApplicationRecord
   scope :with_teams, -> { includes(teams: [:team_users]) }
   scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
   scope :with_boards, -> { includes(child_boards: :board) }
-  scope :demo_accounts, -> { where(plan_type: "demo") }
-  scope :basic_accounts, -> { where(plan_type: "basic") }
-  scope :pro_accounts, -> { where(plan_type: "pro") }
+  scope :demo_accounts, -> { where(is_demo: true) }
+  scope :paid_accounts, -> { where(is_demo: false) }
 
   before_save :set_owner_if_missing, if: -> { owner.nil? && user.present? }
 
   def set_owner_if_missing
     self.owner = user
   end
-
-  def demo? = plan_type == "demo"
-  def basic? = plan_type == "basic"
-  def pro? = plan_type == "pro"
 
   def self.valid_credentials?(username, password_to_set)
     account = ChildAccount.find_by(username: username, passcode: password_to_set)

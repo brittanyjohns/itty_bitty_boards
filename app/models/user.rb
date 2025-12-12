@@ -71,12 +71,26 @@ class User < ApplicationRecord
   has_many :word_events, dependent: :destroy
   has_many :subscriptions, dependent: :destroy
   has_secure_token :authentication_token
-  has_many :child_accounts, dependent: :destroy
+  # has_many :communicator_accounts, dependent: :destroy
   has_many :scenarios, dependent: :destroy
   has_many :created_teams, class_name: "Team", foreign_key: "created_by_id", dependent: :destroy
   has_one :profile, as: :profileable, dependent: :destroy
   belongs_to :vendor, optional: true
   has_many :board_screenshot_imports, dependent: :destroy
+  has_many :communicator_accounts,
+           class_name: "ChildAccount",
+           foreign_key: "owner_id",
+           dependent: :destroy
+
+  has_many :demo_communicator_accounts,
+           -> { where(is_demo: true) },
+           class_name: "ChildAccount",
+           foreign_key: "owner_id"
+
+  has_many :paid_communicator_accounts,
+           -> { where(is_demo: false) },
+           class_name: "ChildAccount",
+           foreign_key: "owner_id"
 
   # has_many :sent_messages, class_name: "Message", foreign_key: "sender_id", dependent: :destroy
   # has_many :received_messages, class_name: "Message", foreign_key: "recipient_id", dependent: :destroy
@@ -128,22 +142,16 @@ class User < ApplicationRecord
     end
   end
 
-  def self.reset_user_limits
-    self.non_admin.each do |user|
-      user.settings ||= {}
-      user.settings["extra_communicators"] = 0
-      user.settings["total_communicators"] = user.settings["communicator_limit"] || 0
-      comm_account_limit = API::WebhooksHelper.get_communicator_limit(user.plan_type || "free")
+  def communicator_limit=(value)
+    self.settings ||= {}
+    self.settings["communicator_limit"] = value
+    save
+  end
 
-      board_limit = API::WebhooksHelper.get_board_limit(comm_account_limit, user.role || "user")
-      if user.plan_type == "free" || user.plan_type == "myspeak"
-        board_limit = 1
-      end
-      user.settings["board_limit"] = board_limit
-      user.settings["communicator_limit"] = comm_account_limit
-      puts "Resetting limits for user #{user.email} (#{user.plan_type}): communicator_limit=#{comm_account_limit}, board_limit=#{board_limit}"
-      user.save
-    end
+  def demo_communicator_limit=(value)
+    self.settings ||= {}
+    self.settings["demo_communicator_limit"] = value
+    save
   end
 
   def messages
@@ -1075,7 +1083,7 @@ class User < ApplicationRecord
     view["opening_board_id"] = settings["opening_board_id"]
     view["has_dynamic_default"] = opening_board.present?
     view["startup_board_group_id"] = settings["startup_board_group_id"]
-    view["child_accounts"] = child_accounts.map(&:api_view)
+    view["communicator_accounts"] = communicator_accounts.map(&:api_view)
     view["boards"] = boards.distinct.order(name: :asc).map(&:user_api_view)
     view["scenarios"] = scenarios.map(&:api_view)
     view["images"] = images.order(:created_at).limit(10).map { |image| { id: image.id, name: image.name, src: image.src_url } }
@@ -1098,10 +1106,6 @@ class User < ApplicationRecord
 
   def accounts_with_read_access
     teams_with_read_access.map(&:accounts).flatten
-  end
-
-  def communicator_accounts
-    child_accounts.order(:name).map(&:api_view)
   end
 
   def favorite_boards
@@ -1139,39 +1143,61 @@ class User < ApplicationRecord
 
   def api_view
     plan_exp = plan_expires_at&.strftime("%x")
-    comm_limit = settings["communicator_limit"] || 0
-    extra_comms = settings["extra_communicators"] || 0
-    board_limit = settings["board_limit"] || 1
+
+    # ---- Limits from Stripe/user settings ----
+    comm_limit = (settings["communicator_limit"] || 0).to_i          # REAL communicators included
+    extra_comms = (settings["extra_communicators"] || 0).to_i         # REAL communicator add-ons (if you use them)
+    demo_limit = (settings["demo_communicator_limit"] || 0).to_i     # DEMO communicators allowed
+    board_limit = (settings["board_limit"] || 1).to_i
+
     go_words = settings["go_to_words"] || Board.common_words
 
-    comm_limit = comm_limit.to_i
-    extra_comms = extra_comms.to_i
-
+    # ---- Memoize common collections ----
     memoized_teams = teams_with_read_access
-    memoized_communicators = communicator_accounts
     memoized_boards = boards.alphabetical
+    memoized_communicators = communicator_accounts # association on owner_id (includes real + demo)
+
+    # ---- Counts ----
     board_count = memoized_boards.count
-    comm_account_limit_reached = comm_limit + extra_comms <= memoized_communicators.count
+
+    # IMPORTANT: split real vs demo
+    demo_communicators = memoized_communicators.select { |c| c.respond_to?(:is_demo) ? c.is_demo : c.try(:is_demo?) }
+    paid_communicators = memoized_communicators.reject { |c| c.respond_to?(:is_demo) ? c.is_demo : c.try(:is_demo?) }
+
+    paid_comm_count = paid_communicators.length
+    demo_comm_count = demo_communicators.length
+
+    # ---- Derived limits ----
+    paid_comm_limit_total = comm_limit + extra_comms
+
+    # ---- Limit reached flags ----
+    comm_account_limit_reached = paid_comm_limit_total <= paid_comm_count
+    demo_comm_account_limit_reached = demo_limit <= demo_comm_count
 
     {
       id: id,
       organization_id: organization_id,
       profile: profile&.api_view,
       vendor_profile: vendor_profile&.api_view,
-      # vendor: vendor&.api_view,
       is_vendor: vendor?,
+
+      # Boards
       board_limit: board_limit,
-      comm_account_limit_reached: comm_account_limit_reached,
+      board_count: board_count,
       board_limit_reached: board_count >= board_limit,
       can_create_boards: can_create_boards,
-      board_count: board_count,
+
+      # AI
       can_use_ai: can_use_ai?,
+
+      # Identity
       email: email,
-      pro_vendor: pro_vendor?,
       role: role,
       name: name,
       display_name: display_name,
       admin: admin?,
+
+      # Plan flags
       free: free?,
       pro: pro?,
       basic: basic?,
@@ -1187,33 +1213,50 @@ class User < ApplicationRecord
       free_trial: free_trial?,
       trial_expired: trial_expired?,
       trial_days_left: trial_days_left,
+
+      # Communicators (REAL)
       accounts_included: comm_limit,
       extra_communicators: extra_comms,
-      comm_account_limit: comm_limit + extra_comms,
+      comm_account_limit: paid_comm_limit_total,
+      comm_account_limit_reached: comm_account_limit_reached,
+      paid_communicator_count: paid_comm_count,
+
+      # Communicators (DEMO)
+      demo_comm_account_limit: demo_limit,
+      demo_comm_account_limit_reached: demo_comm_account_limit_reached,
+      demo_communicator_count: demo_comm_count,
+
+      # Other settings-driven limits
       supervisor_limit: settings["supervisor_limit"] || 0,
       phrase_board_id: settings["phrase_board_id"],
       opening_board_id: settings["opening_board_id"],
       has_dynamic_default: opening_board.present?,
       startup_board_group_id: settings["startup_board_group_id"],
+
+      # Teams / accounts / boards
       current_team: current_team,
       teams_with_read_access: memoized_teams.map(&:index_api_view),
+
+      # If these are AR objects, you may already have a serializer.
+      # If not, consider mapping them to api_view here for consistency.
       communicator_accounts: memoized_communicators,
+
       go_to_words: go_words,
       go_to_boards: go_to_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, slug: b.slug, ionic_icon: b.ionic_icon } },
       boards: memoized_boards.map { |b| { id: b.id, name: b.name, word_sample: b.word_sample, frozen: b.is_frozen? } },
-      # heat_map: heat_map,
-      # week_chart: week_chart,
-      # group_week_chart: group_week_chart,
-      # board_week_chart: board_week_chart,
+
       most_clicked_words: most_clicked_words,
+
       last_sign_in_at: last_sign_in_at,
       last_sign_in_ip: last_sign_in_ip,
       current_sign_in_at: current_sign_in_at,
       current_sign_in_ip: current_sign_in_ip,
       sign_in_count: sign_in_count,
+
       tokens: tokens,
       settings: settings,
       stripe_customer_id: stripe_customer_id,
+
       unread_messages: messages.where(recipient_id: id, read_at: nil, recipient_deleted_at: nil).count,
     }
   end

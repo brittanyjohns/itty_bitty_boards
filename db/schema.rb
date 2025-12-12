@@ -237,7 +237,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_12_11_130117) do
     t.bigint "vendor_id"
     t.jsonb "layout", default: {}
     t.bigint "owner_id"
-    t.string "plan_type", default: "demo", null: false
+    t.boolean "is_demo", default: false
     t.index ["authentication_token"], name: "index_child_accounts_on_authentication_token", unique: true
     t.index ["owner_id"], name: "index_child_accounts_on_owner_id"
     t.index ["reset_password_token"], name: "index_child_accounts_on_reset_password_token", unique: true
