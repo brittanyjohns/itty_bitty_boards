@@ -1,6 +1,13 @@
 class UserMailer < BaseMailer
   default from: "SpeakAnyWay <noreply@speakanyway.com>"
 
+  def welcome_email(user)
+    @user = user
+    @user_name = @user.name
+    @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    mail(to: @user.email, subject: "Welcome to SpeakAnyWay AAC!")
+  end
+
   def welcome_free_email(user)
     @user = user
     @user_name = @user.name

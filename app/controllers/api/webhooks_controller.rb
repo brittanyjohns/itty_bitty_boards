@@ -4,11 +4,11 @@ class API::WebhooksController < API::ApplicationController
   skip_before_action :authenticate_token!, only: :webhooks
   protect_from_forgery except: :webhooks if respond_to?(:protect_from_forgery)
 
-  # Adjust these to match your real free plan limits
   FREE_PLAN_LIMITS = {
     "plan_type" => "free",
     "board_limit" => 1,
-    "communicator_limit" => 0,
+    "paid_communicator_limit" => 0,
+    "demo_communicator_limit" => 0,
     "ai_daily_limit" => 5,
   }.freeze
 
@@ -33,10 +33,12 @@ class API::WebhooksController < API::ApplicationController
     Rails.logger.info "[StripeWebhook] Received event #{event.id} (#{event.type})"
 
     case event.type
+    when "customer.created"
+      handle_customer_created(event.data.object)
     when "checkout.session.completed"
       handle_checkout_completed(event.data.object)
     when "customer.subscription.created", "customer.subscription.updated"
-      handle_subscription_upsert(event.data.object)
+      handle_subscription_upsert(event.data.object, event.type == "customer.subscription.created")
     when "customer.subscription.deleted"
       handle_subscription_deleted(event.data.object)
     when "customer.subscription.paused"
@@ -54,6 +56,17 @@ class API::WebhooksController < API::ApplicationController
   private
 
   # ========== Event handlers ==========
+
+  def handle_customer_created(customer)
+    stripe_customer_id = customer.id
+    user = User.find_by(stripe_customer_id: stripe_customer_id)
+    return unless user
+    user.send_general_welcome_email
+    # You can implement logic here if needed when a Stripe Customer is created.
+    Rails.logger.info "[StripeWebhook] customer.created: customer #{customer.id} created"
+  rescue => e
+    Rails.logger.error "[StripeWebhook] handle_customer_created error: #{e.class} - #{e.message}"
+  end
 
   # Expect: you pass metadata[user_id] when creating the Checkout Session.
   def handle_checkout_completed(session)
@@ -84,7 +97,7 @@ class API::WebhooksController < API::ApplicationController
     Rails.logger.error "[StripeWebhook] handle_checkout_completed error: #{e.class} - #{e.message}"
   end
 
-  def handle_subscription_upsert(subscription)
+  def handle_subscription_upsert(subscription, is_create_event = false)
     user = find_user_for_subscription(subscription)
     unless user
       Rails.logger.error "[StripeWebhook] subscription upsert: no user for customer #{subscription.customer}"
@@ -105,9 +118,11 @@ class API::WebhooksController < API::ApplicationController
     user.plan_status = subscription.status
     user.stripe_subscription_id ||= subscription.id
 
+    paid_communicator_limit = meta["paid_communicator_limit"] || meta["communicator_limit"]
     user.settings ||= {}
     user.settings["board_limit"] = to_int_or_nil(meta["board_limit"])
-    user.settings["communicator_limit"] = to_int_or_nil(meta["communicator_limit"])
+    user.settings["paid_communicator_limit"] = to_int_or_nil(paid_communicator_limit)
+    user.settings["demo_communicator_limit"] = to_int_or_nil(meta["demo_communicator_limit"])
     user.settings["ai_daily_limit"] = to_int_or_nil(meta["ai_daily_limit"])
 
     # Optional: role controlled via Stripe metadata
@@ -115,9 +130,21 @@ class API::WebhooksController < API::ApplicationController
 
     user.save!
 
+    if is_create_event
+      # Send welcome email on new subscriptions
+      begin
+        user.send_welcome_email(plan_type, meta["username"])
+
+        Rails.logger.info "[StripeWebhook] subscription upsert: sent welcome email to user #{user.id}"
+      rescue => e
+        Rails.logger.error "[StripeWebhook] subscription upsert: error sending welcome email to user #{user.id} - #{e.message}"
+      end
+    end
+
     # Optional: team seats logic if this is a team plan
     if meta["team_seats"].present?
-      apply_team_limits_for(user, subscription, meta)
+      # DISABLED FOR NOW -- TODO: finish testing
+      # apply_team_limits_for(user, subscription, meta)
     end
 
     Rails.logger.info "[StripeWebhook] subscription upsert: user=#{user.id} plan_type=#{user.plan_type} status=#{user.plan_status}"
@@ -213,7 +240,8 @@ class API::WebhooksController < API::ApplicationController
 
     user.settings ||= {}
     user.settings["board_limit"] = FREE_PLAN_LIMITS["board_limit"]
-    user.settings["communicator_limit"] = FREE_PLAN_LIMITS["communicator_limit"]
+    user.settings["paid_communicator_limit"] = FREE_PLAN_LIMITS["paid_communicator_limit"]
+    user.settings["demo_communicator_limit"] = FREE_PLAN_LIMITS["demo_communicator_limit"]
     user.settings["ai_daily_limit"] = FREE_PLAN_LIMITS["ai_daily_limit"]
 
     user.stripe_subscription_id = nil

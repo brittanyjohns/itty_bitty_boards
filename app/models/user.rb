@@ -142,9 +142,13 @@ class User < ApplicationRecord
     end
   end
 
+  def supporter_limit
+    plan_type == "pro" ? 5 : 2
+  end
+
   def communicator_limit=(value)
     self.settings ||= {}
-    self.settings["communicator_limit"] = value
+    self.settings["paid_communicator_limit"] = value
     save
   end
 
@@ -292,63 +296,7 @@ class User < ApplicationRecord
   end
 
   def comm_account_limit
-    settings["communicator_limit"] || 1
-  end
-
-  def update_from_stripe_event(data_object, plan_nickname)
-    plan_nickname = plan_nickname || "free"
-    Rails.logger.info "Updating user from Stripe event with plan: #{plan_nickname}"
-
-    if data_object["customer"]
-      self.stripe_customer_id = data_object["customer"]
-    end
-    self.settings ||= {}
-
-    if new_user?
-      plan_type = API::WebhooksHelper.get_plan_type(plan_nickname)
-      self.plan_type = plan_type
-      user_role = API::WebhooksHelper.get_user_role(plan_type)
-
-      initial_comm_account_limit = API::WebhooksHelper.get_communicator_limit(plan_type)
-      initial_board_limit = API::WebhooksHelper.get_board_limit(initial_comm_account_limit, user_role)
-      self.role = user_role if user_role && !self.admin?
-
-      self.settings["communicator_limit"] = initial_comm_account_limit if initial_comm_account_limit && !self.settings["communicator_limit"]
-      self.settings["plan_nickname"] = plan_nickname
-      extra_communicators = settings["extra_communicators"] || 0
-      self.settings["extra_communicators"] = extra_communicators
-      total_communicators = initial_comm_account_limit + extra_communicators
-      self.settings["total_communicators"] = total_communicators
-      if plan_type == "free" || plan_type == "myspeak"
-        # For free plan, set a default board limit
-        initial_board_limit = 1
-        if plan_type == "free"
-          self.settings["communicator_limit"] = 0
-        else
-          self.settings["communicator_limit"] = 1
-        end
-      end
-      self.settings["board_limit"] = initial_board_limit
-      Rails.logger.info "Initial board limit set to: #{initial_board_limit}"
-    end
-    if data_object["cancel_at_period_end"]
-      Rails.logger.info "Canceling at period end"
-      self.plan_status = "pending cancelation"
-      self.settings["cancel_at"] = Time.at(data_object["cancel_at"])
-      self.settings["cancel_at_period_end"] = data_object["cancel_at_period_end"]
-    else
-      self.plan_status = data_object["status"]
-    end
-    is_free_access = plan_nickname.split("_").last == "free"
-    if is_free_access
-      self.settings["free_access"] = true
-    end
-    expires_at = data_object["current_period_end"] || data_object["expires_at"]
-    self.plan_expires_at = Time.at(expires_at) if expires_at
-    self.save!
-    Rails.logger.info "User updated from Stripe event: #{self.email}, plan type: #{self.plan_type}, plan_expires_at: #{self.plan_expires_at}"
-
-    return true
+    settings["paid_communicator_limit"] || 1
   end
 
   def get_stripe_subscriptions
@@ -680,6 +628,17 @@ class User < ApplicationRecord
     new_user.update!(stripe_customer_id: stripe_customer_id)
 
     new_user
+  end
+
+  def send_general_welcome_email
+    Rails.logger.info "Preparing to send welcome email to #{email}"
+    begin
+      UserMailer.welcome_email(self).deliver_now
+      self.settings["welcome_email_sent"] = true
+      self.save
+      AdminMailer.new_user_email(self).deliver_now
+      update_mailchimp_subscription
+    end
   end
 
   def send_welcome_email_free
@@ -1053,7 +1012,7 @@ class User < ApplicationRecord
 
   def admin_api_view
     view = as_json
-    comm_account_limit_reached = settings["communicator_limit"].to_i + settings["extra_communicators"].to_i <= communicator_accounts.count
+    comm_account_limit_reached = settings["paid_communicator_limit"].to_i + settings["extra_communicators"].to_i <= communicator_accounts.count
     board_limit = settings["board_limit"]
     board_limit = board_limit.to_i if board_limit
     board_limit = 1 unless board_limit && board_limit > 0
@@ -1145,7 +1104,7 @@ class User < ApplicationRecord
     plan_exp = plan_expires_at&.strftime("%x")
 
     # ---- Limits from Stripe/user settings ----
-    comm_limit = (settings["communicator_limit"] || 0).to_i          # REAL communicators included
+    comm_limit = (settings["paid_communicator_limit"] || 0).to_i          # REAL communicators included
     extra_comms = (settings["extra_communicators"] || 0).to_i         # REAL communicator add-ons (if you use them)
     demo_limit = (settings["demo_communicator_limit"] || 0).to_i     # DEMO communicators allowed
     board_limit = (settings["board_limit"] || 1).to_i
@@ -1169,6 +1128,9 @@ class User < ApplicationRecord
     # ---- Limit reached flags ----
     comm_account_limit_reached = paid_comm_limit_total <= paid_comm_count
     demo_comm_account_limit_reached = demo_limit <= demo_comm_count
+
+    remaining_paid_accounts = [0, paid_comm_limit_total - paid_comm_count].max
+    remaining_demo_accounts = [0, demo_limit - demo_comm_count].max
 
     {
       id: id,
@@ -1238,6 +1200,9 @@ class User < ApplicationRecord
       communicator_accounts: memoized_communicators.map(&:index_api_view),
       paid_communicator_accounts: paid_communicator_accounts.map(&:index_api_view),
       demo_communicator_accounts: demo_communicator_accounts.map(&:index_api_view),
+      accounts_with_read_access: accounts_with_read_access.map(&:api_view),
+      remaining_demo_accounts: remaining_demo_accounts,
+      remaining_paid_accounts: remaining_paid_accounts,
 
       go_to_words: go_words,
       go_to_boards: go_to_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, slug: b.slug, ionic_icon: b.ionic_icon } },

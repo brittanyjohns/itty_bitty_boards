@@ -82,7 +82,8 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user.locked = params[:locked] || false
     @user.settings["locked"] = params[:locked] || false
     @user.settings["board_limit"] = params[:board_limit] || 0
-    @user.settings["communicator_limit"] = params[:communicator_limit] || 0
+    @user.settings["paid_communicator_limit"] = params[:paid_communicator_limit] || params[:communicator_limit] || 0
+    @user.settings["demo_communicator_limit"] = params[:demo_communicator_limit] || 0
     if @user.save
       render json: @user.admin_api_view, status: :ok
     else

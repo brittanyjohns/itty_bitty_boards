@@ -9,9 +9,38 @@ class AddOwnerToAccounts < ActiveRecord::Migration[7.1]
       user = account.user
       next unless user
       if user.plan_type == "pro"
+        user.settings ||= {}
+        user.settings["demo_communicator_limit"] = 10
+        user.settings["paid_communicator_limit"] = 3
+        user.settings["board_limit"] = 200
+        user.settings["ai_daily_limit"] = 100
+        user.save!
         account.update!(is_demo: true, owner: user)
-      else
+      elsif user.plan_type == "myspeak"
+        user.settings ||= {}
+        user.settings["demo_communicator_limit"] = 1
+        user.settings["paid_communicator_limit"] = 0
+        user.settings["board_limit"] = 3
+        user.settings["ai_daily_limit"] = 3
+        user.save!
+        account.update!(is_demo: true, owner: user)
+      elsif user.plan_type == "basic"
+        user.settings ||= {}
+        user.settings["demo_communicator_limit"] = 0
+        user.settings["paid_communicator_limit"] = 2
+        user.settings["board_limit"] = 100
+        user.settings["ai_daily_limit"] = 50
+        user.save!
         account.update!(is_demo: false, owner: user)
+      else
+        user.plan_type = "free"
+        user.settings ||= {}
+        user.settings["demo_communicator_limit"] = 0
+        user.settings["paid_communicator_limit"] = 0
+        user.settings["board_limit"] = 1
+        user.settings["ai_daily_limit"] = 3
+        user.save!
+        account.update!(is_demo: true, owner: user)
       end
     end
   end

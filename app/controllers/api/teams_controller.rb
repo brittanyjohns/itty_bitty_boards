@@ -24,7 +24,7 @@ class API::TeamsController < API::ApplicationController
 
   def unassigned_accounts
     @team = Team.find(params[:id])
-    user_accounts = current_user.child_accounts
+    user_accounts = current_user.communicator_accounts
     unassigned_accounts = user_accounts.where.not(id: @team.accounts.pluck(:id)).alphabetical
     render json: unassigned_accounts.map(&:api_view)
   end
@@ -84,7 +84,7 @@ class API::TeamsController < API::ApplicationController
     respond_to do |format|
       if @team.save
         @team.add_member!(current_user, "admin")
-        initial_account = current_user.child_accounts.find_by(id: account_id) if account_id.present?
+        initial_account = current_user.communicator_accounts.find_by(id: account_id) if account_id.present?
         @team.add_communicator!(initial_account) if initial_account
 
         format.json { render json: @team.show_api_view(current_user), status: :created }

@@ -16,9 +16,9 @@
       max-width: 640px;
       background-color: #ffffff;
       padding: 30px;
-      border-radius: 8px;
+      border-radius: 12px;
       margin: 0 auto;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
     }
     .logo img {
       max-width: 120px;
@@ -27,19 +27,20 @@
     }
     h1 {
       color: #111827;
-      font-size: 24px;
+      font-size: 26px;
       margin: 0 0 10px;
-      text-align: left;
+      text-align: center;
     }
     .subtitle {
       color: #4b5563;
       font-size: 15px;
-      margin: 0 0 20px;
+      margin: 0 0 22px;
+      text-align: center;
     }
     h2 {
       color: #1f2937;
       font-size: 18px;
-      margin: 28px 0 10px;
+      margin: 26px 0 10px;
     }
     p { line-height: 1.6; margin: 12px 0; }
     ul, ol { padding-left: 20px; margin: 10px 0; }
@@ -47,13 +48,13 @@
 
     .btn {
       display: inline-block;
-      padding: 12px 20px;
-      background-color: rgb(59, 246, 215);
+      padding: 14px 24px;
+      background-color: #2abed1;
       color: #000000 !important;
       text-decoration: none;
       font-weight: bold;
-      border-radius: 6px;
-      margin-top: 16px;
+      border-radius: 8px;
+      margin-top: 18px;
     }
     .muted {
       color: #6b7280;
@@ -62,16 +63,23 @@
     .note {
       background: #f7f9fc;
       border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-size: 13px;
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 14px;
       color: #374151;
       margin-top: 16px;
+    }
+    .highlight {
+      background: #ecfeff;
+      border: 1px solid #67e8f9;
+      border-radius: 10px;
+      padding: 16px;
+      margin: 18px 0;
     }
     .divider {
       height: 1px;
       background: #eef0f4;
-      margin: 24px 0;
+      margin: 26px 0;
     }
     .footer {
       margin-top: 26px;
@@ -83,66 +91,124 @@
   </style>
 </head>
 <body>
+  <%# --- Dynamic limits (safe defaults) --- %>
+  <% pro_price = (@pro_price || "$20/month") %>
+  <% pro_comm_limit = (@pro_comm_limit || @user&.comm_account_limit || 3) %>
+  <% demo_comm_limit = (@demo_comm_limit || 10) %>
+
   <div class="container">
-    <!-- Optional brand logo -->
     <div class="logo">
       <a href="https://speakanyway.com" target="_blank" rel="noopener">
         <%= image_tag @logo.url, alt: "SpeakAnyWay Logo" %>
       </a>
     </div>
 
-    <h1>Welcome to SpeakAnyWay Pro! 🎉</h1>
-    <p class="subtitle">Built for teachers & SLPs who support multiple communicators.</p>
-
-    <p>Hi <%= @user.name || "there" %>,</p>
-
-    <p>
-      Thanks for choosing a <strong>Pro Account</strong>! You now have the tools to scale communication across home, school, and therapy—without the busywork.
+    <h1>Welcome to SpeakAnyWay Pro 🎉</h1>
+    <p class="subtitle">
+      Built for families, classrooms, and professionals supporting multiple communicators.
     </p>
 
-    <h2>🎉 What’s included in Pro</h2>
-    <ul>
-      <li>✅ <strong>3 Communicator Accounts</strong> included (buy more anytime as your caseload grows)</li>
-      <li>✅ <strong>MySpeak+</strong> in every Communicator (instant access to communication boards, emergency & medical info)</li>
-      <li>✅ <strong>Unlimited Supporters</strong> (read-only for teachers, aides, and families)</li>
-      <li>✅ Full access to <strong>AI features</strong> (smart words, layouts, board suggestions)</li>
-      <li>✅ <strong>Advanced analytics</strong> to track usage and progress</li>
-      <li>✅ <strong>Priority support</strong> when you need help fast</li>
-    </ul>
+    <p>Hi <%= @user.name.blank? ? "there" : @user.name %>,</p>
 
-    <div class="note">
-      <strong>Heads up:</strong> Basic includes <strong>1 Communicator Account</strong>. Your Pro plan starts with <strong>3</strong>—perfect for classrooms and caseloads.
+    <p>
+      Thanks for choosing <strong>SpeakAnyWay Pro</strong>!  
+      You now have powerful tools to support communication across home, school, therapy, and community settings.
+    </p>
+
+    <!-- ⭐ DEMO COMMUNICATOR HIGHLIGHT -->
+    <div class="highlight">
+      <h2 style="margin-top:0;">⭐ New in Pro: Demo Communicator Accounts</h2>
+      <p>
+        Your Pro plan includes <strong><%= demo_comm_limit %> Demo Communicator Accounts</strong> to start.
+        These are designed specifically for <strong>modeling, organizing, and planning</strong>
+        — without requiring a username or passcode.
+      </p>
+
+      <ul>
+        <li><strong>Model AAC</strong> during therapy or instruction without signing in</li>
+        <li><strong>Organize boards</strong> by student, classroom, activity, or routine</li>
+        <li>Create <strong>lesson-specific or temporary boards</strong> (field trips, themes, events)</li>
+        <li>Safely demonstrate AAC to families or teams without touching a child's account</li>
+        <li>Plan and build boards ahead of time, then copy them where needed</li>
+      </ul>
+
+      <p class="muted">
+        Demo Communicators are perfect for SLPs, teachers, aides, and caregivers who need flexibility without friction.
+      </p>
     </div>
 
-    <h2>🛠️ Get set up in minutes</h2>
+    <h2>✨ What's included in Pro</h2>
+    <ul>
+      <li>
+        <strong><%= pro_comm_limit %> Paid Communicator Accounts</strong>  
+        (username + passcode for switching devices and remote access)
+      </li>
+      <li>
+        <strong><%= demo_comm_limit %> Demo Communicator Accounts</strong>  
+        (no login — ideal for modeling and organization)
+      </li>
+      <li>
+        <strong>MySpeak+</strong> for every Paid Communicator  
+        (public access, emergency & medical info, instant QR access)
+      </li>
+      <li>
+        <strong>Unlimited Supporters</strong>  
+        (read-only access for teachers, aides, caregivers, and family)
+      </li>
+      <li>
+        Full access to <strong>AI features</strong> (word suggestions, layouts, board generation)
+      </li>
+      <li>
+        <strong>Advanced analytics</strong> to understand usage and progress
+      </li>
+      <li>
+        <strong>Priority support</strong> when you need help fast
+      </li>
+      <li>
+        <strong>PDF + QR exports</strong> for portable AAC anywhere
+      </li>
+    </ul>
+
+    <h2>🚀 Get set up in minutes</h2>
     <ol>
-      <li>Log in at <a href="<%= @frontend_url %>"><%= @frontend_url %></a> (or click the button below).</li>
-      <li>Open <strong>Communicator Accounts</strong> → create your first three profiles and add ICE info.</li>
-      <li>Go to <strong>My Boards</strong> → use AI to build starter boards (routines, classroom, community).</li>
-      <li>Share <strong>PDF + QR</strong> for on-the-go AAC—perfect for field trips and home carryovers.</li>
-      <li>Invite <strong>Supporters</strong> (read-only) to keep everyone aligned.</li>
+      <li>Create your paid Communicator Accounts for individuals.</li>
+      <li>Use Demo Communicators to model AAC or organize boards by theme.</li>
+      <li>Build boards using AI for routines, classroom, or community use.</li>
+      <li>Export boards as <strong>PDF + QR</strong> for offline or shared access.</li>
+      <li>Invite Supporters so everyone stays aligned.</li>
     </ol>
 
-    <a href="<%= @login_link || @frontend_url %>" class="btn">Open Your Pro Dashboard</a>
-    <p class="muted">If the button doesn’t work, copy this link: <br>
-      <span style="word-break:break-all;"><%= @login_link || @frontend_url %></span>
+    <p style="text-align:center;">
+      <a href="<%= @login_link || @frontend_url %>" class="btn">
+        Open Your Pro Dashboard
+      </a>
+    </p>
+
+    <p class="muted" style="text-align:center;">
+      If the button doesn't work, copy this link:<br>
+      <span style="word-break:break-all;">
+        <%= @login_link || @frontend_url %>
+      </span>
     </p>
 
     <div class="divider"></div>
 
-    <h2>💡 Tips from our team</h2>
+    <h2>💡 Pro tips</h2>
     <ul>
-      <li>Name Communicator Accounts like <em>“Last, First — School/Grade”</em> for quick lookup.</li>
-      <li>Check <strong>Analytics</strong> weekly and adjust boards based on high/low-use words.</li>
-      <li>Add the <strong>QR</strong> image to a phone lock screen so helpers can scan instantly.</li>
+      <li>Use Demo Communicators to test layouts before assigning them.</li>
+      <li>Name demos by activity (e.g., “Snack Time”, “Morning Routine”).</li>
+      <li>Review analytics to refine real-world vocabulary use.</li>
     </ul>
 
     <p class="footer">
-      Need help or want to add more Communicator Accounts?<br>
-      Visit <a href="https://speakanyway.com/pricing" target="_blank" rel="noopener">pricing</a>, or just reply to this email.
-      You can also reach us at <a href="mailto:help@speakanyway.com">help@speakanyway.com</a>—we’re happy to help 💜
+      Need help, onboarding support, or want to add more Communicators?<br>
+      Visit <a href="https://app.speakanyway.com/pricing" target="_blank">pricing</a> or reply to this email.
+      You can also reach us at
+      <a href="mailto:help@speakanyway.com">help@speakanyway.com</a>.
       <br><br>
-      — The SpeakAnyWay Team
+      Current Pro pricing: <strong><%= pro_price %></strong>. Cancel anytime.
+      <br><br>
+      — The SpeakAnyWay Team 💜
     </p>
   </div>
 </body>

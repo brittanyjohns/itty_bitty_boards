@@ -29,7 +29,7 @@ class ChildAccount < ApplicationRecord
   # devise :database_authenticatable, :registerable,
   #        :recoverable, :rememberable, :validatable,
   #        authentication_keys: [:username]
-
+  DEMO_ACCOUNT_BOARD_LIMIT = 3
   belongs_to :user, optional: true
   belongs_to :vendor, optional: true
   belongs_to :owner, class_name: "User", optional: true
@@ -50,8 +50,8 @@ class ChildAccount < ApplicationRecord
   # validates :passcode, length: { minimum: 6 }, on: :create
 
   validates :username, presence: true, uniqueness: true
-  validate :demo_accounts_cannot_have_login
-  validate :paid_accounts_must_have_login
+  # validate :demo_accounts_cannot_have_login
+  # validate :paid_accounts_must_have_login
 
   delegate :display_docs_for_image, to: :user
 
@@ -585,6 +585,7 @@ class ChildAccount < ApplicationRecord
       profile: profile&.api_view,
       week_chart: week_chart,
       avatar_url: profile&.avatar_url,
+      is_demo: is_demo?,
       supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
     }

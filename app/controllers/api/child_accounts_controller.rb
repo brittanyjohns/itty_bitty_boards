@@ -57,11 +57,6 @@ class API::ChildAccountsController < API::ApplicationController
     password = params[:password]
     password_confirmation = params[:password_confirmation]
 
-    if password.blank? && !is_demo
-      render json: { error: "Password is required" }, status: :unprocessable_entity
-      return
-    end
-
     if password != password_confirmation
       render json: { error: "Passwords do not match" }, status: :unprocessable_entity
       return
@@ -178,6 +173,14 @@ class API::ChildAccountsController < API::ApplicationController
   def assign_boards
     @child_account = ChildAccount.find(params[:id])
     board_ids = params[:board_ids]
+    total_boards = @child_account.child_boards.count + board_ids.size
+    if @child_account.is_demo?
+      demo_limit = (@child_account.settings["demo_board_limit"] || ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT).to_i
+      if total_boards > demo_limit
+        render json: { error: "Demo board limit exceeded. You can have up to #{demo_limit} boards." }, status: :unprocessable_entity
+        return
+      end
+    end
     if board_ids
       all_records_saved = nil
       board_ids.each do |board_id|
@@ -214,20 +217,6 @@ class API::ChildAccountsController < API::ApplicationController
   end
 
   private
-
-  # def check_child_account_create_permissions
-  #   unless current_user
-  #     render json: { error: "Unauthorized" }, status: :unauthorized
-  #     return
-  #   end
-  #   account_count = current_user.communicator_accounts.count
-  #   comm_account_limit = current_user.comm_account_limit || 0
-  #   # Check if the user has reached their limit for child accounts
-  #   unless current_user.child_accounts.count < comm_account_limit&.to_i
-  #     render json: { error: "Maximum number of communicatior accounts reached" }, status: :unprocessable_entity
-  #     return
-  #   end
-  # end
 
   # Use callbacks to share common setup or constraints between actions.
   def set_child_account

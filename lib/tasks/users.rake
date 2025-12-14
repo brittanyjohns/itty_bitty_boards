@@ -86,7 +86,7 @@ end
 def create_seed_user(plan_type: "basic", communicator_limit: 1, board_limit: 25)
   user = User.create!(email: FFaker::Internet.safe_email,
                       password: "111111", password_confirmation: "111111",
-                      name: FFaker::Name.name, plan_type: plan_type, settings: { "communicator_limit" => communicator_limit, "board_limit" => board_limit })
+                      name: FFaker::Name.name, plan_type: plan_type, settings: { "paid_communicator_limit" => communicator_limit, "board_limit" => board_limit })
   puts "User created with email: #{user.email} and password: 111111"
   stripe_customer = Stripe::Customer.create({
     name: user.name,
