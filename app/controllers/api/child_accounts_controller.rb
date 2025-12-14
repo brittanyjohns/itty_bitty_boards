@@ -1,6 +1,5 @@
 class API::ChildAccountsController < API::ApplicationController
   before_action :set_child_account, only: %i[ show update destroy ]
-  before_action :check_child_account_create_permissions, only: %i[ create ]
 
   # GET /child_accounts
   # GET /child_accounts.json
@@ -26,49 +25,83 @@ class API::ChildAccountsController < API::ApplicationController
   end
 
   # POST /child_accounts
-  # POST /child_accounts.json
   def create
+    is_demo = params[:is_demo] ? ActiveModel::Type::Boolean.new.cast(params[:is_demo]) : false
+    Rails.logger.info "Creating Child Account - is_demo: #{is_demo}"
+
+    allowed, status, error = Permissions::CommunicatorLimits.can_create?(
+      user: current_user,
+      is_demo: is_demo,
+    )
+
+    unless allowed
+      render json: { error: error }, status: status
+      return
+    end
+
     @child_account = ChildAccount.new(child_account_params)
-    parent_id = current_user.id
-    username = @child_account.username
-    if !@child_account.valid?
+    Rails.logger.debug "Child Account Params: #{child_account_params.inspect}"
+
+    # Type + ownership
+    @child_account.is_demo = is_demo
+    @child_account.owner = current_user
+    @child_account.user = current_user if @child_account.respond_to?(:user=) # legacy (optional)
+
+    # Validate basic fields first
+    unless @child_account.valid?
       render json: { errors: @child_account.errors }, status: :unprocessable_entity
       return
     end
+
+    # Passcode (required)
     password = params[:password]
     password_confirmation = params[:password_confirmation]
+
     if password != password_confirmation
       render json: { error: "Passwords do not match" }, status: :unprocessable_entity
       return
     end
-    name = @child_account.name
-    param_name = params[:name]
-    settings = params[:settings]
-    if settings
-      @child_account.settings = settings
-    end
-    details = params[:details]
-    if details
-      @child_account.details = details
-    end
-    profile = nil
-    if params[:profile_id]
-      profile = Profile.find(params[:profile_id])
-      profile.update!(profileable: @child_account, placeholder: false, claimed_at: Time.now, claim_token: nil)
-    end
-    @child_account.user = current_user
+
     @child_account.passcode = password
+
+    # Optional attrs
+    @child_account.settings = params[:settings] if params[:settings].present?
+    @child_account.details = params[:details] if params[:details].present?
+
+    # Profile linking (existing behavior)
+    profile = nil
+    if params[:profile_id].present?
+      profile = Profile.find(params[:profile_id])
+      profile.update!(
+        profileable: @child_account,
+        placeholder: false,
+        claimed_at: Time.current,
+        claim_token: nil,
+      )
+    end
+
     if @child_account.save
       @child_account.create_profile! unless profile.present?
-      if current_user.professional?
-        team = Team.new(name: name, created_by: current_user)
-        team.save!
-        team.add_member!(current_user, "admin")
-        team.add_communicator!(@child_account)
+
+      # Team setup
+      team_name = if @child_account.name.present?
+          "#{@child_account.name}'s Communication Team"
+        else
+          "Communication Team"
+        end
+
+      team = @child_account.teams.first
+      unless team
+        team = Team.create!(name: team_name, created_by: current_user)
+        TeamAccount.create!(team: team, account: @child_account)
       end
+
+      team_role = current_user.professional? ? "professional" : "admin"
+      team.add_member!(current_user, team_role)
+
       render json: @child_account.api_view(current_user), status: :created
     else
-      puts "Invalid Child Account: errors: #{@child_account.errors.inspect}"
+      Rails.logger.info "Invalid Child Account: errors: #{@child_account.errors.inspect}"
       render json: { errors: @child_account.errors }, status: :unprocessable_entity
     end
   end
@@ -80,6 +113,23 @@ class API::ChildAccountsController < API::ApplicationController
     username = params[:username]
     @child_account.username = username unless username.blank?
     @child_account.name = name unless name.blank?
+    was_a_demo = @child_account.is_demo
+
+    is_demo = params[:is_demo] ? ActiveModel::Type::Boolean.new.cast(params[:is_demo]) : false
+    Rails.logger.info "Creating Child Account - is_demo: #{is_demo}"
+    @child_account.is_demo = is_demo
+    if was_a_demo && !is_demo
+      # Changing from demo to paid - check limits
+      allowed, status, error = Permissions::CommunicatorLimits.can_create?(
+        user: current_user,
+        is_demo: is_demo,
+      )
+
+      unless allowed
+        render json: { error: error }, status: status
+        return
+      end
+    end
 
     if params[:password] && params[:password_confirmation]
       if params[:password] != params[:password_confirmation]
@@ -123,6 +173,14 @@ class API::ChildAccountsController < API::ApplicationController
   def assign_boards
     @child_account = ChildAccount.find(params[:id])
     board_ids = params[:board_ids]
+    total_boards = @child_account.child_boards.count + board_ids.size
+    if @child_account.is_demo?
+      demo_limit = (@child_account.settings["demo_board_limit"] || ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT).to_i
+      if total_boards > demo_limit
+        render json: { error: "Demo board limit exceeded. You can have up to #{demo_limit} boards." }, status: :unprocessable_entity
+        return
+      end
+    end
     if board_ids
       all_records_saved = nil
       board_ids.each do |board_id|
@@ -159,20 +217,6 @@ class API::ChildAccountsController < API::ApplicationController
   end
 
   private
-
-  def check_child_account_create_permissions
-    unless current_user
-      render json: { error: "Unauthorized" }, status: :unauthorized
-      return
-    end
-    account_count = current_user.child_accounts.count
-    comm_account_limit = current_user.comm_account_limit || 0
-    # Check if the user has reached their limit for child accounts
-    unless current_user.child_accounts.count < comm_account_limit&.to_i
-      render json: { error: "Maximum number of communicatior accounts reached" }, status: :unprocessable_entity
-      return
-    end
-  end
 
   # Use callbacks to share common setup or constraints between actions.
   def set_child_account

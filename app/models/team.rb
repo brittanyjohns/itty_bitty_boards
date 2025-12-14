@@ -33,6 +33,18 @@ class Team < ApplicationRecord
     end
   end
 
+  def primary_supporter
+    team_users.find_by(role: "admin")&.user
+  end
+
+  def professionals
+    team_users.where(role: "professional").includes(:user).map(&:user)
+  end
+
+  def all_supporters
+    team_users.where(role: ["admin", "supporter", "member"]).includes(:user).map(&:user)
+  end
+
   def supporters
     team_users.where(role: ["supporter", "member", "restricted"]).includes(:user)
   end

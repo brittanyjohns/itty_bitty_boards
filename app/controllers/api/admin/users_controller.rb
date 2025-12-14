@@ -5,7 +5,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
   def index
     sort_order = params[:sort_order] || "desc"
     sort_field = params[:sort_field] || "created_at"
-    @users = User.includes(:child_accounts, :word_events, :boards)
+    @users = User.includes(:communicator_accounts, :word_events, :boards)
     if sort_field == "board_count"
       @users = @users.sort_by { |u| u.boards.count }
       if sort_order == "desc"
@@ -82,7 +82,8 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user.locked = params[:locked] || false
     @user.settings["locked"] = params[:locked] || false
     @user.settings["board_limit"] = params[:board_limit] || 0
-    @user.settings["communicator_limit"] = params[:communicator_limit] || 0
+    @user.settings["paid_communicator_limit"] = params[:paid_communicator_limit] || params[:communicator_limit] || 0
+    @user.settings["demo_communicator_limit"] = params[:demo_communicator_limit] || 0
     if @user.save
       render json: @user.admin_api_view, status: :ok
     else

@@ -741,7 +741,7 @@ class Image < ApplicationRecord
 
   def generate_matching_symbol(limit = 1)
     # return if open_symbol_status == "skipped"
-    query = label&.downcase
+    query = label
     response = OpenSymbol.generate_symbol(query)
 
     Rails.logger.debug "Response from OpenSymbol for label: #{label} - Query: #{query} - Response: #{response.inspect}"

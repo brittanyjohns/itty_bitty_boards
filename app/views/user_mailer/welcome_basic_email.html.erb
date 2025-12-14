@@ -5,82 +5,72 @@
   <title>Welcome to SpeakAnyWay 🎉</title>
   <meta name="color-scheme" content="light only">
   <style>
-    body {
-      background-color: #f7f9fc;
-      font-family: Arial, sans-serif;
-      margin: 0; padding: 20px;
-    }
+    body { background-color:#f7f9fc; font-family:Arial,sans-serif; margin:0; padding:20px; }
     .container {
-      background-color: #ffffff;
-      margin: auto; max-width: 620px;
-      padding: 30px; border-radius: 12px;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+      background-color:#ffffff; margin:auto; max-width:620px; padding:30px;
+      border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.08);
     }
-    .logo img {
-      max-width: 120px; display: block; margin: 0 auto 20px auto;
-    }
+    .logo img { max-width:120px; display:block; margin:0 auto 20px auto; }
     .badge {
-      display: inline-block; padding: 6px 10px; border-radius: 999px;
-      background: #eaf9fc; color: #2abed1; font-size: 12px; font-weight: 700;
-      text-transform: uppercase; margin: 0 auto 10px auto;
+      display:inline-block; padding:6px 10px; border-radius:999px;
+      background:#eaf9fc; color:#2abed1; font-size:12px; font-weight:700;
+      text-transform:uppercase; margin:0 auto 10px auto;
     }
-    h1 { font-size: 26px; color: #2a2a2a; text-align: center; margin: 10px 0 6px 0; }
+    h1 { font-size:26px; color:#2a2a2a; text-align:center; margin:10px 0 6px 0; }
     .intro {
-      font-size: 16px; color: #444; line-height: 1.6; text-align: center;
-      margin: 8px 0 22px 0; white-space: pre-line;
+      font-size:16px; color:#444; line-height:1.6; text-align:center;
+      margin:8px 0 22px 0; white-space:pre-line;
     }
     .button {
-      display: inline-block; margin: 14px auto 0 auto; padding: 14px 28px;
-      background-color: #7645ef; text-decoration: none; border-radius: 8px;
-      color: #ffffff !important; font-weight: bold; font-size: 16px;
+      display:inline-block; margin:14px auto 0 auto; padding:14px 28px;
+      background-color:#7645ef; text-decoration:none; border-radius:8px;
+      color:#ffffff !important; font-weight:bold; font-size:16px;
     }
-    .subtext { font-size: 12px; color: #6b6b6b; text-align: center; margin-top: 8px; }
-    .section { margin: 28px 0; }
-    .section h2 { font-size: 18px; color: #2a2a2a; margin-bottom: 10px; }
-    ul.check { list-style: none; padding: 0; margin: 0; }
-    ul.check li { margin: 10px 0; font-size: 15px; color: #555; line-height: 1.5; }
-    ul.check li::before { content: "✔"; color: #2abed1; font-weight: 700; margin-right: 8px; }
-    .quickstart {
-      background: #f8ffef; border: 1px solid #d7f0b2; border-radius: 10px; padding: 16px;
-    }
-    .quickstart ol { margin: 8px 0 0 18px; padding: 0; color: #3f3f3f; }
-    .quickstart li { margin: 8px 0; font-size: 15px; line-height: 1.5; }
+    .subtext { font-size:12px; color:#6b6b6b; text-align:center; margin-top:8px; }
+    .section { margin:28px 0; }
+    .section h2 { font-size:18px; color:#2a2a2a; margin-bottom:10px; }
+    ul.check { list-style:none; padding:0; margin:0; }
+    ul.check li { margin:10px 0; font-size:15px; color:#555; line-height:1.5; }
+    ul.check li::before { content:"✔"; color:#2abed1; font-weight:700; margin-right:8px; }
+    .quickstart { background:#f8ffef; border:1px solid #d7f0b2; border-radius:10px; padding:16px; }
+    .quickstart ol { margin:8px 0 0 18px; padding:0; color:#3f3f3f; }
+    .quickstart li { margin:8px 0; font-size:15px; line-height:1.5; }
 
-    .compare { border: 1px solid #e9e9e9; border-radius: 12px; overflow: hidden; margin-top: 15px; }
-    /* legacy flex classes kept (not used for Gmail layout) */
-    .row { display: flex; border-top: 1px solid #e9e9e9; }
-    .row:first-child { border-top: none; }
-    .col { flex: 1; padding: 12px 14px; font-size: 14px; line-height: 1.4; }
-    .head { background: #f7f9fc; font-weight: 700; color: #333; text-align: center; }
-    .col + .col { border-left: 1px solid #e9e9e9; }
-    .checkmark { color: #2abed1; font-weight: 700; }
-    .dash { color: #bbb; }
-
+    .compare { border:1px solid #e9e9e9; border-radius:12px; overflow:hidden; margin-top:15px; }
     .upgrade-box {
-      background-color: #f3edff; border: 1px solid #d6c8ff; border-radius: 10px;
-      padding: 20px; margin: 25px 0 10px 0; text-align: center;
+      background-color:#f3edff; border:1px solid #d6c8ff; border-radius:10px;
+      padding:20px; margin:25px 0 10px 0; text-align:center;
     }
-    .upgrade-box h3 { margin: 0 0 8px 0; color: #7645ef; font-size: 18px; }
-    .upgrade-box p { font-size: 14px; color: #444; line-height: 1.5; margin: 10px 0; }
-    .footer { margin-top: 28px; font-size: 13px; text-align: center; color: #777; }
-    .footer a { color: #7645ef; text-decoration: none; }
+    .upgrade-box h3 { margin:0 0 8px 0; color:#7645ef; font-size:18px; }
+    .upgrade-box p { font-size:14px; color:#444; line-height:1.5; margin:10px 0; }
+    .footer { margin-top:28px; font-size:13px; text-align:center; color:#777; }
+    .footer a { color:#7645ef; text-decoration:none; }
 
-    /* Prevent Gmail from recoloring links in the compare table */
     .container table[role="presentation"] a { color:#333 !important; text-decoration:none !important; }
 
     @media (max-width: 480px) {
-      .container { padding: 22px; }
-      h1 { font-size: 24px; }
-      .row { display: block; }
-      .col { border-left: none !important; border-top: 1px solid #e9e9e9; }
-      .head .col { border-top: none; }
+      .container { padding:22px; }
+      h1 { font-size:24px; }
     }
   </style>
 </head>
 <body>
+  <%# --- Dynamic limits (safe defaults) --- %>
+  <% basic_price = (@basic_price || "$8/mo") %>
+  <% pro_price   = (@pro_price   || "$20/mo") %>
+
+  <% basic_board_limit = (@basic_board_limit || @user&.board_limit || 0) %>
+  <% pro_board_limit   = (@pro_board_limit   || "More") %>
+
+  <% basic_supporter_limit = (@basic_supporter_limit || @user&.supporter_limit || 0) %>
+  <% pro_supporter_limit   = (@pro_supporter_limit   || "More") %>
+
+  <% basic_comm_limit = (@basic_comm_limit || @user&.comm_account_limit || 0) %>
+  <% pro_comm_limit   = (@pro_comm_limit   || 3) %>
+
   <!-- Preheader -->
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
-    You’re on the Basic plan with MySpeak+, AI features, 2 Supporters, and PDF export. Pro adds analytics, priority support, and more.
+    You’re on the Basic plan — MySpeak+ included, plus your current plan limits are now unlocked in your account.
   </div>
 
   <div class="container">
@@ -94,43 +84,50 @@
     <h1>Welcome to SpeakAnyWay 🎉</h1>
 
     <p class="intro">
-      Hi <%= @user.name.blank? ? "there" : @user.name %> — you’re now on the <strong>Basic plan</strong>!  
-      That means you’ve unlocked <strong>MySpeak+</strong>, access to our <strong>AI features</strong>,  
-      and powerful tools to take communication anywhere.
+      Hi <%= @user.name.blank? ? "there" : @user.name %> — you’re now on the <strong>Basic plan</strong>!
+      MySpeak+ is included, and your account limits have been upgraded so you can do more right away.
     </p>
 
     <p style="text-align:center;">
       <a href="<%= @login_link %>" class="button">Open Your Dashboard</a>
     </p>
-    <p class="subtext">If the button doesn’t work, copy this link:<br>
+
+    <p class="subtext">
+      If the button doesn’t work, copy this link:<br>
       <span style="word-break:break-all;color:#6b6b6b;"><%= @login_link %></span>
     </p>
 
     <div class="section">
       <h2>What you can do on Basic</h2>
       <ul class="check">
-        <li>Add <strong>ICE info</strong> (emergency contacts & medical notes) in your Communicator Account.</li>
-        <li>Use our <strong>AI features</strong> to suggest words, layouts, and boards.</li>
-        <li>Invite up to <strong>2 Supporters</strong> (teachers, friends, therapists) with read-only access.</li>
-        <li><strong>Export boards as PDFs with QR codes</strong> for AAC on the go — no device required.</li>
-        <li>Keep creating and sharing boards to fit your daily needs.</li>
+        <li>MySpeak+ included: add <strong>ICE info</strong> (emergency contacts & important notes) to your Communicator profile.</li>
+
+        <%# If you track “paid communicator accounts” as a limit, this line stays accurate %>
+        <li>Create up to <strong><%= basic_comm_limit %></strong> communicator account<%= basic_comm_limit.to_i == 1 ? "" : "s" %> (username + passcode for switching / remote access).</li>
+
+        <li>Create up to <strong><%= basic_board_limit %></strong> custom board<%= basic_board_limit.to_i == 1 ? "" : "s" %> (and share them with supporters).</li>
+
+        <li>Invite up to <strong><%= basic_supporter_limit %></strong> Supporter account<%= basic_supporter_limit.to_i == 1 ? "" : "s" %> (family/teacher/therapist access).</li>
+
+        <li><strong>Export boards as PDFs with QR codes</strong> for portable AAC — no device required.</li>
+
+        <li>Keep building boards that match real life: home, school, community, routines, and more.</li>
       </ul>
     </div>
 
     <div class="section quickstart">
       <h2 style="margin:0 0 6px 0;">Quick start (2 minutes)</h2>
       <ol>
-        <li>Update your <strong>Communicator Account</strong> with ICE info.</li>
-        <li>Create your first custom board — AI can help suggest words.</li>
-        <li>Invite 2 Supporters to view your boards in real time.</li>
-        <li>Export your board as a PDF + QR code for quick, portable access.</li>
+        <li>Open your dashboard and update your MySpeak profile (ICE info).</li>
+        <li>Create your first custom board (start with everyday core words).</li>
+        <li>Invite a Supporter so someone else can help (teacher/caregiver/therapist).</li>
+        <li>Export a board as a PDF + QR code for easy access anywhere.</li>
       </ol>
     </div>
 
     <div class="section">
       <h2>Thinking about Pro?</h2>
 
-      <!-- BEGIN: Gmail-safe comparison table inside .compare wrapper -->
       <div class="compare">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
           <tr>
@@ -146,21 +143,21 @@
           </tr>
 
           <tr>
-            <td style="padding:12px 14px;font-size:14px;line-height:1.4;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;">Custom boards</td>
-            <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;">25</td>
-            <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;">Unlimited</td>
+            <td style="padding:12px 14px;font-size:14px;line-height:1.4;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;">Communicator accounts (username + passcode)</td>
+            <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;"><%= basic_comm_limit %></td>
+            <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;"><%= pro_comm_limit %></td>
           </tr>
 
           <tr>
-            <td style="padding:12px 14px;font-size:14px;line-height:1.4;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;">AI features</td>
-            <td align="center" style="padding:12px 14px;font-size:16px;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;color:#2abed1;font-weight:700;">✔</td>
-            <td align="center" style="padding:12px 14px;font-size:16px;border-top:1px solid #e9e9e9;color:#2abed1;font-weight:700;">✔</td>
+            <td style="padding:12px 14px;font-size:14px;line-height:1.4;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;">Custom boards</td>
+            <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;"><%= basic_board_limit %></td>
+            <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;"><%= pro_board_limit %></td>
           </tr>
 
           <tr>
             <td style="padding:12px 14px;font-size:14px;line-height:1.4;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;">Supporter accounts</td>
-            <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;">2</td>
-            <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;">Unlimited</td>
+            <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;"><%= basic_supporter_limit %></td>
+            <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;"><%= pro_supporter_limit %></td>
           </tr>
 
           <tr>
@@ -182,13 +179,19 @@
           </tr>
         </table>
       </div>
-      <!-- END: Gmail-safe comparison table -->
 
       <div class="upgrade-box">
-        <h3>Upgrade to Pro for $20/mo 🚀</h3>
-        <p>Pro is built for families, classrooms, and professionals who need <strong>unlimited supporters, analytics, and priority support</strong>.</p>
-        <p><a href="https://speakanyway.com/pricing" class="button">Go Pro Today</a></p>
-        <p style="font-size:12px;color:#666;margin-top:8px;">Cancel anytime. Your boards stay safe.</p>
+        <h3>Pro adds more room to grow 🚀</h3>
+        <p>
+          Pro is built for families, classrooms, and professionals who need
+          <strong>more communicator accounts</strong>, <strong>more supporters</strong>, and advanced tools.
+        </p>
+        <p>
+          <a href="https://speakanyway.com/pricing" class="button">Compare Plans</a>
+        </p>
+        <p style="font-size:12px;color:#666;margin-top:8px;">
+          Current pricing: Basic <strong><%= basic_price %></strong> • Pro <strong><%= pro_price %></strong>. Cancel anytime.
+        </p>
       </div>
     </div>
 

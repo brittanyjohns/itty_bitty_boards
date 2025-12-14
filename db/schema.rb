@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_12_02_174649) do
+ActiveRecord::Schema[7.1].define(version: 2025_12_11_130117) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -236,7 +236,10 @@ ActiveRecord::Schema[7.1].define(version: 2025_12_02_174649) do
     t.boolean "placeholder", default: false
     t.bigint "vendor_id"
     t.jsonb "layout", default: {}
+    t.bigint "owner_id"
+    t.boolean "is_demo", default: false
     t.index ["authentication_token"], name: "index_child_accounts_on_authentication_token", unique: true
+    t.index ["owner_id"], name: "index_child_accounts_on_owner_id"
     t.index ["reset_password_token"], name: "index_child_accounts_on_reset_password_token", unique: true
     t.index ["user_id"], name: "index_child_accounts_on_user_id"
     t.index ["username"], name: "index_child_accounts_on_username", unique: true
@@ -758,6 +761,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_12_02_174649) do
     t.boolean "locked", default: false
     t.bigint "organization_id"
     t.bigint "vendor_id"
+    t.string "stripe_subscription_id"
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
     t.index ["child_lookup_key"], name: "index_users_on_child_lookup_key", unique: true
     t.index ["current_team_id"], name: "index_users_on_current_team_id"
@@ -823,6 +827,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_12_02_174649) do
   add_foreign_key "boards", "users"
   add_foreign_key "boards", "vendors"
   add_foreign_key "child_accounts", "users"
+  add_foreign_key "child_accounts", "users", column: "owner_id"
   add_foreign_key "child_accounts", "vendors"
   add_foreign_key "child_boards", "boards"
   add_foreign_key "child_boards", "boards", column: "original_board_id"

@@ -64,4 +64,10 @@ class UserMailerPreview < ActionMailer::Preview
     @recipient = @message.recipient
     UserMailer.message_notification_email(@message)
   end
+
+  def welcome_email(user_id)
+    user = User.find_by(id: user_id)
+    return unless user
+    UserMailer.welcome_email(user)
+  end
 end

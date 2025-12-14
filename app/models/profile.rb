@@ -381,7 +381,7 @@ class Profile < ApplicationRecord
       claim_token: SecureRandom.hex(10),
     )
     if existing_user
-      new_communicator_account = existing_user.child_accounts.create!(
+      new_communicator_account = existing_user.communicator_accounts.create!(
         username: username,
         name: username,
       )

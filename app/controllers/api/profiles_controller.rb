@@ -138,7 +138,9 @@ class API::ProfilesController < API::ApplicationController
       @user.plan_type = "myspeak"
       @user.plan_status = "pending"
       @user.settings["board_limit"] = 1
-      @user.settings["communicator_limit"] = 0
+      @user.settings["demo_communicator_limit"] = 1
+      @user.settings["paid_communicator_limit"] = 0
+      @user.settings["ai_daily_limit"] = 10
     else
       Rails.logger.debug "User already has plan_type: #{@user.plan_type}, skipping plan assignment"
     end

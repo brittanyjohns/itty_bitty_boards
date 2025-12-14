@@ -29,9 +29,10 @@ class ChildAccount < ApplicationRecord
   # devise :database_authenticatable, :registerable,
   #        :recoverable, :rememberable, :validatable,
   #        authentication_keys: [:username]
-
+  DEMO_ACCOUNT_BOARD_LIMIT = 3
   belongs_to :user, optional: true
   belongs_to :vendor, optional: true
+  belongs_to :owner, class_name: "User", optional: true
   has_many :child_boards, dependent: :destroy
   has_many :boards, through: :child_boards
   has_many :images, through: :boards
@@ -49,6 +50,8 @@ class ChildAccount < ApplicationRecord
   # validates :passcode, length: { minimum: 6 }, on: :create
 
   validates :username, presence: true, uniqueness: true
+  # validate :demo_accounts_cannot_have_login
+  # validate :paid_accounts_must_have_login
 
   delegate :display_docs_for_image, to: :user
 
@@ -72,11 +75,46 @@ class ChildAccount < ApplicationRecord
   scope :with_teams, -> { includes(teams: [:team_users]) }
   scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
   scope :with_boards, -> { includes(child_boards: :board) }
+  scope :demo_accounts, -> { where(is_demo: true) }
+  scope :paid_accounts, -> { where(is_demo: false) }
+
+  before_save :set_owner_if_missing, if: -> { owner.nil? && user.present? }
+
+  def set_owner_if_missing
+    self.owner = user
+  end
 
   def self.valid_credentials?(username, password_to_set)
     account = ChildAccount.find_by(username: username, passcode: password_to_set)
     Rails.logger.error("Invalid credentials for #{username}") unless account
     account
+  end
+
+  def demo_accounts_cannot_have_login
+    return unless is_demo?
+    if username.present? || passcode.present?
+      errors.add(:base, "Demo communicators cannot have a username or passcode.")
+    end
+  end
+
+  def paid_accounts_must_have_login
+    return if is_demo?
+    if username.blank? || passcode.blank?
+      errors.add(:base, "Paid communicators must have a username and passcode.")
+    end
+  end
+
+  def primary_team
+    # For now, assume 1 team per communicator
+    teams.first
+  end
+
+  def ensure_team!(creator:)
+    return primary_team if primary_team.present?
+
+    team = Team.create!(name: "#{name || "Communicator"}'s Team", created_by: creator)
+    TeamAccount.create!(team: team, account: self)
+    team
   end
 
   def update_audio
@@ -431,6 +469,7 @@ class ChildAccount < ApplicationRecord
       can_edit: viewing_user&.can_add_boards_to_account?([id]),
       is_owner: viewing_user&.id == user_id,
       is_vendor: is_vendor,
+      is_demo: is_demo?,
       vendor: is_vendor ? vendor&.api_view(viewing_user) : nil,
       vendor_profile: is_vendor ? cached_profile&.api_view(viewing_user) : nil,
       pro: cached_user.pro?,
@@ -546,6 +585,7 @@ class ChildAccount < ApplicationRecord
       profile: profile&.api_view,
       week_chart: week_chart,
       avatar_url: profile&.avatar_url,
+      is_demo: is_demo?,
       supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
     }
