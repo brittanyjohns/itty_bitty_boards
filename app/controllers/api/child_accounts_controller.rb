@@ -49,7 +49,8 @@ class API::ChildAccountsController < API::ApplicationController
 
     # Validate basic fields first
     unless @child_account.valid?
-      render json: { errors: @child_account.errors }, status: :unprocessable_entity
+      Rails.logger.info "Invalid Child Account: errors: #{@child_account.errors.full_messages.join(", ")}"
+      render json: { errors: @child_account.errors.full_messages.join(", ") }, status: :unprocessable_entity
       return
     end
 

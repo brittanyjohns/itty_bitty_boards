@@ -79,6 +79,15 @@ class ChildAccount < ApplicationRecord
   scope :paid_accounts, -> { where(is_demo: false) }
 
   before_save :set_owner_if_missing, if: -> { owner.nil? && user.present? }
+  before_validation :set_username_if_missing, if: -> { username.blank? }
+
+  def set_username_if_missing
+    if name.present?
+      self.username = name.parameterize
+    else
+      self.username = "comm#{SecureRandom.hex(4)}"
+    end
+  end
 
   def set_owner_if_missing
     self.owner = user
