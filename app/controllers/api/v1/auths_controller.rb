@@ -18,7 +18,11 @@ module API
           # result = Stripe::Customer.create({ email: user.email })
           result = User.create_stripe_customer(user.email)
           Rails.logger.info "Stripe customer created for new user #{user.email}: #{result}"
-          user.update(stripe_customer_id: result)
+          Rails.logger.info "Plan type param: #{params["plan_type"]}" if params["plan_type"]
+          user.stripe_customer_id = result
+          if params["plan_type"] && params["plan_type"] == "partner_pro"
+            user.setup_partner_pro_plan
+          end
           # Send welcome email
           # UserMailer.welcome_email(user).deliver_now
           # user.send_welcome_email

@@ -146,6 +146,56 @@ class User < ApplicationRecord
     plan_type == "pro" ? 5 : 2
   end
 
+  def setup_partner_pro_plan
+    self.settings ||= {}
+    self.settings["paid_communicator_limit"] = 3
+    self.settings["demo_communicator_limit"] = 10
+    self.settings["board_limit"] = 200
+    self.settings["ai_daily_limit"] = 100
+    self.plan_type = "pro"
+    save
+  end
+
+  def setup_pro_limits
+    self.settings ||= {}
+    self.settings["paid_communicator_limit"] = 3
+    self.settings["demo_communicator_limit"] = 10
+    self.settings["board_limit"] = 200
+    self.settings["ai_daily_limit"] = 100
+    self.plan_type = "pro"
+    save
+  end
+
+  def setup_basic_limits
+    self.settings ||= {}
+    self.settings["paid_communicator_limit"] = 2
+    self.settings["demo_communicator_limit"] = 0
+    self.settings["board_limit"] = 100
+    self.settings["ai_daily_limit"] = 50
+    self.plan_type = "basic"
+    save
+  end
+
+  def setup_myspeak_limits
+    self.settings ||= {}
+    self.settings["paid_communicator_limit"] = 0
+    self.settings["demo_communicator_limit"] = 1
+    self.settings["board_limit"] = 3
+    self.settings["ai_daily_limit"] = 10
+    self.plan_type = "myspeak"
+    save
+  end
+
+  def setup_free_limits
+    self.settings ||= {}
+    self.settings["paid_communicator_limit"] = 0
+    self.settings["demo_communicator_limit"] = 0
+    self.settings["board_limit"] = 1
+    self.settings["ai_daily_limit"] = 1
+    self.plan_type = "free"
+    save
+  end
+
   def communicator_limit=(value)
     self.settings ||= {}
     self.settings["paid_communicator_limit"] = value
