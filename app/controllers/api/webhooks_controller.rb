@@ -60,6 +60,15 @@ class API::WebhooksController < API::ApplicationController
   def handle_customer_created(customer)
     stripe_customer_id = customer.id
     user = User.find_by(stripe_customer_id: stripe_customer_id)
+    if !user && customer.email.present?
+      Rails.logger.error "[StripeWebhook] customer.created: no user found for customer #{stripe_customer_id} - Creating one"
+      user = User.invite!(email: customer.email, skip_invitation: true)
+      # Send welcome email to new user
+      user.send_welcome_email("free", nil)
+    elsif !user
+      Rails.logger.error "[StripeWebhook] customer.created: no user found for customer #{stripe_customer_id} and no email present"
+      return
+    end
     return unless user
     user.send_general_welcome_email
     # You can implement logic here if needed when a Stripe Customer is created.
@@ -129,8 +138,9 @@ class API::WebhooksController < API::ApplicationController
     user.role = meta["role"] if meta["role"].present?
 
     user.save!
+    # check if user needs to set their password
 
-    if is_create_event
+    if is_create_event || user.last_sign_in_at.blank?
       # Send welcome email on new subscriptions
       begin
         user.send_welcome_email(plan_type, meta["username"])
