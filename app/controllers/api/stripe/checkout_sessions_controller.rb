@@ -24,8 +24,7 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     ensure_customer!
 
     
-    trial_days = params[:trial_days].to_i
-    trial_days = 14 if trial_days < 0
+    trial_days = 14
 
     session_params = {
       mode: "subscription",
@@ -36,13 +35,10 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
       allow_promotion_codes: true, # ✅ promo code box in Checkout
       metadata: { user_id: current_user.id, plan_key: plan_key },
       payment_method_collection: "if_required",
+      subscription_data: {
+        trial_period_days: trial_days,
+      },
     }
-
-    if trial_days > 0
-      session_params[:subscription_data] = {
-        trial_period_days: trial_days
-      }
-    end
 
     session = Stripe::Checkout::Session.create(session_params)
     render json: { url: session.url }
