@@ -706,7 +706,7 @@ class User < ApplicationRecord
     Rails.logger.info "Sending temporary login email to #{email}"
     begin
       TempLoginService.issue_for!(self)
-      UserMailer.temporary_login_email(self).deliver_now
+      UserMailer.temporary_login_email(self, User::TEMP_LOGIN_TOKEN_EXPIRY_HOURS).deliver_now
       Rails.logger.info "Temporary login email sent to #{email}"
     rescue => e
       Rails.logger.error("Error sending temporary login email: #{e.message}")
