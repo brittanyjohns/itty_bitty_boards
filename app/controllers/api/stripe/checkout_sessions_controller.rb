@@ -38,6 +38,8 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
       subscription_data: {
         trial_period_days: trial_days,
       },
+      success_url: "#{frontend_base_url}/billing/success?session_id={CHECKOUT_SESSION_ID}",
+      cancel_url: "#{frontend_base_url}/onboarding",
     }
 
     session = Stripe::Checkout::Session.create(session_params)
@@ -57,6 +59,6 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
   end
 
   def frontend_base_url
-    ENV["FRONTEND_BASE_URL"] || "http://localhost:8100"
+    ENV["FRONT_END_URL"] || "http://localhost:8100"
   end
 end
