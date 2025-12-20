@@ -8,10 +8,11 @@ class UserMailer < BaseMailer
     mail(to: @user.email, subject: "Welcome to SpeakAnyWay AAC!")
   end
 
-  def temporary_login_email(user)
+  def temporary_login_email(user, expiration_hours)
     @user = user
     @user_name = @user.name
     @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    @expiration_hours = expiration_hours
     Rails.logger.info "Generating temporary login link for user #{user.id} with token #{user.temp_login_token}"
     Rails.logger.info "Front end URL: #{@login_link}"
     @login_link += "/temp-login/#{user.temp_login_token}?email=#{ERB::Util.url_encode(user.email)}"

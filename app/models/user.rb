@@ -112,6 +112,7 @@ class User < ApplicationRecord
   # Constants
   # DEFAULT_ADMIN_ID = self.admin.first&.id
   DEFAULT_ADMIN_ID = Rails.env.development? ? 2 : 1
+  TEMP_LOGIN_TOKEN_EXPIRY_HOURS = 4
 
   # Callbacks
   before_save :set_default_settings, unless: :settings?

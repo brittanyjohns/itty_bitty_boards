@@ -1,6 +1,6 @@
 # app/services/temp_login_service.rb
 class TempLoginService
-  EXPIRY = 120.minutes
+  EXPIRY = User::TEMP_LOGIN_TOKEN_EXPIRY_HOURS.hours
 
   def self.issue_for!(user)
     token = SecureRandom.urlsafe_base64(32)

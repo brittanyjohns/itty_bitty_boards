@@ -20,12 +20,12 @@ class UserMailerPreview < ActionMailer::Preview
     UserMailer.welcome_pro_email(@user)
   end
 
-  def temporary_login_email
+  def temporary_login_email(expiration_hours = 1)
     @user = User.last
     email = @user.email
     TempLoginService.issue_for!(@user)
     Rails.logger.info "Generated temp login token for #{@user.email}: #{@user.temp_login_token}"
-    UserMailer.temporary_login_email(@user)
+    UserMailer.temporary_login_email(@user, expiration_hours)
   end
 
   def welcome_invitation_email
