@@ -7,13 +7,13 @@
 
 Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do
-    # origins "http://localhost:8100", "https://speakanyway.com", "http://www.speakanyway.com"
-    origins "*"
+    origins "http://localhost:8100", "https://speakanyway.com", "http://www.speakanyway.com"
+    # origins "*"
 
     resource "*",
       headers: :any,
       methods: [:get, :post, :put, :patch, :delete, :options, :head],
       expose: [:Authorization],  # Keep existing exposed headers
-      credentials: false          # Allow credentials if needed
+      credentials: true          # Allow credentials if needed
   end
 end

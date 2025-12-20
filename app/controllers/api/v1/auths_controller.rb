@@ -21,7 +21,8 @@ module API
           Rails.logger.info "Plan type param: #{params["plan_type"]}" if params["plan_type"]
           user.stripe_customer_id = result
           if params["plan_type"] && params["plan_type"] == "partner_pro"
-            user.setup_partner_pro_plan
+            user.plan_type = "partner_pro"
+            user.plan_status = "active"
           end
           # Send welcome email
           # UserMailer.welcome_email(user).deliver_now

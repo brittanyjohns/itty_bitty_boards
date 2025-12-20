@@ -123,6 +123,27 @@ class User < ApplicationRecord
   before_destroy :delete_stripe_customer
   before_destroy :unassign_vendor
 
+  before_save :reset_limits_if_downgrade, if: :plan_type_changed?
+
+  # Methods
+
+  def reset_limits_if_downgrade
+    case plan_type
+    when "free"
+      setup_free_limits
+    when "myspeak"
+      setup_myspeak_limits
+    when "basic"
+      setup_basic_limits
+    when "pro"
+      setup_pro_limits
+    when "partner_pro"
+      setup_partner_pro_plan
+    else
+      Rails.logger.warn "Unknown plan_type #{plan_type} for user #{id}"
+    end
+  end
+
   def set_uuid
     return if self.uuid.present?
     self.uuid = SecureRandom.uuid
@@ -153,7 +174,7 @@ class User < ApplicationRecord
     self.settings["board_limit"] = 200
     self.settings["ai_daily_limit"] = 100
     self.plan_type = "pro"
-    save
+    self.role = "partner"
   end
 
   def setup_pro_limits
@@ -163,7 +184,7 @@ class User < ApplicationRecord
     self.settings["board_limit"] = 200
     self.settings["ai_daily_limit"] = 100
     self.plan_type = "pro"
-    save
+    self.role = "user"
   end
 
   def setup_basic_limits
@@ -173,7 +194,7 @@ class User < ApplicationRecord
     self.settings["board_limit"] = 100
     self.settings["ai_daily_limit"] = 50
     self.plan_type = "basic"
-    save
+    self.role = "user"
   end
 
   def setup_myspeak_limits
@@ -183,7 +204,7 @@ class User < ApplicationRecord
     self.settings["board_limit"] = 3
     self.settings["ai_daily_limit"] = 10
     self.plan_type = "myspeak"
-    save
+    self.role = "user"
   end
 
   def setup_free_limits
@@ -193,7 +214,7 @@ class User < ApplicationRecord
     self.settings["board_limit"] = 1
     self.settings["ai_daily_limit"] = 1
     self.plan_type = "free"
-    save
+    self.role = "user"
   end
 
   def communicator_limit=(value)
@@ -678,6 +699,17 @@ class User < ApplicationRecord
     new_user.update!(stripe_customer_id: stripe_customer_id)
 
     new_user
+  end
+
+  def send_temp_login_email
+    Rails.logger.info "Sending temporary login email to #{email}"
+    begin
+      TempLoginService.issue_for!(self)
+      UserMailer.temporary_login_email(self).deliver_now
+      Rails.logger.info "Temporary login email sent to #{email}"
+    rescue => e
+      Rails.logger.error("Error sending temporary login email: #{e.message}")
+    end
   end
 
   def send_general_welcome_email

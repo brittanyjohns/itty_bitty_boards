@@ -20,6 +20,14 @@ class UserMailerPreview < ActionMailer::Preview
     UserMailer.welcome_pro_email(@user)
   end
 
+  def temporary_login_email
+    @user = User.last
+    email = @user.email
+    TempLoginService.issue_for!(@user)
+    Rails.logger.info "Generated temp login token for #{@user.email}: #{@user.temp_login_token}"
+    UserMailer.temporary_login_email(@user)
+  end
+
   def welcome_invitation_email
     @user = User.first
     email = "bhannajohns+new_user@gmail.com"

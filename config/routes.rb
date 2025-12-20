@@ -135,6 +135,8 @@ Rails.application.routes.draw do
     namespace :stripe do
       resources :checkout_sessions, only: :create
     end
+    get "temp-login/:token", to: "temp_logins#show"
+    post "set-password", to: "users#set_password"
 
     get "public_boards", to: "boards#public_boards"
     get "public_menu_boards", to: "boards#public_menu_boards"
@@ -408,6 +410,7 @@ Rails.application.routes.draw do
         member do
           post "send_welcome_email"
           post "send_setup_email"
+          post "send_temp_login_email"
         end
         collection do
           delete "destroy_users"

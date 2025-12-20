@@ -35,6 +35,27 @@ class API::UsersController < API::ApplicationController
     end
   end
 
+  def set_password
+    # @user = User.find(params[:id])
+    @user = current_user
+    Rails.logger.info("Setting password for user: #{@user.inspect}")
+    Rails.logger.info("Params received: #{params.inspect}")
+    password = params[:password]
+    password_confirmation = params[:password_confirmation]
+    if password != password_confirmation
+      render json: { error: "Password confirmation does not match" }, status: :unprocessable_entity
+      return
+    end
+    @user.password = password
+    @user.password_confirmation = password_confirmation
+    @user.force_password_reset = false
+    if @user.save
+      render json: { success: true }, status: :ok
+    else
+      render json: @user.errors, status: :unprocessable_entity
+    end
+  end
+
   # PATCH/PUT /users/1 or /users/1.json
   def update_settings
     @user = User.find(params[:id])
