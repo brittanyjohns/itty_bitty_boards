@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_12_20_134535) do
+ActiveRecord::Schema[7.1].define(version: 2025_12_22_181953) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -307,6 +307,25 @@ ActiveRecord::Schema[7.1].define(version: 2025_12_20_134535) do
     t.string "promo_code"
     t.string "promo_code_details"
     t.index ["promo_code"], name: "index_events_on_promo_code"
+  end
+
+  create_table "feedback_items", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "feedback_type", null: false
+    t.string "role", null: false
+    t.string "subject"
+    t.text "message", null: false
+    t.string "page_url"
+    t.string "app_version"
+    t.string "platform"
+    t.string "device"
+    t.boolean "allow_contact", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_feedback_items_on_created_at"
+    t.index ["feedback_type"], name: "index_feedback_items_on_feedback_type"
+    t.index ["role"], name: "index_feedback_items_on_role"
+    t.index ["user_id"], name: "index_feedback_items_on_user_id"
   end
 
   create_table "images", force: :cascade do |t|
@@ -838,6 +857,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_12_20_134535) do
   add_foreign_key "child_boards", "child_accounts"
   add_foreign_key "child_boards", "users", column: "created_by_id"
   add_foreign_key "contest_entries", "events"
+  add_foreign_key "feedback_items", "users"
   add_foreign_key "menus", "users"
   add_foreign_key "openai_prompts", "users"
   add_foreign_key "order_items", "orders"

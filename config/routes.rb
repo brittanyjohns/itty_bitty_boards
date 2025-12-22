@@ -137,6 +137,7 @@ Rails.application.routes.draw do
     end
     get "temp-login/:token", to: "temp_logins#show"
     post "set-password", to: "users#set_password"
+    resources :feedback, only: [:create]
 
     get "public_boards", to: "boards#public_boards"
     get "public_menu_boards", to: "boards#public_menu_boards"
