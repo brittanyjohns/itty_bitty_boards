@@ -23,6 +23,9 @@
 #  details                :jsonb
 #  placeholder            :boolean          default(FALSE)
 #  vendor_id              :bigint
+#  layout                 :jsonb
+#  owner_id               :bigint
+#  is_demo                :boolean          default(FALSE)
 #
 require 'rails_helper'
 

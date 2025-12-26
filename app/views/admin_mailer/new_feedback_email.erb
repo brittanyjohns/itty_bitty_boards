@@ -1,0 +1,46 @@
+
+<div class="container">
+    <div class="header">
+        <p>SpeakAnyWay has a new user! 🎉</p>
+    </div>
+    <div class="content">
+        <p>Hi <%= @admin.name %>,</p>
+        <p>You have received new feedback through the SpeakAnyWay AAC app:</p>
+        #  id            :bigint           not null, primary key
+#  user_id       :bigint           not null
+#  feedback_type :string           not null
+#  role          :string           not null
+#  subject       :string
+#  message       :text             not null
+#  page_url      :string
+#  app_version   :string
+#  platform      :string
+#  device        :string
+#  allow_contact :boolean          default(TRUE), not null
+#  created_at    :datetime         not null
+#  updated_at    :datetime         not null
+        <ul>
+            <li><strong>Type:</strong> <%= @feedback_item.feedback_type.capitalize %></li>
+            <li><strong>Name:</strong> <%= @feedback_item.name.present? ? @feedback_item.name : "N/A" %></li>
+            <li><strong>Email:</strong> <%= @feedback_item.email.present? ? @feedback_item.email : "N/A" %></li>
+            <li><strong>Message:</strong> <%= @feedback_item.message %></li>
+            <% if @feedback_item.page_url.present? %>
+                <li><strong>Page URL:</strong> <%= @feedback_item.page_url %></li>
+            <% end %>
+            <% if @feedback_item.app_version.present? %>
+                <li><strong>App Version:</strong> <%= @feedback_item.app_version %></li>
+            <% end %>
+            <% if @feedback_item.platform.present? %>
+                <li><strong>Platform:</strong> <%= @feedback_item.platform %></li>
+            <% end %>
+            <% if @feedback_item.device.present? %>
+                <li><strong>Device:</strong> <%= @feedback_item.device %></li>
+            <% end %>
+            <li><strong>Allow Contact:</strong> <%= @feedback_item.allow_contact ? "Yes" : "No" %></li> 
+        </ul>
+        <p>Please review the feedback at your earliest convenience.</p>
+    </div>
+
+        <p>Whoo-hoo! 🎉</p>
+        <p>Best,<br>The SpeakAnyWay Team</p>
+</div>

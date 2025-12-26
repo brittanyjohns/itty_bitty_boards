@@ -407,6 +407,7 @@ Rails.application.routes.draw do
         get "download_entries", on: :member
         post "pick_winner", on: :member
       end
+      resources :feedback, only: [:index]
       resources :users do
         member do
           post "send_welcome_email"

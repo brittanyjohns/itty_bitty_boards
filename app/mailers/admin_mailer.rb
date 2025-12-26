@@ -16,4 +16,12 @@ class AdminMailer < BaseMailer
     @admin = User.find_by(id: User::DEFAULT_ADMIN_ID)
     mail(to: to_email, subject: subject, from: "noreply@speakanyway.com")
   end
+
+  def new_feedback_email(feedback_item)
+    to_email = ENV["ADMIN_EMAIL"] || "brittany@speakanyway.com"
+    subject = "New feedback received for SpeakAnyWay AAC!!"
+    @feedback_item = feedback_item
+    @admin = User.find_by(id: User::DEFAULT_ADMIN_ID)
+    mail(to: to_email, subject: subject, from: "noreply@speakanyway.com")
+  end
 end
