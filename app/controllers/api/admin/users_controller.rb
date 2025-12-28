@@ -79,6 +79,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     end
     @user.role = role
     @user.plan_type = plan_type
+    @user.save # Save here to ensure plan_type is set before adjusting limits
     @user.locked = params[:locked] || false
     @user.settings["locked"] = params[:locked] || false
     @user.settings["board_limit"] = params[:board_limit] || 0
