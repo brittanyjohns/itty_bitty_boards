@@ -5,7 +5,7 @@ class BoardScreenshotImportJob
   include Sidekiq::Worker
   sidekiq_options queue: :ai_images, retry: 1, backtrace: true
 
-  def perform(import_id)
+  def perform(import_id, columns = nil)
     import = BoardScreenshotImport.find(import_id)
     import.update!(status: "processing")
 
@@ -21,7 +21,8 @@ class BoardScreenshotImportJob
 
       # 3) Call OpenAI via service (like ImageEditService)
       vision_service = BoardScreenshotVisionService.new
-      result = vision_service.parse_board(image_path: processed_path)
+
+      result = vision_service.parse_board(image_path: processed_path, cols: columns)
 
       # 4) Persist candidates + import metadata
       BoardScreenshotImport.transaction do

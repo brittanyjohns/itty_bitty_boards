@@ -84,39 +84,8 @@ module BoardsHelper
     end
   end
 
-  COLORS = {
-    "white" => "rgb(255, 255, 255)",
-    "red" => "rgb(255, 0, 0)",
-    "red pink" => "rgb(255, 112, 156)",
-    "pinky purple" => "rgb(255, 115, 222)",
-    "light red-orange" => "rgb(250, 196, 140)",
-    "orange" => "rgb(255, 196, 87)",
-    "yellow" => "rgb(255, 234, 117)",
-    "yellowy" => "rgb(255, 241, 92)",
-    "light yellow" => "rgb(252, 242, 134)",
-    "dark green" => "rgb(82, 209, 86)",
-    "navy green" => "rgb(149, 189, 42)",
-    "green" => "rgb(161, 245, 113)",
-    "pale green" => "rgb(196, 252, 141)",
-    "strong blue" => "rgb(94, 207, 255)",
-    "happy blue" => "rgb(148, 223, 255)",
-    "bluey" => "rgb(176, 223, 255)",
-    "light blue" => "rgb(194, 241, 255)",
-    "dark purple" => "rgb(118, 152, 199)",
-    "light purple" => "rgb(208, 190, 232)",
-    "brown" => "rgb(153, 79, 0)",
-    "dark blue" => "rgb(0, 109, 235)",
-    "black" => "rgb(0, 0, 0)",
-    "gray" => "rgb(161, 161, 161)",
-    "dark orange" => "rgb(255, 108, 59)",
-  }
-
   def get_background_color_css
-    color = self.bg_color
-    if color.blank?
-      color = "white"
-    end
-    COLORS[color]
+    bg_hex
   end
 
   def layout_invalid?

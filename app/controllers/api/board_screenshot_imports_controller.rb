@@ -15,6 +15,7 @@ class API::BoardScreenshotImportsController < API::ApplicationController
 
   def create
     name = params[:name]
+    columns = params[:columns]
     cropped_image = params[:cropped_image]
     image = params[:image]
 
@@ -34,7 +35,7 @@ class API::BoardScreenshotImportsController < API::ApplicationController
     end
     import.save!
     return unless check_daily_limit("ai_screenshot_imports")
-    BoardScreenshotImportJob.perform_async(import.id)
+    BoardScreenshotImportJob.perform_async(import.id, columns)
     render json: { id: import.id, status: import.status }
   end
 

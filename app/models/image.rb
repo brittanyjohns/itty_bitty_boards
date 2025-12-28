@@ -61,6 +61,7 @@ class Image < ApplicationRecord
 
   include ImageHelper
   include AudioHelper
+  include ColorHelper
   include Rails.application.routes.url_helpers
   include PgSearch::Model
   pg_search_scope :search_by_label, against: :label, using: { tsearch: { prefix: true } }
@@ -109,6 +110,10 @@ class Image < ApplicationRecord
   scope :menu_images_without_docs, -> { menu_images.without_docs }
 
   attr_accessor :skip_categorize
+
+  def bg_hex
+    ColorHelper.to_hex(bg_color, default: "#A1A1A1")
+  end
 
   def need_to_update_board_images_audio?
     use_custom_audio || voice_changed?
@@ -165,6 +170,11 @@ class Image < ApplicationRecord
 
   #   require 'net/http'
   # require 'uri'
+
+  def set_background_color!(value)
+    self.bg_color = ColorHelper.to_hex(value, default: "#9CA3AF")
+    self.text_color ||= ColorHelper.text_hex_for(bg_color)
+  end
 
   def authorized_to_view_url?(url)
     begin
@@ -237,9 +247,6 @@ class Image < ApplicationRecord
     self.bg_color = background_color_for(part_of_speech)
     self.text_color = text_color_for(bg_color)
     self.save!
-    board_images.each do |bi|
-      bi.update!(bg_color: bg_color, text_color: text_color)
-    end
   end
 
   def ensure_defaults
@@ -337,60 +344,25 @@ class Image < ApplicationRecord
     end
   end
 
-  POSSIBLE_BG_COLORS = %w[gray blue green yellow purple pink orange red teal white].freeze
-
   def background_color_for(category)
-    color = "gray"
-    case category
-    when "noun"
-      color = "blue"
-    when "verb"
-      color = "green"
-    when "adjective"
-      color = "yellow"
-    when "adverb"
-      color = "purple"
-    when "pronoun"
-      color = "pink"
-    when "preposition"
-      color = "orange"
-    when "conjunction"
-      color = "red"
-    when "interjection"
-      color = "teal"
-    when "phrase"
-      color = "white"
-    else
-      color = "gray"
-    end
-    color
+    name = case category
+      when "noun" then "blue"
+      when "verb" then "green"
+      when "adjective" then "yellow"
+      when "adverb" then "purple"
+      when "pronoun" then "pink"
+      when "preposition" then "orange"
+      when "conjunction" then "red"
+      when "interjection" then "teal"
+      when "phrase" then "white"
+      else "gray"
+      end
+
+    ColorHelper.to_hex(name, default: "#A1A1A1")
   end
 
-  def text_color_for(bg_color)
-    color = "black"
-    case bg_color
-    when "blue"
-      color = "white"
-    when "green"
-      color = "white"
-    when "yellow"
-      color = "black"
-    when "purple"
-      color = "white"
-    when "pink"
-      color = "black"
-    when "orange"
-      color = "black"
-    when "red"
-      color = "white"
-    when "teal"
-      color = "white"
-    when "gray"
-      color = "white"
-    else
-      color = "black"
-    end
-    color
+  def text_color_for(bg_value)
+    ColorHelper.text_hex_for(bg_value)
   end
 
   def resource_type

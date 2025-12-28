@@ -1314,6 +1314,7 @@ class Board < ApplicationRecord
           image_prompt: @board_image.image_prompt,
           bg_color: @board_image.bg_color,
           bg_class: @board_image.bg_class,
+          bg_hex: @board_image.bg_hex,
           text_color: @board_image.text_color,
           next_words: @board_image.next_words,
           position: @board_image.position,

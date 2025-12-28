@@ -28,8 +28,8 @@ class BoardScreenshotVisionService
         - label_norm: lowercase normalized version of the label (no punctuation), or null
         - confidence: 0.0-1.0 confidence
         - bbox: [x, y, width, height]
-        - bg_color: **one of the following strings**, whichever is closest to the actual BACKGROUND fill color of the button:
-            #{Image::POSSIBLE_BG_COLORS.join(",")}
+        - bg_color: **one of the following HEX strings**, whichever is closest to the actual BACKGROUND fill color of the button:
+            #{ColorHelper::HEX.values.join(",")}
 
         Ignore images, icons, borders, text, shadows - choose based only on the dominant BACKGROUND fill color.
         If no color is close enough, choose "white".
@@ -64,6 +64,8 @@ class BoardScreenshotVisionService
   end
 
   # image_path: path to a local, preprocessed image file (jpg/png)
+  # cols: optional Integer. If provided, force the model + normalizer to use this column count.
+  #
   # Returns:
   # {
   #   rows: Integer,
@@ -73,12 +75,31 @@ class BoardScreenshotVisionService
   #     { row:, col:, label_raw:, label_norm:, confidence:, bbox: [x,y,w,h] }
   #   ]
   # }
-  def parse_board(image_path:)
+  def parse_board(image_path:, cols: nil)
     raise ArgumentError, "image_path required" if image_path.blank?
+    if cols.present? && cols.to_i <= 0
+      raise ArgumentError, "cols must be a positive integer"
+    end
 
-    @logger.debug "[BoardScreenshotVisionService] Parsing board from #{image_path}"
+    forced_cols = cols.present? ? cols.to_i : nil
+
+    @logger.debug "[BoardScreenshotVisionService] Parsing board from #{image_path} (forced_cols=#{forced_cols || "auto"})"
 
     data_url = encode_image_as_data_url(image_path)
+
+    user_prompt = if forced_cols
+        <<~PROMPT
+              #{USER_PROMPT}
+
+              OVERRIDE:
+              - The board has EXACTLY #{forced_cols} columns.
+        - You MUST output "cols": #{forced_cols}.
+        - Still determine the number of rows from the screenshot.
+        - Include blank cells so that rows * #{forced_cols} equals the total number of cells.
+        PROMPT
+      else
+        USER_PROMPT
+      end
 
     response = @client.responses.create(
       parameters: {
@@ -93,7 +114,7 @@ class BoardScreenshotVisionService
           {
             role: "user",
             content: [
-              { type: "input_text", text: USER_PROMPT },
+              { type: "input_text", text: user_prompt },
               {
                 type: "input_image",
                 image_url: data_url, # MUST be data URL or public https URL
@@ -114,7 +135,7 @@ class BoardScreenshotVisionService
     raise "No output_text from Responses API" if raw_json.blank?
 
     obj = JSON.parse(raw_json)
-    normalize(obj)
+    normalize(obj, forced_cols: forced_cols)
   rescue => e
     @logger.error "[BoardScreenshotVisionService] Error: #{e.class}: #{e.message}"
     raise
@@ -150,9 +171,9 @@ class BoardScreenshotVisionService
   # Ensure we:
   # - use label_raw / label_norm
   # - fill in EVERY (row, col) even if the model skips some
-  def normalize(obj)
+  def normalize(obj, forced_cols: nil)
     rows = (obj["rows"] || 6).to_i
-    cols = (obj["cols"] || 8).to_i
+    cols = (forced_cols || obj["cols"] || 8).to_i
 
     cells = (obj["cells"] || []).map do |c|
       label_raw = c["label_raw"]

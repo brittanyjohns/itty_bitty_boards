@@ -41,11 +41,13 @@ class BoardImage < ApplicationRecord
   include BoardsHelper
   include ImageHelper
   include AudioHelper
+  include ColorHelper
 
   scope :updated_today, -> { where("updated_at > ?", 1.hour.ago) }
   scope :with_artifacts, -> { includes({ predictive_board: [{ board_images: :image }] }, :image, :board) }
   scope :visible, -> { where(hidden: false) }
   scope :hidden, -> { where(hidden: true) }
+  scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
 
   delegate :user_id, to: :board, allow_nil: false
 
@@ -62,6 +64,17 @@ class BoardImage < ApplicationRecord
     {
       prompt: label,
     }
+  end
+
+  def set_background_color(value)
+    self.bg_color = ColorHelper.to_hex(value, default: "#FFFFFF")
+    self.text_color ||= ColorHelper.text_hex_for(bg_color)
+  end
+
+  def set_background_color!
+    img_color = image.bg_color || "white"
+    set_background_color(img_color)
+    self.save!
   end
 
   def set_labels
@@ -140,6 +153,13 @@ class BoardImage < ApplicationRecord
     end
   end
 
+  def self.fix_bg_hex
+    self.all.each do |bi|
+      next if bi.bg_color.nil? || bi.bg_color.start_with?("#")
+      bi.set_background_color!
+    end
+  end
+
   def self.fix_all
     self.fix_invalid_layouts
     self.fix_non_cdn_audio
@@ -148,6 +168,10 @@ class BoardImage < ApplicationRecord
   def initialize(*args)
     super
     @skip_create_voice_audio = false
+  end
+
+  def bg_hex
+    ColorHelper.to_hex(bg_color, default: "#FFFFFF")
   end
 
   def display_image_url_or_default(viewing_user = nil)
@@ -181,8 +205,6 @@ class BoardImage < ApplicationRecord
     color = bg_color.include?("bg-") ? bg_color : "bg-#{bg_color}-400"
     color || "bg-#{image.bg_class}-400" || "bg-white"
   end
-
-  scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
 
   def voice_changed_and_not_existing?
     !image.existing_voices.include?(voice)
@@ -397,9 +419,8 @@ class BoardImage < ApplicationRecord
 
       audio_file = image.find_audio_for_voice(voice, language)
     end
-
-    self.bg_color = image.bg_color if bg_color.blank?
-    self.text_color = image.text_color
+    img_color = image.bg_color || "white"
+    set_background_color(img_color) if bg_color.blank?
     self.font_size = image.font_size
     self.border_color = image.border_color
     self.label = image.label
