@@ -74,13 +74,18 @@ module ColorHelper
     format("#%02X%02X%02X", r, g, b)
   end
 
-  # Contrast-safe text color for any background
+  # Contrast-safe text color
+  # Prefers black text unless background is very dark
   def text_hex_for(bg_value, light: "#FFFFFF", dark: "#000000")
     hex = to_hex(bg_value, default: "#FFFFFF")
+
     r = hex[1..2].to_i(16)
     g = hex[3..4].to_i(16)
     b = hex[5..6].to_i(16)
+
     brightness = (r * 299 + g * 587 + b * 114) / 1000.0
-    brightness >= 155 ? dark : light
+
+    # Only use white text for very dark backgrounds
+    brightness < 90 ? light : dark
   end
 end
