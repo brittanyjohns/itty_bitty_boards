@@ -500,9 +500,9 @@ class Image < ApplicationRecord
 
   def audio_file_exists_for?(voice, lang = "en")
     if lang == "en"
-      audio_files_blobs.where(filename: "#{label}_#{voice}.aac").any?
+      audio_files_blobs.where(filename: "#{label}_#{voice}.mp3").any?
     else
-      audio_files_blobs.where(filename: "#{label}_#{voice}_#{lang}.aac").any?
+      audio_files_blobs.where(filename: "#{label}_#{voice}_#{lang}.mp3").any?
     end
   end
 
@@ -564,7 +564,7 @@ class Image < ApplicationRecord
         Rails.logger.debug "Invalid voice: #{voice} - #{audio.blob.filename}"
         next
       end
-      new_filename = "#{label_for_filename}_#{voice}.aac"
+      new_filename = "#{label_for_filename}_#{voice}.mp3"
       audio.blob.update!(filename: new_filename)
     end
   end

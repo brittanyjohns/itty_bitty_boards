@@ -87,7 +87,7 @@ class Profile < ApplicationRecord
     begin
       response = OpenAiClient.new(open_ai_opts).create_audio_from_text(intro, voice, language)
       if response
-        filename = "#{label_for_filename}_intro.aac"
+        filename = "#{label_for_filename}_intro.mp3"
         File.open(filename, "wb") { |f| f.write(response) }
         audio_file = File.open(filename)
         new_audio_file = self.intro_audio.attach(
@@ -117,7 +117,7 @@ class Profile < ApplicationRecord
     begin
       response = OpenAiClient.new(open_ai_opts).create_audio_from_text(bio, voice, language)
       if response
-        filename = "#{label_for_filename}_bio.aac"
+        filename = "#{label_for_filename}_bio.mp3"
         File.open(filename, "wb") { |f| f.write(response) }
         audio_file = File.open(filename)
         new_audio_file = self.bio_audio.attach(

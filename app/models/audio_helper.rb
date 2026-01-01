@@ -15,7 +15,7 @@ module AudioHelper
     end
     response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice, language)
 
-    random_filename = "#{SecureRandom.hex(10)}.aac"
+    random_filename = "#{SecureRandom.hex(10)}.mp3"
 
     if response
       File.open(random_filename, "wb") do |file|
@@ -47,9 +47,9 @@ module AudioHelper
       voice = "alloy"
     end
     if lang == "en"
-      filename = "#{label_for_filename}_#{voice}.aac"
+      filename = "#{label_for_filename}_#{voice}.mp3"
     else
-      filename = "#{label_for_filename}_#{voice}_#{lang}.aac"
+      filename = "#{label_for_filename}_#{voice}_#{lang}.mp3"
     end
     audio_file = ActiveStorage::Attachment.joins(:blob)
       .where(name: :audio_files, active_storage_blobs: { filename: filename })
@@ -64,7 +64,7 @@ module AudioHelper
   end
 
   def existing_voices
-    # Ex: filename = scared_nova_22.aac
+    # Ex: filename = scared_nova_22.mp3
     audio_files.map { |audio| voice_from_filename(audio.blob.filename.to_s) }.uniq.compact
   end
 
@@ -82,9 +82,9 @@ module AudioHelper
 
   def save_audio_file(audio_file, voice, language = "en")
     if language == "en"
-      self.audio_files.attach(io: audio_file, filename: "#{self.label_for_filename}_#{voice}.aac")
+      self.audio_files.attach(io: audio_file, filename: "#{self.label_for_filename}_#{voice}.mp3")
     else
-      self.audio_files.attach(io: audio_file, filename: "#{self.label_for_filename}_#{voice}_#{language}.aac")
+      self.audio_files.attach(io: audio_file, filename: "#{self.label_for_filename}_#{voice}_#{language}.mp3")
     end
 
     new_audio_file = self.audio_files.last
@@ -93,9 +93,9 @@ module AudioHelper
 
   def find_or_create_audio_file_for_voice(voice = "alloy", lang = "en")
     if lang == "en"
-      filename = "#{label_for_filename}_#{voice}.aac"
+      filename = "#{label_for_filename}_#{voice}.mp3"
     else
-      filename = "#{label_for_filename}_#{voice}_#{lang}.aac"
+      filename = "#{label_for_filename}_#{voice}_#{lang}.mp3"
     end
 
     audio_file = ActiveStorage::Attachment.joins(:blob)
@@ -135,7 +135,7 @@ module AudioHelper
   end
 
   def voice_from_filename(filename)
-    # Ex: scared_nova.aac
+    # Ex: scared_nova.mp3
     if filename.include?("_")
       if filename.count("_") >= 2
         return filename.split("_")[1..-2].join("_")

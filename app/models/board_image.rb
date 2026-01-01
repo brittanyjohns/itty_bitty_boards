@@ -288,7 +288,7 @@ class BoardImage < ApplicationRecord
     if language != "en"
       label_voice = "#{label_voice}_#{language}"
     end
-    filename = "#{label_voice}.aac"
+    filename = "#{label_voice}.mp3"
     already_has_audio_file = image.existing_audio_files.include?(filename)
     self.voice = voice
     self.language = language
