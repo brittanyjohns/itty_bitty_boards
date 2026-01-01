@@ -27,7 +27,7 @@ module ColorHelper
     "dark orange" => "#FF6C3B",
 
     # Legacy "parts of speech" names you currently use
-    "blue" => "#006DEB",
+    "blue" => "#B0DFFFm",
     "teal" => "#2ABED1",
     "pink" => "#FF709C",
     "purple" => "#7645EF",
