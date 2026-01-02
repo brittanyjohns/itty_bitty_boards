@@ -1199,9 +1199,9 @@ class User < ApplicationRecord
     go_words = settings["go_to_words"] || Board.common_words
 
     # ---- Memoize common collections ----
-    memoized_teams = teams_with_read_access
+    # memoized_teams = teams_with_read_access
     memoized_boards = boards.alphabetical
-    memoized_communicators = communicator_accounts # association on owner_id (includes real + demo)
+    # memoized_communicators = communicator_accounts # association on owner_id (includes real + demo)
 
     # ---- Counts ----
     board_count = memoized_boards.count
@@ -1218,19 +1218,19 @@ class User < ApplicationRecord
 
     remaining_paid_accounts = [0, paid_comm_limit_total - paid_comm_count].max
     remaining_demo_accounts = [0, demo_limit - demo_comm_count].max
-
+    user_can_create_boards = board_count < board_limit
     {
       id: id,
       organization_id: organization_id,
-      profile: profile&.api_view,
-      vendor_profile: vendor_profile&.api_view,
+      # profile: profile&.api_view,
+      # vendor_profile: vendor_profile&.api_view,
       is_vendor: vendor?,
 
       # Boards
       board_limit: board_limit,
       board_count: board_count,
       board_limit_reached: board_count >= board_limit,
-      can_create_boards: can_create_boards,
+      can_create_boards: user_can_create_boards,
 
       # AI
       can_use_ai: can_use_ai?,
@@ -1279,23 +1279,23 @@ class User < ApplicationRecord
       startup_board_group_id: settings["startup_board_group_id"],
 
       # Teams / accounts / boards
-      current_team: current_team,
-      teams_with_read_access: memoized_teams.map(&:index_api_view),
+      # current_team: current_team,
+      # teams_with_read_access: memoized_teams.map(&:index_api_view),
 
       # If these are AR objects, you may already have a serializer.
       # If not, consider mapping them to api_view here for consistency.
-      communicator_accounts: memoized_communicators.map(&:index_api_view),
-      paid_communicator_accounts: paid_communicator_accounts.map(&:index_api_view),
-      demo_communicator_accounts: demo_communicator_accounts.map(&:index_api_view),
-      accounts_with_read_access: accounts_with_read_access.map(&:api_view),
+      # communicator_accounts: memoized_communicators.map(&:index_api_view),
+      # paid_communicator_accounts: paid_communicator_accounts.map(&:index_api_view),
+      # demo_communicator_accounts: demo_communicator_accounts.map(&:index_api_view),
+      # accounts_with_read_access: accounts_with_read_access.map(&:api_view),
       remaining_demo_accounts: remaining_demo_accounts,
       remaining_paid_accounts: remaining_paid_accounts,
 
-      go_to_words: go_words,
-      go_to_boards: go_to_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, slug: b.slug, ionic_icon: b.ionic_icon } },
-      boards: memoized_boards.map { |b| { id: b.id, name: b.name, word_sample: b.word_sample, frozen: b.is_frozen? } },
+      # go_to_words: go_words,
+      # go_to_boards: go_to_boards.map { |b| { id: b.id, name: b.name, display_image_url: b.display_image_url, slug: b.slug, ionic_icon: b.ionic_icon } },
+      # boards: memoized_boards.map { |b| { id: b.id, name: b.name, word_sample: b.word_sample, frozen: b.is_frozen? } },
 
-      most_clicked_words: most_clicked_words,
+      # most_clicked_words: most_clicked_words,
 
       last_sign_in_at: last_sign_in_at,
       last_sign_in_ip: last_sign_in_ip,
