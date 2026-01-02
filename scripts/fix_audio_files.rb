@@ -96,7 +96,7 @@ keys_to_fix.each do |key|
       "audio/mpeg"
     end
 
-  #   filename = inline_filename_for(key, head)
+  filename = inline_filename_for(key, head)
   #   new_cd = %(inline; filename="#{filename}")
   base = File.basename(filename, ".*")
   new_cd = %(inline; filename="#{base}.mp3")
