@@ -139,6 +139,8 @@ Rails.application.routes.draw do
     post "set-password", to: "users#set_password"
     resources :feedback, only: [:create]
 
+    get "audio/play", to: "audio#play"
+
     get "public_boards", to: "boards#public_boards"
     get "public_menu_boards", to: "boards#public_menu_boards"
     post "google_images", to: "google_search_results#image_search"
