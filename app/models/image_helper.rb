@@ -47,15 +47,16 @@ module ImageHelper
   def save_from_url(url, processed, raw_txt, file_format = "image/webp", user_id = nil, source_type = "GoogleSearch")
     return if Rails.env.test?
     begin
-      puts "Downloading image from: #{url}"
+      Rails.logger.info "Downloading image from: #{url}"
       downloaded_image = Down.download(url)
       user_id ||= self.user_id
+      ext = file_format.split("/").last || "webp"
       doc = self.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: source_type, original_image_url: url)
-      doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.webp", content_type: file_format) if downloaded_image
+      doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.#{ext}", content_type: file_format) if downloaded_image
       self.update(status: "finished", src_url: url)
       update_all_boards_image_belongs_to(url)
     rescue => e
-      puts "ImageHelper ERROR: #{e.inspect}"
+      Rails.logger.error "ImageHelper ERROR: #{e.inspect}"
       raise e
     end
     doc
