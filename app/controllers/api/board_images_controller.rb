@@ -190,7 +190,7 @@ class API::BoardImagesController < API::ApplicationController
     default_file_name = @board_image.label.downcase.gsub(" ", "-").gsub("_", "-")
     default_file_name = !default_file_name.blank? ? default_file_name : "board-image-audio"
     random_number = SecureRandom.hex(5)
-    extention = params[:audio_file]&.original_filename&.split(".")&.last || "aac"
+    extention = params[:audio_file]&.original_filename&.split(".")&.last || "mp3"
     default_file_name = "#{default_file_name}-#{random_number}-custom.#{extention}"
     @file_name = default_file_name
     @file_name = @file_name.downcase.gsub(" ", "-")
