@@ -474,11 +474,11 @@ class User < ApplicationRecord
   end
 
   def false_settings
-    %w[wait_to_speak disable_audit_logging]
+    %w[wait_to_speak disable_audit_logging enable_text_display]
   end
 
   def true_settings
-    %w[enable_image_display enable_text_display show_labels show_tutorial]
+    %w[enable_image_display show_labels show_tutorial]
   end
 
   def has_all_settings?
