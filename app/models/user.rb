@@ -112,7 +112,6 @@ class User < ApplicationRecord
   scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
 
   include WordEventsHelper
-  include API::WebhooksHelper
   # Constants
   # DEFAULT_ADMIN_ID = self.admin.first&.id
   DEFAULT_ADMIN_ID = Rails.env.development? ? 2 : 1
@@ -129,8 +128,22 @@ class User < ApplicationRecord
   before_destroy :unassign_vendor
 
   before_save :reset_limits_if_downgrade, if: :plan_type_changed?
+  before_save :update_vendor, if: :plan_type_changed?
 
   # Methods
+
+  def update_vendor
+    return if vendor
+    return unless role == "vendor" && id
+    assigned_vendor = Vendor.find_by(user_id: id)
+    puts "Updating vendor for user #{id}..."
+    if assigned_vendor
+      self.vendor_id = assigned_vendor.id
+    else
+      new_vendor = Vendor.create(business_name: name || email, user_id: id)
+      self.vendor_id = new_vendor.id
+    end
+  end
 
   def reset_limits_if_downgrade
     case plan_type
@@ -305,54 +318,6 @@ class User < ApplicationRecord
       Rails.logger.info("User created from invitation: #{email}")
     else
       Rails.logger.error("User not created from invitation: #{email}")
-    end
-    user
-  end
-
-  def self.create_new_vendor_user(email, vendor, stripe_customer_id, plan_nickname)
-    if email.blank? || stripe_customer_id.blank?
-      Rails.logger.error("Invalid parameters for creating new vendor user: email: #{email}, business_name: #{business_name}, stripe_customer_id: #{stripe_customer_id}")
-      return nil
-    end
-    business_name = vendor.business_name
-    user = User.find_by(email: email)
-    found_user = user
-    user = User.invite!(email: email, skip_invitation: true) unless user
-    Rails.logger.info("found_user: #{found_user} --Creating new vendor user with email: #{email}, business_name: #{business_name}, stripe_customer_id: #{stripe_customer_id}")
-    if user && !found_user
-      user.plan_type = plan_nickname
-      user.settings ||= {}
-      user.settings["plan_nickname"] = plan_nickname
-      user.plan_status = "active"
-      user.stripe_customer_id = stripe_customer_id
-      user.role = "vendor"
-      user.vendor = vendor
-      user.save!
-      Rails.logger.info("#{business_name} - New vendor user created: #{user.email}")
-
-      # user.send_welcome_new_vendor(vendor) if vendor
-
-      Rails.logger.info("New vendor user created: #{email}")
-    elsif found_user
-      Rails.logger.info("Found existing user for vendor: #{email}")
-      if found_user.raw_invitation_token
-        Rails.logger.info("User already has an invitation token: #{found_user.raw_invitation_token}")
-      else
-        Rails.logger.info("User does not have an invitation token, generating a new one")
-        found_user.skip_invitation = true
-        found_user.invite!
-        token = found_user.raw_invitation_token
-        Rails.logger.info("Generated new invitation token: #{token} for user: #{email}")
-      end
-      found_user.send_welcome_new_vendor(vendor) if vendor
-
-      user = found_user
-      user.role = "vendor"
-      user.vendor = vendor
-      user.save!
-    else
-      Rails.logger.error("User not created for vendor: #{email}")
-      return nil
     end
     user
   end
@@ -949,7 +914,7 @@ class User < ApplicationRecord
   end
 
   def pro?
-    plan_type == "pro" && role != "vendor"
+    plan_type == "pro"
   end
 
   def pro_vendor?
@@ -1022,7 +987,7 @@ class User < ApplicationRecord
     if admin?
       return 10000
     end
-    if pro? || plus? || premium? || pro_vendor?
+    if pro? || plus? || premium? || vendor?
       return PRO_LIMITS[feature_key] || 20
     elsif basic?
       return BASIC_LIMITS[feature_key] || 10
@@ -1111,7 +1076,6 @@ class User < ApplicationRecord
     view["free"] = free?
     view["pro"] = pro?
     view["basic"] = basic?
-    view["pro_vendor"] = pro_vendor?
     view["plan_type"] = plan_type
     view["plan_expires_at"] = plan_expires_at.strftime("%x") if plan_expires_at
     view["premium"] = premium?
@@ -1142,6 +1106,8 @@ class User < ApplicationRecord
     view["settings"] = settings
     view["settings"]["plan_type"] = plan_type
     view["partner_pro"] = partner_pro?
+    view["plan_status"] = plan_status
+    view["paid_plan_type"] = paid_plan_type
     view
   end
 
@@ -1249,10 +1215,10 @@ class User < ApplicationRecord
       plus: plus?,
       premium: premium?,
       paid_plan: paid_plan?,
-      pro_vendor: vendor?,
       myspeak: myspeak?,
       professional: professional?,
       basic_vendor: vendor? && basic?,
+      vendor: vendor?,
       plan_type: plan_type,
       plan_expires_at: plan_exp,
       free_trial: free_trial?,

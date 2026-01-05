@@ -181,13 +181,7 @@ class API::WebhooksController < API::ApplicationController
       Rails.logger.error "[StripeWebhook] subscription paused: no user for customer #{subscription.customer}"
       return
     end
-
-    # You can decide how "paused" behaves in your app.
-    user.update!(
-      plan_status: "paused",
-      # plan_type: "free" # uncomment if you want paused users treated as free
-    )
-
+    apply_free_plan(user, "paused")
     Rails.logger.info "[StripeWebhook] subscription paused: user=#{user.id} status=paused"
   rescue => e
     Rails.logger.error "[StripeWebhook] handle_subscription_paused error: #{e.class} - #{e.message}"
@@ -244,9 +238,11 @@ class API::WebhooksController < API::ApplicationController
     end
   end
 
-  def apply_free_plan(user)
+  def apply_free_plan(user, status = "canceled")
+    original_plan_type = user.plan_type
     user.plan_type = FREE_PLAN_LIMITS["plan_type"]
-    user.plan_status = "canceled"
+    user.paid_plan_type = original_plan_type
+    user.plan_status = status
 
     user.settings ||= {}
     user.settings["board_limit"] = FREE_PLAN_LIMITS["board_limit"]
