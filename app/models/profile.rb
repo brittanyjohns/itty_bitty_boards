@@ -201,6 +201,7 @@ class Profile < ApplicationRecord
       claim_url: claim_url,
       user_id: user_id,
       communicator_account: profileable_type != "User" ? profileable&.api_view : nil,
+      layout: profileable&.layout,
     # profileable: profileable.api_view,
     }
   end

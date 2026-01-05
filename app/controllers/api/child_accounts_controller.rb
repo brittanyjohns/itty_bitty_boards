@@ -115,9 +115,7 @@ class API::ChildAccountsController < API::ApplicationController
     @child_account.username = username unless username.blank?
     @child_account.name = name unless name.blank?
     was_a_demo = @child_account.is_demo
-
     is_demo = params[:is_demo] ? ActiveModel::Type::Boolean.new.cast(params[:is_demo]) : false
-    Rails.logger.info "Creating Child Account - is_demo: #{is_demo}"
     @child_account.is_demo = is_demo
     if was_a_demo && !is_demo
       # Changing from demo to paid - check limits
@@ -185,7 +183,13 @@ class API::ChildAccountsController < API::ApplicationController
     if board_ids
       all_records_saved = nil
       board_ids.each do |board_id|
-        board = Board.find(board_id)
+        og_board = Board.find(board_id)
+        if og_board.predefined?
+          # clone parent predefined board for child account
+          board = og_board.clone_with_images(current_user&.id, og_board.name)
+        else
+          board = og_board
+        end
         child_board_copy = board.clone_with_images(current_user&.id, board.name)
         child_board_copy.is_template = true
         child_board_copy.save!

@@ -212,6 +212,8 @@ class ChildAccount < ApplicationRecord
       can_edit: viewing_user&.can_add_boards_to_account?([id]),
       is_owner: viewing_user&.id == user_id,
       is_vendor: is_vendor,
+      layout: layout,
+      is_demo: is_demo?,
       vendor: is_vendor ? cached_user.vendor.api_view(viewing_user) : nil,
       vendor_profile: is_vendor ? cached_profile.api_view(viewing_user) : nil,
       pro: cached_user.pro?,
@@ -282,6 +284,7 @@ class ChildAccount < ApplicationRecord
           display_image_url: b.display_image_url,
           board_type: b.board_type,
           word_sample: b.word_sample,
+          predefined: b.predefined,
         }
       end,
       teams_boards: available_teams_boards.map do |tb|
@@ -377,7 +380,10 @@ class ChildAccount < ApplicationRecord
 
   def available_boards
     used_ids = child_boards.select(:board_id)
-    user.boards.where.not(id: used_ids).order(:name) # add includes as needed
+    user_boards = user.boards.where.not(id: used_ids).order(:name) # add includes as needed
+    #  predefined boards too
+    public_boards = Board.public_boards.where.not(id: used_ids)
+    user_boards.or(public_boards).order(:name)
   end
 
   # def available_teams_boards
@@ -481,6 +487,7 @@ class ChildAccount < ApplicationRecord
       can_edit: viewing_user&.can_add_boards_to_account?([id]),
       is_owner: viewing_user&.id == user_id,
       is_vendor: is_vendor,
+      layout: layout,
       is_demo: is_demo?,
       vendor: is_vendor ? vendor&.api_view(viewing_user) : nil,
       vendor_profile: is_vendor ? cached_profile&.api_view(viewing_user) : nil,
@@ -537,6 +544,7 @@ class ChildAccount < ApplicationRecord
           name: b.name,
           board_type: b.board_type,
           board_id: cb.board_id,
+          communicator_board_id: cb.id,
           display_image_url: b.display_image_url,
           favorite: cb.favorite,
           published: cb.published,
@@ -556,6 +564,7 @@ class ChildAccount < ApplicationRecord
           display_image_url: b.display_image_url,
           board_type: b.board_type,
           word_sample: b.word_sample,
+          predefined: b.predefined,
         }
       end,
       teams_boards: available_teams_boards.map do |tb|
