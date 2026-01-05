@@ -149,9 +149,11 @@ class API::BoardsController < API::ApplicationController
     current_page = params[:page] || 1
     if params[:query].present? && params[:query] != "null"
       @query = params[:query]
-      @images = Image.searchable.with_artifacts.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc)
+      # @images = Image.searchable.with_artifacts.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc)
+      @images = Image.searchable_images_for(current_user).where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc)
     else
-      @images = Image.searchable.with_artifacts.all.order(label: :asc)
+      # @images = Image.searchable.with_artifacts.all.order(label: :asc)
+      @images = Image.searchable_images_for(current_user).order(label: :asc)
     end
 
     if params[:scope]
