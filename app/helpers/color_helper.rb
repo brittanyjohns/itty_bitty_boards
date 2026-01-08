@@ -21,7 +21,7 @@ module ColorHelper
     "dark purple" => "#7698C7",
     "light purple" => "#D0BEE8",
     "brown" => "#994F00",
-    "dark blue" => "#006DEB",
+    "dark blue" => "#5ECFFF",
     "black" => "#000000",
     "gray" => "#A1A1A1",
     "dark orange" => "#FF6C3B",

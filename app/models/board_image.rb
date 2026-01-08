@@ -77,6 +77,19 @@ class BoardImage < ApplicationRecord
     self.save!
   end
 
+  def set_text_color(value)
+    self.text_color = ColorHelper.to_hex(value, default: "#000000")
+  end
+
+  def set_text_color!
+    set_text_color(image.text_color || "black")
+  end
+
+  def set_colors!
+    set_text_color("black")
+    set_background_color!
+  end
+
   def set_labels
     lang = language || board.language || "en"
     image_language_settings = image.language_settings[lang.to_sym] || {}
