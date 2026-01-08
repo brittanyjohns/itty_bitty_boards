@@ -685,6 +685,7 @@ class Board < ApplicationRecord
       cloned_user_id = User::DEFAULT_ADMIN_ID
       cloned_user = User.find(cloned_user_id)
       if !cloned_user
+        Rails.logger.error "Cloned user not found: #{cloned_user_id}"
         return
       end
     end

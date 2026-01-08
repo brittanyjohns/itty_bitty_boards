@@ -22,7 +22,7 @@ class API::BoardsController < API::ApplicationController
       @search_results = Board.for_user(current_user).searchable.search_by_name(params[:query]).alphabetical.page params[:page]
       render json: { search_results: @search_results } and return
     end
-    @predefined_boards = Board.predefined.non_menus.alphabetical.page params[:page]
+    # @predefined_boards = Board.predefined.non_menus.alphabetical.page params[:page]
     @user_boards = current_user.boards.where(predefined: false).alphabetical.page params[:page]
     if current_user.admin?
       @user_boards = current_user.boards.alphabetical.all
@@ -33,7 +33,7 @@ class API::BoardsController < API::ApplicationController
     render json: {
              newly_created_boards: @newly_created_boards.map(&:api_view),
              recently_used_boards: @recently_used_boards.map(&:api_view),
-             preset_boards: @predefined_boards.map(&:api_view),
+             #  preset_boards: @predefined_boards.map(&:api_view),
              boards: @user_boards.map(&:api_view),
            }
   end

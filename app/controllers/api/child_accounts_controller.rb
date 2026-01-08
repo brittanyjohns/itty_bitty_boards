@@ -185,6 +185,7 @@ class API::ChildAccountsController < API::ApplicationController
       board_ids.each do |board_id|
         og_board = Board.find(board_id)
         if og_board.predefined?
+          Rails.logger.info "Cloning predefined board #{og_board.id} for child account #{@child_account.id}"
           # clone parent predefined board for child account
           board = og_board.clone_with_images(current_user&.id, og_board.name)
         else
