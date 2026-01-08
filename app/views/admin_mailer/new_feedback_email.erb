@@ -6,19 +6,6 @@
     <div class="content">
         <p>Hi <%= @admin.name %>,</p>
         <p>You have received new feedback through the SpeakAnyWay AAC app:</p>
-        #  id            :bigint           not null, primary key
-#  user_id       :bigint           not null
-#  feedback_type :string           not null
-#  role          :string           not null
-#  subject       :string
-#  message       :text             not null
-#  page_url      :string
-#  app_version   :string
-#  platform      :string
-#  device        :string
-#  allow_contact :boolean          default(TRUE), not null
-#  created_at    :datetime         not null
-#  updated_at    :datetime         not null
         <ul>
             <li><strong>Type:</strong> <%= @feedback_item.feedback_type.capitalize %></li>
             <li><strong>Name:</strong> <%= @feedback_item.name.present? ? @feedback_item.name : "N/A" %></li>

@@ -15,7 +15,7 @@ class API::WebhooksController < API::ApplicationController
   def webhooks
     payload = request.body.read
     sig_header = request.env["HTTP_STRIPE_SIGNATURE"]
-
+    result = { success: true }
     begin
       event = Stripe::Webhook.construct_event(
         payload,
@@ -36,7 +36,11 @@ class API::WebhooksController < API::ApplicationController
     when "customer.created"
       handle_customer_created(event.data.object)
     when "checkout.session.completed"
-      handle_checkout_completed(event.data.object)
+      user = handle_checkout_completed(event.data.object)
+      unless user
+        Rails.logger.error "[StripeWebhook] checkout.session.completed: no user found for session #{event.data.object.id}"
+        result = { error: "no_user_found" }
+      end
     when "customer.subscription.created", "customer.subscription.updated"
       handle_subscription_upsert(event.data.object, event.type == "customer.subscription.created")
     when "customer.subscription.deleted"
@@ -47,7 +51,7 @@ class API::WebhooksController < API::ApplicationController
       Rails.logger.info "[StripeWebhook] Ignoring unhandled event type=#{event.type}"
     end
 
-    render json: { success: true }
+    render json: result
   rescue => e
     Rails.logger.error "[StripeWebhook] Unexpected error: #{e.class} - #{e.message}\n#{e.backtrace.join("\n")}"
     render json: { error: "server_error" }, status: :bad_request
@@ -64,13 +68,13 @@ class API::WebhooksController < API::ApplicationController
       Rails.logger.error "[StripeWebhook] customer.created: no user found for customer #{stripe_customer_id} - Creating one"
       user = User.invite!(email: customer.email, skip_invitation: true)
       # Send welcome email to new user
-      user.send_welcome_email("free", nil)
+      # user.send_welcome_email("free", nil)
     elsif !user
       Rails.logger.error "[StripeWebhook] customer.created: no user found for customer #{stripe_customer_id} and no email present"
       return
     end
     return unless user
-    user.send_general_welcome_email
+    # user.send_general_welcome_email
     # You can implement logic here if needed when a Stripe Customer is created.
     Rails.logger.info "[StripeWebhook] customer.created: customer #{customer.id} created"
   rescue => e
@@ -102,15 +106,24 @@ class API::WebhooksController < API::ApplicationController
     )
 
     Rails.logger.info "[StripeWebhook] Linked checkout.session #{session.id} to user #{user.id}"
+    user
   rescue => e
     Rails.logger.error "[StripeWebhook] handle_checkout_completed error: #{e.class} - #{e.message}"
+    nil
   end
 
   def handle_subscription_upsert(subscription, is_create_event = false)
     user = find_user_for_subscription(subscription)
     unless user
       Rails.logger.error "[StripeWebhook] subscription upsert: no user for customer #{subscription.customer}"
-      return
+
+      # wait a second and retry
+      sleep 1
+      user = find_user_for_subscription(subscription)
+      unless user
+        Rails.logger.error "[StripeWebhook] subscription upsert: still no user for customer #{subscription.customer} after retry"
+        return
+      end
     end
 
     price = first_price_from_subscription(subscription)
@@ -140,9 +153,10 @@ class API::WebhooksController < API::ApplicationController
     user.save!
     # check if user needs to set their password
 
-    if is_create_event || user.last_sign_in_at.blank?
+    if is_create_event || user.should_send_welcome_email?
       # Send welcome email on new subscriptions
       begin
+        Rails.logger.info "[StripeWebhook] subscription upsert: sending welcome email to user #{user.id}"
         user.send_welcome_email(plan_type, meta["username"])
 
         Rails.logger.info "[StripeWebhook] subscription upsert: sent welcome email to user #{user.id}"
