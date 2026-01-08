@@ -30,7 +30,7 @@ module ColorHelper
     "blue" => "#5ECFFF",
     "teal" => "#2ABED1",
     "pink" => "#FF709C",
-    "purple" => "#7645EF",
+    "purple" => "#a07aff",
   }.freeze
 
   module_function
