@@ -820,14 +820,6 @@ class Board < ApplicationRecord
     end
   end
 
-  def get_commons_words
-    @board_images = board_images.includes(:image).uniq
-    downcased_common_words = Board.common_words.map(&:downcase)
-    existing_words = current_word_list ? current_word_list.map(&:downcase) : []
-    missing_common_words = downcased_common_words - existing_words
-    { missing_common_words: missing_common_words, existing_words: existing_words }
-  end
-
   SCREEN_SIZES = %w[sm md lg].freeze
 
   def print_grid_layout_for_screen_size(screen_size)
@@ -1129,7 +1121,7 @@ class Board < ApplicationRecord
 
   def communicator_board
     if is_template
-      ChildBoard.includes(:child_account).find_by(board_id: id)
+      @communicator_board ||= ChildBoard.includes(:child_account).find_by(board_id: id)
     end
   end
 
@@ -1173,14 +1165,10 @@ class Board < ApplicationRecord
     end
     @parent_boards = parent_boards
 
-    # @board_images = board_images.where(hidden: false)
-    word_data = get_commons_words
-    existing_words = word_data[:existing_words]
-    missing_common_words = word_data[:missing_common_words]
     @root_board = root_board
     same_user = viewing_user && user_id == viewing_user.id
     can_edit = same_user || viewing_user&.admin?
-    @matching_viewer_images = matching_viewer_images(viewing_user)
+    # @matching_viewer_images = matching_viewer_images(viewing_user)
     if current_account
       can_edit = current_account.settings["can_edit_boards"] == true
     end
@@ -1205,8 +1193,8 @@ class Board < ApplicationRecord
       name: name,
       root_board: @root_board,
       language: language,
-      missing_common_words: missing_common_words,
-      existing_words: existing_words,
+      # missing_common_words: missing_common_words,
+      # existing_words: existing_words,
       word_list: current_word_list,
       description: description,
       featured: featured,
@@ -1250,7 +1238,7 @@ class Board < ApplicationRecord
       current_user_teams: [],
       hello: "world",
 
-      matching_viewer_images: is_a_user ? @matching_viewer_images.map { |i| i.api_view(viewing_user) } : [],
+      # matching_viewer_images: is_a_user ? @matching_viewer_images.map { |i| i.api_view(viewing_user) } : [],
       images: @board_images.map do |board_image|
         @board_image = board_image
 

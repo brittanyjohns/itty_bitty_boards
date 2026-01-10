@@ -113,8 +113,8 @@ module AudioHelper
     audio_files.select { |audio| audio.blob.filename.to_s.exclude?("custom") }
   end
 
-  def audio_files_for_api
-    default_audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: default_audio_url(audio), id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at, current: is_audio_current?(audio) } }
+  def audio_files_for_api(current_url = nil)
+    default_audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: default_audio_url(audio), id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at, current: is_audio_current?(audio, current_url) } }
   end
 
   def custom_audio_files
@@ -125,17 +125,33 @@ module AudioHelper
     custom_audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: default_audio_url(audio), id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at, current: is_audio_current?(audio) } }
   end
 
-  def all_audio_files_for_api
-    audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: default_audio_url(audio), id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at, current: is_audio_current?(audio) } }
+  def all_audio_files_for_api(current_url = nil)
+    audio_files.map { |audio| { voice: voice_from_filename(audio&.blob&.filename&.to_s), url: default_audio_url(audio), id: audio&.id, filename: audio&.blob&.filename&.to_s, created_at: audio&.created_at, current: is_audio_current?(audio, current_url) } }
   end
 
-  def is_audio_current?(audio)
+  def is_audio_current?(audio, current_url = nil)
     url = default_audio_url(audio)
-    url == audio_url
+    unless url
+      return false
+    end
+    if current_url.nil?
+      current = audio_url
+    else
+      current = current_url
+    end
+    url == current
   end
 
   def voice_from_filename(filename)
     # Ex: scared_nova.mp3
+    Rails.logger.debug "Processing filename: #{filename}"
+    if filename.nil?
+      return nil
+    end
+    if filename.include?("custom")
+      #  first part of the filename
+      return "#{filename.split("-")[1]}-#{filename.split("-")[2]}"
+    end
     if filename.include?("_")
       if filename.count("_") >= 2
         return filename.split("_")[1..-2].join("_")

@@ -278,6 +278,7 @@ Rails.application.routes.draw do
         post "create_edit", to: "board_images#create_image_edit"
         post "upload_audio", to: "board_images#upload_audio"
         post "reset_audio", to: "board_images#reset_audio"
+        post "set_current_audio", to: "board_images#set_current_audio"
       end
       collection do
         put "update", to: "board_images#update_multiple"

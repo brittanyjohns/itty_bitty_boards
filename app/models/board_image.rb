@@ -86,7 +86,7 @@ class BoardImage < ApplicationRecord
   end
 
   def set_colors!
-    set_text_color("black")
+    set_text_color("black") unless text_color == "#000000"
     set_background_color!
   end
 
@@ -339,6 +339,14 @@ class BoardImage < ApplicationRecord
     data["override_frozen"] == true
   end
 
+  def image_audio_files
+    image.audio_files_for_api(audio_url)
+  end
+
+  def all_audio_files_for_api_plus_image_audio
+    all_audio_files_for_api(audio_url) + image_audio_files
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,
@@ -361,7 +369,7 @@ class BoardImage < ApplicationRecord
       font_size: font_size,
       border_color: border_color,
       frozen_board: board.is_frozen?,
-      audio_files: all_audio_files_for_api,
+      audio_files: all_audio_files_for_api_plus_image_audio,
       layout: layout,
       status: status,
       audio_url: audio_url,
@@ -373,6 +381,7 @@ class BoardImage < ApplicationRecord
       language: language,
       display_label: display_label,
       language_settings: language_settings,
+    # image_audio_files: image_audio_files,
     # remaining_user_boards: remaining_user_boards,
     }
   end

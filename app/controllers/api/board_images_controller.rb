@@ -1,6 +1,6 @@
 class API::BoardImagesController < API::ApplicationController
   respond_to :json
-  before_action :set_board_image, only: %i[ show update destroy create_image_variation create_image_edit ]
+  before_action :set_board_image, only: %i[ show update destroy create_image_variation create_image_edit set_current_audio ]
 
   # GET /board_images or /board_images.json
   def index
@@ -18,6 +18,18 @@ class API::BoardImagesController < API::ApplicationController
     screen_size = params[:screen_size]
     @board_image.update_layout(layout, screen_size)
     render json: @board_image.api_view(current_user)
+  end
+
+  def set_current_audio
+    Rails.logger.info "Setting current audio for BoardImage ID: #{params[:id]} - #{board_image_params}"
+    @board_image = BoardImage.find(params[:id])
+    if @board_image.update(audio_url: board_image_params[:audio_url], voice: board_image_params[:voice])
+      Rails.logger.info "Successfully set current audio for BoardImage ID: #{params[:id]}"
+      render json: @board_image.api_view(current_user)
+    else
+      Rails.logger.error "Failed to set current audio for BoardImage ID: #{params[:id]} - #{@board_image.errors.full_messages}"
+      render json: @board_image.errors, status: :unprocessable_entity
+    end
   end
 
   # PATCH/PUT /board_images/1 or /board_images/1.json
@@ -189,9 +201,9 @@ class API::BoardImagesController < API::ApplicationController
     end
     default_file_name = @board_image.label.downcase.gsub(" ", "-").gsub("_", "-")
     default_file_name = !default_file_name.blank? ? default_file_name : "board-image-audio"
-    random_number = SecureRandom.hex(5)
+    random_number = Time.now.strftime("%m%d%y%H%M%S")
     extention = params[:audio_file]&.original_filename&.split(".")&.last || "mp3"
-    default_file_name = "#{default_file_name}-#{random_number}-custom.#{extention}"
+    default_file_name = "#{default_file_name}-custom-#{random_number}.#{extention}"
     @file_name = default_file_name
     @file_name = @file_name.downcase.gsub(" ", "-")
     @file_name = @file_name.downcase.gsub("_", "-")
