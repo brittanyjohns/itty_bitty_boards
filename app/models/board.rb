@@ -1148,6 +1148,7 @@ class Board < ApplicationRecord
     else
       @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).distinct
     end
+    current_colors = @board_images.map { |bi| bi.bg_color }.flatten.compact.uniq
     if in_use
       child_accounts = []
       child_boards = []
@@ -1236,8 +1237,7 @@ class Board < ApplicationRecord
       settings: settings,
       has_generating_images: has_generating_images?,
       current_user_teams: [],
-      hello: "world",
-
+      current_colors: current_colors,
       # matching_viewer_images: is_a_user ? @matching_viewer_images.map { |i| i.api_view(viewing_user) } : [],
       images: @board_images.map do |board_image|
         @board_image = board_image

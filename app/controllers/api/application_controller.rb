@@ -1,7 +1,7 @@
 module API
   class ApplicationController < ApplicationController
     prepend_before_action :authenticate_token!
-    skip_before_action :authenticate_token!, only: %i[authenticate_child_token!]
+    skip_before_action :authenticate_token!, only: %i[authenticate_child_token! preset_colors]
     include ActiveStorage::SetCurrent
 
     # application_controller.rb
@@ -56,6 +56,11 @@ module API
         return false
       end
       true
+    end
+
+    def preset_colors
+      @colors = ColorHelper::PRESET_DATA
+      render json: { preset_colors: @colors }
     end
 
     private

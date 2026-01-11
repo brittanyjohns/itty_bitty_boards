@@ -1,4 +1,30 @@
 module ColorHelper
+  PRESET_HEX = {
+    "blue" => "#5ECFFF",
+    "green" => "#A1F571",
+    "yellow" => "#FFEA75",
+    "purple" => "#a07aff",
+    "pink" => "#FF709C",
+    "orange" => "#FFC457",
+    "red" => "#FF0000",
+    "teal" => "#2ABED1",
+    "white" => "#FFFFFF",
+    "gray" => "#A1A1A1",
+  }.freeze
+
+  PRESET_DATA = [
+    { label: "blue", hex: "#5ECFFF", part_of_speech: "noun" },
+    { label: "green", hex: "#A1F571", part_of_speech: "verb" },
+    { label: "yellow", hex: "#FFEA75", part_of_speech: "adjective" },
+    { label: "purple", hex: "#a07aff", part_of_speech: "adverb" },
+    { label: "pink", hex: "#FF709C", part_of_speech: "pronoun" },
+    { label: "orange", hex: "#FFC457", part_of_speech: "preposition" },
+    { label: "red", hex: "#FF0000", part_of_speech: "conjunction" },
+    { label: "teal", hex: "#2ABED1", part_of_speech: "interjection" },
+    { label: "white", hex: "#FFFFFF", part_of_speech: "phrase" },
+    { label: "gray", hex: "#A1A1A1", part_of_speech: "default" },
+  ].freeze
+
   HEX = {
     # Presets (your current palette)
     "white" => "#FFFFFF",
