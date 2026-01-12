@@ -1048,7 +1048,7 @@ class Image < ApplicationRecord
       #   return nil
       # end
 
-      docs = self.docs.where(user_id: viewing_user.id)
+      docs = self.docs.for_user(viewing_user)
       return docs.current.first if docs.current.any?
       return docs.first if docs.any?
     end

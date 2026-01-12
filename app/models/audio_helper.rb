@@ -144,7 +144,6 @@ module AudioHelper
 
   def voice_from_filename(filename)
     # Ex: scared_nova.mp3
-    Rails.logger.debug "Processing filename: #{filename}"
     if filename.nil?
       return nil
     end

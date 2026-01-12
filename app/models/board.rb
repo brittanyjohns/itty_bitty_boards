@@ -672,13 +672,6 @@ class Board < ApplicationRecord
     if new_name.blank?
       new_name = name + " copy"
     end
-    # cloned_slug = Board.create_slug(new_name)
-    # existing_board = Board.find_by(slug: cloned_slug)
-    # if existing_board
-    #   random_string = SecureRandom.hex(4)
-    #   Rails.logger.warn "Board #{id} has a duplicate slug '#{cloned_slug}', generating a new one."
-    #   cloned_slug = "#{cloned_slug}-#{random_string}"
-    # end
     @source = self
     cloned_user = User.find(cloned_user_id)
     unless cloned_user
@@ -733,6 +726,7 @@ class Board < ApplicationRecord
         new_board_image.image_id = image.id
         new_board_image.layout = layout if layout
         new_board_image.display_label = board_image.display_label
+        new_board_image.display_image_url = board_image.display_image_url
 
         new_board_image.voice = board_image.voice
         new_board_image.predictive_board_id = board_image.predictive_board_id
