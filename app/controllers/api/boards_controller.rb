@@ -18,6 +18,10 @@ class API::BoardsController < API::ApplicationController
                      preset_boards: @static_preset_boards.map(&:api_view) }
       return
     end
+    if params[:limit]
+      @user_boards = @user_boards = current_user.boards.where(predefined: false).alphabetical.limit(params[:limit])
+      render json: { boards: @user_boards.map(&:api_view) } and return
+    end
     if params[:query].present?
       @search_results = Board.for_user(current_user).searchable.search_by_name(params[:query]).alphabetical.page params[:page]
       render json: { search_results: @search_results } and return
