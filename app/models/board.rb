@@ -615,6 +615,11 @@ class Board < ApplicationRecord
     bi.destroy if bi
   end
 
+  def remove_board_image(board_image_id)
+    bi = board_images.find_by(id: board_image_id)
+    bi.destroy if bi
+  end
+
   def add_images(image_ids)
     image_ids.each do |image_id|
       add_image(image_id)

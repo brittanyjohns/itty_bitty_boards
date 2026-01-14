@@ -623,11 +623,10 @@ class API::BoardsController < API::ApplicationController
       render json: { error: "Cannot remove images from predefined boards" }, status: :unprocessable_entity
       return
     end
-    @image = Image.find_by(id: params[:image_id])
-    @board.remove_image(@image&.id) if @board && @image
-    # @board.images.delete(@image)
+    @board_image = BoardImage.find_by(id: params[:board_image_id])
+    @board.remove_board_image(@board_image&.id) if @board && @board_image
     @board.reload
-    render json: { board: @board, status: :ok }
+    render json: @board.api_view_with_predictive_images(current_user)
   end
 
   # # DELETE /boards/1 or /boards/1.json
