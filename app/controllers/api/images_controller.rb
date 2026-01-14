@@ -207,7 +207,7 @@ class API::ImagesController < API::ApplicationController
       language = params[:language] || "en"
       label = params[:label] || @board_image.label
 
-      @board_image.create_audio_from_text(label, voice, language)
+      @board_image.create_audio_from_text(label, voice, language, params[:instructions])
 
       @board_image.reload
       @image_with_display_doc = @image.with_display_doc(current_user, @board, @board_image)
@@ -225,7 +225,7 @@ class API::ImagesController < API::ApplicationController
       @image.update(label: text)
     end
 
-    @audio_file = @image.create_audio_from_text(text, voice, language)
+    @audio_file = @image.create_audio_from_text(text, voice, language, params[:instructions])
     @image.reload
     @image_with_display_doc = @image.with_display_doc(current_user)
     render json: @image_with_display_doc

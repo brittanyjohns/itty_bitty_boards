@@ -1,5 +1,5 @@
 module AudioHelper
-  def create_audio_from_text(text = nil, voice = "alloy", language = "en")
+  def create_audio_from_text(text = nil, voice = "alloy", language = "en", instructions = "")
     text = text || self.label
     if voice.blank?
       voice = "alloy"
@@ -13,7 +13,11 @@ module AudioHelper
       Rails.logger.warn "create_audio_from_text: Skipping audio creation in test environment."
       return
     end
-    response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice, language)
+    # if instructions.blank?
+    #   instructions = "Please read the text clearly and naturally."
+    # end
+    Rails.logger.debug "AudioHelper - Creating audio with instructions: #{instructions}"
+    response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice, language, instructions)
 
     random_filename = "#{SecureRandom.hex(10)}.mp3"
 

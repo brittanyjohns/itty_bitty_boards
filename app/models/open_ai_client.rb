@@ -24,13 +24,6 @@ class OpenAiClient
     @openai_client ||= OpenAI::Client.new(access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"), log_errors: true)
   end
 
-  # def specific_image_prompt(img_prompt)
-  #   "Can you create a text prompt for me that I can use with DALL-E to generate an image of a cartoon character expressing a certain emotion or doing a specific action.
-  #   Or if the word is an object, write a prompt to generate an image of that object in a clear and simple way.
-  #   Use as much detail as possible in order to generate an image that a child could easily recognize that the image represents this word/phrase: '#{img_prompt}'.
-  #   Respond with the prompt only, not the image or any other text.  It should be very clear that the word/phrase is '#{img_prompt}'."
-  # end
-
   def specific_image_prompt(img_prompt)
     "Can you create a text prompt for me that I can use with DALL-E to generate an image that is clear and simple, similar to AAC and other accessibility signs?
     The image should represent the word/phrase '#{img_prompt}' in a way that a child could easily recognize. Avoid cartoonish styles.
@@ -88,17 +81,25 @@ class OpenAiClient
     { img_url: img_url, revised_prompt: revised_prompt, edited_prompt: new_prompt, b64_json: b64_json }
   end
 
-  def create_audio_from_text(text, voice = "alloy", language = "en")
+  def create_audio_from_text(text, voice = "alloy", language = "en", instructions = "")
     return if Rails.env.test?
     if voice.blank?
       voice = "alloy"
     end
+    request_params = {
+      input: text,
+      model: TTS_MODEL,
+      voice: voice,
+      instructions: instructions,
+    }
+    if instructions.blank?
+      # remove instructions if blank
+      request_params.delete(:instructions)
+    end
+
     begin
-      response = openai_client.audio.speech(parameters: {
-                                              input: text,
-                                              model: TTS_MODEL,
-                                              voice: voice,
-                                            })
+      Rails.logger.debug "**** INFO **** \nRequesting audio synthesis with params: #{request_params}\n"
+      response = openai_client.audio.speech(parameters: request_params)
     rescue => e
       Rails.logger.debug "**** ERROR **** \n#{e.message}\n#{e.inspect}"
     end

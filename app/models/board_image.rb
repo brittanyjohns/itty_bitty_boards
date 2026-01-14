@@ -347,6 +347,12 @@ class BoardImage < ApplicationRecord
     all_audio_files_for_api(audio_url) + image_audio_files
   end
 
+  def voice_list
+    img_existing_voices = image.existing_voices
+    all_voices = img_existing_voices + existing_voices
+    all_voices.uniq
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,
@@ -370,6 +376,7 @@ class BoardImage < ApplicationRecord
       border_color: border_color,
       frozen_board: board.is_frozen?,
       audio_files: all_audio_files_for_api_plus_image_audio,
+      voice_list: voice_list,
       layout: layout,
       status: status,
       audio_url: audio_url,
