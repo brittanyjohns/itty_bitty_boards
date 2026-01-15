@@ -23,7 +23,8 @@ class API::ScenariosController < API::ApplicationController
 
   # POST /scenarios or /scenarios.json
   def create
-    return unless check_daily_limit("ai_scenario")
+    # return unless check_daily_limit("ai_scenario")
+    return unless check_daily_limit("ai_action")
     @scenario = current_user.scenarios.new(scenario_params)
     @scenario.token_limit = scenario_params[:token_limit] || 10
     # Temporarily set send_now to true
@@ -293,7 +294,7 @@ class API::ScenariosController < API::ApplicationController
     #   Use clear, age-appropriate language in paragraph form and keep it to 100 words or less.
     # PROMPT
     prompt = <<~PROMPT
-                                  Give a factual description of the scenario "#{name}" for a student aged #{age_range} who uses AAC.
+                                    Give a factual description of the scenario "#{name}" for a student aged #{age_range} who uses AAC.
     Do not invent names or characters. Just describe what typically happens, what they might see, hear, feel, and do. Focus on real-world routines, sensory details, emotions, and vocabulary they may need. 
       Use clear, simple language. Do not write it as a story. Do not include fictional events or dialogue.
       Keep it to 100 words or less.

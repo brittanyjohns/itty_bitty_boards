@@ -34,7 +34,8 @@ class API::BoardScreenshotImportsController < API::ApplicationController
       return
     end
     import.save!
-    return unless check_daily_limit("ai_screenshot_imports")
+    # return unless check_daily_limit("ai_screenshot_imports")
+    return unless check_daily_limit("ai_action")
     BoardScreenshotImportJob.perform_async(import.id, columns)
     render json: { id: import.id, status: import.status }
   end

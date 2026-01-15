@@ -436,7 +436,8 @@ class API::ImagesController < API::ApplicationController
 
   def generate
     @current_user = current_user
-    return unless check_daily_limit("ai_image_generation")
+    # return unless check_daily_limit("ai_image_generation")
+    return unless check_daily_limit("ai_action")
 
     if !params[:id].blank?
       @image = Image.find(params[:id])
