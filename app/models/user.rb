@@ -551,7 +551,7 @@ class User < ApplicationRecord
     return true if account.team_users.where(user_id: id, role: "admin").exists?
     return true if account.team_users.where(user_id: id, role: "member").exists?
     return true if account.team_users.where(user_id: id, role: "supporter").exists?
-    return false if account.team_users.where(user_id: id, role: "restricted").exists?
+    return true if account.team_users.where(user_id: id, role: "restricted").exists?
     false
   end
 
@@ -652,23 +652,28 @@ class User < ApplicationRecord
     user&.valid_password?(password) ? user : nil
   end
 
-  def invite_to_team!(team, inviter)
-    BaseMailer.team_invitation_email(self.email, inviter, team).deliver_now
+  def invite_to_team!(team, inviter, role = "member")
+    BaseMailer.team_invitation_email(self, inviter, team, role).deliver_now
+    if stripe_customer_id.nil?
+      stripe_customer_id = User.create_stripe_customer(email)
+      update!(stripe_customer_id: stripe_customer_id)
+    end
+    self
   end
 
-  def invite_new_user_to_team!(new_user_email, team)
-    new_user = User.invite!({ email: new_user_email }, self)
-    if new_user.errors.any?
-      Rails.logger.error "Errors: #{new_user.errors.full_messages}"
-      raise "User not created: #{new_user.errors.full_messages}"
+  def self.invite_new_user_to_team!(new_user_email, inviter, team, role)
+    @user = User.find_by(email: new_user_email)
+    unless @user
+      @user = User.invite!(email: new_user_email) do |u|
+        u.skip_invitation = true
+      end
     end
-    # BaseMailer.team_invitation_email(new_user_email, self, team).deliver_now
-    BaseMailer.team_invitation_email(new_user.email, self, team).deliver_now
-
-    stripe_customer_id = User.create_stripe_customer(new_user_email)
-    new_user.update!(stripe_customer_id: stripe_customer_id)
-
-    new_user
+    BaseMailer.team_invitation_email(@user, inviter, team, role).deliver_now
+    if @user.stripe_customer_id.nil?
+      stripe_customer_id = User.create_stripe_customer(new_user_email)
+      @user.update!(stripe_customer_id: stripe_customer_id)
+    end
+    @user
   end
 
   def send_temp_login_email
@@ -1112,12 +1117,12 @@ class User < ApplicationRecord
   end
 
   def teams_with_read_access
-    teams = Team.where(id: team_users.select(:team_id)).where.not(created_by_id: id)
-    # team_users.where(role: ["supporter", "member"]).includes(:team).map(&:team).uniq
-  end
-
-  def accounts_with_read_access
-    teams_with_read_access.map(&:accounts).flatten
+    # teams = Team.where(id: team_users.select(:team_id)).where.not(created_by_id: id)
+    # team_users.includes(:team).where(role: ["supporter", "member", "restricted"]).map(&:team).uniq
+    teams.joins(:team_users)
+         .where(team_users: { role: ["supporter", "member", "restricted"] })
+         .where.not(teams: { created_by_id: id })
+         .distinct
   end
 
   def favorite_boards
@@ -1165,7 +1170,7 @@ class User < ApplicationRecord
     go_words = settings["go_to_words"] || Board.common_words
 
     # ---- Memoize common collections ----
-    # memoized_teams = teams_with_read_access
+    memoized_teams = teams_with_read_access
     memoized_boards = boards.alphabetical
     # memoized_communicators = communicator_accounts # association on owner_id (includes real + demo)
 
@@ -1246,14 +1251,13 @@ class User < ApplicationRecord
 
       # Teams / accounts / boards
       # current_team: current_team,
-      # teams_with_read_access: memoized_teams.map(&:index_api_view),
+      teams_with_read_access: memoized_teams.map(&:index_api_view),
 
       # If these are AR objects, you may already have a serializer.
       # If not, consider mapping them to api_view here for consistency.
       # communicator_accounts: memoized_communicators.map(&:index_api_view),
       # paid_communicator_accounts: paid_communicator_accounts.map(&:index_api_view),
       # demo_communicator_accounts: demo_communicator_accounts.map(&:index_api_view),
-      # accounts_with_read_access: accounts_with_read_access.map(&:api_view),
       remaining_demo_accounts: remaining_demo_accounts,
       remaining_paid_accounts: remaining_paid_accounts,
 

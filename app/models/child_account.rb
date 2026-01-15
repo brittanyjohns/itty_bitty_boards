@@ -277,7 +277,7 @@ class ChildAccount < ApplicationRecord
         }
       end,
       can_sign_in: can_sign_in?,
-      available_boards: available_boards.map do |b|
+      available_boards: available_boards_for_user(viewing_user).map do |b|
         {
           id: b.id,
           name: b.name,
@@ -285,6 +285,8 @@ class ChildAccount < ApplicationRecord
           board_type: b.board_type,
           word_sample: b.word_sample,
           predefined: b.predefined,
+          user_id: b.user_id,
+          is_owner: b.user_id == viewing_user&.id,
         }
       end,
       teams_boards: available_teams_boards.map do |tb|
@@ -379,11 +381,23 @@ class ChildAccount < ApplicationRecord
   # end
 
   def available_boards
-    used_ids = child_boards.select(:board_id)
-    user_boards = user.boards.where.not(id: used_ids).order(:name) # add includes as needed
+    board_ids = child_boards.select(:board_id)
+    user_boards = user.boards.where.not(id: board_ids).order(:name) # add includes as needed
     #  predefined boards too
-    public_boards = Board.public_boards.where.not(id: used_ids)
+    public_boards = Board.public_boards.where.not(id: board_ids)
     user_boards.or(public_boards).order(:name)
+  end
+
+  def available_boards_for_user(viewing_user)
+    if viewing_user.nil?
+      return available_boards
+    end
+    if viewing_user.id == user_id
+      available_boards
+    else
+      board_ids = child_boards.select(:board_id)
+      viewing_user.boards.where.not(id: board_ids).order(:name)
+    end
   end
 
   # def available_teams_boards
@@ -469,6 +483,7 @@ class ChildAccount < ApplicationRecord
   end
 
   def api_view(viewing_user = nil)
+    Rails.logger.debug "Generating API view for ChildAccount #{id} for viewing_user #{viewing_user&.id}"
     cached_user = user
     is_vendor = cached_user&.vendor?
     cached_profile = profile
@@ -557,7 +572,7 @@ class ChildAccount < ApplicationRecord
         }
       end,
       can_sign_in: can_sign_in?,
-      available_boards: available_boards.map do |b|
+      available_boards: available_boards_for_user(viewing_user).map do |b|
         {
           id: b.id,
           name: b.name,
@@ -565,6 +580,8 @@ class ChildAccount < ApplicationRecord
           board_type: b.board_type,
           word_sample: b.word_sample,
           predefined: b.predefined,
+          user_id: b.user_id,
+          is_owner: b.user_id == viewing_user&.id,
         }
       end,
       teams_boards: available_teams_boards.map do |tb|

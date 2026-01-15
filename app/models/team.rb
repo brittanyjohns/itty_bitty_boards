@@ -53,17 +53,23 @@ class Team < ApplicationRecord
     return nil if user.nil?
     if user && !users.include?(user)
       team_user = team_users.new(user: user, role: role)
+      Rails.logger.debug "Adding user #{user.id} to team #{id} with role #{role}"
       team_user.save
     else
-      team_user = team_users.find_by(user: user)
+      team_user = team_users.find_by(user_id: user.id)
+      Rails.logger.debug "Team user found: #{team_user.id} with role #{team_user.role}"
       unless team_user
         team_user = team_users.new(user: user, role: role)
         team_user.save
       end
       if role != team_user.role
         team_user.role = role
+        Rails.logger.debug "Updating user #{user.id} role to #{role} in team #{id}"
         team_user.save
       end
+    end
+    unless team_user.persisted?
+      Rails.logger.error "Could not add user #{user.id} to team #{id}: #{team_user.errors.full_messages.join(", ")}"
     end
     team_user
   end

@@ -5,7 +5,8 @@ class API::TeamsController < API::ApplicationController
   # GET /teams or /teams.json
   def index
     # @teams = policy_scope(Team)
-    @teams = current_user.teams.where(created_by: current_user).includes(:team_users)
+    # @teams = current_user.teams.where(created_by: current_user).includes(:team_users)
+    @teams = current_user.teams.includes(:team_users)
     render json: @teams.map { |team| team.index_api_view(current_user) }
   end
 
@@ -42,16 +43,18 @@ class API::TeamsController < API::ApplicationController
     user_email = team_user_params[:email]
     user_role = team_user_params[:role]
     @team = Team.find(params[:id])
-    @user = User.find_by(email: user_email)
-    if @user
-      @user.invite_to_team!(@team, current_user)
-    else
-      # @user = current_user.invite_new_user_to_team!(user_email, @team, current_user)
-      @user = User.create_from_email(user_email, nil, current_user.id)
-    end
-    @user = User.find_by(email: user_email) unless @user && @user.persisted?
+    # @user = User.find_by(email: user_email)
+    # if @user
+    #   Rails.logger.info "Inviting existing user #{@user.id} to team #{@team.id}"
+    #   @user.invite_to_team!(@team, current_user, user_role)
+    # else
+    @user = User.invite_new_user_to_team!(user_email, current_user, @team, user_role)
+    #   Rails.logger.info "Inviting new user #{@user.id} to team #{@team.id}"
+    #   # @user = User.create_from_email(user_email, nil, current_user.id)
+    # end
+    # @user = User.find_by(email: user_email) unless @user && @user.persisted?
     unless @user
-      return render json: { error: "User not found" }, status: :unprocessable_entity
+      return render json: { error: "User not invited. Something went wrong." }, status: :unprocessable_entity
     end
     @team_user = @team.add_member!(@user, user_role) if @user
 

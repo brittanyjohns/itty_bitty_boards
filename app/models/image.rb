@@ -292,7 +292,7 @@ class Image < ApplicationRecord
     SetNextWordsJob.perform_async([id])
   end
 
-  def create_predictive_board(new_user_id, words_to_use = nil, board_name = false, board_settings = {})
+  def create_predictive_board(new_user_id, words_to_use = nil, board_name = false, board_settings = {}, column_data = {})
     new_board = false
     base_board_id = board_settings[:board_id]
     base_board = nil
@@ -301,7 +301,11 @@ class Image < ApplicationRecord
     end
     board_name ||= board_settings[:name] || "#{label.capitalize} Board"
 
-    board = predictive_boards.new(name: board_name, user_id: new_user_id, settings: board_settings)
+    large_screen_columns = column_data[:large_screen_columns] || 10
+    medium_screen_columns = column_data[:medium_screen_columns] || 8
+    small_screen_columns = column_data[:small_screen_columns] || 4
+
+    board = predictive_boards.new(name: board_name, user_id: new_user_id, settings: board_settings, large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns)
     board.generate_unique_slug
     board.save!
     new_board = true
