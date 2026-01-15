@@ -40,7 +40,8 @@ module UtilHelper
   end
 
   def should_generate_image(image, user, tokens_used, total_cost = 0, rerun = false)
-    return true if rerun
+    return true # Temporarily always generate
+    # return true if rerun
     existing_doc_url = image.display_image_url(user)
     return false if existing_doc_url.present?
     # return false if user.tokens <= tokens_used

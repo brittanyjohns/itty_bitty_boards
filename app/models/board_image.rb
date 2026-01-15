@@ -359,6 +359,8 @@ class BoardImage < ApplicationRecord
       image_id: image_id,
       label: label,
       display_label: display_label,
+      image_prompt: image_prompt,
+      user_id: board.user_id,
       hidden: hidden,
       board_name: board.name,
       board_type: board.board_type,
