@@ -273,7 +273,7 @@ class ChildAccount < ApplicationRecord
           board_owner_id: b.user_id,
           board_owner_name: b.user&.display_name,
           most_used: cb.board_id == cached_most_used_board&.id,
-          can_edit: viewing_user&.id == user_id,
+          can_edit: viewing_user&.id == b.user_id,
         }
       end,
       can_sign_in: can_sign_in?,
@@ -568,7 +568,7 @@ class ChildAccount < ApplicationRecord
           board_owner_id: b.user_id,
           board_owner_name: b.user&.display_name,
           most_used: cb.board_id == cached_most_used_board&.id,
-          can_edit: viewing_user&.id == user_id,
+          can_edit: viewing_user&.id == b.user_id,
         }
       end,
       can_sign_in: can_sign_in?,
