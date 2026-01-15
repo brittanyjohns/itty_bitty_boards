@@ -994,9 +994,7 @@ class Image < ApplicationRecord
   def doc_exists_for_user?(user)
     return false unless user
     doc_exists = display_image_url(user).present?
-    Rails.logger.debug "Doc exists for user #{user.id} - #{label}: #{doc_exists}"
     doc_exists
-    # docs.where(user_id: user.id).first
   end
 
   def label_param
@@ -1096,7 +1094,7 @@ class Image < ApplicationRecord
   def start_generate_image_job(start_time = 0, user_id_to_set = nil, image_prompt_to_set = nil, board_id = nil)
     user_id_to_set ||= user_id
     Rails.logger.debug "start_generate_image_job: #{label} - #{user_id_to_set} - #{image_prompt_to_set}"
-    run_in = Time.now + start_time * 30 # 30 seconds per image set of 3
+    run_in = Time.now + start_time * 3
 
     GenerateImageJob.perform_in(run_in, id, user_id_to_set, image_prompt_to_set, board_id)
   end

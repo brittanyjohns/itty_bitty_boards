@@ -41,13 +41,8 @@ module UtilHelper
 
   def should_generate_image(image, user, tokens_used, total_cost = 0, rerun = false)
     return true if rerun
-    existing_doc = image.doc_exists_for_user?(user)
-    if existing_doc
-      Rails.logger.debug "Doc exists for #{image.label}"
-      existing_doc.update_user_docs
-      existing_doc.update!(current: true)
-      return false
-    end
+    existing_doc_url = image.display_image_url(user)
+    return false if existing_doc_url.present?
     # return false if user.tokens <= tokens_used
     # return false unless token_limit
     # return false if token_limit <= total_cost

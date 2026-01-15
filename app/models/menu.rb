@@ -98,10 +98,6 @@ class Menu < ApplicationRecord
     board.number_of_columns = 6
     board.save!
     new_doc.update!(board_id: board.id)
-
-    Rails.logger.debug "Creating images from description for board: #{board.id}"
-    Rails.logger.debug "Description: #{new_doc.processed}"
-
     create_images_from_description(board)
     board.reset_layouts
     begin
@@ -159,17 +155,16 @@ class Menu < ApplicationRecord
     menu_item_list = []
 
     if json_description && json_description["menu_items"].blank?
-      puts "No menu items found in description"
+      Rails.logger.error "No menu items found in description for Menu #{id}"
       return nil
     end
     json_description["menu_items"].each do |food|
       if food["name"].blank? || food["image_description"].blank?
-        puts "Blank name or image description for #{food.inspect}"
+        Rails.logger.info "Blank name or image description for #{food.inspect}"
         next
       end
       if food["image_description"]&.downcase&.include?("unknown")
-        puts "Unknown image description for #{food["name"]}"
-        puts food.inspect
+        Rails.logger.info "Skipping image generation for unknown item: #{food["name"]}"
         next
       end
       item_name = menu_item_name(food["name"])
@@ -179,7 +174,6 @@ class Menu < ApplicationRecord
       image = Image.find_by(label: item_name, private: nil) unless image
       new_image = Image.create(label: item_name, image_type: self.class.name) unless image
       image = new_image if new_image
-      # image.user_id = self.user_id
 
       unless food["image_description"].blank? || food["image_description"] == item_name
         image.image_prompt = food["image_description"]
