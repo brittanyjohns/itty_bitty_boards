@@ -22,9 +22,10 @@ class Menu < ApplicationRecord
   has_many :board_images, through: :boards
   has_many :images, through: :board_images
 
-  PROMPT_ADDITION = " The dish should be presented looking fresh and appetizing on a simple, uncluttered background.
-   The lighting should be natural and warm, enhancing the appeal of the food and creating a welcoming atmosphere.
-    Ensure the image looks realistic, like an actual photograph from a family restaurant's menu."
+  # PROMPT_ADDITION = " The dish should be presented looking fresh and appetizing on a simple, uncluttered background.
+  #  The lighting should be natural and warm, enhancing the appeal of the food and creating a welcoming atmosphere.
+  #   Ensure the image looks realistic, like an actual photograph from a family restaurant's menu."
+  PROMPT_ADDITION = "This image should look like a professional photograph from a restaurant menu, with vibrant colors and appealing presentation."
   include ImageHelper
 
   validates :name, presence: true
@@ -121,14 +122,17 @@ class Menu < ApplicationRecord
     images_generated = 0
     board_images.each_slice(8) do |board_image_slice|
       board_image_slice.each do |board_image|
-        if should_generate_image(board_image.image, self.user, tokens_used, total_cost, true)
+        image = board_image.image
+        if should_generate_image(image, self.user, tokens_used, total_cost, true)
           board_image.update!(status: "generating")
-          board_image.image.start_generate_image_job(minutes_to_wait, self.user_id, nil, board.id)
+          img_prompt = image.image_prompt.present? ? image.image_prompt : nil
+          Rails.logger.debug "Rerunning image generation for #{image.label} with prompt: #{img_prompt}"
+          image.start_generate_image_job(minutes_to_wait, self.user_id, img_prompt, board.id)
           tokens_used += 1
           total_cost += 1
           images_generated += 1
         else
-          puts "Not generating image for #{board_image.image.label}"
+          puts "Not generating image for #{image.label}"
           board_image.update!(status: "skipped")
         end
       end
@@ -199,14 +203,17 @@ class Menu < ApplicationRecord
     begin
       new_board_images.each_slice(10) do |board_image_slice|
         board_image_slice.each do |board_image|
-          if should_generate_image(board_image.image, self.user, tokens_used, total_cost)
+          image = board_image.image
+          img_prompt = image.image_prompt.present? ? image.image_prompt : nil
+          Rails.logger.debug "Checking image generation for #{image.label} with prompt: #{img_prompt}"
+          if should_generate_image(image, self.user, tokens_used, total_cost)
             board_image.update!(status: "generating")
-            board_image.image.start_generate_image_job(minutes_to_wait, self.user_id, nil, board.id)
+            image.start_generate_image_job(minutes_to_wait, self.user_id, img_prompt, board.id)
             tokens_used += 1
             total_cost += 1
             images_generated += 1
           else
-            Rails.logger.info "Not generating image for #{board_image.image.label}"
+            Rails.logger.info "Not generating image for #{image.label}"
             board_image.update!(status: "skipped")
           end
         end
