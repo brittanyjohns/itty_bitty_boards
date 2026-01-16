@@ -135,6 +135,7 @@ Rails.application.routes.draw do
     namespace :stripe do
       resources :checkout_sessions, only: :create
     end
+    post "open_symbols/search", to: "open_symbols#search_api"
     get "temp-login/:token", to: "temp_logins#show"
     post "set-password", to: "users#set_password"
     resources :feedback, only: [:create]
@@ -357,6 +358,7 @@ Rails.application.routes.draw do
         put "toggle_favorite"
       end
     end
+
     namespace :v1 do
       resource :auth, only: [:create, :destroy]
       delete "/child_accounts/logout", to: "child_auths#destroy"

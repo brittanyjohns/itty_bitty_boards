@@ -91,7 +91,7 @@ class OpenSymbol < ApplicationRecord
     end
   end
 
-  def self.generate_symbol(query)
+  def self.search_symbols(query)
     @open_symbol_id_token = open_symbol_id_token
     return unless @open_symbol_id_token
     token_to_send = CGI.escape(@open_symbol_id_token)

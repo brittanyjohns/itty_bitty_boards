@@ -27,7 +27,7 @@ class OpenSymbolsController < ApplicationController
 
   def create
     query = params[:query]&.downcase
-    response = OpenSymbol.generate_symbol(query)
+    response = OpenSymbol.search_symbols(query)
 
     if response
       symbols = JSON.parse(response)

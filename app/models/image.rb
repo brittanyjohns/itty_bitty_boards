@@ -714,10 +714,67 @@ class Image < ApplicationRecord
     end
   end
 
+  def create_doc_from_open_symbol_result(symbol_result)
+    sym_url = sanitize_url(symbol["image_url"])
+    if sym_url.blank?
+      Rails.logger.debug "Sanitized URL is blank for symbol: #{symbol["name"]}"
+      return
+    end
+    begin
+      new_symbol =
+        OpenSymbol.find_or_create!(
+          name: symbol["name"],
+          image_url: sym_url,
+          label: query,
+          search_string: symbol["search_string"],
+          symbol_key: symbol["symbol_key"],
+          locale: symbol["locale"],
+          license_url: symbol["license_url"],
+          license: symbol["license"],
+          original_os_id: symbol["id"],
+          repo_key: symbol["repo_key"],
+          unsafe_result: symbol["unsafe_result"],
+          protected_symbol: symbol["protected_symbol"],
+          use_score: symbol["use_score"],
+          relevance: symbol["relevance"],
+          extension: symbol["extension"],
+          enabled: symbol["enabled"],
+        )
+    rescue => e
+      Rails.logger.debug "Error creating OpenSymbol: #{e.message}\n\n#{e.backtrace.join("\n")}"
+      return
+    end
+    symbol_name = new_symbol.name.parameterize
+    downloaded_image = new_symbol.get_downloaded_image
+    processed = nil
+    svg_url = nil
+    sanitized_svg_url = nil
+    if new_symbol.svg?
+      svg_url = new_symbol.image_url
+      sanitized_svg_url = sanitize_url(svg_url)
+      svg_data = URI.open(sanitized_svg_url).read
+      processed = StringIO.new(svg_data)
+      ext = "svg"
+    else
+      processed = downloaded_image
+      ext = new_symbol.extension
+    end
+
+    if processed
+      new_image_doc = self.docs.create!(
+        processed: symbol_name,
+        raw: new_symbol.search_string,
+        source_type: "OpenSymbol",
+        original_image_url: sanitized_svg_url || new_symbol.image_url,
+      )
+      new_image_doc.image.attach(io: processed, filename: "#{symbol_name}-symbol-#{new_symbol.id}.#{ext}")
+    end
+  end
+
   def generate_matching_symbol(limit = 1)
     # return if open_symbol_status == "skipped"
     query = label
-    response = OpenSymbol.generate_symbol(query)
+    response = OpenSymbol.search_symbols(query)
 
     Rails.logger.debug "Response from OpenSymbol for label: #{label} - Query: #{query} - Response: #{response.inspect}"
 
