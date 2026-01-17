@@ -69,6 +69,7 @@ class Board < ApplicationRecord
   belongs_to :board_screenshot_import, class_name: "BoardScreenshotImport", optional: true
   has_many :word_events
   has_many :subgroups, class_name: "BoardGroup", foreign_key: "root_board_id", dependent: :nullify
+  has_many :predictive_board_images, class_name: "BoardImage", foreign_key: "predictive_board_id", dependent: :nullify
 
   include WordEventsHelper
 
