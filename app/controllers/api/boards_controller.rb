@@ -119,7 +119,6 @@ class API::BoardsController < API::ApplicationController
 
   def show
     set_board
-
     # if stale?(etag: @board, last_modified: @board.updated_at)
     #   RailsPerformance.measure("Show Board") do
     # @loaded_board = Board.with_artifacts.find(@board.id)

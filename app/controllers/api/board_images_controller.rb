@@ -102,8 +102,10 @@ class API::BoardImagesController < API::ApplicationController
         board_image.predictive_board_id = nil
       end
       if board_image.save
+        Rails.logger.info "Successfully updated BoardImage ID: #{board_image.id}"
         results << true
       else
+        Rails.logger.error "Failed to update BoardImage ID: #{board_image.id} - #{board_image.errors.full_messages}"
         results << false
       end
     end

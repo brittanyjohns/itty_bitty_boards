@@ -1143,8 +1143,8 @@ class Board < ApplicationRecord
     end
     @board_settings = settings || {}
     freeze_parent_board = @board_settings["freeze_board"] == true
-    unless show_hidden
-      @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).distinct
+    if show_hidden
+      @board_images = board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).distinct
     else
       @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).distinct
     end
