@@ -49,12 +49,12 @@
 
   <!-- Preheader -->
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
-    MySpeak+ is live — add emergency info, share your QR page, and print a PDF with your QR code for on-the-go access.
+    MySpeak+ is live — add safety info, share your QR page, and print a PDF with your QR code for on-the-go access.
   </div>
 
   <div class="container">
     <!-- MySpeak Logo -->
-    <a href="https://speakanyway.com/myspeak-info" target="_blank" rel="noopener" class="logo">
+    <a href="https://www.speakanyway.com/myspeak-info" target="_blank" rel="noopener" class="logo">
       <%= image_tag @myspeak_logo.url, alt: "MySpeak Logo" %>
     </a>
 
@@ -63,7 +63,7 @@
     </div>
 
     <h1>Welcome to MySpeak+</h1>
-    <p class="sub">You’re all set — let’s make essential info accessible anywhere, instantly.</p>
+    <p class="sub">You're all set — let's make essential info accessible anywhere, instantly.</p>
 
     <p style="font-size:16px; line-height:1.6;">
       Hi <%= @user.name.blank? ? "there" : @user.name %>,<br>
@@ -81,7 +81,7 @@
     <div class="section">
       <h2>What you get with MySpeak+</h2>
       <ul class="check">
-        <li><strong>ICE info</strong> in your MySpeak profile — emergency contacts + key medical notes.</li>
+        <li><strong>Safety info</strong> in your MySpeak profile — emergency contacts + key medical notes.</li>
         <li><strong>Your own QR page</strong> — scan to view essential info instantly (no login needed).</li>
         <li><strong>PDF export with QR code</strong> — print for backpacks, wallets, binders, or lanyards.</li>
         <li><strong>Shareable link</strong> — send to trusted caregivers, teachers, and family.</li>
@@ -131,7 +131,7 @@
 
         <tr>
           <td style="padding:12px 14px;font-size:14px;line-height:1.4;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;">
-            ICE info + QR page + PDF export
+            Safety info + QR page + PDF export
           </td>
           <td align="center" style="padding:12px 14px;font-size:16px;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;color:#2abed1;font-weight:700;">✔</td>
           <td align="center" style="padding:12px 14px;font-size:16px;border-top:1px solid #e9e9e9;color:#2abed1;font-weight:700;">✔</td>
@@ -180,7 +180,7 @@
           Basic adds board creation, AI features, and Supporters for collaboration.
         </p>
         <p>
-          <a href="https://speakanyway.com/pricing" class="button">See Plans</a>
+          <a href="https://www.speakanyway.com/pricing" class="button">See Plans</a>
         </p>
         <p style="font-size:12px;color:#666;margin-top:8px;">
           Current pricing: MySpeak+ <strong><%= myspeak_price %></strong> • Basic <strong><%= basic_price %></strong>

@@ -676,6 +676,16 @@ class User < ApplicationRecord
     @user
   end
 
+  def send_partner_welcome_email
+    Rails.logger.info "Sending partner welcome email to #{email}"
+    begin
+      PartnerMailer.welcome_email(self).deliver_now
+      Rails.logger.info "Partner welcome email sent to #{email}"
+    rescue => e
+      Rails.logger.error("Error sending partner welcome email: #{e.message}")
+    end
+  end
+
   def send_temp_login_email
     Rails.logger.info "Sending temporary login email to #{email}"
     begin

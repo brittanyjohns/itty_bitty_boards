@@ -1,5 +1,5 @@
 namespace :vendors do
-  desc "Create New Vendor Example: rake vendors:create_new_vendor[1, 'My Business', 'info@speakanyway.com', 'https://speakanyway.com']"
+  desc "Create New Vendor Example: rake vendors:create_new_vendor[1, 'My Business', 'info@speakanyway.com', 'https://www.speakanyway.com']"
   task :create_new_vendor, [:user_id, :business_name, :business_email, :website] => :environment do |t, args|
     business_name = args[:business_name]
     business_email = args[:business_email]

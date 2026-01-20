@@ -149,6 +149,9 @@ class API::WebhooksController < API::ApplicationController
 
     # Optional: role controlled via Stripe metadata
     user.role = meta["role"] if meta["role"].present?
+    if user.role == "partner"
+      user.send_partner_welcome_email
+    end
 
     user.save!
     # check if user needs to set their password

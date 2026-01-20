@@ -128,6 +128,20 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     end
   end
 
+  def send_partner_welcome_email
+    @user = User.find(params[:id])
+    if @user.nil?
+      render json: { error: "User not found" }, status: :not_found
+      return
+    end
+    Rails.logger.info "Sending partner welcome email to user: #{@user.email}"
+    if @user.send_partner_welcome_email
+      render json: { success: true }, status: :ok
+    else
+      render json: { error: "Failed to send partner welcome email" }, status: :unprocessable_entity
+    end
+  end
+
   def send_temp_login_email
     unless current_admin&.admin?
       render json: { error: "Unauthorized" }, status: :unauthorized

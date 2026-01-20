@@ -33,18 +33,69 @@
 
             <hr style="border:none; border-top:1px solid #eeeeee; margin:24px 0;" />
 
-            <h3>💡 Getting Oriented: Your Accounts</h3>
+            <h3>💡 Step 1: Getting Oriented (Sponsored vs Demo Communicator Accounts)</h3>
 
-            <p><strong>Communicator Accounts</strong> → Used for speech access and AAC boards.</p>
             <p>
-              Create one for each communicator (like a child or student), set a simple passcode,
-              and track their progress from any device.
+              Inside SpeakAnyWay Pro, you'll see two types of Communicator Accounts.
+              They're both useful — they're just built for different situations:
             </p>
 
-            <p><strong>MySpeak Accounts</strong> → Optional profiles linked to a Communicator.</p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin:14px 0;">
+              <tr>
+                <td style="vertical-align:top; padding:14px; border:1px solid #eaeaea; border-radius:8px; background:#fafafa;">
+                  <div style="font-weight:bold; font-size:16px;">✅ Sponsored Communicator Accounts (Full Seats)</div>
+                  <p style="margin:10px 0 0 0;">
+                    Use these when you are actively supporting a student/client and want their access
+                    and progress kept separate.
+                  </p>
+                  <ul style="margin:10px 0 0 18px; padding:0;">
+                    <li><strong>Separate sign-in</strong> for the communicator (they can log in on their own device)</li>
+                    <li><strong>Stats & analytics</strong> (usage, trends, progress)</li>
+                    <li><strong>Full control</strong> over boards, settings, and access</li>
+                    <li><strong>Invite supporters/supervisors</strong> (teachers, aides, family, therapists)</li>
+                  </ul>
+                </td>
+              </tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin:14px 0;">
+              <tr>
+                <td style="vertical-align:top; padding:14px; border:1px solid #eaeaea; border-radius:8px; background:#fafafa;">
+                  <div style="font-weight:bold; font-size:16px;">🧪 Demo Communicator Accounts (Sharing + Collaboration)</div>
+                  <p style="margin:10px 0 0 0;">
+                    Use these when you want to build or preview boards, collaborate, or share resources —
+                    without creating a full sponsored seat.
+                  </p>
+                  <p style="margin:10px 0 0 0;"><strong>Demo accounts CAN:</strong></p>
+                  <ul style="margin:10px 0 0 18px; padding:0;">
+                    <li><strong>Share boards</strong> and content</li>
+                    <li><strong>Invite supporters/supervisors</strong> to collaborate</li>
+                  </ul>
+
+                  <p style="margin:12px 0 0 0;"><strong>Demo accounts do NOT include:</strong></p>
+                  <ul style="margin:10px 0 0 18px; padding:0;">
+                    <li>Stats / analytics</li>
+                    <li>A separate sign-in for the communicator</li>
+                    <li>MySpeak+ features</li>
+                  </ul>
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin-top:14px;">
+              <strong>Quick rule of thumb:</strong>
+              If it's a real student/client you're supporting long-term → use a <strong>Sponsored</strong> seat.
+              If it's for previewing, building, sharing, or “let me show you how this works” → use a <strong>Demo</strong> seat.
+            </p>
+
+            <hr style="border:none; border-top:1px solid #eeeeee; margin:24px 0;" />
+
+            <h3>💡 Step 2: MySpeak Accounts (Optional, but powerful)</h3>
+
             <p>
-              These store ICE (In Case of Emergency) details, contacts, and safety info.
-              Each includes a scannable QR code and connects seamlessly to the communicator's boards.
+              Each Communicator Account can also have an optional <strong>MySpeak</strong> profile
+              that stores emergency details, contacts, and safety info.
+              Each one includes a scannable QR code and connects seamlessly to the communicator's boards.
             </p>
 
             <p>
@@ -53,11 +104,7 @@
             </p>
 
             <p>
-              Check out our Etsy shop for printable AAC resources, ID tags, stickers, tattoos & more!
-            </p>
-
-            <p>
-              <strong>3 Communicator Accounts are included</strong> — if you need more,
+              <strong>3 Sponsored Communicator Accounts are included</strong> — if you need more,
               please just let us know.
             </p>
 
@@ -67,9 +114,13 @@
               get them what they need. 🫶
             </p>
 
+            <p>
+              Check out our Etsy shop for printable AAC resources, ID tags, stickers, tattoos & more!
+            </p>
+
             <hr style="border:none; border-top:1px solid #eeeeee; margin:24px 0;" />
 
-            <h3>🚀 Step 1: Explore the Partner Portal</h3>
+            <h3>🚀 Step 3: Explore the Partner Portal</h3>
 
             <p>
               The Partner Portal includes step-by-step guides, role-based tips,
@@ -77,7 +128,7 @@
             </p>
 
             <p style="text-align:center; margin:24px 0;">
-              <a href="#" style="background-color:#2abed1; color:#ffffff; text-decoration:none; padding:14px 22px; border-radius:6px; display:inline-block; font-weight:bold;">
+              <a href="<%= @partner_portal_url %>" style="background-color:#2abed1; color:#ffffff; text-decoration:none; padding:14px 22px; border-radius:6px; display:inline-block; font-weight:bold;" target="_blank" rel="noopener">
                 GO TO PARTNER PORTAL
               </a>
             </p>
@@ -86,7 +137,7 @@
             <ul>
               <li>Build a sample Communicator Board using AI Suggestions</li>
               <li>Export a PDF with a QR Quick Code and scan it on another device</li>
-              <li>Create a MySpeak Account to test how ICE info displays when scanned</li>
+              <li>Create a MySpeak Account to test how emergency contact info displays when scanned</li>
             </ul>
 
             <hr style="border:none; border-top:1px solid #eeeeee; margin:24px 0;" />
@@ -107,7 +158,7 @@
             <h3>🗓️ Your 3-Month Partner Round</h3>
 
             <p>
-              <strong>Dates:</strong> November 4th, 2025 - February 4th, 2026
+              <strong>Dates:</strong> <%= @start_date.strftime("%B %d, %Y") %> - <%= @end_date.strftime("%B %d, %Y") %>
             </p>
 
             <p>
@@ -146,7 +197,6 @@
     </td>
   </tr>
 </table>
-```
 
   </body>
 </html>
