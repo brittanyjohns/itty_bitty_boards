@@ -24,11 +24,15 @@ module API
             user.plan_type = "partner_pro"
             user.plan_status = "active"
           end
+
           # Send welcome email
           # UserMailer.welcome_email(user).deliver_now
           # user.send_welcome_email
           sign_in user
           user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
+          if user.role == "partner"
+            user.send_partner_welcome_email
+          end
           MailchimpEventJob.perform_async(user.id, "sign_up")
           render json: { token: user.authentication_token, user: user.api_view }
         else
