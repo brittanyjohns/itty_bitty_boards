@@ -360,7 +360,7 @@ class User < ApplicationRecord
     user.plan_expires_at = Time.now + 3.months if user.plan_expires_at.nil?
     partner_group = user.get_partner_group
     user.settings["partner_group"] = partner_group
-    user.save!
+    user.save
     begin
       MailchimpService.new.update_subscriber_tags(user.email, [partner_group], [])
     rescue => e

@@ -23,6 +23,8 @@ module API
           if params["plan_type"] && params["plan_type"] == "partner_pro"
             user.plan_type = "partner_pro"
             user.plan_status = "active"
+            user.role = "partner"
+            User.handle_new_partner_pro_subscription(user, params["plan_type"])
           end
 
           # Send welcome email
