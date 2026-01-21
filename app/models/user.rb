@@ -362,7 +362,9 @@ class User < ApplicationRecord
     user.settings["partner_group"] = partner_group
     user.save
     begin
-      MailchimpService.new.update_subscriber_tags(user.email, [partner_group], [])
+      # MailchimpService.new.update_subscriber_tags(user.email, [partner_group], [])
+      Rails.logger.info "Recording new subscriber for Mailchimp: #{user.email} with tags: #{[partner_group]}"
+      MailchimpService.new.record_new_subscriber(user.email, [partner_group])
     rescue => e
       Rails.logger.error "Mailchimp tag update failed for pilot_partner: #{e.message}"
     end
