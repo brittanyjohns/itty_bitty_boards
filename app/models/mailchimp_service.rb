@@ -107,14 +107,15 @@ class MailchimpService
       tags: [],
     }
     tags_to_add.each do |tag|
-      puts "Adding tag: #{tag}"
       if tag.nil? || tag.strip.empty?
-        puts "Skipping empty tag"
         next
       end
+      Rails.logger.info "Adding tag: #{tag}"
+
       body[:tags] << { name: tag, status: "active" }
     end
     tags_to_remove.each do |tag|
+      Rails.logger.info "Removing tag: #{tag}"
       body[:tags] << { name: tag, status: "inactive" }
     end
     response = @client.lists.update_list_member_tags(
@@ -124,7 +125,7 @@ class MailchimpService
     )
     response
   rescue MailchimpMarketing::ApiError => e
-    puts "Error updating subscriber tags: #{e.message}"
+    Rails.logger.error "Error updating subscriber tags: #{e.message}"
     nil
   end
 
@@ -138,7 +139,7 @@ class MailchimpService
     )
     response
   rescue MailchimpMarketing::ApiError => e
-    puts "Error creating audience: #{e.message}"
+    Rails.logger.error "Error creating audience: #{e.message}"
     nil
   end
 end

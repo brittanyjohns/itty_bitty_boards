@@ -714,12 +714,12 @@ class User < ApplicationRecord
   end
 
   def send_welcome_email_basic
-    Rails.logger.info "Sending paid welcome email to #{email}"
+    Rails.logger.info "Sending basic welcome email to #{email}"
     UserMailer.welcome_basic_email(self).deliver_now
   end
 
   def send_welcome_email_pro
-    Rails.logger.info "Sending paid welcome email to #{email}"
+    Rails.logger.info "Sending pro welcome email to #{email}"
     UserMailer.welcome_pro_email(self).deliver_now
   end
 
