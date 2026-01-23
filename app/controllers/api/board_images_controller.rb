@@ -158,8 +158,7 @@ class API::BoardImagesController < API::ApplicationController
       return
     end
     begin
-      # return unless check_daily_limit("ai_image_edit")
-      return unless check_daily_limit("ai_action")
+      return unless check_monthly_limit("ai_action")
       prompt = params[:prompt] || ""
       transparent_background = params[:transparent_background] == "true"
       EditBoardImageJob.perform_async(@board_image.id, prompt, transparent_background)
@@ -183,8 +182,7 @@ class API::BoardImagesController < API::ApplicationController
       render json: { error: "Board image not found" }, status: :unprocessable_entity
       return
     end
-    # return unless check_daily_limit("ai_image_generation")
-    return unless check_daily_limit("ai_action")
+    return unless check_monthly_limit("ai_action")
 
     @image_variation = @board_image.create_image_variation!
     Rails.logger.debug "Created image variation: #{@image_variation.inspect}"

@@ -4,10 +4,10 @@ class OpenAiClient
   # GTP_MODEL = "gpt-4o"
   GTP_MODEL = ENV.fetch("OPENAI_GTP_MODEL", "gpt-4o")
   QUICK_GTP_MODEL = ENV.fetch("OPENAI_QUICK_GTP_MODEL", "gpt-4o-mini")
-  IMAGE_MODEL = ENV.fetch("OPENAI_IMAGE_MODEL", "dall-e-3")
-  IMAGE_MOBEL_STYLE = ENV.fetch("OPENAI_IMAGE_MODEL_STYLE", "natural")
-  # IMAGE_MODEL = "gpt-image-1"
-  # TTS_MODEL = "tts-1"
+  IMAGE_MODEL = ENV.fetch("OPENAI_IMAGE_MODEL", "gpt-image-1-mini")
+  # IMAGE_MODEL_STYLE = ENV.fetch("OPENAI_IMAGE_MODEL_STYLE", "natural")
+  # # IMAGE_MODEL = "gpt-image-1"
+  # # TTS_MODEL = "tts-1"
   TTS_MODEL = ENV.fetch("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
   PREVIEW_MODEL = "o1-preview"
 
@@ -64,8 +64,8 @@ class OpenAiClient
   def create_image
     # new_prompt = static_image_prompt
     new_prompt = @prompt
-
-    response = openai_client.images.generate(parameters: { prompt: new_prompt, model: IMAGE_MODEL, style: IMAGE_MOBEL_STYLE })
+    quality = IMAGE_MODEL.include?("dall-e") ? "standard" : "low"
+    response = openai_client.images.generate(parameters: { prompt: new_prompt, model: IMAGE_MODEL, quality: quality })
     if response
       img_url = response.dig("data", 0, "url")
       b64_json = response.dig("data", 0, "b64_json")
@@ -407,23 +407,24 @@ class OpenAiClient
     end
     @model = QUICK_GTP_MODEL
     Rails.logger.debug "User - model: #{@model} -- name: #{name} -- number_of_words: #{number_of_words} -- words_to_exclude: #{words_to_exclude.inspect}"
-    text = "I have an AAC board titled, '#{name}'. Inferring the context from the name, please provide #{number_of_words} words. "
+    text = "I have an AAC board titled, '#{name}'. Inferring the context from the name AND the existing words on the board, please provide #{number_of_words} words. "
 
     unless words_to_exclude.blank?
-      text += " Do not repeat any words that are already on the board & only provide #{number_of_words} words, excluding the words '#{words_to_exclude.join("', '")}'."
+      text += " Do not repeat any words that are already on the board & only provide #{number_of_words} words. The words currently on the board are '#{words_to_exclude.join("', '")}'."
     end
     format_instructions = "Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}"
     text += format_instructions
-    examples = <<~EXAMPLES
-      Examples: If the board is named 'drink', words like 'water', 'milk', 'juice', 'thirsty', etc. would be appropriate. 
-      If the board is 'food', words like 'apple', 'banana', 'cookie', 'eat', etc. would be appropriate.
-      If the board is 'Trip to the park', words like 'play', 'my turn', 'swing', 'slide', etc. would be appropriate.
-      If the board is 'nature', words like 'tree', 'flower', 'sun', 'rain', etc. would be appropriate.
-      If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate. 
-      If the board is 'feelings', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
-      If the board is 'family', words like 'mom', 'dad', 'sister', 'brother', etc. would be appropriate.
-    EXAMPLES
-    text += examples
+    # examples = <<~EXAMPLES
+    #   Examples: If the board is named 'drink', words like 'water', 'milk', 'juice', 'thirsty', etc. would be appropriate.
+    #   If the board is 'food', words like 'apple', 'banana', 'cookie', 'eat', etc. would be appropriate.
+    #   If the board is 'Trip to the park', words like 'play', 'my turn', 'swing', 'slide', etc. would be appropriate.
+    #   If the board is 'nature', words like 'tree', 'flower', 'sun', 'rain', etc. would be appropriate.
+    #   If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate.
+    #   If the board is 'feelings', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
+    #   If the board is 'family', words like 'mom', 'dad', 'sister', 'brother', etc. would be appropriate.
+    # EXAMPLES
+    # text += examples
+    Rails.logger.debug "**** INFO **** \nUser - model: #{@model} -- \n text:\n #{text}\n"
     @messages = [{ role: "user",
                   content: [{
       type: "text",

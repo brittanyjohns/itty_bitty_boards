@@ -14,6 +14,7 @@ class GenerateImageJob
       board_image.update(status: "generating")
     end
     begin
+      Rails.logger.info "Generating image for user: #{user_id}, image: #{image_id}, prompt: #{image.temp_prompt}"
       if transparent_bg
         prompt_with_bg = "#{image.temp_prompt} with a transparent background"
         image.image_prompt = prompt_with_bg
@@ -26,20 +27,19 @@ class GenerateImageJob
         image.image_prompt = image.image_prompt.gsub(Menu::PROMPT_ADDITION, "")
         image.save!
       end
+      Rails.logger.info "Generated image for user: #{user_id}, image: #{image_id}, url: #{new_doc.display_url}"
       if board_image
+        Rails.logger.info "Updating board image for board: #{board_id}, image: #{image_id}, url: #{new_doc.display_url}"
         board_image.update(status: "complete", display_image_url: new_doc.display_url)
       end
-      if board_id
-        board = Board.find(board_id)
-        board.calculate_grid_layout_for_screen_size(screen_size || "lg") if board
-      end
+      # if board_id
+      #   board = Board.find(board_id)
+      #   board.calculate_grid_layout_for_screen_size(screen_size || "lg") if board
+      # end
     rescue => e
-      puts "**** ERROR **** \n#{e.message}\n"
+      Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace.join("\n")}"
       image.update(status: "error", error: e.message)
       board_image.update(status: "error") if board_image
-
-      puts "UPDATE IMAGE: #{image.inspect}"
     end
-    # Do something
   end
 end

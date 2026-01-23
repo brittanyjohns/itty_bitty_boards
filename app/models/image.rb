@@ -124,7 +124,7 @@ class Image < ApplicationRecord
   end
 
   def default_image_prompt
-    "Create a simple, clear AAC-style illustration showing '#{label}' in a literal, easy-to-understand way, with a plain white background and no stylization. NO TEXT."
+    "Create a simple, clear AAC-style illustration showing '#{label}' in a literal, easy-to-understand way, with a transparent background and no stylization. NO TEXT."
   end
 
   def update_category_boards

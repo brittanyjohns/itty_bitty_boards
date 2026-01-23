@@ -446,8 +446,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def words
-    # return unless check_daily_limit("ai_suggestions")
-    return unless check_daily_limit("ai_action")
+    return unless check_monthly_limit("ai_action")
     additional_words = Board.new.get_word_suggestions(params[:name], params[:num_of_words], params[:words_to_exclude])
     normalize_words = additional_words.map do |word|
       word.gsub("_", " ").strip
@@ -456,8 +455,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def format_with_ai
-    # return unless check_daily_limit("ai_format_board")
-    return unless check_daily_limit("ai_action")
+    return unless check_monthly_limit("ai_action")
     set_board
     screen_size = params[:screen_size] || "lg"
     FormatBoardWithAiJob.perform_async(@board.id, screen_size, true)

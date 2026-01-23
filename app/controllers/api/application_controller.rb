@@ -39,18 +39,17 @@ module API
       end
     end
 
-    def check_daily_limit(feature_key)
-      Rails.logger.debug "Checking daily limit for feature: #{feature_key}, User ID: #{current_user.id}"
-      limiter = DailyFeatureLimiter.new(
+    def check_monthly_limit(feature_key)
+      limiter = MonthlyFeatureLimiter.new(
         user_id: current_user.id,
         feature_key: feature_key,
-        limit: current_user.daily_limit_for(feature_key),
+        limit: current_user.monthly_limit_for(feature_key),
         tz: current_user.timezone || "America/New_York",
       )
       allowed, meta = limiter.increment_and_check!
-      Rails.logger.debug "Daily limit check result for User ID: #{current_user.id}, " \
+      Rails.logger.debug "Monthly limit check result for User ID: #{current_user.id}, " \
                          "Feature: #{feature_key} - Allowed: #{allowed}, Meta: #{meta}"
-      error_message = "Daily limit reached for #{feature_key}. Please try again later."
+      error_message = "Monthly limit reached for #{feature_key}. Please try again later."
       unless allowed
         render json: { error: "limit_reached", message: error_message, **meta }, status: 429
         return false
