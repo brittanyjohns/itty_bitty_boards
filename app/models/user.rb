@@ -127,7 +127,7 @@ class User < ApplicationRecord
   before_destroy :delete_stripe_customer
   before_destroy :unassign_vendor
 
-  before_save :reset_limits_if_downgrade, if: :plan_type_changed?
+  before_save :setup_limits, if: :plan_type_changed?
   before_save :update_vendor, if: :plan_type_changed?
 
   # Methods
@@ -145,7 +145,7 @@ class User < ApplicationRecord
     end
   end
 
-  def reset_limits_if_downgrade
+  def setup_limits
     case plan_type
     when "free"
       setup_free_limits
@@ -185,52 +185,81 @@ class User < ApplicationRecord
     plan_type == "pro" ? 5 : 2
   end
 
+  FREE_PLAN_LIMITS = {
+    "plan_type" => "free",
+    "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 1).to_i,
+    "paid_communicator_limit" => ENV.fetch("FREE_PAID_COMMUNICATOR_LIMIT", 0).to_i,
+    "demo_communicator_limit" => ENV.fetch("FREE_DEMO_COMMUNICATOR_LIMIT", 0).to_i,
+    "ai_monthly_limit" => ENV.fetch("FREE_AI_MONTHLY_LIMIT", 5).to_i,
+  }.freeze
+  MYSPEAK_PLAN_LIMITS = {
+    "plan_type" => "myspeak",
+    "board_limit" => ENV.fetch("MYSPEAK_BOARD_LIMIT", 5).to_i,
+    "paid_communicator_limit" => ENV.fetch("MYSPEAK_PAID_COMMUNICATOR_LIMIT", 5).to_i,
+    "demo_communicator_limit" => ENV.fetch("MYSPEAK_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
+    "ai_monthly_limit" => ENV.fetch("MYSPEAK_AI_MONTHLY_LIMIT", 50).to_i,
+  }.freeze
+  BASIC_PLAN_LIMITS = {
+    "plan_type" => "basic",
+    "board_limit" => ENV.fetch("BASIC_BOARD_LIMIT", 100).to_i,
+    "paid_communicator_limit" => ENV.fetch("BASIC_PAID_COMMUNICATOR_LIMIT", 2).to_i,
+    "demo_communicator_limit" => ENV.fetch("BASIC_DEMO_COMMUNICATOR_LIMIT", 0).to_i,
+    "ai_monthly_limit" => ENV.fetch("BASIC_AI_MONTHLY_LIMIT", 100).to_i,
+  }.freeze
+  PRO_PLAN_LIMITS = {
+    "plan_type" => "pro",
+    "board_limit" => ENV.fetch("PRO_BOARD_LIMIT", 300).to_i,
+    "paid_communicator_limit" => ENV.fetch("PRO_PAID_COMMUNICATOR_LIMIT", 3).to_i,
+    "demo_communicator_limit" => ENV.fetch("PRO_DEMO_COMMUNICATOR_LIMIT", 10).to_i,
+    "ai_monthly_limit" => ENV.fetch("PRO_AI_MONTHLY_LIMIT", 300).to_i,
+  }.freeze
+
   def setup_partner_pro_plan
     self.settings ||= {}
-    self.settings["paid_communicator_limit"] = 3
-    self.settings["demo_communicator_limit"] = 10
-    self.settings["board_limit"] = 200
-    self.settings["ai_daily_limit"] = 100
+    self.settings["paid_communicator_limit"] = PRO_PLAN_LIMITS["paid_communicator_limit"]
+    self.settings["demo_communicator_limit"] = PRO_PLAN_LIMITS["demo_communicator_limit"]
+    self.settings["board_limit"] = PRO_PLAN_LIMITS["board_limit"]
+    self.settings["ai_monthly_limit"] = PRO_PLAN_LIMITS["ai_monthly_limit"]
     self.plan_type = "pro"
     self.role = "partner"
   end
 
   def setup_pro_limits
     self.settings ||= {}
-    self.settings["paid_communicator_limit"] = 3
-    self.settings["demo_communicator_limit"] = 10
-    self.settings["board_limit"] = 200
-    self.settings["ai_daily_limit"] = 100
+    self.settings["paid_communicator_limit"] = PRO_PLAN_LIMITS["paid_communicator_limit"]
+    self.settings["demo_communicator_limit"] = PRO_PLAN_LIMITS["demo_communicator_limit"]
+    self.settings["board_limit"] = PRO_PLAN_LIMITS["board_limit"]
+    self.settings["ai_monthly_limit"] = PRO_PLAN_LIMITS["ai_monthly_limit"]
     self.plan_type = "pro"
     self.role = "user"
   end
 
   def setup_basic_limits
     self.settings ||= {}
-    self.settings["paid_communicator_limit"] = 2
-    self.settings["demo_communicator_limit"] = 0
-    self.settings["board_limit"] = 100
-    self.settings["ai_daily_limit"] = 50
+    self.settings["paid_communicator_limit"] = BASIC_PLAN_LIMITS["paid_communicator_limit"]
+    self.settings["demo_communicator_limit"] = BASIC_PLAN_LIMITS["demo_communicator_limit"]
+    self.settings["board_limit"] = BASIC_PLAN_LIMITS["board_limit"]
+    self.settings["ai_monthly_limit"] = BASIC_PLAN_LIMITS["ai_monthly_limit"]
     self.plan_type = "basic"
     self.role = "user"
   end
 
   def setup_myspeak_limits
     self.settings ||= {}
-    self.settings["paid_communicator_limit"] = 0
-    self.settings["demo_communicator_limit"] = 1
-    self.settings["board_limit"] = 3
-    self.settings["ai_daily_limit"] = 10
+    self.settings["paid_communicator_limit"] = MYSPEAK_PLAN_LIMITS["paid_communicator_limit"]
+    self.settings["demo_communicator_limit"] = MYSPEAK_PLAN_LIMITS["demo_communicator_limit"]
+    self.settings["board_limit"] = MYSPEAK_PLAN_LIMITS["board_limit"]
+    self.settings["ai_monthly_limit"] = MYSPEAK_PLAN_LIMITS["ai_monthly_limit"]
     self.plan_type = "myspeak"
     self.role = "user"
   end
 
   def setup_free_limits
     self.settings ||= {}
-    self.settings["paid_communicator_limit"] = 0
-    self.settings["demo_communicator_limit"] = 0
-    self.settings["board_limit"] = 1
-    self.settings["ai_daily_limit"] = 1
+    self.settings["paid_communicator_limit"] = FREE_PLAN_LIMITS["paid_communicator_limit"]
+    self.settings["demo_communicator_limit"] = FREE_PLAN_LIMITS["demo_communicator_limit"]
+    self.settings["board_limit"] = FREE_PLAN_LIMITS["board_limit"]
+    self.settings["ai_monthly_limit"] = FREE_PLAN_LIMITS["ai_monthly_limit"]
     self.plan_type = "free"
     self.role = "user"
   end

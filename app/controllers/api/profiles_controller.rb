@@ -140,7 +140,7 @@ class API::ProfilesController < API::ApplicationController
       @user.settings["board_limit"] = 1
       @user.settings["demo_communicator_limit"] = 1
       @user.settings["paid_communicator_limit"] = 0
-      @user.settings["ai_daily_limit"] = 10
+      @user.settings["ai_monthly_limit"] = 10
     else
       Rails.logger.debug "User already has plan_type: #{@user.plan_type}, skipping plan assignment"
     end

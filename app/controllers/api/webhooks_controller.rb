@@ -4,14 +4,6 @@ class API::WebhooksController < API::ApplicationController
   skip_before_action :authenticate_token!, only: :webhooks
   protect_from_forgery except: :webhooks if respond_to?(:protect_from_forgery)
 
-  FREE_PLAN_LIMITS = {
-    "plan_type" => "free",
-    "board_limit" => 1,
-    "paid_communicator_limit" => 0,
-    "demo_communicator_limit" => 0,
-    "ai_daily_limit" => 5,
-  }.freeze
-
   def webhooks
     payload = request.body.read
     sig_header = request.env["HTTP_STRIPE_SIGNATURE"]
@@ -140,15 +132,17 @@ class API::WebhooksController < API::ApplicationController
     user.plan_status = subscription.status
     user.stripe_subscription_id ||= subscription.id
 
-    paid_communicator_limit = meta["paid_communicator_limit"] || meta["communicator_limit"]
-    user.settings ||= {}
-    user.settings["board_limit"] = to_int_or_nil(meta["board_limit"])
-    user.settings["paid_communicator_limit"] = to_int_or_nil(paid_communicator_limit)
-    user.settings["demo_communicator_limit"] = to_int_or_nil(meta["demo_communicator_limit"])
-    user.settings["ai_daily_limit"] = to_int_or_nil(meta["ai_daily_limit"])
+    # paid_communicator_limit = meta["paid_communicator_limit"] || meta["communicator_limit"]
+    # user.settings ||= {}
+    # user.settings["board_limit"] = to_int_or_nil(meta["board_limit"])
+    # user.settings["paid_communicator_limit"] = to_int_or_nil(paid_communicator_limit)
+    # user.settings["demo_communicator_limit"] = to_int_or_nil(meta["demo_communicator_limit"])
+    # user.settings["ai_monthly_limit"] = to_int_or_nil(meta["ai_monthly_limit"])
+    # user.settings["ai_monthly_limit"] = to_int_or_nil(meta["ai_monthly_limit"])
 
-    # Optional: role controlled via Stripe metadata
-    user.role = meta["role"] if meta["role"].present?
+    # # Optional: role controlled via Stripe metadata
+    # user.role = meta["role"] if meta["role"].present?
+    user.setup_limits
     if user.role == "partner"
       user.send_partner_welcome_email
     end
@@ -260,12 +254,13 @@ class API::WebhooksController < API::ApplicationController
     user.plan_type = FREE_PLAN_LIMITS["plan_type"]
     user.paid_plan_type = original_plan_type
     user.plan_status = status
+    user.setup_free_limits
 
-    user.settings ||= {}
-    user.settings["board_limit"] = FREE_PLAN_LIMITS["board_limit"]
-    user.settings["paid_communicator_limit"] = FREE_PLAN_LIMITS["paid_communicator_limit"]
-    user.settings["demo_communicator_limit"] = FREE_PLAN_LIMITS["demo_communicator_limit"]
-    user.settings["ai_daily_limit"] = FREE_PLAN_LIMITS["ai_daily_limit"]
+    # user.settings ||= {}
+    # user.settings["board_limit"] = FREE_PLAN_LIMITS["board_limit"]
+    # user.settings["paid_communicator_limit"] = FREE_PLAN_LIMITS["paid_communicator_limit"]
+    # user.settings["demo_communicator_limit"] = FREE_PLAN_LIMITS["demo_communicator_limit"]
+    # user.settings["ai_monthly_limit"] = FREE_PLAN_LIMITS["ai_monthly_limit"]
 
     user.stripe_subscription_id = nil
     user.save!
