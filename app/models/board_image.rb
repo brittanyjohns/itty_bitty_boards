@@ -322,16 +322,6 @@ class BoardImage < ApplicationRecord
     board.user
   end
 
-  def predictive_board_data
-    return nil unless predictive_board_id
-    {
-      id: predictive_board_id,
-      name: predictive_board&.name,
-      board_type: predictive_board&.board_type,
-      display_image_url: predictive_board&.display_image_url,
-    }
-  end
-
   def override_frozen
     return unless board.is_frozen?
     # override_frozen = @board_image.data["override_frozen"] == true
@@ -364,7 +354,6 @@ class BoardImage < ApplicationRecord
       hidden: hidden,
       board_name: board.name,
       board_type: board.board_type,
-      predictive_board: predictive_board_data,
       dynamic: is_dynamic?,
       voice: voice,
       src: display_image_url,
@@ -386,6 +375,7 @@ class BoardImage < ApplicationRecord
       next_words: next_words,
       data: data,
       predictive_board_id: predictive_board_id,
+      predictive_board_name: predictive_board&.name,
       can_edit: viewing_user == board.user,
       language: language,
       display_label: display_label,
@@ -413,7 +403,7 @@ class BoardImage < ApplicationRecord
       bg_color: bg_color,
       bg_class: bg_class,
       display_image_url: display_image_url,
-      predictive_board: predictive_board_data,
+      predictive_board_name: predictive_board&.name,
     }
   end
 

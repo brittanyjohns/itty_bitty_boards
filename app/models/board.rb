@@ -751,7 +751,7 @@ class Board < ApplicationRecord
   end
 
   def update_user_boards_after_cloning(source_board)
-    user_boards = user.board_images.where(predictive_board_id: source_board.id)
+    user_boards = user.total_board_images.where(predictive_board_id: source_board.id)
     cloned_board = self
     user_boards.each do |bi|
       bi.predictive_board_id = cloned_board.id
