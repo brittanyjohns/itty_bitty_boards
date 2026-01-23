@@ -195,9 +195,9 @@ class User < ApplicationRecord
   MYSPEAK_PLAN_LIMITS = {
     "plan_type" => "myspeak",
     "board_limit" => ENV.fetch("MYSPEAK_BOARD_LIMIT", 5).to_i,
-    "paid_communicator_limit" => ENV.fetch("MYSPEAK_PAID_COMMUNICATOR_LIMIT", 5).to_i,
+    "paid_communicator_limit" => ENV.fetch("MYSPEAK_PAID_COMMUNICATOR_LIMIT", 0).to_i,
     "demo_communicator_limit" => ENV.fetch("MYSPEAK_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
-    "ai_monthly_limit" => ENV.fetch("MYSPEAK_AI_MONTHLY_LIMIT", 50).to_i,
+    "ai_monthly_limit" => ENV.fetch("MYSPEAK_AI_MONTHLY_LIMIT", 20).to_i,
   }.freeze
   BASIC_PLAN_LIMITS = {
     "plan_type" => "basic",
