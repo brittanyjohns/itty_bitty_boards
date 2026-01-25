@@ -216,6 +216,7 @@ class API::BoardsController < API::ApplicationController
     @board.small_screen_columns = board_params["small_screen_columns"].to_i
     @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
     @board.large_screen_columns = board_params["large_screen_columns"].to_i
+    Rails.logger.info "large_screen_columns: #{board_params["large_screen_columns"]}"
     @board.voice = board_params["voice"]
     @board.language = board_params["language"] if board_params["language"].present?
     Rails.logger.info "Board params: #{board_params.inspect}"

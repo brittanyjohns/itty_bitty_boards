@@ -9,20 +9,20 @@ module ColorHelper
     "red" => "#FF0000",
     "teal" => "#2ABED1",
     "white" => "#FFFFFF",
-    "gray" => "#A1A1A1",
+    "gray" => "#D1D1D1",
   }.freeze
 
   PRESET_DATA = [
-    { label: "blue", hex: "#5ECFFF", part_of_speech: "noun" },
-    { label: "green", hex: "#A1F571", part_of_speech: "verb" },
-    { label: "yellow", hex: "#FFEA75", part_of_speech: "adjective" },
-    { label: "purple", hex: "#a07aff", part_of_speech: "adverb" },
-    { label: "pink", hex: "#FF709C", part_of_speech: "pronoun" },
-    { label: "orange", hex: "#FFC457", part_of_speech: "preposition" },
-    { label: "red", hex: "#FF0000", part_of_speech: "conjunction" },
-    { label: "teal", hex: "#2ABED1", part_of_speech: "interjection" },
-    { label: "white", hex: "#FFFFFF", part_of_speech: "phrase" },
-    { label: "gray", hex: "#A1A1A1", part_of_speech: "default" },
+    { label: "blue", hex: "#5ECFFF", part_of_speech: "noun" },          # nouns
+    { label: "green", hex: "#A1F571", part_of_speech: "verb" },          # verbs
+    { label: "yellow", hex: "#FFEA75", part_of_speech: "pronoun" },       # pronouns
+    { label: "orange", hex: "#FFC457", part_of_speech: "adjective" },     # adjectives
+    { label: "brown", hex: "#C8A165", part_of_speech: "adverb" },        # adverbs (standard)
+    { label: "purple", hex: "#A07AFF", part_of_speech: "preposition" },   # prepositions
+    { label: "pink", hex: "#FF709C", part_of_speech: "interjection" },  # social/interjections
+    { label: "white", hex: "#FFFFFF", part_of_speech: "conjunction" },   # conjunctions
+    { label: "gray", hex: "#D1D1D1", part_of_speech: "phrase" },        # phrases/misc
+    { label: "default", hex: "#D1D1D1", part_of_speech: "default" },        # fallback
   ].freeze
 
   HEX = {
@@ -49,7 +49,7 @@ module ColorHelper
     "brown" => "#994F00",
     "dark blue" => "#5ECFFF",
     "black" => "#000000",
-    "gray" => "#A1A1A1",
+    "gray" => "#D1D1D1",
     "dark orange" => "#FF6C3B",
 
     # Legacy "parts of speech" names you currently use
