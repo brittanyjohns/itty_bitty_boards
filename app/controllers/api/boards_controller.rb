@@ -207,7 +207,7 @@ class API::BoardsController < API::ApplicationController
     @board = Board.new(board_params)
     @board.user = current_user
     board_type = params[:board_type] || board_params[:board_type]
-    settings = params[:settings] || board_params[:settings] || {}
+    settings = !board_params[:settings].blank? ? board_params[:settings] : params[:settings] || {}
     settings["board_type"] = board_type
     @board.board_type = board_type || "static"
     @board.assign_parent
@@ -216,10 +216,11 @@ class API::BoardsController < API::ApplicationController
     @board.small_screen_columns = board_params["small_screen_columns"].to_i
     @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
     @board.large_screen_columns = board_params["large_screen_columns"].to_i
-    @board.voice = params["voice"] if params["voice"].present?
+    @board.voice = board_params["voice"]
     @board.language = board_params["language"] if board_params["language"].present?
-
-    word_list = params[:word_list]&.compact || board_params[:word_list]&.compact
+    Rails.logger.info "Board params: #{board_params.inspect}"
+    word_list = params[:word_list]&.compact
+    Rails.logger.info "Creating board with word list: #{word_list.inspect}"
     @board.settings = settings
 
     new_slug = @board.generate_unique_slug(board_params["slug"])
@@ -277,7 +278,7 @@ class API::BoardsController < API::ApplicationController
       @board.vendor_id = current_user.vendor_id if current_user.vendor_id.present?
 
       board_type = params[:board_type] || board_params[:board_type]
-      settings = params[:settings] || board_params[:settings] || {}
+      settings = !board_params[:settings].blank? ? board_params[:settings] : params[:settings] || {}
       settings["board_type"] = board_type
 
       @board.parent_type = "User"
@@ -915,7 +916,7 @@ class API::BoardsController < API::ApplicationController
                                   :image_id,
                                   :query,
                                   :page,
-                                  :display_image_url, :category, :word_list, :image_ids_to_remove, :board_type, settings: {}, margin_settings: {})
+                                  :display_image_url, :category, :image_ids_to_remove, :board_type, settings: {}, margin_settings: {})
   end
 
   def attach_image_to_board(image_data, file_extension)
