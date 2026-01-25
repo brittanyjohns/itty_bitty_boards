@@ -72,8 +72,9 @@ class BoardImage < ApplicationRecord
   end
 
   def set_background_color!
-    part_of_speech = image.part_of_speech || "default"
-    img_color = background_color_for(part_of_speech)
+    @image = image
+    part_of_speech = @image.part_of_speech || "default"
+    img_color = @image.background_color_for(part_of_speech)
     puts "Setting background color to #{img_color} for part_of_speech #{part_of_speech}"
     set_background_color(img_color)
     self.save!
