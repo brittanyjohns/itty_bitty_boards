@@ -125,7 +125,7 @@ Rails.application.routes.draw do
   get "main/predefined/:id", to: "main#show_predefined", as: :show_predefined
   get "main/demo", as: :demo
   get "/about", as: :about, to: "main#about"
-  get "/contact", as: :contact, to: "messages#new"
+  # get "/contact", as: :contact, to: "messages#new"
   get "main/welcome", as: :welcome
   get "main/faq", as: :faq
   get "boards", to: "boards#index", as: :user_root

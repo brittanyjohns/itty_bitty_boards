@@ -10,13 +10,9 @@ module AudioHelper
     end
     new_audio_file = nil
     if Rails.env.test?
-      Rails.logger.warn "create_audio_from_text: Skipping audio creation in test environment."
       return
     end
-    # if instructions.blank?
-    #   instructions = "Please read the text clearly and naturally."
-    # end
-    Rails.logger.debug "AudioHelper - Creating audio with instructions: #{instructions}"
+
     response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice, language, instructions)
 
     random_filename = "#{SecureRandom.hex(10)}.mp3"
@@ -95,7 +91,13 @@ module AudioHelper
     new_audio_file
   end
 
-  def find_or_create_audio_file_for_voice(voice = "alloy", lang = "en")
+  def find_or_create_audio_file_for_voice(voice, lang)
+    if voice.blank?
+      voice = "alloy"
+    end
+    if lang.blank?
+      lang = "en"
+    end
     if lang == "en"
       filename = "#{label_for_filename}_#{voice}.mp3"
     else
@@ -103,7 +105,7 @@ module AudioHelper
     end
 
     audio_file = ActiveStorage::Attachment.joins(:blob)
-      .where(record: self, name: :audio_files, active_storage_blobs: { filename: filename })
+      .where(name: :audio_files, active_storage_blobs: { filename: filename })
       .first
 
     if audio_file.present?

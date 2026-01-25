@@ -81,12 +81,12 @@ class OpenSymbol < ApplicationRecord
         response_body = JSON.parse(response.body)
         @open_symbol_id_token = response_body["access_token"]
       else
-        puts "ERROR response: #{response.inspect}"
-        puts "ERROR response.body: #{response.body}"
+        Rails.logger.error "ERROR response: #{response.inspect}"
+        Rails.logger.error "ERROR response.body: #{response.body}"
         nil
       end
     rescue => e
-      puts "ERROR: #{e.inspect}"
+      Rails.logger.error "ERROR: #{e.inspect}"
       nil
     end
   end

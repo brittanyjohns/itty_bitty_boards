@@ -314,7 +314,6 @@ class Profile < ApplicationRecord
       Rails.logger.warn "Profile with username '#{username}' or slug '#{slug}' already exists for another user."
       return nil
     end
-    Rails.logger.info "Creating new profile for user #{user.id} with username '#{username}' and slug '#{slug}'."
     profile = Profile.create!(
       username: username,
       profileable_type: "User",
@@ -373,7 +372,6 @@ class Profile < ApplicationRecord
         return nil
       end
     end
-    Rails.logger.info "Creating new profile with user: #{username}, slug: #{slug}, existing_user: #{existing_user.inspect}"
 
     profile = Profile.create!(
       username: username,

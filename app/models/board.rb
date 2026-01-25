@@ -141,10 +141,18 @@ class Board < ApplicationRecord
   before_save :check_in_use
 
   before_save :set_display_margin_settings, unless: :margin_settings_valid_for_all_screen_sizes?
+  before_save :set_parent
 
   before_create :set_screen_sizes, :set_number_of_columns
   before_destroy :delete_menu, if: :parent_type_menu?
   after_initialize :set_initial_layout, if: :layout_empty?
+
+  def set_parent
+    if parent_type.nil? && parent_id.nil?
+      self.parent_type = "User"
+      self.parent_id = user_id
+    end
+  end
 
   attr_accessor :skip_broadcasting
 
@@ -1725,12 +1733,10 @@ class Board < ApplicationRecord
         board.assign_parent
         board.generate_unique_slug if board.slug.blank?
         board.save!
-        Rails.logger.info "Updating existing board: #{board.name} (ID: #{board.id})"
       else
         board = Board.new(name: board_name, user_id: current_user.id, voice: voice,
                           large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns,
                           data: board_data, number_of_columns: number_of_columns, obf_id: obf_id, board_type: board_type)
-        Rails.logger.info "Creating new board: #{board.name}"
         board.generate_unique_slug
         board.assign_parent
       end

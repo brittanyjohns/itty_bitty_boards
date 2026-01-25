@@ -96,25 +96,23 @@ class API::BoardsController < API::ApplicationController
   end
 
   def predictive_image_board
-    @board = Board.find_by(id: params[:id])
-    @board = Board.find_by(slug: params[:id]) unless @board
-    @board = Board.find_by(slug: params[:slug]) unless @board
-    if @board.nil?
-      @board = Board.predictive_default(current_user)
-    end
-    # expires_in 8.hours, public: true # Cache control header
-    @board_group = BoardGroup.find_by(id: params[:board_group_id]) if params[:board_group_id].present?
+    board = find_board_for_predictive_page
 
-    if stale?(etag: @board, last_modified: @board.updated_at)
-      RailsPerformance.measure("Predictive Image Board") do
-        # @loaded_board = Board.with_artifacts.find(@board.id)
-        @board_with_images = @board.api_view_with_predictive_images(current_user)
-      end
-      @board_with_images[:root_board_id] = @board_group&.root_board_id
-      render json: @board_with_images
+    board_group =
+      BoardGroup.find_by(id: params[:board_group_id]) if params[:board_group_id].present?
+
+    # IMPORTANT: response changes when board_images/images/docs change, not just board.updated_at.
+    last_modified = board_predictive_last_modified(board)
+    etag = board_predictive_etag(board, current_user)
+
+    return unless stale?(etag:, last_modified:)
+
+    payload = RailsPerformance.measure("Predictive Image Board") do
+      board.api_view_with_predictive_images(current_user)
     end
 
-    # render json: @board.api_view_with_predictive_images(current_user)
+    payload[:root_board_id] = board_group&.root_board_id
+    render json: payload
   end
 
   def show
@@ -241,8 +239,12 @@ class API::BoardsController < API::ApplicationController
 
   # PATCH/PUT /boards/1 or /boards/1.json
   def update
-    set_board
+    @board = Board.find(params[:id])
     @board_user = @board.user
+    unless current_user.can_edit?(@board)
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
     if params["image_ids_to_remove"].present?
       image_ids_to_remove = params["image_ids_to_remove"]
       image_ids_to_remove.each do |image_id|
@@ -361,26 +363,7 @@ class API::BoardsController < API::ApplicationController
           render json: { error: "OBZ import failed: #{e.message}" }, status: :unprocessable_entity
           return
         end
-        # extracted_obz_data = OBF::OBZ.to_external(uploaded_file, {})
-        # Rails.logger.info "Extracted OBZ data keys: #{extracted_obz_data.keys}"
-        # @get_manifest_data = Board.extract_manifest(uploaded_file.path)
-        # Board.analyze_manifest(@get_manifest_data)
-        # parsed_manifest = JSON.parse(@get_manifest_data)
-        # Rails.logger.info "Parsed manifest keys: #{parsed_manifest.keys}"
 
-        # @root_board_id_key = parsed_manifest["root"]
-        # Rails.logger.info "Root board ID key from manifest: #{@root_board_id_key}"
-        # paths = parsed_manifest["paths"]
-        # boards = paths["boards"]
-        # @root_board_id = boards.key(@root_board_id_key)
-        # Rails.logger.info "Determined root board ID: #{@root_board_id} - Boards: #{boards.inspect}"
-        # board_name = @root_board_id ? boards[@root_board_id] : "Imported Board"
-
-        # json_input = { extracted_obz_data: extracted_obz_data, current_user_id: current_user&.id, group_name: file_name, root_board_id: @root_board_id, board_name: board_name }.to_json
-        # json_data = JSON.parse(json_input) rescue nil
-        # Rails.logger.info "OBZ import JSON data keys: #{json_data.keys}"
-        # importer = ObzImporter.new(json_data, current_user)
-        # result = importer.import
         if result
           render json: { status: "ok", message: "Importing OBZ file #{file_name} - Root board ID: #{@root_board_id}" }
         else
@@ -784,6 +767,35 @@ class API::BoardsController < API::ApplicationController
 
   private
 
+  def find_board_for_predictive_page
+    key = params[:slug].presence || params[:id].presence
+
+    Board.find_by(id: key) ||
+      Board.find_by(slug: key) ||
+      Board.predictive_default(current_user)
+  end
+
+  def board_predictive_last_modified(board)
+    # uses MAX(updated_at) across the stuff that affects this JSON
+    BoardImage
+      .where(board_id: board.id)
+      .joins(:image)
+      .left_joins(image: :docs)
+      .maximum("GREATEST(board_images.updated_at, images.updated_at, COALESCE(docs.updated_at, '1970-01-01'))") ||
+      board.updated_at
+  end
+
+  def board_predictive_etag(board, user)
+    # include user role/settings if that changes output
+    [
+      "predictive-board",
+      board.id,
+      board.updated_at.to_i,
+      user&.id,
+      Digest::MD5.hexdigest((user&.settings || {}).to_json),
+    ]
+  end
+
   def broadcast_board_update!
     @board.reload
     @board.broadcast_board_update!
@@ -840,7 +852,11 @@ class API::BoardsController < API::ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_board
-    @board = Board.with_artifacts.find(params[:id])
+    key = params[:slug].presence || params[:id].presence
+    puts "set_board key: #{key}"
+
+    @board = Board.find_by(id: key) ||
+             Board.find_by(slug: key)
   end
 
   def check_board_view_edit_permissions
