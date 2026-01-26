@@ -332,7 +332,7 @@ class Image < ApplicationRecord
   end
 
   def self.valid_parts_of_speech
-    ["noun", "verb", "adjective", "adverb", "pronoun", "preposition", "conjunction", "interjection", "phrase", "article"]
+    ColorHelper::PARTS_OF_SPEECH
   end
 
   def self.ensure_parts_of_speech(limit = 100)
@@ -346,52 +346,6 @@ class Image < ApplicationRecord
     images_without_part_of_speech.each do |image|
       image.categorize!
     end
-  end
-
-  def background_color_for(category)
-    key = case category.to_s.downcase
-      # Blue: Adjectives
-      when "adjective", "adj", "descriptive"
-        "blue"
-
-        # Green: Verbs
-      when "verb", "action"
-        "green"
-
-        # Yellow: Pronouns
-      when "pronoun", "person", "people"
-        "yellow"
-
-        # Orange: Nouns
-      when "noun"
-        "orange"
-
-        # White: Conjunctions
-      when "conjunction"
-        "white"
-
-        # Pink: Prepositions + Social words
-      when "preposition", "social", "interjection"
-        "pink"
-
-        # Purple: Questions
-      when "question", "questions", "wh", "wh_question"
-        "purple"
-
-        # Brown: Adverbs
-      when "adverb"
-        "brown"
-
-        # Red: Important function / negation / emergency
-      when "important_function", "function", "negation", "emergency", "warning"
-        "red"
-      when "determiner", "article"
-        "gray"
-      else
-        "gray"
-      end
-
-    ColorHelper::PRESET_HEX[key]
   end
 
   def text_color_for(bg_value)
@@ -1475,21 +1429,35 @@ class Image < ApplicationRecord
     end
   end
 
+  # def categorize!
+  #   return if menu? || Rails.env.test?
+  #   response = OpenAiClient.new(open_ai_opts).categorize_word(label)
+  #   puts "Response for categorizing '#{label}': #{response.inspect}"
+  #   # response_content = response[:content]&.downcase
+  #   if response.is_a?(Hash) && response.key?(:content)
+  #     response_content = response[:content]&.downcase
+  #   else
+  #     response_content = response
+  #   end
+  #   parsed_response = response_content ? JSON.parse(response_content) : nil
+  #   unknown_img = false
+  #   part_of_speech = parsed_response&.with_indifferent_access["part_of_speech"] || parsed_response&.with_indifferent_access["partofspeech"] if parsed_response
+  #   if part_of_speech && Image.valid_parts_of_speech.include?(part_of_speech)
+  #     update!(part_of_speech: part_of_speech)
+  #   else
+  #     puts "Part of speech not valid or not found: '#{part_of_speech}' for image: '#{label}'"
+  #     update!(part_of_speech: "unknown")
+  #     unknown_img = true
+  #   end
+  #   part_of_speech
+  # end
+
   def categorize!
-    return if menu? || Rails.env.test?
-    response = OpenAiClient.new(open_ai_opts).categorize_word(label)
-    response_content = response[:content]&.downcase
-    parsed_response = response_content ? JSON.parse(response_content) : nil
-    unknown_img = false
-    part_of_speech = parsed_response&.with_indifferent_access["part_of_speech"] || parsed_response&.with_indifferent_access["partofspeech"] if parsed_response
-    if part_of_speech && Image.valid_parts_of_speech.include?(part_of_speech)
-      update!(part_of_speech: part_of_speech)
-    else
-      puts "Part of speech not valid or not found: '#{part_of_speech}' for image: '#{label}'"
-      update!(part_of_speech: "unknown")
-      unknown_img = true
-    end
-    part_of_speech
+    pos = AacWordCategorizer.categorize(label)
+    puts "Categorized '#{label}' as part of speech: '#{pos}'"
+    self.part_of_speech = pos
+    save!
+    pos
   end
 
   def self.create_image_from_google_search(img_url, label, title, snippet, file_format, user_id = User::DEFAULT_ADMIN_ID)

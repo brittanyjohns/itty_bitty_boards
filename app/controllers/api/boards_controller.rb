@@ -317,6 +317,35 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
+  def recategorize_images
+    set_board
+    results = []
+    @board.board_images.each do |board_image|
+      # results << board_image.reset_part_of_speech_and_bg_color!
+      results << RecategorizeImageJob.perform_async("BoardImage", board_image.id)
+    end
+    if results.all? { |res| res == true }
+      render json: @board.api_view_with_images(current_user)
+    else
+      Rails.logger.error "Recategorization failed for some images: #{results.inspect}"
+      render json: { error: "Recategorization failed for some images" }, status: :unprocessable_entity
+    end
+  end
+
+  def set_colors
+    set_board
+    results = []
+    @board.board_images.each do |board_image|
+      results << board_image.set_colors!
+    end
+    if results.all? { |res| res == true }
+      render json: @board.api_view_with_images(current_user)
+    else
+      Rails.logger.error "Setting colors failed for some images: #{results.inspect}"
+      render json: { error: "Setting colors failed for some images" }, status: :unprocessable_entity
+    end
+  end
+
   def update_preset_display_image
     set_board
     image_data = board_params[:preset_display_image]

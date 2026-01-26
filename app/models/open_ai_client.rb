@@ -231,14 +231,70 @@ class OpenAiClient
     response
   end
 
+  # def categorize_word(word)
+  #   @model = QUICK_GTP_MODEL
+  #   @messages = [{ role: "user",
+  #                 content: [{ type: "text",
+  #                             text: "Categorize the word '#{word}' into one of the following parts of speech: #{Image.valid_parts_of_speech} If the word can be used as multiple parts of speech, choose the most common one. If the word is not a part of speech, respond with 'other'. Respond as json. Example: {\"part_of_speech\": \"noun\"}" }] }]
+  #   response = create_chat
+  #   Rails.logger.debug "*** ERROR *** Invaild Categorize Word Response: #{response}" unless response
+  #   response
+  # end
+
+  AAC_OVERRIDES = {
+    "more" => "social",
+    "again" => "social",
+    "finished" => "social",
+    "all done" => "social",
+    "yes" => "social",
+    "no" => "important_function",
+    "not" => "important_function",
+    "don't" => "important_function",
+    "this" => "determiner",
+    "that" => "determiner",
+    "here" => "determiner",
+    "there" => "determiner",
+  }.freeze
+
+  AAC_PHRASE_OVERRIDES = {
+    "excuse me" => "social",
+    "thank you" => "social",
+    "all done" => "social",
+  }.freeze
+
   def categorize_word(word)
+    normalized = word.to_s.downcase.strip
+    normalized = normalized.gsub(/\s+/, " ")
+
+    if AAC_PHRASE_OVERRIDES.key?(normalized)
+      return({ "part_of_speech" => AAC_PHRASE_OVERRIDES[normalized] }.to_json)
+    end
+
+    # then single-word overrides, then GPT fallback...
+  end
+
+  def gpt_categorize(input)
     @model = QUICK_GTP_MODEL
-    @messages = [{ role: "user",
-                  content: [{ type: "text",
-                              text: "Categorize the word '#{word}' into one of the following parts of speech: #{Image.valid_parts_of_speech} If the word can be used as multiple parts of speech, choose the most common one. If the word is not a part of speech, respond with 'other'. Respond as json. Example: {\"part_of_speech\": \"noun\"}" }] }]
-    response = create_chat
-    Rails.logger.debug "*** ERROR *** Invaild Categorize Word Response: #{response}" unless response
-    response
+    safe = input.to_s.strip
+
+    @messages = [
+      {
+        role: "system",
+        content: <<~TEXT,
+          You categorize AAC words/phrases into exactly ONE category.
+          Output MUST be valid JSON with EXACTLY this schema:
+          {"part_of_speech":"adjective|verb|pronoun|noun|conjunction|preposition|social|question|adverb|important_function|determiner|default"}
+          No other keys. No explanations. No multiple fields.
+          If input has multiple words, categorize the whole phrase as one category (usually social or default).
+        TEXT
+      },
+      {
+        role: "user",
+        content: "Input: #{safe.inspect}\nReturn JSON only.",
+      },
+    ]
+
+    create_chat
   end
 
   def next_words_prompt(label)

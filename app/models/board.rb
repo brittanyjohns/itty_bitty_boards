@@ -1038,7 +1038,7 @@ class Board < ApplicationRecord
         bi.data[screen_size]["frequency"] = item["frequency"]
         bi.data[screen_size]["size"] = size
         bi.data["part_of_speech"] = item["part_of_speech"]
-        bi.data["bg_color"] = bi.image.background_color_for(item["part_of_speech"])
+        bi.data["bg_color"] = bi.background_color_for(item["part_of_speech"])
 
         bi.position = idx
         bi.layout ||= {}

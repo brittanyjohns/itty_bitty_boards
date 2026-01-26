@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_01_05_155336) do
+ActiveRecord::Schema[7.1].define(version: 2026_01_26_152649) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -125,6 +125,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_01_05_155336) do
     t.string "display_label"
     t.jsonb "language_settings", default: {}
     t.boolean "hidden", default: false
+    t.string "part_of_speech", default: "default", null: false
     t.index ["board_id"], name: "index_board_images_on_board_id"
     t.index ["data"], name: "index_board_images_on_data", using: :gin
     t.index ["hidden"], name: "index_board_images_on_hidden"

@@ -172,30 +172,28 @@ module ImageHelper
     success
   end
 
-  # def valid_json?(json)
-  #   JSON.parse(json)
-  #   return true
-  # rescue JSON::ParserError => e
-  #   return false
-  # end
+  def background_color_for(category)
+    key = case category.to_s
+      when "adjective" then "blue"
+      when "verb" then "green"
+      when "pronoun" then "yellow"
+      when "noun" then "orange"
+      when "conjunction" then "white"
+      when "preposition", "social" then "pink"
+      when "question" then "purple"
+      when "adverb" then "brown"
+      when "important_function" then "red"
+      when "determiner" then "gray"
+      else "gray"
+      end
 
-  # def transform_into_json(content_str)
-  #   json_str = content_str.gsub(/:([a-zA-z_]+)/, '"\1"') # Convert symbols to strings
-  #   json_str = json_str.gsub("=>", ": ") # Replace hash rockets with colons
+    ColorHelper::PRESET_HEX[key]
+  end
 
-  #   # Now parse the string as JSON
-  #   begin
-  #     data = JSON.parse(json_str)
-  #   rescue JSON::ParserError => e
-  #     puts "Error parsing JSON: #{e.message}"
-  #     # Handle invalid JSON here
-  #   end
-
-  #   # If necessary, convert back to JSON string for output or further processing
-  #   json_output = data.to_json
-  #   puts "json_output: #{json_output}"
-  #   json_output
-  # end
+  def reset_part_of_speech!
+    pos = AacWordCategorizer.categorize(label)
+    self.update_column(:part_of_speech, pos)
+  end
 
   def image_types
     ["Sigma 24mm f/8",

@@ -299,6 +299,7 @@ class API::BoardImagesController < API::ApplicationController
                                         :text_color, :font_size, :border_color,
                                         :display_label,
                                         :label,
+                                        :part_of_speech,
                                         :layout, :audio_url, :hidden, :src, :display_image_url)
   end
 end

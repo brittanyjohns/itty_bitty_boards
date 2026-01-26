@@ -273,6 +273,8 @@ Rails.application.routes.draw do
         get "get_description"
         get "download_obf"
         put "update_preset_display_image"
+        put "recategorize_images"
+        put "set_colors"
       end
     end
     resources :board_images do
