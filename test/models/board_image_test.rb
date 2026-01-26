@@ -25,6 +25,7 @@
 #  display_label       :string
 #  language_settings   :jsonb
 #  hidden              :boolean          default(FALSE)
+#  part_of_speech      :string           default("default"), not null
 #
 require "test_helper"
 

@@ -252,6 +252,12 @@ class Board < ApplicationRecord
     puts "#{board_count - 1} boards deleted"
   end
 
+  def run_recategorization_job
+    board_image_ids.each_slice(20) do |batch|
+      RecategorizeImagesJob.perform_async("BoardImage", batch)
+    end
+  end
+
   def set_initial_layout
     self.layout = { "lg" => [], "md" => [], "sm" => [] }
   end

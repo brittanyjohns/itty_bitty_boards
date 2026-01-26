@@ -47,6 +47,7 @@
 #  temp_login_token       :string
 #  temp_login_expires_at  :datetime
 #  force_password_reset   :boolean          default(FALSE)
+#  paid_plan_type         :string
 #
 require "test_helper"
 

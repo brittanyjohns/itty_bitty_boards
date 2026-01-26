@@ -381,4 +381,17 @@ class BoardGroup < ApplicationRecord
       calculate_grid_layout
     end
   end
+
+  def run_recategorization_job
+    boards.find_each do |board|
+      board.run_recategorization_job
+    end
+  end
+
+  def self.recategorize_predefined_groups
+    BoardGroup.predefined.find_each do |group|
+      group.run_recategorization_job
+      sleep(3) # Throttle to avoid overwhelming the job queue
+    end
+  end
 end
