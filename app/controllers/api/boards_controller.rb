@@ -319,9 +319,8 @@ class API::BoardsController < API::ApplicationController
 
   def recategorize_images
     set_board
-    # results << board_image.reset_part_of_speech_and_bg_color!
-    board_ids = @board.board_images.pluck(:id)
-    board_ids.each_slice(50) do |batch|
+    board_image_ids = @board.board_images.pluck(:id)
+    board_image_ids.each_slice(20) do |batch|
       RecategorizeImagesJob.perform_async("BoardImage", batch)
     end
     render json: { status: "ok", message: "Recategorization job started for board images" }
