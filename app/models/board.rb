@@ -253,7 +253,8 @@ class Board < ApplicationRecord
   end
 
   def run_recategorization_job
-    board_image_ids.each_slice(20) do |batch|
+    board_image_ids.each_slice(30) do |batch|
+      puts "Scheduling recategorization for Board ID #{id} with BoardImage IDs #{batch.size}"
       RecategorizeImagesJob.perform_async("BoardImage", batch)
     end
   end
@@ -619,7 +620,7 @@ class Board < ApplicationRecord
 
         GenerateImageJob.perform_async(image.id, user_id, image_prompt, id) unless admin_image_present || user_image_present
       end
-      self.add_image(image.id) if image && !image_ids.include?(image.id)
+      self.add_image(image.id) if image
     end
     self.save!
   end
@@ -645,45 +646,44 @@ class Board < ApplicationRecord
     new_board_image = nil
     return if image_id.blank?
     @image = Image.with_artifacts.find_by(id: image_id)
-    if image_ids.include?(image_id.to_i)
-      # Don't add the same image twice
-      new_board_image = board_images.find_by(image_id: image_id.to_i)
-    else
-      language_settings = @image.language_settings || {}
-      language_settings[self.language] = { "display_label" => @image.label, "label" => @image.label }
-      new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images_count, language: self.language)
-      new_board_image.set_labels
-      if layout
-        new_board_image.layout = layout
-        if new_board_image.layout_invalid?
-          new_board_image.set_initial_layout!
-        end
-        new_board_image.skip_initial_layout = true
-        new_board_image.save
-      else
-        new_board_image.save
+
+    language_settings = @image.language_settings || {}
+    language_settings[self.language] = { "display_label" => @image.label, "label" => @image.label }
+    new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images_count, language: self.language)
+    new_board_image.set_labels
+    new_board_image.part_of_speech = @image.part_of_speech
+    new_board_image.set_colors
+    if layout
+      new_board_image.layout = layout
+      if new_board_image.layout_invalid?
         new_board_image.set_initial_layout!
       end
-      unless @image
-        Rails.logger.error "Image not found: #{image_id}"
-        return
-      end
-
-      if @image.existing_voices.include?(self.voice)
-        new_board_image.voice = self.voice
-      else
-        # @image.find_or_create_audio_file_for_voice(self.voice)
-        SaveAudioJob.perform_async([image_id], self.voice)
-      end
-
-      new_board_image.src = @image.display_image_url(self.user)
-
-      unless new_board_image.save
-        Rails.logger.error "new_board_image.errors: #{new_board_image.errors.full_messages}"
-        return
-      end
-      self.save!
+      new_board_image.skip_initial_layout = true
+      new_board_image.save
+    else
+      new_board_image.save
+      new_board_image.set_initial_layout!
     end
+    unless @image
+      Rails.logger.error "Image not found: #{image_id}"
+      return
+    end
+
+    if @image.existing_voices.include?(self.voice)
+      new_board_image.voice = self.voice
+    else
+      # @image.find_or_create_audio_file_for_voice(self.voice)
+      SaveAudioJob.perform_async([image_id], self.voice)
+    end
+
+    new_board_image.src = @image.display_image_url(self.user)
+
+    unless new_board_image.save
+      Rails.logger.error "new_board_image.errors: #{new_board_image.errors.full_messages}"
+      return
+    end
+    self.save!
+
     Rails.logger.error "NO IMAGE FOUND" unless new_board_image
     new_board_image
   end

@@ -96,8 +96,8 @@ class Image < ApplicationRecord
   scope :created_before, ->(date) { where("created_at < ?", date) }
 
   scope :with_less_than_3_docs, -> { joins(:docs).group("images.id").having("count(docs.id) < 3") }
-  after_create :categorize!, unless: :do_not_categorize?
-  before_save :set_label, :ensure_defaults
+  before_save :set_label
+  before_save :ensure_defaults
 
   after_save :update_board_images_audio, if: -> { need_to_update_board_images_audio? }
   after_save :update_board_images_display_image, if: -> { src_url_changed? }
@@ -172,7 +172,7 @@ class Image < ApplicationRecord
   # require 'uri'
 
   def set_background_color!(value)
-    self.bg_color = ColorHelper.to_hex(value, default: "#9CA3AF")
+    self.bg_color = ColorHelper.to_hex(value)
     self.text_color ||= ColorHelper.text_hex_for(bg_color)
   end
 
@@ -253,8 +253,10 @@ class Image < ApplicationRecord
     if image_type == "menu"
       self.part_of_speech = "noun"
     else
-      self.bg_color = background_color_for(part_of_speech) if part_of_speech_changed?
-      self.text_color = text_color_for(bg_color) if text_color.blank?
+      pos = AacWordCategorizer.categorize(label)
+      self.part_of_speech = pos
+      self.bg_color = background_color_for(pos)
+      self.text_color = text_color_for(bg_color)
     end
     if audio_url.blank?
       self.audio_url = default_audio_url
@@ -343,6 +345,7 @@ class Image < ApplicationRecord
     return unless response == "y"
     total_images.find_in_batches(batch_size: 50) do |images|
       image_ids = images.pluck(:id)
+      puts "Enqueuing recategorization job for image IDs: #{image_ids}"
       RecategorizeImagesJob.perform_async("Image", image_ids)
       sleep(3)
     end

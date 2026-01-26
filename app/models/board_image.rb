@@ -117,6 +117,12 @@ class BoardImage < ApplicationRecord
   def reset_part_of_speech_and_bg_color!
     reset_part_of_speech!
     set_colors!
+    pos = part_of_speech
+    puts "Reset part_of_speech to #{pos} and bg_color to #{bg_color} for BoardImage ID #{id}"
+    #  update image
+    self.save!
+    image.update_column(:part_of_speech, pos)
+    image.set_background_color!(pos)
   end
 
   def check_predictive_board
