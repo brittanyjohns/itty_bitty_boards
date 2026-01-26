@@ -342,9 +342,8 @@ class Image < ApplicationRecord
     response = gets.chomp
     return unless response == "y"
     total_images.find_in_batches(batch_size: 20) do |images|
-      images.each do |image|
-        image.reset_part_of_speech!
-      end
+      image_ids = images.pluck(:id)
+      RecategorizeImagesJob.perform_async("Image", image_ids)
     end
   end
 
