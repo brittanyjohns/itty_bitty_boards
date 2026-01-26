@@ -341,9 +341,10 @@ class Image < ApplicationRecord
     puts "Are you sure you want to continue? (y/n)"
     response = gets.chomp
     return unless response == "y"
-    total_images.find_in_batches(batch_size: 20) do |images|
+    total_images.find_in_batches(batch_size: 50) do |images|
       image_ids = images.pluck(:id)
       RecategorizeImagesJob.perform_async("Image", image_ids)
+      sleep(3)
     end
   end
 

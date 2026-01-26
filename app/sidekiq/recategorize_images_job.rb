@@ -14,6 +14,7 @@ class RecategorizeImagesJob
       return
     end
     images.each do |image|
+      puts "Recategorizing #{image_type} ID #{image.id} with label '#{image.label}'"
       if image_type == "Image"
         image.reset_part_of_speech!
       elsif image_type == "BoardImage"
