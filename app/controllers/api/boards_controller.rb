@@ -319,17 +319,12 @@ class API::BoardsController < API::ApplicationController
 
   def recategorize_images
     set_board
-    results = []
-    @board.board_images.each do |board_image|
-      # results << board_image.reset_part_of_speech_and_bg_color!
-      results << RecategorizeImageJob.perform_async("BoardImage", board_image.id)
+    # results << board_image.reset_part_of_speech_and_bg_color!
+    board_ids = @board.board_images.pluck(:id)
+    board_ids.each_slice(50) do |batch|
+      RecategorizeImagesJob.perform_async("BoardImage", batch)
     end
-    if results.all? { |res| res == true }
-      render json: @board.api_view_with_images(current_user)
-    else
-      Rails.logger.error "Recategorization failed for some images: #{results.inspect}"
-      render json: { error: "Recategorization failed for some images" }, status: :unprocessable_entity
-    end
+    render json: { status: "ok", message: "Recategorization job started for board images" }
   end
 
   def set_colors
