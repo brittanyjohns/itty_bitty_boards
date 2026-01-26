@@ -1,50 +1,58 @@
-<!-- app/views/api/boards/print.html.erb -->
 <div class="header">
-  <div style="display: flex; align-items: center; gap: 8mm;">
+  <div style="display:flex; align-items:center; gap:8mm; width:100%;">
     <div class="logo">
       <img alt="SpeakAnyWay Logo" src="data:image/png;base64,<%= @logo %>">
     </div>
-    
-    <div style="display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
-      <p style="font-size: 18pt; color: #000; margin: 2mm 2mm 0 0; font-weight: bold;">
+
+    <div style="display:flex; flex-direction:column; align-items:flex-start; justify-content:center; flex:1; min-width:0;">
+      <p style="font-size:18pt; color:#000; margin:2mm 2mm 0 0; font-weight:bold; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">
         <strong><%= @board_title %></strong>
       </p>
-      <p style="font-size: 8pt; color: #999; margin: 2mm 2mm 0 0; font-weight: normal;">
-      Created with SpeakAnyWay AAC
+
+      <p style="font-size:8pt; color:#999; margin:2mm 2mm 0 0; font-weight:normal;">
+        Created with SpeakAnyWay AAC
       </p>
-        <div style="font-size: 8pt; color: #666; padding: 1mm 0;" class="text-center">
-          Scan the code or visit
-          <a href="<%= @qr_target_url %>" style="color: #666; font-weight: bold;"
-            target="_blank" rel="noopener noreferrer"><%= @qr_target_url %></a>
-          to view and edit this board online.
-        </div>
+
+      <div style="font-size:8pt; color:#666; padding:1mm 0; min-width:0;">
+        Scan the code or visit
+        <a href="<%= @qr_target_url %>" style="color:#666; font-weight:bold;"
+          target="_blank" rel="noopener noreferrer"><%= @qr_target_url %></a>
+        to view and edit this board online.
+      </div>
     </div>
+
     <div class="qr-small">
-    <img src="<%= @qr_data_url %>" alt="QR code">
-  </div>
-    
+      <img src="<%= @qr_data_url %>" alt="QR code">
+    </div>
   </div>
 </div>
-
 
 <div class="board-wrap">
   <div class="board-container">
     <div class="board-grid" style="grid-template-columns: repeat(<%= @columns %>, 1fr);">
       <% @tiles.each do |t| %>
-      <% bg_color = @hide_colors ? "" : (t["bg_color"] || "black") %>
+        <% bg_color = @hide_colors ? "" : (t["bg_color"] || "black") %>
+
         <% col_start = t["x"].to_i + 1
            row_start = t["y"].to_i + 1
            col_span = t["w"].to_i
            row_span = t["h"].to_i %>
 
-        <div class="tile <%= bg_color %>" style="grid-column:<%= col_start %>/span <%= col_span %>; grid-row:<%= row_start %>/span <%= row_span %>;">
+        <div class="tile" style=" background-color:<%= bg_color %>;"
+             style="grid-column:<%= col_start %>/span <%= col_span %>;
+                    grid-row:<%= row_start %>/span <%= row_span %>;">
           <% if t["image_url"].present? %>
-            <img src="<%= t["image_url"] %>" alt="<%= bg_color %>">
+            <img src="<%= t["image_url"] %>" alt="<%= t["label"] %>">
           <% else %>
-            <div style="display:flex;align-items:center;justify-content:center;color:#aaa;font-size:9pt;"><%= t["label"] %></div>
+            <div style="display:flex; align-items:center; justify-content:center; color:#aaa; font-size:9pt; height:100%; min-height:0;">
+              <%= t["label"] %>
+            </div>
           <% end %>
-          <div class="label <%= bg_color %>" style="font-weight: <%= @hide_colors ? "normal" : "bold" %>;"
-          ><%= t["label"] %></div>
+
+          <div class="label <%= bg_color %>" style="font-weight:<%= @hide_colors ? "normal" : "bold" %>; background-color:<%= bg_color %>;">
+
+            <%= t["label"] %>
+          </div>
         </div>
       <% end %>
     </div>

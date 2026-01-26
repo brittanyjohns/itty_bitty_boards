@@ -692,9 +692,108 @@ class API::BoardsController < API::ApplicationController
     render template: "api/boards/print", layout: "pdf", formats: [:html]
   end
 
+  # def pdf
+  #   @qr_target_url = @board.public_url || board_url(@board)
+  #   @qr_data_url = qr_data_url_for(@qr_target_url, size: 480)
+  #   @screen_size = params[:screen_size] || "lg"
+  #   @hide_colors = params[:hide_colors] == "1"
+
+  #   # Tiles & grid
+  #   @columns = @board.columns_for_screen_size(@screen_size)
+  #   @tiles = normalize_tiles(@board, @screen_size)
+
+  #   @num_of_words = @tiles.size
+  #   est_rows = (@num_of_words.to_f / @columns.to_f).ceil
+  #   @rows = est_rows.positive? ? est_rows : 1
+
+  #   # Orientation
+  #   @landscape = @rows > @columns
+  #   @landscape = true if @num_of_words >= 6
+
+  #   # Logo & title
+  #   @path = Rails.root.join("public/logo_bubble.png")
+  #   @logo = Base64.strict_encode64(File.read(@path)) if File.exist?(@path)
+  #   @board_title = @board.try(:name) || "Communication Board"
+
+  #   # Base scale by screen size
+  #   @scale = 1.0
+  #   if @screen_size == "sm"
+  #     @scale = 0.75
+  #   elsif @screen_size == "xs"
+  #     @scale = 0.5
+  #   end
+
+  #   # Render HTML *after* all instance vars are set
+  #   html = render_to_string(
+  #     template: "api/boards/print",
+  #     layout: "pdf",
+  #     formats: [:html],
+  #   )
+
+  #   disp = params[:preview].present? ? "inline" : "attachment"
+  #   response.headers["Cache-Control"] = "no-store"
+
+  #   if params[:png].present?
+  #     # Allow override of scale/size via params, default to @scale
+  #     @scale = params[:scale].present? ? params[:scale].to_f : @scale
+
+  #     page_width = @landscape ? 792 : 612  # Letter in points (landscape vs portrait)
+  #     page_height = @landscape ? 612 : 792
+
+  #     margin = 36 # 0.5 inch margin
+  #     usable_width = page_width - (2 * margin)
+  #     usable_height = page_height - (2 * margin)
+  #     tile_width = usable_width / @columns
+  #     tile_height = usable_height / @rows
+
+  #     width = (page_width * @scale).to_i + 100
+  #     width = params[:width].to_i if params[:width].present?
+
+  #     header_height = 250 # height to account for title/QR/etc
+  #     height = (page_height * @scale).to_i + header_height
+  #     height = params[:height].to_i if params[:height].present?
+
+  #     transparent = params[:transparent].present? && params[:transparent] == "1"
+
+  #     grover_options = {
+  #       format: "Letter",
+  #       landscape: @landscape,
+  #       viewport: { width: width, height: height },
+  #       scale: @scale,
+  #       full_page: false,
+  #       transparent: transparent,
+  #     }
+
+  #     extension = "png"
+  #     file_type = "image/png"
+  #     file_data = Grover.new(html, **grover_options).to_png
+  #   else
+  #     page_width = @landscape ? 792 : 612
+  #     page_height = @landscape ? 612 : 792
+
+  #     grover_options = {
+  #       format: "Letter",
+  #       landscape: @landscape,
+  #       # one-page viewport; content will be scaled to this
+  #       viewport: { width: page_width, height: page_height },
+  #       full_page: false,
+  #     }
+
+  #     extension = "pdf"
+  #     file_type = "application/pdf"
+  #     file_data = Grover.new(html, **grover_options).to_pdf
+  #   end
+
+  #   send_data file_data,
+  #     filename: "board-#{@board.slug}.#{extension}",
+  #     type: file_type,
+  #     disposition: disp
+  # end
+
   def pdf
     @qr_target_url = @board.public_url || board_url(@board)
     @qr_data_url = qr_data_url_for(@qr_target_url, size: 480)
+
     @screen_size = params[:screen_size] || "lg"
     @hide_colors = params[:hide_colors] == "1"
 
@@ -715,15 +814,7 @@ class API::BoardsController < API::ApplicationController
     @logo = Base64.strict_encode64(File.read(@path)) if File.exist?(@path)
     @board_title = @board.try(:name) || "Communication Board"
 
-    # Base scale by screen size
-    @scale = 1.0
-    if @screen_size == "sm"
-      @scale = 0.75
-    elsif @screen_size == "xs"
-      @scale = 0.5
-    end
-
-    # Render HTML *after* all instance vars are set
+    # Render HTML *after* vars set
     html = render_to_string(
       template: "api/boards/print",
       layout: "pdf",
@@ -733,62 +824,34 @@ class API::BoardsController < API::ApplicationController
     disp = params[:preview].present? ? "inline" : "attachment"
     response.headers["Cache-Control"] = "no-store"
 
-    if params[:png].present?
-      # Allow override of scale/size via params, default to @scale
-      @scale = params[:scale].present? ? params[:scale].to_f : @scale
+    # PDF page size in points
+    page_width  = @landscape ? 792 : 612  # Letter landscape vs portrait
+    page_height = @landscape ? 612 : 792
 
-      page_width = @landscape ? 792 : 612  # Letter in points (landscape vs portrait)
-      page_height = @landscape ? 612 : 792
+    grover_options = {
+      format: "Letter",
+      landscape: @landscape,
 
-      margin = 36 # 0.5 inch margin
-      usable_width = page_width - (2 * margin)
-      usable_height = page_height - (2 * margin)
-      tile_width = usable_width / @columns
-      tile_height = usable_height / @rows
+      # Lock the “screen” to exactly one page
+      viewport: { width: page_width, height: page_height },
 
-      width = (page_width * @scale).to_i + 100
-      width = params[:width].to_i if params[:width].present?
+      full_page: false,
 
-      header_height = 250 # height to account for title/QR/etc
-      height = (page_height * @scale).to_i + header_height
-      height = params[:height].to_i if params[:height].present?
+      # Respect @page size and layout sizing
+      prefer_css_page_size: true,
 
-      transparent = params[:transparent].present? && params[:transparent] == "1"
+      # (Optional but helpful)
+      print_background: true
+    }
 
-      grover_options = {
-        format: "Letter",
-        landscape: @landscape,
-        viewport: { width: width, height: height },
-        scale: @scale,
-        full_page: false,
-        transparent: transparent,
-      }
-
-      extension = "png"
-      file_type = "image/png"
-      file_data = Grover.new(html, **grover_options).to_png
-    else
-      page_width = @landscape ? 792 : 612
-      page_height = @landscape ? 612 : 792
-
-      grover_options = {
-        format: "Letter",
-        landscape: @landscape,
-        # one-page viewport; content will be scaled to this
-        viewport: { width: page_width, height: page_height },
-        full_page: false,
-      }
-
-      extension = "pdf"
-      file_type = "application/pdf"
-      file_data = Grover.new(html, **grover_options).to_pdf
-    end
+    file_data = Grover.new(html, **grover_options).to_pdf
 
     send_data file_data,
-      filename: "board-#{@board.slug}.#{extension}",
-      type: file_type,
+      filename: "board-#{@board.slug}.pdf",
+      type: "application/pdf",
       disposition: disp
   end
+
 
   private
 
@@ -838,7 +901,7 @@ class API::BoardsController < API::ApplicationController
         "h" => t["h"] || t[:h] || 1,
         "label" => t["label"] || t[:label] || "",
         "image_url" => t["image_url"] || t[:image_url],
-        "bg_color" => t["bg_color"] || t[:bg_color] || "white",
+        "bg_color" => t["bg_color"] || t[:bg_color] || "#FFFFFF",
         "i" => t["i"] || t[:i] || "",
       }
     end
@@ -860,7 +923,7 @@ class API::BoardsController < API::ApplicationController
           "h" => layout["h"] || 1,
           "label" => bi.label,
           "image_url" => bi.display_image_url_or_default,
-          "bg_color" => bi.bg_color || "white",
+          "bg_color" => bi.bg_color || "#FFFFFF",
           "i" => bi.id.to_s,
         }
       end
