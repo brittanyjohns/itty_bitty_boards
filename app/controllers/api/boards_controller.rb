@@ -319,6 +319,7 @@ class API::BoardsController < API::ApplicationController
 
   def recategorize_images
     set_board
+    return unless check_monthly_limit("ai_action")
     board_image_ids = @board.board_images.pluck(:id)
     board_image_ids.each_slice(20) do |batch|
       RecategorizeImagesJob.perform_async("BoardImage", batch)
