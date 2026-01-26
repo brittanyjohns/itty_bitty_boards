@@ -335,16 +335,16 @@ class Image < ApplicationRecord
     ColorHelper::PARTS_OF_SPEECH
   end
 
-  def self.ensure_parts_of_speech(limit = 100)
-    imgs = Image.where.not(part_of_speech: Image.valid_parts_of_speech).or(Image.where(part_of_speech: nil))
-    total_without_part_of_speech = imgs.count
-    puts "Total images without part of speech: #{total_without_part_of_speech} - limit: #{limit} \nContinue? (y/n)"
+  def self.ensure_parts_of_speech
+    total_images = Image.non_menu_images.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
+    puts "Ensuring parts_of_speech for #{total_images.count} images"
+    puts "Are you sure you want to continue? (y/n)"
     response = gets.chomp
     return unless response == "y"
-    images_without_part_of_speech = imgs.limit(limit)
-    puts "Images without part of speech: #{images_without_part_of_speech.count} - labels: #{images_without_part_of_speech.pluck(:label)}\n\n"
-    images_without_part_of_speech.each do |image|
-      image.categorize!
+    total_images.find_in_batches(batch_size: 20) do |images|
+      images.each do |image|
+        image.reset_part_of_speech!
+      end
     end
   end
 
