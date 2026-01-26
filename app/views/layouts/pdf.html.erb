@@ -17,12 +17,10 @@
         font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
       }
 
-      /* Remove default page margins in the PDF engine */
       @page {
         margin: 0;
-        size: letter;
+        size: <%= @landscape ? "letter landscape" : "letter" %>;
       }
-
       /* One-page canvas */
       .page {
         height: 100vh;          /* lock to one page viewport */
