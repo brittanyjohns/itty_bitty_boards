@@ -349,20 +349,49 @@ class Image < ApplicationRecord
   end
 
   def background_color_for(category)
-    ColorHelper::PRESET_HEX[
-      case category
-      when "pronoun" then "yellow"   # WHO
-      when "verb" then "green"    # ACTION
-      when "noun" then "blue"     # PEOPLE/PLACES/THINGS
-      when "adjective" then "orange"   # DESCRIBING
-      when "adverb" then "brown"    # HOW
-      when "preposition" then "purple"   # POSITION
-      when "interjection" then "pink"     # SOCIAL
-      when "conjunction" then "white"    # CONNECTING WORDS
-      when "phrase" then "gray"     # MULTI-WORD / MISC
-      else "gray"     # Default
+    key = case category.to_s.downcase
+      # Blue: Adjectives
+      when "adjective", "adj", "descriptive"
+        "blue"
+
+        # Green: Verbs
+      when "verb", "action"
+        "green"
+
+        # Yellow: Pronouns
+      when "pronoun", "person", "people"
+        "yellow"
+
+        # Orange: Nouns
+      when "noun"
+        "orange"
+
+        # White: Conjunctions
+      when "conjunction"
+        "white"
+
+        # Pink: Prepositions + Social words
+      when "preposition", "social", "interjection"
+        "pink"
+
+        # Purple: Questions
+      when "question", "questions", "wh", "wh_question"
+        "purple"
+
+        # Brown: Adverbs
+      when "adverb"
+        "brown"
+
+        # Red: Important function / negation / emergency
+      when "important_function", "function", "negation", "emergency", "warning"
+        "red"
+      when "determiner", "article"
+        "gray"
+      else
+        "gray"
       end
-    ]
+
+    ColorHelper::PRESET_HEX[key]
   end
 
   def text_color_for(bg_value)

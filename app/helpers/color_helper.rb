@@ -4,26 +4,30 @@ module ColorHelper
     "green" => "#A1F571",
     "yellow" => "#FFEA75",
     "brown" => "#C8A165",
-    "purple" => "#a07aff",
+    "purple" => "#A07AFF",
     "pink" => "#FF709C",
     "orange" => "#FFC457",
-    "red" => "#FF0000",
-    "teal" => "#2ABED1",
+    "red" => "#FF4D4D",
     "white" => "#FFFFFF",
     "gray" => "#D1D1D1",
   }.freeze
 
   PRESET_DATA = [
-    { label: "blue", hex: "#5ECFFF", part_of_speech: "noun" },          # nouns
-    { label: "green", hex: "#A1F571", part_of_speech: "verb" },          # verbs
-    { label: "yellow", hex: "#FFEA75", part_of_speech: "pronoun" },       # pronouns
-    { label: "orange", hex: "#FFC457", part_of_speech: "adjective" },     # adjectives
-    { label: "brown", hex: "#C8A165", part_of_speech: "adverb" },        # adverbs (standard)
-    { label: "purple", hex: "#A07AFF", part_of_speech: "preposition" },   # prepositions
-    { label: "pink", hex: "#FF709C", part_of_speech: "interjection" },  # social/interjections
-    { label: "white", hex: "#FFFFFF", part_of_speech: "conjunction" },   # conjunctions
-    { label: "gray", hex: "#D1D1D1", part_of_speech: "phrase" },        # phrases/misc
-    { label: "default", hex: "#D1D1D1", part_of_speech: "default" },        # fallback
+    # Modified Fitzgerald Key
+    { label: "blue", hex: "#5ECFFF", part_of_speech: "adjective" },          # adjectives
+    { label: "green", hex: "#A1F571", part_of_speech: "verb" },               # verbs
+    { label: "yellow", hex: "#FFEA75", part_of_speech: "pronoun" },            # pronouns
+    { label: "orange", hex: "#FFC457", part_of_speech: "noun" },               # nouns
+    { label: "white", hex: "#FFFFFF", part_of_speech: "conjunction" },        # conjunctions
+    { label: "pink", hex: "#FF709C", part_of_speech: "preposition" },        # prepositions
+    { label: "pink", hex: "#FF709C", part_of_speech: "social" },             # social words
+    { label: "purple", hex: "#A07AFF", part_of_speech: "question" },           # questions
+    { label: "brown", hex: "#C8A165", part_of_speech: "adverb" },             # adverbs
+    { label: "red", hex: "#FF4D4D", part_of_speech: "important_function" }, # negation/emergency/function
+    { label: "gray", hex: "#D1D1D1", part_of_speech: "determiner" },         # determiners/articles
+
+    # Fallbacks / misc
+    { label: "gray", hex: "#D1D1D1", part_of_speech: "default" },
   ].freeze
 
   HEX = {
