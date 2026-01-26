@@ -37,6 +37,7 @@ class BoardImage < ApplicationRecord
   before_create :set_defaults
   # before_save :save_display_image_url, if: -> { display_image_url.blank? }
   before_save :check_predictive_board
+  before_save :set_colors, if: :part_of_speech_changed?
 
   include BoardsHelper
   include ImageHelper
@@ -88,8 +89,16 @@ class BoardImage < ApplicationRecord
   end
 
   def set_colors!
-    set_text_color("black") unless text_color == "#000000"
     set_background_color!
+  end
+
+  # NO save
+  def set_colors
+    set_text_color("black") unless text_color == "#000000"
+    pos = part_of_speech || image.part_of_speech || "default"
+    img_color = background_color_for(pos)
+    puts "Setting background color to #{img_color} for part_of_speech #{pos}"
+    set_background_color(img_color)
   end
 
   def set_labels
@@ -356,6 +365,7 @@ class BoardImage < ApplicationRecord
       image_id: image_id,
       label: label,
       display_label: display_label,
+      part_of_speech: part_of_speech,
       image_prompt: image_prompt,
       user_id: board.user_id,
       hidden: hidden,
@@ -404,6 +414,7 @@ class BoardImage < ApplicationRecord
       can_edit: viewing_user == board.user,
       voice: voice,
       hidden: hidden,
+      part_of_speech: part_of_speech,
       audio_files: audio_files.map { |af| { id: af.id, url: af.to_s, content_type: af.inspect } },
       # predictive_board_id: predictive_board_id,
       display_label: display_label,
