@@ -455,8 +455,23 @@ class API::BoardsController < API::ApplicationController
   end
 
   def words
+    if params[:name].blank?
+      render json: { error: "Name parameter is required" }, status: :unprocessable_entity
+      return
+    end
+    if params[:num_of_words].blank? || params[:num_of_words].to_i <= 0
+      render json: { error: "num_of_words parameter must be a positive integer" }, status: :unprocessable_entity
+      return
+    end
+    if params[:num_of_words].to_i > 50
+      render json: { error: "num_of_words parameter cannot exceed 50" }, status: :unprocessable_entity
+    end
     return unless check_monthly_limit("ai_action")
     additional_words = Board.new.get_word_suggestions(params[:name], params[:num_of_words], params[:words_to_exclude])
+    if additional_words.blank?
+      render json: { error: "No additional words found" }, status: :unprocessable_entity
+      return
+    end
     normalize_words = additional_words.map do |word|
       word.gsub("_", " ").strip
     end
