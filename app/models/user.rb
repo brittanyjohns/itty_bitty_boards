@@ -53,7 +53,8 @@ require "csv"
 
 class User < ApplicationRecord
   # Payment and authentication setup
-  pay_customer default_payment_processor: :stripe
+  # pay_customer default_payment_processor: :stripe
+  default_scope { where(deleted_at: nil) }
   include Devise::JWT::RevocationStrategies::JTIMatcher
   devise :database_authenticatable, :registerable,
          :recoverable, :rememberable, :validatable, :invitable, :trackable,
@@ -115,6 +116,7 @@ class User < ApplicationRecord
   scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
 
   include WordEventsHelper
+  include StripeHelper
   # Constants
   # DEFAULT_ADMIN_ID = self.admin.first&.id
   DEFAULT_ADMIN_ID = Rails.env.development? ? 2 : 1
@@ -127,7 +129,7 @@ class User < ApplicationRecord
   before_validation :set_uuid, on: :create
   before_save :ensure_settings, unless: :has_all_settings?
 
-  # before_destroy :delete_stripe_customer
+  before_destroy :delete_stripe_customer
   before_destroy :unassign_vendor
 
   before_save :setup_limits, if: :plan_type_changed?

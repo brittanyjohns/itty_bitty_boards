@@ -103,7 +103,7 @@ class API::UsersController < API::ApplicationController
       render json: { error: "Admin accounts cannot be deleted via this method" }, status: forbidden
       return
     end
-    if @user.destroy
+    if @user.soft_delete_account!(reason: "user_requested", actor_id: @user.id)
       render json: { success: true }, status: :ok
     else
       render json: { error: "Failed to delete account" }, status: :unprocessable_entity
