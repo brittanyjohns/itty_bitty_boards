@@ -127,7 +127,7 @@ class User < ApplicationRecord
   before_validation :set_uuid, on: :create
   before_save :ensure_settings, unless: :has_all_settings?
 
-  before_destroy :delete_stripe_customer
+  # before_destroy :delete_stripe_customer
   before_destroy :unassign_vendor
 
   before_save :setup_limits, if: :plan_type_changed?
@@ -1235,7 +1235,10 @@ class User < ApplicationRecord
     {
       id: id,
       organization_id: organization_id,
-      # profile: profile&.api_view,
+      profile: profile&.api_view,
+      delete_account_token: delete_account_token,
+      slug: slug,
+      public_url: public_url,
       # vendor_profile: vendor_profile&.api_view,
       is_vendor: vendor?,
 

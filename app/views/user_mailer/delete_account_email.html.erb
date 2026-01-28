@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Account Deletion Confirmation</title>
+  </head>
+  <body style="margin:0; padding:0; background:#f6f7f9; font-family: Arial, Helvetica, sans-serif;">
+    <!-- app/views/user_mailer/delete_account_email.html.erb -->
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0;padding:0;background:#f6f7fb;">
+  <tr>
+    <td align="center" style="padding:24px 12px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:600px;max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e7e7ef;">
+        <!-- Header -->
+        <tr>
+          <td style="padding:22px 24px;background:#0f172a;">
+            <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:18px;line-height:24px;font-weight:700;color:#ffffff;">
+              SpeakAnyWay AAC
+            </div>
+            <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:18px;color:#cbd5e1;margin-top:4px;">
+              Account deletion confirmation
+            </div>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:24px;">
+            <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;color:#0f172a;">
+              Hi <%= @user_name %>,
+            </div>
+
+            <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#334155;margin-top:12px;">
+              We received a request to delete your SpeakAnyWay account. Before we proceed, we need to confirm that this request came from you.
+            </div>
+
+            <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#334155;margin-top:12px;">
+              To complete the deletion process, please click the button below:
+            </div>
+
+            <!-- Button -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:18px;margin-bottom:10px;">
+              <tr>
+                <td align="center" bgcolor="#2563eb" style="border-radius:10px;">
+                  <a href="<%= @confirmation_link %>"
+                     style="display:inline-block;padding:12px 18px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;line-height:20px;color:#ffffff;text-decoration:none;border-radius:10px;">
+                    Confirm account deletion
+                  </a>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Fallback link -->
+            <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#64748b;margin-top:6px;">
+              If the button doesn't work, copy and paste this link into your browser:<br />
+              <a href="<%= @confirmation_link %>" style="color:#2563eb;text-decoration:underline;word-break:break-all;">
+                <%= @confirmation_link %>
+              </a>
+            </div>
+
+            <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#334155;margin-top:18px;">
+              Once you confirm, your account and all associated data will be permanently deleted. This action cannot be undone.
+            </div>
+
+            <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#334155;margin-top:12px;">
+              This confirmation link will expire in 2 hours. If you do not confirm within this time frame, your account will remain active & you will need to initiate the deletion process again.
+            </div>
+
+            <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#334155;margin-top:18px;">
+              If you did not request to delete your account, you can safely ignore this email—your account will remain active and no changes will be made.
+            </div>
+
+            <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#334155;margin-top:12px;">
+              Need help? Contact us at
+              <a href="mailto:<%= @support_email %>" style="color:#2563eb;text-decoration:underline;">
+                <%= @support_email %>
+              </a>.
+            </div>
+
+            <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#334155;margin-top:18px;">
+              Thanks,<br />
+              The SpeakAnyWay Team
+            </div>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:16px 24px;background:#f8fafc;border-top:1px solid #e7e7ef;">
+            <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#64748b;">
+              You're receiving this email because a deletion request was submitted for your SpeakAnyWay account.
+              If this wasn't you, you can ignore this message.
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:11px;line-height:16px;color:#94a3b8;margin-top:12px;">
+        © <%= Time.current.year %> SpeakAnyWay. All rights reserved.
+      </div>
+    </td>
+  </tr>
+</table>
+
+  </body>
+</html>

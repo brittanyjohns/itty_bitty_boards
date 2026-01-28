@@ -8,6 +8,14 @@ class UserMailer < BaseMailer
     mail(to: @user.email, subject: "Welcome to SpeakAnyWay AAC!")
   end
 
+  def delete_account_email(user)
+    @user = user
+    @user_name = @user.name
+    @support_email = "support@speakanyway.com"
+    @confirmation_link = "#{ENV["FRONT_END_URL"] || "http://localhost:8100"}/delete-account/confirm"
+    mail(to: @user.email, subject: "Confirm Your SpeakAnyWay AAC Account Deletion")
+  end
+
   def temporary_login_email(user, expiration_hours)
     @user = user
     @user_name = @user.name
@@ -83,35 +91,6 @@ class UserMailer < BaseMailer
     Rails.logger.info "Sending welcome free email to #{@user.email} with login link: #{@login_link}"
     mail(to: @user.email, subject: subject)
   end
-
-  # def welcome_email(user)
-  #   @user = user
-  #   @user_name = @user.name
-  #   @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
-  #   begin
-  #     if user.raw_invitation_token.nil?
-  #       # Existing user, just need to login
-  #       # @login_link += "/users/sign-in"
-  #       user = User.find_by(id: user.id) # Reload user to ensure raw_invitation_token is up-to-date
-  #       # user.invite!(user.email, skip_invitation: true) if user.raw_invitation_token.nil?
-  #       Rails.logger.info "User #{user.id} has raw_invitation_token: #{user.raw_invitation_token}"
-
-  #       @login_link += "/welcome/token/#{user.raw_invitation_token}"
-  #     else
-  #       # New user, need to use the token
-  #       @login_link += "/welcome/token/#{user.raw_invitation_token}"
-  #     end
-  #     encoded_email = ERB::Util.url_encode(@user.email)
-  #     @login_link += "?email=#{encoded_email}"
-  #     Rails.logger.info "Sending welcome email to #{@user.email} with login link: #{@login_link}"
-  #     subject = "Welcome to SpeakAnyWay AAC!"
-  #     mail(to: @user.email, subject: subject)
-  #   rescue => e
-  #     Rails.logger.error "Error sending welcome email to #{@user.email}: #{e.message}"
-  #     Rails.logger.error e.backtrace.join("\n")
-  #     raise e
-  #   end
-  # end
 
   def welcome_invitation_email(user, inviter_id)
     @user = user

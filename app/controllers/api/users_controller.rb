@@ -25,7 +25,6 @@ class API::UsersController < API::ApplicationController
 
   def update
     @user = User.find(params[:id])
-    @user.plan_type = user_params[:plan_type]
     @user.name = user_params[:name]
 
     if @user.save
@@ -67,13 +66,6 @@ class API::UsersController < API::ApplicationController
       @user.settings[key] = value
     end
 
-    @user.base_words = params[:base_words]
-    # @user.settings["wait_to_speak"] = params[:wait_to_speak] || false
-    # @user.settings["disable_audit_logging"] = params[:disable_audit_logging] || false
-    # @user.settings["enable_image_display"] = params[:enable_image_display] || false
-    # @user.settings["enable_text_display"] = params[:enable_text_display] || false
-    # @user.settings["startup_board_group_id"] = params[:startup_board_group_id] if params[:startup_board_group_id]
-
     respond_to do |format|
       if @user.save
         format.json { render json: @user, status: :ok }
@@ -83,33 +75,38 @@ class API::UsersController < API::ApplicationController
     end
   end
 
-  def admin_update_settings
-    unless current_user&.admin?
-      render json: { error: "Unauthorized" }, status: :unauthorized
+  def send_delete_account_email
+    @user = current_user
+    Rails.logger.info "Generating delete account token for user #{@user.id}"
+    expire_time = 2.hours.from_now
+    @user.delete_account_token = SecureRandom.hex(16)
+    @user.delete_account_token_expires_at = expire_time
+    @user.save!
+    UserMailer.delete_account_email(@user).deliver_later
+    render json: { success: true }, status: :ok
+  end
+
+  def delete_account
+    @user = current_user
+    if @user.nil? || @user.email != params[:email] || @user.delete_account_token != params[:token]
+      render json: { error: "Invalid or expired token" }, status: :unprocessable_entity
       return
     end
-    @user = User.find(params[:id])
-    user_settings = @user.settings || {}
-
-    voice_settings = params[:voice] || {}
-    @user.settings = user_settings.merge(voice: voice_settings)
-    @user.base_words = params[:base_words]
-    @user.settings["wait_to_speak"] = params[:wait_to_speak] || false
-    @user.settings["disable_audit_logging"] = params[:disable_audit_logging] || false
-    @user.settings["enable_image_display"] = params[:enable_image_display] || false
-    @user.settings["enable_text_display"] = params[:enable_text_display] || false
-
-    # ADMIN ONLY
-    @user.plan_type = params[:plan_type]
-    @user.locked = params[:locked] || false
-    @user.settings["locked"] = params[:locked] || false
-
-    respond_to do |format|
-      if @user.save
-        format.json { render json: @user, status: :ok }
-      else
-        format.json { render json: @user.errors, status: :unprocessable_entity }
-      end
+    Rails.logger.info "Attempting to delete account for user #{@user&.id} - param email: #{params[:email]}, token: #{params[:token]}"
+    Rails.logger.info "Token expires at: #{@user&.delete_account_token_expires_at}, current time: #{Time.current}"
+    Rails.logger.info "User found: #{@user.present?}"
+    if @user.nil? || @user.delete_account_token_expires_at.nil? || @user.delete_account_token_expires_at < Time.current
+      render json: { error: "Invalid or expired token" }, status: :unprocessable_entity
+      return
+    end
+    if @user.admin?
+      render json: { error: "Admin accounts cannot be deleted via this method" }, status: forbidden
+      return
+    end
+    if @user.destroy
+      render json: { success: true }, status: :ok
+    else
+      render json: { error: "Failed to delete account" }, status: :unprocessable_entity
     end
   end
 

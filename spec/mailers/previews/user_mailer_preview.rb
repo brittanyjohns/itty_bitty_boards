@@ -5,6 +5,12 @@ class UserMailerPreview < ActionMailer::Preview
     UserMailer.welcome_free_email(@user)
   end
 
+  def delete_account_email
+    @user = User.last
+    @user.delete_account_token = SecureRandom.hex(16)
+    UserMailer.delete_account_email(@user)
+  end
+
   def welcome_basic_email
     # @user = User.first
     @user = User.invite!(email: "brittany+basic_user9925x@speakanyway.com", skip_invitation: true)

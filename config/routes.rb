@@ -317,6 +317,9 @@ Rails.application.routes.draw do
       end
     end
 
+    post "delete_account", to: "users#delete_account"
+    post "send_delete_account_email", to: "users#send_delete_account_email"
+
     resources :users do
       member do
         put "update_settings"
