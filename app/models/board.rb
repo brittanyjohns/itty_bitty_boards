@@ -1499,6 +1499,7 @@ class Board < ApplicationRecord
       small_screen_rows: rows_for_screen_size("sm"),
       personable_explanation: personable_explanation,
       professional_explanation: professional_explanation,
+      published: published,
       description: description,
       parent_type: parent_type,
       predefined: predefined,

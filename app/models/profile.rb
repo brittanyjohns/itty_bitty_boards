@@ -195,14 +195,14 @@ class Profile < ApplicationRecord
       profileable_id: profileable_id,
       user_id: profileable_type == "User" ? profileable&.id : profileable&.user_id,
       communicator_account_id: profileable_type == "User" ? nil : profileable&.id,
-      avatar: avatar.attached? ? avatar_url : nil,
+      avatar_url: avatar_url,
       settings: settings,
       claim_token: claim_token,
       claim_url: claim_url,
       user_id: user_id,
       communicator_account: profileable_type != "User" ? profileable&.api_view : nil,
       layout: profileable&.layout,
-    # profileable: profileable.api_view,
+      avatar: avatar_url,
     }
   end
 
@@ -253,11 +253,17 @@ class Profile < ApplicationRecord
   end
 
   def avatar_url
+    puts "Avatar attached: #{avatar.attached?}"
     image_key = avatar&.key
 
     cdn_url = "#{ENV["CDN_HOST"]}/#{image_key}" if image_key
 
     image_key ? cdn_url : nil
+  end
+
+  def self.generate_avatar_url(slug_to_use)
+    return unless slug_to_use
+    FFaker::Avatar.image(slug: slug_to_use, size: "300x300", format: "png")
   end
 
   def set_fake_avatar

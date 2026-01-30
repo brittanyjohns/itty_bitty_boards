@@ -1260,6 +1260,9 @@ class User < ApplicationRecord
       display_name: display_name,
       admin: admin?,
 
+      # Profile info
+      profile: profile&.api_view,
+
       # Plan flags
       free: free?,
       pro: pro?,

@@ -42,13 +42,47 @@ class API::ProfilesController < API::ApplicationController
   end
 
   def create
-    @profile = Profile.new(profile_params)
-    @profile.user = current_user
-    @profile.slug = params[:slug] if params[:slug].present?
-    if @profile.save
-      render json: @profile.api_view(current_user), status: :created
+    if current_user.nil?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+
+    Rails.logger.debug("[Profiles#create] raw params keys=#{params.keys}")
+    Rails.logger.debug("[Profiles#create] profile params=#{profile_params.to_h}")
+
+    profile = Profile.new(profile_params)
+    profile.profileable = current_user
+
+    # Prefer nested profile slug (since your FormData uses profile[slug])
+    slug = params.dig(:profile, :slug)
+    if slug.blank?
+      slug = profile.username.parameterize if profile.username.present?
+    end
+    slug ||= SecureRandom.hex(4)
+    profile.slug = slug
+
+    if profile.save
+      render json: profile.api_view(current_user), status: :created
     else
-      render json: @profile.errors, status: :unprocessable_entity
+      Rails.logger.debug("[Profiles#create] errors=#{profile.errors.full_messages}")
+      render json: {
+        error: "Profile creation failed",
+        details: profile.errors.full_messages,
+      }, status: :unprocessable_entity
+    end
+  end
+
+  def update
+    profile = Profile.find(params[:id])
+    puts "Updating profile ID #{profile.id} with params: #{profile_params.to_h}"
+
+    if profile.update(profile_params)
+      render json: profile.api_view(current_user)
+    else
+      render json: {
+        error: "Profile update failed",
+        details: profile.errors.full_messages,
+      }, status: :unprocessable_entity
     end
   end
 
@@ -90,14 +124,14 @@ class API::ProfilesController < API::ApplicationController
     end
   end
 
-  def update
-    @profile = Profile.find(params[:id])
-    if @profile.update(profile_params)
-      render json: @profile.api_view(current_user)
-    else
-      render json: @profile.errors, status: :unprocessable_entity
-    end
-  end
+  # def update
+  #   @profile = Profile.find(params[:id])
+  #   if @profile.update(profile_params)
+  #     render json: @profile.api_view(current_user)
+  #   else
+  #     render json: @profile.errors, status: :unprocessable_entity
+  #   end
+  # end
 
   def check_placeholder
     profile = Profile.find_by(slug: params[:slug])
@@ -168,6 +202,6 @@ class API::ProfilesController < API::ApplicationController
   end
 
   def profile_params
-    params.require(:profile).permit(:username, :bio, :intro, :avatar, :sku, :slug, settings: {})
+    params.require(:profile).permit(:username, :bio, :intro, :avatar, settings: {})
   end
 end
