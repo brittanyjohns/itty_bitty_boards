@@ -7,13 +7,15 @@
 
 Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do
-    origins "http://localhost:8100",
-      "https://speakanyway.com",
-      "http://www.speakanyway.com",
-      "https://app.speakanyway.com",
-      "http://app.speakanyway.com",
-      "capacitor://localhost",
-      "ionic://localhost"
+    origins("http://localhost:8100",
+            "https://speakanyway.com",
+            "http://www.speakanyway.com",
+            "https://app.speakanyway.com",
+            "http://app.speakanyway.com",
+            "capacitor://localhost",
+            "https://localhost",
+            "http://localhost",
+            "ionic://localhost")
 
     resource "*",
       headers: :any,
