@@ -135,6 +135,7 @@ Rails.application.routes.draw do
     namespace :stripe do
       resources :checkout_sessions, only: :create
     end
+    post "billing/update_subscription", to: "billing#update_subscription"
     post "open_symbols/search", to: "open_symbols#search_api"
     get "temp-login/:token", to: "temp_logins#show"
     post "set-password", to: "users#set_password"

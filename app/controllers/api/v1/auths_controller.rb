@@ -11,15 +11,20 @@ module API
         else
           name = ""
         end
+        platform = params["platform"] || ""
 
         user = User.new(email: params["auth"]["email"], password: params["auth"]["password"], password_confirmation: params["auth"]["password_confirmation"], name: name)
         if user.save
           Rails.logger.info "New user signed up: #{user.email} at #{Time.now}"
           # result = Stripe::Customer.create({ email: user.email })
-          result = User.create_stripe_customer(user.email)
-          Rails.logger.info "Stripe customer created for new user #{user.email}: #{result}"
-          Rails.logger.info "Plan type param: #{params["plan_type"]}" if params["plan_type"]
-          user.stripe_customer_id = result
+          if platform != "ios" && platform != "android"
+            result = User.create_stripe_customer(user.email)
+            Rails.logger.info "Stripe customer created for new user #{user.email}: #{result}"
+            Rails.logger.info "Plan type param: #{params["plan_type"]}" if params["plan_type"]
+            user.stripe_customer_id = result
+          else
+            Rails.logger.info "Mobile platform sign up detected for user #{user.email}, skipping Stripe customer creation for platform: #{platform}"
+          end
           if params["plan_type"] && params["plan_type"] == "partner_pro"
             user.plan_type = "partner_pro"
             user.plan_status = "active"

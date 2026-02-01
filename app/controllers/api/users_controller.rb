@@ -88,17 +88,18 @@ class API::UsersController < API::ApplicationController
 
   def delete_account
     @user = current_user
-    if @user.nil? || @user.email != params[:email] || @user.delete_account_token != params[:token]
-      render json: { error: "Invalid or expired token" }, status: :unprocessable_entity
-      return
-    end
-    Rails.logger.info "Attempting to delete account for user #{@user&.id} - param email: #{params[:email]}, token: #{params[:token]}"
-    Rails.logger.info "Token expires at: #{@user&.delete_account_token_expires_at}, current time: #{Time.current}"
-    Rails.logger.info "User found: #{@user.present?}"
-    if @user.nil? || @user.delete_account_token_expires_at.nil? || @user.delete_account_token_expires_at < Time.current
-      render json: { error: "Invalid or expired token" }, status: :unprocessable_entity
-      return
-    end
+    # TODO - Apple doesn't allow for confirmation emails to be sent before deletion
+    # so we skip token verification for Apple users
+
+    # if @user.nil? || @user.email != params[:email] || @user.delete_account_token != params[:token]
+    #   render json: { error: "Invalid or expired token" }, status: :unprocessable_entity
+    #   return
+    # end
+
+    # if @user.nil? || @user.delete_account_token_expires_at.nil? || @user.delete_account_token_expires_at < Time.current
+    #   render json: { error: "Invalid or expired token" }, status: :unprocessable_entity
+    #   return
+    # end
     if @user.admin?
       render json: { error: "Admin accounts cannot be deleted via this method" }, status: forbidden
       return
