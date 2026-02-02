@@ -117,6 +117,7 @@ class User < ApplicationRecord
 
   include WordEventsHelper
   include StripeHelper
+  include UsersHelper
   # Constants
   # DEFAULT_ADMIN_ID = self.admin.first&.id
   DEFAULT_ADMIN_ID = Rails.env.development? ? 2 : 1
@@ -154,11 +155,11 @@ class User < ApplicationRecord
     case plan_type
     when "free"
       setup_free_limits
-    when "myspeak"
+    when "myspeak", "myspeak_yearly"
       setup_myspeak_limits
-    when "basic"
+    when "basic", "basic_yearly"
       setup_basic_limits
-    when "pro"
+    when "pro", "pro_yearly"
       setup_pro_limits
     when "partner_pro"
       setup_partner_pro_plan
@@ -1329,6 +1330,27 @@ class User < ApplicationRecord
 
       unread_messages: messages.where(recipient_id: id, read_at: nil, recipient_deleted_at: nil).count,
     }
+  end
+
+  def soft_delete_account!(
+    reason: "user_requested",
+    platform: "web",
+    actor_id: nil,
+    cancel_immediately: true,
+    detach_payment_methods: true,
+    delete_stripe_customer: false
+  )
+    if stripe_customer_id
+      soft_delete_stripe_customer!(
+        reason: reason,
+        actor_id: actor_id,
+        detach_payment_methods: detach_payment_methods,
+        delete_stripe_customer: delete_stripe_customer,
+      )
+    else
+      Rails.logger.info "No Stripe customer to delete for user #{id} - platform: #{platform}"
+      anonymize_personal_data_and_delete_all_data(deleted_at: Time.current, reason: reason, actor_id: actor_id)
+    end
   end
 
   def username

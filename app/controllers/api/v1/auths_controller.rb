@@ -19,11 +19,9 @@ module API
           # result = Stripe::Customer.create({ email: user.email })
           if platform != "ios" && platform != "android"
             result = User.create_stripe_customer(user.email)
-            Rails.logger.info "Stripe customer created for new user #{user.email}: #{result}"
-            Rails.logger.info "Plan type param: #{params["plan_type"]}" if params["plan_type"]
             user.stripe_customer_id = result
           else
-            Rails.logger.info "Mobile platform sign up detected for user #{user.email}, skipping Stripe customer creation for platform: #{platform}"
+            Rails.logger.warn "Mobile platform sign up detected for user #{user.email}, skipping Stripe customer creation for platform: #{platform}"
           end
           if params["plan_type"] && params["plan_type"] == "partner_pro"
             user.plan_type = "partner_pro"

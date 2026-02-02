@@ -134,6 +134,7 @@ Rails.application.routes.draw do
   namespace :api, defaults: { format: :json } do
     namespace :stripe do
       resources :checkout_sessions, only: :create
+      post "update_user_from_session", to: "checkout_sessions#update_user_from_session"
     end
     post "billing/update_subscription", to: "billing#update_subscription"
     post "open_symbols/search", to: "open_symbols#search_api"

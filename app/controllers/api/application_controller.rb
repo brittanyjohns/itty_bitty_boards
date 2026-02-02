@@ -62,6 +62,19 @@ module API
       render json: { preset_colors: @colors }
     end
 
+    def normalize_plan_key(plan_key)
+      case plan_key
+      when "myspeak", "myspeak_yearly"
+        "myspeak"
+      when "basic", "basic_yearly"
+        "basic"
+      when "pro", "pro_yearly"
+        "pro"
+      else
+        plan_key
+      end
+    end
+
     private
 
     def user_from_token

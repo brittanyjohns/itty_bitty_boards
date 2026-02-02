@@ -14,10 +14,12 @@ class API::BillingController < API::ApplicationController
         render json: { error: "Invalid plan_key" }, status: :bad_request
         return
       end
-      current_user.plan_type = plan_key
+      normalized_plan_key = normalize_plan_key(plan_key)
+      current_user.plan_type = normalized_plan_key
       current_user.plan_status = "active"
       current_user.settings["purchase_platform"] = purchase_platform
       current_user.save!
+      current_user.send_welcome_email(current_user.plan_type)
       render json: { success: true, plan_key: plan_key }
     rescue StandardError => e
       Rails.logger.error "Failed to update subscription for User ID: #{current_user.id}, Plan Key: #{plan_key} - Error: #{e.message}"

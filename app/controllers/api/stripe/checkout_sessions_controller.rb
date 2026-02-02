@@ -16,7 +16,7 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
   def create
     plan_key = params[:plan_key].to_s
     price_id = PLAN_PRICE_IDS[plan_key]
-    puts "Creating checkout session for plan_key: #{plan_key}, price_id: #{price_id}"
+    Rails.logger.debug "Creating checkout session for plan_key: #{plan_key}, price_id: #{price_id}"
 
     if plan_key == "free" || price_id.blank?
       current_user.update!(plan_type: "free", plan_status: "active")
@@ -66,6 +66,27 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
   rescue StandardError => e
     Rails.logger.error "Error creating checkout session: #{e.class} - #{e.message}"
     render json: { error: "Failed to create checkout session" }, status: :bad_request
+  end
+
+  def update_user_from_session
+    session_id = params[:session_id].to_s
+    session = Stripe::Checkout::Session.retrieve(session_id)
+    user_id = session.metadata.user_id
+    plan_key = session.metadata.plan_key
+    user = User.find_by(id: user_id)
+    if user.nil?
+      render json: { error: "User not found" }, status: :not_found
+      return
+    end
+    normalized_plan_key = normalize_plan_key(plan_key)
+    user.plan_type = normalized_plan_key
+    user.plan_status = "active"
+    user.setup_limits
+    user.save!
+    render json: { success: true }
+  rescue StandardError => e
+    Rails.logger.error "Error updating user from session: #{e.class} - #{e.message}"
+    render json: { error: "Failed to update user from session" }, status: :bad_request
   end
 
   private

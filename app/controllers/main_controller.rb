@@ -1,7 +1,6 @@
 class MainController < ApplicationController
   def index
-    @predefined_boards = Board.predefined.includes(:images).order(:name)
-    @beta_request = BetaRequest.new
+    render json: { status: "API is running", version: "1.0", status_code: 200 }
   end
 
   def beta_request_form

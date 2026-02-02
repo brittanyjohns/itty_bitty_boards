@@ -132,16 +132,6 @@ class API::WebhooksController < API::ApplicationController
     user.plan_status = subscription.status
     user.stripe_subscription_id ||= subscription.id
 
-    # paid_communicator_limit = meta["paid_communicator_limit"] || meta["communicator_limit"]
-    # user.settings ||= {}
-    # user.settings["board_limit"] = to_int_or_nil(meta["board_limit"])
-    # user.settings["paid_communicator_limit"] = to_int_or_nil(paid_communicator_limit)
-    # user.settings["demo_communicator_limit"] = to_int_or_nil(meta["demo_communicator_limit"])
-    # user.settings["ai_monthly_limit"] = to_int_or_nil(meta["ai_monthly_limit"])
-    # user.settings["ai_monthly_limit"] = to_int_or_nil(meta["ai_monthly_limit"])
-
-    # # Optional: role controlled via Stripe metadata
-    # user.role = meta["role"] if meta["role"].present?
     user.setup_limits
     if user.role == "partner"
       user.send_partner_welcome_email
