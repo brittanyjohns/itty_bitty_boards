@@ -26,4 +26,13 @@ class API::BillingController < API::ApplicationController
       render json: { error: "Failed to update subscription: #{e.message}" }, status: :unprocessable_entity
     end
   end
+
+  def webhooks
+    payload = request.body.read
+    Rails.logger.info "[BillingWebhook] Received payload: #{payload}"
+    render json: { status_code: 200 }
+  rescue => e
+    Rails.logger.error "[BillingWebhook] Unexpected error: #{e.class} - #{e.message}\n#{e.backtrace.join("\n")}"
+    render json: { error: "server_error" }, status: :bad_request
+  end
 end

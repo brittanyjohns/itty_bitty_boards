@@ -137,6 +137,7 @@ Rails.application.routes.draw do
       post "update_user_from_session", to: "checkout_sessions#update_user_from_session"
     end
     post "billing/update_subscription", to: "billing#update_subscription"
+    post "billing/webhooks", to: "billing#webhooks"
     post "open_symbols/search", to: "open_symbols#search_api"
     get "temp-login/:token", to: "temp_logins#show"
     post "set-password", to: "users#set_password"
