@@ -153,7 +153,7 @@ class Profile < ApplicationRecord
   end
 
   def set_kind
-    if profileable_type == "User" && public_page?
+    if profileable_type == "User" && !public_page?
       self.profile_kind = "public_page"
     end
   end
