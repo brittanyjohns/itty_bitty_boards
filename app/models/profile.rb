@@ -33,7 +33,7 @@ class Profile < ApplicationRecord
   before_validation :set_defaults, on: :create
   before_validation :ensure_slug, on: :create
 
-  before_validation :set_kind, on: :create
+  before_save :set_kind
 
   # --- Kinds (no migration needed; stored in settings for now) ---
   # "safety"         => communicator safety profile
@@ -155,7 +155,6 @@ class Profile < ApplicationRecord
   def set_kind
     if profileable_type == "User" && public_page?
       self.profile_kind = "public_page"
-
     end
   end
 
