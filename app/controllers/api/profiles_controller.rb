@@ -9,7 +9,7 @@ class API::ProfilesController < API::ApplicationController
 
   def show
     @profile = Profile.find(params[:id])
-    render json: @profile.api_view(current_user)
+    render json: (@profile.public_page? ? @profile.public_page_view : @profile.safety_view)
   end
 
   def placeholders
@@ -38,7 +38,8 @@ class API::ProfilesController < API::ApplicationController
       render json: @profile.placeholder_view
       return
     end
-    render json: @profile.public_view
+    Rails.logger.debug("[Profiles#public] public_page=#{@profile.public_page?}")
+    render json: (@profile.public_page? ? @profile.public_page_view : @profile.safety_view)
   end
 
   def create
@@ -62,6 +63,7 @@ class API::ProfilesController < API::ApplicationController
     profile.slug = slug
 
     if profile.save
+      profile.enqueue_audio_job_if_needed
       render json: profile.api_view(current_user), status: :created
     else
       Rails.logger.debug("[Profiles#create] errors=#{profile.errors.full_messages}")
@@ -75,8 +77,15 @@ class API::ProfilesController < API::ApplicationController
   def update
     profile = Profile.find(params[:id])
     puts "Updating profile ID #{profile.id} with params: #{profile_params.to_h}"
+    slug = params.dig(:profile, :slug)
+    if slug.blank?
+      slug = profile.username.parameterize if profile.username.present?
+    end
+    slug ||= SecureRandom.hex(4)
+    profile.slug = slug
 
     if profile.update(profile_params)
+      profile.enqueue_audio_job_if_needed
       render json: profile.api_view(current_user)
     else
       render json: {
