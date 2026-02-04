@@ -72,6 +72,16 @@ class Profile < ApplicationRecord
     end
   end
 
+  def email
+    return nil if profileable.nil?
+
+    if profileable_type == "User"
+      profileable&.email
+    elsif profileable.respond_to?(:user_email)
+      profileable&.user_email
+    end
+  end
+
   # --- Public URLs ---
   def public_url
     return nil if slug.blank?
@@ -245,6 +255,7 @@ class Profile < ApplicationRecord
       # If you want this on creator pages, keep it public-only
       public_boards: public_boards.map(&:api_view),
       user_boards: user_boards.map(&:api_view),
+      email: email
     }
   end
 
@@ -281,6 +292,7 @@ class Profile < ApplicationRecord
     public_links
     featured_board_ids
     role_badges
+    show_email
   ].freeze
 
   def public_settings(kind:)
