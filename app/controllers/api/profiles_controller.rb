@@ -9,13 +9,7 @@ class API::ProfilesController < API::ApplicationController
 
   def show
     @profile = Profile.find(params[:id])
-    if @profile.profileable_type == "User" && !@profile.public_page?
-      if @profile.update(profile_kind: "public_page")
-        Rails.logger.debug("[Profiles#show] Updated profile_kind to public_page for profile ID #{@profile.id}")
-      else
-        Rails.logger.debug("[Profiles#show] Failed to update profile_kind to public_page for profile ID #{@profile.id}")
-      end
-    end
+
     render json: (@profile.public_page? ? @profile.public_page_view : @profile.safety_view)
   end
 

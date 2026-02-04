@@ -33,6 +33,8 @@ class Profile < ApplicationRecord
   before_validation :set_defaults, on: :create
   before_validation :ensure_slug, on: :create
 
+  before_validation :set_kind, on: :create
+
   # --- Kinds (no migration needed; stored in settings for now) ---
   # "safety"         => communicator safety profile
   # "public_page" => pro landing page (SLP/teacher/creator)
@@ -148,6 +150,13 @@ class Profile < ApplicationRecord
     key = bio_audio.key
     return nil if key.blank?
     "#{ENV["CDN_HOST"]}/#{key}"
+  end
+
+  def set_kind
+    if profileable_type == "User" && public_page?
+      self.profile_kind = "public_page"
+
+    end
   end
 
   # --- Views (IMPORTANT: keep these separated) ---
