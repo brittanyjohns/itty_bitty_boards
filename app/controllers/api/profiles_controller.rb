@@ -77,7 +77,7 @@ class API::ProfilesController < API::ApplicationController
 
   def update
     profile = Profile.find(params[:id])
-    puts "Updating profile ID #{profile.id} with params: #{profile_params.to_h}"
+    Rails.logger.debug("Updating profile ID #{profile.id} with params: #{profile_params.to_h}")
     slug = params.dig(:profile, :slug)
     if slug.blank?
       slug = profile.username.parameterize if profile.username.present?
@@ -85,14 +85,19 @@ class API::ProfilesController < API::ApplicationController
     slug ||= SecureRandom.hex(4)
     profile.slug = slug
 
-    profile.public_about = params.dig(:profile, :public_about_html)
-    profile.public_intro = params.dig(:profile, :public_intro_html)
-    profile.public_bio = params.dig(:profile, :public_bio_html)
+    public_about = params.dig(:profile, :public_about_html)
+    public_intro = params.dig(:profile, :public_intro_html)
+    public_bio = params.dig(:profile, :public_bio_html)
+
+    profile.public_about = public_about unless public_about.blank?
+    profile.public_intro = public_intro unless public_intro.blank?
+    profile.public_bio = public_bio unless public_bio.blank?
 
     if profile.update(profile_params)
       profile.enqueue_audio_job_if_needed
       render json: profile.api_view(current_user)
     else
+      Rails.logger.debug("[Profiles#update] errors=#{profile.errors.full_messages}")
       render json: {
         error: "Profile update failed",
         details: profile.errors.full_messages,
