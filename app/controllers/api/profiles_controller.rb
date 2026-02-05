@@ -85,6 +85,10 @@ class API::ProfilesController < API::ApplicationController
     slug ||= SecureRandom.hex(4)
     profile.slug = slug
 
+    profile.public_about = params.dig(:profile, :public_about_html)
+    profile.public_intro = params.dig(:profile, :public_intro_html)
+    profile.public_bio = params.dig(:profile, :public_bio_html)
+
     if profile.update(profile_params)
       profile.enqueue_audio_job_if_needed
       render json: profile.api_view(current_user)

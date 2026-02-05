@@ -35,6 +35,10 @@ class Profile < ApplicationRecord
 
   before_save :set_kind
 
+  has_rich_text :public_about
+  has_rich_text :public_intro
+  has_rich_text :public_bio
+
   # --- Kinds (no migration needed; stored in settings for now) ---
   # "safety"         => communicator safety profile
   # "public_page" => pro landing page (SLP/teacher/creator)
@@ -200,6 +204,9 @@ class Profile < ApplicationRecord
 
       claim_token: claim_token,
       claim_url: claim_url,
+      public_about_html: safe_html(public_about&.body&.to_s),
+      public_intro_html: safe_html(public_intro&.body&.to_s),
+      public_bio_html: safe_html(public_bio&.body&.to_s)
     }
   end
 
@@ -230,6 +237,9 @@ class Profile < ApplicationRecord
       profileable_id: profileable_id,
 
       claim_url: claim_url, # ok to show if you want the CTA
+      public_about_html: safe_html(public_about&.body&.to_s),
+      public_intro_html: safe_html(public_intro&.body&.to_s),
+      public_bio_html: safe_html(public_bio&.body&.to_s)
     }
   end
 
@@ -255,7 +265,11 @@ class Profile < ApplicationRecord
       # If you want this on creator pages, keep it public-only
       public_boards: public_boards.map(&:api_view),
       user_boards: user_boards.map(&:api_view),
-      email: email
+      email: email,
+      public_about_html: safe_html(public_about&.body&.to_s),
+      public_intro_html: safe_html(public_intro&.body&.to_s),
+      public_bio_html: safe_html(public_bio&.body&.to_s)
+
     }
   end
 
@@ -273,6 +287,15 @@ class Profile < ApplicationRecord
       general_public_boards: Board.public_boards.map(&:api_view),
     }
   end
+
+  def safe_html(html)
+    ActionController::Base.helpers.sanitize(
+      html,
+      tags: %w[p br strong em b i u ul ol li a blockquote h3 h4],
+      attributes: %w[href target rel]
+    )
+  end
+
 
   # --- Public settings whitelist ---
   SAFETY_PUBLIC_KEYS = %w[
