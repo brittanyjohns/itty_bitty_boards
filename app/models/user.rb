@@ -1207,6 +1207,10 @@ class User < ApplicationRecord
     board_count < board_limit
   end
 
+  def public_page_url
+    profile&.public_url
+  end
+
   def api_view
     plan_exp = plan_expires_at&.strftime("%x")
 
@@ -1244,6 +1248,7 @@ class User < ApplicationRecord
       organization_id: organization_id,
       profile: profile&.api_view,
       delete_account_token: delete_account_token,
+      public_page_url: public_page_url,
       slug: slug,
       public_url: public_url,
       # vendor_profile: vendor_profile&.api_view,
