@@ -81,7 +81,7 @@ class Menu < ApplicationRecord
     "Menu"
   end
 
-  def create_board_from_image(new_doc, board_id = nil)
+  def create_board_from_menu_image(new_doc, board_id = nil)
     unless new_doc
       puts "NO NEW DOC FOUND"
       return nil
@@ -105,7 +105,7 @@ class Menu < ApplicationRecord
       board.display_image_url = new_doc.image&.url if new_doc.image.attached?
       board.save!
     rescue => e
-      Rails.logger.error "create_board_from_image **** ERROR **** \n#{e.message}\n"
+      Rails.logger.error "create_board_from_menu_image **** ERROR **** \n#{e.message}\n"
       Rails.logger.error e.backtrace
     end
     # board.update!(status: "complete")
@@ -315,7 +315,7 @@ class Menu < ApplicationRecord
         self.prompt_sent = new_processed
         self.save!
 
-        create_board_from_image(new_doc, board_id)
+        create_board_from_menu_image(new_doc, board_id)
       else
         Rails.logger.error "NO NEW DOC FOUND"
       end
