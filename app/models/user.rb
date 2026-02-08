@@ -601,7 +601,7 @@ class User < ApplicationRecord
     return true if admin?
     account_profile = Profile.find_by(id: profile_id.to_i, profileable_type: "User")
 
-    if account_profile.profileable_id == id
+    if account_profile && account_profile.profileable_id == id
       return true
     end
     comm_profile = Profile.find_by(id: profile_id.to_i, profileable_type: "ChildAccount")
