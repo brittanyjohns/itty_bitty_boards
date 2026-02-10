@@ -316,15 +316,15 @@ class Image < ApplicationRecord
       Rails.logger.error "Could not create predictive board for #{label}"
       return
     end
-    new_base_board_image = base_board.add_image(self.id) if base_board
+    # new_base_board_image = base_board.add_image(self.id) if base_board
     board.update!(display_image_url: src_url) if src_url
 
-    self.image_type = "predictive"
-    if new_base_board_image
-      new_base_board_image.predictive_board_id = board.id
-      new_base_board_image.save!
-      base_board.update!(board_type: "dynamic")
-    end
+    # self.image_type = "predictive"
+    # if new_base_board_image
+    #   new_base_board_image.predictive_board_id = board.id
+    #   new_base_board_image.save!
+    #   base_board.update!(board_type: "dynamic")
+    # end
     voice = board_settings[:voice] || voice
     board.voice = voice if voice
     board.find_or_create_images_from_word_list(words_to_use)
