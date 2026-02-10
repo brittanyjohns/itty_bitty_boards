@@ -76,7 +76,6 @@ class BoardImage < ApplicationRecord
   def set_background_color!
     pos = part_of_speech || image.part_of_speech || "default"
     img_color = background_color_for(pos)
-    puts "Setting background color to #{img_color} for part_of_speech #{pos}"
     set_background_color(img_color)
     self.save!
   end
@@ -98,7 +97,6 @@ class BoardImage < ApplicationRecord
     set_text_color("black") unless text_color == "#000000"
     pos = part_of_speech || image.part_of_speech || "default"
     img_color = background_color_for(pos)
-    puts "Setting background color to #{img_color} for part_of_speech #{pos}"
     set_background_color(img_color)
   end
 
