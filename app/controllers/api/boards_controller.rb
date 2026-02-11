@@ -59,7 +59,7 @@ class API::BoardsController < API::ApplicationController
 
   def preset
     if params[:query].present?
-      @predefined_boards = Board.predefined.search_by_name(params[:query]).alphabetical.page params[:page]
+      @predefined_boards = Board.public_boards.search_by_name(params[:query]).alphabetical.page params[:page]
     elsif params[:filter].present?
       filter = params[:filter]
       unless Board::SAFE_FILTERS.include?(filter)
@@ -67,7 +67,7 @@ class API::BoardsController < API::ApplicationController
         return
       end
 
-      result = Board.predefined.send(filter)
+      result = Board.public_boards.send(filter)
       if result.is_a?(ActiveRecord::Relation)
         @predefined_boards = result.alphabetical.page params[:page]
       else
@@ -75,10 +75,8 @@ class API::BoardsController < API::ApplicationController
       end
       # @predefined_boards = Board.predefined.where(category: params[:filter]).alphabetical.page params[:page]
     else
-      @predefined_boards = Board.predefined.alphabetical
+      @predefined_boards = Board.public_boards.alphabetical
     end
-    @categories = @predefined_boards.map(&:category).uniq.compact
-    @welcome_boards = Board.welcome
     # render json: { predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.board_categories }
     render json: { predefined_boards: @predefined_boards.map(&:api_view) }
   end
