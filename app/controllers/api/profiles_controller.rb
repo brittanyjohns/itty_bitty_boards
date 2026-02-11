@@ -60,8 +60,13 @@ class API::ProfilesController < API::ApplicationController
     if slug.blank?
       slug = profile.username.parameterize if profile.username.present?
     end
-    slug ||= SecureRandom.hex(4)
+    slug ||= "user-#{SecureRandom.hex(4)}"
     profile.slug = slug
+    username = profile.username
+    if username.blank?
+      username = slug
+    end
+    profile.username = username
 
     if profile.save
       profile.enqueue_audio_job_if_needed

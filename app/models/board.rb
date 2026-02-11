@@ -1520,6 +1520,7 @@ class Board < ApplicationRecord
       board_screenshot_import_id: board_screenshot_import_id,
       created_at: created_at,
       updated_at: updated_at,
+      is_owner: user_id == viewing_user&.id,
     }
   end
 
