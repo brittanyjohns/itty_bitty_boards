@@ -16,7 +16,7 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
             "https://localhost",
             "http://localhost",
             "ionic://localhost",
-            "https://deploy-preview-55--speakanyway.netlify.app")
+            "https://deploy-preview-56--speakanyway.netlify.app")
 
     resource "*",
       headers: :any,

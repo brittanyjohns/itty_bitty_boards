@@ -86,6 +86,9 @@ class OpenAiClient
     if voice.blank?
       voice = "alloy"
     end
+    if instructions.blank?
+      instructions = "Speak in a cheerful and positive tone."
+    end
     request_params = {
       input: text,
       model: TTS_MODEL,
