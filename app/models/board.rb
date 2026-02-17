@@ -556,6 +556,7 @@ class Board < ApplicationRecord
   def set_default_voice
     user_voice_settings = user.settings["voice"] || {}
     user_voice = user_voice_settings.is_a?(Hash) ? user_voice_settings["name"] : nil
+    user_voice = VoiceService.normalize_voice(user_voice) if user_voice
     self.voice = user_voice
   end
 
@@ -668,6 +669,7 @@ class Board < ApplicationRecord
       Rails.logger.error "Image not found: #{image_id}"
       return
     end
+    self.voice = VoiceService.normalize_voice(self.voice)
 
     if @image.existing_voices.include?(self.voice)
       new_board_image.voice = self.voice
@@ -1673,6 +1675,21 @@ class Board < ApplicationRecord
     return "static" unless dynamic_images
     return "dynamic" if is_root
     return "category"
+  end
+
+  def self.normalize_voices
+    self.all.each do |board|
+      if board.voice.blank?
+        board.update(voice: "openai:alloy")
+      else
+        original_voice = board.voice
+        new_voice = VoiceService.normalize_voice(original_voice)
+        if new_voice != original_voice
+          board.update(voice: new_voice)
+          Rails.logger.info "Normalized voice for board #{board.id} from '#{original_voice}' to '#{new_voice}'"
+        end
+      end
+    end
   end
 
   def self.from_obf(data, current_user, board_group = nil, board_id = nil)

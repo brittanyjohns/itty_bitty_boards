@@ -215,7 +215,8 @@ class API::BoardsController < API::ApplicationController
     @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
     @board.large_screen_columns = board_params["large_screen_columns"].to_i
     Rails.logger.info "large_screen_columns: #{board_params["large_screen_columns"]}"
-    @board.voice = board_params["voice"]
+    voice = VoiceService.normalize_voice(board_params["voice"] || params[:voice] || params[:voice_label])
+    @board.voice = voice
     @board.language = board_params["language"] if board_params["language"].present?
     Rails.logger.info "Board params: #{board_params.inspect}"
     word_list = params[:word_list]&.compact
@@ -258,7 +259,8 @@ class API::BoardsController < API::ApplicationController
       @board.small_screen_columns = board_params["small_screen_columns"].to_i
       @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
       @board.large_screen_columns = board_params["large_screen_columns"].to_i
-      @board.voice = board_params["voice"]
+      voice = VoiceService.normalize_voice(board_params["voice"] || params[:voice] || params[:voice_label])
+      @board.voice = voice
       @board.name = board_params["name"] unless board_params["name"].blank?
       @board.description = board_params["description"]
       @board.display_image_url = board_params["display_image_url"]
@@ -857,7 +859,6 @@ class API::BoardsController < API::ApplicationController
   # Use callbacks to share common setup or constraints between actions.
   def set_board
     key = params[:slug].presence || params[:id].presence
-    puts "set_board key: #{key}"
 
     @board = Board.find_by(id: key) ||
              Board.find_by(slug: key)

@@ -203,7 +203,7 @@ class API::ImagesController < API::ApplicationController
       @board_image = BoardImage.includes(:board, :image).find(params[:board_image_id])
       @board = @board_image.board
       @image = @board_image.image
-      voice = params[:voice] || @board_image.voice || "alloy"
+      voice = VoiceService.normalize_voice(params[:voice] || @board_image.voice || "alloy")
       language = params[:language] || "en"
       label = params[:label] || @board_image.label
 
@@ -218,7 +218,6 @@ class API::ImagesController < API::ApplicationController
       @image = Image.with_artifacts.find(params[:id])
     end
     @image = Image.with_artifacts.find(params[:id])
-    voice = params[:voice] || "alloy"
     text = params[:text] || @image.label
     language = params[:language] || "en"
     if text != @image.label
@@ -232,32 +231,40 @@ class API::ImagesController < API::ApplicationController
   end
 
   def generate_audio
-    input_text = params[:text]
+    input_text = params[:text].to_s
 
     begin
-      client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"], log_errors: true)
-
-      voice = params[:voice] || "alloy"
-      user_speed = current_user&.settings["voice"]["speed"] if current_user && current_user.settings["voice"]
+      user_speed = current_user&.settings&.dig("voice", "speed")
       user_speed = user_speed.blank? ? 1.0 : user_speed
-      speed = params[:speed].blank? ? user_speed : params[:speed]
 
+      speed = params[:speed].presence || user_speed
       valid_speeds = 0.25..4.0
       speed = valid_speeds.include?(speed.to_f) ? speed.to_f : 1.0
 
-      response = client.audio.speech(
-        parameters: {
-          model: "tts-1",
-          voice: voice,
-          speed: speed,
-          input: input_text,
-        },
+      voice_value = params[:voice].presence || "openai:alloy"
+
+      audio_io = VoiceService.synthesize_speech(
+        text: input_text,
+        voice_value: voice_value,
+        # (Optional later) speed: speed
       )
 
-      audio_data = response
-      send_data audio_data, type: "audio/mpeg", disposition: "attachment", filename: "#{input_text.parameterize}_#{voice}_#{speed}.mp3"
+      raise "No audio returned" if audio_io.nil?
+
+      audio_io.rewind if audio_io.respond_to?(:rewind)
+      audio_data = audio_io.read if audio_io.respond_to?(:read)
+      unless audio_data
+        audio_data = audio_io.is_a?(String) ? audio_io : nil
+      end
+      safe_voice = voice_value.tr(":", "_") # avoid colon in filename
+      filename = "#{input_text.parameterize}_#{safe_voice}_#{speed}.mp3"
+
+      send_data audio_data,
+        type: "audio/mpeg",
+        disposition: "attachment",
+        filename: filename
     rescue StandardError => e
-      Rails.logger.error("Error generating audio: #{e.message}")
+      Rails.logger.error("Error generating audio: #{e.class}: #{e.message}\n#{e.backtrace&.first(20)&.join("\n")}")
       render json: { error: "Failed to generate audio" }, status: :internal_server_error
     end
   end

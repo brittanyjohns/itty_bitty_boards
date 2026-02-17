@@ -634,23 +634,24 @@ class Image < ApplicationRecord
   end
 
   def missing_voices
-    voices = Image.voices
+    voices = VoiceService.get_voice_labels
     missing = voices - existing_voices
     missing
   end
 
   def self.create_sample_audio_for_voices(language = "en")
     audio_files = []
+    voices = VoiceService.get_voice_options
     voices.each do |voice|
-      audio_image = Image.find_by(label: "This is the voice #{voice}", private: true, image_type: "SampleVoice", language: language)
+      audio_image = Image.find_by(label: "This is the voice #{voice[:label]}", private: true, image_type: "SampleVoice", language: language)
       if audio_image
         Rails.logger.debug "Sample voice already exists: #{audio_image.id}"
         audio_files << audio_image.audio_files
       else
-        audio_image = Image.new(label: "This is the voice #{voice}", private: true, image_type: "SampleVoice")
+        audio_image = Image.new(label: "This is the voice #{voice[:label]}", private: true, image_type: "SampleVoice")
         audio_image.skip_create_image = true
         audio_image.save!
-        audio_image.create_audio_from_text("This is the voice #{voice}", voice, language)
+        audio_image.create_audio_from_text("This is the voice #{voice[:label]}", voice[:value], language)
         audio_files << audio_image.audio_files
       end
     end

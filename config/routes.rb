@@ -146,6 +146,7 @@ Rails.application.routes.draw do
     get "audio/play", to: "audio#play"
 
     get "preset_colors", to: "application#preset_colors"
+    get "voices", to: "application#voice_options"
 
     get "public_boards", to: "boards#public_boards"
     get "public_menu_boards", to: "boards#public_menu_boards"

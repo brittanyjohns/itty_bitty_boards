@@ -86,9 +86,7 @@ class OpenAiClient
     if voice.blank?
       voice = "alloy"
     end
-    if instructions.blank?
-      instructions = "Speak in a cheerful and positive tone."
-    end
+
     request_params = {
       input: text,
       model: TTS_MODEL,
@@ -101,7 +99,6 @@ class OpenAiClient
     end
 
     begin
-      Rails.logger.debug "**** INFO **** \nRequesting audio synthesis with params: #{request_params}\n"
       response = openai_client.audio.speech(parameters: request_params)
     rescue => e
       Rails.logger.debug "**** ERROR **** \n#{e.message}\n#{e.inspect}"

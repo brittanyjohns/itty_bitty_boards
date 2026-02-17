@@ -34,7 +34,6 @@ module API
       if current_user
       elsif current_account
       else
-        puts "Unauthorized"
         render json: { error: "Unauthorized" }, status: :unauthorized
       end
     end
@@ -60,6 +59,13 @@ module API
     def preset_colors
       @colors = ColorHelper::PRESET_DATA
       render json: { preset_colors: @colors }
+    end
+
+    def voice_options
+      render json: {
+               voices: VoiceService.get_voice_options,
+               labels: VoiceService.get_voice_labels, # optional legacy
+             }
     end
 
     def normalize_plan_key(plan_key)

@@ -58,7 +58,6 @@ class BoardGroup < ApplicationRecord
 
   # after_initialize :set_initial_layout, if: :layout_empty?
   # after_save :set_layouts_for_screen_sizes
-  # after_save :create_board_audio_files
   before_create :set_root_board
   after_initialize :set_number_of_columns, if: :no_colmns_set
 
@@ -159,14 +158,6 @@ class BoardGroup < ApplicationRecord
 
   def no_colmns_set
     number_of_columns.nil?
-  end
-
-  def create_board_audio_files
-    boards.each do |board|
-      puts "Creating audio files for board #{board.id}"
-      next if board.audio_url.present?
-      board.create_voice_audio
-    end
   end
 
   def layout_empty?

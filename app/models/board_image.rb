@@ -318,23 +318,10 @@ class BoardImage < ApplicationRecord
 
   def create_voice_audio
     return if @skip_create_voice_audio || Rails.env.test?
-    label_voice = "#{image.label_for_filename}_#{voice}"
-    if language != "en"
-      label_voice = "#{label_voice}_#{language}"
-    end
-    filename = "#{label_voice}.mp3"
-    already_has_audio_file = image.existing_audio_files.include?(filename)
-    self.voice = voice
-    self.language = language
-    audio_file = image.find_audio_for_voice(voice, language)
 
-    if already_has_audio_file && audio_file
-      self.audio_url = image.default_audio_url(audio_file)
-    else
-      find_or_create_audio_file_for_voice(voice, language)
-      audio_file = find_audio_for_voice(voice, language)
-      self.audio_url = default_audio_url(audio_file)
-    end
+    audio_file = image.find_audio_for_voice(voice, language)
+    self.audio_url = image.default_audio_url(audio_file) if audio_file
+
     @skip_create_voice_audio = true
     save
   end

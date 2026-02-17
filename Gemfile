@@ -93,6 +93,9 @@ gem "figaro"
 # Open AI
 gem "ruby-openai", "~> 8.0"
 
+# AWS Polly
+gem "aws-sdk-polly", "~> 1"
+
 # Sidekiq
 gem "sidekiq", "~> 7.1"
 

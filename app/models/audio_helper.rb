@@ -1,65 +1,91 @@
 module AudioHelper
-  def create_audio_from_text(text = nil, voice = "alloy", language = "en", instructions = "")
-    text = text || self.label
-    if voice.blank?
-      voice = "alloy"
+  # Always return [provider, raw_voice]
+  def split_voice(voice_value)
+    v = voice_value.to_s.strip
+    return ["openai", "alloy"] if v.blank?
+
+    if v.include?(":")
+      provider, raw = v.split(":", 2)
+      [provider, raw]
+    else
+      # legacy stored as "alloy"
+      ["openai", v]
     end
+  end
+
+  # Legacy filename (no provider) for OpenAI, provider-prefixed for others
+  def filename_for_voice(voice_value, lang = "en", include_provider_for_openai: false)
+    provider, raw = split_voice(voice_value)
+
+    token = if provider == "openai" && !include_provider_for_openai
+        raw
+      else
+        "#{provider}_#{raw}"
+      end
+
+    base = "#{label_for_filename}_#{token}"
+    base = "#{base}_#{lang}" if lang.present? && lang != "en"
+    "#{base}.mp3"
+  end
+
+  def create_audio_from_text(text = nil, voice = "openai:alloy", language = "en", instructions = "")
+    text = text || self.label
+    voice = "openai:alloy" if voice.blank?
+
     if text.blank?
       Rails.logger.error "AudioHelper - No text provided for audio creation. Returning nil."
       return nil
     end
-    new_audio_file = nil
-    if Rails.env.test?
-      return
+    return if Rails.env.test?
+
+    synth_io = VoiceService.synthesize_speech(
+      text: text,
+      voice_value: voice,
+      language: language,
+    )
+
+    unless synth_io
+      Rails.logger.error "**** ERROR - create_audio_from_text **** \nNo valid response from VoiceService.synthesize_speech.\n #{synth_io&.inspect}"
+      return nil
     end
 
-    response = OpenAiClient.new(open_ai_opts).create_audio_from_text(text, voice, language, instructions)
-
-    random_filename = "#{SecureRandom.hex(10)}.mp3"
-
-    if response
-      File.open(random_filename, "wb") do |file|
-        file.write(response)
-      end
-      audio_file = File.open(random_filename, "rb")
-      if audio_file.nil?
-        Rails.logger.error "Failed to create audio file from response."
-        return nil
-      end
-      new_audio_file = save_audio_file(audio_file, voice, language)
-      file_exists = File.exist?(random_filename)
-      if file_exists
-        File.delete(random_filename)
-      end
-      self.audio_url = default_audio_url(new_audio_file)
-    else
-      Rails.logger.error "**** ERROR - create_audio_from_text **** \nDid not receive valid response.\n #{response&.inspect}"
+    unless synth_io.respond_to?(:rewind) && synth_io.respond_to?(:read)
+      synth_io = StringIO.new(synth_io)
     end
-    new_audio_file
+
+    save_audio_file(synth_io, voice, language)
   end
 
-  def find_audio_for_voice(voice = "alloy", lang = "en")
-    if Rails.env.test?
-      Rails.logger.warn "find_audio_for_voice: Skipping audio creation in test environment."
-      return
-    end
-    if voice.blank?
-      voice = "alloy"
-    end
-    if lang == "en"
-      filename = "#{label_for_filename}_#{voice}.mp3"
+  def find_audio_for_voice(voice_value = "openai:alloy", lang = "en")
+    return if Rails.env.test?
+
+    voice_value = "openai:alloy" if voice_value.blank?
+    provider, _raw = split_voice(voice_value)
+
+    candidates = []
+
+    if provider == "openai"
+      # Prefer legacy first to avoid regen
+      candidates << filename_for_voice(voice_value, lang, include_provider_for_openai: false) # feel_alloy.mp3
+      candidates << filename_for_voice(voice_value, lang, include_provider_for_openai: true)  # feel_openai_alloy.mp3 (if you ever created)
     else
-      filename = "#{label_for_filename}_#{voice}_#{lang}.mp3"
+      candidates << filename_for_voice(voice_value, lang, include_provider_for_openai: true)  # feel_polly_Kevin.mp3
     end
-    audio_file = ActiveStorage::Attachment.joins(:blob)
-      .where(name: :audio_files, active_storage_blobs: { filename: filename })
-      .last
+
+    audio_file = candidates.lazy.map { |fn| find_audio_by_filename(fn) }.find(&:present?)
 
     unless audio_file
-      audio_file = find_or_create_audio_file_for_voice(voice, lang)
-      self.audio_url = default_audio_url(audio_file)
+      audio_file = find_or_create_audio_file_for_voice(voice_value, lang)
+      self.audio_url = default_audio_url(audio_file) if audio_file
     end
 
+    audio_file
+  end
+
+  def find_audio_by_filename(filename)
+    audio_file = ActiveStorage::Attachment.joins(:blob)
+      .where(name: :audio_files, active_storage_blobs: { filename: filename })
+      .first
     audio_file
   end
 
@@ -73,46 +99,34 @@ module AudioHelper
   end
 
   def find_custom_audio_file
-    # audio_file = ActiveStorage::Attachment.joins(:blob)
-    #   .where(record: self, name: :audio_files, active_storage_blobs: { "filename ILIKE ?" => "%custom%" })
-    #   .first
     custom_file = audio_files.find { |audio| audio.blob.filename.to_s.include?("custom") }
     custom_file
   end
 
-  def save_audio_file(audio_file, voice, language = "en")
-    if language == "en"
-      self.audio_files.attach(io: audio_file, filename: "#{self.label_for_filename}_#{voice}.mp3")
-    else
-      self.audio_files.attach(io: audio_file, filename: "#{self.label_for_filename}_#{voice}_#{language}.mp3")
-    end
-
-    new_audio_file = self.audio_files.last
-    new_audio_file
+  def save_audio_file(audio_io, voice_value, language = "en")
+    filename = filename_for_voice(voice_value, language)
+    self.audio_files.attach(io: audio_io, filename: filename, content_type: "audio/mpeg")
+    self.audio_files.last
   end
 
-  def find_or_create_audio_file_for_voice(voice, lang)
-    if voice.blank?
-      voice = "alloy"
-    end
-    if lang.blank?
-      lang = "en"
-    end
-    if lang == "en"
-      filename = "#{label_for_filename}_#{voice}.mp3"
+  def find_or_create_audio_file_for_voice(voice_value, lang)
+    voice_value = "openai:alloy" if voice_value.blank?
+    lang = "en" if lang.blank?
+
+    provider, _raw = split_voice(voice_value)
+
+    candidates = []
+    if provider == "openai"
+      candidates << filename_for_voice(voice_value, lang, include_provider_for_openai: false)
+      candidates << filename_for_voice(voice_value, lang, include_provider_for_openai: true)
     else
-      filename = "#{label_for_filename}_#{voice}_#{lang}.mp3"
+      candidates << filename_for_voice(voice_value, lang, include_provider_for_openai: true)
     end
 
-    audio_file = ActiveStorage::Attachment.joins(:blob)
-      .where(name: :audio_files, active_storage_blobs: { filename: filename })
-      .first
+    existing = candidates.lazy.map { |fn| find_audio_by_filename(fn) }.find(&:present?)
+    return existing if existing.present?
 
-    if audio_file.present?
-      audio_file
-    else
-      create_audio_from_text(label, voice, lang)
-    end
+    create_audio_from_text(label, voice_value, lang)
   end
 
   def default_audio_files
