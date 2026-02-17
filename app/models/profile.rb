@@ -353,10 +353,10 @@ class Profile < ApplicationRecord
   def update_intro_audio_url
     return unless intro.present?
 
-    voice = profileable&.respond_to?(:voice) ? (profileable.voice || "alloy") : "alloy"
+    voice = profileable&.respond_to?(:voice) ? (profileable.voice || "openai:alloy") : "openai:alloy"
     language = profileable&.respond_to?(:language) ? (profileable.language || "en") : "en"
 
-    response = OpenAiClient.new(open_ai_opts).create_audio_from_text(intro, voice, language)
+    response = VoiceService.synthesize_speech(text: intro, voice_value: voice, language: language)
     return unless response
 
     attach_audio_bytes(intro_audio, response, "#{label_for_filename}_intro.mp3")
@@ -368,10 +368,10 @@ class Profile < ApplicationRecord
   def update_bio_audio_url
     return unless bio.present?
 
-    voice = profileable&.respond_to?(:voice) ? (profileable.voice || "alloy") : "alloy"
+    voice = profileable&.respond_to?(:voice) ? (profileable.voice || "openai:alloy") : "openai:alloy"
     language = profileable&.respond_to?(:language) ? (profileable.language || "en") : "en"
 
-    response = OpenAiClient.new(open_ai_opts).create_audio_from_text(bio, voice, language)
+    response = VoiceService.synthesize_speech(text: bio, voice_value: voice, language: language)
     return unless response
 
     attach_audio_bytes(bio_audio, response, "#{label_for_filename}_bio.mp3")

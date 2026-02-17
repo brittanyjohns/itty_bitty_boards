@@ -193,6 +193,7 @@ class API::ChildAccountsController < API::ApplicationController
         end
         child_board_copy = board.clone_with_images(current_user&.id, board.name)
         child_board_copy.is_template = true
+        child_board_copy.voice = @child_account.voice_settings["name"] || "polly:kevin"
         child_board_copy.save!
         if @child_account.child_boards.where(board_id: board.id).empty?
           comm_board = @child_account.child_boards.create!(board: child_board_copy, created_by: current_user, original_board: board)
