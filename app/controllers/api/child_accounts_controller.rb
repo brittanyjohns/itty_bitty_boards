@@ -139,7 +139,6 @@ class API::ChildAccountsController < API::ApplicationController
       @child_account.passcode = passcode unless passcode.blank?
     end
     settings = params[:settings]
-    Rails.logger.debug "Update Settings: #{settings.inspect}"
 
     voice_name = settings&.dig("voice", "name")
     current_voice = @child_account.voice_settings["name"]
@@ -181,7 +180,7 @@ class API::ChildAccountsController < API::ApplicationController
       end
     end
     if board_ids
-      all_records_saved = nil
+      record_errors = []
       board_ids.each do |board_id|
         og_board = Board.find(board_id)
         if og_board.predefined?
@@ -191,22 +190,23 @@ class API::ChildAccountsController < API::ApplicationController
         else
           board = og_board
         end
-        child_board_copy = board.clone_with_images(current_user&.id, board.name)
-        child_board_copy.is_template = true
-        child_board_copy.voice = @child_account.voice_settings["name"] || "polly:kevin"
-        child_board_copy.save!
-        if @child_account.child_boards.where(board_id: board.id).empty?
-          comm_board = @child_account.child_boards.create!(board: child_board_copy, created_by: current_user, original_board: board)
-          all_records_saved = comm_board.persisted?
-        else
-          all_records_saved = false
-          break
-        end
+        voice = @child_account.voice || "polly:kevin"
+        child_board_copy = board.clone_with_images(current_user&.id, board.name, voice, @child_account)
+        # child_board_copy.is_template = true
+        # child_board_copy.voice = voice
+        # child_board_copy.save!
+        # if @child_account.child_boards.where(board_id: board.id).empty?
+        #   comm_board = @child_account.child_boards.create!(board: child_board_copy, created_by: current_user, original_board: board)
+        #   all_records_saved = comm_board.persisted?
+        # else
+        #   all_records_saved = false
+        #   break
+        # end
       end
-      if all_records_saved
+      if record_errors.empty?
         render json: @child_account.api_view(current_user), status: :ok
       else
-        render json: @comm_board.errors, status: :unprocessable_entity
+        render json: { errors: record_errors }, status: :unprocessable_entity
       end
     else
       render json: { error: "No board_ids provided" }, status: :unprocessable_entity

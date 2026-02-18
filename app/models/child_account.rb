@@ -214,6 +214,7 @@ class ChildAccount < ApplicationRecord
       is_vendor: is_vendor,
       layout: layout,
       is_demo: is_demo?,
+      voice: voice,
       vendor: is_vendor ? cached_user.vendor.api_view(viewing_user) : nil,
       vendor_profile: is_vendor ? cached_profile.api_view(viewing_user) : nil,
       pro: cached_user.pro?,
@@ -465,12 +466,12 @@ class ChildAccount < ApplicationRecord
   end
 
   def voice_settings
-    settings["voice"] = { name: "alloy", speed: 1, pitch: 1, volume: 1, rate: 1, language: "en-US" } unless settings["voice"]
+    settings["voice"] = { name: "polly:kevin", speed: 1, pitch: 1, volume: 1, rate: 1, language: "en-US" } unless settings["voice"]
     settings["voice"]
   end
 
   def voice
-    voice_settings["name"] || user.voice || "alloy"
+    voice_settings["name"] || "polly:kevin"
   end
 
   def language
@@ -483,7 +484,6 @@ class ChildAccount < ApplicationRecord
   end
 
   def api_view(viewing_user = nil)
-    Rails.logger.debug "Generating API view for ChildAccount #{id} for viewing_user #{viewing_user&.id}"
     cached_user = user
     is_vendor = cached_user&.vendor?
     cached_profile = profile
@@ -504,6 +504,7 @@ class ChildAccount < ApplicationRecord
       is_vendor: is_vendor,
       layout: layout,
       is_demo: is_demo?,
+      voice: voice,
       vendor: is_vendor ? vendor&.api_view(viewing_user) : nil,
       vendor_profile: is_vendor ? cached_profile&.api_view(viewing_user) : nil,
       pro: cached_user.pro?,
@@ -623,6 +624,7 @@ class ChildAccount < ApplicationRecord
       week_chart: week_chart,
       avatar_url: profile&.avatar_url,
       is_demo: is_demo?,
+      voice: voice,
       supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
     }

@@ -101,7 +101,7 @@ class Image < ApplicationRecord
 
   after_save :update_board_images_audio, if: -> { need_to_update_board_images_audio? }
   after_save :update_board_images_display_image, if: -> { src_url_changed? }
-  after_save :update_board_images_next_words, if: -> { next_words_changed? }
+  # after_save :update_board_images_next_words, if: -> { next_words_changed? }
   after_save :update_background_color, if: -> { part_of_speech_changed? }
   after_save :update_category_boards
 
@@ -264,7 +264,7 @@ class Image < ApplicationRecord
 
     if voice.blank?
       user_voice = user&.voice
-      self.voice = user_voice || "alloy"
+      self.voice = user_voice || "polly:kevin"
     end
 
     if image_type.blank? && predictive_boards.any?
@@ -392,6 +392,10 @@ class Image < ApplicationRecord
     CreateAllAudioJob.perform_async(id, language_to_use)
   end
 
+  def start_select_voices_audio_job(language_to_use = "en")
+    CreateAllAudioJob.perform_async(id, language_to_use, "select")
+  end
+
   def create_voice_audio_files(language_to_use = "en")
     Image.voices.each do |voice|
       voice_file = find_audio_for_voice(voice, language_to_use)
@@ -405,7 +409,7 @@ class Image < ApplicationRecord
   end
 
   def self.create_single_audio_for_images_missing(limit = 50)
-    voice = "alloy"
+    voice = "polly:kevin"
     group_num = 0
     Image.without_attached_audio_files.find_in_batches(batch_size: 20) do |images|
       Rails.logger.debug "\nStarting create audio job for group #{group_num} for #{images.count} images"
@@ -429,23 +433,23 @@ class Image < ApplicationRecord
     new_next_words
   end
 
-  def self.run_create_words_job
-    Image.public_img.non_menu_images.pluck(:id).each_slice(20) do |img_ids|
-      CreateNewWordsJob.perform_async(img_ids)
-    end
-  end
+  # def self.run_create_words_job
+  #   Image.public_img.non_menu_images.pluck(:id).each_slice(20) do |img_ids|
+  #     CreateNewWordsJob.perform_async(img_ids)
+  #   end
+  # end
 
-  def self.run_set_next_words_job(limit = 40)
-    count = 0
-    Image.lock.public_img.non_menu_images.where(next_words: [], no_next: false).find_in_batches(batch_size: 20) do |images|
-      img_ids = images.pluck(:id)
+  # def self.run_set_next_words_job(limit = 40)
+  #   count = 0
+  #   Image.lock.public_img.non_menu_images.where(next_words: [], no_next: false).find_in_batches(batch_size: 20) do |images|
+  #     img_ids = images.pluck(:id)
 
-      SetNextWordsJob.perform_async(img_ids)
-      count += 20
-      break if count >= limit
-      sleep(1)
-    end
-  end
+  #     SetNextWordsJob.perform_async(img_ids)
+  #     count += 20
+  #     break if count >= limit
+  #     sleep(1)
+  #   end
+  # end
 
   # def next_images(user_id = nil)
   #   if next_words.blank? || next_words == [label]
@@ -600,7 +604,7 @@ class Image < ApplicationRecord
   end
 
   def self.voices
-    ["alloy", "onyx", "shimmer", "nova", "fable", "ash", "coral", "sage", "echo"]
+    VoiceService.get_voice_values
   end
 
   def self.languages
@@ -637,6 +641,19 @@ class Image < ApplicationRecord
     voices = VoiceService.get_voice_labels
     missing = voices - existing_voices
     missing
+  end
+
+  def create_audio_for_select_voices(language = "en")
+    # select_voices = ["polly:kevin", "polly:salli", "polly:ivy", "polly:joanna", "openai:marin", "openai:cedar"]
+    select_voices = ["polly:kevin", "polly:ivy", "polly:joanna"]
+    select_voices.each do |voice|
+      unless audio_file_exists_for?(voice)
+        result = find_or_create_audio_file_for_voice(voice, language)
+        if !result
+          Rails.logger.error "Failed to create audio file for #{label} - #{voice}"
+        end
+      end
+    end
   end
 
   def self.create_sample_audio_for_voices(language = "en")
@@ -1066,7 +1083,7 @@ class Image < ApplicationRecord
     doc ? doc.display_url : nil
   end
 
-  def save_audio_file_to_s3!(voice = "alloy", lang = "en")
+  def save_audio_file_to_s3!(voice = "polly:kevin", lang = "en")
     create_audio_from_text(label, voice, lang)
     voices_needed = missing_voices || []
     voices_needed = voices_needed - [voice]
@@ -1116,11 +1133,11 @@ class Image < ApplicationRecord
     "Generate an image of"
   end
 
-  def start_generate_audio_job(voice = "alloy", start_time = 0)
+  def start_generate_audio_job(voice = "polly:kevin", start_time = 0)
     SaveAudioJob.perform_in(start_time.minutes, [id], voice)
   end
 
-  def self.start_generate_audio_job(ids, voice = "alloy")
+  def self.start_generate_audio_job(ids, voice = "polly:kevin")
     SaveAudioJob.perform_async(ids, voice)
   end
 

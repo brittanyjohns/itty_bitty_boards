@@ -612,33 +612,37 @@ class API::BoardsController < API::ApplicationController
   def assign_accounts
     communicator_account_ids = params[:communicator_account_ids] || []
     if communicator_account_ids
-      all_records_saved = nil
+      record_errors = []
       communicator_account_ids.each do |communicator_account_id|
         communicator_account = ChildAccount.find(communicator_account_id)
         if communicator_account.is_demo?
           board_count = communicator_account.child_boards.all.count
           demo_limit = (communicator_account.settings["demo_board_limit"] || ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT).to_i
           if board_count >= demo_limit
-            all_records_saved = false
-            break
+            record_errors << "Demo board limit reached for account #{communicator_account.id}"
+            next
           end
         end
-        communicator_board_copy = @board.clone_with_images(current_user&.id, @board.name)
-        communicator_board_copy.is_template = true
-        communicator_board_copy.save!
-        if communicator_account.child_boards.where(board_id: @board.id).empty?
-          comm_board = communicator_account.child_boards.create!(board: communicator_board_copy, created_by: current_user, original_board: @board)
-          all_records_saved = comm_board.persisted?
-        else
-          all_records_saved = false
-          break
-        end
+        voice = communicator_account.voice
+        Rails.logger.info "Cloning board for communicator account #{communicator_account.id} with voice #{voice} - board voice: #{@board.voice}"
+        communicator_board_copy = @board.clone_with_images(current_user&.id, @board.name, voice, communicator_account)
+
+        # if communicator_account.child_boards.where(board_id: communicator_board_copy.id).exists?
+        #   record_errors << "Board already assigned to account #{communicator_account.id}"
+        #   next
+        # else
+        #   comm_board = communicator_account.child_boards.new(board: communicator_board_copy, created_by: current_user, original_board: @board)
+        #   unless comm_board.save
+        #     record_errors << "Failed to save child board for account #{communicator_account.id} - #{comm_board.errors.full_messages.join(", ")}"
+        #     next
+        #   end
+        # end
       end
       @board.reload
-      if all_records_saved
+      if record_errors.empty?
         render json: @board.api_view_with_predictive_images(current_user, true), status: :ok
       else
-        render json: @board.errors, status: :unprocessable_entity
+        render json: { errors: record_errors }, status: :unprocessable_entity
       end
     else
       render json: { error: "No board_ids provided" }, status: :unprocessable_entity

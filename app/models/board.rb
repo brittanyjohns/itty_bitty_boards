@@ -567,6 +567,41 @@ class Board < ApplicationRecord
     end
   end
 
+  def self.create_audio_for_scope(scope)
+    scope.includes(board_images: :image).each do |board|
+      board.board_images.find_in_batches(batch_size: 5) do |bi_batch|
+        bi_batch.each do |bi|
+          img = bi.image
+          # img.create_audio_for_select_voices
+          CreateAllAudioJob.perform_async(img.id, board.language, "select")
+          sleep(1) # Add a small delay between starting jobs to avoid overwhelming the system
+        end
+        sleep(2) # Add a small delay between batches to avoid overwhelming the system
+      end
+    end
+  end
+
+  def create_audio_for_select_voices
+    board_images.includes(:image).find_in_batches(batch_size: 5) do |bi_batch|
+      bi_batch.each do |bi|
+        img = bi.image
+        img.start_select_voices_audio_job
+      end
+      sleep(1) # Add a small delay between batches to avoid overwhelming the system
+    end
+  end
+
+  def create_audio_for_all_voices
+    board_images.includes(:image).find_in_batches(batch_size: 5) do |bi_batch|
+      bi_batch.each do |bi|
+        img = bi.image
+        img.start_create_all_audio_job
+        sleep(0.5) # Add a small delay between starting jobs to avoid overwhelming the system
+      end
+      sleep(1) # Add a small delay between batches to avoid overwhelming the system
+    end
+  end
+
   def remaining_images
     Image.public_img.non_menu_images.excluding(images)
   end
@@ -690,9 +725,9 @@ class Board < ApplicationRecord
     new_board_image
   end
 
-  def clone_with_images(cloned_user_id, new_name = nil)
+  def clone_with_images(cloned_user_id, new_name = nil, updated_voice = nil, communicator_account = nil)
     if new_name.blank?
-      new_name = name + " copy"
+      new_name = name
     end
     @source = self
     cloned_user = User.find(cloned_user_id)
@@ -718,7 +753,11 @@ class Board < ApplicationRecord
     @cloned_board.data = {}
     @cloned_board.board_images_count = 0
     @cloned_board.generate_unique_slug
+    @cloned_board.voice = updated_voice || voice
+    @cloned_board.is_template = communicator_account.present?
     @cloned_board.save
+    # communicator_account.child_boards.create!(board: @cloned_board, created_by_id: cloned_user_id, original_board: @source) if communicator_account
+
     unless @cloned_board.persisted?
       Rails.logger.error "Slug: #{@cloned_board.slug}"
       Rails.logger.error "Error cloning board: #{@source.id} to new board: #{@cloned_board.id} for user: #{cloned_user_id}"
@@ -752,13 +791,27 @@ class Board < ApplicationRecord
 
         new_board_image.voice = board_image.voice
         new_board_image.predictive_board_id = board_image.predictive_board_id
-        new_board_image.save
-        # TODO -  Should mark & only do this if it has custom audio
         new_board_image.audio_url = board_image.audio_url
+
         new_board_image.save
+
+        clone_and_update_predivitive_board(board_image, new_board_image, updated_voice, cloned_user_id) if updated_voice && communicator_account.present?
       end
     end
-    if @cloned_board.save
+
+    unless communicator_account.nil? || communicator_account.child_boards.where(board_id: @cloned_board.id).exists?
+      Rails.logger.info "Creating ChildBoard for communicator account #{communicator_account.id} and board #{@cloned_board.id}"
+      comm_board = communicator_account.child_boards.new(board: @cloned_board, created_by_id: cloned_user_id, original_board: @source)
+      if comm_board.save
+        Rails.logger.info "Created ChildBoard for communicator account #{communicator_account.id} and board #{@cloned_board.id}"
+      else
+        Rails.logger.error "Failed to create ChildBoard for communicator account #{communicator_account.id} and board #{@cloned_board.id}: #{comm_board.errors.full_messages.join(", ")}"
+      end
+    else
+      Rails.logger.info "ChildBoard already exists for communicator account #{communicator_account&.id} and board #{@cloned_board.id}"
+    end
+
+    if @cloned_board.valid?
       UpdateUserBoardsJob.perform_async(@cloned_board.id, @source.id) if @source.user_id != cloned_user_id
       @cloned_board
     else
@@ -766,7 +819,29 @@ class Board < ApplicationRecord
     end
   end
 
-  def update_user_boards_after_cloning(source_board)
+  def clone_and_update_predivitive_board(original_board_image, new_board_image, updated_voice, cloned_user_id)
+    return unless original_board_image.predictive_board_id
+    predictive_board = Board.find_by(id: original_board_image.predictive_board_id)
+    return unless predictive_board
+    #  only clone if voice is different
+    Rails.logger.info "Predictive board voice: #{predictive_board.voice}, updated voice: #{updated_voice}"
+    if predictive_board.voice != updated_voice
+      new_predictive_board = predictive_board.clone_with_images(cloned_user_id, predictive_board.name, updated_voice)
+      Rails.logger.info "Cloned predictive board: #{predictive_board.id} to new predictive board: #{new_predictive_board.id} for board image: #{new_board_image.id}"
+      if new_predictive_board
+        new_board_image.predictive_board_id = new_predictive_board.id
+        new_board_image.save
+      else
+        Rails.logger.error "Error cloning predictive board: #{predictive_board.id} for board image: #{new_board_image.id}"
+      end
+    else
+      Rails.logger.info "Voice is the same, not cloning predictive board for board image: #{new_board_image.id}"
+      new_board_image.predictive_board_id = predictive_board.id
+      new_board_image.save
+    end
+  end
+
+  def update_user_boards_after_cloning(source_board, cloned_user_id)
     user_boards = user.total_board_images.where(predictive_board_id: source_board.id)
     cloned_board = self
     user_boards.each do |bi|

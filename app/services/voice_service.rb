@@ -122,6 +122,10 @@ class VoiceService
     VOICES.map { |v| v[:label] }
   end
 
+  def self.get_voice_values
+    VOICES.map { |v| v[:value] }
+  end
+
   # Support looking up by label OR by value
   def self.get_voice(value_or_label)
     v = VOICES.find { |opt| opt[:value].casecmp(value_or_label.to_s) == 0 }

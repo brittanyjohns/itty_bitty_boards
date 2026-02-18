@@ -163,22 +163,39 @@ module AudioHelper
   end
 
   def voice_from_filename(filename)
-    # Ex: scared_nova.mp3
-    if filename.nil?
-      return nil
-    end
+    return nil if filename.blank?
+
+    # Custom audio: keep your existing behavior
     if filename.include?("custom")
-      #  first part of the filename
-      return "#{filename.split("-")[1]}-#{filename.split("-")[2]}"
+      parts = filename.split("-")
+      return nil if parts.length < 3
+      return "#{parts[1]}-#{parts[2]}"
     end
-    if filename.include?("_")
-      if filename.count("_") >= 2
-        return filename.split("_")[1..-2].join("_")
-      else
-        return filename.split("_")[1].split(".")[0]
-      end
+
+    base = File.basename(filename, File.extname(filename)) # remove .mp3
+    parts = base.split("_")
+    return nil if parts.length < 2
+
+    # Remove trailing language if present (en, en-US, es, es-US, etc.)
+    last = parts.last
+    if last.match?(/\A[a-z]{2}(-[A-Z]{2})?\z/)
+      parts = parts[0...-1]
     end
-    nil
+
+    # Now parts look like:
+    # legacy openai: [label, alloy]
+    # new provider:  [label, polly, kevin] or [label, openai, alloy]
+
+    # If provider is explicitly included
+    if parts.length >= 3 && %w[openai polly].include?(parts[1])
+      provider = parts[1]
+      voice = parts[2]
+      return voice
+    end
+
+    # Legacy: treat as openai voice
+    voice = parts[1]
+    voice
   end
 
   def default_audio_url(audio_file = nil)

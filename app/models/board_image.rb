@@ -313,6 +313,7 @@ class BoardImage < ApplicationRecord
   end
 
   def audio_file
+    Rails.logger.info "Finding audio file for BoardImage ID #{id} with voice #{voice} and language #{language}"
     image.find_audio_for_voice(voice, language)
   end
 
