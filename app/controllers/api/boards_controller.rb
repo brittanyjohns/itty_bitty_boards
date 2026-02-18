@@ -619,7 +619,7 @@ class API::BoardsController < API::ApplicationController
           board_count = communicator_account.child_boards.all.count
           demo_limit = (communicator_account.settings["demo_board_limit"] || ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT).to_i
           if board_count >= demo_limit
-            record_errors << "Demo board limit reached for account #{communicator_account.id}"
+            record_errors << "Board limit reached for demo account #{communicator_account.name} - limit: #{demo_limit}"
             next
           end
         end
@@ -627,25 +627,15 @@ class API::BoardsController < API::ApplicationController
         Rails.logger.info "Cloning board for communicator account #{communicator_account.id} with voice #{voice} - board voice: #{@board.voice}"
         communicator_board_copy = @board.clone_with_images(current_user&.id, @board.name, voice, communicator_account)
 
-        # if communicator_account.child_boards.where(board_id: communicator_board_copy.id).exists?
-        #   record_errors << "Board already assigned to account #{communicator_account.id}"
-        #   next
-        # else
-        #   comm_board = communicator_account.child_boards.new(board: communicator_board_copy, created_by: current_user, original_board: @board)
-        #   unless comm_board.save
-        #     record_errors << "Failed to save child board for account #{communicator_account.id} - #{comm_board.errors.full_messages.join(", ")}"
-        #     next
-        #   end
-        # end
       end
       @board.reload
       if record_errors.empty?
         render json: @board.api_view_with_predictive_images(current_user, true), status: :ok
       else
-        render json: { errors: record_errors }, status: :unprocessable_entity
+        render json: { error: { message: record_errors } }, status: :unprocessable_entity
       end
     else
-      render json: { error: "No board_ids provided" }, status: :unprocessable_entity
+      render json: { error: { message: "No board_ids provided" } }, status: :unprocessable_entity
     end
   end
 

@@ -144,7 +144,7 @@ class API::ChildAccountsController < API::ApplicationController
     current_voice = @child_account.voice_settings["name"]
     if voice_name
       if current_voice != voice_name
-        @child_account.update_audio
+        @child_account.update_audio(voice_name)
       end
     end
 
@@ -180,34 +180,17 @@ class API::ChildAccountsController < API::ApplicationController
       end
     end
     if board_ids
-      record_errors = []
       board_ids.each do |board_id|
         og_board = Board.find(board_id)
         if og_board.predefined?
-          Rails.logger.info "Cloning predefined board #{og_board.id} for child account #{@child_account.id}"
-          # clone parent predefined board for child account
           board = og_board.clone_with_images(current_user&.id, og_board.name)
         else
           board = og_board
         end
         voice = @child_account.voice || "polly:kevin"
         child_board_copy = board.clone_with_images(current_user&.id, board.name, voice, @child_account)
-        # child_board_copy.is_template = true
-        # child_board_copy.voice = voice
-        # child_board_copy.save!
-        # if @child_account.child_boards.where(board_id: board.id).empty?
-        #   comm_board = @child_account.child_boards.create!(board: child_board_copy, created_by: current_user, original_board: board)
-        #   all_records_saved = comm_board.persisted?
-        # else
-        #   all_records_saved = false
-        #   break
-        # end
       end
-      if record_errors.empty?
-        render json: @child_account.api_view(current_user), status: :ok
-      else
-        render json: { errors: record_errors }, status: :unprocessable_entity
-      end
+      render json: @child_account.api_view(current_user), status: :ok
     else
       render json: { error: "No board_ids provided" }, status: :unprocessable_entity
     end

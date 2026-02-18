@@ -763,7 +763,6 @@ class Board < ApplicationRecord
     @cloned_board.voice = updated_voice || voice
     @cloned_board.is_template = communicator_account.present?
     @cloned_board.save
-    # communicator_account.child_boards.create!(board: @cloned_board, created_by_id: cloned_user_id, original_board: @source) if communicator_account
 
     unless @cloned_board.persisted?
       Rails.logger.error "Slug: #{@cloned_board.slug}"
@@ -831,7 +830,6 @@ class Board < ApplicationRecord
     predictive_board = Board.find_by(id: original_board_image.predictive_board_id)
     return unless predictive_board
     #  only clone if voice is different
-    Rails.logger.info "Predictive board voice: #{predictive_board.voice}, updated voice: #{updated_voice}"
     if predictive_board.voice != updated_voice
       new_predictive_board = predictive_board.clone_with_images(cloned_user_id, predictive_board.name, updated_voice)
       Rails.logger.info "Cloned predictive board: #{predictive_board.id} to new predictive board: #{new_predictive_board.id} for board image: #{new_board_image.id}"

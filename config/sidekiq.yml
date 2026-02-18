@@ -1,6 +1,7 @@
 :concurrency: <%= ENV.fetch("SIDEKIQ_CONCURRENCY", 10) %>
 :queues:
-  - [critical, 5]
+  # Queue names and their priorities (lower number means higher priority)
+  - [critical, 1]
   - [default, 3]
-  - [ai_images, 2]
-  - [audio, 5]
+  - [ai_images, 4]
+  - [audio, 2]

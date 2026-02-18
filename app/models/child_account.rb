@@ -129,7 +129,11 @@ class ChildAccount < ApplicationRecord
     team
   end
 
-  def update_audio
+  def update_audio(updated_voice)
+    unless updated_voice
+      Rails.logger.error "No voice provided for audio update"
+      return
+    end
     if profile
       profile.update_intro_audio_url
       profile.update_bio_audio_url
@@ -137,6 +141,9 @@ class ChildAccount < ApplicationRecord
     else
       Rails.logger.error "Profile not found for audio update"
     end
+    #  update boards audio as well
+    board_ids = child_boards.pluck(:board_id)
+    UpdateBoardsVoiceJob.perform_async(board_ids, updated_voice, language)
   end
 
   def reset_authentication_token!
@@ -472,6 +479,12 @@ class ChildAccount < ApplicationRecord
 
   def voice
     voice_settings["name"] || "polly:kevin"
+  end
+
+  def voice=(voice_name)
+    settings["voice"] ||= {}
+    settings["voice"]["name"] = voice_name
+    save!
   end
 
   def language
