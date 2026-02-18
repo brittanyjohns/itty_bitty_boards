@@ -567,13 +567,19 @@ class Board < ApplicationRecord
     end
   end
 
-  def self.create_audio_for_scope(scope)
+  def self.create_audio_for_scope(scope, limit = 100)
+    count = 0
     scope.includes(board_images: :image).each do |board|
       board.board_images.find_in_batches(batch_size: 5) do |bi_batch|
         bi_batch.each do |bi|
           img = bi.image
           # img.create_audio_for_select_voices
           CreateAllAudioJob.perform_async(img.id, board.language, "select")
+          count += 1
+          if count >= limit
+            puts "Reached limit of #{limit} audio files created, stopping."
+            return
+          end
           sleep(1) # Add a small delay between starting jobs to avoid overwhelming the system
         end
         sleep(2) # Add a small delay between batches to avoid overwhelming the system
