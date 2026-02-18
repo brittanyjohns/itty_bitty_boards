@@ -24,5 +24,6 @@ module SpeakAnyWay
     # config.time_zone = "Central Time (US & Canada)"
     config.autoload_paths << Rails.root.join("app/services")
     config.eager_load_paths << Rails.root.join("services")
+    config.middleware.use Rack::Attack
   end
 end

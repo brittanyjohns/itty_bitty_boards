@@ -99,6 +99,12 @@ gem "aws-sdk-polly", "~> 1"
 # Sidekiq
 gem "sidekiq", "~> 7.1"
 
+#  Rack Attack
+gem "rack-attack", "~> 6.5"
+
+# Fast JSON parsing
+gem "oj"
+
 # AWS - ActiveStorage in production
 gem "aws-sdk-s3", require: false
 

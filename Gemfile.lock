@@ -328,6 +328,9 @@ GEM
       prawn
       rubyzip
       typhoeus
+    oj (3.16.15)
+      bigdecimal (>= 3.0)
+      ostruct (>= 0.2)
     orm_adapter (0.5.0)
     ostruct (0.6.1)
     paddle (2.7.1)
@@ -359,6 +362,8 @@ GEM
       activesupport (>= 3.0.0)
     racc (1.8.1)
     rack (3.1.15)
+    rack-attack (6.8.0)
+      rack (>= 1.0, < 4)
     rack-cors (2.0.2)
       rack (>= 2.0.0)
     rack-session (2.1.1)
@@ -558,12 +563,14 @@ DEPENDENCIES
   matrix (~> 0.4.2)
   mini_magick
   obf (~> 0.9.9)
+  oj
   paddle (~> 2.1)
   pay (~> 7.0)
   pg (~> 1.1)
   pg_search
   puma (>= 5.0)
   pundit (~> 2.3)
+  rack-attack (~> 6.5)
   rack-cors
   rails (~> 7.1.2)
   rails_performance
