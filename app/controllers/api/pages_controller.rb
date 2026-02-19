@@ -30,7 +30,7 @@ class API::PagesController < API::ApplicationController
     # Exclude user's own page (if profileable is User)
     own_page_id = Profile.where(profileable: current_user).pluck(:id).first
 
-    pages = Page
+    pages = Page.public_pages
       .where.not(id: followed_ids)
       .where.not(id: own_page_id)
       .left_joins(:page_follows)
@@ -58,7 +58,8 @@ class API::PagesController < API::ApplicationController
         title: page.try(:name) || page.try(:title),
         name: page.try(:username) || page.try(:slug),
         slug: page.try(:slug),
-        avatar_url: page.try(:avatar),
+        avatar_url: page.try(:avatar_url),
+        headline: page.try(:intro),
       },
       follower_count: page.attributes["follower_count"].to_i,
       am_following: false,

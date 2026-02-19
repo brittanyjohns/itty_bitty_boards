@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_19_173545) do
+ActiveRecord::Schema[7.1].define(version: 2026_02_19_215018) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -673,6 +673,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_19_173545) do
     t.datetime "claimed_at"
     t.string "sku"
     t.string "profile_kind", default: "safety", null: false
+    t.boolean "allow_discovery", default: false, null: false
     t.index ["profile_kind"], name: "index_profiles_on_profile_kind"
     t.index ["profileable_type", "profileable_id"], name: "index_profiles_on_profileable"
     t.index ["sku"], name: "index_profiles_on_sku", unique: true

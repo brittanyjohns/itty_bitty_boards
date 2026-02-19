@@ -68,6 +68,10 @@ class Profile < ApplicationRecord
     where(placeholder: true, claimed_at: nil)
   }
 
+  scope :public_pages, -> {
+    where(profile_kind: "public_page", allow_discovery: true)
+  }
+
   # --- Ownership helpers ---
   def owner_user_id
     return nil if profileable.nil?
@@ -192,6 +196,7 @@ class Profile < ApplicationRecord
       profile_kind: profile_kind,
       public_url: public_url,
       startup_url: startup_url,
+      allow_discovery: allow_discovery,
 
       # Keep full settings ONLY for authenticated/edit contexts
       settings: settings,
@@ -261,7 +266,7 @@ class Profile < ApplicationRecord
       name: profileable.respond_to?(:name) ? profileable.name : username,
       slug: slug,
       profile_kind: profile_kind,
-
+      allow_discovery: allow_discovery,
       public_url: public_url,
       intro: intro,
       bio: bio,

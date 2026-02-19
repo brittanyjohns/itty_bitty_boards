@@ -225,6 +225,6 @@ class API::ProfilesController < API::ApplicationController
   end
 
   def profile_params
-    params.require(:profile).permit(:username, :bio, :intro, :avatar, settings: {})
+    params.require(:profile).permit(:username, :bio, :intro, :avatar, :allow_discovery, settings: {})
   end
 end
