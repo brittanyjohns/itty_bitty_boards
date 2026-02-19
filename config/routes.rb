@@ -174,6 +174,7 @@ Rails.application.routes.draw do
     delete "page_follows/:followed_page_id", to: "page_follows#destroy"
 
     get "pages/:id/follow_summary", to: "pages#follow_summary"
+    get "pages/discover", to: "pages#discover"
 
     get "me/followed_pages", to: "me#followed_pages"
     get "me/page_followers", to: "me#page_followers"

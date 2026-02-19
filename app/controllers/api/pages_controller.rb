@@ -17,4 +17,52 @@ class API::PagesController < API::ApplicationController
       am_following: am_following,
     }
   end
+
+  def discover
+    limit = params[:limit].presence&.to_i || 12
+    limit = 50 if limit > 50 # safety cap
+
+    # IDs of pages current user already follows
+    followed_ids = PageFollow
+      .where(follower_user_id: current_user.id)
+      .select(:followed_page_id)
+
+    # Exclude user's own page (if profileable is User)
+    own_page_id = Profile.where(profileable: current_user).pluck(:id).first
+
+    pages = Page
+      .where.not(id: followed_ids)
+      .where.not(id: own_page_id)
+      .left_joins(:page_follows)
+      .select(
+        "profiles.*,
+         COUNT(page_follows.id) AS follower_count"
+      )
+      .group("profiles.id")
+      .order("follower_count DESC")
+      .limit(limit)
+
+    render json: {
+      items: pages.map { |p| page_suggestion_json(p) },
+      next_cursor: nil,
+    }
+  end
+
+  private
+
+  def page_suggestion_json(page)
+    {
+      type: "page_suggestion",
+      page: {
+        id: page.id,
+        title: page.try(:name) || page.try(:title),
+        name: page.try(:username) || page.try(:slug),
+        slug: page.try(:slug),
+        avatar_url: page.try(:avatar),
+      },
+      follower_count: page.attributes["follower_count"].to_i,
+      am_following: false,
+      reason: nil,
+    }
+  end
 end
