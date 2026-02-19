@@ -306,6 +306,11 @@ class Profile < ApplicationRecord
     other_conditions_notes
     emergency_notes
     emergency_contacts
+    ice_contact_1
+    ice_contact_2
+    ice_contact_3
+    ice_contact_4
+    ice_contact_5
   ].freeze
 
   PUBLIC_PAGE_KEYS = %w[
