@@ -193,7 +193,6 @@ class ImagesController < ApplicationController
     if voice.blank?
       voice = "alloy"
     end
-    @audio = @image.create_audio_from_text(@image.label, voice)
     redirect_back_or_to image_url(@image), notice: "Audio created."
   end
 

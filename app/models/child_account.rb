@@ -135,9 +135,7 @@ class ChildAccount < ApplicationRecord
       return
     end
     if profile
-      profile.update_intro_audio_url
-      profile.update_bio_audio_url
-      profile.save!
+      SaveProfileAudioJob.perform_async(profile.id)
     else
       Rails.logger.error "Profile not found for audio update"
     end
@@ -479,6 +477,10 @@ class ChildAccount < ApplicationRecord
 
   def voice
     voice_settings["name"] || "polly:kevin"
+  end
+
+  def voice_speed
+    voice_settings["speed"] || 1
   end
 
   def voice=(voice_name)

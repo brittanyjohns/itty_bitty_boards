@@ -82,7 +82,6 @@ class API::ProfilesController < API::ApplicationController
 
   def update
     profile = Profile.find(params[:id])
-    Rails.logger.debug("Updating profile ID #{profile.id} with params: #{profile_params.to_h}")
     slug = params.dig(:profile, :slug)
     if slug.blank?
       slug = profile.username.parameterize if profile.username.present?

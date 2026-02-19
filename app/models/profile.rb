@@ -131,17 +131,21 @@ class Profile < ApplicationRecord
     if profileable&.respond_to?(:favorite_boards) && profileable.favorite_boards.present?
       profileable.favorite_boards
     else
-      Board.public_boards
+      # Board.public_boards
+      []
     end
   end
 
-  def public_boards
-    # For public pages, always keep this safe & intentional.
-    # If you later add featured_board_ids under settings["public_page"], plug it here.
-    return Board.public_boards if profileable.nil?
+  def voice
+    profileable&.respond_to?(:voice) ? profileable.voice : "polly:kevin"
+  end
 
-    boards = communication_boards
-    boards.present? ? boards : Board.public_boards
+  def voice_speed
+    profileable&.respond_to?(:voice_speed) ? profileable.voice_speed : 1
+  end
+
+  def public_boards
+      communication_boards
   end
 
   # --- Attachments / CDN URLs ---
@@ -233,6 +237,7 @@ class Profile < ApplicationRecord
 
       # Boards shown publicly should be safe/public
       public_boards: public_boards.map(&:api_view),
+      general_public_boards: Board.public_boards.map(&:api_view),
 
       # If you need this for the UI, keep it minimal
       profileable_type: profileable_type,
@@ -268,6 +273,7 @@ class Profile < ApplicationRecord
       # If you want this on creator pages, keep it public-only
       public_boards: public_boards.map(&:api_view),
       user_boards: user_boards.map(&:api_view),
+      general_public_boards: Board.public_boards.map(&:api_view),
       email: email,
       public_about_html: safe_html(public_about&.body&.to_s),
       public_intro_html: safe_html(public_intro&.body&.to_s),
@@ -357,39 +363,60 @@ class Profile < ApplicationRecord
     SaveProfileAudioJob.perform_async(id)
   end
 
-  # These can remain called by the job:
-  def update_intro_audio_url
+  def update_audio(audio_type)
     return unless intro.present?
 
     voice = profileable&.respond_to?(:voice) ? (profileable.voice || "openai:alloy") : "openai:alloy"
     language = profileable&.respond_to?(:language) ? (profileable.language || "en") : "en"
+    text = ""
+    if audio_type == :intro
+      text = intro
+    elsif audio_type == :bio
+      text = bio
+    else
+      Rails.logger.error "Invalid audio type #{audio_type} for profile #{slug}"
+      return
+    end
 
-    response = VoiceService.synthesize_speech(text: intro, voice_value: voice, language: language)
-    return unless response
+    synth_io = VoiceService.synthesize_speech(text: text, voice_value: voice, language: language)
+    return unless synth_io
+    unless synth_io
+      Rails.logger.error "**** ERROR - create_audio_from_text **** \nNo valid response from VoiceService.synthesize_speech.\n #{synth_io&.inspect}"
+      return nil
+    end
 
-    attach_audio_bytes(intro_audio, response, "#{label_for_filename}_intro.mp3")
+    unless synth_io.respond_to?(:rewind) && synth_io.respond_to?(:read)
+      synth_io = StringIO.new(synth_io)
+    end
+    Rails.logger.info "Audio synthesized #{audio_type} successfully for profile #{slug}, now attaching..."
+
+    if audio_type == :intro
+      save_audio_intro(synth_io, voice, language)
+    elsif audio_type == :bio
+      save_audio_bio(synth_io, voice, language)
+    end
   rescue => e
-    Rails.logger.error "Intro audio failed for profile #{slug}: #{e.message}"
+    Rails.logger.error "#{audio_type.to_s.capitalize} audio failed for profile #{slug}: #{e.message}"
     nil
   end
 
-  def update_bio_audio_url
-    return unless bio.present?
+  def save_audio_intro(audio_io, voice_value, language = "en")
+    filename = "#{label_for_filename}_intro.mp3"
+    self.intro_audio.attach(io: audio_io, filename: filename, content_type: "audio/mpeg")
+    self.reload # Ensure the attached intro_audio is available for URL generation
+    self.intro_audio
+  end
 
-    voice = profileable&.respond_to?(:voice) ? (profileable.voice || "openai:alloy") : "openai:alloy"
-    language = profileable&.respond_to?(:language) ? (profileable.language || "en") : "en"
-
-    response = VoiceService.synthesize_speech(text: bio, voice_value: voice, language: language)
-    return unless response
-
-    attach_audio_bytes(bio_audio, response, "#{label_for_filename}_bio.mp3")
-  rescue => e
-    Rails.logger.error "Bio audio failed for profile #{slug}: #{e.message}"
-    nil
+  def save_audio_bio(audio_io, voice_value, language = "en")
+    filename = "#{label_for_filename}_bio.mp3"
+    self.bio_audio.attach(io: audio_io, filename: filename, content_type: "audio/mpeg")
+    self.reload # Ensure the attached bio_audio is available for URL generation
+    self.bio_audio
   end
 
   def label_for_filename
-    (slug.presence || username.presence || id.to_s).to_s.parameterize
+    file_safe_slug = (slug.presence || username.presence || id.to_s).to_s.parameterize
+    "#{file_safe_slug}_#{voice}"
   end
 
   # --- Placeholders / claiming ---

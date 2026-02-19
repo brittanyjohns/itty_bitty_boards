@@ -661,6 +661,10 @@ class User < ApplicationRecord
     voice_settings["name"]
   end
 
+  def voice_speed
+    voice_settings["speed"]
+  end
+
   def language
     voice_settings["language"] || "en-US"
   end

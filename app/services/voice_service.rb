@@ -136,7 +136,7 @@ class VoiceService
 
   # Prefer passing voice_value ("openai:alloy") from the client.
   # Keep voice_label working for older clients.
-  def self.synthesize_speech(text:, voice_value: nil, voice_label: nil, language: "en")
+  def self.synthesize_speech(text:, voice_value: nil, voice_label: nil, language: "en", audio_type: "audio_files")
     opt = if voice_value.present?
         get_voice(voice_value)
       else
