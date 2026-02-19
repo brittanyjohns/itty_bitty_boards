@@ -215,6 +215,7 @@ class Profile < ApplicationRecord
     {
       id: id,
       username: username,
+      name: profileable.respond_to?(:name) ? profileable.name : username,
       slug: slug,
       profile_kind: profile_kind,
 
@@ -228,6 +229,7 @@ class Profile < ApplicationRecord
 
       # Only allow ICE-safe settings keys
       settings: public_settings(kind: :safety),
+
 
       # Boards shown publicly should be safe/public
       public_boards: public_boards.map(&:api_view),
@@ -248,6 +250,7 @@ class Profile < ApplicationRecord
     {
       id: id,
       username: username,
+      name: profileable.respond_to?(:name) ? profileable.name : username,
       slug: slug,
       profile_kind: profile_kind,
 
