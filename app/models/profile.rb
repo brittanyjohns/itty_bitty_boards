@@ -22,6 +22,9 @@
 class Profile < ApplicationRecord
   belongs_to :profileable, polymorphic: true, optional: true
 
+  has_many :page_follows, foreign_key: :followed_page_id, dependent: :destroy
+  has_many :followers, through: :page_follows, source: :follower_user
+
   has_one_attached :avatar
   has_one_attached :intro_audio
   has_one_attached :bio_audio

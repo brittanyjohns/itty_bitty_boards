@@ -107,6 +107,9 @@ class User < ApplicationRecord
   # has_many :sent_messages, class_name: "Message", foreign_key: "sender_id", dependent: :destroy
   # has_many :received_messages, class_name: "Message", foreign_key: "recipient_id", dependent: :destroy
 
+  has_many :page_follows, foreign_key: :follower_user_id, dependent: :destroy
+  has_many :followed_pages, through: :page_follows, source: :page
+
   # Scopes
   scope :admin, -> { where(role: "admin") }
   scope :pro, -> { where(plan_type: "pro") }
@@ -140,7 +143,9 @@ class User < ApplicationRecord
   before_save :setup_limits, if: :plan_type_changed?
   before_save :update_vendor, if: :plan_type_changed?
 
-  # Methods
+  def following?(page)
+    page_follows.exists?(followed_page_id: page.id)
+  end
 
   def update_vendor
     return if vendor

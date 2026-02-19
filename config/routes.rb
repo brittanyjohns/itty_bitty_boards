@@ -169,6 +169,15 @@ Rails.application.routes.draw do
         post "cancel_subscription"
       end
     end
+
+    resources :page_follows, only: [:create]
+    delete "page_follows/:followed_page_id", to: "page_follows#destroy"
+
+    get "pages/:id/follow_summary", to: "pages#follow_summary"
+
+    get "me/followed_pages", to: "me#followed_pages"
+    get "me/page_followers", to: "me#page_followers"
+
     post "word_click", to: "audits#word_click"
     post "public_word_click", to: "audits#public_word_click"
     resources :beta_requests

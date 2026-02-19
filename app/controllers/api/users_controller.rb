@@ -37,8 +37,7 @@ class API::UsersController < API::ApplicationController
   def set_password
     # @user = User.find(params[:id])
     @user = current_user
-    Rails.logger.info("Setting password for user: #{@user.inspect}")
-    Rails.logger.info("Params received: #{params.inspect}")
+
     password = params[:password]
     password_confirmation = params[:password_confirmation]
     if password != password_confirmation

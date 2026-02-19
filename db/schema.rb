@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_03_125241) do
+ActiveRecord::Schema[7.1].define(version: 2026_02_19_173545) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -61,6 +61,39 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_03_125241) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "details", default: {}
+  end
+
+  create_table "board_gallery_listings", force: :cascade do |t|
+    t.bigint "board_id", null: false
+    t.bigint "submitted_by_user_id", null: false
+    t.string "status", default: "submitted", null: false
+    t.string "title"
+    t.text "description"
+    t.string "category"
+    t.jsonb "snapshot_json", default: {}, null: false
+    t.datetime "approved_at"
+    t.bigint "approved_by_user_id"
+    t.integer "views_count", default: 0
+    t.integer "saves_count", default: 0
+    t.integer "remixes_count", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["board_id"], name: "index_board_gallery_listings_on_board_id"
+    t.index ["category"], name: "index_board_gallery_listings_on_category"
+    t.index ["status"], name: "index_board_gallery_listings_on_status"
+    t.index ["submitted_by_user_id"], name: "index_board_gallery_listings_on_submitted_by_user_id"
+  end
+
+  create_table "board_gallery_reports", force: :cascade do |t|
+    t.bigint "board_gallery_listing_id", null: false
+    t.bigint "reporter_id", null: false
+    t.string "reason"
+    t.string "details"
+    t.string "status"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["board_gallery_listing_id"], name: "index_board_gallery_reports_on_board_gallery_listing_id"
+    t.index ["reporter_id"], name: "index_board_gallery_reports_on_reporter_id"
   end
 
   create_table "board_group_boards", force: :cascade do |t|
@@ -489,6 +522,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_03_125241) do
     t.index ["admin_user_id"], name: "index_organizations_on_admin_user_id"
   end
 
+  create_table "page_follows", force: :cascade do |t|
+    t.bigint "follower_user_id", null: false
+    t.bigint "followed_page_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["followed_page_id"], name: "index_page_follows_on_followed_page_id"
+    t.index ["follower_user_id", "followed_page_id"], name: "index_page_follows_on_follower_user_id_and_followed_page_id", unique: true
+    t.index ["follower_user_id"], name: "index_page_follows_on_follower_user_id"
+  end
+
   create_table "pay_charges", force: :cascade do |t|
     t.bigint "customer_id", null: false
     t.bigint "subscription_id"
@@ -850,6 +893,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_03_125241) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "board_gallery_listings", "boards"
+  add_foreign_key "board_gallery_reports", "board_gallery_listings"
+  add_foreign_key "board_gallery_reports", "users", column: "reporter_id"
   add_foreign_key "board_group_boards", "board_groups"
   add_foreign_key "board_group_boards", "boards"
   add_foreign_key "board_groups", "boards", column: "root_board_id"
@@ -874,6 +920,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_03_125241) do
   add_foreign_key "order_items", "products"
   add_foreign_key "orders", "users"
   add_foreign_key "organizations", "users", column: "admin_user_id"
+  add_foreign_key "page_follows", "profiles", column: "followed_page_id"
+  add_foreign_key "page_follows", "users", column: "follower_user_id"
   add_foreign_key "pay_charges", "pay_customers", column: "customer_id"
   add_foreign_key "pay_charges", "pay_subscriptions", column: "subscription_id"
   add_foreign_key "pay_payment_methods", "pay_customers", column: "customer_id"
