@@ -59,7 +59,7 @@ class API::PagesController < API::ApplicationController
         name: page.try(:username) || page.try(:slug),
         slug: page.try(:slug),
         avatar_url: page.try(:avatar_url),
-        headline: page.try(:intro),
+        headline: page.try(:headline) || page.try(:intro),
       },
       follower_count: page.attributes["follower_count"].to_i,
       am_following: false,

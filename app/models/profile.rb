@@ -338,6 +338,7 @@ class Profile < ApplicationRecord
     featured_board_ids
     role_badges
     show_email
+    headline
   ].freeze
 
   def public_settings(kind:)
