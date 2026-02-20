@@ -673,7 +673,8 @@ class API::BoardsController < API::ApplicationController
 
   def clone
     set_board
-    new_name = "Copy of " + @board.name
+    # new_name = "Copy of " + @board.name
+    new_name = @board.name
     @new_board = @board.clone_with_images(current_user.id, new_name)
     @new_board.vendor_id = current_user.vendor_id if current_user.vendor_id.present?
     @new_board.save!

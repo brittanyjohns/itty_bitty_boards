@@ -203,7 +203,8 @@ class BoardsController < ApplicationController
     @new_board.parent_id = current_user.id
     @new_board.parent_type = "User"
     @new_board.predefined = false
-    @new_board.name = "Copy of " + @board.name
+    # @new_board.name = "Copy of " + @board.name
+    @new_board.name = @board.name
     @board.images.each do |image|
       @new_board.add_image(image.id)
     end
