@@ -24,7 +24,7 @@ class API::BoardsController < API::ApplicationController
     end
     if params[:query].present?
       @search_results = Board.for_user(current_user).searchable.search_by_name(params[:query]).alphabetical.page params[:page]
-      render json: { search_results: @search_results } and return
+      render json: { search_results: @search_results.map {|board| board.api_view(current_user) } } and return
     end
     # @predefined_boards = Board.predefined.non_menus.alphabetical.page params[:page]
     @user_boards = current_user.boards.where(predefined: false).alphabetical.page params[:page]
