@@ -128,6 +128,8 @@ class Board < ApplicationRecord
   scope :in_use, -> { where(in_use: true) }
   scope :templates, -> { where(is_template: true) }
   scope :non_templates, -> { where(is_template: false) }
+  scope :active_sub_boards, -> { where(sub_board: true) }
+  scope :main_boards, -> { where(sub_board: false) }
   include ImageHelper
 
   before_save :set_voice, if: :voice_changed?
@@ -140,6 +142,7 @@ class Board < ApplicationRecord
   before_save :validate_data
   before_save :set_vendor_id
   before_save :check_in_use
+  before_save :check_is_sub_board
 
   before_save :set_display_margin_settings, unless: :margin_settings_valid_for_all_screen_sizes?
   before_save :set_parent
@@ -194,8 +197,11 @@ class Board < ApplicationRecord
     where(board_type: ["static", "scenario"])
   end
 
-  def parent_boards
-    Board.joins(:board_images).where(board_images: { predictive_board_id: id }, user_id: user_id, is_template: false).where.not(id: id).distinct
+  def parent_boards(viewing_user_id)
+    unless viewing_user_id
+      []
+    end
+    Board.joins(:board_images).where(board_images: { predictive_board_id: id }, user_id: viewing_user_id, is_template: false).where.not(id: id).distinct
   end
 
   def self.with_identical_images(name, user = nil)
@@ -432,6 +438,15 @@ class Board < ApplicationRecord
     end
   end
 
+  def check_is_sub_board
+    parent_boards = parent_boards(user_id)
+    if parent_boards.any? && !sub_board
+      self.sub_board = true
+    elsif !parent_boards.any? && sub_board
+      self.sub_board = false
+    end
+  end
+
   def clean_up_name
     has_source_type = false
     original_type_name = nil
@@ -451,7 +466,7 @@ class Board < ApplicationRecord
     self.data["source_type"] = original_type_name if has_source_type
     self.name = name.strip if name
     if name.blank? || name == "Untitled Board"
-      self.name = original_type_name + " Board" if original_type_name
+      self.name = original_type_name
       if name.blank?
         self.name = "Untitled Board"
       end
@@ -819,7 +834,12 @@ class Board < ApplicationRecord
     end
 
     if @cloned_board.valid?
-      UpdateUserBoardsJob.perform_async(@cloned_board.id, @source.id) if @source.user_id != cloned_user_id
+      Rails.logger.info "Successfully cloned board: #{@source.id} to new board: #{@cloned_board.id} for user: #{cloned_user_id}"
+      if @source.user_id != cloned_user_id
+        UpdateUserBoardsJob.perform_async(@cloned_board.id, @source.id)
+      else
+        Rails.logger.info "Source board user_id is the same as cloned user_id, skipping UpdateUserBoardsJob for board: #{@cloned_board.id}"
+      end
       @cloned_board
     else
       Rails.logger.error "Error cloning board: #{@cloned_board}"
@@ -1261,7 +1281,7 @@ class Board < ApplicationRecord
       @child_accounts = []
       @child_boards = []
     end
-    @parent_boards = parent_boards
+    @parent_boards = parent_boards(viewing_user&.id)
 
     @root_board = root_board
     same_user = viewing_user && user_id == viewing_user.id

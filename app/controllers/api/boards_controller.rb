@@ -13,30 +13,43 @@ class API::BoardsController < API::ApplicationController
   # GET /boards or /boards.json
   def index
     unless current_user
-      @static_preset_boards = Board.predefined.alphabetical.page params[:page]
+      @static_preset_boards = Board.predefined.alphabetical.all
       render json: { static_preset_boards: @static_preset_boards.map(&:api_view),
                      preset_boards: @static_preset_boards.map(&:api_view) }
       return
     end
+    include_sub_boards = params[:include_sub_boards] == "1" || params[:include_sub_boards] == true
+    Rails.logger.info "Index action called with include_sub_boards: #{include_sub_boards}"
     if params[:limit]
-      @user_boards = @user_boards = current_user.boards.where(predefined: false).alphabetical.limit(params[:limit])
+      @user_boards = @user_boards = current_user.boards.main_boards.where(predefined: false).alphabetical.limit(params[:limit])
       render json: { boards: @user_boards.map(&:api_view) } and return
     end
     if params[:query].present?
-      @search_results = Board.for_user(current_user).searchable.search_by_name(params[:query]).alphabetical.page params[:page]
+      if include_sub_boards
+        @search_results = Board.for_user(current_user).searchable.search_by_name(params[:query]).alphabetical.all
+      else
+        @search_results = Board.for_user(current_user).searchable.main_boards.search_by_name(params[:query]).alphabetical.all
+      end
+
       render json: { search_results: @search_results.map {|board| board.api_view(current_user) } } and return
     end
     # @predefined_boards = Board.predefined.non_menus.alphabetical.page params[:page]
-    @user_boards = current_user.boards.where(predefined: false).alphabetical.page params[:page]
-    if current_user.admin?
-      @user_boards = current_user.boards.alphabetical.all
+    if include_sub_boards
+    @user_boards = current_user.boards.where(predefined: false).alphabetical.all
+    else
+      @user_boards = current_user.boards.main_boards.where(predefined: false).alphabetical.all
     end
-    @newly_created_boards = @user_boards.where("created_at >= ?", 1.week.ago).order(created_at: :desc).limit(20)
-    @recently_used_boards = current_user.recently_used_boards
+    Rails.logger.info "User boards count: #{@user_boards.count}"
+    # if current_user.admin?
+    #   @user_boards = current_user.boards.alphabetical.all
+    # end
+    @newly_created_boards = @user_boards.where("created_at >= ?", 1.week.ago).order(created_at: :desc).limit(7)
+    # @recently_used_boards = current_user.recently_used_boards
+
 
     render json: {
              newly_created_boards: @newly_created_boards.map {|board| board.api_view(current_user) },
-             recently_used_boards: @recently_used_boards.map {|board| board.api_view(current_user) },
+            #  recently_used_boards: @recently_used_boards.map {|board| board.api_view(current_user) },
              #  preset_boards: @predefined_boards.map(&:api_view),
              boards: @user_boards.map {|board| board.api_view(current_user) },
            }
@@ -53,13 +66,13 @@ class API::BoardsController < API::ApplicationController
   end
 
   def public_menu_boards
-    @public_menu_boards = Board.public_menu_boards.alphabetical.page params[:page]
+    @public_menu_boards = Board.public_menu_boards.alphabetical.all
     render json: { public_menu_boards: @public_menu_boards.map(&:api_view) }
   end
 
   def preset
     if params[:query].present?
-      @predefined_boards = Board.public_boards.search_by_name(params[:query]).alphabetical.page params[:page]
+      @predefined_boards = Board.public_boards.search_by_name(params[:query]).alphabetical.all
     elsif params[:filter].present?
       filter = params[:filter]
       unless Board::SAFE_FILTERS.include?(filter)
@@ -69,11 +82,11 @@ class API::BoardsController < API::ApplicationController
 
       result = Board.public_boards.send(filter)
       if result.is_a?(ActiveRecord::Relation)
-        @predefined_boards = result.alphabetical.page params[:page]
+        @predefined_boards = result.alphabetical.all
       else
         @predefined_boards = result
       end
-      # @predefined_boards = Board.predefined.where(category: params[:filter]).alphabetical.page params[:page]
+      # @predefined_boards = Board.predefined.where(category: params[:filter]).alphabetical.all
     else
       @predefined_boards = Board.public_boards.alphabetical
     end

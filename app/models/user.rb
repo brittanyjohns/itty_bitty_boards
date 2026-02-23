@@ -373,7 +373,7 @@ class User < ApplicationRecord
   def recently_used_boards
     recent_word_events = word_events.where("created_at >= ?", 1.week.ago)
     board_ids = recent_word_events.pluck(:board_id).uniq
-    boards.where(id: board_ids).limit(10)
+    boards.main_boards.where(id: board_ids).limit(10)
   end
 
   def board_limit
