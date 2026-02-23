@@ -192,7 +192,6 @@ class OpenAiClient
                   content: [{ type: "text",
                               text: format_board_prompt(name, num_of_columns, words, max_num_of_rows, maintain_existing) }] }]
     response = create_completion
-    Rails.logger.debug "*******\nResponse: #{response}\n"
     Rails.logger.debug "*** ERROR *** Invaild Formatted Board Response: #{response}" unless response
     response[:content] if response
   end
@@ -487,7 +486,6 @@ class OpenAiClient
       text: text,
     }] }]
     response = create_chat
-    puts "*******\nResponse: #{response}\n"
     response
   end
 

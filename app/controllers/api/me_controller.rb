@@ -39,7 +39,7 @@ class API::MeController < API::ApplicationController
       profileable_type: page.profileable_type,
       profileable_id: page.profileable_id,
       public_url: page.public_url,
-      avatar: page.avatar_url
+      avatar: page.avatar_url,
       headline: page.try(:headline) || page.try(:intro)
     }
   end
