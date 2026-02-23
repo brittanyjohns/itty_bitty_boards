@@ -2,7 +2,6 @@ class API::OpenSymbolsController < API::ApplicationController
   skip_before_action :authenticate_token!
 
   def search_api
-    Rails.logger.info "Searching Open Symbols for query: #{params[:query]}"
     @query = params[:query]
     @search_results = OpenSymbol.search_symbols(@query)
     if @search_results

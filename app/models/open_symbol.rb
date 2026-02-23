@@ -69,7 +69,6 @@ class OpenSymbol < ApplicationRecord
     uri = URI("https://www.opensymbols.org/api/v2/token?secret=#{access_token}")
     response = Net::HTTP.post(uri, "")
 
-    Rails.logger.info "Received OpenSymbols token response: #{response.inspect}"
     response
   end
 
@@ -77,7 +76,6 @@ class OpenSymbol < ApplicationRecord
     begin
       open_symbol_access_token = ENV["OPEN_SYMBOL_ACCESS_TOKEN"]
       # make post request to get token
-      Rails.logger.info "Requesting OpenSymbols token with access token: #{open_symbol_access_token}"
       response = post_open_symbols_token(open_symbol_access_token)
       if response.code == "200"
         response_body = JSON.parse(response.body)
@@ -100,7 +98,6 @@ class OpenSymbol < ApplicationRecord
     query_to_send = CGI.escape(query)
     uri = URI("https://www.opensymbols.org/api/v2/symbols?access_token=#{token_to_send}&q=#{query_to_send}")
     response = Net::HTTP.get(uri)
-    Rails.logger.info "Received OpenSymbols response: #{response}"
     response
   end
 
