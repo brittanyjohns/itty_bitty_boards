@@ -579,7 +579,14 @@ class Board < ApplicationRecord
   def set_voice
     board_images.includes(:image).each do |bi|
       bi.update!(voice: voice) if bi.voice != voice
+
       bi.create_voice_audio
+    end
+    sub_board_ids = board_images.pluck(:predictive_board_id).compact
+    if sub_board_ids.any?
+      Rails.logger.info "Scheduling voice update for sub boards with IDs: #{sub_board_ids.join(", ")}"
+      board_ids = Board.where(id: sub_board_ids, user_id: user_id).pluck(:id)
+      UpdateBoardsVoiceJob.perform_async(board_ids, voice, language) if board_ids.any?
     end
   end
 
