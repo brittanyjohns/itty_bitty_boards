@@ -1558,6 +1558,7 @@ class Board < ApplicationRecord
   end
 
   def api_view(viewing_user = nil)
+    can_edit = viewing_user && (user_id == viewing_user.id || viewing_user.admin?)
     {
       id: id,
       board_id: id,
@@ -1566,7 +1567,7 @@ class Board < ApplicationRecord
       name: name,
       is_template: is_template,
       in_use: in_use,
-      can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
+      can_edit: can_edit,
       layout: layout,
       audio_url: audio_url,
       group_layout: group_layout,

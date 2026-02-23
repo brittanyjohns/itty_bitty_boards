@@ -35,21 +35,21 @@ class API::BoardsController < API::ApplicationController
     @recently_used_boards = current_user.recently_used_boards
 
     render json: {
-             newly_created_boards: @newly_created_boards.map(&:api_view),
-             recently_used_boards: @recently_used_boards.map(&:api_view),
+             newly_created_boards: @newly_created_boards.map {|board| board.api_view(current_user) },
+             recently_used_boards: @recently_used_boards.map {|board| board.api_view(current_user) },
              #  preset_boards: @predefined_boards.map(&:api_view),
-             boards: @user_boards.map(&:api_view),
+             boards: @user_boards.map {|board| board.api_view(current_user) },
            }
   end
 
   def public_boards
     @public_boards = Board.public_boards
-    render json: { public_boards: @public_boards.map(&:api_view) }
+    render json: { public_boards: @public_boards.map {|board| board.api_view(current_user) } }
   end
 
   def common_boards
     @common_boards = Board.common_boards
-    render json: { common_boards: @common_boards.map(&:api_view) }
+    render json: { common_boards: @common_boards.map {|board| board.api_view(current_user) } }
   end
 
   def public_menu_boards
