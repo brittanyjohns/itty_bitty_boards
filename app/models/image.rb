@@ -301,7 +301,7 @@ class Image < ApplicationRecord
     if base_board_id
       base_board = Board.find_by(id: base_board_id)
     end
-    board_name ||= board_settings[:name] || "#{label.capitalize} Board"
+    board_name ||= board_settings[:name] || "#{label.capitalize}"
 
     large_screen_columns = column_data[:large_screen_columns] || 10
     medium_screen_columns = column_data[:medium_screen_columns] || 8

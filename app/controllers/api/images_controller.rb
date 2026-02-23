@@ -386,7 +386,7 @@ class API::ImagesController < API::ApplicationController
 
     board_settings[:board_id] = params[:board_id] if params[:board_id].present?
     board_settings[:voice] = @board.voice if @board && @board.voice.present?
-    new_board_name = params[:name] || "#{@image.label.capitalize} Board"
+    new_board_name = params[:name] || "#{@image.label.capitalize}"
     column_data = {}
     column_data[:large_screen_columns] = params[:large_screen_columns] if params[:large_screen_columns].present?
     column_data[:medium_screen_columns] = params[:medium_screen_columns] if params[:medium_screen_columns].present?
