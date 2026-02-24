@@ -19,7 +19,6 @@ class API::BoardsController < API::ApplicationController
       return
     end
     include_sub_boards = params[:include_sub_boards] == "1" || params[:include_sub_boards] == true
-    Rails.logger.info "Index action called with include_sub_boards: #{include_sub_boards}"
     # if params[:limit]
     #   @user_boards = @user_boards = current_user.boards.main_boards.where(predefined: false).alphabetical.limit(params[:limit])
     #   render json: { boards: @user_boards.map(&:api_view) } and return

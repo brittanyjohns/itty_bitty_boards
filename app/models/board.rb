@@ -828,9 +828,7 @@ class Board < ApplicationRecord
 
         new_board_image.save
 
-        # clone_and_update_predivitive_board(board_image, new_board_image, updated_voice, cloned_user_id) if updated_voice && communicator_account.present?
-        Rails.logger.info "Cloned BoardImage #{board_image.id} to new BoardImage #{new_board_image.id} for board #{@cloned_board.id} - level_count: #{level_count}"
-        clone_and_update_predivitive_board(board_image, new_board_image, updated_voice, cloned_user_id, level_count + 1) unless level_count > 2
+        clone_and_update_predictive_board(board_image, new_board_image, updated_voice, cloned_user_id, level_count + 1) unless level_count > 2
       end
     end
 
@@ -859,7 +857,7 @@ class Board < ApplicationRecord
     end
   end
 
-  def clone_and_update_predivitive_board(original_board_image, new_board_image, updated_voice, cloned_user_id, level_count = 0)
+  def clone_and_update_predictive_board(original_board_image, new_board_image, updated_voice, cloned_user_id, level_count = 0)
     return unless original_board_image.predictive_board_id
     predictive_board = Board.find_by(id: original_board_image.predictive_board_id)
     return unless predictive_board
@@ -876,21 +874,16 @@ class Board < ApplicationRecord
       return
     end
 
-    if predictive_board.voice != updated_voice
-      Rails.logger.info "Voice has changed, cloning predictive board: #{predictive_board.id} for board image: #{new_board_image.id}"
-      new_predictive_board = predictive_board.clone_with_images(cloned_user_id, predictive_board.name, updated_voice, nil, level_count)
-      Rails.logger.info "Cloned predictive board: #{predictive_board.id} to new predictive board: #{new_predictive_board.id} for board image: #{new_board_image.id}"
-      if new_predictive_board
-        new_board_image.predictive_board_id = new_predictive_board.id
-        new_board_image.save
-      else
-        Rails.logger.error "Error cloning predictive board: #{predictive_board.id} for board image: #{new_board_image.id}"
-      end
-    else
-      Rails.logger.info "Voice is the same, not cloning predictive board for board image: #{new_board_image.id}"
-      new_board_image.predictive_board_id = predictive_board.id
-      new_board_image.save
-    end
+    CloneBoardJob.perform_async(predictive_board.id, new_board_image.id, level_count)
+    Rails.logger.info "Scheduled CloneBoardJob for predictive board: #{predictive_board.id} with new_board_image_id: #{new_board_image.id}, level_count: #{level_count}"
+    # new_predictive_board = predictive_board.clone_with_images(cloned_user_id, predictive_board.name, updated_voice, nil, level_count)
+    # Rails.logger.info "Cloned predictive board: #{predictive_board.id} to new predictive board: #{new_predictive_board.id} for board image: #{new_board_image.id}"
+    # if new_predictive_board
+    #   new_board_image.predictive_board_id = new_predictive_board.id
+    #   new_board_image.save
+    # else
+    #   Rails.logger.error "Error cloning predictive board: #{predictive_board.id} for board image: #{new_board_image.id}"
+    # end
   end
 
   def update_user_boards_after_cloning(source_board, cloned_user_id)

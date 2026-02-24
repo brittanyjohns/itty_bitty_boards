@@ -3,7 +3,6 @@ class SaveAudioJob
   sidekiq_options queue: :ai_images, retry: 2
 
   def perform(image_ids, voice)
-    puts "\n\nSaveAudioJob.perform_async(#{image_ids}, #{voice})\n\n"
     images = Image.where(id: image_ids)
     images.each do |image|
       begin
