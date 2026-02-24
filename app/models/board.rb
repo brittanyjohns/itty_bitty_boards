@@ -158,6 +158,10 @@ class Board < ApplicationRecord
     end
   end
 
+  def public_board?
+    user_id == User::DEFAULT_ADMIN_ID && predefined && published
+  end
+
   attr_accessor :skip_broadcasting
 
   def self.recently_used(viewing_user)
@@ -755,7 +759,7 @@ class Board < ApplicationRecord
     new_board_image
   end
 
-  def clone_with_images(cloned_user_id, new_name = nil, updated_voice = nil, communicator_account = nil)
+  def clone_with_images(cloned_user_id, new_name = nil, updated_voice = nil, communicator_account = nil, level_count = 0)
     if new_name.blank?
       new_name = name
     end
@@ -824,7 +828,9 @@ class Board < ApplicationRecord
 
         new_board_image.save
 
-        clone_and_update_predivitive_board(board_image, new_board_image, updated_voice, cloned_user_id) if updated_voice && communicator_account.present?
+        # clone_and_update_predivitive_board(board_image, new_board_image, updated_voice, cloned_user_id) if updated_voice && communicator_account.present?
+        Rails.logger.info "Cloned BoardImage #{board_image.id} to new BoardImage #{new_board_image.id} for board #{@cloned_board.id} - level_count: #{level_count}"
+        clone_and_update_predivitive_board(board_image, new_board_image, updated_voice, cloned_user_id, level_count + 1) unless level_count > 2
       end
     end
 
@@ -853,13 +859,26 @@ class Board < ApplicationRecord
     end
   end
 
-  def clone_and_update_predivitive_board(original_board_image, new_board_image, updated_voice, cloned_user_id)
+  def clone_and_update_predivitive_board(original_board_image, new_board_image, updated_voice, cloned_user_id, level_count = 0)
     return unless original_board_image.predictive_board_id
     predictive_board = Board.find_by(id: original_board_image.predictive_board_id)
     return unless predictive_board
-    #  only clone if voice is different
+    if predictive_board.user_id == cloned_user_id
+      Rails.logger.info "Predictive board user_id is the same as cloned user_id, skipping cloning predictive board for board image: #{new_board_image.id}"
+      new_board_image.predictive_board_id = predictive_board.id
+      new_board_image.save
+      return
+    end
+    if predictive_board.public_board?
+      Rails.logger.info "Predictive board is a public board, skipping cloning predictive board for board image: #{new_board_image.id}"
+      new_board_image.predictive_board_id = predictive_board.id
+      new_board_image.save
+      return
+    end
+
     if predictive_board.voice != updated_voice
-      new_predictive_board = predictive_board.clone_with_images(cloned_user_id, predictive_board.name, updated_voice)
+      Rails.logger.info "Voice has changed, cloning predictive board: #{predictive_board.id} for board image: #{new_board_image.id}"
+      new_predictive_board = predictive_board.clone_with_images(cloned_user_id, predictive_board.name, updated_voice, nil, level_count)
       Rails.logger.info "Cloned predictive board: #{predictive_board.id} to new predictive board: #{new_predictive_board.id} for board image: #{new_board_image.id}"
       if new_predictive_board
         new_board_image.predictive_board_id = new_predictive_board.id

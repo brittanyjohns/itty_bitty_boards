@@ -20,10 +20,10 @@ class API::BoardsController < API::ApplicationController
     end
     include_sub_boards = params[:include_sub_boards] == "1" || params[:include_sub_boards] == true
     Rails.logger.info "Index action called with include_sub_boards: #{include_sub_boards}"
-    if params[:limit]
-      @user_boards = @user_boards = current_user.boards.main_boards.where(predefined: false).alphabetical.limit(params[:limit])
-      render json: { boards: @user_boards.map(&:api_view) } and return
-    end
+    # if params[:limit]
+    #   @user_boards = @user_boards = current_user.boards.main_boards.where(predefined: false).alphabetical.limit(params[:limit])
+    #   render json: { boards: @user_boards.map(&:api_view) } and return
+    # end
     if params[:query].present?
       if include_sub_boards
         @search_results = Board.for_user(current_user).searchable.search_by_name(params[:query]).alphabetical.all
@@ -870,6 +870,10 @@ class API::BoardsController < API::ApplicationController
 
     @board = Board.find_by(id: key) ||
              Board.find_by(slug: key)
+    unless @board
+      render json: { error: "Board not found" }, status: :not_found
+      return
+    end
   end
 
   def check_board_view_edit_permissions
