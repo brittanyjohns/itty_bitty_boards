@@ -131,7 +131,7 @@ class Profile < ApplicationRecord
   def user_boards
     return [] if profileable.nil?
     # return profileable.boards.published.alphabetical if profileable_type == "User"
-    return profileable.boards.alphabetical if profileable_type == "User"
+    return profileable.boards.main_boards.alphabetical if profileable_type == "User"
     []
   end
 
