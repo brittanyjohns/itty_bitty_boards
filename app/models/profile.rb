@@ -377,6 +377,11 @@ class Profile < ApplicationRecord
     raw.slice(*keys)
   end
 
+  def settings_hash_for_public_page
+    # Whatever settings your `public_settings(kind: :public_page)` uses
+    Digest::MD5.hexdigest(public_settings(kind: :public_page).to_json)
+  end
+
   # --- Audio generation ---
   def open_ai_opts
     {}

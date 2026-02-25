@@ -30,17 +30,29 @@ class API::ProfilesController < API::ApplicationController
 
   def public
     @profile = Profile.find_by(slug: params[:slug])
+
     if @profile.nil?
       render json: { error: "Profile not found" }, status: :not_found
       return
     end
 
+    # Placeholder profiles can be cached too if you want, but keeping it simple:
     if @profile.placeholder? && @profile.claimed_at.nil?
       render json: @profile.placeholder_view
       return
     end
+
+    # Compute last_modified + etag for this profile’s public view
+    last_modified = profile_public_last_modified(@profile)
+    etag          = profile_public_etag(@profile)
+
+    # If the client already has the latest version, Rails returns 304 and skips the heavy work
+    return unless stale?(etag: etag, last_modified: last_modified)
+
     Rails.logger.debug("[Profiles#public] public_page=#{@profile.public_page?}")
-    render json: (@profile.public_page? ? @profile.public_page_view : @profile.safety_view)
+
+    payload = @profile.public_page? ? @profile.public_page_view : @profile.safety_view
+    render json: payload
   end
 
   def create
@@ -222,5 +234,53 @@ class API::ProfilesController < API::ApplicationController
 
   def profile_params
     params.require(:profile).permit(:username, :bio, :intro, :avatar, :allow_discovery, settings: {})
+  end
+
+  # Include everything that affects the public JSON in here
+  def profile_public_last_modified(profile)
+    # Base: the profile itself
+    timestamps = [profile.updated_at]
+
+    # These should be ActiveRecord relations; if they’re methods that load arrays,
+    # consider adding AR scopes like `has_many :public_boards` etc. so this stays cheap.
+    if profile.respond_to?(:public_boards)
+      ts = profile.public_boards.maximum(:updated_at)
+      timestamps << ts if ts
+    end
+
+    if profile.respond_to?(:user_boards)
+      ts = profile.user_boards.maximum(:updated_at)
+      timestamps << ts if ts
+    end
+
+    # Global public boards collection (used in public_page_view)
+    ts = Board.public_boards.maximum(:updated_at)
+    timestamps << ts if ts
+
+    # If you have associated rich text records (e.g., ActionText) that might not bump
+    # profile.updated_at, you can fold them in too:
+    if profile.respond_to?(:public_about) && profile.public_about&.respond_to?(:updated_at)
+      timestamps << profile.public_about.updated_at
+    end
+
+    if profile.respond_to?(:public_intro) && profile.public_intro&.respond_to?(:updated_at)
+      timestamps << profile.public_intro.updated_at
+    end
+
+    if profile.respond_to?(:public_bio) && profile.public_bio&.respond_to?(:updated_at)
+      timestamps << profile.public_bio.updated_at
+    end
+
+    timestamps.compact.max || Time.zone.at(0)
+  end
+
+  def profile_public_etag(profile)
+    [
+      "profile-public-v1",   # bump this if you change serialization logic
+      profile.id,
+      profile.public_page? ? "public" : "safety",
+      profile.allow_discovery?,
+      profile.settings_hash_for_public_page, # optional helper, see note below
+    ]
   end
 end
