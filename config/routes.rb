@@ -264,6 +264,7 @@ Rails.application.routes.draw do
         post "analyze_obz"
         post "create_from_template"
         get "common_boards"
+        get "list"
       end
       member do
         post "format_with_ai"
@@ -273,7 +274,6 @@ Rails.application.routes.draw do
         post "rearrange_images"
         post "add_image"
         post "remove_image"
-        get "remaining_images"
         put "associate_image"
         put "associate_images"
         post "clone"

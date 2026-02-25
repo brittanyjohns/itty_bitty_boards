@@ -163,7 +163,7 @@ class Board < ApplicationRecord
   end
 
   def in_a_public_group?
-    board_group_boards.joins(:board_group).where(board_groups: { predefined: true }).exists?
+    @in_a_public_group ||= board_group_boards.joins(:board_group).where(board_groups: { predefined: true }).exists?
   end
 
   attr_accessor :skip_broadcasting
@@ -1600,8 +1600,26 @@ class Board < ApplicationRecord
     end
   end
 
+  def list_api_view(viewing_user = nil)
+    {
+      id: id,
+      board_id: id,
+      slug: slug,
+      name: name,
+      word_list: current_word_list,
+      can_edit: viewing_user && (user_id == viewing_user.id || viewing_user.admin?),
+      is_template: is_template,
+      display_image_url: display_image_url,
+      user_id: user_id,
+    }
+  end
+
   def api_view(viewing_user = nil)
     can_edit = viewing_user && (user_id == viewing_user.id || viewing_user.admin?)
+    @in_a_public_group = false
+    if viewing_user && viewing_user.admin?
+      @in_a_public_group = in_a_public_group?
+    end
     {
       id: id,
       board_id: id,
@@ -1610,7 +1628,7 @@ class Board < ApplicationRecord
       name: name,
       is_template: is_template,
       public_board: public_board?,
-      in_a_public_group: in_a_public_group?,
+      in_a_public_group: @in_a_public_group,
       published: published,
       in_use: in_use,
       can_edit: can_edit,

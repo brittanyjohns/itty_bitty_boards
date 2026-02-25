@@ -1,19 +1,14 @@
 class API::BoardsController < API::ApplicationController
-  # protect_from_forgery with: :null_session
-  # respond_to :json
-  # before_action :authenticate_user!
   skip_before_action :authenticate_token!, only: %i[ index predictive_image_board preset show public_boards public_menu_boards common_boards pdf ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts ]
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
   before_action :check_board_create_permissions, only: %i[ create clone ]
-  # layout "fullscreen", only: [:fullscreen]
-  # layout "locked", only: [:locked]
 
   # GET /boards or /boards.json
   def index
     unless current_user
-      @static_preset_boards = Board.predefined.alphabetical.all
+      @static_preset_boards = Board.includes(board_group_boards: :board_group).predefined.alphabetical.all
       render json: { static_preset_boards: @static_preset_boards.map(&:api_view),
                      preset_boards: @static_preset_boards.map(&:api_view) }
       return
@@ -22,9 +17,9 @@ class API::BoardsController < API::ApplicationController
 
     if params[:query].present?
       if include_sub_boards
-        @search_results = Board.for_user(current_user).searchable.search_by_name(params[:query]).alphabetical
+        @search_results = Board.includes(board_group_boards: :board_group).for_user(current_user).searchable.search_by_name(params[:query]).alphabetical
       else
-        @search_results = Board.for_user(current_user).searchable.main_boards.search_by_name(params[:query]).alphabetical
+        @search_results = Board.includes(board_group_boards: :board_group).for_user(current_user).searchable.main_boards.search_by_name(params[:query]).alphabetical
       end
       if params[:limit]
         @search_results = @search_results.limit(params[:limit])
@@ -46,16 +41,12 @@ class API::BoardsController < API::ApplicationController
     else
       @user_boards = @user_boards.all
     end
-    Rails.logger.info "User boards count: #{@user_boards.count}"
 
     @newly_created_boards = @user_boards.where("created_at >= ?", 1.week.ago).order(created_at: :desc).limit(7)
-    # @recently_used_boards = current_user.recently_used_boards
 
 
     render json: {
              newly_created_boards: @newly_created_boards.map {|board| board.api_view(current_user) },
-            #  recently_used_boards: @recently_used_boards.map {|board| board.api_view(current_user) },
-             #  preset_boards: @predefined_boards.map(&:api_view),
              boards: @user_boards.map {|board| board.api_view(current_user) },
            }
   end
@@ -63,6 +54,11 @@ class API::BoardsController < API::ApplicationController
   def public_boards
     @public_boards = Board.public_boards
     render json: { public_boards: @public_boards.map {|board| board.api_view(current_user) } }
+  end
+
+  def list
+    @boards = Board.for_user(current_user).alphabetical
+    render json: { boards: @boards.map {|board| board.list_api_view(current_user) } }
   end
 
   def common_boards
@@ -159,55 +155,6 @@ class API::BoardsController < API::ApplicationController
 
     @board.reload
     render json: @board.api_view_with_images(current_user)
-  end
-
-  def remaining_images
-    set_board
-    current_page = params[:page] || 1
-    if params[:query].present? && params[:query] != "null"
-      @query = params[:query]
-      # @images = Image.searchable.with_artifacts.where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc)
-      @images = Image.searchable_images_for(current_user).where("label ILIKE ?", "%#{params[:query]}%").order(label: :asc)
-    else
-      # @images = Image.searchable.with_artifacts.all.order(label: :asc)
-      @images = Image.searchable_images_for(current_user).order(label: :asc)
-    end
-
-    if params[:scope]
-      case params[:scope]
-      when "predictive"
-        @images = @images.category
-      when "category"
-        @images = @images.category
-      when "static"
-        @images = @images.static
-      end
-    end
-    @images = @images.where(user_id: [current_user.id, User::DEFAULT_ADMIN_ID, nil]).distinct
-    @images = @images.excluding(@board.images).page(current_page)
-
-    if params[:scope] == "predictive"
-      @images_with_display_doc = @images.map do |image|
-        api_view = image.api_view(current_user)
-        any_board_imgs = api_view[:any_board_imgs]
-        if any_board_imgs.any?
-          api_view
-        else
-          nil
-        end
-      end
-    else
-      @images_with_display_doc = @images.map(&:api_view)
-    end
-
-    @images_with_display_doc = @images_with_display_doc.compact
-
-    return_data = {
-      total_pages: @images.total_pages,
-      page_size: @images.limit_value,
-      data: @images_with_display_doc.sort { |a, b| a[:label] <=> b[:label] },
-    }
-    render json: return_data
   end
 
   def rearrange_images
@@ -873,8 +820,8 @@ class API::BoardsController < API::ApplicationController
   def set_board
     key = params[:slug].presence || params[:id].presence
 
-    @board = Board.find_by(id: key) ||
-             Board.find_by(slug: key)
+    @board = Board.includes(board_group_boards: :board_group).find_by(id: key) ||
+             Board.includes(board_group_boards: :board_group).find_by(slug: key)
     unless @board
       render json: { error: "Board not found" }, status: :not_found
       return
