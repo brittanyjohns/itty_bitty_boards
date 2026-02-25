@@ -1255,7 +1255,7 @@ class User < ApplicationRecord
     {
       id: id,
       organization_id: organization_id,
-      profile: profile&.api_view,
+      profile: profile&.user_api_view,
       delete_account_token: delete_account_token,
       public_page_url: public_page_url,
       slug: slug,
@@ -1278,9 +1278,6 @@ class User < ApplicationRecord
       name: name,
       display_name: display_name,
       admin: admin?,
-
-      # Profile info
-      profile: profile&.api_view,
 
       # Plan flags
       free: free?,

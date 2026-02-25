@@ -48,10 +48,6 @@ class API::ProfilesController < API::ApplicationController
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
-
-    Rails.logger.debug("[Profiles#create] raw params keys=#{params.keys}")
-    Rails.logger.debug("[Profiles#create] profile params=#{profile_params.to_h}")
-
     profile = Profile.new(profile_params)
     profile.profileable = current_user
 

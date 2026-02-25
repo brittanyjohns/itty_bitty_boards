@@ -291,6 +291,28 @@ class Profile < ApplicationRecord
     }
   end
 
+  def user_api_view
+    {
+      id: id,
+      username: username,
+      name: profileable.respond_to?(:name) ? profileable.name : username,
+      slug: slug,
+      profile_kind: profile_kind,
+      allow_discovery: allow_discovery,
+      public_url: public_url,
+      intro: intro,
+      bio: bio,
+
+      avatar: avatar_url,
+      intro_audio_url: intro_audio_url,
+      bio_audio_url: bio_audio_url,
+
+      # Only allow landing-page-safe settings keys
+      settings: public_settings(kind: :public_page),
+      email: email,
+    }
+  end
+
   def placeholder_view
     {
       id: id,

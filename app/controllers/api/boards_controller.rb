@@ -1,5 +1,5 @@
 class API::BoardsController < API::ApplicationController
-  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board preset show public_boards public_menu_boards common_boards pdf ]
+  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board show public_boards public_menu_boards common_boards pdf ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts ]
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
@@ -7,58 +7,119 @@ class API::BoardsController < API::ApplicationController
 
   # GET /boards or /boards.json
   def index
+    include_sub_boards = params[:include_sub_boards] == "1" || params[:include_sub_boards] == true
+    limit_param        = params[:limit].presence&.to_i
+    query              = params[:query].to_s.presence
+
+    # ---------------------------
+    # 1. GUEST (no current_user)
+    # ---------------------------
     unless current_user
-      @static_preset_boards = Board.includes(board_group_boards: :board_group).predefined.alphabetical.all
-      render json: { static_preset_boards: @static_preset_boards.map(&:api_view),
-                     preset_boards: @static_preset_boards.map(&:api_view) }
+      last_modified = Board.predefined.maximum(:updated_at) || Time.zone.at(0)
+      etag          = guest_boards_index_etag(last_modified, limit_param)
+
+      return unless stale?(etag: etag, last_modified: last_modified)
+
+      static_scope = Board.predefined.alphabetical
+      static_scope = static_scope.limit(limit_param) if limit_param
+
+      static_boards = static_scope.to_a
+
+      payload = static_boards.map(&:api_view)
+
+      render json: {
+        static_preset_boards: payload,
+        preset_boards:        payload,
+      }
       return
     end
-    include_sub_boards = params[:include_sub_boards] == "1" || params[:include_sub_boards] == true
 
-    if params[:query].present?
-      if include_sub_boards
-        @search_results = Board.includes(board_group_boards: :board_group).for_user(current_user).searchable.search_by_name(params[:query]).alphabetical
-      else
-        @search_results = Board.includes(board_group_boards: :board_group).for_user(current_user).searchable.main_boards.search_by_name(params[:query]).alphabetical
+    # ---------------------------
+    # 2. SEARCH MODE
+    # ---------------------------
+    if query.present?
+      search_scope = Board.for_user(current_user).searchable
+      search_scope = search_scope.main_boards unless include_sub_boards
+      search_scope = search_scope.search_by_name(query).alphabetical
+      search_scope = search_scope.limit(limit_param) if limit_param
+
+      # Optional: short-lived cache for identical searches per user.
+      # You can safely remove this block if you don't want fragment caching.
+      cache_key = [
+        "boards-search-v1",
+        current_user.id,
+        include_sub_boards ? "with-subs" : "main-only",
+        query,
+        limit_param,
+        search_scope.maximum(:updated_at)&.to_i,
+      ]
+
+      boards = Rails.cache.fetch(cache_key, expires_in: 5.minutes) do
+        search_scope.to_a.map { |board| board.api_view(current_user) }
       end
-      if params[:limit]
-        @search_results = @search_results.limit(params[:limit])
-      else
-        @search_results = @search_results.all
-      end
 
-
-      render json: { boards: @search_results.map {|board| board.api_view(current_user) } } and return
-    end
-    # @predefined_boards = Board.predefined.non_menus.alphabetical.page params[:page]
-    if include_sub_boards
-    @user_boards = current_user.boards.alphabetical
-    else
-      @user_boards = current_user.boards.main_boards.alphabetical
-    end
-    if params[:limit]
-      @user_boards = @user_boards.limit(params[:limit])
-    else
-      @user_boards = @user_boards.all
+      render json: { boards: boards }
+      return
     end
 
-    @newly_created_boards = @user_boards.where("created_at >= ?", 1.week.ago).order(created_at: :desc).limit(7)
+    # ---------------------------
+    # 3. NORMAL INDEX (NO QUERY)
+    # ---------------------------
+    base_scope = include_sub_boards ? current_user.boards : current_user.boards.main_boards
 
+    # Last modified for this user’s boards list
+    last_modified = boards_index_last_modified(current_user, base_scope)
+    etag          = boards_index_etag(current_user, include_sub_boards, limit_param, last_modified)
+
+    # If nothing changed, Rails sends 304 and skips the heavy work
+    return unless stale?(etag: etag, last_modified: last_modified)
+
+    user_boards_scope = base_scope.alphabetical
+    user_boards_scope = user_boards_scope.limit(limit_param) if limit_param
+    @user_boards      = user_boards_scope.to_a
+
+    @newly_created_boards =
+      base_scope
+        .where("created_at >= ?", 1.week.ago)
+        .order(created_at: :desc)
+        .limit(7)
+        .to_a
 
     render json: {
-             newly_created_boards: @newly_created_boards.map {|board| board.api_view(current_user) },
-             boards: @user_boards.map {|board| board.api_view(current_user) },
-           }
+      newly_created_boards: @newly_created_boards.map { |board| board.api_view(current_user) },
+      boards:               @user_boards.map { |board| board.api_view(current_user) },
+    }
   end
 
   def public_boards
-    @public_boards = Board.public_boards
-    render json: { public_boards: @public_boards.map {|board| board.api_view(current_user) } }
+    scope = Board.public_boards
+
+    last_modified = scope.maximum(:updated_at) || Time.zone.at(0)
+    etag = public_boards_etag(current_user, last_modified)
+
+    # If nothing changed since client’s last request, Rails returns 304 and stops.
+    return unless stale?(etag: etag, last_modified: last_modified)
+
+    @public_boards = scope.to_a
+
+    render json: {
+      public_boards: @public_boards.map { |board| board.api_view(current_user) },
+    }
   end
 
   def list
-    @boards = Board.for_user(current_user).alphabetical
-    render json: { boards: @boards.map {|board| board.list_api_view(current_user) } }
+    scope = Board.for_user(current_user).alphabetical
+
+    last_modified = boards_list_last_modified(current_user, scope)
+    etag          = boards_list_etag(current_user, last_modified)
+
+    return unless stale?(etag: etag, last_modified: last_modified)
+
+    @boards = scope.to_a
+
+    render json: {
+      boards: @boards.map { |board| board.list_api_view(current_user) },
+    }
   end
 
   def common_boards
@@ -69,30 +130,6 @@ class API::BoardsController < API::ApplicationController
   def public_menu_boards
     @public_menu_boards = Board.public_menu_boards.alphabetical.all
     render json: { public_menu_boards: @public_menu_boards.map(&:api_view) }
-  end
-
-  def preset
-    if params[:query].present?
-      @predefined_boards = Board.public_boards.search_by_name(params[:query]).alphabetical.all
-    elsif params[:filter].present?
-      filter = params[:filter]
-      unless Board::SAFE_FILTERS.include?(filter)
-        render json: { error: "Invalid filter" }, status: :unprocessable_entity
-        return
-      end
-
-      result = Board.public_boards.send(filter)
-      if result.is_a?(ActiveRecord::Relation)
-        @predefined_boards = result.alphabetical.all
-      else
-        @predefined_boards = result
-      end
-      # @predefined_boards = Board.predefined.where(category: params[:filter]).alphabetical.all
-    else
-      @predefined_boards = Board.public_boards.alphabetical
-    end
-    # render json: { predefined_boards: @predefined_boards, categories: @categories, all_categories: Board.board_categories }
-    render json: { predefined_boards: @predefined_boards.map(&:api_view) }
   end
 
   def categories
@@ -732,6 +769,52 @@ class API::BoardsController < API::ApplicationController
 
 
   private
+
+  def public_boards_etag(user, last_modified)
+    [
+      "public-boards-v1",
+      user&.id,              # include if api_view varies by user
+      last_modified.to_i,
+    ]
+  end
+  def boards_list_last_modified(user, scope)
+    scope.maximum(:updated_at) || user.updated_at || Time.zone.at(0)
+  end
+
+  def boards_list_etag(user, last_modified)
+    [
+      "boards-list-v1",
+      user.id,
+      last_modified.to_i,
+    ]
+  end
+
+  # ---------- GUEST HELPERS ----------
+
+  def guest_boards_index_etag(last_modified, limit_param)
+    [
+      "boards-index-guest-v1",
+      last_modified.to_i,
+      limit_param,
+    ]
+  end
+
+  # ---------- LOGGED-IN HELPERS ----------
+
+  def boards_index_last_modified(user, base_scope)
+    # If you want to be extra strict, you could also consider BoardImage etc here.
+    base_scope.maximum(:updated_at) || user.updated_at || Time.zone.at(0)
+  end
+
+  def boards_index_etag(user, include_sub_boards, limit_param, last_modified)
+    [
+      "boards-index-user-v1",
+      user.id,
+      include_sub_boards ? "with-subs" : "main-only",
+      limit_param,
+      last_modified.to_i,
+    ]
+  end
 
   def find_board_for_predictive_page
     key = params[:slug].presence || params[:id].presence

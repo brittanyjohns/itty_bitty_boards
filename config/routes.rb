@@ -258,7 +258,6 @@ Rails.application.routes.draw do
         get "user_boards"
         get "words"
         get "categories"
-        get "preset"
         get "initial_predictive_board"
         post "import_obf"
         post "analyze_obz"
