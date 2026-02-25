@@ -20,28 +20,41 @@ class API::BoardsController < API::ApplicationController
     end
     include_sub_boards = params[:include_sub_boards] == "1" || params[:include_sub_boards] == true
     # if params[:limit]
-    #   @user_boards = @user_boards = current_user.boards.main_boards.where(predefined: false).alphabetical.limit(params[:limit])
+    #   if include_sub_boards
+    #   @user_boards = @user_boards = current_user.boards.where(predefined: false).alphabetical.limit(params[:limit])
+    #   else
+    #     @user_boards = current_user.boards.main_boards.where(predefined: false).alphabetical.limit(params[:limit])
+    #   end
     #   render json: { boards: @user_boards.map(&:api_view) } and return
     # end
     if params[:query].present?
       if include_sub_boards
-        @search_results = Board.for_user(current_user).searchable.search_by_name(params[:query]).alphabetical.all
+        @search_results = Board.for_user(current_user).searchable.search_by_name(params[:query]).alphabetical
       else
-        @search_results = Board.for_user(current_user).searchable.main_boards.search_by_name(params[:query]).alphabetical.all
+        @search_results = Board.for_user(current_user).searchable.main_boards.search_by_name(params[:query]).alphabetical
       end
+      if params[:limit]
+        @search_results = @search_results.limit(params[:limit])
+      else
+        @search_results = @search_results.all
+      end
+
 
       render json: { search_results: @search_results.map {|board| board.api_view(current_user) } } and return
     end
     # @predefined_boards = Board.predefined.non_menus.alphabetical.page params[:page]
     if include_sub_boards
-    @user_boards = current_user.boards.where(predefined: false).alphabetical.all
+    @user_boards = current_user.boards.where(predefined: false).alphabetical
     else
-      @user_boards = current_user.boards.main_boards.where(predefined: false).alphabetical.all
+      @user_boards = current_user.boards.main_boards.where(predefined: false).alphabetical
+    end
+    if params[:limit]
+      @user_boards = @user_boards.limit(params[:limit])
+    else
+      @user_boards = @user_boards.all
     end
     Rails.logger.info "User boards count: #{@user_boards.count}"
-    # if current_user.admin?
-    #   @user_boards = current_user.boards.alphabetical.all
-    # end
+
     @newly_created_boards = @user_boards.where("created_at >= ?", 1.week.ago).order(created_at: :desc).limit(7)
     # @recently_used_boards = current_user.recently_used_boards
 
