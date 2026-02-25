@@ -162,6 +162,10 @@ class Board < ApplicationRecord
     user_id == User::DEFAULT_ADMIN_ID && predefined && published
   end
 
+  def in_a_public_group?
+    board_group_boards.joins(:board_group).where(board_groups: { predefined: true }).exists?
+  end
+
   attr_accessor :skip_broadcasting
 
   def self.recently_used(viewing_user)
@@ -1605,6 +1609,9 @@ class Board < ApplicationRecord
       user_name: user.to_s,
       name: name,
       is_template: is_template,
+      public_board: public_board?,
+      in_a_public_group: in_a_public_group?,
+      published: published,
       in_use: in_use,
       can_edit: can_edit,
       layout: layout,

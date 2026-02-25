@@ -19,14 +19,7 @@ class API::BoardsController < API::ApplicationController
       return
     end
     include_sub_boards = params[:include_sub_boards] == "1" || params[:include_sub_boards] == true
-    # if params[:limit]
-    #   if include_sub_boards
-    #   @user_boards = @user_boards = current_user.boards.where(predefined: false).alphabetical.limit(params[:limit])
-    #   else
-    #     @user_boards = current_user.boards.main_boards.where(predefined: false).alphabetical.limit(params[:limit])
-    #   end
-    #   render json: { boards: @user_boards.map(&:api_view) } and return
-    # end
+
     if params[:query].present?
       if include_sub_boards
         @search_results = Board.for_user(current_user).searchable.search_by_name(params[:query]).alphabetical
@@ -40,13 +33,13 @@ class API::BoardsController < API::ApplicationController
       end
 
 
-      render json: { search_results: @search_results.map {|board| board.api_view(current_user) } } and return
+      render json: { boards: @search_results.map {|board| board.api_view(current_user) } } and return
     end
     # @predefined_boards = Board.predefined.non_menus.alphabetical.page params[:page]
     if include_sub_boards
-    @user_boards = current_user.boards.where(predefined: false).alphabetical
+    @user_boards = current_user.boards.alphabetical
     else
-      @user_boards = current_user.boards.main_boards.where(predefined: false).alphabetical
+      @user_boards = current_user.boards.main_boards.alphabetical
     end
     if params[:limit]
       @user_boards = @user_boards.limit(params[:limit])
