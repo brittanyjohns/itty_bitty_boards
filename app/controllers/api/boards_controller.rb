@@ -785,7 +785,7 @@ class API::BoardsController < API::ApplicationController
     file_data = Grover.new(html, **grover_options).to_pdf
 
     send_data file_data,
-      filename: "board-#{@board.slug}.pdf",
+      filename: "#{@board.slug}-board.pdf",
       type: "application/pdf",
       disposition: disp
   end
