@@ -118,6 +118,12 @@ class API::WebhooksController < API::ApplicationController
       end
     end
 
+    Rails.logger.info "[StripeWebhook] user #{user.email} found with role #{user.role} and plan_type #{user.plan_type}"
+    if user.admin?
+      Rails.logger.info "[StripeWebhook] subscription upsert: user #{user.id} is admin, skipping plan update"
+      return
+    end
+
     price = first_price_from_subscription(subscription)
     unless price
       Rails.logger.error "[StripeWebhook] subscription upsert: no price for subscription #{subscription.id}"
