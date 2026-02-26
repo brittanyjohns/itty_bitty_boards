@@ -163,6 +163,11 @@ class API::BoardsController < API::ApplicationController
     # if stale?(etag: @board, last_modified: @board.updated_at)
     #   RailsPerformance.measure("Show Board") do
     # @loaded_board = Board.with_artifacts.find(@board.id)
+    unless @board
+      render json: { error: "Board not found" }, status: :not_found
+      Rails.logger.error "SHOW - Board not found for ID: #{params[:id]}"
+      return
+    end
     @board_with_images = @board.api_view_with_predictive_images(current_user, true)
     # end
     render json: @board_with_images
