@@ -275,12 +275,19 @@ class API::ProfilesController < API::ApplicationController
   end
 
   def profile_public_etag(profile)
+    # Scopes:
+    pb = profile.public_boards
+    ub = profile.user_boards
+    gb = Board.public_boards
+
     [
-      "profile-public-v1",   # bump this if you change serialization logic
+      "profile-public-v1",
       profile.id,
       profile.public_page? ? "public" : "safety",
       profile.allow_discovery?,
-      profile.settings_hash_for_public_page, # optional helper, see note below
+      pb.maximum(:id), pb.count,
+      ub.maximum(:id), ub.count,
+      gb.maximum(:id), gb.count,
     ]
   end
 end

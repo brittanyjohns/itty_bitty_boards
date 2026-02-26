@@ -65,11 +65,10 @@ class API::BoardsController < API::ApplicationController
     # ---------------------------
     # 3. NORMAL INDEX (NO QUERY)
     # ---------------------------
-    base_scope = include_sub_boards ? current_user.boards : current_user.boards.main_boards
-
-    # Last modified for this user’s boards list
+    base_scope    = include_sub_boards ? current_user.boards : current_user.boards.main_boards
     last_modified = boards_index_last_modified(current_user, base_scope)
-    etag          = boards_index_etag(current_user, include_sub_boards, limit_param, last_modified)
+    etag          = boards_index_etag(current_user, include_sub_boards, limit_param, base_scope, last_modified)
+
 
     # If nothing changed, Rails sends 304 and skips the heavy work
     return unless stale?(etag: etag, last_modified: last_modified)
@@ -95,31 +94,26 @@ class API::BoardsController < API::ApplicationController
     scope = Board.public_boards
 
     last_modified = scope.maximum(:updated_at) || Time.zone.at(0)
-    etag = public_boards_etag(current_user, last_modified)
+    etag          = public_boards_etag(scope, last_modified)
 
-    # If nothing changed since client’s last request, Rails returns 304 and stops.
     return unless stale?(etag: etag, last_modified: last_modified)
 
     @public_boards = scope.to_a
 
-    render json: {
-      public_boards: @public_boards.map { |board| board.api_view(current_user) },
-    }
+    render json: { public_boards: @public_boards.map { |board| board.api_view(current_user) } }
   end
 
   def list
     scope = Board.for_user(current_user).alphabetical
 
     last_modified = boards_list_last_modified(current_user, scope)
-    etag          = boards_list_etag(current_user, last_modified)
+    etag          = boards_list_etag(current_user, scope, last_modified)
 
     return unless stale?(etag: etag, last_modified: last_modified)
 
     @boards = scope.to_a
 
-    render json: {
-      boards: @boards.map { |board| board.list_api_view(current_user) },
-    }
+    render json: { boards: @boards.map { |board| board.list_api_view(current_user) } }
   end
 
   def common_boards
@@ -770,22 +764,25 @@ class API::BoardsController < API::ApplicationController
 
   private
 
-  def public_boards_etag(user, last_modified)
-    [
-      "public-boards-v1",
-      user&.id,              # include if api_view varies by user
-      last_modified.to_i,
-    ]
-  end
+  def public_boards_etag(scope, last_modified)
+  [
+    "public-boards-v1",
+    last_modified.to_i,
+    scope.maximum(:id),
+    scope.count,
+  ]
+end
   def boards_list_last_modified(user, scope)
     scope.maximum(:updated_at) || user.updated_at || Time.zone.at(0)
   end
 
-  def boards_list_etag(user, last_modified)
+  def boards_list_etag(user, scope, last_modified)
     [
       "boards-list-v1",
       user.id,
       last_modified.to_i,
+      scope.maximum(:id),
+      scope.count,
     ]
   end
 
@@ -806,13 +803,15 @@ class API::BoardsController < API::ApplicationController
     base_scope.maximum(:updated_at) || user.updated_at || Time.zone.at(0)
   end
 
-  def boards_index_etag(user, include_sub_boards, limit_param, last_modified)
+  def boards_index_etag(user, include_sub_boards, limit_param, base_scope, last_modified)
     [
       "boards-index-user-v1",
       user.id,
       include_sub_boards ? "with-subs" : "main-only",
       limit_param,
       last_modified.to_i,
+      base_scope.maximum(:id),                      # changes on create/delete
+      base_scope.count                              # extra safety for membership changes
     ]
   end
 
