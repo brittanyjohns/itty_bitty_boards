@@ -120,16 +120,20 @@ class Board < ApplicationRecord
 
   scope :dynamic_defaults, -> { where(name: "Dynamic Default", parent_type: "PredefinedResource") }
 
-  SAFE_FILTERS = %w[all welcome preset featured popular general seasonal routines emotions actions animals food people places things colors shapes numbers letters].freeze
-
   # scope :with_artifacts, -> { includes({ board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }) }
   scope :with_artifacts, -> { includes({ board_images: [{ image: [{ docs: [:image_attachment, :image_blob, :user_docs] }, :audio_files_attachments, :audio_files_blobs, :user, :category_boards] }] }, :image_parent) }
 
   scope :in_use, -> { where(in_use: true) }
+  scope :not_in_use, -> { main_boards.where(in_use: false) }
   scope :templates, -> { where(is_template: true) }
   scope :non_templates, -> { where(is_template: false) }
-  scope :active_sub_boards, -> { where(sub_board: true) }
-  scope :main_boards, -> { where(sub_board: false) }
+  scope :sub_boards, -> { where(sub_board: true) }
+  scope :main_boards, -> { where(sub_board: [false, nil]) }
+  scope :newly_created, -> { main_boards.created_this_week.order(created_at: :desc) }
+  scope :recent, -> { main_boards.where("updated_at > ?", 1.week.ago).order(updated_at: :desc) }
+
+  SAFE_FILTERS = %w[all predefined user_made ai_generated predictive public_boards in_use published sub_boards main_boards recent newly_created not_in_use].freeze
+
   include ImageHelper
 
   before_save :set_voice, if: :voice_changed?
