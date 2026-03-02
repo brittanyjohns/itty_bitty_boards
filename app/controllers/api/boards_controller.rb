@@ -13,7 +13,6 @@ class API::BoardsController < API::ApplicationController
 
     query        = params[:query].to_s.strip.presence
     filter_param = params[:filter].to_s.strip.presence
-    include_sub_boards = filter_param == "sub_boards" || params[:include_sub_boards].to_s == "true"
 
     # ---------------------------
     # Normalize + validate filter
@@ -58,7 +57,6 @@ class API::BoardsController < API::ApplicationController
     # ---------------------------
     if query.present?
       search_scope = Board.for_user(current_user).searchable
-      # search_scope = search_scope.main_boards unless include_sub_boards
       search_scope = apply_filter(search_scope, filter)
       search_scope = search_scope.search_by_name(query).alphabetical
       search_scope = search_scope.page(page).per(per_page)
@@ -68,7 +66,6 @@ class API::BoardsController < API::ApplicationController
       cache_key = [
         "boards-search-v2",
         current_user.id,
-        include_sub_boards ? "with-subs" : "main-only",
         query,
         filter || "no-filter",
         page,
@@ -109,7 +106,6 @@ class API::BoardsController < API::ApplicationController
     last_modified = boards_index_last_modified(current_user, filtered_scope)
     etag          = boards_index_etag(
       current_user,
-      include_sub_boards,
       limit_param,
       filtered_scope,
       last_modified,
@@ -823,6 +819,9 @@ class API::BoardsController < API::ApplicationController
 
   def apply_filter(scope, filter)
     return scope unless filter.present?
+    if filter == "public_boards"
+      return Board.public_boards.alphabetical
+    end
     scope.public_send(filter)
   end
 
@@ -865,11 +864,10 @@ end
     base_scope.maximum(:updated_at) || user.updated_at || Time.zone.at(0)
   end
 
-  def boards_index_etag(user, include_sub_boards, limit_param, base_scope, last_modified)
+  def boards_index_etag(user, limit_param, base_scope, last_modified)
     [
       "boards-index-user-v1",
       user.id,
-      include_sub_boards ? "with-subs" : "main-only",
       limit_param,
       last_modified.to_i,
       base_scope.maximum(:id),                      # changes on create/delete

@@ -128,11 +128,11 @@ class Board < ApplicationRecord
   scope :templates, -> { where(is_template: true) }
   scope :non_templates, -> { where(is_template: false) }
   scope :sub_boards, -> { where(sub_board: true) }
-  scope :main_boards, -> { where(sub_board: [false, nil]) }
+  scope :main_boards, -> { non_menus.where(sub_board: [false, nil]) }
   scope :newly_created, -> { main_boards.created_this_week.order(created_at: :desc) }
   scope :recent, -> { main_boards.where("updated_at > ?", 1.week.ago).order(updated_at: :desc) }
 
-  SAFE_FILTERS = %w[all predefined user_made ai_generated predictive public_boards in_use published sub_boards main_boards recent newly_created not_in_use].freeze
+  SAFE_FILTERS = %w[all predefined user_made ai_generated predictive public_boards in_use published sub_boards main_boards recent newly_created not_in_use menus].freeze
 
   include ImageHelper
 
