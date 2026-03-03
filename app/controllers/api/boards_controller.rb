@@ -1,7 +1,7 @@
 class API::BoardsController < API::ApplicationController
   skip_before_action :authenticate_token!, only: %i[ index predictive_image_board show public_boards public_menu_boards common_boards pdf ]
 
-  before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts ]
+  before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts show ]
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
   before_action :check_board_create_permissions, only: %i[ create clone ]
 
@@ -207,7 +207,6 @@ class API::BoardsController < API::ApplicationController
   end
 
   def show
-    set_board
     # if stale?(etag: @board, last_modified: @board.updated_at)
     #   RailsPerformance.measure("Show Board") do
     # @loaded_board = Board.with_artifacts.find(@board.id)

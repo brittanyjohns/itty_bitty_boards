@@ -140,8 +140,13 @@ class ChildAccount < ApplicationRecord
       Rails.logger.error "Profile not found for audio update"
     end
     #  update boards audio as well
-    board_ids = child_boards.pluck(:board_id)
-    UpdateBoardsVoiceJob.perform_async(board_ids, updated_voice, language)
+    board_ids = child_boards.pluck(:board_id).uniq
+    if board_ids.empty?
+      Rails.logger.info "UPDATE AUDIO  - No boards found for user_id #{user_id}"
+      return
+    end
+    Rails.logger.info "UPDATE AUDIO  - Updating audio for boards: #{board_ids.count} boards found for user_id #{user_id}"
+    # UpdateBoardsVoiceJob.perform_async(board_ids, updated_voice, language)
   end
 
   def reset_authentication_token!
