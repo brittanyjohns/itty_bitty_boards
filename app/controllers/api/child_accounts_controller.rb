@@ -27,7 +27,6 @@ class API::ChildAccountsController < API::ApplicationController
   # POST /child_accounts
   def create
     is_demo = params[:is_demo] ? ActiveModel::Type::Boolean.new.cast(params[:is_demo]) : false
-    Rails.logger.info "Creating Child Account - is_demo: #{is_demo}"
 
     allowed, status, error = Permissions::CommunicatorLimits.can_create?(
       user: current_user,

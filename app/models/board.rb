@@ -731,7 +731,7 @@ class Board < ApplicationRecord
     language_settings[self.language] = { "display_label" => @image.label, "label" => @image.label }
     new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images_count, language: self.language)
     new_board_image.set_labels
-    new_board_image.part_of_speech = @image.part_of_speech
+    new_board_image.part_of_speech = @image.part_of_speech || "default"
     new_board_image.set_colors
     if layout
       new_board_image.layout = layout
@@ -1800,8 +1800,9 @@ class Board < ApplicationRecord
 
   def get_word_suggestions(name_to_use, number_of_words, words_to_exclude = [])
     response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words, words_to_exclude)
+    Rails.logger.info "Response from get_word_suggestions: #{response}"
     begin
-      if response
+      if response && response[:content].present?
         word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip
         if word_suggestions.blank? || word_suggestions.include?("NO WORDS")
           return

@@ -469,22 +469,10 @@ class OpenAiClient
     end
     format_instructions = "Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}"
     text += format_instructions
-    # examples = <<~EXAMPLES
-    #   Examples: If the board is named 'drink', words like 'water', 'milk', 'juice', 'thirsty', etc. would be appropriate.
-    #   If the board is 'food', words like 'apple', 'banana', 'cookie', 'eat', etc. would be appropriate.
-    #   If the board is 'Trip to the park', words like 'play', 'my turn', 'swing', 'slide', etc. would be appropriate.
-    #   If the board is 'nature', words like 'tree', 'flower', 'sun', 'rain', etc. would be appropriate.
-    #   If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate.
-    #   If the board is 'feelings', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
-    #   If the board is 'family', words like 'mom', 'dad', 'sister', 'brother', etc. would be appropriate.
-    # EXAMPLES
-    # text += examples
-    Rails.logger.debug "**** INFO **** \nUser - model: #{@model} -- \n text:\n #{text}\n"
     @messages = [{ role: "user",
-                  content: [{
-      type: "text",
-      text: text,
-    }] }]
+                  content: [{ type: "text",
+                              text: text }] }]
+
     response = create_chat
     response
   end

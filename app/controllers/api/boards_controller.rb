@@ -223,7 +223,6 @@ class API::BoardsController < API::ApplicationController
 
   def initial_predictive_board
     @board = Board.predictive_default
-    Rails.logger.info "Initial predictive board ID: #{@board&.id}"
     if @board.nil?
       @board = Board.with_artifacts.find_by(user_id: User::DEFAULT_ADMIN_ID, parent_type: "PredefinedResource")
       current_user.settings["dynamic_board_id"] = nil
@@ -262,13 +261,10 @@ class API::BoardsController < API::ApplicationController
     @board.small_screen_columns = board_params["small_screen_columns"].to_i
     @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
     @board.large_screen_columns = board_params["large_screen_columns"].to_i
-    Rails.logger.info "large_screen_columns: #{board_params["large_screen_columns"]}"
     voice = VoiceService.normalize_voice(board_params["voice"] || params[:voice] || params[:voice_label])
     @board.voice = voice
     @board.language = board_params["language"] if board_params["language"].present?
-    Rails.logger.info "Board params: #{board_params.inspect}"
     word_list = params[:word_list]&.compact
-    Rails.logger.info "Creating board with word list: #{word_list.inspect}"
     @board.settings = settings
 
     new_slug = @board.generate_unique_slug(board_params["slug"])
@@ -319,7 +315,6 @@ class API::BoardsController < API::ApplicationController
       @board.favorite = board_params["favorite"] if board_params["favorite"].present?
       @board.published = board_params["published"] if board_params["published"].present?
       if board_params["slug"].present? && board_params["slug"] != @board.slug
-        Rails.logger.info "Updating slug from #{board_params["slug"]} to #{@board.slug}"
         new_slug = @board.generate_unique_slug(board_params["slug"])
         @board.slug = new_slug
       end
@@ -424,13 +419,10 @@ class API::BoardsController < API::ApplicationController
 
       if file_extension == ".obz"
         begin
-          Rails.logger.info "Starting OBZ import for file: #{file_name}"
           file_bytes = uploaded_file.read
-          Rails.logger.info "import_obf >> Read #{file_bytes.length} bytes from uploaded OBZ file"
           @board_group = BoardGroup.create!(name: group_name, user_id: current_user.id)
           importer = ObzImporter.new(file_bytes, current_user, board_group: @board_group, import_all: true)
           result = importer.import!
-          Rails.logger.info "OBZ import result: #{result.inspect}"
           root_board = result[:root_board]
         rescue => e
           Rails.logger.error "OBZ import failed: #{e.message}"
@@ -458,16 +450,12 @@ class API::BoardsController < API::ApplicationController
         boardData = board_group.merge({ board_group: board_group })
       end
 
-      Rails.logger.info "data class: #{boardData.class}"
-
-      # Rails.logger.info "Board data received for import: #{boardData.keys}"
       json_data = JSON.parse(boardData) rescue nil
       unless json_data
         render json: { error: "Invalid JSON data" }, status: :unprocessable_entity
         return
       end
       board_name = json_data["name"] || "Imported Board"
-      Rails.logger.info "Importing board: #{board_name}"
 
       # Board.from_obf(boardData, current_user, board_group, @board.id)
       ImportFromObfJob.perform_async(json_data, current_user.id, board_group&.id)
@@ -521,6 +509,7 @@ class API::BoardsController < API::ApplicationController
       return
     end
     normalize_words = additional_words.map do |word|
+      next unless word.is_a?(String)
       word.gsub("_", " ").strip
     end
     render json: normalize_words
@@ -675,7 +664,6 @@ class API::BoardsController < API::ApplicationController
           end
         end
         voice = communicator_account.voice
-        Rails.logger.info "Cloning board for communicator account #{communicator_account.id} with voice #{voice} - board voice: #{@board.voice}"
         communicator_board_copy = @board.clone_with_images(current_user&.id, @board.name, voice, communicator_account)
 
       end

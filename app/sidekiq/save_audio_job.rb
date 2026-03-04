@@ -6,7 +6,7 @@ class SaveAudioJob
     images = Image.where(id: image_ids)
     images.each do |image|
       begin
-        image.find_or_create_audio_file_for_voice(voice)
+        image.find_or_create_audio_file_for_voice(voice, "en")
         sleep(0.5)
       rescue => e
         puts "\n**** SIDEKIQ - SaveAudioJob \n\nERROR **** \n#{e.message}\n"

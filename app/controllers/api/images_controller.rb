@@ -65,7 +65,6 @@ class API::ImagesController < API::ApplicationController
       @image.update(status: "finished")
       saved_image_url = @doc.display_url
       if check_update_board_image(saved_image_url)
-        Rails.logger.info "Updated board image with cropped image for board: #{@board.id}"
         render json: { image_url: saved_image_url, id: @image.id, doc_id: @doc.id, board_id: @board&.id, board_image_id: @board_image&.id } and return
       end
       @image.reload
@@ -275,7 +274,6 @@ class API::ImagesController < API::ApplicationController
     voice = @image.voice || "alloy"
     language_to_use = params[:language] || "en"
     audio_url = @image.default_audio_url
-    Rails.logger.info "Public audio URL for image: #{@image.id}, voice: #{voice}, language: #{language_to_use} is #{audio_url}"
     if audio_url.blank?
       render json: { status: "error", message: "Audio file URL is blank." }, status: :not_found
       return
@@ -372,7 +370,6 @@ class API::ImagesController < API::ApplicationController
     board_id = params[:board_id]
     @board = Board.with_artifacts.find_by(id: board_id) if board_id.present?
     snap_to_screen = @board.settings["snap_to_screen"] if @board && @board.settings
-    Rails.logger.info "Snap to screen setting for board #{board_id} is #{snap_to_screen}"
     unless @board.nil?
       @board_image = @board.board_images.find_by(image_id: @image.id)
       if @board_image.nil?
@@ -419,9 +416,7 @@ class API::ImagesController < API::ApplicationController
     end
     limit = current_user.admin? ? ADMIN_SYMBOL_LIMIT : SYMBOL_LIMMIT
     # @image.update(status: "generating") unless @image.generating?
-    Rails.logger.info("Creating #{limit} symbols for image: #{@image.label}")
     result = @image.generate_matching_symbol(limit)
-    Rails.logger.info("Result of symbol generation: #{result}")
     # @image.update(status: "finished") unless @image.finished?
     # render json: { status: "ok", message: "Creating #{limit} symbols for image.", image: @image }
     @image.reload
@@ -458,11 +453,9 @@ class API::ImagesController < API::ApplicationController
     @image.status = "generating"
     @image.save!
 
-    Rails.logger.info("Generating image for user: #{@current_user.id}, image: #{@image.id}, prompt: #{image_prompt}")
     board_id = params[:board_id]
     screen_size = params[:screen_size] || "lg"
     transparent_background = params[:transparent_background] == "true"
-    Rails.logger.info("Enqueuing GenerateImageJob with transparent_background: #{transparent_background}")
     GenerateImageJob.perform_async(@image.id, @current_user.id, image_prompt, board_id, screen_size, transparent_background)
     # @current_user.remove_tokens(1)
     @image_docs = @image.docs.for_user(@current_user).order(created_at: :desc)
@@ -662,15 +655,10 @@ class API::ImagesController < API::ApplicationController
         Rails.logger.info("Hard deleting document: #{@doc.id} for image: #{@image.id}")
         @doc.destroy
       else
-        Rails.logger.info("Hiding document: #{@doc.id} for image: #{@image.id}")
         @doc.hide!
       end
-      Rails.logger.info(">> Document hidden: #{@doc.id} for image: #{@image.id}")
       @image.reload
-      Rails.logger.info("Document hidden: #{@doc.id} for image: #{@image.id}")
       @image_with_display_doc = @image.with_display_doc(current_user)
-      Rails.logger.info("Image with display doc after hiding: #{@image_with_display_doc.inspect}")
-      Rails.logger.info("Document hidden: #{@doc.id} for image: #{@image.id}")
       render json: { image: @image_with_display_doc, status: "ok" } and return
     rescue FrozenError => e
       render json: { image: @image_with_display_doc, status: "ok" }
@@ -749,7 +737,7 @@ class API::ImagesController < API::ApplicationController
         end
         return true
       else
-        Rails.logger.info("User not authorized to update board image for board: #{@board.id}")
+        Rails.logger.error("User not authorized to update board image for board: #{@board.id}")
         return false
       end
     end
