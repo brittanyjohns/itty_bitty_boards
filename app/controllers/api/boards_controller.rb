@@ -10,6 +10,16 @@ class API::BoardsController < API::ApplicationController
     page_param         = params[:page].presence || 1
     page               = page_param.to_i <= 0 ? 1 : page_param.to_i
     per_page           = (limit_param || 30).clamp(1, 200)   # sane defaults/bounds
+    sort_field_param = params[:sort_field].presence || "created_at"
+    sort_order_param = params[:sort_order].presence || "desc"
+
+    allowed_sort_fields = %w[name created_at updated_at]
+    allowed_sort_orders = %w[asc desc]
+
+    sort_field = allowed_sort_fields.include?(sort_field_param) ? sort_field_param : "created_at"
+    sort_order = allowed_sort_orders.include?(sort_order_param) ? sort_order_param : "desc"
+
+    order_clause = { sort_field => sort_order.to_sym }
 
     query        = params[:query].to_s.strip.presence
     filter_param = params[:filter].to_s.strip.presence
@@ -33,7 +43,7 @@ class API::BoardsController < API::ApplicationController
 
       return unless stale?(etag: etag, last_modified: last_modified)
 
-      static_scope = Board.predefined.alphabetical
+      static_scope = Board.predefined.order(order_clause)
       static_scope = static_scope.page(page).per(per_page)
 
       static_boards = static_scope.to_a
@@ -57,9 +67,10 @@ class API::BoardsController < API::ApplicationController
     # ---------------------------
     if query.present?
       search_scope = Board.for_user(current_user).searchable
-      search_scope = apply_filter(search_scope, filter)
-      search_scope = search_scope.search_by_name(query).alphabetical
-      search_scope = search_scope.page(page).per(per_page)
+       .then { |s| apply_filter(s, filter) }
+       .search_by_name(query)
+       .order(order_clause)
+       .page(page).per(per_page)
 
       last_updated_at = search_scope.maximum(:updated_at)&.to_i
 
@@ -70,6 +81,8 @@ class API::BoardsController < API::ApplicationController
         filter || "no-filter",
         page,
         per_page,
+        sort_field,
+        sort_order,
         last_updated_at,
       ]
 
@@ -104,27 +117,34 @@ class API::BoardsController < API::ApplicationController
     filtered_scope = apply_filter(base_scope, filter)
 
     last_modified = boards_index_last_modified(current_user, filtered_scope)
-    etag          = boards_index_etag(
+    etag = boards_index_etag(
       current_user,
-      limit_param,
+      per_page,
       filtered_scope,
       last_modified,
+      filter: filter,
+      sort_field: sort_field,
+      sort_order: sort_order,
+      page: page
     )
 
     # If nothing changed, Rails sends 304 and skips the heavy work
     return unless stale?(etag: etag, last_modified: last_modified)
 
     # Paginate main board list
-    user_boards_scope = filtered_scope.alphabetical.page(page).per(per_page)
+    user_boards_scope = filtered_scope
+      .reorder(order_clause)   # <-- important
+      .page(page)
+      .per(per_page)
+
     @user_boards      = user_boards_scope.to_a
 
     # Keep "newly_created_boards" as a small recent snippet (not paginated)
-    @newly_created_boards =
-      filtered_scope
-        .where("created_at >= ?", 1.week.ago)
-        .order(created_at: :desc)
-        .limit(7)
-        .to_a
+    @newly_created_boards = filtered_scope
+      .where("created_at >= ?", 1.week.ago)
+      .reorder(created_at: :desc)
+      .limit(7)
+      .to_a
 
     render json: {
       newly_created_boards: @newly_created_boards.map { |board| board.api_view(current_user) },
@@ -810,19 +830,20 @@ class API::BoardsController < API::ApplicationController
   def apply_filter(scope, filter)
     return scope unless filter.present?
     if filter == "public_boards"
-      return Board.public_boards.alphabetical
+      return Board.public_boards # <-- remove .alphabetical
     end
     scope.public_send(filter)
   end
 
   def public_boards_etag(scope, last_modified)
-  [
-    "public-boards-v1",
-    last_modified.to_i,
-    scope.maximum(:id),
-    scope.count,
-  ]
-end
+    [
+      "public-boards-v1",
+      last_modified.to_i,
+      scope.maximum(:id),
+      scope.count,
+    ]
+  end
+
   def boards_list_last_modified(user, scope)
     scope.maximum(:updated_at) || user.updated_at || Time.zone.at(0)
   end
@@ -837,8 +858,6 @@ end
     ]
   end
 
-  # ---------- GUEST HELPERS ----------
-
   def guest_boards_index_etag(last_modified, limit_param)
     [
       "boards-index-guest-v1",
@@ -847,21 +866,23 @@ end
     ]
   end
 
-  # ---------- LOGGED-IN HELPERS ----------
-
   def boards_index_last_modified(user, base_scope)
     # If you want to be extra strict, you could also consider BoardImage etc here.
     base_scope.maximum(:updated_at) || user.updated_at || Time.zone.at(0)
   end
 
-  def boards_index_etag(user, limit_param, base_scope, last_modified)
+  def boards_index_etag(user, per_page, base_scope, last_modified, filter:, sort_field:, sort_order:, page:)
     [
-      "boards-index-user-v1",
+      "boards-index-user-v2",
       user.id,
-      limit_param,
+      filter || "no-filter",
+      sort_field,
+      sort_order,
+      page,
+      per_page,
       last_modified.to_i,
-      base_scope.maximum(:id),                      # changes on create/delete
-      base_scope.count                              # extra safety for membership changes
+      base_scope.maximum(:id),
+      base_scope.count,
     ]
   end
 
