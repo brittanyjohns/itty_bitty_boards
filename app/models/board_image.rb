@@ -453,6 +453,7 @@ class BoardImage < ApplicationRecord
     self.label = image.label
     self.display_image_url = image.display_image_url(user)
     self.next_words = image.next_words || []
+    self.part_of_speech = image.part_of_speech || "default"
     if audio_file
       self.audio_url = image.default_audio_url(audio_file)
     else
