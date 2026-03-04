@@ -28,9 +28,9 @@ module AudioHelper
     "#{base}.mp3"
   end
 
-  def create_audio_from_text(text = nil, voice = "openai:alloy", language = "en", instructions = "")
+  def create_audio_from_text(text = nil, voice = "polly:kevin", language = "en", instructions = "")
     text = text || self.label
-    voice = "openai:alloy" if voice.blank?
+    voice = "polly:kevin" if voice.blank?
 
     if text.blank?
       Rails.logger.error "AudioHelper - No text provided for audio creation. Returning nil."
@@ -56,10 +56,10 @@ module AudioHelper
     save_audio_file(synth_io, voice, language)
   end
 
-  def find_audio_for_voice(voice_value = "openai:alloy", lang = "en")
+  def find_audio_for_voice(voice_value = "polly:kevin", lang = "en")
     return if Rails.env.test?
 
-    voice_value = "openai:alloy" if voice_value.blank?
+    voice_value = "polly:kevin" if voice_value.blank?
     provider, _raw = split_voice(voice_value)
 
     candidates = []
@@ -76,8 +76,8 @@ module AudioHelper
 
     unless audio_file
       audio_file = find_or_create_audio_file_for_voice(voice_value, lang)
-      self.audio_url = default_audio_url(audio_file) if audio_file
     end
+    self.audio_url = default_audio_url(audio_file) if audio_file && self.is_a?(BoardImage)
 
     audio_file
   end
@@ -105,12 +105,34 @@ module AudioHelper
 
   def save_audio_file(audio_io, voice_value, language = "en")
     filename = filename_for_voice(voice_value, language)
+    if self.is_a?(BoardImage)
+      img = self.image
+      if img
+        img.audio_files.attach(io: audio_io, filename: filename, content_type: "audio/mpeg")
+        audio_file = img.audio_files.last
+        url = default_audio_url(audio_file)
+        self.voice = voice_value
+        self.language = language
+        self.audio_url = url
+        self.save!
+        return audio_file
+      else
+        Rails.logger.error "AudioHelper - No associated image found for BoardImage ID: #{self.id}. Cannot attach audio file."
+        return nil
+      end
+    end
     self.audio_files.attach(io: audio_io, filename: filename, content_type: "audio/mpeg")
-    self.audio_files.last
+    audio_file = self.audio_files.last
+    board_images_to_update = board_images.joins(:board).where(boards: { voice: voice_value, language: language, user_id: self.user_id })
+    board_images_to_update.each do |board_image|
+      board_image.audio_url = default_audio_url(audio_file)
+      board_image.save!
+    end
+    audio_file
   end
 
   def find_or_create_audio_file_for_voice(voice_value, lang)
-    voice_value = "openai:alloy" if voice_value.blank?
+    voice_value = "polly:kevin" if voice_value.blank?
     lang = "en" if lang.blank?
 
     provider, _raw = split_voice(voice_value)

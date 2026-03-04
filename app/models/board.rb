@@ -599,7 +599,7 @@ class Board < ApplicationRecord
       Rails.logger.info "Scheduling voice update for sub boards with IDs: #{sub_board_ids.join(", ")}"
       board_ids = Board.where(id: sub_board_ids, user_id: user_id).pluck(:id)
       Rails.logger.info "SET VOICE - Sub boards to update: #{board_ids.count} boards found for user_id #{user_id}"
-      # UpdateBoardsVoiceJob.perform_async(board_ids, voice, language) if board_ids.any?
+      UpdateBoardsVoiceJob.perform_async(board_ids, voice, language) if board_ids.any?
     end
   end
 
@@ -1831,7 +1831,7 @@ class Board < ApplicationRecord
   def self.normalize_voices
     self.all.each do |board|
       if board.voice.blank?
-        board.update(voice: "openai:alloy")
+        board.update(voice: "polly:kevin")
       else
         original_voice = board.voice
         new_voice = VoiceService.normalize_voice(original_voice)

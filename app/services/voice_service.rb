@@ -134,7 +134,7 @@ class VoiceService
     VOICES.find { |opt| opt[:label].casecmp(value_or_label.to_s) == 0 }
   end
 
-  # Prefer passing voice_value ("openai:alloy") from the client.
+  # Prefer passing voice_value ("polly:kevin") from the client.
   # Keep voice_label working for older clients.
   def self.synthesize_speech(text:, voice_value: nil, voice_label: nil, language: "en", audio_type: "audio_files")
     opt = if voice_value.present?
@@ -163,7 +163,7 @@ class VoiceService
 
   def self.normalize_voice(value_or_label)
     raw = value_or_label.to_s.strip
-    return "openai:alloy" if raw.blank?
+    return "polly:kevin" if raw.blank?
 
     # Already canonical?
     return raw if raw.include?(":")
@@ -176,6 +176,6 @@ class VoiceService
     opt = get_voice(raw)
     return opt[:value] if opt
 
-    "openai:alloy"
+    "polly:kevin"
   end
 end

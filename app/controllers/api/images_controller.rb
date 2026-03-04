@@ -241,7 +241,7 @@ class API::ImagesController < API::ApplicationController
       valid_speeds = 0.25..4.0
       speed = valid_speeds.include?(speed.to_f) ? speed.to_f : 1.0
 
-      voice_value = params[:voice].presence || "openai:alloy"
+      voice_value = params[:voice].presence || "polly:kevin"
 
       audio_io = VoiceService.synthesize_speech(
         text: input_text,

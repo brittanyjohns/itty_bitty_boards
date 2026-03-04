@@ -403,7 +403,7 @@ class Profile < ApplicationRecord
   def update_audio(audio_type)
     return unless intro.present?
 
-    voice = profileable&.respond_to?(:voice) ? (profileable.voice || "openai:alloy") : "openai:alloy"
+    voice = profileable&.respond_to?(:voice) ? (profileable.voice || "polly:kevin") : "polly:kevin"
     language = profileable&.respond_to?(:language) ? (profileable.language || "en") : "en"
     text = ""
     if audio_type == :intro
