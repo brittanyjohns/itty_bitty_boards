@@ -146,7 +146,9 @@ class ChildAccount < ApplicationRecord
       return
     end
     Rails.logger.info "UPDATE AUDIO  - Updating audio for boards: #{board_ids.count} boards found for user_id #{user_id}"
-    # UpdateBoardsVoiceJob.perform_async(board_ids, updated_voice, language)
+    board_ids.each_slice(5) do |batch|
+      UpdateBoardsVoiceJob.perform_async(batch, updated_voice, language)
+    end
   end
 
   def reset_authentication_token!

@@ -38,9 +38,11 @@ class API::ChildAccountsController < API::ApplicationController
       render json: { error: error }, status: status
       return
     end
+    username = params[:username]
+    name = params[:name]
+    nickname = params[:nickname]
 
-    @child_account = ChildAccount.new(child_account_params)
-    Rails.logger.debug "Child Account Params: #{child_account_params.inspect}"
+    @child_account = ChildAccount.new(username: username, name: name)
 
     # Type + ownership
     @child_account.is_demo = is_demo
@@ -180,6 +182,9 @@ class API::ChildAccountsController < API::ApplicationController
       end
     end
     if board_ids
+      if board_ids.is_a?(String) || board_ids.is_a?(Integer)
+        board_ids = [board_ids.to_i]
+      end
       board_ids.each do |board_id|
         og_board = Board.find(board_id)
         if og_board.predefined?
@@ -216,6 +221,6 @@ class API::ChildAccountsController < API::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def child_account_params
-    params.require(:child_account).permit(:user_id, :username, :nickname, :name)
+    params.require(:child_account).permit(:user_id, :username, :name)
   end
 end

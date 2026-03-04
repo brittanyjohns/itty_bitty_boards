@@ -596,10 +596,11 @@ class Board < ApplicationRecord
     end
     sub_board_ids = board_images.pluck(:predictive_board_id).compact
     if sub_board_ids.any?
-      Rails.logger.info "Scheduling voice update for sub boards with IDs: #{sub_board_ids.join(", ")}"
       board_ids = Board.where(id: sub_board_ids, user_id: user_id).pluck(:id)
       Rails.logger.info "SET VOICE - Sub boards to update: #{board_ids.count} boards found for user_id #{user_id}"
-      UpdateBoardsVoiceJob.perform_async(board_ids, voice, language) if board_ids.any?
+      board_ids.each_slice(5) do |batch|
+        UpdateBoardsVoiceJob.perform_async(batch, voice, language)
+      end
     end
   end
 

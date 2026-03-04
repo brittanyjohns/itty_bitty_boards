@@ -661,6 +661,9 @@ class API::BoardsController < API::ApplicationController
     communicator_account_ids = params[:communicator_account_ids] || []
     if communicator_account_ids
       record_errors = []
+      if communicator_account_ids.is_a?(String) || communicator_account_ids.is_a?(Integer)
+        communicator_account_ids = [communicator_account_ids.to_i]
+      end
       communicator_account_ids.each do |communicator_account_id|
         communicator_account = ChildAccount.find(communicator_account_id)
         if communicator_account.is_demo?
