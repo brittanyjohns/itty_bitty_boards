@@ -216,7 +216,11 @@ class API::BoardsController < API::ApplicationController
     return unless stale?(etag:, last_modified:)
 
     payload = RailsPerformance.measure("Predictive Image Board") do
-      board.api_view_with_predictive_images(current_user, false, params[:voice])
+      voice = params[:voice]
+      if voice == "alloy"
+        voice = "openai:alloy"
+      end
+      board.api_view_with_predictive_images(current_user, false, voice)
     end
 
     render json: payload
