@@ -428,6 +428,10 @@ class BoardImage < ApplicationRecord
     audio_files.any? { |af| af.blob.filename.to_s.include?("custom") }
   end
 
+  def using_custom_audio?
+    data && data["using_custom_audio"] == true && has_custom_audio?
+  end
+
   def set_defaults
     audio_file = nil
     if image.use_custom_audio
