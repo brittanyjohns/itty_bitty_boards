@@ -209,20 +209,16 @@ class API::BoardsController < API::ApplicationController
   def predictive_image_board
     board = find_board_for_predictive_page
 
-    board_group =
-      BoardGroup.find_by(id: params[:board_group_id]) if params[:board_group_id].present?
-
-    # IMPORTANT: response changes when board_images/images/docs change, not just board.updated_at.
+      # IMPORTANT: response changes when board_images/images/docs change, not just board.updated_at.
     last_modified = board_predictive_last_modified(board)
     etag = board_predictive_etag(board, current_user)
 
     return unless stale?(etag:, last_modified:)
 
     payload = RailsPerformance.measure("Predictive Image Board") do
-      board.api_view_with_predictive_images(current_user)
+      board.api_view_with_predictive_images(current_user, false, params[:voice])
     end
 
-    payload[:root_board_id] = board_group&.root_board_id
     render json: payload
   end
 

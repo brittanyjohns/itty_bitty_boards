@@ -212,12 +212,18 @@ module AudioHelper
     if parts.length >= 3 && %w[openai polly].include?(parts[1])
       provider = parts[1]
       voice = parts[2]
-      return voice
+      return "#{provider}:#{voice}"
     end
 
     # Legacy: treat as openai voice
     voice = parts[1]
-    voice
+    return "openai:#{voice}"
+  end
+
+  def audio_url_for_voice(voice_value = nil, lang = "en")
+    voice_value ||= self.voice || "polly:kevin"
+    audio_file = find_audio_for_voice(voice_value, lang)
+    default_audio_url(audio_file)
   end
 
   def default_audio_url(audio_file = nil)

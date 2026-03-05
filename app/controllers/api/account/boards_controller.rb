@@ -120,7 +120,7 @@ class API::Account::BoardsController < API::Account::ApplicationController
     if stale?(etag: @board, last_modified: @board.updated_at)
       RailsPerformance.measure("Predictive Image Board") do
         # @loaded_board = Board.with_artifacts.find(@board.id)
-        @board_with_images = @board.api_view_with_predictive_images(current_account)
+        @board_with_images = @board.api_view_with_predictive_images(current_account, false, params[:voice])
       end
       render json: @board_with_images
     end

@@ -1277,7 +1277,7 @@ class Board < ApplicationRecord
     end
   end
 
-  def api_view_with_predictive_images(viewing_user = nil, show_hidden = false)
+  def api_view_with_predictive_images(viewing_user = nil, show_hidden = false, voice_to_play = nil)
     @viewer_settings = viewing_user&.settings || {}
     is_a_user = viewing_user.class == "User"
     is_a_communicator = viewing_user.class == "ChildAccount"
@@ -1391,9 +1391,10 @@ class Board < ApplicationRecord
 
         @label = @board_image.label
 
-        image = board_image.image
+        @image = @board_image.image
+        @audio_files = @board_image.image_audio_files
 
-        is_owner = viewing_user && image.user_id == viewing_user&.id
+        is_owner = viewing_user && @image.user_id == viewing_user&.id
         is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
 
         @predictive_board_id = @board_image.predictive_board_id
@@ -1405,7 +1406,7 @@ class Board < ApplicationRecord
         @user_custom_default_id = @viewer_settings["opening_board_id"]
 
         is_dynamic = @board_image.is_dynamic?
-        is_predictive = image.predictive?
+        is_predictive = @image.predictive?
         if @board_image.predictive_board_id == @root_board&.id
           is_dynamic = false
         end
@@ -1416,10 +1417,18 @@ class Board < ApplicationRecord
 
         @board_image.data ||= {}
         mute_name = @board_image.data["mute_name"] == true
-        using_custom_audio = @board_image.data["using_custom_audio"] == true
+        using_custom_audio = @board_image.using_custom_audio?
+        if voice_to_play.present? && @board_image.voice != voice_to_play && !using_custom_audio
+          current_audio_url = @board_image.audio_url_for_voice(voice_to_play)
+          unless current_audio_url
+            current_audio_url = @board_image.audio_url
+          end
+        else
+          current_audio_url = @board_image.audio_url
+        end
         {
           id: @board_image.id,
-          image_id: image.id,
+          image_id: @image.id,
           label: @board_image.label,
           display_label: @board_image.display_label,
           hidden: @board_image.hidden,
@@ -1427,9 +1436,9 @@ class Board < ApplicationRecord
           root_board_name: @root_board&.name,
           board_id: id,
           board_name: name,
-          image_user_id: image.user_id,
+          image_user_id: @image.user_id,
           using_custom_audio: using_custom_audio,
-          docs: image.docs.for_user(viewing_user).order(created_at: :desc).limit(15).map { |doc| doc.api_view(viewing_user) },
+          docs: @image.docs.for_user(viewing_user).order(created_at: :desc).limit(15).map { |doc| doc.api_view(viewing_user) },
           predictive_board_id: @predictive_board_id,
           user_custom_default_id: @user_custom_default_id,
           predictive_board_board_type: @predictive_board&.board_type,
@@ -1454,17 +1463,17 @@ class Board < ApplicationRecord
           text_color: @board_image.text_color,
           next_words: @board_image.next_words,
           position: @board_image.position,
-          src_url: @board_image.display_image_url || image.src_url,
+          src_url: @board_image.display_image_url || @image.src_url,
           mute_name: mute_name,
-          # src: image.src_url || @board_image.display_image_url || image.display_image_url(viewing_user),
-          src: @board_image.display_image_url || image.display_image_url(viewing_user),
+          # src: @image.src_url || @board_image.display_image_url || @image.display_image_url(viewing_user),
+          src: @board_image.display_image_url || @image.display_image_url(viewing_user),
           display_image_url: @board_image.display_image_url_or_default(viewing_user),
-          audio_url: @board_image.audio_url,
-          audio: @board_image.audio_url || image.audio_url,
+          audio_url: current_audio_url,
+          audio_files: @audio_files,
           voice: @board_image.voice,
           layout: @board_image.layout.with_indifferent_access,
           added_at: @board_image.added_at,
-          part_of_speech: image.part_of_speech,
+          part_of_speech: @image.part_of_speech,
           data: @board_image.data,
           status: @board_image.status,
         }
