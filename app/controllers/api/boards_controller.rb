@@ -774,8 +774,7 @@ class API::BoardsController < API::ApplicationController
     @tiles = normalize_tiles(@board, @screen_size)
 
     @num_of_words = @tiles.size
-    est_rows = (@num_of_words.to_f / @columns.to_f).ceil
-    @rows = est_rows.positive? ? est_rows : 1
+    @rows = @tiles.map { |t|(t["y"].to_i + t["h"].to_i)}.max || 1
 
     # Orientation
     @landscape = @rows > @columns

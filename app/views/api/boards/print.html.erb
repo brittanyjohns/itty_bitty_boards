@@ -29,7 +29,7 @@
 
 <div class="board-wrap">
   <div class="board-container">
-    <div class="board-grid" style="grid-template-columns: repeat(<%= @columns %>, 1fr);">
+    <div class="board-grid" style="grid-template-columns: repeat(<%= @columns %>, 1fr); grid-template-rows: repeat(<%= @rows %>, minmax(0, 1fr));">
       <% @tiles.each do |t| %>
         <% bg_color = @hide_colors ? "" : (t["bg_color"] || "black") %>
 
@@ -38,8 +38,7 @@
            col_span = t["w"].to_i
            row_span = t["h"].to_i %>
 
-        <div class="tile" style=" background-color:<%= bg_color %>;"
-             style="grid-column:<%= col_start %>/span <%= col_span %>;
+        <div class="tile" style=" background-color:<%= bg_color %>; grid-column:<%= col_start %>/span <%= col_span %>;
                     grid-row:<%= row_start %>/span <%= row_span %>;">
           <% if t["image_url"].present? %>
             <img src="<%= t["image_url"] %>" alt="<%= t["label"] %>">
