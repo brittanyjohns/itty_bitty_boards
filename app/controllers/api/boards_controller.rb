@@ -172,7 +172,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def list
-    scope = Board.for_user(current_user).alphabetical
+    scope = current_user.boards.alphabetical
 
     last_modified = boards_list_last_modified(current_user, scope)
     etag          = boards_list_etag(current_user, scope, last_modified)
