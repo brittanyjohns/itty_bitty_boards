@@ -116,7 +116,6 @@ class BoardImage < ApplicationRecord
     reset_part_of_speech!
     set_colors!
     pos = part_of_speech
-    puts "Reset part_of_speech to #{pos} and bg_color to #{bg_color} for BoardImage ID #{id}"
     #  update image
     self.save!
     image.update_column(:part_of_speech, pos)

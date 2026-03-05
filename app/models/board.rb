@@ -1421,6 +1421,7 @@ class Board < ApplicationRecord
         if voice_to_play.present? && @board_image.voice != voice_to_play && !using_custom_audio
           current_audio_url = @board_image.audio_url_for_voice(voice_to_play)
           unless current_audio_url
+            SaveAudioJob.perform_async(@image.id, voice_to_play)
             current_audio_url = @board_image.audio_url
           end
         else
