@@ -90,7 +90,7 @@ class Board < ApplicationRecord
   scope :for_user, ->(user) { where(user: user, is_template: false).or(where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, is_template: false)) }
   scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
   scope :with_image_parent, -> { where.associated(:image_parent) }
-  scope :searchable, -> { where(board_type: ["static", "dynamic", "category", "predictive", "scenario"]) }
+  scope :searchable, -> { where(board_type: ["static", "dynamic", "category", "predictive", "scenario", "social_story"]) }
   scope :menus, -> { where(parent_type: "Menu") }
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
@@ -1830,6 +1830,31 @@ class Board < ApplicationRecord
       word_suggestions["words"]
     rescue => e
       Rails.logger.error "Error getting word suggestions: #{e}"
+    end
+  end
+
+  def get_social_story_word_suggestions(name_to_use, number_of_steps, max_number_of_words, words_to_exclude = [])
+    response = OpenAiClient.new({}).get_social_story_word_suggestions(name_to_use, number_of_steps, max_number_of_words, words_to_exclude)
+    begin
+      if response && response[:content].present?
+        word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip
+        if word_suggestions.blank? || word_suggestions.include?("NO WORDS")
+          return
+        end
+        if valid_json?(word_suggestions)
+          word_suggestions = JSON.parse(word_suggestions)
+        else
+          start_index = word_suggestions.index("{")
+          end_index = word_suggestions.rindex("}")
+          word_suggestions = word_suggestions[start_index..end_index]
+          word_suggestions = transform_into_json(word_suggestions)
+        end
+      else
+        Rails.logger.error "*** ERROR - get_social_story_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
+      end
+      word_suggestions["words"]
+    rescue => e
+      Rails.logger.error "Error getting social story word suggestions: #{e}"
     end
   end
 

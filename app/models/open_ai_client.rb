@@ -477,57 +477,57 @@ class OpenAiClient
     response
   end
 
-  # def get_board_description(name, word_tree, grid_info)
-  #   @model = GTP_MODEL
-  #   text = "I have an AAC board titled, '#{name}'. The board is designed to help users communicate using a grid layout with words and phrases. The board includes the following words: #{word_tree}.
-  #    The grid sizes are: #{grid_info}.
+  def get_social_story_word_suggestions(name, number_of_steps, max_number_of_words, words_to_exclude = [])
+    if words_to_exclude.is_a?(String)
+      words_to_exclude = words_to_exclude.split(",").map(&:strip)
+    end
 
-  #   Please provide a brief description of it, including intended use, target age/experience level & why it's laid out how it is, etc.
-  #   Please don't include the words on the board in the description. Keep the description concise and easy to understand.
-  #    Respond in HTML format."
+    words_to_exclude = Array(words_to_exclude)
+      .map { |w| w.to_s.strip.downcase }
+      .reject(&:blank?)
 
-  #   @messages = [{ role: "user",
-  #                 content: [{
-  #     type: "text",
-  #     text: text,
-  #   }] }]
-  #   response = create_chat(false)
-  #   Rails.logger.debug "*** ERROR *** Invaild board description Response: #{response}" unless response
-  #   response
-  # end
+    @model = QUICK_GTP_MODEL
+    Rails.logger.debug "User - model: #{@model} -- name: #{name} -- number_of_steps: #{number_of_steps} -- max_number_of_words: #{max_number_of_words} -- words_to_exclude: #{words_to_exclude.inspect}"
 
-  # def get_board_description(name, word_tree, grid_info)
-  #   @model = GTP_MODEL
-  #   text = <<~TEXT
-  #     I have an AAC board titled, "#{name}". This board is designed to help users communicate effectively using a structured grid layout.
+    min_number_of_words = 2
+    text = <<~TEXT
+                    I am creating a social story titled "#{name}".
 
-  #     **Board Details:**
-  #     - Grid sizes: #{grid_info}
-  #     - The board includes a variety of core and fringe vocabulary words but do not list them in the description.
+    Please generate #{number_of_steps} SHORT step instructions that could appear on tiles in a social story AAC board.
 
-  #     **Instructions:**
-  #     - Provide a **concise, well-structured HTML response** describing the board's **purpose, target audience (age/experience level), and layout rationale**.
-  #     - Use **clear, easy-to-read language**.
-  #     - **Do not list the words** on the board.
-  #     - Structure the response in **HTML format**, using `<p>` for paragraphs and `<strong>` for key terms.
+    These should represent actions or steps in the story.
 
-  #     **Example Output Format:**
-  #     ```html
-  #     <p><strong>Purpose:</strong> This AAC board supports communication in [specific scenario, e.g., outdoor play, school, daily routines]. It allows users to express needs, actions, and social interactions efficiently.</p>
-  #     <p><strong>Target Audience:</strong> Suitable for [age/experience level, e.g., young children, emerging communicators, individuals with limited speech].</p>
-  #     <p><strong>Layout:</strong> The grid is designed to balance core words for flexibility and fringe words for specific contexts. The layout promotes quick access to high-frequency terms.</p>
-  #     ```
-  #   TEXT
+    Requirements:
+    - each item should be a short instruction or step (#{min_number_of_words}-#{max_number_of_words} words)
+    - simple language appropriate for children
+    - represent a sequence of events in the story
+    - avoid long sentences
+    - avoid punctuation
+    - lowercase only
+    - no duplicates
+    TEXT
 
-  #   @messages = [{ role: "user",
-  #                 content: [{
-  #     type: "text",
-  #     text: text,
-  #   }] }]
-  #   response = create_chat(false)
-  #   Rails.logger.debug "*** ERROR *** Invalid board description Response: #{response}" unless response
-  #   response
-  # end
+    unless words_to_exclude.blank?
+      text += <<~TEXT
+
+        Do not include any items already in this list:
+        #{words_to_exclude.to_json}
+      TEXT
+    end
+
+    text += <<~TEXT
+
+      Respond ONLY with valid JSON in this format:
+      {"words": ["step one example", "next step example", "another step example"]}
+    TEXT
+
+    @messages = [{
+      role: "user",
+      content: [{ type: "text", text: text }],
+    }]
+
+    create_chat
+  end
 
   def get_board_description(board)
     name = board.name

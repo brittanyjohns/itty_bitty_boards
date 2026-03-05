@@ -273,6 +273,9 @@ class API::BoardsController < API::ApplicationController
     @board.board_type = board_type || "static"
     @board.assign_parent
 
+    creation_type = params[:board_creation_type] || "default"
+    @board.board_type = creation_type == "dynamic" ? "dynamic" : "static"
+
     @board.predefined = false
     @board.small_screen_columns = board_params["small_screen_columns"].to_i
     @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
@@ -481,16 +484,6 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
-  def create_additional_images
-    set_board
-    num_of_words = params[:num_of_words].to_i || 10
-    name_to_send = params[:name] || @board.name
-    result = @board.get_words(name_to_send, num_of_words, @board.words, current_user.admin?)
-    additional_words = result
-    @board.find_or_create_images_from_word_list(additional_words)
-    render json: @board.api_view_with_images(current_user)
-  end
-
   def additional_words
     set_board
     num_of_words = params[:num_of_words].to_i || 10
@@ -519,7 +512,15 @@ class API::BoardsController < API::ApplicationController
       render json: { error: "num_of_words parameter cannot exceed 50" }, status: :unprocessable_entity
     end
     return unless check_monthly_limit("ai_action")
-    additional_words = Board.new.get_word_suggestions(params[:name], params[:num_of_words], params[:words_to_exclude])
+    creation_type = params[:board_creation_type] || "default"
+    additional_words = []
+    if creation_type == "social_story"
+      number_of_steps = params[:number_of_steps].to_i
+      max_number_of_words = params[:num_of_words].to_i
+      additional_words = Board.new.get_social_story_word_suggestions(params[:name], number_of_steps, max_number_of_words, params[:words_to_exclude])
+    else
+      additional_words = Board.new.get_word_suggestions(params[:name], params[:num_of_words], params[:words_to_exclude])
+    end
     if additional_words.blank?
       render json: { error: "No additional words found" }, status: :unprocessable_entity
       return

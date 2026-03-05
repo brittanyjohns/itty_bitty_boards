@@ -281,7 +281,6 @@ Rails.application.routes.draw do
         post "assign_accounts"
         put "remove_from_team"
         get "predictive_image_board"
-        post "create_additional_images"
         get "additional_words"
         get "get_description"
         get "download_obf"

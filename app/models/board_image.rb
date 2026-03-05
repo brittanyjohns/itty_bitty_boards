@@ -457,10 +457,10 @@ class BoardImage < ApplicationRecord
     else
       image.start_create_all_audio_job(language) unless Rails.env.test? || Rails.env.development?
     end
-    if board.board_type != "static"
-      default_next_board = image.matching_viewer_boards(board.user).first
-      self.predictive_board_id = default_next_board.id if default_next_board
-    end
+    # if board.board_type != "static"
+    #   default_next_board = image.matching_viewer_boards(board.user).first
+    #   self.predictive_board_id = default_next_board.id if default_next_board
+    # end
   end
 
   def save_defaults
