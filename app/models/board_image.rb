@@ -304,7 +304,7 @@ class BoardImage < ApplicationRecord
   def create_voice_audio
     current_audio_url = audio_url_for_voice(voice, language)
     unless current_audio_url
-      Rails.logger.info "No audio file found for voice #{voice} on board image #{id}, scheduling SaveAudioJob"
+      Rails.logger.info "BoardImage - No audio file found for voice #{voice} on board image #{label}, scheduling SaveAudioJob"
       SaveAudioJob.perform_async(image_id, voice, id)
       return
     end
