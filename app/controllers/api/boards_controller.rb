@@ -209,18 +209,21 @@ class API::BoardsController < API::ApplicationController
   def predictive_image_board
     board = find_board_for_predictive_page
 
-      # IMPORTANT: response changes when board_images/images/docs change, not just board.updated_at.
-    last_modified = board_predictive_last_modified(board)
-    etag = board_predictive_etag(board, current_user)
+    voice = params[:voice].presence
+    voice = "openai:alloy" if voice == "alloy"
+    effective_voice = voice || board.voice
 
-    return unless stale?(etag:, last_modified:)
+    last_modified = board_predictive_last_modified(board)
+
+    etag = [
+      board_predictive_etag(board, current_user),
+      effective_voice
+    ]
+
+    return unless stale?(etag: etag, last_modified: last_modified, template: false)
 
     payload = RailsPerformance.measure("Predictive Image Board") do
-      voice = params[:voice]
-      if voice == "alloy"
-        voice = "openai:alloy"
-      end
-      board.api_view_with_predictive_images(current_user, false, voice)
+      board.api_view_with_predictive_images(current_user, false, effective_voice)
     end
 
     render json: payload
@@ -371,8 +374,12 @@ class API::BoardsController < API::ApplicationController
       respond_to do |format|
         if @board.save
           if params[:layout].present?
+            # only save if changes are present
             layout = params[:layout].map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
-            save_layout!
+            if @board.layout != layout
+              Rails.logger.info "Updating board layout for board ID: #{@board.id}"
+              save_layout!
+            end
           end
           broadcast_board_update!
           format.json { render json: @board.api_view_with_images(current_user), status: :ok }
@@ -1060,6 +1067,7 @@ class API::BoardsController < API::ApplicationController
     board_image_ids = []
     sorted_layout.each_with_index do |item, i|
       board_image_id = item["i"].to_i
+      Rails.logger.debug "Updating position for BoardImage ID: #{board_image_id} to position #{i}"
       board_image = @board.board_images.find_by(id: board_image_id)
       if board_image
         board_image.update!(position: i)

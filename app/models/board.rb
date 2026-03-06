@@ -754,7 +754,7 @@ class Board < ApplicationRecord
       new_board_image.voice = self.voice
     else
       # @image.find_or_create_audio_file_for_voice(self.voice)
-      SaveAudioJob.perform_async([image_id], self.voice)
+      SaveAudioJob.perform_async([image_id], self.voice, self.id)
     end
 
     new_board_image.src = @image.display_image_url(self.user)
@@ -1417,11 +1417,12 @@ class Board < ApplicationRecord
         @board_image.data ||= {}
         mute_name = @board_image.data["mute_name"] == true
         using_custom_audio = @board_image.using_custom_audio?
+
         if voice_to_play.present? && @board_image.voice != voice_to_play && !using_custom_audio
           current_audio_url = @board_image.audio_url_for_voice(voice_to_play)
           unless current_audio_url
             Rails.logger.info "Board - No audio file found for voice #{voice_to_play} on board image #{@board_image.label}, scheduling SaveAudioJob"
-            SaveAudioJob.perform_async(@image.id, voice_to_play)
+            SaveAudioJob.perform_async(@image.id, voice_to_play, @board_image.id)
             current_audio_url = @board_image.audio_url
           end
         else

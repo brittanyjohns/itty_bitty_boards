@@ -15,7 +15,6 @@ class SaveAudioJob
         if board_image_id
           board_image = image.board_images.find_by(id: board_image_id)
           if board_image
-            Rails.logger.info "Updating audio_url for BoardImage ID #{board_image_id} with new audio file URL."
             board_image.audio_url = image.default_audio_url(audio_file)
             voice_value = voice || "polly:kevin"
             board_image.voice = voice_value

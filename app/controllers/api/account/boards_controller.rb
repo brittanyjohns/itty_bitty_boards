@@ -100,24 +100,35 @@ class API::Account::BoardsController < API::Account::ApplicationController
 
   def predictive_image_board
     @board = Board.with_artifacts.find_by(id: params[:id])
-    @board = Board.with_artifacts.find_by(slug: params[:id]) unless @board
+    @board ||= Board.with_artifacts.find_by(slug: params[:id])
+
     if @board.nil?
       @board = Board.predictive_default(current_account)
       Rails.logger.info "#{Board.predictive_default_id} -- No user predictive default board found - setting default board : #{@board.id}"
       current_account.settings["dynamic_board_id"] = nil
       current_account.save!
     end
-    # expires_in 8.hours, public: true # Cache control header
 
-    if stale?(etag: @board, last_modified: @board.updated_at)
+    voice = params[:voice].presence
+    Rails.logger.info("Voice parameter received: #{voice.inspect}")
+    voice = "openai:alloy" if voice == "alloy"
+    effective_voice = voice || @board.voice
+
+    if stale?(
+      etag: [@board, current_account&.id, effective_voice],
+      last_modified: @board.updated_at,
+      template: false,
+    )
+      Rails.logger.info "Rendering predictive image board with ID: #{@board.id}, effective voice: #{effective_voice}"
       RailsPerformance.measure("Predictive Image Board") do
-        # @loaded_board = Board.with_artifacts.find(@board.id)
-        @board_with_images = @board.api_view_with_predictive_images(current_account, false, params[:voice])
+        @board_with_images = @board.api_view_with_predictive_images(current_account, false, effective_voice)
       end
-      render json: @board_with_images
-    end
 
-    # render json: @board.api_view_with_predictive_images(current_account)
+      render json: @board_with_images
+    else
+      Rails.logger.info "Board with ID: #{@board.id} has not changed since last request. Returning 304 Not Modified."
+      head :not_modified
+    end
   end
 
   def show
