@@ -49,7 +49,6 @@ class Image < ApplicationRecord
   has_many :boards, through: :board_images
   has_many_attached :audio_files
   has_many :predictive_boards, as: :parent, class_name: "Board", dependent: :destroy
-  has_many :category_boards, class_name: "Board", foreign_key: "image_parent_id", dependent: :destroy
 
   accepts_nested_attributes_for :docs
 
@@ -91,7 +90,7 @@ class Image < ApplicationRecord
   scope :without_docs, -> { where.missing(:docs) }
   scope :with_docs, -> { where.associated(:docs) }
   scope :generating, -> { where(status: "generating") }
-  scope :with_artifacts, -> { includes({ docs: { image_attachment: :blob } }, :predictive_boards, :user, :category_boards) }
+  scope :with_artifacts, -> { includes({ docs: { image_attachment: :blob } }, :predictive_boards, :user) }
   scope :created_between, ->(start_date, end_date) { where(created_at: start_date..end_date) }
   scope :created_before, ->(date) { where("created_at < ?", date) }
 
@@ -103,7 +102,6 @@ class Image < ApplicationRecord
   after_save :update_board_images_display_image, if: -> { src_url_changed? }
   # after_save :update_board_images_next_words, if: -> { next_words_changed? }
   after_save :update_background_color, if: -> { part_of_speech_changed? }
-  after_save :update_category_boards
 
   before_save :update_src_url, if: -> { src_url.blank? && docs.any? }
 
@@ -125,14 +123,6 @@ class Image < ApplicationRecord
 
   def default_image_prompt
     "Create a simple, clear AAC-style illustration showing '#{label}' in a literal, easy-to-understand way, with a transparent background and no stylization. NO TEXT."
-  end
-
-  def update_category_boards
-    if category_boards.any?
-      category_boards.each do |board|
-        board.update!(display_image_url: src_url)
-      end
-    end
   end
 
   def update_board_images_display_image
@@ -224,7 +214,6 @@ class Image < ApplicationRecord
   end
 
   def self.category
-    # self.where.associated(:category_boards)
     self.where(image_type: "category")
   end
 
@@ -1306,8 +1295,6 @@ class Image < ApplicationRecord
     img_is_dynamic = dynamic?
     img_is_predictive = predictive?
     is_owner = @current_user && user_id == @current_user&.id
-    @category_boards = @board_image&.category_boards(@current_user) || @matching_boards || []
-    is_category = @category_boards.any?
     @board_settings = @board&.settings || {}
 
     {
@@ -1340,8 +1327,6 @@ class Image < ApplicationRecord
       is_predictive: img_is_predictive,
       is_owner: is_owner,
       is_admin_image: is_admin_image,
-      is_category: is_category,
-      category_boards: @category_boards.map { |board| board.api_view(@current_user) },
       bg_color: bg_color,
       bg_class: bg_class,
       open_symbol_status: open_symbol_status,

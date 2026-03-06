@@ -130,16 +130,6 @@ class BoardImage < ApplicationRecord
     end
   end
 
-  def category_boards(viewing_user_id = nil)
-    viewing_user ||= board.user
-    user_category_boards = Board.where(image_parent_id: image_id, user_id: viewing_user_id)
-    if user_category_boards.present?
-      return user_category_boards
-    else
-      return Board.where(image_parent_id: image_id, user_id: User::DEFAULT_ADMIN_ID, predefined: true)
-    end
-  end
-
   def save_display_image_url
     self.display_image_url = image.src_url
   end
@@ -312,12 +302,13 @@ class BoardImage < ApplicationRecord
   end
 
   def create_voice_audio
-    return if @skip_create_voice_audio || Rails.env.test?
-
-    audio_file = image.find_audio_for_voice(voice, language)
-    self.audio_url = image.default_audio_url(audio_file) if audio_file
-
-    @skip_create_voice_audio = true
+    current_audio_url = audio_url_for_voice(voice, language)
+    unless current_audio_url
+      Rails.logger.info "No audio file found for voice #{voice} on board image #{id}, scheduling SaveAudioJob"
+      SaveAudioJob.perform_async(image_id, voice, id)
+      return
+    end
+    self.audio_url = current_audio_url
     save
   end
 

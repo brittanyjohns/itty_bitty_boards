@@ -56,7 +56,7 @@ module AudioHelper
     save_audio_file(synth_io, voice, language)
   end
 
-  def find_audio_for_voice(voice_value = "polly:kevin", lang = "en")
+  def find_audio_for_voice(voice_value = "polly:kevin", lang = "en", create_if_missing: true)
     return if Rails.env.test?
 
     voice_value = "polly:kevin" if voice_value.blank?
@@ -75,9 +75,8 @@ module AudioHelper
     audio_file = candidates.lazy.map { |fn| find_audio_by_filename(fn) }.find(&:present?)
 
     unless audio_file
-      audio_file = find_or_create_audio_file_for_voice(voice_value, lang)
+      audio_file = find_or_create_audio_file_for_voice(voice_value, lang) if create_if_missing
     end
-    self.audio_url = default_audio_url(audio_file) if audio_file && self.is_a?(BoardImage)
 
     audio_file
   end
@@ -222,15 +221,16 @@ module AudioHelper
 
   def audio_url_for_voice(voice_value = nil, lang = "en")
     voice_value ||= self.voice || "polly:kevin"
-    audio_file = find_audio_for_voice(voice_value, lang)
-    default_audio_url(audio_file)
+    audio_file = find_audio_for_voice(voice_value, lang, create_if_missing: false)
+    default_audio_url(audio_file) if audio_file
   end
 
   def default_audio_url(audio_file = nil)
     if self.class.name == "BoardImage"
       if audio_file.nil?
-        audio_file = find_audio_for_voice(self.voice, self.language)
-        audio_file = audio_files.first if audio_file.nil?
+        audio_file = find_audio_for_voice(self.voice, self.language, create_if_missing: false)
+        audio_file = audio_files.order(created_at: :desc).first if audio_file.nil? # fallback to most recent audio file
+        # return audio_url
       end
       audio_blob = audio_file&.blob if audio_file
       if audio_blob.nil?

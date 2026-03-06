@@ -23,7 +23,7 @@ class ChildBoard < ApplicationRecord
   belongs_to :created_by, class_name: "User", foreign_key: "created_by_id", optional: true
 
   # scope :with_artifacts, -> { includes(board: :images) }
-  scope :with_artifacts, -> { includes({ board: [{ images: [:docs, :audio_files_attachments, :audio_files_blobs, :category_boards] }] }, :image_parent) }
+  scope :with_artifacts, -> { includes({ board: [{ images: [:docs, :audio_files_attachments, :audio_files_blobs] }] }, :image_parent) }
 
   def name
     board.name

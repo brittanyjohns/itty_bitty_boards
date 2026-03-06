@@ -121,7 +121,7 @@ class Board < ApplicationRecord
   scope :dynamic_defaults, -> { where(name: "Dynamic Default", parent_type: "PredefinedResource") }
 
   # scope :with_artifacts, -> { includes({ board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }) }
-  scope :with_artifacts, -> { includes({ board_images: [{ image: [{ docs: [:image_attachment, :image_blob, :user_docs] }, :audio_files_attachments, :audio_files_blobs, :user, :category_boards] }] }, :image_parent) }
+  scope :with_artifacts, -> { includes({ board_images: [{ image: [{ docs: [:image_attachment, :image_blob, :user_docs] }, :audio_files_attachments, :audio_files_blobs, :user] }] }, :image_parent) }
 
   scope :in_use, -> { where(in_use: true) }
   scope :not_in_use, -> { main_boards.where(in_use: false) }
@@ -594,14 +594,14 @@ class Board < ApplicationRecord
 
       bi.create_voice_audio
     end
-    sub_board_ids = board_images.pluck(:predictive_board_id).compact
-    if sub_board_ids.any?
-      board_ids = Board.where(id: sub_board_ids, user_id: user_id).pluck(:id)
-      Rails.logger.info "SET VOICE - Sub boards to update: #{board_ids.count} boards found for user_id #{user_id}"
-      board_ids.each_slice(5) do |batch|
-        UpdateBoardsVoiceJob.perform_async(batch, voice, language)
-      end
-    end
+    # sub_board_ids = board_images.pluck(:predictive_board_id).compact
+    # if sub_board_ids.any?
+    #   board_ids = Board.where(id: sub_board_ids, user_id: user_id).pluck(:id)
+    #   Rails.logger.info "SET VOICE - Sub boards to update: #{board_ids.count} boards found for user_id #{user_id}"
+    #   board_ids.each_slice(5) do |batch|
+    #     UpdateBoardsVoiceJob.perform_async(batch, voice, language)
+    #   end
+    # end
   end
 
   def self.create_audio_for_scope(scope, limit = 10)
@@ -1290,9 +1290,9 @@ class Board < ApplicationRecord
     @board_settings = settings || {}
     freeze_parent_board = @board_settings["freeze_board"] == true
     if show_hidden
-      @board_images = board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).distinct
+      @board_images = board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards] }, :predictive_board).distinct
     else
-      @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards, :category_boards] }, :predictive_board).distinct
+      @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards] }, :predictive_board).distinct
     end
     current_colors = @board_images.map { |bi| bi.bg_color }.flatten.compact.uniq
     if in_use
@@ -1392,7 +1392,6 @@ class Board < ApplicationRecord
         @label = @board_image.label
 
         @image = @board_image.image
-        @audio_files = @board_image.image_audio_files
 
         is_owner = viewing_user && @image.user_id == viewing_user&.id
         is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
@@ -1421,6 +1420,7 @@ class Board < ApplicationRecord
         if voice_to_play.present? && @board_image.voice != voice_to_play && !using_custom_audio
           current_audio_url = @board_image.audio_url_for_voice(voice_to_play)
           unless current_audio_url
+            Rails.logger.info "No audio file found for voice #{voice_to_play} on board image #{@board_image.id}, scheduling SaveAudioJob"
             SaveAudioJob.perform_async(@image.id, voice_to_play)
             current_audio_url = @board_image.audio_url
           end
@@ -1470,7 +1470,6 @@ class Board < ApplicationRecord
           src: @board_image.display_image_url || @image.display_image_url(viewing_user),
           display_image_url: @board_image.display_image_url_or_default(viewing_user),
           audio_url: current_audio_url,
-          audio_files: @audio_files,
           voice: @board_image.voice,
           layout: @board_image.layout.with_indifferent_access,
           added_at: @board_image.added_at,
