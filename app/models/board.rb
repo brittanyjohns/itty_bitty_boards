@@ -838,7 +838,7 @@ class Board < ApplicationRecord
 
         new_board_image.save
 
-        clone_and_update_predictive_board(board_image, new_board_image, updated_voice, cloned_user_id, level_count + 1) unless level_count > 2
+        # clone_and_update_predictive_board(board_image, new_board_image, updated_voice, cloned_user_id, level_count + 1) unless level_count > 2
       end
     end
 
@@ -884,7 +884,7 @@ class Board < ApplicationRecord
       return
     end
 
-    CloneBoardJob.perform_async(predictive_board.id, new_board_image.id, level_count)
+    CloneBoardJob.perform_async(predictive_board.id, new_board_image.id)
     Rails.logger.info "Scheduled CloneBoardJob for predictive board: #{predictive_board.id} with new_board_image_id: #{new_board_image.id}, level_count: #{level_count}"
     # new_predictive_board = predictive_board.clone_with_images(cloned_user_id, predictive_board.name, updated_voice, nil, level_count)
     # Rails.logger.info "Cloned predictive board: #{predictive_board.id} to new predictive board: #{new_predictive_board.id} for board image: #{new_board_image.id}"
