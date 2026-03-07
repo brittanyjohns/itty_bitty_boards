@@ -39,6 +39,7 @@ class BoardImage < ApplicationRecord
   # before_save :save_display_image_url, if: -> { display_image_url.blank? }
   before_save :check_predictive_board
   before_save :set_colors, if: :part_of_speech_changed?
+  after_create :create_voice_audio_after_create, unless: -> { skip_create_voice_audio }
 
   include BoardsHelper
   include ImageHelper
@@ -448,6 +449,13 @@ class BoardImage < ApplicationRecord
     # else
     #   image.start_create_all_audio_job(language) unless Rails.env.test? || Rails.env.development?
     # end
+    # if board.board_type != "static"
+    #   default_next_board = image.matching_viewer_boards(board.user).first
+    #   self.predictive_board_id = default_next_board.id if default_next_board
+    # end
+  end
+
+  def create_voice_audio_after_create
     current_audio_url = audio_url_for_voice(voice, language)
     unless current_audio_url
       Rails.logger.info "BoardImage - No audio file found for voice #{voice} on board image #{label}, scheduling SaveAudioJob"
@@ -455,10 +463,7 @@ class BoardImage < ApplicationRecord
       return
     end
     self.audio_url = current_audio_url
-    # if board.board_type != "static"
-    #   default_next_board = image.matching_viewer_boards(board.user).first
-    #   self.predictive_board_id = default_next_board.id if default_next_board
-    # end
+    save
   end
 
   def save_defaults
