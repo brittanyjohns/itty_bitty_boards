@@ -447,8 +447,11 @@ class API::ImagesController < API::ApplicationController
       @image = Image.find_or_create_by(label: label, user_id: @current_user.id, private: false, image_prompt: image_params[:image_prompt], image_type: "Generated")
     end
     image_prompt = image_params[:image_prompt] || image_params["image_prompt"]
+    if image_prompt.blank? || image_prompt == @image.label
+      image_prompt = @image.default_image_prompt
+    end
     if current_user.admin?
-      @image.image_prompt = image_params[:image_prompt] || image_params["image_prompt"] || @image.label
+      @image.image_prompt = image_prompt
     end
     @image.status = "generating"
     @image.save!
@@ -746,7 +749,11 @@ class API::ImagesController < API::ApplicationController
   def run_generate
     return if current_user.tokens < 1
     @image.update(status: "generating")
-    GenerateImageJob.perform_async(@image.id, current_user.id)
+    image_prompt = image_params[:image_prompt] || image_params["image_prompt"]
+    if image_prompt.blank? || image_prompt == @image.label
+      image_prompt = @image.default_image_prompt
+    end
+    GenerateImageJob.perform_async(@image.id, current_user.id, image_prompt, params[:board_id])
     current_user.remove_tokens(1)
     @board.add_to_cost(1) if @board
   end
