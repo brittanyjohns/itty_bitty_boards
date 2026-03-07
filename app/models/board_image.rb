@@ -424,17 +424,17 @@ class BoardImage < ApplicationRecord
 
   def set_defaults
     audio_file = nil
-    if image.use_custom_audio
-      self.voice = image.voice
-      audio_file = image.find_custom_audio_file
-    else
-      self.voice = board.voice
-      self.language = board.language
-      self.display_label = image.display_label if display_label.blank?
-      self.language_settings = image.language_settings
+    # if image.use_custom_audio
+    #   self.voice = image.voice
+    #   audio_file = image.find_custom_audio_file
+    # else
+    self.voice = board.voice
+    self.language = board.language
+    self.display_label = image.display_label if display_label.blank?
+    self.language_settings = image.language_settings
 
-      audio_file = image.find_audio_for_voice(voice, language)
-    end
+    # audio_file = image.find_audio_for_voice(voice, language)
+    # end
     img_color = image.bg_color || "white"
     set_background_color(img_color) if bg_color.blank?
     self.font_size = image.font_size
@@ -443,11 +443,18 @@ class BoardImage < ApplicationRecord
     self.display_image_url = image.display_image_url(user)
     self.next_words = image.next_words || []
     self.part_of_speech = image.part_of_speech || "default"
-    if audio_file
-      self.audio_url = image.default_audio_url(audio_file)
-    else
-      image.start_create_all_audio_job(language) unless Rails.env.test? || Rails.env.development?
+    # if audio_file
+    #   self.audio_url = default_audio_url(audio_file)
+    # else
+    #   image.start_create_all_audio_job(language) unless Rails.env.test? || Rails.env.development?
+    # end
+    current_audio_url = audio_url_for_voice(voice, language)
+    unless current_audio_url
+      Rails.logger.info "BoardImage - No audio file found for voice #{voice} on board image #{label}, scheduling SaveAudioJob"
+      SaveAudioJob.perform_async(image_id, voice, id)
+      return
     end
+    self.audio_url = current_audio_url
     # if board.board_type != "static"
     #   default_next_board = image.matching_viewer_boards(board.user).first
     #   self.predictive_board_id = default_next_board.id if default_next_board
