@@ -439,17 +439,18 @@ class API::ImagesController < API::ApplicationController
   def generate
     @current_user = current_user
     return unless check_monthly_limit("ai_action")
-
     if !params[:id].blank?
       @image = Image.find(params[:id])
     else
-      label = image_params[:label].present? ? image_params[:label] : image_params[:image_prompt]
-      @image = Image.find_or_create_by(label: label, user_id: @current_user.id, private: false, image_prompt: image_params[:image_prompt], image_type: "Generated")
+      @image = Image.find_or_create_by(label: label, user_id: @current_user.id, private: false, image_prompt: image_prompt, image_type: "Generated")
     end
-    image_prompt = image_params[:image_prompt] || image_params["image_prompt"]
-    if image_prompt.blank? || image_prompt == @image.label
+
+    label = image_params[:label].present? ? image_params[:label] : image_params[:image_prompt]
+    image_prompt = params[:image_prompt]
+    if needs_replacement?(label, image_prompt)
       image_prompt = @image.default_image_prompt
     end
+
     if current_user.admin?
       @image.image_prompt = image_prompt
     end
@@ -459,7 +460,12 @@ class API::ImagesController < API::ApplicationController
     board_id = params[:board_id]
     screen_size = params[:screen_size] || "lg"
     transparent_background = params[:transparent_background] == "true"
+    @board_image = BoardImage.find_by(board_id: board_id, image_id: @image.id) if board_id
     GenerateImageJob.perform_async(@image.id, @current_user.id, image_prompt, board_id, screen_size, transparent_background)
+    if @board_image
+      @board_image.update(status: "generating")
+      return render json: { board_image: @board_image.api_view(@current_user) }
+    end
     # @current_user.remove_tokens(1)
     @image_docs = @image.docs.for_user(@current_user).order(created_at: :desc)
 
@@ -728,6 +734,15 @@ class API::ImagesController < API::ApplicationController
   end
 
   private
+
+  def needs_replacement?(label, image_prompt)
+    normalized_label = label.to_s.strip.downcase
+    normalized_prompt = image_prompt.to_s.strip.downcase
+    return true if normalized_label == normalized_prompt || normalized_prompt.blank?
+    extra_prompt = " with a transparent background"
+    return true if normalized_prompt == "#{normalized_label}#{extra_prompt}"
+    false
+  end
 
   def check_update_board_image(saved_image_url = nil)
     saved_image_url ||= @doc.display_url
