@@ -58,22 +58,23 @@ namespace :users do
 
     days_ago = args[:days_ago].to_i || 30
 
-    # board_to_use = communicator_account.child_boards.sample.board
-    limit = 8
-    communicator_account.child_boards.each do |child_board|
-      count = 0
+    comm_boards = communicator_account.child_boards.includes(:board).sample(10)
 
+    adj_days_ago_min = (days_ago / 2.size.to_f).ceil # Adjust the days_ago to spread events over the specified range
+    adj_days_ago_max = days_ago
+    count = 0
+    comm_boards.each_with_index do |child_board, index|
       board_to_use = child_board.board
       words = board_to_use.current_word_list
-      puts "Creating word events for account ID #{communicator_account.id} with words: #{words.join(", ")} and days_ago: #{days_ago}"
+      adj_days_ago = rand(adj_days_ago_min..adj_days_ago_max)
 
-      create_word_events(words, user, board_to_use, communicator_account, days_ago)
-      count += 1
-      break if count >= limit
+      timestamp = Time.current - adj_days_ago.days
+      timestamp += index.seconds
+      create_word_events(words, user, board_to_use, communicator_account, timestamp: timestamp)
+      count += words.size * 2 # Each word creates two events
     end
-    profile = communicator_account.profile
-    update_profile(profile) if profile.intro.blank? || profile.bio.blank?
-    puts "Done!"
+
+    puts "Done! - Created word events for account ID #{communicator_account.id}. - Days ago: #{days_ago}, Events processed: #{count}"
   end
 
   desc "Create recent words events for for an existing communicator account Example: rake users:create_recent_word_events_for_communicator[1]"
@@ -162,14 +163,13 @@ def update_profile(profile)
   profile.save!
 end
 
-def create_word_events(words, user, board, communicator_account, days_ago = 30)
-  random_days_ago = rand(0..days_ago)
-  timestamp = FFaker::Time.between(Date.today - random_days_ago, Date.today)
+def create_word_events(words, user, board, communicator_account, timestamp:)
+  # random_days_ago = rand(0..days_ago) if days_ago.is_a?(Integer)
+  # timestamp = Time.current - random_days_ago.days
   puts "Creating word events for user ID #{user.id} on board ID #{board.id} with timestamp: #{timestamp}"
   words.each_with_index do |word, index|
-    ts_for_event = timestamp + index.minutes
-    puts "Creating WordEvent for word: #{word}, previous_word: #{words[index - 1]}, timestamp: #{ts_for_event}, user_id: #{user.id}, board_id: #{board.id}, child_account_id: #{communicator_account&.id}"
-    payload = {
+    ts_for_event = timestamp + index.days
+    payload_1 = {
       word: word,
       previous_word: words[index - 1],
       timestamp: ts_for_event,
@@ -177,6 +177,15 @@ def create_word_events(words, user, board, communicator_account, days_ago = 30)
       board_id: board.id,
       child_account_id: communicator_account&.id,
     }
-    WordEvent.create(payload)
+    WordEvent.create(payload_1)
+    payload_2 = {
+      word: word,
+      previous_word: words[index - 1],
+      timestamp: ts_for_event + 12.hours,
+      user_id: user.id,
+      board_id: board.id,
+      child_account_id: communicator_account&.id,
+    }
+    WordEvent.create(payload_2)
   end
 end
