@@ -522,7 +522,7 @@ class ChildAccount < ApplicationRecord
       created_at: created_at,
       sign_in_count: sign_in_count,
       can_edit: viewing_user&.can_add_boards_to_account?([id]),
-      is_owner: viewing_user&.id == user_id,
+      is_owner: viewing_user&.id == user_id || viewing_user&.admin?,
       is_vendor: is_vendor,
       layout: layout,
       is_demo: is_demo?,
