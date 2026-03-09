@@ -39,8 +39,8 @@ namespace :users do
     puts "Done! : #{acct_ids}"
   end
 
-  desc "Create word events for an existing communicator account Example: rake users:create_word_events_for_communicator[1]"
-  task :create_word_events_for_communicator, [:account_id, :create_board] => :environment do |t, args|
+  desc "Create word events for an existing communicator account Example: rake users:create_word_events_for_communicator[1,true]"
+  task :create_word_events_for_communicator, [:account_id, :create_board, :days_ago] => :environment do |t, args|
     communicator_account = ChildAccount.includes(:user, :child_boards).find(args[:account_id])
     user = communicator_account.user
     if communicator_account.nil?
@@ -54,11 +54,50 @@ namespace :users do
       communicator_account.reload
     end
 
+    communicator_account.update!(last_sign_in_at: Time.current)
+
+    days_ago = args[:days_ago].to_i || 30
+
+    # board_to_use = communicator_account.child_boards.sample.board
+    limit = 8
+    communicator_account.child_boards.each do |child_board|
+      count = 0
+
+      board_to_use = child_board.board
+      words = board_to_use.current_word_list
+      puts "Creating word events for account ID #{communicator_account.id} with words: #{words.join(", ")} and days_ago: #{days_ago}"
+
+      create_word_events(words, user, board_to_use, communicator_account, days_ago)
+      count += 1
+      break if count >= limit
+    end
+    profile = communicator_account.profile
+    update_profile(profile) if profile.intro.blank? || profile.bio.blank?
+    puts "Done!"
+  end
+
+  desc "Create recent words events for for an existing communicator account Example: rake users:create_recent_word_events_for_communicator[1]"
+  task :create_recent_word_events_for_communicator, [:account_id] => :environment do |t, args|
+    communicator_account = ChildAccount.includes(:user, :child_boards).find(args[:account_id])
+    user = communicator_account.user
+    if communicator_account.nil?
+      puts "Account not found"
+      return
+    end
+    board_to_use = nil
+    if communicator_account.child_boards.empty?
+      puts "No boards found for account"
+      create_board_for_communicator(communicator_account)
+      communicator_account.reload
+    end
+
     board_to_use = communicator_account.child_boards.sample.board
     words = board_to_use.current_word_list
     communicator_account.update!(last_sign_in_at: Time.current)
 
-    create_word_events(words, user, board_to_use, communicator_account)
+    puts "Creating recent word events for account ID #{communicator_account.id} with words: #{words.join(", ")}"
+
+    create_word_events(words, user, board_to_use, communicator_account, timestamp: Time.current - 1.day)
     profile = communicator_account.profile
     update_profile(profile) if profile.intro.blank? || profile.bio.blank?
     puts "Done!"
@@ -123,17 +162,20 @@ def update_profile(profile)
   profile.save!
 end
 
-def create_word_events(words, user, board, communicator_account)
-  words.each do |word|
-    random_days_ago = rand(0..7)
+def create_word_events(words, user, board, communicator_account, days_ago = 30)
+  random_days_ago = rand(0..days_ago)
+  timestamp = FFaker::Time.between(Date.today - random_days_ago, Date.today)
+  puts "Creating word events for user ID #{user.id} on board ID #{board.id} with timestamp: #{timestamp}"
+  words.each_with_index do |word, index|
+    ts_for_event = timestamp + index.minutes
+    puts "Creating WordEvent for word: #{word}, previous_word: #{words[index - 1]}, timestamp: #{ts_for_event}, user_id: #{user.id}, board_id: #{board.id}, child_account_id: #{communicator_account&.id}"
     payload = {
       word: word,
-      previous_word: words.sample,
-      timestamp: FFaker::Time.between(Date.today - random_days_ago, Date.today),
+      previous_word: words[index - 1],
+      timestamp: ts_for_event,
       user_id: user.id,
       board_id: board.id,
-      team_id: user.current_team_id, # This doesn't do anything anymore
-      communicator_account_id: communicator_account&.id,
+      child_account_id: communicator_account&.id,
     }
     WordEvent.create(payload)
   end
