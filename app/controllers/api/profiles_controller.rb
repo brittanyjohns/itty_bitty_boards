@@ -3,7 +3,6 @@ class API::ProfilesController < API::ApplicationController
 
   def index
     @profile = current_user&.profile
-    puts "Current user profile: #{@profile.inspect}" if @profile
     render json: @profile.api_view(current_user)
   end
 
@@ -36,23 +35,19 @@ class API::ProfilesController < API::ApplicationController
       return
     end
 
-    # Placeholder profiles can be cached too if you want, but keeping it simple:
     if @profile.placeholder? && @profile.claimed_at.nil?
       render json: @profile.placeholder_view
       return
     end
 
-    # Compute last_modified + etag for this profile’s public view
     last_modified = profile_public_last_modified(@profile)
-    etag          = profile_public_etag(@profile)
+    etag = profile_public_etag(@profile)
 
-    # If the client already has the latest version, Rails returns 304 and skips the heavy work
-    return unless stale?(etag: etag, last_modified: last_modified)
-
-    Rails.logger.debug("[Profiles#public] public_page=#{@profile.public_page?}")
-
-    payload = @profile.public_page? ? @profile.public_page_view : @profile.safety_view
-    render json: payload
+    if stale?(etag: etag, last_modified: last_modified, public: true)
+      Rails.logger.debug("[Profiles#public] public_page=#{@profile.public_page?}")
+      payload = @profile.public_page? ? @profile.public_page_view : @profile.safety_view
+      render json: payload
+    end
   end
 
   def create
@@ -236,58 +231,67 @@ class API::ProfilesController < API::ApplicationController
     params.require(:profile).permit(:username, :bio, :intro, :avatar, :allow_discovery, settings: {})
   end
 
-  # Include everything that affects the public JSON in here
   def profile_public_last_modified(profile)
-    # Base: the profile itself
     timestamps = [profile.updated_at]
 
-    # These should be ActiveRecord relations; if they’re methods that load arrays,
-    # consider adding AR scopes like `has_many :public_boards` etc. so this stays cheap.
-    if profile.respond_to?(:public_boards)
-      ts = profile.public_boards.maximum(:updated_at)
-      timestamps << ts if ts
-    end
-
-    if profile.respond_to?(:user_boards)
-      ts = profile.user_boards.maximum(:updated_at)
-      timestamps << ts if ts
-    end
-
-    # Global public boards collection (used in public_page_view)
-    ts = Board.public_boards.maximum(:updated_at)
-    timestamps << ts if ts
-
-    # If you have associated rich text records (e.g., ActionText) that might not bump
-    # profile.updated_at, you can fold them in too:
-    if profile.respond_to?(:public_about) && profile.public_about&.respond_to?(:updated_at)
-      timestamps << profile.public_about.updated_at
-    end
-
-    if profile.respond_to?(:public_intro) && profile.public_intro&.respond_to?(:updated_at)
-      timestamps << profile.public_intro.updated_at
-    end
-
-    if profile.respond_to?(:public_bio) && profile.public_bio&.respond_to?(:updated_at)
-      timestamps << profile.public_bio.updated_at
+    board_ids = public_page_board_ids(profile)
+    if board_ids.any?
+      board_ts = Board.where(id: board_ids).maximum(:updated_at)
+      timestamps << board_ts if board_ts
     end
 
     timestamps.compact.max || Time.zone.at(0)
   end
 
   def profile_public_etag(profile)
-    # Scopes:
-    pb = profile.public_boards
-    ub = profile.user_boards
-    gb = Board.public_boards
+    public_page = profile_public_page_settings(profile)
+    board_sections = Array(public_page["board_sections"])
+    featured_board_ids = Array(public_page["featured_board_ids"])
+    board_ids = public_page_board_ids(profile)
+
+    boards_scope = board_ids.any? ? Board.where(id: board_ids) : Board.none
+
+    normalized_sections = board_sections.map do |section|
+      {
+        id: section["id"],
+        title: section["title"],
+        layout: section["layout"],
+        subtext: section["subtext"],
+        board_ids: Array(section["board_ids"]),
+      }
+    end
 
     [
-      "profile-public-v1",
+      "profile-public-v2",
       profile.id,
-      profile.public_page? ? "public" : "safety",
+      profile.cache_key_with_version,
+      profile.public_page?,
       profile.allow_discovery?,
-      pb.maximum(:id), pb.count,
-      ub.maximum(:id), ub.count,
-      gb.maximum(:id), gb.count,
+      Digest::MD5.hexdigest(public_page.to_json),
+      Digest::MD5.hexdigest(normalized_sections.to_json),
+      featured_board_ids.join("-"),
+      boards_scope.count,
+      boards_scope.maximum(:id),
+      boards_scope.maximum(:updated_at)&.utc&.to_fs(:nsec),
     ]
+  end
+
+  def profile_public_page_settings(profile)
+    settings = profile.settings || {}
+    public_page = settings["public_page"] || settings[:public_page] || {}
+    public_page.is_a?(Hash) ? public_page : {}
+  end
+
+  def public_page_board_ids(profile)
+    public_page = profile_public_page_settings(profile)
+
+    section_board_ids =
+      Array(public_page["board_sections"]).flat_map do |section|
+        Array(section["board_ids"])
+      end
+
+    featured_board_ids = Array(public_page["featured_board_ids"])
+
+    (section_board_ids + featured_board_ids).compact.uniq
   end
 end
