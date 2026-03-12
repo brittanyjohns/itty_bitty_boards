@@ -1,22 +1,25 @@
 <div class="header">
-  <div style="display:flex; align-items:center; gap:8mm; width:100%;">
+  <div class="header-inner">
     <div class="logo">
-      <img alt="SpeakAnyWay Logo" src="data:image/png;base64,<%= @logo %>">
+      <% if @logo.present? %>
+        <img alt="SpeakAnyWay Logo" src="data:image/png;base64,<%= @logo %>">
+      <% end %>
     </div>
 
-    <div style="display:flex; flex-direction:column; align-items:flex-start; justify-content:center; flex:1; min-width:0;">
-      <p style="font-size:18pt; color:#000; margin:2mm 2mm 0 0; font-weight:bold; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">
+    <div class="header-copy">
+      <p class="board-title">
         <strong><%= @board_title %></strong>
       </p>
 
-      <p style="font-size:8pt; color:#999; margin:2mm 2mm 0 0; font-weight:normal;">
+      <p class="board-subtitle">
         Created with SpeakAnyWay AAC
       </p>
 
-      <div style="font-size:8pt; color:#666; padding:1mm 0; min-width:0;">
+      <div class="board-link">
         Scan the code or visit
-        <a href="<%= @qr_target_url %>" style="color:#666; font-weight:bold;"
-          target="_blank" rel="noopener noreferrer"><%= @qr_target_url %></a>
+        <a href="<%= @qr_target_url %>" target="_blank" rel="noopener noreferrer">
+          <%= @qr_target_url %>
+        </a>
         to view and edit this board online.
       </div>
     </div>
@@ -28,28 +31,50 @@
 </div>
 
 <div class="board-wrap">
-  <div class="board-container">
-    <div class="board-grid" style="grid-template-columns: repeat(<%= @columns %>, 1fr); grid-template-rows: repeat(<%= @rows %>, minmax(0, 1fr));">
+  <div
+    class="board-sizer"
+    style="width:<%= @board_render_width_mm %>mm; height:<%= @board_render_height_mm %>mm;"
+  >
+    <div
+      class="board-grid"
+      style="
+        grid-template-columns: repeat(<%= @columns %>, 1fr);
+        grid-template-rows: repeat(<%= @rows %>, 1fr);
+      "
+    >
       <% @tiles.each do |t| %>
         <% bg_color = @hide_colors ? "" : (t["bg_color"] || "black") %>
 
-        <% col_start = t["x"].to_i + 1
-           row_start = t["y"].to_i + 1
-           col_span = t["w"].to_i
-           row_span = t["h"].to_i %>
+        <% col_start = t["x"].to_i + 1 %>
+        <% row_start = t["y"].to_i + 1 %>
+        <% col_span = t["w"].to_i %>
+        <% row_span = t["h"].to_i %>
 
-        <div class="tile" style=" background-color:<%= bg_color %>; grid-column:<%= col_start %>/span <%= col_span %>;
-                    grid-row:<%= row_start %>/span <%= row_span %>;">
-          <% if t["image_url"].present? %>
-            <img src="<%= t["image_url"] %>" alt="<%= t["label"] %>">
-          <% else %>
-            <div style="display:flex; align-items:center; justify-content:center; color:#aaa; font-size:9pt; height:100%; min-height:0;">
-              <%= t["label"] %>
-            </div>
-          <% end %>
+        <div
+          class="tile"
+          style="
+            background-color:<%= bg_color.presence || "#ffffff" %>;
+            grid-column:<%= col_start %> / span <%= col_span %>;
+            grid-row:<%= row_start %> / span <%= row_span %>;
+          "
+        >
+          <div class="tile-media">
+            <% if t["image_url"].present? %>
+              <img src="<%= t["image_url"] %>" alt="<%= t["label"] %>">
+            <% else %>
+              <div class="tile-placeholder">
+                <%= t["label"] %>
+              </div>
+            <% end %>
+          </div>
 
-          <div class="label <%= bg_color %>" style="font-weight:<%= @hide_colors ? "normal" : "bold" %>; background-color:<%= bg_color %>;">
-
+          <div
+            class="label <%= bg_color %>"
+            style="
+              font-weight:<%= @hide_colors ? "normal" : "bold" %>;
+              background-color:<%= bg_color.presence || "#f7f7f7" %>;
+            "
+          >
             <%= t["label"] %>
           </div>
         </div>

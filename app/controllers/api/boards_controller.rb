@@ -6,10 +6,10 @@ class API::BoardsController < API::ApplicationController
   before_action :check_board_create_permissions, only: %i[ create clone ]
 
   def index
-    limit_param        = params[:limit].presence&.to_i       # used as per_page
-    page_param         = params[:page].presence || 1
-    page               = page_param.to_i <= 0 ? 1 : page_param.to_i
-    per_page           = (limit_param || 30).clamp(1, 200)   # sane defaults/bounds
+    limit_param = params[:limit].presence&.to_i       # used as per_page
+    page_param = params[:page].presence || 1
+    page = page_param.to_i <= 0 ? 1 : page_param.to_i
+    per_page = (limit_param || 30).clamp(1, 200)   # sane defaults/bounds
     sort_field_param = params[:sort_field].presence || "created_at"
     sort_order_param = params[:sort_order].presence || "desc"
 
@@ -21,7 +21,7 @@ class API::BoardsController < API::ApplicationController
 
     order_clause = { sort_field => sort_order.to_sym }
 
-    query        = params[:query].to_s.strip.presence
+    query = params[:query].to_s.strip.presence
     filter_param = params[:filter].to_s.strip.presence
 
     # ---------------------------
@@ -39,7 +39,7 @@ class API::BoardsController < API::ApplicationController
     unless current_user
       # Last modified across ALL predefined boards (not just this page)
       last_modified = Board.predefined.maximum(:updated_at) || Time.zone.at(0)
-      etag          = guest_boards_index_etag(last_modified, limit_param)
+      etag = guest_boards_index_etag(last_modified, limit_param)
 
       return unless stale?(etag: etag, last_modified: last_modified)
 
@@ -47,14 +47,14 @@ class API::BoardsController < API::ApplicationController
       static_scope = static_scope.page(page).per(per_page)
 
       static_boards = static_scope.to_a
-      payload       = static_boards.map(&:api_view)
+      payload = static_boards.map(&:api_view)
 
       render json: {
         static_preset_boards: payload,
-        preset_boards:        payload,
+        preset_boards: payload,
         pagination: {
-          page:        static_scope.current_page,
-          per_page:    static_scope.limit_value,
+          page: static_scope.current_page,
+          per_page: static_scope.limit_value,
           total_pages: static_scope.total_pages,
           total_count: static_scope.total_count,
         },
@@ -67,10 +67,10 @@ class API::BoardsController < API::ApplicationController
     # ---------------------------
     if query.present?
       search_scope = Board.for_user(current_user).searchable
-       .then { |s| apply_filter(s, filter) }
-       .search_by_name(query)
-       .order(order_clause)
-       .page(page).per(per_page)
+        .then { |s| apply_filter(s, filter) }
+        .search_by_name(query)
+        .order(order_clause)
+        .page(page).per(per_page)
 
       last_updated_at = search_scope.maximum(:updated_at)&.to_i
 
@@ -101,8 +101,8 @@ class API::BoardsController < API::ApplicationController
       render json: {
         boards: result[:boards],
         pagination: {
-          page:        result[:page],
-          per_page:    result[:per_page],
+          page: result[:page],
+          per_page: result[:per_page],
           total_pages: result[:total_pages],
           total_count: result[:total_count],
         },
@@ -113,7 +113,7 @@ class API::BoardsController < API::ApplicationController
     # ---------------------------
     # 3. NORMAL MODE (no search)
     # ---------------------------
-    base_scope     = current_user.boards
+    base_scope = current_user.boards
     filtered_scope = apply_filter(base_scope, filter)
 
     last_modified = boards_index_last_modified(current_user, filtered_scope)
@@ -125,7 +125,7 @@ class API::BoardsController < API::ApplicationController
       filter: filter,
       sort_field: sort_field,
       sort_order: sort_order,
-      page: page
+      page: page,
     )
 
     # If nothing changed, Rails sends 304 and skips the heavy work
@@ -133,11 +133,11 @@ class API::BoardsController < API::ApplicationController
 
     # Paginate main board list
     user_boards_scope = filtered_scope
-      .reorder(order_clause)   # <-- important
+      .reorder(order_clause) # <-- important
       .page(page)
       .per(per_page)
 
-    @user_boards      = user_boards_scope.to_a
+    @user_boards = user_boards_scope.to_a
 
     # Keep "newly_created_boards" as a small recent snippet (not paginated)
     @newly_created_boards = filtered_scope
@@ -148,10 +148,10 @@ class API::BoardsController < API::ApplicationController
 
     render json: {
       newly_created_boards: @newly_created_boards.map { |board| board.api_view(current_user) },
-      boards:               @user_boards.map { |board| board.api_view(current_user) },
+      boards: @user_boards.map { |board| board.api_view(current_user) },
       pagination: {
-        page:        user_boards_scope.current_page,
-        per_page:    user_boards_scope.limit_value,
+        page: user_boards_scope.current_page,
+        per_page: user_boards_scope.limit_value,
         total_pages: user_boards_scope.total_pages,
         total_count: user_boards_scope.total_count,
       },
@@ -162,7 +162,7 @@ class API::BoardsController < API::ApplicationController
     scope = Board.public_boards
 
     last_modified = scope.maximum(:updated_at) || Time.zone.at(0)
-    etag          = public_boards_etag(scope, last_modified)
+    etag = public_boards_etag(scope, last_modified)
 
     return unless stale?(etag: etag, last_modified: last_modified)
 
@@ -175,7 +175,7 @@ class API::BoardsController < API::ApplicationController
     scope = current_user.boards.alphabetical
 
     last_modified = boards_list_last_modified(current_user, scope)
-    etag          = boards_list_etag(current_user, scope, last_modified)
+    etag = boards_list_etag(current_user, scope, last_modified)
 
     return unless stale?(etag: etag, last_modified: last_modified)
 
@@ -186,7 +186,7 @@ class API::BoardsController < API::ApplicationController
 
   def common_boards
     @common_boards = Board.common_boards
-    render json: { common_boards: @common_boards.map {|board| board.api_view(current_user) } }
+    render json: { common_boards: @common_boards.map { |board| board.api_view(current_user) } }
   end
 
   def public_menu_boards
@@ -217,7 +217,7 @@ class API::BoardsController < API::ApplicationController
 
     etag = [
       board_predictive_etag(board, current_user),
-      effective_voice
+      effective_voice,
     ]
 
     return unless stale?(etag: etag, last_modified: last_modified, template: false)
@@ -693,7 +693,6 @@ class API::BoardsController < API::ApplicationController
         end
         voice = communicator_account.voice
         communicator_board_copy = @board.clone_with_images(current_user&.id, @board.name, voice, communicator_account)
-
       end
       @board.reload
       if record_errors.empty?
@@ -777,12 +776,16 @@ class API::BoardsController < API::ApplicationController
     @screen_size = params[:screen_size] || "lg"
     @hide_colors = params[:hide_colors] == "1"
 
-    # Tiles & grid
-    @columns = @board.columns_for_screen_size(@screen_size)
+    # Grid data
+    @columns = @board.columns_for_screen_size(@screen_size).to_i
     @tiles = normalize_tiles(@board, @screen_size)
 
     @num_of_words = @tiles.size
-    @rows = @tiles.map { |t|(t["y"].to_i + t["h"].to_i)}.max || 1
+
+    # Use actual occupied rows from layout
+    @rows = @tiles.map { |t| t["y"].to_i + t["h"].to_i }.max || 1
+    @rows = 1 if @rows <= 0
+    @columns = 1 if @columns <= 0
 
     # Orientation
     @landscape = @rows > @columns
@@ -793,7 +796,33 @@ class API::BoardsController < API::ApplicationController
     @logo = Base64.strict_encode64(File.read(@path)) if File.exist?(@path)
     @board_title = @board.try(:name) || "Communication Board"
 
-    # Render HTML *after* vars set
+    # ---------------------------------------------------
+    # Calculate a board render box that fits on one page
+    # while preserving square cells
+    # ---------------------------------------------------
+    page_width_mm = @landscape ? 279.4 : 215.9   # Letter
+    page_height_mm = @landscape ? 215.9 : 279.4
+
+    outer_padding_mm = 6.0   # page padding total allowance
+    header_height_mm = @landscape ? 30.0 : 34.0
+    footer_buffer_mm = 2.0
+
+    available_width_mm = page_width_mm - outer_padding_mm
+    available_height_mm = page_height_mm - outer_padding_mm - header_height_mm - footer_buffer_mm
+
+    board_ratio = @columns.to_f / @rows.to_f
+
+    width_limited_height = available_width_mm / board_ratio
+    height_limited_width = available_height_mm * board_ratio
+
+    if width_limited_height <= available_height_mm
+      @board_render_width_mm = available_width_mm
+      @board_render_height_mm = width_limited_height
+    else
+      @board_render_width_mm = height_limited_width
+      @board_render_height_mm = available_height_mm
+    end
+
     html = render_to_string(
       template: "api/boards/print",
       layout: "pdf",
@@ -801,26 +830,19 @@ class API::BoardsController < API::ApplicationController
     )
 
     disp = params[:preview].present? ? "inline" : "attachment"
+    Rails.logger.info "Generating PDF for board #{@board.id} (#{@board.name}) - disposition: #{disp} - preview: #{params[:preview]}"
     response.headers["Cache-Control"] = "no-store"
-
-    # PDF page size in points
-    page_width  = @landscape ? 792 : 612  # Letter landscape vs portrait
-    page_height = @landscape ? 612 : 792
 
     grover_options = {
       format: "Letter",
       landscape: @landscape,
-
-      # Lock the “screen” to exactly one page
-      viewport: { width: page_width, height: page_height },
-
+      viewport: {
+        width: (@landscape ? 792 : 612),
+        height: (@landscape ? 612 : 792),
+      },
       full_page: false,
-
-      # Respect @page size and layout sizing
       prefer_css_page_size: true,
-
-      # (Optional but helpful)
-      print_background: true
+      print_background: true,
     }
 
     file_data = Grover.new(html, **grover_options).to_pdf
@@ -830,7 +852,6 @@ class API::BoardsController < API::ApplicationController
       type: "application/pdf",
       disposition: disp
   end
-
 
   private
 

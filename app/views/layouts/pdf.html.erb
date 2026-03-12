@@ -3,14 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <title>Board PDF</title>
+
     <style>
       html, body {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
         margin: 0;
         padding: 0;
-        height: 100%;
         width: 100%;
+        height: 100%;
       }
 
       body {
@@ -21,73 +22,120 @@
         margin: 0;
         size: <%= @landscape ? "letter landscape" : "letter" %>;
       }
-      /* One-page canvas */
-      .page {
-        height: 100vh;          /* lock to one page viewport */
-        width: 100vw;
-        overflow: hidden;       /* prevents spilling to page 2 */
 
-        display: grid;
-        grid-template-rows: auto 1fr;  /* header + board */
+      .page {
         box-sizing: border-box;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
         padding: 3mm;
 
-        page-break-inside: avoid !important;
-        page-break-after: avoid !important;
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: 2mm;
       }
 
       .header {
+        min-height: 0;
+      }
+
+      .header-inner {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        margin: 0;
-        padding: 0;
+        gap: 8mm;
+        width: 100%;
       }
 
       .logo {
         width: 14mm;
-        height: auto;
+        flex: 0 0 auto;
         margin-left: 4mm;
       }
 
       .logo img {
+        display: block;
         max-width: 14mm;
         height: auto;
         object-fit: contain;
       }
 
+      .header-copy {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      .board-title {
+        font-size: 18pt;
+        color: #000;
+        margin: 2mm 2mm 0 0;
+        font-weight: bold;
+        line-height: 1.1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+      }
+
+      .board-subtitle {
+        font-size: 8pt;
+        color: #999;
+        margin: 2mm 2mm 0 0;
+        font-weight: normal;
+      }
+
+      .board-link {
+        font-size: 8pt;
+        color: #666;
+        padding: 1mm 0;
+        min-width: 0;
+      }
+
+      .board-link a {
+        color: #666;
+        font-weight: bold;
+      }
+
+      .qr-small {
+        flex: 0 0 auto;
+      }
+
       .qr-small img {
         width: 0.8in;
         height: 0.8in;
-        display: inline-block;
+        display: block;
         margin-left: 4mm;
       }
 
-      /* Board area must be shrinkable */
       .board-wrap {
-        min-height: 0;    /* CRITICAL */
-        height: 100%;
-        box-sizing: border-box;
-        padding: 2pt;
-        padding-bottom: 0;
-        break-inside: avoid;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
       }
 
-      .board-container {
-        height: 100%;
-        min-height: 0;    /* CRITICAL */
+      .board-sizer {
+        flex: 0 0 auto;
+        max-width: 100%;
+        max-height: 100%;
       }
 
       .board-grid {
         display: grid;
-        gap: 2pt;
         width: 100%;
         height: 100%;
-        min-height: 0;    /* CRITICAL */
+        gap: 2pt;
       }
 
       .tile {
-        min-height: 0;    /* CRITICAL */
+        min-width: 0;
+        min-height: 0;
         overflow: hidden;
 
         position: relative;
@@ -96,15 +144,43 @@
         background: #fff;
 
         display: grid;
-        grid-template-rows: 1fr auto;
+        grid-template-rows: minmax(0, 1fr) auto;
+        box-sizing: border-box;
+      }
+
+      .tile-media {
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
 
       .tile img {
         width: 100%;
         height: 100%;
+        min-width: 0;
         min-height: 0;
         object-fit: contain;
         display: block;
+      }
+
+      .tile-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        padding: 2pt;
+        text-align: center;
+        color: #aaa;
+        font-size: 9pt;
+        line-height: 1.1;
+        box-sizing: border-box;
       }
 
       .label {
@@ -112,15 +188,13 @@
         text-align: center;
         padding: 1pt 2pt;
         line-height: 1.1;
-        background: #f7f7f7;
-        // border-top: 1px solid #e5e5e5;
-
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        background: #f7f7f7;
+        box-sizing: border-box;
       }
 
-      /* Color classes */
       .green  { background-color: #b7f399; }
       .yellow { background-color: #fdec00; }
       .red    { background-color: #ff6464; }
@@ -132,24 +206,9 @@
       .gray   { background-color: #808080d9; }
       .pink   { background-color: #ffc0e4; }
       .teal   { background-color: #18ddda; }
-
-      /* If you want label to inherit tile bg when colors enabled */
-      // .label.green,
-      // .label.yellow,
-      // .label.red,
-      // .label.blue,
-      // .label.purple,
-      // .label.orange,
-      // .label.black,
-      // .label.white,
-      // .label.gray,
-      // .label.pink,
-      // .label.teal {
-      //   background-color: inherit;
-      //   border-top-color: rgba(0,0,0,0.12);
-      // }
     </style>
   </head>
+
   <body>
     <div class="page">
       <%= yield %>
