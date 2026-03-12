@@ -40,11 +40,14 @@ class API::ProfilesController < API::ApplicationController
       return
     end
 
+    response.headers["Cache-Control"] = "no-cache, private, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+
     last_modified = profile_public_last_modified(@profile)
     etag = profile_public_etag(@profile)
 
-    if stale?(etag: etag, last_modified: last_modified, public: true)
-      Rails.logger.debug("[Profiles#public] public_page=#{@profile.public_page?}")
+    if stale?(etag: etag, last_modified: last_modified, public: false)
       payload = @profile.public_page? ? @profile.public_page_view : @profile.safety_view
       render json: payload
     end
@@ -262,7 +265,7 @@ class API::ProfilesController < API::ApplicationController
     end
 
     [
-      "profile-public-v2",
+      "profile-public-v3",
       profile.id,
       profile.cache_key_with_version,
       profile.public_page?,
@@ -283,6 +286,10 @@ class API::ProfilesController < API::ApplicationController
   end
 
   def public_page_board_ids(profile)
+    if profile.profileable_type == "ChildAccount"
+      board_ids = profile.communication_boards.pluck(:id)
+      return board_ids
+    end
     public_page = profile_public_page_settings(profile)
 
     section_board_ids =
