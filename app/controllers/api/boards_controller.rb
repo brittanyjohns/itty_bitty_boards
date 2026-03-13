@@ -755,72 +755,30 @@ class API::BoardsController < API::ApplicationController
     render json: @board.api_view_with_images(current_user)
   end
 
-  def print
-    # Make sure we render HTML, not JSON
-    request.format = :html
+  # def print
+  #   # Make sure we render HTML, not JSON
+  #   request.format = :html
 
-    @qr_target_url = @board.public_url || board_url(@board) # change to your public/share URL if different
-    @qr_data_url = qr_data_url_for(@qr_target_url, size: 480)
+  #   @qr_target_url = @board.public_url || board_url(@board) # change to your public/share URL if different
+  #   @qr_data_url = qr_data_url_for(@qr_target_url, size: 480)
 
-    @columns = @board.try(:columns) || 12
-    @rows = @board.try(:rows)
-    @tiles = normalize_tiles(@board)
+  #   @columns = @board.try(:columns) || 12
+  #   @rows = @board.try(:rows)
+  #   @tiles = normalize_tiles(@board)
 
-    render template: "api/boards/print", layout: "pdf", formats: [:html]
-  end
+  #   render template: "api/boards/print", layout: "pdf", formats: [:html]
+  # end
 
   def pdf
-    @qr_target_url = @board.public_url || board_url(@board)
-    @qr_data_url = qr_data_url_for(@qr_target_url, size: 480)
+    render_data = Boards::RenderAssetData.new(
+      board: @board,
+      screen_size: params[:screen_size] || "lg",
+      hide_colors: params[:hide_colors] == "1",
+      routes: Rails.application.routes.url_helpers,
+    ).call
 
-    @screen_size = params[:screen_size] || "lg"
-    @hide_colors = params[:hide_colors] == "1"
-
-    # Grid data
-    @columns = @board.columns_for_screen_size(@screen_size).to_i
-    @tiles = normalize_tiles(@board, @screen_size)
-
-    @num_of_words = @tiles.size
-
-    # Use actual occupied rows from layout
-    @rows = @tiles.map { |t| t["y"].to_i + t["h"].to_i }.max || 1
-    @rows = 1 if @rows <= 0
-    @columns = 1 if @columns <= 0
-
-    # Orientation
-    @landscape = @rows > @columns
-    @landscape = true if @num_of_words >= 6
-
-    # Logo & title
-    @path = Rails.root.join("public/logo_bubble.png")
-    @logo = Base64.strict_encode64(File.read(@path)) if File.exist?(@path)
-    @board_title = @board.try(:name) || "Communication Board"
-
-    # ---------------------------------------------------
-    # Calculate a board render box that fits on one page
-    # while preserving square cells
-    # ---------------------------------------------------
-    page_width_mm = @landscape ? 279.4 : 215.9   # Letter
-    page_height_mm = @landscape ? 215.9 : 279.4
-
-    outer_padding_mm = 6.0   # page padding total allowance
-    header_height_mm = @landscape ? 30.0 : 34.0
-    footer_buffer_mm = 2.0
-
-    available_width_mm = page_width_mm - outer_padding_mm
-    available_height_mm = page_height_mm - outer_padding_mm - header_height_mm - footer_buffer_mm
-
-    board_ratio = @columns.to_f / @rows.to_f
-
-    width_limited_height = available_width_mm / board_ratio
-    height_limited_width = available_height_mm * board_ratio
-
-    if width_limited_height <= available_height_mm
-      @board_render_width_mm = available_width_mm
-      @board_render_height_mm = width_limited_height
-    else
-      @board_render_width_mm = height_limited_width
-      @board_render_height_mm = available_height_mm
+    render_data.each do |key, value|
+      instance_variable_set("@#{key}", value)
     end
 
     html = render_to_string(
@@ -830,15 +788,14 @@ class API::BoardsController < API::ApplicationController
     )
 
     disp = params[:preview].present? ? "inline" : "attachment"
-    Rails.logger.info "Generating PDF for board #{@board.id} (#{@board.name}) - disposition: #{disp} - preview: #{params[:preview]}"
     response.headers["Cache-Control"] = "no-store"
 
     grover_options = {
       format: "Letter",
       landscape: @landscape,
       viewport: {
-        width: (@landscape ? 792 : 612),
-        height: (@landscape ? 612 : 792),
+        width: @landscape ? 792 : 612,
+        height: @landscape ? 612 : 792,
       },
       full_page: false,
       prefer_css_page_size: true,
@@ -949,47 +906,47 @@ class API::BoardsController < API::ApplicationController
   end
 
   # Normalize tiles into {x,y,w,h,label,image_url,bg_color,i}
-  def normalize_tiles(board, screen_size = "lg")
-    @board_tiles = board_tiles(screen_size) || []
+  # def normalize_tiles(board, screen_size = "lg")
+  #   @board_tiles = board_tiles(screen_size) || []
 
-    @board_tiles.map do |t|
-      {
-        "x" => t["x"] || t[:x] || 0,
-        "y" => t["y"] || t[:y] || 0,
-        "w" => t["w"] || t[:w] || 1,
-        "h" => t["h"] || t[:h] || 1,
-        "label" => t["label"] || t[:label] || "",
-        "image_url" => t["image_url"] || t[:image_url],
-        "bg_color" => t["bg_color"] || t[:bg_color] || "#FFFFFF",
-        "i" => t["i"] || t[:i] || "",
-      }
-    end
-  end
+  #   @board_tiles.map do |t|
+  #     {
+  #       "x" => t["x"] || t[:x] || 0,
+  #       "y" => t["y"] || t[:y] || 0,
+  #       "w" => t["w"] || t[:w] || 1,
+  #       "h" => t["h"] || t[:h] || 1,
+  #       "label" => t["label"] || t[:label] || "",
+  #       "image_url" => t["image_url"] || t[:image_url],
+  #       "bg_color" => t["bg_color"] || t[:bg_color] || "#FFFFFF",
+  #       "i" => t["i"] || t[:i] || "",
+  #     }
+  #   end
+  # end
 
-  def board_tiles(screen_size = "lg")
-    layout_key = screen_size.to_s
+  # def board_tiles(screen_size = "lg")
+  #   layout_key = screen_size.to_s
 
-    if @board.respond_to?(:tiles) && @board.tiles.is_a?(Array)
-      @board.tiles
-    elsif @board.respond_to?(:board_images) && @board.board_images.any?
-      @board.board_images.map do |bi|
-        layout = bi.layout[layout_key] || bi.layout["lg"] || {}
+  #   if @board.respond_to?(:tiles) && @board.tiles.is_a?(Array)
+  #     @board.tiles
+  #   elsif @board.respond_to?(:board_images) && @board.board_images.any?
+  #     @board.board_images.map do |bi|
+  #       layout = bi.layout[layout_key] || bi.layout["lg"] || {}
 
-        {
-          "x" => layout["x"] || 0,
-          "y" => layout["y"] || 0,
-          "w" => layout["w"] || 1,
-          "h" => layout["h"] || 1,
-          "label" => bi.label,
-          "image_url" => bi.display_image_url_or_default,
-          "bg_color" => bi.bg_color || "#FFFFFF",
-          "i" => bi.id.to_s,
-        }
-      end
-    else
-      []
-    end
-  end
+  #       {
+  #         "x" => layout["x"] || 0,
+  #         "y" => layout["y"] || 0,
+  #         "w" => layout["w"] || 1,
+  #         "h" => layout["h"] || 1,
+  #         "label" => bi.label,
+  #         "image_url" => bi.display_image_url_or_default,
+  #         "bg_color" => bi.bg_color || "#FFFFFF",
+  #         "i" => bi.id.to_s,
+  #       }
+  #     end
+  #   else
+  #     []
+  #   end
+  # end
 
   def qr_data_url_for(url, size: 512, border_modules: 1)
     qr = RQRCode::QRCode.new(url)

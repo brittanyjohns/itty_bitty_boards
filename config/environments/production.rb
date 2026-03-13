@@ -1,5 +1,6 @@
 require "active_support/core_ext/integer/time"
 Rails.application.routes.default_url_options[:host] = "speakanyway.com"
+Rails.application.routes.default_url_options[:protocol] = "https"
 Rails.application.configure do
   config.log_file_size = 50.megabytes
   # ActiveRecord: only warn+

@@ -2,7 +2,7 @@ class CloneBoardJob
   include Sidekiq::Job
   sidekiq_options queue: :default, retry: 2
 
-  def perform(board_id, new_board_image_id, level_count = 0)
+  def perform(board_id, new_board_image_id)
     board = Board.find_by(id: board_id)
     new_board_image = BoardImage.find_by(id: new_board_image_id)
     cloned_user_id = new_board_image.board.user_id
@@ -24,15 +24,12 @@ class CloneBoardJob
         end
       end
     end
-    new_predictive_board = board.clone_with_images(cloned_user_id, board.name, voice_value, nil, level_count)
-    Rails.logger.info "Cloned predictive board: #{board.id} to new predictive board: #{new_predictive_board.id} for board image: #{new_board_image.id}"
+    new_predictive_board = board.clone_with_images(cloned_user_id, board.name, voice_value)
     if new_predictive_board
       new_board_image.predictive_board_id = new_predictive_board.id
       new_board_image.save
     else
       Rails.logger.error "Error cloning predictive board: #{new_predictive_board.id} for board image: #{new_board_image.id}"
     end
-
-    # (cloned_user_id, predictive_board.name, updated_voice, nil, level_count)
   end
 end
