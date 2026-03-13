@@ -1,35 +1,36 @@
-<div class="header">
-  <div class="header-inner">
-    <div class="logo">
-      <% if @logo.present? %>
-        <img alt="SpeakAnyWay Logo" src="data:image/png;base64,<%= @logo %>">
-      <% end %>
-    </div>
+<% unless @hide_header %>
+  <div class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <% if @logo.present? %>
+          <img alt="SpeakAnyWay Logo" src="data:image/png;base64,<%= @logo %>">
+        <% end %>
+      </div>
 
-    <div class="header-copy">
-      <p class="board-title">
-        <strong><%= @board_title %></strong>
-      </p>
+      <div class="header-copy">
+        <p class="board-title">
+          <strong><%= @board_title %></strong>
+        </p>
 
-      <p class="board-subtitle">
-        Created with SpeakAnyWay AAC
-      </p>
+        <p class="board-subtitle">
+          Created with SpeakAnyWay AAC
+        </p>
 
-      <div class="board-link">
-        Scan the code or visit
-        <a href="<%= @qr_target_url %>" target="_blank" rel="noopener noreferrer">
-          <%= @qr_target_url %>
-        </a>
-        to view and edit this board online.
+        <div class="board-link">
+          Scan the code or visit
+          <a href="<%= @qr_target_url %>" target="_blank" rel="noopener noreferrer">
+            <%= @qr_target_url %>
+          </a>
+          to view and edit this board online.
+        </div>
+      </div>
+
+      <div class="qr-small">
+        <img src="<%= @qr_data_url %>" alt="QR code">
       </div>
     </div>
-
-    <div class="qr-small">
-      <img src="<%= @qr_data_url %>" alt="QR code">
-    </div>
   </div>
-</div>
-
+<% end %>
 <div class="board-wrap">
   <div
     class="board-sizer"

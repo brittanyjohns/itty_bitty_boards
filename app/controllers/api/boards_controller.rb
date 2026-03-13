@@ -769,11 +769,18 @@ class API::BoardsController < API::ApplicationController
   #   render template: "api/boards/print", layout: "pdf", formats: [:html]
   # end
 
+  def generate_preview_image
+    set_board
+    @board.run_generate_preview_job
+    render json: { status: "ok", message: "Preview image generation job started" }
+  end
+
   def pdf
     render_data = Boards::RenderAssetData.new(
       board: @board,
       screen_size: params[:screen_size] || "lg",
       hide_colors: params[:hide_colors] == "1",
+      hide_header: params[:hide_header] == "1",
       routes: Rails.application.routes.url_helpers,
     ).call
 

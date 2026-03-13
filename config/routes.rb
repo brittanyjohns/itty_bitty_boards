@@ -270,6 +270,7 @@ Rails.application.routes.draw do
         post "save_layout"
         # get :print, defaults: { format: :html }
         get :pdf, defaults: { format: :pdf }
+        post "generate_preview_image"
         post "rearrange_images"
         post "add_image"
         post "remove_image"

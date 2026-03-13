@@ -10,22 +10,6 @@ module Boards
     end
 
     def call
-      # paste your current normalize_tiles logic here
-      # and return the same array of tile hashes you already use
-      #
-      # [
-      #   {
-      #     "x" => 0,
-      #     "y" => 0,
-      #     "w" => 1,
-      #     "h" => 1,
-      #     "label" => "go",
-      #     "bg_color" => "green",
-      #     "image_url" => "..."
-      #   }
-      # ]
-      #
-
       @board_tiles = board_tiles(screen_size) || []
 
       @board_tiles.map do |t|

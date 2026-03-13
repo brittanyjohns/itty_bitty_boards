@@ -1,10 +1,11 @@
 # app/services/boards/generate_preview_assets.rb
 module Boards
   class GeneratePreviewAssets
-    def initialize(board:, screen_size: "lg", hide_colors: false, routes:)
+    def initialize(board:, screen_size: "lg", hide_colors: false, hide_header: false, routes:)
       @board = board
       @screen_size = screen_size
       @hide_colors = hide_colors
+      @hide_header = hide_header
       @routes = routes
     end
 
@@ -15,13 +16,14 @@ module Boards
 
     private
 
-    attr_reader :board, :screen_size, :hide_colors, :routes
+    attr_reader :board, :screen_size, :hide_colors, :hide_header, :routes
 
     def render_data
       @render_data ||= Boards::RenderAssetData.new(
         board: board,
         screen_size: screen_size,
         hide_colors: hide_colors,
+        hide_header: hide_header,
         routes: routes,
       ).call
     end

@@ -157,14 +157,22 @@ class Board < ApplicationRecord
   before_destroy :delete_menu, if: :parent_type_menu?
   after_initialize :set_initial_layout, if: :layout_empty?
 
-  after_commit :run_generate_preview_job, on: [:create], if: :should_generate_preview?
-
-  def should_generate_preview?
-    !preview_image.attached?
+  def run_generate_preview_job
+    GenerateBoardPreviewJob.perform_async(id, "lg", false, true)
   end
 
-  def run_generate_preview_job
-    GenerateBoardPreviewJob.perform_async(id, "lg", false)
+  def preview_image_url
+    return if !preview_image.attached?
+    if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
+      cdn_host = ENV["CDN_HOST"]
+      if cdn_host
+        "#{cdn_host}/#{preview_image.key}" # Construct CloudFront URL
+      else
+        preview_image.url # Fallback to the direct Active Storage URL
+      end
+    else
+      preview_image.url
+    end
   end
 
   def set_parent
@@ -1330,6 +1338,7 @@ class Board < ApplicationRecord
       name: name,
       root_board: @root_board,
       language: language,
+      preview_image_url: preview_image_url,
       # missing_common_words: missing_common_words,
       # existing_words: existing_words,
       word_list: current_word_list,

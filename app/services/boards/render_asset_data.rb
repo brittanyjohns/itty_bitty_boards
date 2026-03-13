@@ -1,10 +1,11 @@
 # app/services/boards/render_asset_data.rb
 module Boards
   class RenderAssetData
-    def initialize(board:, screen_size: "lg", hide_colors: false, routes:)
+    def initialize(board:, screen_size: "lg", hide_colors: false, hide_header: false, routes:)
       @board = board
       @screen_size = screen_size
       @hide_colors = hide_colors
+      @hide_header = hide_header
       @routes = routes
     end
 
@@ -24,6 +25,7 @@ module Boards
         qr_data_url: AssetRendering.qr_data_url_for(qr_target_url, size: 480),
         screen_size: screen_size,
         hide_colors: hide_colors,
+        hide_header: hide_header,
         columns: columns,
         rows: rows,
         tiles: tiles,
@@ -38,7 +40,7 @@ module Boards
 
     private
 
-    attr_reader :board, :screen_size, :hide_colors, :routes
+    attr_reader :board, :screen_size, :hide_colors, :hide_header, :routes
 
     def normalized_tiles
       # Replace this with your real logic if normalize_tiles lives elsewhere
@@ -66,7 +68,7 @@ module Boards
       page_height_mm = landscape ? 215.9 : 279.4
 
       outer_padding_mm = 6.0
-      header_height_mm = landscape ? 30.0 : 34.0
+      header_height_mm = hide_header ? 0 : (landscape ? 30.0 : 34.0)
       footer_buffer_mm = 2.0
 
       available_width_mm = page_width_mm - outer_padding_mm
