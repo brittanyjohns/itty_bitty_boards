@@ -140,7 +140,7 @@ class Board < ApplicationRecord
 
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
-  before_save :update_display_image, unless: :display_image_url?
+  # before_save :update_display_image, unless: :display_image_url?
   before_save :update_preset_display_image_url, if: :display_image_url_changed?
 
   # before_save :set_board_type
@@ -157,8 +157,14 @@ class Board < ApplicationRecord
   before_destroy :delete_menu, if: :parent_type_menu?
   after_initialize :set_initial_layout, if: :layout_empty?
 
+  after_commit :run_generate_preview_job_later, on: [:create]
+
   def run_generate_preview_job
     GenerateBoardPreviewJob.perform_async(id, "lg", false, true)
+  end
+
+  def run_generate_preview_job_later
+    GenerateBoardPreviewJob.perform_in(2.minutes, id, "lg", false, true)
   end
 
   def preview_image_url
