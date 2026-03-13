@@ -140,8 +140,8 @@ class Board < ApplicationRecord
 
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
-  # before_save :update_display_image, unless: :display_image_url?
-  before_save :update_preset_display_image_url, if: :display_image_url_changed?
+  before_save :update_display_image, unless: :display_image_url?
+  # before_save :update_preset_display_image_url, if: :display_image_url_changed?
 
   # before_save :set_board_type
   before_save :clean_up_name
