@@ -35,6 +35,7 @@ module Boards
         board_title: AssetRendering.board_title_for(board),
         board_render_width_mm: board_render_width_mm,
         board_render_height_mm: board_render_height_mm,
+        board_expires_at: board.generated_token_expires_at,
       }
     end
 

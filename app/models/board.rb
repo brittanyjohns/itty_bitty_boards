@@ -3,7 +3,7 @@
 # Table name: boards
 #
 #  id                         :bigint           not null, primary key
-#  user_id                    :bigint           not null
+#  user_id                    :bigint
 #  name                       :string
 #  parent_type                :string           not null
 #  parent_id                  :bigint           not null
@@ -41,12 +41,15 @@
 #  in_use                     :boolean          default(FALSE), not null
 #  is_template                :boolean          default(FALSE), not null
 #  board_screenshot_import_id :bigint
+#  sub_board                  :boolean          default(TRUE), not null
+#  generated_token            :string
+#  generated_token_expires_at :datetime
 #
 require "zip"
 
 class Board < ApplicationRecord
   has_rich_text :display_description
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :vendor, optional: true
   paginates_per 100
   belongs_to :parent, polymorphic: true, optional: true
@@ -157,7 +160,7 @@ class Board < ApplicationRecord
   before_destroy :delete_menu, if: :parent_type_menu?
   after_initialize :set_initial_layout, if: :layout_empty?
 
-  after_commit :run_generate_preview_job_later, on: [:create]
+  after_commit :run_generate_preview_job_later, on: [:create], unless: :generated?
 
   def run_generate_preview_job
     GenerateBoardPreviewJob.perform_async(id, "lg", false, true)
@@ -179,6 +182,28 @@ class Board < ApplicationRecord
     else
       preview_image.url
     end
+  end
+
+  def pdf_url
+    return if !pdf_file.attached?
+    if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
+      cdn_host = ENV["CDN_HOST"]
+      if cdn_host
+        "#{cdn_host}/#{pdf_file.key}" # Construct CloudFront URL
+      else
+        pdf_file.url # Fallback to the direct Active Storage URL
+      end
+    else
+      pdf_file.url
+    end
+  end
+
+  def download_pdf_url
+    Rails.application.routes.url_helpers.pdf_api_generated_board_url(self, host: ENV["API_URL"] || "localhost:4000")
+  end
+
+  def generated?
+    generated_token.present?
   end
 
   def set_parent
@@ -608,7 +633,7 @@ class Board < ApplicationRecord
   end
 
   def set_default_voice
-    user_voice_settings = user.settings["voice"] || {}
+    user_voice_settings = user&.settings["voice"] || {}
     user_voice = user_voice_settings.is_a?(Hash) ? user_voice_settings["name"] : nil
     user_voice = VoiceService.normalize_voice(user_voice) if user_voice
     self.voice = user_voice
@@ -712,7 +737,7 @@ class Board < ApplicationRecord
       word_list = word_list[0..99]
     end
     word_list.each do |word|
-      image = user.images.find_by(label: word)
+      image = user.images.find_by(label: word) if user_id
 
       image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
       new_image = Image.create(label: word) unless image
@@ -780,7 +805,11 @@ class Board < ApplicationRecord
       new_board_image.voice = self.voice
     else
       # @image.find_or_create_audio_file_for_voice(self.voice)
-      SaveAudioJob.perform_async([image_id], self.voice, self.id)
+      if generated?
+        Rails.logger.info "Board is generated, skipping audio generation for image #{image_id} and voice #{self.voice}"
+      else
+        SaveAudioJob.perform_async([image_id], self.voice, self.id)
+      end
     end
 
     new_board_image.src = @image.display_image_url(self.user)
@@ -1345,6 +1374,11 @@ class Board < ApplicationRecord
       root_board: @root_board,
       language: language,
       preview_image_url: preview_image_url,
+      pdf_url: pdf_url,
+      download_pdf_url: download_pdf_url,
+      generated_token: generated_token,
+      generated_token_expires_at: generated_token_expires_at,
+
       # missing_common_words: missing_common_words,
       # existing_words: existing_words,
       word_list: current_word_list,
@@ -1760,7 +1794,13 @@ class Board < ApplicationRecord
     else
       self.board_type = "static"
       self.parent_type = "User"
-      self.parent_id = user.id
+      if user
+        self.parent_id = user.id
+      else
+        Rails.logger.error "No user found for board #{id} when assigning parent"
+        self.parent_id = User::DEFAULT_ADMIN_ID
+        self.board_type = "generated"
+      end
     end
   end
 
@@ -1859,6 +1899,31 @@ class Board < ApplicationRecord
       word_suggestions["words"]
     rescue => e
       Rails.logger.error "Error getting social story word suggestions: #{e}"
+    end
+  end
+
+  def get_word_suggestions_from_prompt(prompt)
+    response = OpenAiClient.new({}).get_word_suggestions_from_prompt(prompt)
+    begin
+      if response && response[:content].present?
+        word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip
+        if word_suggestions.blank? || word_suggestions.include?("NO WORDS")
+          return
+        end
+        if valid_json?(word_suggestions)
+          word_suggestions = JSON.parse(word_suggestions)
+        else
+          start_index = word_suggestions.index("{")
+          end_index = word_suggestions.rindex("}")
+          word_suggestions = word_suggestions[start_index..end_index]
+          word_suggestions = transform_into_json(word_suggestions)
+        end
+      else
+        Rails.logger.error "*** ERROR - get_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
+      end
+      word_suggestions["words"]
+    rescue => e
+      Rails.logger.error "Error getting word suggestions: #{e}"
     end
   end
 

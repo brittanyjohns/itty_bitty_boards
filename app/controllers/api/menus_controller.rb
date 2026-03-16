@@ -193,5 +193,6 @@ class API::MenusController < API::ApplicationController
       render json: { error: "Maximum number of boards reached. Please upgrade to add more." }, status: :unprocessable_entity
       return
     end
+    return true
   end
 end

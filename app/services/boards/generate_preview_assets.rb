@@ -70,9 +70,9 @@ module Boards
     def attach_pdf
       pdf_data = Grover.new(html, **grover_options).to_pdf
 
-      board.printable_pdf.purge if board.printable_pdf.attached?
+      board.pdf_file.purge if board.pdf_file.attached?
 
-      board.printable_pdf.attach(
+      board.pdf_file.attach(
         io: StringIO.new(pdf_data),
         filename: "#{board.slug}.pdf",
         content_type: "application/pdf",

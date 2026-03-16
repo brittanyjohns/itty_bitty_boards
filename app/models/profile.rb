@@ -18,6 +18,7 @@
 #  claimed_at       :datetime
 #  sku              :string
 #  profile_kind     :string           default("safety"), not null
+#  allow_discovery  :boolean          default(FALSE), not null
 #
 class Profile < ApplicationRecord
   belongs_to :profileable, polymorphic: true, optional: true

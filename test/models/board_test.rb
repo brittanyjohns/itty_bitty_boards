@@ -3,7 +3,7 @@
 # Table name: boards
 #
 #  id                         :bigint           not null, primary key
-#  user_id                    :bigint           not null
+#  user_id                    :bigint
 #  name                       :string
 #  parent_type                :string           not null
 #  parent_id                  :bigint           not null
@@ -41,6 +41,9 @@
 #  in_use                     :boolean          default(FALSE), not null
 #  is_template                :boolean          default(FALSE), not null
 #  board_screenshot_import_id :bigint
+#  sub_board                  :boolean          default(TRUE), not null
+#  generated_token            :string
+#  generated_token_expires_at :datetime
 #
 require "test_helper"
 

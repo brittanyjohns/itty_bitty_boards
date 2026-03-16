@@ -202,14 +202,14 @@ class User < ApplicationRecord
 
   FREE_PLAN_LIMITS = {
     "plan_type" => "free",
-    "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 1).to_i,
+    "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 3).to_i,
     "paid_communicator_limit" => ENV.fetch("FREE_PAID_COMMUNICATOR_LIMIT", 0).to_i,
     "demo_communicator_limit" => ENV.fetch("FREE_DEMO_COMMUNICATOR_LIMIT", 0).to_i,
     "ai_monthly_limit" => ENV.fetch("FREE_AI_MONTHLY_LIMIT", 5).to_i,
   }.freeze
   MYSPEAK_PLAN_LIMITS = {
     "plan_type" => "myspeak",
-    "board_limit" => ENV.fetch("MYSPEAK_BOARD_LIMIT", 5).to_i,
+    "board_limit" => ENV.fetch("MYSPEAK_BOARD_LIMIT", 10).to_i,
     "paid_communicator_limit" => ENV.fetch("MYSPEAK_PAID_COMMUNICATOR_LIMIT", 0).to_i,
     "demo_communicator_limit" => ENV.fetch("MYSPEAK_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
     "ai_monthly_limit" => ENV.fetch("MYSPEAK_AI_MONTHLY_LIMIT", 20).to_i,
@@ -1206,7 +1206,8 @@ class User < ApplicationRecord
   end
 
   def can_use_ai?
-    pro? || plus? || premium? || vendor? || basic?
+    ai_limits = monthly_limit_for("ai_image_generation")
+    ai_limits > 0
   end
 
   def can_create_boards

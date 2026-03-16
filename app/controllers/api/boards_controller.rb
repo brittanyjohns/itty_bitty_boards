@@ -819,6 +819,21 @@ class API::BoardsController < API::ApplicationController
 
   private
 
+  def check_board_create_permissions
+    return if current_user.admin?
+    unless current_user
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+    refreshed_user = User.find(current_user.id)
+    refreshed_user.boards.reload
+    user_board_count = refreshed_user.boards.where(predefined: false).count
+    if user_board_count >= refreshed_user.board_limit
+      render json: { error: "Maximum number of boards reached (#{user_board_count}/#{refreshed_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_entity
+      return
+    end
+  end
+
   def apply_filter(scope, filter)
     return scope unless filter.present?
     if filter == "public_boards"
@@ -977,21 +992,6 @@ class API::BoardsController < API::ApplicationController
     set_board
     unless @board.user == current_user || current_user.admin?
       render json: { error: "Unauthorized" }, status: :unauthorized
-      return
-    end
-  end
-
-  def check_board_create_permissions
-    return if current_user.admin?
-    unless current_user
-      render json: { error: "Unauthorized" }, status: :unauthorized
-      return
-    end
-    refreshed_user = User.find(current_user.id)
-    refreshed_user.boards.reload
-    user_board_count = refreshed_user.boards.where(predefined: false).count
-    if user_board_count >= refreshed_user.board_limit
-      render json: { error: "Maximum number of boards reached (#{user_board_count}/#{refreshed_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_entity
       return
     end
   end

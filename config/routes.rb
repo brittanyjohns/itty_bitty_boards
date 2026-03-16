@@ -251,6 +251,13 @@ Rails.application.routes.draw do
     end
     get "sample_voices", to: "images#sample_voices"
 
+    resources :generated_boards, param: :token, only: %i[create show] do
+      member do
+        post :claim
+        get :pdf
+      end
+    end
+
     resources :boards do
       resources :images
       collection do

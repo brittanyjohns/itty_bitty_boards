@@ -1,3 +1,13 @@
+# == Schema Information
+#
+# Table name: page_follows
+#
+#  id               :bigint           not null, primary key
+#  follower_user_id :bigint           not null
+#  followed_page_id :bigint           not null
+#  created_at       :datetime         not null
+#  updated_at       :datetime         not null
+#
 # app/models/page_follow.rb
 class PageFollow < ApplicationRecord
   belongs_to :follower_user, class_name: "User"

@@ -16,7 +16,8 @@
 #  claim_token      :string
 #  claimed_at       :datetime
 #  sku              :string
-#  profile_kind     :string           default("ice"), not null
+#  profile_kind     :string           default("safety"), not null
+#  allow_discovery  :boolean          default(FALSE), not null
 #
 require 'rails_helper'
 

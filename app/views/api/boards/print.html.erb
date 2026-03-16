@@ -15,13 +15,20 @@
         <p class="board-subtitle">
           Created with SpeakAnyWay AAC
         </p>
+        <% if @board_expires_at %>
+          <div class="unclaimed-message">
+          <p class="board-subtitle" style="color: #ff0000; font-weight: bold;">
+            This board is unclaimed and will expire on <%= @board_expires_at.strftime("%B %d, %Y") %> if not claimed. Please claim this board to keep it and edit it online.
+          </p>
+          </div>
+        <% end %>
 
         <div class="board-link">
           Scan the code or visit
           <a href="<%= @qr_target_url %>" target="_blank" rel="noopener noreferrer">
             <%= @qr_target_url %>
           </a>
-          to view and edit this board online.
+          for the full interactive version of this board. 
         </div>
       </div>
 
@@ -31,6 +38,7 @@
     </div>
   </div>
 <% end %>
+
 <div class="board-wrap">
   <div
     class="board-sizer"

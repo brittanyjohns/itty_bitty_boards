@@ -491,7 +491,7 @@ class OpenAiClient
 
     min_number_of_words = 2
     text = <<~TEXT
-                      I am creating a social story titled "#{name}".
+                            I am creating a social story titled "#{name}".
 
     Please generate #{number_of_steps} SHORT step instructions that could appear on tiles in a social story AAC board.
 
@@ -525,6 +525,18 @@ class OpenAiClient
       role: "user",
       content: [{ type: "text", text: text }],
     }]
+
+    create_chat
+  end
+
+  def get_word_suggestions_from_prompt(prompt)
+    @model = QUICK_GTP_MODEL
+    text = prompt
+    format_instructions = "Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}"
+    text += format_instructions
+    @messages = [{ role: "user",
+                  content: [{ type: "text",
+                              text: text }] }]
 
     create_chat
   end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_02_23_204026) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_16_125200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -196,7 +196,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_23_204026) do
   end
 
   create_table "boards", force: :cascade do |t|
-    t.bigint "user_id", null: false
+    t.bigint "user_id"
     t.string "name"
     t.string "parent_type", null: false
     t.bigint "parent_id", null: false
@@ -235,11 +235,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_02_23_204026) do
     t.boolean "is_template", default: false, null: false
     t.bigint "board_screenshot_import_id"
     t.boolean "sub_board", default: true, null: false
+    t.string "generated_token"
+    t.datetime "generated_token_expires_at"
     t.index ["board_screenshot_import_id"], name: "index_boards_on_board_screenshot_import_id"
     t.index ["board_type"], name: "index_boards_on_board_type"
     t.index ["category"], name: "index_boards_on_category"
     t.index ["data"], name: "index_boards_on_data", using: :gin
     t.index ["favorite"], name: "index_boards_on_favorite"
+    t.index ["generated_token"], name: "index_boards_on_generated_token", unique: true
+    t.index ["generated_token_expires_at"], name: "index_boards_on_generated_token_expires_at"
     t.index ["image_parent_id"], name: "index_boards_on_image_parent_id"
     t.index ["obf_id"], name: "index_boards_on_obf_id"
     t.index ["parent_type", "parent_id"], name: "index_boards_on_parent"
