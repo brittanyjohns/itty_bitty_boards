@@ -140,7 +140,7 @@ class API::ImagesController < API::ApplicationController
     make_dynamic = params[:make_dynamic] == "1"
     word_list = params[:word_list] ? params[:word_list].compact : nil
     @image_clone = @image.clone_with_current_display_doc(user_id, label_to_set, make_dynamic, word_list)
-    voice = params[:voice] || "alloy"
+    voice = params[:voice] || "polly:kevin"
     text = params[:text] || @image_clone.label
     @original_audio_files = @image.audio_files
     @original_audio_files.each do |audio_file|

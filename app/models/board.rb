@@ -1913,7 +1913,7 @@ class Board < ApplicationRecord
       board_name = obj["name"]
       Rails.logger.info "Importing board: #{board_name}"
       obf_id = obj["id"]
-      voice = obj["voice"] || "alloy"
+      voice = obj["voice"] || "polly:kevin"
       columns = obj["grid"]["columns"]
       buttons = obj["buttons"] || []
       large_screen_columns = columns

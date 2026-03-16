@@ -2,7 +2,7 @@ module AudioHelper
   # Always return [provider, raw_voice]
   def split_voice(voice_value)
     v = voice_value.to_s.strip
-    return ["openai", "alloy"] if v.blank?
+    return ["polly", "kevin"] if v.blank?
 
     if v.include?(":")
       provider, raw = v.split(":", 2)

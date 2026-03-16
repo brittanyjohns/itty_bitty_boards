@@ -512,7 +512,7 @@ class User < ApplicationRecord
   # Methods for user settings
   def set_default_settings
     default_settings = ensure_settings
-    voice_settings = { name: "alloy", speed: 1.0, pitch: 1.0, volume: 1.0, rate: 1.0, language: "en-US" }
+    voice_settings = { name: "polly:kevin", speed: 1.0, pitch: 1.0, volume: 1.0, rate: 1.0, language: "en-US" }
     default_settings["voice"] = voice_settings unless settings["voice"]
     # self.settings = { voice: voice_settings, wait_to_speak: false, disable_audit_logging: false,
     #                   enable_image_display: true, enable_text_display: true, show_labels: true, show_tutorial: true }
@@ -658,7 +658,7 @@ class User < ApplicationRecord
   end
 
   def voice_settings
-    settings["voice"] = { name: "alloy", speed: 1, pitch: 1, volume: 1, rate: 1, language: "en-US" } unless settings["voice"]
+    settings["voice"] = { name: "polly:kevin", speed: 1, pitch: 1, volume: 1, rate: 1, language: "en-US" } unless settings["voice"]
     settings["voice"]
   end
 
