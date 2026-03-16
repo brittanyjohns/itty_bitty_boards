@@ -12,8 +12,15 @@ module API
           name = ""
         end
         platform = params["platform"] || ""
+        email = params["email"] || (params["auth"] && params["auth"]["email"])
+        password = params["password"] || (params["auth"] && params["auth"]["password"])
+        password_confirmation = params["password_confirmation"] || (params["auth"] && params["auth"]["password_confirmation"])
+        if email.blank? || password.blank? || password_confirmation.blank?
+          render json: { error: "Email, password, and password confirmation are required" }, status: :unprocessable_entity
+          return
+        end
 
-        user = User.new(email: params["auth"]["email"], password: params["auth"]["password"], password_confirmation: params["auth"]["password_confirmation"], name: name)
+        user = User.new(email: email, password: password, password_confirmation: password_confirmation, name: name)
         if user.save
           Rails.logger.info "New user signed up: #{user.email} at #{Time.now}"
           # result = Stripe::Customer.create({ email: user.email })
