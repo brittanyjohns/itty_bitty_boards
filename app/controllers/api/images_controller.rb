@@ -398,6 +398,7 @@ class API::ImagesController < API::ApplicationController
       render json: { status: "error", message: "Could not create predictive board." }
       return
     end
+    @board_image.data["mute_name"] = true
     if @board_image.update(predictive_board_id: predictive_board.id)
       render json: { status: "ok", message: "Creating predictive board for image.", board: predictive_board }
     else
