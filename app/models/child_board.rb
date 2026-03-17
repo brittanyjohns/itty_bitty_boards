@@ -29,6 +29,14 @@ class ChildBoard < ApplicationRecord
     board.name
   end
 
+  def bg_color
+    board.bg_color
+  end
+
+  def text_color
+    board.text_color
+  end
+
   def word_events
     WordEvent.where(board_id: board.id, child_account_id: child_account.id).order(created_at: :desc)
   end
