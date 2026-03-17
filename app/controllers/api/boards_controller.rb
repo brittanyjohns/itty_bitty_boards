@@ -334,6 +334,7 @@ class API::BoardsController < API::ApplicationController
       @board.name = board_params["name"] unless board_params["name"].blank?
       @board.description = board_params["description"]
       @board.display_image_url = board_params["display_image_url"]
+      @board.bg_color = board_params["bg_color"] if board_params["bg_color"].present?
       # @board.update_preset_display_image_url(board_params["display_image_url"]) if board_params["display_image_url"].present?
       @board.predefined = board_params["predefined"]
       @board.category = board_params["category"]
@@ -760,20 +761,6 @@ class API::BoardsController < API::ApplicationController
     render json: @board.api_view_with_images(current_user)
   end
 
-  # def print
-  #   # Make sure we render HTML, not JSON
-  #   request.format = :html
-
-  #   @qr_target_url = @board.public_url || board_url(@board) # change to your public/share URL if different
-  #   @qr_data_url = qr_data_url_for(@qr_target_url, size: 480)
-
-  #   @columns = @board.try(:columns) || 12
-  #   @rows = @board.try(:rows)
-  #   @tiles = normalize_tiles(@board)
-
-  #   render template: "api/boards/print", layout: "pdf", formats: [:html]
-  # end
-
   def generate_preview_image
     set_board
     @board.run_generate_preview_job
@@ -932,49 +919,6 @@ class API::BoardsController < API::ApplicationController
     @board.broadcast_board_update!
   end
 
-  # Normalize tiles into {x,y,w,h,label,image_url,bg_color,i}
-  # def normalize_tiles(board, screen_size = "lg")
-  #   @board_tiles = board_tiles(screen_size) || []
-
-  #   @board_tiles.map do |t|
-  #     {
-  #       "x" => t["x"] || t[:x] || 0,
-  #       "y" => t["y"] || t[:y] || 0,
-  #       "w" => t["w"] || t[:w] || 1,
-  #       "h" => t["h"] || t[:h] || 1,
-  #       "label" => t["label"] || t[:label] || "",
-  #       "image_url" => t["image_url"] || t[:image_url],
-  #       "bg_color" => t["bg_color"] || t[:bg_color] || "#FFFFFF",
-  #       "i" => t["i"] || t[:i] || "",
-  #     }
-  #   end
-  # end
-
-  # def board_tiles(screen_size = "lg")
-  #   layout_key = screen_size.to_s
-
-  #   if @board.respond_to?(:tiles) && @board.tiles.is_a?(Array)
-  #     @board.tiles
-  #   elsif @board.respond_to?(:board_images) && @board.board_images.any?
-  #     @board.board_images.map do |bi|
-  #       layout = bi.layout[layout_key] || bi.layout["lg"] || {}
-
-  #       {
-  #         "x" => layout["x"] || 0,
-  #         "y" => layout["y"] || 0,
-  #         "w" => layout["w"] || 1,
-  #         "h" => layout["h"] || 1,
-  #         "label" => bi.label,
-  #         "image_url" => bi.display_image_url_or_default,
-  #         "bg_color" => bi.bg_color || "#FFFFFF",
-  #         "i" => bi.id.to_s,
-  #       }
-  #     end
-  #   else
-  #     []
-  #   end
-  # end
-
   def qr_data_url_for(url, size: 512, border_modules: 1)
     qr = RQRCode::QRCode.new(url)
     png = qr.as_png(size: size, border_modules: border_modules)
@@ -1014,6 +958,7 @@ class API::BoardsController < API::ApplicationController
     params.require(:board).permit(:user_id,
                                   :name,
                                   :slug,
+                                  :bg_color,
                                   :parent_id,
                                   :parent_type,
                                   :description,

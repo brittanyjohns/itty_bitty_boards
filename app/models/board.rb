@@ -1330,17 +1330,22 @@ class Board < ApplicationRecord
     if in_use
       child_accounts = []
       child_boards = []
+      results = []
       ChildBoard.includes(:child_account).where(original_board_id: id).each do |cb|
         child_boards << cb
         if cb.child_account && !child_accounts.map(&:id).include?(cb.child_account.id)
+          data = { acct: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name }
           child_accounts << cb.child_account
+          results << data
         end
       end
       @child_accounts = child_accounts
       @child_boards = child_boards
+      @results = results
     else
       @child_accounts = []
       @child_boards = []
+      @results = []
     end
     @parent_boards = parent_boards(viewing_user&.id)
 
@@ -1356,6 +1361,7 @@ class Board < ApplicationRecord
       board_type: board_type,
       board_id: id,
       word_sample: word_sample,
+      communicator_account_data: @results.map { |r| { id: r[:acct], name: r[:acct_name], board_id: r[:board_id], board_name: r[:board_name], original_board_id: r[:original_board_id] } },
       communicator_accounts: @child_accounts.map { |ca| { id: ca.id, name: ca.name } },
       communicator_account: communicator_account ? { id: communicator_account.id, name: communicator_account.name } : nil,
       communicator_board: communicator_board ? { id: communicator_board.id, name: communicator_board.name, board_id: communicator_board.board_id, original_board_id: communicator_board.original_board_id } : nil,
@@ -1366,6 +1372,7 @@ class Board < ApplicationRecord
       public_url: public_url,
       board_groups: board_groups,
       slug: slug,
+      bg_color: bg_color,
       source_type: source_type,
       vendor: vendor,
       week_chart: week_chart,
@@ -1658,12 +1665,14 @@ class Board < ApplicationRecord
     {
       id: id,
       board_id: id,
+      bg_color: bg_color,
       slug: slug,
       name: name,
       word_list: current_word_list,
       can_edit: viewing_user && (user_id == viewing_user.id || viewing_user.admin?),
       is_template: is_template,
       display_image_url: display_image_url,
+      preview_image_url: preview_image_url,
       user_id: user_id,
     }
   end
@@ -1678,6 +1687,7 @@ class Board < ApplicationRecord
       id: id,
       board_id: id,
       slug: slug,
+      bg_color: bg_color,
       user_name: user.to_s,
       name: name,
       is_template: is_template,
@@ -1736,6 +1746,7 @@ class Board < ApplicationRecord
       id: id,
       name: name,
       board_type: board_type,
+      bg_color: bg_color,
       # image_count: board_images_count,
       can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
       display_image_url: display_image_url,
