@@ -536,6 +536,11 @@ class API::BoardsController < API::ApplicationController
       render json: { error: "No additional words found" }, status: :unprocessable_entity
       return
     end
+    unless additional_words.is_a?(Array)
+      Rails.logger.error "Invalid response from word suggestion service: #{additional_words.inspect}"
+      render json: { error: "Invalid response from word suggestion service" }, status: :unprocessable_entity
+      return
+    end
     normalize_words = additional_words.map do |word|
       next unless word.is_a?(String)
       word.gsub("_", " ").strip
