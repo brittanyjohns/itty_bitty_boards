@@ -547,6 +547,8 @@ class ChildAccount < ApplicationRecord
           display_image_url: b.display_image_url,
           board_type: b.board_type,
           board_id: b.board_id,
+          bg_color: b.bg_color,
+          text_color: b.text_color,
         }
       end,
       heat_map: heat_map,
@@ -579,6 +581,8 @@ class ChildAccount < ApplicationRecord
         {
           id: cb.id,
           name: b.name,
+          bg_color: b.bg_color,
+          text_color: b.text_color,
           board_type: b.board_type,
           board_id: cb.board_id,
           communicator_board_id: cb.id,

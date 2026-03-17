@@ -223,6 +223,15 @@ class Board < ApplicationRecord
 
   attr_accessor :skip_broadcasting
 
+  def text_color
+    settings["text_color"] || "#000000"
+  end
+
+  def set_text_color(color)
+    self.settings ||= {}
+    self.settings["text_color"] = color
+  end
+
   def self.recently_used(viewing_user)
     if viewing_user.is_a?(User)
       Board.joins(:word_events).where(user_id: viewing_user.id).order("word_events.created_at DESC").limit(10)
@@ -1361,7 +1370,7 @@ class Board < ApplicationRecord
       board_type: board_type,
       board_id: id,
       word_sample: word_sample,
-      communicator_account_data: @results.map { |r| { id: r[:acct], name: r[:acct_name], board_id: r[:board_id], board_name: r[:board_name], original_board_id: r[:original_board_id] } },
+      communicator_account_data: @results.map { |r| { acct_id: r[:acct], acct_name: r[:acct_name], board_id: r[:board_id], board_name: r[:board_name], original_board_id: r[:original_board_id] } },
       communicator_accounts: @child_accounts.map { |ca| { id: ca.id, name: ca.name } },
       communicator_account: communicator_account ? { id: communicator_account.id, name: communicator_account.name } : nil,
       communicator_board: communicator_board ? { id: communicator_board.id, name: communicator_board.name, board_id: communicator_board.board_id, original_board_id: communicator_board.original_board_id } : nil,
@@ -1370,9 +1379,10 @@ class Board < ApplicationRecord
       is_template: is_template,
       parent_boards: @parent_boards.map { |pb| { id: pb.id, name: pb.name, slug: pb.slug, board_type: pb.board_type } },
       public_url: public_url,
-      board_groups: board_groups,
+      # board_groups: board_groups,
       slug: slug,
       bg_color: bg_color,
+      text_color: text_color,
       source_type: source_type,
       vendor: vendor,
       week_chart: week_chart,
@@ -1666,6 +1676,7 @@ class Board < ApplicationRecord
       id: id,
       board_id: id,
       bg_color: bg_color,
+      text_color: text_color,
       slug: slug,
       name: name,
       word_list: current_word_list,
@@ -1688,6 +1699,7 @@ class Board < ApplicationRecord
       board_id: id,
       slug: slug,
       bg_color: bg_color,
+      text_color: text_color,
       user_name: user.to_s,
       name: name,
       is_template: is_template,
@@ -1747,6 +1759,7 @@ class Board < ApplicationRecord
       name: name,
       board_type: board_type,
       bg_color: bg_color,
+      text_color: text_color,
       # image_count: board_images_count,
       can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
       display_image_url: display_image_url,

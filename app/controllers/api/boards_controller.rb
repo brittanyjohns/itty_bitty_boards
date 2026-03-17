@@ -357,6 +357,8 @@ class API::BoardsController < API::ApplicationController
       @board.board_type = "static"
       new_board_settings = @board.settings.merge(settings)
       @board.settings = new_board_settings
+      @board.set_text_color(board_params["text_color"]) if board_params["text_color"].present?
+
       word_list = params["word_list"] || []
       words_to_create = []
       current_word_list = @board.current_word_list
@@ -958,6 +960,7 @@ class API::BoardsController < API::ApplicationController
     params.require(:board).permit(:user_id,
                                   :name,
                                   :slug,
+                                  :text_color,
                                   :bg_color,
                                   :parent_id,
                                   :parent_type,

@@ -82,6 +82,8 @@ class ChildBoard < ApplicationRecord
       added_by_id: created_by&.id,
       board_owner_id: board.user_id,
       board_owner_name: board.user&.display_name,
+      bg_color: board.bg_color,
+      text_color: board.text_color,
     }
   end
 
