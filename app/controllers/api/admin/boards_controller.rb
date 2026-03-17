@@ -12,6 +12,11 @@ class API::Admin::BoardsController < API::Admin::ApplicationController
     end
   end
 
+  def generated_boards
+    @generated_boards = Board.where.not(generated_token: nil)
+    render json: { generated_boards: @generated_boards }
+  end
+
   private
 
   def generate_csv(boards)

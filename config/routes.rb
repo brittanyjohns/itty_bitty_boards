@@ -454,7 +454,11 @@ Rails.application.routes.draw do
       end
       resources :teams
       get "word_events", to: "word_events#index", as: :word_events
-      resources :boards
+      resources :boards do
+        collection do
+          get "generated_boards"
+        end
+      end
     end
     get "events/:slug", to: "events#show"
     post "events/:slug/save_entry", to: "events#save_entry"
