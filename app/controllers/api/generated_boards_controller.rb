@@ -13,7 +13,7 @@ class API::GeneratedBoardsController < API::ApplicationController
       render json: { error: "Topic is required" }, status: :unprocessable_entity
       return
     end
-    generated_token_expires_at = 4.hour.from_now
+    generated_token_expires_at = 48.hours.from_now
 
     begin
       board = Board.new(

@@ -18,7 +18,7 @@
         <% if @board_expires_at %>
           <div class="unclaimed-message">
           <p class="board-subtitle" style="color: #ff0000; font-weight: bold;">
-            This board is unclaimed and will expire on <%= @board_expires_at.strftime("%B %d, %Y") %> if not claimed. Please claim this board to keep it and edit it online.
+            This board is unclaimed and will expire on <%= @board_expires_at.strftime("%B %d, %Y  at %l:%M %p") %> if not claimed. Please claim this board to keep it and edit it online.
           </p>
           </div>
         <% end %>
