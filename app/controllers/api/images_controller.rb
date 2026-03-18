@@ -46,7 +46,12 @@ class API::ImagesController < API::ApplicationController
   def all_board_images
     @current_user = current_user
     @image = Image.with_artifacts.find(params[:id])
-    @board_images = @image.board_images.includes(:board).where(boards: { user_id: @current_user.id }).order(created_at: :desc)
+    if @current_user.admin?
+      @board_images = @image.board_images.includes(:board).where(boards: { user_id: [@current_user.id, nil] }).order(created_at: :desc)
+    else
+      @board_images = @image.board_images.includes(:board).where(boards: { user_id: @current_user.id }).order(created_at: :desc)
+    end
+
     render json: { board_images: @board_images.map { |bi| bi.api_view(@current_user) } }
   end
 
