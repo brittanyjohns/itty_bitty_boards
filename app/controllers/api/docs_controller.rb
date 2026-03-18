@@ -124,11 +124,7 @@ class API::DocsController < API::ApplicationController
       @doc.reload
       user_doc = UserDoc.create!(user_id: current_user.id, doc_id: doc_id, image_id: @doc.documentable_id)
       did_update = @doc.update(current: true)
-      if did_update
-        puts "Doc updated successfully"
-      else
-        puts "Doc did not update"
-      end
+
       @current_doc = @doc
       @image = @doc.documentable
       board_id = params[:board_id]
@@ -136,9 +132,9 @@ class API::DocsController < API::ApplicationController
       if @board
         @board_image = @board.board_images.find_by(image_id: @image.id)
         if @board_image
-          @board_image.update!(display_image_url: @doc.display_url)
+          @board_image.update_column(:display_image_url, @doc.display_url)
         end
-        @board.update!(updated_at: Time.zone.now)
+        # @board.update!(updated_at: Time.zone.now)
         @board.broadcast_board_update!
       end
       if params[:update_all]

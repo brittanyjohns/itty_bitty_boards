@@ -12,4 +12,18 @@
 class UserDoc < ApplicationRecord
   belongs_to :user
   belongs_to :doc
+  belongs_to :image, optional: true
+
+  def api_view
+    {
+      id: id,
+      user_id: user_id,
+      doc_id: doc_id,
+      url: doc.display_url,
+      src: doc.display_url,
+      image_id: image_id,
+      created_at: created_at,
+      updated_at: updated_at,
+    }
+  end
 end

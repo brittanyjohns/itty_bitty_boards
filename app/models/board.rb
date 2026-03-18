@@ -799,9 +799,13 @@ class Board < ApplicationRecord
         new_board_image.set_initial_layout!
       end
       new_board_image.skip_initial_layout = true
-      new_board_image.save
+      unless new_board_image.save
+        Rails.logger.error "Failed to add image #{image_id} to board #{id} with provided layout: #{new_board_image.errors.full_messages.join(", ")}"
+      end
     else
-      new_board_image.save
+      unless new_board_image.save
+        Rails.logger.error "Failed to add image #{image_id} to board #{id}: #{new_board_image.errors.full_messages.join(", ")}"
+      end
       new_board_image.set_initial_layout!
     end
     unless @image

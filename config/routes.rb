@@ -223,6 +223,7 @@ Rails.application.routes.draw do
         post "create_predictive_board"
         post "clear_current"
         post "merge"
+        get "all_board_images"
       end
       collection do
         post "generate_audio"

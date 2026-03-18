@@ -364,9 +364,9 @@ class API::BoardsController < API::ApplicationController
       current_word_list = @board.current_word_list
       word_list.each do |word|
         if word.is_a?(String) && word.present?
-          unless current_word_list.include?(word)
-            words_to_create << word
-          end
+          # unless current_word_list.include?(word)
+          words_to_create << word
+          # end
         end
       end
 

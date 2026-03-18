@@ -191,23 +191,14 @@ class Image < ApplicationRecord
         is_current_url_valid = authorized_to_view_url?(bi.display_image_url)
         if is_current_url_valid
           next
-        else
-          image_result = authorized_to_view_url?(url)
-          bi.display_image_url = url if image_result
         end
-      else
-        bi.display_image_url = url if authorized_to_view_url?(url)
       end
+      bi.update_column(:display_image_url, url) if authorized_to_view_url?(url)
 
-      if bi.save
+      if bi.valid?
         updated_ids << bi.id
-        if !bi.board.display_image_url.blank? && original_url === bi.board.display_image_url
-          bi.board.display_image_url = url
-        end
-        bi.board.updated_at = Time.now
-        bi.board.save!
       else
-        Rails.logger.error "Error saving board image #{bi.id} - #{bi.board.name} - #{bi.errors.full_messages}"
+        Rails.logger.error "Error updating BoardImage #{bi.id} for Image #{id}: #{bi.errors.full_messages.join(", ")}"
       end
     end
     updated_ids
@@ -1102,8 +1093,10 @@ class Image < ApplicationRecord
       # end
 
       docs = self.docs.for_user(viewing_user)
-      return docs.current.first if docs.current.any?
-      return docs.first if docs.any?
+      last_current_doc = docs.current.last
+
+      return last_current_doc if last_current_doc
+      return docs.last if docs.any?
     end
     base_doc = self.docs.includes(image_attachment: :blob).last
     base_doc
@@ -1278,7 +1271,11 @@ class Image < ApplicationRecord
       current_doc_id = current_doc.id if current_doc
       doc_img_url = current_doc&.display_url
     end
-    image_docs = docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
+    if @current_user.admin?
+      image_docs = self.docs.with_attached_image.order(created_at: :desc)
+    else
+      image_docs = self.docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
+    end
     if @current_user.admin?
       user_image_boards = @current_user&.boards&.includes(:board_images).where(predefined: false).distinct.order(name: :asc).limit(30)
     else

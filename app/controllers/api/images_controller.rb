@@ -43,10 +43,24 @@ class API::ImagesController < API::ApplicationController
     render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) }
   end
 
+  def all_board_images
+    @current_user = current_user
+    @image = Image.with_artifacts.find(params[:id])
+    @board_images = @image.board_images.includes(:board).where(boards: { user_id: @current_user.id }).order(created_at: :desc)
+    render json: { board_images: @board_images.map { |bi| bi.api_view(@current_user) } }
+  end
+
   def user_docs
     @current_user = current_user
     label = params[:label]
-    @docs = @current_user.docs.where(documentable_type: "Image").order(created_at: :desc).page params[:page]
+    @images = Image.with_artifacts.where(label: label, user_id: @current_user.id)
+    if @current_user.admin?
+      @docs = UserDoc.where(image_id: @images.pluck(:id)).includes(:doc, :image).order(created_at: :desc).page params[:page]
+    else
+      @docs = UserDoc.where(image_id: @images.pluck(:id)).for_user(@current_user).includes(:doc, :image).order(created_at: :desc).page params[:page]
+
+      # @docs = @current_user.docs.where(documentable_type: "Image").order(created_at: :desc).page params[:page]
+    end
 
     render json: { docs: @docs.map(&:api_view) }
   end
