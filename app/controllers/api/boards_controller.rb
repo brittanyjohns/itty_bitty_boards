@@ -270,7 +270,6 @@ class API::BoardsController < API::ApplicationController
     render json: @board.api_view_with_images(current_user)
   end
 
-  # POST /boards or /boards.json
   def create
     @board = Board.new(board_params)
     @board.user = current_user
@@ -290,17 +289,28 @@ class API::BoardsController < API::ApplicationController
     voice = VoiceService.normalize_voice(board_params["voice"] || params[:voice] || params[:voice_label])
     @board.voice = voice
     @board.language = board_params["language"] if board_params["language"].present?
-    word_list = params[:word_list]&.compact
     @board.settings = settings
 
     new_slug = @board.generate_unique_slug(board_params["slug"])
     @board.slug = new_slug
 
-    @board.find_or_create_images_from_word_list(word_list) if word_list.present?
-    @board.reset_layouts
-
+    Rails.logger.info "Creating board with name: #{@board.name}, type: #{@board.board_type}, creation_type: #{creation_type}, user_id: #{current_user.id}"
     respond_to do |format|
       if @board.save
+        word_count = params[:wordCount].presence || params[:word_count].presence.to_i || 12
+        case creation_type
+        when "default"
+          word_list = params[:word_list]&.compact
+          if word_list.present?
+            GenerateBoardJob.perform_async(@board.id, creation_type, { "word_list" => word_list })
+          end
+        when "scenario"
+          topic = params[:topic].to_s.strip
+          age_range = params[:ageRange].presence || params[:age_range].presence
+          GenerateBoardJob.perform_async(@board.id, creation_type, { "topic" => topic, "age_range" => age_range, "word_count" => word_count })
+        else
+          GenerateBoardJob.perform_async(@board.id, creation_type, { "word_count" => word_count })
+        end
         format.json { render json: @board, status: :created }
       else
         format.json { render json: @board.errors, status: :unprocessable_entity }

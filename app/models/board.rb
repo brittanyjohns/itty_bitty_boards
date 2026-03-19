@@ -209,7 +209,11 @@ class Board < ApplicationRecord
   def set_parent
     if parent_type.nil? && parent_id.nil?
       self.parent_type = "User"
-      self.parent_id = user_id
+      self.parent_id = user_id if user_id
+      unless user_id
+        Rails.logger.warn "Board #{id} has no user_id, setting parent_id to DEFAULT_ADMIN_ID"
+        self.user_id = User::DEFAULT_ADMIN_ID
+      end
     end
   end
 

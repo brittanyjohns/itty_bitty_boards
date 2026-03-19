@@ -187,7 +187,7 @@ class OpenAiClient
 
   def generate_formatted_board(name, num_of_columns, words = [], max_num_of_rows = 4, maintain_existing = false)
     @model = GTP_MODEL
-    Rails.logger.debug "User - model: #{@model} -- name: #{name} -- num_of_columns: #{num_of_columns} -- words: #{words.count} -- max_num_of_rows: #{max_num_of_rows}"
+    Rails.logger.debug "generate_formatted_board - model: #{@model} -- name: #{name} -- num_of_columns: #{num_of_columns} -- words: #{words.count} -- max_num_of_rows: #{max_num_of_rows}"
     @messages = [{ role: "user",
                   content: [{ type: "text",
                               text: format_board_prompt(name, num_of_columns, words, max_num_of_rows, maintain_existing) }] }]
@@ -461,7 +461,7 @@ class OpenAiClient
       words_to_exclude = words_to_exclude.split(",").map(&:strip)
     end
     @model = QUICK_GTP_MODEL
-    Rails.logger.debug "User - model: #{@model} -- name: #{name} -- number_of_words: #{number_of_words} -- words_to_exclude: #{words_to_exclude.inspect}"
+    Rails.logger.debug "get_word_suggestions - model: #{@model} -- name: #{name} -- number_of_words: #{number_of_words} -- words_to_exclude: #{words_to_exclude.inspect}"
     text = "I have an AAC board titled, '#{name}'. Inferring the context from the name AND the existing words on the board, please provide #{number_of_words} words. "
 
     unless words_to_exclude.blank?
@@ -491,7 +491,7 @@ class OpenAiClient
 
     min_number_of_words = 2
     text = <<~TEXT
-                            I am creating a social story titled "#{name}".
+                                I am creating a social story titled "#{name}".
 
     Please generate #{number_of_steps} SHORT step instructions that could appear on tiles in a social story AAC board.
 
