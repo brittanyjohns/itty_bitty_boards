@@ -106,6 +106,7 @@ class API::MenusController < API::ApplicationController
     @menu.raw = menu_params[:description]
     @menu.token_limit = menu_params[:token_limit] || 10
     @menu.user = @current_user
+    @menu.menu_image.attach(menu_params[:docs][:image]) if menu_params[:docs] && menu_params[:docs][:image]
     unless @menu.save
       render json: @menu.errors, status: :unprocessable_entity
       return
@@ -118,6 +119,7 @@ class API::MenusController < API::ApplicationController
       @board = @menu.boards.new(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent: @menu)
       @board.generate_unique_slug
       @board.status = "pending"
+      @board.preview_image.attach(menu_params[:docs][:image]) if menu_params[:docs] && menu_params[:docs][:image]
       if @board.nil?
         Rails.logger.error "Failed to create board for menu: #{@menu.id} - #{@menu.name}"
         render json: { error: "Failed to create board for menu." }, status: :unprocessable_entity
@@ -129,8 +131,10 @@ class API::MenusController < API::ApplicationController
         return
       end
       @menu.run_image_description_job(@board.id, screen_size)
+      # GenerateFromDescriptionJob.perform_async(@menu.id, @board.id, screen_size)
+      # render json: @menu.api_view(current_user), status: :created
       # @menu.enhance_image_description(@board.id)
-      Rails.logger.debug "Image description job started for menu: #{@menu.id} - #{@menu.name} - Board: #{@board.id} - #{@board.name}"
+      # Rails.logger.debug "Image description job started for menu: #{@menu.id} - #{@menu.name} - Board: #{@board.id} - #{@board.name}"
       @menu_with_display_doc = {
         id: @menu.id,
         name: @menu.name,
@@ -140,10 +144,11 @@ class API::MenusController < API::ApplicationController
         displayImage: @board.display_image_url,
         status: @board.status,
         predefined: @menu.predefined,
+        preview_image_url: @menu.menu_image_url,
         user_id: @menu.user_id,
         can_edit: @current_user.admin? || @current_user.id == @menu.user_id,
       }
-      render json: @menu_with_display_doc, status: 200
+      render json: @menu_with_display_doc, status: :created
     else
       render json: @menu.errors, status: :unprocessable_entity
     end

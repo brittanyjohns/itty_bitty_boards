@@ -11,7 +11,7 @@ class GenerateImageJob
     end
     board_image = BoardImage.find_by(board_id: board_id, image_id: image_id) if board_id
     if board_image
-      board_image.update(status: "generating")
+      board_image.update_column(:status, "generating")
     end
     begin
       Rails.logger.info "Generating image for user: #{user_id}, image: #{image_id}, prompt: #{image.temp_prompt}"
@@ -30,7 +30,8 @@ class GenerateImageJob
       Rails.logger.info "Generated image for user: #{user_id}, image: #{image_id}, url: #{new_doc.display_url}"
       if board_image
         Rails.logger.info "Updating board image for board: #{board_id}, image: #{image_id}, url: #{new_doc.display_url}"
-        board_image.update(status: "complete", display_image_url: new_doc.display_url)
+        board_image.update_column(:status, "complete")
+        board_image.update_column(:display_image_url, new_doc.display_url)
       end
       # if board_id
       #   board = Board.find(board_id)
@@ -38,8 +39,8 @@ class GenerateImageJob
       # end
     rescue => e
       Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace.join("\n")}"
-      image.update(status: "error", error: e.message)
-      board_image.update(status: "error") if board_image
+      image.update(status: "failed", error: e.message)
+      board_image.update_column(:status, "failed") if board_image
     end
   end
 end

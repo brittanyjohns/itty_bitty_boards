@@ -238,9 +238,7 @@ class API::BoardsController < API::ApplicationController
       Rails.logger.error "SHOW - Board not found for ID: #{params[:id]}"
       return
     end
-    if @board.board_type == "menu" && @board.status != "complete"
-      @board.update_column(:status, "complete")
-    end
+
     @board_with_images = @board.api_view_with_predictive_images(current_user, true)
     # end
     render json: @board_with_images
@@ -943,8 +941,8 @@ class API::BoardsController < API::ApplicationController
   def set_board
     key = params[:slug].presence || params[:id].presence
 
-    @board = Board.with_artifacts.find_by(id: key) ||
-             Board.with_artifacts.find_by(slug: key)
+    @board = Board.find_by(id: key) ||
+             Board.find_by(slug: key)
     unless @board
       render json: { error: "Board not found" }, status: :not_found
       return

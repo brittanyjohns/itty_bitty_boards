@@ -21,6 +21,7 @@ class Menu < ApplicationRecord
   has_many :docs, as: :documentable, dependent: :destroy
   has_many :board_images, through: :boards
   has_many :images, through: :board_images
+  has_one_attached :menu_image
 
   # PROMPT_ADDITION = " The dish should be presented looking fresh and appetizing on a simple, uncluttered background.
   #  The lighting should be natural and warm, enhancing the appeal of the food and creating a welcoming atmosphere.
@@ -79,6 +80,20 @@ class Menu < ApplicationRecord
 
   def resource_type
     "Menu"
+  end
+
+  def menu_image_url
+    return if !menu_image.attached?
+    if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
+      cdn_host = ENV["CDN_HOST"]
+      if cdn_host
+        "#{cdn_host}/#{menu_image.key}" # Construct CloudFront URL
+      else
+        menu_image.url # Fallback to the direct Active Storage URL
+      end
+    else
+      menu_image.url
+    end
   end
 
   def create_board_from_menu_image(new_doc, board_id = nil)
