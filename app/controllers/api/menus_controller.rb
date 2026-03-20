@@ -115,7 +115,7 @@ class API::MenusController < API::ApplicationController
     # doc.processed = true
     doc.raw = params[:menu][:description]
     if doc.save
-      @board = @menu.boards.new(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent_id: doc.id, parent_type: "Doc")
+      @board = @menu.boards.new(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent: @menu)
       @board.generate_unique_slug
       @board.status = "pending"
       if @board.nil?
@@ -128,8 +128,8 @@ class API::MenusController < API::ApplicationController
         render json: { error: "Failed to save board for menu. #{@board.errors.full_messages.join(", ")}" }, status: :unprocessable_entity
         return
       end
-      # @menu.run_image_description_job(@board.id, screen_size)
-      @menu.enhance_image_description(@board.id)
+      @menu.run_image_description_job(@board.id, screen_size)
+      # @menu.enhance_image_description(@board.id)
       Rails.logger.debug "Image description job started for menu: #{@menu.id} - #{@menu.name} - Board: #{@board.id} - #{@board.name}"
       @menu_with_display_doc = {
         id: @menu.id,

@@ -276,7 +276,7 @@ class Menu < ApplicationRecord
     board_id ||= self.boards.last&.id
     @board = Board.find_by(id: board_id) if board_id
     unless @board
-      Rails.logger.error "No board found for this menu."
+      Rails.logger.error "enhance_image_description> No board found for this menu."
       puts "No board found for this menu."
       return nil
     end
@@ -291,16 +291,18 @@ class Menu < ApplicationRecord
         # @board.update!(description: new_processed) if new_processed
         restaurant_name = name || "Restaurant"
         from_text, messages_sent = clarify_image_description(new_doc.raw, restaurant_name)
-        new_processed = from_text || describe_menu(@board.display_image_url)
+        # new_processed = from_text || describe_menu(@board.display_image_url)
+        new_processed = describe_menu(@board.display_image_url)
 
         if valid_json?(from_text)
           @board.update!(description: from_text)
           self.prompt_used = from_text
           self.save!
         else
-          puts "INVALID JSON: #{new_processed}"
+          Rails.logger.error "INVALID JSON: #{new_processed}"
           new_from_text = transform_into_json(new_processed)
           self.prompt_used = new_from_text
+          self.save!
         end
 
         # new_new_processed = new_processed["menu_items"].to_json
