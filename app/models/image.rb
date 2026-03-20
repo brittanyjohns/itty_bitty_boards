@@ -121,8 +121,9 @@ class Image < ApplicationRecord
     image_type == "menu" || image_type == "SampleVoice" || skip_categorize
   end
 
-  def default_image_prompt
-    "Create a simple, clear AAC-style illustration showing '#{label}' in a literal, easy-to-understand way, with a transparent background and no stylization. NO TEXT."
+  def default_image_prompt(user_prompt = nil)
+    label_to_use = user_prompt.present? ? user_prompt : label
+    "Create a simple, clear AAC-style illustration showing '#{label_to_use}' in a literal, easy-to-understand way, with a transparent background and no stylization. NO TEXT."
   end
 
   def update_board_images_display_image

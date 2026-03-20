@@ -363,8 +363,7 @@ class API::BoardsController < API::ApplicationController
       settings["board_type"] = board_type
 
       @board.parent_type = "User"
-      @board.parent_id = @board_user.id
-      @board.board_type = "static"
+      @board.parent_id = @board_user&.id || User::DEFAULT_ADMIN_ID
       new_board_settings = @board.settings.merge(settings)
       @board.settings = new_board_settings
       @board.set_text_color(board_params["text_color"]) if board_params["text_color"].present?
@@ -941,8 +940,8 @@ class API::BoardsController < API::ApplicationController
   def set_board
     key = params[:slug].presence || params[:id].presence
 
-    @board = Board.includes(board_group_boards: :board_group).find_by(id: key) ||
-             Board.includes(board_group_boards: :board_group).find_by(slug: key)
+    @board = Board.with_artifacts.find_by(id: key) ||
+             Board.with_artifacts.find_by(slug: key)
     unless @board
       render json: { error: "Board not found" }, status: :not_found
       return

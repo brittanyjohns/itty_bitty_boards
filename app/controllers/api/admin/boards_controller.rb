@@ -13,7 +13,7 @@ class API::Admin::BoardsController < API::Admin::ApplicationController
   end
 
   def generated_boards
-    @generated_boards = Board.where.not(generated_token: nil)
+    @generated_boards = Board.where.not(generated_token: nil).order(created_at: :desc)
     render json: { generated_boards: @generated_boards }
   end
 

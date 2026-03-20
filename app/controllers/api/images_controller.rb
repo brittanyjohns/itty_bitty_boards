@@ -459,20 +459,29 @@ class API::ImagesController < API::ApplicationController
   def generate
     @current_user = current_user
     return unless check_monthly_limit("ai_action")
+    Rails.logger.debug("Params: #{params.inspect}")
+    label = image_params[:label].present? ? image_params[:label] : image_params[:image_prompt]
+    image_prompt = image_params[:image_prompt]
+    stripped_prompt = image_prompt.gsub("[[REPLACE_LABEL]]", "").strip
+
+    Rails.logger.info("Received image generation request with label '#{label}' and prompt '#{stripped_prompt}' from user #{current_user.id}")
+
     if !params[:id].blank?
       @image = Image.find(params[:id])
     else
-      @image = Image.find_or_create_by(label: label, user_id: @current_user.id, private: false, image_prompt: image_prompt, image_type: "Generated")
+      @image = Image.find_or_create_by(label: label, user_id: @current_user.id, private: false, image_prompt: stripped_prompt, image_type: "Generated")
     end
 
-    label = image_params[:label].present? ? image_params[:label] : image_params[:image_prompt]
-    image_prompt = params[:image_prompt]
-    if needs_replacement?(label, image_prompt)
+    if needs_replacement?(label, stripped_prompt)
+      Rails.logger.info("Replacing image with label '#{label}' for user #{current_user.id} due to content policy.")
       image_prompt = @image.default_image_prompt
+    elsif new_short_prompt?(label, stripped_prompt)
+      Rails.logger.info("Using default prompt for image with label '#{label}' for user #{current_user.id} due to short prompt.")
+      image_prompt = @image.default_image_prompt(stripped_prompt)
     end
 
-    if current_user.admin?
-      @image.image_prompt = image_prompt
+    if current_user.admin? && image_prompt.include?("[[REPLACE_LABEL]]")
+      @image.image_prompt = stripped_prompt
     end
     @image.status = "generating"
     @image.save!
@@ -481,7 +490,7 @@ class API::ImagesController < API::ApplicationController
     screen_size = params[:screen_size] || "lg"
     transparent_background = params[:transparent_background] == "true"
     @board_image = BoardImage.find_by(board_id: board_id, image_id: @image.id) if board_id
-    GenerateImageJob.perform_async(@image.id, @current_user.id, image_prompt, board_id, screen_size, transparent_background)
+    GenerateImageJob.perform_async(@image.id, @current_user.id, stripped_prompt, board_id, screen_size, transparent_background)
     if @board_image
       @board_image.update(status: "generating")
       return render json: { board_image: @board_image.api_view(@current_user) }
@@ -762,6 +771,12 @@ class API::ImagesController < API::ApplicationController
     extra_prompt = " with a transparent background"
     return true if normalized_prompt == "#{normalized_label}#{extra_prompt}"
     false
+  end
+
+  def new_short_prompt?(label, image_prompt)
+    label_length = label.to_s.strip.downcase.length
+    normalized_prompt = image_prompt.to_s.strip.downcase
+    normalized_prompt.length < (10 + label_length) # if the prompt is less than 10 characters longer than the label, it's probably not descriptive enough
   end
 
   def check_update_board_image(saved_image_url = nil)

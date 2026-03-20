@@ -126,7 +126,7 @@ class Board < ApplicationRecord
   scope :dynamic_defaults, -> { where(name: "Dynamic Default", parent_type: "PredefinedResource") }
 
   # scope :with_artifacts, -> { includes({ board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }) }
-  scope :with_artifacts, -> { includes({ board_images: [{ image: [{ docs: [:image_attachment, :image_blob, :user_docs] }, :audio_files_attachments, :audio_files_blobs, :user] }] }, :image_parent) }
+  scope :with_artifacts, -> { includes({ board_images: [{ image: [{ docs: [:image_attachment, :image_blob, :user_docs] }, :audio_files_attachments, :audio_files_blobs, :user] }] }, :image_parent, :preview_image_attachment, :preview_image_blob) }
 
   scope :in_use, -> { where(in_use: true) }
   scope :not_in_use, -> { main_boards.where(in_use: false) }
