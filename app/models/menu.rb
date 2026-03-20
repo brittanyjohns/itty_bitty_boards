@@ -216,23 +216,33 @@ class Menu < ApplicationRecord
     minutes_to_wait = 0
     images_generated = 0
     begin
+      Rails.logger.debug "Starting image generation for board #{board.id} with #{new_board_images.size} images. Total cost before generation: #{total_cost}"
       new_board_images.each_slice(10) do |board_image_slice|
         board_image_slice.each do |board_image|
           image = board_image.image
           img_prompt = image.image_prompt.present? ? image.image_prompt : nil
           Rails.logger.debug "Checking image generation for #{image.label} with prompt: #{img_prompt}"
           if should_generate_image(image, self.user, tokens_used, total_cost)
-            board_image.update!(status: "generating")
+            board_image.update_column(:status, "generating")
             image.start_generate_image_job(minutes_to_wait, self.user_id, img_prompt, board.id)
+            board_image.update_column(:status, "complete")
             tokens_used += 1
             total_cost += 1
             images_generated += 1
+            if images_generated > 20
+              Rails.logger.warn "High number of images being generated for Menu #{id} - #{name}. Images generated: #{images_generated}"
+              break
+            end
           else
             Rails.logger.info "Not generating image for #{image.label}"
-            board_image.update!(status: "skipped")
+            board_image.update_column(:status, "skipped")
           end
         end
         minutes_to_wait += 1
+        if images_generated > 20
+          Rails.logger.warn "2 High number of images being generated for Menu #{id} - #{name}. Images generated: #{images_generated}. Stopping further generation."
+          break
+        end
       end
     rescue => e
       Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"

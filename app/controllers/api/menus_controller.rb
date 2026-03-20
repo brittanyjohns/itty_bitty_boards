@@ -131,7 +131,6 @@ class API::MenusController < API::ApplicationController
         return
       end
       @menu.run_image_description_job(@board.id, screen_size)
-      # GenerateFromDescriptionJob.perform_async(@menu.id, @board.id, screen_size)
       # render json: @menu.api_view(current_user), status: :created
       # @menu.enhance_image_description(@board.id)
       # Rails.logger.debug "Image description job started for menu: #{@menu.id} - #{@menu.name} - Board: #{@board.id} - #{@board.name}"

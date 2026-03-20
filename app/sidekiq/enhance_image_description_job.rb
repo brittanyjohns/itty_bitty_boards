@@ -16,16 +16,16 @@ class EnhanceImageDescriptionJob
       unless result
         Rails.logger.error "An error occurred while enhancing the image description."
       end
-      board = Board.find(board_id) if board_id
       board.update_column(:description, result) if result
       board.update_column(:status, "processing") if board
       board.reset_layouts if board
-      board.update_column(:status, "complete") if board
       Rails.logger.error "NO BOARD FOUND" unless board
     rescue => e
-      board.update_column(:status, "failed") if board
       Rails.logger.error "**** ERROR **** \n#{e.message}\n"
       Rails.logger.error e.backtrace.join("\n")
+    ensure
+      board.update(status: "complete") if board
+      GenerateBoardPreviewJob.perform_async(board.id, screen_size || "lg", false, true, false) if board
     end
   end
 end
