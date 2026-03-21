@@ -123,6 +123,7 @@ class Image < ApplicationRecord
 
   def default_image_prompt(user_prompt = nil)
     label_to_use = user_prompt.present? ? user_prompt : label
+    Rails.logger.debug "Generating default image prompt for label: #{label_to_use}"
     "Create a simple, clear AAC-style illustration showing '#{label_to_use}' in a literal, easy-to-understand way, with a transparent background and no stylization. NO TEXT."
   end
 

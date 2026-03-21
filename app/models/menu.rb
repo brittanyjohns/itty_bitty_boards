@@ -316,8 +316,8 @@ class Menu < ApplicationRecord
         # @board.update!(description: new_processed) if new_processed
         restaurant_name = name || "Restaurant"
         from_text, messages_sent = clarify_image_description(new_doc.raw, restaurant_name)
-        # new_processed = from_text || describe_menu(@board.display_image_url)
-        new_processed = describe_menu(@board.display_image_url)
+        new_processed = from_text || describe_menu(@board.display_image_url)
+        # new_processed = describe_menu(@board.display_image_url)
 
         if valid_json?(from_text)
           @board.update!(description: from_text)
@@ -347,8 +347,6 @@ class Menu < ApplicationRecord
         Rails.logger.error "NO NEW DOC FOUND"
       end
     rescue => e
-      puts "**** ERROR **** \n#{e.message}\n"
-      puts e.backtrace
       Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"
 
       # board = Board.where(id: board_id).first if board_id

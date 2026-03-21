@@ -157,7 +157,6 @@ class Board < ApplicationRecord
   before_save :set_parent
 
   before_create :set_screen_sizes, :set_number_of_columns
-  before_destroy :delete_menu, if: :parent_type_menu?
   after_initialize :set_initial_layout, if: :layout_empty?
 
   after_commit :run_generate_preview_job_later, on: [:create], unless: :generated?
@@ -451,14 +450,6 @@ class Board < ApplicationRecord
 
   def parent_type_menu?
     parent_type == "Menu"
-  end
-
-  def delete_menu
-    begin
-      parent.destroy!
-    rescue => e
-      Rails.logger.error "Error deleting parent: #{e.inspect}"
-    end
   end
 
   def self.board_categories
@@ -1002,28 +993,18 @@ class Board < ApplicationRecord
     ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"]
   end
 
-  # def words
-  #   @words ||= board_images.order(:position).pluck(:label)
-  # end
-
   def current_word_list
     ActiveRecord::Base.logger.silence do
-      data ||= {}
-      if data["current_word_list"].blank?
-        self.data ||= {}
-        words = board_images.order(:position).pluck(:label)
-        if words.blank?
-          if user_id == User::DEFAULT_ADMIN_ID
-            destroy
-          end
-          return []
-        end
-        self.data["current_word_list"] = words
-        save
-        words
-      else
-        data["current_word_list"]
-      end
+      self.data ||= {}
+
+      return data["current_word_list"] if data["current_word_list"].present?
+
+      words = board_images.order(:position).pluck(:label)
+      return [] if words.blank?
+
+      self.data["current_word_list"] = words
+      save if persisted? && changed?
+      words
     end
   end
 

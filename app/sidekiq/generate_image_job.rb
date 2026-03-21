@@ -4,6 +4,7 @@ class GenerateImageJob
 
   def perform(image_id, user_id = nil, image_prompt = nil, board_id = nil, screen_size = nil, transparent_bg = false)
     image = Image.find(image_id)
+    Rails.logger.info("IMAGE PROMPT: #{image_prompt} for image #{image_id}")
 
     board_image = nil
     if image_prompt
@@ -15,7 +16,8 @@ class GenerateImageJob
     end
     begin
       Rails.logger.info "Generating image for user: #{user_id}, image: #{image_id}, prompt: #{image.temp_prompt}"
-      if transparent_bg
+      tmp_incllude = image.temp_prompt.include?("with a transparent background")
+      if transparent_bg && !tmp_incllude
         prompt_with_bg = "#{image.temp_prompt} with a transparent background"
         image.image_prompt = prompt_with_bg
       else

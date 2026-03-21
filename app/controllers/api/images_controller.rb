@@ -481,7 +481,7 @@ class API::ImagesController < API::ApplicationController
     end
 
     if current_user.admin? && image_prompt.include?("[[REPLACE_LABEL]]")
-      @image.image_prompt = stripped_prompt
+      @image.image_prompt = image_prompt
     end
     @image.status = "generating"
     @image.save!
@@ -490,7 +490,7 @@ class API::ImagesController < API::ApplicationController
     screen_size = params[:screen_size] || "lg"
     transparent_background = params[:transparent_background] == "true"
     @board_image = BoardImage.find_by(board_id: board_id, image_id: @image.id) if board_id
-    GenerateImageJob.perform_async(@image.id, @current_user.id, stripped_prompt, board_id, screen_size, transparent_background)
+    GenerateImageJob.perform_async(@image.id, @current_user.id, image_prompt, board_id, screen_size, transparent_background)
     if @board_image
       @board_image.update(status: "generating")
       return render json: { board_image: @board_image.api_view(@current_user) }
