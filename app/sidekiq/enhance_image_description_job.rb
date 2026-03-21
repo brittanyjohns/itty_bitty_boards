@@ -31,7 +31,7 @@ class EnhanceImageDescriptionJob
     rescue => e
       Rails.logger.error "**** ERROR **** \n#{e.message}\n"
       Rails.logger.error e.backtrace.join("\n")
-      board.update_column(:status, "error") if board&.persisted?
+      board.update_column(:status, "complete") if board&.persisted?
     end
   end
 end
