@@ -370,7 +370,7 @@ class API::BoardsController < API::ApplicationController
       @board.set_text_color(board_params["text_color"]) if board_params["text_color"].present?
 
       word_list = params["word_list"] || []
-      duplicate_words = parameters[:duplicate_words] || false
+      duplicate_words = params[:duplicate_words] || false
       words_to_create = []
       current_word_list = @board.current_word_list
       word_list.each do |word|
