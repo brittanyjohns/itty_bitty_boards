@@ -62,10 +62,15 @@ module ImageHelper
     doc
   end
 
-  def create_image(user_id = nil)
+  def create_image(user_id = nil, image_prompt = nil)
     return if Rails.env.test?
     user_id ||= self.user_id
-    response = OpenAiClient.new(open_ai_opts).create_image
+    if image_prompt
+      opts = open_ai_opts.merge({ prompt: image_prompt })
+    else
+      opts = open_ai_opts
+    end
+    response = OpenAiClient.new(opts).create_image
     img_url = response[:img_url]
     revised_prompt = response[:revised_prompt]
     edited_prompt = response[:edited_prompt]

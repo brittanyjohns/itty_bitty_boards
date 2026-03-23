@@ -23,7 +23,7 @@ class GenerateImageJob
       else
         image.image_prompt = image.temp_prompt
       end
-      new_doc = image.create_image_doc(user_id)
+      new_doc = image.create_image_doc(user_id, image.image_prompt)
       new_doc.update(source_type: "OpenAI")
       if image.menu? && image.image_prompt.include?(Menu::PROMPT_ADDITION)
         image.image_prompt = image.image_prompt.gsub(Menu::PROMPT_ADDITION, "")

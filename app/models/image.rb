@@ -347,11 +347,12 @@ class Image < ApplicationRecord
     color || "bg-#{image.bg_class}-400" || "bg-white"
   end
 
-  def create_image_doc(user_id = nil)
+  def create_image_doc(user_id = nil, prompt_to_use = nil)
     user_id ||= self.user_id
     self.image_prompt = default_image_prompt if image_prompt.blank?
+    Rails.logger.debug "Creating image doc for Image #{id} with prompt: #{image_prompt} -- Prompt to use: #{prompt_to_use}"
 
-    response = create_image(user_id)
+    response = create_image(user_id, prompt_to_use || image_prompt)
     Rails.logger.error "No response for image creation" unless response
     if response
       doc = response

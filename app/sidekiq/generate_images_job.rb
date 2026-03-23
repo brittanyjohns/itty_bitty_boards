@@ -5,11 +5,13 @@ class GenerateImagesJob
   def perform(image_ids, board_id = nil, transparent_bg = false)
     # image = Image.find(image_id)
     images = Image.where(id: image_ids)
-    board = Board.find_by(id: board_id) if board_id
+    board = Board.includes(:board_images).find_by(id: board_id) if board_id
+    board_images = board.board_images.where(image_id: image_ids) if board
     return if images.empty?
 
     begin
       board.update_column(:status, "generating") if board
+      board_images.update_all(status: "generating") if board_images
       images.each do |image|
         image_id = image.id
         user_id = image.user_id
@@ -18,7 +20,7 @@ class GenerateImagesJob
         if board_image
           board_image.update_column(:status, "generating")
         end
-        new_doc = image.create_image_doc(user_id)
+        new_doc = image.create_image_doc(user_id, image_prompt)
         unless new_doc
           Rails.logger.error "Failed to create image doc for image #{image_id}"
           next
@@ -35,6 +37,7 @@ class GenerateImagesJob
       end
       Rails.logger.info "Completed generating images for board: #{board_id}, image_ids: #{image_ids.join(", ")}"
       board.update_column(:status, "complete") if board
+      board_images.update_all(status: "complete") if board_images
     rescue => e
       Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace.join("\n")}"
       image.update_column(:status, "failed")
