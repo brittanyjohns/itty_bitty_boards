@@ -159,7 +159,7 @@ class Board < ApplicationRecord
   before_create :set_screen_sizes, :set_number_of_columns
   after_initialize :set_initial_layout, if: :layout_empty?
 
-  after_commit :run_generate_preview_job_later, on: [:create], unless: :generated?
+  # after_commit :run_generate_preview_job_later, on: [:create], unless: :generated?
 
   def run_generate_preview_job
     GenerateBoardPreviewJob.perform_async(id, "lg", false, true)

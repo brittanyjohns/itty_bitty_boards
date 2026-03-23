@@ -398,6 +398,7 @@ class API::BoardsController < API::ApplicationController
             end
           end
           broadcast_board_update!
+          @board.run_generate_preview_job
           format.json { render json: @board.api_view_with_images(current_user), status: :ok }
         else
           format.json { render json: @board.errors, status: :unprocessable_entity }
