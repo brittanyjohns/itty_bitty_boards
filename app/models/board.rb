@@ -145,6 +145,7 @@ class Board < ApplicationRecord
   before_save :set_default_voice, unless: :voice?
   before_save :update_display_image, unless: :display_image_url?
   # before_save :update_preset_display_image_url, if: :display_image_url_changed?
+  before_save :set_current_word_list
 
   # before_save :set_board_type
   before_save :clean_up_name
@@ -994,18 +995,19 @@ class Board < ApplicationRecord
   end
 
   def current_word_list
-    ActiveRecord::Base.logger.silence do
-      self.data ||= {}
+    return data["current_word_list"] if data && data["current_word_list"].present?
+    Rails.logger.info "No current_word_list found in data for board #{id}, generating from board images"
+    set_current_word_list
+  end
 
-      return data["current_word_list"] if data["current_word_list"].present?
+  def set_current_word_list
+    data = self.data || {}
 
-      words = board_images.order(:position).pluck(:label)
-      return [] if words.blank?
+    words = board_images.order(:position).pluck(:label)
+    return [] if words.blank?
 
-      self.data["current_word_list"] = words
-      save if persisted? && changed?
-      words
-    end
+    data["current_word_list"] = words
+    words
   end
 
   SCREEN_SIZES = %w[sm md lg].freeze

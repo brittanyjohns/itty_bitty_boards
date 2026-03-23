@@ -373,6 +373,7 @@ class API::BoardsController < API::ApplicationController
       duplicate_words = params[:duplicate_words] || false
       words_to_create = []
       current_word_list = @board.current_word_list
+      Rails.logger.info "Current word list for board #{@board.id}: #{current_word_list.inspect}"
       word_list.each do |word|
         if word.is_a?(String) && word.present?
           if current_word_list.include?(word) && !duplicate_words
