@@ -2,7 +2,7 @@ class GenerateImagesJob
   include Sidekiq::Job
   sidekiq_options queue: :ai_images, retry: 1, backtrace: true
 
-  def perform(image_ids, board_id = nil, transparent_bg = false)
+  def perform(image_ids, board_id = nil)
     # image = Image.find(image_id)
     images = Image.where(id: image_ids)
     board = Board.includes(:board_images).find_by(id: board_id) if board_id

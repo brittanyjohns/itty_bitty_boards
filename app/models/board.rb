@@ -763,7 +763,7 @@ class Board < ApplicationRecord
       self.add_image(image.id) if image
       if image_ids_to_generate.count > 5
         Rails.logger.info "Scheduling generation for #{image_ids_to_generate.count} images for Board ID #{id}"
-        GenerateImagesJob.perform_async(image_ids_to_generate, user_id, id)
+        GenerateImagesJob.perform_async(image_ids_to_generate, id)
         image_ids_to_generate = []
       end
     end
@@ -771,7 +771,7 @@ class Board < ApplicationRecord
     self.save!
     if image_ids_to_generate.any?
       Rails.logger.info "Clean up - Scheduling generation for #{image_ids_to_generate.count} images for Board ID #{id}"
-      GenerateImagesJob.perform_async(image_ids_to_generate, user_id, id)
+      GenerateImagesJob.perform_async(image_ids_to_generate, id)
     end
   end
 

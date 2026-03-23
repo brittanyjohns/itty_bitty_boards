@@ -421,7 +421,9 @@ class API::BoardsController < API::ApplicationController
       return
     end
     image_ids = board_images.pluck(:image_id)
-    GenerateImagesJob.perform_async(image_ids, @board.id)
+    image_ids.each_slice(20) do |batch|
+      GenerateImagesJob.perform_async(batch, @board.id)
+    end
     render json: { status: "ok", message: "Image regeneration job started" }
   end
 
