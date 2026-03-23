@@ -18,6 +18,7 @@ class API::BillingController < API::ApplicationController
       current_user.plan_type = normalized_plan_key
       current_user.plan_status = "active"
       current_user.settings["purchase_platform"] = purchase_platform
+      current_user.setup_limits_for_plan(normalized_plan_key)
       current_user.save!
       current_user.send_welcome_email(current_user.plan_type)
       render json: { success: true, plan_key: plan_key }

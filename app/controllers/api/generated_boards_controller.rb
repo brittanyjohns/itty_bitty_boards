@@ -147,7 +147,13 @@ class API::GeneratedBoardsController < API::ApplicationController
     )
   end
 
+  # const WORD_COUNT_OPTIONS = [
+  #   9, 12, 16, 20, 24, 30, 36, 42, 48, 54, 60, 72, 84, 96,
+  # ];
+
   def ideal_columns_for(word_count)
+    # return most evenly distributed column count based on word count, with a max of 12 columns for large screens
+    # 96 words would be 12 columns with 8 rows, 72 words would be 9 columns with 8 rows, 60 words would be 10 columns with 6 rows, 54 words would be 9 columns with 6 rows, 48 words would be 8 columns with 6 rows, 42 words would be 7 columns with 6 rows, 36 words would be 6 columns with 6 rows, 30 words would be 6 columns with 5 rows, 24 words would be 6 columns with 4 rows, 20 words would be 5 columns with 4 rows, 16 words would be 4 columns with 4 rows, 12 words would be 4 columns with 3 rows, and 9 words would be 3 columns with 3 rows
     case word_count
     when 0..9
       3
@@ -162,15 +168,17 @@ class API::GeneratedBoardsController < API::ApplicationController
     when 25..30
       6
     when 31..36
-      7
+      6
     when 37..42
-      8
+      7
     when 43..48
       8
     when 49..54
       9
-    else # 55+
+    when 55..60
       10
+    else
+      [12, (word_count / 8.0).ceil].min # Max of 12 columns, or enough to fit words in rows of ~8
     end
   end
 end

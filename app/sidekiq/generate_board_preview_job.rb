@@ -1,9 +1,8 @@
 class GenerateBoardPreviewJob
   include Sidekiq::Job
-  sidekiq_options retry: 3, queue: :ai_images
+  sidekiq_options retry: false, queue: :default
 
   def perform(board_id, screen_size = "lg", hide_colors = false, hide_header = false, generate_pdf = false)
-    Rails.logger.info "Generating preview for board: #{board_id} (screen_size: #{screen_size}, hide_colors: #{hide_colors}, hide_header: #{hide_header})"
     board = Board.find(board_id)
 
     Boards::GeneratePreviewAssets.new(

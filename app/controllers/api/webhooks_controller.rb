@@ -251,13 +251,6 @@ class API::WebhooksController < API::ApplicationController
     user.paid_plan_type = original_plan_type
     user.plan_status = status
     user.setup_free_limits
-
-    # user.settings ||= {}
-    # user.settings["board_limit"] = FREE_PLAN_LIMITS["board_limit"]
-    # user.settings["paid_communicator_limit"] = FREE_PLAN_LIMITS["paid_communicator_limit"]
-    # user.settings["demo_communicator_limit"] = FREE_PLAN_LIMITS["demo_communicator_limit"]
-    # user.settings["ai_monthly_limit"] = FREE_PLAN_LIMITS["ai_monthly_limit"]
-
     user.stripe_subscription_id = nil
     user.save!
   end

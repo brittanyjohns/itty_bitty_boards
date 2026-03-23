@@ -82,9 +82,10 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user.save # Save here to ensure plan_type is set before adjusting limits
     @user.locked = params[:locked] || false
     @user.settings["locked"] = params[:locked] || false
-    @user.settings["board_limit"] = params[:board_limit] || 0
-    @user.settings["paid_communicator_limit"] = params[:paid_communicator_limit] || params[:communicator_limit] || 0
-    @user.settings["demo_communicator_limit"] = params[:demo_communicator_limit] || 0
+    @user.settings["board_limit"] = params[:board_limit] || @user.board_limit
+    @user.settings["paid_communicator_limit"] = params[:paid_communicator_limit] || params[:communicator_limit] || @user.comm_account_limit
+    @user.settings["demo_communicator_limit"] = params[:demo_communicator_limit] || @user.settings["demo_communicator_limit"] || 0
+    @user.settings["ai_monthly_limit"] = params[:ai_monthly_limit] || @user.settings["ai_monthly_limit"] || 0
     if @user.save
       render json: @user.admin_api_view, status: :ok
     else

@@ -145,7 +145,6 @@ class Board < ApplicationRecord
   before_save :set_default_voice, unless: :voice?
   before_save :update_display_image, unless: :display_image_url?
   # before_save :update_preset_display_image_url, if: :display_image_url_changed?
-  before_save :set_current_word_list
 
   # before_save :set_board_type
   before_save :clean_up_name
@@ -741,6 +740,8 @@ class Board < ApplicationRecord
       Rails.logger.error "Too many words - will only use the first 100"
       word_list = word_list[0..99]
     end
+    image_ids_to_generate = []
+
     word_list.each do |word|
       image = user.images.find_by(label: word) if user_id
 
@@ -750,15 +751,26 @@ class Board < ApplicationRecord
       display_doc = image.display_image_url(user)
       if display_doc.blank?
         # image_prompt = "Create an image of #{word}"
-        image_prompt = image.default_image_prompt
+        # image_prompt = image.default_image_prompt
         admin_image_present = image.docs.any? { |doc| doc.user_id == User::DEFAULT_ADMIN_ID }
         user_image_present = image.docs.any? { |doc| doc.user_id == user_id }
-
-        GenerateImageJob.perform_async(image.id, user_id, image_prompt, id) unless admin_image_present || user_image_present
+        image_ids_to_generate << image.id unless admin_image_present || user_image_present
+        # Moved the job from here
+        # GenerateImageJob.perform_async(image.id, user_id, image_prompt, id) unless admin_image_present || user_image_present
       end
       self.add_image(image.id) if image
+      if image_ids_to_generate.count > 5
+        Rails.logger.info "Scheduling generation for #{image_ids_to_generate.count} images for Board ID #{id}"
+        GenerateImagesJob.perform_async(image_ids_to_generate, user_id, id)
+        image_ids_to_generate = []
+      end
     end
+    self.set_current_word_list
     self.save!
+    if image_ids_to_generate.any?
+      Rails.logger.info "Clean up - Scheduling generation for #{image_ids_to_generate.count} images for Board ID #{id}"
+      GenerateImagesJob.perform_async(image_ids_to_generate, user_id, id)
+    end
   end
 
   def remove_image(image_id)
@@ -996,7 +1008,6 @@ class Board < ApplicationRecord
 
   def current_word_list
     return data["current_word_list"] if data && data["current_word_list"].present?
-    Rails.logger.info "No current_word_list found in data for board #{id}, generating from board images"
     set_current_word_list
   end
 
@@ -1486,7 +1497,7 @@ class Board < ApplicationRecord
           board_name: name,
           image_user_id: @image.user_id,
           using_custom_audio: using_custom_audio,
-          docs: @image.docs.for_user(viewing_user).order(created_at: :desc).limit(15).map { |doc| doc.api_view(viewing_user) },
+          # docs: @image.docs.for_user(viewing_user).order(created_at: :desc).limit(15).map { |doc| doc.api_view(viewing_user) },
           predictive_board_id: @predictive_board_id,
           user_custom_default_id: @user_custom_default_id,
           predictive_board_board_type: @predictive_board&.board_type,

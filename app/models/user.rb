@@ -377,11 +377,11 @@ class User < ApplicationRecord
   end
 
   def board_limit
-    settings["board_limit"] || 1
+    settings["board_limit"] || FREE_PLAN_LIMITS["board_limit"]
   end
 
   def comm_account_limit
-    settings["paid_communicator_limit"] || 1
+    settings["paid_communicator_limit"] || FREE_PLAN_LIMITS["paid_communicator_limit"]
   end
 
   def get_stripe_subscriptions
