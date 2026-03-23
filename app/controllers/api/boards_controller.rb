@@ -281,7 +281,7 @@ class API::BoardsController < API::ApplicationController
     @board.assign_parent
 
     creation_type = params[:board_creation_type] || "default"
-    @board.board_type = creation_type == "dynamic" ? "dynamic" : "static"
+    @board.board_type = creation_type
 
     @board.predefined = false
     @board.small_screen_columns = board_params["small_screen_columns"].to_i
@@ -306,7 +306,7 @@ class API::BoardsController < API::ApplicationController
             GenerateBoardJob.perform_async(@board.id, creation_type, { "word_list" => word_list })
           end
         when "scenario"
-          topic = params[:topic].to_s.strip
+          topic = params[:topic] || params[:prompt] || @board.name
           age_range = params[:ageRange].presence || params[:age_range].presence
           GenerateBoardJob.perform_async(@board.id, creation_type, { "topic" => topic, "age_range" => age_range, "word_count" => word_count })
         else
