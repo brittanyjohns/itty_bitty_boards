@@ -296,6 +296,7 @@ Rails.application.routes.draw do
         put "update_preset_display_image"
         put "recategorize_images"
         put "set_colors"
+        post "regenerate_images"
       end
     end
     resources :board_images do

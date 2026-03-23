@@ -1050,26 +1050,24 @@ class Board < ApplicationRecord
     row_count = 0
     bi_count = board_images_count
     rows = (bi_count / num_of_columns.to_f).ceil
-    ActiveRecord::Base.logger.silence do
-      board_images.order(:position).each_slice(num_of_columns) do |row|
-        row.each_with_index do |bi, index|
-          new_layout = {}
-          if bi.layout[screen_size] && reset_layouts == false
-            new_layout = bi.layout[screen_size]
-          else
-            width = bi.layout[screen_size] ? bi.layout[screen_size]["w"] : 1
-            height = bi.layout[screen_size] ? bi.layout[screen_size]["h"] : 1
-            new_layout = { "i" => bi.id.to_s, "x" => index, "y" => row_count, "w" => width, "h" => height }
-          end
-
-          bi.layout[screen_size] = new_layout
-          bi.skip_create_voice_audio = true
-          bi.save!
-          bi.clean_up_layout
-          layout_to_set << new_layout
+    board_images.order(:position).each_slice(num_of_columns) do |row|
+      row.each_with_index do |bi, index|
+        new_layout = {}
+        if bi.layout[screen_size] && reset_layouts == false
+          new_layout = bi.layout[screen_size]
+        else
+          width = bi.layout[screen_size] ? bi.layout[screen_size]["w"] : 1
+          height = bi.layout[screen_size] ? bi.layout[screen_size]["h"] : 1
+          new_layout = { "i" => bi.id.to_s, "x" => index, "y" => row_count, "w" => width, "h" => height }
         end
-        row_count += 1
+
+        bi.layout[screen_size] = new_layout
+        bi.skip_create_voice_audio = true
+        bi.save!
+        bi.clean_up_layout
+        layout_to_set << new_layout
       end
+      row_count += 1
     end
 
     self.layout[screen_size] = layout_to_set

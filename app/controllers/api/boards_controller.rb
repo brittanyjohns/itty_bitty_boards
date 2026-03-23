@@ -406,6 +406,24 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
+  def regenerate_images
+    set_board
+    return unless check_monthly_limit("ai_action")
+    board_image_ids = params[:board_image_ids]
+    if board_image_ids.blank? || !board_image_ids.is_a?(Array)
+      render json: { error: "board_image_ids parameter is required and must be an array" }, status: :unprocessable_entity
+      return
+    end
+    board_images = @board.board_images.where(id: board_image_ids)
+    if board_images.empty?
+      render json: { error: "No valid board images found for the provided IDs" }, status: :unprocessable_entity
+      return
+    end
+    image_ids = board_images.pluck(:image_id)
+    GenerateImagesJob.perform_async(image_ids, @board.id)
+    render json: { status: "ok", message: "Image regeneration job started" }
+  end
+
   def recategorize_images
     set_board
     return unless check_monthly_limit("ai_action")
