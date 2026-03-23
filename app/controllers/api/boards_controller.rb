@@ -836,6 +836,14 @@ class API::BoardsController < API::ApplicationController
 
     file_data = Grover.new(html, **grover_options).to_pdf
 
+    unless @board.pdf_file.attached?
+      @board.pdf_file.attach(
+        io: StringIO.new(file_data),
+        filename: "#{@board.slug}-board.pdf",
+        content_type: "application/pdf",
+      )
+    end
+
     send_data file_data,
       filename: "#{@board.slug}-board.pdf",
       type: "application/pdf",

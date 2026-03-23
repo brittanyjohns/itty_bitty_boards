@@ -2,7 +2,7 @@ class GenerateBoardPreviewJob
   include Sidekiq::Job
   sidekiq_options retry: false, queue: :default
 
-  def perform(board_id, screen_size = "lg", hide_colors = false, hide_header = false, generate_pdf = false)
+  def perform(board_id, screen_size = "lg", hide_colors = false, hide_header = false, generate_pdf = false, generate_png = true)
     board = Board.find(board_id)
 
     Boards::GeneratePreviewAssets.new(
@@ -11,7 +11,7 @@ class GenerateBoardPreviewJob
       hide_colors: hide_colors,
       hide_header: hide_header,
       routes: Rails.application.routes.url_helpers,
-    ).call(generate_png: true, generate_pdf: generate_pdf)
+    ).call(generate_png: generate_png, generate_pdf: generate_pdf)
 
     if board.preview_image.attached?
       preview_image_url = board.preview_image_url

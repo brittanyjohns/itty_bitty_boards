@@ -30,7 +30,7 @@ class GenerateBoardJob
         board.reset_layouts
         GenerateBoardPreviewJob.perform_async(board.id, "lg", false, true, false)
 
-        GenerateBoardPreviewJob.perform_in(2.minute, board.id, "lg", false, true, true)
+        GenerateBoardPreviewJob.perform_in(2.minute, board.id, "lg", false, false, true, false)
 
         board.update_column(:status, "complete")
       rescue => e

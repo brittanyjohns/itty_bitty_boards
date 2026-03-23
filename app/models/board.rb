@@ -163,10 +163,12 @@ class Board < ApplicationRecord
 
   def run_generate_preview_job
     GenerateBoardPreviewJob.perform_async(id, "lg", false, true)
+    GenerateBoardPreviewJob.perform_async(id, "lg", false, false, true, false)
   end
 
   def run_generate_preview_job_later
-    GenerateBoardPreviewJob.perform_in(2.minutes, id, "lg", false, true)
+    GenerateBoardPreviewJob.perform_in(2.minutes, id, "lg", false, true) # Generate PNG preview without header
+    GenerateBoardPreviewJob.perform_in(2.minutes, id, "lg", false, false, true, false) # PDF with header for sharing
   end
 
   def preview_image_url
