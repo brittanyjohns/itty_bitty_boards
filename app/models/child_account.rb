@@ -526,6 +526,8 @@ class ChildAccount < ApplicationRecord
       is_vendor: is_vendor,
       layout: layout,
       is_demo: is_demo?,
+      device_tag_url: device_tag_url,
+      safety_id_url: safety_id_url,
       voice: voice,
       vendor: is_vendor ? vendor&.api_view(viewing_user) : nil,
       vendor_profile: is_vendor ? cached_profile&.api_view(viewing_user) : nil,
@@ -637,7 +639,7 @@ class ChildAccount < ApplicationRecord
       parent_name: user.display_name,
       board_count: @child_boards.size,
       board_list_sample: current_board_list,
-      communicator_board_ids: @child_boards.pluck(:original_board_id),
+      communicator_board_ids: @child_boards.pluck(:original_board_id).compact,
       user_id: user_id,
       last_sign_in_at: last_sign_in_at&.strftime("%a, %b %e at %l:%M %p"),
       sign_in_count: sign_in_count,
@@ -649,10 +651,20 @@ class ChildAccount < ApplicationRecord
       profile: profile&.api_view,
       week_chart: week_chart,
       avatar_url: profile&.avatar_url,
+      device_tag_url: device_tag_url,
+      safety_id_url: safety_id_url,
       is_demo: is_demo?,
       voice: voice,
       supporters: supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
     }
+  end
+
+  def safety_id_url
+    profile.url_for_attachment(profile.safety_id_png)
+  end
+
+  def device_tag_url
+    profile.url_for_attachment(profile.device_tag_png)
   end
 end

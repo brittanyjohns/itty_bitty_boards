@@ -1,0 +1,30 @@
+<!-- app/views/communicators/assets/device_tag.html.erb -->
+<div style="width:1200px; height:700px; padding:28px; background: #f8fafc; color:#0f172a;">
+  <div style="height:100%; border-radius:28px; background:white; border: 4px solid #e2e8f0; display:flex; align-items:center; padding:28px; gap:24px;">
+    <% if avatar_data_url.present? %>
+      <img src="<%= avatar_data_url %>" style="width:180px; height:180px; border-radius:999px; object-fit:cover; border:4px solid #e2e8f0;" />
+    <% else %>
+      <div style="width:180px; height:180px; border-radius:999px; background:#e2e8f0;"></div>
+    <% end %>
+
+    <div style="flex:1;">
+      <div style="font-size:24px; color:#64748b; margin-bottom:8px;">Communication Device Tag</div>
+      <div style="font-size:52px; font-weight:800; line-height:1.05; margin-bottom:16px;"><%= display_name %></div>
+
+      <div style="font-size:26px; line-height:1.35; margin-bottom:18px;">
+        <%= emergency_notes %>
+      </div>
+
+      <div style="font-size:24px; font-weight:700;"><%= primary_contact_name %></div>
+      <div style="font-size:32px; font-weight:800; color:#dc2626;"><%= primary_contact_phone %></div>
+    </div>
+    <% if qr_data_url.present? %>
+    <div style="text-align:center;">
+        <img src="<%= qr_data_url %>" style="width:240px; height:240px;" />
+        <div style="font-size:18px; margin-top:10px;">
+        Scan for safety info
+        </div>
+    </div>
+    <% end %>
+  </div>
+</div>

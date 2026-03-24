@@ -136,6 +136,10 @@ Rails.application.routes.draw do
       resources :checkout_sessions, only: :create
       post "update_user_from_session", to: "checkout_sessions#update_user_from_session"
     end
+    namespace :profiles do
+      post ":id/safety_id", to: "assets#safety_id"
+      post ":id/device_tag", to: "assets#device_tag"
+    end
     post "billing/update_subscription", to: "billing#update_subscription"
     post "billing/webhooks", to: "billing#webhooks"
     post "open_symbols/search", to: "open_symbols#search_api"

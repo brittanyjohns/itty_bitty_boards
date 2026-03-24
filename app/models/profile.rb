@@ -30,6 +30,11 @@ class Profile < ApplicationRecord
   has_one_attached :intro_audio
   has_one_attached :bio_audio
 
+  has_one_attached :safety_id_png
+  has_one_attached :safety_id_pdf
+  has_one_attached :device_tag_png
+  has_one_attached :device_tag_pdf
+
   validates :username, presence: true, uniqueness: true
   validates :slug, presence: true, uniqueness: true
   validates :claim_token, presence: true, uniqueness: true, if: -> { placeholder? }
@@ -94,6 +99,10 @@ class Profile < ApplicationRecord
     end
   end
 
+  def name
+    profileable.respond_to?(:name) ? profileable.name : username
+  end
+
   # --- Public URLs ---
   def public_url
     return nil if slug.blank?
@@ -131,7 +140,6 @@ class Profile < ApplicationRecord
   # --- Boards ---
   def user_boards
     return [] if profileable.nil?
-    # return profileable.boards.published.alphabetical if profileable_type == "User"
     return profileable.boards.main_boards.alphabetical if profileable_type == "User"
     []
   end
@@ -296,7 +304,7 @@ class Profile < ApplicationRecord
     {
       id: id,
       username: username,
-      name: profileable.respond_to?(:name) ? profileable.name : username,
+      name: name,
       slug: slug,
       profile_kind: profile_kind,
       allow_discovery: allow_discovery,
@@ -378,9 +386,52 @@ class Profile < ApplicationRecord
     raw.slice(*keys)
   end
 
-  def settings_hash_for_public_page
-    # Whatever settings your `public_settings(kind: :public_page)` uses
-    Digest::MD5.hexdigest(public_settings(kind: :public_page).to_json)
+  def url_for_attachment(attachment)
+    return if !attachment.attached?
+    if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
+      cdn_host = ENV["CDN_HOST"]
+      if cdn_host
+        "#{cdn_host}/#{attachment.key}" # Construct CloudFront URL
+      else
+        attachment.url # Fallback to the direct Active Storage URL
+      end
+    else
+      attachment.url
+    end
+  end
+
+  def safety_contacts
+    s = settings || {}
+    keys = s.keys
+            .select { |k| k.to_s.start_with?("ice_contact_") }
+            .sort_by { |k| k.to_s.gsub("ice_contact_", "").to_i }
+
+    keys.map { |k| s[k] }.compact.select do |contact|
+      contact.present? &&
+        (
+          contact["name"].to_s.strip.present? ||
+          contact["phone"].to_s.strip.present? ||
+          contact["relationship"].to_s.strip.present?
+        )
+    end
+  end
+
+  def safety_display_name
+    name.presence || username.presence || "Safety Info"
+  end
+
+  def safety_info_signature
+    [
+      updated_at&.to_i,
+      avatar_attachment&.blob_id,
+      avatar_attachment&.blob&.checksum,
+      settings.to_json
+    ].join("-")
+  end
+
+  def generate_attachments!
+    Communicators::GenerateSafetyIdCard.call(self)
+    Communicators::GenerateDeviceTag.call(self)
   end
 
   # --- Audio generation ---
