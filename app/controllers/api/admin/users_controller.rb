@@ -86,6 +86,9 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user.settings["paid_communicator_limit"] = params[:paid_communicator_limit] || params[:communicator_limit] || @user.comm_account_limit
     @user.settings["demo_communicator_limit"] = params[:demo_communicator_limit] || @user.settings["demo_communicator_limit"] || 0
     @user.settings["ai_monthly_limit"] = params[:ai_monthly_limit] || @user.settings["ai_monthly_limit"] || 0
+    if params[:update_ai_limits]
+      @user.reset_ai_limits!
+    end
     if @user.save
       render json: @user.admin_api_view, status: :ok
     else

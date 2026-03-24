@@ -1059,6 +1059,30 @@ class User < ApplicationRecord
     end
   end
 
+  def ai_limit_reached?
+    feature_key = "ai_action"
+    current_user = self
+    limiter = MonthlyFeatureLimiter.new(
+      user_id: current_user.id,
+      feature_key: feature_key,
+      limit: current_user.monthly_limit_for(feature_key),
+      tz: current_user.timezone || "America/New_York",
+    )
+    limiter.limit_reached?
+  end
+
+  def reset_ai_limits!
+    feature_key = "ai_action"
+    current_user = self
+    limiter = MonthlyFeatureLimiter.new(
+      user_id: current_user.id,
+      feature_key: feature_key,
+      limit: current_user.monthly_limit_for(feature_key),
+      tz: current_user.timezone || "America/New_York",
+    )
+    limiter.reset!
+  end
+
   def should_send_welcome_email?
     Rails.logger.info "Checking if welcome email should be sent to #{email} - created at: #{created_at}, plan type: #{plan_type}, admin: #{admin?}"
     return false if admin?
@@ -1165,6 +1189,7 @@ class User < ApplicationRecord
     view["board_limit"] = board_limit
     view["comm_account_limit_reached"] = comm_account_limit_reached
     view["board_limit_reached"] = board_limit_reached
+    view["ai_limit_reached"] = ai_limit_reached?
     view["can_create_boards"] = can_create_boards
     view["settings"] = settings
     view["settings"]["plan_type"] = plan_type
@@ -1206,8 +1231,7 @@ class User < ApplicationRecord
   end
 
   def can_use_ai?
-    ai_limits = monthly_limit_for("ai_image_generation")
-    ai_limits > 0
+    !ai_limit_reached? && !locked?
   end
 
   def can_create_boards
