@@ -59,7 +59,7 @@ module Communicators
         logo: logo_base64,
         qr_data_url: qr_data_url_for(profile.public_url),
         display_name: profile.device_tag_display_name,
-        emergency_notes: settings["emergency_notes"].presence || "Please call my emergency contact.",
+        device_notes: settings["device_notes"].presence || "This device is my voice. Please use it to help me communicate and access important information in any situation.",
         primary_contact_name: primary_contact["name"].presence || "Emergency Contact",
         primary_contact_phone: primary_contact["phone"].presence || "No phone listed",
       }

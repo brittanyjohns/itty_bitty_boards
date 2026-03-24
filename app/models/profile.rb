@@ -354,6 +354,7 @@ class Profile < ApplicationRecord
     other_conditions
     other_conditions_notes
     emergency_notes
+    device_notes
     emergency_contacts
     ice_contact_1
     ice_contact_2
