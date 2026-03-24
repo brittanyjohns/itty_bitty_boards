@@ -27,7 +27,7 @@ class EnhanceImageDescriptionJob
       board.reset_layouts
 
       board.update_column(:status, "complete")
-      GenerateBoardPreviewJob.perform_async(board.id, screen_size || "lg", false, true, false)
+      board.run_generate_preview_job
     rescue => e
       Rails.logger.error "**** ERROR **** \n#{e.message}\n"
       Rails.logger.error e.backtrace.join("\n")

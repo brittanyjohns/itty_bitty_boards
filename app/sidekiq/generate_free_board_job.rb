@@ -17,10 +17,7 @@ class GenerateFreeBoardJob
         board.find_or_create_images_from_word_list(words)
         board.update_column(:status, "processing")
         board.reset_layouts
-        GenerateBoardPreviewJob.perform_async(board.id, "lg", false, true, false)
-
-        # GenerateBoardPreviewJob.perform_in(2.minute, board.id, "lg", false, true, true)
-
+        board.run_generate_preview_job
         board.update_column(:status, "complete")
       rescue => e
         Rails.logger.error "\n**** SIDEKIQ - GenerateFreeBoardJob \n\nERROR **** \n#{e.message}\n"

@@ -42,9 +42,7 @@ class GenerateMenuBoardJob
         return
       end
       board.reset_layouts if board
-      GenerateBoardPreviewJob.perform_async(board.id, "lg", false, true, false)
-
-      GenerateBoardPreviewJob.perform_in(2.minute, board.id, "lg", false, true, true)
+      board.run_generate_preview_job if board
       failed = false
     rescue => e
       Rails.logger.error "An error occurred while generating the menu board: #{e.message}"

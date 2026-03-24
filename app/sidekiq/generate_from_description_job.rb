@@ -16,8 +16,7 @@ class GenerateFromDescriptionJob
       menu.create_images_from_description(board)
       board.update_column(:status, "processing")
       board.reset_layouts
-      GenerateBoardPreviewJob.perform_async(board.id, "lg", false, true, false)
-      # GenerateBoardPreviewJob.perform_in(2.minute, board.id, "lg", false, true, true)
+      board.run_generate_preview_job
       board.update_column(:status, "complete")
     rescue => e
       Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace.join("\n")}"
