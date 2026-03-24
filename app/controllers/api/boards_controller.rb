@@ -566,6 +566,9 @@ class API::BoardsController < API::ApplicationController
       number_of_steps = params[:number_of_steps].to_i
       max_number_of_words = params[:num_of_words].to_i
       additional_words = Board.new.get_social_story_word_suggestions(params[:name], number_of_steps, max_number_of_words, params[:words_to_exclude])
+    elsif creation_type == "predictive"
+      prompt = params[:prompt].presence || params[:name]
+      additional_words = Board.new.get_words_for_predictive(prompt, params[:num_of_words])
     else
       additional_words = Board.new.get_word_suggestions(params[:name], params[:num_of_words], params[:words_to_exclude])
     end

@@ -20,6 +20,10 @@ class GenerateBoardJob
         when "menu"
           # Placeholder for future menu-based word generation logic
           words = []
+        when "predictive"
+          starting_phrase_or_word = options["starting_phrase_or_word"] || options["startingPhraseOrWord"] || ""
+          Rails.logger.info "Generating board with predictive. Starting phrase or word: #{starting_phrase_or_word}, Word Count: #{word_count}"
+          words = board.get_words_for_predictive(starting_phrase_or_word, word_count)
         else
           Rails.logger.warn "Unknown board creation type: #{board_creation_type} for Board ID #{board.id}. Defaulting to default word list."
           words = options["word_list"] || options["wordList"] || []
@@ -57,4 +61,13 @@ class GenerateBoardJob
     Rails.logger.info "Generated words for board #{board.id}: #{words.inspect}"
     words
   end
+
+  # def get_words_for_predictive(board, starting_phrase_or_word, word_count)
+  #   word_or_phrase = starting_phrase_or_word.split(" ").size > 1 ? "phrase" : "word"
+  #   text = "Generate a list of #{word_count} words that would commonly follow the #{word_or_phrase} '#{starting_phrase_or_word}' in everyday communication. These words will be used on a predictive communication board to help users quickly find and select common phrases. Please provide words that are relevant and commonly used in conjunction with '#{starting_phrase_or_word}'."
+  #   Rails.logger.info "Generating predictive words with prompt: #{text}"
+  #   words = board.get_word_suggestions_from_prompt(text)
+  #   Rails.logger.info "Generated predictive words: #{words.inspect}"
+  #   words
+  # end
 end

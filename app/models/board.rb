@@ -1876,6 +1876,15 @@ class Board < ApplicationRecord
     end
   end
 
+  def get_words_for_predictive(starting_phrase_or_word, word_count)
+    word_or_phrase = starting_phrase_or_word.split(" ").size > 1 ? "phrase" : "word"
+    text = "Generate a list of #{word_count} words that would commonly follow the #{word_or_phrase} '#{starting_phrase_or_word}' in everyday communication. These words will be used on a predictive communication board to help users quickly find and select common phrases. Please provide words that are relevant and commonly used in conjunction with '#{starting_phrase_or_word}'."
+    Rails.logger.info "Generating predictive words with prompt: #{text}"
+    words = get_word_suggestions_from_prompt(text)
+    Rails.logger.info "Generated predictive words: #{words.inspect}"
+    words
+  end
+
   def get_word_suggestions(name_to_use, number_of_words, words_to_exclude = [])
     response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words, words_to_exclude)
     begin
