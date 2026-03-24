@@ -159,16 +159,14 @@ class Board < ApplicationRecord
   before_create :set_screen_sizes, :set_number_of_columns
   after_initialize :set_initial_layout, if: :layout_empty?
 
-  # after_commit :run_generate_preview_job_later, on: [:create], unless: :generated?
-
   def run_generate_preview_job
-    GenerateBoardPreviewJob.perform_async(id, "lg", false, true)
-    GenerateBoardPreviewJob.perform_async(id, "lg", false, false, true, false)
+    GenerateBoardPreviewJob.perform_async(id, { generate_png: true, hide_header: true }) # Generate PNG preview without header
+    GenerateBoardPreviewJob.perform_async(id, { generate_pdf: true }) # PDF with header for sharing
   end
 
   def run_generate_preview_job_later
-    GenerateBoardPreviewJob.perform_in(2.minutes, id, "lg", false, true) # Generate PNG preview without header
-    GenerateBoardPreviewJob.perform_in(2.minutes, id, "lg", false, false, true, false) # PDF with header for sharing
+    GenerateBoardPreviewJob.perform_in(2.minutes, id, { generate_png: true, hide_header: true }) # Generate PNG preview without header
+    GenerateBoardPreviewJob.perform_in(2.minutes, id, { generate_pdf: true }) # PDF with header for sharing
   end
 
   def preview_image_url
