@@ -55,6 +55,7 @@ module Communicators
         profile: profile,
         avatar_data_url: avatar_data_url,
         qr_data_url: qr_data_url_for(profile.public_url),
+        logo: logo_base64,
         display_name: profile.safety_display_name,
         emergency_notes: settings["emergency_notes"].presence || "Please call my emergency contacts.",
         allergies: settings["allergies"].presence || "None listed",

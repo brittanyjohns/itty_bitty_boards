@@ -420,6 +420,10 @@ class Profile < ApplicationRecord
     name.presence || username.presence || "Safety Info"
   end
 
+  def device_tag_display_name
+    name.presence || username.presence || "My Device"
+  end
+
   def safety_info_signature
     [
       updated_at&.to_i,

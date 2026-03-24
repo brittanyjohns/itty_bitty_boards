@@ -18,7 +18,7 @@ module Communicators
       ApplicationController.render(
         template: template,
         layout: "asset_export",
-        locals: locals,
+        assigns: locals,
       )
     end
 
@@ -35,6 +35,12 @@ module Communicators
 
       encoded = Base64.strict_encode64(png.to_s)
       "data:image/png;base64,#{encoded}"
+    end
+
+    def logo_base64(path = Rails.root.join("public/logo_bubble.png"))
+      return nil unless File.exist?(path)
+
+      Base64.strict_encode64(File.binread(path))
     end
 
     def generate_png_from_html(html, width:, height:, scale: 2)
@@ -63,7 +69,7 @@ module Communicators
 
     def avatar_data_url
       #   avatar_url = profile.avatar.to_s
-      avatar_url = profile.avatar.attached? ? profile.url_for_attachment(profile.avatar) : nil
+      avatar_url = profile.avatar_url
       return nil if avatar_url.blank?
 
       begin
