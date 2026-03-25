@@ -8,7 +8,7 @@ class GenerateBoardJob
       words = []
       begin
         board.update_column(:status, "generating_words")
-
+        Rails.logger.info "Starting GenerateBoardJob for Board ID #{board.id} with creation type #{board_creation_type} and options: #{options.inspect}"
         case board_creation_type
         when "default"
           words = options["word_list"] || options["wordList"] || []
@@ -35,6 +35,8 @@ class GenerateBoardJob
           return
         end
 
+        Rails.logger.info "Creating images for Board ID #{board.id} with words: #{words.inspect}"
+
         # create_board_tiles_from_words(board, words)
         board.update_column(:status, "finding_images")
         board.find_or_create_images_from_word_list(words)
@@ -47,6 +49,8 @@ class GenerateBoardJob
       rescue => e
         Rails.logger.error "\n**** SIDEKIQ - GenerateBoardJob #{board.id} #{board_creation_type} \n\nERROR **** \n#{e.message}\n#{e.backtrace.join("\n")}\n"
       end
+    else
+      Rails.logger.error "GenerateBoardJob: Board with ID #{board_id} not found."
     end
   end
 

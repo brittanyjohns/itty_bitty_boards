@@ -308,6 +308,7 @@ class API::BoardsController < API::ApplicationController
         when "scenario"
           topic = params[:topic] || params[:prompt] || @board.name
           age_range = params[:ageRange].presence || params[:age_range].presence
+          Rails.logger.info "Enqueuing GenerateBoardJob for scenario board with topic: #{topic}, age_range: #{age_range}, word_count: #{word_count}"
           GenerateBoardJob.perform_async(@board.id, creation_type, { "topic" => topic, "age_range" => age_range, "word_count" => word_count })
         else
           GenerateBoardJob.perform_async(@board.id, creation_type, { "word_count" => word_count })
