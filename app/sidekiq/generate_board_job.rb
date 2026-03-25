@@ -8,21 +8,18 @@ class GenerateBoardJob
       words = []
       begin
         board.update_column(:status, "generating_words")
-        Rails.logger.info "Starting GenerateBoardJob for Board ID #{board.id} with creation type #{board_creation_type} and options: #{options.inspect}"
         case board_creation_type
         when "default"
           words = options["word_list"] || options["wordList"] || []
         when "scenario"
           topic = options["topic"].to_s.strip
           age_range = options["age_range"].presence || options["ageRange"].presence
-          Rails.logger.info "Generating board with scenario. Topic: #{topic}, Age Range: #{age_range}, Word Count: #{word_count}"
           words = get_words_for_scenario(board, topic, age_range, word_count)
         when "menu"
           # Placeholder for future menu-based word generation logic
           words = []
         when "predictive"
           starting_phrase_or_word = options["starting_phrase_or_word"] || options["startingPhraseOrWord"] || ""
-          Rails.logger.info "Generating board with predictive. Starting phrase or word: #{starting_phrase_or_word}, Word Count: #{word_count}"
           words = board.get_words_for_predictive(starting_phrase_or_word, word_count)
         else
           Rails.logger.warn "Unknown board creation type: #{board_creation_type} for Board ID #{board.id}. Defaulting to default word list."
