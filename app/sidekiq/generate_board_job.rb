@@ -14,6 +14,11 @@ class GenerateBoardJob
         when "scenario"
           topic = options["topic"].to_s.strip
           age_range = options["age_range"].presence || options["ageRange"].presence
+          if word_count <= 0 || word_count > 80
+            Rails.logger.warn "Word count of #{word_count} is out of bounds for Board ID #{board.id}. Defaulting to 12."
+            lrg_cols = board.large_screen_columns || 6
+            word_count = lrg_cols * 4
+          end
           words = get_words_for_scenario(board, topic, age_range, word_count)
         when "menu"
           # Placeholder for future menu-based word generation logic
