@@ -95,7 +95,7 @@ class Board < ApplicationRecord
   scope :for_user, ->(user) { where(user: user, is_template: false).or(where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, is_template: false)) }
   scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
   scope :with_image_parent, -> { where.associated(:image_parent) }
-  scope :searchable, -> { where(board_type: ["static", "dynamic", "category", "predictive", "scenario", "social_story"]) }
+  scope :searchable, -> { where.not(board_type: "menu") }
   scope :menus, -> { where(parent_type: "Menu") }
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
@@ -1880,9 +1880,7 @@ class Board < ApplicationRecord
   def get_words_for_predictive(starting_phrase_or_word, word_count)
     word_or_phrase = starting_phrase_or_word.split(" ").size > 1 ? "phrase" : "word"
     text = "Generate a list of #{word_count} words that would commonly follow the #{word_or_phrase} '#{starting_phrase_or_word}' in everyday communication. These words will be used on a predictive communication board to help users quickly find and select common phrases. Please provide words that are relevant and commonly used in conjunction with '#{starting_phrase_or_word}'."
-    Rails.logger.info "Generating predictive words with prompt: #{text}"
     words = get_word_suggestions_from_prompt(text)
-    Rails.logger.info "Generated predictive words: #{words.inspect}"
     words
   end
 
