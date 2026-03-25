@@ -829,7 +829,8 @@ class Board < ApplicationRecord
       if generated?
         Rails.logger.info "Board is generated, skipping audio generation for image #{image_id} and voice #{self.voice}"
       else
-        SaveAudioJob.perform_async([image_id], self.voice, self.id)
+        board_image_id = new_board_image.id
+        SaveAudioJob.perform_async([image_id], self.voice, board_image_id)
       end
     end
 
@@ -1951,6 +1952,7 @@ class Board < ApplicationRecord
           word_suggestions = word_suggestions[start_index..end_index]
           word_suggestions = transform_into_json(word_suggestions)
         end
+        Rails.logger.info "Word suggestions from prompt: #{word_suggestions.inspect}"
       else
         Rails.logger.error "*** ERROR - get_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
       end
