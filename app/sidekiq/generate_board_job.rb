@@ -54,6 +54,11 @@ class GenerateBoardJob
   def get_words_for_scenario(board, topic, age_range, word_count)
     board_name = board.name.presence || "the board"
     words_to_exclude = board.data["current_word_list"] || []
+    # ensure word count is reasonable to avoid excessively long prompts & not 0
+    if word_count <= 0 || word_count > 80
+      Rails.logger.warn "Word count of #{word_count} is out of bounds for Board ID #{board.id}. Defaulting to 12."
+      word_count = 24
+    end
     text = "Generate a list of words for a communication board. The topic or theme of the board is #{topic}. The name of the board is #{board_name}. "
     text += "The age range for the person using the board is #{age_range}. Please provide a list of #{word_count} words that are appropriate for this age range and context. "
     text += "Exclude words that are too similar to each other or that would not be useful on a communication board. Also exclude words that are already on the board: #{words_to_exclude.join(", ")}." if words_to_exclude.any?
