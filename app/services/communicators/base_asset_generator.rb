@@ -68,7 +68,6 @@ module Communicators
     end
 
     def avatar_data_url
-      #   avatar_url = profile.avatar.to_s
       avatar_url = profile.avatar_url
       return nil if avatar_url.blank?
 
