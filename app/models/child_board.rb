@@ -37,6 +37,24 @@ class ChildBoard < ApplicationRecord
     board.text_color
   end
 
+  def grid_x(screen_size = "lg")
+    return layout[screen_size]["x"] if layout[screen_size] && layout[screen_size]["x"]
+    child_account.next_available_cell(screen_size)&.fetch("x", 0) || 0
+  end
+
+  def grid_y(screen_size = "lg")
+    return layout[screen_size]["y"] if layout[screen_size] && layout[screen_size]["y"]
+    child_account.next_available_cell(screen_size)&.fetch("y", 0) || 0
+  end
+
+  def initial_layout
+    { "lg" => { "i" => id.to_s, "x" => grid_x("lg"), "y" => grid_y("lg"), "w" => 1, "h" => 1 },
+      "md" => { "i" => id.to_s, "x" => grid_x("md"), "y" => grid_y("md"), "w" => 1, "h" => 1 },
+      "sm" => { "i" => id.to_s, "x" => grid_x("sm"), "y" => grid_y("sm"), "w" => 1, "h" => 1 },
+      "xs" => { "i" => id.to_s, "x" => grid_x("sm"), "y" => grid_y("sm"), "w" => 1, "h" => 1 },
+      "xxs" => { "i" => id.to_s, "x" => grid_x("sm"), "y" => grid_y("sm"), "w" => 1, "h" => 1 } }
+  end
+
   def word_events
     WordEvent.where(board_id: board.id, child_account_id: child_account.id).order(created_at: :desc)
   end

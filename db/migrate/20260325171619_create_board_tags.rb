@@ -11,5 +11,8 @@ class CreateBoardTags < ActiveRecord::Migration[7.1]
     end
     add_column :boards, :metadata, :jsonb, default: {}
     add_index :boards, :metadata, using: :gin
+    add_column :child_boards, :layout, :jsonb, default: {}
+    add_column :child_boards, :position, :integer
+    add_index :child_boards, :position
   end
 end

@@ -307,10 +307,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_25_171619) do
     t.boolean "favorite", default: false
     t.bigint "created_by_id"
     t.bigint "original_board_id"
+    t.jsonb "layout", default: {}
+    t.integer "position"
     t.index ["board_id"], name: "index_child_boards_on_board_id"
     t.index ["child_account_id"], name: "index_child_boards_on_child_account_id"
     t.index ["favorite"], name: "index_child_boards_on_favorite"
     t.index ["original_board_id"], name: "index_child_boards_on_original_board_id"
+    t.index ["position"], name: "index_child_boards_on_position"
     t.index ["published"], name: "index_child_boards_on_published"
   end
 

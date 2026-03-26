@@ -1351,8 +1351,8 @@ class Board < ApplicationRecord
     @root_board = root_board
     same_user = viewing_user && user_id == viewing_user.id
     can_edit = same_user || viewing_user&.admin?
-    # @matching_viewer_images = matching_viewer_images(viewing_user)
     if current_account
+      #  For future implementation - can add more granular permissions for communicators
       can_edit = current_account.settings["can_edit_boards"] == true
     end
     {
@@ -1360,7 +1360,8 @@ class Board < ApplicationRecord
       board_type: board_type,
       board_id: id,
       word_sample: word_sample,
-      communicator_account_data: @results.map { |r| { acct_id: r[:acct], acct_name: r[:acct_name], board_id: r[:board_id], board_name: r[:board_name], original_board_id: r[:original_board_id] } },
+      user_name: user&.display_name,
+      communicator_account_data: @results,
       communicator_accounts: @child_accounts.map { |ca| { id: ca.id, name: ca.name } },
       communicator_account: communicator_account ? { id: communicator_account.id, name: communicator_account.name } : nil,
       communicator_board: communicator_board ? { id: communicator_board.id, name: communicator_board.name, board_id: communicator_board.board_id, original_board_id: communicator_board.original_board_id } : nil,

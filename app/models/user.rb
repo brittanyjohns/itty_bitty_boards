@@ -678,7 +678,8 @@ class User < ApplicationRecord
 
   # Helper methods
   def display_name
-    name.blank? ? email : name
+    return email.split("@").first if name.blank?
+    name
   end
 
   def first_name
@@ -1204,11 +1205,11 @@ class User < ApplicationRecord
     current_user = self
     feature_key = "ai_action"
     limiter = MonthlyFeatureLimiter.new(
-        user_id: current_user.id,
-        feature_key: feature_key,
-        limit: current_user.monthly_limit_for(feature_key),
-        tz: current_user.timezone || "America/New_York",
-      )
+      user_id: current_user.id,
+      feature_key: feature_key,
+      limit: current_user.monthly_limit_for(feature_key),
+      tz: current_user.timezone || "America/New_York",
+    )
     !limiter.limit_reached?
   end
 
@@ -1216,11 +1217,11 @@ class User < ApplicationRecord
     current_user = self
     feature_key = "ai_action"
     limiter = MonthlyFeatureLimiter.new(
-        user_id: current_user.id,
-        feature_key: feature_key,
-        limit: current_user.monthly_limit_for(feature_key),
-        tz: current_user.timezone || "America/New_York",
-      )
+      user_id: current_user.id,
+      feature_key: feature_key,
+      limit: current_user.monthly_limit_for(feature_key),
+      tz: current_user.timezone || "America/New_York",
+    )
     limiter.reset_limit!
   end
 

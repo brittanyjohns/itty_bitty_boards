@@ -48,6 +48,7 @@ class ChildAccount < ApplicationRecord
   has_one :profile, as: :profileable
 
   include WordEventsHelper
+  include BoardsHelper
 
   # validates :passcode, presence: true, on: :create
   # validates :passcode, length: { minimum: 6 }, on: :create
@@ -505,6 +506,19 @@ class ChildAccount < ApplicationRecord
     child_boards.includes(board: :word_events).where("word_events.created_at >= ?", 1.week.ago).order("word_events.created_at DESC").uniq
   end
 
+  def update_board_layout(screen_size)
+    self.layout = {}
+    Rails.logger.info "Updating board layout for ChildAccount #{id} and screen size #{screen_size}"
+    self.layout[screen_size] = {}
+    child_boards.order(:position).each do |cb|
+      cb.layout[screen_size] = cb.layout[screen_size] || { x: 0, y: 0, w: 1, h: 1 } # Set default layout
+      cb_layout = cb.layout[screen_size].merge("i" => cb.id.to_s)
+      cb.update(layout: { screen_size => cb_layout })
+      self.layout[screen_size][cb.id] = cb_layout
+    end
+    self.save
+  end
+
   def api_view(viewing_user = nil)
     cached_user = user
     is_vendor = cached_user&.vendor?
@@ -661,10 +675,12 @@ class ChildAccount < ApplicationRecord
   end
 
   def safety_id_url
+    return nil unless profile&.safety_id_png&.attached?
     profile.url_for_attachment(profile.safety_id_png)
   end
 
   def device_tag_url
+    return nil unless profile&.device_tag_png&.attached?
     profile.url_for_attachment(profile.device_tag_png)
   end
 end
