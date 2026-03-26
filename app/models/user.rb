@@ -593,7 +593,6 @@ class User < ApplicationRecord
     return false unless account
     return true if account.user_id == id
     return true if admin?
-    account_teams = account.teams
     return true if account.team_users.where(user_id: id, role: "admin").exists?
     return true if account.team_users.where(user_id: id, role: "member").exists?
     return true if account.team_users.where(user_id: id, role: "supporter").exists?
@@ -626,7 +625,6 @@ class User < ApplicationRecord
     return false unless account
     return true if account.user_id == id
     return true if admin?
-    account_teams = account.teams
     return true if account.team_users.where(user_id: id, role: "admin").exists?
     return true if account.team_users.where(user_id: id, role: "member").exists?
     return true if account.team_users.where(user_id: id, role: "supporter").exists?
@@ -1018,44 +1016,16 @@ class User < ApplicationRecord
     display_name
   end
 
-  # Monthly feature limits for different user plans
-  PRO_LIMITS = {
-    "ai_image_generation" => 50,
-    "ai_scenario" => 30,
-    "ai_format_board" => 50,
-    "ai_menu_generation" => 20,
-    "ai_screenshot_imports" => 20,
-    "ai_action" => 200,
-  }.freeze
-
-  BASIC_LIMITS = {
-    "ai_image_generation" => 10,
-    "ai_scenario" => 5,
-    "ai_format_board" => 10,
-    "ai_menu_generation" => 5,
-    "ai_screenshot_imports" => 5,
-    "ai_action" => 100,
-  }.freeze
-
-  FREE_LIMITS = {
-    "ai_image_generation" => 1,
-    "ai_scenario" => 1,
-    "ai_format_board" => 1,
-    "ai_menu_generation" => 1,
-    "ai_screenshot_imports" => 1,
-    "ai_action" => 1,
-  }.freeze
-
   def monthly_limit_for(feature_key)
     if admin?
       return 10000
     end
     if pro? || plus? || premium? || vendor?
-      return PRO_LIMITS[feature_key] || 20
+      return PRO_PLAN_LIMITS[feature_key] || 300
     elsif basic?
-      return BASIC_LIMITS[feature_key] || 10
+      return BASIC_PLAN_LIMITS[feature_key] || 100
     else
-      return FREE_LIMITS[feature_key] || 1
+      return FREE_PLAN_LIMITS[feature_key] || 5
     end
   end
 
@@ -1231,12 +1201,31 @@ class User < ApplicationRecord
   end
 
   def can_use_ai?
-    !ai_limit_reached? && !locked?
+    current_user = self
+    feature_key = "ai_action"
+    limiter = MonthlyFeatureLimiter.new(
+        user_id: current_user.id,
+        feature_key: feature_key,
+        limit: current_user.monthly_limit_for(feature_key),
+        tz: current_user.timezone || "America/New_York",
+      )
+    !limiter.limit_reached?
+  end
+
+  def reset_ai_limits!
+    current_user = self
+    feature_key = "ai_action"
+    limiter = MonthlyFeatureLimiter.new(
+        user_id: current_user.id,
+        feature_key: feature_key,
+        limit: current_user.monthly_limit_for(feature_key),
+        tz: current_user.timezone || "America/New_York",
+      )
+    limiter.reset_limit!
   end
 
   def can_create_boards
     board_limit = settings["board_limit"] || 1
-    self.boards.reload
     board_count = boards.count
     board_count < board_limit
   end
@@ -1253,8 +1242,6 @@ class User < ApplicationRecord
     extra_comms = (settings["extra_communicators"] || 0).to_i         # REAL communicator add-ons (if you use them)
     demo_limit = (settings["demo_communicator_limit"] || 0).to_i     # DEMO communicators allowed
     board_limit = (settings["board_limit"] || 1).to_i
-
-    go_words = settings["go_to_words"] || Board.common_words
 
     # ---- Memoize common collections ----
     memoized_teams = teams_with_read_access

@@ -28,6 +28,13 @@ class MonthlyFeatureLimiter
     end
   end
 
+  def check!
+    k = key
+    c = Redis.current.get(k).to_i
+    allowed = c < @limit
+    [allowed, remaining: [@limit - c, 0].max, used: c, limit: @limit, reset_at: reset_at, feature: @feature_long_name]
+  end
+
   def increment_and_check!
     k = key
     c = Redis.current.incr(k)
@@ -57,11 +64,11 @@ class MonthlyFeatureLimiter
     !check!.first
   end
 
-  def reset!
+  def reset_limit!
     Redis.current.del(key)
   end
 
   def reset_at
-    time_to_set = (@window == :month ? Time.current.in_time_zone(@tz).end_of_month : DEFAULT_TIME.from_now)
+    (@window == :month ? Time.current.in_time_zone(@tz).end_of_month : DEFAULT_TIME.from_now)
   end
 end

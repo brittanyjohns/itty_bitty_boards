@@ -32,15 +32,15 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user = User.find(params[:id])
     user_settings = @user.settings || {}
 
-    voice_settings = params[:voice] || {}
+    user_setting_params = params[:user_setting]
+    voice_settings = user_setting_params[:voice] || {}
     @user.settings = user_settings.merge(voice: voice_settings)
-    @user.base_words = params[:base_words]
-    @user.settings["wait_to_speak"] = params[:wait_to_speak] || false
-    @user.settings["disable_audit_logging"] = params[:disable_audit_logging] || false
-    @user.settings["enable_image_display"] = params[:enable_image_display] || false
-    @user.settings["enable_text_display"] = params[:enable_text_display] || false
+    @user.settings["wait_to_speak"] = user_setting_params[:wait_to_speak] || false
+    @user.settings["disable_audit_logging"] = user_setting_params[:disable_audit_logging] || false
+    @user.settings["enable_image_display"] = user_setting_params[:enable_image_display] || false
+    @user.settings["enable_text_display"] = user_setting_params[:enable_text_display] || false
 
-    role = params[:role] || @user.role || "user"
+    role = user_setting_params[:role] || @user.role || "user"
     new_partner_user = role == "partner" && @user.role != "partner"
     if role == "partner"
       @user.settings["pilot_partner"] = true
@@ -50,10 +50,10 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user.role = role
     if new_partner_user
       Rails.logger.info "New partner user detected. Setting up partner attributes for user #{@user.email}."
-      @user.settings["pilot_group"] = params[:pilot_group] || ""
-      @user.settings["partner_code"] = params[:partner_code] || ""
-      plan_nickname = params[:plan_nickname] || "partner_pro"
-      plan_expires_at = params[:plan_expires_at]
+      @user.settings["pilot_group"] = user_setting_params[:pilot_group] || ""
+      @user.settings["partner_code"] = user_setting_params[:partner_code] || ""
+      plan_nickname = user_setting_params[:plan_nickname] || "partner_pro"
+      plan_expires_at = user_setting_params[:plan_expires_at]
       if plan_expires_at.present?
         @user.plan_expires_at = Time.parse(plan_expires_at) rescue nil
       end
@@ -63,14 +63,14 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     end
 
     # ADMIN ONLY
-    param_plan_type = params[:plan_type]
+    param_plan_type = user_setting_params[:plan_type]
 
     plan_type = param_plan_type
     if plan_type.blank?
       plan_type = @user.plan_type || "free"
     end
     puts "*** Setting plan_type to #{plan_type} for user #{@user.email} (#{@user.id})"
-    role = params[:role] || @user.role || "user"
+    role = user_setting_params[:role] || @user.role || "user"
     if role == "admin"
       unless current_admin&.admin?
         render json: { error: "Unauthorized" }, status: :unauthorized
@@ -80,15 +80,15 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user.role = role
     @user.plan_type = plan_type
     @user.save # Save here to ensure plan_type is set before adjusting limits
-    @user.locked = params[:locked] || false
-    @user.settings["locked"] = params[:locked] || false
-    @user.settings["board_limit"] = params[:board_limit] || @user.board_limit
-    @user.settings["paid_communicator_limit"] = params[:paid_communicator_limit] || params[:communicator_limit] || @user.comm_account_limit
-    @user.settings["demo_communicator_limit"] = params[:demo_communicator_limit] || @user.settings["demo_communicator_limit"] || 0
-    @user.settings["ai_monthly_limit"] = params[:ai_monthly_limit] || @user.settings["ai_monthly_limit"] || 0
+    @user.locked = user_setting_params[:locked] || false
+    @user.settings["locked"] = user_setting_params[:locked] || false
+    @user.settings["board_limit"] = pauser_setting_paramsrams[:board_limit] || @user.board_limit
+    @user.settings["paid_communicator_limit"] = user_setting_params[:paid_communicator_limit] || params[:communicator_limit] || @user.comm_account_limit
+    @user.settings["demo_communicator_limit"] = user_setting_params[:demo_communicator_limit] || @user.settings["demo_communicator_limit"] || 0
     if params[:update_ai_limits]
       @user.reset_ai_limits!
     end
+
     if @user.save
       render json: @user.admin_api_view, status: :ok
     else
