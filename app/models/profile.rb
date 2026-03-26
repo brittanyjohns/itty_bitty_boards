@@ -634,12 +634,7 @@ class Profile < ApplicationRecord
   # --- Avatar generation ---
   def set_fake_avatar
     url =
-      if profileable_type == "Vendor"
-        "https://api.dicebear.com/9.x/icons/svg?backgroundColor=b6e3f4,c0aede,d1d4f9&seed=#{slug}"
-      else
-        "https://api.dicebear.com/9.x/adventurer/svg?backgroundColor=b6e3f4,c0aede,d1d4f9&seed=#{slug}"
-      end
-
+      "https://ui-avatars.com/api/?name=#{URI.encode_www_form_component(username)}&background=random&size=128"
     avatar.attach(io: URI.open(url), filename: "#{slug}.png")
   end
 

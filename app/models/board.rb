@@ -1330,10 +1330,10 @@ class Board < ApplicationRecord
       child_accounts = []
       child_boards = []
       results = []
-      ChildBoard.includes(:child_account).where(original_board_id: id).each do |cb|
+      ChildBoard.includes(child_account: :profile).where(original_board_id: id).each do |cb|
         child_boards << cb
         if cb.child_account && !child_accounts.map(&:id).include?(cb.child_account.id)
-          data = { acct: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name }
+          data = { acct: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url }
           child_accounts << cb.child_account
           results << data
         end
