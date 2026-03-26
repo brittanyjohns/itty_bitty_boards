@@ -163,8 +163,6 @@ class API::ChildAccountsController < API::ApplicationController
     end
 
     if @child_account.save
-      @profile = @child_account.profile
-      @profile.generate_attachments!
       render json: @child_account.api_view(current_user), status: :ok
     else
       render json: @child_account.errors, status: :unprocessable_entity

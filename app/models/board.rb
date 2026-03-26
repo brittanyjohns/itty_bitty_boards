@@ -75,6 +75,8 @@ class Board < ApplicationRecord
   has_many :word_events
   has_many :subgroups, class_name: "BoardGroup", foreign_key: "root_board_id", dependent: :nullify
   has_many :predictive_board_images, class_name: "BoardImage", foreign_key: "predictive_board_id", dependent: :nullify
+  has_many :board_tags
+  has_many :tags, through: :board_tags
 
   include WordEventsHelper
 
@@ -1141,19 +1143,6 @@ class Board < ApplicationRecord
     self.board_images.reset
     self.save!
   end
-
-  # def get_number_of_columns(screen_size = "lg")
-  #   case screen_size
-  #   when "sm"
-  #     num_of_columns = self.small_screen_columns > 0 ? self.small_screen_columns : 4
-  #   when "md"
-  #     num_of_columns = self.medium_screen_columns > 0 ? self.medium_screen_columns : 6
-  #   when "lg"
-  #     num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 8
-  #   else
-  #     num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 12
-  #   end
-  # end
 
   def grid_layout(screen_size = "lg")
     layout_to_set = []

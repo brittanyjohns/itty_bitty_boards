@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_16_125200) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_25_171619) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -195,6 +195,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_16_125200) do
     t.index ["user_id"], name: "index_board_screenshot_imports_on_user_id"
   end
 
+  create_table "board_tags", force: :cascade do |t|
+    t.bigint "board_id"
+    t.bigint "tag_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["board_id"], name: "index_board_tags_on_board_id"
+    t.index ["tag_id"], name: "index_board_tags_on_tag_id"
+  end
+
   create_table "boards", force: :cascade do |t|
     t.bigint "user_id"
     t.string "name"
@@ -237,6 +246,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_16_125200) do
     t.boolean "sub_board", default: true, null: false
     t.string "generated_token"
     t.datetime "generated_token_expires_at"
+    t.jsonb "metadata", default: {}
     t.index ["board_screenshot_import_id"], name: "index_boards_on_board_screenshot_import_id"
     t.index ["board_type"], name: "index_boards_on_board_type"
     t.index ["category"], name: "index_boards_on_category"
@@ -245,6 +255,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_16_125200) do
     t.index ["generated_token"], name: "index_boards_on_generated_token", unique: true
     t.index ["generated_token_expires_at"], name: "index_boards_on_generated_token_expires_at"
     t.index ["image_parent_id"], name: "index_boards_on_image_parent_id"
+    t.index ["metadata"], name: "index_boards_on_metadata", using: :gin
     t.index ["obf_id"], name: "index_boards_on_obf_id"
     t.index ["parent_type", "parent_id"], name: "index_boards_on_parent"
     t.index ["published"], name: "index_boards_on_published"
@@ -736,6 +747,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_16_125200) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["user_id"], name: "index_subscriptions_on_user_id"
+  end
+
+  create_table "tags", force: :cascade do |t|
+    t.string "name"
   end
 
   create_table "team_accounts", force: :cascade do |t|

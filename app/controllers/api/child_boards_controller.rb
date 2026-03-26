@@ -35,17 +35,8 @@ class API::ChildBoardsController < API::ApplicationController
       render json: { error: "You can only favorite 80 boards" }, status: :unprocessable_entity
       return
     end
-    @child_board.reload
-    @board_with_images = @child_board.api_view_with_images
-    child_permissions = {
-      can_edit: false,
-      can_delete: false,
-    }
-    child_board_info = {
-      child_board_id: @child_board.id,
-    }
-
-    render json: @board_with_images.merge(child_permissions).merge(child_board_info)
+    @child_account = ChildAccount.includes(child_boards: :board).find(@child_board.child_account_id)
+    render json: @child_account.api_view(current_user), status: :ok
   end
 
   def update
