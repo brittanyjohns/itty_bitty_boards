@@ -1960,7 +1960,8 @@ class Board < ApplicationRecord
 
   def get_word_suggestions_from_default_prompt(prompt, number_of_words)
     text = "Generate a list of EXACTLY #{number_of_words} words or short phrases based on the following prompt: #{prompt}. "
-    text += "The words should be relevant to the prompt and useful for someone using a communication board.\n"
+    text += "The words/phrases will be used on a communication board, so please prioritize common, relevant, and useful words/phrases that would help someone communicate effectively. "
+    text += "Please make them lowercase with the exception of proper nouns, senetences, etc. that should be capitalized. "
     get_word_suggestions_from_prompt(text)
   end
 
