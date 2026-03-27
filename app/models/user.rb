@@ -56,8 +56,6 @@
 require "csv"
 
 class User < ApplicationRecord
-  # Payment and authentication setup
-  # pay_customer default_payment_processor: :stripe
   default_scope { where(deleted_at: nil) }
   include Devise::JWT::RevocationStrategies::JTIMatcher
   devise :database_authenticatable, :registerable,

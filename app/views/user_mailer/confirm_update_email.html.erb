@@ -1,0 +1,14 @@
+<p>Hello <%= @user.email %>!</p>
+<p>We're contacting you to notify you that your email update request is being processed. Please click the link below to confirm your new email address.</p>
+<p>Old email: <%= @old_email %></p>
+<p>New email: <%= @email %></p>
+<p>
+  <%= link_to "Confirm email update",
+              @confirmation_url %>
+</p>
+
+<p>If you did not request this confirmation, please contact our support team immediately.</p>
+
+<p>Thank you,</p>
+<p>The SpeakAnyWay Team</p>
+<p><a href="mailto:support@speakanyway.com">support@speakanyway.com</a></p>

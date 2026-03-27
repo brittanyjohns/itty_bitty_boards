@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_25_171619) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_27_120652) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -859,8 +859,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_25_171619) do
     t.datetime "delete_account_token_expires_at"
     t.datetime "deleted_at"
     t.jsonb "layout", default: {}
+    t.string "confirmation_token"
+    t.datetime "confirmed_at"
+    t.datetime "confirmation_sent_at"
+    t.string "unconfirmed_email"
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
     t.index ["child_lookup_key"], name: "index_users_on_child_lookup_key", unique: true
+    t.index ["confirmation_token"], name: "index_users_on_confirmation_token", unique: true
     t.index ["current_team_id"], name: "index_users_on_current_team_id"
     t.index ["delete_account_token"], name: "index_users_on_delete_account_token", unique: true
     t.index ["deleted_at"], name: "index_users_on_deleted_at"

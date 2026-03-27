@@ -100,6 +100,12 @@ Rails.application.configure do
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.
   config.action_mailer.raise_delivery_errors = true
 
+  # 670kd.hatchboxapp.com
+  config.action_mailer.default_url_options = {
+    host: "670kd.hatchboxapp.com",
+    protocol: "https",
+  }
+
   # Enable locale fallbacks for I18n (makes lookups for any locale fall back to
   # the I18n.default_locale when a translation cannot be found).
   config.i18n.fallbacks = true

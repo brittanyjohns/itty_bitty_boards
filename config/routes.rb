@@ -99,6 +99,7 @@ Rails.application.routes.draw do
   devise_for :users, controllers: {
                        #  registrations: "users/registrations",
                        sessions: "users/sessions",
+                       confirmations: "users/confirmations",
                      }
   # devise_for :users, path: '', path_names: {
   #   sign_in: 'login',
@@ -145,6 +146,10 @@ Rails.application.routes.draw do
     post "open_symbols/search", to: "open_symbols#search_api"
     get "temp-login/:token", to: "temp_logins#show"
     post "set-password", to: "users#set_password"
+    patch "update_email", to: "users#update_email"
+    post "resend_email_confirmation", to: "users#resend_email_confirmation"
+    post "cancel_email_change", to: "users#cancel_email_change"
+    get "confirm_email_change", to: "users#confirm_email_change"
     resources :feedback, only: [:create]
 
     get "audio/play", to: "audio#play"

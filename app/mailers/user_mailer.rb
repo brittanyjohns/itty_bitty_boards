@@ -29,6 +29,22 @@ class UserMailer < BaseMailer
     mail(to: @user.email, subject: subject)
   end
 
+  def confirm_update_email(user, opts = {})
+    user.reload
+    @user = user
+    @token = @user.confirmation_token
+    if @token.nil?
+      Rails.logger.error "No confirmation token found for user #{@user.id}"
+      return
+    end
+    @email = @user.unconfirmed_email
+    @old_email = @user.email
+    @FRONT_END_URL = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    @confirmation_url = @FRONT_END_URL + "/confirm-email?confirmation_token=#{@token}"
+
+    mail to: @user.email
+  end
+
   def welcome_free_email(user)
     @user = user
     @user_name = @user.name
