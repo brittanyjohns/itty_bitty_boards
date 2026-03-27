@@ -374,7 +374,6 @@ class API::BoardsController < API::ApplicationController
       duplicate_words = params[:duplicate_words] || false
       words_to_create = []
       current_word_list = @board.current_word_list
-      Rails.logger.info "Current word list for board #{@board.id}: #{current_word_list.inspect}"
       word_list.each do |word|
         if word.is_a?(String) && word.present?
           if current_word_list.include?(word) && !duplicate_words
@@ -560,12 +559,15 @@ class API::BoardsController < API::ApplicationController
     if params[:num_of_words].to_i > 50
       render json: { error: "num_of_words parameter cannot exceed 50" }, status: :unprocessable_entity
     end
+    if params[:board_id].present?
+      @board = Board.find_by(id: params[:board_id])
+    end
     return unless check_monthly_limit("ai_action")
     creation_type = params[:board_creation_type] || "default"
     additional_words = []
     prompt = params[:prompt].presence || params[:name]
     num_of_words = params[:num_of_words].to_i || 24
-    words_to_exclude = params[:words_to_exclude].is_a?(Array) ? params[:words_to_exclude] : []
+    words_to_exclude = params[:words_to_exclude].is_a?(Array) ? params[:words_to_exclude] : @board&.current_word_list || []
 
     if creation_type == "social_story"
       number_of_steps = params[:number_of_steps].to_i
