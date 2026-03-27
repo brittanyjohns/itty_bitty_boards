@@ -171,6 +171,20 @@ class Board < ApplicationRecord
     GenerateBoardPreviewJob.perform_in(2.minutes, id, { "generate_pdf" => true }) # PDF with header for sharing
   end
 
+  def generate_preview(generate_png: false, generate_pdf: false, hide_header: true, screen_size: "lg")
+    Boards::GeneratePreviewAssets.new(
+      board: self,
+      screen_size: screen_size,
+      hide_header: hide_header,
+      routes: Rails.application.routes.url_helpers,
+    ).call(generate_png: generate_png, generate_pdf: generate_pdf)
+  end
+
+  def generate_previews
+    generate_preview(generate_png: true, hide_header: true) # Generate PNG preview without header
+    generate_preview(generate_pdf: true) # PDF with header for sharing
+  end
+
   def preview_image_url
     return if !preview_image.attached?
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?

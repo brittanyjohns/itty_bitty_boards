@@ -45,7 +45,7 @@ class GenerateBoardJob
         board.update_column(:status, "processing")
         board.reset_layouts
 
-        board.run_generate_preview_job
+        board.generate_previews # generate new preview image with generated words
 
         board.update_column(:status, "complete")
       rescue => e

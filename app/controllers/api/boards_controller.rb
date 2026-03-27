@@ -390,6 +390,7 @@ class API::BoardsController < API::ApplicationController
 
       respond_to do |format|
         if @board.save
+          @board.generate_preview(generate_png: true) # async generation of new preview image with updated board details
           if params[:layout].present?
             # only save if changes are present
             layout = params[:layout].map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
@@ -399,7 +400,6 @@ class API::BoardsController < API::ApplicationController
             end
           end
           broadcast_board_update!
-          @board.run_generate_preview_job
           format.json { render json: @board.api_view_with_images(current_user), status: :ok }
         else
           format.json { render json: @board.errors, status: :unprocessable_entity }
