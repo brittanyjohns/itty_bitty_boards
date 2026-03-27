@@ -390,7 +390,7 @@ class API::BoardsController < API::ApplicationController
 
       respond_to do |format|
         if @board.save
-          @board.generate_preview(generate_png: true) # async generation of new preview image with updated board details
+          @board.generate_previews
           if params[:layout].present?
             # only save if changes are present
             layout = params[:layout].map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
@@ -805,7 +805,7 @@ class API::BoardsController < API::ApplicationController
 
   def generate_preview_image
     set_board
-    @board.run_generate_preview_job
+    @board.generate_previews
     render json: { status: "ok", message: "Preview image generation job started" }
   end
 

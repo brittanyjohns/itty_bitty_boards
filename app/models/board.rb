@@ -178,6 +178,12 @@ class Board < ApplicationRecord
       hide_header: hide_header,
       routes: Rails.application.routes.url_helpers,
     ).call(generate_png: generate_png, generate_pdf: generate_pdf)
+    if generate_png
+      if self.preview_image.attached?
+        preview_image_url = self.preview_image_url
+        self.update_preset_display_image_url(preview_image_url)
+      end
+    end
   end
 
   def generate_previews
