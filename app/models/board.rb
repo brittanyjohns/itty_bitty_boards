@@ -179,9 +179,9 @@ class Board < ApplicationRecord
       routes: Rails.application.routes.url_helpers,
     ).call(generate_png: generate_png, generate_pdf: generate_pdf)
     if generate_png
-      if self.preview_image.attached?
+      if self.preview_image.attached? && display_image_url.blank?
         preview_image_url = self.preview_image_url
-        self.update_preset_display_image_url(preview_image_url)
+        update_column(:display_image_url, preview_image_url)
       end
     end
   end

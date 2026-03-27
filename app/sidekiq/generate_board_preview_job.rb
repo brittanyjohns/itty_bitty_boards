@@ -23,6 +23,9 @@ class GenerateBoardPreviewJob
     if board.preview_image.attached?
       preview_image_url = board.preview_image_url
       board.update_preset_display_image_url(preview_image_url)
+      if board.display_image_url.blank?
+        board.update_column(:display_image_url, preview_image_url)
+      end
     end
   end
 end
