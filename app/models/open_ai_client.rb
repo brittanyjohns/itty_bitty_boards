@@ -461,7 +461,7 @@ class OpenAiClient
       words_to_exclude = words_to_exclude.split(",").map(&:strip)
     end
     @model = QUICK_GTP_MODEL
-    Rails.logger.debug "get_word_suggestions - model: #{@model} -- name: #{name} -- number_of_words: #{number_of_words} -- words_to_exclude: #{words_to_exclude.inspect}"
+    Rails.logger.debug "get_word_suggestions - model: #{@model} -- name: #{name} -- number_of_words: #{number_of_words}"
     text = "I have an AAC board titled, '#{name}'. Inferring the context from the name AND the existing words on the board, please provide #{number_of_words} words. "
 
     unless words_to_exclude.blank?
@@ -491,7 +491,7 @@ class OpenAiClient
 
     min_number_of_words = 2
     text = <<~TEXT
-                                I am creating a social story titled "#{name}".
+                                  I am creating a social story titled "#{name}".
 
     Please generate #{number_of_steps} SHORT step instructions that could appear on tiles in a social story AAC board.
 

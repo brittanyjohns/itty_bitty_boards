@@ -537,7 +537,7 @@ class API::BoardsController < API::ApplicationController
     set_board
     num_of_words = params[:num_of_words].to_i || 10
     board_words = @board.board_images.map(&:label).uniq
-    name_to_send = params[:name] || @board.name
+    name_to_send = params[:prompt] || params[:name] || @board.name
     additional_words = @board.get_words(name_to_send, num_of_words, board_words, current_user.admin?)
     render json: additional_words
   end
@@ -563,15 +563,17 @@ class API::BoardsController < API::ApplicationController
     return unless check_monthly_limit("ai_action")
     creation_type = params[:board_creation_type] || "default"
     additional_words = []
+    prompt = params[:prompt].presence || params[:name]
+    num_of_words = params[:num_of_words].to_i || 24
+    words_to_exclude = params[:words_to_exclude].is_a?(Array) ? params[:words_to_exclude] : []
+
     if creation_type == "social_story"
       number_of_steps = params[:number_of_steps].to_i
-      max_number_of_words = params[:num_of_words].to_i
-      additional_words = Board.new.get_social_story_word_suggestions(params[:name], number_of_steps, max_number_of_words, params[:words_to_exclude])
+      additional_words = Board.new.get_social_story_word_suggestions(prompt, number_of_steps, num_of_words, words_to_exclude)
     elsif creation_type == "predictive"
-      prompt = params[:prompt].presence || params[:name]
-      additional_words = Board.new.get_words_for_predictive(prompt, params[:num_of_words])
+      additional_words = Board.new.get_words_for_predictive(prompt, num_of_words)
     else
-      additional_words = Board.new.get_word_suggestions(params[:name], params[:num_of_words], params[:words_to_exclude])
+      additional_words = Board.new.get_word_suggestions(prompt, num_of_words, words_to_exclude)
     end
     if additional_words.blank?
       render json: { error: "No additional words found" }, status: :unprocessable_entity

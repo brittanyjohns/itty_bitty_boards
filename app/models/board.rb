@@ -1888,6 +1888,13 @@ class Board < ApplicationRecord
     words
   end
 
+  def get_missing_core_words
+    common_words = Board.common_words
+    existing_words = board_images.pluck(:label).map(&:downcase)
+    missing_words = common_words - existing_words
+    missing_words
+  end
+
   def get_word_suggestions(name_to_use, number_of_words, words_to_exclude = [])
     response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words, words_to_exclude)
     begin
