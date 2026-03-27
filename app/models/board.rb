@@ -1958,6 +1958,11 @@ class Board < ApplicationRecord
     end
   end
 
+  def get_word_suggestions_from_default_prompt(prompt, number_of_words)
+    text = "Generate a list of EXACTLY #{number_of_words} words or short phrases based on the following prompt: #{prompt}. "
+    get_word_suggestions_from_prompt(text)
+  end
+
   def get_word_suggestions_from_prompt(prompt)
     response = OpenAiClient.new({}).get_word_suggestions_from_prompt(prompt)
     begin
@@ -1974,7 +1979,6 @@ class Board < ApplicationRecord
           word_suggestions = word_suggestions[start_index..end_index]
           word_suggestions = transform_into_json(word_suggestions)
         end
-        Rails.logger.info "Word suggestions from prompt: #{word_suggestions.inspect}"
       else
         Rails.logger.error "*** ERROR - get_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
       end

@@ -575,7 +575,11 @@ class API::BoardsController < API::ApplicationController
     elsif creation_type == "predictive"
       additional_words = Board.new.get_words_for_predictive(prompt, num_of_words)
     else
-      additional_words = Board.new.get_word_suggestions(prompt, num_of_words, words_to_exclude)
+      if prompt == @board.name
+        additional_words = Board.new.get_word_suggestions(prompt, num_of_words, words_to_exclude)
+      else
+        additional_words = Board.new.get_word_suggestions_from_default_prompt(prompt, num_of_words)
+      end
     end
     if additional_words.blank?
       render json: { error: "No additional words found" }, status: :unprocessable_entity
