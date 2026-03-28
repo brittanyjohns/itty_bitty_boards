@@ -575,7 +575,8 @@ class API::BoardsController < API::ApplicationController
     elsif creation_type == "predictive"
       additional_words = Board.new.get_words_for_predictive(prompt, num_of_words)
     else
-      if prompt == @board.name
+      board_name = @board&.name || prompt
+      if prompt == board_name
         additional_words = Board.new.get_word_suggestions(prompt, num_of_words, words_to_exclude)
       else
         additional_words = Board.new.get_word_suggestions_from_default_prompt(prompt, num_of_words)
