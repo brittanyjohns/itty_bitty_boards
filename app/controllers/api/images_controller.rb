@@ -41,7 +41,7 @@ class API::ImagesController < API::ApplicationController
 
     # @image_with_display_doc = @image.with_display_doc(@current_user, @board, @board_image)
 
-    render json: { image: @image.api_view(@current_user), board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) }
+    render json: { image: @image.with_display_doc(@current_user), board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) }
   end
 
   def all_board_images
