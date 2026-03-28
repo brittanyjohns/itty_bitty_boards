@@ -18,7 +18,7 @@ class API::ImagesController < API::ApplicationController
     end
 
     if params[:query].present?
-      @images = @images.search_by_label(params[:query]).order("#{sort_field} #{sort_order}").page params[:page]
+      @images = @images.search_by_exact_label(params[:query]).order("#{sort_field} #{sort_order}").page params[:page]
     else
       @images = @images.order("#{sort_field} #{sort_order}").page params[:page]
     end

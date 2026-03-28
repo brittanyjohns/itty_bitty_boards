@@ -64,6 +64,7 @@ class Image < ApplicationRecord
   include Rails.application.routes.url_helpers
   include PgSearch::Model
   pg_search_scope :search_by_label, against: :label, using: { tsearch: { prefix: true } }
+  pg_search_scope :search_by_exact_label, against: :label, using: { tsearch: { prefix: false } }
 
   pg_search_scope :search_part_of_speech, against: :part_of_speech, using: { tsearch: { prefix: true } }
   def self.rebuild_pg_search_documents
