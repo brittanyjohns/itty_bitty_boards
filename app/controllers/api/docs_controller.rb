@@ -161,7 +161,8 @@ class API::DocsController < API::ApplicationController
       render json: { error: e.message }, status: :unprocessable_entity
       return
     end
-    @image_with_display_doc = @image.with_display_doc(@current_user, @board, @board_image)
+    # @image_with_display_doc = @image.with_display_doc(@current_user, @board, @board_image)
+    @image_with_display_doc = nil
     render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) }
   end
 

@@ -1195,6 +1195,8 @@ class Image < ApplicationRecord
       label: label,
       user_id: user_id,
       obf_id: obf_id,
+      docs: docs.map(&:api_view),
+      matching_viewer_images: matching_viewer_images(viewing_user).map { |img| img.with_display_doc(viewing_user) },
       user_board_images: user_board_imgs.map { |board_image| { id: board_image.id, board_id: board_image.board_id, name: board_image.board.name } },
       # predictive_board_id: predictive_board_id,
       any_board_imgs: any_board_imgs.map { |board_image| { id: board_image.id, board_id: board_image.board_id, name: board_image.board.name } },
@@ -1212,6 +1214,18 @@ class Image < ApplicationRecord
       open_symbol_status: open_symbol_status,
       created_at: created_at,
       updated_at: updated_at,
+      can_edit: viewing_user && (viewing_user.admin? || viewing_user.id == user_id),
+    }
+  end
+
+  def admin_view
+    {
+      id: id,
+      label: label,
+      image_type: image_type,
+      src: display_image_url(viewing_user) || src_url,
+      user_id: user_id,
+      matching_viewer_images: matching_viewer_images(viewing_user).map { |img| img.with_display_doc(viewing_user) },
     }
   end
 
@@ -1236,7 +1250,7 @@ class Image < ApplicationRecord
   end
 
   def matching_viewer_images(viewing_user = nil)
-    imgs = Image.where(label: label, user_id: [viewing_user&.id]).where.not(id: id)
+    imgs = Image.where(label: label, user_id: [nil, viewing_user&.id]).where.not(id: id)
     imgs = imgs.where.not(status: "marked_for_deletion")
     imgs.order(created_at: :desc)
   end
@@ -1273,12 +1287,12 @@ class Image < ApplicationRecord
       current_doc_id = current_doc.id if current_doc
       doc_img_url = current_doc&.display_url
     end
-    if @current_user.admin?
+    if @current_user&.admin?
       image_docs = self.docs.with_attached_image.order(created_at: :desc)
     else
       image_docs = self.docs.with_attached_image.for_user(@current_user).order(created_at: :desc)
     end
-    if @current_user.admin?
+    if @current_user&.admin?
       user_image_boards = @current_user&.boards&.includes(:board_images).where(predefined: false).distinct.order(name: :asc).limit(30)
     else
       user_image_boards = @current_user&.boards&.includes(:board_images).distinct.order(name: :asc)
@@ -1293,7 +1307,7 @@ class Image < ApplicationRecord
 
     img_is_dynamic = dynamic?
     img_is_predictive = predictive?
-    is_owner = @current_user && user_id == @current_user&.id
+    is_owner = !@current_user.blank? && user_id == @current_user&.id
     @board_settings = @board&.settings || {}
 
     {
@@ -1340,7 +1354,7 @@ class Image < ApplicationRecord
       user_boards: user_image_boards.map { |board| board.user_api_view(@current_user) },
       all_boards: all_boards.map { |board| board.user_api_view(@current_user) },
       # remaining_boards: @board_image&.remaining_user_boards || user_image_boards.map { |board| board.api_view(@current_user) },
-      matching_viewer_images: matching_viewer_images(@current_user).map { |image| { id: image.id, label: image.label, src: image.display_image_url(@current_user) || image.src_url, created_at: image.created_at.strftime("%b %d, %Y"), user_id: image.user_id } },
+      # matching_viewer_images: matching_viewer_images(@current_user).map(&:with_display_doc),
       matching_viewer_boards: @matching_boards.map { |board|
         { id: board.id, name: board.name, voice: board.voice, user_id: board.user_id, board_type: board.board_type, display_image_url: board.display_image_url || board.image_parent&.src_url, created_at: board.created_at.strftime("%b %d, %Y") }
       },

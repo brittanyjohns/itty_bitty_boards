@@ -1451,7 +1451,6 @@ class Board < ApplicationRecord
       has_generating_images: has_generating_images?,
       current_user_teams: [],
       current_colors: current_colors,
-      # matching_viewer_images: is_a_user ? @matching_viewer_images.map { |i| i.api_view(viewing_user) } : [],
       images: @board_images.map do |board_image|
         @board_image = board_image
 

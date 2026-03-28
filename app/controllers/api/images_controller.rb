@@ -18,7 +18,7 @@ class API::ImagesController < API::ApplicationController
     end
 
     if params[:query].present?
-      @images = @images.search_by_exact_label(params[:query]).order("#{sort_field} #{sort_order}").page params[:page]
+      @images = @images.where(label: params[:query]).order("#{sort_field} #{sort_order}").page params[:page]
     else
       @images = @images.order("#{sort_field} #{sort_order}").page params[:page]
     end
@@ -39,8 +39,9 @@ class API::ImagesController < API::ApplicationController
     @board = Board.with_artifacts.find_by(id: params[:board_id]) if params[:board_id].present?
     @board_image = BoardImage.with_artifacts.find_by(image_id: @image.id, board_id: @board.id) if @board
 
-    @image_with_display_doc = @image.with_display_doc(@current_user, @board, @board_image)
-    render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) }
+    # @image_with_display_doc = @image.with_display_doc(@current_user, @board, @board_image)
+
+    render json: { image: @image.api_view(@current_user), board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) }
   end
 
   def all_board_images
@@ -131,24 +132,33 @@ class API::ImagesController < API::ApplicationController
 
   def merge
     @current_user = current_user
-    @image = Image.find(params[:id])
-    @image_to_merge = Image.find(params[:merge_image_id])
-    @docs = @image_to_merge.docs
-    @docs.each do |doc|
-      doc.documentable = @image
-      doc.user = @current_user
-      result = doc.save!
+    unless @current_user.admin?
+      render json: { status: "error", message: "You are not authorized to merge images." }, status: :forbidden
+      return
     end
-    @board_images = BoardImage.where(image_id: @image_to_merge.id)
-    @board_images.each do |board_image|
-      board_image.update(image_id: @image.id, display_image_url: @image.src_url)
-      board_image.save_defaults
+    @image = Image.find(params[:id])
+    @images_to_merge = Image.where(id: params[:merge_image_ids])
+    if @images_to_merge.empty?
+      render json: { status: "error", message: "No images found to merge." }, status: :not_found
+      return
+    end
+    @images_to_merge.each do |image_to_merge|
+      image_to_merge.docs.each do |doc|
+        doc.documentable = @image
+        doc.user = @current_user
+        result = doc.save!
+      end
+      board_images = BoardImage.where(image_id: image_to_merge.id)
+      board_images.each do |board_image|
+        board_image.update(image_id: @image.id, display_image_url: @image.src_url)
+        board_image.save_defaults
+      end
+      image_to_merge.update(status: "marked_for_deletion")
     end
 
-    @image_to_merge.update(status: "marked_for_deletion")
-    DeleteImageJob.perform_in(1.minute, @image_to_merge.id)
+    DeleteImageJob.perform_in(1.minute, @images_to_merge.map(&:id))
     @image.reload
-    render json: @image.with_display_doc(@current_user)
+    render json: { image: @image.with_display_doc(@current_user) }
   end
 
   def clone
