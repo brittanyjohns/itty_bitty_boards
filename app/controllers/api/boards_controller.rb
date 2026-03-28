@@ -395,7 +395,6 @@ class API::BoardsController < API::ApplicationController
             if @board.layout != layout
               Rails.logger.info "Updating board layout for board ID: #{@board.id}"
               save_layout!
-              @board.generate_previews
             end
           end
           broadcast_board_update!
