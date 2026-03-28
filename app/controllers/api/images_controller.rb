@@ -150,7 +150,7 @@ class API::ImagesController < API::ApplicationController
       end
       board_images = BoardImage.where(image_id: image_to_merge.id)
       board_images.each do |board_image|
-        board_image.update(image_id: @image.id, display_image_url: @image.src_url)
+        board_image.update(image_id: @image.id)
         board_image.save_defaults
       end
       image_to_merge.update(status: "marked_for_deletion")
