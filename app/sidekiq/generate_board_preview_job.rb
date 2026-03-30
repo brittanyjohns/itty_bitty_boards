@@ -8,9 +8,10 @@ class GenerateBoardPreviewJob
     hide_colors = options["hide_colors"] || options["hideColors"] || false
     hide_header = options["hide_header"] || options["hideHeader"] || false
     generate_pdf = options["generate_pdf"] || options["generatePdf"] || false
-    generate_png = options["generate_png"] || options["generatePng"] || true
+    generate_png = options["generate_png"] || options["generatePng"] || false
 
     board = Board.find(board_id)
+    original_preview_image_url = board.preview_image_url
 
     Boards::GeneratePreviewAssets.new(
       board: board,
@@ -23,7 +24,7 @@ class GenerateBoardPreviewJob
     if board.preview_image.attached?
       preview_image_url = board.preview_image_url
       board.update_preset_display_image_url(preview_image_url)
-      if board.display_image_url.blank?
+      if board.display_image_url.blank? || board.display_image_url == original_preview_image_url
         board.update_column(:display_image_url, preview_image_url)
       end
     end

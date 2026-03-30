@@ -170,6 +170,7 @@ class Board < ApplicationRecord
   end
 
   def generate_preview(generate_png: false, generate_pdf: false, hide_header: true, screen_size: "lg")
+    original_preview_image_url = preview_image_url
     Boards::GeneratePreviewAssets.new(
       board: self,
       screen_size: screen_size,
@@ -177,7 +178,7 @@ class Board < ApplicationRecord
       routes: Rails.application.routes.url_helpers,
     ).call(generate_png: generate_png, generate_pdf: generate_pdf)
     if generate_png
-      if self.preview_image.attached? && display_image_url.blank?
+      if self.preview_image.attached? && (display_image_url.blank? || display_image_url == original_preview_image_url)
         preview_image_url = self.preview_image_url
         update_column(:display_image_url, preview_image_url)
       end
