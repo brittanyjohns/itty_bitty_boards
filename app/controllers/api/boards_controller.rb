@@ -1054,14 +1054,11 @@ class API::BoardsController < API::ApplicationController
 
   def save_layout!
     layout = params[:layout].map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
-
-    # Sort layout by y and x coordinates
     sorted_layout = layout.sort_by { |item| [item["y"].to_i, item["x"].to_i] }
 
     board_image_ids = []
     sorted_layout.each_with_index do |item, i|
       board_image_id = item["i"].to_i
-      Rails.logger.debug "Updating position for BoardImage ID: #{board_image_id} to position #{i}"
       board_image = @board.board_images.find_by(id: board_image_id)
       if board_image
         board_image.update!(position: i)
