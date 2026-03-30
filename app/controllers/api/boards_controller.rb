@@ -1092,6 +1092,7 @@ class API::BoardsController < API::ApplicationController
     # Update the grid layout
     begin
       @board.update_grid_layout(sorted_layout, screen_size)
+      @board.run_generate_preview_job
     rescue => e
       Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
     end
