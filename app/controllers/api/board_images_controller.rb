@@ -77,7 +77,6 @@ class API::BoardImagesController < API::ApplicationController
     new_board_name = payload[:new_board_name] if payload[:new_board_name]
     create_new_board = payload[:create_new_board] || !new_board_name.blank?
     layout_updates = payload[:layout_updates] if payload[:layout_updates]
-    Rails.logger.debug "Updating multiple BoardImages with payload: #{payload.inspect}"
 
     if create_new_board
       new_board_name ||= "New Board"
@@ -110,13 +109,11 @@ class API::BoardImagesController < API::ApplicationController
       end
 
       layout_to_update = layout_updates.find { |update| update["board_image_id"].to_i == board_image.id } if layout_updates
-      Rails.logger.debug ">>Processing BoardImage ID: #{board_image.id} - \nlayout_to_update: #{layout_to_update.inspect}"
 
       screen_size = layout_to_update ? layout_to_update["screen_size"] : nil
 
       if layout_to_update && screen_size
         board_image.layout[screen_size] = { x: layout_to_update["x"], y: layout_to_update["y"], w: layout_to_update["w"], h: layout_to_update["h"], id: board_image.id.to_s }
-        Rails.logger.debug "Updated layout for BoardImage ID: #{board_image.id} - Screen Size: #{screen_size} - layout_to_update: #{layout_to_update[board_image.id]} - board_image.layout: #{board_image.layout}"
       end
 
       if board_image.save
@@ -202,7 +199,6 @@ class API::BoardImagesController < API::ApplicationController
     return unless check_monthly_limit("ai_action")
 
     @image_variation = @board_image.create_image_variation!
-    Rails.logger.debug "Created image variation: #{@image_variation.inspect}"
 
     @board_image.reload
     if @image_variation
@@ -236,7 +232,6 @@ class API::BoardImagesController < API::ApplicationController
     @board_image.data["using_custom_audio"] = true
     if @board_image.update(audio_url: new_audio_file_url)
       @board_image.reload
-      Rails.logger.debug "BoardImage after audio upload: #{@board_image.inspect}"
       render json: @board_image.api_view(current_user)
     else
       render json: @board_image.errors, status: :unprocessable_entity

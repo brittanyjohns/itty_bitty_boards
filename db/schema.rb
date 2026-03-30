@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_27_120652) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_30_122052) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -195,15 +195,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_27_120652) do
     t.index ["user_id"], name: "index_board_screenshot_imports_on_user_id"
   end
 
-  create_table "board_tags", force: :cascade do |t|
-    t.bigint "board_id"
-    t.bigint "tag_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["board_id"], name: "index_board_tags_on_board_id"
-    t.index ["tag_id"], name: "index_board_tags_on_tag_id"
-  end
-
   create_table "boards", force: :cascade do |t|
     t.bigint "user_id"
     t.string "name"
@@ -247,6 +238,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_27_120652) do
     t.string "generated_token"
     t.datetime "generated_token_expires_at"
     t.jsonb "metadata", default: {}
+    t.string "tags", default: [], null: false, array: true
     t.index ["board_screenshot_import_id"], name: "index_boards_on_board_screenshot_import_id"
     t.index ["board_type"], name: "index_boards_on_board_type"
     t.index ["category"], name: "index_boards_on_category"
@@ -260,6 +252,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_27_120652) do
     t.index ["parent_type", "parent_id"], name: "index_boards_on_parent"
     t.index ["published"], name: "index_boards_on_published"
     t.index ["slug"], name: "index_boards_on_slug"
+    t.index ["tags"], name: "index_boards_on_tags", using: :gin
     t.index ["user_id"], name: "index_boards_on_user_id"
     t.index ["vendor_id"], name: "index_boards_on_vendor_id"
   end
@@ -750,10 +743,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_27_120652) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["user_id"], name: "index_subscriptions_on_user_id"
-  end
-
-  create_table "tags", force: :cascade do |t|
-    t.string "name"
   end
 
   create_table "team_accounts", force: :cascade do |t|

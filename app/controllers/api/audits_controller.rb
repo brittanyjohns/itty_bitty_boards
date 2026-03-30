@@ -10,12 +10,40 @@ class API::AuditsController < API::ApplicationController
     end
 
     image = Image.find(params[:imageId]) if params[:imageId]
+    board = Board.includes(:user).find(params[:boardId]) if params[:boardId]
     unless image
       image = current_account.images.find_by(label: params[:word]) if current_account
       image = current_user.images.find_by(label: params[:word]) if current_user
     end
 
-    # TODO - team tracking needs work - not using current_team_id anymore
+    board_image_id = params[:boardImageId]
+    board_image = BoardImage.find_by(id: board_image_id.to_i) if board_image_id
+    unless board_image
+      board_image = BoardImage.find_by(board_id: params[:boardId], image_id: params[:imageId]) if params[:boardId] && params[:imageId]
+    end
+    screen_size = params[:screenSize]
+    layout = params[:layout]
+    if layout.blank? && board_image
+      layout = board_image.layout || {}
+    end
+    layout_for_screen_size = layout[screen_size] || {}
+
+    x_position = params[:xPosition] || layout_for_screen_size["x"]
+    y_position = params[:yPosition] || layout_for_screen_size["y"]
+    width = params[:width] || layout_for_screen_size["w"]
+    height = params[:height] || layout_for_screen_size["h"]
+    number_of_columns = board&.columns_for_screen_size(screen_size)
+    number_of_rows = board&.rows_for_screen_size(screen_size)
+    word_event_data = {
+      screen_size: screen_size,
+      layout: layout_for_screen_size,
+      x_position: x_position,
+      y_position: y_position,
+      width: width,
+      height: height,
+      number_of_columns: number_of_columns,
+      number_of_rows: number_of_rows,
+    }
 
     payload = {
       word: params[:word],
@@ -27,7 +55,10 @@ class API::AuditsController < API::ApplicationController
       board_id: params[:boardId],
       team_id: user.current_team_id, # current_team_id is not being set
       child_account_id: current_account&.id,
+      board_image_id: board_image&.id,
+      data: word_event_data,
     }
+
     WordEvent.create(payload)
     render json: { message: "Word click recorded" }
   end
@@ -48,6 +79,8 @@ class API::AuditsController < API::ApplicationController
   end
 
   def public_word_click
+    image_id = params[:imageId]
+    board_id = params[:boardId]
     image = Image.find(params[:imageId]) if params[:imageId]
     board = Board.includes(:user).find(params[:boardId]) if params[:boardId]
 
@@ -84,11 +117,34 @@ class API::AuditsController < API::ApplicationController
     }
     board_image = nil
     if params[:boardImageId]
-      board_image = BoardImage.find_by(id: params[:boardImageId])
+      board_image = BoardImage.find_by(id: params[:boardImageId].to_i)
     end
     unless board_image
-      board_image = BoardImage.find_by(board_id: params[:boardId], image_id: params[:imageId]) if params[:boardId] && params[:imageId]
+      board_image = BoardImage.find_by(board_id: board_id.to_i, image_id: image_id.to_i) if board_id && image_id
     end
+    screen_size = params[:screenSize]
+    layout = params[:layout] || board_image&.layout || {}
+    layout_for_screen_size = layout[screen_size] || {}
+
+    x_position = params[:xPosition] || layout_for_screen_size["x"]
+    y_position = params[:yPosition] || layout_for_screen_size["y"]
+    width = params[:width] || layout_for_screen_size["w"]
+    height = params[:height] || layout_for_screen_size["h"]
+    number_of_columns = board&.columns_for_screen_size(screen_size)
+    number_of_rows = board&.rows_for_screen_size(screen_size)
+
+    word_event_data = {
+      screen_size: screen_size,
+      layout: layout_for_screen_size,
+      x_position: x_position,
+      y_position: y_position,
+      width: width,
+      height: height,
+      number_of_columns: number_of_columns,
+      number_of_rows: number_of_rows,
+    }
+    data = request_data.merge(word_event_data)
+
     payload = {
       word: params[:word],
       previous_word: params[:previousWord],
@@ -99,10 +155,10 @@ class API::AuditsController < API::ApplicationController
       board_id: params[:boardId],
       board_group_id: params[:boardGroupId],
       board_image_id: board_image&.id,
-      child_account_id: comm_account,
+      child_account_id: comm_account&.id,
       vendor_id: params[:vendorId],
       profile_id: profile&.id,
-      data: request_data,
+      data: data,
     }
     word_event = WordEvent.create(payload)
     render json: { message: "Word click recorded", word_event: word_event&.api_view }

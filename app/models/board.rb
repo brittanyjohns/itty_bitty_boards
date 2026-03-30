@@ -75,8 +75,6 @@ class Board < ApplicationRecord
   has_many :word_events
   has_many :subgroups, class_name: "BoardGroup", foreign_key: "root_board_id", dependent: :nullify
   has_many :predictive_board_images, class_name: "BoardImage", foreign_key: "predictive_board_id", dependent: :nullify
-  has_many :board_tags
-  has_many :tags, through: :board_tags
 
   include WordEventsHelper
 
@@ -1563,7 +1561,7 @@ class Board < ApplicationRecord
   end
 
   def rows_for_screen_size(screen_size = "sm")
-    layout = self.layout[screen_size] || []
+    layout = print_grid_layout_for_screen_size(screen_size)
     number_of_rows = 0
     begin
       layout.each do |l|
