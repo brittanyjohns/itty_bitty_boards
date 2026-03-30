@@ -748,8 +748,10 @@ class API::BoardsController < API::ApplicationController
         voice = communicator_account.voice
         communicator_board_copy = @board.clone_with_images(current_user&.id, @board.name, voice, communicator_account)
       end
-      @board.reload
       if record_errors.empty?
+        @board.in_use = true
+        @board.save!
+        @board.reload
         render json: @board.api_view_with_predictive_images(current_user, true), status: :ok
       else
         render json: { error: { message: record_errors } }, status: :unprocessable_entity

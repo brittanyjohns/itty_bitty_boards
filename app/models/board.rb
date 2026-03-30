@@ -518,9 +518,9 @@ class Board < ApplicationRecord
 
   def check_in_use
     child_board_templates = ChildBoard.where(original_board_id: id)
-    if child_board_templates.any? && !in_use
+    if child_board_templates.any?
       self.in_use = true
-    elsif !child_board_templates.any? && in_use
+    elsif !child_board_templates.any?
       self.in_use = false
     end
   end
@@ -937,19 +937,15 @@ class Board < ApplicationRecord
     end
 
     unless communicator_account.nil? || communicator_account.child_boards.where(board_id: @cloned_board.id).exists?
-      Rails.logger.info "Creating ChildBoard for communicator account #{communicator_account.id} and board #{@cloned_board.id}"
       comm_board = communicator_account.child_boards.new(board: @cloned_board, created_by_id: cloned_user_id, original_board: @source)
-      if comm_board.save
-        Rails.logger.info "Created ChildBoard for communicator account #{communicator_account.id} and board #{@cloned_board.id}"
-      else
-        Rails.logger.error "Failed to create ChildBoard for communicator account #{communicator_account.id} and board #{@cloned_board.id}: #{comm_board.errors.full_messages.join(", ")}"
+      unless comm_board.save
+        Rails.logger.error "Error creating ChildBoard for communicator account #{communicator_account.id} and board #{@cloned_board.id}: #{comm_board.errors.full_messages.join(", ")}"
       end
     else
       Rails.logger.info "ChildBoard already exists for communicator account #{communicator_account&.id} and board #{@cloned_board.id}"
     end
 
     if @cloned_board.valid?
-      Rails.logger.info "Successfully cloned board: #{@source.id} to new board: #{@cloned_board.id} for user: #{cloned_user_id}"
       if @source.user_id != cloned_user_id
         UpdateUserBoardsJob.perform_async(@cloned_board.id, @source.id)
       else
@@ -987,10 +983,8 @@ class Board < ApplicationRecord
     cloned_board = self
     user_boards.each do |bi|
       bi.predictive_board_id = cloned_board.id
-      if bi.save
-        puts "Saved"
-      else
-        puts "Error saving"
+      unless bi.save
+        Rails.logger.error "Error saving board image #{bi.id} with predictive_board_id #{cloned_board.id}: #{bi.errors.full_messages.join(", ")}"
       end
     end
   end
@@ -1345,26 +1339,10 @@ class Board < ApplicationRecord
     end
     current_colors = @board_images.map { |bi| bi.bg_color }.flatten.compact.uniq
     if in_use
-      child_accounts = []
-      child_boards = []
-      results = []
-      ChildBoard.includes(child_account: :profile).where(original_board_id: id).each do |cb|
-        child_boards << cb
-        if cb.child_account && !child_accounts.map(&:id).include?(cb.child_account.id)
-          data = { acct: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url }
-          child_accounts << cb.child_account
-          results << data
-        end
-      end
-      @child_accounts = child_accounts
-      @child_boards = child_boards
-      @results = results
-    else
-      @child_accounts = []
-      @child_boards = []
-      @results = []
+      @original_child_boards = original_child_boards.includes(child_account: :profile)
     end
     @parent_boards = parent_boards(viewing_user&.id)
+    @child_accounts = @original_child_boards.map(&:child_account).compact.uniq
 
     @root_board = root_board
     same_user = viewing_user && user_id == viewing_user.id
@@ -1379,11 +1357,11 @@ class Board < ApplicationRecord
       board_id: id,
       word_sample: word_sample,
       user_name: user&.display_name,
-      communicator_account_data: @results,
+      communicator_account_data: @original_child_boards.map { |cb| { acct: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url } },
       communicator_accounts: @child_accounts.map { |ca| { id: ca.id, name: ca.name } },
       communicator_account: communicator_account ? { id: communicator_account.id, name: communicator_account.name } : nil,
       communicator_board: communicator_board ? { id: communicator_board.id, name: communicator_board.name, board_id: communicator_board.board_id, original_board_id: communicator_board.original_board_id } : nil,
-      child_boards: @child_boards.map { |cb| { id: cb.id, name: cb.name, child_account_id: cb.child_account_id, username: cb.child_account&.username } },
+      child_boards: original_child_boards.map { |cb| { board_id: cb.board_id, name: cb.name, child_account_id: cb.child_account_id, username: cb.child_account&.username } },
       in_use: in_use,
       is_template: is_template,
       parent_boards: @parent_boards.map { |pb| { id: pb.id, name: pb.name, slug: pb.slug, board_type: pb.board_type } },
