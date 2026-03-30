@@ -592,17 +592,19 @@ class ChildAccount < ApplicationRecord
       bio_audio_url: cached_profile&.bio_audio_url,
       supporters: cached_supporters.map { |s| { id: s.id, name: s.name, email: s.email } },
       supervisors: cached_supervisors.map { |s| { id: s.id, name: s.name, email: s.email } },
-      boards: child_boards.order(:created_at).map do |cb|
+      boards: child_boards.includes(:original_board, :board).order(:created_at).map do |cb|
         b = cb.board
+        og_board = cb.original_board
         {
           id: cb.id,
           name: b.name,
           bg_color: b.bg_color,
+          original_board_id: cb.original_board_id,
           text_color: b.text_color,
           board_type: b.board_type,
           board_id: cb.board_id,
           communicator_board_id: cb.id,
-          display_image_url: b.display_image_url,
+          display_image_url: b.display_image_url || og_board&.display_image_url,
           favorite: cb.favorite,
           published: cb.published,
           added_by: cb.created_by&.display_name,
