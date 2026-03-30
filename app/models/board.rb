@@ -1342,7 +1342,7 @@ class Board < ApplicationRecord
       @original_child_boards = original_child_boards.includes(child_account: :profile)
     end
     @parent_boards = parent_boards(viewing_user&.id)
-    @child_accounts = @original_child_boards.map(&:child_account).compact.uniq
+    @child_accounts = @original_child_boards&.map(&:child_account).compact.uniq
 
     @root_board = root_board
     same_user = viewing_user && user_id == viewing_user.id
@@ -1357,7 +1357,7 @@ class Board < ApplicationRecord
       board_id: id,
       word_sample: word_sample,
       user_name: user&.display_name,
-      communicator_account_data: @original_child_boards.map { |cb| { acct: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url } },
+      communicator_account_data: @original_child_boards&.map { |cb| { acct: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url } },
       communicator_accounts: @child_accounts.map { |ca| { id: ca.id, name: ca.name } },
       communicator_account: communicator_account ? { id: communicator_account.id, name: communicator_account.name } : nil,
       communicator_board: communicator_board ? { id: communicator_board.id, name: communicator_board.name, board_id: communicator_board.board_id, original_board_id: communicator_board.original_board_id } : nil,
