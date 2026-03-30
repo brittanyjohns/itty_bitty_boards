@@ -813,7 +813,7 @@ class API::BoardsController < API::ApplicationController
 
   def generate_preview_image
     set_board
-    @board.generate_previews
+    @board.run_generate_preview_job
     render json: { status: "ok", message: "Preview image generation job started" }
   end
 
