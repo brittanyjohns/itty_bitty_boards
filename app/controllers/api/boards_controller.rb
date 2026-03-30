@@ -1053,13 +1053,17 @@ class API::BoardsController < API::ApplicationController
   end
 
   def save_layout!
+    if !@board || params[:layout].blank?
+      Rails.logger.error "Cannot save layout: Board not found or layout parameter is blank"
+      return
+    end
     layout = params[:layout].map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
     sorted_layout = layout.sort_by { |item| [item["y"].to_i, item["x"].to_i] }
 
     board_image_ids = []
     sorted_layout.each_with_index do |item, i|
       board_image_id = item["i"].to_i
-      board_image = @board.board_images.find_by(id: board_image_id)
+      board_image = @board&.board_images.find_by(id: board_image_id)
       if board_image
         board_image.update!(position: i)
       else
