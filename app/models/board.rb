@@ -1520,7 +1520,7 @@ class Board < ApplicationRecord
           position: @board_image.position,
           dynamic: is_dynamic,
           is_predictive: is_predictive,
-          board_image_id: @board_image.id,
+          board_image_id: @board_image.id.to_s,
           board_frozen: freeze_parent_board,
           data: @board_image.data,
           image_prompt: @board_image.image_prompt,

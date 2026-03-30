@@ -50,14 +50,9 @@ class API::BoardImagesController < API::ApplicationController
 
   def update_multiple
     board_image_ids = params[:board_image_ids]
-    @board = Board.find(params[:board_id])
+    @board = Board.includes(:board_images).find(params[:board_id])
     if @board.nil?
       render json: { error: "Board not found" }, status: :unprocessable_entity
-      return
-    end
-    board_images = BoardImage.where(id: board_image_ids, board_id: @board.id)
-    if board_images.empty?
-      render json: { error: "No board images found" }, status: :unprocessable_entity
       return
     end
     payload = params[:payload]
@@ -65,12 +60,24 @@ class API::BoardImagesController < API::ApplicationController
       render json: { error: "No payload provided" }, status: :unprocessable_entity
       return
     end
+    layout_updates = payload[:layout_updates] if payload[:layout_updates]
+    if layout_updates && board_image_ids.nil?
+      board_image_ids = layout_updates.map { |item| item[:board_image_id].to_i }.compact
+    end
+    if board_image_ids.nil? || board_image_ids.empty?
+      render json: { error: "No board image IDs provided" }, status: :unprocessable_entity
+      return
+    end
+    board_images = @board.board_images.where(id: board_image_ids)
+
     bg_color = payload[:bg_color] if payload[:bg_color]
     text_color = payload[:text_color] if payload[:text_color]
     hide_images = payload[:hide_images] if payload[:hide_images]
     make_static = payload[:make_static] if payload[:make_static]
     new_board_name = payload[:new_board_name] if payload[:new_board_name]
     create_new_board = payload[:create_new_board] || !new_board_name.blank?
+    layout_updates = payload[:layout_updates] if payload[:layout_updates]
+    Rails.logger.debug "Updating multiple BoardImages with payload: #{payload.inspect}"
 
     if create_new_board
       new_board_name ||= "New Board"
@@ -101,6 +108,17 @@ class API::BoardImagesController < API::ApplicationController
       if make_static
         board_image.predictive_board_id = nil
       end
+
+      layout_to_update = layout_updates.find { |update| update["board_image_id"].to_i == board_image.id } if layout_updates
+      Rails.logger.debug ">>Processing BoardImage ID: #{board_image.id} - \nlayout_to_update: #{layout_to_update.inspect}"
+
+      screen_size = layout_to_update ? layout_to_update["screen_size"] : nil
+
+      if layout_to_update && screen_size
+        board_image.layout[screen_size] = { x: layout_to_update["x"], y: layout_to_update["y"], w: layout_to_update["w"], h: layout_to_update["h"], id: board_image.id.to_s }
+        Rails.logger.debug "Updated layout for BoardImage ID: #{board_image.id} - Screen Size: #{screen_size} - layout_to_update: #{layout_to_update[board_image.id]} - board_image.layout: #{board_image.layout}"
+      end
+
       if board_image.save
         results << true
       else
