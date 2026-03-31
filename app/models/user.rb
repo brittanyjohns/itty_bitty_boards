@@ -52,6 +52,10 @@
 #  delete_account_token_expires_at :datetime
 #  deleted_at                      :datetime
 #  layout                          :jsonb
+#  confirmation_token              :string
+#  confirmed_at                    :datetime
+#  confirmation_sent_at            :datetime
+#  unconfirmed_email               :string
 #
 require "csv"
 

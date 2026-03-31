@@ -44,6 +44,8 @@
 #  sub_board                  :boolean          default(TRUE), not null
 #  generated_token            :string
 #  generated_token_expires_at :datetime
+#  metadata                   :jsonb
+#  tags                       :string           default([]), not null, is an Array
 #
 require "rails_helper"
 

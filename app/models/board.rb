@@ -44,6 +44,8 @@
 #  sub_board                  :boolean          default(TRUE), not null
 #  generated_token            :string
 #  generated_token_expires_at :datetime
+#  metadata                   :jsonb
+#  tags                       :string           default([]), not null, is an Array
 #
 require "zip"
 
@@ -136,6 +138,30 @@ class Board < ApplicationRecord
   scope :main_boards, -> { non_menus.where(sub_board: [false, nil]) }
   scope :newly_created, -> { main_boards.created_this_week.order(created_at: :desc) }
   scope :recent, -> { main_boards.where("updated_at > ?", 1.week.ago).order(updated_at: :desc) }
+
+  scope :with_any_tags, ->(values) do
+          tag_values = Array(values)
+            .flat_map { |v| v.to_s.split(",") }
+            .map { |tag| normalize_tag_value(tag) }
+            .reject(&:blank?)
+            .uniq
+
+          tag_values.present? ? where("boards.tags && ARRAY[?]::varchar[]", tag_values) : all
+        end
+
+  scope :with_all_tags, ->(values) do
+          tag_values = Array(values)
+            .flat_map { |v| v.to_s.split(",") }
+            .map { |tag| normalize_tag_value(tag) }
+            .reject(&:blank?)
+            .uniq
+
+          tag_values.present? ? where("boards.tags @> ARRAY[?]::varchar[]", tag_values) : all
+        end
+
+  def self.normalize_tag_value(tag)
+    tag.to_s.strip.downcase.gsub(/\s+/, " ")
+  end
 
   SAFE_FILTERS = %w[all predefined user_made ai_generated predictive public_boards in_use published sub_boards main_boards recent newly_created not_in_use menus].freeze
 
@@ -1384,6 +1410,7 @@ class Board < ApplicationRecord
       download_pdf_url: download_pdf_url,
       generated_token: generated_token,
       generated_token_expires_at: generated_token_expires_at,
+      tags: tags,
 
       # missing_common_words: missing_common_words,
       # existing_words: existing_words,
@@ -1698,6 +1725,7 @@ class Board < ApplicationRecord
       slug: slug,
       bg_color: bg_color,
       text_color: text_color,
+      tags: tags,
       user_name: user.to_s,
       name: name,
       is_template: is_template,

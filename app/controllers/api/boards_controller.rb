@@ -6,10 +6,11 @@ class API::BoardsController < API::ApplicationController
   before_action :check_board_create_permissions, only: %i[ create clone ]
 
   def index
-    limit_param = params[:limit].presence&.to_i       # used as per_page
+    limit_param = params[:limit].presence&.to_i
     page_param = params[:page].presence || 1
     page = page_param.to_i <= 0 ? 1 : page_param.to_i
-    per_page = (limit_param || 30).clamp(1, 200)   # sane defaults/bounds
+    per_page = (limit_param || 30).clamp(1, 200)
+
     sort_field_param = params[:sort_field].presence || "created_at"
     sort_order_param = params[:sort_order].presence || "desc"
 
@@ -24,41 +25,46 @@ class API::BoardsController < API::ApplicationController
     query = params[:query].to_s.strip.presence
     filter_param = params[:filter].to_s.strip.presence
 
-    # ---------------------------
-    # Normalize + validate filter
-    # ---------------------------
+    raw_tags = params[:tags]
+    selected_tags = Array(raw_tags)
+      .flat_map { |tag| tag.to_s.split(",") }
+      .map { |tag| Board.normalize_tag_value(tag) }
+      .reject(&:blank?)
+      .uniq
+
     if filter_param.present? && !Board::SAFE_FILTERS.include?(filter_param)
       render json: { error: "Invalid filter" }, status: :unprocessable_entity
       return
     end
-    filter = filter_param # safe or nil at this point
+    filter = filter_param
 
     # ---------------------------
     # 1. GUEST (no current_user)
     # ---------------------------
     unless current_user
-      # Last modified across ALL predefined boards (not just this page)
-      last_modified = Board.predefined.maximum(:updated_at) || Time.zone.at(0)
-      etag = guest_boards_index_etag(last_modified, limit_param)
+      static_scope = Board.public_boards
+      static_scope = static_scope.with_all_tags(selected_tags) if selected_tags.present?
+
+      last_modified = static_scope.maximum(:updated_at) || Time.zone.at(0)
+      etag = guest_boards_index_etag(last_modified, limit_param, tags: selected_tags)
 
       return unless stale?(etag: etag, last_modified: last_modified)
 
-      static_scope = Board.predefined.order(order_clause)
+      static_scope = static_scope.order(order_clause)
       static_scope = static_scope.page(page).per(per_page)
 
       static_boards = static_scope.to_a
       payload = static_boards.map(&:api_view)
 
       render json: {
-        static_preset_boards: payload,
-        preset_boards: payload,
-        pagination: {
-          page: static_scope.current_page,
-          per_page: static_scope.limit_value,
-          total_pages: static_scope.total_pages,
-          total_count: static_scope.total_count,
-        },
-      }
+               boards: payload,
+               pagination: {
+                 page: static_scope.current_page,
+                 per_page: static_scope.limit_value,
+                 total_pages: static_scope.total_pages,
+                 total_count: static_scope.total_count,
+               },
+             }
       return
     end
 
@@ -67,18 +73,20 @@ class API::BoardsController < API::ApplicationController
     # ---------------------------
     if query.present?
       search_scope = Board.for_user(current_user).searchable
-        .then { |s| apply_filter(s, filter) }
-        .search_by_name(query)
-        .order(order_clause)
-        .page(page).per(per_page)
+      search_scope = apply_filter(search_scope, filter)
+      search_scope = search_scope.with_any_tags(selected_tags) if selected_tags.present?
+      search_scope = search_scope.search_by_name(query)
+      search_scope = search_scope.order(order_clause)
+      search_scope = search_scope.page(page).per(per_page)
 
       last_updated_at = search_scope.maximum(:updated_at)&.to_i
 
       cache_key = [
-        "boards-search-v2",
+        "boards-search-v3",
         current_user.id,
         query,
         filter || "no-filter",
+        selected_tags.sort.join("|").presence || "no-tags",
         page,
         per_page,
         sort_field,
@@ -99,14 +107,14 @@ class API::BoardsController < API::ApplicationController
       end
 
       render json: {
-        boards: result[:boards],
-        pagination: {
-          page: result[:page],
-          per_page: result[:per_page],
-          total_pages: result[:total_pages],
-          total_count: result[:total_count],
-        },
-      }
+               boards: result[:boards],
+               pagination: {
+                 page: result[:page],
+                 per_page: result[:per_page],
+                 total_pages: result[:total_pages],
+                 total_count: result[:total_count],
+               },
+             }
       return
     end
 
@@ -115,6 +123,7 @@ class API::BoardsController < API::ApplicationController
     # ---------------------------
     base_scope = current_user.boards
     filtered_scope = apply_filter(base_scope, filter)
+    filtered_scope = filtered_scope.with_any_tags(selected_tags) if selected_tags.present?
 
     last_modified = boards_index_last_modified(current_user, filtered_scope)
     etag = boards_index_etag(
@@ -126,20 +135,18 @@ class API::BoardsController < API::ApplicationController
       sort_field: sort_field,
       sort_order: sort_order,
       page: page,
+      tags: selected_tags,
     )
 
-    # If nothing changed, Rails sends 304 and skips the heavy work
     return unless stale?(etag: etag, last_modified: last_modified)
 
-    # Paginate main board list
     user_boards_scope = filtered_scope
-      .reorder(order_clause) # <-- important
+      .reorder(order_clause)
       .page(page)
       .per(per_page)
 
     @user_boards = user_boards_scope.to_a
 
-    # Keep "newly_created_boards" as a small recent snippet (not paginated)
     @newly_created_boards = filtered_scope
       .where("created_at >= ?", 1.week.ago)
       .reorder(created_at: :desc)
@@ -147,15 +154,15 @@ class API::BoardsController < API::ApplicationController
       .to_a
 
     render json: {
-      newly_created_boards: @newly_created_boards.map { |board| board.api_view(current_user) },
-      boards: @user_boards.map { |board| board.api_view(current_user) },
-      pagination: {
-        page: user_boards_scope.current_page,
-        per_page: user_boards_scope.limit_value,
-        total_pages: user_boards_scope.total_pages,
-        total_count: user_boards_scope.total_count,
-      },
-    }
+             newly_created_boards: @newly_created_boards.map { |board| board.api_view(current_user) },
+             boards: @user_boards.map { |board| board.api_view(current_user) },
+             pagination: {
+               page: user_boards_scope.current_page,
+               per_page: user_boards_scope.limit_value,
+               total_pages: user_boards_scope.total_pages,
+               total_count: user_boards_scope.total_count,
+             },
+           }
   end
 
   def public_boards
@@ -290,6 +297,7 @@ class API::BoardsController < API::ApplicationController
     voice = VoiceService.normalize_voice(board_params["voice"] || params[:voice] || params[:voice_label])
     @board.voice = voice
     @board.language = board_params["language"] if board_params["language"].present?
+    @board.tags = board_params["tags"] if board_params["tags"].present?
     @board.settings = settings
 
     new_slug = @board.generate_unique_slug(board_params["slug"])
@@ -350,6 +358,9 @@ class API::BoardsController < API::ApplicationController
       # @board.update_preset_display_image_url(board_params["display_image_url"]) if board_params["display_image_url"].present?
       @board.predefined = board_params["predefined"]
       @board.category = board_params["category"]
+      @board.tags = board_params["tags"] if board_params["tags"].present?
+      Rails.logger.info "Updating board ID: #{@board.id} with name: #{@board.name}, category: #{@board.category}, tags: #{@board.tags}, voice: #{@board.voice}"
+      Rails.logger.info "Params for update: #{board_params.inspect}"
       @board.language = board_params["language"] if board_params["language"].present?
       @board.favorite = board_params["favorite"] if board_params["favorite"].present?
       @board.published = board_params["published"] if board_params["published"].present?
@@ -915,11 +926,12 @@ class API::BoardsController < API::ApplicationController
     ]
   end
 
-  def guest_boards_index_etag(last_modified, limit_param)
+  def guest_boards_index_etag(last_modified, limit_param, tags: [])
     [
-      "boards-index-guest-v1",
-      last_modified.to_i,
+      "guest-boards-index-v1",
+      last_modified&.to_i,
       limit_param,
+      Array(tags).sort.join("|"),
     ]
   end
 
@@ -928,15 +940,16 @@ class API::BoardsController < API::ApplicationController
     base_scope.maximum(:updated_at) || user.updated_at || Time.zone.at(0)
   end
 
-  def boards_index_etag(user, per_page, base_scope, last_modified, filter:, sort_field:, sort_order:, page:)
+  def boards_index_etag(user, per_page, base_scope, last_modified, filter:, sort_field:, sort_order:, page:, tags: [])
     [
-      "boards-index-user-v2",
+      "user-boards-index-v1",
       user.id,
       filter || "no-filter",
       sort_field,
       sort_order,
       page,
       per_page,
+      Array(tags).sort.join("|"),
       last_modified.to_i,
       base_scope.maximum(:id),
       base_scope.count,
@@ -1038,7 +1051,7 @@ class API::BoardsController < API::ApplicationController
                                   :image_id,
                                   :query,
                                   :page,
-                                  :display_image_url, :category, :image_ids_to_remove, :board_type, settings: {}, margin_settings: {})
+                                  :display_image_url, :category, :image_ids_to_remove, :board_type, settings: {}, margin_settings: {}, tags: [])
   end
 
   def attach_image_to_board(image_data, file_extension)

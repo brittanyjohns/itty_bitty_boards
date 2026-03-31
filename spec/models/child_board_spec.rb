@@ -13,6 +13,8 @@
 #  favorite          :boolean          default(FALSE)
 #  created_by_id     :bigint
 #  original_board_id :bigint
+#  layout            :jsonb
+#  position          :integer
 #
 require 'rails_helper'
 
