@@ -21,6 +21,7 @@ class GenerateBoardPreviewJob
       routes: Rails.application.routes.url_helpers,
     ).call(generate_png: generate_png, generate_pdf: generate_pdf)
 
+    board.reload
     if board.preview_image.attached?
       preview_image_url = board.preview_image_url
       board.update_preset_display_image_url(preview_image_url)

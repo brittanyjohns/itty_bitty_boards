@@ -223,6 +223,7 @@ class Board < ApplicationRecord
       if cdn_host
         "#{cdn_host}/#{preview_image.key}" # Construct CloudFront URL
       else
+        Rails.logger.warn "CDN_HOST not set, falling back to direct Active Storage URL for preview image"
         preview_image.url # Fallback to the direct Active Storage URL
       end
     else
@@ -1443,7 +1444,7 @@ class Board < ApplicationRecord
       token_limit: token_limit,
       cost: cost,
       audio_url: audio_url,
-      display_image_url: display_image_url || preset_display_image_url,
+      display_image_url: display_image_url || preview_image_url,
       # floating_words: words,
       common_words: Board.common_words,
       user_id: user_id,
@@ -1716,6 +1717,9 @@ class Board < ApplicationRecord
     can_edit = viewing_user && (user_id == viewing_user.id || viewing_user.admin?)
 
     @in_a_public_group = false
+    @display_image_url = display_image_url
+    @preview_image_url = preview_image_url
+
     if viewing_user && viewing_user.admin?
       @in_a_public_group = in_a_public_group?
     end
@@ -1759,7 +1763,8 @@ class Board < ApplicationRecord
       status: status,
       token_limit: token_limit,
       cost: cost,
-      display_image_url: display_image_url,
+      display_image_url: @display_image_url || @preview_image_url,
+      preview_image_url: @preview_image_url,
       board_type: board_type,
       user_id: user_id,
       voice: voice,
@@ -1791,6 +1796,7 @@ class Board < ApplicationRecord
       # image_count: board_images_count,
       can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
       display_image_url: display_image_url,
+      preview_image_url: preview_image_url,
       word_sample: word_sample,
       frozen: is_frozen?,
       word_list: data["current_word_list"],
