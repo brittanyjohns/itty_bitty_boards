@@ -936,6 +936,7 @@ class Board < ApplicationRecord
         new_board_image.save
       end
     end
+    @cloned_board.run_generate_preview_job if @cloned_board.board_images.any? && @cloned_board.valid?
 
     unless communicator_account.nil? || communicator_account.child_boards.where(board_id: @cloned_board.id).exists?
       comm_board = communicator_account.child_boards.new(board: @cloned_board, created_by_id: cloned_user_id, original_board: @source)
