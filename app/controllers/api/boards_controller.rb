@@ -365,8 +365,6 @@ class API::BoardsController < API::ApplicationController
       @board.predefined = board_params["predefined"]
       @board.category = board_params["category"]
       @board.tags = board_params["tags"] if board_params["tags"].present?
-      Rails.logger.info "Updating board ID: #{@board.id} with name: #{@board.name}, category: #{@board.category}, tags: #{@board.tags}, voice: #{@board.voice}"
-      Rails.logger.info "Params for update: #{board_params.inspect}"
       @board.language = board_params["language"] if board_params["language"].present?
       @board.favorite = board_params["favorite"] if board_params["favorite"].present?
       @board.published = board_params["published"] if board_params["published"].present?
