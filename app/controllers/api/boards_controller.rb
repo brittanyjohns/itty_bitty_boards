@@ -38,6 +38,9 @@ class API::BoardsController < API::ApplicationController
     end
     filter = filter_param
 
+    public_tags = Board.public_boards_tags
+    Rails.logger.info "public_tags: #{public_tags.inspect}"
+
     # ---------------------------
     # 1. GUEST (no current_user)
     # ---------------------------
@@ -55,7 +58,6 @@ class API::BoardsController < API::ApplicationController
 
       static_boards = static_scope.to_a
       payload = static_boards.map(&:api_view)
-      public_tags = Board.public_boards_tags
 
       render json: {
                boards: payload,
@@ -909,7 +911,7 @@ class API::BoardsController < API::ApplicationController
 
   def public_boards_etag(scope, last_modified)
     [
-      "public-boards-v1",
+      "public-boards-v2",
       last_modified.to_i,
       scope.maximum(:id),
       scope.count,
@@ -932,7 +934,7 @@ class API::BoardsController < API::ApplicationController
 
   def guest_boards_index_etag(last_modified, limit_param, tags: [])
     [
-      "guest-boards-index-v1",
+      "guest-boards-index-v2",
       last_modified&.to_i,
       limit_param,
       Array(tags).sort.join("|"),
@@ -946,7 +948,7 @@ class API::BoardsController < API::ApplicationController
 
   def boards_index_etag(user, per_page, base_scope, last_modified, filter:, sort_field:, sort_order:, page:, tags: [])
     [
-      "user-boards-index-v1",
+      "user-boards-index-v2",
       user.id,
       filter || "no-filter",
       sort_field,
