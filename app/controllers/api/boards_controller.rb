@@ -55,9 +55,11 @@ class API::BoardsController < API::ApplicationController
 
       static_boards = static_scope.to_a
       payload = static_boards.map(&:api_view)
+      public_tags = Board.public_boards_tags
 
       render json: {
                boards: payload,
+               public_tags: public_tags,
                pagination: {
                  page: static_scope.current_page,
                  per_page: static_scope.limit_value,
@@ -108,6 +110,7 @@ class API::BoardsController < API::ApplicationController
 
       render json: {
                boards: result[:boards],
+               public_tags: public_tags,
                pagination: {
                  page: result[:page],
                  per_page: result[:per_page],
@@ -156,6 +159,7 @@ class API::BoardsController < API::ApplicationController
     render json: {
              newly_created_boards: @newly_created_boards.map { |board| board.api_view(current_user) },
              boards: @user_boards.map { |board| board.api_view(current_user) },
+             public_tags: public_tags,
              pagination: {
                page: user_boards_scope.current_page,
                per_page: user_boards_scope.limit_value,
@@ -198,7 +202,7 @@ class API::BoardsController < API::ApplicationController
 
   def public_menu_boards
     @public_menu_boards = Board.public_menu_boards.alphabetical.all
-    render json: { public_menu_boards: @public_menu_boards.map(&:api_view) }
+    render json: { public_menu_boards: @public_menu_boards.map(&:api_view), public_tags: Board.public_boards_tags }
   end
 
   def categories
@@ -210,7 +214,7 @@ class API::BoardsController < API::ApplicationController
     # @boards = boards_for_user.user_made_with_scenarios_and_menus.alphabetical
     @boards = current_user.boards.user_made_with_scenarios.alphabetical
 
-    render json: { boards: @boards, dynamic_boards: current_user.boards.dynamic.alphabetical }
+    render json: { boards: @boards, dynamic_boards: current_user.boards.dynamic.alphabetical, public_tags: Board.public_boards_tags }
   end
 
   def predictive_image_board

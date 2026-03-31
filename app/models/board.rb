@@ -163,6 +163,10 @@ class Board < ApplicationRecord
     tag.to_s.strip.downcase.gsub(/\s+/, " ")
   end
 
+  def self.public_boards_tags
+    Board.public_boards.distinct.pluck("unnest(tags)").compact.uniq # pluck all tags from public boards, remove nils, and return unique values
+  end
+
   SAFE_FILTERS = %w[all predefined user_made ai_generated predictive public_boards in_use published sub_boards main_boards recent newly_created not_in_use menus].freeze
 
   include ImageHelper
@@ -1707,7 +1711,6 @@ class Board < ApplicationRecord
   def in_use_by
     if in_use
       @original_child_boards = original_child_boards.includes(child_account: :profile)
-      Rails.logger.info "Board #{id} is in use by #{@original_child_boards.size} child boards"
       @communicator_accounts = @original_child_boards&.map(&:child_account).compact.uniq
       @communicator_accounts&.map(&:name)&.join(", ")
     end
