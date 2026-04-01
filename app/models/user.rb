@@ -162,6 +162,8 @@ class User < ApplicationRecord
     end
   end
 
+  attr_accessor :skip_plan_setup
+
   def setup_limits
     case plan_type
     when "free"
@@ -204,14 +206,14 @@ class User < ApplicationRecord
 
   FREE_PLAN_LIMITS = {
     "plan_type" => "free",
-    "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 3).to_i,
+    "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 1).to_i,
     "paid_communicator_limit" => ENV.fetch("FREE_PAID_COMMUNICATOR_LIMIT", 0).to_i,
     "demo_communicator_limit" => ENV.fetch("FREE_DEMO_COMMUNICATOR_LIMIT", 0).to_i,
     "ai_monthly_limit" => ENV.fetch("FREE_AI_MONTHLY_LIMIT", 5).to_i,
   }.freeze
   MYSPEAK_PLAN_LIMITS = {
     "plan_type" => "myspeak",
-    "board_limit" => ENV.fetch("MYSPEAK_BOARD_LIMIT", 10).to_i,
+    "board_limit" => ENV.fetch("MYSPEAK_BOARD_LIMIT", 3).to_i,
     "paid_communicator_limit" => ENV.fetch("MYSPEAK_PAID_COMMUNICATOR_LIMIT", 0).to_i,
     "demo_communicator_limit" => ENV.fetch("MYSPEAK_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
     "ai_monthly_limit" => ENV.fetch("MYSPEAK_AI_MONTHLY_LIMIT", 20).to_i,
@@ -1044,18 +1046,6 @@ class User < ApplicationRecord
     limiter.limit_reached?
   end
 
-  def reset_ai_limits!
-    feature_key = "ai_action"
-    current_user = self
-    limiter = MonthlyFeatureLimiter.new(
-      user_id: current_user.id,
-      feature_key: feature_key,
-      limit: current_user.monthly_limit_for(feature_key),
-      tz: current_user.timezone || "America/New_York",
-    )
-    limiter.reset!
-  end
-
   def should_send_welcome_email?
     Rails.logger.info "Checking if welcome email should be sent to #{email} - created at: #{created_at}, plan type: #{plan_type}, admin: #{admin?}"
     return false if admin?
@@ -1076,7 +1066,7 @@ class User < ApplicationRecord
     true
   end
 
-  TRAIL_PERIOD = 8.days
+  TRAIL_PERIOD = 14.days
 
   def free_trial?
     free? && created_at > TRAIL_PERIOD.ago
@@ -1204,15 +1194,10 @@ class User < ApplicationRecord
   end
 
   def can_use_ai?
-    current_user = self
-    feature_key = "ai_action"
-    limiter = MonthlyFeatureLimiter.new(
-      user_id: current_user.id,
-      feature_key: feature_key,
-      limit: current_user.monthly_limit_for(feature_key),
-      tz: current_user.timezone || "America/New_York",
-    )
-    !limiter.limit_reached?
+    return false if locked?
+    return false if subscription_expired?
+    return false if ai_limit_reached?
+    true
   end
 
   def reset_ai_limits!

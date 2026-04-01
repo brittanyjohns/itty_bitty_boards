@@ -85,6 +85,8 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user.settings["board_limit"] = user_setting_params[:board_limit] || @user.board_limit
     @user.settings["paid_communicator_limit"] = user_setting_params[:paid_communicator_limit] || params[:communicator_limit] || @user.comm_account_limit
     @user.settings["demo_communicator_limit"] = user_setting_params[:demo_communicator_limit] || @user.settings["demo_communicator_limit"] || 0
+    @user.skip_plan_setup = true # prevent resetting limits based on plan_type since we're directly setting them here
+
     if params[:update_ai_limits]
       @user.reset_ai_limits!
     end
