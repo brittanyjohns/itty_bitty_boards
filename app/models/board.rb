@@ -1358,10 +1358,23 @@ class Board < ApplicationRecord
     {
       id: id,
       board_type: board_type,
+      user_id: user_id,
       board_id: id,
       voice: voice,
       margin_settings: margin_settings,
+      data: data,
+      created_at: created_at,
+      updated_at: updated_at,
       settings: settings,
+      has_generating_images: has_generating_images?,
+      number_of_columns: number_of_columns,
+      small_screen_columns: small_screen_columns,
+      medium_screen_columns: medium_screen_columns,
+      large_screen_columns: large_screen_columns,
+      large_screen_rows: rows_for_screen_size("lg"),
+      medium_screen_rows: rows_for_screen_size("md"),
+      small_screen_rows: rows_for_screen_size("sm"),
+      status: status,
       name: name,
       images: @board_images.map do |board_image|
         @board_image = board_image
@@ -1526,9 +1539,6 @@ class Board < ApplicationRecord
       generated_token: generated_token,
       generated_token_expires_at: generated_token_expires_at,
       tags: tags,
-
-      # missing_common_words: missing_common_words,
-      # existing_words: existing_words,
       word_list: current_word_list,
       description: description,
       featured: featured,
