@@ -35,6 +35,19 @@ class GenerateBoardJob
           return
         end
 
+        # downcase word unless it's a proper character (e.g. "I") or contains uppercase letters (e.g. "NASA") or is a phrase (e.g. "What's up?")
+        words = words.map do |word|
+          if word.length > 1 || word.match(/[A-Z]/) || word.include?(" ")
+            word
+          else
+            if word.downcase == "i"
+              "I"
+            else
+              word.downcase
+            end
+          end
+        end
+
         # create_board_tiles_from_words(board, words)
         board.update_column(:status, "finding_images")
         board.find_or_create_images_from_word_list(words)
