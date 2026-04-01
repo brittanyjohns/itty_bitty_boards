@@ -21,6 +21,8 @@ Rails.application.configure do
   # ActiveStorage: only error+
   config.active_storage.logger = ActiveSupport::Logger.new($stdout)
   config.active_storage.logger.level = Logger::DEBUG
+  config.active_storage.variant_processor = :vips
+  config.active_storage.track_variants = true
 
   # Settings specified here will take precedence over those in config/application.rb.
 

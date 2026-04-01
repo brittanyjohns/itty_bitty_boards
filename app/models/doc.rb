@@ -20,6 +20,14 @@
 #  license            :jsonb
 #
 class Doc < ApplicationRecord
+  TILE_VARIANT_TRANSFORMATIONS = {
+    resize_to_limit: [320, 320],
+    format: :webp,
+    saver: {
+      quality: 75,
+      strip: true,
+    },
+  }.freeze
   default_scope { where(deleted_at: nil) }
   belongs_to :user, optional: true
   belongs_to :documentable, polymorphic: true, touch: true
@@ -42,6 +50,49 @@ class Doc < ApplicationRecord
   scope :without_attached_image, -> { where.missing(:image_attachment) }
   scope :no_user, -> { where(user_id: nil) }
   scope :with_user, -> { where.not(user_id: nil) }
+
+  def tile_variant
+    return unless image.attached?
+    return unless image.variable?
+
+    image.variant(TILE_VARIANT_TRANSFORMATIONS)
+  end
+
+  def tile_variant_processed?
+    return false unless image.attached?
+    return false unless image.variable?
+    return false unless image.blob.respond_to?(:variant_records)
+
+    variation = ActiveStorage::Variation.wrap(TILE_VARIANT_TRANSFORMATIONS)
+    image.blob.variant_records.where(variation_digest: variation.digest).exists?
+  rescue => e
+    Rails.logger.warn("[tile-variant] processed? check failed for Doc #{id}: #{e.message}")
+    false
+  end
+
+  def tile_url
+    return original_image_url if !image.attached?
+    return display_url unless image.variable?
+
+    variant = tile_variant
+    return display_url unless variant
+
+    processed_variant = variant.processed
+
+    if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
+      cdn_host = ENV["CDN_HOST"]
+      if cdn_host
+        "#{cdn_host}/#{processed_variant.key}"
+      else
+        Rails.application.routes.url_helpers.url_for(processed_variant)
+      end
+    else
+      Rails.application.routes.url_helpers.url_for(processed_variant)
+    end
+  rescue ActiveStorage::InvariableError => e
+    Rails.logger.warn("[tile-url] invariable doc=#{id}: #{e.message}")
+    display_url
+  end
 
   def hide!
     update(deleted_at: Time.now)
@@ -66,6 +117,7 @@ class Doc < ApplicationRecord
       documentable_type: documentable_type,
       documentable_id: documentable_id,
       src: display_url,
+      tile_src: tile_url,
     }
   end
 
@@ -75,15 +127,6 @@ class Doc < ApplicationRecord
   end
 
   def active_storage_to_data_url
-    # blob = image.blob
-    # puts "Blob: #{blob}"
-    # # Get S3 URL
-    # url = Rails.application.routes.url_helpers.rails_blob_url(blob, only_path: false)
-    # # Download and encode
-    # image_data = URI.open(url).read
-    # mime_type = blob.content_type # e.g., "image/png"
-    # base64_image = Base64.strict_encode64(image_data)
-    # "data:#{mime_type};base64,#{base64_image}"
     url = display_url
     downloaded_image = Down.download(url)
     image_data = downloaded_image.read
@@ -191,6 +234,23 @@ class Doc < ApplicationRecord
   end
 
   include Rails.application.routes.url_helpers
+
+  def tile_variant_marked_processed?
+    data&.dig("tile_variant_processed") == true
+  end
+
+  def mark_tile_variant_processed!
+    self.data ||= {}
+    self.data["tile_variant_processed"] = true
+    update_column(:data, data) # skip callbacks/validation for speed
+  end
+
+  def tile_variant_done?
+    return true if tile_variant_marked_processed?
+
+    # fallback check (rarely used)
+    tile_variant_processed?
+  end
 
   def display_url
     return original_image_url if !image.attached?

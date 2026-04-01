@@ -1056,6 +1056,11 @@ class Image < ApplicationRecord
     self.label = item_name
   end
 
+  def display_tile_url(viewing_user = nil)
+    doc = display_doc(viewing_user)
+    doc ? doc.tile_url : nil
+  end
+
   def display_image(viewing_user = nil)
     display_doc(viewing_user)&.image
   end
@@ -1185,6 +1190,10 @@ class Image < ApplicationRecord
     end
   end
 
+  def tile_image_url(viewing_user = nil)
+    display_image_url || image.display_tile_url(viewing_user) || image.display_image_url(viewing_user) || image.src_url
+  end
+
   def api_view(viewing_user = nil)
     @default_audio_url = default_audio_url
     user_board_imgs = user_board_images(viewing_user)
@@ -1206,7 +1215,8 @@ class Image < ApplicationRecord
       next_words: next_words,
       bg_color: bg_class,
       text_color: text_color,
-      src: display_image_url(viewing_user) || src_url,
+      src: display_tile_url(viewing_user) || display_image_url(viewing_user) || src_url,
+      full_src: display_image_url(viewing_user) || src_url,
       audio_url: @default_audio_url,
       audio: @default_audio_url,
       status: status,
@@ -1223,7 +1233,8 @@ class Image < ApplicationRecord
       id: id,
       label: label,
       image_type: image_type,
-      src: display_image_url(viewing_user) || src_url,
+      src: display_tile_url(viewing_user) || display_image_url(viewing_user) || src_url,
+      full_src: display_image_url(viewing_user) || src_url,
       user_id: user_id,
       matching_viewer_images: matching_viewer_images(viewing_user).map { |img| img.with_display_doc(viewing_user) },
     }

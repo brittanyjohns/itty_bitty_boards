@@ -1353,6 +1353,114 @@ class Board < ApplicationRecord
     end
   end
 
+  def api_view_for_native_grid(viewing_user = nil, show_hidden = false, voice_to_play = nil)
+    @board_images = show_hidden ? board_images.includes(:image) : visible_board_images.includes(:image)
+    {
+      id: id,
+      board_type: board_type,
+      board_id: id,
+      voice: voice,
+      name: name,
+      images: @board_images.map do |board_image|
+        @board_image = board_image
+
+        @image = @board_image.image
+        full_src_url = @board_image.display_image_url || @image.display_image_url(viewing_user) || @image.src_url
+        tile_src_url = @board_image.tile_image_url(viewing_user)
+
+        is_owner = viewing_user && @image.user_id == viewing_user&.id
+        is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
+
+        @predictive_board_id = @board_image.predictive_board_id
+        @predictive_board = @board_image.predictive_board
+
+        @viewer_settings = viewing_user&.settings || {}
+        @predictive_board_settings = @predictive_board&.settings || {}
+
+        @user_custom_default_id = @viewer_settings["opening_board_id"]
+
+        is_dynamic = @board_image.is_dynamic?
+        is_predictive = @image.predictive?
+        if @board_image.predictive_board_id == @root_board&.id
+          is_dynamic = false
+        end
+
+        is_category = @predictive_board && @predictive_board.board_type == "category"
+        freeze_board = @predictive_board_settings["freeze_board"] == true
+        is_first_image = @board_image.position == 0
+
+        @board_image.data ||= {}
+        mute_name = @board_image.data["mute_name"] == true
+        using_custom_audio = @board_image.using_custom_audio?
+        @board_settings = settings || {}
+        freeze_parent_board = @board_settings["freeze_board"] == true
+        if show_hidden
+          @board_images = board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards] }, :predictive_board).distinct
+        else
+          @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards] }, :predictive_board).distinct
+        end
+
+        if voice_to_play.present? && @board_image.voice != voice_to_play && !using_custom_audio
+          current_audio_url = @board_image.audio_url_for_voice(voice_to_play)
+          unless current_audio_url
+            Rails.logger.info "Board - No audio file found for voice #{voice_to_play} on board image #{@board_image.label}, scheduling SaveAudioJob"
+            SaveAudioJob.perform_async(@image.id, voice_to_play, @board_image.id)
+            current_audio_url = @board_image.audio_url
+          end
+        else
+          current_audio_url = @board_image.audio_url
+        end
+        {
+          id: @board_image.id,
+          image_id: @image.id,
+          label: @board_image.label,
+          display_label: @board_image.display_label,
+          hidden: @board_image.hidden,
+          root_board_id: @root_board&.id,
+          root_board_name: @root_board&.name,
+          board_id: id,
+          board_name: name,
+          image_user_id: @image.user_id,
+          predictive_board_id: @predictive_board_id,
+          user_custom_default_id: @user_custom_default_id,
+          predictive_board_board_type: @predictive_board&.board_type,
+          predictive_board_name: @predictive_board&.name,
+          freeze_board: freeze_board,
+          freeze_parent_board: freeze_parent_board,
+          is_first_image: is_first_image,
+          override_frozen: @board_image.override_frozen,
+          position: @board_image.position,
+          dynamic: is_dynamic,
+          is_predictive: is_predictive,
+          board_image_id: @board_image.id.to_s,
+          board_frozen: freeze_parent_board,
+          data: @board_image.data,
+          image_prompt: @board_image.image_prompt,
+          bg_color: @board_image.bg_color,
+          bg_class: @board_image.bg_class,
+          bg_hex: @board_image.bg_hex,
+          text_color: @board_image.text_color,
+          next_words: @board_image.next_words,
+          position: @board_image.position,
+          src_url: full_src_url,
+          mute_name: mute_name,
+          src: tile_src_url || full_src_url,
+          full_src: full_src_url,
+          display_image_url: full_src_url,
+          tile_src: tile_src_url,
+          audio_url: current_audio_url,
+          voice: @board_image.voice,
+          layout: @board_image.layout.with_indifferent_access,
+          added_at: @board_image.added_at,
+          part_of_speech: @image.part_of_speech,
+          data: @board_image.data,
+          status: @board_image.status,
+        }
+      end,
+    # layout: print_grid_layout,
+    }
+  end
+
   def api_view_with_predictive_images(viewing_user = nil, show_hidden = false, voice_to_play = nil)
     @viewer_settings = viewing_user&.settings || {}
     is_a_user = viewing_user.class == "User"
@@ -1463,10 +1571,9 @@ class Board < ApplicationRecord
       current_colors: current_colors,
       images: @board_images.map do |board_image|
         @board_image = board_image
-
-        @label = @board_image.label
-
         @image = @board_image.image
+        full_src_url = @board_image.display_image_url || @image.display_image_url(viewing_user) || @image.src_url
+        tile_src_url = @board_image.tile_image_url(viewing_user)
 
         is_owner = viewing_user && @image.user_id == viewing_user&.id
         is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
@@ -1540,11 +1647,12 @@ class Board < ApplicationRecord
           text_color: @board_image.text_color,
           next_words: @board_image.next_words,
           position: @board_image.position,
-          src_url: @board_image.display_image_url || @image.src_url,
+          src_url: full_src_url,
           mute_name: mute_name,
-          # src: @image.src_url || @board_image.display_image_url || @image.display_image_url(viewing_user),
-          src: @board_image.display_image_url || @image.display_image_url(viewing_user),
-          display_image_url: @board_image.display_image_url_or_default(viewing_user),
+          src: tile_src_url || full_src_url,
+          full_src: full_src_url,
+          display_image_url: full_src_url,
+          tile_src: tile_src_url,
           audio_url: current_audio_url,
           voice: @board_image.voice,
           layout: @board_image.layout.with_indifferent_access,

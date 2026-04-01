@@ -202,6 +202,10 @@ class BoardImage < ApplicationRecord
     display_image_url || image.display_image_url(viewing_user) || image.src_url
   end
 
+  def tile_image_url(viewing_user = nil)
+    display_image_url || image.display_tile_url(viewing_user) || image.display_image_url(viewing_user) || image.src_url
+  end
+
   def get_predictive_image_for(viewing_user)
     user_id_to_search = viewing_user ? viewing_user.id : nil
     images = Image.with_artifacts.where(user_id: [user_id_to_search, User::DEFAULT_ADMIN_ID], label: label)
@@ -266,7 +270,7 @@ class BoardImage < ApplicationRecord
     puts "is_dynamic: #{is_dynamic}"
     {
       id: id.to_s,
-      url: display_image_url || image.display_image_url(viewing_user) || image.src_url,
+      url: display_image_url_or_default(viewing_user),
       width: 850, # this might need to be changed
       height: 850, # this might need to be changed
       content_type: image.content_type,
