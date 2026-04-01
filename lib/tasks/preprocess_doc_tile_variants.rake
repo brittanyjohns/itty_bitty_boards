@@ -25,8 +25,6 @@ namespace :docs do
       .with_attached_image
       .where("docs.data ->> 'tile_variant_processed' IS DISTINCT FROM 'true'")
 
-    left_to_process = base_scope.count
-
     puts "Base scope: #{base_scope.count} docs"
 
     base_scope = base_scope.where("docs.id >= ?", start_id) if start_id.present?
@@ -36,6 +34,8 @@ namespace :docs do
       .order("docs.documentable_id, docs.created_at DESC")
 
     latest_doc_ids = latest_doc_scope.pluck(:id).uniq
+    total_candidate_docs = latest_doc_ids.size
+    left_to_process = total_candidate_docs
     latest_doc_ids = latest_doc_ids.first(limit) if limit.present?
 
     already_enqueued_doc_ids = Set.new
