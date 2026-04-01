@@ -1360,6 +1360,8 @@ class Board < ApplicationRecord
       board_type: board_type,
       board_id: id,
       voice: voice,
+      margin_settings: margin_settings,
+      settings: settings,
       name: name,
       images: @board_images.map do |board_image|
         @board_image = board_image
