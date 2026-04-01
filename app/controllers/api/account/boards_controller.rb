@@ -163,7 +163,7 @@ class API::Account::BoardsController < API::Account::ApplicationController
         render json: { error: "No board found" }, status: :not_found
       end
     end
-    render json: @board.api_view_with_predictive_images(current_account)
+    render json: @board.api_view_for_native_grid(current_account)
   end
 
   private

@@ -236,7 +236,7 @@ class API::BoardsController < API::ApplicationController
     return unless stale?(etag: etag, last_modified: last_modified, template: false)
 
     payload = RailsPerformance.measure("Predictive Image Board") do
-      board.api_view_with_predictive_images(current_user, false, effective_voice)
+      board.api_view_for_native_grid(current_user, false, effective_voice)
     end
 
     render json: payload

@@ -51,6 +51,8 @@ Rails.application.configure do
   config.active_storage.content_types_to_serve_as_binary -= ["image/svg+xml", "image/svg"]
   config.active_storage.content_types_allowed_inline += ["image/svg+xml", "image/svg"]
 
+  config.active_storage.variant_processor = :vips
+
   # Mount Action Cable outside main process or domain.
   # config.action_cable.mount_path = nil
   # config.action_cable.url = "wss://app.speakanyway.com/cable"

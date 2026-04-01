@@ -10,55 +10,107 @@ module ImageHelper
 
   def save_image(url, user_id = nil, revised_prompt = nil, edited_prompt = nil, source_type = "OpenAI")
     return if Rails.env.test?
+
     begin
       downloaded_image = Down.download(url)
       user_id ||= self.user_id
       raw_txt = edited_prompt || name_to_send
-      doc = self.docs.create!(raw: raw_txt, user_id: user_id, processed: revised_prompt, source_type: source_type, original_image_url: url)
-      extension = doc.extension || "webp"
-      doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.webp", content_type: "image/webp")
+
+      doc = self.docs.create!(
+        raw: raw_txt,
+        user_id: user_id,
+        processed: revised_prompt,
+        source_type: source_type,
+        original_image_url: url,
+      )
+      content_type = downloaded_image.content_type.presence || "image/webp"
+      ext = content_type.split("/").last || "webp"
+
+      doc.image.attach(
+        io: downloaded_image,
+        filename: "img_#{self.id}_doc_#{doc.id}.#{ext}",
+        content_type: content_type,
+      )
+
+      PreprocessDocTileVariantJob.perform_async(doc.id)
+
       self.update(status: "finished")
     rescue => e
       puts "ImageHelper ERROR: #{e.inspect}"
       raise e
     end
+
     doc
   end
 
   def save_image_from_base64(b64_json, user_id = nil, revised_prompt = nil, edited_prompt = nil, source_type = "OpenAI")
     return if Rails.env.test?
+
     begin
       decoded_image = Base64.decode64(b64_json)
       user_id ||= self.user_id
       raw_txt = edited_prompt || name_to_send
-      doc = self.docs.create!(raw: raw_txt, user_id: user_id, processed: revised_prompt, source_type: source_type)
-      doc.data = { b64_json: true }
-      doc.image.attach(io: StringIO.new(decoded_image), filename: "img_#{self.id}_doc_#{doc.id}.png", content_type: "image/png")
-      self.update(status: "finished")
 
+      doc = self.docs.create!(
+        raw: raw_txt,
+        user_id: user_id,
+        processed: revised_prompt,
+        source_type: source_type,
+        data: { b64_json: true },
+      )
+
+      doc.image.attach(
+        io: StringIO.new(decoded_image),
+        filename: "img_#{self.id}_doc_#{doc.id}.png",
+        content_type: "image/png",
+      )
+
+      PreprocessDocTileVariantJob.perform_async(doc.id)
+
+      self.update(status: "finished")
       update_all_boards_image_belongs_to(doc.display_url)
     rescue => e
       puts "ImageHelper ERROR: #{e.inspect}"
       raise e
     end
+
     doc
   end
 
   def save_from_url(url, processed, raw_txt, file_format = "image/webp", user_id = nil, source_type = "GoogleSearch")
     return if Rails.env.test?
+
     begin
       Rails.logger.info "Downloading image from: #{url}"
       downloaded_image = Down.download(url)
       user_id ||= self.user_id
       ext = file_format.split("/").last || "webp"
-      doc = self.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: source_type, original_image_url: url)
-      doc.image.attach(io: downloaded_image, filename: "img_#{self.id}_doc_#{doc.id}.#{ext}", content_type: file_format) if downloaded_image
-      self.update(status: "finished", src_url: url)
-      update_all_boards_image_belongs_to(url)
+
+      doc = self.docs.create!(
+        raw: raw_txt,
+        user_id: user_id,
+        processed: processed,
+        source_type: source_type,
+        original_image_url: url,
+      )
+
+      if downloaded_image
+        doc.image.attach(
+          io: downloaded_image,
+          filename: "img_#{self.id}_doc_#{doc.id}.#{ext}",
+          content_type: file_format,
+        )
+
+        PreprocessDocTileVariantJob.perform_async(doc.id)
+      end
+
+      self.update(status: "finished", src_url: doc.display_url)
+      update_all_boards_image_belongs_to(doc.display_url)
     rescue => e
       Rails.logger.error "ImageHelper ERROR: #{e.inspect}"
       raise e
     end
+
     doc
   end
 
