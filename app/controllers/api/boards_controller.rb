@@ -408,7 +408,6 @@ class API::BoardsController < API::ApplicationController
             # only save if changes are present
             layout = params[:layout].map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
             if @board.layout != layout
-              Rails.logger.info "Updating board layout for board ID: #{@board.id}"
               save_layout!
             end
           end

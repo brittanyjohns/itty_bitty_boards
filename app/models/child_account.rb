@@ -508,7 +508,6 @@ class ChildAccount < ApplicationRecord
 
   def update_board_layout(screen_size)
     self.layout = {}
-    Rails.logger.info "Updating board layout for ChildAccount #{id} and screen size #{screen_size}"
     self.layout[screen_size] = {}
     child_boards.order(:position).each do |cb|
       cb.layout[screen_size] = cb.layout[screen_size] || { x: 0, y: 0, w: 1, h: 1 } # Set default layout
