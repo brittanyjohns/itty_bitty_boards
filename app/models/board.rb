@@ -1375,6 +1375,7 @@ class Board < ApplicationRecord
       medium_screen_rows: rows_for_screen_size("md"),
       small_screen_rows: rows_for_screen_size("sm"),
       status: status,
+      slug: slug,
       name: name,
       images: @board_images.map do |board_image|
         @board_image = board_image
@@ -1472,7 +1473,7 @@ class Board < ApplicationRecord
           status: @board_image.status,
         }
       end,
-    # layout: print_grid_layout,
+      layout: print_grid_layout,
     }
   end
 
