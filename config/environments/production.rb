@@ -52,6 +52,7 @@ Rails.application.configure do
   config.active_storage.content_types_allowed_inline += ["image/svg+xml", "image/svg"]
 
   config.active_storage.variant_processor = :vips
+  config.active_storage.track_variants = true
 
   # Mount Action Cable outside main process or domain.
   # config.action_cable.mount_path = nil

@@ -235,6 +235,23 @@ class Doc < ApplicationRecord
 
   include Rails.application.routes.url_helpers
 
+  def tile_variant_marked_processed?
+    data&.dig("tile_variant_processed") == true
+  end
+
+  def mark_tile_variant_processed!
+    self.data ||= {}
+    self.data["tile_variant_processed"] = true
+    update_column(:data, data) # skip callbacks/validation for speed
+  end
+
+  def tile_variant_done?
+    return true if tile_variant_marked_processed?
+
+    # fallback check (rarely used)
+    tile_variant_processed?
+  end
+
   def display_url
     return original_image_url if !image.attached?
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
