@@ -938,10 +938,6 @@ class User < ApplicationRecord
     email.include?("bhannajohns+") || email.include?("@speakanyway.com")
   end
 
-  def subscription_expired?
-    plan_expires_at && plan_expires_at < Time.now
-  end
-
   def partner_pro?
     pro? && role == "partner"
   end
@@ -1195,7 +1191,6 @@ class User < ApplicationRecord
 
   def can_use_ai?
     return false if locked?
-    return false if subscription_expired?
     return false if ai_limit_reached?
     true
   end
