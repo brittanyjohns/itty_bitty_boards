@@ -24,15 +24,11 @@ class GenerateBoardPreviewJob
     board.reload
     if board.preview_image.attached?
       preview_image_url = board.preview_image_url
-      Rails.logger.info ">>Generated new preview image for board #{board_id} at url: #{preview_image_url}"
       board.update_preset_display_image_url(preview_image_url)
-      # if board.display_image_url.blank? || board.display_image_url == original_preview_image_url
       board.update_column(:display_image_url, preview_image_url) if board.user_id.nil?
-      # end
-      # update any board using the old preview image as their display image to use the new preview image
       result = Board.where(display_image_url: original_preview_image_url).update_all(display_image_url: preview_image_url)
       if result > 0
-        Rails.logger.info ">>Updated display_image_url for #{result} boards to new preview image URL for board #{board_id} to new url: #{preview_image_url}"
+        Rails.logger.debug "Updated display_image_url for #{result} boards to new preview image URL for board #{board_id} to new url: #{preview_image_url}"
       end
     end
   end

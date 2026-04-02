@@ -53,7 +53,6 @@ module API
       end
 
       def create
-        Rails.logger.info "Attempting to sign in user with email: #{params[:email]}"
         if (user = User.valid_credentials?(params[:email], params[:password]))
           if user.locked?
             render json: { error: "Your account is locked. Please contact support." }, status: :unauthorized
@@ -67,7 +66,6 @@ module API
               user.save!
             end
           end
-          Rails.logger.info "User signed in: #{user.email} at #{Time.now}"
           sign_in user
           user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
           MailchimpEventJob.perform_async(user.id, "sign_in")

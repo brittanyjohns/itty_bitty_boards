@@ -4,8 +4,8 @@ class ApplicationMailer < ActionMailer::Base
 
   def initialize(*args)
     super
-    # logo
-    # myspeak_logo
+    logo
+    myspeak_logo
   end
 
   def logo

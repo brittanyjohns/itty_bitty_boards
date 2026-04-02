@@ -128,8 +128,8 @@ class Board < ApplicationRecord
   scope :dynamic_defaults, -> { where(name: "Dynamic Default", parent_type: "PredefinedResource") }
 
   # scope :with_artifacts, -> { includes({ board_images: { image: [:docs, :audio_files_attachments, :audio_files_blobs] } }) }
-  scope :with_artifacts, -> { includes({ board_images: [{ image: [{ docs: [:image_attachment, :image_blob, :user_docs] }, :audio_files_attachments, :audio_files_blobs, :user] }] }, :image_parent, :preview_image_attachment, :preview_image_blob) }
-
+  # scope :with_artifacts, -> { includes({ board_images: [{ image: [{ docs: [:image_attachment, :image_blob, :user_docs] }, :audio_files_attachments, :audio_files_blobs, :user] }] }, :image_parent, :preview_image_attachment, :preview_image_blob) }
+  scope :with_artifacts, -> { includes(:board_images, :user, :preview_image_attachment, :preview_image_blob) }
   scope :in_use, -> { where(in_use: true) }
   scope :not_in_use, -> { main_boards.where(in_use: false) }
   scope :templates, -> { where(is_template: true) }
@@ -1635,7 +1635,7 @@ class Board < ApplicationRecord
           board_name: name,
           image_user_id: @image.user_id,
           using_custom_audio: using_custom_audio,
-          docs: @image.docs.for_user(viewing_user).order(created_at: :desc).limit(15).map { |doc| doc.api_view(viewing_user) },
+          # docs: @image.docs.for_user(viewing_user).order(created_at: :desc).limit(15).map { |doc| doc.api_view(viewing_user) },
           predictive_board_id: @predictive_board_id,
           user_custom_default_id: @user_custom_default_id,
           predictive_board_board_type: @predictive_board&.board_type,

@@ -14,7 +14,7 @@ class API::SubscriptionsController < API::ApplicationController
       customer: current_user.stripe_customer_id,
       return_url: "#{DOMAIN}/dashboard",
     })
-    render json: { url: session.url }, status: 200
+    render json: { url: session&.url }, status: 200
   end
 
   def create_customer_session
