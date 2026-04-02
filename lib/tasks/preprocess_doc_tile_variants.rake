@@ -21,6 +21,8 @@ namespace :docs do
     base_scope = Doc
       .joins("INNER JOIN images ON images.id = docs.documentable_id")
       .joins("INNER JOIN board_images ON board_images.image_id = images.id")
+      .joins("INNER JOIN boards ON boards.id = board_images.board_id")
+      .where("boards.published = true OR boards.predefined = true")
       .where(documentable_type: "Image")
       .with_attached_image
       .where("docs.data ->> 'tile_variant_processed' IS DISTINCT FROM 'true'")
