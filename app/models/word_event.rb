@@ -41,7 +41,6 @@ class WordEvent < ApplicationRecord
     return unless profile.present? && profile.profileable_type == "ChildAccount"
     self.child_account = profile.profileable
     self.child_account_id = child_account.id if child_account.present?
-    Rails.logger.info "Setting child_account_id to #{child_account_id} for WordEvent ID: #{id}" if child_account_id.present?
     save
   rescue StandardError => e
     Rails.logger.error "Error setting child_account for WordEvent ID: #{id}, Error: #{e.message}"

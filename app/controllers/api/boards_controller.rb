@@ -39,8 +39,6 @@ class API::BoardsController < API::ApplicationController
     filter = filter_param
 
     public_tags = Board.public_boards_tags
-    Rails.logger.info "public_tags: #{public_tags.inspect}"
-
     # ---------------------------
     # 1. GUEST (no current_user)
     # ---------------------------
@@ -309,7 +307,6 @@ class API::BoardsController < API::ApplicationController
     new_slug = @board.generate_unique_slug(board_params["slug"])
     @board.slug = new_slug
 
-    Rails.logger.info "Creating board with name: #{@board.name}, type: #{@board.board_type}, creation_type: #{creation_type}, user_id: #{current_user.id}"
     respond_to do |format|
       if @board.save
         word_count = params[:wordCount].presence || params[:word_count].presence.to_i || 12
@@ -322,7 +319,6 @@ class API::BoardsController < API::ApplicationController
         when "scenario"
           topic = params[:topic] || params[:prompt] || @board.name
           age_range = params[:ageRange].presence || params[:age_range].presence
-          Rails.logger.info "Enqueuing GenerateBoardJob for scenario board with topic: #{topic}, age_range: #{age_range}, word_count: #{word_count}"
           GenerateBoardJob.perform_async(@board.id, creation_type, { "topic" => topic, "age_range" => age_range, "word_count" => word_count })
         else
           GenerateBoardJob.perform_async(@board.id, creation_type, { "word_count" => word_count })
@@ -596,6 +592,7 @@ class API::BoardsController < API::ApplicationController
       end
     end
     if additional_words.blank?
+      Rails.logger.error "No additional words found for prompt: #{prompt} - creation_type: #{creation_type}"
       render json: { error: "No additional words found" }, status: :unprocessable_entity
       return
     end

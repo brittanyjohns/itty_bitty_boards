@@ -80,12 +80,9 @@ class API::BoardScreenshotImportsController < API::ApplicationController
           @board.settings["snap_to_screen"] = snap_to_screen
           @board.save!
         end
-        Rails.logger.info "Linked BoardImage ID=#{board_image.id} to predictive Board ID=#{@board.id}"
       else
         Rails.logger.error "Failed to link BoardImage ID=#{board_image.id} to predictive Board ID=#{@board.id}: #{board_image.errors.full_messages.join(", ")}"
       end
-    else
-      Rails.logger.info "No BoardImage found with ID=#{board_image_id} to link to predictive board."
     end
     render json: { ok: true, board_id: @board.id, slug: @board.slug }
   end

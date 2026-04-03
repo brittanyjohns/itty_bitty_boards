@@ -38,7 +38,6 @@ class API::GeneratedBoardsController < API::ApplicationController
       board.voice = "polly:kevin"
       board.status = "generating"
       if board.save
-        Rails.logger.info "Board #{board.id} created successfully with generated token #{board.generated_token}. Enqueuing GenerateFreeBoardJob."
         GenerateFreeBoardJob.perform_async(board.id, topic, age_range, word_count.to_i)
 
         render json: {

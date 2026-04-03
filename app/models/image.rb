@@ -278,6 +278,10 @@ class Image < ApplicationRecord
     new_board = false
     base_board_id = board_settings[:board_id]
     base_board = nil
+    if words_to_use.blank?
+      Rails.logger.error "No word list provided for predictive board creation for Image #{id} - #{label}."
+      return
+    end
     if base_board_id
       base_board = Board.find_by(id: base_board_id)
     end
@@ -296,21 +300,12 @@ class Image < ApplicationRecord
       Rails.logger.error "Could not create predictive board for #{label}"
       return
     end
-    # new_base_board_image = base_board.add_image(self.id) if base_board
-    board.update!(display_image_url: src_url) if src_url
 
-    # self.image_type = "predictive"
-    # if new_base_board_image
-    #   new_base_board_image.predictive_board_id = board.id
-    #   new_base_board_image.save!
-    #   base_board.update!(board_type: "dynamic")
-    # end
     voice = board_settings[:voice] || voice
     board.voice = voice if voice
-    # board.find_or_create_images_from_word_list(words_to_use)
-    # board.board_type = "predictive"
-    # board.reset_layouts if new_board
-    GenerateBoardJob.perform_async(board.id, "predictive", { "word_list" => words_to_use }) if words_to_use
+    board.update!(display_image_url: src_url) if src_url
+
+    GenerateBoardJob.perform_async(board.id, "predictive", { "word_list" => words_to_use, "starting_phrase_or_word" => label, "word_count" => words_to_use.length })
     board
   end
 

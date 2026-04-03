@@ -1,9 +1,11 @@
 class GenerateBoardJob
   include Sidekiq::Job
+  sidekiq_options retry: 1, queue: :default
 
   def perform(board_id, board_creation_type, options = {})
     word_count = options["word_count"].presence || options["wordCount"].presence.to_i || 12
     board = Board.find_by(id: board_id)
+    Rails.logger.info "Starting GenerateBoardJob for Board ID #{board_id} with creation type #{board_creation_type} and options: #{options.inspect}"
     if board
       words = []
       begin
@@ -24,8 +26,9 @@ class GenerateBoardJob
           # Placeholder for future menu-based word generation logic
           words = []
         when "predictive"
-          starting_phrase_or_word = options["starting_phrase_or_word"] || options["startingPhraseOrWord"] || ""
-          words = board.get_words_for_predictive(starting_phrase_or_word, word_count)
+          starting_phrase_or_word = options["starting_phrase_or_word"] || options["startingPhraseOrWord"]
+          words = options["word_list"] || options["wordList"] || []
+          words = board.get_words_for_predictive(starting_phrase_or_word, word_count) if words.empty?
         else
           words = options["word_list"] || options["wordList"] || []
         end

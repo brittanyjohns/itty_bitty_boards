@@ -8,7 +8,6 @@ class CreateAllAudioJob
       Rails.logger.error "Image not found with id: #{image_id}"
       return
     end
-    Rails.logger.info "CreateAllAudioJob - Creating #{scope} audio files for image: #{image.label}"
     if scope == "select"
       image.create_audio_for_select_voices(language)
     else

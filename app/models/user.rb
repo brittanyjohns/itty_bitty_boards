@@ -1043,14 +1043,11 @@ class User < ApplicationRecord
   end
 
   def should_send_welcome_email?
-    Rails.logger.info "Checking if welcome email should be sent to #{email} - created at: #{created_at}, plan type: #{plan_type}, admin: #{admin?}"
     return false if admin?
     if settings["welcome_email_sent"] == true
-      Rails.logger.info "Welcome email already sent to #{email}"
       return false
     end
     if plan_type == "myspeak"
-      Rails.logger.info "Skipping welcome email for myspeak user #{email}"
       return false
     end
     true
@@ -1115,7 +1112,6 @@ class User < ApplicationRecord
     board_limit = board_limit.to_i if board_limit
     board_limit = 1 unless board_limit && board_limit > 0
     board_count = boards.count
-    Rails.logger.info "User #{id} - Board limit: #{board_limit}, Board count: #{board_count}"
     can_create_boards = board_limit > board_count
     board_limit_reached = board_count >= board_limit
     view["admin"] = admin?
@@ -1358,7 +1354,6 @@ class User < ApplicationRecord
         delete_stripe_customer: delete_stripe_customer,
       )
     else
-      Rails.logger.info "No Stripe customer to delete for user #{id} - platform: #{platform}"
       anonymize_personal_data_and_delete_all_data(deleted_at: Time.current, reason: reason, actor_id: actor_id)
     end
   end

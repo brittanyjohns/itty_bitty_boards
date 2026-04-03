@@ -34,7 +34,6 @@ class API::Account::ChildBoardsController < API::Account::ApplicationController
 
     # normalize voice
     voice = params[:voice].presence
-    Rails.logger.info("Child board -- Voice parameter received: #{voice.inspect}")
     voice = "openai:alloy" if voice == "alloy"
     effective_voice = voice || @board.voice
 
@@ -50,7 +49,6 @@ class API::Account::ChildBoardsController < API::Account::ApplicationController
 
     if stale?(etag: etag, last_modified: last_modified, template: false)
       @board_with_images = RailsPerformance.measure("Predictive Image Board") do
-        Rails.logger.info "Rendering predictive image board with ID: #{@board.id}, effective voice: #{effective_voice}"
         @board.api_view_with_predictive_images(@user, false, effective_voice)
       end
 

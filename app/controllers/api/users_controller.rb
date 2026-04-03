@@ -77,9 +77,7 @@ class API::UsersController < API::ApplicationController
 
     if current_user.update(unconfirmed_email: new_email)
       token = SecureRandom.hex(16)
-      Rails.logger.info "Generated email confirmation token for user #{current_user.id}: #{token}"
       if current_user.update(confirmation_token: token, confirmation_sent_at: Time.current)
-        Rails.logger.info "Updated user #{current_user.id} with confirmation token and sent_at"
         UserMailer.confirm_update_email(current_user).deliver_now
         render json: {
                  message: "Confirmation email sent to #{new_email}. Your current email will stay active until you confirm.",
@@ -167,7 +165,6 @@ class API::UsersController < API::ApplicationController
 
   def send_delete_account_email
     @user = current_user
-    Rails.logger.info "Generating delete account token for user #{@user.id}"
     expire_time = 2.hours.from_now
     @user.delete_account_token = SecureRandom.hex(16)
     @user.delete_account_token_expires_at = expire_time

@@ -21,10 +21,8 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   def set_current_audio
-    Rails.logger.info "Setting current audio for BoardImage ID: #{params[:id]} - #{board_image_params}"
     @board_image = BoardImage.find(params[:id])
     if @board_image.update(audio_url: board_image_params[:audio_url], voice: board_image_params[:voice])
-      Rails.logger.info "Successfully set current audio for BoardImage ID: #{params[:id]}"
       render json: @board_image.api_view(current_user)
     else
       Rails.logger.error "Failed to set current audio for BoardImage ID: #{params[:id]} - #{@board_image.errors.full_messages}"
@@ -297,7 +295,7 @@ class API::BoardImagesController < API::ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_board_image
-    @board_image = BoardImage.find_by(id: params[:id])
+    @board_image = BoardImage.includes(:audio_files_attachments).find_by(id: params[:id])
     if @board_image.nil?
       Rails.logger.error "BoardImage with ID #{params[:id]} not found."
       render json: { error: "Board image not found" }, status: :unprocessable_entity

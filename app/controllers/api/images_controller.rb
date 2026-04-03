@@ -398,7 +398,6 @@ class API::ImagesController < API::ApplicationController
     @image = Image.find(params[:id])
     board_id = params[:board_id]
     @board = Board.with_artifacts.find_by(id: board_id) if board_id.present?
-    snap_to_screen = @board.settings["snap_to_screen"] if @board && @board.settings
     unless @board.nil?
       @board_image = @board.board_images.find_by(image_id: @image.id)
       if @board_image.nil?
@@ -420,7 +419,6 @@ class API::ImagesController < API::ApplicationController
     predictive_board = @image.create_predictive_board(user_id, word_list, new_board_name, board_settings, column_data)
 
     predictive_board.display_image_url = @board_image.display_image_url if @board_image
-    predictive_board.settings["snap_to_screen"] = snap_to_screen if snap_to_screen
     predictive_board.save!
 
     unless @board_image && predictive_board
@@ -445,7 +443,6 @@ class API::ImagesController < API::ApplicationController
       return
     end
     limit = current_user.admin? ? ADMIN_SYMBOL_LIMIT : SYMBOL_LIMMIT
-    # @image.update(status: "generating") unless @image.generating?
     result = @image.generate_matching_symbol(limit)
     # @image.update(status: "finished") unless @image.finished?
     # render json: { status: "ok", message: "Creating #{limit} symbols for image.", image: @image }
@@ -474,8 +471,6 @@ class API::ImagesController < API::ApplicationController
     image_prompt = image_params[:image_prompt]
     stripped_prompt = image_prompt.gsub("[[REPLACE_LABEL]]", "").strip
 
-    Rails.logger.info("Received image generation request with label '#{label}' and prompt '#{stripped_prompt}' from user #{current_user.id}")
-
     if !params[:id].blank?
       @image = Image.find(params[:id])
     else
@@ -483,10 +478,8 @@ class API::ImagesController < API::ApplicationController
     end
 
     if needs_replacement?(label, stripped_prompt)
-      Rails.logger.info("Replacing image with label '#{label}' for user #{current_user.id} due to content policy.")
       image_prompt = @image.default_image_prompt
     elsif new_short_prompt?(label, stripped_prompt)
-      Rails.logger.info("Using default prompt for image with label '#{label}' for user #{current_user.id} due to short prompt.")
       image_prompt = @image.default_image_prompt(stripped_prompt)
     end
 
@@ -505,7 +498,6 @@ class API::ImagesController < API::ApplicationController
       @board_image.update(status: "generating")
       return render json: { board_image: @board_image.api_view(@current_user) }
     end
-    # @current_user.remove_tokens(1)
     @image_docs = @image.docs.for_user(@current_user).order(created_at: :desc)
 
     @image_with_display_doc = {

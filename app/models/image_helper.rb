@@ -81,7 +81,6 @@ module ImageHelper
     return if Rails.env.test?
 
     begin
-      Rails.logger.info "Downloading image from: #{url}"
       downloaded_image = Down.download(url)
       user_id ||= self.user_id
       ext = file_format.split("/").last || "webp"
@@ -161,7 +160,6 @@ module ImageHelper
   def clarify_image_description(raw, restaurant_name)
     return if Rails.env.test?
     response, messages_sent = OpenAiClient.new(open_ai_opts).clarify_image_description(raw, restaurant_name)
-    Rails.logger.info "clarify_image_description response: #{response}\n messages_sent: #{messages_sent}"
     begin
       response_text = nil
       response_hash = nil

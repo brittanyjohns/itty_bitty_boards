@@ -779,7 +779,6 @@ class Board < ApplicationRecord
 
   def find_or_create_images_from_word_list(word_list)
     if id.blank?
-      Rails.logger.info "Board not saved yet - saving before adding images"
       self.save!
     end
     unless word_list && word_list.any?
@@ -789,7 +788,6 @@ class Board < ApplicationRecord
       word_list = word_list.split(" ")
     end
     if word_list.count > 100
-      Rails.logger.error "Too many words - will only use the first 100"
       word_list = word_list[0..99]
     end
     image_ids_to_generate = []
@@ -812,7 +810,6 @@ class Board < ApplicationRecord
       end
       self.add_image(image.id) if image
       if image_ids_to_generate.count > 5
-        Rails.logger.info "Scheduling generation for #{image_ids_to_generate.count} images for Board ID #{id}"
         GenerateImagesJob.perform_async(image_ids_to_generate, id)
         image_ids_to_generate = []
       end
@@ -820,7 +817,6 @@ class Board < ApplicationRecord
     self.set_current_word_list
     self.save!
     if image_ids_to_generate.any?
-      Rails.logger.info "Clean up - Scheduling generation for #{image_ids_to_generate.count} images for Board ID #{id}"
       GenerateImagesJob.perform_async(image_ids_to_generate, id)
     end
   end
@@ -878,9 +874,7 @@ class Board < ApplicationRecord
       new_board_image.voice = self.voice
     else
       # @image.find_or_create_audio_file_for_voice(self.voice)
-      if generated?
-        Rails.logger.info "Board is generated, skipping audio generation for image #{image_id} and voice #{self.voice}"
-      else
+      unless generated?
         board_image_id = new_board_image.id
         SaveAudioJob.perform_async([image_id], self.voice, board_image_id)
       end
@@ -974,15 +968,11 @@ class Board < ApplicationRecord
       unless comm_board.save
         Rails.logger.error "Error creating ChildBoard for communicator account #{communicator_account.id} and board #{@cloned_board.id}: #{comm_board.errors.full_messages.join(", ")}"
       end
-    else
-      Rails.logger.info "ChildBoard already exists for communicator account #{communicator_account&.id} and board #{@cloned_board.id}"
     end
 
     if @cloned_board.valid?
       if @source.user_id != cloned_user_id
         UpdateUserBoardsJob.perform_async(@cloned_board.id, @source.id)
-      else
-        Rails.logger.info "Source board user_id is the same as cloned user_id, skipping UpdateUserBoardsJob for board: #{@cloned_board.id}"
       end
       @cloned_board
     else
@@ -995,20 +985,17 @@ class Board < ApplicationRecord
     predictive_board = Board.find_by(id: original_board_image.predictive_board_id)
     return unless predictive_board
     if predictive_board.user_id == cloned_user_id
-      Rails.logger.info "Predictive board user_id is the same as cloned user_id, skipping cloning predictive board for board image: #{new_board_image.id}"
       new_board_image.predictive_board_id = predictive_board.id
       new_board_image.save
       return
     end
     if predictive_board.public_board?
-      Rails.logger.info "Predictive board is a public board, skipping cloning predictive board for board image: #{new_board_image.id}"
       new_board_image.predictive_board_id = predictive_board.id
       new_board_image.save
       return
     end
 
     CloneBoardJob.perform_async(predictive_board.id, new_board_image.id)
-    Rails.logger.info "Scheduled CloneBoardJob for predictive board: #{predictive_board.id} with new_board_image_id: #{new_board_image.id}"
   end
 
   def update_user_boards_after_cloning(source_board, cloned_user_id)
@@ -1419,7 +1406,6 @@ class Board < ApplicationRecord
         if voice_to_play.present? && @board_image.voice != voice_to_play && !using_custom_audio
           current_audio_url = @board_image.audio_url_for_voice(voice_to_play)
           unless current_audio_url
-            Rails.logger.info "Board - No audio file found for voice #{voice_to_play} on board image #{@board_image.label}, scheduling SaveAudioJob"
             SaveAudioJob.perform_async(@image.id, voice_to_play, @board_image.id)
             current_audio_url = @board_image.audio_url
           end
@@ -1616,7 +1602,6 @@ class Board < ApplicationRecord
         if voice_to_play.present? && @board_image.voice != voice_to_play && !using_custom_audio
           current_audio_url = @board_image.audio_url_for_voice(voice_to_play)
           unless current_audio_url
-            Rails.logger.info "Board - No audio file found for voice #{voice_to_play} on board image #{@board_image.label}, scheduling SaveAudioJob"
             SaveAudioJob.perform_async(@image.id, voice_to_play, @board_image.id)
             current_audio_url = @board_image.audio_url
           end
@@ -2186,7 +2171,6 @@ class Board < ApplicationRecord
       reset_layouts_after_import = obj["reset_layouts_after_import"] || false
 
       board_name = obj["name"]
-      Rails.logger.info "Importing board: #{board_name}"
       obf_id = obj["id"]
       voice = obj["voice"] || "polly:kevin"
       columns = obj["grid"]["columns"]
@@ -2199,19 +2183,16 @@ class Board < ApplicationRecord
       is_root = root_board_id == obf_id
 
       if board_id
-        Rails.logger.info "Looking for existing board by ID: #{board_id}"
         board = Board.find_by(id: board_id, user_id: current_user.id)
       end
 
       board ||= Board.find_by(name: board_name, user_id: current_user.id, obf_id: obf_id)
-      Rails.logger.info "Existing board found: #{board ? "Yes (ID: #{board.id})" : "No"}"
       if buttons.is_a?(String)
         buttons = JSON.parse(buttons) rescue []
       end
 
       dynamic_images = buttons.select { |item| item["load_board"] != nil }
       board_type = determine_board_type(dynamic_images, is_root)
-      Rails.logger.info "Determined board type: #{board_type}"
       if board
         board.large_screen_columns = large_screen_columns
         board.medium_screen_columns = medium_screen_columns
@@ -2294,7 +2275,6 @@ class Board < ApplicationRecord
           file_format = doc["content_type"] || "image/png"
           file_format = "image/svg+xml" if file_format == "image/svg"
           license = doc["license"]
-          Rails.logger.info "Importing image: #{label} - URL: #{url || "data provided"} \n- Format: #{file_format} \n- License: #{license || "none"}"
           raw_txt = "obf_id_#{doc["id"]}"
           processed = "processed: #{Time.now}"
           if url
@@ -2305,8 +2285,6 @@ class Board < ApplicationRecord
               @doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
               @doc.image.attach(io: downloaded_image, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{@doc.id}.#{@doc.extension}", content_type: file_format) if downloaded_image
               image.update(status: "finished")
-            else
-              Rails.logger.info "Document with URL already exists for image: #{label}"
             end
           elsif doc_data
             data = Base64.decode64(doc_data)

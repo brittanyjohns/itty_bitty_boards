@@ -4,18 +4,17 @@ class GenerateImageJob
 
   def perform(image_id, user_id = nil, image_prompt = nil, board_id = nil, screen_size = nil, transparent_bg = false)
     image = Image.find(image_id)
-    Rails.logger.info("IMAGE PROMPT: #{image_prompt} for image #{image_id}")
 
     board_image = nil
     if image_prompt
       image.temp_prompt = image_prompt
     end
-    board_image = BoardImage.find_by(board_id: board_id, image_id: image_id) if board_id
-    if board_image
-      board_image.update_column(:status, "generating")
-    end
+
     begin
-      Rails.logger.info "Generating image for user: #{user_id}, image: #{image_id}, prompt: #{image.temp_prompt}"
+      board_image = BoardImage.find_by(board_id: board_id, image_id: image_id) if board_id
+      if board_image
+        board_image.update_column(:status, "generating")
+      end
       tmp_incllude = image.temp_prompt.include?("with a transparent background")
       if transparent_bg && !tmp_incllude
         prompt_with_bg = "#{image.temp_prompt} with a transparent background"
@@ -29,9 +28,7 @@ class GenerateImageJob
         image.image_prompt = image.image_prompt.gsub(Menu::PROMPT_ADDITION, "")
         image.save!
       end
-      Rails.logger.info "Generated image for user: #{user_id}, image: #{image_id}, url: #{new_doc.display_url}"
       if board_image
-        Rails.logger.info "Updating board image for board: #{board_id}, image: #{image_id}, url: #{new_doc.display_url}"
         board_image.update_column(:status, "complete")
         board_image.update_column(:display_image_url, new_doc.display_url)
       end

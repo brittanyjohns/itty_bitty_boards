@@ -58,8 +58,6 @@ module Boards
 
       board.preview_image.purge if board.preview_image.attached?
 
-      Rails.logger.info "Attaching preview image for board: #{board.id} (#{board.name})"
-
       board.preview_image.attach(
         io: StringIO.new(png_data),
         filename: "#{board.slug}-preview.png",
