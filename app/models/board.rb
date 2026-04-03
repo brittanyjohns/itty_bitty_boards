@@ -1364,6 +1364,7 @@ class Board < ApplicationRecord
       status: status,
       slug: slug,
       name: name,
+      frozen: settings && settings["freeze_board"] == true,
       images: @board_images.map do |board_image|
         @board_image = board_image
 
