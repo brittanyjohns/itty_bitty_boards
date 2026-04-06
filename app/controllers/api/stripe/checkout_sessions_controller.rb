@@ -2,6 +2,8 @@
 class API::Stripe::CheckoutSessionsController < API::ApplicationController
   before_action :authenticate_token!
 
+  NO_CC_KEY = "NOCC".freeze
+
   PLAN_PRICE_IDS = {
     "free" => nil,
     "myspeak" => ENV.fetch("STRIPE_PRICE_MYSPEAK", nil),
@@ -16,7 +18,8 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
   def create
     plan_key = params[:plan_key].to_s
     price_id = PLAN_PRICE_IDS[plan_key]
-    Rails.logger.debug "Creating checkout session for plan_key: #{plan_key}, price_id: #{price_id}"
+    promo_code = params[:promo_code].to_s.strip
+    Rails.logger.debug "Creating checkout session for plan_key: #{plan_key}, price_id: #{price_id} and promo_code: #{promo_code}"
 
     if plan_key == "free" || price_id.blank?
       current_user.update!(plan_type: "free", plan_status: "active")
@@ -31,6 +34,29 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     trial_days = 14
     cancel_url = is_partner ? "#{frontend_base_url}/onboarding/partner" : "#{frontend_base_url}/onboarding"
 
+    bypass_payment_required = params[:bypass_payment_required] == "true"
+    if bypass_payment_required
+      payment_method_collection = "if_required"
+    end
+
+    promo_code_str = nil
+    if plan_key == "partner_pro"
+      promo_code_str = ENV["STRIPE_PARTNER_PILOT_PROMO"] || "PARTNERPILOT26"
+    elsif promo_code.present? && promo_code != NO_CC_KEY
+      promo_code_str = promo_code
+    end
+    if promo_code_str.present?
+      promo = Stripe::PromotionCode.list(
+        code: promo_code_str,
+        active: true,
+        limit: 1,
+      ).data.first
+    end
+
+    if promo_code == NO_CC_KEY
+      payment_method_collection = "if_required"
+    end
+
     session_params = {
       mode: "subscription",
       customer: current_user.stripe_customer_id,
@@ -41,26 +67,16 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
       payment_method_collection: payment_method_collection,
       cancel_url: cancel_url,
     }
-    if plan_key == "partner_pro"
-      promo_code_str = ENV["STRIPE_PARTNER_PILOT_PROMO"] || "PARTNERPILOT26"
-      promo = Stripe::PromotionCode.list(
-        code: promo_code_str,
-        active: true,
-        limit: 1,
-      ).data.first
 
-      if promo.nil?
-        raise "Invalid promo code"
-      end
+    if promo.present?
       session_params[:discounts] = [
         { promotion_code: promo.id },
       ]
-    else
-      session_params[:allow_promotion_codes] = true
-      session_params[:subscription_data] = {
-        trial_period_days: trial_days,
-      }
     end
+    session_params[:allow_promotion_codes] = true
+    session_params[:subscription_data] = {
+      trial_period_days: trial_days,
+    }
 
     session = Stripe::Checkout::Session.create(session_params)
     render json: { url: session.url }
