@@ -25,6 +25,7 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     end
     is_partner = plan_key == "partner_pro"
 
+    payment_method_collection = ENV["STRIPE_PAYMENT_METHOD_COLLECTION"] == "always" ? "always" : "if_required"
     ensure_customer!
 
     trial_days = 14
@@ -37,7 +38,7 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
       success_url: "#{frontend_base_url}/billing/success?session_id={CHECKOUT_SESSION_ID}",
       cancel_url: cancel_url,
       metadata: { user_id: current_user.id, plan_key: plan_key },
-      payment_method_collection: "if_required",
+      payment_method_collection: payment_method_collection,
       cancel_url: cancel_url,
     }
     if plan_key == "partner_pro"
