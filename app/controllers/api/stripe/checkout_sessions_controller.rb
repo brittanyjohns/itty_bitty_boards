@@ -19,7 +19,6 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     plan_key = params[:plan_key].to_s
     price_id = PLAN_PRICE_IDS[plan_key]
     promo_code = params[:promo_code].to_s.strip
-    Rails.logger.debug "Creating checkout session for plan_key: #{plan_key}, price_id: #{price_id} and promo_code: #{promo_code}"
 
     if plan_key == "free" || price_id.blank?
       current_user.update!(plan_type: "free", plan_status: "active")
@@ -35,7 +34,7 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     cancel_url = is_partner ? "#{frontend_base_url}/onboarding/partner" : "#{frontend_base_url}/onboarding"
 
     bypass_payment_required = params[:bypass_payment_required] == "true"
-    if bypass_payment_required
+    if bypass_payment_required || promo_code&.upcase == NO_CC_KEY
       payment_method_collection = "if_required"
     end
 
@@ -53,10 +52,6 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
       ).data.first
     end
 
-    if promo_code == NO_CC_KEY
-      payment_method_collection = "if_required"
-    end
-
     session_params = {
       mode: "subscription",
       customer: current_user.stripe_customer_id,
@@ -65,15 +60,15 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
       cancel_url: cancel_url,
       metadata: { user_id: current_user.id, plan_key: plan_key },
       payment_method_collection: payment_method_collection,
-      cancel_url: cancel_url,
     }
 
     if promo.present?
       session_params[:discounts] = [
         { promotion_code: promo.id },
       ]
+    else
+      session_params[:allow_promotion_codes] = true
     end
-    session_params[:allow_promotion_codes] = true
     session_params[:subscription_data] = {
       trial_period_days: trial_days,
     }
