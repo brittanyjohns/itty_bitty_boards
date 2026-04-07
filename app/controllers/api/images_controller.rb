@@ -493,7 +493,8 @@ class API::ImagesController < API::ApplicationController
     screen_size = params[:screen_size] || "lg"
     transparent_background = params[:transparent_background] == "true"
     @board_image = BoardImage.find_by(board_id: board_id, image_id: @image.id) if board_id
-    GenerateImageJob.perform_async(@image.id, @current_user.id, image_prompt, board_id, screen_size, transparent_background)
+    options = { "image_prompt" => image_prompt, "board_id" => board_id, "screen_size" => screen_size, "transparent_bg" => transparent_background }
+    GenerateImageJob.perform_async(@image.id, @current_user.id, options)
     if @board_image
       @board_image.update(status: "generating")
       return render json: { board_image: @board_image.api_view(@current_user) }
@@ -805,7 +806,8 @@ class API::ImagesController < API::ApplicationController
     if image_prompt.blank? || image_prompt == @image.label
       image_prompt = @image.default_image_prompt
     end
-    GenerateImageJob.perform_async(@image.id, current_user.id, image_prompt, params[:board_id])
+    options = { "image_prompt" => image_prompt, "board_id" => params[:board_id] }
+    GenerateImageJob.perform_async(@image.id, current_user.id, options)
     current_user.remove_tokens(1)
     @board.add_to_cost(1) if @board
   end

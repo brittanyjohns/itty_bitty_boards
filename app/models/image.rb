@@ -1141,8 +1141,9 @@ class Image < ApplicationRecord
     user_id_to_set ||= user_id
     Rails.logger.debug "start_generate_image_job: #{label} - #{user_id_to_set} - #{image_prompt_to_set}"
     run_in = Time.now + start_time * 3
+    options = { "image_prompt" => image_prompt_to_set, "board_id" => board_id }
 
-    GenerateImageJob.perform_in(run_in, id, user_id_to_set, image_prompt_to_set, board_id)
+    GenerateImageJob.perform_in(run_in, id, user_id_to_set, options)
   end
 
   def self.run_generate_image_job_for(images)

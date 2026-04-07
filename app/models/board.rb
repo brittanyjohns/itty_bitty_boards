@@ -805,8 +805,6 @@ class Board < ApplicationRecord
         admin_image_present = image.docs.any? { |doc| doc.user_id == User::DEFAULT_ADMIN_ID }
         user_image_present = image.docs.any? { |doc| doc.user_id == user_id }
         image_ids_to_generate << image.id unless admin_image_present || user_image_present
-        # Moved the job from here
-        # GenerateImageJob.perform_async(image.id, user_id, image_prompt, id) unless admin_image_present || user_image_present
       end
       self.add_image(image.id) if image
       if image_ids_to_generate.count > 5

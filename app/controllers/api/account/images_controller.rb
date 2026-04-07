@@ -32,6 +32,7 @@ class API::Account::ImagesController < API::Account::ApplicationController
     if @found_image
       notice = "Image found!"
       @found_image.update(status: "finished") unless @found_image.finished?
+      @image = @found_image
       run_generate if generate_image
     else
       notice = "Image created!"
@@ -43,6 +44,16 @@ class API::Account::ImagesController < API::Account::ApplicationController
     else
       render json: @image.api_view(@user), notice: notice
     end
+  end
+
+  def run_generate
+    @image.update(status: "generating")
+    image_prompt = image_params[:image_prompt] || image_params["image_prompt"]
+    if image_prompt.blank? || image_prompt == @image.label
+      image_prompt = @image.default_image_prompt
+    end
+    options = { "image_prompt" => image_prompt, "board_id" => image_params[:board_id] }
+    GenerateImageJob.perform_async(@image.id, @user.id, options)
   end
 
   def image_params

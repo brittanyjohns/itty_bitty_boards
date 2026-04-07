@@ -2,7 +2,13 @@ class GenerateImageJob
   include Sidekiq::Job
   sidekiq_options queue: :ai_images, retry: 1, backtrace: true
 
-  def perform(image_id, user_id = nil, image_prompt = nil, board_id = nil, screen_size = nil, transparent_bg = false)
+  def perform(image_id, user_id = nil, options = {})
+    # image_prompt = nil, board_id = nil, screen_size = nil, transparent_bg = false)
+    image_prompt = options.is_a?(Hash) ? options["image_prompt"] : nil
+    board_id = options.is_a?(Hash) ? options["board_id"] : nil
+    screen_size = options.is_a?(Hash) ? options["screen_size"] : nil
+    transparent_bg = options.is_a?(Hash) ? options["transparent_bg"] : false
+
     image = Image.find(image_id)
 
     board_image = nil

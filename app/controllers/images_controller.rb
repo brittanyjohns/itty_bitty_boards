@@ -114,7 +114,8 @@ class ImagesController < ApplicationController
     if image_prompt.blank? || image_prompt == @image.label
       image_prompt = @image.default_image_prompt
     end
-    GenerateImageJob.perform_async(@image.id, current_user.id, image_prompt)
+    options = { "image_prompt" => image_prompt, "board_id" => params[:board_id] }
+    GenerateImageJob.perform_async(@image.id, current_user.id, options)
     current_user.remove_tokens(1)
     render json: { status: "success", redirect_url: images_url, notice: "Image was successfully cropped & saved." }
   end
