@@ -827,6 +827,7 @@ class API::ImagesController < API::ApplicationController
                      filename: "img_#{image.label}_#{image.id}_doc_#{doc.id}.#{file_extension}",
                      content_type: "image/#{file_extension}")
     doc.save
+    PreprocessDocTileVariantJob.perform_async(doc.id)
     doc
   end
 end

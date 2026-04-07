@@ -2284,12 +2284,14 @@ class Board < ApplicationRecord
               @doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
               @doc.image.attach(io: downloaded_image, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{@doc.id}.#{@doc.extension}", content_type: file_format) if downloaded_image
               image.update(status: "finished")
+              PreprocessDocTileVariantJob.perform_async(@doc.id) if @doc.image.attached?
             end
           elsif doc_data
             data = Base64.decode64(doc_data)
             user_id = current_user.id
             @doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
             @doc.image.attach(data: doc_data, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{@doc.id}.#{@doc.extension}", content_type: file_format) if data
+            PreprocessDocTileVariantJob.perform_async(@doc.id) if @doc.image.attached?
             unless @doc.save
               Rails.logger.error "Error saving doc: #{@doc.errors.full_messages}"
             end

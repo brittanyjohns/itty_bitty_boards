@@ -10,6 +10,7 @@ class PreprocessDocTileVariantJob
 
     doc.tile_variant.processed
     doc.mark_tile_variant_processed!
+    Rails.logger.info("[tile-variant] processed Doc #{doc.id}")
   rescue => e
     Rails.logger.error("[tile-variant] failed for Doc #{doc_id}: #{e.message}")
     raise e

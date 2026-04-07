@@ -31,44 +31,10 @@ module ImageHelper
         filename: "img_#{self.id}_doc_#{doc.id}.#{ext}",
         content_type: content_type,
       )
-
+      Rails.logger.debug "Image saved and attached to doc #{doc.id} for image #{self.id}"
       PreprocessDocTileVariantJob.perform_async(doc.id)
 
       self.update(status: "finished")
-    rescue => e
-      puts "ImageHelper ERROR: #{e.inspect}"
-      raise e
-    end
-
-    doc
-  end
-
-  def save_image_from_base64(b64_json, user_id = nil, revised_prompt = nil, edited_prompt = nil, source_type = "OpenAI")
-    return if Rails.env.test?
-
-    begin
-      decoded_image = Base64.decode64(b64_json)
-      user_id ||= self.user_id
-      raw_txt = edited_prompt || name_to_send
-
-      doc = self.docs.create!(
-        raw: raw_txt,
-        user_id: user_id,
-        processed: revised_prompt,
-        source_type: source_type,
-        data: { b64_json: true },
-      )
-
-      doc.image.attach(
-        io: StringIO.new(decoded_image),
-        filename: "img_#{self.id}_doc_#{doc.id}.png",
-        content_type: "image/png",
-      )
-
-      PreprocessDocTileVariantJob.perform_async(doc.id)
-
-      self.update(status: "finished")
-      update_all_boards_image_belongs_to(doc.display_url)
     rescue => e
       puts "ImageHelper ERROR: #{e.inspect}"
       raise e
@@ -115,28 +81,119 @@ module ImageHelper
 
   def create_image(user_id = nil, image_prompt = nil)
     return if Rails.env.test?
+
     user_id ||= self.user_id
-    if image_prompt
-      opts = open_ai_opts.merge({ prompt: image_prompt })
-    else
-      opts = open_ai_opts
-    end
+
+    opts = open_ai_opts
+    opts = opts.merge(prompt: image_prompt) if image_prompt.present?
+
     response = OpenAiClient.new(opts).create_image
-    img_url = response[:img_url]
+
+    b64_json = response[:b64_json]
     revised_prompt = response[:revised_prompt]
     edited_prompt = response[:edited_prompt]
-    b64_json = response[:b64_json]
-    if b64_json
-      doc = save_image_from_base64(b64_json, user_id, revised_prompt, edited_prompt)
-      return doc
+    output_format = response[:output_format]
+
+    Rails.logger.debug "Received response from OpenAI: #{response.except(:raw_response).inspect}"
+
+    unless b64_json.present?
+      Rails.logger.error "**** ERROR - create_image ****\nDid not receive b64_json.\n#{response.inspect}"
+      return nil
     end
-    doc = nil
-    if img_url
-      doc = save_image(img_url, user_id, revised_prompt, edited_prompt)
-    else
-      Rails.logger.error "**** ERROR - create_image **** \nDid not receive valid response.\n #{response&.inspect}"
-    end
+
+    save_image_from_base64(
+      b64_json,
+      user_id,
+      revised_prompt,
+      edited_prompt,
+      "OpenAI",
+      output_format
+    )
+  end
+
+  def save_image_from_base64(
+    b64_json,
+    user_id = nil,
+    revised_prompt = nil,
+    edited_prompt = nil,
+    source_type = "OpenAI",
+    output_format = "webp"
+  )
+    return if Rails.env.test?
+
+    user_id ||= self.user_id
+    raw_txt = edited_prompt.presence || name_to_send
+
+    format = output_format.to_s.downcase
+    format = "webp" unless %w[png jpeg webp].include?(format)
+
+    content_type = case format
+      when "png" then "image/png"
+      when "jpeg" then "image/jpeg"
+      else "image/webp"
+      end
+
+    ext = case format
+      when "png" then "png"
+      when "jpeg" then "jpg"
+      else "webp"
+      end
+
+    decoded_image = Base64.decode64(b64_json)
+
+    doc = self.docs.create!(
+      raw: raw_txt,
+      user_id: user_id,
+      processed: revised_prompt,
+      source_type: source_type,
+      data: {
+        b64_json: true,
+        output_format: format,
+        content_type: content_type,
+      },
+    )
+
+    doc.image.attach(
+      io: StringIO.new(decoded_image),
+      filename: "img_#{self.id}_doc_#{doc.id}.#{ext}",
+      content_type: content_type,
+    )
+
+    PreprocessDocTileVariantJob.perform_async(doc.id)
+
+    self.update!(status: "finished")
+    update_all_boards_image_belongs_to(doc.display_url)
+
+    Rails.logger.debug "Base64 image saved and attached to doc #{doc.id} for image #{self.id}"
+
     doc
+  rescue => e
+    Rails.logger.error "ImageHelper ERROR: #{e.class} - #{e.message}"
+    raise
+  end
+
+  def normalize_image_format(format)
+    value = format.to_s.downcase
+    return value if %w[png jpeg webp].include?(value)
+    "png"
+  end
+
+  def content_type_for_image_format(format)
+    case format
+    when "png" then "image/png"
+    when "jpeg" then "image/jpeg"
+    when "webp" then "image/webp"
+    else "image/png"
+    end
+  end
+
+  def extension_for_image_format(format)
+    case format
+    when "png" then "png"
+    when "jpeg" then "jpg"
+    when "webp" then "webp"
+    else "png"
+    end
   end
 
   def get_image_prompt_suggestion(viewing_user_id = nil)

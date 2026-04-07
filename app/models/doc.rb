@@ -188,6 +188,7 @@ class Doc < ApplicationRecord
       image = documentable.create_image
     end
     self.image.attach(io: File.open(image.file_path), filename: image.file_name)
+    PreprocessDocTileVariantJob.perform_async(self.id)
   end
 
   def self.admin_default_id

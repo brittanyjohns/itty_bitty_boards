@@ -10,10 +10,14 @@ class OpenAiClient
   # # TTS_MODEL = "tts-1"
   TTS_MODEL = ENV.fetch("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
   PREVIEW_MODEL = "o1-preview"
+  # DEFAULT_IMAGE_MODEL = "gpt-image-1".freeze
+  DEFAULT_IMAGE_SIZE = "1024x1024".freeze
+  DEFAULT_IMAGE_OUTPUT_FORMAT = "webp".freeze
 
   def initialize(opts)
-    @messages = opts["messages"] || opts[:messages] || []
-    @prompt = opts["prompt"] || opts[:prompt] || "backup"
+    @opts = opts.deep_symbolize_keys
+    @messages = @opts[:messages] || []
+    @prompt = @opts[:prompt] || "backup"
   end
 
   def self.openai_client
@@ -62,23 +66,46 @@ class OpenAiClient
   end
 
   def create_image
-    # new_prompt = static_image_prompt
-    new_prompt = @prompt
-    quality = IMAGE_MODEL.include?("dall-e") ? "standard" : "low"
-    response = openai_client.images.generate(parameters: { prompt: new_prompt, model: IMAGE_MODEL, quality: quality })
-    if response
-      img_url = response.dig("data", 0, "url")
-      b64_json = response.dig("data", 0, "b64_json")
-      revised_prompt = response.dig("data", 0, "revised_prompt")
-      Rails.logger.error "*** ERROR *** Invaild Image Response: #{response}" unless img_url || b64_json
-      if response.dig("error", "type") == "invalid_request_error"
-        Rails.logger.error "**** ERROR **** \n#{response.dig("error", "message")}\n"
-        throw "Invaild OpenAI Image Response"
-      end
-    else
-      Rails.logger.error "**** Client ERROR **** \nDid not receive a response.\n#{response}"
-    end
-    { img_url: img_url, revised_prompt: revised_prompt, edited_prompt: new_prompt, b64_json: b64_json }
+    client = openai_client
+
+    params = {
+      model: @opts[:model] || IMAGE_MODEL,
+      prompt: @prompt,
+      size: DEFAULT_IMAGE_SIZE,
+      output_format: normalize_output_format(@opts[:output_format] || DEFAULT_IMAGE_OUTPUT_FORMAT),
+    }
+
+    # optional GPT image params
+    params[:quality] = @opts[:quality] if @opts[:quality].present?
+    params[:background] = @opts[:background] if @opts[:background].present?
+    params[:moderation] = @opts[:moderation] if @opts[:moderation].present?
+    params[:n] = @opts[:n] if @opts[:n].present?
+    params[:output_compression] = @opts[:output_compression] if @opts[:output_compression].present?
+
+    Rails.logger.info("OpenAI create_image params=#{params.except(:prompt).inspect}")
+
+    response = client.images.generate(parameters: params)
+
+    Rails.logger.debug("OpenAI raw image response: #{response.inspect}")
+
+    first_image = extract_first_image(response)
+    raise "OpenAI image generation returned no image data" if first_image.blank?
+
+    {
+      b64_json: first_image[:b64_json],
+      img_url: first_image[:url], # likely nil for gpt-image models, but harmless to expose
+      revised_prompt: first_image[:revised_prompt],
+      edited_prompt: @opts[:prompt],
+      output_format: params[:output_format],
+      content_type: content_type_for(params[:output_format]),
+      model: params[:model],
+      size: params[:size],
+      raw_response: response,
+    }
+  rescue => e
+    Rails.logger.error("OpenAiClient#create_image failed: #{e.class} - #{e.message}")
+    Rails.logger.error(e.backtrace.first(10).join("\n")) if e.backtrace
+    raise
   end
 
   def create_audio_from_text(text, voice = "polly:kevin", language = "en", instructions = "")
@@ -491,7 +518,7 @@ class OpenAiClient
 
     min_number_of_words = 2
     text = <<~TEXT
-                                  I am creating a social story titled "#{name}".
+                                                            I am creating a social story titled "#{name}".
 
     Please generate #{number_of_steps} SHORT step instructions that could appear on tiles in a social story AAC board.
 
@@ -696,5 +723,50 @@ class OpenAiClient
 
   def self.ai_models
     @models = openai_client.models.list
+  end
+
+  def extract_first_image(response)
+    data = if response.respond_to?(:data)
+        response.data
+      elsif response.is_a?(Hash)
+        response[:data] || response["data"]
+      end
+
+    first = data&.first
+    return nil if first.blank?
+
+    if first.is_a?(Hash)
+      {
+        b64_json: first[:b64_json] || first["b64_json"],
+        url: first[:url] || first["url"],
+        revised_prompt: first[:revised_prompt] || first["revised_prompt"],
+      }
+    else
+      {
+        b64_json: first.respond_to?(:b64_json) ? first.b64_json : nil,
+        url: first.respond_to?(:url) ? first.url : nil,
+        revised_prompt: first.respond_to?(:revised_prompt) ? first.revised_prompt : nil,
+      }
+    end
+  end
+
+  def normalize_output_format(format)
+    value = format.to_s.downcase
+    return value if %w[png jpeg webp].include?(value)
+
+    DEFAULT_IMAGE_OUTPUT_FORMAT
+  end
+
+  def content_type_for(format)
+    case format
+    when "png"
+      "image/png"
+    when "jpeg"
+      "image/jpeg"
+    when "webp"
+      "image/webp"
+    else
+      "image/webp"
+    end
   end
 end
