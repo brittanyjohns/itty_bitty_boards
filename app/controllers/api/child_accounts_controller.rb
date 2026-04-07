@@ -82,7 +82,15 @@ class API::ChildAccountsController < API::ApplicationController
     end
 
     if @child_account.save
-      @child_account.create_profile! unless profile.present?
+      unless profile.present?
+        begin
+          @child_account.create_profile!
+        rescue => e
+          Rails.logger.error "Failed to create profile for ChildAccount #{@child_account.id}: #{e.message}"
+          render json: { error: "Error creating profile for child account: #{e.message}" }, status: :unprocessable_entity
+          return
+        end
+      end
 
       # Team setup
       team_name = if @child_account.name.present?
