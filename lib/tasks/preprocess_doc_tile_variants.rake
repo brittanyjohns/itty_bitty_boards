@@ -12,6 +12,8 @@ namespace :docs do
     skip_processed = ENV.fetch("SKIP_PROCESSED", "true") == "true"
     skip_already_enqueued = ENV.fetch("SKIP_ALREADY_ENQUEUED", "true") == "true"
     queue_name = ENV.fetch("QUEUE", "default")
+    board_id = ENV["BOARD_ID"]&.to_i
+    user_id = ENV["USER_ID"]&.to_i
 
     if batch_size <= 0
       puts "BATCH_SIZE must be greater than 0"
@@ -26,14 +28,28 @@ namespace :docs do
       .where(documentable_type: "Image")
       .with_attached_image
       .where("docs.data ->> 'tile_variant_processed' IS DISTINCT FROM 'true'")
+    if board_id.present? || user_id.present?
+      # unscope published/predefined condition if we're scoping by board or user, since that implies we want to include all boards for that board/user, not just published/predefined ones
+      base_scope = Doc
+        .joins("INNER JOIN images ON images.id = docs.documentable_id")
+        .joins("INNER JOIN board_images ON board_images.image_id = images.id")
+        .joins("INNER JOIN boards ON boards.id = board_images.board_id")
+        .where(documentable_type: "Image")
+        .with_attached_image
+        .where("docs.data ->> 'tile_variant_processed' IS DISTINCT FROM 'true'")
+    end
+
+    base_scope = base_scope.where("boards.id = ?", board_id) if board_id.present?
+    base_scope = base_scope.where("boards.user_id = ?", user_id) if user_id.present?
 
     puts "Base scope: #{base_scope.count} docs"
 
     base_scope = base_scope.where("docs.id >= ?", start_id) if start_id.present?
 
+    # latest_doc_scope = base_scope
+    #   .select("DISTINCT ON (docs.documentable_id) docs.id, docs.documentable_id, docs.created_at")
+    #   .order("docs.documentable_id, docs.created_at DESC")
     latest_doc_scope = base_scope
-      .select("DISTINCT ON (docs.documentable_id) docs.id, docs.documentable_id, docs.created_at")
-      .order("docs.documentable_id, docs.created_at DESC")
 
     latest_doc_ids = latest_doc_scope.pluck(:id).uniq
     total_candidate_docs = latest_doc_ids.size
@@ -118,8 +134,6 @@ namespace :docs do
     puts "Docs skipped as already enqueued: #{docs_skipped_enqueued}"
     puts "Docs enqueued: #{docs_enqueued}"
     puts "Jobs enqueued: #{jobs_enqueued}"
-
-    puts "\nleft_to_process: #{left_to_process}"
   end
 
   desc "Delete scheduled and retry tile variant jobs"
