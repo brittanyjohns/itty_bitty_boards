@@ -813,15 +813,19 @@ class Board < ApplicationRecord
         image_ids_to_generate << image.id unless admin_image_present || user_image_present
       end
       self.add_image(image.id) if image
-      if image_ids_to_generate.count > 5
-        GenerateImagesJob.perform_async(image_ids_to_generate, id)
+      if image_ids_to_generate.count > 2
+        image_ids_to_generate.each_slice(3) do |batch|
+          GenerateImagesJob.perform_async(batch, id)
+        end
         image_ids_to_generate = []
       end
     end
     self.set_current_word_list
     self.save!
     if image_ids_to_generate.any?
-      GenerateImagesJob.perform_async(image_ids_to_generate, id)
+      image_ids_to_generate.each_slice(3) do |batch|
+        GenerateImagesJob.perform_async(batch, id)
+      end
     end
   end
 
