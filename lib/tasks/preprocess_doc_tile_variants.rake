@@ -136,6 +136,32 @@ namespace :docs do
     puts "Jobs enqueued: #{jobs_enqueued}"
   end
 
+  desc "Convert PNG images to WebP for docs used on boards. Example: `BOARD_IDS=6536,6537 bundle exec rake docs:convert_png_to_webp`"
+  task convert_png_to_webp: :environment do
+    limit = ENV["LIMIT"]&.to_i || 10
+    base_scope = Doc
+      .joins("INNER JOIN images ON images.id = docs.documentable_id")
+      .joins("INNER JOIN board_images ON board_images.image_id = images.id")
+      .joins("INNER JOIN boards ON boards.id = board_images.board_id")
+      .where(documentable_type: "Image")
+      .with_attached_image
+      .where("docs.data ->> 'converted_to_webp' IS DISTINCT FROM 'true'")
+    base_scope = base_scope.where("boards.id = ?", ENV["BOARD_ID"].to_i) if ENV["BOARD_ID"].present?
+    base_scope = base_scope.where("boards.user_id = ?", ENV["USER_ID"].to_i) if ENV["USER_ID"].present?
+
+    scope = base_scope.joins(:image_attachment, :image_blob)
+      .where(active_storage_blobs: { content_type: "image/png" })
+
+    puts "Found #{scope.count} PNG images"
+    count = 0
+    scope.find_each do |doc|
+      ConvertDocToWebpJob.perform_async(doc.id)
+      count += 1
+      break if count >= limit
+    end
+    puts "Enqueued conversion jobs for #{count} PNG images"
+  end
+
   desc "Delete scheduled and retry tile variant jobs"
   task clear_tile_variant_jobs: :environment do
     require "sidekiq/api"

@@ -45,6 +45,7 @@ class API::BoardsController < API::ApplicationController
     unless current_user
       static_scope = Board.public_boards
       static_scope = static_scope.with_all_tags(selected_tags) if selected_tags.present?
+      static_scope = static_scope.where(obf_id: nil)
 
       last_modified = static_scope.maximum(:updated_at) || Time.zone.at(0)
       etag = guest_boards_index_etag(last_modified, limit_param, tags: selected_tags)
@@ -124,7 +125,7 @@ class API::BoardsController < API::ApplicationController
     # ---------------------------
     # 3. NORMAL MODE (no search)
     # ---------------------------
-    base_scope = current_user.boards
+    base_scope = current_user.boards.where(obf_id: nil)
     filtered_scope = apply_filter(base_scope, filter)
     filtered_scope = filtered_scope.with_any_tags(selected_tags) if selected_tags.present?
 

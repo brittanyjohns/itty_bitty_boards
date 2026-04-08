@@ -97,7 +97,7 @@ class Board < ApplicationRecord
   scope :for_user, ->(user) { where(user: user, is_template: false).or(where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, is_template: false)) }
   scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
   scope :with_image_parent, -> { where.associated(:image_parent) }
-  scope :searchable, -> { where.not(board_type: "menu") }
+  scope :searchable, -> { where.not(board_type: "menu").where(obf_id: nil) }
   scope :menus, -> { where(parent_type: "Menu") }
   scope :non_menus, -> { where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
@@ -117,7 +117,7 @@ class Board < ApplicationRecord
   scope :communikate_boards, -> { where("name ILIKE ?", "%CommuniKate%") }
 
   scope :including_images, -> { includes(board_images: :image) }
-  scope :public_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, published: true).where.not(parent_type: "Menu") }
+  scope :public_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, published: true).where.not(parent_type: "Menu").where(obf_id: nil) }
   scope :public_menu_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, published: true, parent_type: "Menu") }
   scope :without_preset_display_image, -> { where.missing(:preset_display_image_attachment) }
   scope :preset, -> { where(predefined: true) }
