@@ -446,6 +446,20 @@ class API::BoardsController < API::ApplicationController
     render json: { status: "ok", message: "Recategorization job started for board images" }
   end
 
+  def update_to_default_docs
+    set_board
+    if params[:board_image_ids].present? && params[:board_image_ids].is_a?(Array)
+      @board_images = @board.board_images.where(id: params[:board_image_ids])
+    else
+      @board_images = @board.board_images
+    end
+    @board_images.each do |board_image|
+      board_image.update_to_default_doc!
+    end
+    @board.update_column(:updated_at, Time.current) # update timestamp to reflect change
+    render json: @board.api_view_with_images(current_user)
+  end
+
   def set_colors
     set_board
     results = []
