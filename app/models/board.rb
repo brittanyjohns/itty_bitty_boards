@@ -371,6 +371,12 @@ class Board < ApplicationRecord
     end
   end
 
+  def update_board_images_to_default_docs!
+    board_images.includes(:image).find_each do |board_image|
+      board_image.update_to_default_doc!
+    end
+  end
+
   def self.clean_up_duplicate(name, user = nil, dry_run = true)
     user_id = user ? user.id : User::DEFAULT_ADMIN_ID
     boards = Board.includes(:images).where(name: name, user_id: user_id)

@@ -75,6 +75,7 @@ class API::BoardImagesController < API::ApplicationController
     new_board_name = payload[:new_board_name] if payload[:new_board_name]
     create_new_board = payload[:create_new_board] || !new_board_name.blank?
     layout_updates = payload[:layout_updates] if payload[:layout_updates]
+    update_to_default_doc = payload[:update_to_default_doc] if payload[:update_to_default_doc]
 
     if create_new_board
       new_board_name ||= "New Board"
@@ -89,7 +90,12 @@ class API::BoardImagesController < API::ApplicationController
 
     board_images.each do |board_image|
       if create_new_board && new_board
-        board_image.board = new_board
+        new_board.add_image(board_image.image_id)
+      end
+      if update_to_default_doc
+        new_url = board_image.default_doc_url
+        Rails.logger.info "Updating BoardImage ID #{board_image.id} to default doc URL: #{new_url}"
+        board_image.display_image_url = new_url
       end
       if !bg_color.blank?
         board_image.bg_color = bg_color

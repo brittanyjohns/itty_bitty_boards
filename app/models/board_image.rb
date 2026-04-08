@@ -341,6 +341,19 @@ class BoardImage < ApplicationRecord
     all_voices.uniq
   end
 
+  def default_doc_url
+    image.display_tile_url(nil)
+  end
+
+  def update_to_default_doc!
+    new_url = default_doc_url
+    if new_url.blank? || new_url == display_image_url
+      return
+    end
+    self.display_image_url = new_url
+    save!
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,

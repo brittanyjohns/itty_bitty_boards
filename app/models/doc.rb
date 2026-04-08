@@ -78,6 +78,7 @@ class Doc < ApplicationRecord
     return display_url unless variant
 
     processed_variant = variant.processed
+    mark_tile_variant_processed!
 
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
       cdn_host = ENV["CDN_HOST"]
@@ -243,7 +244,8 @@ class Doc < ApplicationRecord
   def mark_tile_variant_processed!
     self.data ||= {}
     self.data["tile_variant_processed"] = true
-    update_column(:data, data) # skip callbacks/validation for speed
+    Rails.logger.info "Marking Doc #{id} tile variant as processed"
+    self.update_column(:data, data) # skip callbacks/validation for speed
   end
 
   def tile_variant_done?

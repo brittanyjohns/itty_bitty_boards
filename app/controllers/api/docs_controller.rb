@@ -132,7 +132,7 @@ class API::DocsController < API::ApplicationController
       if @board
         @board_image = @board.board_images.find_by(image_id: @image.id)
         if @board_image
-          @board_image.update_column(:display_image_url, @doc.display_url)
+          @board_image.update(display_image_url: @doc.display_url)
         end
         # @board.update!(updated_at: Time.zone.now)
         @board.broadcast_board_update!
