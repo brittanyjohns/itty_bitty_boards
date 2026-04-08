@@ -919,6 +919,8 @@ class Board < ApplicationRecord
     @cloned_board.name = new_name
     @cloned_board.predefined = false
     @cloned_board.obf_id = nil
+    @cloned_board.generated_token = nil
+    @cloned_board.generated_token_expires_at = nil
     @cloned_board.board_type = @source.board_type
     @cloned_board.data = {}
     @cloned_board.board_images_count = 0
