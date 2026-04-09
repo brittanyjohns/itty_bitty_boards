@@ -791,7 +791,7 @@ class Board < ApplicationRecord
   end
 
   def display_docs
-    Doc.where(id: image_docs.map(&:id))
+    images.map(&:display_doc).compact
   end
 
   def unprocessed_display_docs
