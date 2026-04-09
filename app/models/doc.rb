@@ -75,35 +75,34 @@ class Doc < ApplicationRecord
   end
 
   def tile_url
-    begin
-      return original_image_url if !image.attached?
-      return display_url unless image.variable?
+    return original_image_url unless image.attached?
+    return display_url unless image.variable?
 
-      variant = tile_variant
-      return display_url unless variant
+    variant = tile_variant
+    return display_url unless variant
 
-      processed_variant = variant.processed
+    #  If not processed yet → enqueue and return fast
+    unless tile_variant_processed?
+      PreprocessDocTileVariantJob.perform_async(id)
+      return display_url
+    end
 
-      if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
-        cdn_host = ENV["CDN_HOST"]
-        if cdn_host
-          "#{cdn_host}/#{processed_variant.key}"
-        else
-          Rails.application.routes.url_helpers.url_for(processed_variant)
-        end
+    processed_variant = variant.processed
+
+    if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
+      cdn_host = ENV["CDN_HOST"]
+      if cdn_host
+        "#{cdn_host}/#{processed_variant.key}"
       else
         Rails.application.routes.url_helpers.url_for(processed_variant)
       end
-    rescue Vips::Error => e
-      Rails.logger.warn("[tile-url] Vips error for Doc #{id}: #{e.message}")
-      nil
-    rescue ActiveStorage::InvariableError => e
-      Rails.logger.warn("[tile-url] invariable doc=#{id}: #{e.message}")
-      nil
-    rescue => e
-      Rails.logger.error("[tile-url] unexpected error for Doc #{id}: #{e.message}")
-      nil
+    else
+      Rails.application.routes.url_helpers.url_for(processed_variant)
     end
+
+  rescue => e
+    Rails.logger.warn("[tile-url] error doc=#{id}: #{e.message}")
+    display_url
   end
 
   def hide!
