@@ -14,13 +14,12 @@ class PreprocessDocTileVariantsJob
           next
         end
 
-        if doc.tile_variant_marked_processed?
-          skipped_count += 1
-          next
-        end
+        # if doc.tile_variant_processed?
+        #   skipped_count += 1
+        #   next
+        # end
 
         doc.tile_variant.processed
-        doc.mark_tile_variant_processed!
         processed_count += 1
       rescue => e
         failed_count += 1

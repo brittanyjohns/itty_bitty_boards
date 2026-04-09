@@ -21,10 +21,10 @@
 #
 class Doc < ApplicationRecord
   TILE_VARIANT_TRANSFORMATIONS = {
-    resize_to_limit: [320, 320],
+    resize_to_limit: [288, 288],
     format: :webp,
     saver: {
-      quality: 75,
+      quality: 65,
       strip: true,
     },
   }.freeze
@@ -71,28 +71,35 @@ class Doc < ApplicationRecord
   end
 
   def tile_url
-    return original_image_url if !image.attached?
-    return display_url unless image.variable?
+    begin
+      return original_image_url if !image.attached?
+      return display_url unless image.variable?
 
-    variant = tile_variant
-    return display_url unless variant
+      variant = tile_variant
+      return display_url unless variant
 
-    processed_variant = variant.processed
-    mark_tile_variant_processed!
+      processed_variant = variant.processed
 
-    if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
-      cdn_host = ENV["CDN_HOST"]
-      if cdn_host
-        "#{cdn_host}/#{processed_variant.key}"
+      if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
+        cdn_host = ENV["CDN_HOST"]
+        if cdn_host
+          "#{cdn_host}/#{processed_variant.key}"
+        else
+          Rails.application.routes.url_helpers.url_for(processed_variant)
+        end
       else
         Rails.application.routes.url_helpers.url_for(processed_variant)
       end
-    else
-      Rails.application.routes.url_helpers.url_for(processed_variant)
+    rescue Vips::Error => e
+      Rails.logger.warn("[tile-url] Vips error for Doc #{id}: #{e.message}")
+      nil
+    rescue ActiveStorage::InvariableError => e
+      Rails.logger.warn("[tile-url] invariable doc=#{id}: #{e.message}")
+      nil
+    rescue => e
+      Rails.logger.error("[tile-url] unexpected error for Doc #{id}: #{e.message}")
+      nil
     end
-  rescue ActiveStorage::InvariableError => e
-    Rails.logger.warn("[tile-url] invariable doc=#{id}: #{e.message}")
-    display_url
   end
 
   def hide!
@@ -118,7 +125,7 @@ class Doc < ApplicationRecord
       documentable_type: documentable_type,
       documentable_id: documentable_id,
       src: display_url,
-      tile_src: tile_url,
+    # tile_src: tile_url,
     }
   end
 
@@ -237,21 +244,7 @@ class Doc < ApplicationRecord
 
   include Rails.application.routes.url_helpers
 
-  def tile_variant_marked_processed?
-    data&.dig("tile_variant_processed") == true
-  end
-
-  def mark_tile_variant_processed!
-    self.data ||= {}
-    self.data["tile_variant_processed"] = true
-    Rails.logger.info "Marking Doc #{id} tile variant as processed"
-    self.update_column(:data, data) # skip callbacks/validation for speed
-  end
-
   def tile_variant_done?
-    return true if tile_variant_marked_processed?
-
-    # fallback check (rarely used)
     tile_variant_processed?
   end
 

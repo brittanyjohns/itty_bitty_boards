@@ -778,6 +778,35 @@ class Board < ApplicationRecord
     images.map(&:docs).flatten
   end
 
+  def has_unprocessed_docs?
+    unprocessed_docs.any?
+  end
+
+  def unprocessed_docs
+    display_docs.select { |doc| doc.tile_variant_processed? == false }
+  end
+
+  def processed_docs
+    display_docs.select { |doc| doc.tile_variant_processed? == true }
+  end
+
+  def display_docs
+    Doc.where(id: image_docs.map(&:id))
+  end
+
+  def unprocessed_display_docs
+    display_docs.select { |doc| doc.tile_variant_processed? == false }
+  end
+
+  def process_unprocessed_docs
+    unprocessed_doc_ids = unprocessed_docs.map(&:id)
+    puts "Processing #{unprocessed_doc_ids.count} unprocessed docs for Board ID #{id}"
+    sleep 3
+    unprocessed_doc_ids.each_slice(10).with_index do |batch, index|
+      PreprocessDocTileVariantsJob.perform_in((index + 1).minutes, batch)
+    end
+  end
+
   def image_docs_for_user(user = nil)
     user ||= self.user
     image_docs.select { |doc| doc.user_id == user.id }

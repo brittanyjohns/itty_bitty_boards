@@ -27,8 +27,7 @@ namespace :docs do
       .where("boards.published = true OR boards.predefined = true")
       .where(documentable_type: "Image")
       .with_attached_image
-      .where("docs.data ->> 'tile_variant_processed' IS DISTINCT FROM 'true'")
-    if board_id.present? || user_id.present?
+    if user_id.present?
       # unscope published/predefined condition if we're scoping by board or user, since that implies we want to include all boards for that board/user, not just published/predefined ones
       base_scope = Doc
         .joins("INNER JOIN images ON images.id = docs.documentable_id")
@@ -36,11 +35,19 @@ namespace :docs do
         .joins("INNER JOIN boards ON boards.id = board_images.board_id")
         .where(documentable_type: "Image")
         .with_attached_image
-        .where("docs.data ->> 'tile_variant_processed' IS DISTINCT FROM 'true'")
     end
 
-    base_scope = base_scope.where("boards.id = ?", board_id) if board_id.present?
+    # base_scope = base_scope.where("boards.id = ?", board_id) if board_id.present?
     base_scope = base_scope.where("boards.user_id = ?", user_id) if user_id.present?
+    if board_id.present?
+      board = Board.find_by(id: board_id)
+      unless board
+        puts "Board with id=#{board_id} not found"
+        exit(1)
+      end
+      puts "Filtering to boards with id=#{board_id} (#{board.name})"
+      base_scope = board.display_docs
+    end
 
     puts "Base scope: #{base_scope.count} docs"
 
@@ -93,6 +100,8 @@ namespace :docs do
     docs_skipped_processed = 0
     docs_skipped_enqueued = 0
     jobs_enqueued = 0
+    puts "Processing doc IDs in batches of #{batch_size} with a delay of #{delay_seconds}s between batches..."
+    puts "Total batches to process: #{(latest_doc_ids.size / batch_size.to_f).ceil}"
 
     latest_doc_ids.each_slice(batch_size).with_index do |doc_ids_batch, batch_index|
       docs = Doc.where(id: doc_ids_batch).with_attached_image.to_a
@@ -126,6 +135,7 @@ namespace :docs do
 
       docs_enqueued += doc_ids.size
       jobs_enqueued += 1
+      sleep(delay_seconds) unless dry_run
     end
 
     puts "Done."
@@ -170,6 +180,7 @@ namespace :docs do
 
     scheduled_deleted = 0
     retry_deleted = 0
+    enqueued_deleted = 0
 
     Sidekiq::ScheduledSet.new.each do |job|
       next unless job_classes.include?(job.klass)
@@ -183,8 +194,15 @@ namespace :docs do
       retry_deleted += 1
     end
 
+    Sidekiq::Queue.new("ai_images").each do |job|
+      next unless job_classes.include?(job.klass)
+      job.delete
+      enqueued_deleted += 1
+    end
+
     puts "Deleted #{scheduled_deleted} scheduled jobs"
     puts "Deleted #{retry_deleted} retry jobs"
+    puts "Deleted #{enqueued_deleted} enqueued jobs"
   end
 
   desc "Inspect scheduled and retry tile variant jobs"
@@ -219,6 +237,28 @@ namespace :docs do
       puts "#{job.klass} | args=#{job.args.inspect}"
     end
     puts "Total queued: #{queue_count}"
+  end
+
+  desc "Reprocess tile variants with new transformations"
+  task reprocess_tile_variants: :environment do
+    batch_size = ENV.fetch("BATCH_SIZE", 50).to_i
+    delay_seconds = ENV.fetch("DELAY_SECONDS", 2).to_i
+
+    docs = Doc.with_attached_image
+
+    puts "Total docs: #{docs.count}"
+
+    docs.find_in_batches(batch_size: batch_size).with_index do |batch, index|
+      puts "Processing batch #{index + 1}..."
+
+      batch.each_with_index do |doc, i|
+        PreprocessDocTileVariantJob.perform_in(i * delay_seconds, doc.id)
+      end
+
+      sleep(delay_seconds)
+    end
+
+    puts "Done enqueuing jobs"
   end
 
   def extract_doc_ids_from_job(job)
