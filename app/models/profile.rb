@@ -168,21 +168,21 @@ class Profile < ApplicationRecord
   # --- Attachments / CDN URLs ---
   def avatar_url
     return nil unless avatar.attached?
-    key = avatar.key
+    key = avatar.blob.key
     return nil if key.blank?
     "#{ENV["CDN_HOST"]}/#{key}"
   end
 
   def intro_audio_url
     return nil unless intro_audio.attached?
-    key = intro_audio.key
+    key = intro_audio.blob.key
     return nil if key.blank?
     "#{ENV["CDN_HOST"]}/#{key}"
   end
 
   def bio_audio_url
     return nil unless bio_audio.attached?
-    key = bio_audio.key
+    key = bio_audio.blob.key
     return nil if key.blank?
     "#{ENV["CDN_HOST"]}/#{key}"
   end

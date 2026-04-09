@@ -127,8 +127,8 @@ class Doc < ApplicationRecord
       license: license,
       documentable_type: documentable_type,
       documentable_id: documentable_id,
-      src: display_url,
-    # tile_src: tile_url,
+      src: tile_url,
+      # tile_src: tile_url,
     }
   end
 

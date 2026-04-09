@@ -198,10 +198,6 @@ class BoardImage < ApplicationRecord
     ColorHelper.to_hex(bg_color, default: "#FFFFFF")
   end
 
-  def display_image_url_or_default(viewing_user = nil)
-    display_image_url || image.display_image_url(viewing_user) || image.src_url
-  end
-
   def tile_image_url(viewing_user = nil)
     display_image_url || image.display_tile_url(viewing_user) || image.display_image_url(viewing_user) || image.src_url
   end
@@ -270,7 +266,7 @@ class BoardImage < ApplicationRecord
     puts "is_dynamic: #{is_dynamic}"
     {
       id: id.to_s,
-      url: display_image_url_or_default(viewing_user),
+      url: tile_image_url(viewing_user),
       width: 850, # this might need to be changed
       height: 850, # this might need to be changed
       content_type: image.content_type,

@@ -41,7 +41,7 @@ module Boards
             "w" => layout["w"] || 1,
             "h" => layout["h"] || 1,
             "label" => bi.label,
-            "image_url" => bi.display_image_url_or_default,
+            "image_url" => bi.tile_image_url(@current_user),
             "bg_color" => bi.bg_color || "#FFFFFF",
             "i" => bi.id.to_s,
           }
