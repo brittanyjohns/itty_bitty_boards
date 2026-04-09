@@ -6,6 +6,7 @@ class PreprocessDocTileVariantJob
     doc = Doc.includes(image_attachment: :blob).find_by(id: doc_id)
     return unless doc&.image&.attached?
     return unless doc.image.variable?
+    return if doc.tile_variant_processed?
 
     doc.tile_variant.processed
     Rails.logger.info("[tile-variant] processed Doc #{doc.id}")

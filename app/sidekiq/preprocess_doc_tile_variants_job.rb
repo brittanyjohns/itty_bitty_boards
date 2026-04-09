@@ -14,10 +14,10 @@ class PreprocessDocTileVariantsJob
           next
         end
 
-        # if doc.tile_variant_processed?
-        #   skipped_count += 1
-        #   next
-        # end
+        if doc.tile_variant_processed?
+          skipped_count += 1
+          next
+        end
 
         doc.tile_variant.processed
         processed_count += 1
