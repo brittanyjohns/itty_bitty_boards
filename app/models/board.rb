@@ -799,7 +799,7 @@ class Board < ApplicationRecord
   end
 
   def process_unprocessed_docs
-    unprocessed_doc_ids = unprocessed_docs.map(&:id)
+    unprocessed_doc_ids = unprocessed_display_docs.map(&:id)
     puts "Processing #{unprocessed_doc_ids.count} unprocessed docs for Board ID #{id}"
     sleep 3
     unprocessed_doc_ids.each_slice(10).with_index do |batch, index|
