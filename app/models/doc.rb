@@ -63,8 +63,12 @@ class Doc < ApplicationRecord
     return false unless image.variable?
     return false unless image.blob.respond_to?(:variant_records)
 
-    variation = ActiveStorage::Variation.wrap(TILE_VARIANT_TRANSFORMATIONS)
-    image.blob.variant_records.where(variation_digest: variation.digest).exists?
+    variant = tile_variant
+    return false unless variant
+
+    image.blob.variant_records.where(
+      variation_digest: variant.variation.digest,
+    ).exists?
   rescue => e
     Rails.logger.warn("[tile-variant] processed? check failed for Doc #{id}: #{e.message}")
     false
