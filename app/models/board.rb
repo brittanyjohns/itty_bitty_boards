@@ -414,6 +414,12 @@ class Board < ApplicationRecord
     end
   end
 
+  def update_board_images_to_user_docs!
+    board_images.includes(:image).find_each do |board_image|
+      board_image.update_to_user_doc!(user)
+    end
+  end
+
   def self.clean_up_duplicate(name, user = nil, dry_run = true)
     user_id = user ? user.id : User::DEFAULT_ADMIN_ID
     boards = Board.includes(:images).where(name: name, user_id: user_id)
@@ -829,6 +835,12 @@ class Board < ApplicationRecord
 
   def display_docs
     images.map(&:display_doc).compact
+  end
+
+  def update_docs_to_default
+    board_images.includes(:image).find_each do |bi|
+      bi.update_to_default_doc!
+    end
   end
 
   def unprocessed_display_docs

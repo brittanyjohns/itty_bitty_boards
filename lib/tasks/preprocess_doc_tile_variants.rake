@@ -59,30 +59,36 @@ namespace :docs do
     latest_doc_scope = base_scope
 
     latest_doc_ids = latest_doc_scope.pluck(:id).uniq
+    puts "About to process #{latest_doc_ids.size} docs for tile variant backfill\nDo you want to continue? (y/n)"
+    answer = STDIN.gets.chomp.downcase
+    unless answer.in?(%w[y yes])
+      puts "Aborting. - you entered #{answer.inspect}"
+      exit(0)
+    end
     total_candidate_docs = latest_doc_ids.size
     left_to_process = total_candidate_docs
     latest_doc_ids = latest_doc_ids.first(limit) if limit.present?
 
     already_enqueued_doc_ids = Set.new
 
-    if skip_already_enqueued
-      job_classes = ["PreprocessDocTileVariantJob", "PreprocessDocTileVariantsJob"]
+    # if skip_already_enqueued
+    #   job_classes = ["PreprocessDocTileVariantJob", "PreprocessDocTileVariantsJob"]
 
-      Sidekiq::ScheduledSet.new.each do |job|
-        next unless job_classes.include?(job.klass)
-        extract_doc_ids_from_job(job).each { |id| already_enqueued_doc_ids << id }
-      end
+    #   Sidekiq::ScheduledSet.new.each do |job|
+    #     next unless job_classes.include?(job.klass)
+    #     extract_doc_ids_from_job(job).each { |id| already_enqueued_doc_ids << id }
+    #   end
 
-      Sidekiq::RetrySet.new.each do |job|
-        next unless job_classes.include?(job.klass)
-        extract_doc_ids_from_job(job).each { |id| already_enqueued_doc_ids << id }
-      end
+    #   Sidekiq::RetrySet.new.each do |job|
+    #     next unless job_classes.include?(job.klass)
+    #     extract_doc_ids_from_job(job).each { |id| already_enqueued_doc_ids << id }
+    #   end
 
-      Sidekiq::Queue.new(queue_name).each do |job|
-        next unless job_classes.include?(job.klass)
-        extract_doc_ids_from_job(job).each { |id| already_enqueued_doc_ids << id }
-      end
-    end
+    #   Sidekiq::Queue.new(queue_name).each do |job|
+    #     next unless job_classes.include?(job.klass)
+    #     extract_doc_ids_from_job(job).each { |id| already_enqueued_doc_ids << id }
+    #   end
+    # end
 
     puts "Starting tile variant backfill enqueue..."
     puts "Candidate docs: #{latest_doc_ids.size}"

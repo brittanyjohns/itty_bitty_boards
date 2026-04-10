@@ -371,6 +371,15 @@ class BoardImage < ApplicationRecord
     self.update_column(:display_image_url, display_image_url)
   end
 
+  def update_to_user_doc!(viewing_user)
+    new_url = default_doc_url(false)
+    if new_url.blank? || new_url == display_image_url
+      return
+    end
+    display_image_url = new_url
+    self.update_column(:display_image_url, display_image_url)
+  end
+
   def api_view(viewing_user = nil)
     {
       id: id,
