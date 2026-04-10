@@ -40,7 +40,6 @@ class BoardImage < ApplicationRecord
   before_save :check_predictive_board
   before_save :set_colors, if: :part_of_speech_changed?
   after_create :create_voice_audio_after_create, unless: -> { skip_create_voice_audio }
-  after_commit :save_display_image_url, on: :update, if: -> { url_needs_update? }
 
   include BoardsHelper
   include ImageHelper
@@ -340,16 +339,19 @@ class BoardImage < ApplicationRecord
     all_voices.uniq
   end
 
-  def default_doc_url
-    image.display_tile_url(user)
+  def default_doc_url(reset = false)
+    viewing_user = reset ? nil : user
+    image.display_tile_url(viewing_user)
   end
 
-  def display_doc
-    image.display_doc(user)
+  def display_doc(reset = false)
+    viewing_user = reset ? nil : user
+    image.display_doc(viewing_user)
   end
 
   def default_doc_processed?
-    display_doc && display_doc.tile_variant_processed?
+    doc = display_doc(true)
+    doc && doc.tile_variant_processed?
   end
 
   def url_needs_update?
@@ -361,7 +363,7 @@ class BoardImage < ApplicationRecord
   end
 
   def update_to_default_doc!
-    new_url = default_doc_url
+    new_url = default_doc_url(true)
     if new_url.blank? || new_url == display_image_url
       return
     end
