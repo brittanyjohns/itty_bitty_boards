@@ -111,6 +111,7 @@ class Board < ApplicationRecord
   scope :without_images, -> { left_outer_joins(:images).where(images: { id: nil }) }
 
   scope :created_this_week, -> { where("created_at > ?", 1.week.ago) }
+  scope :generated, -> { where.not(generated_token: nil) }
   scope :created_before_this_week, -> { where("created_at < ?", 8.days.ago) }
   scope :created_today, -> { where("created_at > ?", 1.day.ago.end_of_day) }
   scope :created_yesterday, -> { where("created_at > ? AND created_at < ?", 1.day.ago.beginning_of_day, Time.zone.now.beginning_of_day) }
@@ -415,8 +416,8 @@ class Board < ApplicationRecord
   end
 
   def update_board_images_to_user_docs!
-    board_images.includes(:image).find_each do |board_image|
-      board_image.update_to_user_doc!(user)
+    images.includes(:board_images).find_each do |image|
+      image.update_to_src_url!(user)
     end
   end
 

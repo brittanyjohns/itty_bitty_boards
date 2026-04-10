@@ -1068,6 +1068,17 @@ class Image < ApplicationRecord
     doc ? doc.tile_url : nil
   end
 
+  def update_to_src_url!(viewing_user)
+    new_url = display_tile_url(viewing_user)
+    if new_url.blank? || new_url == src_url
+      return
+    end
+    old_url = src_url
+    display_image_url = new_url
+    self.update_column(:src_url, display_image_url)
+    board_images.where(display_image_url: old_url).update_all(display_image_url: display_image_url)
+  end
+
   def save_audio_file_to_s3!(voice = "polly:kevin", lang = "en")
     create_audio_from_text(label, voice, lang)
     voices_needed = missing_voices || []
