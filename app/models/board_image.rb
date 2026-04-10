@@ -367,8 +367,8 @@ class BoardImage < ApplicationRecord
     if new_url.blank? || new_url == display_image_url
       return
     end
-    self.display_image_url = new_url
-    save!
+    display_image_url = new_url
+    self.update_column(:display_image_url, display_image_url)
   end
 
   def api_view(viewing_user = nil)
