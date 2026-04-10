@@ -1445,8 +1445,7 @@ class Board < ApplicationRecord
         @board_image = board_image
 
         @image = @board_image.image
-        full_src_url = @board_image.display_image_url || @image.display_image_url(viewing_user) || @image.src_url
-        tile_src_url = @board_image.tile_image_url(viewing_user)
+        @full_src_url = @board_image.display_image_url || @image.display_image_url(viewing_user) || @image.src_url
 
         is_owner = viewing_user && @image.user_id == viewing_user&.id
         is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
@@ -1521,12 +1520,12 @@ class Board < ApplicationRecord
           text_color: @board_image.text_color,
           next_words: @board_image.next_words,
           position: @board_image.position,
-          src_url: full_src_url,
+          src_url: @full_src_url,
           mute_name: mute_name,
-          src: tile_src_url || full_src_url,
-          full_src: full_src_url,
-          display_image_url: full_src_url,
-          tile_src: tile_src_url,
+          src: @full_src_url,
+          full_src: @full_src_url,
+          display_image_url: @full_src_url,
+          tile_src: @full_src_url,
           audio_url: current_audio_url,
           voice: @board_image.voice,
           layout: @board_image.layout.with_indifferent_access,
@@ -1648,8 +1647,7 @@ class Board < ApplicationRecord
       images: @board_images.map do |board_image|
         @board_image = board_image
         @image = @board_image.image
-        full_src_url = @board_image.display_image_url || @image.display_image_url(viewing_user) || @image.src_url
-        tile_src_url = @board_image.tile_image_url(viewing_user)
+        @full_src_url = @board_image.display_image_url || @image.display_image_url(viewing_user) || @image.src_url
 
         is_owner = viewing_user && @image.user_id == viewing_user&.id
         is_admin_image = [User::DEFAULT_ADMIN_ID, nil].include?(user_id)
@@ -1722,12 +1720,12 @@ class Board < ApplicationRecord
           text_color: @board_image.text_color,
           next_words: @board_image.next_words,
           position: @board_image.position,
-          src_url: full_src_url,
+          src_url: @full_src_url,
           mute_name: mute_name,
-          src: tile_src_url || full_src_url,
-          full_src: full_src_url,
-          display_image_url: full_src_url,
-          tile_src: tile_src_url,
+          src: @full_src_url,
+          full_src: @full_src_url,
+          display_image_url: @full_src_url,
+          tile_src: @full_src_url,
           audio_url: current_audio_url,
           voice: @board_image.voice,
           layout: @board_image.layout.with_indifferent_access,

@@ -260,6 +260,9 @@ class Doc < ApplicationRecord
 
   def display_url
     return original_image_url if !image.attached?
+    unless tile_variant_processed?
+      PreprocessDocTileVariantJob.perform_async(id)
+    end
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
       cdn_host = ENV["CDN_HOST"]
       if cdn_host
