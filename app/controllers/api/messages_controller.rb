@@ -51,7 +51,6 @@ class API::MessagesController < API::ApplicationController
     #   render json: { error: "Unauthorized" }, status: :unauthorized
     #   return
     # end
-    puts "Params: \n\n #{params.inspect}"
     @message = Message.new(message_params)
 
     if @message.save

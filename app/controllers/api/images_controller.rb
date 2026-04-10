@@ -466,7 +466,6 @@ class API::ImagesController < API::ApplicationController
   def generate
     @current_user = current_user
     return unless check_monthly_limit("ai_action")
-    Rails.logger.debug("Params: #{params.inspect}")
     label = image_params[:label].present? ? image_params[:label] : image_params[:image_prompt]
     image_prompt = image_params[:image_prompt]
     stripped_prompt = image_prompt.gsub("[[REPLACE_LABEL]]", "").strip
