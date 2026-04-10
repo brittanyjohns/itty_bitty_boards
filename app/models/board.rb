@@ -250,12 +250,6 @@ class Board < ApplicationRecord
     variant = preview_image_variant
     return display_image_url unless variant
 
-    #  If not processed yet → enqueue and return fast
-    unless preview_image_variant_processed?
-      PreprocessBoardPreviewImageVariantJob.perform_async(id)
-      return display_image_url
-    end
-
     processed_variant = variant.processed
 
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
