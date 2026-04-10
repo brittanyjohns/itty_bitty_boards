@@ -1065,7 +1065,7 @@ class Image < ApplicationRecord
 
   def display_image_url(viewing_user = nil)
     doc = display_doc(viewing_user)
-    doc ? doc.display_url : nil
+    doc ? doc.tile_url : nil
   end
 
   def save_audio_file_to_s3!(voice = "polly:kevin", lang = "en")
@@ -1254,8 +1254,8 @@ class Image < ApplicationRecord
 
   def update_src_url
     doc = display_doc(user)
-    if doc && doc.display_url
-      self.src_url = doc.display_url
+    if doc && doc.tile_url
+      self.src_url = doc.tile_url
     end
   end
 
@@ -1295,7 +1295,7 @@ class Image < ApplicationRecord
     else
       current_doc = display_doc(@current_user)
       current_doc_id = current_doc.id if current_doc
-      doc_img_url = current_doc&.display_url
+      doc_img_url = current_doc&.tile_url
     end
     if @current_user&.admin?
       image_docs = self.docs.with_attached_image.order(created_at: :desc)
@@ -1373,8 +1373,8 @@ class Image < ApplicationRecord
           id: doc.id,
           label: label,
           user_id: doc.user_id,
-          src: doc.display_url,
-          display_url: doc.display_url,
+          src: doc.tile_url,
+          display_url: doc.tile_url,
           raw: doc.raw,
           is_current: doc.id == current_doc_id,
           can_edit: (current_user && doc.user_id == current_user.id) || current_user&.admin?,
@@ -1417,10 +1417,10 @@ class Image < ApplicationRecord
       # optional: convert data URL to ActiveStorage URL
       b64 = result.split(",", 2).last
       edited_doc = save_image_from_base64(b64, user_id_to_set, "Edited image for #{label}", "Edited image from prompt: #{prompt}")
-      url = edited_doc.display_url if edited_doc
+      url = edited_doc.tile_url if edited_doc
     else
       edited_doc = save_from_url(result, "Edited image for #{label}", "Edited image from prompt: #{prompt}", user_id_to_set) if result
-      url = edited_doc.display_url if edited_doc
+      url = edited_doc.tile_url if edited_doc
     end
 
     url

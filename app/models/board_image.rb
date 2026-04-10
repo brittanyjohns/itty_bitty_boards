@@ -396,7 +396,7 @@ class BoardImage < ApplicationRecord
       border_color: border_color,
       frozen_board: board.is_frozen?,
       audio_files: all_audio_files_for_api_plus_image_audio,
-      docs: image.docs.for_user(viewing_user).order(created_at: :desc).limit(15).map { |doc| doc.api_view(viewing_user) },
+      docs: image.docs.for_user(viewing_user).order(created_at: :desc).limit(10).map { |doc| doc.list_api_view(viewing_user) },
       voice_list: voice_list,
       layout: layout,
       status: status,

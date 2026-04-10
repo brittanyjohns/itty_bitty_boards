@@ -83,7 +83,7 @@ class API::ImagesController < API::ApplicationController
 
     if @doc.save
       @image.update(status: "finished")
-      saved_image_url = @doc.display_url
+      saved_image_url = @doc.tile_url
       if check_update_board_image(saved_image_url)
         render json: { image_url: saved_image_url, id: @image.id, doc_id: @doc.id, board_id: @board&.id, board_image_id: @board_image&.id } and return
       end
@@ -109,8 +109,8 @@ class API::ImagesController < API::ApplicationController
     else
       @image = Image.create(user: @current_user, label: label, private: true, image_prompt: params[:title], image_type: "User")
     end
-    saved_image = @image.save_from_url(params[:imageUrl], params[:snippet], params[:title], "image/webp", @current_user.id)
-    saved_image_url = saved_image.display_url
+    saved_image_doc = @image.save_from_url(params[:imageUrl], params[:snippet], params[:title], "image/webp", @current_user.id)
+    saved_image_url = saved_image_doc.tile_url
     @image.update_all_boards_image_belongs_to(saved_image_url, false, @current_user.id)
     # UpdateBoardImagesJob.perform_async(@image.id, saved_image_url)
     @doc = @image.docs.last
@@ -340,7 +340,7 @@ class API::ImagesController < API::ApplicationController
       doc.user = @current_user
       doc.processed = true
       if doc.save
-        @image_with_display_doc = @image.attributes.merge({ display_doc: doc.attributes, src: doc.display_url })
+        @image_with_display_doc = @image.attributes.merge({ display_doc: doc.attributes, src: doc.tile_url })
         render json: @image.with_display_doc(@current_user), status: :created
       else
         render json: @image.errors, status: :unprocessable_entity
@@ -685,7 +685,7 @@ class API::ImagesController < API::ApplicationController
       return
     end
     begin
-      doc_url = @doc.display_url
+      doc_url = @doc.tile_url
       if @image.src_url == doc_url
         @image.update(src_url: nil)
       end
@@ -782,13 +782,13 @@ class API::ImagesController < API::ApplicationController
   end
 
   def check_update_board_image(saved_image_url = nil)
-    saved_image_url ||= @doc.display_url
+    saved_image_url ||= @doc.tile_url
     if params[:boardId].present?
       @board = Board.find(params[:boardId])
       if @board.user_id == current_user.id
         @board_image = @board.board_images.find_by(image_id: @image.id)
         if @board_image
-          @board_image.update!(display_image_url: @doc.display_url)
+          @board_image.update!(display_image_url: @doc.tile_url)
         end
         return true
       else

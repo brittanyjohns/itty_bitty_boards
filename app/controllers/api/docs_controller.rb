@@ -132,20 +132,19 @@ class API::DocsController < API::ApplicationController
       if @board
         @board_image = @board.board_images.find_by(image_id: @image.id)
         if @board_image
-          @board_image.update(display_image_url: @doc.display_url)
+          @board_image.update(display_image_url: @doc.tile_url)
         end
         # @board.update!(updated_at: Time.zone.now)
         @board.broadcast_board_update!
       end
       if params[:update_all]
-        @image.update_all_boards_image_belongs_to(@doc.display_url, true, current_user.id)
+        @image.update_all_boards_image_belongs_to(@doc.tile_url, true, current_user.id)
       end
       if current_user.admin?
-        @image.src_url = @doc.display_url
+        @image.src_url = @doc.tile_url
         @image.save
       end
 
-      # @image.update_all_boards_image_belongs_to(@doc.display_url)
       @user = @image.user
       is_owner = false
       if @user.nil? && current_user.admin?

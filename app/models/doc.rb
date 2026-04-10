@@ -73,12 +73,6 @@ class Doc < ApplicationRecord
     variant = tile_variant
     return display_url unless variant
 
-    #  If not processed yet → enqueue and return fast
-    unless tile_variant_processed?
-      PreprocessDocTileVariantJob.perform_async(id)
-      return display_url
-    end
-
     processed_variant = variant.processed
 
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
@@ -91,7 +85,6 @@ class Doc < ApplicationRecord
     else
       Rails.application.routes.url_helpers.url_for(processed_variant)
     end
-
   rescue => e
     Rails.logger.warn("[tile-url] error doc=#{id}: #{e.message}")
     display_url
@@ -99,6 +92,28 @@ class Doc < ApplicationRecord
 
   def hide!
     update(deleted_at: Time.now)
+  end
+
+  def list_api_view(viewing_user = nil)
+    {
+      id: id,
+      raw: raw,
+      can_edit: user_id == viewing_user&.id,
+      processed: processed,
+      current: current,
+      created_at: created_at,
+      updated_at: updated_at,
+      board_id: board_id,
+      user_id: user_id,
+      source_type: source_type,
+      original_image_url: original_image_url,
+      data: data,
+      license: license,
+      documentable_type: documentable_type,
+      documentable_id: documentable_id,
+      src: display_url,
+    # tile_src: tile_url,
+    }
   end
 
   def api_view(viewing_user = nil)
@@ -120,7 +135,7 @@ class Doc < ApplicationRecord
       documentable_type: documentable_type,
       documentable_id: documentable_id,
       src: tile_url,
-      # tile_src: tile_url,
+    # tile_src: tile_url,
     }
   end
 

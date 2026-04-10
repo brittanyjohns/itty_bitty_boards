@@ -35,7 +35,7 @@ class GenerateImageJob
         image.save!
       end
       if board_image
-        board_image.update(status: "complete", display_image_url: new_doc.display_url)
+        board_image.update(status: "complete", display_image_url: new_doc.tile_url)
       end
       # if board_id
       #   board = Board.find(board_id)

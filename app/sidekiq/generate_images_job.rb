@@ -44,7 +44,7 @@ class GenerateImagesJob
 
           image.update_column(:status, "complete") if image.has_attribute?(:status)
           board_image&.update_column(:status, "complete")
-          board_image&.update_column(:display_image_url, new_doc.display_url)
+          board_image&.update_column(:display_image_url, new_doc.tile_url)
         rescue => e
           failed_image_ids << image.id
 

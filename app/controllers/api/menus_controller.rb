@@ -56,7 +56,7 @@ class API::MenusController < API::ApplicationController
     @menu = Menu.find(params[:id])
     screen_size = params[:screen_size] || "lg"
     @board = @menu.boards.last
-    @board = @menu.boards.new(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: false, display_image_url: @menu.docs.last.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent: @menu) if @board.nil?
+    @board = @menu.boards.new(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: false, display_image_url: @menu.docs.last.tile_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent: @menu) if @board.nil?
     @board.generate_unique_slug
     @board.status = "pending"
     unless @board.save
@@ -116,7 +116,7 @@ class API::MenusController < API::ApplicationController
     # doc.processed = true
     doc.raw = params[:menu][:description]
     if doc.save
-      @board = @menu.boards.new(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent: @menu)
+      @board = @menu.boards.new(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.tile_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent: @menu)
       @board.generate_unique_slug
       @board.status = "pending"
       @board.preview_image.attach(menu_params[:docs][:image]) if menu_params[:docs] && menu_params[:docs][:image]

@@ -89,7 +89,8 @@ class BoardGroup < ApplicationRecord
 
   def update_all_board_images
     images.includes(:board_images).find_each do |image|
-      image.update_all_boards_image_belongs_to(image.src_url) if image.src_url.present?
+      url = image.display_tile_url(user)
+      image.update_all_boards_image_belongs_to(url) if url.present?
     end
   end
 

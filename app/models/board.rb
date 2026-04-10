@@ -2374,7 +2374,7 @@ class Board < ApplicationRecord
               Rails.logger.error "Error saving doc: #{@doc.errors.full_messages}"
             end
             @doc.reload
-            temp_display_image = @doc.display_url
+            temp_display_image = @doc.tile_url
             image.update(status: "finished")
           else
             Rails.logger.debug "No URL or path found for image"

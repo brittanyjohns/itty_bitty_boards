@@ -69,8 +69,8 @@ module ImageHelper
         PreprocessDocTileVariantJob.perform_async(doc.id)
       end
 
-      self.update(status: "finished", src_url: doc.display_url)
-      update_all_boards_image_belongs_to(doc.display_url)
+      self.update(status: "finished", src_url: doc.tile_url)
+      update_all_boards_image_belongs_to(doc.tile_url)
     rescue => e
       Rails.logger.error "ImageHelper ERROR: #{e.inspect}"
       raise e
@@ -159,10 +159,11 @@ module ImageHelper
       content_type: content_type,
     )
 
-    PreprocessDocTileVariantJob.perform_async(doc.id)
+    # PreprocessDocTileVariantJob.perform_async(doc.id)
+    doc.tile_variant.processed
 
     self.update!(status: "finished")
-    update_all_boards_image_belongs_to(doc.display_url)
+    update_all_boards_image_belongs_to(doc.tile_url)
 
     Rails.logger.debug "Base64 image saved and attached to doc #{doc.id} for image #{self.id}"
 

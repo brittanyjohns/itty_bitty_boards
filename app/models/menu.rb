@@ -266,7 +266,7 @@ class Menu < ApplicationRecord
       raw: raw,
       token_limit: token_limit,
       board: { name: main_board&.name, id: main_board&.id },
-      displayImage: docs.last&.display_url,
+      displayImage: docs.last&.tile_url,
       can_edit: viewing_user.admin? || viewing_user.id == user_id,
       user_id: user_id,
       status: main_board&.status || "error",
