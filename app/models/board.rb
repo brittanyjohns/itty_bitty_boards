@@ -220,19 +220,56 @@ class Board < ApplicationRecord
     # generate_preview(generate_pdf: true) # PDF with header for sharing
   end
 
+  def preview_image_variant
+    return unless preview_image.attached?
+    return unless preview_image.variable?
+
+    preview_image.variant(TILE_VARIANT_TRANSFORMATIONS)
+  end
+
+  def preview_image_variant_processed?
+    return false unless preview_image.attached?
+    return false unless preview_image.variable?
+    return false unless preview_image.blob.respond_to?(:variant_records)
+
+    variant = preview_image_variant
+    return false unless variant
+
+    preview_image.blob.variant_records.where(
+      variation_digest: variant.variation.digest,
+    ).exists?
+  rescue => e
+    Rails.logger.warn("[preview-image-variant] processed? check failed for Board #{id}: #{e.message}")
+    false
+  end
+
   def preview_image_url
-    return if !preview_image.attached?
+    return display_image_url unless preview_image.variable?
+
+    variant = preview_image_variant
+    return display_image_url unless variant
+
+    #  If not processed yet → enqueue and return fast
+    unless preview_image_variant_processed?
+      PreprocessBoardPreviewImageVariantJob.perform_async(id)
+      return display_image_url
+    end
+
+    processed_variant = variant.processed
+
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
       cdn_host = ENV["CDN_HOST"]
       if cdn_host
-        "#{cdn_host}/#{preview_image.key}" # Construct CloudFront URL
+        "#{cdn_host}/#{processed_variant.key}"
       else
-        Rails.logger.warn "CDN_HOST not set, falling back to direct Active Storage URL for preview image"
-        preview_image.url # Fallback to the direct Active Storage URL
+        Rails.application.routes.url_helpers.url_for(processed_variant)
       end
     else
-      preview_image.url
+      Rails.application.routes.url_helpers.url_for(processed_variant)
     end
+  rescue => e
+    Rails.logger.warn("[preview-image-url] error board=#{id}: #{e.message}")
+    display_image_url
   end
 
   def pdf_url

@@ -40,7 +40,7 @@ class BoardImage < ApplicationRecord
   before_save :check_predictive_board
   before_save :set_colors, if: :part_of_speech_changed?
   after_create :create_voice_audio_after_create, unless: -> { skip_create_voice_audio }
-  after_commit :save_display_image_url, on: :update
+  after_commit :save_display_image_url, on: :update, if: -> { url_needs_update? }
 
   include BoardsHelper
   include ImageHelper
@@ -134,7 +134,8 @@ class BoardImage < ApplicationRecord
 
   def save_display_image_url
     display_image_url = image.display_tile_url(user)
-    self.update_column(:display_image_url, display_image_url) if display_image_url != self.display_image_url
+    Rails.logger.debug "Saving display_image_url for BoardImage ID #{id}: #{display_image_url}"
+    self.update_column(:display_image_url, display_image_url)
   end
 
   def self.with_invalid_layouts
@@ -341,6 +342,22 @@ class BoardImage < ApplicationRecord
 
   def default_doc_url
     image.display_tile_url(user)
+  end
+
+  def display_doc
+    image.display_doc(user)
+  end
+
+  def default_doc_processed?
+    display_doc && display_doc.tile_variant_processed?
+  end
+
+  def url_needs_update?
+    return true if display_image_url.blank?
+    old_src = image.display_image_url(user)
+    if display_image_url == old_src
+      return true
+    end
   end
 
   def update_to_default_doc!

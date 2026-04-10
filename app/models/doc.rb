@@ -20,14 +20,6 @@
 #  license            :jsonb
 #
 class Doc < ApplicationRecord
-  TILE_VARIANT_TRANSFORMATIONS = {
-    resize_to_limit: [288, 288],
-    format: :webp,
-    saver: {
-      quality: 65,
-      strip: true,
-    },
-  }.freeze
   default_scope { where(deleted_at: nil) }
   belongs_to :user, optional: true
   belongs_to :documentable, polymorphic: true, touch: true
