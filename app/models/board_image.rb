@@ -133,7 +133,8 @@ class BoardImage < ApplicationRecord
   end
 
   def save_display_image_url
-    self.display_image_url = image.display_tile_url(user)
+    display_image_url = image.display_tile_url(user)
+    self.update_column(:display_image_url, display_image_url) if display_image_url != self.display_image_url
   end
 
   def self.with_invalid_layouts
@@ -339,7 +340,7 @@ class BoardImage < ApplicationRecord
   end
 
   def default_doc_url
-    image.display_tile_url(nil)
+    image.display_tile_url(user)
   end
 
   def update_to_default_doc!
