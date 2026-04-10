@@ -40,6 +40,7 @@ class BoardImage < ApplicationRecord
   before_save :check_predictive_board
   before_save :set_colors, if: :part_of_speech_changed?
   after_create :create_voice_audio_after_create, unless: -> { skip_create_voice_audio }
+  after_commit :save_display_image_url, on: :update
 
   include BoardsHelper
   include ImageHelper
@@ -132,7 +133,7 @@ class BoardImage < ApplicationRecord
   end
 
   def save_display_image_url
-    self.display_image_url = image.src_url
+    self.display_image_url = image.display_tile_url(user)
   end
 
   def self.with_invalid_layouts
@@ -454,7 +455,7 @@ class BoardImage < ApplicationRecord
     self.font_size = image.font_size
     self.border_color = image.border_color
     self.label = image.label
-    self.display_image_url = image.display_image_url(user)
+    self.display_image_url = image.display_tile_url(user)
     self.next_words = image.next_words || []
     self.part_of_speech = image.part_of_speech || "default"
     # if audio_file
