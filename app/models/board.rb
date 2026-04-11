@@ -50,6 +50,14 @@
 require "zip"
 
 class Board < ApplicationRecord
+  TILE_VARIANT_TRANSFORMATIONS = {
+    resize_to_limit: [528, 528],
+    format: :webp,
+    saver: {
+      quality: 65,
+      strip: true,
+    },
+  }.freeze
   has_rich_text :display_description
   belongs_to :user, optional: true
   belongs_to :vendor, optional: true
@@ -221,50 +229,18 @@ class Board < ApplicationRecord
     # generate_preview(generate_pdf: true) # PDF with header for sharing
   end
 
-  def preview_image_variant
-    return unless preview_image.attached?
-    return unless preview_image.variable?
-
-    preview_image.variant(TILE_VARIANT_TRANSFORMATIONS)
-  end
-
-  def preview_image_variant_processed?
-    return false unless preview_image.attached?
-    return false unless preview_image.variable?
-    return false unless preview_image.blob.respond_to?(:variant_records)
-
-    variant = preview_image_variant
-    return false unless variant
-
-    preview_image.blob.variant_records.where(
-      variation_digest: variant.variation.digest,
-    ).exists?
-  rescue => e
-    Rails.logger.warn("[preview-image-variant] processed? check failed for Board #{id}: #{e.message}")
-    false
-  end
-
   def preview_image_url
-    return display_image_url unless preview_image.variable?
-
-    variant = preview_image_variant
-    return display_image_url unless variant
-
-    processed_variant = variant.processed
-
+    return if !preview_image.attached?
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
       cdn_host = ENV["CDN_HOST"]
       if cdn_host
-        "#{cdn_host}/#{processed_variant.key}"
+        "#{cdn_host}/#{preview_image.key}" # Construct CloudFront URL
       else
-        Rails.application.routes.url_helpers.url_for(processed_variant)
+        preview_image.url # Fallback to the direct Active Storage URL
       end
     else
-      Rails.application.routes.url_helpers.url_for(processed_variant)
+      preview_image.url
     end
-  rescue => e
-    Rails.logger.warn("[preview-image-url] error board=#{id}: #{e.message}")
-    display_image_url
   end
 
   def pdf_url
