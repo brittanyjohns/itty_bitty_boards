@@ -1004,19 +1004,17 @@ class Board < ApplicationRecord
       image = Image.create(label: original_image.label, user_id: @cloned_board.user_id) unless image
       layout = @layouts.find { |l| l[0] == original_image.id }&.second
       # new_board_image = @cloned_board.add_image(image.id, layout)
-      new_board_image = board_image.dup
+      new_board_image = BoardImage.new(image_id: image.id, board_id: @cloned_board.id, voice: board_image.voice, position: board_image.position, layout: layout)
+      new_board_image.set_labels
       if new_board_image
-        new_board_image.image = image
-        new_board_image.board = @cloned_board
-        new_board_image.image_id = image.id
-        new_board_image.layout = layout if layout
+        new_board_image.part_of_speech = image.part_of_speech || "default"
+        new_board_image.set_defaults
+
         new_board_image.display_label = board_image.display_label
-        new_board_image.display_image_url = board_image.display_image_url
 
         new_board_image.voice = board_image.voice
         new_board_image.predictive_board_id = board_image.predictive_board_id
         new_board_image.audio_url = board_image.audio_url
-
         new_board_image.save
       end
     end
