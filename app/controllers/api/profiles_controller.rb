@@ -76,7 +76,7 @@ class API::ProfilesController < API::ApplicationController
 
     if profile.save
       profile.enqueue_audio_job_if_needed
-      profile.generate_attachments!
+      profile.generate_attachments! if profile.safety?
       render json: profile.api_view(current_user), status: :created
     else
       Rails.logger.debug("[Profiles#create] errors=#{profile.errors.full_messages}")
@@ -106,7 +106,7 @@ class API::ProfilesController < API::ApplicationController
 
     if profile.update(profile_params)
       profile.enqueue_audio_job_if_needed
-      profile.generate_attachments!
+      profile.generate_attachments! if profile.safety?
       render json: profile.api_view(current_user)
     else
       Rails.logger.debug("[Profiles#update] errors=#{profile.errors.full_messages}")
