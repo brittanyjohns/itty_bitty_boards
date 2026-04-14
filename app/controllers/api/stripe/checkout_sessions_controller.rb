@@ -22,7 +22,6 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
 
     if plan_key == "free" || price_id.blank?
       current_user.update!(plan_type: "free", plan_status: "active")
-      Rails.logger.error "User #{current_user.id} is on the free plan or price_id is blank"
       render json: { url: "#{frontend_base_url}/home" } and return
     end
     is_partner = plan_key == "partner_pro"
@@ -33,8 +32,9 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     trial_days = 14
     cancel_url = is_partner ? "#{frontend_base_url}/onboarding/partner" : "#{frontend_base_url}/onboarding"
 
-    bypass_payment_required = params[:bypass_payment_required] == "true"
-    if bypass_payment_required || promo_code&.upcase == NO_CC_KEY
+    bypass_payment_required = params[:bypass_payment_required] == "true" || promo_code&.upcase == NO_CC_KEY
+
+    if bypass_payment_required
       payment_method_collection = "if_required"
     end
 
