@@ -82,11 +82,7 @@ class OpenAiClient
     params[:n] = @opts[:n] if @opts[:n].present?
     params[:output_compression] = @opts[:output_compression] if @opts[:output_compression].present?
 
-    Rails.logger.info("OpenAI create_image params=#{params.except(:prompt).inspect}")
-
     response = client.images.generate(parameters: params)
-
-    Rails.logger.debug("OpenAI raw image response: #{response.inspect}")
 
     first_image = extract_first_image(response)
     raise "OpenAI image generation returned no image data" if first_image.blank?
@@ -518,7 +514,7 @@ class OpenAiClient
 
     min_number_of_words = 2
     text = <<~TEXT
-                                                            I am creating a social story titled "#{name}".
+                                                              I am creating a social story titled "#{name}".
 
     Please generate #{number_of_steps} SHORT step instructions that could appear on tiles in a social story AAC board.
 

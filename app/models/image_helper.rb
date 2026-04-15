@@ -165,8 +165,6 @@ module ImageHelper
     self.update!(status: "finished")
     update_all_boards_image_belongs_to(doc.tile_url)
 
-    Rails.logger.debug "Base64 image saved and attached to doc #{doc.id} for image #{self.id}"
-
     doc
   rescue => e
     Rails.logger.error "ImageHelper ERROR: #{e.class} - #{e.message}"
