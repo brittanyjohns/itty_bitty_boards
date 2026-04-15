@@ -396,10 +396,10 @@ class ChildAccount < ApplicationRecord
 
   def available_boards
     board_ids = child_boards.select(:board_id)
-    user_boards = user.boards.where.not(id: board_ids).order(:name) # add includes as needed
+    user_boards = user.boards.where.not(id: board_ids).alphabetical
     #  predefined boards too
-    public_boards = Board.public_boards.where.not(id: board_ids)
-    user_boards.or(public_boards).order(:name)
+    # public_boards = Board.public_boards.where.not(id: board_ids)
+    # user_boards.or(public_boards).order(:name)
   end
 
   def available_boards_for_user(viewing_user)

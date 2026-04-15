@@ -104,6 +104,7 @@ class Board < ApplicationRecord
 
   scope :for_user, ->(user) { where(user: user, is_template: false).or(where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, is_template: false)) }
   scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
+  scope :reverse_alphabetical, -> { order(Arel.sql("LOWER(name) DESC")) }
   scope :with_image_parent, -> { where.associated(:image_parent) }
   scope :searchable, -> { where.not(board_type: "menu").where(obf_id: nil) }
   scope :menus, -> { where(parent_type: "Menu") }

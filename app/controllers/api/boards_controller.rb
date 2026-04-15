@@ -21,6 +21,9 @@ class API::BoardsController < API::ApplicationController
     sort_order = allowed_sort_orders.include?(sort_order_param) ? sort_order_param : "desc"
 
     order_clause = { sort_field => sort_order.to_sym }
+    if sort_field == "name"
+      order_clause = Arel.sql("LOWER(name) #{sort_order.upcase}")
+    end
 
     query = params[:query].to_s.strip.presence
     filter_param = params[:filter].to_s.strip.presence
