@@ -468,10 +468,6 @@ class BoardImage < ApplicationRecord
 
   def set_defaults
     audio_file = nil
-    # if image.use_custom_audio
-    #   self.voice = image.voice
-    #   audio_file = image.find_custom_audio_file
-    # else
     self.voice = board.voice
     self.language = board.language
     self.display_label = image.display_label if display_label.blank?
@@ -484,18 +480,10 @@ class BoardImage < ApplicationRecord
     self.font_size = image.font_size
     self.border_color = image.border_color
     self.label = image.label
-    self.display_image_url = image.display_tile_url(user)
+    # self.display_image_url = image.display_tile_url(user)
+    self.display_image_url = image.src_url
     self.next_words = image.next_words || []
     self.part_of_speech = image.part_of_speech || "default"
-    # if audio_file
-    #   self.audio_url = default_audio_url(audio_file)
-    # else
-    #   image.start_create_all_audio_job(language) unless Rails.env.test? || Rails.env.development?
-    # end
-    # if board.board_type != "static"
-    #   default_next_board = image.matching_viewer_boards(board.user).first
-    #   self.predictive_board_id = default_next_board.id if default_next_board
-    # end
   end
 
   def create_voice_audio_after_create

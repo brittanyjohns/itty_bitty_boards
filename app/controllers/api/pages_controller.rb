@@ -5,7 +5,6 @@ class API::PagesController < API::ApplicationController
   before_action :authenticate_token!, only: [:follow_summary]
   # GET /api/pages/:id/follow_summary
   def follow_summary
-    Rails.logger.info "Fetching follow summary for page #{params[:id]} by user #{current_user&.id || "anonymous"}"
     page = Page.find(params[:id])
 
     follower_count = PageFollow.where(followed_page_id: page.id).count

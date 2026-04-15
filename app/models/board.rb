@@ -182,14 +182,14 @@ class Board < ApplicationRecord
 
   before_save :set_voice, if: :voice_changed?
   before_save :set_default_voice, unless: :voice?
-  before_save :update_display_image, unless: :display_image_url?
+  # before_save :update_display_image, unless: :display_image_url?
   # before_save :update_preset_display_image_url, if: :display_image_url_changed?
 
   # before_save :set_board_type
   before_save :clean_up_name
   before_save :validate_data
   before_save :set_vendor_id
-  before_save :check_in_use
+  before_save :check_in_use, unless: :is_a_menu?
   before_save :check_is_sub_board
 
   before_save :set_display_margin_settings, unless: :margin_settings_valid_for_all_screen_sizes?
@@ -522,6 +522,10 @@ class Board < ApplicationRecord
 
   def parent_type_menu?
     parent_type == "Menu"
+  end
+
+  def is_a_menu?
+    parent_type_menu? || board_type == "menu"
   end
 
   def self.board_categories
@@ -1010,7 +1014,6 @@ class Board < ApplicationRecord
       new_board_image.set_labels
       if new_board_image
         new_board_image.part_of_speech = image.part_of_speech || "default"
-        new_board_image.set_defaults
 
         new_board_image.display_label = board_image.display_label
 

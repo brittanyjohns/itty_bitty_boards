@@ -105,26 +105,24 @@ class Menu < ApplicationRecord
       puts "NO PROCESSED DESCRIPTION FOUND"
       return nil
     end
-    Rails.logger.debug "Creating board from image for #{name} - board_id: #{board_id}"
-    board = board_id ? Board.find(board_id) : self.boards.new
-    board.user = self.user
-    board.name = self.name || "Board for Doc #{id}"
-    board.token_limit = token_limit
-    board.description = new_doc.processed
-    board.number_of_columns = 6
-    board.save!
-    new_doc.update!(board_id: board.id)
-    create_images_from_description(board)
-    board.reset_layouts
     begin
-      board.display_image_url = new_doc.image&.url if new_doc.image.attached?
+      Rails.logger.debug "Creating board from image for #{name} - board_id: #{board_id}"
+      board = board_id ? Board.find(board_id) : self.boards.new
+      Rails.logger.debug "Board found or initialized: #{board.id || "new board"}, status: #{board.status}, description: #{board.description}"
+      board.user = self.user
+      board.name = self.name || "Board for Doc #{id}"
+      board.token_limit = token_limit
+      board.description = new_doc.processed
+      board.number_of_columns = 6
       board.save!
+      new_doc.update!(board_id: board.id)
+      create_images_from_description(board)
+      board.reset_layouts
+      board
     rescue => e
-      Rails.logger.error "create_board_from_menu_image **** ERROR **** \n#{e.message}\n"
-      Rails.logger.error e.backtrace
+      Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"
+      nil
     end
-    # board.update!(status: "complete")
-    board
   end
 
   def rerun_image_description_job
@@ -167,6 +165,7 @@ class Menu < ApplicationRecord
   end
 
   def create_images_from_description(board)
+    Rails.logger.debug "Creating images from description for Menu #{id} - #{name}"
     json_description = JSON.parse(description)
     images = []
     new_board_images = []
@@ -298,7 +297,6 @@ class Menu < ApplicationRecord
   end
 
   def enhance_image_description(board_id = nil)
-    board_id ||= self.boards.last&.id
     @board = Board.find_by(id: board_id) if board_id
     unless @board
       Rails.logger.error "enhance_image_description> No board found for this menu."
@@ -316,7 +314,9 @@ class Menu < ApplicationRecord
         # @board.update!(description: new_processed) if new_processed
         restaurant_name = name || "Restaurant"
         from_text, messages_sent = clarify_image_description(new_doc.raw, restaurant_name)
+        Rails.logger.debug "clarify_image_description - from_text: #{from_text}, messages_sent: #{messages_sent}"
         new_processed = from_text || describe_menu(@board.display_image_url)
+        Rails.logger.debug "describe_menu result: #{new_processed}"
         # new_processed = describe_menu(@board.display_image_url)
 
         if valid_json?(from_text)
@@ -341,6 +341,7 @@ class Menu < ApplicationRecord
         self.description = new_new_processed
         self.prompt_sent = new_processed
         self.save!
+        Rails.logger.debug "New processed description: #{new_processed}"
 
         create_board_from_menu_image(new_doc, board_id)
       else
