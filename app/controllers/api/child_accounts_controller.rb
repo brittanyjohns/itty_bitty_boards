@@ -192,12 +192,7 @@ class API::ChildAccountsController < API::ApplicationController
         board_ids = [board_ids.to_i]
       end
       board_ids.each do |board_id|
-        og_board = Board.find(board_id)
-        if og_board.predefined?
-          board = og_board.clone_with_images(current_user&.id, og_board.name)
-        else
-          board = og_board
-        end
+        board = Board.find(board_id)
         voice = @child_account.voice || "polly:kevin"
         child_board_copy = board.clone_with_images(current_user&.id, board.name, voice, @child_account)
       end
