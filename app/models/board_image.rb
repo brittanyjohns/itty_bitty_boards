@@ -38,7 +38,7 @@ class BoardImage < ApplicationRecord
   before_create :set_defaults
   # before_save :save_display_image_url, if: -> { display_image_url.blank? }
   before_save :check_predictive_board
-  before_save :set_colors, if: :part_of_speech_changed?
+  before_update :set_colors, if: :part_of_speech_changed?
   after_create :create_voice_audio_after_create, unless: -> { skip_create_voice_audio }
 
   include BoardsHelper

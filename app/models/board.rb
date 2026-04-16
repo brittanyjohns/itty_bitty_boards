@@ -1014,8 +1014,6 @@ class Board < ApplicationRecord
       new_board_image.image_id = image.id
       new_board_image.set_labels
       if new_board_image
-        new_board_image.part_of_speech = image.part_of_speech || "default"
-
         new_board_image.display_label = board_image.display_label
 
         new_board_image.voice = board_image.voice
