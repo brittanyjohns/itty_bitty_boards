@@ -601,6 +601,9 @@ class API::BoardsController < API::ApplicationController
       additional_words = Board.new.get_social_story_word_suggestions(prompt, number_of_steps, num_of_words, words_to_exclude)
     elsif creation_type == "predictive"
       additional_words = Board.new.get_words_for_predictive(prompt, num_of_words)
+    elsif creation_type == "custom"
+      text = "Please give a list of #{num_of_words} words/phrases based on the following prompt: #{prompt} \n Theses will be used to create an AAC board so keep that in mind."
+      additional_words = Board.new.get_word_suggestions_from_prompt(text)
     else
       board_name = @board&.name || prompt
       if prompt == board_name

@@ -111,19 +111,21 @@ module BoardsHelper
   end
 
   def next_available_cell(screen_size = "lg")
-    # Create a hash to track occupied cells
     occupied = Hash.new { |hash, key| hash[key] = [] }
     self.update_board_layout(screen_size)
     grid = self.layout[screen_size] || []
+    columns = get_number_of_columns(screen_size)
 
-    # Mark existing cells as occupied
+    # Mark occupied cells
     grid.each do |cell|
       cell_layout = cell[1]
       x, y, w, h = cell_layout.values_at("x", "y", "w", "h")
+
       x ||= 0
       y ||= 0
       w ||= 1
       h ||= 1
+
       w.times do |w_offset|
         h.times do |h_offset|
           occupied[y + h_offset] << (x + w_offset)
@@ -131,16 +133,21 @@ module BoardsHelper
       end
     end
 
-    columns = get_number_of_columns(screen_size)
+    # No tiles yet
+    return { "x" => 0, "y" => 0, "w" => 1, "h" => 1 } if occupied.empty?
 
-    # Search for the first unoccupied 1x1 cell
-    (0..Float::INFINITY).each do |y|
-      (0...columns).each do |x|
-        unless occupied[y].include?(x)
-          return { "x" => x, "y" => y, "w" => 1, "h" => 1 }
-        end
+    # Find the last used row
+    last_row = occupied.keys.max
+
+    # Find first open spot in the last used row
+    (0...columns).each do |x|
+      unless occupied[last_row].include?(x)
+        return { "x" => x, "y" => last_row, "w" => 1, "h" => 1 }
       end
     end
+
+    # If last row is full, start a new row
+    { "x" => 0, "y" => last_row + 1, "w" => 1, "h" => 1 }
   end
 
   def broadcast_board_change!(communicator_account_id:, board_id:)
