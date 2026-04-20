@@ -21,6 +21,9 @@ module Boards
           "label" => t["label"] || t[:label] || "",
           "image_url" => t["image_url"] || t[:image_url],
           "bg_color" => t["bg_color"] || t[:bg_color] || "#FFFFFF",
+          "border_color" => t["border_color"] || t[:border_color] || "#000000",
+          "border_width" => t["border_width"] || t[:border_width] || 0,
+          "border_radius" => t["border_radius"] || t[:border_radius] || 0,
           "i" => t["i"] || t[:i] || "",
         }
       end
@@ -28,10 +31,7 @@ module Boards
 
     def board_tiles(screen_size = "lg")
       layout_key = screen_size.to_s
-
-      if @board.respond_to?(:tiles) && @board.tiles.is_a?(Array)
-        @board.tiles
-      elsif @board.respond_to?(:board_images) && @board.board_images.any?
+      if @board.respond_to?(:board_images) && @board.board_images.any?
         @board.board_images.map do |bi|
           layout = bi.layout[layout_key] || bi.layout["lg"] || {}
 
@@ -43,6 +43,9 @@ module Boards
             "label" => bi.label,
             "image_url" => bi.tile_image_url(@current_user),
             "bg_color" => bi.bg_color || "#FFFFFF",
+            "border_color" => bi.border_color || "#000000",
+            "border_width" => bi.border_width || 0,
+            "border_radius" => bi.border_radius || 0,
             "i" => bi.id.to_s,
           }
         end

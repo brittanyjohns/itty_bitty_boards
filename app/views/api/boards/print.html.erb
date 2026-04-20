@@ -53,7 +53,9 @@
     >
       <% @tiles.each do |t| %>
         <% bg_color = @hide_colors ? "" : (t["bg_color"] || "black") %>
-
+        <% border_color = @hide_colors ? "" : (t["border_color"] || "black") %>
+        <% border_width = t["border_width"] || 0 %>
+        <% border_radius = t["border_radius"] || 0 %>
         <% col_start = t["x"].to_i + 1 %>
         <% row_start = t["y"].to_i + 1 %>
         <% col_span = t["w"].to_i %>
@@ -65,7 +67,11 @@
             background-color:<%= bg_color.presence || "#ffffff" %>;
             grid-column:<%= col_start %> / span <%= col_span %>;
             grid-row:<%= row_start %> / span <%= row_span %>;
+            border-color:<%= border_color.presence || "#000000" %>;
+            border-width:<%= border_width %>px;
+            border-radius:<%= border_radius %>px;
           "
+
         >
           <div class="tile-media">
             <% if t["image_url"].present? %>
