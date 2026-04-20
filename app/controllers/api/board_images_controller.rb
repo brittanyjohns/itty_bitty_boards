@@ -69,8 +69,13 @@ class API::BoardImagesController < API::ApplicationController
     board_images = @board.board_images.where(id: board_image_ids)
 
     bg_color = payload[:bg_color] if payload[:bg_color]
+    border_color = payload[:border_color] if payload[:border_color]
+    border_width = payload[:border_width] if payload[:border_width]
+    border_radius = payload[:border_radius] if payload[:border_radius]
+    update_borders = payload[:update_borders] if payload[:update_borders]
     text_color = payload[:text_color] if payload[:text_color]
     hide_images = payload[:hide_images] if payload[:hide_images]
+    hide_labels = payload[:hide_labels] if payload[:hide_labels]
     make_static = payload[:make_static] if payload[:make_static]
     new_board_name = payload[:new_board_name] if payload[:new_board_name]
     create_new_board = payload[:create_new_board] || !new_board_name.blank?
@@ -102,6 +107,23 @@ class API::BoardImagesController < API::ApplicationController
       end
       if !text_color.blank?
         board_image.text_color = text_color
+      end
+      if !border_color.blank? && update_borders
+        board_image.border_color = border_color
+      end
+      if !border_width.blank? && update_borders
+        board_image.border_width = border_width
+      end
+      if !border_radius.blank? && update_borders
+        board_image.border_radius = border_radius
+      end
+      if hide_labels
+        board_image.data ||= {}
+        board_image.data["hide_label"] = true
+      else
+        if board_image.data && board_image.data["hide_label"] == true
+          board_image.data["hide_label"] = false
+        end
       end
       if hide_images
         board_image.hidden = true
@@ -312,7 +334,8 @@ class API::BoardImagesController < API::ApplicationController
   # Only allow a list of trusted parameters through.
   def board_image_params
     params.require(:board_image).permit(:board_id, :predictive_board_id,
-                                        :image_id, :position, :voice, :bg_color,
+                                        :image_id, :position, :voice, :bg_color, :border_color,
+                                        :border_width, :border_radius,
                                         :text_color, :font_size, :border_color,
                                         :display_label,
                                         :label,

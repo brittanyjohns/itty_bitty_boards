@@ -109,6 +109,10 @@ class BoardImage < ApplicationRecord
     self.display_label = image_language_settings[:display_label] || label
   end
 
+  def hide_label
+    data && data["hide_label"] == true
+  end
+
   def is_dynamic?
     predictive_board_id.present? && predictive_board_id != board_id
   end
