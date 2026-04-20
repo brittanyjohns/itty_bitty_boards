@@ -56,6 +56,11 @@
         <% border_color = @hide_colors ? "" : (t["border_color"] || "black") %>
         <% border_width = t["border_width"] || 0 %>
         <% border_radius = t["border_radius"] || 0 %>
+        <% if t["hide_label"] %>
+          <% label_hidden = true %>
+        <% else %>
+          <% label_hidden = false %>
+        <% end %>
         <% col_start = t["x"].to_i + 1 %>
         <% row_start = t["y"].to_i + 1 %>
         <% col_span = t["w"].to_i %>
@@ -83,15 +88,16 @@
             <% end %>
           </div>
 
-          <div
+          <% unless label_hidden %>
+            <div
             class="label <%= bg_color %>"
             style="
               font-weight:<%= @hide_colors ? "normal" : "bold" %>;
               background-color:<%= bg_color.presence || "#f7f7f7" %>;
-            "
-          >
+            ">
             <%= t["label"] %>
           </div>
+          <% end %>
         </div>
       <% end %>
     </div>

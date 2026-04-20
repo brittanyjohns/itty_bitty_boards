@@ -24,6 +24,7 @@ module Boards
           "border_color" => t["border_color"] || t[:border_color] || "#000000",
           "border_width" => t["border_width"] || t[:border_width] || 0,
           "border_radius" => t["border_radius"] || t[:border_radius] || 0,
+          "hide_label" => t["hide_label"] || t[:hide_label] || false,
           "i" => t["i"] || t[:i] || "",
         }
       end
@@ -34,7 +35,6 @@ module Boards
       if @board.respond_to?(:board_images) && @board.board_images.any?
         @board.board_images.map do |bi|
           layout = bi.layout[layout_key] || bi.layout["lg"] || {}
-
           {
             "x" => layout["x"] || 0,
             "y" => layout["y"] || 0,
@@ -46,6 +46,7 @@ module Boards
             "border_color" => bi.border_color || "#000000",
             "border_width" => bi.border_width || 0,
             "border_radius" => bi.border_radius || 0,
+            "hide_label" => bi.data&.dig("hide_label") || false,
             "i" => bi.id.to_s,
           }
         end
