@@ -588,25 +588,25 @@ class Board < ApplicationRecord
     self.tags = tags.reject { |t| t == normalized_tag }
   end
 
-  IN_USE_TAG = "in_use".freeze
-
   def check_in_use
     child_board_templates = ChildBoard.where(original_board_id: id)
     if child_board_templates.any?
       self.in_use = true
-      add_tag(IN_USE_TAG)
     elsif !child_board_templates.any?
       self.in_use = false
-      remove_tag(IN_USE_TAG)
     end
   end
 
+  IS_SUB_BOARD_TAG = "sub-board".freeze
+
   def check_is_sub_board
     parent_boards = parent_boards(user_id)
-    if parent_boards.any? && !sub_board
+    if parent_boards.any?
       self.sub_board = true
-    elsif !parent_boards.any? && sub_board
+      add_tag(IS_SUB_BOARD_TAG)
+    elsif !parent_boards.any?
       self.sub_board = false
+      remove_tag(IS_SUB_BOARD_TAG)
     end
   end
 
