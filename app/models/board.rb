@@ -573,12 +573,31 @@ class Board < ApplicationRecord
     self.board_type = tmp_board_type
   end
 
+  def add_tag(tag)
+    normalized_tag = self.class.normalize_tag_value(tag)
+    return if normalized_tag.blank?
+    self.tags ||= []
+    unless tags.include?(normalized_tag)
+      self.tags << normalized_tag
+    end
+  end
+
+  def remove_tag(tag)
+    normalized_tag = self.class.normalize_tag_value(tag)
+    return if normalized_tag.blank? || tags.blank?
+    self.tags = tags.reject { |t| t == normalized_tag }
+  end
+
+  IN_USE_TAG = "in_use".freeze
+
   def check_in_use
     child_board_templates = ChildBoard.where(original_board_id: id)
     if child_board_templates.any?
       self.in_use = true
+      add_tag(IN_USE_TAG)
     elsif !child_board_templates.any?
       self.in_use = false
+      remove_tag(IN_USE_TAG)
     end
   end
 
