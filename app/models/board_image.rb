@@ -482,7 +482,6 @@ class BoardImage < ApplicationRecord
     img_color = image.bg_color || "white"
     set_background_color(img_color) if bg_color.blank?
     self.font_size = image.font_size
-    self.border_color = image.border_color
     self.label = image.label
     # self.display_image_url = image.display_tile_url(user)
     self.display_image_url = image.src_url
