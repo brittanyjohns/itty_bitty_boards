@@ -140,9 +140,18 @@ module BoardsHelper
     last_row = occupied.keys.max
 
     # Find first open spot in the last used row
-    (0...columns).each do |x|
-      unless occupied[last_row].include?(x)
-        return { "x" => x, "y" => last_row, "w" => 1, "h" => 1 }
+    # (0...columns).each do |x|
+    #   unless occupied[last_row].include?(x)
+    #     return { "x" => x, "y" => last_row, "w" => 1, "h" => 1 }
+    #   end
+    # end
+
+    # Find the first open spot
+    (0..last_row).each do |y|
+      (0...columns).each do |x|
+        unless occupied[y].include?(x)
+          return { "x" => x, "y" => y, "w" => 1, "h" => 1 }
+        end
       end
     end
 
