@@ -40,7 +40,7 @@ module Boards
             "y" => layout["y"] || 0,
             "w" => layout["w"] || 1,
             "h" => layout["h"] || 1,
-            "label" => bi.label,
+            "label" => bi.display_label || bi.label || "",
             "image_url" => bi.tile_image_url(@current_user),
             "bg_color" => bi.bg_color || "#FFFFFF",
             "border_color" => bi.border_color || "#000000",

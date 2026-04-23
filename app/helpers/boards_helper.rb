@@ -177,4 +177,70 @@ module BoardsHelper
       { type: "board.updated", board_id: board_id, version: Time.current.to_i }
     )
   end
+
+  def generate_placeholder_image(text)
+    key = text.to_s.strip
+    key = "..." if key.blank?
+
+    max_chars_per_line = 10
+    max_lines = 3
+
+    # Split into lines
+    words = key.split(/\s+/)
+    lines = []
+    current_line = ""
+
+    words.each do |word|
+      test_line = current_line.present? ? "#{current_line} #{word}" : word
+
+      if test_line.length <= max_chars_per_line
+        current_line = test_line
+      else
+        lines << current_line if current_line.present?
+        current_line = word
+      end
+    end
+
+    lines << current_line if current_line.present?
+
+    # Fallback if somehow no lines were built
+    lines = [key] if lines.empty?
+
+    # Truncate lines if too many
+    final_lines = lines.first(max_lines)
+    if lines.length > max_lines
+      final_lines[max_lines - 1] = "#{final_lines[max_lines - 1]}..."
+    end
+
+    longest_line_length = final_lines.map(&:length).max || 1
+    font_size = [[(300.0 / longest_line_length) * 1.8, 80].min, 24].max
+
+    line_height = font_size * 1.2
+    start_y = 150 - ((final_lines.length - 1) * line_height) / 2.0
+
+    tspans = final_lines.each_with_index.map do |line, i|
+      y = start_y + (i * line_height)
+      %(<tspan x="50%" y="#{y}">#{escape_xml(line)}</tspan>)
+    end.join
+
+    svg = <<~SVG.strip
+      <svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
+        <rect width="300" height="300" fill="transparent"/>
+        <text
+          text-anchor="middle"
+          font-family="Arial, sans-serif"
+          font-size="#{font_size}"
+          fill="#000000">
+          #{tspans}
+        </text>
+      </svg>
+    SVG
+
+    encoded = Base64.strict_encode64(svg)
+    "data:image/svg+xml;base64,#{encoded}"
+  end
+
+  def escape_xml(text)
+    CGI.escapeHTML(text.to_s)
+  end
 end

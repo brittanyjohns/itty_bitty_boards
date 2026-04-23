@@ -82,9 +82,11 @@
             <% if t["image_url"].present? %>
               <img src="<%= t["image_url"] %>" alt="<%= t["label"] %>">
             <% else %>
-              <div class="tile-placeholder">
-                <%= t["label"] %>
-              </div>
+              <img
+                src="<%= generate_placeholder_image(t["label"]) %>"
+                alt="<%= t["label"] %>"
+                class="tile-placeholder-image"
+              >
             <% end %>
           </div>
 
