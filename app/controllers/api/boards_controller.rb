@@ -407,12 +407,21 @@ class API::BoardsController < API::ApplicationController
           if params[:layout].present?
             # only save if changes are present
             layout_param = params[:layout]
-            screen_size = layout_param["screen_size"] || "lg"
-            layout = layout_param["layout"] || []
-            Rails.logger.debug "Received layout for screen size #{screen_size}: #{layout.inspect}"
-            @layout = layout.map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
-            if @board.layout != @layout
-              save_layout!
+            if layout_param.is_a?(Array)
+              layout = layout_param.map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
+              screen_size = params[:screen_size] || "lg"
+              if @board.layout[screen_size] != layout
+                @layout = layout
+                save_layout!
+              end
+            else
+              screen_size = layout_param["screen_size"] || "lg"
+              layout = layout_param["layout"] || []
+              Rails.logger.debug "Received layout for screen size #{screen_size}: #{layout.inspect}"
+              @layout = layout.map(&:to_unsafe_h) # Convert ActionController::Parameters to a Hash
+              if @board.layout[screen_size] != @layout
+                save_layout!
+              end
             end
           end
           broadcast_board_update!
