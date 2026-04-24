@@ -615,7 +615,7 @@ class API::BoardsController < API::ApplicationController
     elsif creation_type == "predictive"
       additional_words = Board.new.get_words_for_predictive(prompt, num_of_words)
     elsif creation_type == "custom"
-      text = "Please give a list of #{num_of_words} words/phrases based on the following prompt: #{prompt} \n Theses will be used to create an AAC board so keep that in mind."
+      text = "Please give a list of #{num_of_words} words/phrases based on the following prompt: #{prompt} \n Theses will be used to create an AAC board so keep that in mind. Use lower case unless it's a proper noun and avoid special characters. Here is the current list of words on the board: #{words_to_exclude.join(", ")}"
       additional_words = Board.new.get_word_suggestions_from_prompt(text)
     else
       board_name = @board&.name || prompt
