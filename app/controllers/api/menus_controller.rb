@@ -94,7 +94,7 @@ class API::MenusController < API::ApplicationController
 
   # POST /menus or /menus.json
   def create
-    return unless check_monthly_limit("ai_action")
+    return unless check_monthly_limit(feature_key: "ai_action", feature_name: "AI Menu Creation")
     @current_user = current_user
     @menu = @current_user.menus.new
     @menu.user = current_user

@@ -34,7 +34,7 @@ class API::BoardScreenshotImportsController < API::ApplicationController
       return
     end
     import.save!
-    return unless check_monthly_limit("ai_action")
+    return unless check_monthly_limit(feature_key: "ai_action", feature_name: "AI Board Screenshot Imports")
     BoardScreenshotImportJob.perform_async(import.id, columns)
     render json: { id: import.id, status: import.status }
   end

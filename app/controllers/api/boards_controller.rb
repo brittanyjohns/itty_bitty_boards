@@ -435,7 +435,7 @@ class API::BoardsController < API::ApplicationController
 
   def regenerate_images
     set_board
-    return unless check_monthly_limit("ai_action")
+    return unless check_monthly_limit(feature_key: "ai_action", feature_name: "AI Image Regeneration")
     board_image_ids = params[:board_image_ids]
     if board_image_ids.blank? || !board_image_ids.is_a?(Array)
       render json: { error: "board_image_ids parameter is required and must be an array" }, status: :unprocessable_entity
@@ -455,7 +455,7 @@ class API::BoardsController < API::ApplicationController
 
   def recategorize_images
     set_board
-    return unless check_monthly_limit("ai_action")
+    return unless check_monthly_limit(feature_key: "ai_action", feature_name: "AI Image Recategorization")
     board_image_ids = @board.board_images.pluck(:id)
     board_image_ids.each_slice(20) do |batch|
       RecategorizeImagesJob.perform_async("BoardImage", batch)
@@ -602,7 +602,7 @@ class API::BoardsController < API::ApplicationController
     if params[:board_id].present?
       @board = Board.find_by(id: params[:board_id])
     end
-    return unless check_monthly_limit("ai_action")
+    return unless check_monthly_limit(feature_key: "ai_action", feature_name: "AI Word Suggestions")
     creation_type = params[:board_creation_type] || "default"
     additional_words = []
     prompt = params[:prompt].presence || params[:name]
@@ -643,7 +643,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def format_with_ai
-    return unless check_monthly_limit("ai_action")
+    return unless check_monthly_limit(feature_key: "ai_action", feature_name: "AI Board Formatting")
     set_board
     screen_size = params[:screen_size] || "lg"
     FormatBoardWithAiJob.perform_async(@board.id, screen_size, true)
