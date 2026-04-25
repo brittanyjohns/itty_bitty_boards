@@ -49,6 +49,7 @@ class API::BoardsController < API::ApplicationController
       static_scope = Board.public_boards
       static_scope = static_scope.with_all_tags(selected_tags) if selected_tags.present?
       static_scope = static_scope.where(obf_id: nil)
+      static_scope = static_scope.search_by_name(query) if query.present?
 
       last_modified = static_scope.maximum(:updated_at) || Time.zone.at(0)
       etag = guest_boards_index_etag(last_modified, limit_param, tags: selected_tags)
@@ -615,7 +616,7 @@ class API::BoardsController < API::ApplicationController
     elsif creation_type == "predictive"
       additional_words = Board.new.get_words_for_predictive(prompt, num_of_words)
     elsif creation_type == "custom"
-      text = "Please give a list of #{num_of_words} words/phrases based on the following prompt: #{prompt} \n Theses will be used to create an AAC board so keep that in mind. Use lower case unless it's a proper noun and avoid special characters. Here is the current list of words on the board: #{words_to_exclude.join(", ")}"
+      text = "Please give a list of #{num_of_words} words/phrases based on the following prompt: #{prompt} \n Theses will be used to create an AAC board so keep that in mind. Use lower case unless it's a proper noun and avoid special characters. Here is the current list of words on the board: #{words_to_exclude.join(", ")}. Do not include any of those words in the list you generate."
       additional_words = Board.new.get_word_suggestions_from_prompt(text)
     else
       board_name = @board&.name || prompt
