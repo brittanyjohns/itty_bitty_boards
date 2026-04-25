@@ -25,7 +25,7 @@ class BoardScreenshotVisionService
         - row: zero-based row index
         - col: zero-based column index
         - label_raw: the exact text shown on the button, or null if the cell is blank
-        - label_norm: lowercase normalized version of the label (no punctuation), or null
+        - label_norm: lowercase (except for proper nouns if necessary) normalized version of the label (no punctuation), or null
         - confidence: 0.0-1.0 confidence
         - bbox: [x, y, width, height]
         - bg_color: **one of the following HEX strings**, whichever is closest to the actual BACKGROUND fill color of the button:
@@ -89,10 +89,10 @@ class BoardScreenshotVisionService
 
     user_prompt = if forced_cols
         <<~PROMPT
-              #{USER_PROMPT}
+                #{USER_PROMPT}
 
-              OVERRIDE:
-              - The board has EXACTLY #{forced_cols} columns.
+                OVERRIDE:
+                - The board has EXACTLY #{forced_cols} columns.
         - You MUST output "cols": #{forced_cols}.
         - Still determine the number of rows from the screenshot.
         - Include blank cells so that rows * #{forced_cols} equals the total number of cells.

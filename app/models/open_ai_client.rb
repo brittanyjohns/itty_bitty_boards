@@ -514,7 +514,7 @@ class OpenAiClient
 
     min_number_of_words = 2
     text = <<~TEXT
-                                                              I am creating a social story titled "#{name}".
+                                                                  I am creating a social story titled "#{name}".
 
     Please generate #{number_of_steps} SHORT step instructions that could appear on tiles in a social story AAC board.
 
@@ -526,7 +526,7 @@ class OpenAiClient
     - represent a sequence of events in the story
     - avoid long sentences
     - avoid punctuation
-    - lowercase only
+    - lowercase only (except for proper nouns if necessary)
     - no duplicates
     TEXT
 
