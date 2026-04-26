@@ -2178,9 +2178,13 @@ class Board < ApplicationRecord
   end
 
   def get_word_suggestions_from_default_prompt(prompt, number_of_words)
+    words_to_exclude = data["current_word_list"] || []
     text = "Generate a list of EXACTLY #{number_of_words} words or short phrases based on the following prompt: #{prompt}. "
+    unless words_to_exclude.blank?
+      text += "The current words on the board are: #{words_to_exclude.join(", ")}. Please exclude these from your suggestions but you can use them as context to create a cohesive communication board. "
+    end
     text += "The words/phrases will be used on a communication board, so please prioritize common, relevant, and useful words/phrases that would help someone communicate effectively. "
-    text += "Please make them lowercase (except for proper nouns if necessary) with the exception of proper nouns, senetences, etc. that should be capitalized. "
+    text += "Please make them lowercase with the exception of proper nouns, senetences, etc. that should be capitalized. "
     get_word_suggestions_from_prompt(text)
   end
 

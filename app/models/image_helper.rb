@@ -93,9 +93,6 @@ module ImageHelper
     revised_prompt = response[:revised_prompt]
     edited_prompt = response[:edited_prompt]
     output_format = response[:output_format]
-
-    Rails.logger.debug "Received response from OpenAI: #{response.except(:raw_response).inspect}"
-
     unless b64_json.present?
       Rails.logger.error "**** ERROR - create_image ****\nDid not receive b64_json.\n#{response.inspect}"
       return nil
