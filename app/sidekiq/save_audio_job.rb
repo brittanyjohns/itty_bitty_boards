@@ -4,7 +4,6 @@ class SaveAudioJob
 
   def perform(image_ids, voice, board_image_id = nil)
     images = Image.where(id: image_ids)
-    Rails.logger.info "Scheduling SaveAudioJob for images: #{images[0].label} with voice: #{voice} - board_image_id: #{board_image_id}"
     images.each do |image|
       begin
         audio_file = image.find_or_create_audio_file_for_voice(voice, "en")
