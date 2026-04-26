@@ -22,7 +22,11 @@ class GenerateImagesJob
           board_image&.update_column(:status, "generating")
 
           user_id = image.user_id
-          image_prompt = image.default_image_prompt
+          if board.board_type == "menu"
+            image_prompt = image.default_menu_image_prompt
+          else
+            image_prompt = image.default_image_prompt
+          end
 
           new_doc = image.create_image_doc(user_id, image_prompt)
 

@@ -106,9 +106,7 @@ class Menu < ApplicationRecord
       return nil
     end
     begin
-      Rails.logger.debug "Creating board from image for #{name} - board_id: #{board_id}"
       board = board_id ? Board.find(board_id) : self.boards.new
-      Rails.logger.debug "Board found or initialized: #{board.id || "new board"}, status: #{board.status}, description: #{board.description}"
       board.user = self.user
       board.name = self.name || "Board for Doc #{id}"
       board.token_limit = token_limit
@@ -187,72 +185,45 @@ class Menu < ApplicationRecord
       end
       item_name = menu_item_name(food["name"])
       menu_item_list << item_name
-      image = Image.find_by(label: item_name, user_id: self.user_id)
-      image = Image.find_by(label: item_name, private: false) unless image
-      image = Image.find_by(label: item_name, private: nil) unless image
-      new_image = Image.create(label: item_name, image_type: self.class.name) unless image
-      image = new_image if new_image
+      # image = Image.find_by(label: item_name, user_id: self.user_id)
+      # image = Image.find_by(label: item_name, private: false) unless image
+      # image = Image.find_by(label: item_name, private: nil) unless image
+      # new_image = Image.create(label: item_name, image_type: self.class.name) unless image
+      # image = new_image if new_image
 
-      unless food["image_description"].blank? || food["image_description"] == item_name
-        image.image_prompt = food["image_description"]
-        image.image_prompt += " #{food["description"]}" if food["description"]
-      else
-        image.image_prompt = "Create a high-resolution image of #{item_name}"
-        image.image_prompt += " with #{food["description"]}" if food["description"]
-      end
-      image.private = false
-      image.image_type = "Menu"
-      image.display_description = image.image_prompt
-      image.save!
-      image.image_prompt += PROMPT_ADDITION
-      new_board_image = board.add_image(image.id)
-      new_board_image&.save_initial_layout if new_board_image
-      images << image
-      new_board_images << new_board_image if new_board_image
+      # unless food["image_description"].blank? || food["image_description"] == item_name
+      #   image.image_prompt = food["image_description"]
+      #   image.image_prompt += " #{food["description"]}" if food["description"]
+      # else
+      #   image.image_prompt = "Create a high-resolution image of #{item_name}"
+      #   image.image_prompt += " with #{food["description"]}" if food["description"]
+      # end
+      # image.private = false
+      # image.image_type = "Menu"
+      # image.display_description = image.image_prompt
+      # image.save!
+      # image.image_prompt += PROMPT_ADDITION
+      # new_board_image = board.add_image(image.id)
+      # new_board_image&.save_initial_layout if new_board_image
+      # images << image
+      # new_board_images << new_board_image if new_board_image
     end
-    self.update!(item_list: menu_item_list)
-    total_cost = board.cost || 0
-    minutes_to_wait = 0
-    images_generated = 0
+
+    # total_cost = board.cost || 0
+    # minutes_to_wait = 0
+    # images_generated = 0
     begin
-      Rails.logger.debug "Starting image generation for board #{board.id} with #{new_board_images.size} images. Total cost before generation: #{total_cost}"
-      new_board_images.each_slice(10) do |board_image_slice|
-        board_image_slice.each do |board_image|
-          image = board_image.image
-          img_prompt = image.image_prompt.present? ? image.image_prompt : nil
-          Rails.logger.debug "Checking image generation for #{image.label} with prompt: #{img_prompt}"
-          if should_generate_image(image, self.user, tokens_used, total_cost)
-            board_image.update_column(:status, "generating")
-            image.start_generate_image_job(minutes_to_wait, self.user_id, img_prompt, board.id)
-            board_image.update_column(:status, "complete")
-            tokens_used += 1
-            total_cost += 1
-            images_generated += 1
-            if images_generated > 20
-              Rails.logger.warn "High number of images being generated for Menu #{id} - #{name}. Images generated: #{images_generated}"
-              break
-            end
-          else
-            Rails.logger.info "Not generating image for #{image.label}"
-            board_image.update_column(:status, "skipped")
-          end
-        end
-        minutes_to_wait += 1
-        if images_generated > 20
-          Rails.logger.warn "2 High number of images being generated for Menu #{id} - #{name}. Images generated: #{images_generated}. Stopping further generation."
-          break
-        end
-      end
+      self.update(item_list: menu_item_list)
+      words = json_description["menu_items"].map { |food| food["name"] }.compact
+      Rails.logger.debug "Extracted words from description: #{words.inspect}"
+      board.update_column(:status, "finding_images")
+      board.find_or_create_images_from_word_list(words)
+      board.update_column(:status, "processing")
     rescue => e
       Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"
       # board.update(status: "error") if board
       board.update(status: "error - #{e.message}\n#{e.backtrace}\n") if board
     end
-
-    self.user.remove_tokens(tokens_used)
-    board.add_to_cost(tokens_used) if board
-    puts "USED #{tokens_used} tokens for #{images_generated} images"
-    board
   end
 
   def api_view(viewing_user = nil)
