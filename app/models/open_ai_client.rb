@@ -1,16 +1,10 @@
 require "openai"
 
 class OpenAiClient
-  # GTP_MODEL = "gpt-4o"
-  GTP_MODEL = ENV.fetch("OPENAI_GTP_MODEL", "gpt-4o")
-  QUICK_GTP_MODEL = ENV.fetch("OPENAI_QUICK_GTP_MODEL", "gpt-4o-mini")
+  GTP_MODEL = ENV.fetch("OPENAI_GTP_MODEL", "gpt-4.1-mini")
+  QUICK_GTP_MODEL = ENV.fetch("OPENAI_QUICK_GTP_MODEL", "gpt-4.1-nano")
   IMAGE_MODEL = ENV.fetch("OPENAI_IMAGE_MODEL", "gpt-image-1-mini")
-  # IMAGE_MODEL_STYLE = ENV.fetch("OPENAI_IMAGE_MODEL_STYLE", "natural")
-  # # IMAGE_MODEL = "gpt-image-1"
-  # # TTS_MODEL = "tts-1"
   TTS_MODEL = ENV.fetch("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
-  PREVIEW_MODEL = "o1-preview"
-  # DEFAULT_IMAGE_MODEL = "gpt-image-1".freeze
   DEFAULT_IMAGE_SIZE = "1024x1024".freeze
   DEFAULT_IMAGE_OUTPUT_FORMAT = "webp".freeze
 
@@ -416,7 +410,7 @@ class OpenAiClient
       Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}
     PROMPT
 
-    @model = QUICK_GTP_MODEL
+    @model = GTP_MODEL
     @messages = [{ role: "user",
                    content: [{ type: "text", text: prompt }] }]
     response = create_chat
@@ -483,10 +477,12 @@ class OpenAiClient
     if words_to_exclude.is_a?(String)
       words_to_exclude = words_to_exclude.split(",").map(&:strip)
     end
-    @model = QUICK_GTP_MODEL
-    Rails.logger.debug "get_word_suggestions - model: #{@model} -- name: #{name} -- number_of_words: #{number_of_words}"
-    text = "I have an AAC board titled, '#{name}'. Inferring the context from the name AND the existing words on the board, please provide #{number_of_words} words. Please make them lowercase with the exception of proper nouns, sentences, etc. that should be capitalized."
-
+    @model = GTP_MODEL
+    if board_type == "menu"
+      text = "I have a restaurant menu titled, '#{name}'. Inferring the context from the name AND the existing items on the menu, please provide #{number_of_words} additional menu items that are commonly found on restaurant menus. Please make them lowercase with the exception of proper nouns, sentences, etc. that should be capitalized."
+    else
+      text = "I have an AAC board titled, '#{name}'. Inferring the context from the name AND the existing words on the board, please provide #{number_of_words} words. Please make them lowercase with the exception of proper nouns, sentences, etc. that should be capitalized."
+    end
     unless words_to_exclude.blank?
       text += " Do not repeat any words that are already on the board & only provide #{number_of_words} words. The words currently on the board are '#{words_to_exclude.join("', '")}'."
     end
@@ -509,12 +505,12 @@ class OpenAiClient
       .map { |w| w.to_s.strip.downcase }
       .reject(&:blank?)
 
-    @model = QUICK_GTP_MODEL
+    @model = GTP_MODEL
     Rails.logger.debug "User - model: #{@model} -- name: #{name} -- number_of_steps: #{number_of_steps} -- max_number_of_words: #{max_number_of_words} -- words_to_exclude: #{words_to_exclude.inspect}"
 
     min_number_of_words = 2
     text = <<~TEXT
-                                                                            I am creating a social story titled "#{name}".
+                                                                                                  I am creating a social story titled "#{name}".
 
     Please generate #{number_of_steps} SHORT step instructions that could appear on tiles in a social story AAC board.
 
@@ -553,7 +549,7 @@ class OpenAiClient
   end
 
   def get_word_suggestions_from_prompt(prompt)
-    @model = QUICK_GTP_MODEL
+    @model = GTP_MODEL
     text = prompt
     format_instructions = "Respond with a JSON object in the following format: {\"words\": [\"word_or_phrase_1\", \"word_or_phrase_2\", \"word_or_phrase_3\", ...]}"
     text += format_instructions

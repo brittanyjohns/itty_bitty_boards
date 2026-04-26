@@ -609,21 +609,23 @@ class API::BoardsController < API::ApplicationController
     prompt = params[:prompt].presence || params[:name]
     num_of_words = params[:num_of_words].to_i || 24
     words_to_exclude = params[:words_to_exclude].is_a?(Array) ? params[:words_to_exclude] : @board&.current_word_list || []
-
+    @board ||= Board.new(name: prompt) # create a temporary board object to use the word suggestion methods if no board_id is provided
     if creation_type == "social_story"
       number_of_steps = params[:number_of_steps].to_i
-      additional_words = Board.new.get_social_story_word_suggestions(prompt, number_of_steps, num_of_words, words_to_exclude)
+      additional_words = @board.get_social_story_word_suggestions(prompt, number_of_steps, num_of_words, words_to_exclude)
     elsif creation_type == "predictive"
-      additional_words = Board.new.get_words_for_predictive(prompt, num_of_words)
+      additional_words = @board.get_words_for_predictive(prompt, num_of_words)
     elsif creation_type == "custom"
       text = "Please give a list of #{num_of_words} words/phrases based on the following prompt: #{prompt} \n Theses will be used to create an AAC board so keep that in mind. Use lower case unless it's a proper noun and avoid special characters. Do not include any words on the board already: #{words_to_exclude.join(", ")}."
-      additional_words = Board.new.get_word_suggestions_from_prompt(text)
+      additional_words = @board.get_word_suggestions_from_prompt(text)
+    elsif @board&.board_type == "menu"
+      additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words)
     else
       board_name = @board&.name || prompt
       if prompt == board_name
-        additional_words = Board.new.get_word_suggestions(prompt, num_of_words, words_to_exclude)
+        additional_words = @board.get_word_suggestions(prompt, num_of_words, words_to_exclude)
       else
-        additional_words = Board.new.get_word_suggestions_from_default_prompt(prompt, num_of_words)
+        additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words)
       end
     end
     if additional_words.blank?

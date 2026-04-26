@@ -21,8 +21,10 @@ class EnhanceImageDescriptionJob
         board.update_column(:status, "error")
         return
       end
+      result_str = result.is_a?(String) ? result : result.to_json
+      Rails.logger.info "Enhanced image description result: #{result_str}"
 
-      board.update_column(:description, result)
+      board.update_column(:description, result_str)
       board.update_column(:status, "processing")
       board.reset_layouts
 

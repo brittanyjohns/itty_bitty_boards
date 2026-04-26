@@ -367,9 +367,7 @@ class Menu < ApplicationRecord
     menu_items = nil
     begin
       # image_data = doc.active_storage_to_data_url
-      Rails.logger.debug "Image data: #{url.present?}\n Running describe_menu\n #{url}"
       response = OpenAiClient.new(open_ai_opts).describe_menu(url)
-      Rails.logger.debug "describe_menu - Response: #{response}\n"
       menu_items = response[:content] if response
     rescue => e
       puts "**** OpenAiClient ERROR **** \n#{e.message}\n"
