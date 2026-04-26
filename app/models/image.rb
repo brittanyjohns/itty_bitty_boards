@@ -1100,6 +1100,9 @@ class Image < ApplicationRecord
   def display_doc(viewing_user = nil)
     viewing_user ||= self.user
     if viewing_user
+      if viewing_user.id == User::DEFAULT_ADMIN_ID
+        return docs.last if docs.any?
+      end
       # docs = self.docs.where(user_id: [viewing_user.id, nil, User::DEFAULT_ADMIN_ID])
       user_docs = viewing_user.user_docs.includes(:doc).where(image_id: id)
       docs = user_docs.order(:updated_at).map(&:doc)
