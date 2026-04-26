@@ -284,11 +284,10 @@ class Menu < ApplicationRecord
         # @board.update(status: "error") unless new_processed
         # @board.update!(description: new_processed) if new_processed
         restaurant_name = name || "Restaurant"
-        from_text = nil
-        # from_text, messages_sent = clarify_image_description(new_doc.raw, restaurant_name)
+        from_text, messages_sent = clarify_image_description(new_doc.raw, restaurant_name)
         # Rails.logger.debug "clarify_image_description - from_text: #{from_text}, messages_sent: #{messages_sent}"
-        # new_processed = from_text || describe_menu(@board.display_image_url)
-        new_processed = describe_menu(@board.preview_image.url) if @board.preview_image.attached?
+        new_processed = from_text || describe_menu(@board.preview_image.url) if @board.preview_image.attached?
+        # new_processed = describe_menu(@board.preview_image.url) if @board.preview_image.attached?
         unless new_processed
           Rails.logger.error "Failed to get enhanced image description from OpenAI for Menu #{id} - #{name}"
           return nil
