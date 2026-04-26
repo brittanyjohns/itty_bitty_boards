@@ -127,7 +127,7 @@ class Image < ApplicationRecord
 
   def default_menu_image_prompt(board_name = nil)
     label_to_use = label + (board_name ? " from #{board_name}" : "")
-    "Create a simple, clear AAC-style illustration showing '#{label_to_use}' in a literal, easy-to-understand way, with a transparent background and no stylization. NO TEXT."
+    "#{label_to_use} without any text or prices with a transparent background."
   end
 
   def update_board_images_display_image

@@ -23,12 +23,14 @@ class GenerateImagesJob
 
           user_id = image.user_id
           if board.board_type == "menu"
-            image_prompt = image.default_menu_image_prompt
+            image.image_prompt = image.default_menu_image_prompt(board.name)
           else
-            image_prompt = image.default_image_prompt
+            image.image_prompt = image.default_image_prompt
           end
+          image.save! if image.changed?
+          Rails.logger.info "BOARD TYPE: #{board.board_type} - Generating image for Image ID #{image.id} with prompt: #{image.image_prompt}"
 
-          new_doc = image.create_image_doc(user_id, image_prompt)
+          new_doc = image.create_image_doc(user_id, image.image_prompt)
 
           unless new_doc
             Rails.logger.error("Failed to create image doc for image #{image.id}")
@@ -40,11 +42,11 @@ class GenerateImagesJob
 
           new_doc.update(source_type: "OpenAI")
 
-          if image.menu? && image.image_prompt.include?(Menu::PROMPT_ADDITION)
-            image.update!(
-              image_prompt: image.image_prompt.gsub(Menu::PROMPT_ADDITION, ""),
-            )
-          end
+          # if image.menu? && image.image_prompt.include?(Menu::PROMPT_ADDITION)
+          #   image.update!(
+          #     image_prompt: image.image_prompt.gsub(Menu::PROMPT_ADDITION, ""),
+          #   )
+          # end
 
           image.update_column(:status, "complete") if image.has_attribute?(:status)
           board_image&.update_column(:status, "complete")

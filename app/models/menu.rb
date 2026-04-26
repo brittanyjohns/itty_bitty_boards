@@ -215,9 +215,10 @@ class Menu < ApplicationRecord
     begin
       self.update(item_list: menu_item_list)
       words = json_description["menu_items"].map { |food| food["name"] }.compact
+      Rails.logger.debug "Extracted words for image generation: #{words.inspect}"
       board.update_column(:status, "finding_images")
       board.find_or_create_images_from_word_list(words)
-      board.update_column(:status, "processing")
+      board.update_column(:status, "complete")
     rescue => e
       Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"
       # board.update(status: "error") if board
@@ -283,18 +284,23 @@ class Menu < ApplicationRecord
         # @board.update(status: "error") unless new_processed
         # @board.update!(description: new_processed) if new_processed
         restaurant_name = name || "Restaurant"
-        from_text, messages_sent = clarify_image_description(new_doc.raw, restaurant_name)
-        Rails.logger.debug "clarify_image_description - from_text: #{from_text}, messages_sent: #{messages_sent}"
-        new_processed = from_text || describe_menu(@board.display_image_url)
+        from_text = nil
+        # from_text, messages_sent = clarify_image_description(new_doc.raw, restaurant_name)
+        # Rails.logger.debug "clarify_image_description - from_text: #{from_text}, messages_sent: #{messages_sent}"
+        # new_processed = from_text || describe_menu(@board.display_image_url)
+        new_processed = describe_menu(@board.preview_image.url) if @board.preview_image.attached?
+        unless new_processed
+          Rails.logger.error "Failed to get enhanced image description from OpenAI for Menu #{id} - #{name}"
+          return nil
+        end
         Rails.logger.debug "describe_menu result: #{new_processed}"
         # new_processed = describe_menu(@board.display_image_url)
 
-        if valid_json?(from_text)
+        if from_text && valid_json?(from_text)
           @board.update!(description: from_text)
           self.prompt_used = from_text
           self.save!
         else
-          Rails.logger.error "INVALID JSON: #{new_processed}"
           new_from_text = transform_into_json(new_processed)
           self.prompt_used = new_from_text
           self.save!
