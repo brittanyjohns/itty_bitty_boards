@@ -215,7 +215,6 @@ class Menu < ApplicationRecord
     begin
       self.update(item_list: menu_item_list)
       words = json_description["menu_items"].map { |food| food["name"] }.compact
-      Rails.logger.debug "Extracted words from description: #{words.inspect}"
       board.update_column(:status, "finding_images")
       board.find_or_create_images_from_word_list(words)
       board.update_column(:status, "processing")
@@ -312,7 +311,6 @@ class Menu < ApplicationRecord
         self.description = new_new_processed
         self.prompt_sent = new_processed
         self.save!
-        Rails.logger.debug "New processed description: #{new_processed}"
 
         create_board_from_menu_image(new_doc, board_id)
       else

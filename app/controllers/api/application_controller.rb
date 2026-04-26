@@ -50,7 +50,6 @@ module API
         tz: current_user.timezone || "America/New_York",
       )
       allowed, meta = limiter.increment_and_check!
-      Rails.logger.info "Monthly limit check for user_id=#{current_user.id} feature=#{feature_key} allowed=#{allowed} meta=#{meta.inspect}"
       error_message = "Monthly limit reached for #{feature_name || feature_key.titleize}. Please upgrade your plan or wait until next month."
       unless allowed
         render json: { error: "limit_reached", message: error_message, **meta }, status: 429
