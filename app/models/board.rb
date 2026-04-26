@@ -107,8 +107,8 @@ class Board < ApplicationRecord
   scope :reverse_alphabetical, -> { order(Arel.sql("LOWER(name) DESC")) }
   scope :with_image_parent, -> { where.associated(:image_parent) }
   scope :searchable, -> { where.not(board_type: "menu").where(obf_id: nil) }
-  scope :menus, -> { where(parent_type: "Menu") }
-  scope :non_menus, -> { where.not(parent_type: "Menu") }
+  scope :menus, -> { where(board_type: "menu").or(where(parent_type: "Menu")) }
+  scope :non_menus, -> { where.not(board_type: "menu").where.not(parent_type: "Menu") }
   scope :user_made, -> { where(parent_type: "User") }
   scope :scenarios, -> { where(parent_type: "OpenaiPrompt") }
   scope :user_made_with_scenarios, -> { where(parent_type: ["User", "OpenaiPrompt", "PredefinedResource"], predefined: false) }
