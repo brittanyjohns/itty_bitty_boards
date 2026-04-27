@@ -7,10 +7,10 @@ class GenerateFreeBoardJob
       begin
         text = "I have an AAC board for the topic '#{topic}'. "
         text += "The age range for the person using the board is #{age_range}. Please provide a list of #{word_count} words that are appropriate for this age range and context. "
-        Rails.logger.info "Generating words for board: #{board.id} with prompt: #{text}"
+        Rails.logger.debug "Generating words for board: #{board.id} with prompt: #{text}"
         board.update_column(:status, "generating_words")
         words = board.get_word_suggestions_from_prompt(text)
-        Rails.logger.info "Generated words for board #{board.id}: #{words.inspect}"
+        Rails.logger.debug "Generated words for board #{board.id}: #{words.inspect}"
 
         # create_board_tiles_from_words(board, words)
         board.update_column(:status, "finding_images")

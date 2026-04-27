@@ -7,7 +7,7 @@ class CreateCustomPredictiveDefaultJob
     board = Board.create_dynamic_default_for_user(user)
 
     if board
-      Rails.logger.info "Created dynamic default board for user #{user.id}"
+      Rails.logger.debug "Created dynamic default board for user #{user.id}"
     else
       Rails.logger.error "Failed to create dynamic default board for user #{user.id}"
     end

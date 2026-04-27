@@ -9,7 +9,7 @@ class BoardScreenshotImportJob
     import = BoardScreenshotImport.find(import_id)
     import.update!(status: "processing")
 
-    Rails.logger.info "[BoardScreenshotImportJob] Starting import #{import.id}"
+    Rails.logger.debug "[BoardScreenshotImportJob] Starting import #{import.id}"
 
     # 1) Get a local temp path for the uploaded screenshot (works with S3, etc.)
     import.image.open(tmpdir: Rails.root.join("tmp")) do |file|
@@ -48,7 +48,7 @@ class BoardScreenshotImportJob
       end
     end
 
-    Rails.logger.info "[BoardScreenshotImportJob] Finished import #{import.id} - status: needs_review"
+    Rails.logger.debug "[BoardScreenshotImportJob] Finished import #{import.id} - status: needs_review"
   rescue => e
     Rails.logger.error "[BoardScreenshotImportJob] Error: #{e.class}: #{e.message}"
     Rails.logger.error e.backtrace.join("\n")

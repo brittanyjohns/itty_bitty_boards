@@ -5,7 +5,7 @@ class GenerateBoardJob
   def perform(board_id, board_creation_type, options = {})
     word_count = options["word_count"].presence || options["wordCount"].presence.to_i || 12
     board = Board.find_by(id: board_id)
-    Rails.logger.info "Starting GenerateBoardJob for Board ID #{board_id} with creation type #{board_creation_type} and options: #{options.inspect}"
+    Rails.logger.debug "Starting GenerateBoardJob for Board ID #{board_id} with creation type #{board_creation_type} and options: #{options.inspect}"
     if board
       words = []
       begin

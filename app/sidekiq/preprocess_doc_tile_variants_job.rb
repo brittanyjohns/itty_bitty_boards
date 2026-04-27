@@ -27,7 +27,7 @@ class PreprocessDocTileVariantsJob
       end
     end
 
-    Rails.logger.info(
+    Rails.logger.debug(
       "[tile-variant-batch] done processed=#{processed_count} skipped=#{skipped_count} failed=#{failed_count} total=#{doc_ids.size}"
     )
   end

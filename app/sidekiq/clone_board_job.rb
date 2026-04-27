@@ -17,10 +17,10 @@ class CloneBoardJob
       matching_boards.each do |matching_board|
         matched_word_list = matching_board.current_word_list
         if matched_word_list.sort == board_words.sort
-          Rails.logger.info "User #{cloned_user_id} already has a board with the same name and words, skipping cloning predictive board for board image: #{new_board_image.id}"
+          Rails.logger.debug "User #{cloned_user_id} already has a board with the same name and words, skipping cloning predictive board for board image: #{new_board_image.id}"
           return
         else
-          Rails.logger.info "User #{cloned_user_id} has a board with the same name but different words, proceeding with cloning predictive board for board image: #{new_board_image.id}"
+          Rails.logger.debug "User #{cloned_user_id} has a board with the same name but different words, proceeding with cloning predictive board for board image: #{new_board_image.id}"
         end
       end
     end

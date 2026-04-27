@@ -97,7 +97,7 @@ gem "ruby-openai", "~> 8.0"
 gem "aws-sdk-polly", "~> 1"
 
 # Sidekiq
-gem "sidekiq", "~> 7.1"
+gem "sidekiq", "~> 7.3.10"
 
 # AWS - ActiveStorage in production
 gem "aws-sdk-s3", require: false

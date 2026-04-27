@@ -468,11 +468,12 @@ GEM
       rexml (~> 3.2, >= 3.2.5)
       rubyzip (>= 1.2.2, < 3.0)
       websocket (~> 1.0)
-    sidekiq (7.3.7)
-      connection_pool (>= 2.3.0)
+    sidekiq (7.3.10)
+      base64
+      connection_pool (>= 2.3.0, < 3)
       logger
-      rack (>= 2.2.4)
-      redis-client (>= 0.22.2)
+      rack (>= 2.2.4, < 3.3)
+      redis-client (>= 0.23.0, < 1)
     simple_form (5.3.1)
       actionpack (>= 5.2)
       activemodel (>= 5.2)
@@ -574,7 +575,7 @@ DEPENDENCIES
   rspec-rails
   ruby-openai (~> 8.0)
   selenium-webdriver
-  sidekiq (~> 7.1)
+  sidekiq (~> 7.3.10)
   simple_form
   sprockets-rails
   stripe (~> 12.0)

@@ -28,7 +28,7 @@ class GenerateImagesJob
             image.image_prompt = image.default_image_prompt
           end
           image.save! if image.changed?
-          Rails.logger.info "BOARD TYPE: #{board.board_type} - Generating image for Image ID #{image.id} with prompt: #{image.image_prompt}"
+          Rails.logger.debug "BOARD TYPE: #{board.board_type} - Generating image for Image ID #{image.id} with prompt: #{image.image_prompt}"
 
           new_doc = image.create_image_doc(user_id, image.image_prompt)
 
@@ -71,7 +71,7 @@ class GenerateImagesJob
         end
       end
 
-      Rails.logger.info(
+      Rails.logger.debug(
         "Completed GenerateImagesJob for board: #{board_id}, image_ids: #{image_ids.join(", ")}, failed_image_ids: #{failed_image_ids.join(", ")}"
       )
 
