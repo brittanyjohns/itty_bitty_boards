@@ -26,6 +26,8 @@
 #  language_settings   :jsonb
 #  hidden              :boolean          default(FALSE)
 #  part_of_speech      :string           default("default"), not null
+#  border_width        :integer          default(0), not null
+#  border_radius       :integer          default(0), not null
 #
 class BoardImage < ApplicationRecord
   default_scope { order(position: :asc) }
@@ -407,6 +409,8 @@ class BoardImage < ApplicationRecord
       text_color: text_color,
       font_size: font_size,
       border_color: border_color,
+      border_width: border_width,
+      border_radius: border_radius,
       frozen_board: board.is_frozen?,
       audio_files: all_audio_files_for_api_plus_image_audio,
       docs: image.docs.for_user(viewing_user).order(created_at: :desc).limit(10).map { |doc| doc.list_api_view(viewing_user) },
