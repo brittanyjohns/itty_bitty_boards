@@ -2,6 +2,7 @@ require "openai"
 
 class OpenAiClient
   GTP_MODEL = ENV.fetch("OPENAI_GTP_MODEL", "gpt-4.1-mini")
+  GTP_5_MODEL = ENV.fetch("OPENAI_GTP_5_MODEL", "gpt-5-mini")
   QUICK_GTP_MODEL = ENV.fetch("OPENAI_QUICK_GTP_MODEL", "gpt-4.1-nano")
   IMAGE_MODEL = ENV.fetch("OPENAI_IMAGE_MODEL", "gpt-image-1-mini")
   TTS_MODEL = ENV.fetch("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
@@ -175,7 +176,7 @@ class OpenAiClient
                                       model: GPT_VISION_MODEL,
                                       messages: [{ role: "user",
                                                   content: [{ type: "text",
-                                                              text: "This is a restaurant menu. Please describe the menu items in a list like your were reading them to the server. Please respond as json in the following format: #{expected_json_schema}" },
+                                                              text: "This is a restaurant menu. Please describe the menu items. Please respond as json in the following format: #{expected_json_schema}" },
                                                             { type: "image_url", image_url: { url: img_url } }] }],
                                     })
       Rails.logger.debug "*** ERROR *** Invaild Menu Description Response: #{response}" unless response
@@ -215,7 +216,7 @@ class OpenAiClient
 
   def clarify_image_description(image_description, restaurant_name)
     Rails.logger.debug "Missing image description.\n" && return unless image_description
-    @model = GTP_MODEL
+    @model = GTP_5_MODEL
     @messages = [{ role: "user", content: [{ type: "text",
                                            text: "Please parse the following text from a restaurant menu from the
                                                 restaurant '#{restaurant_name}' to
@@ -510,7 +511,7 @@ class OpenAiClient
 
     min_number_of_words = 2
     text = <<~TEXT
-                                                                                                  I am creating a social story titled "#{name}".
+                                                                                                        I am creating a social story titled "#{name}".
 
     Please generate #{number_of_steps} SHORT step instructions that could appear on tiles in a social story AAC board.
 
