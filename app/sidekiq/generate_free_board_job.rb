@@ -30,7 +30,8 @@ class GenerateFreeBoardJob
         board.find_or_create_images_from_word_list(words)
         board.update_column(:status, "processing")
         board.reset_layouts
-        board.run_generate_preview_job
+        board.generate_previews # generate new preview image with generated words
+        sleep(2) # add a short sleep to ensure the preview job starts before we mark the board as complete
         board.update_column(:status, "complete")
       rescue => e
         Rails.logger.error "\n**** SIDEKIQ - GenerateFreeBoardJob \n\nERROR **** \n#{e.message}\n"

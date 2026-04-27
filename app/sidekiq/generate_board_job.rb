@@ -59,6 +59,7 @@ class GenerateBoardJob
 
         board.generate_previews # generate new preview image with generated words
 
+        sleep(2) # add a short sleep to ensure the preview job starts before we mark the board as complete
         board.update_column(:status, "complete")
       rescue => e
         Rails.logger.error "\n**** SIDEKIQ - GenerateBoardJob #{board.id} #{board_creation_type} \n\nERROR **** \n#{e.message}\n#{e.backtrace.join("\n")}\n"
