@@ -10,6 +10,19 @@ class GenerateFreeBoardJob
         Rails.logger.debug "Generating words for board: #{board.id} with prompt: #{text}"
         board.update_column(:status, "generating_words")
         words = board.get_word_suggestions_from_prompt(text)
+
+        # downcase word unless it's a proper character (e.g. "I") or contains uppercase letters (e.g. "NASA") or is a phrase (e.g. "What's up?")
+        words = words.map do |word|
+          if word.length > 1 || word.match(/[A-Z]/) || word.include?(" ")
+            word
+          else
+            if word.downcase == "i"
+              "I"
+            else
+              word.downcase
+            end
+          end
+        end
         Rails.logger.debug "Generated words for board #{board.id}: #{words.inspect}"
 
         # create_board_tiles_from_words(board, words)
