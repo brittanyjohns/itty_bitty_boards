@@ -877,7 +877,7 @@ class Board < ApplicationRecord
       image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
       new_image = Image.create(label: word) unless image
       image ||= new_image
-      display_doc = image.display_image_url(user)
+      display_doc = image.display_tile_url(user)
       if display_doc.blank?
         # image_prompt = "Create an image of #{word}"
         # image_prompt = image.default_image_prompt
