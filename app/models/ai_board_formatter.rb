@@ -41,6 +41,7 @@ class AiBoardFormatter
 
   def prompt
     words = @existing.map { |w| w[:word].to_s }.reject(&:blank?)
+    Rails.logger.info "Formatting board with AI - Name: #{@name}, Columns: #{@columns}, Rows: #{@rows}, Existing words: #{words.inspect}, Maintain existing: #{@maintain_existing}"
 
     <<~PROMPT
       Create an AAC communication board as a JSON object.

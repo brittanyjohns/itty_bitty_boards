@@ -649,7 +649,12 @@ class API::BoardsController < API::ApplicationController
     return unless check_monthly_limit(feature_key: "ai_action", feature_name: "AI Board Formatting")
     set_board
     screen_size = params[:screen_size] || "lg"
-    FormatBoardWithAiJob.perform_async(@board.id, screen_size, true)
+    options = {
+      "board_id" => @board.id,
+      "user_id" => current_user.id,
+      "screen_size" => screen_size,
+    }
+    FormatBoardWithAiJob.perform_async(options)
     @board.update(status: "formatting")
     render json: @board.api_view_with_images(current_user)
   end
