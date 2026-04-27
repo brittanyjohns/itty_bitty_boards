@@ -2128,7 +2128,7 @@ class Board < ApplicationRecord
   end
 
   def get_word_suggestions(name_to_use, number_of_words, words_to_exclude = [])
-    response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words, words_to_exclude)
+    response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words, words_to_exclude, board_type)
     begin
       if response && response[:content].present?
         word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip

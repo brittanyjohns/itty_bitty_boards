@@ -474,7 +474,7 @@ class OpenAiClient
     response
   end
 
-  def get_word_suggestions(name, number_of_words = 24, words_to_exclude = [])
+  def get_word_suggestions(name, number_of_words = 24, words_to_exclude = [], board_type = "default")
     if words_to_exclude.is_a?(String)
       words_to_exclude = words_to_exclude.split(",").map(&:strip)
     end
@@ -511,7 +511,7 @@ class OpenAiClient
 
     min_number_of_words = 2
     text = <<~TEXT
-                                                                                                        I am creating a social story titled "#{name}".
+                                                                                                            I am creating a social story titled "#{name}".
 
     Please generate #{number_of_steps} SHORT step instructions that could appear on tiles in a social story AAC board.
 
