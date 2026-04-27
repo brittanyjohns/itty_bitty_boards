@@ -11,18 +11,6 @@ class GenerateFreeBoardJob
         board.update_column(:status, "generating_words")
         words = board.get_word_suggestions_from_prompt(text)
 
-        # downcase word unless it's a proper character (e.g. "I") or contains uppercase letters (e.g. "NASA") or is a phrase (e.g. "What's up?")
-        words = words.map do |word|
-          if word.length > 1 || word.match(/[A-Z]/) || word.include?(" ")
-            word
-          else
-            if word.downcase == "i"
-              "I"
-            else
-              word.downcase
-            end
-          end
-        end
         board.update_column(:status, "finding_images")
         board.find_or_create_images_from_word_list(words)
         board.update_column(:status, "processing")

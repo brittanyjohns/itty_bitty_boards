@@ -872,6 +872,17 @@ class Board < ApplicationRecord
     image_ids_to_generate = []
 
     word_list.each do |word|
+      Rails.logger.info "Processing word: #{word}"
+      if word.length > 1 || word.match(/[A-Z]/) || word.include?(" ")
+        word = word
+      else
+        if word.downcase == "i"
+          word = "I"
+        else
+          word = word.downcase
+        end
+      end
+      Rails.logger.info "Normalized word: #{word}"
       image = user.images.find_by(label: word) if user_id
 
       image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
