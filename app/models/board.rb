@@ -873,7 +873,7 @@ class Board < ApplicationRecord
 
     word_list.each do |word|
       Rails.logger.info "Processing word: #{word}"
-      if word.length > 1 || word.match(/[A-Z]/) || word.include?(" ")
+      if word.length > 1
         word = word
       else
         if word.downcase == "i"
