@@ -11,11 +11,17 @@ class FormatBoardWithAiJob
       Rails.logger.error "Board not found: #{board_id}"
       return
     end
-    result = board.format_board_with_ai(screen_size: screen_size, maintain_existing_layout: maintain_existing_layout)
-    unless result
-      Rails.logger.error "Board format with AI failed: #{board_id}"
+    begin
+      result = board.format_board_with_ai(screen_size: screen_size, maintain_existing_layout: maintain_existing_layout)
+      unless result
+        Rails.logger.error "Board format with AI failed: #{board_id}"
+        return
+      end
+    rescue => e
+      Rails.logger.error "Error in FormatBoardWithAiJob for Board ID #{board_id}: #{e.message}\n#{e.backtrace.join("\n")}"
       return
+    ensure
+      board.update_column(:status, "complete")
     end
-    board.update(status: "formatted")
   end
 end
