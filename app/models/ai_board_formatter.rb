@@ -41,44 +41,81 @@ class AiBoardFormatter
 
   def prompt
     words = @existing.map { |w| w[:word].to_s }.reject(&:blank?)
-    Rails.logger.info "Formatting board with AI - Name: #{@name}, Columns: #{@columns}, Rows: #{@rows}, Existing words: #{words.inspect}, Maintain existing: #{@maintain_existing}"
 
     <<~PROMPT
-      Create an AAC communication board as a JSON object.
+      You are formatting an AAC communication board layout.
 
-      Rules:
-      - Start core/high-frequency words at [0,0] and group them first.
-      - Group by part_of_speech (pronouns, verbs, adjectives, etc.).
-      - Stay within bounds: Max columns #{@columns}, Max rows #{@rows}.
-      - Size reflects frequency: high can be larger (e.g., [2,2]). Default [1,1].
-      - No overlaps. Each item MUST include word, position [x,y], part_of_speech, frequency, and size [w,h].
+      Return ONLY valid JSON. Do not include markdown, comments, or extra text.
 
-      #{maintain_existing_text}
+      Goal:
+      Create a clean, predictable AAC board using evidence-informed AAC layout practices:
+      - Put high-frequency core words first.
+      - Keep layout simple, consistent, and easy to scan.
+      - Avoid random placement, gaps, and excessive rows.
+      - Use stable left-to-right, top-to-bottom placement (motor planning consistency).
+      - Prioritize communication usefulness over visual complexity.
 
-      Words:
+      Grid constraints:
+      - Max columns: #{@columns}
+      - Max rows: #{@rows}
+      - Coordinates are [x, y], where x starts at 0 from the left and y starts at 0 from the top.
+      - Stay completely inside the grid.
+      - Do not overlap cells.
+      - Do not create more rows than needed.
+      - Fill rows left-to-right before moving down.
+      - Use a strict row-major layout (like reading text).
+
+      Tile sizing rules:
+      - Default size is [1,1].
+      - Use [1,1] for almost all words.
+      - Only use [2,1] for extremely important words like "I want", "help", or "stop" if space allows.
+      - Do NOT use [2,2].
+      - Do NOT randomly vary sizes.
+      - Keep sizing consistent and predictable.
+
+      Word ordering rules:
+      1. First rows: high-frequency core words (communication starters)
+      2. Next rows: common action words
+      3. Next rows: descriptive words
+      4. Last rows: specific or lower-frequency words
+
+      Frequency values:
+      - high
+      - medium
+      - low
+
+      Important:
+      - Use every provided word exactly once.
+      - Do not add new words.
+      - Do not remove words.
+      - Do not duplicate words.
+      - If there are too many words to fit, include only what fits and mention overflow in explanations.
+      - Do not leave empty gaps between tiles.
+      - Keep the layout compact and structured.
+
+      Existing words:
       #{words.join(", ")}
 
-      Respond ONLY with valid JSON like:
+      Expected JSON format:
       {
         "grid": [
-          {"word":"I","position":[0,0],"part_of_speech":"pronoun","frequency":"high","size":[1,1]},
-          {"word":"banana","position":[1,0],"part_of_speech":"noun","frequency":"low","size":[1,1]}
+          {
+            "word": "I",
+            "position": [0, 0],
+            "frequency": "high",
+            "size": [1, 1]
+          },
+          {
+            "word": "banana",
+            "position": [1, 0],
+            "frequency": "low",
+            "size": [1, 1]
+          }
         ],
-        "personable_explanation": "one-liner (optional)",
-        "professional_explanation": "one-liner (optional)"
+        "personable_explanation": "Simple one-liner explaining the layout.",
+        "professional_explanation": "Simple one-liner explaining the AAC reasoning."
       }
     PROMPT
-  end
-
-  def maintain_existing_text
-    return "" unless @maintain_existing && @existing.present?
-
-    # Keep this short so it doesn't drown the prompt
-    pairs = @existing.first(40).map do |w|
-      size = Array(w[:size]).presence || [1, 1]
-      "#{w[:word]}=>#{size.join("x")}"
-    end
-    "Try to keep current sizes where sensible: #{pairs.join(", ")}"
   end
 
   def request_openai(text)

@@ -1352,6 +1352,7 @@ class Board < ApplicationRecord
         self.description = [self.data["personable_explanation"], self.data["professional_explanation"]].compact.join("\n") if description.blank?
         save!
       end
+      reset_layouts if maintain_existing_layout == false
     end
 
     self
@@ -1554,7 +1555,7 @@ class Board < ApplicationRecord
           status: @board_image.status,
         }
       end,
-      layout: print_grid_layout,
+    # layout: print_grid_layout,
     }
   end
 
@@ -1758,7 +1759,7 @@ class Board < ApplicationRecord
           status: @board_image.status,
         }
       end,
-      layout: print_grid_layout,
+    # layout: print_grid_layout,
     }
   end
 
