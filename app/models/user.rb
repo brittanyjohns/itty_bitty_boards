@@ -1203,7 +1203,7 @@ class User < ApplicationRecord
   end
 
   def can_create_boards
-    board_limit = settings["board_limit"]
+    board_limit = settings["board_limit"]&.to_i
     if board_limit.nil? || board_limit <= 0
       board_limit = FREE_PLAN_LIMITS["board_limit"]
     end
