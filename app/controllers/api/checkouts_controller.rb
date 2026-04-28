@@ -11,7 +11,7 @@ class API::CheckoutsController < API::ApplicationController
 
     result = nil
 
-    result = StripeClient.add_commuicator_account(@user.id, quantity)
+    # result = StripeClient.add_commuicator_account(@user.id, quantity)
 
     if result
       render json: { success: true }, status: :ok

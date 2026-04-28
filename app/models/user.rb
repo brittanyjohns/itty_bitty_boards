@@ -1107,7 +1107,7 @@ class User < ApplicationRecord
 
   def admin_api_view
     view = as_json
-    comm_account_limit_reached = settings["paid_communicator_limit"].to_i + settings["extra_communicators"].to_i <= communicator_accounts.count
+    comm_account_limit_reached = settings["paid_communicator_limit"].to_i + settings["demo_communicator_limit"].to_i <= communicator_accounts.count
     board_limit = settings["board_limit"]
     board_limit = board_limit.to_i if board_limit
     board_limit = 1 unless board_limit && board_limit > 0
@@ -1218,7 +1218,6 @@ class User < ApplicationRecord
 
     # ---- Limits from Stripe/user settings ----
     comm_limit = (settings["paid_communicator_limit"] || 0).to_i          # REAL communicators included
-    extra_comms = (settings["extra_communicators"] || 0).to_i         # REAL communicator add-ons (if you use them)
     demo_limit = (settings["demo_communicator_limit"] || 0).to_i     # DEMO communicators allowed
     board_limit = (settings["board_limit"] || 1).to_i
 
@@ -1234,7 +1233,7 @@ class User < ApplicationRecord
     demo_comm_count = demo_communicator_accounts.length
 
     # ---- Derived limits ----
-    paid_comm_limit_total = comm_limit + extra_comms
+    paid_comm_limit_total = comm_limit
 
     # ---- Limit reached flags ----
     comm_account_limit_reached = paid_comm_limit_total <= paid_comm_count
@@ -1289,7 +1288,6 @@ class User < ApplicationRecord
 
       # Communicators (REAL)
       accounts_included: comm_limit,
-      extra_communicators: extra_comms,
       comm_account_limit: paid_comm_limit_total,
       comm_account_limit_reached: comm_account_limit_reached,
       paid_communicator_count: paid_comm_count,
