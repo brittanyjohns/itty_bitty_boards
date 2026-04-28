@@ -175,7 +175,7 @@ class API::BoardsController < API::ApplicationController
   end
 
   def public_boards
-    scope = Board.public_boards
+    scope = Board.public_boards.alphabetical
 
     last_modified = scope.maximum(:updated_at) || Time.zone.at(0)
     etag = public_boards_etag(scope, last_modified)
