@@ -1206,6 +1206,8 @@ class User < ApplicationRecord
     board_limit = settings["board_limit"]&.to_i
     if board_limit.nil? || board_limit <= 0
       board_limit = FREE_PLAN_LIMITS["board_limit"]
+      settings["board_limit"] = board_limit
+      save
     end
     board_count = boards.count
     board_count < board_limit
