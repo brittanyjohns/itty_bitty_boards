@@ -1112,7 +1112,6 @@ class User < ApplicationRecord
     board_limit = board_limit.to_i if board_limit
     board_limit = 1 unless board_limit && board_limit > 0
     board_count = boards.count
-    can_create_boards = board_limit > board_count
     board_limit_reached = board_count >= board_limit
     view["admin"] = admin?
     view["free"] = free?
@@ -1204,7 +1203,10 @@ class User < ApplicationRecord
   end
 
   def can_create_boards
-    board_limit = settings["board_limit"] || 1
+    board_limit = settings["board_limit"]
+    if board_limit.nil? || board_limit <= 0
+      board_limit = FREE_PLAN_LIMITS["board_limit"]
+    end
     board_count = boards.count
     board_count < board_limit
   end
@@ -1241,7 +1243,6 @@ class User < ApplicationRecord
 
     remaining_paid_accounts = [0, paid_comm_limit_total - paid_comm_count].max
     remaining_demo_accounts = [0, demo_limit - demo_comm_count].max
-    user_can_create_boards = board_count < board_limit
     {
       id: id,
       organization_id: organization_id,
@@ -1257,7 +1258,7 @@ class User < ApplicationRecord
       board_limit: board_limit,
       board_count: board_count,
       board_limit_reached: board_count >= board_limit,
-      can_create_boards: user_can_create_boards,
+      can_create_boards: can_create_boards,
 
       # AI
       can_use_ai: can_use_ai?,
