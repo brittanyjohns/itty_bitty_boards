@@ -180,7 +180,7 @@ class API::BoardsController < API::ApplicationController
       if scope.count < 3
         scope = Board.public_boards.alphabetical
       end
-      scope = scope.limit(8)
+      scope = scope.limit(10)
     else
       scope = Board.public_boards.alphabetical
     end
