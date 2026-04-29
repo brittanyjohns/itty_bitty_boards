@@ -340,8 +340,9 @@ class ChildAccount < ApplicationRecord
       Rails.logger.error "\nUsername is nil, cannot create profile\n"
       return
     end
+    random_id = SecureRandom.hex(4)
     if Profile.find_by(slug: slug)
-      slug = "#{slug}-#{id}"
+      slug = "#{slug}-#{random_id}"
     end
     profile = Profile.create!(profileable: self, username: username, slug: slug)
     profile.set_fake_avatar
@@ -643,7 +644,7 @@ class ChildAccount < ApplicationRecord
   end
 
   def index_api_view
-    @boards = boards.all.order(:name)
+    @boards = boards.all.alphabetical
     @child_boards = child_boards.includes(:board)
     current_board_list = @child_boards.map(&:name)
     current_board_list = current_board_list ? current_board_list.join(", ").truncate(150) : nil
@@ -656,14 +657,15 @@ class ChildAccount < ApplicationRecord
       board_list_sample: current_board_list,
       communicator_board_ids: @child_boards.pluck(:original_board_id).compact,
       user_id: user_id,
-      last_sign_in_at: last_sign_in_at&.strftime("%a, %b %e at %l:%M %p"),
+      last_sign_in_at_str: last_sign_in_at&.strftime("%a, %b %e at %l:%M %p"),
+      last_sign_in_at: last_sign_in_at,
       sign_in_count: sign_in_count,
       can_edit: user.admin?,
       pro: user.pro?,
       free_trial: user.free_trial?,
       admin: user.admin?,
       can_sign_in: can_sign_in?,
-      profile: profile&.api_view,
+      # profile: profile&.api_view,
       week_chart: week_chart,
       avatar_url: profile&.avatar_url,
       device_tag_url: device_tag_url,

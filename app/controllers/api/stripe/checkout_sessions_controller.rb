@@ -30,7 +30,12 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     ensure_customer!
 
     trial_days = 14
-    cancel_url = is_partner ? "#{frontend_base_url}/onboarding/partner" : "#{frontend_base_url}/onboarding"
+    cancel_url = "#{frontend_base_url}/onboarding"
+    if is_partner
+      cancel_url = "#{frontend_base_url}/onboarding/partner"
+    elsif plan_key.include?("myspeak")
+      cancel_url = "#{frontend_base_url}/onboarding/myspeak"
+    end
 
     bypass_payment_required = params[:bypass_payment_required] == "true" || promo_code&.upcase == NO_CC_KEY
 
@@ -74,6 +79,8 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     }
 
     session = Stripe::Checkout::Session.create(session_params)
+    current_user.update!(paid_plan_type: plan_key)
+    Rails.logger.info "session: #{session.inspect}"
     render json: { url: session.url }
   rescue StandardError => e
     Rails.logger.error "Error creating checkout session: #{e.class} - #{e.message}"

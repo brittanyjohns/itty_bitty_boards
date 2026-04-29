@@ -177,6 +177,10 @@ class Board < ApplicationRecord
     Board.public_boards.distinct.pluck("unnest(tags)").compact.uniq # pluck all tags from public boards, remove nils, and return unique values
   end
 
+  def self.myspeak_public_boards
+    Board.public_boards.with_all_tags(["myspeak"])
+  end
+
   SAFE_FILTERS = %w[all predefined user_made ai_generated predictive public_boards in_use published sub_boards main_boards recent newly_created not_in_use menus].freeze
 
   include ImageHelper

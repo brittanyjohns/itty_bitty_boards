@@ -4,13 +4,7 @@ module API
       skip_before_action :authenticate_token!, only: [:create, :sign_up, :current, :destroy, :forgot_password, :reset_password, :reset_password_invite]
 
       def sign_up
-        if params["auth"] && params["auth"]["first_name"] && params["auth"]["last_name"]
-          name = params["auth"]["first_name"] + " " + params["auth"]["last_name"]
-        elsif params["auth"] && params["auth"]["name"]
-          name = params["auth"]["name"]
-        else
-          name = ""
-        end
+        name = params["name"] || (params["user"] && params["user"]["name"]) || ""
         platform = params["platform"] || ""
         email = params["email"] || (params["auth"] && params["auth"]["email"])
         password = params["password"] || (params["auth"] && params["auth"]["password"])

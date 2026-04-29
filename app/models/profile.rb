@@ -207,6 +207,7 @@ class Profile < ApplicationRecord
       public_url: public_url,
       startup_url: startup_url,
       allow_discovery: allow_discovery,
+      name: name,
 
       # Keep full settings ONLY for authenticated/edit contexts
       settings: settings,
@@ -264,7 +265,8 @@ class Profile < ApplicationRecord
       claim_url: claim_url, # ok to show if you want the CTA
       public_about_html: safe_html(public_about&.body&.to_s),
       public_intro_html: safe_html(public_intro&.body&.to_s),
-      public_bio_html: safe_html(public_bio&.body&.to_s)
+      public_bio_html: safe_html(public_bio&.body&.to_s),
+      communicator_account: profileable_type == "ChildAccount" ? profileable.api_view : nil
     }
   end
 
@@ -295,8 +297,8 @@ class Profile < ApplicationRecord
       email: email,
       public_about_html: safe_html(public_about&.body&.to_s),
       public_intro_html: safe_html(public_intro&.body&.to_s),
-      public_bio_html: safe_html(public_bio&.body&.to_s)
-
+      public_bio_html: safe_html(public_bio&.body&.to_s),
+      communicator_account: profileable_type == "ChildAccount" ? profileable.api_view : nil
     }
   end
 
@@ -524,7 +526,7 @@ class Profile < ApplicationRecord
         username: placeholder_name,
         slug: slug,
         bio: "This is a placeholder profile waiting to be claimed. Once claimed, you can customize it and make it your own. You can add your own bio, avatar, and other details.",
-        intro: "Welcome to MySpeak! Personalize your profile by adding a short introduction about yourself here.",
+        intro: "Welcome to MySpeak! Personalize your page by adding a short introduction about yourself here.",
         placeholder: true,
         claimed_at: nil,
         claim_token: SecureRandom.hex(10),
@@ -550,7 +552,7 @@ class Profile < ApplicationRecord
       profileable_id: user.id,
       slug: slug,
       bio: "Write a short bio about yourself. This will help others understand who you are and what you do.",
-      intro: "Welcome to MySpeak! Personalize your profile by adding a short introduction about yourself.",
+      intro: "Welcome to MySpeak! Personalize your page by adding a short introduction about yourself.",
       placeholder: false,
       claimed_at: Time.zone.now,
       claim_token: nil,
@@ -590,7 +592,7 @@ class Profile < ApplicationRecord
       username: username,
       slug: slug,
       bio: "Write a short bio about yourself. This will help others understand who you are and what you do.",
-      intro: "Welcome to MySpeak! Personalize your profile by adding a short introduction about yourself.",
+      intro: "Welcome to MySpeak! Personalize your page by adding a short introduction about yourself.",
       claimed_at: nil,
       claim_token: SecureRandom.hex(10),
       placeholder: true,
@@ -613,7 +615,7 @@ class Profile < ApplicationRecord
   def set_defaults
     self.settings ||= {}
 
-    self.intro = "Welcome to MySpeak! Personalize your profile by adding a short introduction about yourself." if intro.blank?
+    self.intro = "Welcome to MySpeak! Personalize your page by adding a short introduction about yourself." if intro.blank?
     self.bio = "Write a short bio about yourself. This will help others understand who you are and what you do." if bio.blank?
 
     # If you want to infer kind automatically:

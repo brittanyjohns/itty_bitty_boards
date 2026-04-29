@@ -175,7 +175,15 @@ class API::BoardsController < API::ApplicationController
   end
 
   def public_boards
-    scope = Board.public_boards.alphabetical
+    if params["myspeak"] == "true"
+      scope = Board.myspeak_public_boards.alphabetical
+      if scope.count < 3
+        scope = Board.public_boards.alphabetical
+      end
+      scope = scope.limit(8)
+    else
+      scope = Board.public_boards.alphabetical
+    end
 
     last_modified = scope.maximum(:updated_at) || Time.zone.at(0)
     etag = public_boards_etag(scope, last_modified)

@@ -1190,6 +1190,31 @@ class User < ApplicationRecord
     true
   end
 
+  def handle_myspeak_setup(myspeak_name: nil, myspeak_slug: nil)
+    myspeak_slug ||= settings["slug"] || email.split("@").first
+    myspeak_name ||= display_name
+    Rails.logger.info "Handling MySpeak setup for user #{email} with slug #{myspeak_slug} and name #{myspeak_name}"
+    @child_account = ChildAccount.new(username: myspeak_slug, name: myspeak_name)
+    # Type + ownership
+    @child_account.is_demo = true
+    @child_account.owner = self
+    @child_account.user = self if @child_account.respond_to?(:user=) # legacy (optional)
+
+    # Validate basic fields first
+    unless @child_account.valid?
+      Rails.logger.error "Child account validation failed: #{@child_account.errors.full_messages.join(", ")}"
+      return nil
+    end
+    if @child_account.save
+      Rails.logger.info "Child account created with ID #{@child_account.id} for MySpeak setup"
+      @child_account.create_profile!
+      Rails.logger.info "Profile created with slug #{myspeak_slug} for MySpeak setup"
+    else
+      Rails.logger.error "Failed to save child account for MySpeak setup: #{@child_account.errors.full_messages.join(", ")}"
+    end
+    @child_account
+  end
+
   def reset_ai_limits!
     current_user = self
     feature_key = "ai_action"
@@ -1228,7 +1253,7 @@ class User < ApplicationRecord
     # ---- Memoize common collections ----
     memoized_teams = teams_with_read_access
     memoized_boards = boards.alphabetical
-    # memoized_communicators = communicator_accounts # association on owner_id (includes real + demo)
+    memoized_communicators = communicator_accounts.limit(5)
 
     # ---- Counts ----
     board_count = memoized_boards.count
@@ -1313,7 +1338,7 @@ class User < ApplicationRecord
 
       # If these are AR objects, you may already have a serializer.
       # If not, consider mapping them to api_view here for consistency.
-      # communicator_accounts: memoized_communicators.map(&:index_api_view),
+      communicator_accounts: memoized_communicators.map(&:index_api_view),
       # paid_communicator_accounts: paid_communicator_accounts.map(&:index_api_view),
       # demo_communicator_accounts: demo_communicator_accounts.map(&:index_api_view),
       remaining_demo_accounts: remaining_demo_accounts,
@@ -1336,6 +1361,7 @@ class User < ApplicationRecord
       stripe_customer_id: stripe_customer_id,
 
       unread_messages: messages.where(recipient_id: id, read_at: nil, recipient_deleted_at: nil).count,
+      paid_plan_type: paid_plan_type,
     }
   end
 
