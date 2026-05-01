@@ -1105,9 +1105,12 @@ class User < ApplicationRecord
     view
   end
 
+  def comm_account_limit_reached
+    settings["paid_communicator_limit"].to_i + settings["demo_communicator_limit"].to_i <= communicator_accounts.count
+  end
+
   def admin_api_view
     view = as_json
-    comm_account_limit_reached = settings["paid_communicator_limit"].to_i + settings["demo_communicator_limit"].to_i <= communicator_accounts.count
     board_limit = settings["board_limit"]
     board_limit = board_limit.to_i if board_limit
     board_limit = 1 unless board_limit && board_limit > 0
@@ -1265,7 +1268,7 @@ class User < ApplicationRecord
     paid_comm_limit_total = comm_limit
 
     # ---- Limit reached flags ----
-    comm_account_limit_reached = paid_comm_limit_total <= paid_comm_count
+    paid_comm_account_limit_reached = paid_comm_limit_total <= paid_comm_count
     demo_comm_account_limit_reached = demo_limit <= demo_comm_count
 
     remaining_paid_accounts = [0, paid_comm_limit_total - paid_comm_count].max
@@ -1313,12 +1316,13 @@ class User < ApplicationRecord
       free_trial: free_trial?,
       trial_expired: trial_expired?,
       trial_days_left: trial_days_left,
+      comm_account_limit_reached: comm_account_limit_reached,
 
       # Communicators (REAL)
       accounts_included: comm_limit,
       comm_account_limit: paid_comm_limit_total,
-      comm_account_limit_reached: comm_account_limit_reached,
       paid_communicator_count: paid_comm_count,
+      paid_comm_account_limit_reached: paid_comm_account_limit_reached,
 
       # Communicators (DEMO)
       demo_comm_account_limit: demo_limit,
