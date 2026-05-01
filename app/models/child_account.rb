@@ -187,9 +187,10 @@ class ChildAccount < ApplicationRecord
 
   def favorite_boards
     if paid_plan? || user&.vendor?
-      child_boards.where(favorite: true).includes(:board).map(&:board)
+      child_boards.where(favorite: true)
     else
-      Board.public_boards
+      []
+      # Board.public_boards
     end
   end
 

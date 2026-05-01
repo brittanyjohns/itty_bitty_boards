@@ -27,17 +27,12 @@ class ChildBoard < ApplicationRecord
   # scope :with_artifacts, -> { includes(board: :images) }
   scope :with_artifacts, -> { includes({ board: [{ images: [:docs, :audio_files_attachments, :audio_files_blobs] }] }, :image_parent) }
 
-  def name
-    board.name
-  end
-
-  def bg_color
-    board.bg_color
-  end
-
-  def text_color
-    board.text_color
-  end
+  delegate :name, to: :board
+  delegate :slug, to: :board
+  delegate :bg_color, to: :board
+  delegate :text_color, to: :board
+  delegate :board_type, to: :board
+  delegate :ionic_icon, to: :board
 
   def grid_x(screen_size = "lg")
     return layout[screen_size]["x"] if layout[screen_size] && layout[screen_size]["x"]
