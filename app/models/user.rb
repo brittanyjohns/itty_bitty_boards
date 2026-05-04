@@ -421,7 +421,16 @@ class User < ApplicationRecord
   end
 
   def opening_board
-    Board.find_by(id: settings["opening_board_id"]&.to_i)
+    opening_board_id = settings["opening_board_id"]
+    return nil unless opening_board_id
+    if opening_board_id && opening_board_id.is_a?(Hash)
+      opening_board_id = opening_board_id["id"]
+    end
+    if opening_board_id.nil?
+      Rails.logger.warn "User #{id} has no opening_board_id in settings"
+      return nil
+    end
+    Board.find_by(id: opening_board_id&.to_i)
   end
 
   def self.without_opening_board

@@ -1049,9 +1049,11 @@ class API::BoardsController < API::ApplicationController
   # Use callbacks to share common setup or constraints between actions.
   def set_board
     key = params[:slug].presence || params[:id].presence
+    paramiterized_key = key.to_s.parameterize
 
     @board = Board.find_by(id: key) ||
              Board.find_by(slug: key)
+    @board ||= Board.find_by(slug: paramiterized_key)
     unless @board
       render json: { error: "Board not found" }, status: :not_found
       return
