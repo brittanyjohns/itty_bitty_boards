@@ -102,6 +102,7 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     user.plan_status = "active"
     user.setup_limits
     user.save!
+    MailchimpEventJob.perform_async(user.id, "sign_up")
     render json: { success: true }
   rescue StandardError => e
     Rails.logger.error "Error updating user from session: #{e.class} - #{e.message}"
