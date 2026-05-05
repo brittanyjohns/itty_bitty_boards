@@ -13,22 +13,62 @@
 #  current_sign_in_at     :datetime
 #  last_sign_in_at        :datetime
 #  current_sign_in_ip     :string
-#  last_sign_in_ip        :string
 #  user_id                :bigint
 #  authentication_token   :string
 #  settings               :jsonb
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
-#  passcode               :string
-#  details                :jsonb
-#  placeholder            :boolean          default(FALSE)
-#  vendor_id              :bigint
-#  layout                 :jsonb
-#  owner_id               :bigint
-#  is_demo                :boolean          default(FALSE)
 #
-require 'rails_helper'
+require "rails_helper"
 
 RSpec.describe ChildAccount, type: :model do
-  pending "add some examples to (or delete) #{__FILE__}"
+  let(:user) { FactoryBot.create(:user) }
+
+  describe "validations" do
+    it "auto-generates a username when none is given (set_username_if_missing callback)" do
+      account = FactoryBot.build(:child_account, username: nil, user: user)
+      expect(account).to be_valid
+      expect(account.username).to be_present
+    end
+
+    it "is valid with an explicit username and user" do
+      account = FactoryBot.build(:child_account, username: "myaccount", user: user)
+      expect(account).to be_valid
+    end
+
+    it "requires a unique username" do
+      FactoryBot.create(:child_account, username: "duplicatename", user: user)
+      duplicate = FactoryBot.build(:child_account, username: "duplicatename", user: user)
+      expect(duplicate).not_to be_valid
+      expect(duplicate.errors[:username]).to be_present
+    end
+  end
+
+  describe "associations" do
+    it "belongs to a user (optional)" do
+      account = FactoryBot.create(:child_account, user: user)
+      expect(account.user).to eq(user)
+    end
+
+    it "can have many child_boards" do
+      account = FactoryBot.create(:child_account, user: user)
+      board   = FactoryBot.create(:board, user: user)
+      FactoryBot.create(:child_board, child_account: account, board: board)
+      expect(account.child_boards.count).to eq(1)
+    end
+  end
+
+  describe "authentication_token" do
+    it "is generated automatically on create" do
+      account = FactoryBot.create(:child_account, user: user)
+      expect(account.authentication_token).to be_present
+    end
+
+    it "can be regenerated via reset_authentication_token!" do
+      account   = FactoryBot.create(:child_account, user: user)
+      old_token = account.authentication_token
+      account.reset_authentication_token!
+      expect(account.authentication_token).not_to eq(old_token)
+    end
+  end
 end
