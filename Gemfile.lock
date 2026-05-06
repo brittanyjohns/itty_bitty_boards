@@ -130,8 +130,13 @@ GEM
     braintree (4.23.0)
       builder (>= 3.2.4)
       rexml (>= 3.1.9)
+    brakeman (8.0.4)
+      racc
     browser (5.3.1)
     builder (3.3.0)
+    bundler-audit (0.9.3)
+      bundler (>= 1.2.0)
+      thor (~> 1.0)
     capybara (3.40.0)
       addressable
       matrix
@@ -532,7 +537,9 @@ DEPENDENCIES
   aws-sdk-s3
   bootsnap
   braintree (~> 4.7)
+  brakeman
   browser (~> 5.3)
+  bundler-audit
   capybara
   cssbundling-rails
   debug

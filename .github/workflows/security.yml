@@ -1,0 +1,27 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  brakeman:
+    name: Brakeman static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - run: bundle exec brakeman --no-pager
+
+  bundler-audit:
+    name: Bundler audit (known CVEs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - run: bundle exec bundler-audit check --update
