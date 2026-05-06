@@ -15,7 +15,9 @@
       "Read(//Users/brittanyjohns/Projects/speakanyway/**)",
       "WebFetch(domain:mcp.stripe.com)",
       "WebFetch(domain:stripe.com)",
-      "WebFetch(domain:docs.stripe.com)"
+      "WebFetch(domain:docs.stripe.com)",
+      "Bash(git checkout *)",
+      "Bash(git commit -m 'Remove HTML views and controllers — convert to API-only architecture *)"
     ],
     "additionalDirectories": [
       "/Users/brittanyjohns/.claude",
