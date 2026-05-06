@@ -25,10 +25,33 @@
     ]
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "if": "Bash(git commit *)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bundle exec rspec",
+            "statusMessage": "Running RSpec tests before commit..."
+          },
+          {
+            "type": "command",
+            "command": "bundle exec rubocop",
+            "statusMessage": "Running rubocop before commit..."
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
         "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | grep -q Gemfile && bundle install || true",
+            "statusMessage": "Installing dependencies if Gemfile changed..."
+          },
           {
             "type": "command",
             "command": "bundle exec rubocop --format quiet $CLAUDE_FILE_PATHS 2>&1 || true"
