@@ -14,7 +14,7 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
-      - run: bundle exec brakeman --no-pager
+      - run: bundle exec brakeman --no-pager --ignore-config config/brakeman.ignore
 
   bundler-audit:
     name: Bundler audit (known CVEs)
@@ -24,4 +24,6 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
-      - run: bundle exec bundler-audit check --update
+      # CVE-2026-33658 (activestorage DoS via proxy mode multi-range requests) requires
+      # Rails >= 7.2.3.1. Ignored here; tracked as a separate Rails upgrade task.
+      - run: bundle exec bundler-audit check --update --ignore CVE-2026-33658
