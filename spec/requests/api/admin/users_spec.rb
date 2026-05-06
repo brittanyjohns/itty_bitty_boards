@@ -37,9 +37,6 @@ RSpec.describe "API::Admin::Users", type: :request do
         expect(response).to have_http_status(:ok)
       end
 
-      # Security: sort_field is passed directly to ORDER BY without a whitelist.
-      # Rails raises ActiveRecord::UnknownAttributeReference in test mode for raw SQL.
-      # This test documents the vulnerability — it will PASS once an allowlist is added.
       it "does not raise an error when sort_field contains a SQL injection payload" do
         expect {
           get "/api/admin/users",
