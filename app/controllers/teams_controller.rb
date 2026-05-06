@@ -113,7 +113,7 @@ class TeamsController < ApplicationController
   end
 
   def team_user_params
-    params.require(:team_user).permit(:email, :role)
+    params.require(:team_user).permit(:email)
   end
 
   # Only allow a list of trusted parameters through.

@@ -1,0 +1,30 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  brakeman:
+    name: Brakeman static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - run: bundle exec brakeman --no-pager --ignore-config config/brakeman.ignore
+
+  bundler-audit:
+    name: Bundler audit (known CVEs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      # CVE-2026-33658 (activestorage DoS via proxy mode multi-range requests) requires
+      # Rails >= 7.2.3.1. Ignored here; tracked in https://github.com/brittanyjohns/itty_bitty_boards/issues/56.
+      # Remove this ignore once the Rails upgrade is merged.
+      - run: bundle exec bundler-audit check --update --ignore CVE-2026-33658
