@@ -65,9 +65,14 @@ Ruby on Rails 7 app (hybrid: API + HTML views). Deployed on EC2 via Hatchbox.
 
 ## Do not
 
-- Do not add tests unless explicitly asked
 - Do not install new gems without asking first
 - Do not modify any deployment or server config files
 - Do not log sensitive user data
 - Do not expose internal errors in API responses — return generic messages to the client
-- Push directly to `main` — no PRs, no feature branches
+- Do not hardcode any environment-specific values (use ENV variables)
+
+## Testing preferences:
+
+- Prefer FactoryBot.build over create where possible
+- Add focused tests for changed behavior
+- Avoid destructive S3/ActiveStorage behavior in tests
