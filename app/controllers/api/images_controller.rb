@@ -201,11 +201,7 @@ class API::ImagesController < API::ApplicationController
   end
 
   def upload_audio
-    @image = Image.find(params[:id])
-    unless @image.user_id == current_user.id || current_user.admin?
-      render json: { status: "error", message: "You are not authorized to upload audio for this image." }
-      return
-    end
+    @image = current_user.images.find(params[:id])
     @file_name = params[:file_name] || params[:audio_file].original_filename
     @file_name = @file_name.downcase.gsub(" ", "-")
     @file_name = @file_name.downcase.gsub("_", "-")
@@ -597,7 +593,7 @@ class API::ImagesController < API::ApplicationController
   end
 
   def update
-    @image = Image.find(params[:id])
+    @image = current_user.images.find(params[:id])
 
     if @image.update(image_params)
       render json: @image.with_display_doc(current_user)
@@ -709,11 +705,7 @@ class API::ImagesController < API::ApplicationController
   end
 
   def destroy
-    @image = Image.find(params[:id])
-    unless @image.user_id == current_user.id || current_user.admin?
-      render json: { status: "error", message: "You are not authorized to delete this image." }
-      return
-    end
+    @image = current_user.images.find(params[:id])
     @image.destroy
     render json: { status: "ok" }
   end
@@ -736,11 +728,7 @@ class API::ImagesController < API::ApplicationController
   end
 
   def set_current_audio
-    @image = Image.find(params[:id])
-    unless current_user.admin? || @image.user_id == current_user.id
-      render json: { status: "error", message: "You are not authorized to update the audio url for this image." }
-      return
-    end
+    @image = current_user.images.find(params[:id])
     audio_file_id = params[:audio_file_id]
     unless audio_file_id.present?
       render json: { status: "error", message: "No audio file id provided." }
