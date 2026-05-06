@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude mcp *)",
+      "Read(//Users/brittanyjohns/.claude/**)",
+      "Bash(gh pr *)",
+      "Bash(gh api *)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -c \"import json,sys,base64; d=json.load\\(sys.stdin\\); print\\(base64.b64decode\\(d['content']\\).decode\\(\\)\\)\")",
+      "Bash(gh issue *)",
+      "Bash(bundle exec *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
+    ],
+    "additionalDirectories": [
+      "/Users/brittanyjohns/.claude"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bundle exec rubocop --format quiet $CLAUDE_FILE_PATHS 2>&1 || true"
+          }
+        ]
+      }
+    ]
+  }
+}

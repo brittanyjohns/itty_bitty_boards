@@ -56,5 +56,3 @@ spec/.DS_Store
 .DS_Store
 
 spec/data/*.obf
-
-/plans/
