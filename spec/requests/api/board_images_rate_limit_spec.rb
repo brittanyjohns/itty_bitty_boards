@@ -25,9 +25,8 @@ RSpec.describe "BoardImages rate limiting", type: :request do
     # clean slate rate-limit keys for the test DB
     Redis.current.flushdb
 
-    # authenticate current_user without stubbing: if you have token auth,
-    # replace the header below accordingly. If your app uses session auth,
-    # sign in via a helper.
+    allow_any_instance_of(API::ApplicationController)
+      .to receive(:authenticate_token!).and_return(true)
     allow_any_instance_of(API::ApplicationController)
       .to receive(:current_user).and_return(user)
   end
@@ -48,7 +47,7 @@ RSpec.describe "BoardImages rate limiting", type: :request do
       puts "Starting test: making 6 requests to create_image_edit: BoardImage ID #{board_image.id}, User ID #{user.id}"
 
       5.times do
-        post "/api/board_images/#{board_image.id}/create_image_edit",
+        post "/api/board_images/#{board_image.id}/create_edit",
              params: { prompt: "any" }
         statuses << response.status
         puts "Request #{statuses.size}: response status #{response.status}"
@@ -56,7 +55,7 @@ RSpec.describe "BoardImages rate limiting", type: :request do
       end
 
       # 6th should be blocked by the limiter
-      post "/api/board_images/#{board_image.id}/create_image_edit",
+      post "/api/board_images/#{board_image.id}/create_edit",
            params: { prompt: "any" }
       expect(response.status).to eq(429)
       expect(j["error"]).to eq("limit_reached")
@@ -68,31 +67,33 @@ RSpec.describe "BoardImages rate limiting", type: :request do
   describe "POST /api/board_images/:id/create_image_variation" do
     it "tracks a separate counter and hits 429 after 5 calls to variations" do
       5.times do
-        post "/api/board_images/#{board_image.id}/create_image_variation"
+        post "/api/board_images/#{board_image.id}/create_variation"
         expect(response.status).not_to eq(429)
       end
 
-      post "/api/board_images/#{board_image.id}/create_image_variation"
+      post "/api/board_images/#{board_image.id}/create_variation"
       expect(response.status).to eq(429)
       expect(j["error"]).to eq("limit_reached")
     end
   end
 
-  describe "daily reset behavior" do
-    it "resets at end-of-day in app timezone (integration-level check)" do
-      Time.zone = "America/New_York"
-      travel_to Time.zone.parse("2025-10-22 22:00:00") do
+  describe "monthly reset behavior" do
+    it "resets at the start of a new month (integration-level check)" do
+      # Use future dates so Redis expireat timestamps stay ahead of wall-clock time.
+      # Traveling to the past causes expireat to receive a past timestamp, which
+      # Redis treats as immediate expiry — making every increment reset to 1.
+      travel_to Time.utc(2027, 6, 30, 20, 0, 0) do
         5.times do
-          post "/api/board_images/#{board_image.id}/create_image_edit", params: { prompt: "x" }
+          post "/api/board_images/#{board_image.id}/create_edit", params: { prompt: "x" }
           expect(response.status).not_to eq(429)
         end
-        post "/api/board_images/#{board_image.id}/create_image_edit", params: { prompt: "x" }
+        post "/api/board_images/#{board_image.id}/create_edit", params: { prompt: "x" }
         expect(response.status).to eq(429)
       end
 
-      # Move just past midnight local time — counter should have reset
-      travel_to Time.zone.parse("2025-10-23 00:01:00") do
-        post "/api/board_images/#{board_image.id}/create_image_edit", params: { prompt: "x" }
+      # Move into a new month — the limiter generates a new Redis key, so counter resets
+      travel_to Time.utc(2027, 7, 1, 8, 0, 0) do
+        post "/api/board_images/#{board_image.id}/create_edit", params: { prompt: "x" }
         expect(response.status).not_to eq(429)
       end
     end

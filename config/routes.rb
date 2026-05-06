@@ -166,7 +166,6 @@ Rails.application.routes.draw do
 
     get "word_events", to: "audits#word_events", as: :word_events
     post "webhooks", to: "webhooks#webhooks"
-    post "checkout", to: "checkouts#create"
     resources :subscriptions do
       collection do
         post "billing_portal"

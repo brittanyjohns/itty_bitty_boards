@@ -344,46 +344,6 @@ class Board < ApplicationRecord
     Board.joins(:board_images).where(board_images: { predictive_board_id: id }, user_id: viewing_user_id, is_template: false).where.not(id: id).distinct
   end
 
-  def self.with_identical_images(name, user = nil)
-    user_id = user ? user.id : User::DEFAULT_ADMIN_ID
-    user_boards = Board.includes(:images).where(name: name, user_id: user_id)
-    board_data = {}
-    user_boards.each do |b|
-      img_ids = b.images.pluck(:id)
-      board_data[b.id] = img_ids
-    end
-    board_ids = []
-    board_data.each do |k, v|
-      board_data.each do |k2, v2|
-        next if k == k2
-        if v.sort == v2.sort
-          board_ids << k2
-        end
-      end
-    end
-    boards = user_boards.where(id: board_ids)
-    boards.count > 1 ? boards : []
-  end
-
-  def self.clean_up_idential_boards_for(name, user = nil)
-    boards = with_identical_images(name, user)
-    return unless boards.any?
-    board_to_keep = boards.first
-    boards.each do |board|
-      next if board == board_to_keep
-      # board.board_images.destroy_all
-      board.destroy!
-    end
-  end
-
-  def self.clean_up_all_identical_for(user_id)
-    user = User.includes({ boards: [{ board_images: :image }] }).find(user_id)
-    user.boards.each do |board|
-      clean_up_idential_boards_for(board.name, user)
-      sleep 1
-    end
-  end
-
   def update_board_images_to_default_docs!
     board_images.includes(:image).find_each do |board_image|
       board_image.update_to_default_doc!

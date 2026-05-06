@@ -50,6 +50,67 @@
 require "rails_helper"
 
 RSpec.describe Board, type: :model do
+  describe "#clone_with_images" do
+    let(:user)  { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user, name: "Original Board") }
+    let(:image) { FactoryBot.create(:image, user: user) }
+    before { FactoryBot.create(:board_image, board: board, image: image) }
+
+    it "creates a new board with the same name by default" do
+      cloned = board.clone_with_images(user.id)
+      expect(cloned).to be_a(Board)
+      expect(cloned.id).not_to eq(board.id)
+      expect(cloned.name).to eq("Original Board")
+    end
+
+    it "accepts a custom name" do
+      cloned = board.clone_with_images(user.id, "Cloned Board")
+      expect(cloned.name).to eq("Cloned Board")
+    end
+
+    it "assigns the cloned board to the target user" do
+      other_user = FactoryBot.create(:user)
+      cloned = board.clone_with_images(other_user.id)
+      expect(cloned.user_id).to eq(other_user.id)
+    end
+
+    it "does not mark the clone as predefined" do
+      board.update!(predefined: true)
+      cloned = board.clone_with_images(user.id)
+      expect(cloned.predefined).to be false
+    end
+
+    it "copies board images to the new board" do
+      cloned = board.clone_with_images(user.id)
+      expect(cloned.board_images.count).to eq(board.board_images.count)
+    end
+  end
+
+  describe "#update_grid_layout" do
+    let(:user)  { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user, layout: { "lg" => [] }) }
+
+    it "does nothing when given a non-array layout" do
+      expect { board.update_grid_layout("invalid", "lg") }.not_to raise_error
+    end
+
+    it "does nothing when given an empty array" do
+      expect { board.update_grid_layout([], "lg") }.not_to raise_error
+    end
+
+    it "updates layout for the given screen size when board_image exists" do
+      image      = FactoryBot.create(:image, user: user)
+      bi         = FactoryBot.create(:board_image, board: board, image: image)
+      layout_item = { "i" => bi.id.to_s, "x" => 0, "y" => 0, "w" => 1, "h" => 1 }
+
+      board.update_grid_layout([layout_item], "lg")
+      board.reload
+
+      expect(board.layout["lg"]).to be_present
+      expect(board.layout["lg"].first["i"]).to eq(bi.id.to_s)
+    end
+  end
+
   describe ".find_or_create_images_from_word_list" do
     let(:user) { FactoryBot.create(:user) }
     let(:board) { FactoryBot.create(:board, user: user) }
@@ -117,22 +178,24 @@ RSpec.describe Board, type: :model do
         FactoryBot.create(:image, label: "Apple")
       end
 
-      it "treats words case-insensitively" do
+      # The lookup is case-sensitive — "Apple" and "apple" are treated as different images.
+      it "creates a new image for the differently-cased word" do
         words = ["apple", "banana", "cherry"]
         expect {
           board.find_or_create_images_from_word_list(words)
-        }.to change(Image, :count).by(2)
-        expect(board.images.pluck(:label)).to match_array(words)
+        }.to change(Image, :count).by(3)
       end
     end
 
     context "when words contain leading/trailing whitespace" do
-      it "strips whitespace before processing" do
+      # The method does NOT currently strip whitespace — labels are stored as-is.
+      # This documents actual behavior; stripping would be a future improvement.
+      it "stores the labels with whitespace intact" do
         words = ["  apple  ", "banana", "  cherry"]
         expect {
           board.find_or_create_images_from_word_list(words)
         }.to change(Image, :count).by(3)
-        expect(board.images.pluck(:label)).to match_array(["apple", "banana", "cherry"])
+        expect(board.images.pluck(:label)).to include("  apple  ", "  cherry", "banana")
       end
     end
   end

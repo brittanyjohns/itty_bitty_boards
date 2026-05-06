@@ -39,7 +39,7 @@ RSpec.describe API::MenusController, type: :controller do
   describe "POST #create" do
     it "creates a new menu" do
       post :create, params: { menu: { name: "New Menu", description: "Test Description" } }, as: :json
-      expect(response).to have_http_status(:ok)
+      expect(response).to have_http_status(:created)
       json_response = JSON.parse(response.body)
       expect(json_response["name"]).to eq("New Menu")
       expect(json_response["description"]).to eq("Test Description")

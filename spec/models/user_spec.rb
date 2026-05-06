@@ -77,6 +77,54 @@ RSpec.describe User, type: :model do
       expect(user.save).to be_truthy
     end
   end
+  context "plan_type checks" do
+    it "defaults to free plan" do
+      user = FactoryBot.create(:user)
+      expect(user.plan_type).to eq("free")
+    end
+
+    it "recognizes pro plan" do
+      user = FactoryBot.create(:user, plan_type: "pro")
+      expect(user.pro?).to be true
+      expect(user.free?).to be false
+    end
+
+    it "recognizes basic plan" do
+      user = FactoryBot.create(:user, plan_type: "basic")
+      expect(user.basic?).to be true
+    end
+
+    it "premium? returns false for free plan" do
+      user = FactoryBot.create(:user, plan_type: "free")
+      expect(user.premium?).to be false
+    end
+
+    it "premium? returns true when plan_type includes 'premium'" do
+      user = FactoryBot.create(:user, plan_type: "premium")
+      expect(user.premium?).to be true
+    end
+  end
+
+  context "monthly_limit_for" do
+    it "returns a high limit for admin users" do
+      admin = FactoryBot.create(:user, role: "admin")
+      expect(admin.monthly_limit_for("image_generation")).to eq(10000)
+    end
+
+    it "returns a lower limit for free users" do
+      user = FactoryBot.create(:user, plan_type: "free")
+      limit = user.monthly_limit_for("image_generation")
+      expect(limit).to be <= 5
+    end
+
+    it "returns a higher limit for pro users than free users" do
+      free_user = FactoryBot.create(:user, plan_type: "free")
+      pro_user  = FactoryBot.create(:user, plan_type: "pro")
+      expect(pro_user.monthly_limit_for("image_generation")).to be >
+        free_user.monthly_limit_for("image_generation")
+    end
+  end
+
   context "invite_new_user_to_team!" do
     let(:current_user) { FactoryBot.create(:user) }
 

@@ -75,11 +75,8 @@ module API
         if user
           reset_token = user.send_reset_password_instructions
           user.update(reset_password_token: reset_token)
-
-          render json: { message: "Password reset instructions sent to #{user.email}" }
-        else
-          render json: { error: "No user found with email #{params[:email]}" }, status: :not_found
         end
+        render json: { message: "If that email address is registered, you will receive password reset instructions shortly." }
       end
 
       def reset_password
