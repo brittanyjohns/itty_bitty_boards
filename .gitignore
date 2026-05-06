@@ -47,6 +47,7 @@ dump.rdb
 # Ignore vendor/bundle directory
 /vendor/bundle/
 .vscode/
+.claude/
 
 # macOS system files
 */*/*/.DS_Store
