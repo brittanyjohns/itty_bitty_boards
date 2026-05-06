@@ -25,5 +25,6 @@ jobs:
         with:
           bundler-cache: true
       # CVE-2026-33658 (activestorage DoS via proxy mode multi-range requests) requires
-      # Rails >= 7.2.3.1. Ignored here; tracked as a separate Rails upgrade task.
+      # Rails >= 7.2.3.1. Ignored here; tracked in https://github.com/brittanyjohns/itty_bitty_boards/issues/56.
+      # Remove this ignore once the Rails upgrade is merged.
       - run: bundle exec bundler-audit check --update --ignore CVE-2026-33658

@@ -36,7 +36,7 @@
       "user_input": null,
       "confidence": "High",
       "cwe_id": [1104],
-      "user_note": "Acknowledged: Rails 7.1 is EOL. Upgrading to Rails 7.2+ is tracked as a separate task. No security patches are available for this version family; upgrade is planned."
+      "user_note": "Acknowledged: Rails 7.1 is EOL. Tracked in https://github.com/brittanyjohns/itty_bitty_boards/issues/56. Remove this ignore once the Rails 7.2+ upgrade is merged."
     },
     {
       "warning_type": "File Access",
