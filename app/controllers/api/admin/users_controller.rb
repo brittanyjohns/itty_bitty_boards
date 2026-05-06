@@ -2,15 +2,16 @@ class API::Admin::UsersController < API::Admin::ApplicationController
   before_action :set_user, only: %i[ show destroy update ]
 
   # GET /users or /users.json
+  ALLOWED_SORT_FIELDS = %w[created_at updated_at email name board_count].freeze
+  ALLOWED_SORT_ORDERS = %w[asc desc].freeze
+
   def index
-    sort_order = params[:sort_order] || "desc"
-    sort_field = params[:sort_field] || "created_at"
+    sort_field = ALLOWED_SORT_FIELDS.include?(params[:sort_field]) ? params[:sort_field] : "created_at"
+    sort_order = ALLOWED_SORT_ORDERS.include?(params[:sort_order]&.downcase) ? params[:sort_order].downcase : "desc"
     @users = User.includes(:communicator_accounts, :word_events, :boards)
     if sort_field == "board_count"
       @users = @users.sort_by { |u| u.boards.count }
-      if sort_order == "desc"
-        @users = @users.reverse
-      end
+      @users = @users.reverse if sort_order == "desc"
     else
       @users = @users.order(sort_field => sort_order.to_sym)
     end

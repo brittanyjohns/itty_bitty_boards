@@ -43,25 +43,26 @@ RSpec.describe BoardGroup, type: :model do
   describe "with boards" do
     it "should include images and board_images" do
       board_group = BoardGroup.create(name: "Test", user: user)
-      board = Board.create(name: "Test Board", user: user, parent: user, board_group: board_group)
+      board = Board.create(name: "Test Board", user: user, parent: user)
       board_group.add_board(board)
       board_group.save
       expect(BoardGroup.with_artifacts.first.boards.first).to eq(board)
-      expect(board.board_group).to eq(board_group)
+      expect(board.board_groups).to include(board_group)
     end
 
     it "has multiple boards" do
       board_group = BoardGroup.create(name: "Test", user: user)
-      board_1 = Board.create!(name: "Test Board 1", user: user, parent: user, board_group: board_group)
-      board_2 = Board.create!(name: "Test Board 2", user: user, parent: user, board_group: board_group)
+      board_1 = Board.create!(name: "Test Board 1", user: user, parent: user, slug: "test-board-1-#{SecureRandom.hex(4)}")
+      board_2 = Board.create!(name: "Test Board 2", user: user, parent: user, slug: "test-board-2-#{SecureRandom.hex(4)}")
+      board_group.add_board(board_1)
+      board_group.add_board(board_2)
       board_group.save!
       board_group.reload
 
       expect(board_group.boards.count).to eq(2)
-      expect(board_group.boards.first).to eq(board_1)
-      expect(board_1.board_group).to eq(board_group)
-      expect(board_2.board_group).to eq(board_group)
-      expect(board_group.boards.last).to eq(board_2)
+      expect(board_group.boards).to include(board_1, board_2)
+      expect(board_1.board_groups).to include(board_group)
+      expect(board_2.board_groups).to include(board_group)
     end
   end
 end

@@ -1,16 +1,13 @@
 class API::ImagesController < API::ApplicationController
   skip_before_action :authenticate_token!, only: %i[generate_audio public_audio]
 
+  ALLOWED_SORT_FIELDS = %w[label created_at updated_at id].freeze
+  ALLOWED_SORT_ORDERS = %w[asc desc].freeze
+
   def index
     @current_user = current_user
-    sort_order = params[:sort_order] || "asc"
-    sort_field = params[:sort_field] || "label"
-    if sort_field == "undefined" || sort_field.blank?
-      sort_field = "label"
-    end
-    if sort_order == "undefined" || sort_order.blank?
-      sort_order = "asc"
-    end
+    sort_field = ALLOWED_SORT_FIELDS.include?(params[:sort_field]) ? params[:sort_field] : "label"
+    sort_order = ALLOWED_SORT_ORDERS.include?(params[:sort_order]&.downcase) ? params[:sort_order].downcase : "asc"
     if params[:user_only] == "1"
       @images = Image.searchable.with_artifacts.where(user_id: @current_user.id)
     else
@@ -18,9 +15,9 @@ class API::ImagesController < API::ApplicationController
     end
 
     if params[:query].present?
-      @images = @images.where(label: params[:query]).order("#{sort_field} #{sort_order}").page params[:page]
+      @images = @images.where(label: params[:query]).order(Arel.sql("#{sort_field} #{sort_order}")).page params[:page]
     else
-      @images = @images.order("#{sort_field} #{sort_order}").page params[:page]
+      @images = @images.order(Arel.sql("#{sort_field} #{sort_order}")).page params[:page]
     end
 
     render json: @images.map { |image| image.api_view(@current_user) }
