@@ -11,10 +11,12 @@
       "Bash(bundle exec *)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Read(//Users/brittanyjohns/Projects/speakanyway/**)"
     ],
     "additionalDirectories": [
-      "/Users/brittanyjohns/.claude"
+      "/Users/brittanyjohns/.claude",
+      "/Users/brittanyjohns/Projects/speakanyway"
     ]
   },
   "hooks": {

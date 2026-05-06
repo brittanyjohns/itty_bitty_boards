@@ -2,6 +2,14 @@
 
 Ruby on Rails 7 app (hybrid: API + HTML views). Deployed on EC2 via Hatchbox.
 
+## Documentation Accuracy Rules
+
+When writing or updating backend CLAUDE.md, ALWAYS verify claims against the actual codebase before writing. Specifically:
+- Read Gemfile, config/application.rb, and routes.rb first
+- Do NOT claim 'API-only' without checking config.api_only
+- Do NOT add compliance claims (FedRAMP, HIPAA, SOC2) unless explicitly evidenced in code
+- List actual major dependencies, not assumed ones
+
 ## Stack
 
 - **Framework:** Rails 7
@@ -66,6 +74,12 @@ Ruby on Rails 7 app (hybrid: API + HTML views). Deployed on EC2 via Hatchbox.
 - Add focused tests for changed behavior
 - Avoid destructive S3/ActiveStorage behavior in tests
 - Add tests if missing for new features or bug fixes, but do not add tests for existing code unless explicitly asked
+
+## Testing Conventions
+
+- Rails test environment uses `:null_store` for Rails.cache — stub `Rails.cache` in specs that depend on caching behavior
+- Avoid `travel_to` with past timestamps for Redis keys (TTLs expire immediately); use future times or freeze time instead
+- After spec changes, run the full RSpec suite before declaring done
 
 ## Rules for Editing This File
 
