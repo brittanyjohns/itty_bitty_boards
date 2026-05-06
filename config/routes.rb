@@ -1,18 +1,7 @@
 require "sidekiq/web"
 
 Rails.application.routes.draw do
-  resources :scenarios
-  post "scenarios/start", to: "scenarios#start"
-  post "scenarios/continue", to: "scenarios#continue"
-  post "scenarios/finalize", to: "scenarios#finalize"
-  get "prompt_templates/index"
-  get "prompt_templates/show"
-  get "prompt_templates/new"
-  get "prompt_templates/edit"
-  resources :prompt_templates
   devise_for :child_accounts
-  resources :team_boards
-  resources :team_users
   resources :teams do
     collection do
       post "set_current"
@@ -25,13 +14,9 @@ Rails.application.routes.draw do
       delete "remove_board"
     end
   end
-  resources :beta_requests
-  post "/beta_signup", to: "beta_requests#create", as: :beta_signup
 
   get "/current_user", to: "current_user#index"
 
-  resources :messages
-  resources :openai_prompts
   resources :open_symbols do
     collection do
       get "search"
@@ -44,57 +29,6 @@ Rails.application.routes.draw do
   get "/token" => "application#token"
   get "/service-worker.js" => "service_worker#service_worker"
   get "/manifest.json" => "service_worker#manifest"
-  resources :menus do
-    member do
-      post "rerun"
-    end
-  end
-  resources :docs do
-    collection do
-      get "deleted"
-    end
-    member do
-      patch "mark_as_current"
-      post "move"
-      post "find_or_create_image"
-      delete "hard_delete"
-    end
-  end
-  # resources :board_images
-  resources :images do
-    get "menu", on: :collection
-    post "find_or_create", on: :collection
-    post "set_next_words", on: :collection
-    member do
-      post "create_audio"
-      delete "remove_audio"
-      post "generate"
-      post "add_to_board"
-      post "create_symbol"
-    end
-  end
-
-  resources :boards do
-    collection do
-      get "predictive_index"
-    end
-    member do
-      get "build"
-      get "fullscreen"
-      get "locked"
-      get "predictive"
-      post "clone"
-      post "add_multiple_images"
-      post "associate_image"
-      post "remove_image"
-      post "update_grid"
-    end
-  end
-  resources :board_images do
-    member do
-      put "save_layout"
-    end
-  end
   # Order matters here.  users needs to be below the devise_for :users
   devise_for :users, controllers: {
                        #  registrations: "users/registrations",
@@ -129,7 +63,6 @@ Rails.application.routes.draw do
   # get "/contact", as: :contact, to: "messages#new"
   get "main/welcome", as: :welcome
   get "main/faq", as: :faq
-  get "boards", to: "boards#index", as: :user_root
 
   #  API routes
   namespace :api, defaults: { format: :json } do
