@@ -80,7 +80,7 @@ class API::TeamsController < API::ApplicationController
     @team = Team.new
     # @team.name = team_params[:name]&.upcase
     @team.name = team_params[:name]
-    account_id = team_params[:account_id]
+    account_id = params.dig(:team, :account_id)
     @team.created_by = current_user
     Rails.logger.info("Creating team with name: #{@team.name}, created_by: #{current_user.id}, account_id: #{account_id}")
 
@@ -159,16 +159,16 @@ class API::TeamsController < API::ApplicationController
   end
 
   def team_user_params
-    params.require(:team_user).permit(:email, :role)
+    params.require(:team_user).permit(:email)
   end
 
   def invite_role
-    role = team_user_params[:role].to_s
+    role = params.dig(:team_user, :role).to_s
     %w[admin member].include?(role) ? role : "member"
   end
 
   # Only allow a list of trusted parameters through.
   def team_params
-    params.require(:team).permit(:name, :account_id)
+    params.require(:team).permit(:name)
   end
 end
