@@ -5,6 +5,7 @@ Ruby on Rails 7 app (hybrid: API + HTML views). Deployed on EC2 via Hatchbox.
 ## Documentation Accuracy Rules
 
 When writing or updating backend CLAUDE.md, ALWAYS verify claims against the actual codebase before writing. Specifically:
+
 - Read Gemfile, config/application.rb, and routes.rb first
 - Do NOT claim 'API-only' without checking config.api_only
 - Do NOT add compliance claims (FedRAMP, HIPAA, SOC2) unless explicitly evidenced in code
@@ -31,6 +32,8 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - React/Ionic frontend served separately (not via Rails asset pipeline)
 - Communicates with Rails backend via JSON API endpoints
 - Some HTML views for auth flows and admin dashboard, but most user-facing UI is React
+- Local development: Rails server on http://localhost:4000, React dev server on http://localhost:8100
+- Frontend local repo is `../itty-bitty-frontend`
 
 ## Routing
 

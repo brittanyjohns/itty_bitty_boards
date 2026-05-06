@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_18_154708) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_06_194203) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -54,6 +54,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_18_154708) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "analytics_events", force: :cascade do |t|
+    t.string "event_type", null: false
+    t.bigint "user_id"
+    t.datetime "occurred_at", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["event_type", "occurred_at"], name: "index_analytics_events_on_event_type_and_occurred_at"
+    t.index ["event_type"], name: "index_analytics_events_on_event_type"
+    t.index ["occurred_at"], name: "index_analytics_events_on_occurred_at"
+    t.index ["user_id"], name: "index_analytics_events_on_user_id"
   end
 
   create_table "beta_requests", force: :cascade do |t|

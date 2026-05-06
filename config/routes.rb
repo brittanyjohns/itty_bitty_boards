@@ -53,6 +53,12 @@ Rails.application.routes.draw do
     end
   end
 
+  # HTML admin area (Mission Control dashboard)
+  namespace :admin do
+    root "dashboard#index"
+    resource :mission_control, only: [:show], controller: 'mission_control'
+  end
+
   get "main/index", as: :home
   get "beta_request", to: "main#beta_request_form", as: :beta_request_form
   get "/privacy", as: :privacy, to: "main#privacy"
@@ -397,6 +403,7 @@ Rails.application.routes.draw do
         end
       end
       resources :teams
+      get "mission_control", to: "mission_control#show"
       get "word_events", to: "word_events#index", as: :word_events
       resources :boards do
         collection do
