@@ -194,12 +194,6 @@ class User < ApplicationRecord
     self.settings["timezone"] || "America/New_York"
   end
 
-  def self.clear_all_custom_default_boards
-    self.all.each do |user|
-      user.clear_custom_default_board
-    end
-  end
-
   def supporter_limit
     plan_type == "pro" ? 5 : 2
   end
@@ -370,10 +364,6 @@ class User < ApplicationRecord
     user
   end
 
-  def self.non_admin_users
-    where.not(role: "admin")
-  end
-
   def recently_used_boards
     recent_word_events = word_events.where("created_at >= ?", 1.week.ago)
     board_ids = recent_word_events.pluck(:board_id).uniq
@@ -431,29 +421,6 @@ class User < ApplicationRecord
       return nil
     end
     Board.find_by(id: opening_board_id&.to_i)
-  end
-
-  def self.without_opening_board
-    self.where("settings->>'opening_board_id' IS NULL")
-  end
-
-  def self.fix_user_opening_boards
-    self.non_admin.each do |user|
-      user.fix_user_opening_board
-    end
-  end
-
-  def fix_user_opening_board
-    new_opening_board = nil
-    if opening_board.nil?
-      new_opening_board = create_opening_board
-    else
-      if opening_board.images.count < 10
-        opening_board.destroy
-        new_opening_board = create_opening_board
-      end
-    end
-    new_opening_board
   end
 
   def unassign_vendor

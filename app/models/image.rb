@@ -67,10 +67,6 @@ class Image < ApplicationRecord
   pg_search_scope :search_by_exact_label, against: :label, using: { tsearch: { prefix: false } }
 
   pg_search_scope :search_part_of_speech, against: :part_of_speech, using: { tsearch: { prefix: true } }
-  def self.rebuild_pg_search_documents
-    find_each { |record| record.update_pg_search_document }
-  end
-
   scope :without_attached_audio_files, -> { where.missing(:audio_files_attachments) }
   scope :active_symbols, -> { where.not(open_symbol_status: "disabled") }
   scope :searchable, -> { non_sample_voices }
@@ -318,20 +314,6 @@ class Image < ApplicationRecord
     ColorHelper::PARTS_OF_SPEECH
   end
 
-  def self.ensure_parts_of_speech
-    total_images = Image.non_menu_images.where(user_id: [nil, User::DEFAULT_ADMIN_ID])
-    puts "Ensuring parts_of_speech for #{total_images.count} images"
-    puts "Are you sure you want to continue? (y/n)"
-    response = gets.chomp
-    return unless response == "y"
-    total_images.find_in_batches(batch_size: 50) do |images|
-      image_ids = images.pluck(:id)
-      puts "Enqueuing recategorization job for image IDs: #{image_ids}"
-      RecategorizeImagesJob.perform_async("Image", image_ids)
-      sleep(3)
-    end
-  end
-
   def text_color_for(bg_value)
     ColorHelper.text_hex_for(bg_value)
   end
@@ -386,19 +368,6 @@ class Image < ApplicationRecord
           Rails.logger.error "Failed to create audio file for #{label} - #{voice} - #{language_to_use}"
         end
       end
-    end
-  end
-
-  def self.create_single_audio_for_images_missing(limit = 50)
-    voice = "polly:kevin"
-    group_num = 0
-    Image.without_attached_audio_files.find_in_batches(batch_size: 20) do |images|
-      Rails.logger.debug "\nStarting create audio job for group #{group_num} for #{images.count} images"
-      SaveAudioJob.perform_async(images.pluck(:id), voice)
-      group_num += 1
-      Rails.logger.debug "Sleeping for 2 seconds"
-      sleep 2
-      break if group_num >= limit
     end
   end
 
