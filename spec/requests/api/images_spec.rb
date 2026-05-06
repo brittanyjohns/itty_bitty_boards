@@ -37,10 +37,6 @@ RSpec.describe "API::Images", type: :request do
         expect(response).to have_http_status(:ok)
       end
 
-      # Security: ORDER BY injection guard. Rails raises ActiveRecord::UnknownAttributeReference
-      # in test mode (not a 500 — exceptions bubble up). These tests document the vulnerability:
-      # they currently FAIL because the exception is raised. Once a sort_field allowlist is added
-      # (matching the pattern in boards_controller.rb), these tests will pass.
       it "does not raise an error when sort_field contains a SQL injection payload" do
         expect {
           get "/api/images",
