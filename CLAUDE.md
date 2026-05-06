@@ -10,13 +10,19 @@ Ruby on Rails 7 app (hybrid: API + HTML views). Deployed on EC2 via Hatchbox.
 - **Auth:** Devise + devise-jwt
 - **Authorization:** Pundit
 - **Background jobs:** Sidekiq (v7) + Redis
-- **Payments:** Stripe via Pay gem; also Braintree and Paddle
+- **Payments:** Stripe and RevenueCat (via webhook)
 - **File storage:** S3 (Active Storage)
 - **Email:** Mailgun (via Action Mailer)
 - **TTS/Audio:** AWS Polly
 - **AI:** OpenAI API (`ruby-openai`) — board generation, scenario builder, image generation
 - **Serializers:** jsonapi-serializer gem
 - **Hosting:** Hatchbox / EC2
+
+## Frontend
+
+- React/Ionic frontend served separately (not via Rails asset pipeline)
+- Communicates with Rails backend via JSON API endpoints
+- Some HTML views for auth flows and admin dashboard, but most user-facing UI is React
 
 ## Routing
 
@@ -31,18 +37,9 @@ Ruby on Rails 7 app (hybrid: API + HTML views). Deployed on EC2 via Hatchbox.
 - Fat models, thin controllers
 - Use snake_case everywhere (Ruby/Rails standard)
 
-## File structure
-
-- Controllers in `app/controllers/` (various namespaces — see routing above)
-- Models in `app/models/`
-- Serializers in `app/serializers/`
-- Background jobs in `app/jobs/` and `app/sidekiq/`
-- OpenAI / external integrations in `app/services/`
-- Authorization policies in `app/policies/`
-
 ## Common commands
 
-- `bin/dev` — start Rails server in development
+- `bin/dev` — start Rails server in development http://localhost:4000
 - `bin/console` — open Rails console
 - `bin/rails db:migrate` — run database migrations
 - `bin/rails db:seed` — seed the database
@@ -53,15 +50,7 @@ Ruby on Rails 7 app (hybrid: API + HTML views). Deployed on EC2 via Hatchbox.
 
 - Most features are free
 - Premium features (Menu Board Creator, AI image generation) require active subscription
-- Subscription managed via Stripe/Pay — check status before allowing access to premium endpoints
-
-## AAC image rules
-
-- No text in images — visual elements only
-- Export as transparent PNG
-- Clean, simple, non-cartoonish style
-- Do not use the word "Autism" in any image prompt or alt text
-- Always refer to the app as "SpeakAnyWay" (never "SAW") in any user-facing content
+- Subscription managed via Stripe/RevenueCat — check status before allowing access to premium endpoints
 
 ## Do not
 
@@ -76,3 +65,16 @@ Ruby on Rails 7 app (hybrid: API + HTML views). Deployed on EC2 via Hatchbox.
 - Prefer FactoryBot.build over create where possible
 - Add focused tests for changed behavior
 - Avoid destructive S3/ActiveStorage behavior in tests
+- Add tests if missing for new features or bug fixes, but do not add tests for existing code unless explicitly asked
+
+## Rules for Editing This File
+
+When reviewing or rewriting CLAUDE.md, ALWAYS verify claims against the actual codebase first: read Gemfile/package.json, config files, routes, and a sampling of controllers/models. Never fabricate framework claims (e.g., 'API-only', 'FedRAMP-aware') or invent dependencies. If unsure, state 'unverified' rather than asserting.
+
+## PR review guidelines:
+
+Before pushing PRs, run the full RSpec suite locally and ensure 0 failures. When tests fail, distinguish spec bugs (factory/slug/cache/travel_to issues) from production bugs and fix both categories.
+
+## Bash & Long-Running Commands
+
+When running long bash commands (bundle update, migrations, test suites), use appropriate timeouts and check completion status explicitly rather than polling repeatedly.
