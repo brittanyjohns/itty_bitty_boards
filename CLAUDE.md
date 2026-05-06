@@ -29,7 +29,6 @@ Ruby on Rails 7 app (hybrid: API + HTML views). Deployed on EC2 via Hatchbox.
 
 - Standard Ruby style — no unnecessary metaprogramming
 - Fat models, thin controllers
-- Return JSON with `{ data: ... }` envelope on API responses
 - Use snake_case everywhere (Ruby/Rails standard)
 
 ## File structure
@@ -43,11 +42,12 @@ Ruby on Rails 7 app (hybrid: API + HTML views). Deployed on EC2 via Hatchbox.
 
 ## Common commands
 
-- `rails s` — start server (port 3000)
-- `rails c` — Rails console
-- `rails db:migrate` — run migrations
-- `bundle exec rubocop` — lint (if configured)
-- `bundle exec sidekiq` — start background job worker
+- `bin/dev` — start Rails server in development
+- `bin/console` — open Rails console
+- `bin/rails db:migrate` — run database migrations
+- `bin/rails db:seed` — seed the database
+- `bundle exec sidekiq` — start Sidekiq worker
+- `bundle exec rspec` — run tests
 
 ## Subscription model
 
