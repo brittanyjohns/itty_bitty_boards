@@ -12,7 +12,10 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Read(//Users/brittanyjohns/Projects/speakanyway/**)"
+      "Read(//Users/brittanyjohns/Projects/speakanyway/**)",
+      "WebFetch(domain:mcp.stripe.com)",
+      "WebFetch(domain:stripe.com)",
+      "WebFetch(domain:docs.stripe.com)"
     ],
     "additionalDirectories": [
       "/Users/brittanyjohns/.claude",
