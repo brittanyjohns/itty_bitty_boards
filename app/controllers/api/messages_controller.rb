@@ -1,5 +1,5 @@
 class API::MessagesController < API::ApplicationController
-  before_action :set_message, only: %i[ show edit update destroy ]
+  before_action :set_message, only: %i[ show edit update destroy mark_as_read mark_as_unread ]
   before_action :authenticate_token!
 
   # GET /messages or /messages.json
@@ -25,11 +25,6 @@ class API::MessagesController < API::ApplicationController
 
   # GET /messages/1 or /messages/1.json
   def show
-    @message = Message.includes(:sender, :recipient).find(params[:id])
-    unless current_user&.admin? || current_user == @message.sender || current_user == @message.recipient
-      render json: { error: "Unauthorized" }, status: :unauthorized
-      return
-    end
     render json: @message.show_api_view(current_user)
   end
 
@@ -71,21 +66,11 @@ class API::MessagesController < API::ApplicationController
   end
 
   def mark_as_read
-    @message = Message.find(params[:id])
-    unless current_user&.admin? || current_user == @message.sender || current_user == @message.recipient
-      render json: { error: "Unauthorized" }, status: :unauthorized
-      return
-    end
     @message.mark_as_read
     render json: @message.show_api_view(current_user)
   end
 
   def mark_as_unread
-    @message = Message.find(params[:id])
-    unless current_user&.admin? || current_user == @message.sender || current_user == @message.recipient
-      render json: { error: "Unauthorized" }, status: :unauthorized
-      return
-    end
     @message.update(read_at: nil)
     render json: @message.show_api_view(current_user)
   end
@@ -115,7 +100,7 @@ class API::MessagesController < API::ApplicationController
   private
 
   def set_message
-    @message = Message.find(params[:id])
+    @message = Message.where("sender_id = :uid OR recipient_id = :uid", uid: current_user.id).find(params[:id])
   end
 
   def message_params
