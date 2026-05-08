@@ -142,6 +142,7 @@ class User < ApplicationRecord
   before_destroy :delete_stripe_customer
   before_destroy :unassign_vendor
 
+  before_save :set_soft_trial_plan, if: :new_record?
   before_save :setup_limits, if: :plan_type_changed?
   before_save :update_vendor, if: :plan_type_changed?
 
@@ -163,6 +164,10 @@ class User < ApplicationRecord
   end
 
   attr_accessor :skip_plan_setup
+
+  def set_soft_trial_plan
+    self.plan_type = "basic" if plan_type.blank? || plan_type == "free"
+  end
 
   def setup_limits
     case plan_type
