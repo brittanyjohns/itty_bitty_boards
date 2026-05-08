@@ -280,8 +280,17 @@ If the branch produces zero words, the job logs a warning and jumps straight to
 - **Word source:** OpenAI, via `Board#get_words_for_predictive(starting_phrase_or_word, word_count)` *if* no `word_list` is provided. Otherwise the supplied `word_list` is used directly.
 - **Prompt sent to OpenAI:**
   > Generate a list of **{word_count}** words that would commonly follow the **{word|phrase}** **'{starting_phrase_or_word}'** in everyday communication. These words will be used on a predictive communication board to help users quickly find and select common phrases. Please provide words that are relevant and commonly used in conjunction with **'{starting_phrase_or_word}'**.
-- **Required job options:** `starting_phrase_or_word` (or `startingPhraseOrWord`) when no `word_list` is given.
-- **⚠️ Internal-API gap:** today the controller forwards only `word_count` for non-`default`/non-`scenario` types, so the job receives no `starting_phrase_or_word` and no `word_list`. The OpenAI call then fails on a `nil.split` and the board is left at status `generating_words`. **Don't use this value via the internal API until the controller is patched to forward `starting_phrase_or_word` and `word_list`.**
+- **Required params:** `starting_phrase_or_word` (or `startingPhraseOrWord`) when no `word_list` is given.
+- **Optional params:** `word_list` (skip the OpenAI call), `word_count` (default `12`).
+
+```json
+{
+  "board": { "name": "After 'I want'" },
+  "board_creation_type": "predictive",
+  "starting_phrase_or_word": "I want",
+  "word_count": 12
+}
+```
 
 ###### `menu`
 
@@ -326,6 +335,60 @@ curl -X PATCH https://<host>/api/internal/boards/123 \
 `layout` may also be passed in object form: `{ "screen_size": "lg", "layout": [...] }`.
 
 Response: `200 OK` with the board's full API view.
+
+#### `GET /api/internal/boards/:id/export.pdf`
+
+Renders the board as a PDF (Letter, Grover/Chromium under the hood) and returns
+it as an attachment download. The same template the public `/api/boards/:id/pdf`
+endpoint uses, with the QR code optional and overrideable.
+
+**Query params**
+
+- `qr_code` *(default `false`)* — boolean. Set to `true` to include a QR code in the header.
+- `qr_target_url` *(optional)* — when `qr_code=true`, the URL the QR code should encode. If omitted, falls back to the board's own public URL (the same default the public PDF endpoint uses).
+- `screen_size` *(default `"lg"`)* — which screen-size layout to render.
+- `hide_colors` *(default `"0"`)* — `"1"` to render the grid in black and white.
+- `hide_header` *(default `"0"`)* — `"1"` to hide the entire header row (logo, title, QR section).
+
+```sh
+curl -L -o board-123.pdf \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  "https://<host>/api/internal/boards/123/export.pdf?qr_code=true&qr_target_url=https%3A%2F%2Fexample.com%2Fclaim%2Fabc"
+```
+
+Response: `200 OK` with `Content-Type: application/pdf` and
+`Content-Disposition: attachment; filename="<board-slug>-board.pdf"`.
+
+#### `POST /api/internal/boards/:id/board_images`
+
+Adds a single cell (a `BoardImage`) to a board. Equivalent to one iteration of
+`Board#find_or_create_images_from_word_list`, but exposed as a discrete call so
+internal scripts can build a board cell-by-cell.
+
+**Body params**
+
+- `image_id` *(preferred)* — id of an existing `Image`. Used directly.
+- `label` *(fallback)* — used only if `image_id` is omitted. Looks up an admin/user-owned `Image` by label, then a public image, then creates a new admin-owned image with that label.
+- `position` *(optional)* — integer used to set `BoardImage#position` after creation. If omitted, the cell is appended at `board_images_count` (its existing default).
+- `voice` *(optional)* — overrides the cell's voice. Normalized via `VoiceService`.
+- `language` *(optional)* — overrides the cell's language code.
+
+If neither `image_id` nor `label` is given, the request returns `422`.
+Duplicate cells (same image already on the board) are allowed — the model
+permits multiple `BoardImage` rows per `(board_id, image_id)` pair.
+
+The cell's grid placement is auto-assigned by `BoardImage#set_initial_layout!`
+across all screen sizes; use `PATCH /api/internal/boards/:id` with a `layout`
+to move cells into specific positions afterward.
+
+```sh
+curl -X POST https://<host>/api/internal/boards/123/board_images \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "label": "apple", "position": 0 }'
+```
+
+Response: `201 Created` with the new `BoardImage`'s `api_view`.
 
 #### `POST /api/internal/generated_boards`
 

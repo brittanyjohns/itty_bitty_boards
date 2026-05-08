@@ -1,16 +1,19 @@
 # app/services/boards/render_asset_data.rb
 module Boards
   class RenderAssetData
-    def initialize(board:, screen_size: "lg", hide_colors: false, hide_header: false, routes:)
+    def initialize(board:, screen_size: "lg", hide_colors: false, hide_header: false, routes:, qr_target_url: :default, include_qr: true)
       @board = board
       @screen_size = screen_size
       @hide_colors = hide_colors
       @hide_header = hide_header
       @routes = routes
+      @qr_target_url_override = qr_target_url
+      @include_qr = include_qr
     end
 
     def call
-      qr_target_url = AssetRendering.qr_target_url_for(board, routes: routes)
+      qr_target_url = resolved_qr_target_url
+      qr_data_url   = qr_target_url.present? ? AssetRendering.qr_data_url_for(qr_target_url, size: 480) : nil
       tiles = normalized_tiles
       columns = resolved_columns
       rows = resolved_rows(tiles)
@@ -22,7 +25,7 @@ module Boards
       {
         board: board,
         qr_target_url: qr_target_url,
-        qr_data_url: AssetRendering.qr_data_url_for(qr_target_url, size: 480),
+        qr_data_url: qr_data_url,
         screen_size: screen_size,
         hide_colors: hide_colors,
         hide_header: hide_header,
@@ -42,6 +45,16 @@ module Boards
     private
 
     attr_reader :board, :screen_size, :hide_colors, :hide_header, :routes
+
+    def resolved_qr_target_url
+      return nil unless @include_qr
+
+      if @qr_target_url_override == :default
+        AssetRendering.qr_target_url_for(board, routes: routes)
+      else
+        @qr_target_url_override.presence
+      end
+    end
 
     def normalized_tiles
       # Replace this with your real logic if normalize_tiles lives elsewhere

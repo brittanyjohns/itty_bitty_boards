@@ -82,6 +82,29 @@ RSpec.describe "API::Internal::Boards", type: :request do
         })
       end
 
+      it "forwards starting_phrase_or_word and word_list for predictive creation_type" do
+        expect {
+          post "/api/internal/boards",
+               params: {
+                 board: { name: "After 'I want'" },
+                 board_creation_type: "predictive",
+                 starting_phrase_or_word: "I want",
+                 word_count: 9,
+               }.to_json,
+               headers: auth_headers.merge("Content-Type" => "application/json")
+        }.to change(GenerateBoardJob.jobs, :size).by(1)
+
+        expect(response).to have_http_status(:created)
+
+        job = GenerateBoardJob.jobs.last
+        expect(job["args"][1]).to eq("predictive")
+        expect(job["args"][2]).to eq({
+          "word_list" => [],
+          "starting_phrase_or_word" => "I want",
+          "word_count" => 9,
+        })
+      end
+
       it "enqueues GenerateBoardJob with word_count for other creation_types" do
         expect {
           post "/api/internal/boards",

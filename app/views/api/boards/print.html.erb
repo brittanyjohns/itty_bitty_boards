@@ -23,18 +23,22 @@
           </div>
         <% end %>
 
-        <div class="board-link">
-          Scan the code or visit
-          <a href="<%= @qr_target_url %>" target="_blank" rel="noopener noreferrer">
-            <%= @qr_target_url %>
-          </a>
-          for the full interactive version of this board. 
-        </div>
+        <% if @qr_data_url.present? %>
+          <div class="board-link">
+            Scan the code or visit
+            <a href="<%= @qr_target_url %>" target="_blank" rel="noopener noreferrer">
+              <%= @qr_target_url %>
+            </a>
+            for the full interactive version of this board.
+          </div>
+        <% end %>
       </div>
 
-      <div class="qr-small">
-        <img src="<%= @qr_data_url %>" alt="QR code">
-      </div>
+      <% if @qr_data_url.present? %>
+        <div class="qr-small">
+          <img src="<%= @qr_data_url %>" alt="QR code">
+        </div>
+      <% end %>
     </div>
   </div>
 <% end %>
