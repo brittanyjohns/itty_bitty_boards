@@ -14,6 +14,7 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
     @board.slug = @board.generate_unique_slug(board_params[:slug])
 
     if @board.save
+      enqueue_generation_job_if_needed!
       render json: @board, status: :created
     else
       render json: { errors: @board.errors }, status: :unprocessable_entity
@@ -46,6 +47,14 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
   end
 
   private
+
+  def enqueue_generation_job_if_needed!
+    word_list = Array(params[:word_list]).compact.select { |w| w.is_a?(String) && w.present? }
+    return if word_list.blank?
+
+    creation_type = params[:board_creation_type].presence || "default"
+    GenerateBoardJob.perform_async(@board.id, creation_type, { "word_list" => word_list })
+  end
 
   def apply_layout_if_present!
     return if params[:layout].blank?

@@ -215,6 +215,30 @@ curl -X PATCH https://<host>/api/internal/boards/123 \
 
 Response: `200 OK` with the board's full API view.
 
+#### `POST /api/internal/generated_boards`
+
+Creates a board and enqueues `GenerateFreeBoardJob` to fill it with AI-generated
+words and images for the given topic. The board is owned by the default admin
+user (`User::DEFAULT_ADMIN_ID`); unlike the public `/api/generated_boards`
+endpoint, no `generated_token` is issued and the board is not claimable.
+
+```sh
+curl -X POST https://<host>/api/internal/generated_boards \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "topic": "snacks",
+    "age_range": "5-10",
+    "word_count": 12
+  }'
+```
+
+Optional params: `name` (defaults to `"<topic> (Age Range: <age_range>)"`),
+`age_range`, `word_count` (defaults to `12`).
+
+Response: `201 Created` with `{ id, name, status: "generating" }`. Poll the
+board via the existing board endpoints to see when generation finishes.
+
 #### `POST /api/internal/images`
 
 Creates an image record without generating any AI image. Reuses an existing
