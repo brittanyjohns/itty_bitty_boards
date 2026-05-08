@@ -118,19 +118,23 @@ RSpec.describe User, type: :model do
 
   context "monthly_limit_for" do
     it "returns a high limit for admin users" do
-      admin = FactoryBot.create(:user, role: "admin")
+      admin = FactoryBot.create(:user)
+      admin.update_column(:role, "admin")
       expect(admin.monthly_limit_for("image_generation")).to eq(10000)
     end
 
     it "returns a lower limit for free users" do
-      user = FactoryBot.create(:user, plan_type: "free")
+      user = FactoryBot.create(:user)
+      user.update_column(:plan_type, "free")
       limit = user.monthly_limit_for("image_generation")
       expect(limit).to be <= 5
     end
 
     it "returns a higher limit for pro users than free users" do
-      free_user = FactoryBot.create(:user, plan_type: "free")
-      pro_user  = FactoryBot.create(:user, plan_type: "pro")
+      free_user = FactoryBot.create(:user)
+      free_user.update_column(:plan_type, "free")
+      pro_user = FactoryBot.create(:user)
+      pro_user.update_column(:plan_type, "pro")
       expect(pro_user.monthly_limit_for("image_generation")).to be >
         free_user.monthly_limit_for("image_generation")
     end
