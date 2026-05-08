@@ -60,7 +60,7 @@ module API
               user.save!
             end
           end
-          if user.free_trial?
+          if user.free_trial? && user.plan_type != "basic_trial"
             user.set_soft_trial_plan
             user.save!
           end
