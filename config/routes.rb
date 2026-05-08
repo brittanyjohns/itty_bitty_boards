@@ -334,6 +334,15 @@ Rails.application.routes.draw do
       end
     end
 
+    namespace :internal do
+      resources :boards, only: [:create, :update]
+      resources :images, only: [:create, :show] do
+        collection do
+          post :generate
+        end
+      end
+    end
+
     namespace :v1 do
       resource :auth, only: [:create, :destroy]
       delete "/child_accounts/logout", to: "child_auths#destroy"

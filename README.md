@@ -28,6 +28,7 @@
   - `GOOGLE_CUSTOM_SEARCH_API_KEY` - Google Custom Search API Key
   - `GOOGLE_CUSTOM_SEARCH_CX` - Google Custom Search CX
   - `PREDICTIVE_DEFAULT_ID` - Predictive Default ID (going to be removed)
+  - `INTERNAL_API_KEY` - Shared key used to authenticate the internal API (see "Internal API" section below)
 
 - Database creation:
 
@@ -130,6 +131,182 @@ b. Dynamic Board: A board that _can_ change screens - This is based on the image
 14. Premium Features: Exclusive tools or functionalities available to paying subscribers (e.g., ad-free experience, AI image generation).
 
 15. AI: Artificial Intelligence, used to generate word suggestions, images, and other content on the platform. This feature is powered by OpenAI.
+
+## Internal API
+
+A small, internal-only API mounted under `/api/internal/`. Used for trusted
+server-to-server calls (scripts, internal tools) — not for the React frontend
+and not exposed to end users.
+
+### Authentication
+
+All requests must include a bearer token matching `ENV["INTERNAL_API_KEY"]`:
+
+```
+Authorization: Bearer <INTERNAL_API_KEY>
+```
+
+Missing or incorrect tokens return `401 Unauthorized`. There is no per-user
+auth; every write is performed as the default admin user
+(`User::DEFAULT_ADMIN_ID`).
+
+### Setup
+
+Generate a strong random key and add it to your environment:
+
+```sh
+# Generate
+bin/rails runner 'puts SecureRandom.hex(32)'
+
+# .env (local)
+INTERNAL_API_KEY=<the generated value>
+```
+
+For Hatchbox, set `INTERNAL_API_KEY` in the app's environment variables panel.
+
+### Endpoints
+
+#### `POST /api/internal/boards`
+
+Pure record create. Does **not** enqueue board-generation jobs.
+
+```sh
+curl -X POST https://<host>/api/internal/boards \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "board": {
+      "name": "My Board",
+      "board_type": "static",
+      "voice": "alloy",
+      "language": "en"
+    }
+  }'
+```
+
+Response: `201 Created` with the created board.
+
+#### `PATCH /api/internal/boards/:id`
+
+Updates board attributes. Accepts an optional `layout` parameter to persist a
+grid layout for a screen size; this triggers the same layout-save flow used by
+the public API (board image positions, screen-size column counts, margins,
+per-screen settings, and a preview-image regenerate).
+
+```sh
+curl -X PATCH https://<host>/api/internal/boards/123 \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "board": { "name": "Renamed" },
+    "screen_size": "lg",
+    "layout": [
+      { "i": "<board_image_id>", "x": 0, "y": 0, "w": 1, "h": 1 }
+    ],
+    "small_screen_columns": 3,
+    "medium_screen_columns": 6,
+    "large_screen_columns": 8,
+    "xMargin": 4,
+    "yMargin": 4
+  }'
+```
+
+`layout` may also be passed in object form: `{ "screen_size": "lg", "layout": [...] }`.
+
+Response: `200 OK` with the board's full API view.
+
+#### `POST /api/internal/images`
+
+Creates an image record without generating any AI image. Reuses an existing
+image if one with the same label already exists for the admin user.
+
+```sh
+curl -X POST https://<host>/api/internal/images \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "image": { "label": "apple", "image_prompt": "a red apple" } }'
+```
+
+Response: `201 Created`.
+
+#### `POST /api/internal/images/generate`
+
+Enqueues a `GenerateImageJob` to call OpenAI and attach the resulting image.
+Returns immediately (`202 Accepted`) with the image record in `generating`
+state — see the "Polling for generation status" section below.
+
+```sh
+curl -X POST https://<host>/api/internal/images/generate \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image": { "label": "apple", "image_prompt": "a red apple" },
+    "transparent_background": "true"
+  }'
+```
+
+Optional params: `id` (regenerate an existing image), `board_id`,
+`screen_size`, `transparent_background`.
+
+Response: `202 Accepted` with `{ id, label, status: "generating", ... }`.
+
+#### `GET /api/internal/images/:id`
+
+Returns the current state of an image. Used to check whether a previously
+queued generation has finished.
+
+```sh
+curl https://<host>/api/internal/images/456 \
+  -H "Authorization: Bearer $INTERNAL_API_KEY"
+```
+
+Response shape:
+
+```json
+{
+  "id": 456,
+  "label": "apple",
+  "status": "complete",
+  "image_prompt": "a red apple",
+  "src": "https://.../apple.png",
+  "error": null
+}
+```
+
+`status` will be `generating`, `complete`, or `failed`.
+
+### Polling for generation status
+
+OpenAI image calls take several seconds and can occasionally exceed proxy
+timeouts, so generation is intentionally async. After calling
+`POST /api/internal/images/generate`, poll `GET /api/internal/images/:id`
+until `status` is `complete` or `failed`:
+
+```ruby
+require "net/http"
+require "json"
+
+key = ENV.fetch("INTERNAL_API_KEY")
+host = "https://<host>"
+
+resp = Net::HTTP.post(
+  URI("#{host}/api/internal/images/generate"),
+  { image: { label: "apple", image_prompt: "a red apple" } }.to_json,
+  "Authorization" => "Bearer #{key}",
+  "Content-Type" => "application/json",
+)
+image_id = JSON.parse(resp.body).fetch("id")
+
+loop do
+  sleep 2
+  status_resp = Net::HTTP.get_response(
+    URI("#{host}/api/internal/images/#{image_id}"),
+    "Authorization" => "Bearer #{key}",
+  )
+  body = JSON.parse(status_resp.body)
+  break body if %w[complete failed].include?(body["status"])
+end
+```
 
 ## Local Development in Docker
 
