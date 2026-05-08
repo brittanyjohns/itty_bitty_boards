@@ -60,6 +60,10 @@ module API
               user.save!
             end
           end
+          if user.free_trial?
+            user.set_soft_trial_plan
+            user.save!
+          end
           sign_in user
           user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
           MailchimpEventJob.perform_async(user.id, "sign_in")

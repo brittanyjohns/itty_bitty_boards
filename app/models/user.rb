@@ -135,14 +135,13 @@ class User < ApplicationRecord
   # Callbacks
   before_save :set_default_settings, unless: :settings?
   after_create :add_welcome_tokens
-  # after_create :create_opening_board
   before_validation :set_uuid, on: :create
   before_save :ensure_settings, unless: :has_all_settings?
 
   before_destroy :delete_stripe_customer
   before_destroy :unassign_vendor
 
-  before_save :set_soft_trial_plan, if: :new_record?
+  before_save :set_soft_trial_plan, if: :free_trial?
   before_save :setup_limits, if: :plan_type_changed?
   before_save :update_vendor, if: :plan_type_changed?
 
@@ -154,7 +153,6 @@ class User < ApplicationRecord
     return if vendor
     return unless role == "vendor" && id
     assigned_vendor = Vendor.find_by(user_id: id)
-    puts "Updating vendor for user #{id}..."
     if assigned_vendor
       self.vendor_id = assigned_vendor.id
     else
@@ -167,6 +165,7 @@ class User < ApplicationRecord
 
   def set_soft_trial_plan
     self.plan_type = "basic" if plan_type.blank? || plan_type == "free"
+    setup_limits
   end
 
   def setup_limits
@@ -1043,11 +1042,11 @@ class User < ApplicationRecord
   TRAIL_PERIOD = 14.days
 
   def free_trial?
-    free? && created_at > TRAIL_PERIOD.ago
+    created_at > TRAIL_PERIOD.ago
   end
 
   def trial_expired?
-    free? && !free_trial?
+    !free_trial?
   end
 
   def trial_expired_at
