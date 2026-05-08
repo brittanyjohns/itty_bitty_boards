@@ -335,7 +335,7 @@ Rails.application.routes.draw do
     end
 
     namespace :internal do
-      resources :boards, only: [:create, :update] do
+      resources :boards, only: [:create, :update, :show] do
         member do
           get :export, action: :export_pdf, defaults: { format: :pdf }
         end

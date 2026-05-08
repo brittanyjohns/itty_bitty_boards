@@ -125,6 +125,33 @@ RSpec.describe "API::Internal::Boards", type: :request do
     end
   end
 
+  describe "GET /api/internal/boards/:id" do
+    let!(:board) { create(:board, name: "Show Me", user: admin_user) }
+
+    context "without a valid bearer token" do
+      it "returns 401" do
+        get "/api/internal/boards/#{board.id}"
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+
+    context "with a valid bearer token" do
+      it "returns the board as JSON" do
+        get "/api/internal/boards/#{board.id}", headers: auth_headers
+
+        expect(response).to have_http_status(:ok)
+        body = JSON.parse(response.body)
+        expect(body["id"]).to eq(board.id)
+        expect(body["name"]).to eq("Show Me")
+      end
+
+      it "returns 404 when the board does not exist" do
+        get "/api/internal/boards/0", headers: auth_headers
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+  end
+
   describe "PATCH /api/internal/boards/:id" do
     let!(:board) { create(:board, name: "Old Name", user: admin_user) }
 
