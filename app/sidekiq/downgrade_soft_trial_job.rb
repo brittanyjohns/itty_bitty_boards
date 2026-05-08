@@ -17,10 +17,6 @@ class DowngradeSoftTrialJob
     end
 
     Rails.logger.info "DowngradeSoftTrialJob: completed — #{count} user(s) downgraded"
-
-    # Re-schedule to run again in 24 hours (self-scheduling recurring job).
-    # Start once via: DowngradeSoftTrialJob.perform_async
-    self.class.perform_in(24.hours)
   end
 
   private
