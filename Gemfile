@@ -100,6 +100,7 @@ gem "aws-sdk-polly", "~> 1"
 
 # Sidekiq
 gem "sidekiq", "~> 7.3.10"
+gem "sidekiq-cron", "~> 2.0"
 
 # AWS - ActiveStorage in production
 gem "aws-sdk-s3", require: false
