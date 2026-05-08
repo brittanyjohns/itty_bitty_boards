@@ -164,7 +164,7 @@ class User < ApplicationRecord
   attr_accessor :skip_plan_setup
 
   def set_soft_trial_plan
-    self.plan_type = "basic" if plan_type.blank? || plan_type == "free"
+    self.plan_type = "basic_trial" if plan_type.blank? || plan_type == "free"
     setup_limits
   end
 
@@ -174,7 +174,7 @@ class User < ApplicationRecord
       setup_free_limits
     when "myspeak", "myspeak_yearly"
       setup_myspeak_limits
-    when "basic", "basic_yearly"
+    when "basic", "basic_yearly", "basic_trial"
       setup_basic_limits
     when "pro", "pro_yearly"
       setup_pro_limits

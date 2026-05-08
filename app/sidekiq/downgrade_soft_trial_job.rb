@@ -9,6 +9,7 @@ class DowngradeSoftTrialJob
     count = 0
 
     expired_trial_users.find_each do |user|
+      user.setup_free_limits
       user.update!(plan_type: "free")
       Rails.logger.info "DowngradeSoftTrialJob: downgraded user #{user.id} (#{user.email}) to free"
       count += 1
@@ -23,13 +24,9 @@ class DowngradeSoftTrialJob
 
   def expired_trial_users
     # Target users who:
-    #   - are still on the soft-trial Basic plan (never upgraded or explicitly chose free)
+    #   - are still on the soft-trial Basic Trial plan (never upgraded or explicitly chose free)
     #   - signed up more than SOFT_TRIAL_DAYS ago
-    #   - have a stripe_customer_id (excludes Apple/RevenueCat users who have no Stripe record)
-    #   - have no paid_plan_type (i.e. never initiated a Stripe checkout for a paid plan)
-    User.where(plan_type: "basic")
+    User.where(plan_type: "basic_trial")
         .where("created_at <= ?", SOFT_TRIAL_DAYS.days.ago)
-        .where.not(stripe_customer_id: nil)
-        .where(paid_plan_type: nil)
   end
 end
