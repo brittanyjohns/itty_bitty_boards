@@ -226,6 +226,78 @@ curl -X POST https://<host>/api/internal/boards \
 
 Response: `201 Created` with the created board. Generation runs async via Sidekiq.
 
+##### `board_creation_type` reference
+
+`board_creation_type` is a free-form string. The controller switches on it to
+decide which params to forward to `GenerateBoardJob`. The job then switches on
+the same string to decide how to produce a list of words. Both switches must
+agree, so in practice only the values below are usable from the internal API.
+
+After words are produced (by any branch), the job runs the same finishing
+sequence:
+
+1. `Board.find_or_create_images_from_word_list(words)` — for each word, finds an existing image (user-owned, then admin-owned) or creates a new one. If the image has no displayable doc and no admin/user copy, schedules `GenerateImagesJob` (which calls OpenAI image gen in batches of 3).
+2. `Board#reset_layouts` — re-flows the grid for all screen sizes.
+3. `Board#generate_previews` — re-renders the board's preview image.
+4. `board.status` advances `generating_words` → `finding_images` → `processing` → `complete`.
+
+If the branch produces zero words, the job logs a warning and jumps straight to
+`complete` (no images are created).
+
+###### `default` *(default)*
+
+- **Word source:** the `word_list` array you POST. No OpenAI call for words.
+- **Required params:** `word_list` *(array of strings)*. If omitted, **no job is enqueued at all** — the board is created empty.
+- **Other params forwarded to job:** none.
+- **Use when:** you already have the exact words you want.
+
+```json
+{ "board": { "name": "Snacks" }, "word_list": ["apple", "banana", "carrot"] }
+```
+
+###### `scenario`
+
+- **Word source:** OpenAI, via `Board#get_words_for_scenario(topic, age_range, word_count)`.
+- **Prompt sent to OpenAI:**
+  > Generate a list of words for a communication board. The topic or theme of the board is **{topic}**. The name of the board is **{board.name}**. The age range for the person using the board is **{age_range}**. Please provide a list of **{word_count}** words that are appropriate for this age range and context. Exclude words that are too similar to each other or that would not be useful on a communication board. Also exclude words that are already on the board: **{current_words}**.
+- **Required params:** `topic` *(string)*. Falls back to `prompt`, then `board.name`.
+- **Optional params:** `age_range` (or `ageRange`), `word_count` (or `wordCount`, default `12`).
+- **Word count clamping:** the job clamps `word_count` to `1..80`. Out-of-bounds values fall back to `large_screen_columns * 4` (and the model itself defaults to `24` if it sees the same condition).
+- **Use when:** you have a topic/theme but no specific words.
+
+```json
+{
+  "board": { "name": "Coffee Shop" },
+  "board_creation_type": "scenario",
+  "topic": "ordering coffee",
+  "age_range": "10-15",
+  "word_count": 16
+}
+```
+
+###### `predictive`
+
+- **Word source:** OpenAI, via `Board#get_words_for_predictive(starting_phrase_or_word, word_count)` *if* no `word_list` is provided. Otherwise the supplied `word_list` is used directly.
+- **Prompt sent to OpenAI:**
+  > Generate a list of **{word_count}** words that would commonly follow the **{word|phrase}** **'{starting_phrase_or_word}'** in everyday communication. These words will be used on a predictive communication board to help users quickly find and select common phrases. Please provide words that are relevant and commonly used in conjunction with **'{starting_phrase_or_word}'**.
+- **Required job options:** `starting_phrase_or_word` (or `startingPhraseOrWord`) when no `word_list` is given.
+- **⚠️ Internal-API gap:** today the controller forwards only `word_count` for non-`default`/non-`scenario` types, so the job receives no `starting_phrase_or_word` and no `word_list`. The OpenAI call then fails on a `nil.split` and the board is left at status `generating_words`. **Don't use this value via the internal API until the controller is patched to forward `starting_phrase_or_word` and `word_list`.**
+
+###### `menu`
+
+- Recognized by the job, but the branch is a placeholder that returns an empty word list — the board jumps straight to `complete` with zero images. Equivalent to creating a board with no `word_list` under `default`.
+
+###### Anything else
+
+- The job's fallback branch behaves like `default` (uses the supplied `word_list`, no OpenAI). The internal controller's fallback branch only forwards `word_count` and no `word_list`, so this combination produces an empty word list and a no-op completion. Stick to `default` or `scenario` from the internal API.
+
+###### Side effect on `board.board_type`
+
+Regardless of what you pass in `board[board_type]`, the controller overwrites
+`board.board_type` with the `board_creation_type` value *after* `assign_parent`
+runs. That mirrors the public `POST /api/boards` behavior. So a request with
+`board_creation_type: "scenario"` ends with `board.board_type == "scenario"`.
+
 #### `PATCH /api/internal/boards/:id`
 
 Updates board attributes. Accepts an optional `layout` parameter to persist a
