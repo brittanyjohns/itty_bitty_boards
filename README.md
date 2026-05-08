@@ -168,7 +168,20 @@ For Hatchbox, set `INTERNAL_API_KEY` in the app's environment variables panel.
 
 #### `POST /api/internal/boards`
 
-Pure record create. Does **not** enqueue board-generation jobs.
+Creates a board, then optionally enqueues `GenerateBoardJob` based on
+`board_creation_type` — same dispatch as the public `POST /api/boards`.
+
+The board is owned by the default admin (`User::DEFAULT_ADMIN_ID`).
+
+**Top-level params**
+
+- `board_creation_type` *(optional, default `"default"`)* — one of `"default"`, `"scenario"`, or any other string. Determines what (if anything) is enqueued; also overwrites `board.board_type` after `assign_parent`.
+- `word_list` *(default branch only)* — array of strings. If present, enqueues `GenerateBoardJob` with the list. If omitted, no job is enqueued.
+- `topic`, `age_range` (or `ageRange`), `word_count` (or `wordCount`) *(scenario branch)* — passed straight to the job.
+- `word_count` *(other branches)* — defaults to 12.
+- `voice` / `voice_label` — fallback if `board[voice]` isn't set.
+
+**Default — pure record create (no job enqueued):**
 
 ```sh
 curl -X POST https://<host>/api/internal/boards \
@@ -184,7 +197,115 @@ curl -X POST https://<host>/api/internal/boards \
   }'
 ```
 
-Response: `201 Created` with the created board.
+**Default — with a `word_list` (enqueues `GenerateBoardJob` to find/create images for each word):**
+
+```sh
+curl -X POST https://<host>/api/internal/boards \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "board": { "name": "Snacks" },
+    "word_list": ["apple", "banana", "carrot"]
+  }'
+```
+
+**Scenario — generate words from a topic:**
+
+```sh
+curl -X POST https://<host>/api/internal/boards \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "board": { "name": "Coffee Shop" },
+    "board_creation_type": "scenario",
+    "topic": "ordering coffee",
+    "age_range": "10-15",
+    "word_count": 16
+  }'
+```
+
+Response: `201 Created` with the created board. Generation runs async via Sidekiq.
+
+##### `board_creation_type` reference
+
+`board_creation_type` is a free-form string. The controller switches on it to
+decide which params to forward to `GenerateBoardJob`. The job then switches on
+the same string to decide how to produce a list of words. Both switches must
+agree, so in practice only the values below are usable from the internal API.
+
+After words are produced (by any branch), the job runs the same finishing
+sequence:
+
+1. `Board.find_or_create_images_from_word_list(words)` — for each word, finds an existing image (user-owned, then admin-owned) or creates a new one. If the image has no displayable doc and no admin/user copy, schedules `GenerateImagesJob` (which calls OpenAI image gen in batches of 3).
+2. `Board#reset_layouts` — re-flows the grid for all screen sizes.
+3. `Board#generate_previews` — re-renders the board's preview image.
+4. `board.status` advances `generating_words` → `finding_images` → `processing` → `complete`.
+
+If the branch produces zero words, the job logs a warning and jumps straight to
+`complete` (no images are created).
+
+###### `default` *(default)*
+
+- **Word source:** the `word_list` array you POST. No OpenAI call for words.
+- **Required params:** `word_list` *(array of strings)*. If omitted, **no job is enqueued at all** — the board is created empty.
+- **Other params forwarded to job:** none.
+- **Use when:** you already have the exact words you want.
+
+```json
+{ "board": { "name": "Snacks" }, "word_list": ["apple", "banana", "carrot"] }
+```
+
+###### `scenario`
+
+- **Word source:** OpenAI, via `Board#get_words_for_scenario(topic, age_range, word_count)`.
+- **Prompt sent to OpenAI:**
+  > Generate a list of words for a communication board. The topic or theme of the board is **{topic}**. The name of the board is **{board.name}**. The age range for the person using the board is **{age_range}**. Please provide a list of **{word_count}** words that are appropriate for this age range and context. Exclude words that are too similar to each other or that would not be useful on a communication board. Also exclude words that are already on the board: **{current_words}**.
+- **Required params:** `topic` *(string)*. Falls back to `prompt`, then `board.name`.
+- **Optional params:** `age_range` (or `ageRange`), `word_count` (or `wordCount`, default `12`).
+- **Word count clamping:** the job clamps `word_count` to `1..80`. Out-of-bounds values fall back to `large_screen_columns * 4` (and the model itself defaults to `24` if it sees the same condition).
+- **Use when:** you have a topic/theme but no specific words.
+
+```json
+{
+  "board": { "name": "Coffee Shop" },
+  "board_creation_type": "scenario",
+  "topic": "ordering coffee",
+  "age_range": "10-15",
+  "word_count": 16
+}
+```
+
+###### `predictive`
+
+- **Word source:** OpenAI, via `Board#get_words_for_predictive(starting_phrase_or_word, word_count)` *if* no `word_list` is provided. Otherwise the supplied `word_list` is used directly.
+- **Prompt sent to OpenAI:**
+  > Generate a list of **{word_count}** words that would commonly follow the **{word|phrase}** **'{starting_phrase_or_word}'** in everyday communication. These words will be used on a predictive communication board to help users quickly find and select common phrases. Please provide words that are relevant and commonly used in conjunction with **'{starting_phrase_or_word}'**.
+- **Required params:** `starting_phrase_or_word` (or `startingPhraseOrWord`) when no `word_list` is given.
+- **Optional params:** `word_list` (skip the OpenAI call), `word_count` (default `12`).
+
+```json
+{
+  "board": { "name": "After 'I want'" },
+  "board_creation_type": "predictive",
+  "starting_phrase_or_word": "I want",
+  "word_count": 12
+}
+```
+
+###### `menu`
+
+- Recognized by the job, but the branch is a placeholder that returns an empty word list — the board jumps straight to `complete` with zero images. Equivalent to creating a board with no `word_list` under `default`.
+
+###### Anything else
+
+- The job's fallback branch behaves like `default` (uses the supplied `word_list`, no OpenAI). The internal controller's fallback branch only forwards `word_count` and no `word_list`, so this combination produces an empty word list and a no-op completion. Stick to `default` or `scenario` from the internal API.
+
+###### Side effect on `board.board_type`
+
+Regardless of what you pass in `board[board_type]`, the controller overwrites
+`board.board_type` with the `board_creation_type` value *after* `assign_parent`
+runs. That mirrors the public `POST /api/boards` behavior. So a request with
+`board_creation_type: "scenario"` ends with `board.board_type == "scenario"`.
 
 #### `PATCH /api/internal/boards/:id`
 
@@ -214,6 +335,60 @@ curl -X PATCH https://<host>/api/internal/boards/123 \
 `layout` may also be passed in object form: `{ "screen_size": "lg", "layout": [...] }`.
 
 Response: `200 OK` with the board's full API view.
+
+#### `GET /api/internal/boards/:id/export.pdf`
+
+Renders the board as a PDF (Letter, Grover/Chromium under the hood) and returns
+it as an attachment download. The same template the public `/api/boards/:id/pdf`
+endpoint uses, with the QR code optional and overrideable.
+
+**Query params**
+
+- `qr_code` *(default `false`)* — boolean. Set to `true` to include a QR code in the header.
+- `qr_target_url` *(optional)* — when `qr_code=true`, the URL the QR code should encode. If omitted, falls back to the board's own public URL (the same default the public PDF endpoint uses).
+- `screen_size` *(default `"lg"`)* — which screen-size layout to render.
+- `hide_colors` *(default `"0"`)* — `"1"` to render the grid in black and white.
+- `hide_header` *(default `"0"`)* — `"1"` to hide the entire header row (logo, title, QR section).
+
+```sh
+curl -L -o board-123.pdf \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  "https://<host>/api/internal/boards/123/export.pdf?qr_code=true&qr_target_url=https%3A%2F%2Fexample.com%2Fclaim%2Fabc"
+```
+
+Response: `200 OK` with `Content-Type: application/pdf` and
+`Content-Disposition: attachment; filename="<board-slug>-board.pdf"`.
+
+#### `POST /api/internal/boards/:id/board_images`
+
+Adds a single cell (a `BoardImage`) to a board. Equivalent to one iteration of
+`Board#find_or_create_images_from_word_list`, but exposed as a discrete call so
+internal scripts can build a board cell-by-cell.
+
+**Body params**
+
+- `image_id` *(preferred)* — id of an existing `Image`. Used directly.
+- `label` *(fallback)* — used only if `image_id` is omitted. Looks up an admin/user-owned `Image` by label, then a public image, then creates a new admin-owned image with that label.
+- `position` *(optional)* — integer used to set `BoardImage#position` after creation. If omitted, the cell is appended at `board_images_count` (its existing default).
+- `voice` *(optional)* — overrides the cell's voice. Normalized via `VoiceService`.
+- `language` *(optional)* — overrides the cell's language code.
+
+If neither `image_id` nor `label` is given, the request returns `422`.
+Duplicate cells (same image already on the board) are allowed — the model
+permits multiple `BoardImage` rows per `(board_id, image_id)` pair.
+
+The cell's grid placement is auto-assigned by `BoardImage#set_initial_layout!`
+across all screen sizes; use `PATCH /api/internal/boards/:id` with a `layout`
+to move cells into specific positions afterward.
+
+```sh
+curl -X POST https://<host>/api/internal/boards/123/board_images \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "label": "apple", "position": 0 }'
+```
+
+Response: `201 Created` with the new `BoardImage`'s `api_view`.
 
 #### `POST /api/internal/generated_boards`
 

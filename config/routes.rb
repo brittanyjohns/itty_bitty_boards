@@ -335,7 +335,12 @@ Rails.application.routes.draw do
     end
 
     namespace :internal do
-      resources :boards, only: [:create, :update]
+      resources :boards, only: [:create, :update] do
+        member do
+          get :export, action: :export_pdf, defaults: { format: :pdf }
+        end
+        resources :board_images, only: [:create]
+      end
       resources :generated_boards, only: [:create]
       resources :images, only: [:create, :show] do
         collection do
