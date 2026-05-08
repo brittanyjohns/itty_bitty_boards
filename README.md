@@ -307,6 +307,20 @@ Regardless of what you pass in `board[board_type]`, the controller overwrites
 runs. That mirrors the public `POST /api/boards` behavior. So a request with
 `board_creation_type: "scenario"` ends with `board.board_type == "scenario"`.
 
+#### `GET /api/internal/boards/:id`
+
+Returns a single board's full API view (same payload shape as `PATCH`'s response).
+Useful for confirming a board exists and inspecting its current images/layout
+before posting cells or layout updates.
+
+```sh
+curl -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  https://<host>/api/internal/boards/123
+```
+
+Response: `200 OK` with the board's full API view, or `404 Not Found` if no
+board has that id.
+
 #### `PATCH /api/internal/boards/:id`
 
 Updates board attributes. Accepts an optional `layout` parameter to persist a

@@ -35,6 +35,11 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
     end
   end
 
+  def show
+    @board = Board.find(params[:id])
+    render json: @board.api_view_with_images(current_user)
+  end
+
   def export_pdf
     @board = Board.find(params[:id])
 
