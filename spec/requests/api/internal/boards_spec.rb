@@ -56,6 +56,49 @@ RSpec.describe "API::Internal::Boards", type: :request do
         expect(job["args"][1]).to eq("default")
         expect(job["args"][2]).to eq({ "word_list" => word_list })
       end
+
+      it "enqueues GenerateBoardJob with topic/age_range/word_count for scenario creation_type" do
+        expect {
+          post "/api/internal/boards",
+               params: {
+                 board: { name: "Scenario Board" },
+                 board_creation_type: "scenario",
+                 topic: "ordering coffee",
+                 age_range: "10-15",
+                 word_count: 16,
+               }.to_json,
+               headers: auth_headers.merge("Content-Type" => "application/json")
+        }.to change(GenerateBoardJob.jobs, :size).by(1)
+
+        expect(response).to have_http_status(:created)
+        expect(Board.last.board_type).to eq("scenario")
+
+        job = GenerateBoardJob.jobs.last
+        expect(job["args"][1]).to eq("scenario")
+        expect(job["args"][2]).to eq({
+          "topic" => "ordering coffee",
+          "age_range" => "10-15",
+          "word_count" => 16,
+        })
+      end
+
+      it "enqueues GenerateBoardJob with word_count for other creation_types" do
+        expect {
+          post "/api/internal/boards",
+               params: {
+                 board: { name: "Other Board" },
+                 board_creation_type: "ai_generated",
+                 word_count: 24,
+               }.to_json,
+               headers: auth_headers.merge("Content-Type" => "application/json")
+        }.to change(GenerateBoardJob.jobs, :size).by(1)
+
+        expect(response).to have_http_status(:created)
+
+        job = GenerateBoardJob.jobs.last
+        expect(job["args"][1]).to eq("ai_generated")
+        expect(job["args"][2]).to eq({ "word_count" => 24 })
+      end
     end
   end
 

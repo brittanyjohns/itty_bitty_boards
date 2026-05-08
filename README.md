@@ -168,7 +168,20 @@ For Hatchbox, set `INTERNAL_API_KEY` in the app's environment variables panel.
 
 #### `POST /api/internal/boards`
 
-Pure record create. Does **not** enqueue board-generation jobs.
+Creates a board, then optionally enqueues `GenerateBoardJob` based on
+`board_creation_type` — same dispatch as the public `POST /api/boards`.
+
+The board is owned by the default admin (`User::DEFAULT_ADMIN_ID`).
+
+**Top-level params**
+
+- `board_creation_type` *(optional, default `"default"`)* — one of `"default"`, `"scenario"`, or any other string. Determines what (if anything) is enqueued; also overwrites `board.board_type` after `assign_parent`.
+- `word_list` *(default branch only)* — array of strings. If present, enqueues `GenerateBoardJob` with the list. If omitted, no job is enqueued.
+- `topic`, `age_range` (or `ageRange`), `word_count` (or `wordCount`) *(scenario branch)* — passed straight to the job.
+- `word_count` *(other branches)* — defaults to 12.
+- `voice` / `voice_label` — fallback if `board[voice]` isn't set.
+
+**Default — pure record create (no job enqueued):**
 
 ```sh
 curl -X POST https://<host>/api/internal/boards \
@@ -184,7 +197,34 @@ curl -X POST https://<host>/api/internal/boards \
   }'
 ```
 
-Response: `201 Created` with the created board.
+**Default — with a `word_list` (enqueues `GenerateBoardJob` to find/create images for each word):**
+
+```sh
+curl -X POST https://<host>/api/internal/boards \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "board": { "name": "Snacks" },
+    "word_list": ["apple", "banana", "carrot"]
+  }'
+```
+
+**Scenario — generate words from a topic:**
+
+```sh
+curl -X POST https://<host>/api/internal/boards \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "board": { "name": "Coffee Shop" },
+    "board_creation_type": "scenario",
+    "topic": "ordering coffee",
+    "age_range": "10-15",
+    "word_count": 16
+  }'
+```
+
+Response: `201 Created` with the created board. Generation runs async via Sidekiq.
 
 #### `PATCH /api/internal/boards/:id`
 
