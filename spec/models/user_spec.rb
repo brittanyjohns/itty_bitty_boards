@@ -78,9 +78,20 @@ RSpec.describe User, type: :model do
     end
   end
   context "plan_type checks" do
-    it "defaults to free plan" do
+    it "defaults to basic plan (soft trial) on signup" do
       user = FactoryBot.create(:user)
-      expect(user.plan_type).to eq("free")
+      expect(user.plan_type).to eq("basic")
+    end
+
+    it "does not override an explicitly set plan_type on create" do
+      user = FactoryBot.create(:user, plan_type: "pro")
+      expect(user.plan_type).to eq("pro")
+    end
+
+    it "does not change plan_type on subsequent saves" do
+      user = FactoryBot.create(:user)
+      user.update!(name: "Updated")
+      expect(user.plan_type).to eq("basic")
     end
 
     it "recognizes pro plan" do

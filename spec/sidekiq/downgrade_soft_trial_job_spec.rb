@@ -1,0 +1,50 @@
+require "rails_helper"
+
+RSpec.describe DowngradeSoftTrialJob, type: :job do
+  subject(:job) { described_class.new }
+
+  def create_soft_trial_user(overrides = {})
+    attrs = { plan_type: "basic", stripe_customer_id: "cus_test123", paid_plan_type: nil }.merge(overrides)
+    user = FactoryBot.create(:user, **attrs)
+    user.update_column(:created_at, 15.days.ago) unless overrides.key?(:created_at)
+    user
+  end
+
+  describe "#perform" do
+    context "when a user is an expired soft-trial Basic user" do
+      it "downgrades plan_type to free" do
+        user = create_soft_trial_user
+        expect { job.perform }.to change { user.reload.plan_type }.from("basic").to("free")
+      end
+    end
+
+    context "when a user has no stripe_customer_id (Apple/RevenueCat)" do
+      it "does not downgrade the user" do
+        user = create_soft_trial_user(stripe_customer_id: nil)
+        expect { job.perform }.not_to change { user.reload.plan_type }
+      end
+    end
+
+    context "when a user has a paid_plan_type set" do
+      it "does not downgrade the user" do
+        user = create_soft_trial_user(paid_plan_type: "basic")
+        expect { job.perform }.not_to change { user.reload.plan_type }
+      end
+    end
+
+    context "when a user signed up fewer than 14 days ago" do
+      it "does not downgrade the user" do
+        user = create_soft_trial_user(created_at: 10.days.ago)
+        expect { job.perform }.not_to change { user.reload.plan_type }
+      end
+    end
+
+    context "when a user is already on the free plan" do
+      it "does not touch the user" do
+        user = create_soft_trial_user
+        user.update_column(:plan_type, "free")
+        expect { job.perform }.not_to change { user.reload.plan_type }
+      end
+    end
+  end
+end
