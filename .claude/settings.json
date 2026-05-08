@@ -17,7 +17,15 @@
       "WebFetch(domain:stripe.com)",
       "WebFetch(domain:docs.stripe.com)",
       "Bash(git checkout *)",
-      "Bash(git commit -m 'Remove HTML views and controllers — convert to API-only architecture *)"
+      "Bash(git commit -m 'Remove HTML views and controllers — convert to API-only architecture *)",
+      "Bash(bin/rails generate *)",
+      "Bash(grep -n \"namespace :admin\\\\|devise_for\\\\|mount\\\\|get .dashboard\\\\|end$\" /Users/brittanyjohns/Projects/speakanyway/itty_bitty_boards/config/routes.rb)",
+      "Bash(bin/rails db:migrate)",
+      "Bash(bin/rails routes *)",
+      "Bash(bin/rails runner *)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(grep -v \"^$\")"
     ],
     "additionalDirectories": [
       "/Users/brittanyjohns/.claude",
@@ -28,7 +36,6 @@
     "PreToolUse": [
       {
         "matcher": "Bash",
-        "if": "Bash(git commit *)",
         "hooks": [
           {
             "type": "command",
