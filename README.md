@@ -325,8 +325,22 @@ board has that id.
 
 Updates board attributes. Accepts an optional `layout` parameter to persist a
 grid layout for a screen size; this triggers the same layout-save flow used by
-the public API (board image positions, screen-size column counts, margins,
-per-screen settings, and a preview-image regenerate).
+the public API (board image positions, cell sizes, screen-size column counts,
+margins, per-screen settings, and a preview-image regenerate).
+
+**Layout item shape** — each entry in `layout` describes one cell on the grid:
+
+- `i` — the `BoardImage` id (string).
+- `x`, `y` — grid coordinates (column / row), zero-indexed.
+- `w`, `h` — how many columns / rows the cell spans. Defaults are `1`/`1`.
+  **Raise `w` (and/or `h`) to make a cell big enough to hold a longer label** —
+  e.g. `w: 2, h: 1` makes the cell twice as wide so a multi-word label like
+  `"french fries"` fits without being clipped. Cell pixel size is `column
+  width × w` (column width is derived from the screen's `*_screen_columns`),
+  so doubling `w` doubles the horizontal room for the label.
+
+Layout is per screen size, so resize cells separately for `sm` / `md` / `lg`
+if a label needs more room on smaller screens.
 
 ```sh
 curl -X PATCH https://<host>/api/internal/boards/123 \
@@ -336,7 +350,8 @@ curl -X PATCH https://<host>/api/internal/boards/123 \
     "board": { "name": "Renamed" },
     "screen_size": "lg",
     "layout": [
-      { "i": "<board_image_id>", "x": 0, "y": 0, "w": 1, "h": 1 }
+      { "i": "<board_image_id>", "x": 0, "y": 0, "w": 2, "h": 1 },
+      { "i": "<other_board_image_id>", "x": 2, "y": 0, "w": 1, "h": 1 }
     ],
     "small_screen_columns": 3,
     "medium_screen_columns": 6,
