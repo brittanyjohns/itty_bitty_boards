@@ -336,6 +336,7 @@ Rails.application.routes.draw do
 
     namespace :internal do
       resources :boards, only: [:create, :update]
+      resources :generated_boards, only: [:create]
       resources :images, only: [:create, :show] do
         collection do
           post :generate
