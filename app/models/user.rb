@@ -1042,6 +1042,7 @@ class User < ApplicationRecord
   TRAIL_PERIOD = 14.days
 
   def free_trial?
+    return true unless created_at
     created_at > TRAIL_PERIOD.ago
   end
 
