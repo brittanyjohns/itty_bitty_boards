@@ -237,8 +237,6 @@ class User < ApplicationRecord
     self.settings["demo_communicator_limit"] = PRO_PLAN_LIMITS["demo_communicator_limit"]
     self.settings["board_limit"] = PRO_PLAN_LIMITS["board_limit"]
     self.settings["ai_monthly_limit"] = PRO_PLAN_LIMITS["ai_monthly_limit"]
-    self.plan_type = "pro"
-    self.role = "partner"
   end
 
   def setup_pro_limits
@@ -247,8 +245,6 @@ class User < ApplicationRecord
     self.settings["demo_communicator_limit"] = PRO_PLAN_LIMITS["demo_communicator_limit"]
     self.settings["board_limit"] = PRO_PLAN_LIMITS["board_limit"]
     self.settings["ai_monthly_limit"] = PRO_PLAN_LIMITS["ai_monthly_limit"]
-    self.plan_type = "pro"
-    self.role = "user"
   end
 
   def setup_basic_limits
@@ -257,8 +253,6 @@ class User < ApplicationRecord
     self.settings["demo_communicator_limit"] = BASIC_PLAN_LIMITS["demo_communicator_limit"]
     self.settings["board_limit"] = BASIC_PLAN_LIMITS["board_limit"]
     self.settings["ai_monthly_limit"] = BASIC_PLAN_LIMITS["ai_monthly_limit"]
-    self.plan_type = "basic"
-    self.role = "user"
   end
 
   def setup_myspeak_limits
@@ -267,8 +261,6 @@ class User < ApplicationRecord
     self.settings["demo_communicator_limit"] = MYSPEAK_PLAN_LIMITS["demo_communicator_limit"]
     self.settings["board_limit"] = MYSPEAK_PLAN_LIMITS["board_limit"]
     self.settings["ai_monthly_limit"] = MYSPEAK_PLAN_LIMITS["ai_monthly_limit"]
-    self.plan_type = "myspeak"
-    self.role = "user"
   end
 
   def setup_free_limits
@@ -277,8 +269,6 @@ class User < ApplicationRecord
     self.settings["demo_communicator_limit"] = FREE_PLAN_LIMITS["demo_communicator_limit"]
     self.settings["board_limit"] = FREE_PLAN_LIMITS["board_limit"]
     self.settings["ai_monthly_limit"] = FREE_PLAN_LIMITS["ai_monthly_limit"]
-    self.plan_type = "free"
-    self.role = "user"
   end
 
   def communicator_limit=(value)
