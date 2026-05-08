@@ -1231,6 +1231,45 @@ class Board < ApplicationRecord
     self.save!
   end
 
+  # Persist a layout change for a given screen size. Sorts the items, updates
+  # each board_image's position, optionally writes screen-size column counts,
+  # margin settings, and per-screen settings, then delegates to
+  # update_grid_layout and queues a preview regenerate.
+  def apply_layout!(layout:, screen_size: "lg", columns: {}, margins: {}, settings: nil)
+    return if layout.blank?
+
+    sorted_layout = layout.sort_by { |item| [item["y"].to_i, item["x"].to_i] }
+
+    sorted_layout.each_with_index do |item, i|
+      board_image_id = item["i"].to_i
+      board_image = board_images.find_by(id: board_image_id)
+      if board_image
+        board_image.update!(position: i)
+      else
+        Rails.logger.error "Board image not found for ID: #{board_image_id}"
+      end
+    end
+
+    self.small_screen_columns  = columns[:small_screen_columns].to_i  if columns[:small_screen_columns].present?
+    self.medium_screen_columns = columns[:medium_screen_columns].to_i if columns[:medium_screen_columns].present?
+    self.large_screen_columns  = columns[:large_screen_columns].to_i  if columns[:large_screen_columns].present?
+
+    if margins[:x].present? && margins[:y].present?
+      self.margin_settings[screen_size] = { x: margins[:x].to_i, y: margins[:y].to_i }
+    end
+
+    self.settings[screen_size] = settings if settings.present?
+    save!
+
+    begin
+      update_grid_layout(sorted_layout, screen_size)
+      run_generate_preview_job
+    rescue => e
+      Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
+    end
+    reload
+  end
+
   def grid_layout(screen_size = "lg")
     layout_to_set = []
     board_images.order(:position).map do |bi|
