@@ -62,6 +62,7 @@ module API
           end
           if user.free_trial? && user.plan_type != "basic_trial"
             user.set_soft_trial_plan
+            Rails.logger.info "User #{user.email} is eligible for soft trial. Setting plan_type to #{user.plan_type} and resetting limits."
             user.save!
           end
           sign_in user
