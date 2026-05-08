@@ -35,6 +35,48 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
     end
   end
 
+  def export_pdf
+    @board = Board.find(params[:id])
+
+    qr_requested  = ActiveModel::Type::Boolean.new.cast(params[:qr_code])
+    qr_target_url = qr_requested ? params[:qr_target_url].presence : nil
+
+    render_data = Boards::RenderAssetData.new(
+      board: @board,
+      screen_size: params[:screen_size] || "lg",
+      hide_colors: params[:hide_colors] == "1",
+      hide_header: params[:hide_header] == "1",
+      routes: Rails.application.routes.url_helpers,
+      include_qr: qr_requested,
+      qr_target_url: qr_target_url || :default,
+    ).call
+
+    render_data.each { |k, v| instance_variable_set("@#{k}", v) }
+
+    html = render_to_string(
+      template: "api/boards/print",
+      layout: "pdf",
+      formats: [:html],
+    )
+
+    grover_options = {
+      format: "Letter",
+      landscape: @landscape,
+      viewport: { width: @landscape ? 792 : 612, height: @landscape ? 612 : 792 },
+      full_page: false,
+      prefer_css_page_size: true,
+      print_background: true,
+    }
+
+    file_data = Grover.new(html, **grover_options).to_pdf
+
+    response.headers["Cache-Control"] = "no-store"
+    send_data file_data,
+      filename: "#{@board.slug}-board.pdf",
+      type: "application/pdf",
+      disposition: "attachment"
+  end
+
   def update
     @board = Board.find(params[:id])
     @board.assign_attributes(board_params.except(:settings, :voice))
@@ -67,16 +109,31 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
 
     case creation_type
     when "default"
-      word_list = Array(params[:word_list]).compact.select { |w| w.is_a?(String) && w.present? }
+      word_list = sanitized_word_list
       return if word_list.blank?
       GenerateBoardJob.perform_async(@board.id, creation_type, { "word_list" => word_list })
     when "scenario"
       topic = params[:topic] || params[:prompt] || @board.name
       age_range = params[:ageRange].presence || params[:age_range].presence
       GenerateBoardJob.perform_async(@board.id, creation_type, { "topic" => topic, "age_range" => age_range, "word_count" => word_count })
+    when "predictive"
+      starting = params[:starting_phrase_or_word].presence || params[:startingPhraseOrWord].presence
+      GenerateBoardJob.perform_async(
+        @board.id,
+        creation_type,
+        {
+          "word_list" => sanitized_word_list,
+          "starting_phrase_or_word" => starting,
+          "word_count" => word_count,
+        },
+      )
     else
       GenerateBoardJob.perform_async(@board.id, creation_type, { "word_count" => word_count })
     end
+  end
+
+  def sanitized_word_list
+    Array(params[:word_list]).compact.select { |w| w.is_a?(String) && w.present? }
   end
 
   def apply_layout_if_present!
