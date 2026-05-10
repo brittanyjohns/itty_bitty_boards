@@ -18,7 +18,10 @@ class GenerateBoardJob
           age_range = options["age_range"].presence || options["ageRange"].presence
           if word_count <= 0 || word_count > 80
             Rails.logger.warn "Word count of #{word_count} is out of bounds for Board ID #{board.id}."
-            lrg_cols = board.large_screen_columns || 6
+            # `|| 6` doesn't fire on 0 (truthy in Ruby), which mattered when
+            # api/internal/boards#create coerced missing columns to 0. Guard
+            # against any caller that still produces a zero column count.
+            lrg_cols = board.large_screen_columns.to_i.positive? ? board.large_screen_columns : 6
             word_count = lrg_cols * 4
           end
           words = board.get_words_for_scenario(topic, age_range, word_count)

@@ -15,9 +15,14 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
     @board.board_type = creation_type
 
     @board.predefined = false
-    @board.small_screen_columns  = board_params["small_screen_columns"].to_i
-    @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
-    @board.large_screen_columns  = board_params["large_screen_columns"].to_i
+    # Only assign columns when the param is actually present. Blind .to_i
+    # turns a missing param into 0, which suppresses Board#set_screen_sizes
+    # defaults (which only fill in nil) and breaks downstream callers like
+    # GenerateBoardJob's `large_screen_columns || 6` (0 is truthy in Ruby).
+    @board.small_screen_columns  = board_params["small_screen_columns"].to_i  if board_params["small_screen_columns"].present?
+    @board.medium_screen_columns = board_params["medium_screen_columns"].to_i if board_params["medium_screen_columns"].present?
+    @board.large_screen_columns  = board_params["large_screen_columns"].to_i  if board_params["large_screen_columns"].present?
+    Rails.logger.info "Normalized voice for board creation: #{board_params["voice"]}, #{params[:voice]}, #{params[:voice_label]} -> #{VoiceService.normalize_voice(board_params["voice"] || params[:voice] || params[:voice_label])}"
 
     voice = VoiceService.normalize_voice(board_params["voice"] || params[:voice] || params[:voice_label])
     @board.voice = voice
@@ -43,8 +48,9 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
   def export_pdf
     @board = Board.find(params[:id])
 
-    qr_requested  = ActiveModel::Type::Boolean.new.cast(params[:qr_code])
+    qr_requested = ActiveModel::Type::Boolean.new.cast(params[:qr_code])
     qr_target_url = qr_requested ? params[:qr_target_url].presence : nil
+    Rails.logger.info "Parameters for PDF export: #{params.to_unsafe_h.except(:board_id, :controller, :action).inspect}, QR requested: #{qr_requested}, QR target URL: #{qr_target_url}"
 
     render_data = Boards::RenderAssetData.new(
       board: @board,
@@ -93,7 +99,7 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
     end
 
     @board.parent_type = "User"
-    @board.parent_id   = @board.user_id || User::DEFAULT_ADMIN_ID
+    @board.parent_id = @board.user_id || User::DEFAULT_ADMIN_ID
 
     if board_params[:slug].present? && board_params[:slug] != @board.slug
       @board.slug = @board.generate_unique_slug(board_params[:slug])
@@ -145,12 +151,12 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
     return if params[:layout].blank?
 
     if params[:layout].is_a?(Array)
-      layout      = params[:layout].map(&:to_unsafe_h)
+      layout = params[:layout].map(&:to_unsafe_h)
       screen_size = params[:screen_size] || "lg"
     else
       layout_param = params[:layout]
-      screen_size  = layout_param[:screen_size] || layout_param["screen_size"] || "lg"
-      layout       = (layout_param[:layout] || layout_param["layout"] || []).map(&:to_unsafe_h)
+      screen_size = layout_param[:screen_size] || layout_param["screen_size"] || "lg"
+      layout = (layout_param[:layout] || layout_param["layout"] || []).map(&:to_unsafe_h)
     end
 
     return if @board.layout[screen_size] == layout
@@ -159,9 +165,9 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
       layout: layout,
       screen_size: screen_size,
       columns: {
-        small_screen_columns:  params[:small_screen_columns],
+        small_screen_columns: params[:small_screen_columns],
         medium_screen_columns: params[:medium_screen_columns],
-        large_screen_columns:  params[:large_screen_columns],
+        large_screen_columns: params[:large_screen_columns],
       },
       margins: { x: params[:xMargin], y: params[:yMargin] },
       settings: params[:settings],

@@ -105,6 +105,50 @@ RSpec.describe "API::Internal::Boards", type: :request do
         })
       end
 
+      describe "screen-column handling on create" do
+        it "applies model defaults when no column params are sent" do
+          post "/api/internal/boards",
+               params: { board: { name: "Defaults" } }.to_json,
+               headers: auth_headers.merge("Content-Type" => "application/json")
+
+          expect(response).to have_http_status(:created)
+          board = Board.last
+          # Board#set_screen_sizes only fills nil; verifying defaults landed
+          # confirms the controller no longer coerces missing params to 0.
+          expect(board.small_screen_columns).to be > 0
+          expect(board.medium_screen_columns).to be > 0
+          expect(board.large_screen_columns).to be > 0
+        end
+
+        it "honors large_screen_columns when provided" do
+          post "/api/internal/boards",
+               params: { board: { name: "Six Wide", large_screen_columns: 6 } }.to_json,
+               headers: auth_headers.merge("Content-Type" => "application/json")
+
+          expect(response).to have_http_status(:created)
+          expect(Board.last.large_screen_columns).to eq(6)
+        end
+
+        it "honors all three column params when provided" do
+          post "/api/internal/boards",
+               params: {
+                 board: {
+                   name: "All Columns",
+                   small_screen_columns: 2,
+                   medium_screen_columns: 4,
+                   large_screen_columns: 6,
+                 },
+               }.to_json,
+               headers: auth_headers.merge("Content-Type" => "application/json")
+
+          expect(response).to have_http_status(:created)
+          board = Board.last
+          expect(board.small_screen_columns).to eq(2)
+          expect(board.medium_screen_columns).to eq(4)
+          expect(board.large_screen_columns).to eq(6)
+        end
+      end
+
       it "enqueues GenerateBoardJob with word_count for other creation_types" do
         expect {
           post "/api/internal/boards",
