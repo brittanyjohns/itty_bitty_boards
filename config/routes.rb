@@ -351,6 +351,7 @@ Rails.application.routes.draw do
           post :generate
         end
       end
+      resources :profiles, only: [:show, :update]
     end
 
     namespace :v1 do
