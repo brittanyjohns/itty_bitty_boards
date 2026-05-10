@@ -58,6 +58,31 @@ RSpec.describe "API::Boards", type: :request do
         created_board = Board.order(:created_at).last
         expect(created_board.user_id).to eq(creator.id)
       end
+
+      describe "screen-column handling on create" do
+        it "applies model defaults when no column params are sent" do
+          post "/api/boards",
+               params: { board: { name: "Defaults" } },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          created_board = Board.order(:created_at).last
+          # Board#set_screen_sizes only fills nil; verifying defaults landed
+          # confirms the controller no longer coerces missing params to 0.
+          expect(created_board.small_screen_columns).to be > 0
+          expect(created_board.medium_screen_columns).to be > 0
+          expect(created_board.large_screen_columns).to be > 0
+        end
+
+        it "honors large_screen_columns when provided" do
+          post "/api/boards",
+               params: { board: { name: "Six Wide", large_screen_columns: 6 } },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          expect(Board.order(:created_at).last.large_screen_columns).to eq(6)
+        end
+      end
     end
   end
 
@@ -75,6 +100,29 @@ RSpec.describe "API::Boards", type: :request do
               params: { board: { name: "Updated Name" } },
               headers: auth_headers(user)
         expect(response).to have_http_status(:ok)
+      end
+
+      it "doesn't zero out screen-column values when the name is the only field changed" do
+        board.update!(small_screen_columns: 3, medium_screen_columns: 4, large_screen_columns: 6)
+
+        patch "/api/boards/#{board.id}",
+              params: { board: { name: "Renamed only" } },
+              headers: auth_headers(user)
+
+        expect(response).to have_http_status(:ok)
+        board.reload
+        expect(board.small_screen_columns).to eq(3)
+        expect(board.medium_screen_columns).to eq(4)
+        expect(board.large_screen_columns).to eq(6)
+      end
+
+      it "honors large_screen_columns when explicitly provided" do
+        patch "/api/boards/#{board.id}",
+              params: { board: { large_screen_columns: 8 } },
+              headers: auth_headers(user)
+
+        expect(response).to have_http_status(:ok)
+        expect(board.reload.large_screen_columns).to eq(8)
       end
     end
 
