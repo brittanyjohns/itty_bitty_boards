@@ -27,9 +27,10 @@ jobs:
     env:
       RAILS_ENV: test
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/itty_bitty_boards_test
-      # Dummy secret so boot doesn't require config/master.key in CI.
+      # Dummy secrets so boot doesn't require config/master.key or real keys
+      # in CI. Initializers that ENV.fetch these will read the dummies.
       SECRET_KEY_BASE: dummy-ci-secret-key-base-not-used-in-prod
-      # Use credentials defaults rather than real keys.
+      DEVISE_JWT_SECRET_KEY: dummy-ci-devise-jwt-secret-key-not-used-in-prod
       RAILS_MASTER_KEY: ""
 
     steps:
