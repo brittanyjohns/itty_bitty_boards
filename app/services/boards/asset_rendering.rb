@@ -28,8 +28,9 @@ module Boards
       Base64.strict_encode64(File.binread(path))
     end
 
-    def board_title_for(board)
-      board.try(:name).presence || "Communication Board"
+    def board_title_for(board, max_length: 50)
+      raw = board.try(:name).presence || "Communication Board"
+      raw.truncate(max_length, omission: "…")
     end
   end
 end

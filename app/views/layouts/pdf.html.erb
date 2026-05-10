@@ -40,7 +40,8 @@
       }
 
       .header-inner {
-        display: flex;
+        display: grid;
+        grid-template-columns: 14mm minmax(0, 1fr) auto;
         align-items: center;
         gap: 8mm;
         width: 100%;
@@ -48,7 +49,6 @@
 
       .logo {
         width: 14mm;
-        flex: 0 0 auto;
         margin-left: 4mm;
       }
 
@@ -64,8 +64,8 @@
         flex-direction: column;
         align-items: flex-start;
         justify-content: center;
-        flex: 1 1 auto;
         min-width: 0;
+        overflow: hidden;
       }
 
       .board-title {
@@ -92,15 +92,14 @@
         color: #666;
         padding: 1mm 0;
         min-width: 0;
+        overflow: hidden;
       }
 
       .board-link a {
         color: #666;
         font-weight: bold;
-      }
-
-      .qr-small {
-        flex: 0 0 auto;
+        word-break: break-all;
+        overflow-wrap: anywhere;
       }
 
       .qr-small img {
