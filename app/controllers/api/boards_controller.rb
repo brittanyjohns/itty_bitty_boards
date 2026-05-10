@@ -308,9 +308,13 @@ class API::BoardsController < API::ApplicationController
     @board.board_type = creation_type
 
     @board.predefined = false
-    @board.small_screen_columns = board_params["small_screen_columns"].to_i
-    @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
-    @board.large_screen_columns = board_params["large_screen_columns"].to_i
+    # Only assign columns when the param is actually present. Blind .to_i
+    # turns a missing param into 0, which suppresses Board#set_screen_sizes
+    # defaults (which only fill in nil) and breaks downstream callers like
+    # GenerateBoardJob's `large_screen_columns || 6` (0 is truthy in Ruby).
+    @board.small_screen_columns  = board_params["small_screen_columns"].to_i  if board_params["small_screen_columns"].present?
+    @board.medium_screen_columns = board_params["medium_screen_columns"].to_i if board_params["medium_screen_columns"].present?
+    @board.large_screen_columns  = board_params["large_screen_columns"].to_i  if board_params["large_screen_columns"].present?
     voice = VoiceService.normalize_voice(board_params["voice"] || params[:voice] || params[:voice_label])
     @board.voice = voice
     @board.language = board_params["language"] if board_params["language"].present?
@@ -361,9 +365,12 @@ class API::BoardsController < API::ApplicationController
       return
     else
       @board.number_of_columns = board_params["number_of_columns"].to_i
-      @board.small_screen_columns = board_params["small_screen_columns"].to_i
-      @board.medium_screen_columns = board_params["medium_screen_columns"].to_i
-      @board.large_screen_columns = board_params["large_screen_columns"].to_i
+      # Same guard as create: only assign columns when the param is actually
+      # present so an omitted value doesn't silently overwrite saved columns
+      # with 0.
+      @board.small_screen_columns  = board_params["small_screen_columns"].to_i  if board_params["small_screen_columns"].present?
+      @board.medium_screen_columns = board_params["medium_screen_columns"].to_i if board_params["medium_screen_columns"].present?
+      @board.large_screen_columns  = board_params["large_screen_columns"].to_i  if board_params["large_screen_columns"].present?
       voice = VoiceService.normalize_voice(board_params["voice"] || params[:voice] || params[:voice_label])
       @board.voice = voice
       @board.name = board_params["name"] unless board_params["name"].blank?

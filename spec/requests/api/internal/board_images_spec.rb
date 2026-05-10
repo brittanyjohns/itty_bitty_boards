@@ -62,5 +62,16 @@ RSpec.describe "API::Internal::BoardImages", type: :request do
       expect(response).to have_http_status(:created)
       expect(board.board_images.last.position).to eq(7)
     end
+
+    it "honors an explicit display_label" do
+      image = create(:image, label: "thank you", user_id: admin_user.id)
+
+      post "/api/internal/boards/#{board.id}/board_images",
+           params: { image_id: image.id, display_label: "🙏" }.to_json,
+           headers: auth_headers
+
+      expect(response).to have_http_status(:created)
+      expect(board.board_images.last.display_label).to eq("🙏")
+    end
   end
 end

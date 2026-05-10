@@ -31,9 +31,10 @@ class API::Internal::BoardImagesController < API::Internal::ApplicationControlle
 
   def apply_optional_attributes!(board_image)
     updates = {}
-    updates[:position] = params[:position].to_i if params[:position].present?
-    updates[:voice]    = VoiceService.normalize_voice(params[:voice]) if params[:voice].present?
-    updates[:language] = params[:language] if params[:language].present?
+    updates[:position]      = params[:position].to_i if params[:position].present?
+    updates[:voice]         = VoiceService.normalize_voice(params[:voice]) if params[:voice].present?
+    updates[:language]      = params[:language] if params[:language].present?
+    updates[:display_label] = params[:display_label].to_s.strip if params[:display_label].present?
     board_image.update(updates) if updates.any?
   end
 end
