@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  rspec:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: itty_bitty_boards_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/itty_bitty_boards_test
+      # Dummy secret so boot doesn't require config/master.key in CI.
+      SECRET_KEY_BASE: dummy-ci-secret-key-base-not-used-in-prod
+      # Use credentials defaults rather than real keys.
+      RAILS_MASTER_KEY: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.3.0
+          bundler-cache: true
+
+      - name: Prepare test database
+        run: bin/rails db:schema:load
+
+      - name: RSpec
+        run: bundle exec rspec
