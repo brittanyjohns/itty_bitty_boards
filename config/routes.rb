@@ -339,7 +339,11 @@ Rails.application.routes.draw do
         member do
           get :export, action: :export_pdf, defaults: { format: :pdf }
         end
-        resources :board_images, only: [:create]
+        resources :board_images, only: [:create] do
+          collection do
+            post :bulk
+          end
+        end
       end
       resources :generated_boards, only: [:create]
       resources :images, only: [:create, :show] do
