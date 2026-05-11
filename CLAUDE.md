@@ -76,7 +76,7 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - Prefer FactoryBot.build over create where possible
 - Add focused tests for changed behavior
 - Avoid destructive S3/ActiveStorage behavior in tests
-- Add tests if missing for new features or bug fixes, but do not add tests for existing code unless explicitly asked
+- New features and bug fixes always get tests (per `~/.claude/CLAUDE.md`). Don't backfill tests for *existing* code unless asked.
 
 ## Testing Conventions
 
