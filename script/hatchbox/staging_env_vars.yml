@@ -31,12 +31,16 @@ vars:
   - PAY_WEBHOOK_URL            # https://ypk9e.hatchboxapp.com/pay/webhooks/stripe
 
   # ---- AWS / Active Storage ----
+  # Staging uses local disk storage (ACTIVE_STORAGE_SERVICE=local). The AWS
+  # creds remain set for sidekiq/polly/etc., and AWS_BUCKET is preserved in
+  # case we switch back to S3. CDN_HOST is intentionally absent — was removed
+  # from this manifest so the sync no longer pushes it. Delete it manually
+  # from Hatchbox if it's still there.
   - AWS_ACCESS_KEY_ID
   - AWS_SECRET_ACCESS_KEY
-  - CDN_HOST                   # https://itty-bitty-boards-staging.s3.amazonaws.com
   - AWS_REGION
-  - AWS_BUCKET                 # itty-bitty-boards-staging
-  - ACTIVE_STORAGE_SERVICE     # amazon
+  - AWS_BUCKET                 # itty-bitty-boards-staging (unused with local svc)
+  - ACTIVE_STORAGE_SERVICE     # local
 
   # ---- Stripe (test mode) ----
   - STRIPE_PRIVATE_KEY
