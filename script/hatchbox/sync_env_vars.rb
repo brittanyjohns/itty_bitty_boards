@@ -26,14 +26,22 @@ app_id     = ENV.fetch("HATCHBOX_STAGING_APP_ID")
 manifest_path = File.expand_path("staging_env_vars.yml", __dir__)
 manifest      = YAML.load_file(manifest_path)
 names         = manifest.fetch("vars")
+optional      = Array(manifest["optional"])
 
-missing = names.select { |n| ENV[n].nil? || ENV[n].empty? }
+missing = names.select { |n| (ENV[n].nil? || ENV[n].empty?) && !optional.include?(n) }
 unless missing.empty?
   abort "Missing required env vars (set via GitHub secrets and wire up in " \
         "staging-sync-env.yml):\n  #{missing.join("\n  ")}"
 end
 
-env_vars = names.map { |name| { name: name, value: ENV.fetch(name) } }
+env_vars = names.filter_map do |name|
+  value = ENV[name]
+  next nil if (value.nil? || value.empty?) && optional.include?(name)
+  { name: name, value: value }
+end
+
+skipped = names - env_vars.map { |e| e[:name] }
+puts "Skipping optional vars with no value: #{skipped.join(", ")}" unless skipped.empty?
 
 uri = URI("https://app.hatchbox.io/api/v1/accounts/#{account_id}/apps/#{app_id}/env_vars")
 req = Net::HTTP::Put.new(

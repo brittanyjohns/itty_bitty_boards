@@ -14,7 +14,7 @@
 vars:
   # ---- Core Rails ----
   - STAGING                    # literal "true"
-  - RAILS_MASTER_KEY           # reuse prod (decrypts credentials.yml.enc)
+  - RAILS_MASTER_KEY           # optional; only needed for credentials.yml.enc features (e.g. GitHub Printables)
   - SECRET_KEY_BASE
   - DEVISE_JWT_SECRET_KEY
   - INTERNAL_API_KEY
@@ -96,3 +96,8 @@ vars:
   - PRO_PAID_COMMUNICATOR_LIMIT
   - PRO_DEMO_COMMUNICATOR_LIMIT
   - PRO_AI_MONTHLY_LIMIT
+
+# Vars in `vars` that may be left empty — the sync script will skip them
+# rather than abort. Add a name here if it's truly optional for staging.
+optional:
+  - RAILS_MASTER_KEY
