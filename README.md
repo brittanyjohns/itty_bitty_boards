@@ -22,6 +22,10 @@
   - `STRIPE_PUBLIC_KEY` - Stripe Public Key
   - `STRIPE_PRIVATE_KEY` - Stripe Private Key
   - `STRIPE_SIGNING_SECRET` - Stripe Signing Secret
+  - `STRIPE_WEBHOOK_SECRET` - Stripe Webhook signing secret (separate from STRIPE_SIGNING_SECRET; used by `/api/webhooks`)
+  - `STRIPE_PRICE_TOPUP_SMALL` - Stripe Price ID for the small credit pack (100 credits)
+  - `STRIPE_PRICE_TOPUP_MEDIUM` - Stripe Price ID for the medium credit pack (500 credits)
+  - `STRIPE_PRICE_TOPUP_LARGE` - Stripe Price ID for the large credit pack (1500 credits)
   - `CDN_HOST` - CDN Host (optional)
   - `DEVISE_JWT_SECRET_KEY` - Devise JWT Secret Key
   - `DOMAIN` - Domain
@@ -107,6 +111,57 @@ Subscription based service
 - Free trial available
 - Monthly or yearly subscription options
 - Cancel anytime
+
+## AI credits
+
+AI features (image generation, scenario builder, menu builder, screenshot
+imports, image edits/variations, word suggestions, board formatting) are gated
+by an **AI credit** balance, not a flat monthly action cap. Each feature
+charges a weighted number of credits — see `CreditService::FEATURE_COSTS` in
+[`app/services/credit_service.rb`](app/services/credit_service.rb).
+
+Two balances per user:
+
+- **Plan credits** — granted at each billing-period renewal; expire at
+  period end and do not roll over.
+- **Top-up credits** — purchased ad hoc via Stripe Checkout; do not expire.
+
+When a user runs out, AI endpoints return `402 insufficient_credits` with the
+needed/balance numbers — the frontend uses that to surface a "Buy more
+credits" CTA. `429 limit_reached` is reserved for true rate limiting.
+
+### Stripe setup
+
+Each subscription Price in Stripe must have metadata:
+
+- `plan_type`: one of `free`, `myspeak`, `basic`, `pro`, `partner_pro`
+- `monthly_credits`: integer; overrides `CreditService::PLAN_MONTHLY_CREDITS`
+  defaults
+
+Each top-up Price must have metadata:
+
+- `kind: "topup"`
+- `credit_amount`: integer
+
+See `docs/stripe-setup.md` for the full dashboard checklist.
+
+### API surface
+
+- `GET /api/me/credits` — `{ plan, topup, total, reset_at, plan_type }`
+- `GET /api/me/credit_transactions` — paginated ledger
+- `POST /api/stripe/checkout_sessions/topup` — creates a one-time Stripe
+  Checkout Session for a credit pack. Body: `{ pack_key: "small"|"medium"|"large", quantity: 1 }`.
+  On payment success, the webhook adds credits to `topup_credits_balance`
+  (idempotent on Stripe event id).
+
+### Status
+
+**Phase 3 enforcement is live.** `CreditService.spend!` is the source of
+truth for AI gating; AI endpoints return `402 insufficient_credits` (with
+`needed` / `balance` / `topup_url`) when a call would overdraw. Admins
+bypass the check. `MonthlyFeatureLimiter` (the Redis counter) is no
+longer in the AI hot path — it remains in the codebase as a generic
+helper for non-AI rate limiting.
 
 ## SpeakAnyWay-Specific Terms:
 
