@@ -23,7 +23,7 @@ class API::ScenariosController < API::ApplicationController
 
   # POST /scenarios or /scenarios.json
   def create
-    return unless check_monthly_limit(feature_key: "ai_action", feature_name: "AI Scenario Creation")
+    return unless check_credits!(feature_key: "scenario_create", feature_name: "AI Scenario Creation")
     @scenario = current_user.scenarios.new(scenario_params)
     @scenario.token_limit = scenario_params[:token_limit] || 10
     # Temporarily set send_now to true

@@ -154,12 +154,14 @@ See `docs/stripe-setup.md` for the full dashboard checklist.
   On payment success, the webhook adds credits to `topup_credits_balance`
   (idempotent on Stripe event id).
 
-### Phase 1 status
+### Status
 
-The ledger + service is live in **shadow mode**: every Redis-limiter call
-also runs `CreditService.shadow_spend` and logs divergences. The Redis
-limiter is still the source of truth for blocking. Phase 3 will switch
-enforcement to credits.
+**Phase 3 enforcement is live.** `CreditService.spend!` is the source of
+truth for AI gating; AI endpoints return `402 insufficient_credits` (with
+`needed` / `balance` / `topup_url`) when a call would overdraw. Admins
+bypass the check. `MonthlyFeatureLimiter` (the Redis counter) is no
+longer in the AI hot path — it remains in the codebase as a generic
+helper for non-AI rate limiting.
 
 ## SpeakAnyWay-Specific Terms:
 

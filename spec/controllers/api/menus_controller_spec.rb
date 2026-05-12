@@ -37,6 +37,8 @@ RSpec.describe API::MenusController, type: :controller do
     # end
   end
   describe "POST #create" do
+    before { CreditService.grant_plan!(user, amount: 100, period_end: 30.days.from_now) }
+
     it "creates a new menu" do
       post :create, params: { menu: { name: "New Menu", description: "Test Description" } }, as: :json
       expect(response).to have_http_status(:created)

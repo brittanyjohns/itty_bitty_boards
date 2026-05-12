@@ -1,7 +1,7 @@
 # SpeakAnyWay AI Credits — UI + Marketing Handoff
 
 **Audience:** Design, Frontend, Marketing
-**Status:** Phase 1 (backend ledger) shipped; UI work begins Phase 2
+**Status:** Phase 1 (ledger), Phase 2 (top-up backend), and Phase 3 (enforcement) shipped. Frontend "Buy credits" UI and the `402 insufficient_credits` upsell modal are the next blocking pieces.
 **Owner:** Brittany Johns
 
 ---
@@ -178,7 +178,7 @@ listed there.
 |---|---|---|
 | **1** ✅ | Backend ledger, service, shadow mode telemetry | No |
 | **2** ✅ backend | Top-up Checkout endpoint + webhook handler. Frontend "Buy credits" UI still needed. | Yes (additive) once UI lands |
-| **3** | Switch AI gating from Redis counter → credits. `402` responses. | Yes — change of behavior |
+| **3** ✅ | AI gating switched from Redis counter → credit balance. AI endpoints now return `402 insufficient_credits` when balance is too low. | **Yes — user-visible** the first time a user hits zero credits. Surface the upsell modal! |
 | **4** | Plan grants on invoice renewal webhook | No (internal) |
 | **5** | Optional: Stripe metered overage | Decision pending |
 

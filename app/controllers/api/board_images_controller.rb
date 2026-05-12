@@ -198,7 +198,7 @@ class API::BoardImagesController < API::ApplicationController
       return
     end
     begin
-      return unless check_monthly_limit(feature_key: "ai_action", feature_name: "AI Image Edits")
+      return unless check_credits!(feature_key: "image_edit", feature_name: "AI Image Edits")
       prompt = params[:prompt] || ""
       transparent_background = params[:transparent_background] == "true"
       EditBoardImageJob.perform_async(@board_image.id, prompt, transparent_background)
@@ -222,7 +222,7 @@ class API::BoardImagesController < API::ApplicationController
       render json: { error: "Board image not found" }, status: :unprocessable_entity
       return
     end
-    return unless check_monthly_limit(feature_key: "ai_action", feature_name: "AI Image Variations")
+    return unless check_credits!(feature_key: "image_variation", feature_name: "AI Image Variations")
 
     @image_variation = @board_image.create_image_variation!
 

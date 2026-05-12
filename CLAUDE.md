@@ -75,14 +75,15 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - Entry point: `CreditService.spend!(user, feature_key:, amount: nil)` raises
   `CreditService::InsufficientCredits` when out of credits. Per-feature costs
   live in `CreditService::FEATURE_COSTS`.
-- API endpoints will surface insufficient credits as **HTTP 402** with
-  `{ error: "insufficient_credits", needed:, balance: }` once Phase 3 ships.
-  Reserve **429** for true rate limiting, not credit exhaustion.
-- `MonthlyFeatureLimiter` (Redis monthly counter) **still gates AI in
-  Phase 1** (shadow mode). The `CreditService` runs alongside and logs
-  divergences; do not rely on credits for blocking until Phase 3.
-- For non-AI features (rate limiting per IP, etc.) keep using the Redis
-  limiter — credits are only for AI features.
+- AI controllers gate via `check_credits!(feature_key:, feature_name:)` in
+  `API::ApplicationController`. On insufficient balance it renders **HTTP 402**
+  with `{ error: "insufficient_credits", feature, needed, balance, plan_credits,
+  topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
+- Reserve **HTTP 429** for true rate limiting (rapid-fire abuse), not credit
+  exhaustion.
+- `MonthlyFeatureLimiter` is no longer in the AI hot path. It remains in the
+  codebase as a generic Redis-counter helper for any future non-AI rate
+  limits, but no controller currently calls it.
 
 Tasks:
 

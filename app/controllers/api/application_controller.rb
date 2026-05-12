@@ -38,7 +38,47 @@ module API
       end
     end
 
-    def check_monthly_limit(feature_key: nil, feature_name: nil, credit_feature_key: nil)
+    # Credit gating for AI features. Spends `amount` (or the weighted default
+    # for the feature) and renders 402 + a structured error body when the
+    # balance is too low. Admins bypass the check entirely.
+    #
+    # Returns true when the request should continue, false (and renders) when
+    # the caller must `return` before doing the AI work.
+    def check_credits!(feature_key:, feature_name: nil, amount: nil)
+      unless current_user
+        Rails.logger.warn "Credit check missing user. feature_key=#{feature_key}"
+        return true
+      end
+      return true if current_user.admin?
+
+      amount ||= CreditService.cost_for(feature_key)
+      CreditService.spend!(
+        current_user,
+        feature_key: feature_key,
+        amount: amount,
+        metadata: { path: request.path },
+      )
+      true
+    rescue CreditService::InsufficientCredits => e
+      balance = CreditService.balance(current_user)
+      render json: {
+        error: "insufficient_credits",
+        message: "You don't have enough AI credits for #{feature_name || feature_key.to_s.titleize}. Buy more credits or upgrade your plan.",
+        feature: feature_key.to_s,
+        needed: e.needed,
+        balance: balance[:total],
+        plan_credits: balance[:plan],
+        topup_credits: balance[:topup],
+        reset_at: balance[:reset_at]&.iso8601,
+        topup_url: "/account/billing/topup",
+      }, status: 402
+      false
+    end
+
+    # Legacy Redis-counter check. AI features now use `check_credits!` —
+    # this remains available for non-AI rate limits (currently none in this
+    # app, but kept so the helper doesn't have to be re-introduced later).
+    def check_monthly_limit(feature_key: nil, feature_name: nil)
       unless current_user && feature_key
         Rails.logger.warn "Monthly limit check missing user or feature_key. user_id=#{current_user&.id} feature_key=#{feature_key}"
         return true
@@ -50,32 +90,12 @@ module API
         tz: current_user.timezone || "America/New_York",
       )
       allowed, meta = limiter.increment_and_check!
-
-      # Shadow-mode credit accounting: try to spend weighted credits but never block
-      # on the result. Failures are logged for Phase 1 telemetry; the Redis limiter
-      # remains the source of truth until enforcement is switched on.
-      shadow_credit_spend(credit_feature_key || feature_key, redis_allowed: allowed)
-
       error_message = "Monthly limit reached for #{feature_name || feature_key.titleize}. Please upgrade your plan or wait until next month."
       unless allowed
         render json: { error: "limit_reached", message: error_message, **meta }, status: 429
         return false
       end
       true
-    end
-
-    def shadow_credit_spend(feature_key, redis_allowed:)
-      return unless current_user
-      credit_allowed = CreditService.shadow_spend(
-        current_user,
-        feature_key: feature_key,
-        metadata: { shadow: true, redis_allowed: redis_allowed, path: request.path },
-      )
-      if credit_allowed != redis_allowed
-        Rails.logger.info "[CreditService][shadow][divergence] user=#{current_user.id} feature=#{feature_key} redis_allowed=#{redis_allowed} credit_allowed=#{credit_allowed}"
-      end
-    rescue => e
-      Rails.logger.error "[CreditService][shadow] unexpected error: #{e.class} #{e.message}"
     end
 
     def preset_colors
