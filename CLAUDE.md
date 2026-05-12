@@ -27,7 +27,7 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - **Serializers:** jsonapi-serializer gem
 - **Hosting:** Hatchbox / EC2
   - Production: `main` branch → `speakanyway.com` (Hatchbox app `670kd.hatchboxapp.com`)
-  - Staging: `staging` branch → `https://ypk9e.hatchboxapp.com`. Deployed by labeling a PR `deploy-to-staging` (see `.github/workflows/staging-deploy.yml`). Staging-specific behavior is gated on `ENV["STAGING"] == "true"` — both envs run with `RAILS_ENV=production`.
+  - Staging: `staging` branch → `https://ypk9e.hatchboxapp.com`. Automatically mirrors `main` — every push to `main` fast-forwards `staging` and triggers a Hatchbox staging deploy (see `.github/workflows/staging-deploy.yml`). To redeploy a specific SHA, run the workflow via `workflow_dispatch`. Staging-specific behavior is gated on `ENV["STAGING"] == "true"` — both envs run with `RAILS_ENV=production`.
 
 ## Frontend
 
