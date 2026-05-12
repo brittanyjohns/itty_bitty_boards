@@ -15,6 +15,20 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     "partner_pro" => ENV.fetch("STRIPE_PRICE_PARTNER_PRO", nil),
   }.freeze
 
+  TOPUP_PRICE_IDS = {
+    "small" => ENV.fetch("STRIPE_PRICE_TOPUP_SMALL", nil),
+    "medium" => ENV.fetch("STRIPE_PRICE_TOPUP_MEDIUM", nil),
+    "large" => ENV.fetch("STRIPE_PRICE_TOPUP_LARGE", nil),
+  }.freeze
+
+  # Fallback if a Stripe Price lacks `metadata.credit_amount`. Keep in sync
+  # with docs/credits-handoff.md and docs/stripe-setup.md.
+  TOPUP_CREDIT_AMOUNTS = {
+    "small" => 100,
+    "medium" => 500,
+    "large" => 1500,
+  }.freeze
+
   def create
     plan_key = params[:plan_key].to_s
     price_id = PLAN_PRICE_IDS[plan_key]
@@ -85,6 +99,50 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
   rescue StandardError => e
     Rails.logger.error "Error creating checkout session: #{e.class} - #{e.message}"
     render json: { error: "Failed to create checkout session" }, status: :bad_request
+  end
+
+  # POST /api/stripe/checkout_sessions/topup
+  # Body: { pack_key: "small"|"medium"|"large", quantity: 1 }
+  # Creates a one-time payment Checkout Session for a credit pack.
+  # On payment success the Stripe webhook (checkout.session.completed with
+  # metadata.kind=topup) calls CreditService.grant_topup! — see
+  # API::WebhooksController.
+  def topup
+    pack_key = params[:pack_key].to_s
+    price_id = TOPUP_PRICE_IDS[pack_key]
+    quantity = [params[:quantity].to_i, 1].max
+
+    if price_id.blank?
+      render json: { error: "Unknown or unconfigured pack_key" }, status: :bad_request
+      return
+    end
+
+    ensure_customer!
+
+    credit_amount = TOPUP_CREDIT_AMOUNTS[pack_key].to_i
+
+    session = Stripe::Checkout::Session.create(
+      mode: "payment",
+      customer: current_user.stripe_customer_id,
+      line_items: [{ price: price_id, quantity: quantity }],
+      success_url: "#{frontend_base_url}/account/billing/topup/success?session_id={CHECKOUT_SESSION_ID}",
+      cancel_url: "#{frontend_base_url}/account/billing",
+      payment_method_collection: "always",
+      allow_promotion_codes: true,
+      metadata: {
+        kind: "topup",
+        user_id: current_user.id,
+        pack_key: pack_key,
+        credit_amount: credit_amount * quantity,
+      },
+    )
+    render json: { url: session.url }
+  rescue Stripe::StripeError => e
+    Rails.logger.error "[Topup] Stripe error creating topup session: #{e.class} - #{e.message}"
+    render json: { error: "Failed to create top-up session" }, status: :bad_request
+  rescue StandardError => e
+    Rails.logger.error "[Topup] Unexpected error creating topup session: #{e.class} - #{e.message}"
+    render json: { error: "Failed to create top-up session" }, status: :bad_request
   end
 
   def update_user_from_session
