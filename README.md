@@ -149,8 +149,10 @@ See `docs/stripe-setup.md` for the full dashboard checklist.
 
 - `GET /api/me/credits` — `{ plan, topup, total, reset_at, plan_type }`
 - `GET /api/me/credit_transactions` — paginated ledger
-- `POST /api/stripe/checkout_sessions/topup` *(coming in Phase 2)* — creates a
-  one-time Checkout Session for a credit pack
+- `POST /api/stripe/checkout_sessions/topup` — creates a one-time Stripe
+  Checkout Session for a credit pack. Body: `{ pack_key: "small"|"medium"|"large", quantity: 1 }`.
+  On payment success, the webhook adds credits to `topup_credits_balance`
+  (idempotent on Stripe event id).
 
 ### Phase 1 status
 

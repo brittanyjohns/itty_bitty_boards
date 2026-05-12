@@ -28,10 +28,16 @@ class API::WebhooksController < API::ApplicationController
     when "customer.created"
       handle_customer_created(event.data.object)
     when "checkout.session.completed"
-      user = handle_checkout_completed(event.data.object)
-      unless user
-        Rails.logger.error "[StripeWebhook] checkout.session.completed: no user found for session #{event.data.object.id}"
-        result = { error: "no_user_found" }
+      session_obj = event.data.object
+      if (session_obj.metadata || {})["kind"] == "topup"
+        handled = handle_topup_completed(session_obj, event.id)
+        result = { error: "topup_not_credited" } unless handled
+      else
+        user = handle_checkout_completed(session_obj)
+        unless user
+          Rails.logger.error "[StripeWebhook] checkout.session.completed: no user found for session #{session_obj.id}"
+          result = { error: "no_user_found" }
+        end
       end
     when "customer.subscription.created", "customer.subscription.updated"
       handle_subscription_upsert(event.data.object, event.type == "customer.subscription.created")
@@ -71,6 +77,68 @@ class API::WebhooksController < API::ApplicationController
     Rails.logger.info "[StripeWebhook] customer.created: customer #{customer.id} created"
   rescue => e
     Rails.logger.error "[StripeWebhook] handle_customer_created error: #{e.class} - #{e.message}"
+  end
+
+  # checkout.session.completed where metadata.kind == "topup".
+  # Idempotent on the Stripe event id (unique index on credit_transactions).
+  # Returns truthy when credits were granted (or already had been on a retry).
+  def handle_topup_completed(session, event_id)
+    metadata = session.metadata || {}
+
+    user = User.find_by(id: metadata["user_id"]) if metadata["user_id"].present?
+    user ||= User.find_by(stripe_customer_id: session.customer) if session.customer.present?
+    user ||= User.find_by(email: session.customer_details&.email) if session.customer_details&.email.present?
+
+    unless user
+      Rails.logger.error "[StripeWebhook][topup] no user for session #{session.id}"
+      return false
+    end
+
+    credit_amount = metadata["credit_amount"].to_i
+    if credit_amount <= 0
+      credit_amount = derive_credit_amount_from_session(session)
+    end
+
+    if credit_amount <= 0
+      Rails.logger.error "[StripeWebhook][topup] no credit_amount derivable for session #{session.id}"
+      return false
+    end
+
+    price_id = session.try(:line_items)&.data&.first&.price&.id
+
+    CreditService.grant_topup!(
+      user,
+      amount: credit_amount,
+      stripe_event_id: event_id,
+      stripe_price_id: price_id,
+      metadata: {
+        checkout_session_id: session.id,
+        pack_key: metadata["pack_key"],
+        amount_total: session.amount_total,
+        currency: session.currency,
+      },
+    )
+    Rails.logger.info "[StripeWebhook][topup] credited user=#{user.id} amount=#{credit_amount} session=#{session.id}"
+    true
+  rescue => e
+    Rails.logger.error "[StripeWebhook][topup] error: #{e.class} - #{e.message}"
+    false
+  end
+
+  # Last-resort lookup: read the line item Price's metadata.credit_amount.
+  # Stripe's checkout.session.completed event does not include line_items by
+  # default; we retrieve them with an expand.
+  def derive_credit_amount_from_session(session)
+    expanded = Stripe::Checkout::Session.retrieve(id: session.id, expand: ["line_items.data.price"])
+    line_item = expanded.line_items&.data&.first
+    return 0 unless line_item
+
+    per_unit = line_item.price&.metadata&.[]("credit_amount").to_i
+    quantity = line_item.quantity.to_i
+    per_unit * (quantity.positive? ? quantity : 1)
+  rescue => e
+    Rails.logger.error "[StripeWebhook][topup] derive_credit_amount error: #{e.class} - #{e.message}"
+    0
   end
 
   # Expect: you pass metadata[user_id] when creating the Checkout Session.

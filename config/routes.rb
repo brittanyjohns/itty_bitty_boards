@@ -73,7 +73,11 @@ Rails.application.routes.draw do
   #  API routes
   namespace :api, defaults: { format: :json } do
     namespace :stripe do
-      resources :checkout_sessions, only: :create
+      resources :checkout_sessions, only: :create do
+        collection do
+          post "topup"
+        end
+      end
       post "update_user_from_session", to: "checkout_sessions#update_user_from_session"
     end
     namespace :profiles do

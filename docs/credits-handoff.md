@@ -177,7 +177,7 @@ listed there.
 | Phase | What ships | User-visible? |
 |---|---|---|
 | **1** ✅ | Backend ledger, service, shadow mode telemetry | No |
-| **2** | Top-up Checkout flow + `/api/me/credits` UI | Yes (additive) |
+| **2** ✅ backend | Top-up Checkout endpoint + webhook handler. Frontend "Buy credits" UI still needed. | Yes (additive) once UI lands |
 | **3** | Switch AI gating from Redis counter → credits. `402` responses. | Yes — change of behavior |
 | **4** | Plan grants on invoice renewal webhook | No (internal) |
 | **5** | Optional: Stripe metered overage | Decision pending |
