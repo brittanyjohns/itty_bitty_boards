@@ -26,6 +26,8 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - **AI:** OpenAI API (`ruby-openai`) — board generation, scenario builder, image generation
 - **Serializers:** jsonapi-serializer gem
 - **Hosting:** Hatchbox / EC2
+  - Production: `main` branch → `speakanyway.com` (Hatchbox app `670kd.hatchboxapp.com`)
+  - Staging: `staging` branch → `https://ypk9e.hatchboxapp.com`. Deployed by labeling a PR `deploy-to-staging` (see `.github/workflows/staging-deploy.yml`). Staging-specific behavior is gated on `ENV["STAGING"] == "true"` — both envs run with `RAILS_ENV=production`.
 
 ## Frontend
 

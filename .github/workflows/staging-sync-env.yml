@@ -1,0 +1,110 @@
+name: Sync staging env vars to Hatchbox
+
+# Manually triggered. Pushes every staging env var (sourced from GitHub
+# Actions secrets) to the Hatchbox staging app's env-vars panel via API.
+# Run this whenever a staging secret changes.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.3.0
+
+      - name: Push env vars to Hatchbox
+        env:
+          HATCHBOX_API_TOKEN:      ${{ secrets.HATCHBOX_API_TOKEN }}
+          HATCHBOX_ACCOUNT_ID:     ${{ secrets.HATCHBOX_ACCOUNT_ID }}
+          HATCHBOX_STAGING_APP_ID: ${{ secrets.HATCHBOX_STAGING_APP_ID }}
+
+          # ---- Literals (staging-specific or shared with prod) ----
+          STAGING: "true"
+          API_URL: https://ypk9e.hatchboxapp.com
+          DOMAIN: https://ypk9e.hatchboxapp.com
+          FRONT_END_URL: https://ypk9e.hatchboxapp.com
+          WEBHOOK_URL: https://ypk9e.hatchboxapp.com/api/webhooks
+          PAY_WEBHOOK_URL: https://ypk9e.hatchboxapp.com/pay/webhooks/stripe
+          AWS_BUCKET: itty-bitty-boards-staging
+          ACTIVE_STORAGE_SERVICE: amazon
+
+          # ---- Core Rails ----
+          RAILS_MASTER_KEY:                 ${{ secrets.STAGING_RAILS_MASTER_KEY }}
+          SECRET_KEY_BASE:                  ${{ secrets.STAGING_SECRET_KEY_BASE }}
+          DEVISE_JWT_SECRET_KEY:            ${{ secrets.STAGING_DEVISE_JWT_SECRET_KEY }}
+          INTERNAL_API_KEY:                 ${{ secrets.STAGING_INTERNAL_API_KEY }}
+          DB_POOL:                          ${{ secrets.STAGING_DB_POOL }}
+          DB_TIMEOUT:                       ${{ secrets.STAGING_DB_TIMEOUT }}
+          RAILS_MAX_THREADS:                ${{ secrets.STAGING_RAILS_MAX_THREADS }}
+          WEB_CONCURRENCY:                  ${{ secrets.STAGING_WEB_CONCURRENCY }}
+
+          # ---- AWS ----
+          AWS_ACCESS_KEY_ID:                ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY:            ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION:                       ${{ secrets.STAGING_AWS_REGION }}
+
+          # ---- Stripe (test mode) ----
+          STRIPE_PRIVATE_KEY:               ${{ secrets.STAGING_STRIPE_PRIVATE_KEY }}
+          STRIPE_PUBLIC_KEY:                ${{ secrets.STAGING_STRIPE_PUBLIC_KEY }}
+          STRIPE_WEBHOOK_SECRET:            ${{ secrets.STAGING_STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PAYMENT_METHOD_COLLECTION: ${{ secrets.STAGING_STRIPE_PAYMENT_METHOD_COLLECTION }}
+          STRIPE_FREE_PLAN_ID:              ${{ secrets.STAGING_STRIPE_FREE_PLAN_ID }}
+          STRIPE_PRICE_MYSPEAK:             ${{ secrets.STAGING_STRIPE_PRICE_MYSPEAK }}
+          STRIPE_PRICE_MYSPEAK_YEAR:        ${{ secrets.STAGING_STRIPE_PRICE_MYSPEAK_YEAR }}
+          STRIPE_PRICE_BASIC:               ${{ secrets.STAGING_STRIPE_PRICE_BASIC }}
+          STRIPE_PRICE_BASIC_YEAR:          ${{ secrets.STAGING_STRIPE_PRICE_BASIC_YEAR }}
+          STRIPE_PRICE_PRO:                 ${{ secrets.STAGING_STRIPE_PRICE_PRO }}
+          STRIPE_PRICE_PRO_YEAR:            ${{ secrets.STAGING_STRIPE_PRICE_PRO_YEAR }}
+          STRIPE_PRICE_PARTNER_PRO:         ${{ secrets.STAGING_STRIPE_PRICE_PARTNER_PRO }}
+          ONE_DOLLAR_PRICE_ID:              ${{ secrets.STAGING_ONE_DOLLAR_PRICE_ID }}
+          PRO_PLAN_URL:                     ${{ secrets.STAGING_PRO_PLAN_URL }}
+
+          # ---- OpenAI ----
+          OPENAI_ACCESS_TOKEN:              ${{ secrets.STAGING_OPENAI_ACCESS_TOKEN }}
+          OPENAI_IMAGE_MODEL:               ${{ secrets.STAGING_OPENAI_IMAGE_MODEL }}
+          OPENAI_IMAGE_MODEL_STYLE:         ${{ secrets.STAGING_OPENAI_IMAGE_MODEL_STYLE }}
+          OPENAI_EDIT_IMAGE_MODEL:          ${{ secrets.STAGING_OPENAI_EDIT_IMAGE_MODEL }}
+          OPENAI_GTP_MODEL:                 ${{ secrets.STAGING_OPENAI_GTP_MODEL }}
+          OPENAI_QUICK_GTP_MODEL:           ${{ secrets.STAGING_OPENAI_QUICK_GTP_MODEL }}
+          BOARD_SCREENSHOT_VISION_MODEL:    ${{ secrets.STAGING_BOARD_SCREENSHOT_VISION_MODEL }}
+          IMPORT_MAX_IMAGE_PX:              ${{ secrets.STAGING_IMPORT_MAX_IMAGE_PX }}
+
+          # ---- Third-party APIs ----
+          OPEN_SYMBOL_ACCESS_TOKEN:         ${{ secrets.STAGING_OPEN_SYMBOL_ACCESS_TOKEN }}
+          GOOGLE_CUSTOM_SEARCH_API_KEY:     ${{ secrets.STAGING_GOOGLE_CUSTOM_SEARCH_API_KEY }}
+          GOOGLE_CUSTOM_SEARCH_CX:          ${{ secrets.STAGING_GOOGLE_CUSTOM_SEARCH_CX }}
+          SERP_PRIVATE_API_KEY:             ${{ secrets.STAGING_SERP_PRIVATE_API_KEY }}
+
+          # ---- Mailchimp ----
+          MAILCHIMP_API_KEY:                ${{ secrets.STAGING_MAILCHIMP_API_KEY }}
+          MAILCHIMP_SERVER_PREFIX:          ${{ secrets.STAGING_MAILCHIMP_SERVER_PREFIX }}
+          MAILCHIMP_AUDIENCE_ID:            ${{ secrets.STAGING_MAILCHIMP_AUDIENCE_ID }}
+
+          # ---- SMTP (Gmail relay) ----
+          SMTP_USERNAME:                    ${{ secrets.STAGING_SMTP_USERNAME }}
+          SMTP_PASSWORD:                    ${{ secrets.STAGING_SMTP_PASSWORD }}
+
+          # ---- Plan limits ----
+          PREDICTIVE_DEFAULT_ID:            ${{ secrets.STAGING_PREDICTIVE_DEFAULT_ID }}
+          FREE_BOARD_LIMIT:                 ${{ secrets.STAGING_FREE_BOARD_LIMIT }}
+          FREE_PAID_COMMUNICATOR_LIMIT:     ${{ secrets.STAGING_FREE_PAID_COMMUNICATOR_LIMIT }}
+          FREE_DEMO_COMMUNICATOR_LIMIT:     ${{ secrets.STAGING_FREE_DEMO_COMMUNICATOR_LIMIT }}
+          FREE_AI_MONTHLY_LIMIT:            ${{ secrets.STAGING_FREE_AI_MONTHLY_LIMIT }}
+          MYSPEAK_BOARD_LIMIT:              ${{ secrets.STAGING_MYSPEAK_BOARD_LIMIT }}
+          MYSPEAK_PAID_COMMUNICATOR_LIMIT:  ${{ secrets.STAGING_MYSPEAK_PAID_COMMUNICATOR_LIMIT }}
+          MYSPEAK_DEMO_COMMUNICATOR_LIMIT:  ${{ secrets.STAGING_MYSPEAK_DEMO_COMMUNICATOR_LIMIT }}
+          MYSPEAK_AI_MONTHLY_LIMIT:         ${{ secrets.STAGING_MYSPEAK_AI_MONTHLY_LIMIT }}
+          BASIC_BOARD_LIMIT:                ${{ secrets.STAGING_BASIC_BOARD_LIMIT }}
+          BASIC_PAID_COMMUNICATOR_LIMIT:    ${{ secrets.STAGING_BASIC_PAID_COMMUNICATOR_LIMIT }}
+          BASIC_DEMO_COMMUNICATOR_LIMIT:    ${{ secrets.STAGING_BASIC_DEMO_COMMUNICATOR_LIMIT }}
+          BASIC_AI_MONTHLY_LIMIT:           ${{ secrets.STAGING_BASIC_AI_MONTHLY_LIMIT }}
+          PRO_BOARD_LIMIT:                  ${{ secrets.STAGING_PRO_BOARD_LIMIT }}
+          PRO_PAID_COMMUNICATOR_LIMIT:      ${{ secrets.STAGING_PRO_PAID_COMMUNICATOR_LIMIT }}
+          PRO_DEMO_COMMUNICATOR_LIMIT:      ${{ secrets.STAGING_PRO_DEMO_COMMUNICATOR_LIMIT }}
+          PRO_AI_MONTHLY_LIMIT:             ${{ secrets.STAGING_PRO_AI_MONTHLY_LIMIT }}
+        run: ruby script/hatchbox/sync_env_vars.rb
