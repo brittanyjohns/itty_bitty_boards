@@ -32,6 +32,7 @@ jobs:
           PAY_WEBHOOK_URL: https://ypk9e.hatchboxapp.com/pay/webhooks/stripe
           AWS_BUCKET: itty-bitty-boards-staging
           ACTIVE_STORAGE_SERVICE: amazon
+          CDN_HOST: https://itty-bitty-boards-staging.s3.amazonaws.com
 
           # ---- Core Rails ----
           RAILS_MASTER_KEY:                 ${{ secrets.STAGING_RAILS_MASTER_KEY }}

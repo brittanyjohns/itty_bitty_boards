@@ -33,6 +33,7 @@ vars:
   # ---- AWS / Active Storage ----
   - AWS_ACCESS_KEY_ID
   - AWS_SECRET_ACCESS_KEY
+  - CDN_HOST                   # https://itty-bitty-boards-staging.s3.amazonaws.com
   - AWS_REGION
   - AWS_BUCKET                 # itty-bitty-boards-staging
   - ACTIVE_STORAGE_SERVICE     # amazon
