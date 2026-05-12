@@ -15,10 +15,12 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     "partner_pro" => ENV.fetch("STRIPE_PRICE_PARTNER_PRO", nil),
   }.freeze
 
-  TOPUP_PRICE_IDS = {
-    "small" => ENV.fetch("STRIPE_PRICE_TOPUP_SMALL", nil),
-    "medium" => ENV.fetch("STRIPE_PRICE_TOPUP_MEDIUM", nil),
-    "large" => ENV.fetch("STRIPE_PRICE_TOPUP_LARGE", nil),
+  # Resolved at request time (not class load) so changes to ENV in deploy
+  # configs or in test setup take effect without a class-cache reset.
+  TOPUP_PRICE_ENV_KEYS = {
+    "small" => "STRIPE_PRICE_TOPUP_SMALL",
+    "medium" => "STRIPE_PRICE_TOPUP_MEDIUM",
+    "large" => "STRIPE_PRICE_TOPUP_LARGE",
   }.freeze
 
   # Fallback if a Stripe Price lacks `metadata.credit_amount`. Keep in sync
@@ -109,7 +111,8 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
   # API::WebhooksController.
   def topup
     pack_key = params[:pack_key].to_s
-    price_id = TOPUP_PRICE_IDS[pack_key]
+    env_key = TOPUP_PRICE_ENV_KEYS[pack_key]
+    price_id = env_key.present? ? ENV[env_key].presence : nil
     quantity = [params[:quantity].to_i, 1].max
 
     if price_id.blank?

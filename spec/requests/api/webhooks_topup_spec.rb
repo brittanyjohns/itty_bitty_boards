@@ -5,6 +5,11 @@ RSpec.describe "POST /api/webhooks (top-up)", type: :request do
 
   let(:user) { FactoryBot.create(:user, stripe_customer_id: "cus_topup_user") }
 
+  # The webhook handler does `ENV.fetch("STRIPE_WEBHOOK_SECRET")`; we stub
+  # Stripe::Webhook.construct_event below so the actual secret doesn't matter,
+  # but ENV.fetch still needs a non-nil value to avoid raising before the stub.
+  before { ENV["STRIPE_WEBHOOK_SECRET"] ||= "whsec_test_dummy" }
+
   def build_topup_session(overrides = {})
     OpenStruct.new(
       {
