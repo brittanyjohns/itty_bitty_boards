@@ -51,7 +51,7 @@ There's already a Stripe webhook configured at `/api/webhooks` that uses
 - `customer.subscription.deleted`
 - `customer.subscription.paused`
 - `customer.created`
-- `invoice.payment_succeeded` *(Phase 4 — for plan-credit renewal grants)*
+- `invoice.payment_succeeded` *(triggers plan-credit grants on first paid period and every renewal — Phase 4)*
 
 ## 4. Verifying
 

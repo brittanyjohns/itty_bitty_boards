@@ -85,6 +85,21 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
   codebase as a generic Redis-counter helper for any future non-AI rate
   limits, but no controller currently calls it.
 
+Plan-credit lifecycle:
+
+- **First paid period + every renewal:** `invoice.payment_succeeded` webhook
+  → `CreditService.grant_plan!` with `period_end = subscription.current_period_end`.
+  Reads `monthly_credits` from the subscription line's Stripe Price metadata
+  (falls back to `CreditService::PLAN_MONTHLY_CREDITS[plan_type]`). Idempotent
+  on Stripe event id.
+- **Trial start:** `customer.subscription.created` with status `trialing`
+  grants credits with `period_end = subscription.trial_end`.
+- **Cancel / pause:** plan credits expire via
+  `CreditService.expire_plan_credits!`. Top-up credits are preserved.
+- **Backstop:** `ExpirePlanCreditsJob` runs hourly and zeroes any plan
+  balance whose `plan_credits_reset_at` has passed. Cheap and idempotent —
+  safe to invoke any time.
+
 Tasks:
 
 - `bin/rails credits:backfill` — give every user an initial plan-credit grant
