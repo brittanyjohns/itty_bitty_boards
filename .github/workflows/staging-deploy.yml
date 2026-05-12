@@ -1,49 +1,78 @@
-name: Deploy to staging
+name: Sync main → staging & deploy
 
-# Force-pushes a PR's HEAD to the `staging` branch and triggers a Hatchbox
-# deploy of ypk9e.hatchboxapp.com.
+# Fast-forwards the `staging` branch to match `main` on every push to main,
+# then triggers a Hatchbox deploy of ypk9e.hatchboxapp.com so staging always
+# mirrors the latest merged code.
 #
 # Triggers:
-#   - PR labeled `deploy-to-staging`
-#   - Subsequent pushes to a PR that already has that label
-#   - Manual workflow_dispatch with a ref (branch or SHA)
+#   - Push to `main`
+#   - Manual workflow_dispatch with an optional ref (defaults to main)
 #
-# Single shared staging: concurrency cancels in-flight deploys so the latest
-# wins. Don't put branch protection on `staging` - the workflow needs to
-# force-push it.
+# Concurrency cancels in-flight runs so back-to-back merges only deploy once
+# (the latest, which already contains the earlier commits).
+#
+# Don't put branch protection on `staging` - the workflow needs to push it.
+# If `staging` ever diverges from `main` (commits exist on staging that aren't
+# on main), the non-force push fails and the workflow auto-opens an issue
+# with the recovery command.
 
 on:
-  pull_request:
-    types: [labeled, synchronize]
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch or SHA to deploy to staging"
-        required: true
+        description: "Branch or SHA to mirror to staging (defaults to main)"
+        required: false
+        default: main
 
 concurrency:
   group: staging-deploy
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.action == 'labeled' && github.event.label.name == 'deploy-to-staging') ||
-      (github.event.action == 'synchronize' &&
-       contains(github.event.pull_request.labels.*.name, 'deploy-to-staging'))
+  sync_and_deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
+      issues: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.event.inputs.ref }}
+          ref: ${{ github.event.inputs.ref || 'main' }}
 
-      - name: Force-push to staging branch
-        run: git push --force origin HEAD:refs/heads/staging
+      - name: Fast-forward staging to main
+        id: ff
+        run: git push origin HEAD:refs/heads/staging
+
+      - name: Open issue on divergence
+        if: failure() && steps.ff.conclusion == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.sha.slice(0, 7);
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `staging diverged from main (${sha}) — manual reset needed`,
+              labels: ['staging', 'ci'],
+              body: [
+                "The `Sync main → staging` workflow failed because",
+                "`staging` has commits not present on `main`.",
+                "",
+                "**Fix:** locally run",
+                "",
+                "```sh",
+                "git fetch origin",
+                "git push origin origin/main:staging --force-with-lease",
+                "```",
+                "",
+                "Then re-run the workflow or push to main again.",
+                "",
+                `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              ].join('\n'),
+            });
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -56,16 +85,3 @@ jobs:
           HATCHBOX_STAGING_APP_ID:      ${{ secrets.HATCHBOX_STAGING_APP_ID }}
           HATCHBOX_STAGING_DEPLOY_HOOK: ${{ secrets.HATCHBOX_STAGING_DEPLOY_HOOK }}
         run: ruby script/hatchbox/trigger_deploy.rb
-
-      - name: Comment on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const sha = context.payload.pull_request.head.sha.slice(0, 7);
-            github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: `Staging deploy started for \`${sha}\`.\nLive at https://ypk9e.hatchboxapp.com in ~2-3 min.`
-            });
