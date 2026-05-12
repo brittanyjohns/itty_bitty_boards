@@ -30,9 +30,14 @@ jobs:
           FRONT_END_URL: https://ypk9e.hatchboxapp.com
           WEBHOOK_URL: https://ypk9e.hatchboxapp.com/api/webhooks
           PAY_WEBHOOK_URL: https://ypk9e.hatchboxapp.com/pay/webhooks/stripe
+          # Local disk storage on staging — keeps the env simple and avoids
+          # S3/CDN bucket-policy juggling. Files live under the release's
+          # storage/ dir; ephemeral across deploys, which is fine for staging.
+          ACTIVE_STORAGE_SERVICE: local
+          # CDN_HOST intentionally unset. Removed from manifest so the sync
+          # script no longer pushes it, but you must also delete it once from
+          # the Hatchbox env panel (the sync script doesn't remove keys).
           AWS_BUCKET: itty-bitty-boards-staging
-          ACTIVE_STORAGE_SERVICE: amazon
-          CDN_HOST: https://itty-bitty-boards-staging.s3.amazonaws.com
 
           # ---- Core Rails ----
           RAILS_MASTER_KEY:                 ${{ secrets.STAGING_RAILS_MASTER_KEY }}
