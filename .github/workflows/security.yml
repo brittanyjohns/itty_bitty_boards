@@ -24,7 +24,21 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
-      # CVE-2026-33658 (activestorage DoS via proxy mode multi-range requests) requires
-      # Rails >= 7.2.3.1. Ignored here; tracked in https://github.com/brittanyjohns/itty_bitty_boards/issues/56.
-      # Remove this ignore once the Rails upgrade is merged.
-      - run: bundle exec bundler-audit check --update --ignore CVE-2026-33658
+      # All ignored CVEs require Rails >= 7.2.3.1 / 8.0.4.1 / 8.1.2.1; no 7.1.x patch
+      # exists (Rails 7.1 reached EOL 2025-10-01). Tracked in
+      # https://github.com/brittanyjohns/itty_bitty_boards/issues/56 — remove these
+      # ignores once the Rails upgrade is merged.
+      #   CVE-2026-33168  actionview
+      #   CVE-2026-33169  activesupport ReDoS (number_to_delimited)
+      #   CVE-2026-33170  activesupport XSS (SafeBuffer#%)
+      #   CVE-2026-33173  activestorage content-type bypass (direct uploads)
+      #   CVE-2026-33174  activestorage DoS (proxy mode Range requests)
+      #   CVE-2026-33176  activesupport DoS (number helpers)
+      #   CVE-2026-33195  activestorage path traversal (DiskService)
+      #   CVE-2026-33202  activestorage glob injection (DiskService)
+      #   CVE-2026-33658  activestorage DoS (proxy mode multi-range)
+      - run: |
+          bundle exec bundler-audit check --update \
+            --ignore CVE-2026-33168 CVE-2026-33169 CVE-2026-33170 \
+                     CVE-2026-33173 CVE-2026-33174 CVE-2026-33176 \
+                     CVE-2026-33195 CVE-2026-33202 CVE-2026-33658
