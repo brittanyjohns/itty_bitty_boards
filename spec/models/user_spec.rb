@@ -78,9 +78,9 @@ RSpec.describe User, type: :model do
     end
   end
   context "plan_type checks" do
-    it "defaults to basic plan (soft trial) on signup" do
+    it "defaults to basic_trial plan (soft trial) on signup" do
       user = FactoryBot.create(:user)
-      expect(user.plan_type).to eq("basic")
+      expect(user.plan_type).to eq("basic_trial")
     end
 
     it "does not override an explicitly set plan_type on create" do
@@ -91,7 +91,7 @@ RSpec.describe User, type: :model do
     it "does not change plan_type on subsequent saves" do
       user = FactoryBot.create(:user)
       user.update!(name: "Updated")
-      expect(user.plan_type).to eq("basic")
+      expect(user.plan_type).to eq("basic_trial")
     end
 
     it "recognizes pro plan" do
@@ -154,6 +154,7 @@ RSpec.describe User, type: :model do
     before do
       # Create a team and add the current user to it
       team.add_member!(current_user, "admin")
+      allow(User).to receive(:create_stripe_customer).and_return("cus_test_#{SecureRandom.hex(4)}")
     end
     it "adds the invited user to the team" do
       subject
