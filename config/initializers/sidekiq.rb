@@ -18,5 +18,11 @@ Sidekiq.configure_server do |config|
       "queue" => "default",
       "description" => "Downgrade expired soft-trial Basic users to Free (runs daily at 2am UTC)",
     },
+    "expire_plan_credits" => {
+      "cron" => "0 * * * *",
+      "class" => "ExpirePlanCreditsJob",
+      "queue" => "default",
+      "description" => "Zero out plan_credits_balance for users whose plan_credits_reset_at has passed. Backstop for the invoice.payment_succeeded webhook; runs hourly.",
+    },
   })
 end

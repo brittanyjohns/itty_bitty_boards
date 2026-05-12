@@ -41,10 +41,17 @@ class API::WebhooksController < API::ApplicationController
       end
     when "customer.subscription.created", "customer.subscription.updated"
       handle_subscription_upsert(event.data.object, event.type == "customer.subscription.created")
+      # First-period credit grant for trial users — paid users get credits
+      # via invoice.payment_succeeded below, but trials have no invoice yet.
+      if event.type == "customer.subscription.created"
+        handle_trial_credit_grant(event.data.object, event.id)
+      end
     when "customer.subscription.deleted"
       handle_subscription_deleted(event.data.object)
     when "customer.subscription.paused"
       handle_subscription_paused(event.data.object)
+    when "invoice.payment_succeeded"
+      handle_invoice_payment_succeeded(event.data.object, event.id)
     else
       Rails.logger.info "[StripeWebhook] Ignoring unhandled event type=#{event.type}"
     end
@@ -237,6 +244,102 @@ class API::WebhooksController < API::ApplicationController
     Rails.logger.error "[StripeWebhook] handle_subscription_upsert error: #{e.class} - #{e.message}"
   end
 
+  # invoice.payment_succeeded fires for the initial paid period AND every
+  # renewal — the canonical "the user just paid for another month" event.
+  # Grants plan credits whose period_end = subscription.current_period_end.
+  # Idempotent on the Stripe event id (one grant per invoice event).
+  def handle_invoice_payment_succeeded(invoice, event_id)
+    sub_id = invoice.respond_to?(:subscription) ? invoice.subscription : nil
+    return unless sub_id.present?
+
+    # Look up the subscription to read its current_period_end and Price.metadata
+    subscription = Stripe::Subscription.retrieve(sub_id)
+
+    user = find_user_for_subscription(subscription)
+    unless user
+      Rails.logger.error "[StripeWebhook][invoice] no user for subscription #{sub_id}"
+      return
+    end
+    return if user.admin?
+
+    price = first_price_from_subscription(subscription)
+    unless price
+      Rails.logger.error "[StripeWebhook][invoice] no price for subscription #{sub_id}"
+      return
+    end
+
+    meta = price.metadata || {}
+    plan_type = meta["plan_type"].presence || user.plan_type.presence || "free"
+    amount = (meta["monthly_credits"].presence || CreditService.monthly_credits_for(plan_type)).to_i
+    return if amount <= 0
+
+    period_end = period_end_from_subscription(subscription) || 30.days.from_now
+
+    CreditService.grant_plan!(
+      user,
+      amount: amount,
+      period_end: period_end,
+      stripe_event_id: event_id,
+      stripe_price_id: price.id,
+      metadata: {
+        invoice_id: invoice.id,
+        subscription_id: sub_id,
+        plan_type: plan_type,
+        source: "invoice.payment_succeeded",
+      },
+    )
+    Rails.logger.info "[StripeWebhook][invoice] granted user=#{user.id} amount=#{amount} period_end=#{period_end} sub=#{sub_id}"
+  rescue => e
+    Rails.logger.error "[StripeWebhook] handle_invoice_payment_succeeded error: #{e.class} - #{e.message}"
+  end
+
+  # Grant credits for the trial period when a subscription is created in
+  # `trialing` status. No invoice has been paid yet, so the regular
+  # invoice.payment_succeeded path won't fire until trial converts.
+  # Idempotent on stripe_event_id.
+  def handle_trial_credit_grant(subscription, event_id)
+    return unless subscription.status == "trialing"
+
+    user = find_user_for_subscription(subscription)
+    return unless user
+    return if user.admin?
+
+    price = first_price_from_subscription(subscription)
+    return unless price
+
+    meta = price.metadata || {}
+    plan_type = meta["plan_type"].presence || user.plan_type.presence || "free"
+    amount = (meta["monthly_credits"].presence || CreditService.monthly_credits_for(plan_type)).to_i
+    return if amount <= 0
+
+    trial_end = subscription.respond_to?(:trial_end) ? subscription.trial_end : nil
+    period_end = trial_end.present? ? Time.at(trial_end) : 14.days.from_now
+
+    CreditService.grant_plan!(
+      user,
+      amount: amount,
+      period_end: period_end,
+      stripe_event_id: event_id,
+      stripe_price_id: price.id,
+      metadata: {
+        subscription_id: subscription.id,
+        plan_type: plan_type,
+        source: "trial.subscription.created",
+      },
+    )
+    Rails.logger.info "[StripeWebhook][trial] granted user=#{user.id} amount=#{amount} trial_end=#{period_end}"
+  rescue => e
+    Rails.logger.error "[StripeWebhook] handle_trial_credit_grant error: #{e.class} - #{e.message}"
+  end
+
+  # Pull current_period_end off a Subscription regardless of whether the
+  # Stripe SDK gives us a Time or an integer Unix timestamp.
+  def period_end_from_subscription(subscription)
+    raw = subscription.respond_to?(:current_period_end) ? subscription.current_period_end : nil
+    return nil if raw.blank?
+    raw.is_a?(Integer) ? Time.at(raw) : raw
+  end
+
   def handle_subscription_deleted(subscription)
     user = find_user_for_subscription(subscription)
     unless user
@@ -315,12 +418,15 @@ class API::WebhooksController < API::ApplicationController
 
   def apply_free_plan(user, status = "canceled")
     original_plan_type = user.plan_type
-    user.plan_type = FREE_PLAN_LIMITS["plan_type"]
+    user.plan_type = User::FREE_PLAN_LIMITS["plan_type"]
     user.paid_plan_type = original_plan_type
     user.plan_status = status
     user.setup_free_limits
     user.stripe_subscription_id = nil
     user.save!
+    # Plan credits expire on cancel/pause. Top-up credits are untouched —
+    # users keep what they paid for ad hoc.
+    CreditService.expire_plan_credits!(user, reason: "subscription_#{status}")
   end
 
   def to_int_or_nil(value)

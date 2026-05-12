@@ -1,7 +1,7 @@
 # SpeakAnyWay AI Credits — UI + Marketing Handoff
 
 **Audience:** Design, Frontend, Marketing
-**Status:** Phase 1 (ledger), Phase 2 (top-up backend), and Phase 3 (enforcement) shipped. Frontend "Buy credits" UI and the `402 insufficient_credits` upsell modal are the next blocking pieces.
+**Status:** Phases 1–4 shipped on staging. Frontend "Buy credits" UI and the `402 insufficient_credits` upsell modal are the only remaining blocking pieces before this is fully visible to users.
 **Owner:** Brittany Johns
 
 ---
@@ -179,7 +179,7 @@ listed there.
 | **1** ✅ | Backend ledger, service, shadow mode telemetry | No |
 | **2** ✅ backend | Top-up Checkout endpoint + webhook handler. Frontend "Buy credits" UI still needed. | Yes (additive) once UI lands |
 | **3** ✅ | AI gating switched from Redis counter → credit balance. AI endpoints now return `402 insufficient_credits` when balance is too low. | **Yes — user-visible** the first time a user hits zero credits. Surface the upsell modal! |
-| **4** | Plan grants on invoice renewal webhook | No (internal) |
+| **4** ✅ | Plan-credit grants on `invoice.payment_succeeded` (renewal) + trial grants on `customer.subscription.created`. Cancellation/pause expires plan credits while preserving top-ups. Hourly backstop job. | No (internal) — renewals now auto-top-up, no more manual rake task. |
 | **5** | Optional: Stripe metered overage | Decision pending |
 
 ---

@@ -156,12 +156,21 @@ See `docs/stripe-setup.md` for the full dashboard checklist.
 
 ### Status
 
-**Phase 3 enforcement is live.** `CreditService.spend!` is the source of
-truth for AI gating; AI endpoints return `402 insufficient_credits` (with
-`needed` / `balance` / `topup_url`) when a call would overdraw. Admins
-bypass the check. `MonthlyFeatureLimiter` (the Redis counter) is no
-longer in the AI hot path — it remains in the codebase as a generic
-helper for non-AI rate limiting.
+**Phases 1–4 are live.** `CreditService.spend!` is the source of truth
+for AI gating; AI endpoints return `402 insufficient_credits` when a call
+would overdraw. Plan credits are granted automatically by Stripe
+webhooks:
+
+- `invoice.payment_succeeded` → grant for the new billing period
+  (initial payment + every renewal). Idempotent on Stripe event id.
+- `customer.subscription.created` with status `trialing` → grant for the
+  trial period.
+- `customer.subscription.deleted` / `.paused` → expire plan credits
+  (top-up credits preserved).
+- Hourly `ExpirePlanCreditsJob` as a backstop.
+
+Admins bypass the credit check. `MonthlyFeatureLimiter` is no longer in
+the AI hot path.
 
 ## SpeakAnyWay-Specific Terms:
 
