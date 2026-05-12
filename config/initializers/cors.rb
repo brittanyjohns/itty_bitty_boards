@@ -17,7 +17,8 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
             "https://localhost",
             "http://localhost",
             "ionic://localhost",
-            "http://192.168.11.65:8100")
+            "http://192.168.11.65:8100",
+            %r{\Ahttps://([a-z0-9-]+--)?speakanyway\.netlify\.app\z})
 
     resource "*",
       headers: :any,

@@ -68,8 +68,7 @@ Rails.application.configure do
     "https://ypk9e.hatchboxapp.com", # staging
     /https:\/\/.*\.speakanyway\.com/,
     "capacitor://localhost",         # Capacitor iOS/Android WebView
-    "https://realtime-boards--speakanyway.netlify.app",
-    "https://deploy-preview-54--speakanyway.netlify.app",
+    %r{\Ahttps://([a-z0-9-]+--)?speakanyway\.netlify\.app\z}, # Netlify previews + branch deploys
   ]
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
