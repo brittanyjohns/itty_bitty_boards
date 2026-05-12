@@ -1,0 +1,36 @@
+# Source of truth for which env vars get pushed to the Hatchbox staging app
+# (ypk9e.hatchboxapp.com) by script/hatchbox/sync_env_vars.rb.
+#
+# Values are NOT stored here. They are read from ENV at runtime — the
+# .github/workflows/staging-sync-env.yml workflow populates ENV from
+# repo secrets, then runs the sync script.
+#
+# To add a new env var to staging: add the name here AND wire it up in
+# staging-sync-env.yml.
+vars:
+  - RAILS_ENV
+  - STAGING
+  - RAILS_MASTER_KEY
+  - SECRET_KEY_BASE
+  - DEVISE_JWT_SECRET_KEY
+  - INTERNAL_API_KEY
+  - FRONT_END_URL
+  - REDIS_URL
+  - DATABASE_URL
+  - STRIPE_SECRET_KEY
+  - STRIPE_PUBLISHABLE_KEY
+  - STRIPE_WEBHOOK_SECRET
+  - PRO_PLAN_PRICE_ID
+  - STRIPE_PARTNER_PILOT_PROMO
+  - STRIPE_PAYMENT_METHOD_COLLECTION
+  - REVENUECAT_API_KEY
+  - REVENUECAT_WEBHOOK_SECRET
+  - OPENAI_ACCESS_TOKEN
+  - AWS_ACCESS_KEY_ID
+  - AWS_SECRET_ACCESS_KEY
+  - AWS_REGION
+  - AWS_BUCKET
+  - MAILGUN_API_KEY
+  - MAILGUN_DOMAIN
+  - ADMIN_SYMBOL_LIMIT
+  - SYMBOL_LIMIT

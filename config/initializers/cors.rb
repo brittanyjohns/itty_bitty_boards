@@ -12,6 +12,7 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
             "http://www.speakanyway.com",
             "https://app.speakanyway.com",
             "http://app.speakanyway.com",
+            "https://ypk9e.hatchboxapp.com",
             "capacitor://localhost",
             "https://localhost",
             "http://localhost",

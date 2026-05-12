@@ -1,5 +1,9 @@
 require "active_support/core_ext/integer/time"
-Rails.application.routes.default_url_options[:host] = "speakanyway.com"
+
+staging = ENV["STAGING"] == "true"
+primary_host = staging ? "ypk9e.hatchboxapp.com" : "speakanyway.com"
+
+Rails.application.routes.default_url_options[:host] = primary_host
 Rails.application.routes.default_url_options[:protocol] = "https"
 Rails.application.configure do
   config.log_file_size = 50.megabytes
@@ -56,18 +60,16 @@ Rails.application.configure do
 
   # Mount Action Cable outside main process or domain.
   # config.action_cable.mount_path = nil
-  # config.action_cable.url = "wss://app.speakanyway.com/cable"
-  config.action_cable.url = "wss://670kd.hatchboxapp.com/cable"
-  config.action_cable.allowed_request_origins = ["http://app.speakanyway.com", /https:\/\/.*\.speakanyway\.com/]
+  config.action_cable.url = staging ? "wss://ypk9e.hatchboxapp.com/cable" : "wss://670kd.hatchboxapp.com/cable"
   config.action_cable.allowed_request_origins = [
-    "https://app.speakanyway.com",  # your SPA/PWA
-    "https://www.speakanyway.com",  # if you host the app there too
-    "https://speakanyway.com",      # optional, only if app can run here
-    "capacitor://localhost",         # Capacitor iOS/Android WebView origin
-    "https://realtime-boards--speakanyway.netlify.app", # branch preview
+    "https://app.speakanyway.com",  # SPA/PWA
+    "https://www.speakanyway.com",
+    "https://speakanyway.com",
+    "https://ypk9e.hatchboxapp.com", # staging
+    /https:\/\/.*\.speakanyway\.com/,
+    "capacitor://localhost",         # Capacitor iOS/Android WebView
+    "https://realtime-boards--speakanyway.netlify.app",
     "https://deploy-preview-54--speakanyway.netlify.app",
-  # If Android WebView ever presents as http://localhost, add it explicitly:
-  # "http://localhost"
   ]
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
@@ -103,9 +105,8 @@ Rails.application.configure do
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.
   config.action_mailer.raise_delivery_errors = true
 
-  # 670kd.hatchboxapp.com
   config.action_mailer.default_url_options = {
-    host: "670kd.hatchboxapp.com",
+    host: staging ? "ypk9e.hatchboxapp.com" : "670kd.hatchboxapp.com",
     protocol: "https",
   }
 

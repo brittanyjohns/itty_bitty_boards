@@ -50,6 +50,21 @@
 - Deployment instructions:
   Deployed to Hatchbox.io
 
+  - **Production:** auto-deploys when `main` advances → `speakanyway.com`
+    (Hatchbox app `670kd.hatchboxapp.com`).
+  - **Staging:** label any PR with `deploy-to-staging` to push it to the
+    `staging` branch and deploy to `https://ypk9e.hatchboxapp.com`. The
+    `.github/workflows/staging-deploy.yml` workflow force-pushes the PR's
+    HEAD to `staging` and triggers Hatchbox via API.
+  - **Staging env vars** are managed in GitHub Actions secrets and pushed to
+    Hatchbox via the `Sync staging env vars to Hatchbox` workflow
+    (`.github/workflows/staging-sync-env.yml`). The list of names lives in
+    `script/hatchbox/staging_env_vars.yml`. Run that workflow after changing
+    any staging secret.
+  - Required GitHub secrets for the staging workflows:
+    `HATCHBOX_API_TOKEN`, `HATCHBOX_ACCOUNT_ID`, `HATCHBOX_STAGING_APP_ID`,
+    plus the `STAGING_*` set listed in `staging-sync-env.yml`.
+
 Features
 
 Multiple ways of creating a communication board
