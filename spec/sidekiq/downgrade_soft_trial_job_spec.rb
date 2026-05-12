@@ -4,7 +4,7 @@ RSpec.describe DowngradeSoftTrialJob, type: :job do
   subject(:job) { described_class.new }
 
   def create_soft_trial_user(overrides = {})
-    attrs = { plan_type: "basic", stripe_customer_id: "cus_test123", paid_plan_type: nil }.merge(overrides)
+    attrs = { plan_type: "basic_trial", stripe_customer_id: "cus_test123", paid_plan_type: nil }.merge(overrides)
     user = FactoryBot.create(:user, **attrs)
     user.update_column(:created_at, 15.days.ago) unless overrides.key?(:created_at)
     user
@@ -14,7 +14,7 @@ RSpec.describe DowngradeSoftTrialJob, type: :job do
     context "when a user is an expired soft-trial Basic user" do
       it "downgrades plan_type to free" do
         user = create_soft_trial_user
-        expect { job.perform }.to change { user.reload.plan_type }.from("basic").to("free")
+        expect { job.perform }.to change { user.reload.plan_type }.from("basic_trial").to("free")
       end
     end
 

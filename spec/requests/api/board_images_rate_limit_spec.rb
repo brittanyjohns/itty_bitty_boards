@@ -33,7 +33,7 @@ RSpec.describe "BoardImages rate limiting", type: :request do
 
   after { travel_back }
 
-  let!(:user)        { create(:user) }
+  let!(:user)        { create(:user).tap { |u| u.update_column(:plan_type, "free") } }
   let!(:board)       { create(:board, user: user) }
   let!(:image)       { create(:image, user: user) }
   let!(:board_image) { create(:board_image, board: board, image: image) }
