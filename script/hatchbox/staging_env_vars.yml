@@ -5,32 +5,94 @@
 # .github/workflows/staging-sync-env.yml workflow populates ENV from
 # repo secrets, then runs the sync script.
 #
-# To add a new env var to staging: add the name here AND wire it up in
-# staging-sync-env.yml.
+# To add a new env var to staging:
+#   1. Add the name here.
+#   2. Wire it up in staging-sync-env.yml (either as a literal or from a secret).
+#
+# Vars that Hatchbox injects automatically (database/redis credentials,
+# RAILS_ENV) are NOT listed here.
 vars:
-  - RAILS_ENV
-  - STAGING
-  - RAILS_MASTER_KEY
+  # ---- Core Rails ----
+  - STAGING                    # literal "true"
+  - RAILS_MASTER_KEY           # reuse prod (decrypts credentials.yml.enc)
   - SECRET_KEY_BASE
   - DEVISE_JWT_SECRET_KEY
   - INTERNAL_API_KEY
-  - FRONT_END_URL
-  - REDIS_URL
-  - DATABASE_URL
-  - STRIPE_SECRET_KEY
-  - STRIPE_PUBLISHABLE_KEY
-  - STRIPE_WEBHOOK_SECRET
-  - PRO_PLAN_PRICE_ID
-  - STRIPE_PARTNER_PILOT_PROMO
-  - STRIPE_PAYMENT_METHOD_COLLECTION
-  - REVENUECAT_API_KEY
-  - REVENUECAT_WEBHOOK_SECRET
-  - OPENAI_ACCESS_TOKEN
+  - DB_POOL
+  - DB_TIMEOUT
+  - RAILS_MAX_THREADS
+  - WEB_CONCURRENCY
+
+  # ---- App URLs ----
+  - API_URL                    # https://ypk9e.hatchboxapp.com
+  - DOMAIN                     # https://ypk9e.hatchboxapp.com
+  - FRONT_END_URL              # https://ypk9e.hatchboxapp.com
+  - WEBHOOK_URL                # https://ypk9e.hatchboxapp.com/api/webhooks
+  - PAY_WEBHOOK_URL            # https://ypk9e.hatchboxapp.com/pay/webhooks/stripe
+
+  # ---- AWS / Active Storage ----
   - AWS_ACCESS_KEY_ID
   - AWS_SECRET_ACCESS_KEY
   - AWS_REGION
-  - AWS_BUCKET
-  - MAILGUN_API_KEY
-  - MAILGUN_DOMAIN
-  - ADMIN_SYMBOL_LIMIT
-  - SYMBOL_LIMIT
+  - AWS_BUCKET                 # itty-bitty-boards-staging
+  - ACTIVE_STORAGE_SERVICE     # amazon
+
+  # ---- Stripe (test mode) ----
+  - STRIPE_PRIVATE_KEY
+  - STRIPE_PUBLIC_KEY
+  - STRIPE_WEBHOOK_SECRET
+  - STRIPE_PAYMENT_METHOD_COLLECTION
+  - STRIPE_FREE_PLAN_ID
+  - STRIPE_PRICE_MYSPEAK
+  - STRIPE_PRICE_MYSPEAK_YEAR
+  - STRIPE_PRICE_BASIC
+  - STRIPE_PRICE_BASIC_YEAR
+  - STRIPE_PRICE_PRO
+  - STRIPE_PRICE_PRO_YEAR
+  - STRIPE_PRICE_PARTNER_PRO
+  - ONE_DOLLAR_PRICE_ID
+  - PRO_PLAN_URL
+
+  # ---- OpenAI ----
+  - OPENAI_ACCESS_TOKEN
+  - OPENAI_IMAGE_MODEL
+  - OPENAI_IMAGE_MODEL_STYLE
+  - OPENAI_EDIT_IMAGE_MODEL
+  - OPENAI_GTP_MODEL
+  - OPENAI_QUICK_GTP_MODEL
+  - BOARD_SCREENSHOT_VISION_MODEL
+  - IMPORT_MAX_IMAGE_PX
+
+  # ---- Third-party APIs ----
+  - OPEN_SYMBOL_ACCESS_TOKEN
+  - GOOGLE_CUSTOM_SEARCH_API_KEY
+  - GOOGLE_CUSTOM_SEARCH_CX
+  - SERP_PRIVATE_API_KEY
+
+  # ---- Mailchimp ----
+  - MAILCHIMP_API_KEY
+  - MAILCHIMP_SERVER_PREFIX
+  - MAILCHIMP_AUDIENCE_ID
+
+  # ---- SMTP (Gmail relay) ----
+  - SMTP_USERNAME
+  - SMTP_PASSWORD
+
+  # ---- Plan limits ----
+  - PREDICTIVE_DEFAULT_ID
+  - FREE_BOARD_LIMIT
+  - FREE_PAID_COMMUNICATOR_LIMIT
+  - FREE_DEMO_COMMUNICATOR_LIMIT
+  - FREE_AI_MONTHLY_LIMIT
+  - MYSPEAK_BOARD_LIMIT
+  - MYSPEAK_PAID_COMMUNICATOR_LIMIT
+  - MYSPEAK_DEMO_COMMUNICATOR_LIMIT
+  - MYSPEAK_AI_MONTHLY_LIMIT
+  - BASIC_BOARD_LIMIT
+  - BASIC_PAID_COMMUNICATOR_LIMIT
+  - BASIC_DEMO_COMMUNICATOR_LIMIT
+  - BASIC_AI_MONTHLY_LIMIT
+  - PRO_BOARD_LIMIT
+  - PRO_PAID_COMMUNICATOR_LIMIT
+  - PRO_DEMO_COMMUNICATOR_LIMIT
+  - PRO_AI_MONTHLY_LIMIT
