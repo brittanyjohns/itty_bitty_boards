@@ -65,6 +65,32 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - Premium features (Menu Board Creator, AI image generation) require active subscription
 - Subscription managed via Stripe/RevenueCat — check status before allowing access to premium endpoints
 
+## AI gating: credit ledger (source of truth)
+
+- AI features are gated by **weighted credits** held in two balances on `users`:
+  `plan_credits_balance` (resets each billing period, doesn't roll over) and
+  `topup_credits_balance` (additive from one-time purchases, doesn't expire).
+- All credit movement is recorded in `credit_transactions` (immutable ledger).
+  Webhook-driven grants are idempotent on `stripe_event_id`.
+- Entry point: `CreditService.spend!(user, feature_key:, amount: nil)` raises
+  `CreditService::InsufficientCredits` when out of credits. Per-feature costs
+  live in `CreditService::FEATURE_COSTS`.
+- API endpoints will surface insufficient credits as **HTTP 402** with
+  `{ error: "insufficient_credits", needed:, balance: }` once Phase 3 ships.
+  Reserve **429** for true rate limiting, not credit exhaustion.
+- `MonthlyFeatureLimiter` (Redis monthly counter) **still gates AI in
+  Phase 1** (shadow mode). The `CreditService` runs alongside and logs
+  divergences; do not rely on credits for blocking until Phase 3.
+- For non-AI features (rate limiting per IP, etc.) keep using the Redis
+  limiter — credits are only for AI features.
+
+Tasks:
+
+- `bin/rails credits:backfill` — give every user an initial plan-credit grant
+  based on their `plan_type`. Idempotent.
+- `bin/rails credits:recompute_balances` — rebuild denormalized balances
+  from the ledger if they drift.
+
 ## Do not
 
 - Do not install new gems without asking first

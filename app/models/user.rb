@@ -84,6 +84,7 @@ class User < ApplicationRecord
   belongs_to :current_team, class_name: "Team", optional: true
   has_many :word_events, dependent: :destroy
   has_many :subscriptions, dependent: :destroy
+  has_many :credit_transactions, dependent: :destroy
   has_secure_token :authentication_token
   # has_many :communicator_accounts, dependent: :destroy
   has_many :scenarios, dependent: :destroy
