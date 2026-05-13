@@ -5,7 +5,9 @@ class UserMailer < BaseMailer
     @user = user
     @user_name = @user.name
     @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
-    mail(to: @user.email, subject: "Welcome to SpeakAnyWay AAC!")
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.welcome_email.subject"))
+    end
   end
 
   def delete_account_email(user)

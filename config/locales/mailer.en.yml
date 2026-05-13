@@ -1,0 +1,23 @@
+en:
+  user_mailer:
+    welcome_email:
+      subject: "Welcome to SpeakAnyWay AAC!"
+      preheader: "Welcome to SpeakAnyWay! You're all set—explore boards and get started in minutes."
+      title: "Welcome to SpeakAnyWay 🎉"
+      greeting_with_name: "Hi %{name} — we're so glad you're here!"
+      greeting_no_name: "Hi there — we're so glad you're here!"
+      intro: "SpeakAnyWay is designed to make communication more accessible, flexible, and human — whether you're a parent, caregiver, educator, or therapist."
+      cta: "Go to Your Dashboard"
+      cta_fallback: "Having trouble with the button? Copy and paste this link:"
+      do_now_heading: "What you can do right now"
+      do_now_item_1: "Explore ready-to-use communication boards"
+      do_now_item_2: "Try boards instantly—no setup required"
+      do_now_item_3: "See how SpeakAnyWay works for your unique needs"
+      quickstart_heading: "Quick start (2 minutes)"
+      quickstart_item_1: "Open your dashboard and explore public or featured boards."
+      quickstart_item_2: "Tap a board and try communicating right away."
+      quickstart_item_3: "When you're ready, choose a plan that fits your needs."
+      questions_html: "Questions or feedback? Just reply to this email or contact us at <a href=\"mailto:help@speakanyway.com\">help@speakanyway.com</a>."
+      footer_thanks: "We're honored to be part of your communication journey 💜"
+      footer_signature: "— The SpeakAnyWay Team"
+      footer_visit: "Visit our website"
