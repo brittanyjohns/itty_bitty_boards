@@ -130,6 +130,47 @@ When a user runs out, AI endpoints return `402 insufficient_credits` with the
 needed/balance numbers — the frontend uses that to surface a "Buy more
 credits" CTA. `429 limit_reached` is reserved for true rate limiting.
 
+### Pricing
+
+> Numbers below are the defaults baked into `CreditService` and the staging
+> Stripe Prices. Production tier prices and final allowances are a
+> marketing/leadership decision — values are overridable per environment
+> via Stripe Price metadata (`monthly_credits` on subscription Prices,
+> `credit_amount` on top-up Prices) without a redeploy.
+> See `docs/credits-handoff.md` for the working pricing proposal and the
+> rationale behind these numbers.
+
+**Plan tier allowances** (`CreditService::PLAN_MONTHLY_CREDITS`):
+
+| Plan         | Monthly credits |
+| ------------ | --------------- |
+| Free         | 10              |
+| MySpeak      | 50              |
+| Basic        | 400             |
+| Pro          | 1,500           |
+| Partner Pro  | 1,500           |
+
+**Top-up packs** (one-time Stripe Checkout, do not expire):
+
+| Pack    | Credits | Price (USD) | `pack_key` |
+| ------- | ------- | ----------- | ---------- |
+| Small   | 100     | $4.99       | `small`    |
+| Medium  | 500     | $19.99      | `medium`   |
+| Large   | 1,500   | $49.99      | `large`    |
+
+**Per-feature credit cost** (`CreditService::FEATURE_COSTS`, server-authoritative):
+
+| Feature                    | `feature_key`        | Credits |
+| -------------------------- | -------------------- | ------- |
+| AI word suggestions        | `word_suggestion`    | 1       |
+| AI board formatting        | `board_format`       | 2       |
+| AI image edit              | `image_edit`         | 3       |
+| AI image variation         | `image_variation`    | 3       |
+| AI image generation        | `image_generation`   | 5       |
+| AI screenshot import       | `screenshot_import`  | 5       |
+| AI scenario builder        | `scenario_create`    | 10      |
+| AI menu builder            | `menu_create`        | 10      |
+
 ### Stripe setup
 
 Each subscription Price in Stripe must have metadata:
