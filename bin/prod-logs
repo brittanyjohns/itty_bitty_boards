@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Tail production logs over SSH via systemd-journal.
+#
+# Usage:
+#   bin/prod-logs                       # tail web (puma)
+#   bin/prod-logs worker                # tail sidekiq
+#   bin/prod-logs all                   # tail every app unit
+#   bin/prod-logs <unit-name>           # tail a specific unit
+#   LINES=1000 bin/prod-logs web        # bigger backlog
+#
+# Override defaults with env vars: PROD_HOST, PROD_WEB_UNIT,
+# PROD_WORKER_UNIT, PROD_ALL_UNIT.
+#
+# Hatchbox runs Puma + Sidekiq as **user** systemd services under the
+# deploy user, so we use `journalctl --user-unit` (no sudo). To find
+# the real unit names if these defaults drift, SSH in and run:
+#   systemctl --user list-units --type=service | grep itty
+set -euo pipefail
+
+HOST="${PROD_HOST:-deploy@670kd.hatchboxapp.com}"
+TARGET="${1:-web}"
+LINES="${LINES:-200}"
+
+case "$TARGET" in
+  web)    UNIT="${PROD_WEB_UNIT:-itty-bitty-boards-server.service}" ;;
+  worker) UNIT="${PROD_WORKER_UNIT:-itty-bitty-boards-sidekiq.service}" ;;
+  all)    UNIT="${PROD_ALL_UNIT:-itty-bitty-boards-*.service}" ;;
+  *)      UNIT="$TARGET" ;;
+esac
+
+exec ssh -t "$HOST" "journalctl --user-unit '$UNIT' -f -n $LINES --output=cat"

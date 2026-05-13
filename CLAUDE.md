@@ -59,6 +59,23 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - `bundle exec sidekiq` — start Sidekiq worker
 - `bundle exec rspec` — run tests
 
+## Reading production logs (CLI)
+
+Hatchbox runs Puma + Sidekiq as **user** systemd services on the deploy
+user, so logs are in the user journal (no sudo needed).
+
+- `bin/prod-logs` — tail production Puma (`itty-bitty-boards-server.service`) over SSH
+- `bin/prod-logs worker` — tail production Sidekiq (`itty-bitty-boards-sidekiq.service`)
+- `bin/prod-logs all` — tail every `itty-bitty-boards-*.service` unit
+- `bin/prod-logs <unit-name>` — tail a specific unit (pass-through)
+- `bin/staging-logs [web|worker|all]` — same shape for staging
+- `bin/prod-disk-audit` — read-only snapshot of disk + journald + nginx
+  + app `log/` and `tmp/` sizes. Run any time you suspect disk pressure.
+
+Env overrides: `PROD_HOST`, `PROD_WEB_UNIT`, `PROD_WORKER_UNIT`,
+`PROD_ALL_UNIT` (and `STAGING_*` equivalents). `LINES=N` controls the
+backlog size (default 200).
+
 ## Subscription model
 
 - Most features are free

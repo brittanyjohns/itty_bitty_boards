@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Read-only disk + log-size snapshot of the production EC2 box.
+# Run any time you're worried about disk pressure on the Hatchbox host.
+#
+# Usage:
+#   bin/prod-disk-audit              # audit production
+#   PROD_HOST=... bin/prod-disk-audit
+set -euo pipefail
+
+HOST="${PROD_HOST:-deploy@670kd.hatchboxapp.com}"
+
+ssh "$HOST" 'bash -s' <<'REMOTE'
+echo "=== disk usage ==="
+df -h /
+
+echo; echo "=== top 15 dirs under / ==="
+sudo du -h -d 2 -x / 2>/dev/null | sort -h | tail -15
+
+echo; echo "=== system journald ==="
+sudo journalctl --disk-usage
+echo "--- journald.conf caps ---"
+sudo grep -E '^[^#]*(SystemMaxUse|MaxRetentionSec)' /etc/systemd/journald.conf \
+  || echo "(no caps set — journald will use up to 10% of disk)"
+
+echo; echo "=== user journald (deploy user — where puma/sidekiq logs live) ==="
+journalctl --user --disk-usage 2>/dev/null || echo "(no user journal yet)"
+
+echo; echo "=== nginx logs ==="
+sudo ls -lh /var/log/nginx/ 2>/dev/null || echo "(no /var/log/nginx)"
+echo "--- logrotate config ---"
+sudo cat /etc/logrotate.d/nginx 2>/dev/null || echo "(no /etc/logrotate.d/nginx)"
+
+echo; echo "=== rails app log + tmp ==="
+du -sh /home/deploy/*/current/log /home/deploy/*/current/tmp /home/deploy/*/shared/log 2>/dev/null
+REMOTE
