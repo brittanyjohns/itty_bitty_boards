@@ -170,9 +170,11 @@ namespace :classroom_boards do
     puts ""
   end
 
-  desc "Queue OpenAI image generation for any teacher-board cells missing artwork (incurs API cost)"
+  desc "Queue OpenAI image generation for missing teacher-board artwork. DRY_RUN=1 to preview without queuing."
   task generate_images: :environment do
     ActiveRecord::Base.logger.level = Logger::WARN
+    dry_run = %w[1 true yes].include?(ENV["DRY_RUN"].to_s.downcase)
+
     group = BoardGroup.find_by(name: TARGET_GROUP_NAME)
     unless group
       abort "#{TARGET_GROUP_NAME.inspect} group not found. Run 'bin/rails classroom_boards:seed' first."
@@ -182,8 +184,7 @@ namespace :classroom_boards do
     new_boards = group.boards.where(name: seeded_names).includes(:images)
 
     # One job per (image, board) so each BoardImage status is tracked correctly.
-    # GenerateImageJob is idempotent on existing docs but skip anything that
-    # already has artwork to avoid burning credits.
+    # Skip anything that already has artwork to avoid burning credits.
     pending = []
     new_boards.each do |board|
       board.images.each do |image|
@@ -199,8 +200,34 @@ namespace :classroom_boards do
     end
 
     admin_id = User::DEFAULT_ADMIN_ID
+    estimated_low = pending.size * 0.04
+    estimated_high = pending.size * 0.08
+
+    if dry_run
+      puts ""
+      puts "DRY RUN — no jobs queued, no API calls, no $$ spent."
+      puts "=" * 60
+      puts "Would queue GenerateImageJob for #{pending.size} (image, board) pair(s):"
+      puts ""
+      pending.group_by { |_, board| board.name }.each do |board_name, pairs|
+        puts "  #{board_name} (#{pairs.size} image(s)):"
+        pairs.each do |image, _|
+          prompt = image.image_prompt.to_s
+          prompt_preview = prompt.length > 60 ? "#{prompt[0, 60]}..." : prompt
+          puts "    - id=#{image.id} label=#{image.label.inspect} prompt=#{prompt_preview.inspect}"
+        end
+      end
+      puts ""
+      puts "Estimated OpenAI cost: $#{format("%.2f", estimated_low)} – $#{format("%.2f", estimated_high)} (varies by model/size)"
+      puts ""
+      puts "Run without DRY_RUN to queue for real:"
+      puts "  bin/rails classroom_boards:generate_images"
+      next
+    end
+
     puts "Queuing GenerateImageJob for #{pending.size} (image, board) pair(s) across #{new_boards.count} board(s)..."
     puts "  NOTE: GenerateImageJob calls OpenAI image generation — this incurs real API costs."
+    puts "  Estimated cost: $#{format("%.2f", estimated_low)} – $#{format("%.2f", estimated_high)}"
 
     pending.each do |image, board|
       options = {
