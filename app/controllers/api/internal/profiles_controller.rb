@@ -41,7 +41,7 @@ class API::Internal::ProfilesController < API::Internal::ApplicationController
   end
 
   def profile_params
-    params.require(:profile).permit(
+    params.fetch(:profile, {}).permit(
       :username, :bio, :intro, :avatar, :allow_discovery,
       settings: {},
     )
