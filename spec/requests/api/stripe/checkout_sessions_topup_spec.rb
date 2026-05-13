@@ -1,0 +1,104 @@
+require "rails_helper"
+
+RSpec.describe "POST /api/stripe/checkout_sessions/topup", type: :request do
+  let(:user) { FactoryBot.create(:user) }
+
+  before do
+    ENV["STRIPE_PRICE_TOPUP_SMALL"] = "price_topup_small"
+    ENV["STRIPE_PRICE_TOPUP_MEDIUM"] = "price_topup_medium"
+    ENV["STRIPE_PRICE_TOPUP_LARGE"] = "price_topup_large"
+  end
+
+  it "creates a one-time Checkout Session with topup metadata and returns its url" do
+    user.update!(stripe_customer_id: "cus_existing")
+
+    captured = nil
+    expect(Stripe::Checkout::Session).to receive(:create) do |params|
+      captured = params
+      OpenStruct.new(url: "https://checkout.stripe.com/c/pay/cs_test_topup_small")
+    end
+
+    post "/api/stripe/checkout_sessions/topup",
+         params: { pack_key: "small" },
+         headers: auth_headers(user)
+
+    expect(response).to have_http_status(:ok)
+    body = JSON.parse(response.body)
+    expect(body["url"]).to match(%r{checkout\.stripe\.com})
+
+    expect(captured[:mode]).to eq("payment")
+    expect(captured[:customer]).to eq("cus_existing")
+    expect(captured[:line_items]).to eq([{ price: "price_topup_small", quantity: 1 }])
+    expect(captured[:metadata][:kind]).to eq("topup")
+    expect(captured[:metadata][:pack_key]).to eq("small")
+    expect(captured[:metadata][:credit_amount]).to eq(100)
+    expect(captured[:metadata][:user_id]).to eq(user.id)
+  end
+
+  it "scales credit_amount by quantity" do
+    user.update!(stripe_customer_id: "cus_q")
+
+    captured = nil
+    allow(Stripe::Checkout::Session).to receive(:create) do |params|
+      captured = params
+      OpenStruct.new(url: "https://checkout.stripe.com/c/pay/cs_test_q")
+    end
+
+    post "/api/stripe/checkout_sessions/topup",
+         params: { pack_key: "medium", quantity: 3 },
+         headers: auth_headers(user)
+
+    expect(response).to have_http_status(:ok)
+    expect(captured[:line_items].first[:quantity]).to eq(3)
+    expect(captured[:metadata][:credit_amount]).to eq(1500) # 500 * 3
+  end
+
+  it "creates a stripe customer if the user does not have one yet" do
+    expect(user.stripe_customer_id).to be_blank
+    expect(Stripe::Customer).to receive(:create).with(email: user.email).and_return(OpenStruct.new(id: "cus_new"))
+    expect(Stripe::Checkout::Session).to receive(:create).and_return(OpenStruct.new(url: "https://example/cs"))
+
+    post "/api/stripe/checkout_sessions/topup",
+         params: { pack_key: "large" },
+         headers: auth_headers(user)
+
+    expect(response).to have_http_status(:ok)
+    expect(user.reload.stripe_customer_id).to eq("cus_new")
+  end
+
+  it "rejects an unknown pack_key" do
+    post "/api/stripe/checkout_sessions/topup",
+         params: { pack_key: "ginormous" },
+         headers: auth_headers(user)
+
+    expect(response).to have_http_status(:bad_request)
+    expect(JSON.parse(response.body)["error"]).to match(/Unknown/i)
+  end
+
+  it "rejects when the configured Price ID is blank" do
+    ENV["STRIPE_PRICE_TOPUP_SMALL"] = ""
+
+    post "/api/stripe/checkout_sessions/topup",
+         params: { pack_key: "small" },
+         headers: auth_headers(user)
+
+    expect(response).to have_http_status(:bad_request)
+  end
+
+  it "returns 401 when unauthenticated" do
+    post "/api/stripe/checkout_sessions/topup", params: { pack_key: "small" }
+    expect(response).to have_http_status(:unauthorized)
+  end
+
+  it "returns 400 when Stripe raises" do
+    user.update!(stripe_customer_id: "cus_existing")
+    allow(Stripe::Checkout::Session).to receive(:create).and_raise(Stripe::APIError.new("boom"))
+
+    post "/api/stripe/checkout_sessions/topup",
+         params: { pack_key: "small" },
+         headers: auth_headers(user)
+
+    expect(response).to have_http_status(:bad_request)
+    expect(JSON.parse(response.body)["error"]).to match(/Failed/i)
+  end
+end

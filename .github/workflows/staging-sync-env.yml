@@ -67,6 +67,9 @@ jobs:
           STRIPE_PRICE_PRO:                 ${{ secrets.STAGING_STRIPE_PRICE_PRO }}
           STRIPE_PRICE_PRO_YEAR:            ${{ secrets.STAGING_STRIPE_PRICE_PRO_YEAR }}
           STRIPE_PRICE_PARTNER_PRO:         ${{ secrets.STAGING_STRIPE_PRICE_PARTNER_PRO }}
+          STRIPE_PRICE_TOPUP_SMALL:         ${{ secrets.STAGING_STRIPE_PRICE_TOPUP_SMALL }}
+          STRIPE_PRICE_TOPUP_MEDIUM:        ${{ secrets.STAGING_STRIPE_PRICE_TOPUP_MEDIUM }}
+          STRIPE_PRICE_TOPUP_LARGE:         ${{ secrets.STAGING_STRIPE_PRICE_TOPUP_LARGE }}
           ONE_DOLLAR_PRICE_ID:              ${{ secrets.STAGING_ONE_DOLLAR_PRICE_ID }}
           PRO_PLAN_URL:                     ${{ secrets.STAGING_PRO_PLAN_URL }}
 
