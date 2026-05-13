@@ -119,6 +119,11 @@ Tasks:
   based on their `plan_type`. Idempotent.
 - `bin/rails credits:recompute_balances` — rebuild denormalized balances
   from the ledger if they drift.
+- `bin/rails credits:regrant_stale_backfill` — one-off recovery for users
+  zeroed out by the original `credits:backfill` bug (issue #110): finds
+  users with a `plan_grant` row, a matching `period_ended` `expire` row,
+  and `plan_credits_balance = 0`, then re-grants their tier allowance with
+  `period_end = 30.days.from_now`.
 
 ## Do not
 
