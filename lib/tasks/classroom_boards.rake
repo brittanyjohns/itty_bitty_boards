@@ -170,7 +170,7 @@ namespace :classroom_boards do
     puts ""
   end
 
-  desc "Queue symbol/AI image generation for any Classroom Essentials cells missing artwork"
+  desc "Queue OpenAI image generation for any teacher-board cells missing artwork (incurs API cost)"
   task generate_images: :environment do
     ActiveRecord::Base.logger.level = Logger::WARN
     group = BoardGroup.find_by(name: TARGET_GROUP_NAME)
@@ -179,18 +179,40 @@ namespace :classroom_boards do
     end
 
     seeded_names = CLASSROOM_BOARDS.map { |b| b[:name] }
-    new_boards = group.boards.where(name: seeded_names)
+    new_boards = group.boards.where(name: seeded_names).includes(:images)
 
-    image_ids = new_boards.flat_map do |board|
-      board.images.reject { |img| img.docs.any? || img.image_prompt.blank? }.map(&:id)
-    end.uniq
-
-    if image_ids.empty?
-      puts "All teacher-board images already have artwork. Nothing to queue."
-    else
-      puts "Queuing GetSymbolsJob for #{image_ids.size} image(s) across #{new_boards.count} board(s)..."
-      GetSymbolsJob.perform_async(image_ids, 10)
-      puts "Queued. Check Sidekiq for progress."
+    # One job per (image, board) so each BoardImage status is tracked correctly.
+    # GenerateImageJob is idempotent on existing docs but skip anything that
+    # already has artwork to avoid burning credits.
+    pending = []
+    new_boards.each do |board|
+      board.images.each do |image|
+        next if image.docs.any?
+        next if image.image_prompt.blank?
+        pending << [image, board]
+      end
     end
+
+    if pending.empty?
+      puts "All teacher-board images already have artwork. Nothing to queue."
+      next
+    end
+
+    admin_id = User::DEFAULT_ADMIN_ID
+    puts "Queuing GenerateImageJob for #{pending.size} (image, board) pair(s) across #{new_boards.count} board(s)..."
+    puts "  NOTE: GenerateImageJob calls OpenAI image generation — this incurs real API costs."
+
+    pending.each do |image, board|
+      options = {
+        "image_prompt" => image.image_prompt,
+        "board_id" => board.id,
+        "screen_size" => "lg",
+        "transparent_bg" => true,
+      }
+      image.update_column(:status, "generating") if image.has_attribute?(:status)
+      GenerateImageJob.perform_async(image.id, admin_id, options)
+    end
+
+    puts "Queued. Check Sidekiq for progress."
   end
 end
