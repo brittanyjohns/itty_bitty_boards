@@ -1,24 +1,20 @@
-name: Sync main → staging & deploy
+name: Deploy staging (manual)
 
-# Fast-forwards the `staging` branch to match `main` on every push to main,
-# then triggers a Hatchbox deploy of ypk9e.hatchboxapp.com so staging always
-# mirrors the latest merged code.
+# Manual resync of the `staging` branch to any ref (defaults to `main`) + a
+# Hatchbox deploy of ypk9e.hatchboxapp.com. Run this when you want staging
+# to match prod again — e.g. after iterating on experimental commits directly
+# on `staging` and wanting a clean slate.
 #
-# Triggers:
-#   - Push to `main`
-#   - Manual workflow_dispatch with an optional ref (defaults to main)
-#
-# Concurrency cancels in-flight runs so back-to-back merges only deploy once
-# (the latest, which already contains the earlier commits).
+# Trigger: workflow_dispatch only. This used to auto-fire on push to `main`,
+# which conflicted with using `staging` as a long-lived experimental branch
+# (every merge would clobber in-flight staging work). If you want every main
+# merge to redeploy staging, re-add a `push: branches: [main]` trigger.
 #
 # Don't put branch protection on `staging` - the workflow needs to push it.
-# If `staging` ever diverges from `main` (commits exist on staging that aren't
-# on main), the non-force push fails and the workflow auto-opens an issue
-# with the recovery command.
+# If `staging` has commits not present on the chosen ref, the non-force push
+# fails and the workflow auto-opens an issue with the recovery command.
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       ref:
@@ -42,7 +38,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.inputs.ref || 'main' }}
 
-      - name: Fast-forward staging to main
+      - name: Fast-forward staging to chosen ref
         id: ff
         run: git push origin HEAD:refs/heads/staging
 
@@ -52,23 +48,24 @@ jobs:
         with:
           script: |
             const sha = context.sha.slice(0, 7);
+            const ref = context.payload.inputs?.ref || 'main';
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `staging diverged from main (${sha}) — manual reset needed`,
+              title: `staging diverged from ${ref} (${sha}) — manual reset needed`,
               labels: ['staging', 'ci'],
               body: [
-                "The `Sync main → staging` workflow failed because",
-                "`staging` has commits not present on `main`.",
+                "The `Deploy staging (manual)` workflow failed because",
+                "`staging` has commits not present on the chosen ref.",
                 "",
                 "**Fix:** locally run",
                 "",
                 "```sh",
                 "git fetch origin",
-                "git push origin origin/main:staging --force-with-lease",
+                `git push origin origin/${ref}:staging --force-with-lease`,
                 "```",
                 "",
-                "Then re-run the workflow or push to main again.",
+                "Then re-run the workflow.",
                 "",
                 `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
               ].join('\n'),
