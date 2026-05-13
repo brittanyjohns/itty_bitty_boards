@@ -24,5 +24,11 @@ Sidekiq.configure_server do |config|
       "queue" => "default",
       "description" => "Zero out plan_credits_balance for users whose plan_credits_reset_at has passed. Backstop for the invoice.payment_succeeded webhook; runs hourly.",
     },
+    "refresh_free_tier_credits" => {
+      "cron" => "0 3 * * *",
+      "class" => "RefreshFreeTierCreditsJob",
+      "queue" => "default",
+      "description" => "Re-grant monthly AI credits to non-subscription users (free, soft trial, MySpeak) whose plan_credits_reset_at has passed. Runs daily at 3am UTC, after DowngradeSoftTrialJob.",
+    },
   })
 end

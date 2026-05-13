@@ -24,6 +24,7 @@ small ones (a single word suggestion).
 | Plan | Monthly credits | Approx. usage |
 |---|---|---|
 | **Free** | 10 | 2 AI images, or 10 word suggestions |
+| **Basic Trial** (default for new signups, 14 days) | 400 | Matches Basic so trial users can fully evaluate AI features |
 | **MySpeak** | 50 | 10 AI images, or 50 word suggestions |
 | **Basic** | 400 | 80 AI images, or one full menu + 30 images |
 | **Pro** | 1,500 | 300 AI images, or many full menus |

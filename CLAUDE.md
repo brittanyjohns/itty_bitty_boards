@@ -87,15 +87,28 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 
 Plan-credit lifecycle:
 
+- **Signup:** `User#after_create` calls `CreditService.ensure_initial_grant!`
+  to grant the tier's monthly allowance immediately. Soft-trial users
+  (`plan_type = "basic_trial"`, set by `User#set_soft_trial_plan`) get the
+  Basic-equivalent allowance with `expires_at = 14.days.from_now`. Other
+  tiers get a 30-day expiry. Idempotent — safe to call again.
 - **First paid period + every renewal:** `invoice.payment_succeeded` webhook
   → `CreditService.grant_plan!` with `period_end = subscription.current_period_end`.
   Reads `monthly_credits` from the subscription line's Stripe Price metadata
   (falls back to `CreditService::PLAN_MONTHLY_CREDITS[plan_type]`). Idempotent
   on Stripe event id.
-- **Trial start:** `customer.subscription.created` with status `trialing`
-  grants credits with `period_end = subscription.trial_end`.
+- **Stripe trial start:** `customer.subscription.created` with status
+  `trialing` grants credits with `period_end = subscription.trial_end`.
 - **Cancel / pause:** plan credits expire via
   `CreditService.expire_plan_credits!`. Top-up credits are preserved.
+- **Soft-trial → free downgrade:** `DowngradeSoftTrialJob` (daily at 2am UTC)
+  flips expired `basic_trial` users to `free` and grants the free-tier
+  allowance immediately.
+- **Free-tier monthly refresh:** `RefreshFreeTierCreditsJob` (daily at
+  3am UTC) re-grants the tier allowance to non-subscription users
+  (`free`, `basic_trial`) whose `plan_credits_reset_at` has passed.
+  Paid tiers (`myspeak`, `basic`, `pro`, `partner_pro`) refresh through
+  `invoice.payment_succeeded`.
 - **Backstop:** `ExpirePlanCreditsJob` runs hourly and zeroes any plan
   balance whose `plan_credits_reset_at` has passed. Cheap and idempotent —
   safe to invoke any time.

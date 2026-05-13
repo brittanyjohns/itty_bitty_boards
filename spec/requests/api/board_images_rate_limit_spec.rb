@@ -22,6 +22,8 @@ RSpec.describe "BoardImages AI gating (credits)", type: :request do
       .to receive(:authenticate_token!).and_return(true)
     allow_any_instance_of(API::ApplicationController)
       .to receive(:current_user).and_return(user)
+    # These tests need an explicit balance; wipe the after_create plan_grant.
+    reset_user_credits!(user)
   end
 
   let!(:user)        { create(:user) }

@@ -11,6 +11,18 @@ class DowngradeSoftTrialJob
     expired_trial_users.find_each do |user|
       user.setup_free_limits
       user.update!(plan_type: "free")
+
+      # The user just transitioned from basic_trial (400 credits, expiring
+      # ~now) to free (10 credits/month). grant_plan! expires whatever's
+      # left of the trial allowance and grants a fresh free-tier amount,
+      # so the user doesn't see balance=0 the moment they're downgraded.
+      CreditService.grant_plan!(
+        user,
+        amount: CreditService.monthly_credits_for("free"),
+        period_end: CreditService.initial_period_end_for("free"),
+        metadata: { source: "soft_trial_downgrade" },
+      )
+
       Rails.logger.info "DowngradeSoftTrialJob: downgraded user #{user.id} (#{user.email}) to free"
       count += 1
     rescue => e

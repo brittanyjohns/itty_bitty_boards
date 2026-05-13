@@ -9,7 +9,12 @@ RSpec.describe "POST /api/webhooks (plan credits)", type: :request do
 
   let!(:user) { FactoryBot.create(:user, stripe_customer_id: "cus_plan_user") }
 
-  before { ENV["STRIPE_WEBHOOK_SECRET"] ||= "whsec_test_dummy" }
+  before do
+    ENV["STRIPE_WEBHOOK_SECRET"] ||= "whsec_test_dummy"
+    # New users get an after_create plan_grant; clear it so these webhook
+    # specs can assert exact "from 0 to N" changes.
+    reset_user_credits!(user)
+  end
 
   def stub_event(object, type:, event_id: "evt_#{SecureRandom.hex(4)}")
     event = OpenStruct.new(id: event_id, type: type, data: OpenStruct.new(object: object))

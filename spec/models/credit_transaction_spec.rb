@@ -3,6 +3,11 @@ require "rails_helper"
 RSpec.describe CreditTransaction, type: :model do
   let(:user) { FactoryBot.create(:user) }
 
+  # Scope tests count rows explicitly created here; clear the after_create
+  # plan_grant that ships with every new user.
+  before { reset_user_credits!(user) }
+
+
   it "validates kind inclusion" do
     t = described_class.new(user: user, amount: 1, kind: "bogus", source: "plan")
     expect(t).not_to be_valid

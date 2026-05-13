@@ -34,6 +34,7 @@ class CreditService
   # Default monthly grant by plan_type. Stripe Price metadata overrides at grant time.
   PLAN_MONTHLY_CREDITS = {
     "free" => 10,
+    "basic_trial" => 400, # Soft 14-day Basic trial set by User#set_soft_trial_plan
     "myspeak" => 50,
     "basic" => 400,
     "pro" => 1500,
@@ -42,6 +43,14 @@ class CreditService
     "vendor" => 1500,
   }.freeze
 
+  # How long an initial grant lasts when the user is NOT on a Stripe-driven
+  # billing cycle (no subscription yet, or canceled). Stripe-driven grants
+  # use `subscription.current_period_end` / `trial_end` instead.
+  INITIAL_PERIOD_DAYS = {
+    "basic_trial" => 14, # matches User#TRAIL_PERIOD (sic)
+  }.freeze
+  DEFAULT_INITIAL_PERIOD_DAYS = 30
+
   class << self
     def cost_for(feature_key)
       FEATURE_COSTS[feature_key.to_s] || 1
@@ -49,6 +58,36 @@ class CreditService
 
     def monthly_credits_for(plan_type)
       PLAN_MONTHLY_CREDITS[plan_type.to_s] || PLAN_MONTHLY_CREDITS["free"]
+    end
+
+    def initial_period_end_for(plan_type, from: Time.current)
+      days = INITIAL_PERIOD_DAYS[plan_type.to_s] || DEFAULT_INITIAL_PERIOD_DAYS
+      from + days.days
+    end
+
+    # Grant the user's tier's monthly allowance — for users who haven't gone
+    # through Stripe yet (free, soft-trial). Idempotent: returns the existing
+    # grant when the user already has any `plan_grant` row, so this is safe
+    # to call from after_create callbacks, sign-in hooks, etc.
+    def ensure_initial_grant!(user)
+      return nil if user.respond_to?(:admin?) && user.admin?
+
+      existing = user.credit_transactions.where(kind: "plan_grant").order(created_at: :asc).first
+      return existing if existing
+
+      plan_type = user.plan_type.presence || "free"
+      amount = monthly_credits_for(plan_type)
+      return nil if amount <= 0
+
+      grant_plan!(
+        user,
+        amount: amount,
+        period_end: initial_period_end_for(plan_type),
+        metadata: { source: "initial_grant", plan_type: plan_type },
+      )
+    rescue => e
+      Rails.logger.error "[CreditService] ensure_initial_grant! failed for user=#{user&.id}: #{e.class} #{e.message}"
+      nil
     end
 
     def balance(user)
