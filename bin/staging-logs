@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Tail staging logs over SSH via systemd-journal.
+# See bin/prod-logs for full docs.
+set -euo pipefail
+
+HOST="${STAGING_HOST:-deploy@ypk9e.hatchboxapp.com}"
+TARGET="${1:-web}"
+LINES="${LINES:-200}"
+
+case "$TARGET" in
+  web)    UNIT="${STAGING_WEB_UNIT:-itty-bitty-boards-server.service}" ;;
+  worker) UNIT="${STAGING_WORKER_UNIT:-itty-bitty-boards-sidekiq.service}" ;;
+  all)    UNIT="${STAGING_ALL_UNIT:-itty-bitty-boards-*.service}" ;;
+  *)      UNIT="$TARGET" ;;
+esac
+
+exec ssh -t "$HOST" "journalctl --user-unit '$UNIT' -f -n $LINES --output=cat"
