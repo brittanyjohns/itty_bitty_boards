@@ -1,111 +1,69 @@
 # spec/requests/api/board_images_rate_limit_spec.rb
+#
+# Phase 3 of usage-based pricing replaced the Redis monthly counter with the
+# credit ledger for AI gating, so these endpoints no longer return 429 when
+# limited — they return 402 insufficient_credits. The spec used to assert
+# 429 on the 6th call; it now asserts 402 the moment the credit balance
+# drops below the per-call cost.
+#
+# The broader 402 + spend-weight behavior across all AI endpoints lives in
+# spec/requests/api/credit_enforcement_spec.rb. This file is kept for the
+# board-image-specific edit/variation endpoints + missing-image edge case.
+
 require "rails_helper"
 
-RSpec.describe "BoardImages rate limiting", type: :request do
-  include ActiveSupport::Testing::TimeHelpers
-
-  
-
-  # Minimal JSON helper
+RSpec.describe "BoardImages AI gating (credits)", type: :request do
   def j
     JSON.parse(response.body) rescue {}
   end
 
-  before(:all) do
-    # Ensure Redis.current exists and points to a test DB
-    unless Redis.respond_to?(:current)
-      class << Redis; attr_accessor :current; end
-    end
-    Redis.current ||= Redis.new(
-      url: ENV.fetch("REDIS_URL", "redis://localhost:6379/1") # use a test DB
-    )
-  end
-
   before do
-    # clean slate rate-limit keys for the test DB
-    Redis.current.flushdb
-
     allow_any_instance_of(API::ApplicationController)
       .to receive(:authenticate_token!).and_return(true)
     allow_any_instance_of(API::ApplicationController)
       .to receive(:current_user).and_return(user)
   end
 
-  after { travel_back }
-
-  let!(:user)        { create(:user).tap { |u| u.update_column(:plan_type, "free") } }
+  let!(:user)        { create(:user) }
   let!(:board)       { create(:board, user: user) }
   let!(:image)       { create(:image, user: user) }
   let!(:board_image) { create(:board_image, board: board, image: image) }
 
-  describe "POST /api/board_images/:id/create_image_edit" do
-    it "returns 429 on the 6th call (limit 5/day), without any stubs" do
-      # we don't assert specific success payloads for the first 5 calls;
-      # we only require that the limiter does NOT return 429 before the 6th.
-      statuses = []
+  describe "POST /api/board_images/:id/create_edit" do
+    it "returns 402 insufficient_credits when balance is below image_edit cost (3)" do
+      post "/api/board_images/#{board_image.id}/create_edit", params: { prompt: "x" }
+      expect(response.status).to eq(402)
+      expect(j["error"]).to eq("insufficient_credits")
+      expect(j["feature"]).to eq("image_edit")
+      expect(j["needed"]).to eq(3)
+    end
 
-      puts "Starting test: making 6 requests to create_image_edit: BoardImage ID #{board_image.id}, User ID #{user.id}"
+    it "succeeds while credits are available, then blocks once exhausted" do
+      CreditService.grant_plan!(user, amount: 9, period_end: 30.days.from_now)
 
-      5.times do
-        post "/api/board_images/#{board_image.id}/create_edit",
-             params: { prompt: "any" }
-        statuses << response.status
-        puts "Request #{statuses.size}: response status #{response.status}"
-        expect(response.status).not_to eq(429), "unexpected 429 before limit"
+      3.times do
+        post "/api/board_images/#{board_image.id}/create_edit", params: { prompt: "x" }
+        expect(response.status).not_to eq(402)
       end
 
-      # 6th should be blocked by the limiter
-      post "/api/board_images/#{board_image.id}/create_edit",
-           params: { prompt: "any" }
-      expect(response.status).to eq(429)
-      expect(j["error"]).to eq("limit_reached")
-      expect(j["limit"]).to eq(5)
-      expect(j["used"]).to be >= 6
+      post "/api/board_images/#{board_image.id}/create_edit", params: { prompt: "x" }
+      expect(response.status).to eq(402)
+      expect(j["error"]).to eq("insufficient_credits")
     end
   end
 
-  describe "POST /api/board_images/:id/create_image_variation" do
-    it "tracks a separate counter and hits 429 after 5 calls to variations" do
-      5.times do
-        post "/api/board_images/#{board_image.id}/create_variation"
-        expect(response.status).not_to eq(429)
-      end
-
+  describe "POST /api/board_images/:id/create_variation" do
+    it "returns 402 with feature=image_variation" do
       post "/api/board_images/#{board_image.id}/create_variation"
-      expect(response.status).to eq(429)
-      expect(j["error"]).to eq("limit_reached")
-    end
-  end
-
-  describe "monthly reset behavior" do
-    it "resets at the start of a new month (integration-level check)" do
-      # Use future dates so Redis expireat timestamps stay ahead of wall-clock time.
-      # Traveling to the past causes expireat to receive a past timestamp, which
-      # Redis treats as immediate expiry — making every increment reset to 1.
-      travel_to Time.utc(2027, 6, 30, 20, 0, 0) do
-        5.times do
-          post "/api/board_images/#{board_image.id}/create_edit", params: { prompt: "x" }
-          expect(response.status).not_to eq(429)
-        end
-        post "/api/board_images/#{board_image.id}/create_edit", params: { prompt: "x" }
-        expect(response.status).to eq(429)
-      end
-
-      # Move into a new month — the limiter generates a new Redis key, so counter resets
-      travel_to Time.utc(2027, 7, 1, 8, 0, 0) do
-        post "/api/board_images/#{board_image.id}/create_edit", params: { prompt: "x" }
-        expect(response.status).not_to eq(429)
-      end
+      expect(response.status).to eq(402)
+      expect(j["feature"]).to eq("image_variation")
+      expect(j["needed"]).to eq(3)
     end
   end
 
   context "when the board image is missing" do
-    it "returns 422 and not 429 (ensuring the limiter runs first)" do
-      5.times do
-        post "/api/board_images/999999/create_image_edit", params: { prompt: "x" }
-        # Either 422 (not found) or 404 depending on your find logic; importantly, not 429
-        expect([422, 404]).to include(response.status)
-      end
+    it "returns 404/422 (not 402) — auth/find layer runs before credit gating" do
+      CreditService.grant_plan!(user, amount: 100, period_end: 30.days.from_now)
       post "/api/board_images/999999/create_image_edit", params: { prompt: "x" }
       expect([422, 404]).to include(response.status)
     end

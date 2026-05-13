@@ -75,14 +75,30 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - Entry point: `CreditService.spend!(user, feature_key:, amount: nil)` raises
   `CreditService::InsufficientCredits` when out of credits. Per-feature costs
   live in `CreditService::FEATURE_COSTS`.
-- API endpoints will surface insufficient credits as **HTTP 402** with
-  `{ error: "insufficient_credits", needed:, balance: }` once Phase 3 ships.
-  Reserve **429** for true rate limiting, not credit exhaustion.
-- `MonthlyFeatureLimiter` (Redis monthly counter) **still gates AI in
-  Phase 1** (shadow mode). The `CreditService` runs alongside and logs
-  divergences; do not rely on credits for blocking until Phase 3.
-- For non-AI features (rate limiting per IP, etc.) keep using the Redis
-  limiter — credits are only for AI features.
+- AI controllers gate via `check_credits!(feature_key:, feature_name:)` in
+  `API::ApplicationController`. On insufficient balance it renders **HTTP 402**
+  with `{ error: "insufficient_credits", feature, needed, balance, plan_credits,
+  topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
+- Reserve **HTTP 429** for true rate limiting (rapid-fire abuse), not credit
+  exhaustion.
+- `MonthlyFeatureLimiter` is no longer in the AI hot path. It remains in the
+  codebase as a generic Redis-counter helper for any future non-AI rate
+  limits, but no controller currently calls it.
+
+Plan-credit lifecycle:
+
+- **First paid period + every renewal:** `invoice.payment_succeeded` webhook
+  → `CreditService.grant_plan!` with `period_end = subscription.current_period_end`.
+  Reads `monthly_credits` from the subscription line's Stripe Price metadata
+  (falls back to `CreditService::PLAN_MONTHLY_CREDITS[plan_type]`). Idempotent
+  on Stripe event id.
+- **Trial start:** `customer.subscription.created` with status `trialing`
+  grants credits with `period_end = subscription.trial_end`.
+- **Cancel / pause:** plan credits expire via
+  `CreditService.expire_plan_credits!`. Top-up credits are preserved.
+- **Backstop:** `ExpirePlanCreditsJob` runs hourly and zeroes any plan
+  balance whose `plan_credits_reset_at` has passed. Cheap and idempotent —
+  safe to invoke any time.
 
 Tasks:
 
