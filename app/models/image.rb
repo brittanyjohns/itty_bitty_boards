@@ -1099,6 +1099,34 @@ class Image < ApplicationRecord
     label&.titleize
   end
 
+  # Looks up a translated label from language_settings; enqueues a background
+  # translation if the language is supported and missing. Falls back to the
+  # English `label` so the caller always gets something renderable.
+  def localized_label(lang)
+    lang = lang.to_s
+    return label if lang.blank? || lang == "en"
+    return label unless Image.languages.include?(lang)
+
+    entry = (language_settings || {})[lang]
+    translated = entry.is_a?(Hash) ? (entry["label"] || entry[:label]) : nil
+    if translated.present?
+      translated
+    else
+      TranslateImageJob.perform_async(id, lang) if id.present? && label.present?
+      label
+    end
+  end
+
+  def localized_display_label(lang)
+    lang = lang.to_s
+    return display_label if lang.blank? || lang == "en"
+    return display_label unless Image.languages.include?(lang)
+
+    entry = (language_settings || {})[lang]
+    translated = entry.is_a?(Hash) ? (entry["display_label"] || entry[:display_label]) : nil
+    translated.presence || localized_label(lang).to_s.titleize
+  end
+
   def prompt_to_send
     return temp_prompt if temp_prompt.present?
     image_prompt.blank? ? "#{prompt_for_label} #{label}" : image_prompt
@@ -1182,13 +1210,14 @@ class Image < ApplicationRecord
   end
 
   def api_view(viewing_user = nil)
+    viewer_lang = viewing_user.respond_to?(:i18n_locale) ? viewing_user.i18n_locale.to_s : nil
     @default_audio_url = default_audio_url
     user_board_imgs = user_board_images(viewing_user)
     any_board_imgs = Board.where(image_parent_id: id).map(&:board_images).flatten
     {
       id: id,
       image_type: image_type,
-      label: label,
+      label: localized_label(viewer_lang),
       user_id: user_id,
       obf_id: obf_id,
       docs: docs.map(&:api_view),

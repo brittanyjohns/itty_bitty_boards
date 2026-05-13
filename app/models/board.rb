@@ -1436,6 +1436,7 @@ class Board < ApplicationRecord
   end
 
   def api_view_for_native_grid(viewing_user = nil, show_hidden = false, voice_to_play = nil)
+    viewer_lang = viewing_user.respond_to?(:i18n_locale) ? viewing_user.i18n_locale.to_s : nil
     @board_images = show_hidden ? board_images.includes(:image) : visible_board_images.includes(:image)
     {
       id: id,
@@ -1510,8 +1511,8 @@ class Board < ApplicationRecord
         {
           id: @board_image.id,
           image_id: @image.id,
-          label: @board_image.label,
-          display_label: @board_image.display_label,
+          label: @board_image.localized_label(viewer_lang),
+          display_label: @board_image.localized_display_label(viewer_lang),
           hidden: @board_image.hidden,
           root_board_id: @root_board&.id,
           root_board_name: @root_board&.name,
@@ -1563,6 +1564,7 @@ class Board < ApplicationRecord
   end
 
   def api_view_with_predictive_images(viewing_user = nil, show_hidden = false, voice_to_play = nil)
+    viewer_lang = viewing_user.respond_to?(:i18n_locale) ? viewing_user.i18n_locale.to_s : nil
     @viewer_settings = viewing_user&.settings || {}
     is_a_user = viewing_user.class == "User"
     is_a_communicator = viewing_user.class == "ChildAccount"
@@ -1709,8 +1711,8 @@ class Board < ApplicationRecord
         {
           id: @board_image.id,
           image_id: @image.id,
-          label: @board_image.label,
-          display_label: @board_image.display_label,
+          label: @board_image.localized_label(viewer_lang),
+          display_label: @board_image.localized_display_label(viewer_lang),
           hidden: @board_image.hidden,
           root_board_id: @root_board&.id,
           root_board_name: @root_board&.name,
