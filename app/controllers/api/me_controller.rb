@@ -2,6 +2,33 @@
 class API::MeController < API::ApplicationController
   before_action :authenticate_token!
 
+  # GET /api/me/credits
+  def credits
+    balance = CreditService.balance(current_user)
+    render json: {
+      plan: balance[:plan],
+      topup: balance[:topup],
+      total: balance[:total],
+      reset_at: balance[:reset_at]&.iso8601,
+      plan_type: current_user.plan_type,
+    }
+  end
+
+  # GET /api/me/credit_transactions
+  def credit_transactions
+    page = (params[:page] || 1).to_i.clamp(1, 1000)
+    per = (params[:per_page] || 25).to_i.clamp(1, 100)
+    scope = current_user.credit_transactions.order(created_at: :desc)
+    total = scope.count
+    rows = scope.offset((page - 1) * per).limit(per)
+    render json: {
+      page: page,
+      per_page: per,
+      total: total,
+      transactions: rows.map { |t| credit_transaction_json(t) },
+    }
+  end
+
   # GET /api/me/followed_pages
   def followed_pages
     pages = Page
@@ -49,6 +76,19 @@ class API::MeController < API::ApplicationController
       id: user.id,
       name: user.try(:name),
       email: user.try(:email) # only include if you’re okay exposing this
+    }
+  end
+
+  def credit_transaction_json(t)
+    {
+      id: t.id,
+      amount: t.amount,
+      kind: t.kind,
+      source: t.source,
+      feature_key: t.feature_key,
+      expires_at: t.expires_at&.iso8601,
+      created_at: t.created_at.iso8601,
+      metadata: t.metadata,
     }
   end
 end

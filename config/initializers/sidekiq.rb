@@ -18,5 +18,17 @@ Sidekiq.configure_server do |config|
       "queue" => "default",
       "description" => "Downgrade expired soft-trial Basic users to Free (runs daily at 2am UTC)",
     },
+    "expire_plan_credits" => {
+      "cron" => "0 * * * *",
+      "class" => "ExpirePlanCreditsJob",
+      "queue" => "default",
+      "description" => "Zero out plan_credits_balance for users whose plan_credits_reset_at has passed. Backstop for the invoice.payment_succeeded webhook; runs hourly.",
+    },
+    "refresh_free_tier_credits" => {
+      "cron" => "0 3 * * *",
+      "class" => "RefreshFreeTierCreditsJob",
+      "queue" => "default",
+      "description" => "Re-grant monthly AI credits to non-subscription users (free, basic_trial) whose plan_credits_reset_at has passed. Paid Stripe subscribers (MySpeak, Basic, Pro, Partner Pro) refresh via invoice.payment_succeeded and are skipped. Runs daily at 3am UTC, after DowngradeSoftTrialJob.",
+    },
   })
 end

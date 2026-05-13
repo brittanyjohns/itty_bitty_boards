@@ -27,7 +27,7 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - **Serializers:** jsonapi-serializer gem
 - **Hosting:** Hatchbox / EC2
   - Production: `main` branch → `speakanyway.com` (Hatchbox app `670kd.hatchboxapp.com`)
-  - Staging: `staging` branch → `https://ypk9e.hatchboxapp.com`. Automatically mirrors `main` — every push to `main` fast-forwards `staging` and triggers a Hatchbox staging deploy (see `.github/workflows/staging-deploy.yml`). To redeploy a specific SHA, run the workflow via `workflow_dispatch`. Staging-specific behavior is gated on `ENV["STAGING"] == "true"` — both envs run with `RAILS_ENV=production`.
+  - Staging: `staging` branch → `https://ypk9e.hatchboxapp.com`. Long-lived branch — push experimental commits directly to it (deploys are handled by Hatchbox's own push hook on the `staging` branch). To resync `staging` to match `main` (or any ref) and trigger a deploy, run the `Deploy staging (manual)` workflow via `workflow_dispatch` (see `.github/workflows/staging-deploy.yml`). Staging-specific behavior is gated on `ENV["STAGING"] == "true"` — both envs run with `RAILS_ENV=production`.
 
 ## Frontend
 
@@ -64,6 +64,61 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - Most features are free
 - Premium features (Menu Board Creator, AI image generation) require active subscription
 - Subscription managed via Stripe/RevenueCat — check status before allowing access to premium endpoints
+
+## AI gating: credit ledger (source of truth)
+
+- AI features are gated by **weighted credits** held in two balances on `users`:
+  `plan_credits_balance` (resets each billing period, doesn't roll over) and
+  `topup_credits_balance` (additive from one-time purchases, doesn't expire).
+- All credit movement is recorded in `credit_transactions` (immutable ledger).
+  Webhook-driven grants are idempotent on `stripe_event_id`.
+- Entry point: `CreditService.spend!(user, feature_key:, amount: nil)` raises
+  `CreditService::InsufficientCredits` when out of credits. Per-feature costs
+  live in `CreditService::FEATURE_COSTS`.
+- AI controllers gate via `check_credits!(feature_key:, feature_name:)` in
+  `API::ApplicationController`. On insufficient balance it renders **HTTP 402**
+  with `{ error: "insufficient_credits", feature, needed, balance, plan_credits,
+  topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
+- Reserve **HTTP 429** for true rate limiting (rapid-fire abuse), not credit
+  exhaustion.
+- `MonthlyFeatureLimiter` is no longer in the AI hot path. It remains in the
+  codebase as a generic Redis-counter helper for any future non-AI rate
+  limits, but no controller currently calls it.
+
+Plan-credit lifecycle:
+
+- **Signup:** `User#after_create` calls `CreditService.ensure_initial_grant!`
+  to grant the tier's monthly allowance immediately. Soft-trial users
+  (`plan_type = "basic_trial"`, set by `User#set_soft_trial_plan`) get the
+  Basic-equivalent allowance with `expires_at = 14.days.from_now`. Other
+  tiers get a 30-day expiry. Idempotent — safe to call again.
+- **First paid period + every renewal:** `invoice.payment_succeeded` webhook
+  → `CreditService.grant_plan!` with `period_end = subscription.current_period_end`.
+  Reads `monthly_credits` from the subscription line's Stripe Price metadata
+  (falls back to `CreditService::PLAN_MONTHLY_CREDITS[plan_type]`). Idempotent
+  on Stripe event id.
+- **Stripe trial start:** `customer.subscription.created` with status
+  `trialing` grants credits with `period_end = subscription.trial_end`.
+- **Cancel / pause:** plan credits expire via
+  `CreditService.expire_plan_credits!`. Top-up credits are preserved.
+- **Soft-trial → free downgrade:** `DowngradeSoftTrialJob` (daily at 2am UTC)
+  flips expired `basic_trial` users to `free` and grants the free-tier
+  allowance immediately.
+- **Free-tier monthly refresh:** `RefreshFreeTierCreditsJob` (daily at
+  3am UTC) re-grants the tier allowance to non-subscription users
+  (`free`, `basic_trial`) whose `plan_credits_reset_at` has passed.
+  Paid tiers (`myspeak`, `basic`, `pro`, `partner_pro`) refresh through
+  `invoice.payment_succeeded`.
+- **Backstop:** `ExpirePlanCreditsJob` runs hourly and zeroes any plan
+  balance whose `plan_credits_reset_at` has passed. Cheap and idempotent —
+  safe to invoke any time.
+
+Tasks:
+
+- `bin/rails credits:backfill` — give every user an initial plan-credit grant
+  based on their `plan_type`. Idempotent.
+- `bin/rails credits:recompute_balances` — rebuild denormalized balances
+  from the ledger if they drift.
 
 ## Do not
 

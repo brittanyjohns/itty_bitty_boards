@@ -16,6 +16,17 @@ RSpec.describe DowngradeSoftTrialJob, type: :job do
         user = create_soft_trial_user
         expect { job.perform }.to change { user.reload.plan_type }.from("basic_trial").to("free")
       end
+
+      it "grants the free-tier credit allowance after downgrade" do
+        user = create_soft_trial_user
+        # Pretend they spent most of their basic_trial allowance.
+        user.update_columns(plan_credits_balance: 12, plan_credits_reset_at: 1.day.ago)
+
+        expect { job.perform }.to change { user.reload.plan_credits_balance }.to(10)
+        expect(user.plan_credits_reset_at).to be_within(5.seconds).of(30.days.from_now)
+        tx = user.credit_transactions.where(kind: "plan_grant").order(created_at: :desc).first
+        expect(tx.metadata["source"]).to eq("soft_trial_downgrade")
+      end
     end
 
     context "when a user has no stripe_customer_id (Apple/RevenueCat)" do

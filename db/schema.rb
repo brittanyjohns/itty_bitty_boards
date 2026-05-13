@@ -337,6 +337,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_13_150240) do
     t.index ["winner"], name: "index_contest_entries_on_winner"
   end
 
+  create_table "credit_transactions", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.integer "amount", null: false
+    t.string "kind", null: false
+    t.string "source", null: false
+    t.string "feature_key"
+    t.string "stripe_event_id"
+    t.string "stripe_price_id"
+    t.datetime "expires_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.index ["expires_at"], name: "index_credit_transactions_on_expires_at", where: "(expires_at IS NOT NULL)"
+    t.index ["stripe_event_id"], name: "index_credit_transactions_on_stripe_event_id", unique: true, where: "(stripe_event_id IS NOT NULL)"
+    t.index ["user_id", "created_at"], name: "index_credit_transactions_on_user_id_and_created_at"
+    t.index ["user_id", "kind"], name: "index_credit_transactions_on_user_id_and_kind"
+    t.index ["user_id"], name: "index_credit_transactions_on_user_id"
+  end
+
   create_table "docs", force: :cascade do |t|
     t.string "documentable_type", null: false
     t.bigint "documentable_id", null: false
@@ -867,6 +885,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_13_150240) do
     t.datetime "confirmed_at"
     t.datetime "confirmation_sent_at"
     t.string "unconfirmed_email"
+    t.integer "plan_credits_balance", default: 0, null: false
+    t.integer "topup_credits_balance", default: 0, null: false
+    t.datetime "plan_credits_reset_at"
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
     t.index ["child_lookup_key"], name: "index_users_on_child_lookup_key", unique: true
     t.index ["confirmation_token"], name: "index_users_on_confirmation_token", unique: true
@@ -946,6 +967,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_13_150240) do
   add_foreign_key "child_boards", "child_accounts"
   add_foreign_key "child_boards", "users", column: "created_by_id"
   add_foreign_key "contest_entries", "events"
+  add_foreign_key "credit_transactions", "users"
   add_foreign_key "feedback_items", "users"
   add_foreign_key "menus", "users"
   add_foreign_key "openai_prompts", "users"

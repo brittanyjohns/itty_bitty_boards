@@ -38,6 +38,46 @@ module API
       end
     end
 
+    # Credit gating for AI features. Spends `amount` (or the weighted default
+    # for the feature) and renders 402 + a structured error body when the
+    # balance is too low. Admins bypass the check entirely.
+    #
+    # Returns true when the request should continue, false (and renders) when
+    # the caller must `return` before doing the AI work.
+    def check_credits!(feature_key:, feature_name: nil, amount: nil)
+      unless current_user
+        Rails.logger.warn "Credit check missing user. feature_key=#{feature_key}"
+        return true
+      end
+      return true if current_user.admin?
+
+      amount ||= CreditService.cost_for(feature_key)
+      CreditService.spend!(
+        current_user,
+        feature_key: feature_key,
+        amount: amount,
+        metadata: { path: request.path },
+      )
+      true
+    rescue CreditService::InsufficientCredits => e
+      balance = CreditService.balance(current_user)
+      render json: {
+        error: "insufficient_credits",
+        message: "You don't have enough AI credits for #{feature_name || feature_key.to_s.titleize}. Buy more credits or upgrade your plan.",
+        feature: feature_key.to_s,
+        needed: e.needed,
+        balance: balance[:total],
+        plan_credits: balance[:plan],
+        topup_credits: balance[:topup],
+        reset_at: balance[:reset_at]&.iso8601,
+        topup_url: "/account/billing/topup",
+      }, status: 402
+      false
+    end
+
+    # Legacy Redis-counter check. AI features now use `check_credits!` —
+    # this remains available for non-AI rate limits (currently none in this
+    # app, but kept so the helper doesn't have to be re-introduced later).
     def check_monthly_limit(feature_key: nil, feature_name: nil)
       unless current_user && feature_key
         Rails.logger.warn "Monthly limit check missing user or feature_key. user_id=#{current_user&.id} feature_key=#{feature_key}"

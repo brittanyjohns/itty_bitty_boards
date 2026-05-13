@@ -22,6 +22,10 @@
   - `STRIPE_PUBLIC_KEY` - Stripe Public Key
   - `STRIPE_PRIVATE_KEY` - Stripe Private Key
   - `STRIPE_SIGNING_SECRET` - Stripe Signing Secret
+  - `STRIPE_WEBHOOK_SECRET` - Stripe Webhook signing secret (separate from STRIPE_SIGNING_SECRET; used by `/api/webhooks`)
+  - `STRIPE_PRICE_TOPUP_SMALL` - Stripe Price ID for the small credit pack (100 credits)
+  - `STRIPE_PRICE_TOPUP_MEDIUM` - Stripe Price ID for the medium credit pack (500 credits)
+  - `STRIPE_PRICE_TOPUP_LARGE` - Stripe Price ID for the large credit pack (1500 credits)
   - `CDN_HOST` - CDN Host (optional)
   - `DEVISE_JWT_SECRET_KEY` - Devise JWT Secret Key
   - `DOMAIN` - Domain
@@ -107,6 +111,107 @@ Subscription based service
 - Free trial available
 - Monthly or yearly subscription options
 - Cancel anytime
+
+## AI credits
+
+AI features (image generation, scenario builder, menu builder, screenshot
+imports, image edits/variations, word suggestions, board formatting) are gated
+by an **AI credit** balance, not a flat monthly action cap. Each feature
+charges a weighted number of credits — see `CreditService::FEATURE_COSTS` in
+[`app/services/credit_service.rb`](app/services/credit_service.rb).
+
+Two balances per user:
+
+- **Plan credits** — granted at each billing-period renewal; expire at
+  period end and do not roll over.
+- **Top-up credits** — purchased ad hoc via Stripe Checkout; do not expire.
+
+When a user runs out, AI endpoints return `402 insufficient_credits` with the
+needed/balance numbers — the frontend uses that to surface a "Buy more
+credits" CTA. `429 limit_reached` is reserved for true rate limiting.
+
+### Pricing
+
+> Numbers below are the defaults baked into `CreditService` and the staging
+> Stripe Prices. Production tier prices and final allowances are a
+> marketing/leadership decision — values are overridable per environment
+> via Stripe Price metadata (`monthly_credits` on subscription Prices,
+> `credit_amount` on top-up Prices) without a redeploy.
+> See `docs/credits-handoff.md` for the working pricing proposal and the
+> rationale behind these numbers.
+
+**Plan tier allowances** (`CreditService::PLAN_MONTHLY_CREDITS`):
+
+| Plan         | Monthly credits |
+| ------------ | --------------- |
+| Free         | 10              |
+| MySpeak      | 50              |
+| Basic        | 400             |
+| Pro          | 1,500           |
+| Partner Pro  | 1,500           |
+
+**Top-up packs** (one-time Stripe Checkout, do not expire):
+
+| Pack    | Credits | Price (USD) | `pack_key` |
+| ------- | ------- | ----------- | ---------- |
+| Small   | 100     | $4.99       | `small`    |
+| Medium  | 500     | $19.99      | `medium`   |
+| Large   | 1,500   | $49.99      | `large`    |
+
+**Per-feature credit cost** (`CreditService::FEATURE_COSTS`, server-authoritative):
+
+| Feature                    | `feature_key`        | Credits |
+| -------------------------- | -------------------- | ------- |
+| AI word suggestions        | `word_suggestion`    | 1       |
+| AI board formatting        | `board_format`       | 2       |
+| AI image edit              | `image_edit`         | 3       |
+| AI image variation         | `image_variation`    | 3       |
+| AI image generation        | `image_generation`   | 5       |
+| AI screenshot import       | `screenshot_import`  | 5       |
+| AI scenario builder        | `scenario_create`    | 10      |
+| AI menu builder            | `menu_create`        | 10      |
+
+### Stripe setup
+
+Each subscription Price in Stripe must have metadata:
+
+- `plan_type`: one of `free`, `myspeak`, `basic`, `pro`, `partner_pro`
+- `monthly_credits`: integer; overrides `CreditService::PLAN_MONTHLY_CREDITS`
+  defaults
+
+Each top-up Price must have metadata:
+
+- `kind: "topup"`
+- `credit_amount`: integer
+
+See `docs/stripe-setup.md` for the full dashboard checklist.
+
+### API surface
+
+- `GET /api/me/credits` — `{ plan, topup, total, reset_at, plan_type }`
+- `GET /api/me/credit_transactions` — paginated ledger
+- `POST /api/stripe/checkout_sessions/topup` — creates a one-time Stripe
+  Checkout Session for a credit pack. Body: `{ pack_key: "small"|"medium"|"large", quantity: 1 }`.
+  On payment success, the webhook adds credits to `topup_credits_balance`
+  (idempotent on Stripe event id).
+
+### Status
+
+**Phases 1–4 are live.** `CreditService.spend!` is the source of truth
+for AI gating; AI endpoints return `402 insufficient_credits` when a call
+would overdraw. Plan credits are granted automatically by Stripe
+webhooks:
+
+- `invoice.payment_succeeded` → grant for the new billing period
+  (initial payment + every renewal). Idempotent on Stripe event id.
+- `customer.subscription.created` with status `trialing` → grant for the
+  trial period.
+- `customer.subscription.deleted` / `.paused` → expire plan credits
+  (top-up credits preserved).
+- Hourly `ExpirePlanCreditsJob` as a backstop.
+
+Admins bypass the credit check. `MonthlyFeatureLimiter` is no longer in
+the AI hot path.
 
 ## SpeakAnyWay-Specific Terms:
 

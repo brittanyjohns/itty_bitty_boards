@@ -83,6 +83,16 @@ RSpec.describe "API::Internal::Profiles", type: :request do
       expect(Communicators::GenerateDeviceTag).to have_received(:call).with(profile)
     end
 
+    it "accepts an empty profile patch and regenerates safety attachments" do
+      patch "/api/internal/profiles/#{profile.id}",
+            params: { profile: {} }.to_json,
+            headers: json_headers
+
+      expect(response).to have_http_status(:ok)
+      expect(Communicators::GenerateSafetyIdCard).to have_received(:call).with(profile)
+      expect(Communicators::GenerateDeviceTag).to have_received(:call).with(profile)
+    end
+
     it "does not regenerate attachments for non-safety profiles" do
       profile.update!(profile_kind: "public_page")
 
