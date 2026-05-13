@@ -176,4 +176,54 @@ RSpec.describe User, type: :model do
       expect(last_email.subject).to include("You have been invited to join SpeakAnyWay AAC!")
     end
   end
+
+  context "#i18n_locale" do
+    let(:user) { FactoryBot.create(:user) }
+
+    def set_voice_language(value)
+      user.settings ||= {}
+      user.settings["voice"] ||= {}
+      user.settings["voice"]["language"] = value
+      user.save!
+    end
+
+    it "returns :en by default" do
+      expect(user.i18n_locale).to eq(:en)
+    end
+
+    it "strips BCP-47 region tag" do
+      set_voice_language("es-US")
+      expect(user.i18n_locale).to eq(:es)
+    end
+
+    it "handles underscore-separated locale" do
+      set_voice_language("fr_FR")
+      expect(user.i18n_locale).to eq(:fr)
+    end
+
+    it "accepts bare ISO 639-1 codes" do
+      set_voice_language("de")
+      expect(user.i18n_locale).to eq(:de)
+    end
+
+    it "maps legacy human-readable names to ISO codes" do
+      set_voice_language("Spanish")
+      expect(user.i18n_locale).to eq(:es)
+    end
+
+    it "is case-insensitive for legacy names" do
+      set_voice_language("FRENCH")
+      expect(user.i18n_locale).to eq(:fr)
+    end
+
+    it "falls back to :en for unsupported languages" do
+      set_voice_language("xx-YY")
+      expect(user.i18n_locale).to eq(:en)
+    end
+
+    it "falls back to :en for empty values" do
+      set_voice_language("   ")
+      expect(user.i18n_locale).to eq(:en)
+    end
+  end
 end

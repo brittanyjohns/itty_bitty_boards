@@ -646,6 +646,34 @@ class User < ApplicationRecord
     voice_settings["language"] || "en-US"
   end
 
+  LEGACY_LANGUAGE_NAME_TO_CODE = {
+    "english" => "en",
+    "spanish" => "es",
+    "french" => "fr",
+    "german" => "de",
+    "italian" => "it",
+    "japanese" => "ja",
+    "korean" => "ko",
+    "dutch" => "nl",
+    "polish" => "pl",
+    "portuguese" => "pt",
+    "russian" => "ru",
+    "chinese" => "zh",
+  }.freeze
+
+  # Canonical ISO 639-1 symbol for content lookups (image labels, mailer locale).
+  # User#language stays BCP-47 ("en-US") for TTS providers (Polly, OpenAI, Capacitor).
+  # Falls back to :en if the stored value isn't in Image.languages.
+  def i18n_locale
+    raw = voice_settings["language"].to_s.strip
+    return :en if raw.empty?
+
+    code = LEGACY_LANGUAGE_NAME_TO_CODE[raw.downcase] || raw.split(/[-_]/).first&.downcase
+    return :en if code.blank?
+
+    Image.languages.include?(code) ? code.to_sym : :en
+  end
+
   def is_a_favorite?(doc)
     favorite_docs.include?(doc)
   end
