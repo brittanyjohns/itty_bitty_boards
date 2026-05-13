@@ -8,7 +8,8 @@ namespace :credits do
 
       plan_type = user.plan_type.presence || "free"
       amount = CreditService.monthly_credits_for(plan_type)
-      period_end = user.plan_expires_at.presence || 30.days.from_now
+      candidate = user.plan_expires_at
+      period_end = (candidate.present? && candidate > Time.current) ? candidate : 30.days.from_now
 
       CreditService.grant_plan!(
         user,
@@ -20,6 +21,36 @@ namespace :credits do
       print "." if granted % 100 == 0
     end
     puts "\nBackfill complete. granted=#{granted} skipped=#{skipped}"
+  end
+
+  desc "Re-grant plan credits to users zeroed out by the stale-plan_expires_at backfill bug (issue #110)"
+  task regrant_stale_backfill: :environment do
+    regranted = 0
+    skipped = 0
+
+    affected_user_ids = CreditTransaction
+      .where(kind: "expire", source: "plan")
+      .where("metadata->>'reason' = ?", "period_ended")
+      .distinct.pluck(:user_id)
+
+    User.where(id: affected_user_ids, plan_credits_balance: 0).find_each do |user|
+      unless CreditTransaction.exists?(user_id: user.id, kind: "plan_grant")
+        skipped += 1
+        next
+      end
+
+      plan_type = user.plan_type.presence || "free"
+      amount = CreditService.monthly_credits_for(plan_type)
+      CreditService.grant_plan!(
+        user,
+        amount: amount,
+        period_end: 30.days.from_now,
+        metadata: { reason: "manual_regrant_stale_plan_expires_at", plan_type: plan_type },
+      )
+      regranted += 1
+    end
+
+    puts "Re-grant complete. regranted=#{regranted} skipped=#{skipped}"
   end
 
   desc "Recompute denormalized balances from the credit_transactions ledger"
