@@ -1435,8 +1435,21 @@ class Board < ApplicationRecord
     end
   end
 
+  def schedule_translations_for(language)
+    language = language.to_s
+    return if language.blank? || language == "en"
+    return unless Image.languages.include?(language)
+
+    cache_key = "translate_board:#{id}:#{language}"
+    return if Rails.cache.exist?(cache_key)
+
+    TranslateBoardImagesJob.perform_async(id, language)
+    Rails.cache.write(cache_key, true, expires_in: 1.hour)
+  end
+
   def api_view_for_native_grid(viewing_user = nil, show_hidden = false, voice_to_play = nil)
     viewer_lang = viewing_user.respond_to?(:i18n_locale) ? viewing_user.i18n_locale.to_s : nil
+    schedule_translations_for(viewer_lang) if viewer_lang.present?
     @board_images = show_hidden ? board_images.includes(:image) : visible_board_images.includes(:image)
     {
       id: id,
@@ -1565,6 +1578,7 @@ class Board < ApplicationRecord
 
   def api_view_with_predictive_images(viewing_user = nil, show_hidden = false, voice_to_play = nil)
     viewer_lang = viewing_user.respond_to?(:i18n_locale) ? viewing_user.i18n_locale.to_s : nil
+    schedule_translations_for(viewer_lang) if viewer_lang.present?
     @viewer_settings = viewing_user&.settings || {}
     is_a_user = viewing_user.class == "User"
     is_a_communicator = viewing_user.class == "ChildAccount"
