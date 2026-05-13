@@ -33,6 +33,10 @@ RSpec.describe "POST /api/stripe/checkout_sessions/topup", type: :request do
     expect(captured[:metadata][:pack_key]).to eq("small")
     expect(captured[:metadata][:credit_amount]).to eq(100)
     expect(captured[:metadata][:user_id]).to eq(user.id)
+    # Regression guard: Stripe rejects `payment_method_collection` on
+    # mode=payment Checkout Sessions with "You can only set
+    # `payment_method_collection` if there are recurring prices."
+    expect(captured).not_to have_key(:payment_method_collection)
   end
 
   it "scales credit_amount by quantity" do

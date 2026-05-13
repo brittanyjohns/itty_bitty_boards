@@ -124,13 +124,17 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
 
     credit_amount = TOPUP_CREDIT_AMOUNTS[pack_key].to_i
 
+    # NOTE: `payment_method_collection` is only valid on subscription-mode
+    # Checkout Sessions. For one-time payment mode (top-up packs), Stripe
+    # rejects the request with "You can only set `payment_method_collection`
+    # if there are recurring prices." Leaving it off; Stripe's default for
+    # mode=payment already collects a payment method.
     session = Stripe::Checkout::Session.create(
       mode: "payment",
       customer: current_user.stripe_customer_id,
       line_items: [{ price: price_id, quantity: quantity }],
       success_url: "#{frontend_base_url}/account/billing/topup/success?session_id={CHECKOUT_SESSION_ID}",
       cancel_url: "#{frontend_base_url}/account/billing",
-      payment_method_collection: "always",
       allow_promotion_codes: true,
       metadata: {
         kind: "topup",
