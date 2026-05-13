@@ -28,7 +28,7 @@ Sidekiq.configure_server do |config|
       "cron" => "0 3 * * *",
       "class" => "RefreshFreeTierCreditsJob",
       "queue" => "default",
-      "description" => "Re-grant monthly AI credits to non-subscription users (free, soft trial, MySpeak) whose plan_credits_reset_at has passed. Runs daily at 3am UTC, after DowngradeSoftTrialJob.",
+      "description" => "Re-grant monthly AI credits to non-subscription users (free, basic_trial) whose plan_credits_reset_at has passed. Paid Stripe subscribers (MySpeak, Basic, Pro, Partner Pro) refresh via invoice.payment_succeeded and are skipped. Runs daily at 3am UTC, after DowngradeSoftTrialJob.",
     },
   })
 end
