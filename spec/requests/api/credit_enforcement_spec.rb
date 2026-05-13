@@ -6,6 +6,11 @@ require "rails_helper"
 RSpec.describe "Credit enforcement on AI endpoints", type: :request do
   let(:user) { FactoryBot.create(:user) }
 
+  # Most tests below dictate exact balances; clear the after_create grant
+  # so we're not fighting it. The grant_plan! calls in inner `before`
+  # blocks then set up the specific scenario each test needs.
+  before { reset_user_credits!(user) }
+
   def auth
     auth_headers(user)
   end

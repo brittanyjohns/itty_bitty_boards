@@ -3,6 +3,10 @@ require "rails_helper"
 RSpec.describe CreditService, type: :service do
   let(:user) { FactoryBot.create(:user) }
 
+  # New users land in `basic_trial` and get an after_create plan_grant (400).
+  # These specs test CreditService in isolation, so wipe the auto-grant first.
+  before { reset_user_credits!(user) }
+
   describe ".cost_for" do
     it "returns the configured weight for a known feature" do
       expect(described_class.cost_for("image_generation")).to eq(5)
@@ -19,11 +23,57 @@ RSpec.describe CreditService, type: :service do
     it "returns the configured allowance per plan" do
       expect(described_class.monthly_credits_for("free")).to eq(10)
       expect(described_class.monthly_credits_for("basic")).to eq(400)
+      expect(described_class.monthly_credits_for("basic_trial")).to eq(400)
       expect(described_class.monthly_credits_for("pro")).to eq(1500)
     end
 
     it "falls back to free for unknown plan" do
       expect(described_class.monthly_credits_for("nope")).to eq(described_class::PLAN_MONTHLY_CREDITS["free"])
+    end
+  end
+
+  describe ".initial_period_end_for" do
+    it "is 14 days for basic_trial (matches the soft-trial window)" do
+      from = Time.utc(2026, 5, 1)
+      expect(described_class.initial_period_end_for("basic_trial", from: from)).to eq(from + 14.days)
+    end
+
+    it "is 30 days by default for other plans" do
+      from = Time.utc(2026, 5, 1)
+      expect(described_class.initial_period_end_for("free", from: from)).to eq(from + 30.days)
+      expect(described_class.initial_period_end_for("basic", from: from)).to eq(from + 30.days)
+    end
+  end
+
+  describe ".ensure_initial_grant!" do
+    it "grants the tier's monthly allowance with the right expiry on first call" do
+      user.update_column(:plan_type, "basic_trial")
+      # Clear any after_create grant so we can test the method in isolation
+      user.credit_transactions.destroy_all
+      user.update_columns(plan_credits_balance: 0, plan_credits_reset_at: nil)
+
+      tx = described_class.ensure_initial_grant!(user)
+      expect(tx).to be_present
+      expect(tx.kind).to eq("plan_grant")
+      expect(tx.amount).to eq(400)
+      expect(tx.expires_at).to be_within(2.seconds).of(14.days.from_now)
+      expect(user.reload.plan_credits_balance).to eq(400)
+    end
+
+    it "is idempotent: a second call returns the existing grant without adding credits" do
+      user.update_column(:plan_type, "free")
+      first = described_class.ensure_initial_grant!(user)
+      expect {
+        second = described_class.ensure_initial_grant!(user)
+        expect(second.id).to eq(first.id)
+      }.not_to change { user.reload.credit_transactions.where(kind: "plan_grant").count }
+    end
+
+    it "is a no-op for admins" do
+      admin = FactoryBot.create(:admin_user)
+      admin.credit_transactions.destroy_all
+      expect(described_class.ensure_initial_grant!(admin)).to be_nil
+      expect(admin.reload.credit_transactions.where(kind: "plan_grant")).to be_empty
     end
   end
 

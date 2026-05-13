@@ -146,6 +146,15 @@ class User < ApplicationRecord
   before_save :setup_limits, if: :plan_type_changed?
   before_save :update_vendor, if: :plan_type_changed?
 
+  # Grant the user's tier's monthly AI credit allowance on signup so the
+  # very first AI call doesn't 402. Idempotent in CreditService — safe to
+  # call again if a callback runs twice.
+  after_create :grant_initial_plan_credits
+
+  def grant_initial_plan_credits
+    CreditService.ensure_initial_grant!(self)
+  end
+
   def following?(page)
     page_follows.exists?(followed_page_id: page.id)
   end

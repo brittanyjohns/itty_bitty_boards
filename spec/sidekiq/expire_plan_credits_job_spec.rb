@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe ExpirePlanCreditsJob, type: :sidekiq do
   describe "#perform" do
     it "zeros plan credits whose reset_at has passed" do
-      user = FactoryBot.create(:user)
+      user = reset_user_credits!(FactoryBot.create(:user))
       CreditService.grant_plan!(user, amount: 100, period_end: 1.day.ago)
       expect(user.reload.plan_credits_balance).to eq(100)
 
