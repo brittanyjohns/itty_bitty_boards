@@ -503,6 +503,8 @@ class ChildAccount < ApplicationRecord
     voice_settings["language"] || user.language || "en-US"
   end
 
+  include LocaleResolution
+
   def recently_used_boards
     # word_events.includes(:board).where("created_at >= ?", 1.week.ago).order("created_at DESC").map(&:board).uniq
     child_boards.includes(board: :word_events).where("word_events.created_at >= ?", 1.week.ago).order("word_events.created_at DESC").uniq

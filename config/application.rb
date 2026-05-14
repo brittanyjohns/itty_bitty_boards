@@ -24,5 +24,9 @@ module SpeakAnyWay
     # config.time_zone = "Central Time (US & Canada)"
     config.autoload_paths << Rails.root.join("app/services")
     config.eager_load_paths << Rails.root.join("services")
+
+    config.i18n.available_locales = [:en, :es, :fr, :de, :it, :ja, :ko, :nl, :pl, :pt, :ru, :zh]
+    config.i18n.default_locale = :en
+    config.i18n.fallbacks = [:en]
   end
 end

@@ -3,6 +3,14 @@ class BaseMailer < ApplicationMailer
     ENV["FRONT_END_URL"] || "http://localhost:8100"
   end
 
+  # Runs the block with I18n.locale set to the recipient's preferred locale.
+  # Subjects, bodies, and any `t(...)` calls inside resolve against that
+  # locale, falling back to :en (configured in application.rb).
+  def with_user_locale(user, &block)
+    locale = user.respond_to?(:i18n_locale) ? user.i18n_locale : :en
+    I18n.with_locale(locale, &block)
+  end
+
   def team_invitation_email(invitee, inviter, team, role = "member")
     @invitee = invitee
     @inviter = inviter

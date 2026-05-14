@@ -656,6 +656,8 @@ class User < ApplicationRecord
     voice_settings["language"] || "en-US"
   end
 
+  include LocaleResolution
+
   def is_a_favorite?(doc)
     favorite_docs.include?(doc)
   end
