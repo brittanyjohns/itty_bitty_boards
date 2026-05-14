@@ -111,6 +111,19 @@ class BoardImage < ApplicationRecord
     self.display_label = image_language_settings[:display_label] || label
   end
 
+  # Delegates to the underlying Image's language_settings. Stored `label` /
+  # `display_label` columns reflect the board's authored language; this resolves
+  # the viewer's preferred language at read time.
+  def localized_label(lang)
+    return label if lang.blank? || lang.to_s == (language.presence || "en")
+    image&.localized_label(lang) || label
+  end
+
+  def localized_display_label(lang)
+    return display_label if lang.blank? || lang.to_s == (language.presence || "en")
+    image&.localized_display_label(lang) || display_label
+  end
+
   def hide_label
     data && data["hide_label"] == true
   end
@@ -387,11 +400,12 @@ class BoardImage < ApplicationRecord
   # end
 
   def api_view(viewing_user = nil)
+    viewer_lang = viewing_user.respond_to?(:i18n_locale) ? viewing_user.i18n_locale.to_s : nil
     {
       id: id,
       image_id: image_id,
-      label: label,
-      display_label: display_label,
+      label: localized_label(viewer_lang),
+      display_label: localized_display_label(viewer_lang),
       part_of_speech: part_of_speech,
       image_prompt: image_prompt,
       user_id: board.user_id,
@@ -425,7 +439,7 @@ class BoardImage < ApplicationRecord
       predictive_board_name: predictive_board&.name,
       can_edit: viewing_user == board.user,
       language: language,
-      display_label: display_label,
+      display_label: localized_display_label(viewer_lang),
       language_settings: language_settings,
     # image_audio_files: image_audio_files,
     # remaining_user_boards: remaining_user_boards,
@@ -433,10 +447,11 @@ class BoardImage < ApplicationRecord
   end
 
   def index_view(viewing_user = nil)
+    viewer_lang = viewing_user.respond_to?(:i18n_locale) ? viewing_user.i18n_locale.to_s : nil
     {
       id: id,
       image_id: image_id,
-      label: label,
+      label: localized_label(viewer_lang),
       board_id: board_id,
       board_name: board.name,
       board_type: board.board_type,
@@ -447,7 +462,7 @@ class BoardImage < ApplicationRecord
       part_of_speech: part_of_speech,
       audio_files: audio_files.map { |af| { id: af.id, url: af.to_s, content_type: af.inspect } },
       # predictive_board_id: predictive_board_id,
-      display_label: display_label,
+      display_label: localized_display_label(viewer_lang),
       bg_color: bg_color,
       bg_class: bg_class,
       display_image_url: display_image_url,

@@ -99,4 +99,54 @@ RSpec.describe Image, type: :model do
 
     context ""
   end
+
+  describe "#localized_label" do
+    let(:image) do
+      FactoryBot.create(:image,
+        label: "hello",
+        language_settings: { "es" => { "label" => "hola", "display_label" => "Hola" } })
+    end
+
+    it "returns the English label when language is nil" do
+      expect(image.localized_label(nil)).to eq("hello")
+    end
+
+    it "returns the English label when language is 'en'" do
+      expect(image.localized_label("en")).to eq("hello")
+    end
+
+    it "returns the translated label when present in language_settings" do
+      expect(image.localized_label("es")).to eq("hola")
+    end
+
+    it "falls back to English when the language is unsupported" do
+      expect(image.localized_label("xx")).to eq("hello")
+    end
+
+    it "enqueues TranslateImageJob and returns English fallback when translation missing" do
+      expect(TranslateImageJob).to receive(:perform_async).with(image.id, "fr")
+      expect(image.localized_label("fr")).to eq("hello")
+    end
+  end
+
+  describe "#localized_display_label" do
+    let(:image) do
+      FactoryBot.create(:image,
+        label: "hello",
+        language_settings: { "es" => { "label" => "hola", "display_label" => "Hola" } })
+    end
+
+    it "returns the titleized English label by default" do
+      expect(image.localized_display_label(nil)).to eq("Hello")
+    end
+
+    it "returns the translated display_label when present" do
+      expect(image.localized_display_label("es")).to eq("Hola")
+    end
+
+    it "titleizes the translated label when only label is present" do
+      image.update!(language_settings: { "es" => { "label" => "hola" } })
+      expect(image.localized_display_label("es")).to eq("Hola")
+    end
+  end
 end
