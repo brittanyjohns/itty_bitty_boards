@@ -24,6 +24,8 @@ class ImageVariationService
       return nil
     end
 
+    return placeholder_image_url if AppEnv.staging?
+
     download = nil
     png_file = nil
 
@@ -119,6 +121,12 @@ class ImageVariationService
     tf.close!
   rescue
     # ignore
+  end
+
+  # Staging stub: skip the paid OpenAI image API and return the bundled placeholder.
+  def placeholder_image_url
+    host = Rails.application.routes.default_url_options[:host]
+    "https://#{host}/placeholder.jpeg"
   end
 
   def default_openai_client

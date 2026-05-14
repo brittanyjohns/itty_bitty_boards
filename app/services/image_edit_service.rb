@@ -22,6 +22,8 @@ class ImageEditService
     raise ArgumentError, "image_url required" if image_url.blank?
     raise ArgumentError, "prompt required" if prompt.blank?
 
+    return placeholder_data_url if AppEnv.staging?
+
     download = nil
     png_file = nil
 
@@ -134,6 +136,13 @@ class ImageEditService
     tf&.close!
   rescue
     # ignore
+  end
+
+  # Staging stub: skip the paid OpenAI image API and return the bundled
+  # placeholder as a data URL (Image#generate_image_edit already handles data URLs).
+  def placeholder_data_url
+    path = Rails.root.join("public/placeholder.jpeg")
+    "data:image/jpeg;base64,#{Base64.strict_encode64(File.binread(path))}"
   end
 
   def default_openai_client

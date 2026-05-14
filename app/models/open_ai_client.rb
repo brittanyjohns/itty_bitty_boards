@@ -61,6 +61,8 @@ class OpenAiClient
   end
 
   def create_image
+    return placeholder_image_response if AppEnv.staging?
+
     client = openai_client
 
     params = {
@@ -655,6 +657,8 @@ class OpenAiClient
   end
 
   def create_image_variation(img, num_of_images = 1)
+    return placeholder_image_url if AppEnv.staging?
+
     response = openai_client.images.variations(parameters: { image: img, n: 1 })
     img_variation_url = response.dig("data", 0, "url")
     Rails.logger.debug "*** ERROR *** Invaild Image Variation Response: #{response}" unless img_variation_url
@@ -761,5 +765,30 @@ class OpenAiClient
     else
       "image/webp"
     end
+  end
+
+  # Staging stub: skip the paid OpenAI image API and return the bundled
+  # placeholder so the rest of the image pipeline still runs.
+  def placeholder_image_response
+    {
+      b64_json: Base64.strict_encode64(File.binread(placeholder_image_path)),
+      img_url: nil,
+      revised_prompt: nil,
+      edited_prompt: @opts[:prompt],
+      output_format: "jpeg",
+      content_type: "image/jpeg",
+      model: "staging-placeholder",
+      size: DEFAULT_IMAGE_SIZE,
+      raw_response: nil,
+    }
+  end
+
+  def placeholder_image_url
+    host = Rails.application.routes.default_url_options[:host]
+    "https://#{host}/placeholder.jpeg"
+  end
+
+  def placeholder_image_path
+    Rails.root.join("public/placeholder.jpeg")
   end
 end
