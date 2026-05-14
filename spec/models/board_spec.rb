@@ -242,4 +242,46 @@ RSpec.describe Board, type: :model do
       end
     end
   end
+
+  describe "AI word-generation language threading" do
+    let(:openai) { instance_double(OpenAiClient) }
+
+    before { allow(OpenAiClient).to receive(:new).and_return(openai) }
+
+    describe "#get_word_suggestions" do
+      let(:board) { FactoryBot.create(:board, language: "es", board_type: "static") }
+
+      it "defaults the language to the board's own language" do
+        expect(openai).to receive(:get_word_suggestions)
+          .with("drink", 5, [], anything, hash_including(language: "es"))
+          .and_return({ content: '{"words":[]}' })
+        board.get_word_suggestions("drink", 5, [])
+      end
+
+      it "lets an explicit language override the board's language" do
+        expect(openai).to receive(:get_word_suggestions)
+          .with("drink", 5, [], anything, hash_including(language: "fr"))
+          .and_return({ content: '{"words":[]}' })
+        board.get_word_suggestions("drink", 5, [], language: "fr")
+      end
+    end
+
+    describe "#get_word_suggestions_from_prompt" do
+      let(:board) { FactoryBot.create(:board, language: "de", board_type: "static") }
+
+      it "defaults the language to the board's own language" do
+        expect(openai).to receive(:get_word_suggestions_from_prompt)
+          .with("a prompt", hash_including(language: "de"))
+          .and_return({ content: '{"words":[]}' })
+        board.get_word_suggestions_from_prompt("a prompt")
+      end
+
+      it "lets an explicit language override the board's language" do
+        expect(openai).to receive(:get_word_suggestions_from_prompt)
+          .with("a prompt", hash_including(language: "it"))
+          .and_return({ content: '{"words":[]}' })
+        board.get_word_suggestions_from_prompt("a prompt", language: "it")
+      end
+    end
+  end
 end

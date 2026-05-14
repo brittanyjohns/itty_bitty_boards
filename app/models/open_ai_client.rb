@@ -403,6 +403,19 @@ class OpenAiClient
                           'pl': "Polish",
                           'th': "Thai" }.freeze
 
+  # Appends a "Respond in <language>" instruction when `language` is a supported
+  # non-English code. No-op for `en`, blank, or unknown codes, so English
+  # callers produce exactly the same prompt as before.
+  def append_language_instruction(text, language)
+    lang = language.to_s.strip.downcase
+    return text if lang.blank? || lang == "en"
+
+    formatted_language = LONG_LANGUAGE_NAMES[lang.to_sym]
+    return text if formatted_language.blank?
+
+    "#{text} Respond in #{formatted_language}."
+  end
+
   def get_words_for_scenario(scenario_description, number_of_words = 24, language = "en", profile: nil)
     prompt = <<~PROMPT
       I have a scenario description: "#{scenario_description}".
@@ -412,6 +425,7 @@ class OpenAiClient
       Do not repeat any words that are already on the board & only provide #{number_of_words} words.
       Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}
     PROMPT
+    prompt = append_language_instruction(prompt, language)
     prompt = append_profile_guidance(prompt, profile)
 
     @model = GTP_MODEL
@@ -459,11 +473,7 @@ class OpenAiClient
         If the board is 'food', words like 'apple', 'banana', 'cookie', etc. would be appropriate."
     end
     format_instructions = "Do not repeat any words that are already on the board & only provide #{number_of_words} words. DO NOT INCLUDE [#{exclude_words_prompt}]. Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
-    language = language || "en"
-    if language != "en"
-      formatted_language = LONG_LANGUAGE_NAMES[language.to_sym]
-      format_instructions += " Respond in #{formatted_language}." if formatted_language
-    end
+    format_instructions = append_language_instruction(format_instructions, language)
     text = "#{text} #{format_instructions} #{ending}"
     text = append_profile_guidance(text, profile)
     @messages = [{ role: "user",
@@ -478,7 +488,7 @@ class OpenAiClient
     response
   end
 
-  def get_word_suggestions(name, number_of_words = 24, words_to_exclude = [], board_type = "default", profile: nil)
+  def get_word_suggestions(name, number_of_words = 24, words_to_exclude = [], board_type = "default", language: "en", profile: nil)
     if words_to_exclude.is_a?(String)
       words_to_exclude = words_to_exclude.split(",").map(&:strip)
     end
@@ -493,6 +503,7 @@ class OpenAiClient
     end
     format_instructions = "Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}"
     text += format_instructions
+    text = append_language_instruction(text, language)
     text = append_profile_guidance(text, profile)
     @messages = [{ role: "user",
                   content: [{ type: "text",
@@ -554,11 +565,12 @@ class OpenAiClient
     create_chat
   end
 
-  def get_word_suggestions_from_prompt(prompt, profile: nil)
+  def get_word_suggestions_from_prompt(prompt, language: "en", profile: nil)
     @model = GTP_MODEL
     text = prompt
     format_instructions = "Respond with a JSON object in the following format: {\"words\": [\"word_or_phrase_1\", \"word_or_phrase_2\", \"word_or_phrase_3\", ...]}"
     text += format_instructions
+    text = append_language_instruction(text, language)
     text = append_profile_guidance(text, profile)
     @messages = [{ role: "user",
                   content: [{ type: "text",

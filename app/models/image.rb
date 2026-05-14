@@ -360,10 +360,11 @@ class Image < ApplicationRecord
   end
 
   def create_voice_audio_files(language_to_use = "en")
-    Image.voices.each do |voice|
+    text = text_for_audio(language_to_use)
+    VoiceService.voices_for_language(language_to_use).each do |voice|
       voice_file = find_audio_for_voice(voice, language_to_use)
       if !voice_file
-        result = create_audio_from_text(label, voice, language_to_use)
+        result = create_audio_from_text(text, voice, language_to_use)
         if !result
           Rails.logger.error "Failed to create audio file for #{label} - #{voice} - #{language_to_use}"
         end
@@ -594,8 +595,15 @@ class Image < ApplicationRecord
   end
 
   def create_audio_for_select_voices(language = "en")
-    # select_voices = ["polly:kevin", "polly:salli", "polly:ivy", "polly:joanna", "openai:marin", "openai:cedar"]
-    select_voices = ["polly:kevin", "polly:ivy", "polly:joanna"]
+    if language.to_s == "en"
+      select_voices = ["polly:kevin", "polly:ivy", "polly:joanna"]
+    else
+      # Prefer the language's Polly voices; fall back to OpenAI voices (which
+      # follow the input text) when Polly has no voice for that language.
+      lang_voices = VoiceService.voices_for_language(language)
+      polly_voices = lang_voices.select { |v| v.to_s.start_with?("polly:") }
+      select_voices = polly_voices.presence || lang_voices.first(2)
+    end
     select_voices.each do |voice|
       unless audio_file_exists_for?(voice)
         result = find_or_create_audio_file_for_voice(voice, language)

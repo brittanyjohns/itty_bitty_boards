@@ -140,12 +140,12 @@ class Scenario < ApplicationRecord
     item_name
   end
 
-  def get_words_for_scenario(description, number_of_words)
+  def get_words_for_scenario(description, number_of_words, language = "en")
     if description.blank? || number_of_words.blank?
       Rails.logger.error "*** ERROR - get_words_for_scenario *** \nDescription or number_of_words is blank. Description: #{description}, Number of words: #{number_of_words}\n"
       return
     end
-    response = OpenAiClient.new({}).get_words_for_scenario(description, number_of_words)
+    response = OpenAiClient.new({}).get_words_for_scenario(description, number_of_words, language.presence || "en")
     begin
       if response
         if response[:content].blank?

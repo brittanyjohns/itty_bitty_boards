@@ -126,6 +126,19 @@ class VoiceService
     VOICES.map { |v| v[:value] }
   end
 
+  # Voice `value`s appropriate for synthesizing text in the given language.
+  # Polly voices carry an ISO-region `language` tag (e.g. "es-US"); we match on
+  # the ISO 639-1 prefix. OpenAI voices have no language tag — the model follows
+  # the input text — so they're always included.
+  def self.voices_for_language(iso)
+    iso = iso.to_s.strip.downcase.split(/[-_]/).first
+    iso = "en" if iso.blank?
+
+    VOICES.select do |v|
+      v[:language].blank? || v[:language].to_s.downcase.split(/[-_]/).first == iso
+    end.map { |v| v[:value] }
+  end
+
   # Support looking up by label OR by value
   def self.get_voice(value_or_label)
     v = VOICES.find { |opt| opt[:value].casecmp(value_or_label.to_s) == 0 }
