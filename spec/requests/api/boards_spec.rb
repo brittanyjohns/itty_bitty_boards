@@ -158,4 +158,65 @@ RSpec.describe "API::Boards", type: :request do
       end
     end
   end
+
+  describe "GET /api/boards/:id (show)" do
+    let!(:published_board) { create(:board, user: user, name: "Shared Board", published: true) }
+    let!(:private_board)   { create(:board, user: user, name: "Private Board", published: false) }
+
+    context "when the board is private (unpublished)" do
+      it "returns 404 for a logged-out visitor" do
+        get "/api/boards/#{private_board.slug}"
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "returns 404 for an unrelated authenticated user" do
+        get "/api/boards/#{private_board.slug}", headers: auth_headers(other_user)
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "returns 200 for the board owner" do
+        get "/api/boards/#{private_board.slug}", headers: auth_headers(user)
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "returns 200 for a team member the board is shared with" do
+        team = create(:team, created_by: user)
+        TeamBoard.create!(team: team, board: private_board)
+        TeamUser.create!(team: team, user: other_user, role: "member")
+        get "/api/boards/#{private_board.slug}", headers: auth_headers(other_user)
+        expect(response).to have_http_status(:ok)
+      end
+    end
+
+    context "when the board is published" do
+      it "returns 200 for a logged-out visitor" do
+        get "/api/boards/#{published_board.slug}"
+        expect(response).to have_http_status(:ok)
+      end
+    end
+  end
+
+  describe "GET /api/boards/words" do
+    before do
+      allow_any_instance_of(API::BoardsController).to receive(:check_credits!).and_return(true)
+    end
+
+    it "accepts an optional communicator profile without error" do
+      allow_any_instance_of(Board).to receive(:get_word_suggestions).and_return(%w[more help go])
+      get "/api/boards/words",
+          params: { name: "Doctor Visit", num_of_words: 3, age: 4, aac_level: "emerging" },
+          headers: auth_headers(user)
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)).to eq(%w[more help go])
+    end
+
+    it "still works with no profile params (no regression)" do
+      allow_any_instance_of(Board).to receive(:get_word_suggestions).and_return(%w[doctor nurse clinic])
+      get "/api/boards/words",
+          params: { name: "Doctor Visit", num_of_words: 3 },
+          headers: auth_headers(user)
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)).to eq(%w[doctor nurse clinic])
+    end
+  end
 end

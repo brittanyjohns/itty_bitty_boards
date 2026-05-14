@@ -5,6 +5,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — AI word suggestions adapt to the communicator
+- Board generation now accepts an optional communicator profile — `age` / `age_band`,
+  `aac_level` (`emerging` / `developing` / `proficient`), and `vocab_type` (`core` /
+  `fringe` / `balanced`) — on the AI word-suggestion endpoints (`GET /api/boards/words`,
+  `POST /api/boards/:id/additional_words`) and the scenario board create flow. For young
+  or emerging communicators the prompt now leans on core vocabulary, verbs, and emotions
+  instead of clinically literate adult nouns. All fields are optional; callers that send
+  no profile get the same output as before. Normalization lives in the new
+  `CommunicatorProfile` service object.
+
+### Fixed — Private boards no longer viewable by anyone with the link
+- `GET /api/boards/:id` (which backs the frontend `/pb/<slug>` route) is unauthenticated
+  and previously rendered any board regardless of ownership or publish state — a
+  logged-out visitor could view a private board with just its slug. It now returns a
+  generic 404 unless the board is published, or the requester is the owner, an admin, or
+  a member of a team the board is shared with (`Board#viewable_by?`).
+
 ### Changed — Staging no longer makes paid OpenAI image calls
 - When `ENV["STAGING"] == "true"`, all OpenAI image operations (generation, variations, edits) are stubbed with the bundled `public/placeholder.jpeg` instead of hitting the paid API. The rest of the image pipeline (Doc creation, ActiveStorage attachment, board tiles, status transitions) runs normally, so staging can be exercised end-to-end without spending money. Production behavior is unchanged. Gated via the new `AppEnv.staging?` helper.
 

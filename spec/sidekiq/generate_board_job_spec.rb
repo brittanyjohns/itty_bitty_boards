@@ -30,7 +30,7 @@ RSpec.describe GenerateBoardJob, type: :job do
 
     it "uses 6 as the column fallback (-> 24 words) when word_count is out of bounds" do
       expect(board).to receive(:get_words_for_scenario)
-        .with("ordering coffee", "10-15", 24)
+        .with("ordering coffee", "10-15", 24, profile: nil)
         .and_return(["hi"])
       allow(Board).to receive(:find_by).with(id: board.id).and_return(board)
 
@@ -62,7 +62,7 @@ RSpec.describe GenerateBoardJob, type: :job do
 
     it "uses the board's large_screen_columns (-> 20 words)" do
       expect(board).to receive(:get_words_for_scenario)
-        .with("ordering coffee", "10-15", 20)
+        .with("ordering coffee", "10-15", 20, profile: nil)
         .and_return(["hi"])
       allow(Board).to receive(:find_by).with(id: board.id).and_return(board)
 
@@ -70,6 +70,40 @@ RSpec.describe GenerateBoardJob, type: :job do
         board.id,
         "scenario",
         { "topic" => "ordering coffee", "age_range" => "10-15", "word_count" => 0 },
+      )
+    end
+  end
+
+  describe "scenario communicator profile forwarding" do
+    let(:board) do
+      create(:board, user: user, name: "Profiled Scenario", board_type: "scenario", large_screen_columns: 5)
+    end
+
+    before do
+      allow_any_instance_of(Board).to receive(:find_or_create_images_from_word_list)
+      allow_any_instance_of(Board).to receive(:reset_layouts)
+      allow_any_instance_of(Board).to receive(:generate_previews)
+      allow_any_instance_of(described_class).to receive(:sleep)
+    end
+
+    it "builds a CommunicatorProfile from the options hash and forwards it" do
+      expect(board).to receive(:get_words_for_scenario) do |_topic, _age_range, _word_count, profile:|
+        expect(profile).to be_a(CommunicatorProfile)
+        expect(profile.aac_level).to eq("emerging")
+        expect(profile.age_band).to eq("4-6")
+        ["hi"]
+      end
+      allow(Board).to receive(:find_by).with(id: board.id).and_return(board)
+
+      described_class.new.perform(
+        board.id,
+        "scenario",
+        {
+          "topic" => "doctor visit",
+          "age_range" => "10-15",
+          "word_count" => 20,
+          "profile" => { "age" => "4", "aac_level" => "emerging" },
+        },
       )
     end
   end

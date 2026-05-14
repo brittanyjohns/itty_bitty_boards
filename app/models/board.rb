@@ -285,6 +285,19 @@ class Board < ApplicationRecord
     user_id == User::DEFAULT_ADMIN_ID && predefined && published
   end
 
+  # Whether `user` (may be nil for a logged-out visitor) is allowed to view this
+  # board. Published boards are shareable to anyone; private boards are limited
+  # to the owner, admins, and team members. Used to gate the unauthenticated
+  # `boards#show` endpoint that backs the frontend `/pb/<slug>` route.
+  def viewable_by?(user)
+    return true if published?
+    return false if user.nil?
+    return true if user.admin?
+    return true if user_id == user.id
+
+    team_users.exists?(user_id: user.id)
+  end
+
   def in_a_public_group?
     @in_a_public_group ||= board_group_boards.joins(:board_group).where(board_groups: { predefined: true }).exists?
   end
@@ -2087,9 +2100,9 @@ class Board < ApplicationRecord
     end
   end
 
-  def get_words(name_to_send, number_of_words, words_to_exclude = [], use_preview_model = false)
+  def get_words(name_to_send, number_of_words, words_to_exclude = [], use_preview_model = false, profile: nil)
     words_to_exclude = board_images.pluck(:label).map { |w| w.downcase }
-    response = OpenAiClient.new({}).get_additional_words(self, name_to_send, number_of_words, words_to_exclude, use_preview_model, language)
+    response = OpenAiClient.new({}).get_additional_words(self, name_to_send, number_of_words, words_to_exclude, use_preview_model, language, profile: profile)
     begin
       if response
         if response[:content].blank?
@@ -2121,29 +2134,32 @@ class Board < ApplicationRecord
     end
   end
 
-  def get_words_for_predictive(starting_phrase_or_word, word_count)
+  def get_words_for_predictive(starting_phrase_or_word, word_count, profile: nil)
     word_or_phrase = starting_phrase_or_word.split(" ").size > 1 ? "phrase" : "word"
     text = "Generate a list of #{word_count} words that would commonly follow the #{word_or_phrase} '#{starting_phrase_or_word}' in everyday communication. These words will be used on a predictive communication board to help users quickly find and select common phrases. Please provide words that are relevant and commonly used in conjunction with '#{starting_phrase_or_word}'."
-    words = get_word_suggestions_from_prompt(text)
+    words = get_word_suggestions_from_prompt(text, profile: profile)
     words
   end
 
-  def get_words_for_scenario(topic, age_range, word_count)
+  def get_words_for_scenario(topic, age_range, word_count, profile: nil)
     words_to_exclude = data["current_word_list"] || []
     # ensure word count is reasonable to avoid excessively long prompts & not 0
     if word_count <= 0 || word_count > 80
       Rails.logger.warn "Word count of #{word_count} is out of bounds for Board ID #{id}. Defaulting to 24."
       word_count = 24
     end
+    # Fall back to the legacy free-text age_range when no structured profile was passed.
+    profile ||= CommunicatorProfile.from_params(age_range: age_range)
     text = "Generate a list of words for a communication board. The topic or theme of the board is #{topic}. The name of the board is #{name}. "
-    text += "The age range for the person using the board is #{age_range}. Please provide a list of #{word_count} words that are appropriate for this age range and context. "
+    text += "The age range for the person using the board is #{age_range}. Please provide a list of #{word_count} words that are appropriate for this age range and context. " if age_range.present?
+    text += "Please provide a list of #{word_count} words that are appropriate for this context. " if age_range.blank?
     text += "Exclude words that are too similar to each other or that would not be useful on a communication board. Also exclude words that are already on the board: #{words_to_exclude.join(", ")}." if words_to_exclude.any?
-    words = get_word_suggestions_from_prompt(text)
+    words = get_word_suggestions_from_prompt(text, profile: profile)
     words
   end
 
-  def get_word_suggestions(name_to_use, number_of_words, words_to_exclude = [])
-    response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words, words_to_exclude, board_type)
+  def get_word_suggestions(name_to_use, number_of_words, words_to_exclude = [], profile: nil)
+    response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words, words_to_exclude, board_type, profile: profile)
     begin
       if response && response[:content].present?
         word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip
@@ -2192,7 +2208,7 @@ class Board < ApplicationRecord
     end
   end
 
-  def get_word_suggestions_from_default_prompt(prompt, number_of_words)
+  def get_word_suggestions_from_default_prompt(prompt, number_of_words, profile: nil)
     words_to_exclude = current_word_list || []
     text = "Generate a list of EXACTLY #{number_of_words} words or short phrases based on the following prompt: #{prompt}. "
     unless words_to_exclude.blank?
@@ -2204,11 +2220,11 @@ class Board < ApplicationRecord
       text += "The words/phrases will be used on an AAC board, so please prioritize common, relevant, and useful words/phrases that would help someone communicate effectively. "
     end
     text += "Please make them lowercase with the exception of proper nouns, senetences, etc. that should be capitalized. "
-    get_word_suggestions_from_prompt(text)
+    get_word_suggestions_from_prompt(text, profile: profile)
   end
 
-  def get_word_suggestions_from_prompt(prompt)
-    response = OpenAiClient.new({}).get_word_suggestions_from_prompt(prompt)
+  def get_word_suggestions_from_prompt(prompt, profile: nil)
+    response = OpenAiClient.new({}).get_word_suggestions_from_prompt(prompt, profile: profile)
     begin
       if response && response[:content].present?
         word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip

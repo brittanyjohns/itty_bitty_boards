@@ -403,15 +403,16 @@ class OpenAiClient
                           'pl': "Polish",
                           'th': "Thai" }.freeze
 
-  def get_words_for_scenario(scenario_description, number_of_words = 24, language = "en")
+  def get_words_for_scenario(scenario_description, number_of_words = 24, language = "en", profile: nil)
     prompt = <<~PROMPT
       I have a scenario description: "#{scenario_description}".
-      
+
       Please provide #{number_of_words} words that are foundational for basic communication in an AAC device.
       These words should relate to the context of the scenario and be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations.
       Do not repeat any words that are already on the board & only provide #{number_of_words} words.
       Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}
     PROMPT
+    prompt = append_profile_guidance(prompt, profile)
 
     @model = GTP_MODEL
     @messages = [{ role: "user",
@@ -422,7 +423,7 @@ class OpenAiClient
     response
   end
 
-  def get_additional_words(board, name, number_of_words = 24, exclude_words = [], use_preview_model = false, language = "en")
+  def get_additional_words(board, name, number_of_words = 24, exclude_words = [], use_preview_model = false, language = "en", profile: nil)
     exclude_words_prompt = exclude_words.blank? ? "and no words to exclude." : "excluding the words '#{exclude_words.join("', '")}'."
 
     text = ""
@@ -464,6 +465,7 @@ class OpenAiClient
       format_instructions += " Respond in #{formatted_language}." if formatted_language
     end
     text = "#{text} #{format_instructions} #{ending}"
+    text = append_profile_guidance(text, profile)
     @messages = [{ role: "user",
                   content: [{
       type: "text",
@@ -476,7 +478,7 @@ class OpenAiClient
     response
   end
 
-  def get_word_suggestions(name, number_of_words = 24, words_to_exclude = [], board_type = "default")
+  def get_word_suggestions(name, number_of_words = 24, words_to_exclude = [], board_type = "default", profile: nil)
     if words_to_exclude.is_a?(String)
       words_to_exclude = words_to_exclude.split(",").map(&:strip)
     end
@@ -491,6 +493,7 @@ class OpenAiClient
     end
     format_instructions = "Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}"
     text += format_instructions
+    text = append_profile_guidance(text, profile)
     @messages = [{ role: "user",
                   content: [{ type: "text",
                               text: text }] }]
@@ -551,16 +554,29 @@ class OpenAiClient
     create_chat
   end
 
-  def get_word_suggestions_from_prompt(prompt)
+  def get_word_suggestions_from_prompt(prompt, profile: nil)
     @model = GTP_MODEL
     text = prompt
     format_instructions = "Respond with a JSON object in the following format: {\"words\": [\"word_or_phrase_1\", \"word_or_phrase_2\", \"word_or_phrase_3\", ...]}"
     text += format_instructions
+    text = append_profile_guidance(text, profile)
     @messages = [{ role: "user",
                   content: [{ type: "text",
                               text: text }] }]
 
     create_chat
+  end
+
+  # Appends communicator-profile guidance (age / AAC level / vocab type) to a
+  # word-suggestion prompt. No-op when `profile` is nil or blank, so callers
+  # without a profile produce exactly the same prompt as before.
+  def append_profile_guidance(text, profile)
+    return text if profile.nil? || profile.blank?
+
+    guidance = profile.prompt_guidance
+    return text if guidance.blank?
+
+    "#{text}\n\nCommunicator context: #{guidance}"
   end
 
   def get_board_description(board)

@@ -263,6 +263,14 @@ class API::BoardsController < API::ApplicationController
       return
     end
 
+    # `show` is unauthenticated (skip_before_action :authenticate_token!) and backs
+    # the frontend `/pb/<slug>` route. Private (unpublished) boards must not leak to
+    # non-owners — return the same generic 404 so we don't confirm the board exists.
+    unless @board.viewable_by?(current_user)
+      render json: { error: "Board not found" }, status: :not_found
+      return
+    end
+
     @board_with_images = @board.api_view_with_predictive_images(current_user, true)
     # end
     render json: @board_with_images
@@ -336,9 +344,9 @@ class API::BoardsController < API::ApplicationController
         when "scenario"
           topic = params[:topic] || params[:prompt] || @board.name
           age_range = params[:ageRange].presence || params[:age_range].presence
-          GenerateBoardJob.perform_async(@board.id, creation_type, { "topic" => topic, "age_range" => age_range, "word_count" => word_count })
+          GenerateBoardJob.perform_async(@board.id, creation_type, { "topic" => topic, "age_range" => age_range, "word_count" => word_count, "profile" => communicator_profile_params })
         else
-          GenerateBoardJob.perform_async(@board.id, creation_type, { "word_count" => word_count })
+          GenerateBoardJob.perform_async(@board.id, creation_type, { "word_count" => word_count, "profile" => communicator_profile_params })
         end
         format.json { render json: @board, status: :created }
       else
@@ -593,7 +601,8 @@ class API::BoardsController < API::ApplicationController
     num_of_words = params[:num_of_words].to_i || 10
     board_words = @board.board_images.map(&:label).uniq
     name_to_send = params[:prompt] || params[:name] || @board.name
-    additional_words = @board.get_words(name_to_send, num_of_words, board_words, current_user.admin?)
+    profile = CommunicatorProfile.from_params(params)
+    additional_words = @board.get_words(name_to_send, num_of_words, board_words, current_user.admin?, profile: profile)
     render json: additional_words
   end
 
@@ -624,23 +633,24 @@ class API::BoardsController < API::ApplicationController
     prompt = params[:prompt].presence || params[:name]
     num_of_words = params[:num_of_words].to_i || 24
     words_to_exclude = params[:words_to_exclude].is_a?(Array) ? params[:words_to_exclude] : @board&.current_word_list || []
+    profile = CommunicatorProfile.from_params(params)
     @board ||= Board.new(name: prompt) # create a temporary board object to use the word suggestion methods if no board_id is provided
     if creation_type == "social_story"
       number_of_steps = params[:number_of_steps].to_i
       additional_words = @board.get_social_story_word_suggestions(prompt, number_of_steps, num_of_words, words_to_exclude)
     elsif creation_type == "predictive"
-      additional_words = @board.get_words_for_predictive(prompt, num_of_words)
+      additional_words = @board.get_words_for_predictive(prompt, num_of_words, profile: profile)
     elsif creation_type == "custom"
       text = "Please give a list of #{num_of_words} words/phrases based on the following prompt: #{prompt} \n Theses will be used to create an AAC board so keep that in mind. Use lower case unless it's a proper noun and avoid special characters. Do not include any words on the board already: #{words_to_exclude.join(", ")}."
-      additional_words = @board.get_word_suggestions_from_prompt(text)
+      additional_words = @board.get_word_suggestions_from_prompt(text, profile: profile)
     elsif @board&.board_type == "menu"
-      additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words)
+      additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words, profile: profile)
     else
       board_name = @board&.name || prompt
       if prompt == board_name
-        additional_words = @board.get_word_suggestions(prompt, num_of_words, words_to_exclude)
+        additional_words = @board.get_word_suggestions(prompt, num_of_words, words_to_exclude, profile: profile)
       else
-        additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words)
+        additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words, profile: profile)
       end
     end
     if additional_words.blank?
@@ -1081,6 +1091,13 @@ class API::BoardsController < API::ApplicationController
 
   def image_params
     params.require(:image).permit(:label, :image_prompt, :display_image, audio_files: [], docs: [:id, :user_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
+  end
+
+  # Optional communicator-profile fields passed by the frontend's
+  # "Who is this board for?" picker. Returns a plain hash so it stays
+  # JSON-serializable for Sidekiq job args. All fields are optional.
+  def communicator_profile_params
+    params.permit(:age, :age_band, :aac_level, :vocab_type).to_h
   end
 
   # Only allow a list of trusted parameters through.
