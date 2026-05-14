@@ -2150,14 +2150,14 @@ class Board < ApplicationRecord
     end
   end
 
-  def get_words_for_predictive(starting_phrase_or_word, word_count, profile: nil)
+  def get_words_for_predictive(starting_phrase_or_word, word_count, language: nil, profile: nil)
     word_or_phrase = starting_phrase_or_word.split(" ").size > 1 ? "phrase" : "word"
     text = "Generate a list of #{word_count} words that would commonly follow the #{word_or_phrase} '#{starting_phrase_or_word}' in everyday communication. These words will be used on a predictive communication board to help users quickly find and select common phrases. Please provide words that are relevant and commonly used in conjunction with '#{starting_phrase_or_word}'."
-    words = get_word_suggestions_from_prompt(text, profile: profile)
+    words = get_word_suggestions_from_prompt(text, language: language, profile: profile)
     words
   end
 
-  def get_words_for_scenario(topic, age_range, word_count, profile: nil)
+  def get_words_for_scenario(topic, age_range, word_count, language: nil, profile: nil)
     words_to_exclude = data["current_word_list"] || []
     # ensure word count is reasonable to avoid excessively long prompts & not 0
     if word_count <= 0 || word_count > 80
@@ -2170,12 +2170,13 @@ class Board < ApplicationRecord
     text += "The age range for the person using the board is #{age_range}. Please provide a list of #{word_count} words that are appropriate for this age range and context. " if age_range.present?
     text += "Please provide a list of #{word_count} words that are appropriate for this context. " if age_range.blank?
     text += "Exclude words that are too similar to each other or that would not be useful on a communication board. Also exclude words that are already on the board: #{words_to_exclude.join(", ")}." if words_to_exclude.any?
-    words = get_word_suggestions_from_prompt(text, profile: profile)
+    words = get_word_suggestions_from_prompt(text, language: language, profile: profile)
     words
   end
 
-  def get_word_suggestions(name_to_use, number_of_words, words_to_exclude = [], profile: nil)
-    response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words, words_to_exclude, board_type, profile: profile)
+  def get_word_suggestions(name_to_use, number_of_words, words_to_exclude = [], language: nil, profile: nil)
+    lang = language.presence || self.language.presence || "en"
+    response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words, words_to_exclude, board_type, language: lang, profile: profile)
     begin
       if response && response[:content].present?
         word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip
@@ -2224,7 +2225,7 @@ class Board < ApplicationRecord
     end
   end
 
-  def get_word_suggestions_from_default_prompt(prompt, number_of_words, profile: nil)
+  def get_word_suggestions_from_default_prompt(prompt, number_of_words, language: nil, profile: nil)
     words_to_exclude = current_word_list || []
     text = "Generate a list of EXACTLY #{number_of_words} words or short phrases based on the following prompt: #{prompt}. "
     unless words_to_exclude.blank?
@@ -2236,11 +2237,12 @@ class Board < ApplicationRecord
       text += "The words/phrases will be used on an AAC board, so please prioritize common, relevant, and useful words/phrases that would help someone communicate effectively. "
     end
     text += "Please make them lowercase with the exception of proper nouns, senetences, etc. that should be capitalized. "
-    get_word_suggestions_from_prompt(text, profile: profile)
+    get_word_suggestions_from_prompt(text, language: language, profile: profile)
   end
 
-  def get_word_suggestions_from_prompt(prompt, profile: nil)
-    response = OpenAiClient.new({}).get_word_suggestions_from_prompt(prompt, profile: profile)
+  def get_word_suggestions_from_prompt(prompt, language: nil, profile: nil)
+    lang = language.presence || self.language.presence || "en"
+    response = OpenAiClient.new({}).get_word_suggestions_from_prompt(prompt, language: lang, profile: profile)
     begin
       if response && response[:content].present?
         word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip

@@ -120,7 +120,7 @@ class API::ScenariosController < API::ApplicationController
     @scenario = Scenario.new(name: @name, age_range: @age_range, initial_description: @description, user: current_user)
     Rails.logger.debug "Generating words for scenario with name: #{@name}, age_range: #{@age_range}, description: #{@description}"
 
-    additional_words = @scenario.get_words_for_scenario(@description, @num_of_images)
+    additional_words = @scenario.get_words_for_scenario(@description, @num_of_images, current_user.i18n_locale.to_s)
     Rails.logger.debug "Additional words: #{additional_words.inspect}"
 
     render json: { words: additional_words }

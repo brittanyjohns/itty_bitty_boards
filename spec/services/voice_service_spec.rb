@@ -98,6 +98,34 @@ RSpec.describe VoiceService, type: :service do
     end
   end
 
+  describe ".voices_for_language" do
+    it "returns English Polly voices plus OpenAI voices for 'en'" do
+      values = described_class.voices_for_language("en")
+      expect(values).to include("polly:kevin", "polly:amy", "openai:alloy")
+      expect(values).not_to include("polly:lupe")
+    end
+
+    it "returns Spanish Polly voices plus OpenAI voices for 'es'" do
+      values = described_class.voices_for_language("es")
+      expect(values).to include("polly:lupe", "polly:lucia", "openai:alloy")
+      expect(values).not_to include("polly:kevin")
+    end
+
+    it "matches on the ISO prefix of a BCP-47 code" do
+      expect(described_class.voices_for_language("es-US")).to include("polly:lupe")
+    end
+
+    it "returns OpenAI voices for a language with no Polly voice" do
+      values = described_class.voices_for_language("ja")
+      expect(values).to include("openai:alloy")
+      expect(values).not_to include("polly:kevin", "polly:lupe")
+    end
+
+    it "defaults to English when the code is blank" do
+      expect(described_class.voices_for_language("")).to include("polly:kevin")
+    end
+  end
+
   describe ".synthesize_speech" do
     it "raises ArgumentError for an unrecognised voice" do
       expect {

@@ -18,5 +18,9 @@ class TranslateImageJob
 
     image.translate_to(language)
     image.save!
+
+    # Generate localized audio now that the translated label exists, so
+    # text_for_audio resolves the translation instead of falling back to English.
+    CreateAllAudioJob.perform_async(image.id, language, "select")
   end
 end

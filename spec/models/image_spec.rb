@@ -149,4 +149,29 @@ RSpec.describe Image, type: :model do
       expect(image.localized_display_label("es")).to eq("Hola")
     end
   end
+
+  describe "#text_for_audio" do
+    let(:image) do
+      FactoryBot.create(:image,
+        label: "hello",
+        language_settings: { "es" => { "label" => "hola", "display_label" => "Hola" } })
+    end
+
+    it "returns the English label for 'en'" do
+      expect(image.text_for_audio("en")).to eq("hello")
+    end
+
+    it "returns the English label when language is blank" do
+      expect(image.text_for_audio("")).to eq("hello")
+    end
+
+    it "returns the translated label when a translation exists" do
+      expect(image.text_for_audio("es")).to eq("hola")
+    end
+
+    it "falls back to the English label when no translation exists" do
+      allow(TranslateImageJob).to receive(:perform_async)
+      expect(image.text_for_audio("fr")).to eq("hello")
+    end
+  end
 end

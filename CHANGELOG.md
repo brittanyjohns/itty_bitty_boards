@@ -5,6 +5,29 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Multilingual backend content (i18n Phase 1)
+- **AI generation now respects the user's language.** Word suggestions, board
+  generation, and scenario word lists previously always came back in English.
+  The AI word-suggestion paths (`GET /api/boards/words`,
+  `POST /api/boards/:id/additional_words`, `GET /api/scenarios/get_words`, and
+  the async board/scenario generators) now thread the requesting user's
+  language through to OpenAI, which is instructed to "Respond in <language>".
+  English users see byte-identical output.
+- **New boards default to the creator's language.** `POST /api/boards` now sets
+  `board.language` from the creator's language setting when no explicit
+  `language` param is sent (an explicit param still wins).
+- **Per-language TTS audio.** The audio pipeline previously wrote
+  `_<lang>`-suffixed files but synthesized the *English* label with
+  *English-only* Polly voices. It now synthesizes the translated label and
+  picks language-appropriate voices (`VoiceService.voices_for_language`).
+  `TranslateImageJob` chains a `CreateAllAudioJob` so localized audio is
+  generated once a translation lands.
+
+### Fixed — Translated tile labels were silently ignored
+- `BoardImage#set_labels` looked up the `language_settings` jsonb with symbol
+  keys, but the column stores string keys — so translated labels were never
+  read and tiles always fell back to English. Now uses string keys.
+
 ### Added — AI word suggestions adapt to the communicator
 - Board generation now accepts an optional communicator profile — `age` / `age_band`,
   `aac_level` (`emerging` / `developing` / `proficient`), and `vocab_type` (`core` /

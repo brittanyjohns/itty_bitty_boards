@@ -325,7 +325,7 @@ class API::BoardsController < API::ApplicationController
     @board.large_screen_columns  = board_params["large_screen_columns"].to_i  if board_params["large_screen_columns"].present?
     voice = VoiceService.normalize_voice(board_params["voice"] || params[:voice] || params[:voice_label])
     @board.voice = voice
-    @board.language = board_params["language"] if board_params["language"].present?
+    @board.language = board_params["language"].presence || current_user.i18n_locale.to_s
     @board.tags = board_params["tags"] if board_params["tags"].present?
     @board.settings = settings
 
@@ -634,23 +634,26 @@ class API::BoardsController < API::ApplicationController
     num_of_words = params[:num_of_words].to_i || 24
     words_to_exclude = params[:words_to_exclude].is_a?(Array) ? params[:words_to_exclude] : @board&.current_word_list || []
     profile = CommunicatorProfile.from_params(params)
+    # The board may be a transient, unsaved object (no board_id), so the
+    # requesting user's language is the source of truth for AI output here.
+    user_language = current_user.i18n_locale.to_s
     @board ||= Board.new(name: prompt) # create a temporary board object to use the word suggestion methods if no board_id is provided
     if creation_type == "social_story"
       number_of_steps = params[:number_of_steps].to_i
       additional_words = @board.get_social_story_word_suggestions(prompt, number_of_steps, num_of_words, words_to_exclude)
     elsif creation_type == "predictive"
-      additional_words = @board.get_words_for_predictive(prompt, num_of_words, profile: profile)
+      additional_words = @board.get_words_for_predictive(prompt, num_of_words, language: user_language, profile: profile)
     elsif creation_type == "custom"
       text = "Please give a list of #{num_of_words} words/phrases based on the following prompt: #{prompt} \n Theses will be used to create an AAC board so keep that in mind. Use lower case unless it's a proper noun and avoid special characters. Do not include any words on the board already: #{words_to_exclude.join(", ")}."
-      additional_words = @board.get_word_suggestions_from_prompt(text, profile: profile)
+      additional_words = @board.get_word_suggestions_from_prompt(text, language: user_language, profile: profile)
     elsif @board&.board_type == "menu"
-      additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words, profile: profile)
+      additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words, language: user_language, profile: profile)
     else
       board_name = @board&.name || prompt
       if prompt == board_name
-        additional_words = @board.get_word_suggestions(prompt, num_of_words, words_to_exclude, profile: profile)
+        additional_words = @board.get_word_suggestions(prompt, num_of_words, words_to_exclude, language: user_language, profile: profile)
       else
-        additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words, profile: profile)
+        additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words, language: user_language, profile: profile)
       end
     end
     if additional_words.blank?
