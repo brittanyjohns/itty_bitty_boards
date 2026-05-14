@@ -10,6 +10,7 @@ class GenerateBoardJob
       words = []
       begin
         board.update_column(:status, "generating_words")
+        profile = CommunicatorProfile.from_params(options["profile"] || {})
         case board_creation_type
         when "default"
           words = options["word_list"] || options["wordList"] || []
@@ -24,14 +25,14 @@ class GenerateBoardJob
             lrg_cols = board.large_screen_columns.to_i.positive? ? board.large_screen_columns : 6
             word_count = lrg_cols * 4
           end
-          words = board.get_words_for_scenario(topic, age_range, word_count)
+          words = board.get_words_for_scenario(topic, age_range, word_count, profile: profile)
         when "menu"
           # Placeholder for future menu-based word generation logic
           words = []
         when "predictive"
           starting_phrase_or_word = options["starting_phrase_or_word"] || options["startingPhraseOrWord"]
           words = options["word_list"] || options["wordList"] || []
-          words = board.get_words_for_predictive(starting_phrase_or_word, word_count) if words.empty?
+          words = board.get_words_for_predictive(starting_phrase_or_word, word_count, profile: profile) if words.empty?
         else
           words = options["word_list"] || options["wordList"] || []
         end

@@ -199,4 +199,47 @@ RSpec.describe Board, type: :model do
       end
     end
   end
+
+  describe "#viewable_by?" do
+    let(:owner)     { FactoryBot.create(:user) }
+    let(:stranger)  { FactoryBot.create(:user) }
+    let(:admin)     { FactoryBot.create(:admin_user) }
+
+    context "when the board is published" do
+      let(:board) { FactoryBot.create(:board, user: owner, published: true) }
+
+      it "is viewable by anyone, including logged-out visitors" do
+        expect(board.viewable_by?(nil)).to be(true)
+        expect(board.viewable_by?(stranger)).to be(true)
+        expect(board.viewable_by?(owner)).to be(true)
+      end
+    end
+
+    context "when the board is private (unpublished)" do
+      let(:board) { FactoryBot.create(:board, user: owner, published: false) }
+
+      it "is not viewable by a logged-out visitor" do
+        expect(board.viewable_by?(nil)).to be(false)
+      end
+
+      it "is not viewable by an unrelated user" do
+        expect(board.viewable_by?(stranger)).to be(false)
+      end
+
+      it "is viewable by the owner" do
+        expect(board.viewable_by?(owner)).to be(true)
+      end
+
+      it "is viewable by an admin" do
+        expect(board.viewable_by?(admin)).to be(true)
+      end
+
+      it "is viewable by a team member the board is shared with" do
+        team = FactoryBot.create(:team, created_by: owner)
+        TeamBoard.create!(team: team, board: board)
+        TeamUser.create!(team: team, user: stranger, role: "member")
+        expect(board.reload.viewable_by?(stranger)).to be(true)
+      end
+    end
+  end
 end
