@@ -8,7 +8,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ### Added — Communication Prompt Mode for caregivers
 - New `CoachingPromptSet` model + `API::CoachingPrompts` controller (`GET/POST/PATCH/DELETE /api/coaching_prompts`). A caregiver opens a board in Caregiver Mode and the API returns a coaching prompt set with strategies + tappable example phrases. Curated SpeakAnyWay sets ship for Snack Time, Car Ride, Bedtime Story (matched against `Board#tags` / name tokens). For boards without a curated match, `CoachingPromptGenerator` calls OpenAI (`gpt-4o-mini`) once and caches the result on the board's `metadata` jsonb so the second visit costs nothing. Staging skips the paid call and returns the bundled fallback set, mirroring the existing OpenAI image staging stub.
 - Users can create / edit / delete their own custom coaching sets via the same endpoint — owned sets are scoped by `user_id`. Editing SpeakAnyWay-shipped or another user's sets returns 403.
-- New `profiles.is_caregiver` boolean (default false) — opt-in flag that lights up the Caregiver Mode entry point in the frontend. Exposed via the existing `profiles` API (`PATCH /api/profiles/:id`).
+- New `users.settings["is_caregiver"]` flag — opt-in preference lives in the existing user settings jsonb (same pattern as `wait_to_speak`, `show_labels`, etc.). Flipped via the existing `POST /api/users/:id/update_settings` endpoint, exposed in the Settings page UI.
 - Free for everyone — no `CreditService` gating. Cost is bounded by per-board caching of AI fallback generations.
 
 ### Fixed — Pro users showing 0 AI credits ("granted and expired same day")
