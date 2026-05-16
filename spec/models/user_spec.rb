@@ -127,11 +127,11 @@ RSpec.describe User, type: :model do
     # NOTE: User#set_soft_trial_plan (before_save) flips plan_type "free" → "basic_trial"
     # for any user inside their 14-day free trial window. To test the "free" path,
     # explicitly age the user past the trial window before the after_create grant.
-    it "grants the free allowance (10) when the user is post-trial (free)" do
+    it "grants the free allowance (5) when the user is post-trial (free)" do
       user = FactoryBot.build(:user, plan_type: "free", created_at: 30.days.ago)
       user.save!
       expect(user.plan_type).to eq("free")
-      expect(user.plan_credits_balance).to eq(10)
+      expect(user.plan_credits_balance).to eq(5)
     end
 
     it "grants the basic allowance (400) when plan_type is explicitly basic" do

@@ -5,6 +5,37 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Pro users showing 0 AI credits ("granted and expired same day")
+- `CreditService.grant_plan!` now clamps `period_end` to a minimum of
+  `Time.current + 1.day` (`CreditService::MIN_GRANT_WINDOW`). A bad
+  upstream value (stale `plan_expires_at`, `trial_end == 0`, etc.) was
+  causing the new `plan_grant` row to land already-expired, and the
+  hourly `ExpirePlanCreditsJob` would sweep it to 0 within the hour.
+  Issue #110 patched the rake task; this patches the service so no
+  caller can reintroduce it. A `Rails.logger.warn` fires on every clamp
+  so we can find any upstream caller still writing bad dates.
+
+### Changed — Free tier is now 5 AI credits/month (was 10)
+- `PLAN_MONTHLY_CREDITS["free"]` lowered from 10 to 5. Applies to
+  signup grants, the daily refresh job, and post-cancellation grants.
+
+### Changed — Canceled/paused subscriptions keep 5 free credits (was 0)
+- `customer.subscription.deleted` and `customer.subscription.paused`
+  webhooks previously called `CreditService.expire_plan_credits!`,
+  leaving the user at 0 until the next daily refresh. Now they call
+  `CreditService.grant_plan!` with the free-tier allowance, so users
+  land on free with 5 credits immediately. The prior balance is still
+  expired (ledger trace preserved); top-ups are still untouched.
+
+### Changed — Monthly credit refresh now covers non-Stripe paying users
+- `RefreshFreeTierCreditsJob` (daily, 3am UTC) used to refresh only
+  `free` and `basic_trial` users. It now also refreshes any user
+  without a `stripe_subscription_id` — App Store / RevenueCat
+  subscribers, admin/demo accounts on paid tiers — granting their
+  actual plan_type's allowance (Pro = 1500, Basic = 400, etc.).
+  Stripe-driven paying users continue to be refreshed by
+  `invoice.payment_succeeded`. Class name unchanged for cron stability.
+
 ### Added — AI word suggestions adapt to the communicator
 - Board generation now accepts an optional communicator profile — `age` / `age_band`,
   `aac_level` (`emerging` / `developing` / `proficient`), and `vocab_type` (`core` /

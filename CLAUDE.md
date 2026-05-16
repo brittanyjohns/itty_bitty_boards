@@ -117,19 +117,33 @@ Plan-credit lifecycle:
   on Stripe event id.
 - **Stripe trial start:** `customer.subscription.created` with status
   `trialing` grants credits with `period_end = subscription.trial_end`.
-- **Cancel / pause:** plan credits expire via
-  `CreditService.expire_plan_credits!`. Top-up credits are preserved.
+- **Cancel / pause:** `apply_free_plan` flips the user to `free` and
+  calls `CreditService.grant_plan!` with the free-tier allowance, so
+  canceled/paused subscribers land on free with 5 credits (not 0). The
+  prior plan balance is expired in the ledger by `grant_plan!` itself.
+  Top-up credits are preserved.
 - **Soft-trial → free downgrade:** `DowngradeSoftTrialJob` (daily at 2am UTC)
   flips expired `basic_trial` users to `free` and grants the free-tier
   allowance immediately.
-- **Free-tier monthly refresh:** `RefreshFreeTierCreditsJob` (daily at
-  3am UTC) re-grants the tier allowance to non-subscription users
-  (`free`, `basic_trial`) whose `plan_credits_reset_at` has passed.
-  Paid tiers (`myspeak`, `basic`, `pro`, `partner_pro`) refresh through
-  `invoice.payment_succeeded`.
+- **Monthly credit refresh:** `RefreshFreeTierCreditsJob` (daily at
+  3am UTC) re-grants the tier allowance to **any user without a
+  `stripe_subscription_id`** whose `plan_credits_reset_at` has passed —
+  covers free/basic_trial users, App Store/RevenueCat subscribers, and
+  admin/demo accounts on paid tiers (granting their actual plan_type's
+  allowance, e.g. Pro = 1500). Stripe-driven paying users
+  (`myspeak`, `basic`, `pro`, `partner_pro` with an active
+  `stripe_subscription_id`) refresh through `invoice.payment_succeeded`
+  instead. Class name kept for cron stability; scope is broader than
+  the name suggests.
 - **Backstop:** `ExpirePlanCreditsJob` runs hourly and zeroes any plan
   balance whose `plan_credits_reset_at` has passed. Cheap and idempotent —
   safe to invoke any time.
+- **Grant safety:** `CreditService.grant_plan!` clamps any `period_end`
+  earlier than `Time.current + MIN_GRANT_WINDOW` (1 day) forward, and
+  logs a `Rails.logger.warn` when it does. Prevents the
+  "granted and expired same day" failure mode regardless of caller.
+- **Free tier allowance:** 5 credits/month (was 10). Applied on signup,
+  refresh, and post-cancellation.
 
 Tasks:
 
