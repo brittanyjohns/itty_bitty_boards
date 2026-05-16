@@ -132,7 +132,7 @@ RSpec.describe "POST /api/webhooks (plan credits)", type: :request do
   end
 
   describe "customer.subscription.deleted" do
-    it "expires plan credits and keeps top-up credits" do
+    it "expires the paid plan credits and grants the free-tier allowance, keeping top-ups" do
       CreditService.grant_plan!(user, amount: 100, period_end: 30.days.from_now)
       CreditService.grant_topup!(user, amount: 50, stripe_event_id: "evt_topup_seed")
 
@@ -141,25 +141,30 @@ RSpec.describe "POST /api/webhooks (plan credits)", type: :request do
 
       post_webhook("{}", header_with_signature)
       user.reload
-      expect(user.plan_credits_balance).to eq(0)
+      # Canceled users land on free with 5 credits, not 0 — so they aren't
+      # stranded until the next daily refresh job.
+      expect(user.plan_credits_balance).to eq(CreditService.monthly_credits_for("free"))
       expect(user.topup_credits_balance).to eq(50)
+      # Ledger has an `expire` row for the old balance and a new `plan_grant`
+      # row for the free allowance.
       expect(user.credit_transactions.where(kind: "expire", source: "plan").count).to be >= 1
-      # Note: plan_type may stay on "basic_trial" if the user is still in the
-      # 14-day soft trial window (see User#set_soft_trial_plan). The Phase 4
-      # contract is about credits, not plan_type — DowngradeSoftTrialJob
-      # owns that downgrade.
+      expect(user.credit_transactions.where(kind: "plan_grant").last.amount)
+        .to eq(CreditService.monthly_credits_for("free"))
+      # plan_credits_reset_at pushed out so ExpirePlanCreditsJob won't sweep
+      # immediately.
+      expect(user.plan_credits_reset_at).to be > Time.current + CreditService::MIN_GRANT_WINDOW
     end
   end
 
   describe "customer.subscription.paused" do
-    it "expires plan credits and marks status=paused" do
+    it "grants the free-tier allowance and marks status=paused" do
       CreditService.grant_plan!(user, amount: 100, period_end: 30.days.from_now)
       subscription = build_subscription(status: "paused")
       stub_event(subscription, type: "customer.subscription.paused")
 
       post_webhook("{}", header_with_signature)
       user.reload
-      expect(user.plan_credits_balance).to eq(0)
+      expect(user.plan_credits_balance).to eq(CreditService.monthly_credits_for("free"))
       expect(user.plan_status).to eq("paused")
     end
   end

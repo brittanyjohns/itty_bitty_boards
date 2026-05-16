@@ -23,7 +23,7 @@ small ones (a single word suggestion).
 
 | Plan | Monthly credits | Approx. usage |
 |---|---|---|
-| **Free** | 10 | 2 AI images, or 10 word suggestions |
+| **Free** | 5 | 1 AI image, or 5 word suggestions |
 | **Basic Trial** (default for new signups, 14 days) | 400 | Matches Basic so trial users can fully evaluate AI features |
 | **MySpeak** | 50 | 10 AI images, or 50 word suggestions |
 | **Basic** | 400 | 80 AI images, or one full menu + 30 images |
@@ -181,6 +181,7 @@ listed there.
 | **2** ✅ backend | Top-up Checkout endpoint + webhook handler. Frontend "Buy credits" UI still needed. | Yes (additive) once UI lands |
 | **3** ✅ | AI gating switched from Redis counter → credit balance. AI endpoints now return `402 insufficient_credits` when balance is too low. | **Yes — user-visible** the first time a user hits zero credits. Surface the upsell modal! |
 | **4** ✅ | Plan-credit grants on `invoice.payment_succeeded` (renewal) + trial grants on `customer.subscription.created`. Cancellation/pause expires plan credits while preserving top-ups. Hourly backstop job. | No (internal) — renewals now auto-top-up, no more manual rake task. |
+| **4.1** ✅ | `grant_plan!` safety clamp on `period_end` (`MIN_GRANT_WINDOW = 1.day`) prevents "granted and expired same day" bugs. Cancellation/pause now grants 5 free credits (was 0). Free tier lowered 10 → 5. Monthly refresh job extended to cover any user without a Stripe sub (App Store / RevenueCat / admin / demo on paid tiers). | Yes — canceled subscribers keep a working free balance; free signups now show 5 instead of 10. |
 | **5** | Optional: Stripe metered overage | Decision pending |
 
 ---

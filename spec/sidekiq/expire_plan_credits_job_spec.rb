@@ -4,8 +4,9 @@ RSpec.describe ExpirePlanCreditsJob, type: :sidekiq do
   describe "#perform" do
     it "zeros plan credits whose reset_at has passed" do
       user = reset_user_credits!(FactoryBot.create(:user))
-      CreditService.grant_plan!(user, amount: 100, period_end: 1.day.ago)
-      expect(user.reload.plan_credits_balance).to eq(100)
+      # Simulate an expired grant directly — grant_plan! clamps past period_ends
+      # forward, so we can't use it to seed an already-expired state.
+      user.update_columns(plan_credits_balance: 100, plan_credits_reset_at: 1.day.ago)
 
       described_class.new.perform
 
@@ -16,14 +17,14 @@ RSpec.describe ExpirePlanCreditsJob, type: :sidekiq do
 
     it "leaves users whose reset_at is in the future alone" do
       user = FactoryBot.create(:user)
-      CreditService.grant_plan!(user, amount: 100, period_end: 1.day.from_now)
+      CreditService.grant_plan!(user, amount: 100, period_end: 30.days.from_now)
 
       expect { described_class.new.perform }.not_to change { user.reload.plan_credits_balance }
     end
 
     it "leaves top-up credits untouched" do
-      user = FactoryBot.create(:user)
-      CreditService.grant_plan!(user, amount: 50, period_end: 1.day.ago)
+      user = reset_user_credits!(FactoryBot.create(:user))
+      user.update_columns(plan_credits_balance: 50, plan_credits_reset_at: 1.day.ago)
       CreditService.grant_topup!(user, amount: 100, stripe_event_id: "evt_topup_keep")
 
       described_class.new.perform

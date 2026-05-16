@@ -424,9 +424,20 @@ class API::WebhooksController < API::ApplicationController
     user.setup_free_limits
     user.stripe_subscription_id = nil
     user.save!
-    # Plan credits expire on cancel/pause. Top-up credits are untouched —
-    # users keep what they paid for ad hoc.
-    CreditService.expire_plan_credits!(user, reason: "subscription_#{status}")
+    # Grant the free tier's allowance immediately so canceled/paused users
+    # land on free with a working balance, not 0. grant_plan! expires any
+    # leftover plan credits internally (writes an `expire` ledger row).
+    # Top-up credits are untouched — users keep what they paid for ad hoc.
+    free_amount = CreditService.monthly_credits_for("free")
+    CreditService.grant_plan!(
+      user,
+      amount: free_amount,
+      period_end: CreditService.initial_period_end_for("free"),
+      metadata: {
+        reason: "subscription_#{status}",
+        previous_plan_type: original_plan_type,
+      },
+    )
   end
 
   def to_int_or_nil(value)
