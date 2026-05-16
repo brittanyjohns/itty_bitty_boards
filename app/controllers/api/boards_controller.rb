@@ -1095,9 +1095,11 @@ class API::BoardsController < API::ApplicationController
 
   # Optional communicator-profile fields passed by the frontend's
   # "Who is this board for?" picker. Returns a plain hash so it stays
-  # JSON-serializable for Sidekiq job args. All fields are optional.
+  # JSON-serializable for Sidekiq job args (strict_args rejects
+  # HashWithIndifferentAccess, which is what `to_h` alone returns).
+  # All fields are optional.
   def communicator_profile_params
-    params.permit(:age, :age_band, :aac_level, :vocab_type).to_h
+    params.permit(:age, :age_band, :aac_level, :vocab_type).to_h.to_hash
   end
 
   # Only allow a list of trusted parameters through.

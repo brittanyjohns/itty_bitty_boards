@@ -83,6 +83,53 @@ RSpec.describe "API::Boards", type: :request do
           expect(Board.order(:created_at).last.large_screen_columns).to eq(6)
         end
       end
+
+      describe "GenerateBoardJob enqueue args" do
+        # Sidekiq strict_args rejects HashWithIndifferentAccess. The job's
+        # `profile` arg used to be `params.permit(...).to_h`, which is a
+        # HWIA — so any scenario-creation POST raised ArgumentError at
+        # enqueue time. Lock the args to plain Hash/JSON-native types.
+        before { allow(GenerateBoardJob).to receive(:perform_async) }
+
+        it "enqueues with a plain Hash options arg (no HashWithIndifferentAccess) for scenario creation" do
+          post "/api/boards",
+               params: {
+                 board: { name: "Scenario Board" },
+                 board_creation_type: "scenario",
+                 topic: "ordering coffee",
+                 ageRange: "10-15",
+                 wordCount: 12,
+                 age: 4,
+                 aac_level: "emerging",
+               },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          expect(GenerateBoardJob).to have_received(:perform_async) do |_id, _type, opts|
+            expect(opts.class).to eq(Hash)
+            expect(opts["profile"].class).to eq(Hash)
+          end
+        end
+
+        it "enqueues with a plain Hash options arg even when no profile params are sent" do
+          post "/api/boards",
+               params: {
+                 board: { name: "Scenario No Profile" },
+                 board_creation_type: "scenario",
+                 topic: "ordering coffee",
+                 ageRange: "10-15",
+                 wordCount: 12,
+               },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          expect(GenerateBoardJob).to have_received(:perform_async) do |_id, _type, opts|
+            expect(opts.class).to eq(Hash)
+            expect(opts["profile"].class).to eq(Hash)
+            expect(opts["profile"]).to be_empty
+          end
+        end
+      end
     end
   end
 
