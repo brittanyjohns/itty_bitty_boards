@@ -281,6 +281,11 @@ Rails.application.routes.draw do
         post "rerun"
       end
     end
+    resources :coaching_prompts do
+      collection do
+        get "audio"
+      end
+    end
     resources :docs do
       collection do
         get "deleted"

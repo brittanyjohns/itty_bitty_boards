@@ -130,4 +130,23 @@ FactoryBot.define do
     doc { FactoryBot.create(:doc) }
     user
   end
+
+  factory(:coaching_prompt_set) do
+    sequence(:name) { |n| "Coaching Set #{n}" }
+    sequence(:slug) { |n| "coaching-set-#{n}" }
+    description { "A friendly coaching set." }
+    strategies do
+      [
+        {
+          "label" => "Offer a choice",
+          "hint" => "Give two options.",
+          "example_phrases" => ["This or that?"],
+        },
+      ]
+    end
+    match_tags { [] }
+    source { "curated" }
+    published { true }
+    language { "en" }
+  end
 end
