@@ -117,6 +117,69 @@ RSpec.describe "API::CoachingPrompts", type: :request do
     end
   end
 
+  describe "GET /api/coaching_prompts/audio" do
+    before do
+      io = StringIO.new("FAKE_MP3")
+      allow(CoachingPhraseAudio).to receive(:synthesize).and_return(io)
+    end
+
+    it "requires auth" do
+      get "/api/coaching_prompts/audio", params: { text: "Hi", voice: "polly:kevin" }
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "400s on blank text" do
+      get "/api/coaching_prompts/audio",
+        params: { text: "", voice: "polly:kevin" },
+        headers: auth_headers(user)
+      expect(response).to have_http_status(:bad_request)
+    end
+
+    it "422s on text > 500 chars" do
+      get "/api/coaching_prompts/audio",
+        params: { text: "x" * 501, voice: "polly:kevin" },
+        headers: auth_headers(user)
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "returns the audio URL and caches the row" do
+      expect {
+        get "/api/coaching_prompts/audio",
+          params: { text: "Which one?", voice: "polly:kevin" },
+          headers: auth_headers(user)
+      }.to change(CoachingPhraseAudio, :count).by(1)
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["url"]).to be_present
+      expect(body["text"]).to eq("Which one?")
+      expect(body["voice"]).to eq("polly:kevin")
+    end
+
+    it "does not re-synthesize on the second request for the same tuple" do
+      get "/api/coaching_prompts/audio",
+        params: { text: "Which one?", voice: "polly:kevin" },
+        headers: auth_headers(user)
+
+      expect(CoachingPhraseAudio).not_to receive(:synthesize)
+      expect {
+        get "/api/coaching_prompts/audio",
+          params: { text: "Which one?", voice: "polly:kevin" },
+          headers: auth_headers(user)
+      }.not_to change(CoachingPhraseAudio, :count)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "503s when synthesis returns nil" do
+      allow(CoachingPhraseAudio).to receive(:synthesize).and_return(nil)
+      get "/api/coaching_prompts/audio",
+        params: { text: "Will fail", voice: "polly:kevin" },
+        headers: auth_headers(user)
+      expect(response).to have_http_status(:service_unavailable)
+    end
+  end
+
   describe "DELETE /api/coaching_prompts/:id" do
     it "allows the owner to delete" do
       expect {

@@ -1,6 +1,39 @@
 class API::CoachingPromptsController < API::ApplicationController
   before_action :set_set, only: %i[show update destroy]
 
+  # GET /api/coaching_prompts/audio?text=...&voice=...&language=...
+  # Returns the cached audio URL for a coaching phrase + voice tuple.
+  # First request for a tuple synthesizes (Polly/OpenAI), uploads to S3, and
+  # persists the row; subsequent requests return the same URL immediately.
+  def audio
+    text = params[:text].to_s.strip
+    voice = params[:voice].presence || "polly:kevin"
+    language = params[:language].presence || "en"
+
+    if text.blank?
+      render json: { error: "text is required" }, status: :bad_request
+      return
+    end
+
+    if text.length > 500
+      render json: { error: "text too long" }, status: :unprocessable_entity
+      return
+    end
+
+    record = CoachingPhraseAudio.find_or_generate!(
+      text: text,
+      voice: voice,
+      language: language,
+    )
+
+    if record.nil? || !record.audio.attached?
+      render json: { error: "audio_unavailable" }, status: :service_unavailable
+      return
+    end
+
+    render json: record.api_view
+  end
+
   # GET /api/coaching_prompts
   # GET /api/coaching_prompts?board_id=:id
   def index

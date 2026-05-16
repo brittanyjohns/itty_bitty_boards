@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_16_153523) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_16_163820) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -323,6 +323,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_16_153523) do
     t.index ["original_board_id"], name: "index_child_boards_on_original_board_id"
     t.index ["position"], name: "index_child_boards_on_position"
     t.index ["published"], name: "index_child_boards_on_published"
+  end
+
+  create_table "coaching_phrase_audios", force: :cascade do |t|
+    t.text "text", null: false
+    t.string "voice", null: false
+    t.string "language", default: "en", null: false
+    t.string "phrase_key", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["phrase_key"], name: "index_coaching_phrase_audios_on_phrase_key", unique: true
+    t.index ["voice", "language"], name: "index_coaching_phrase_audios_on_voice_and_language"
   end
 
   create_table "coaching_prompt_sets", force: :cascade do |t|
