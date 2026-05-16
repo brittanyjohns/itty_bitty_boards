@@ -39,6 +39,14 @@ Rails.application.configure do
   # Store uploaded files on the local file system in a temporary directory.
   config.active_storage.service = :test
 
+  # Queue ActiveJob jobs but don't execute them. The default `:async` adapter
+  # runs jobs on a thread pool, which means ActiveStorage::AnalyzeJob fires
+  # after `attach` and shells out to `ffprobe` / `mediainfo` — fine locally
+  # where those binaries exist, but hangs on CI runners that don't have
+  # them. The test process then can't exit because the async pool waits on
+  # the stuck thread. `:test` adapter queues without executing.
+  config.active_job.queue_adapter = :test
+
   config.action_mailer.perform_caching = false
 
   # Tell Action Mailer not to deliver emails to the real world.
