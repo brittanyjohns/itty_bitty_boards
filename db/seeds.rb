@@ -338,3 +338,38 @@
 
 
 # puts "Sample Scenario Prompt sent to OpenAI for generation"
+
+# --- Caregiver coaching prompt sets ---
+# Idempotent: upserts the curated v1 sets by slug. See
+# CoachingPromptSeedData for the canonical content.
+require Rails.root.join("app/models/concerns/coaching_prompt_seed_data")
+
+CoachingPromptSeedData::CURATED_SETS.each do |attrs|
+  set = CoachingPromptSet.find_or_initialize_by(slug: attrs[:slug])
+  set.assign_attributes(
+    name: attrs[:name],
+    description: attrs[:description],
+    strategies: attrs[:strategies],
+    match_tags: attrs[:match_tags],
+    source: "curated",
+    user_id: nil,
+    published: true,
+    language: "en",
+  )
+  set.save!
+end
+
+fallback = CoachingPromptSet.find_or_initialize_by(slug: CoachingPromptGenerator::FALLBACK_SLUG)
+fallback.assign_attributes(
+  name: "Connecting through play",
+  description: "Gentle ways to keep the conversation going.",
+  strategies: CoachingPromptSeedData::DEFAULT_FALLBACK_STRATEGIES,
+  match_tags: [],
+  source: "curated",
+  user_id: nil,
+  published: false, # not surfaced in matching; only used as the safety net
+  language: "en",
+)
+fallback.save!
+
+puts "Seeded #{CoachingPromptSet.curated.count} curated coaching prompt sets (incl. fallback)"

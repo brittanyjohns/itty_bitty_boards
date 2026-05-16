@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_13_150240) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_16_153524) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -323,6 +323,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_13_150240) do
     t.index ["original_board_id"], name: "index_child_boards_on_original_board_id"
     t.index ["position"], name: "index_child_boards_on_position"
     t.index ["published"], name: "index_child_boards_on_published"
+  end
+
+  create_table "coaching_prompt_sets", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.text "description"
+    t.jsonb "strategies", default: [], null: false
+    t.string "match_tags", default: [], array: true
+    t.string "source", default: "curated", null: false
+    t.bigint "user_id"
+    t.boolean "published", default: true, null: false
+    t.string "language", default: "en", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["match_tags"], name: "index_coaching_prompt_sets_on_match_tags", using: :gin
+    t.index ["slug"], name: "index_coaching_prompt_sets_on_slug", unique: true
+    t.index ["source", "published"], name: "index_coaching_prompt_sets_on_source_and_published"
+    t.index ["user_id"], name: "index_coaching_prompt_sets_on_user_id"
   end
 
   create_table "contest_entries", force: :cascade do |t|
@@ -719,6 +737,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_13_150240) do
     t.string "sku"
     t.string "profile_kind", default: "safety", null: false
     t.boolean "allow_discovery", default: false, null: false
+    t.boolean "is_caregiver", default: false, null: false
     t.index ["profile_kind"], name: "index_profiles_on_profile_kind"
     t.index ["profileable_type", "profileable_id"], name: "index_profiles_on_profileable"
     t.index ["sku"], name: "index_profiles_on_sku", unique: true

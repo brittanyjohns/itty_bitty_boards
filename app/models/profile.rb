@@ -207,6 +207,7 @@ class Profile < ApplicationRecord
       public_url: public_url,
       startup_url: startup_url,
       allow_discovery: allow_discovery,
+      is_caregiver: is_caregiver,
       name: name,
 
       # Keep full settings ONLY for authenticated/edit contexts
