@@ -715,9 +715,9 @@ class OpenAiClient
     opts = {
       model: @model, # Required.
       messages: @messages, # Required.
-    # temperature: 0.7,
-    # response_format: { type: "json_object" },
     }
+    opts[:response_format] = @opts[:response_format] if @opts[:response_format].present?
+    opts[:temperature] = @opts[:temperature] if @opts[:temperature].present?
     begin
       response = openai_client.chat(
         parameters: opts,

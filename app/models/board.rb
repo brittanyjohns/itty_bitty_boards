@@ -1303,13 +1303,24 @@ class Board < ApplicationRecord
     (screen_dimension / num_of_columns).to_i
   end
 
+  # Format the board's layout using AI for word ordering + tile sizing, then
+  # deterministically pack tiles in Ruby so we never persist overlapping or
+  # gap-ridden layouts. Writes per-board_image layouts (primary source of
+  # truth for ViewBoard / EditBoardScreen via DraggableGrid) AND the board's
+  # aggregate layout (source of truth for BoardNativeGridPage) for all three
+  # screen sizes in one pass.
+  #
+  # screen_size is accepted for back-compat with callers but no longer affects
+  # behavior — all three screens are always written.
   def format_board_with_ai(screen_size: "lg", maintain_existing_layout: false)
-    columns = get_number_of_columns(screen_size)
     images = board_images.includes(:image).to_a
-    rows = (images.size / columns.to_f).ceil
+    return self if images.empty?
+
+    lg_columns = get_number_of_columns("lg")
+    rows_hint = (images.size / lg_columns.to_f).ceil
 
     existing = images.map do |bi|
-      layout = (bi.layout || {}).dig(screen_size) || {}
+      layout = (bi.layout || {}).dig("lg") || {}
       {
         word: bi.label,
         size: [layout["w"], layout["h"]].compact.presence || [1, 1],
@@ -1319,60 +1330,148 @@ class Board < ApplicationRecord
 
     payload = AiBoardFormatter.call(
       name: name,
-      columns: columns,
-      rows: rows,
+      columns: lg_columns,
+      rows: rows_hint,
       existing: existing,
       maintain_existing: maintain_existing_layout,
     )
 
     return self if payload.blank?
 
-    grid = payload["grid"].to_a
+    ordered = Array(payload["ordered_words"])
     by_label = images.index_by { |bi| bi.label.to_s.downcase }
 
+    # Build ordered (board_image, w, h, meta) tuples from the AI output.
+    ordered_items = []
+    seen_ids = Set.new
+    ordered.each do |item|
+      label = item["word"].to_s
+      bi = by_label[label.downcase]
+      next if bi.nil? || seen_ids.include?(bi.id)
+      seen_ids << bi.id
+
+      size = Array(item["size"])
+      w = size[0].to_i
+      h = size[1].to_i
+      w = 1 if w < 1
+      h = 1 if h < 1
+
+      ordered_items << {
+        board_image: bi,
+        w: w,
+        h: h,
+        frequency: item["frequency"],
+        part_of_speech: item["part_of_speech"],
+      }
+    end
+
+    # Append any board_images the AI dropped so we never lose tiles.
+    images.each do |bi|
+      next if seen_ids.include?(bi.id)
+      ordered_items << { board_image: bi, w: 1, h: 1, frequency: nil, part_of_speech: nil }
+    end
+
+    # Pack a layout per screen size using the same ordering.
+    packed_by_screen = {}
+    SCREEN_SIZES_FOR_AI_LAYOUT.each do |screen|
+      columns = get_number_of_columns(screen)
+      packed_by_screen[screen] = pack_layout_row_major(ordered_items, columns: columns)
+    end
+
     ActiveRecord::Base.transaction do
-      grid.each_with_index do |item, idx|
-        label = item["word"].to_s
-        bi = by_label[label.downcase]
-        next unless bi
+      ordered_items.each_with_index do |item, idx|
+        bi = item[:board_image]
 
-        pos = Array(item["position"] || [0, 0])
-        size = Array(item["size"] || [1, 1])
-        x = pos[0].to_i.clamp(0, columns - 1)
-        y = pos[1].to_i.clamp(0, [rows - 1, 0].max)
+        bi.data ||= {}
+        bi.data["label"] = bi.label.to_s
+        bi.data["part_of_speech"] = item[:part_of_speech] if item[:part_of_speech].present?
+        bi.data["bg_color"] = bi.background_color_for(item[:part_of_speech]) if item[:part_of_speech].present?
 
-        bi.data["label"] = label
-        bi.data[screen_size] ||= {}
-        bi.data[screen_size]["frequency"] = item["frequency"]
-        bi.data[screen_size]["size"] = size
-        bi.data["part_of_speech"] = item["part_of_speech"]
-        bi.data["bg_color"] = bi.background_color_for(item["part_of_speech"])
+        bi.layout ||= {}
+        SCREEN_SIZES_FOR_AI_LAYOUT.each do |screen|
+          cell = packed_by_screen[screen][idx]
+          bi.data[screen] ||= {}
+          bi.data[screen]["frequency"] = item[:frequency] if item[:frequency].present?
+          bi.data[screen]["size"] = [cell["w"], cell["h"]]
+          bi.layout[screen] = cell
+        end
 
         bi.position = idx
-        bi.layout ||= {}
-        bi.layout[screen_size] = { "x" => x, "y" => y, "w" => size[0], "h" => size[1], "i" => bi.id.to_s }
+        bi.skip_create_voice_audio = true if bi.respond_to?(:skip_create_voice_audio=)
         bi.save!
+        bi.clean_up_layout
 
-        if item["part_of_speech"].present? && bi.image.part_of_speech.blank?
-          bi.image.update!(part_of_speech: item["part_of_speech"])
+        if item[:part_of_speech].present? && bi.image && bi.image.part_of_speech.blank?
+          bi.image.update!(part_of_speech: item[:part_of_speech])
         end
       end
 
-      # optional explanations
+      # Mirror per-image layout up to board.layout for each screen so
+      # BoardNativeGridPage (which reads board.layout) stays in lockstep.
+      self.layout ||= {}
+      SCREEN_SIZES_FOR_AI_LAYOUT.each do |screen|
+        self.layout[screen] = packed_by_screen[screen]
+      end
+
       personable = payload["personable_explanation"].presence
       professional = payload["professional_explanation"].presence
 
-      if personable || professional
-        self.data["personable_explanation"] = "#{personable}" if personable
-        self.data["professional_explanation"] = "#{professional}" if professional
-        self.description = [self.data["personable_explanation"], self.data["professional_explanation"]].compact.join("\n") if description.blank?
-        save!
+      self.data ||= {}
+      self.data["personable_explanation"] = personable if personable
+      self.data["professional_explanation"] = professional if professional
+      if (personable || professional) && description.blank?
+        self.description = [self.data["personable_explanation"], self.data["professional_explanation"]].compact.join("\n")
       end
-      reset_layouts if maintain_existing_layout == false
+
+      save!
+      board_images.reset
     end
 
     self
   end
+
+  SCREEN_SIZES_FOR_AI_LAYOUT = %w[sm md lg].freeze
+  private_constant :SCREEN_SIZES_FOR_AI_LAYOUT
+
+  # Row-major packer with occupancy tracking. Walks ordered items, places
+  # each tile at the first free top-left cell that fits its w×h footprint
+  # without overlap. Clamps w to the column count and h to 2 (frontend assumes
+  # short tiles).
+  #
+  # ordered_items: array of { board_image:, w:, h:, ... }
+  # returns: array of { "i", "x", "y", "w", "h" } in the same order as input.
+  def pack_layout_row_major(ordered_items, columns:)
+    columns = columns.to_i
+    columns = 1 if columns < 1
+    occupied = Set.new
+    out = []
+
+    ordered_items.each do |item|
+      w = item[:w].to_i.clamp(1, columns)
+      h = item[:h].to_i.clamp(1, 2)
+
+      placed = false
+      y = 0
+      until placed
+        (0..(columns - w)).each do |x|
+          cells = []
+          w.times do |dx|
+            h.times { |dy| cells << [x + dx, y + dy] }
+          end
+          if cells.none? { |c| occupied.include?(c) }
+            cells.each { |c| occupied << c }
+            out << { "i" => item[:board_image].id.to_s, "x" => x, "y" => y, "w" => w, "h" => h }
+            placed = true
+            break
+          end
+        end
+        y += 1 unless placed
+      end
+    end
+
+    out
+  end
+  private :pack_layout_row_major
 
   def tmp_board_type
     case resource_type
