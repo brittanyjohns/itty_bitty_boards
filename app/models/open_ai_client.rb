@@ -633,6 +633,48 @@ class OpenAiClient
     response
   end
 
+  # Plain-text scenario description used by POST /api/scenarios/suggestion.
+  # AAC-aware: factual, no fictional events, vocabulary the student might
+  # need before/during/after. Returns the assistant content string, or nil.
+  def generate_scenario_description(name, age_range)
+    @model = GTP_MODEL
+
+    age_clause = age_range.present? ? " for a student aged #{age_range} who uses AAC" : " for a student who uses AAC"
+
+    user_prompt = <<~PROMPT.strip
+      Describe the scenario "#{name}"#{age_clause}.
+
+      Stay factual and concrete. Cover what typically happens, what the student
+      might see, hear, feel, and do — real-world routines, sensory details,
+      emotions, and the vocabulary they may need before, during, and after.
+
+      Do NOT invent names, characters, or fictional events.
+      Do NOT write it as a story or include dialogue.
+      Use clear, simple, age-appropriate language in paragraph form.
+      Keep it to 100 words or less.
+    PROMPT
+
+    @messages = [
+      { role: "system", content: aac_scenario_system_prompt },
+      { role: "user", content: user_prompt },
+    ]
+
+    response = create_chat(false)
+    Rails.logger.debug "*** ERROR *** Invalid Scenario Description Response: #{response}" unless response
+    response&.dig(:content)&.strip
+  end
+
+  # AAC-aware system role for scenario-description prose. Distinct from
+  # aac_word_system_prompt because this one does NOT force JSON output.
+  def aac_scenario_system_prompt
+    <<~SYSTEM.strip
+      You write short factual descriptions for AAC (Augmentative and Alternative
+      Communication) educators and caregivers. Your descriptions help them anticipate
+      the words a student will need in a real-world scenario. Stay grounded in
+      sensory detail, routine, and feelings. Never write fiction.
+    SYSTEM
+  end
+
   def strip_image_description(image_description)
     Rails.logger.debug "Missing image description.\n" && return unless image_description
     stripped_description = image_description.gsub(/[^a-z ]/i, "")

@@ -134,6 +134,10 @@ class API::ScenariosController < API::ApplicationController
       return
     end
     description = generate_scenario_description(name, age_range)
+    if description.blank?
+      render json: { error: "Could not generate a scenario description" }, status: :bad_gateway
+      return
+    end
     render json: { description: description }
   end
 
@@ -284,35 +288,7 @@ class API::ScenariosController < API::ApplicationController
   end
 
   def generate_scenario_description(name, age_range)
-    client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"])
-
-    # prompt = <<~PROMPT
-    #   Please generate a brief description of a scenario for a person named #{name} who is #{age_range} years old.
-    #   The description should be engaging and suitable for a #{age_range} year old.
-    #   Include what typically happens, who's involved, what they might see, hear, feel, and do. Focus on sensory details, emotions, routines, and vocabulary likely needed to communicate before, during, and after.
-    #   Use clear, age-appropriate language in paragraph form and keep it to 100 words or less.
-    # PROMPT
-    prompt = <<~PROMPT
-                                              Give a factual description of the scenario "#{name}" for a student aged #{age_range} who uses AAC.
-    Do not invent names or characters. Just describe what typically happens, what they might see, hear, feel, and do. Focus on real-world routines, sensory details, emotions, and vocabulary they may need. 
-      Use clear, simple language. Do not write it as a story. Do not include fictional events or dialogue.
-      Keep it to 100 words or less.
-    PROMPT
-
-    Rails.logger.debug "Generating scenario description with prompt: #{prompt}"
-    response = client.chat(
-      parameters: {
-        model: GPT_4_MODEL,
-        messages: [
-          { role: "system", content: system_message },
-          { role: "user", content: prompt },
-        ],
-        # max_tokens: 50,
-        temperature: 0.7,
-      },
-    )
-
-    response.dig("choices", 0, "message", "content").strip
+    OpenAiClient.new({}).generate_scenario_description(name, age_range)
   end
 
   def system_message
