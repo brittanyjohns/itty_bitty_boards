@@ -2217,37 +2217,22 @@ class Board < ApplicationRecord
   end
 
   def get_words(name_to_send, number_of_words, words_to_exclude = [], use_preview_model = false, profile: nil)
-    words_to_exclude = board_images.pluck(:label).map { |w| w.downcase }
+    words_to_exclude = board_images.pluck(:label).map { |w| w.to_s.downcase }
     response = OpenAiClient.new({}).get_additional_words(self, name_to_send, number_of_words, words_to_exclude, use_preview_model, language, profile: profile)
-    begin
-      if response
-        if response[:content].blank?
-          Rails.logger.error "*** ERROR - get_words *** \nDid not receive valid response. Response: #{response}\n"
-          return
-        end
-        words = response[:content].gsub("```json", "").gsub("```", "").strip
-        if words.blank? || words.include?("NO ADDITIONAL WORDS")
-          return
-        end
-        if valid_json?(words)
-          words = JSON.parse(words)
-        else
-          start_index = words.index("{")
-          end_index = words.rindex("}")
-          words = words[start_index..end_index]
-          words = transform_into_json(words)
-        end
-      else
-        Rails.logger.error "*** ERROR - get_words *** \nDid not receive valid response. Response: #{response}\n"
-      end
-      words_to_include = words["additional_words"] || []
-      words_to_include = words_to_include.map { |w| w.downcase }
-      words_to_include = words_to_include - words_to_exclude
-      words_to_include = words_to_include.uniq
-      words_to_include
-    rescue => e
-      Rails.logger.error "Error getting words: #{e}"
+    content = response&.dig(:content)
+    if content.blank?
+      Rails.logger.error "*** ERROR - get_words *** empty response: #{response.inspect}"
+      return
     end
+    return if content.include?("NO ADDITIONAL WORDS")
+
+    words = AiResponseParser.fetch_words(content, key: "additional_words")
+    return if words.nil?
+
+    (words.map { |w| w.downcase } - words_to_exclude).uniq
+  rescue => e
+    Rails.logger.error "Error getting words: #{e.class}: #{e.message}"
+    nil
   end
 
   def get_words_for_predictive(starting_phrase_or_word, word_count, profile: nil)
@@ -2275,53 +2260,19 @@ class Board < ApplicationRecord
   end
 
   def get_word_suggestions(name_to_use, number_of_words, words_to_exclude = [], profile: nil)
-    response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words, words_to_exclude, board_type, profile: profile)
-    begin
-      if response && response[:content].present?
-        word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip
-        if word_suggestions.blank? || word_suggestions.include?("NO WORDS")
-          return
-        end
-        if valid_json?(word_suggestions)
-          word_suggestions = JSON.parse(word_suggestions)
-        else
-          start_index = word_suggestions.index("{")
-          end_index = word_suggestions.rindex("}")
-          word_suggestions = word_suggestions[start_index..end_index]
-          word_suggestions = transform_into_json(word_suggestions)
-        end
-      else
-        Rails.logger.error "*** ERROR - get_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
-      end
-      word_suggestions["words"]
-    rescue => e
-      Rails.logger.error "Error getting word suggestions: #{e}"
-    end
+    response = OpenAiClient.new({}).get_word_suggestions(name_to_use, number_of_words, words_to_exclude, board_type, language: language, profile: profile)
+    extract_words_from_response(response, key: "words", caller_name: "get_word_suggestions")
+  rescue => e
+    Rails.logger.error "Error getting word suggestions: #{e.class}: #{e.message}"
+    nil
   end
 
   def get_social_story_word_suggestions(name_to_use, number_of_steps, max_number_of_words, words_to_exclude = [])
     response = OpenAiClient.new({}).get_social_story_word_suggestions(name_to_use, number_of_steps, max_number_of_words, words_to_exclude)
-    begin
-      if response && response[:content].present?
-        word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip
-        if word_suggestions.blank? || word_suggestions.include?("NO WORDS")
-          return
-        end
-        if valid_json?(word_suggestions)
-          word_suggestions = JSON.parse(word_suggestions)
-        else
-          start_index = word_suggestions.index("{")
-          end_index = word_suggestions.rindex("}")
-          word_suggestions = word_suggestions[start_index..end_index]
-          word_suggestions = transform_into_json(word_suggestions)
-        end
-      else
-        Rails.logger.error "*** ERROR - get_social_story_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
-      end
-      word_suggestions["words"]
-    rescue => e
-      Rails.logger.error "Error getting social story word suggestions: #{e}"
-    end
+    extract_words_from_response(response, key: "words", caller_name: "get_social_story_word_suggestions")
+  rescue => e
+    Rails.logger.error "Error getting social story word suggestions: #{e.class}: #{e.message}"
+    nil
   end
 
   def get_word_suggestions_from_default_prompt(prompt, number_of_words, profile: nil)
@@ -2341,28 +2292,28 @@ class Board < ApplicationRecord
 
   def get_word_suggestions_from_prompt(prompt, profile: nil)
     response = OpenAiClient.new({}).get_word_suggestions_from_prompt(prompt, profile: profile)
-    begin
-      if response && response[:content].present?
-        word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip
-        if word_suggestions.blank? || word_suggestions.include?("NO WORDS")
-          return
-        end
-        if valid_json?(word_suggestions)
-          word_suggestions = JSON.parse(word_suggestions)
-        else
-          start_index = word_suggestions.index("{")
-          end_index = word_suggestions.rindex("}")
-          word_suggestions = word_suggestions[start_index..end_index]
-          word_suggestions = transform_into_json(word_suggestions)
-        end
-      else
-        Rails.logger.error "*** ERROR - get_word_suggestions *** \nDid not receive valid response. Response: #{response}\n"
-      end
-      word_suggestions["words"]
-    rescue => e
-      Rails.logger.error "Error getting word suggestions: #{e}"
-    end
+    extract_words_from_response(response, key: "words", caller_name: "get_word_suggestions_from_prompt")
+  rescue => e
+    Rails.logger.error "Error getting word suggestions: #{e.class}: #{e.message}"
+    nil
   end
+
+  # Shared response handling for the AI word-suggestion methods. Returns
+  # an Array<String> on success or nil on any failure path (blank response,
+  # NO WORDS sentinel, unparseable JSON, missing key). Callers above pair
+  # this with a method-specific rescue so the original return contract is
+  # preserved (callers in BoardsController treat nil and [] the same).
+  def extract_words_from_response(response, key:, caller_name:)
+    content = response&.dig(:content)
+    if content.blank?
+      Rails.logger.error "*** ERROR - #{caller_name} *** empty response: #{response.inspect}"
+      return nil
+    end
+    return nil if content.include?("NO WORDS")
+
+    AiResponseParser.fetch_words(content, key: key)
+  end
+  private :extract_words_from_response
 
   def self.determine_board_type(dynamic_images, is_root = false)
     return "static" unless dynamic_images

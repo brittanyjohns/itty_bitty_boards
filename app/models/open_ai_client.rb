@@ -424,82 +424,108 @@ class OpenAiClient
   end
 
   def get_additional_words(board, name, number_of_words = 24, exclude_words = [], use_preview_model = false, language = "en", profile: nil)
-    exclude_words_prompt = exclude_words.blank? ? "and no words to exclude." : "excluding the words '#{exclude_words.join("', '")}'."
+    exclude_list = Array(exclude_words).map(&:to_s).reject(&:blank?)
+    exclude_clause =
+      if exclude_list.empty?
+        "There are no existing words to avoid."
+      else
+        "Do NOT return any of these existing words (case-insensitive): #{exclude_list.join(", ")}."
+      end
 
-    text = ""
-    if board&.dynamic?
-      Rails.logger.debug "** Dynamic Board"
-      first_sentence = "I have the initial communication board displayed to the user."
-      word_instructions = " #{first_sentence} with the current words: [#{exclude_words_prompt}]. Please provide EXACTLY #{number_of_words} additional words that are foundational for basic communication in an AAC device."
-      static_instructions = "These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. They should be similar in nature to the words already on the board, but not duplicates."
-      text = "#{word_instructions} #{static_instructions}"
-      ending = "Use the existing words on the board as a guide for the type of words that should be added. Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
-    elsif board&.static?
-      Rails.logger.debug "** Static Board"
-      first_sentence = "I have an existing AAC board titled, '#{name}'"
-      word_instructions = " #{first_sentence} with the current words: [#{exclude_words_prompt}]. Please provide EXACTLY #{number_of_words} additional words that are foundational for basic communication in an AAC device."
-      static_instructions = "These words should be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations. They should be similar in nature to the words already on the board, but not duplicates."
-      text = "#{word_instructions} #{static_instructions}"
-      ending = "If the board is 'drink', words like 'water', 'milk', 'juice', etc. would be appropriate.
-        If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate.
-        If the board is 'feelings', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
-        Use the existing words on the board as a guide for the type of words that should be added. Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
-    elsif board&.predictive?
-      Rails.logger.debug "** Predictive Board"
-      text = "I have an AAC board & the last word/phrase selected was '#{name}'. Please provide #{number_of_words} words/phrases that are most likely to be used next in conversation after the word/phrase '#{name}'."
-      ending = "If the board is 'go to', words like 'home', 'school', 'store', 'park', etc. would be appropriate. 
-        If the board is 'we', words like 'are', 'can', 'will', etc. would be appropriate.
-        If the board is 'will', words like 'you', 'go', 'eat', etc. would be appropriate.
-        Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
-    elsif board&.category?
-      Rails.logger.debug "** Category Board"
-      text = "I have an AAC button labeled '#{name}'. Please provide #{number_of_words} words that are related to the category '#{name}'."
-      ending = "If the board is 'feeling', words like 'happy', 'sad', 'angry', 'tired', etc. would be appropriate.
-        If the board is 'drink', words like 'water', 'milk', 'juice', etc. would be appropriate.
-        If the board is 'food', words like 'apple', 'banana', 'cookie', etc. would be appropriate."
-    end
-    format_instructions = "Do not repeat any words that are already on the board & only provide #{number_of_words} words. DO NOT INCLUDE [#{exclude_words_prompt}]. Respond with a JSON object in the following format: {\"additional_words\": [\"word1\", \"word2\", \"word3\", ...]}"
-    language = language || "en"
-    if language != "en"
-      formatted_language = LONG_LANGUAGE_NAMES[language.to_sym]
-      format_instructions += " Respond in #{formatted_language}." if formatted_language
-    end
-    text = "#{text} #{format_instructions} #{ending}"
-    text = append_profile_guidance(text, profile)
-    @messages = [{ role: "user",
-                  content: [{
-      type: "text",
-      text: text,
-    }] }]
+    context, examples =
+      if board&.dynamic?
+        [
+          "This is the user's main AAC board. Suggest broadly useful core/fringe vocabulary that complements the existing words.",
+          nil,
+        ]
+      elsif board&.static?
+        [
+          "This is a static AAC board titled \"#{name}\". Suggest words that fit the board's topic and complement the existing words without duplicating them.",
+          "For example: a \"drink\" board → water, milk, juice; a \"go to\" board → home, school, park; a \"feelings\" board → happy, sad, tired.",
+        ]
+      elsif board&.predictive?
+        [
+          "The user just selected the word or phrase \"#{name}\" on a predictive AAC board. Suggest words/short phrases most likely to be said NEXT.",
+          "For example: after \"we\" → are, can, will; after \"go to\" → home, school, park; after \"will\" → you, go, eat.",
+        ]
+      elsif board&.category?
+        [
+          "This is an AAC category button labeled \"#{name}\". Suggest words that belong to this category.",
+          "For example: \"feelings\" → happy, sad, angry, tired; \"drinks\" → water, milk, juice; \"food\" → apple, banana, cookie.",
+        ]
+      else
+        [
+          "AAC board context for \"#{name}\". Suggest broadly useful vocabulary that fits the board.",
+          nil,
+        ]
+      end
+
+    user_prompt = <<~PROMPT.strip
+      #{context}
+
+      #{exclude_clause}
+
+      Return EXACTLY #{number_of_words} single words or short (max 2 words) phrases.
+      Prefer single words. Lowercase only except proper nouns. No punctuation, no quotes, no duplicates.
+
+      #{examples}
+
+      Respond as a single JSON object: {"additional_words": ["word1", "word2", ...]}.
+    PROMPT
+    user_prompt = append_language_clause(user_prompt, language)
+    user_prompt = append_profile_guidance(user_prompt, profile)
 
     @model = GTP_MODEL
+    @messages = [
+      { role: "system", content: aac_word_system_prompt },
+      { role: "user", content: user_prompt },
+    ]
+
     response = create_chat
-    Rails.logger.debug "*** ERROR *** Invaild Additional Words Response: #{response}" unless response
+    Rails.logger.debug "*** ERROR *** Invalid Additional Words Response: #{response}" unless response
     response
   end
 
-  def get_word_suggestions(name, number_of_words = 24, words_to_exclude = [], board_type = "default", profile: nil)
+  def get_word_suggestions(name, number_of_words = 24, words_to_exclude = [], board_type = "default", language: "en", profile: nil)
     if words_to_exclude.is_a?(String)
       words_to_exclude = words_to_exclude.split(",").map(&:strip)
     end
-    @model = GTP_MODEL
-    if board_type == "menu"
-      text = "I have a restaurant menu titled, '#{name}'. Inferring the context from the name AND the existing items on the menu, please provide #{number_of_words} additional menu items that are commonly found on restaurant menus. Please make them lowercase with the exception of proper nouns, sentences, etc. that should be capitalized."
-    else
-      text = "I have an AAC board titled, '#{name}'. Inferring the context from the name AND the existing words on the board, please provide #{number_of_words} words. Please make them lowercase with the exception of proper nouns, sentences, etc. that should be capitalized."
-    end
-    unless words_to_exclude.blank?
-      text += " Do not repeat any words that are already on the board & only provide #{number_of_words} words. The words currently on the board are '#{words_to_exclude.join("', '")}'."
-    end
-    format_instructions = "Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}"
-    text += format_instructions
-    text = append_profile_guidance(text, profile)
-    @messages = [{ role: "user",
-                  content: [{ type: "text",
-                              text: text }] }]
+    exclude_list = Array(words_to_exclude).map(&:to_s).reject(&:blank?)
 
-    response = create_chat
-    response
+    @model = GTP_MODEL
+
+    context =
+      if board_type == "menu"
+        "Build a restaurant menu titled \"#{name}\". Suggest #{number_of_words} additional menu items that fit the inferred cuisine and complement what's already on the menu (food, drinks, common modifiers)."
+      else
+        "Build an AAC board titled \"#{name}\". Suggest #{number_of_words} words that fit the board's topic and complement the existing words."
+      end
+
+    exclude_clause =
+      if exclude_list.empty?
+        ""
+      else
+        "Do NOT return any of these existing entries (case-insensitive): #{exclude_list.join(", ")}.\n"
+      end
+
+    user_prompt = <<~PROMPT.strip
+      #{context}
+
+      #{exclude_clause}Return EXACTLY #{number_of_words} entries.
+      Lowercase only, except proper nouns. No punctuation, no quotes, no duplicates.
+      Prefer single words; use a 2-word phrase only when it is the natural form.
+
+      Respond as a single JSON object: {"words": ["word1", "word2", ...]}.
+    PROMPT
+    user_prompt = append_language_clause(user_prompt, language)
+    user_prompt = append_profile_guidance(user_prompt, profile)
+
+    @messages = [
+      { role: "system", content: aac_word_system_prompt },
+      { role: "user", content: user_prompt },
+    ]
+
+    create_chat
   end
 
   def get_social_story_word_suggestions(name, number_of_steps, max_number_of_words, words_to_exclude = [])
@@ -507,62 +533,62 @@ class OpenAiClient
       words_to_exclude = words_to_exclude.split(",").map(&:strip)
     end
 
-    words_to_exclude = Array(words_to_exclude)
+    exclude_list = Array(words_to_exclude)
       .map { |w| w.to_s.strip.downcase }
       .reject(&:blank?)
 
     @model = GTP_MODEL
-    Rails.logger.debug "User - model: #{@model} -- name: #{name} -- number_of_steps: #{number_of_steps} -- max_number_of_words: #{max_number_of_words} -- words_to_exclude: #{words_to_exclude.inspect}"
-
     min_number_of_words = 2
-    text = <<~TEXT
-                                                                                                            I am creating a social story titled "#{name}".
 
-    Please generate #{number_of_steps} SHORT step instructions that could appear on tiles in a social story AAC board.
+    exclude_clause =
+      if exclude_list.empty?
+        ""
+      else
+        "Do NOT include any of these existing steps (case-insensitive): #{exclude_list.join(", ")}.\n"
+      end
 
-    These should represent actions or steps in the story.
+    user_prompt = <<~PROMPT.strip
+      Build a social story titled "#{name}".
 
-    Requirements:
-    - each item should be a short instruction or step (#{min_number_of_words}-#{max_number_of_words} words)
-    - simple language appropriate for children
-    - represent a sequence of events in the story
-    - avoid long sentences
-    - avoid punctuation
-    - lowercase only (except for proper nouns if necessary)
-    - no duplicates
-    TEXT
+      Generate #{number_of_steps} SHORT step instructions that could appear as tiles in a social-story AAC board, in narrative order.
 
-    unless words_to_exclude.blank?
-      text += <<~TEXT
+      Each step:
+      - is #{min_number_of_words}-#{max_number_of_words} words
+      - is simple language appropriate for children
+      - represents one action or moment in the story
+      - has no punctuation, no quotes, no leading/trailing whitespace
+      - is lowercase only, except proper nouns
 
-        Do not include any items already in this list:
-        #{words_to_exclude.to_json}
-      TEXT
-    end
+      No duplicates or near-duplicates.
 
-    text += <<~TEXT
+      #{exclude_clause}Respond as a single JSON object: {"words": ["step one", "next step", ...]}.
+    PROMPT
 
-      Respond ONLY with valid JSON in this format:
-      {"words": ["step one example", "next step example", "another step example"]}
-    TEXT
-
-    @messages = [{
-      role: "user",
-      content: [{ type: "text", text: text }],
-    }]
+    @messages = [
+      { role: "system", content: aac_word_system_prompt },
+      { role: "user", content: user_prompt },
+    ]
 
     create_chat
   end
 
   def get_word_suggestions_from_prompt(prompt, profile: nil)
     @model = GTP_MODEL
-    text = prompt
-    format_instructions = "Respond with a JSON object in the following format: {\"words\": [\"word_or_phrase_1\", \"word_or_phrase_2\", \"word_or_phrase_3\", ...]}"
-    text += format_instructions
-    text = append_profile_guidance(text, profile)
-    @messages = [{ role: "user",
-                  content: [{ type: "text",
-                              text: text }] }]
+
+    user_prompt = <<~PROMPT.strip
+      #{prompt.to_s.strip}
+
+      Return AAC vocabulary words or short (max 2 words) phrases.
+      Prefer single words. Lowercase only except proper nouns. No punctuation, no quotes, no duplicates.
+
+      Respond as a single JSON object: {"words": ["word_or_phrase_1", "word_or_phrase_2", ...]}.
+    PROMPT
+    user_prompt = append_profile_guidance(user_prompt, profile)
+
+    @messages = [
+      { role: "system", content: aac_word_system_prompt },
+      { role: "user", content: user_prompt },
+    ]
 
     create_chat
   end
@@ -577,6 +603,29 @@ class OpenAiClient
     return text if guidance.blank?
 
     "#{text}\n\nCommunicator context: #{guidance}"
+  end
+
+  # Shared system prompt used by the word-suggestion methods. Sets the
+  # assistant's persona and guarantees JSON-only output (belt-and-suspenders
+  # with response_format: json_object).
+  def aac_word_system_prompt
+    <<~SYSTEM.strip
+      You generate vocabulary for AAC (Augmentative and Alternative Communication) boards.
+      Always return a single valid JSON object with the array key the user asks for.
+      No prose, no markdown fences, no commentary, no trailing commas.
+    SYSTEM
+  end
+
+  # Appends a "Respond in <language>" clause when language is set to a
+  # non-English locale we recognize. No-op for English / blank / unknown.
+  def append_language_clause(text, language)
+    return text if language.blank?
+    return text if language.to_s == "en"
+
+    long = LONG_LANGUAGE_NAMES[language.to_sym]
+    return text if long.blank?
+
+    "#{text}\n\nRespond in #{long}."
   end
 
   def get_board_description(board)
