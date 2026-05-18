@@ -205,17 +205,6 @@ class OpenAiClient
     image_prompt_content
   end
 
-  def generate_formatted_board(name, num_of_columns, words = [], max_num_of_rows = 4, maintain_existing = false)
-    @model = GTP_MODEL
-    Rails.logger.debug "generate_formatted_board - model: #{@model} -- name: #{name} -- num_of_columns: #{num_of_columns} -- words: #{words.count} -- max_num_of_rows: #{max_num_of_rows}"
-    @messages = [{ role: "user",
-                  content: [{ type: "text",
-                              text: format_board_prompt(name, num_of_columns, words, max_num_of_rows, maintain_existing) }] }]
-    response = create_completion
-    Rails.logger.debug "*** ERROR *** Invaild Formatted Board Response: #{response}" unless response
-    response[:content] if response
-  end
-
   def clarify_image_description(image_description, restaurant_name)
     Rails.logger.debug "Missing image description.\n" && return unless image_description
     @model = GTP_5_MODEL
@@ -327,52 +316,6 @@ class OpenAiClient
     Make your best attempt to provide a list of 24 words or short phrases (2 words max) that are foundational for basic communication in an AAC device. Respond with 'NO NEXT WORDS' if there are no common follow-up words for '#{label}' that would be used in conversation & an AAC device. Use json format. Respond with a JSON object in the following format: {\"next_words\": [\"word1\", \"word2\", \"word3\", ...]}"
   end
 
-  def maintain_existing_instructions(existing_grid)
-    "The existing grid layout is as follows: #{existing_grid}. Please maintain the existing size of each word, changing only the position of the words as needed.
-    Give priority to the words with the 'board_type' of 'category' when placing them on the grid. If the word is a 'category' word, it should be placed in the top or around top side of the grid."
-  end
-
-  def format_board_prompt(name, num_of_columns, existing_grid = [], max_num_of_rows = 4, maintain_existing = false)
-    words = existing_grid.map { |word_obj| word_obj[:word] }
-
-    Rails.logger.debug "\nName: #{name} -- Num of Columns: #{num_of_columns} -- Max Num of Rows: #{max_num_of_rows} -- Existing Grid: #{existing_grid.count} -- Maintain Existing: #{maintain_existing}"
-    word_str = words.join(", ") unless words.blank?
-    word_count = words.size
-    text = <<-PROMPT
-      Create an AAC communication board formatted as a grid layout.
-
-      Organize the words based on these guidelines:
-      1. Core words should be placed first and grouped together, prioritizing high-frequency words - Stating with the coordinate [0,0].
-      2. Group words by parts of speech (e.g., pronouns, verbs, adjectives).
-      3. Consider how speech-language pathologists arrange words for ease of use in communication, ensuring frequently used words are near the top left.
-      4. Use a grid layout with a MAXIMUM of #{num_of_columns} columns and MAX rows: #{max_num_of_rows}.
-      5. Each entry should include the word, its grid position as [x, y], its part of speech, its size, and its frequency of use.
-      6. The size of each word should be based on its frequency of use, with high-frequency words being larger. Size is represented as number of grid spaces the word occupies. [1,1] is a single grid space. [2,2] is a 2x2 grid space. & so on.
-      7. Do not overlap words or exceed the grid size.
-      #{maintain_existing_instructions(existing_grid) if maintain_existing}
-
-      Please create a grid layout that include the words: '#{words}', grouped and positioned based on their typical use in AAC communication.
-      It is VERY important that the Y-COOORDINATE should not exceed #{max_num_of_rows} and the X-COORDINATE should not exceed #{num_of_columns}.
-             Please respond as a valid JSON object with the following structure:
-
-      {
-        "grid": [
-          {"word": "I", "position": [0,0], "part_of_speech": "pronoun", "frequency": "medium", "size": [1,1]},
-          {"word": "banana", "position": [0,1], "part_of_speech": "noun", "frequency": "low", "size": [1,1]},
-          {"word": "more", "position": [2,4], "part_of_speech": "adverb", "frequency": "high", "size": [1,1]},
-          ...
-          {"word": "elevator", "position": [5,10], "part_of_speech": "noun", "frequency": "low", "size": [1,1]}
-        ],
-              }
-    PROMPT
-  end
-
-  def explanation_prompt
-    'Please also provide a professional explanation (for a speech-language pathologist) and a personable explanation (for a caregiver or user - but still professional) of the layout.
-    {"professional_explanation": "This layout is designed to help users quickly find and use the most common words in AAC communication. The words are grouped by parts of speech and arranged in a grid to make it easy to locate and select the right word.
-    "personable_explanation": "This board is set up to help you find the words you need to communicate quickly and easily. The words are grouped by type and placed in a grid so you can find them easily.}'
-  end
-
   def get_next_words(label)
     @model = GTP_MODEL
     @messages = [{ role: "user",
@@ -404,22 +347,45 @@ class OpenAiClient
                           'th': "Thai" }.freeze
 
   def get_words_for_scenario(scenario_description, number_of_words = 24, language = "en", profile: nil)
-    prompt = <<~PROMPT
-      I have a scenario description: "#{scenario_description}".
+    user_prompt = <<~PROMPT
+      Scenario: "#{scenario_description}"
 
-      Please provide #{number_of_words} words that are foundational for basic communication in an AAC device.
-      These words should relate to the context of the scenario and be broadly applicable, supporting users in expressing a variety of intents, needs, and responses across different situations.
-      Do not repeat any words that are already on the board & only provide #{number_of_words} words.
-      Respond with a JSON object in the following format: {\"words\": [\"word1\", \"word2\", \"word3\", ...]}
+      Generate EXACTLY #{number_of_words} unique words or short (max 2 words) phrases that someone communicating
+      via an AAC device would most likely need to say or hear during this scenario.
+
+      Rules:
+      - Prefer single words. Use a 2-word phrase only when it is a common AAC phrase (e.g. "all done", "thank you").
+      - No duplicates, no near-duplicates (e.g. "happy" and "happiness" — pick one).
+      - Lowercase only, except proper nouns.
+      - No punctuation, no quotes, no leading/trailing whitespace.
+      - Mix of word types: include core communication words (I, want, more, stop, help, yes, no),
+        scenario-specific nouns/verbs, and a few descriptors (feelings, qualities).
+      - Skip any word already on the board (none supplied yet means include everything).
+
+      Output: exactly #{number_of_words} entries.
     PROMPT
-    prompt = append_profile_guidance(prompt, profile)
+    user_prompt = append_profile_guidance(user_prompt, profile)
+
+    if language.present? && language != "en"
+      long = LONG_LANGUAGE_NAMES[language.to_sym]
+      user_prompt += "\nRespond in #{long}." if long
+    end
 
     @model = GTP_MODEL
-    @messages = [{ role: "user",
-                   content: [{ type: "text", text: prompt }] }]
+    @messages = [
+      {
+        role: "system",
+        content: <<~SYSTEM.strip,
+          You generate vocabulary for AAC (Augmentative and Alternative Communication) boards.
+          You always return a single valid JSON object with a top-level "words" array.
+          No prose, no markdown fences, no commentary.
+        SYSTEM
+      },
+      { role: "user", content: user_prompt },
+    ]
+
     response = create_chat
-    Rails.logger.debug "*** ERROR *** Invaild Words for Scenario Response: #{response}" unless response
-    Rails.logger.debug "Words for Scenario Response: #{response.inspect}"
+    Rails.logger.debug "*** ERROR *** Invalid Words for Scenario Response: #{response}" unless response
     response
   end
 

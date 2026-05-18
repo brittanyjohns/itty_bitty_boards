@@ -26,14 +26,9 @@ class OpenaiPrompt < ApplicationRecord
   include UtilHelper
 
   def send_prompt_to_openai
-    return if Rails.env.test?
     opts = open_ai_opts.merge({ messages: messages })
-    puts "\nsend_prompt_to_openai\n\nopts: #{opts}\n\n"
     response = OpenAiClient.new(opts).create_chat
-    puts "response: #{response}"
-    if response
-      update!(sent_at: Time.now)
-    end
+    update!(sent_at: Time.now) if response
     response
   end
 
@@ -51,15 +46,25 @@ class OpenaiPrompt < ApplicationRecord
   end
 
   def example_scenario_description_response
-    # {
-    #   "scenario": "First day of school",
-    #   "description": "arrival at the preschool, meeting the teacher and other kids, participating in introductory activities, understanding simple instructions, asking for help, expressing basic needs like hunger, thirst or need for restroom and expressing emotions like happiness, sadness, fear or excitement"
-    # }
-    "{\"scenario\": \"First day of school\", \"description\": \"arrival at the preschool, meeting the teacher and other kids, participating in introductory activities, understanding simple instructions, asking for help, expressing basic needs like hunger, thirst or need for restroom and expressing emotions like happiness, sadness, fear or excitement\"}"
+    {
+      "scenario" => "First day of school",
+      "description" => "arrival at the preschool, meeting the teacher and other kids, participating in introductory activities, understanding simple instructions, asking for help, expressing basic needs like hunger, thirst or need for restroom and expressing emotions like happiness, sadness, fear or excitement",
+    }.to_json
   end
 
   def describe_scenario_prompt
-    "Please describe the scenario of #{prompt_text} for a person at the age of #{age_range}. Please keep it simple but also very detailed. This will be used to create AAC material for people with speech difficulties. Please respond in JSON with the keys 'scenario' and 'description'.\n\nExample: #{example_scenario_description_response}"
+    age_clause = age_range.present? ? " for a person aged #{age_range}" : ""
+    <<~PROMPT.strip
+      Describe the scenario "#{prompt_text}"#{age_clause} as it would be experienced
+      by an AAC user — the people and things they encounter, the actions involved,
+      and the feelings or needs they might want to express. Keep it concrete and
+      grounded; this will be used to generate vocabulary for an AAC board.
+
+      Respond as a JSON object with exactly two string keys: "scenario" and "description".
+
+      Example:
+      #{example_scenario_description_response}
+    PROMPT
   end
 
   def resource_type
@@ -67,28 +72,23 @@ class OpenaiPrompt < ApplicationRecord
   end
 
   def set_scenario_description
-    return if Rails.env.test?
     response = OpenAiClient.new({ messages: [
       { role: "system", content: speech_expert },
       { role: "user", content: describe_scenario_prompt },
     ] }).create_chat
 
-    response_text = nil
-    if response
-      response_text = response[:content].gsub("```json", "").gsub("```", "").strip
-      if valid_json?(response_text)
-        response_text
-      else
-        puts "INVALID JSON: #{response_text}"
-        response_text = transform_into_json(response_text)
-      end
-    else
-      Rails.logger.error "*** ERROR - set_scenario_description *** \nDid not receive valid response. Response: #{response}\n"
+    content = response&.dig(:content)
+    if content.blank?
+      Rails.logger.error "*** ERROR - set_scenario_description *** empty response: #{response.inspect}"
+      return self
     end
-    puts "set_scenario_description - response_text: #{response_text}"
-    description = JSON.parse(response_text)["description"]
-    # description = JSON.parse(parsed_response)["description"]
-    puts "description: #{description}"
+
+    description = AiResponseParser.fetch(content, key: "description")
+    if description.blank?
+      Rails.logger.error "*** ERROR - set_scenario_description *** missing 'description' key in: #{content.inspect}"
+      return self
+    end
+
     self.description = description
     self
   end
@@ -107,32 +107,43 @@ class OpenaiPrompt < ApplicationRecord
 
   def word_list_prompt
     prompt_template = PromptTemplate.find_by(method_name: "word_list_prompt")
-    unless prompt_template
-      puts "PromptTemplate not found for 'word_list_prompt'"
-      return "Please generate a list of exactly #{number_of_images} unique words or short phrases (2 words max - prefer SINGLE WORDS) that are relevant to the scenario #{name}. Ensure that the list includes a mix of nouns, verbs, adjectives, and adverbs relevant to the activities and items involved in #{name} using the following description for additional context. Please make the words appropriate for a person at the age given. You can use common/core words if not able to meet number requirement of #{number_of_images} words/phrases. Please respond in JSON with the array key 'words_phrases'."
-    end
-
     text = prompt_template&.prompt_text
 
-    unless text
-      puts "PromptTemplate 'word_list_prompt' does not have prompt_text"
-      return "Please generate a list of exactly #{number_of_images} unique words or short phrases (2 words max - prefer SINGLE WORDS) that are relevant to the scenario #{name}. Ensure that the list includes a mix of nouns, verbs, adjectives, and adverbs relevant to the activities and items involved in #{name} using the following description for additional context. Please make the words appropriate for a person at the age given. You can use common/core words if not able to meet number requirement of #{number_of_images} words/phrases. Please respond in JSON with the array key 'words_phrases'."
+    if text.blank?
+      Rails.logger.warn "PromptTemplate 'word_list_prompt' missing or empty; using fallback"
+      return default_word_list_prompt
     end
 
-    num_of_imgs = number_of_images
-    puts "text: #{text}"
-    name_to_send = name || "the scenario"
-    prompt_text = text.gsub!("{QUANTITY}", num_of_imgs.to_s)
-    prompt_text.gsub!("{SCENARIO}", scenario)
-    prompt_text.gsub!("{AGE_RANGE}", age_range)
-    prompt_text.gsub!("{NAME}", name_to_send)
+    name_to_send = name.presence || "the scenario"
+    rendered = text
+      .gsub("{QUANTITY}", number_of_images.to_s)
+      .gsub("{SCENARIO}", scenario.to_s)
+      .gsub("{AGE_RANGE}", age_range.to_s)
+      .gsub("{NAME}", name_to_send)
+
     self.prompt_template_id = prompt_template.id
     save!
 
-    puts "****prompt_text: #{prompt_text}"
-    # "You will be given a scenario description and age range of the USER. Please provide EXACTLY #{num_of_imgs} words or short phrases (2 words max - prefer SINGLE WORDS) that are most likely to be communicated by the USER in the following scenario. These will be used to create AAC material for people with speech difficulties. Please make the words appropriate for a person at the age give. Please respond in JSON with the array key 'words_phrases'."
-    # "Please generate a list of exactly #{num_of_imgs} unique words or short phrases (2 words max - prefer SINGLE WORDS) that are relevant to the scenario #{name}. Ensure that the list includes a mix of nouns, verbs, adjectives, and adverbs relevant to the activities and items involved in #{name} using the following description for additional context. Please make the words appropriate for a person at the age given. You can use common/core words if not able to meet number requirement of #{num_of_imgs} words/phrases. Please respond in JSON with the array key 'words_phrases'."
-    prompt_text
+    rendered
+  end
+
+  def default_word_list_prompt
+    name_to_send = name.presence || "the scenario"
+    age_clause = age_range.present? ? " appropriate for a person aged #{age_range}" : ""
+    <<~PROMPT.strip
+      Generate EXACTLY #{number_of_images} unique words or short (max 2 words) phrases
+      that someone using an AAC device would most likely need during "#{name_to_send}".
+
+      Rules:
+      - Prefer single words. Use a 2-word phrase only when it is the natural AAC form.
+      - Include a mix of nouns, verbs, adjectives, and adverbs related to the scenario.
+      - Include core communication words (I, want, more, stop, help) when relevant.
+      - Lowercase only, except proper nouns. No punctuation.
+      - No duplicates or near-duplicates.
+      - Keep the words#{age_clause}.
+
+      Respond as a JSON object with a single array key "words_phrases".
+    PROMPT
   end
 
   def messages
