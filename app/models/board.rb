@@ -1263,9 +1263,9 @@ class Board < ApplicationRecord
       end
     end
 
-    self.small_screen_columns  = columns[:small_screen_columns].to_i  if columns[:small_screen_columns].present?
+    self.small_screen_columns = columns[:small_screen_columns].to_i if columns[:small_screen_columns].present?
     self.medium_screen_columns = columns[:medium_screen_columns].to_i if columns[:medium_screen_columns].present?
-    self.large_screen_columns  = columns[:large_screen_columns].to_i  if columns[:large_screen_columns].present?
+    self.large_screen_columns = columns[:large_screen_columns].to_i if columns[:large_screen_columns].present?
 
     if margins[:x].present? && margins[:y].present?
       self.margin_settings[screen_size] = { x: margins[:x].to_i, y: margins[:y].to_i }
@@ -1475,6 +1475,7 @@ class Board < ApplicationRecord
       created_at: created_at,
       updated_at: updated_at,
       settings: settings,
+      published: published,
       has_generating_images: has_generating_images?,
       number_of_columns: number_of_columns,
       small_screen_columns: small_screen_columns,
