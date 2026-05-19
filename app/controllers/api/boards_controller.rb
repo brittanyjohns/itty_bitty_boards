@@ -700,14 +700,30 @@ class API::BoardsController < API::ApplicationController
       img_saved = @image.save!
     end
 
+    new_doc = nil
     if (image_params[:docs].present?)
-      doc = @image.docs.new(image_params[:docs])
-      doc.user = current_user
-      doc.processed = true
-      doc.save
+      owns_image = @image.user_id == current_user.id
+      # Only mutate the image's "current" doc flags if the current user owns
+      # the image. Otherwise we'd be flipping global display state on someone
+      # else's image (or a shared/admin image) just because this user uploaded
+      # their own variant.
+      @image.docs.where(current: true).update_all(current: false) if owns_image
+      new_doc = @image.docs.new(image_params[:docs])
+      new_doc.user = current_user
+      new_doc.processed = true
+      new_doc.current = true if owns_image
+      new_doc.save
     end
     if img_saved
-      @board.add_image(@image.id) if @board
+      board_image = @board.add_image(@image.id) if @board
+
+      # Surface the uploaded doc on this board, even when the user doesn't own
+      # the underlying image. Mirrors DocsController#mark_as_current, which
+      # also updates board_image.display_image_url per-board.
+      if new_doc&.persisted? && @board
+        board_image ||= @board.board_images.find_by(image_id: @image.id)
+        board_image&.update(display_image_url: new_doc.tile_url)
+      end
 
       screen_size = params[:screen_size] || "lg"
       # @board.calculate_grid_layout_for_screen_size(screen_size)
