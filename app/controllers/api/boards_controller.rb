@@ -701,9 +701,11 @@ class API::BoardsController < API::ApplicationController
     end
 
     if (image_params[:docs].present?)
+      @image.docs.where(current: true).update_all(current: false)
       doc = @image.docs.new(image_params[:docs])
       doc.user = current_user
       doc.processed = true
+      doc.current = true
       doc.save
     end
     if img_saved

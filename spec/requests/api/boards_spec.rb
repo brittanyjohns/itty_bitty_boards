@@ -266,4 +266,44 @@ RSpec.describe "API::Boards", type: :request do
       expect(JSON.parse(response.body)).to eq(%w[doctor nurse clinic])
     end
   end
+
+  describe "POST /api/boards/:id/add_image (upload)" do
+    let(:upload) do
+      Rack::Test::UploadedFile.new(Rails.root.join("public", "logo_bubble.png"), "image/png")
+    end
+
+    it "creates a new image with the uploaded doc marked current and adds it to the board" do
+      expect {
+        post "/api/boards/#{board.id}/add_image",
+             params: { image: { label: "fresh upload label", docs: { image: upload } } },
+             headers: auth_headers(user)
+      }.to change(Image, :count).by(1)
+
+      expect(response).to have_http_status(:ok)
+
+      new_image = Image.order(:created_at).last
+      expect(new_image.user_id).to eq(user.id)
+      expect(new_image.docs.count).to eq(1)
+      expect(new_image.docs.first.current).to be(true)
+      expect(board.reload.images).to include(new_image)
+    end
+
+    it "demotes existing current docs and makes the uploaded one current on a found-by-label image" do
+      existing_image = create(:image, label: "shared label", user_id: user.id)
+      existing_image.update!(private: true)
+      old_doc = create(:doc, documentable: existing_image, user: user, current: true)
+
+      expect {
+        post "/api/boards/#{board.id}/add_image",
+             params: { image: { label: "shared label", docs: { image: upload } } },
+             headers: auth_headers(user)
+      }.to change { existing_image.docs.count }.by(1)
+
+      expect(response).to have_http_status(:ok)
+      expect(old_doc.reload.current).to be(false)
+      new_doc = existing_image.docs.order(:created_at).last
+      expect(new_doc.current).to be(true)
+      expect(board.reload.images).to include(existing_image)
+    end
+  end
 end
