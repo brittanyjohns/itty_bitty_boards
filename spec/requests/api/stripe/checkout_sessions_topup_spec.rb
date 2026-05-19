@@ -105,4 +105,78 @@ RSpec.describe "POST /api/stripe/checkout_sessions/topup", type: :request do
     expect(response).to have_http_status(:bad_request)
     expect(JSON.parse(response.body)["error"]).to match(/Failed/i)
   end
+
+  describe "success_url / cancel_url derivation" do
+    let(:netlify_origin) { "https://deploy-preview-42--speakanyway-app.netlify.app" }
+
+    before { user.update!(stripe_customer_id: "cus_origin") }
+
+    it "uses an allowed Netlify preview Origin for success_url" do
+      captured = nil
+      allow(Stripe::Checkout::Session).to receive(:create) do |params|
+        captured = params
+        OpenStruct.new(url: "https://example/cs")
+      end
+
+      post "/api/stripe/checkout_sessions/topup",
+           params: { pack_key: "small" },
+           headers: auth_headers(user).merge("HTTP_ORIGIN" => netlify_origin)
+
+      expect(captured[:success_url]).to start_with("#{netlify_origin}/account/billing/topup/success")
+      expect(captured[:cancel_url]).to eq("#{netlify_origin}/account/billing")
+    end
+
+    it "falls back to FRONT_END_URL when Origin is not on the allowlist" do
+      ENV["FRONT_END_URL"] = "https://app.speakanyway.com"
+
+      captured = nil
+      allow(Stripe::Checkout::Session).to receive(:create) do |params|
+        captured = params
+        OpenStruct.new(url: "https://example/cs")
+      end
+
+      post "/api/stripe/checkout_sessions/topup",
+           params: { pack_key: "small" },
+           headers: auth_headers(user).merge("HTTP_ORIGIN" => "https://evil.example.com")
+
+      expect(captured[:success_url]).to start_with("https://app.speakanyway.com/")
+      expect(captured[:cancel_url]).to eq("https://app.speakanyway.com/account/billing")
+    ensure
+      ENV.delete("FRONT_END_URL")
+    end
+
+    it "falls back to localhost when no Origin and no FRONT_END_URL" do
+      ENV.delete("FRONT_END_URL")
+
+      captured = nil
+      allow(Stripe::Checkout::Session).to receive(:create) do |params|
+        captured = params
+        OpenStruct.new(url: "https://example/cs")
+      end
+
+      post "/api/stripe/checkout_sessions/topup",
+           params: { pack_key: "small" },
+           headers: auth_headers(user)
+
+      expect(captured[:success_url]).to start_with("http://localhost:8100/account/billing/topup/success")
+    end
+
+    it "ignores a malformed Origin header" do
+      ENV["FRONT_END_URL"] = "https://app.speakanyway.com"
+
+      captured = nil
+      allow(Stripe::Checkout::Session).to receive(:create) do |params|
+        captured = params
+        OpenStruct.new(url: "https://example/cs")
+      end
+
+      post "/api/stripe/checkout_sessions/topup",
+           params: { pack_key: "small" },
+           headers: auth_headers(user).merge("HTTP_ORIGIN" => "not a url at all")
+
+      expect(captured[:success_url]).to start_with("https://app.speakanyway.com/")
+    ensure
+      ENV.delete("FRONT_END_URL")
+    end
+  end
 end
