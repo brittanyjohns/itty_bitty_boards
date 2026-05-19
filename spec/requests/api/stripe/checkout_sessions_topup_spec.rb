@@ -122,8 +122,8 @@ RSpec.describe "POST /api/stripe/checkout_sessions/topup", type: :request do
            params: { pack_key: "small" },
            headers: auth_headers(user).merge("HTTP_ORIGIN" => netlify_origin)
 
-      expect(captured[:success_url]).to start_with("#{netlify_origin}/account/billing/topup/success")
-      expect(captured[:cancel_url]).to eq("#{netlify_origin}/account/billing")
+      expect(captured[:success_url]).to start_with("#{netlify_origin}/billing/success?session_id={CHECKOUT_SESSION_ID}&type=topup&credits=100")
+      expect(captured[:cancel_url]).to eq("#{netlify_origin}/billing")
     end
 
     it "falls back to FRONT_END_URL when Origin is not on the allowlist" do
@@ -139,8 +139,8 @@ RSpec.describe "POST /api/stripe/checkout_sessions/topup", type: :request do
            params: { pack_key: "small" },
            headers: auth_headers(user).merge("HTTP_ORIGIN" => "https://evil.example.com")
 
-      expect(captured[:success_url]).to start_with("https://app.speakanyway.com/")
-      expect(captured[:cancel_url]).to eq("https://app.speakanyway.com/account/billing")
+      expect(captured[:success_url]).to start_with("https://app.speakanyway.com/billing/success")
+      expect(captured[:cancel_url]).to eq("https://app.speakanyway.com/billing")
     ensure
       ENV.delete("FRONT_END_URL")
     end
@@ -158,7 +158,7 @@ RSpec.describe "POST /api/stripe/checkout_sessions/topup", type: :request do
            params: { pack_key: "small" },
            headers: auth_headers(user)
 
-      expect(captured[:success_url]).to start_with("http://localhost:8100/account/billing/topup/success")
+      expect(captured[:success_url]).to start_with("http://localhost:8100/billing/success?session_id={CHECKOUT_SESSION_ID}&type=topup&credits=100")
     end
 
     it "ignores a malformed Origin header" do
@@ -174,9 +174,30 @@ RSpec.describe "POST /api/stripe/checkout_sessions/topup", type: :request do
            params: { pack_key: "small" },
            headers: auth_headers(user).merge("HTTP_ORIGIN" => "not a url at all")
 
-      expect(captured[:success_url]).to start_with("https://app.speakanyway.com/")
+      expect(captured[:success_url]).to start_with("https://app.speakanyway.com/billing/success")
     ensure
       ENV.delete("FRONT_END_URL")
+    end
+  end
+
+  describe "success_url query string" do
+    before { user.update!(stripe_customer_id: "cus_qs") }
+
+    it "encodes the total credit_amount (pack credits * quantity)" do
+      captured = nil
+      allow(Stripe::Checkout::Session).to receive(:create) do |params|
+        captured = params
+        OpenStruct.new(url: "https://example/cs")
+      end
+
+      post "/api/stripe/checkout_sessions/topup",
+           params: { pack_key: "medium", quantity: 2 },
+           headers: auth_headers(user)
+
+      # medium pack = 500 credits * 2 = 1000
+      expect(captured[:success_url]).to include("type=topup")
+      expect(captured[:success_url]).to include("credits=1000")
+      expect(captured[:success_url]).to include("session_id={CHECKOUT_SESSION_ID}")
     end
   end
 end
