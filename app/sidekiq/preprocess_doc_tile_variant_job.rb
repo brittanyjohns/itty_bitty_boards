@@ -3,6 +3,8 @@ class PreprocessDocTileVariantJob
   sidekiq_options queue: :varients, retry: 2
 
   def perform(doc_id)
+    return if AppEnv.staging?
+
     doc = Doc.includes(image_attachment: :blob).find_by(id: doc_id)
     return unless doc&.image&.attached?
     return unless doc.image.variable?
