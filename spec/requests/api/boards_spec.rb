@@ -272,14 +272,6 @@ RSpec.describe "API::Boards", type: :request do
       Rack::Test::UploadedFile.new(Rails.root.join("public", "logo_bubble.png"), "image/png")
     end
 
-    # Active Storage variant processing depends on libvips, which isn't
-    # installed in CI. We stub Doc#tile_url so the spec exercises controller
-    # logic (current-flipping, ownership gate, board_image.display_image_url
-    # wiring) without needing the image pipeline.
-    before do
-      allow_any_instance_of(Doc).to receive(:tile_url).and_return("https://example.com/tile.png")
-    end
-
     it "creates a new image with the uploaded doc marked current and adds it to the board" do
       expect {
         post "/api/boards/#{board.id}/add_image",
