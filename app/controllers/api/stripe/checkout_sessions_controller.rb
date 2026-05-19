@@ -147,8 +147,12 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
       mode: "payment",
       customer: current_user.stripe_customer_id,
       line_items: [{ price: price_id, quantity: quantity }],
-      success_url: "#{frontend_base_url}/account/billing/topup/success?session_id={CHECKOUT_SESSION_ID}",
-      cancel_url: "#{frontend_base_url}/account/billing",
+      # Match the frontend's existing /billing/success route, which reads
+      # ?type=topup&credits=N to render the "credits added" screen
+      # (itty-bitty-frontend Welcome.tsx). Stripe interpolates
+      # CHECKOUT_SESSION_ID; the other params are baked in here.
+      success_url: "#{frontend_base_url}/billing/success?session_id={CHECKOUT_SESSION_ID}&type=topup&credits=#{credit_amount * quantity}",
+      cancel_url: "#{frontend_base_url}/billing",
       allow_promotion_codes: true,
       metadata: {
         kind: "topup",
