@@ -279,4 +279,54 @@ RSpec.describe Board, type: :model do
       expect(args[2]).to eq(board_image.id)
     end
   end
+
+  describe "#display_image_url with display_follows_preview flag" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+
+    before do
+      board.update_column(:display_image_url, "https://example.com/user-cover.png")
+    end
+
+    context "when the flag is off" do
+      it "returns the stored column value" do
+        expect(board.display_image_url).to eq("https://example.com/user-cover.png")
+      end
+    end
+
+    context "when the flag is on but no preview is attached" do
+      it "still returns the stored column value (no preview to resolve to)" do
+        board.update!(settings: board.settings.merge("display_follows_preview" => true))
+        expect(board.display_image_url).to eq("https://example.com/user-cover.png")
+      end
+    end
+
+    context "when the flag is on and a preview is attached" do
+      before do
+        board.preview_image.attach(
+          io: StringIO.new("png-bytes"),
+          filename: "preview.png",
+          content_type: "image/png",
+        )
+        board.update!(settings: board.settings.merge("display_follows_preview" => true))
+      end
+
+      it "returns the live preview URL" do
+        expect(board.display_image_url).to eq(board.preview_image_url)
+      end
+
+      it "resolves to the new URL after the preview regenerates" do
+        original_url = board.display_image_url
+        board.preview_image.purge
+        board.preview_image.attach(
+          io: StringIO.new("new-png-bytes"),
+          filename: "preview.png",
+          content_type: "image/png",
+        )
+
+        expect(board.display_image_url).to eq(board.preview_image_url)
+        expect(board.display_image_url).not_to eq(original_url) if board.preview_image_url != original_url
+      end
+    end
+  end
 end

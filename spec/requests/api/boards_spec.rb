@@ -171,6 +171,38 @@ RSpec.describe "API::Boards", type: :request do
         expect(response).to have_http_status(:ok)
         expect(board.reload.large_screen_columns).to eq(8)
       end
+
+      it "clears the display_image_url column when settings.display_follows_preview is true" do
+        board.update_column(:display_image_url, "https://example.com/old-preview.png")
+
+        patch "/api/boards/#{board.id}",
+              params: {
+                board: {
+                  display_image_url: "https://example.com/old-preview.png",
+                  settings: { display_follows_preview: true },
+                },
+              },
+              headers: auth_headers(user)
+
+        expect(response).to have_http_status(:ok)
+        board.reload
+        expect(board.read_attribute(:display_image_url)).to be_nil
+        expect(board.settings["display_follows_preview"]).to be true
+      end
+
+      it "keeps the display_image_url column when the flag is not set" do
+        patch "/api/boards/#{board.id}",
+              params: {
+                board: {
+                  display_image_url: "https://example.com/user-cover.png",
+                },
+              },
+              headers: auth_headers(user)
+
+        expect(response).to have_http_status(:ok)
+        expect(board.reload.read_attribute(:display_image_url))
+          .to eq("https://example.com/user-cover.png")
+      end
     end
 
     context "when authenticated as a different user" do

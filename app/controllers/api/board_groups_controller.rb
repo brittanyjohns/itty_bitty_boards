@@ -56,6 +56,9 @@ class API::BoardGroupsController < API::ApplicationController
     board_group.margin_settings = board_group_params[:margin_settings] || {}
     board_group.name = board_group_params[:name]
     board_group.display_image_url = board_group_params[:display_image_url]
+    if board_group.cover_board_id.present?
+      board_group.display_image_url = nil
+    end
     board_group.description = board_group_params[:description] if board_group_params[:description].present?
     screen_size = board_group_params[:screen_size] || "lg"
     boards = board_group_params[:board_ids].map { |id| Board.find_by(id: id) if id.present? }.compact if board_group_params[:board_ids].present?
@@ -163,6 +166,13 @@ class API::BoardGroupsController < API::ApplicationController
           Rails.logger.debug "Board #{board.id} already in group #{board_group.id}"
         end
       end
+    end
+    # When a cover board is pinned via `settings.cover_board_id`, drop
+    # the denormalized column so the getter resolves through the cover
+    # board's display image. Runs after the display_image_url/board_ids
+    # branch above so it always wins.
+    if board_group.cover_board_id.present?
+      board_group.display_image_url = nil
     end
     if board_group.save
       mark_default(board_group)

@@ -409,6 +409,14 @@ class API::BoardsController < API::ApplicationController
       @board.parent_id = @board_user&.id || User::DEFAULT_ADMIN_ID
       new_board_settings = @board.settings.merge(settings)
       @board.settings = new_board_settings
+
+      # When the user opts into "display follows preview" we nil out the
+      # denormalized column so the override getter resolves to the live
+      # preview URL. Any incoming `display_image_url` param is ignored in
+      # this mode — the form may echo back the previous resolved value.
+      if @board.display_follows_preview?
+        @board.display_image_url = nil
+      end
       @board.set_text_color(board_params["text_color"]) if board_params["text_color"].present?
 
       word_list = params["word_list"] || []

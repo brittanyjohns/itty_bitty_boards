@@ -227,6 +227,24 @@ class Board < ApplicationRecord
     # generate_preview(generate_pdf: true) # PDF with header for sharing
   end
 
+  # When `settings["display_follows_preview"]` is true, the board's
+  # display image should track the live preview rather than a frozen
+  # snapshot URL. Persisting *intent* sidesteps the stale `?v=` problem
+  # that arises when callers store a previous `preview_image_url` string.
+  def display_follows_preview?
+    settings.is_a?(Hash) && settings["display_follows_preview"] == true
+  end
+
+  # Override the AR-generated getter so reads (including serializers) see
+  # the live preview URL when the user has opted into "follow preview".
+  # The setter is untouched — writes still go straight to the column.
+  def display_image_url
+    if display_follows_preview? && preview_image.attached?
+      return preview_image_url
+    end
+    read_attribute(:display_image_url)
+  end
+
   def preview_image_url
     return if !preview_image.attached?
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
