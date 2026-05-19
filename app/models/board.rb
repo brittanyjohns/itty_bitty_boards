@@ -214,19 +214,12 @@ class Board < ApplicationRecord
   end
 
   def generate_preview(generate_png: false, generate_pdf: false, hide_header: true, screen_size: "lg")
-    original_preview_image_url = preview_image_url
     Boards::GeneratePreviewAssets.new(
       board: self,
       screen_size: screen_size,
       hide_header: hide_header,
       routes: Rails.application.routes.url_helpers,
     ).call(generate_png: generate_png, generate_pdf: generate_pdf)
-    if generate_png
-      if self.preview_image.attached? && (display_image_url.blank? || display_image_url == original_preview_image_url)
-        preview_image_url = self.preview_image_url
-        update_column(:display_image_url, preview_image_url)
-      end
-    end
   end
 
   def generate_previews
@@ -239,7 +232,11 @@ class Board < ApplicationRecord
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
       cdn_host = ENV["CDN_HOST"]
       if cdn_host
-        "#{cdn_host}/#{preview_image.key}" # Construct CloudFront URL
+        # Key is deterministic (board_previews/<id>/preview.png) so the URL is
+        # stable. Append `?v=<blob.updated_at>` so clients and CloudFront pick
+        # up the new PNG on regeneration without us having to chase
+        # denormalized copies of the URL.
+        "#{cdn_host}/#{preview_image.key}?v=#{preview_image.blob.updated_at.to_i}"
       else
         preview_image.url # Fallback to the direct Active Storage URL
       end

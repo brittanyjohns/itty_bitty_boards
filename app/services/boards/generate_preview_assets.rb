@@ -56,13 +56,26 @@ module Boards
     def attach_png
       png_data = Grover.new(html, **grover_options).to_png
 
+      # Purge the existing attachment synchronously so the S3 object at the
+      # deterministic key is removed before we PUT the new one. Without this,
+      # `create_and_upload!` would hit the unique index on active_storage_blobs.key.
       board.preview_image.purge if board.preview_image.attached?
 
-      board.preview_image.attach(
+      blob = ActiveStorage::Blob.create_and_upload!(
         io: StringIO.new(png_data),
         filename: "#{board.slug}-preview.png",
         content_type: "image/png",
+        key: stable_preview_key,
       )
+      board.preview_image.attach(blob)
+    end
+
+    # Deterministic per-board key so the public CDN URL never changes across
+    # regenerations. Stale-URL chasing in callers becomes unnecessary; clients
+    # cache-bust on the `?v=<updated_at>` query string emitted by
+    # Board#preview_image_url.
+    def stable_preview_key
+      "board_previews/#{board.id}/preview.png"
     end
 
     def attach_pdf
