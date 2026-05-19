@@ -284,11 +284,15 @@ RSpec.describe "API::Boards", type: :request do
       new_image = Image.order(:created_at).last
       expect(new_image.user_id).to eq(user.id)
       expect(new_image.docs.count).to eq(1)
-      expect(new_image.docs.first.current).to be(true)
+      new_doc = new_image.docs.first
+      expect(new_doc.current).to be(true)
       expect(board.reload.images).to include(new_image)
+
+      board_image = board.board_images.find_by(image_id: new_image.id)
+      expect(board_image.display_image_url).to eq(new_doc.tile_url)
     end
 
-    it "demotes existing current docs and makes the uploaded one current on a found-by-label image" do
+    it "demotes existing current docs and makes the uploaded one current on a found-by-label image the user owns" do
       existing_image = create(:image, label: "shared label", user_id: user.id)
       existing_image.update!(private: true)
       old_doc = create(:doc, documentable: existing_image, user: user, current: true)
@@ -304,6 +308,35 @@ RSpec.describe "API::Boards", type: :request do
       new_doc = existing_image.docs.order(:created_at).last
       expect(new_doc.current).to be(true)
       expect(board.reload.images).to include(existing_image)
+
+      board_image = board.board_images.find_by(image_id: existing_image.id)
+      expect(board_image.display_image_url).to eq(new_doc.tile_url)
+    end
+
+    it "does not touch current flags on an image owned by another user, but updates this board's display URL" do
+      foreign_image = create(:image, label: "foreign label", user_id: other_user.id)
+      foreign_image.update!(private: false)
+      foreign_current_doc = create(:doc, documentable: foreign_image, user: other_user, current: true)
+
+      expect {
+        post "/api/boards/#{board.id}/add_image",
+             params: { image: { label: "foreign label", docs: { image: upload } } },
+             headers: auth_headers(user)
+      }.to change { foreign_image.docs.count }.by(1)
+
+      expect(response).to have_http_status(:ok)
+
+      # The other user's existing current doc is untouched.
+      expect(foreign_current_doc.reload.current).to be(true)
+
+      # The uploaded doc is NOT promoted to current on the shared image.
+      new_doc = foreign_image.docs.order(:created_at).last
+      expect(new_doc).not_to eq(foreign_current_doc)
+      expect(new_doc.current).to be(false)
+
+      # But the current user's board does show the uploaded variant.
+      board_image = board.board_images.find_by(image_id: foreign_image.id)
+      expect(board_image.display_image_url).to eq(new_doc.tile_url)
     end
   end
 end
