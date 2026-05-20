@@ -107,6 +107,7 @@ Rails.application.routes.draw do
     resources :board_screenshot_imports
     post "board_screenshot_imports/:id/commit", to: "board_screenshot_imports#commit"
 
+    get "word_events/stats", to: "audits#communicator_stats", as: :word_events_stats
     get "word_events", to: "audits#word_events", as: :word_events
     post "webhooks", to: "webhooks#webhooks"
     resources :subscriptions do

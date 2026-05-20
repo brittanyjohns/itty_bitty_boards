@@ -480,6 +480,10 @@ class User < ApplicationRecord
     all_required_settings.all? { |setting| settings[setting] }
   end
 
+  def audit_logging_disabled?
+    settings.present? && settings["disable_audit_logging"] == true
+  end
+
   def ensure_settings
     self.settings = {} unless settings
     all_required_settings.each do |setting|

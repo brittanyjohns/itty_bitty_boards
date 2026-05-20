@@ -40,7 +40,6 @@ namespace :users do
     puts "Communicators: #{user.communicator_accounts.count}"
   end
 
-
   desc "Seed word events for a single existing communicator account. Example: rake users:seed_word_events_for_communicator[99,60]"
   task :seed_word_events_for_communicator, [:account_id, :days_ago] => :environment do |t, args|
     communicator_account = ChildAccount.includes(:user, child_boards: :board).find(args[:account_id])
@@ -64,8 +63,8 @@ namespace :users do
 
       adj_days = rand(adj_min..adj_max)
       timestamp = Time.current - adj_days.days + idx.seconds
-      create_word_events(words, user, board, communicator_account, timestamp: timestamp)
-      puts "  Created #{words.size * 2} events for '#{board.name}' (~#{adj_days} days ago)"
+      count = create_word_events(words, user, board, communicator_account, timestamp: timestamp)
+      puts "  Created #{count} events for '#{board.name}' (~#{adj_days} days ago)"
     end
 
     puts "\n=== Done! ==="
@@ -280,6 +279,17 @@ def create_word_events(words, user, board, communicator_account, timestamp:, ses
   base_day = timestamp.beginning_of_day
   total = 0
 
+  # Map each word to its board tile so seeded events can carry the same rich
+  # data a real click records: the image (which provides part of speech) and
+  # the tile's grid coordinates.
+  screen_size = "lg"
+  tiles_by_label = board.board_images.includes(:image).order(:position).index_by(&:label)
+  columns = board.columns_for_screen_size(screen_size).to_i
+  columns = 6 if columns < 1
+  rows = board.rows_for_screen_size(screen_size).to_i
+  rows = (tiles_by_label.size / columns.to_f).ceil if rows < 1
+  rows = 1 if rows < 1
+
   sessions.times do |s|
     # Each session is on a different day offset from the base timestamp
     day_offset = s * (30 / sessions.to_f).floor
@@ -294,6 +304,7 @@ def create_word_events(words, user, board, communicator_account, timestamp:, ses
     session_words.each_with_index do |word, i|
       # Clicks are a few seconds apart, like a real board session
       click_time = session_start + (i * rand(3..10)).seconds
+      tile = tiles_by_label[word]
       WordEvent.create(
         word: word,
         previous_word: prev_word,
@@ -301,6 +312,9 @@ def create_word_events(words, user, board, communicator_account, timestamp:, ses
         user_id: user.id,
         board_id: board.id,
         child_account_id: communicator_account&.id,
+        image_id: tile&.image_id,
+        board_image_id: tile&.id,
+        data: word_event_seed_data(tile, screen_size, columns, rows),
       )
       prev_word = word
       total += 1
@@ -308,4 +322,31 @@ def create_word_events(words, user, board, communicator_account, timestamp:, ses
   end
 
   total
+end
+
+# Mirrors the `data` jsonb that API::AuditsController#word_click records for a
+# real click, so seeded events render correctly on the Stats tab Board Click
+# Map. Falls back to a position-derived grid cell when a tile has no layout.
+def word_event_seed_data(board_image, screen_size, columns, rows)
+  return nil unless board_image
+
+  layout = board_image.layout.is_a?(Hash) ? board_image.layout[screen_size] : nil
+  cell =
+    if layout.is_a?(Hash) && layout["x"] && layout["y"]
+      { "x" => layout["x"], "y" => layout["y"], "w" => layout["w"] || 1, "h" => layout["h"] || 1 }
+    else
+      index = board_image.position.to_i
+      { "x" => index % columns, "y" => index / columns, "w" => 1, "h" => 1 }
+    end
+
+  {
+    screen_size: screen_size,
+    layout: cell,
+    x_position: cell["x"],
+    y_position: cell["y"],
+    width: cell["w"],
+    height: cell["h"],
+    number_of_columns: columns,
+    number_of_rows: rows,
+  }
 end

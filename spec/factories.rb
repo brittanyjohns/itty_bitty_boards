@@ -131,6 +131,12 @@ FactoryBot.define do
     user
   end
 
+  factory(:word_event) do
+    association :user
+    sequence(:word) { |n| "word#{n}" }
+    timestamp { Time.current }
+  end
+
   factory(:coaching_prompt_set) do
     sequence(:name) { |n| "Coaching Set #{n}" }
     sequence(:slug) { |n| "coaching-set-#{n}" }

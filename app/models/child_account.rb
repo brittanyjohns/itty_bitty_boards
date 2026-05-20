@@ -330,6 +330,10 @@ class ChildAccount < ApplicationRecord
     settings["email"]
   end
 
+  def audit_logging_disabled?
+    settings.present? && settings["disable_audit_logging"] == true
+  end
+
   def send_setup_email(sending_user)
     CommunicationAccountMailer.setup_email(self, sending_user).deliver_now
   end
