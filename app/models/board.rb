@@ -988,6 +988,16 @@ class Board < ApplicationRecord
     @layouts = @board_images.pluck(:image_id, :layout)
 
     @cloned_board = @source.dup
+    # A clone gets its own freshly-generated preview (enqueued below via
+    # run_generate_preview_job). `dup` copies the source's
+    # display_image_url column verbatim — for boards that follow their
+    # preview that string points at the *source's* image, so the clone
+    # would render the wrong board. Default every clone to "follow my
+    # own preview" and drop the inherited snapshot.
+    @cloned_board.write_attribute(:display_image_url, nil)
+    @cloned_board.settings = (@cloned_board.settings || {}).merge(
+      "display_follows_preview" => true,
+    )
     @cloned_board.user_id = cloned_user_id
     @cloned_board.name = new_name
     @cloned_board.predefined = false

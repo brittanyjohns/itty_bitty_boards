@@ -84,6 +84,20 @@ RSpec.describe Board, type: :model do
       cloned = board.clone_with_images(user.id)
       expect(cloned.board_images.count).to eq(board.board_images.count)
     end
+
+    it "does not inherit the source's display_image_url snapshot" do
+      board.update_column(
+        :display_image_url,
+        "https://cdn.example.com/board_previews/#{board.id}/preview.png?v=123",
+      )
+      cloned = board.clone_with_images(user.id)
+      expect(cloned.read_attribute(:display_image_url)).to be_nil
+    end
+
+    it "defaults the clone to follow its own preview" do
+      cloned = board.clone_with_images(user.id)
+      expect(cloned.settings["display_follows_preview"]).to be true
+    end
   end
 
   describe "#update_grid_layout" do
