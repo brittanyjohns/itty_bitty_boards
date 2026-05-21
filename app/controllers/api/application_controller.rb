@@ -75,29 +75,6 @@ module API
       false
     end
 
-    # Legacy Redis-counter check. AI features now use `check_credits!` —
-    # this remains available for non-AI rate limits (currently none in this
-    # app, but kept so the helper doesn't have to be re-introduced later).
-    def check_monthly_limit(feature_key: nil, feature_name: nil)
-      unless current_user && feature_key
-        Rails.logger.warn "Monthly limit check missing user or feature_key. user_id=#{current_user&.id} feature_key=#{feature_key}"
-        return true
-      end
-      limiter = MonthlyFeatureLimiter.new(
-        user_id: current_user.id,
-        feature_key: feature_key,
-        limit: current_user.monthly_limit_for(feature_key),
-        tz: current_user.timezone || "America/New_York",
-      )
-      allowed, meta = limiter.increment_and_check!
-      error_message = "Monthly limit reached for #{feature_name || feature_key.titleize}. Please upgrade your plan or wait until next month."
-      unless allowed
-        render json: { error: "limit_reached", message: error_message, **meta }, status: 429
-        return false
-      end
-      true
-    end
-
     def preset_colors
       @colors = ColorHelper::PRESET_DATA
       render json: { preset_colors: @colors }
