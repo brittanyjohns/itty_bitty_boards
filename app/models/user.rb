@@ -1039,6 +1039,7 @@ class User < ApplicationRecord
   def admin_index_view
     view = as_json
     view["board_count"] = boards.count
+    view["ai_credits"] = CreditService.balance(self)
     view["stripe_customer_id"] = stripe_customer_id
     view["trial_days_left"] = trial_days_left
     view["last_sign_in_at"] = time_ago_in_words(last_sign_in_at) if last_sign_in_at
@@ -1082,6 +1083,7 @@ class User < ApplicationRecord
     view["current_sign_in_ip"] = current_sign_in_ip
     view["sign_in_count"] = sign_in_count
     view["tokens"] = tokens
+    view["ai_credits"] = CreditService.balance(self)
     view["phrase_board_id"] = settings["phrase_board_id"]
     view["opening_board_id"] = settings["opening_board_id"]
     view["has_dynamic_default"] = opening_board.present?
