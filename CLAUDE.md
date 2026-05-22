@@ -21,7 +21,7 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - **Background jobs:** Sidekiq (v7) + Redis
 - **Payments:** Stripe and RevenueCat (via webhook)
 - **File storage:** S3 (Active Storage)
-- **Email:** Action Mailer over Gmail SMTP — `smtp-relay.gmail.com` in production (IP-allowlisted, no credentials), `smtp.gmail.com` in development (`SMTP_USERNAME`/`SMTP_PASSWORD` env vars). The `mailgun-ruby` gem is in the Gemfile but is not the active delivery transport. Diagnose delivery with `bin/rails 'mail:test[you@example.com]'`.
+- **Email:** Action Mailer over Gmail SMTP. Both environments authenticate against `smtp.gmail.com` when `SMTP_USERNAME`/`SMTP_PASSWORD` are set (a Google Workspace account + App Password); production falls back to the `smtp-relay.gmail.com` IP-allowlisted relay when no credentials are present. `SMTP_ADDRESS` overrides the SMTP host. The `mailgun-ruby` gem is in the Gemfile but is not the active delivery transport. Diagnose delivery with `bin/rails 'mail:test[you@example.com]'`.
 - **TTS/Audio:** AWS Polly
 - **AI:** OpenAI API (`ruby-openai`) — board generation, scenario builder, image generation
 - **Serializers:** jsonapi-serializer gem
