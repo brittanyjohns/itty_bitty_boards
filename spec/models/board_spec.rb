@@ -242,4 +242,19 @@ RSpec.describe Board, type: :model do
       end
     end
   end
+
+  describe "#api_view" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) do
+      FactoryBot.create(:board, user: user, published: true, position: 3,
+        data: { "current_word_list" => ["apple", "banana"] })
+    end
+
+    it "exposes published, position, and data from the board" do
+      view = board.api_view(user)
+      expect(view[:published]).to be(true)
+      expect(view[:position]).to eq(3)
+      expect(view[:data]).to eq("current_word_list" => ["apple", "banana"])
+    end
+  end
 end
