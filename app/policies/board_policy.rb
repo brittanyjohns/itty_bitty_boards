@@ -36,8 +36,10 @@ class BoardPolicy < ApplicationPolicy
 
   def update?
     return true if user.admin?
-    return true if record.user == user
-    user.current_team_boards.include?(record)
+    return false unless record.user == user || user.current_team_boards.include?(record)
+    # Free users over their board limit can edit only their one designated
+    # board. Team boards (owned by someone else) are not plan-gated here.
+    user.board_editable?(record)
   end
 
   def current_user_teams

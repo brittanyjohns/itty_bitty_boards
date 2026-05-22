@@ -68,6 +68,7 @@ class User < ApplicationRecord
 
   # Associations
   belongs_to :organization, optional: true
+  belongs_to :editable_board, class_name: "Board", optional: true
   has_many :boards, -> { where(is_template: false) }, class_name: "Board", dependent: :destroy
   has_many :template_boards, -> { where(is_template: true) }, class_name: "Board", dependent: :destroy
   has_many :total_boards, class_name: "Board", dependent: :destroy
@@ -1194,6 +1195,44 @@ class User < ApplicationRecord
     board_count < board_limit
   end
 
+  # Count of the user's own (non-predefined) boards. Memoized because board
+  # list serialization calls board_editable? once per board.
+  def owned_board_count
+    @owned_board_count ||= boards.where(predefined: false).count
+  end
+
+  # The single board a limited-plan user keeps full edit access to. Returns
+  # the board they designated; if that's missing, falls back to a favorite or
+  # most-recently-updated owned board so a freshly-downgraded user is never
+  # locked out of everything before they pick one.
+  def effective_editable_board_id
+    return @effective_editable_board_id if defined?(@effective_editable_board_id)
+
+    @effective_editable_board_id =
+      if editable_board_id && boards.exists?(id: editable_board_id)
+        editable_board_id
+      else
+        boards.where(predefined: false)
+              .order(favorite: :desc, updated_at: :desc)
+              .limit(1)
+              .pick(:id)
+      end
+  end
+
+  # Whether this user may edit the given board's content. Free users over
+  # their board limit can edit only their one designated board; everything
+  # else they own becomes read-only (still fully usable — view/tap/audio).
+  # Assumes FREE_BOARD_LIMIT == 1; if that ENV is raised this under-grants
+  # and the single editable_board_id needs to become a per-board flag.
+  def board_editable?(board)
+    return true if admin?
+    return true if board.nil? || board.user_id != id
+    return true if paid_plan?
+    return true if owned_board_count <= board_limit
+
+    board.id == effective_editable_board_id
+  end
+
   def public_page_url
     profile&.public_url
   end
@@ -1242,6 +1281,7 @@ class User < ApplicationRecord
       board_count: board_count,
       board_limit_reached: board_count >= board_limit,
       can_create_boards: can_create_boards,
+      editable_board_id: effective_editable_board_id,
 
       # AI
       can_use_ai: can_use_ai?,

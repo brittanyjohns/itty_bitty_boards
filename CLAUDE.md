@@ -92,6 +92,39 @@ backlog size (default 200).
 - Premium features (Menu Board Creator, AI image generation) require active subscription
 - Subscription managed via Stripe/RevenueCat — check status before allowing access to premium endpoints
 
+### Board access on downgrade (read-only rule)
+
+When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
+`free` and `settings["board_limit"]` to 1. Boards beyond that limit become
+**read-only**, never deleted: still openable, tappable, and audio still plays
+(SpeakAnyWay is an AAC app — usage must never break), but
+**content-mutating endpoints return HTTP 403 `board_locked`**.
+
+- Locked state is **computed**, not stored. A board is locked for its owner
+  when the user is not admin, not on a paid plan, is over their board limit,
+  and the board is not their designated editable board. See
+  `User#board_editable?` (`app/models/user.rb`) and `Board#can_edit_for`
+  (`app/models/board.rb`). The board's `api_view` exposes `can_edit`,
+  `locked`, and `lock_reason` for the frontend.
+- The user picks which single board keeps full edit access via
+  `PATCH /api/boards/:id/make_editable`. The selection is persisted on
+  `users.editable_board_id`. If none is set, `effective_editable_board_id`
+  falls back to a favorite or most-recently-updated board so a freshly-
+  downgraded user is never fully locked out.
+- On downgrade, `apply_free_plan` pins this fallback into
+  `editable_board_id` so the frontend has a deterministic answer.
+- The gate runs as a `check_board_editable!` `before_action` on the
+  content-mutating actions in `API::BoardsController` and the matching set
+  in `API::BoardImagesController`. Reads (`show`, `index`, `pdf`, audio
+  playback) and `destroy` (let the user free up the slot) are never gated.
+  `create`/`clone`/`create_from_template` stay on the existing
+  `check_board_create_permissions`.
+- Returns **HTTP 403** with `{ error: "board_locked", message, board_limit,
+  editable_board_id }`. **Not 402** — 402 is reserved for credit exhaustion.
+- **Assumes `FREE_BOARD_LIMIT == 1`.** The single `editable_board_id` only
+  frees one board. If the ENV is ever raised above 1, revisit this to a
+  per-board flag or join table.
+
 ## AI gating: credit ledger (source of truth)
 
 - AI features are gated by **weighted credits** held in two balances on `users`:
