@@ -24,4 +24,15 @@ class AdminMailer < BaseMailer
     @admin = User.find_by(id: User::DEFAULT_ADMIN_ID)
     mail(to: to_email, subject: subject, from: "noreply@speakanyway.com")
   end
+
+  # Server disk-space alert, sent by DiskSpaceAlertJob.
+  def disk_space_alert(usage:, severity:)
+    to_email = ENV["ADMIN_EMAIL"] || "brittany@speakanyway.com"
+    @usage = usage
+    @severity = severity
+    @host = Socket.gethostname
+    prefix = severity == :critical ? "CRITICAL" : "WARNING"
+    subject = "[#{prefix}] SpeakAnyWay server disk at #{usage}%"
+    mail(to: to_email, subject: subject, from: "noreply@speakanyway.com")
+  end
 end
