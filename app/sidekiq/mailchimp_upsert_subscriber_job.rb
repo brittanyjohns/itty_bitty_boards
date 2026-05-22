@@ -10,8 +10,6 @@ class MailchimpUpsertSubscriberJob
 
     if plan_type.include? "free"
       mailchimp_service.record_new_subscriber(user, tags: ["FreePlan"])
-    elsif plan_type.include? "myspeak"
-      mailchimp_service.record_new_subscriber(user, tags: ["MySpeakPlan"])
     elsif plan_type.include? "basic"
       mailchimp_service.record_new_subscriber(user, tags: ["BasicPlan"])
     elsif plan_type.include? "pro"

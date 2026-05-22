@@ -35,7 +35,6 @@ class CreditService
   PLAN_MONTHLY_CREDITS = {
     "free" => 5,
     "basic_trial" => 400, # Soft 14-day Basic trial set by User#set_soft_trial_plan
-    "myspeak" => 50,
     "basic" => 400,
     "pro" => 1500,
     "premium" => 1500,

@@ -33,6 +33,10 @@ class ChildAccount < ApplicationRecord
   #        :recoverable, :rememberable, :validatable,
   #        authentication_keys: [:username]
   DEMO_ACCOUNT_BOARD_LIMIT = 3
+  # Board cap for the MySpeak demo communicator a Free user gets. Stored per
+  # account in settings["demo_board_limit"]; Pro demo accounts keep the
+  # DEMO_ACCOUNT_BOARD_LIMIT default.
+  FREE_DEMO_BOARD_LIMIT = 1
   belongs_to :user, optional: true
   belongs_to :vendor, optional: true
   belongs_to :owner, class_name: "User", optional: true

@@ -33,7 +33,6 @@ class RefreshFreeTierCreditsJob
   REFRESHABLE_PLAN_TYPES = %w[
     free
     basic_trial
-    myspeak
     basic
     pro
     partner_pro

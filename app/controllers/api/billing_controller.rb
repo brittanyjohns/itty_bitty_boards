@@ -9,7 +9,7 @@ class API::BillingController < API::ApplicationController
       return
     end
     begin
-      acceptable_plans = %w[myspeak basic pro]
+      acceptable_plans = %w[basic pro]
       unless acceptable_plans.include?(plan_key)
         render json: { error: "Invalid plan_key" }, status: :bad_request
         return

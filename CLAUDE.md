@@ -131,7 +131,7 @@ Plan-credit lifecycle:
   covers free/basic_trial users, App Store/RevenueCat subscribers, and
   admin/demo accounts on paid tiers (granting their actual plan_type's
   allowance, e.g. Pro = 1500). Stripe-driven paying users
-  (`myspeak`, `basic`, `pro`, `partner_pro` with an active
+  (`basic`, `pro`, `partner_pro` with an active
   `stripe_subscription_id`) refresh through `invoice.payment_succeeded`
   instead. Class name kept for cron stability; scope is broader than
   the name suggests.

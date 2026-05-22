@@ -89,8 +89,6 @@ module API
 
     def normalize_plan_key(plan_key)
       case plan_key
-      when "myspeak", "myspeak_yearly"
-        "myspeak"
       when "basic", "basic_yearly"
         "basic"
       when "pro", "pro_yearly"
