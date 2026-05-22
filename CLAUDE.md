@@ -21,7 +21,7 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - **Background jobs:** Sidekiq (v7) + Redis
 - **Payments:** Stripe and RevenueCat (via webhook)
 - **File storage:** S3 (Active Storage)
-- **Email:** Mailgun (via Action Mailer)
+- **Email:** Action Mailer over Gmail SMTP — `smtp-relay.gmail.com` in production (IP-allowlisted, no credentials), `smtp.gmail.com` in development (`SMTP_USERNAME`/`SMTP_PASSWORD` env vars). The `mailgun-ruby` gem is in the Gemfile but is not the active delivery transport. Diagnose delivery with `bin/rails 'mail:test[you@example.com]'`.
 - **TTS/Audio:** AWS Polly
 - **AI:** OpenAI API (`ruby-openai`) — board generation, scenario builder, image generation
 - **Serializers:** jsonapi-serializer gem
@@ -59,6 +59,7 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - `bin/rails db:seed` — seed the database
 - `bundle exec sidekiq` — start Sidekiq worker
 - `bundle exec rspec` — run tests
+- `bin/rails 'mail:test[you@example.com]'` — diagnose mail delivery: prints the resolved ActionMailer config and sends a test email, surfacing the real SMTP error
 
 ## Reading production logs (CLI)
 
