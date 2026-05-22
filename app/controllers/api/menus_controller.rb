@@ -101,9 +101,7 @@ class API::MenusController < API::ApplicationController
     menu_name = menu_params[:name]
     screen_size = params[:screen_size] || "lg"
     @menu.name = menu_name
-    @menu.description = menu_params[:description]
     @menu.predefined = menu_params[:predefined] || false
-    @menu.raw = menu_params[:description]
     @menu.token_limit = menu_params[:token_limit] || 10
     @menu.user = @current_user
     @menu.menu_image.attach(menu_params[:docs][:image]) if menu_params[:docs] && menu_params[:docs][:image]
@@ -113,8 +111,6 @@ class API::MenusController < API::ApplicationController
     end
     doc = @menu.docs.new(menu_params[:docs])
     doc.user = @current_user
-    # doc.processed = true
-    doc.raw = params[:menu][:description]
     if doc.save
       @board = @menu.boards.new(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.tile_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent: @menu, voice: "polly:kevin", language: "en")
       @board.generate_unique_slug
