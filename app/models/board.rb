@@ -914,6 +914,7 @@ class Board < ApplicationRecord
 
     language_settings = @image.language_settings || {}
     language_settings[self.language] = { "display_label" => @image.label, "label" => @image.label }
+    self.voice = VoiceService.normalize_voice(self.voice)
     new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images_count, language: self.language)
     new_board_image.set_labels
     new_board_image.part_of_speech = @image.part_of_speech || "default"
@@ -937,18 +938,10 @@ class Board < ApplicationRecord
       Rails.logger.error "Image not found: #{image_id}"
       return
     end
-    self.voice = VoiceService.normalize_voice(self.voice)
 
-    if @image.existing_voices.include?(self.voice)
-      new_board_image.voice = self.voice
-    else
-      # @image.find_or_create_audio_file_for_voice(self.voice)
-      unless generated?
-        board_image_id = new_board_image.id
-        SaveAudioJob.perform_async([image_id], self.voice, board_image_id)
-      end
-    end
-
+    # Audio generation is enqueued by BoardImage's after_create callback
+    # (create_voice_audio_after_create). Don't enqueue SaveAudioJob a second
+    # time here.
     new_board_image.src = @image.display_image_url(self.user)
 
     unless new_board_image.save

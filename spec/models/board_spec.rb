@@ -257,4 +257,26 @@ RSpec.describe Board, type: :model do
       expect(view[:data]).to eq("current_word_list" => ["apple", "banana"])
     end
   end
+
+  describe "#add_image" do
+    let(:user)  { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user, voice: "polly:kevin") }
+    let(:image) { FactoryBot.create(:image, user: user) }
+
+    # SaveAudioJob used to be enqueued twice per image: once explicitly here
+    # and once by BoardImage's after_create callback. add_image now leaves
+    # audio entirely to the callback.
+    it "enqueues SaveAudioJob exactly once for the new board image" do
+      expect { board.add_image(image.id) }
+        .to change(SaveAudioJob.jobs, :size).by(1)
+    end
+
+    it "enqueues the audio job for the created board image and voice" do
+      board_image = board.add_image(image.id)
+
+      args = SaveAudioJob.jobs.last["args"]
+      expect(args[1]).to eq("polly:kevin")
+      expect(args[2]).to eq(board_image.id)
+    end
+  end
 end
