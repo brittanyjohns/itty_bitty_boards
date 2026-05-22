@@ -78,6 +78,14 @@ Env overrides: `PROD_HOST`, `PROD_WEB_UNIT`, `PROD_WORKER_UNIT`,
 `PROD_ALL_UNIT` (and `STAGING_*` equivalents). `LINES=N` controls the
 backlog size (default 200).
 
+## Monitoring / alerting
+
+- `DiskSpaceAlertJob` (`app/sidekiq/`) runs hourly via sidekiq-cron and
+  emails an admin (`ADMIN_EMAIL`) when the root disk crosses 80% (warn) or
+  90% (critical). Alerts are debounced in Redis to once per severity per 6h.
+  Skipped on staging, since staging shares the production EC2 box. Added
+  after a disk-full outage wedged the box during a deploy.
+
 ## Subscription model
 
 - Most features are free
