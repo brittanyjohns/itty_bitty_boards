@@ -244,7 +244,7 @@ b. Dynamic Board: A board that _can_ change screens - This is based on the image
 
 11. Subscription: A paid service that provides access to premium features, such as ad-free experience, AI image generation, and other exclusive tools or functionalities.
 
-12. Menu Board Creator: A premium feature enabling users to generate communication boards from a menu image, using AI to extract text and create a board based on the menu items.
+12. Menu Board Creator: A premium feature enabling users to generate communication boards from a menu image. The uploaded photo is read directly by an AI vision model, which extracts the menu items the board is built from.
 
 13. Scenario: A user-generated description of a situation or context, used to generate a list of words or phrases that may be relevant to that scenario. This feature is powered by AI.
 
