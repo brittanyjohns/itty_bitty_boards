@@ -122,7 +122,7 @@ class MenuVisionService
   end
 
   def default_openai_client
-    OpenAI::Client.new(access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"))
+    OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"])
   end
 
   def default_logger
