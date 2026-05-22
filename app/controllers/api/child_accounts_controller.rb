@@ -69,6 +69,13 @@ class API::ChildAccountsController < API::ApplicationController
     @child_account.settings = params[:settings] if params[:settings].present?
     @child_account.details = params[:details] if params[:details].present?
 
+    # A Free user's MySpeak demo communicator is capped at one board; Pro demo
+    # accounts fall through to ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT.
+    if is_demo && current_user.free?
+      @child_account.settings ||= {}
+      @child_account.settings["demo_board_limit"] = ChildAccount::FREE_DEMO_BOARD_LIMIT
+    end
+
     # Profile linking (existing behavior)
     profile = nil
     if params[:profile_id].present?

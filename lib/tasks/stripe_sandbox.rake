@@ -31,12 +31,6 @@ namespace :stripe do
     # ---- Spec ---------------------------------------------------------------
     # currency is USD throughout. Prices are in cents.
     plans = [
-      { product_name: "SpeakAnyWay MySpeak", env_var: "STRIPE_PRICE_MYSPEAK",
-        unit_amount: 300, interval: "month",
-        metadata: { plan_type: "myspeak", monthly_credits: "50" } },
-      { product_name: "SpeakAnyWay MySpeak", env_var: "STRIPE_PRICE_MYSPEAK_YEAR",
-        unit_amount: 3000, interval: "year",
-        metadata: { plan_type: "myspeak", monthly_credits: "600" } },
       { product_name: "SpeakAnyWay Basic", env_var: "STRIPE_PRICE_BASIC",
         unit_amount: 800, interval: "month",
         metadata: { plan_type: "basic", monthly_credits: "400" } },
@@ -170,8 +164,6 @@ namespace :stripe do
     puts
     puts "=== Paste into Hatchbox staging (Environment Variables) ==="
     %w[
-      STRIPE_PRICE_MYSPEAK
-      STRIPE_PRICE_MYSPEAK_YEAR
       STRIPE_PRICE_BASIC
       STRIPE_PRICE_BASIC_YEAR
       STRIPE_PRICE_PRO

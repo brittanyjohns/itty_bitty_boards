@@ -59,17 +59,6 @@ RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
       expect { described_class.new.perform }.not_to change { user.reload.plan_credits_balance }
     end
 
-    it "leaves Stripe-driven myspeak users alone" do
-      user = FactoryBot.create(:user, plan_type: "myspeak")
-      user.update_columns(
-        plan_credits_balance: 0,
-        plan_credits_reset_at: 2.days.ago,
-        stripe_subscription_id: "sub_stripe_456",
-      )
-
-      expect { described_class.new.perform }.not_to change { user.reload.plan_credits_balance }
-    end
-
     it "skips admins" do
       admin = FactoryBot.create(:admin_user)
       admin.update_columns(plan_type: "free", plan_credits_balance: 0, plan_credits_reset_at: 2.days.ago, stripe_subscription_id: nil)

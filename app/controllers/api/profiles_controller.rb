@@ -199,14 +199,9 @@ class API::ProfilesController < API::ApplicationController
     found_user = @user
     @user = User.invite!(email: email, skip_invitation: true) unless @user
     @user.settings ||= {}
-    unless @user.plan_type == "pro" || @user.plan_type == "basic"
-      @user.plan_type = "myspeak"
-      @user.plan_status = "pending"
-      @user.setup_myspeak_limits
-    else
-      Rails.logger.debug "User already has plan_type: #{@user.plan_type}, skipping plan assignment"
-    end
-
+    # MySpeak is a free feature: newly invited claimers default to the free
+    # plan, which includes a demo-communicator slot. Existing users keep
+    # whatever plan they already have.
     @user.settings[:myspeak_slug] = slug
 
     @user.save!

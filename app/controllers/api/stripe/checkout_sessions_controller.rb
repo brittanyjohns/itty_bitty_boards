@@ -20,10 +20,8 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
 
   PLAN_PRICE_IDS = {
     "free" => nil,
-    "myspeak" => ENV.fetch("STRIPE_PRICE_MYSPEAK", nil),
     "basic" => ENV.fetch("STRIPE_PRICE_BASIC", nil),
     "pro" => ENV.fetch("STRIPE_PRICE_PRO", nil),
-    "myspeak_yearly" => ENV.fetch("STRIPE_PRICE_MYSPEAK_YEAR", nil),
     "basic_yearly" => ENV.fetch("STRIPE_PRICE_BASIC_YEAR", nil),
     "pro_yearly" => ENV.fetch("STRIPE_PRICE_PRO_YEAR", nil),
     "partner_pro" => ENV.fetch("STRIPE_PRICE_PARTNER_PRO", nil),
@@ -63,8 +61,6 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     cancel_url = "#{frontend_base_url}/onboarding"
     if is_partner
       cancel_url = "#{frontend_base_url}/onboarding/partner"
-    elsif plan_key.include?("myspeak")
-      cancel_url = "#{frontend_base_url}/onboarding/myspeak"
     end
 
     bypass_payment_required = params[:bypass_payment_required] == "true" || promo_code&.upcase == NO_CC_KEY
