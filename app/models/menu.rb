@@ -267,109 +267,55 @@ class Menu < ApplicationRecord
     EnhanceImageDescriptionJob.perform_async(self.id, board_id, screen_size)
   end
 
+  # Primary extraction path for a menu board: send the uploaded menu image
+  # straight to a vision model, persist the structured result, and build the
+  # board from it. Returns the parsed result hash, or nil on failure (the
+  # caller job maps nil to a board "error" status).
   def enhance_image_description(board_id = nil)
-    @board = Board.find_by(id: board_id) if board_id
-    unless @board
+    board = Board.find_by(id: board_id) if board_id
+    unless board
       Rails.logger.error "enhance_image_description> No board found for this menu."
-      puts "No board found for this menu."
       return nil
     end
-    new_doc = self.docs.last
-    raise "NO NEW DOC FOUND" && return unless new_doc
-    # self.update!(description: new_doc.processed)
+
+    image_url = menu_image_for_vision(board)
+    unless image_url
+      Rails.logger.error "enhance_image_description> No menu image attached for Menu #{id} - #{name}"
+      return nil
+    end
+
     begin
-      if new_doc
-
-        # new_processed = describe_menu(@board.display_image_url)
-        # @board.update(status: "error") unless new_processed
-        # @board.update!(description: new_processed) if new_processed
-        restaurant_name = name || "Restaurant"
-        from_text, messages_sent = clarify_image_description(new_doc.raw, restaurant_name)
-        # Rails.logger.debug "clarify_image_description - from_text: #{from_text}, messages_sent: #{messages_sent}"
-        new_processed = from_text || describe_menu(@board.preview_image.url) if @board.preview_image.attached?
-        # new_processed = describe_menu(@board.preview_image.url) if @board.preview_image.attached?
-        unless new_processed
-          Rails.logger.error "Failed to get enhanced image description from OpenAI for Menu #{id} - #{name}"
-          return nil
-        end
-        Rails.logger.debug "describe_menu result: #{new_processed}"
-        # new_processed = describe_menu(@board.display_image_url)
-
-        if from_text && valid_json?(from_text)
-          @board.update!(description: from_text)
-          self.prompt_used = from_text
-          self.save!
-        else
-          new_from_text = transform_into_json(new_processed)
-          self.prompt_used = new_from_text
-          self.save!
-        end
-
-        # new_new_processed = new_processed["menu_items"].to_json
-        new_new_processed = new_processed.to_json
-
-        new_doc.processed = new_new_processed
-        new_doc.current = true
-        new_doc.user_id = self.user_id
-        new_doc.save!
-        self.raw = new_doc.raw
-        self.description = new_new_processed
-        self.prompt_sent = new_processed
-        self.save!
-
-        create_board_from_menu_image(new_doc, board_id)
-      else
-        Rails.logger.error "NO NEW DOC FOUND"
+      result = MenuVisionService.new.extract_menu_items(image_url: image_url)
+      if result.blank? || result["menu_items"].blank?
+        Rails.logger.error "enhance_image_description> No menu items extracted for Menu #{id} - #{name}"
+        return nil
       end
+
+      json = result.to_json
+      new_doc = docs.last
+      if new_doc
+        new_doc.processed = json
+        new_doc.current = true
+        new_doc.user_id = user_id
+        new_doc.save!
+      end
+
+      update!(description: json, prompt_sent: json, prompt_used: json)
+
+      create_board_from_menu_image(new_doc, board_id)
+      result
     rescue => e
       Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"
-
-      # board = Board.where(id: board_id).first if board_id
-      # board = self.boards.last unless board
-      # board = self.boards.create(user: self.user, name: self.name) unless board
-      # board.update(status: "error") if board
-      # board.update(status: "error - #{e.message}\n#{e.backtrace}\n") if board
       nil
     end
   end
 
-  def describe_menu(url)
-    unless url.present? && url.is_a?(String)
-      Rails.logger.error "Invalid URL: #{url.class} - #{url}"
-      return nil
-    end
-    menu_items = nil
-    begin
-      # image_data = doc.active_storage_to_data_url
-      response = OpenAiClient.new(open_ai_opts).describe_menu(url)
-      menu_items = response[:content] if response
-    rescue => e
-      puts "**** OpenAiClient ERROR **** \n#{e.message}\n"
-      puts e.backtrace
-      Rails.logger.error "**** OpenAiClient ERROR **** \n#{e.message}\n#{e.backtrace}\n"
-    end
-
-    if response
-      begin
-        # Extract the "content" field from the first choice
-        content = response["choices"].first["message"]["content"]
-
-        # Remove Markdown code block formatting (e.g., ```json)
-        json_content = content.gsub(/```json|```/, "").strip
-
-        # Parse the JSON string into a Ruby hash
-        menu_items = JSON.parse(json_content)
-      rescue JSON::ParserError => e
-        puts "Failed to parse JSON: #{e.message}"
-      rescue => e
-        puts "**** ERROR ****"
-        puts e.message
-      end
-    else
-      Rails.logger.error "*** ERROR - get_menu_items *** \nDid not receive valid response. Response: #{response}\n"
-    end
-    Rails.logger.debug "menu_items: #{menu_items}"
-    menu_items
+  # Resolve a publicly reachable URL for the uploaded menu image. The same
+  # file is attached to both menu_image and the board's preview_image; prefer
+  # menu_image_url since it is CDN-aware.
+  def menu_image_for_vision(board)
+    return menu_image_url if menu_image.attached?
+    board.preview_image.url if board&.preview_image&.attached?
   end
 
   def open_ai_opts

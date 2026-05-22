@@ -210,38 +210,6 @@ module ImageHelper
     label.parameterize
   end
 
-  def clarify_image_description(raw, restaurant_name)
-    return if Rails.env.test?
-    response, messages_sent = OpenAiClient.new(open_ai_opts).clarify_image_description(raw, restaurant_name)
-    begin
-      response_text = nil
-      response_hash = nil
-      if response
-        response_text = response[:content].gsub("```json", "").gsub("```", "").strip
-        if valid_json?(response_text)
-          response_text
-        else
-          puts "INVALID JSON: #{response_text}"
-          response_text = transform_into_json(response_text)
-        end
-      else
-        Rails.logger.error "*** ERROR - clarify_image_description *** \nDid not receive valid response. Response: #{response}\n"
-      end
-
-      response_hash = JSON.parse(response_text) if response_text
-
-      if response_hash["menu_items"].blank?
-        puts "NO DESCRIPTION"
-        return nil
-      end
-      puts "response_hash: #{response_hash["menu_items"]} "
-    rescue => e
-      puts "****clarify_image_description--ERROR: #{e.inspect}"
-    end
-
-    [response_hash, messages_sent]
-  end
-
   def get_next_words(label)
     return if Rails.env.test?
     response = OpenAiClient.new(open_ai_opts).get_next_words(label)
