@@ -28,6 +28,17 @@ RSpec.describe "API::Menus", type: :request do
       expect(body["boardId"]).to be_present
     end
 
+    it "saves the menu board's display image full size, not the small tile variant" do
+      post "/api/menus",
+           params: { menu: { name: "Joe's Diner", docs: { image: image } } },
+           headers: auth_headers(user)
+
+      board = Menu.last.boards.last
+      doc = Menu.last.docs.last
+      expect(board.display_image_url).to be_present
+      expect(board.display_image_url).not_to eq(doc.tile_url)
+    end
+
     it "enqueues the vision extraction job" do
       expect {
         post "/api/menus",
