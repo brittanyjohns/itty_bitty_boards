@@ -314,7 +314,13 @@ Rails.application.routes.draw do
         post "assign_boards"
         post "send_setup_email"
         post "promote_to_loaner"
+        post "claim_link"
+        post "end_loan"
         delete "remove_board"
+      end
+      collection do
+        get "claim/:token", to: "child_accounts#claim_preview", as: :claim_preview
+        post "claim/:token", to: "child_accounts#claim", as: :claim
       end
     end
 

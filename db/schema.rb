@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_23_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_23_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -297,7 +297,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_23_120000) do
     t.bigint "owner_id"
     t.boolean "is_demo", default: false
     t.string "status", default: "sandbox", null: false
+    t.string "claim_token"
+    t.datetime "claim_token_sent_at"
+    t.datetime "claimed_at"
+    t.datetime "loaner_started_at"
+    t.datetime "reclaimed_at"
     t.index ["authentication_token"], name: "index_child_accounts_on_authentication_token", unique: true
+    t.index ["claim_token"], name: "index_child_accounts_on_claim_token", unique: true
+    t.index ["loaner_started_at"], name: "index_child_accounts_on_loaner_started_at"
     t.index ["owner_id"], name: "index_child_accounts_on_owner_id"
     t.index ["reset_password_token"], name: "index_child_accounts_on_reset_password_token", unique: true
     t.index ["status"], name: "index_child_accounts_on_status"

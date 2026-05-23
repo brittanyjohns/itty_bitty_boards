@@ -180,6 +180,7 @@ class ChildAccount < ApplicationRecord
     end
 
     self.status = LOANER
+    self.loaner_started_at ||= Time.current
     self.passcode = passcode if passcode.present?
     self.passcode = SecureRandom.alphanumeric(8) if self.passcode.blank?
     # Sandbox board cap was per-account in settings["demo_board_limit"];
@@ -189,6 +190,78 @@ class ChildAccount < ApplicationRecord
     save!
     self
   end
+
+  # Generate (or rotate) the claim token the parent uses to take over
+  # this loaner. Loaner-only. The claim URL is built by the controller.
+  def generate_claim_token!
+    raise ArgumentError, "Only loaners can issue a claim token" unless loaner?
+    self.claim_token = SecureRandom.urlsafe_base64(24)
+    self.claim_token_sent_at = Time.current
+    save!
+    claim_token
+  end
+
+  def claim_link_url
+    return nil if claim_token.blank?
+    base = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    "#{base}/claim/#{claim_token}"
+  end
+
+  # Execute the SLP→parent hand-off (B4). Transfers ownership, swaps the
+  # account onto the parent's plan, keeps the SLP on the team as a
+  # supervisor by default, and marks the account active.
+  #
+  # Returns self. Raises ArgumentError on misuse and
+  # Permissions::CommunicatorLimits::SlotFull when the parent has no
+  # room (caller should rescue and surface an upgrade prompt).
+  def claim_by!(user:)
+    raise ArgumentError, "user is required" unless user
+    raise ArgumentError, "Only loaners can be claimed" unless loaner?
+
+    allowed, _http_status, error = Permissions::CommunicatorLimits.can_claim?(user: user)
+    raise SlotFull, (error || "No claim slot available") unless allowed
+
+    previous_owner = owner
+
+    transaction do
+      self.owner = user
+      # `user` is the legacy parent field; the rest of the app uses it
+      # for things like display_name and admin checks. Mirror owner so
+      # account.parent_name reflects the new owner.
+      self.user = user if has_attribute?(:user_id)
+      self.status = ACTIVE
+      self.claimed_at = Time.current
+      self.claim_token = nil
+      self.claim_token_sent_at = nil
+      save!
+
+      if previous_owner && previous_owner != user
+        team = primary_team || ensure_team!(creator: user)
+        team.add_member!(previous_owner, "supervisor")
+        team.add_member!(user, "admin")
+      end
+    end
+
+    self
+  end
+
+  # Manual reclaim / end-loan (B5). Frees the SLP's slot immediately.
+  # The account flips back to a no-login sandbox; the boards stay where
+  # they are. Used by the owner UI and the reclaim job.
+  def reclaim!(reason: "manual")
+    raise ArgumentError, "Only loaners can be reclaimed" unless loaner?
+    self.status = SANDBOX
+    self.passcode = nil
+    self.claim_token = nil
+    self.claim_token_sent_at = nil
+    self.reclaimed_at = Time.current
+    self.settings ||= {}
+    self.settings["reclaim_reason"] = reason
+    save!
+    self
+  end
+
+  class SlotFull < StandardError; end
 
   # Sandbox communicators are no-login scratch spaces. Guarded by
   # new_record?/passcode_changed? so we don't break legacy sandbox rows

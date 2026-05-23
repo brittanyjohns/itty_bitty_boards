@@ -1,5 +1,8 @@
 class API::ChildAccountsController < API::ApplicationController
-  before_action :set_child_account, only: %i[ show update destroy promote_to_loaner ]
+  before_action :set_child_account, only: %i[ show update destroy promote_to_loaner claim_link end_loan ]
+  # Claim preview is the parent's "this is what you're about to claim"
+  # page — they may not be signed in yet, so it runs token-only.
+  skip_before_action :authenticate_token!, only: %i[ claim_preview ]
 
   # GET /child_accounts
   # GET /child_accounts.json
@@ -56,6 +59,87 @@ class API::ChildAccountsController < API::ApplicationController
     rescue ActiveRecord::RecordInvalid => e
       render json: { errors: e.record.errors.full_messages.join(", ") }, status: :unprocessable_entity
     end
+  end
+
+  # POST /api/child_accounts/:id/claim_link
+  # SLP-only. Generates (or rotates) the claim token a parent uses to
+  # take ownership of this loaner. Returns the URL the SLP shares.
+  def claim_link
+    unless @child_account.owner_id == current_user.id || current_user.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+
+    unless @child_account.loaner?
+      render json: { error: "Only loaners can issue a claim link" }, status: :unprocessable_entity
+      return
+    end
+
+    @child_account.generate_claim_token!
+    render json: {
+      claim_token: @child_account.claim_token,
+      claim_url: @child_account.claim_link_url,
+      claim_token_sent_at: @child_account.claim_token_sent_at,
+    }, status: :ok
+  end
+
+  # GET /api/child_accounts/claim/:token
+  # Public preview shown on the parent's claim page before they sign in.
+  def claim_preview
+    account = ChildAccount.find_by(claim_token: params[:token])
+    unless account&.loaner?
+      render json: { error: "Invalid or expired claim link" }, status: :not_found
+      return
+    end
+
+    render json: {
+      id: account.id,
+      name: account.display_name,
+      owner_name: account.owner&.display_name,
+      created_at: account.created_at,
+    }, status: :ok
+  end
+
+  # POST /api/child_accounts/claim/:token
+  # Parent (signed in) claims the loaner. Transfers ownership, swaps
+  # onto the parent's plan, frees the SLP's slot, keeps the SLP on the
+  # child's team as a supervisor.
+  def claim
+    account = ChildAccount.find_by(claim_token: params[:token])
+    unless account&.loaner?
+      render json: { error: "Invalid or expired claim link" }, status: :not_found
+      return
+    end
+
+    begin
+      account.claim_by!(user: current_user)
+      render json: account.api_view(current_user), status: :ok
+    rescue ChildAccount::SlotFull => e
+      render json: {
+        error: "slot_full",
+        message: e.message,
+        upgrade_url: "/account/billing/upgrade",
+      }, status: :unprocessable_entity
+    rescue ActiveRecord::RecordInvalid => e
+      render json: { errors: e.record.errors.full_messages.join(", ") }, status: :unprocessable_entity
+    end
+  end
+
+  # POST /api/child_accounts/:id/end_loan
+  # SLP ends the loan immediately (B5). Returns the slot.
+  def end_loan
+    unless @child_account.owner_id == current_user.id || current_user.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+
+    unless @child_account.loaner?
+      render json: { error: "Only loaners can be reclaimed" }, status: :unprocessable_entity
+      return
+    end
+
+    @child_account.reclaim!(reason: "manual")
+    render json: @child_account.api_view(current_user), status: :ok
   end
 
   # POST /child_accounts
