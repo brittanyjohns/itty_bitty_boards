@@ -93,6 +93,21 @@ RSpec.describe "API::ChildAccounts sandbox + slot limits", type: :request do
 
         expect(response).to have_http_status(:unprocessable_entity)
       end
+
+      # Regression for PR #163 review: the pre-save valid? check fired
+      # before the controller assigned passcode, so every non-sandbox
+      # create 422'd with "Passcode is required..." regardless of the
+      # password the user typed.
+      it "actually creates a non-sandbox communicator when the password is supplied" do
+        post "/api/child_accounts",
+          params: { name: "First", username: "first-#{SecureRandom.hex(3)}", status: "active", password: "abcdef", password_confirmation: "abcdef" },
+          headers: auth_headers(user)
+
+        expect(response).to have_http_status(:created), -> { response.body }
+        account = ChildAccount.find_by(owner_id: user.id, status: "active")
+        expect(account).to be_present
+        expect(account.passcode).to eq("abcdef")
+      end
     end
   end
 end

@@ -268,17 +268,14 @@ class API::ChildAccountsController < API::ApplicationController
     @child_account.owner = current_user
     @child_account.user = current_user if @child_account.respond_to?(:user=) # legacy (optional)
 
-    # Validate basic fields first
-    unless @child_account.valid?
-      render json: { errors: @child_account.errors.full_messages.join(", ") }, status: :unprocessable_entity
-      return
-    end
-
-    # Passcode is required for loaner/active; sandbox accounts have no login.
+    # Passcode is required for loaner/active; sandbox accounts have no
+    # login. Assign before validation runs — the B3
+    # `loaner_or_active_must_have_login` validation will otherwise trip
+    # on every non-sandbox create.
     password = params[:password]
     password_confirmation = params[:password_confirmation]
 
-    if password != password_confirmation
+    if password.present? && password_confirmation.present? && password != password_confirmation
       render json: { error: "Passwords do not match" }, status: :unprocessable_entity
       return
     end
