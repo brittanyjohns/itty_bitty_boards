@@ -5,6 +5,10 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — B&W and QR options for board PDF downloads
+
+- `GET /api/boards/:id/pdf` now accepts `bw=1` for a copier-friendly black-and-white render (no tile backgrounds, grayscale images, black borders) and `qr=0` to suppress the QR code in the header. Defaults preserve existing behavior: color render with QR included. Variants are streamed but not stored on the board's cached `pdf_file` attachment, so the default PDF stays canonical. B&W downloads are named `<slug>-board-bw.pdf` to disambiguate.
+
 ### Fixed — Team owner can't be removed or demoted by other team members
 
 - After the SLP→parent claim hand-off, the parent (new owner) is protected on the communicator's team. An SLP supervisor — or any non-owner team member — can no longer remove the parent owner via `DELETE /api/teams/:id/remove_member`, demote the owner via the invite endpoint, or self-promote themselves to admin. Attempts return HTTP 403 with structured errors (`cannot_remove_owner`, `cannot_change_owner_role`, `cannot_self_promote`). The owner can still remove themselves; system admins retain an escape hatch.

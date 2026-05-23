@@ -954,12 +954,18 @@ class API::BoardsController < API::ApplicationController
   end
 
   def pdf
+    bw_requested = ActiveModel::Type::Boolean.new.cast(params[:bw])
+    qr_param = params[:qr]
+    qr_requested = qr_param.nil? ? true : ActiveModel::Type::Boolean.new.cast(qr_param)
+    @bw = bw_requested
+
     render_data = Boards::RenderAssetData.new(
       board: @board,
       screen_size: params[:screen_size] || "lg",
-      hide_colors: params[:hide_colors] == "1",
+      hide_colors: bw_requested || params[:hide_colors] == "1",
       hide_header: params[:hide_header] == "1",
       routes: Rails.application.routes.url_helpers,
+      include_qr: qr_requested,
     ).call
 
     render_data.each do |key, value|
@@ -989,7 +995,8 @@ class API::BoardsController < API::ApplicationController
 
     file_data = Grover.new(html, **grover_options).to_pdf
 
-    unless @board.pdf_file.attached?
+    default_variant = !bw_requested && qr_requested
+    if default_variant && !@board.pdf_file.attached?
       @board.pdf_file.attach(
         io: StringIO.new(file_data),
         filename: "#{@board.slug}-board.pdf",
@@ -997,8 +1004,9 @@ class API::BoardsController < API::ApplicationController
       )
     end
 
+    filename_suffix = bw_requested ? "-bw" : ""
     send_data file_data,
-      filename: "#{@board.slug}-board.pdf",
+      filename: "#{@board.slug}-board#{filename_suffix}.pdf",
       type: "application/pdf",
       disposition: disp
   end
