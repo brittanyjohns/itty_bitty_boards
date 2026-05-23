@@ -833,7 +833,7 @@ class API::BoardsController < API::ApplicationController
       end
       communicator_account_ids.each do |communicator_account_id|
         communicator_account = ChildAccount.find(communicator_account_id)
-        if communicator_account.is_demo?
+        if communicator_account.sandbox?
           board_count = communicator_account.child_boards.all.count
           demo_limit = (communicator_account.settings["demo_board_limit"] || ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT).to_i
           if board_count >= demo_limit

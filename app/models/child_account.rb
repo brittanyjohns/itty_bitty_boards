@@ -26,12 +26,24 @@
 #  layout                 :jsonb
 #  owner_id               :bigint
 #  is_demo                :boolean          default(FALSE)
+#  status                 :string           default("sandbox"), not null
 #
 class ChildAccount < ApplicationRecord
   # devise :database_authenticatable, :trackable
   # devise :database_authenticatable, :registerable,
   #        :recoverable, :rememberable, :validatable,
   #        authentication_keys: [:username]
+
+  # Communicator lifecycle:
+  #   sandbox — no login, board-capped scratch space (old "demo")
+  #   loaner  — real login + full boards, owned by an SLP on a child's behalf;
+  #             counts against the owner's slot
+  #   active  — claimed/owned by the family; counts against their plan
+  STATUSES = %w[sandbox loaner active].freeze
+  SANDBOX = "sandbox".freeze
+  LOANER  = "loaner".freeze
+  ACTIVE  = "active".freeze
+
   DEMO_ACCOUNT_BOARD_LIMIT = 3
   # Board cap for the MySpeak demo communicator a Free user gets. Stored per
   # account in settings["demo_board_limit"]; Pro demo accounts keep the
@@ -58,8 +70,11 @@ class ChildAccount < ApplicationRecord
   # validates :passcode, length: { minimum: 6 }, on: :create
 
   validates :username, presence: true, uniqueness: true
-  # validate :demo_accounts_cannot_have_login
-  # validate :paid_accounts_must_have_login
+  validates :status, inclusion: { in: STATUSES }
+  # Passcodes are optional regardless of status. `promote_to_loaner!`
+  # still mints one when none was supplied, so the "promote" path
+  # produces a working sign-in by default — but no rule blocks a
+  # loaner/active without a passcode or a sandbox with one.
 
   delegate :display_docs_for_image, to: :user
 
@@ -83,9 +98,24 @@ class ChildAccount < ApplicationRecord
   scope :with_teams, -> { includes(teams: [:team_users]) }
   scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
   scope :with_boards, -> { includes(child_boards: :board) }
-  scope :demo_accounts, -> { where(is_demo: true) }
-  scope :paid_accounts, -> { where(is_demo: false) }
+  # Lifecycle scopes. demo_accounts/paid_accounts are kept as thin aliases
+  # during the frontend cutover (F1) and removed when no callers remain.
+  scope :sandbox, -> { where(status: SANDBOX) }
+  scope :loaner,  -> { where(status: LOANER) }
+  scope :active,  -> { where(status: ACTIVE) }
+  scope :demo_accounts, -> { sandbox }
+  scope :paid_accounts, -> { where.not(status: SANDBOX) }
 
+  # Soft-archive (issue #165). Archived sandboxes disappear from every
+  # default association/query (slot counters, communicator lists, status
+  # group-by) so a pro can stash a planning workspace without losing the
+  # boards. Use `.with_archived` or `.archived` to read past the scope.
+  scope :archived,     -> { unscope(where: :archived_at).where.not(archived_at: nil) }
+  scope :with_archived, -> { unscope(where: :archived_at) }
+  default_scope { where(archived_at: nil) }
+
+  before_validation :set_status_from_is_demo, on: :create
+  before_save :sync_is_demo_alias
   before_save :set_owner_if_missing, if: -> { owner.nil? && user.present? }
   before_validation :set_username_if_missing, if: -> { username.blank? }
 
@@ -101,24 +131,188 @@ class ChildAccount < ApplicationRecord
     self.owner = user
   end
 
+  # Lifecycle predicates
+  def sandbox? = status == SANDBOX
+  def loaner?  = status == LOANER
+  def active?  = status == ACTIVE
+
+  # `is_demo` is derived from status now. The DB column is retained until the
+  # frontend cutover (F1) is complete, then dropped. Writes to `is_demo` flow
+  # into `status` for backwards compatibility.
+  def is_demo
+    sandbox?
+  end
+
+  alias_method :is_demo?, :is_demo
+
+  def is_demo=(value)
+    truthy = ActiveModel::Type::Boolean.new.cast(value)
+    # Only flip from sandbox <-> active here. Loaner is set explicitly via the
+    # provisioning path (B3). Explicit writes to `is_demo` shouldn't silently
+    # demote a loaner.
+    if truthy
+      self.status = SANDBOX
+    elsif !loaner?
+      self.status = ACTIVE
+    end
+    super(truthy) if has_attribute?(:is_demo)
+  end
+
+  def set_status_from_is_demo
+    # New records that only set the legacy boolean still get a sensible status.
+    return if status_changed? || STATUSES.include?(status)
+    self.status = self[:is_demo] ? SANDBOX : ACTIVE
+  end
+
+  # Keep the legacy boolean in sync with status while the column lives, so
+  # any caller still reading the raw attribute sees a consistent value.
+  def sync_is_demo_alias
+    return unless has_attribute?(:is_demo)
+    desired = sandbox?
+    self[:is_demo] = desired if self[:is_demo] != desired
+  end
+
   def self.valid_credentials?(username, password_to_set)
     account = ChildAccount.find_by(username: username, passcode: password_to_set)
     Rails.logger.error("Invalid credentials for #{username}") unless account
     account
   end
 
-  def demo_accounts_cannot_have_login
-    return unless is_demo?
-    if username.present? || passcode.present?
-      errors.add(:base, "Demo communicators cannot have a username or passcode.")
+  # Promote a sandbox or active communicator to a loaner.
+  #
+  # Sandbox → loaner: provisions a passcode (uses the caller's if
+  # supplied, otherwise mints one) and lifts the sandbox board cap.
+  #
+  # Active → loaner (issue #164): always rotates the passcode. The SLP
+  # knew the active's credentials; once the family takes over, the SLP
+  # shouldn't retain credential access. Caller-supplied `passcode:` is
+  # honored so an SLP can intentionally hand over a known password.
+  #
+  # Idempotent on a loaner.
+  def promote_to_loaner!(passcode: nil)
+    return self if loaner?
+
+    from_active = active?
+
+    self.status = LOANER
+    self.loaner_started_at ||= Time.current
+
+    if passcode.present?
+      self.passcode = passcode
+    elsif self.passcode.blank? || from_active
+      # Mint a fresh passcode whenever sandbox lacks one, or always on
+      # active → loaner (the SLP forfeits their old credential access).
+      self.passcode = SecureRandom.alphanumeric(8)
     end
+
+    # Sandbox board cap was per-account in settings["demo_board_limit"];
+    # remove it so the owner's plan board limit applies.
+    self.settings ||= {}
+    self.settings.delete("demo_board_limit")
+    # Clear the claimed_at watermark — if this active was previously
+    # claimed by the SLP themself, re-lending starts a fresh loan.
+    self.claimed_at = nil if from_active
+
+    save!
+    self
   end
 
-  def paid_accounts_must_have_login
-    return if is_demo?
-    if username.blank? || passcode.blank?
-      errors.add(:base, "Paid communicators must have a username and passcode.")
+  # Generate (or rotate) the claim token the parent uses to take over
+  # this loaner. Loaner-only. The claim URL is built by the controller.
+  def generate_claim_token!
+    raise ArgumentError, "Only loaners can issue a claim token" unless loaner?
+    self.claim_token = SecureRandom.urlsafe_base64(24)
+    self.claim_token_sent_at = Time.current
+    save!
+    claim_token
+  end
+
+  def claim_link_url
+    return nil if claim_token.blank?
+    base = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    "#{base}/claim/#{claim_token}"
+  end
+
+  # Execute the SLP→parent hand-off (B4). Transfers ownership, swaps the
+  # account onto the parent's plan, keeps the SLP on the team as a
+  # supervisor by default, and marks the account active.
+  #
+  # Returns self. Raises ArgumentError on misuse and
+  # Permissions::CommunicatorLimits::SlotFull when the parent has no
+  # room (caller should rescue and surface an upgrade prompt).
+  def claim_by!(user:)
+    raise ArgumentError, "user is required" unless user
+    raise ArgumentError, "Only loaners can be claimed" unless loaner?
+
+    allowed, _http_status, error = Permissions::CommunicatorLimits.can_claim?(user: user)
+    raise SlotFull, (error || "No claim slot available") unless allowed
+
+    previous_owner = owner
+
+    transaction do
+      self.owner = user
+      # `user` is the legacy parent field; the rest of the app uses it
+      # for things like display_name and admin checks. Mirror owner so
+      # account.parent_name reflects the new owner.
+      self.user = user if has_attribute?(:user_id)
+      self.status = ACTIVE
+      self.claimed_at = Time.current
+      self.claim_token = nil
+      self.claim_token_sent_at = nil
+      save!
+
+      if previous_owner && previous_owner != user
+        team = primary_team || ensure_team!(creator: user)
+        team.add_member!(previous_owner, "supervisor")
+        team.add_member!(user, "admin")
+      end
     end
+
+    self
+  end
+
+  # Manual reclaim / end-loan (B5). Frees the SLP's slot immediately.
+  # The account flips back to a no-login sandbox; the boards stay where
+  # they are. Used by the owner UI and the reclaim job.
+  def reclaim!(reason: "manual")
+    raise ArgumentError, "Only loaners can be reclaimed" unless loaner?
+    self.status = SANDBOX
+    self.passcode = nil
+    self.claim_token = nil
+    self.claim_token_sent_at = nil
+    self.reclaimed_at = Time.current
+    self.settings ||= {}
+    self.settings["reclaim_reason"] = reason
+    save!
+    self
+  end
+
+  class SlotFull < StandardError; end
+
+  # Soft-archive a sandbox communicator (issue #165). Sandbox-only — the
+  # loaner/active paths have downstream effects (slot accounting, claim
+  # tokens, family ownership) that need their own flows (`end_loan`).
+  def archive!
+    raise ArgumentError, "Only sandbox communicators can be archived" unless sandbox?
+    return self if archived_at.present?
+    update!(archived_at: Time.current)
+    self
+  end
+
+  def unarchive!
+    update!(archived_at: nil)
+    self
+  end
+
+  def archived? = archived_at.present?
+
+  # Surfaced on api_view so the frontend can render a countdown / "link
+  # expires" copy without needing to know the reclaim job's cutoff.
+  def loan_expires_at
+    return nil unless loaner?
+    anchor = claim_token_sent_at || loaner_started_at
+    return nil if anchor.blank?
+    anchor + LoanerReclaimJob::RECLAIM_AFTER
   end
 
   def primary_team
@@ -226,7 +420,14 @@ class ChildAccount < ApplicationRecord
       is_owner: viewing_user&.id == user_id,
       is_vendor: is_vendor,
       layout: layout,
+      status: status,
       is_demo: is_demo?,
+      archived_at: archived_at,
+      claim_token: claim_token,
+      claim_url: claim_link_url,
+      loaned_at: loaner_started_at,
+      claimed_at: claimed_at,
+      loan_expires_at: loan_expires_at,
       voice: voice,
       vendor: is_vendor ? cached_user.vendor.api_view(viewing_user) : nil,
       vendor_profile: is_vendor ? cached_profile.api_view(viewing_user) : nil,
@@ -545,7 +746,14 @@ class ChildAccount < ApplicationRecord
       is_owner: viewing_user&.id == user_id || viewing_user&.admin?,
       is_vendor: is_vendor,
       layout: layout,
+      status: status,
       is_demo: is_demo?,
+      archived_at: archived_at,
+      claim_token: claim_token,
+      claim_url: claim_link_url,
+      loaned_at: loaner_started_at,
+      claimed_at: claimed_at,
+      loan_expires_at: loan_expires_at,
       device_tag_url: device_tag_url,
       safety_id_url: safety_id_url,
       voice: voice,
@@ -656,6 +864,7 @@ class ChildAccount < ApplicationRecord
     current_board_list = current_board_list ? current_board_list.join(", ").truncate(150) : nil
     {
       id: id,
+      status: status,
       username: username,
       name: name,
       parent_name: user.display_name,

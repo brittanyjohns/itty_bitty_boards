@@ -98,13 +98,36 @@ class User < ApplicationRecord
            foreign_key: "owner_id",
            dependent: :destroy
 
+  has_many :sandbox_communicator_accounts,
+           -> { where(status: ChildAccount::SANDBOX) },
+           class_name: "ChildAccount",
+           foreign_key: "owner_id"
+
+  has_many :loaner_communicator_accounts,
+           -> { where(status: ChildAccount::LOANER) },
+           class_name: "ChildAccount",
+           foreign_key: "owner_id"
+
+  has_many :active_communicator_accounts,
+           -> { where(status: ChildAccount::ACTIVE) },
+           class_name: "ChildAccount",
+           foreign_key: "owner_id"
+
+  # Owned loaner+active accounts — what counts against the slot limit.
+  has_many :slotted_communicator_accounts,
+           -> { where(status: [ChildAccount::LOANER, ChildAccount::ACTIVE]) },
+           class_name: "ChildAccount",
+           foreign_key: "owner_id"
+
+  # Legacy aliases kept during the frontend cutover (issue #157). They
+  # now resolve through status, not the legacy is_demo column.
   has_many :demo_communicator_accounts,
-           -> { where(is_demo: true) },
+           -> { where(status: ChildAccount::SANDBOX) },
            class_name: "ChildAccount",
            foreign_key: "owner_id"
 
   has_many :paid_communicator_accounts,
-           -> { where(is_demo: false) },
+           -> { where(status: [ChildAccount::LOANER, ChildAccount::ACTIVE]) },
            class_name: "ChildAccount",
            foreign_key: "owner_id"
 
@@ -211,13 +234,20 @@ class User < ApplicationRecord
     plan_type == "pro" ? 5 : 2
   end
 
-  # The MySpeak ID (a demo communicator + public profile) is a free feature:
-  # every Free user gets one demo communicator. ChildAccount::FREE_DEMO_BOARD_LIMIT
-  # caps how many boards that demo communicator can own.
+  # Communicator slot math after the loaner-lifecycle rework (issue #156):
+  #
+  #   paid_communicator_limit — total owned `loaner` + `active` slots.
+  #                             Free has 1 because they can host one
+  #                             *claimed* communicator (B4), even though
+  #                             they cannot self-create one.
+  #   demo_communicator_limit — sandbox (no-login, board-capped) slots.
+  #
+  # `Permissions::CommunicatorLimits.self_create_allowed?` gates whether a
+  # user may create a non-sandbox communicator themselves (paid plan only).
   FREE_PLAN_LIMITS = {
     "plan_type" => "free",
     "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 1).to_i,
-    "paid_communicator_limit" => ENV.fetch("FREE_PAID_COMMUNICATOR_LIMIT", 0).to_i,
+    "paid_communicator_limit" => ENV.fetch("FREE_PAID_COMMUNICATOR_LIMIT", 1).to_i,
     "demo_communicator_limit" => ENV.fetch("FREE_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
     "ai_monthly_limit" => ENV.fetch("FREE_AI_MONTHLY_LIMIT", 5).to_i,
   }.freeze
@@ -1149,9 +1179,7 @@ class User < ApplicationRecord
     myspeak_slug ||= settings["slug"] || email.split("@").first
     myspeak_name ||= display_name
     Rails.logger.info "Handling MySpeak setup for user #{email} with slug #{myspeak_slug} and name #{myspeak_name}"
-    @child_account = ChildAccount.new(username: myspeak_slug, name: myspeak_name)
-    # Type + ownership
-    @child_account.is_demo = true
+    @child_account = ChildAccount.new(username: myspeak_slug, name: myspeak_name, status: ChildAccount::SANDBOX)
     if free?
       @child_account.settings ||= {}
       @child_account.settings["demo_board_limit"] = ChildAccount::FREE_DEMO_BOARD_LIMIT
@@ -1292,6 +1320,14 @@ class User < ApplicationRecord
     paid_comm_count = paid_communicator_accounts.length
     demo_comm_count = demo_communicator_accounts.length
 
+    # ---- Status-aware counts (loaner-lifecycle, issue #156) ----
+    # Single query, grouped by status, so we don't fire one query per
+    # association. Used by the dashboard slot counter + LoanerControls.
+    status_counts = communicator_accounts.group(:status).count
+    sandbox_count = status_counts.fetch(ChildAccount::SANDBOX, 0)
+    loaner_count  = status_counts.fetch(ChildAccount::LOANER, 0)
+    active_count  = status_counts.fetch(ChildAccount::ACTIVE, 0)
+
     # ---- Derived limits ----
     paid_comm_limit_total = comm_limit
 
@@ -1359,6 +1395,14 @@ class User < ApplicationRecord
       demo_comm_account_limit: demo_limit,
       demo_comm_account_limit_reached: demo_comm_account_limit_reached,
       demo_communicator_count: demo_comm_count,
+
+      # Lifecycle counts (loaner-lifecycle, issue #156). Active+loaner
+      # together count against comm_account_limit. Free hosts one
+      # claimed; claimed_communicator_count = active for Free users.
+      sandbox_communicator_count: sandbox_count,
+      loaner_communicator_count: loaner_count,
+      active_communicator_count: active_count,
+      claimed_communicator_count: active_count,
 
       # Other settings-driven limits
       supervisor_limit: settings["supervisor_limit"] || 0,

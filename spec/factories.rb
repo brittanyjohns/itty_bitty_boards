@@ -76,6 +76,7 @@ FactoryBot.define do
   factory :child_account do
     association :user
     sequence(:username) { |n| "child_#{n}" }
+    status { ChildAccount::SANDBOX }
   end
 
   factory(:user) do
