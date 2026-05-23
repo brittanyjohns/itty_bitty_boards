@@ -2,36 +2,26 @@
 
 require "rails_helper"
 
-# Issue #159 (B3) — sandbox → loaner adds a working login and lifts the
-# sandbox board cap. Login validations are repaired against status.
+# Issue #159 (B3) — sandbox → loaner mints a passcode by default so a
+# child can sign in, but passcodes are optional at every status: callers
+# may create or save a loaner/active without one, and a sandbox may
+# carry one (no validation enforces either rule).
 RSpec.describe ChildAccount, "loaner provisioning", type: :model do
   let(:user) { create(:user, plan_type: "pro", created_at: 2.months.ago) }
 
-  describe "login validations" do
-    it "rejects a new loaner without a passcode" do
+  describe "passcode is optional regardless of status" do
+    it "saves a loaner without a passcode" do
       account = build(:child_account, user: user, status: "loaner", passcode: nil)
-      expect(account).not_to be_valid
-      expect(account.errors[:passcode]).to be_present
+      expect(account).to be_valid
     end
 
-    it "rejects a new active without a passcode" do
+    it "saves an active without a passcode" do
       account = build(:child_account, user: user, status: "active", passcode: nil)
-      expect(account).not_to be_valid
+      expect(account).to be_valid
     end
 
-    it "rejects setting a passcode on a brand-new sandbox" do
-      account = build(:child_account, user: user, status: "sandbox", passcode: "secret123")
-      expect(account).not_to be_valid
-      expect(account.errors[:passcode]).to be_present
-    end
-
-    it "leaves legacy sandbox-with-passcode rows alone until status is changed" do
-      account = create(:child_account, user: user, status: "sandbox", passcode: nil)
-      # Sneak a passcode into a legacy sandbox without going through the writer.
-      account.update_column(:passcode, "legacy123")
-      account.reload
-
-      account.name = "Edited"
+    it "saves a sandbox with a passcode" do
+      account = build(:child_account, user: user, status: "sandbox", passcode: "anything")
       expect(account).to be_valid
     end
   end

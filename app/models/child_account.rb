@@ -71,8 +71,10 @@ class ChildAccount < ApplicationRecord
 
   validates :username, presence: true, uniqueness: true
   validates :status, inclusion: { in: STATUSES }
-  validate :sandbox_cannot_have_login
-  validate :loaner_or_active_must_have_login
+  # Passcodes are optional regardless of status. `promote_to_loaner!`
+  # still mints one when none was supplied, so the "promote" path
+  # produces a working sign-in by default — but no rule blocks a
+  # loaner/active without a passcode or a sandbox with one.
 
   delegate :display_docs_for_image, to: :user
 
@@ -270,29 +272,6 @@ class ChildAccount < ApplicationRecord
     anchor = claim_token_sent_at || loaner_started_at
     return nil if anchor.blank?
     anchor + LoanerReclaimJob::RECLAIM_AFTER
-  end
-
-  # Sandbox communicators are no-login scratch spaces. Guarded by
-  # new_record?/passcode_changed? so we don't break legacy sandbox rows
-  # that already carry a passcode from the pre-lifecycle era.
-  def sandbox_cannot_have_login
-    return unless sandbox?
-    return unless new_record? || passcode_changed?
-    if passcode.present?
-      errors.add(:passcode, "must be blank for sandbox communicators")
-    end
-  end
-
-  # Loaner and active communicators are real accounts a child uses, so
-  # they must have a passcode. Only enforced for new records or when the
-  # status just changed (e.g. sandbox → loaner promotion) so legacy
-  # records that never had a passcode aren't retroactively invalidated.
-  def loaner_or_active_must_have_login
-    return if sandbox?
-    return unless new_record? || status_changed?
-    if passcode.blank?
-      errors.add(:passcode, "is required for loaner and active communicators")
-    end
   end
 
   def primary_team

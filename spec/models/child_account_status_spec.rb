@@ -69,7 +69,7 @@ RSpec.describe ChildAccount, "status lifecycle", type: :model do
       account = FactoryBot.create(:child_account, user: user, status: "sandbox")
       expect(account[:is_demo]).to be(true)
 
-      account.update!(status: "loaner", passcode: "loaner01")
+      account.update!(status: "loaner")
       expect(account[:is_demo]).to be(false)
 
       account.update!(status: "active")
