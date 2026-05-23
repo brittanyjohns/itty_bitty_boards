@@ -1,6 +1,7 @@
 class API::BoardImagesController < API::ApplicationController
   respond_to :json
   before_action :set_board_image, only: %i[ show update destroy create_image_variation create_image_edit set_current_audio ]
+  before_action :check_board_image_editable!, only: %i[ save_layout set_current_audio update update_multiple remove_multiple create_image_edit create_image_variation upload_audio reset_audio move destroy ]
 
   # GET /board_images or /board_images.json
   def index
@@ -320,6 +321,32 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   private
+
+  # Block edits to a board image when its board is read-only for this user
+  # (a downgraded user over their board limit). Playing audio and viewing are
+  # never gated — only content mutations. HTTP 403, not 402 (credits).
+  def check_board_image_editable!
+    board = board_for_editable_check
+    return if board.nil?
+    return if current_user&.board_editable?(board)
+
+    render json: {
+      error: "board_locked",
+      message: "This board is read-only on your current plan. Upgrade, or make it your editable board, to make changes.",
+      board_limit: current_user.board_limit,
+      editable_board_id: current_user.effective_editable_board_id,
+    }, status: :forbidden
+  end
+
+  def board_for_editable_check
+    if params[:board_id].present?
+      Board.find_by(id: params[:board_id])
+    elsif @board_image
+      @board_image.board
+    elsif params[:id].present?
+      BoardImage.find_by(id: params[:id])&.board
+    end
+  end
 
   # Use callbacks to share common setup or constraints between actions.
   def set_board_image

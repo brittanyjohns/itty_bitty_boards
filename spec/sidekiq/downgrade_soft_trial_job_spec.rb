@@ -27,6 +27,14 @@ RSpec.describe DowngradeSoftTrialJob, type: :job do
         tx = user.credit_transactions.where(kind: "plan_grant").order(created_at: :desc).first
         expect(tx.metadata["source"]).to eq("soft_trial_downgrade")
       end
+
+      it "pins a default editable board so over-limit boards have an edit slot" do
+        user = create_soft_trial_user
+        create(:board, user: user)
+        newest = create(:board, user: user)
+
+        expect { job.perform }.to change { user.reload.editable_board_id }.from(nil).to(newest.id)
+      end
     end
 
     context "when a user has no stripe_customer_id (Apple/RevenueCat)" do

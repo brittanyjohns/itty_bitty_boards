@@ -424,6 +424,10 @@ class API::WebhooksController < API::ApplicationController
     user.setup_free_limits
     user.stripe_subscription_id = nil
     user.save!
+    # On downgrade, pin a default editable board so the user keeps one working
+    # edit slot immediately. Their other boards become read-only (still fully
+    # usable) until they upgrade or pick a different one.
+    user.pin_default_editable_board!
     # Grant the free tier's allowance immediately so canceled/paused users
     # land on free with a working balance, not 0. grant_plan! expires any
     # leftover plan credits internally (writes an `expire` ledger row).

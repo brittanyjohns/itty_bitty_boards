@@ -68,6 +68,7 @@ class User < ApplicationRecord
 
   # Associations
   belongs_to :organization, optional: true
+  belongs_to :editable_board, class_name: "Board", optional: true
   has_many :boards, -> { where(is_template: false) }, class_name: "Board", dependent: :destroy
   has_many :template_boards, -> { where(is_template: true) }, class_name: "Board", dependent: :destroy
   has_many :total_boards, class_name: "Board", dependent: :destroy
@@ -1196,6 +1197,78 @@ class User < ApplicationRecord
     board_count < board_limit
   end
 
+  # Count of the user's own (non-predefined) boards. Memoized because board
+  # list serialization calls board_editable? once per board.
+  def owned_board_count
+    @owned_board_count ||= boards.where(predefined: false).count
+  end
+
+  # The single board a limited-plan user keeps full edit access to. Returns
+  # the board they designated; if that's missing, falls back to a favorite or
+  # most-recently-updated owned board so a freshly-downgraded user is never
+  # locked out of everything before they pick one.
+  def effective_editable_board_id
+    return @effective_editable_board_id if defined?(@effective_editable_board_id)
+
+    @effective_editable_board_id =
+      if editable_board_id && boards.exists?(id: editable_board_id)
+        editable_board_id
+      else
+        boards.where(predefined: false)
+              .order(favorite: :desc, updated_at: :desc)
+              .limit(1)
+              .pick(:id)
+      end
+  end
+
+  # Pin a default editable board after a downgrade so the user has a working
+  # edit slot immediately. Idempotent — only writes when editable_board_id
+  # is blank, and only if effective_editable_board_id resolves to a board.
+  # Called from both downgrade paths: apply_free_plan (Stripe cancel/pause)
+  # and DowngradeSoftTrialJob (soft-trial expiry).
+  #
+  # Deliberately does NOT set editable_board_id_set_at — the initial default
+  # is the system's pick, not the user's. The user's first explicit
+  # make_editable call starts the cooldown clock.
+  def pin_default_editable_board!
+    return unless editable_board_id.blank?
+    default_id = effective_editable_board_id
+    return if default_id.blank?
+    update_column(:editable_board_id, default_id)
+  end
+
+  # How long a user must wait between editable-board switches. Closes the
+  # loophole where a free user could rotate the editable slot to edit every
+  # board one at a time. Configurable for support / experimentation.
+  EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS =
+    ENV.fetch("EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS", 14).to_i
+
+  # When the next make_editable call is permitted. Nil if no prior explicit
+  # pick (so the user can pick immediately) or if the cooldown has passed.
+  def editable_board_switch_available_at
+    return nil if editable_board_id_set_at.blank?
+    available = editable_board_id_set_at + EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS.days
+    available > Time.current ? available : nil
+  end
+
+  def editable_board_switch_cooldown_active?
+    editable_board_switch_available_at.present?
+  end
+
+  # Whether this user may edit the given board's content. Free users over
+  # their board limit can edit only their one designated board; everything
+  # else they own becomes read-only (still fully usable — view/tap/audio).
+  # Assumes FREE_BOARD_LIMIT == 1; if that ENV is raised this under-grants
+  # and the single editable_board_id needs to become a per-board flag.
+  def board_editable?(board)
+    return true if admin?
+    return true if board.nil? || board.user_id != id
+    return true if paid_plan?
+    return true if owned_board_count <= board_limit
+
+    board.id == effective_editable_board_id
+  end
+
   def public_page_url
     profile&.public_url
   end
@@ -1244,6 +1317,9 @@ class User < ApplicationRecord
       board_count: board_count,
       board_limit_reached: board_count >= board_limit,
       can_create_boards: can_create_boards,
+      editable_board_id: effective_editable_board_id,
+      editable_board_switch_available_at: editable_board_switch_available_at,
+      editable_board_switch_cooldown_days: EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS,
 
       # AI
       can_use_ai: can_use_ai?,

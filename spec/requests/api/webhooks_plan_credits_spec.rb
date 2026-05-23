@@ -154,6 +154,18 @@ RSpec.describe "POST /api/webhooks (plan credits)", type: :request do
       # immediately.
       expect(user.plan_credits_reset_at).to be > Time.current + CreditService::MIN_GRANT_WINDOW
     end
+
+    it "pins a default editable board so the downgraded user keeps one edit slot" do
+      create(:board, user: user)
+      newest = create(:board, user: user)
+
+      subscription = build_subscription
+      stub_event(subscription, type: "customer.subscription.deleted")
+
+      post_webhook("{}", header_with_signature)
+
+      expect(user.reload.editable_board_id).to eq(newest.id)
+    end
   end
 
   describe "customer.subscription.paused" do

@@ -1713,6 +1713,9 @@ class Board < ApplicationRecord
       #  For future implementation - can add more granular permissions for communicators
       can_edit = current_account.settings["can_edit_boards"] == true
     end
+    # Plan gating: a free user over their board limit can edit only their one
+    # designated board (User#board_editable?). Non-User viewers untouched.
+    can_edit &&= viewing_user.board_editable?(self) if can_edit && viewing_user.is_a?(User)
     {
       id: id,
       board_type: board_type,
@@ -2026,7 +2029,7 @@ class Board < ApplicationRecord
       slug: slug,
       name: name,
       word_list: current_word_list,
-      can_edit: viewing_user && (user_id == viewing_user.id || viewing_user.admin?),
+      can_edit: can_edit_for(viewing_user),
       is_template: is_template,
       display_image_url: display_image_url,
       preview_image_url: preview_image_url,
@@ -2042,8 +2045,21 @@ class Board < ApplicationRecord
     end
   end
 
+  # Whether viewing_user may edit this board's content. Owner/admin gate plus
+  # the plan-based read-only rule (User#board_editable?). Non-User viewers
+  # (e.g. ChildAccount) are not plan-gated here.
+  def can_edit_for(viewing_user)
+    return false unless viewing_user
+    return false unless user_id == viewing_user.id || viewing_user.try(:admin?)
+    return true unless viewing_user.is_a?(User)
+
+    viewing_user.board_editable?(self)
+  end
+
   def api_view(viewing_user = nil)
-    can_edit = viewing_user && (user_id == viewing_user.id || viewing_user.admin?)
+    can_edit = can_edit_for(viewing_user)
+    owned_by_viewer = viewing_user && user_id == viewing_user.id
+    locked = !!(owned_by_viewer && !can_edit && !viewing_user.try(:admin?))
 
     @in_a_public_group = false
     @display_image_url = display_image_url
@@ -2069,6 +2085,8 @@ class Board < ApplicationRecord
       in_use_by: in_use_by,
       communicator_account_data: in_use ? @original_child_boards&.map { |cb| { acct_id: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url } } : nil,
       can_edit: can_edit,
+      locked: locked,
+      lock_reason: locked ? "free_plan_board_limit" : nil,
       layout: layout,
       audio_url: audio_url,
       group_layout: group_layout,
@@ -2122,7 +2140,7 @@ class Board < ApplicationRecord
       bg_color: bg_color,
       text_color: text_color,
       # image_count: board_images_count,
-      can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
+      can_edit: can_edit_for(viewing_user),
       display_image_url: display_image_url,
       preview_image_url: preview_image_url,
       word_sample: word_sample,

@@ -92,6 +92,52 @@ backlog size (default 200).
 - Premium features (Menu Board Creator, AI image generation) require active subscription
 - Subscription managed via Stripe/RevenueCat — check status before allowing access to premium endpoints
 
+### Board access on downgrade (read-only rule)
+
+When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
+`free` and `settings["board_limit"]` to 1. Boards beyond that limit become
+**read-only**, never deleted: still openable, tappable, and audio still plays
+(SpeakAnyWay is an AAC app — usage must never break), but
+**content-mutating endpoints return HTTP 403 `board_locked`**.
+
+- Locked state is **computed**, not stored. A board is locked for its owner
+  when the user is not admin, not on a paid plan, is over their board limit,
+  and the board is not their designated editable board. See
+  `User#board_editable?` (`app/models/user.rb`) and `Board#can_edit_for`
+  (`app/models/board.rb`). The board's `api_view` exposes `can_edit`,
+  `locked`, and `lock_reason` for the frontend.
+- The user picks which single board keeps full edit access via
+  `PATCH /api/boards/:id/make_editable`. The selection is persisted on
+  `users.editable_board_id`. If none is set, `effective_editable_board_id`
+  falls back to a favorite or most-recently-updated board so a freshly-
+  downgraded user is never fully locked out.
+- **Switch cooldown:** `make_editable` enforces a cooldown
+  (`User::EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS`, default 14, ENV-tunable via
+  `EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS`) between explicit picks. Without it,
+  a free user could rotate the slot to edit every board one at a time and
+  defeat the gate. Admins bypass. The initial auto-pin from
+  `pin_default_editable_board!` does **not** start the clock — the user's
+  first real `make_editable` call does. Returns HTTP 403
+  `editable_board_cooldown` with `available_at` and `cooldown_days` when
+  blocked. A no-op re-pick of the already-designated board doesn't start
+  the clock either.
+- On downgrade, both paths call `User#pin_default_editable_board!` so the
+  frontend has a deterministic answer: `apply_free_plan` (Stripe
+  cancel/pause) and `DowngradeSoftTrialJob` (soft-trial expiry). Trial users
+  (`basic_trial` and Stripe `trialing`) are treated as paid by
+  `User#paid_plan?` while the trial is active, so the gate doesn't trigger.
+- The gate runs as a `check_board_editable!` `before_action` on the
+  content-mutating actions in `API::BoardsController` and the matching set
+  in `API::BoardImagesController`. Reads (`show`, `index`, `pdf`, audio
+  playback) and `destroy` (let the user free up the slot) are never gated.
+  `create`/`clone`/`create_from_template` stay on the existing
+  `check_board_create_permissions`.
+- Returns **HTTP 403** with `{ error: "board_locked", message, board_limit,
+  editable_board_id }`. **Not 402** — 402 is reserved for credit exhaustion.
+- **Assumes `FREE_BOARD_LIMIT == 1`.** The single `editable_board_id` only
+  frees one board. If the ENV is ever raised above 1, revisit this to a
+  per-board flag or join table.
+
 ## AI gating: credit ledger (source of truth)
 
 - AI features are gated by **weighted credits** held in two balances on `users`:

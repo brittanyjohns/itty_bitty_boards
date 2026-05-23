@@ -1,9 +1,10 @@
 class API::BoardsController < API::ApplicationController
   skip_before_action :authenticate_token!, only: %i[ index predictive_image_board show public_boards public_menu_boards common_boards pdf ]
 
-  before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts show ]
+  before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts show make_editable ]
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
   before_action :check_board_create_permissions, only: %i[ create clone ]
+  before_action :check_board_editable!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image format_with_ai add_image associate_image associate_images remove_image generate_preview_image ]
 
   def index
     limit_param = params[:limit].presence&.to_i
@@ -912,6 +913,46 @@ class API::BoardsController < API::ApplicationController
     render json: { status: "ok", message: "Preview image generation job started" }
   end
 
+  # Designate this board as the user's editable board. On a downgraded (free)
+  # plan, all other owned boards become read-only; this lets the user choose
+  # which one keeps full edit access. Subject to a cooldown
+  # (User::EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS) so a user can't rotate the
+  # slot to edit every board one at a time.
+  def make_editable
+    return if @board.nil?
+
+    unless @board.user_id == current_user.id
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+
+    # No-op when the user re-picks the board that's already designated. Skip
+    # the cooldown check so a confirm/double-tap doesn't accidentally start
+    # the clock either.
+    if current_user.editable_board_id == @board.id
+      fresh_user = User.find(current_user.id)
+      render json: { user: fresh_user.api_view, board: @board.api_view(fresh_user) }
+      return
+    end
+
+    if !current_user.admin? && current_user.editable_board_switch_cooldown_active?
+      render json: {
+        error: "editable_board_cooldown",
+        message: "You can switch your editable board again on #{current_user.editable_board_switch_available_at.to_date.iso8601}.",
+        available_at: current_user.editable_board_switch_available_at,
+        cooldown_days: User::EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS,
+      }, status: :forbidden
+      return
+    end
+
+    current_user.update!(
+      editable_board_id: @board.id,
+      editable_board_id_set_at: Time.current,
+    )
+    fresh_user = User.find(current_user.id)
+    render json: { user: fresh_user.api_view, board: @board.api_view(fresh_user) }
+  end
+
   def pdf
     render_data = Boards::RenderAssetData.new(
       board: @board,
@@ -1100,6 +1141,23 @@ class API::BoardsController < API::ApplicationController
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
+  end
+
+  # Boards over a downgraded user's plan limit are read-only: still fully
+  # usable (view/tap/audio) but not editable. Blocks content-mutating actions
+  # on a locked board with HTTP 403 (402 is reserved for credit exhaustion).
+  def check_board_editable!
+    set_board if @board.nil?
+    return if @board.nil? # set_board already rendered 404
+
+    return if current_user&.board_editable?(@board)
+
+    render json: {
+      error: "board_locked",
+      message: "This board is read-only on your current plan. Upgrade, or make it your editable board, to make changes.",
+      board_limit: current_user.board_limit,
+      editable_board_id: current_user.effective_editable_board_id,
+    }, status: :forbidden
   end
 
   def boards_for_user

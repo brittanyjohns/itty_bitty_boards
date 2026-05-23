@@ -252,6 +252,7 @@ Rails.application.routes.draw do
         put "update_to_default_docs"
         put "set_colors"
         post "regenerate_images"
+        patch "make_editable"
       end
     end
     resources :board_images do
