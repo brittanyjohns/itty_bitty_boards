@@ -106,6 +106,14 @@ class ChildAccount < ApplicationRecord
   scope :demo_accounts, -> { sandbox }
   scope :paid_accounts, -> { where.not(status: SANDBOX) }
 
+  # Soft-archive (issue #165). Archived sandboxes disappear from every
+  # default association/query (slot counters, communicator lists, status
+  # group-by) so a pro can stash a planning workspace without losing the
+  # boards. Use `.with_archived` or `.archived` to read past the scope.
+  scope :archived,     -> { unscope(where: :archived_at).where.not(archived_at: nil) }
+  scope :with_archived, -> { unscope(where: :archived_at) }
+  default_scope { where(archived_at: nil) }
+
   before_validation :set_status_from_is_demo, on: :create
   before_save :sync_is_demo_alias
   before_save :set_owner_if_missing, if: -> { owner.nil? && user.present? }
@@ -170,25 +178,41 @@ class ChildAccount < ApplicationRecord
     account
   end
 
-  # Promote a sandbox communicator to a loaner: provision a passcode if
-  # one wasn't supplied and lift the sandbox board cap so the full plan
-  # limit applies. Idempotent on a loaner; raises on active.
+  # Promote a sandbox or active communicator to a loaner.
+  #
+  # Sandbox → loaner: provisions a passcode (uses the caller's if
+  # supplied, otherwise mints one) and lifts the sandbox board cap.
+  #
+  # Active → loaner (issue #164): always rotates the passcode. The SLP
+  # knew the active's credentials; once the family takes over, the SLP
+  # shouldn't retain credential access. Caller-supplied `passcode:` is
+  # honored so an SLP can intentionally hand over a known password.
+  #
+  # Idempotent on a loaner.
   def promote_to_loaner!(passcode: nil)
-    case status
-    when LOANER
-      return self
-    when ACTIVE
-      raise ArgumentError, "Cannot promote an active communicator back to loaner"
-    end
+    return self if loaner?
+
+    from_active = active?
 
     self.status = LOANER
     self.loaner_started_at ||= Time.current
-    self.passcode = passcode if passcode.present?
-    self.passcode = SecureRandom.alphanumeric(8) if self.passcode.blank?
+
+    if passcode.present?
+      self.passcode = passcode
+    elsif self.passcode.blank? || from_active
+      # Mint a fresh passcode whenever sandbox lacks one, or always on
+      # active → loaner (the SLP forfeits their old credential access).
+      self.passcode = SecureRandom.alphanumeric(8)
+    end
+
     # Sandbox board cap was per-account in settings["demo_board_limit"];
     # remove it so the owner's plan board limit applies.
     self.settings ||= {}
     self.settings.delete("demo_board_limit")
+    # Clear the claimed_at watermark — if this active was previously
+    # claimed by the SLP themself, re-lending starts a fresh loan.
+    self.claimed_at = nil if from_active
+
     save!
     self
   end
@@ -264,6 +288,23 @@ class ChildAccount < ApplicationRecord
   end
 
   class SlotFull < StandardError; end
+
+  # Soft-archive a sandbox communicator (issue #165). Sandbox-only — the
+  # loaner/active paths have downstream effects (slot accounting, claim
+  # tokens, family ownership) that need their own flows (`end_loan`).
+  def archive!
+    raise ArgumentError, "Only sandbox communicators can be archived" unless sandbox?
+    return self if archived_at.present?
+    update!(archived_at: Time.current)
+    self
+  end
+
+  def unarchive!
+    update!(archived_at: nil)
+    self
+  end
+
+  def archived? = archived_at.present?
 
   # Surfaced on api_view so the frontend can render a countdown / "link
   # expires" copy without needing to know the reclaim job's cutoff.
@@ -381,6 +422,7 @@ class ChildAccount < ApplicationRecord
       layout: layout,
       status: status,
       is_demo: is_demo?,
+      archived_at: archived_at,
       claim_token: claim_token,
       claim_url: claim_link_url,
       loaned_at: loaner_started_at,
@@ -706,6 +748,7 @@ class ChildAccount < ApplicationRecord
       layout: layout,
       status: status,
       is_demo: is_demo?,
+      archived_at: archived_at,
       claim_token: claim_token,
       claim_url: claim_link_url,
       loaned_at: loaner_started_at,

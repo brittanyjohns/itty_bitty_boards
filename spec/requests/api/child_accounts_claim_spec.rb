@@ -126,6 +126,48 @@ RSpec.describe "API::ChildAccounts claim flow", type: :request do
       expect(response).to have_http_status(:ok)
       expect(sandbox.reload.claim_token).not_to eq(old_token)
     end
+
+    # Issue #164 — an SLP can lend an active they self-created. The
+    # ownership guard is sufficient: by the time we get here, the
+    # caller IS the owner, which means no family ever claimed it.
+    context "when the SLP owns an active communicator (issue #164)" do
+      let!(:slp_active) do
+        account = create(:child_account, user: slp, owner: slp, status: "active",
+                                         passcode: "knownpass", username: "slp-active-#{SecureRandom.hex(2)}")
+        account.ensure_team!(creator: slp)
+        account
+      end
+
+      it "promotes active → loaner and rotates the passcode" do
+        post "/api/child_accounts/#{slp_active.id}/lend", headers: auth_headers(slp)
+
+        expect(response).to have_http_status(:ok)
+        slp_active.reload
+        expect(slp_active.status).to eq("loaner")
+        expect(slp_active.passcode).not_to eq("knownpass")
+        expect(slp_active.passcode).to be_present
+        expect(slp_active.claim_token).to be_present
+      end
+
+      it "honors a caller-supplied passcode override" do
+        post "/api/child_accounts/#{slp_active.id}/lend",
+          params: { passcode: "handoff42" },
+          headers: auth_headers(slp)
+
+        expect(response).to have_http_status(:ok)
+        expect(slp_active.reload.passcode).to eq("handoff42")
+      end
+
+      it "rejects with the family-claimed message when the caller doesn't own the active" do
+        slp_active.update!(owner: parent, user: parent, claimed_at: Time.current)
+
+        post "/api/child_accounts/#{slp_active.id}/lend", headers: auth_headers(slp)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(JSON.parse(response.body)["error"]).to match(/owned by someone else/i)
+        expect(slp_active.reload.status).to eq("active")
+      end
+    end
   end
 
   describe "POST /api/child_accounts/:id/send_claim_link" do

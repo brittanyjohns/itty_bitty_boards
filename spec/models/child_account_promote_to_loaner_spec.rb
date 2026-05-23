@@ -50,10 +50,21 @@ RSpec.describe ChildAccount, "loaner provisioning", type: :model do
       expect { account.promote_to_loaner! }.not_to change { account.reload.status }
     end
 
-    it "refuses to demote an active back to loaner" do
-      account.update!(status: "loaner", passcode: "x")
-      account.update!(status: "active")
-      expect { account.promote_to_loaner! }.to raise_error(ArgumentError)
+    # Issue #164 — active → loaner is allowed (SLP relends a
+    # self-created active). Passcode is always rotated so the SLP's
+    # old credentials no longer work.
+    it "promotes active → loaner and rotates the passcode" do
+      account.update!(status: "active", passcode: "knownpass")
+      account.promote_to_loaner!
+      expect(account.status).to eq("loaner")
+      expect(account.passcode).to be_present
+      expect(account.passcode).not_to eq("knownpass")
+    end
+
+    it "honors a caller-supplied passcode on active → loaner" do
+      account.update!(status: "active", passcode: "knownpass")
+      account.promote_to_loaner!(passcode: "handoff42")
+      expect(account.passcode).to eq("handoff42")
     end
   end
 end

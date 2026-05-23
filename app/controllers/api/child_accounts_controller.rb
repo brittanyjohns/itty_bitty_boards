@@ -1,5 +1,5 @@
 class API::ChildAccountsController < API::ApplicationController
-  before_action :set_child_account, only: %i[ show update destroy promote_to_loaner lend claim_link send_claim_link end_loan ]
+  before_action :set_child_account, only: %i[ show update destroy promote_to_loaner lend claim_link send_claim_link end_loan archive unarchive ]
   # Claim preview is the parent's "this is what you're about to claim"
   # page — they may not be signed in yet, so it runs token-only.
   skip_before_action :authenticate_token!, only: %i[ claim_preview ]
@@ -71,16 +71,23 @@ class API::ChildAccountsController < API::ApplicationController
   # frontend's "replace state with response" pattern doesn't blow away
   # the status field and flip the UI into a misleading state.
   def lend
+    # Ownership guard. By the time we pass this, the caller IS the
+    # current owner — which means a `status: active` here is a
+    # self-created active (not a family-claimed one). #164 lets the
+    # SLP lend it out (passcode gets rotated in promote_to_loaner!).
     unless @child_account.owner_id == current_user.id || current_user.admin?
-      render json: account_error_payload("Unauthorized"), status: :unauthorized
+      if @child_account.active?
+        render json: account_error_payload("This communicator is owned by someone else and can't be lent."),
+               status: :unprocessable_entity
+      else
+        render json: account_error_payload("Unauthorized"), status: :unauthorized
+      end
       return
     end
 
-    if @child_account.active?
-      render json: account_error_payload("This communicator has already been claimed"), status: :unprocessable_entity
-      return
-    end
-
+    # Slot check — only meaningful when the account isn't already in
+    # the slot pool (sandbox). Loaners already count; active → loaner
+    # is a net-zero change to the slot count.
     if @child_account.sandbox?
       allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
         user: @child_account.owner,
@@ -100,7 +107,7 @@ class API::ChildAccountsController < API::ApplicationController
     end
 
     begin
-      @child_account.promote_to_loaner!(passcode: params[:passcode]) if @child_account.sandbox?
+      @child_account.promote_to_loaner!(passcode: params[:passcode]) unless @child_account.loaner?
       @child_account.generate_claim_token!
       render json: @child_account.api_view(current_user), status: :ok
     rescue ActiveRecord::RecordInvalid => e
@@ -240,6 +247,45 @@ class API::ChildAccountsController < API::ApplicationController
     end
 
     @child_account.reclaim!(reason: "manual")
+    render json: @child_account.api_view(current_user), status: :ok
+  end
+
+  # POST /api/child_accounts/:id/archive
+  # Soft-archive a sandbox communicator (issue #165). The record stays
+  # in the database with all its boards/settings/history — it just
+  # drops out of the default-scoped lists and stops counting against
+  # the sandbox limit. Sandbox-only; loaner/active have downstream
+  # effects (slot accounting, claim tokens) that need their own paths.
+  def archive
+    unless @child_account.owner_id == current_user.id || current_user.admin?
+      render json: account_error_payload("Unauthorized"), status: :unauthorized
+      return
+    end
+
+    unless @child_account.sandbox?
+      render json: account_error_payload("Only sandbox communicators can be archived"), status: :unprocessable_entity
+      return
+    end
+
+    @child_account.archive!
+    render json: @child_account.api_view(current_user), status: :ok
+  end
+
+  # POST /api/child_accounts/:id/unarchive
+  # Restore a previously-archived sandbox. Sandbox-only (loaner/active
+  # can't get into the archived state in the first place).
+  def unarchive
+    unless @child_account.owner_id == current_user.id || current_user.admin?
+      render json: account_error_payload("Unauthorized"), status: :unauthorized
+      return
+    end
+
+    unless @child_account.sandbox?
+      render json: account_error_payload("Only sandbox communicators can be unarchived"), status: :unprocessable_entity
+      return
+    end
+
+    @child_account.unarchive!
     render json: @child_account.api_view(current_user), status: :ok
   end
 
@@ -442,9 +488,11 @@ class API::ChildAccountsController < API::ApplicationController
   private
 
   # Use callbacks to share common setup or constraints between actions.
+  # `with_archived` so unarchive (and admin maintenance) can target a
+  # soft-archived record — the default scope hides them otherwise.
   def set_child_account
     @parent_account = current_user
-    @child_account = ChildAccount.find(params[:id])
+    @child_account = ChildAccount.with_archived.find(params[:id])
   end
 
   # Only allow a list of trusted parameters through.
