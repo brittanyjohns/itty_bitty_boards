@@ -138,6 +138,32 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
   frees one board. If the ENV is ever raised above 1, revisit this to a
   per-board flag or join table.
 
+## Team permissions — owner protection
+
+Communicators (`child_account`) have an `owner_id` (the family/parent
+post-claim, or the SLP pre-claim). That user is "**owner-pinned**" on the
+communicator's team: they cannot be removed or have their role changed by
+any non-owner. Full matrix in issue #166. Server-side rules:
+
+- `ChildAccount#claim_by!` auto-adds the new owner to the team.
+- `DELETE /api/teams/:id/remove_member` returns **HTTP 403
+  `cannot_remove_owner`** if the target is owner-pinned and the caller is
+  neither that user nor a system admin. The owner can remove themselves.
+- `POST /api/teams/:id/invite`, when it would change an *existing*
+  membership's role, returns **HTTP 403 `cannot_change_owner_role`** if
+  the target is owner-pinned (and the caller isn't that user). It also
+  returns **HTTP 403 `cannot_self_promote`** if a non-owner non-admin
+  caller tries to set their own role to `admin`.
+- Owner-pinned-ness is computed, not stored:
+  `Team#account_owner_ids` / `Team#account_owner?(user)` and
+  `TeamUser#account_owner?`. Team `show`/`index` `api_view` expose
+  `account_owner_ids` and per-member `is_account_owner` so the frontend
+  can hide destructive controls.
+
+A real **transfer ownership** flow doesn't exist yet — it's out of scope
+for #166 and will get its own endpoint (touches `child_account.owner_id`,
+not just team membership).
+
 ## AI gating: credit ledger (source of truth)
 
 - AI features are gated by **weighted credits** held in two balances on `users`:
