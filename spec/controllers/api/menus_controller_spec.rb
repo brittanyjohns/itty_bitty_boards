@@ -40,11 +40,11 @@ RSpec.describe API::MenusController, type: :controller do
     before { CreditService.grant_plan!(user, amount: 100, period_end: 30.days.from_now) }
 
     it "creates a new menu" do
-      post :create, params: { menu: { name: "New Menu", description: "Test Description" } }, as: :json
+      post :create, params: { menu: { name: "New Menu" } }, as: :json
       expect(response).to have_http_status(:created)
       json_response = JSON.parse(response.body)
       expect(json_response["name"]).to eq("New Menu")
-      expect(json_response["description"]).to eq("Test Description")
+      expect(json_response["boardId"]).to be_present
       expect(json_response["user_id"]).to eq(user.id)
     end
   end

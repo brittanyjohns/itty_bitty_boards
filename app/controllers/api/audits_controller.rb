@@ -1,6 +1,9 @@
 class API::AuditsController < API::ApplicationController
   skip_before_action :authenticate_token!
-  before_action :authenticate_signed_in!, only: [:word_click, :word_events]
+  before_action :authenticate_signed_in!, only: [:word_click, :word_events, :communicator_stats]
+
+  ALLOWED_STATS_DAYS = [30, 60, 90, 180, 365].freeze
+  DEFAULT_STATS_DAYS = 180
 
   def word_click
     user = current_user || current_account.user
@@ -59,7 +62,9 @@ class API::AuditsController < API::ApplicationController
       data: word_event_data,
     }
 
-    WordEvent.create(payload)
+    unless user.audit_logging_disabled? || current_account&.audit_logging_disabled?
+      WordEvent.create(payload)
+    end
     render json: { message: "Word click recorded" }
   end
 
@@ -75,6 +80,34 @@ class API::AuditsController < API::ApplicationController
     end
     render json: @word_events.order(created_at: :desc).map { |event|
       event.api_view(current_user || current_account.user)
+    }
+  end
+
+  def communicator_stats
+    account = ChildAccount.find_by(id: params[:account_id])
+    unless account
+      render json: { error: "Account not found" }, status: :not_found
+      return
+    end
+
+    days = params[:days].to_i
+    days = DEFAULT_STATS_DAYS unless ALLOWED_STATS_DAYS.include?(days)
+    range = days.days.ago.beginning_of_day..Time.current
+
+    events = account.word_events
+                     .includes(:image, :board, :child_account)
+                     .where(timestamp: range)
+                     .order(timestamp: :desc)
+                     .limit(500)
+    viewer = current_user || current_account&.user
+
+    render json: {
+      range: { days: days, start_date: range.begin.iso8601, end_date: range.end.iso8601 },
+      summary: account.word_events_summary(range),
+      heat_map: account.heat_map(range),
+      most_clicked_words: account.most_clicked_words(range),
+      part_of_speech_breakdown: account.part_of_speech_breakdown(range),
+      events: events.map { |event| event.api_view(viewer) },
     }
   end
 
@@ -160,7 +193,10 @@ class API::AuditsController < API::ApplicationController
       profile_id: profile&.id,
       data: data,
     }
-    word_event = WordEvent.create(payload)
+    word_event = nil
+    unless board&.user&.audit_logging_disabled? || comm_account&.audit_logging_disabled?
+      word_event = WordEvent.create(payload)
+    end
     render json: { message: "Word click recorded", word_event: word_event&.api_view }
   end
 

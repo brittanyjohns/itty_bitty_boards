@@ -440,7 +440,6 @@ class BoardImage < ApplicationRecord
       predictive_board_name: predictive_board&.name,
       can_edit: viewing_user == board.user,
       language: language,
-      display_label: localized_display_label(viewer_lang),
       language_settings: language_settings,
     # image_audio_files: image_audio_files,
     # remaining_user_boards: remaining_user_boards,

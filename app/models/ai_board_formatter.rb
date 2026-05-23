@@ -1,14 +1,14 @@
-# app/services/ai_board_formatter.rb
+# app/models/ai_board_formatter.rb
 # frozen_string_literal: true
 
 class AiBoardFormatter
   def self.call(...) = new(...).call
 
   # name: Board name (for context only)
-  # columns: max grid columns (Integer)
-  # rows: max grid rows (Integer)
+  # columns: max grid columns for the largest screen (Integer, informational)
+  # rows: hint only (Integer, informational)
   # existing: [{ word:, size: [w,h], board_type: <optional> }, ...]
-  # maintain_existing: true/false
+  # maintain_existing: true/false (informational; placement is now deterministic)
   def initialize(name:, columns:, rows:, existing:, maintain_existing:)
     @name = name.to_s
     @columns = columns.to_i
@@ -19,8 +19,8 @@ class AiBoardFormatter
 
   # Returns a parsed Hash like:
   # {
-  #   "grid" => [
-  #     {"word"=>"I","position"=>[0,0],"part_of_speech"=>"pronoun","frequency"=>"high","size"=>[1,1]},
+  #   "ordered_words" => [
+  #     { "word"=>"I", "size"=>[1,1], "frequency"=>"high", "part_of_speech"=>"pronoun" },
   #     ...
   #   ],
   #   "personable_explanation"  => "...",
@@ -31,7 +31,8 @@ class AiBoardFormatter
   def call
     text = prompt
     raw = request_openai(text)
-    parse_jsonish(raw)
+    payload = parse_jsonish(raw)
+    normalize(payload)
   rescue => e
     Rails.logger.error("[AiBoardFormatter] #{e.class}: #{e.message}")
     nil
@@ -43,84 +44,63 @@ class AiBoardFormatter
     words = @existing.map { |w| w[:word].to_s }.reject(&:blank?)
 
     <<~PROMPT
-      You are formatting an AAC communication board layout.
+      You are organizing words for an AAC communication board.
 
-      Return ONLY valid JSON. Do not include markdown, comments, or extra text.
+      Return ONLY a single valid JSON object. No prose, no markdown, no comments.
 
-      Goal:
-      Create a clean, predictable AAC board using evidence-informed AAC layout practices:
-      - Put high-frequency core words first.
-      - Keep layout simple, consistent, and easy to scan.
-      - Avoid random placement, gaps, and excessive rows.
-      - Use stable left-to-right, top-to-bottom placement (motor planning consistency).
-      - Prioritize communication usefulness over visual complexity.
+      Your job is to ORDER the supplied words and assign each one a tile size.
+      You do NOT assign x/y positions — placement is computed downstream.
 
-      Grid constraints:
-      - Max columns: #{@columns}
-      - Max rows: #{@rows}
-      - Coordinates are [x, y], where x starts at 0 from the left and y starts at 0 from the top.
-      - Stay completely inside the grid.
-      - Do not overlap cells.
-      - Do not create more rows than needed.
-      - Fill rows left-to-right before moving down.
-      - Use a strict row-major layout (like reading text).
+      AAC ordering rules (apply in this priority):
+      1. Communication starters and high-frequency core words first
+         (e.g. "I", "you", "want", "more", "stop", "help", "yes", "no", "go").
+      2. Common action words next (verbs like "eat", "play", "look").
+      3. Descriptive words next (adjectives, feelings, colors).
+      4. Specific or lower-frequency words last (nouns, named items).
 
       Tile sizing rules:
-      - Default size is [1,1].
-      - Use [1,1] for almost all words.
-      - Only use [2,1] for extremely important words like "I want", "help", or "stop" if space allows.
-      - Do NOT use [2,2].
-      - Do NOT randomly vary sizes.
-      - Keep sizing consistent and predictable.
+      - Default size is [1, 1].
+      - You may use [2, 1] for up to 2 of the most important phrase-style
+        tiles (e.g. "I want", "help"). Only when it clearly helps motor
+        planning.
+      - Never use [2, 2] or any size larger than [2, 1].
+      - Keep sizing consistent and predictable — most tiles should be [1, 1].
 
-      Word ordering rules:
-      1. First rows: high-frequency core words (communication starters)
-      2. Next rows: common action words
-      3. Next rows: descriptive words
-      4. Last rows: specific or lower-frequency words
+      Word inclusion rules:
+      - Use every supplied word exactly once.
+      - Do not invent, drop, duplicate, or rename words.
+      - Preserve the original spelling and casing of each word.
 
-      Frequency values:
-      - high
-      - medium
-      - low
+      Frequency values must be one of: "high", "medium", "low".
+      Part of speech should be one of: "pronoun", "noun", "verb",
+      "adjective", "adverb", "preposition", "conjunction", "interjection",
+      "determiner", "phrase", "other".
 
-      Important:
-      - Use every provided word exactly once.
-      - Do not add new words.
-      - Do not remove words.
-      - Do not duplicate words.
-      - If there are too many words to fit, include only what fits and mention overflow in explanations.
-      - Do not leave empty gaps between tiles.
-      - Keep the layout compact and structured.
+      Grid hint (informational only — placement is computed downstream):
+      - Target columns: #{@columns}
+      - Approximate rows: #{@rows}
 
-      Existing words:
+      Words to order:
       #{words.join(", ")}
 
-      Expected JSON format:
+      Required JSON shape:
       {
-        "grid": [
-          {
-            "word": "I",
-            "position": [0, 0],
-            "frequency": "high",
-            "size": [1, 1]
-          },
-          {
-            "word": "banana",
-            "position": [1, 0],
-            "frequency": "low",
-            "size": [1, 1]
-          }
+        "ordered_words": [
+          { "word": "I",    "size": [1,1], "frequency": "high",   "part_of_speech": "pronoun" },
+          { "word": "want", "size": [1,1], "frequency": "high",   "part_of_speech": "verb" }
         ],
-        "personable_explanation": "Simple one-liner explaining the layout.",
-        "professional_explanation": "Simple one-liner explaining the AAC reasoning."
+        "personable_explanation":  "One short sentence the caregiver will read.",
+        "professional_explanation": "One short sentence explaining the AAC reasoning."
       }
     PROMPT
   end
 
   def request_openai(text)
     messages = [{ role: "user", content: [{ type: "text", text: text }] }]
-    OpenAiClient.new({ messages: messages }).create_completion&.dig(:content)
+    OpenAiClient.new({
+      messages: messages,
+      response_format: { type: "json_object" },
+    }).create_completion&.dig(:content)
   end
 
   # 1) strips ``` and ```json fences
@@ -136,11 +116,54 @@ class AiBoardFormatter
     str.strip!
 
     begin
-      return JSON.parse(str)
+      JSON.parse(str)
     rescue JSON::ParserError
-      # remove trailing commas: {"a":1,} or [1,2,]
       cleaned = str.gsub(/,(\s*[}\]])/, '\1')
-      return JSON.parse(cleaned)
+      JSON.parse(cleaned)
     end
+  rescue JSON::ParserError => e
+    Rails.logger.error("[AiBoardFormatter] parse failed: #{e.message}")
+    nil
+  end
+
+  # Accepts either the new "ordered_words" shape or the legacy "grid" shape
+  # (back-compat with prompts/responses that still include "position").
+  # Always returns a hash with "ordered_words" populated.
+  def normalize(payload)
+    return nil if payload.blank?
+
+    items =
+      if payload["ordered_words"].is_a?(Array)
+        payload["ordered_words"]
+      elsif payload["grid"].is_a?(Array)
+        payload["grid"]
+      else
+        []
+      end
+
+    ordered = items.filter_map do |item|
+      next unless item.is_a?(Hash)
+      word = item["word"].to_s.strip
+      next if word.blank?
+
+      size = Array(item["size"])
+      w = size[0].to_i
+      h = size[1].to_i
+      w = 1 if w < 1
+      h = 1 if h < 1
+
+      {
+        "word" => word,
+        "size" => [w, h],
+        "frequency" => item["frequency"].presence,
+        "part_of_speech" => item["part_of_speech"].presence,
+      }
+    end
+
+    {
+      "ordered_words" => ordered,
+      "personable_explanation" => payload["personable_explanation"].presence,
+      "professional_explanation" => payload["professional_explanation"].presence,
+    }
   end
 end

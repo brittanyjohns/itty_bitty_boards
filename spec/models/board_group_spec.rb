@@ -65,4 +65,29 @@ RSpec.describe BoardGroup, type: :model do
       expect(board_2.board_groups).to include(board_group)
     end
   end
+
+  describe "#display_image_url with cover_board_id" do
+    let(:group) { BoardGroup.create!(name: "Group", user: user) }
+    let(:cover_board) { Board.create!(name: "Cover", user: user, parent: user, slug: "cover-#{SecureRandom.hex(4)}") }
+
+    before do
+      group.add_board(cover_board)
+      group.update_column(:display_image_url, "https://example.com/group-fallback.png")
+      cover_board.update_column(:display_image_url, "https://example.com/cover.png")
+    end
+
+    it "returns the column value when no cover_board_id is set" do
+      expect(group.display_image_url).to eq("https://example.com/group-fallback.png")
+    end
+
+    it "returns the cover board's display image when cover_board_id is set" do
+      group.update!(settings: group.settings.merge("cover_board_id" => cover_board.id))
+      expect(group.reload.display_image_url).to eq("https://example.com/cover.png")
+    end
+
+    it "falls back to the column when cover_board_id points at a missing board" do
+      group.update!(settings: group.settings.merge("cover_board_id" => 999999))
+      expect(group.reload.display_image_url).to eq("https://example.com/group-fallback.png")
+    end
+  end
 end

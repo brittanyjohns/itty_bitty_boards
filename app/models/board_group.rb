@@ -78,6 +78,30 @@ class BoardGroup < ApplicationRecord
     self.number_of_columns = 6
   end
 
+  # When `settings["cover_board_id"]` is set, the group's display image
+  # resolves to that board's display image (which itself may follow that
+  # board's preview). Lets admins pin a cover by reference rather than by
+  # frozen URL string — no stale `?v=` after preview regen.
+  def cover_board_id
+    settings.is_a?(Hash) ? settings["cover_board_id"] : nil
+  end
+
+  # Override the AR-generated getter so reads (including serializers) see
+  # the cover board's display image when one is set. Falls through to the
+  # column otherwise.
+  def display_image_url
+    cbid = cover_board_id
+    if cbid.present?
+      cover = if boards.loaded?
+                boards.find { |b| b.id == cbid.to_i }
+              else
+                boards.find_by(id: cbid)
+              end
+      return cover.display_image_url if cover
+    end
+    read_attribute(:display_image_url)
+  end
+
   def etsy_link
     settings["etsy_link"]
   end

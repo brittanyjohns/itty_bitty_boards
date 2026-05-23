@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Claim your communicator</title>
+  <style>
+    body { background:#f0f0f0; font-family:Arial,sans-serif; margin:0; padding:20px; }
+    .container { background:#fff; margin:auto; max-width:600px; padding:24px; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,.1); }
+    .header { font-size:22px; margin-bottom:16px; color:#1f2937; font-weight:700; }
+    .content { font-size:16px; color:#374151; line-height:1.6; }
+    .button { display:inline-block; margin-top:12px; padding:12px 22px; background:#10b981; color:#fff; text-decoration:none; border-radius:6px; font-weight:600; }
+    .muted { color:#6b7280; font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">Make <%= @child_name.presence || "this" %> communicator yours</div>
+    <div class="content">
+      <p><%= @owner_name.presence || "Your therapist" %> set up a SpeakAnyWay communicator for <%= @child_name.presence || "your child" %> and is ready to hand it over.</p>
+      <p>Take ownership in a couple of taps. Your boards, your sign-in, your communicator — kept exactly as it is today.</p>
+      <p style="text-align:center;"><a href="<%= @claim_url %>" class="button">Claim the communicator</a></p>
+      <p class="muted">Free hosting for this one Communicator — no card needed. <%= @owner_name.presence || "Your therapist" %> stays linked as a supervisor; you can change that anytime.</p>
+      <p class="muted">If the button doesn't work, paste this link into your browser:<br><%= @claim_url %></p>
+      <p>Happy Communicating,<br>The SpeakAnyWay Team</p>
+    </div>
+  </div>
+</body>
+</html>

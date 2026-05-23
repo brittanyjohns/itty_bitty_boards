@@ -30,5 +30,17 @@ Sidekiq.configure_server do |config|
       "queue" => "default",
       "description" => "Re-grant monthly AI credits to non-subscription users (free, basic_trial) whose plan_credits_reset_at has passed. Paid Stripe subscribers (MySpeak, Basic, Pro, Partner Pro) refresh via invoice.payment_succeeded and are skipped. Runs daily at 3am UTC, after DowngradeSoftTrialJob.",
     },
+    "disk_space_alert" => {
+      "cron" => "0 * * * *",
+      "class" => "DiskSpaceAlertJob",
+      "queue" => "default",
+      "description" => "Hourly root-disk check; emails an admin at 80% (warn) / 90% (critical). Skipped on staging.",
+    },
+    "loaner_reclaim" => {
+      "cron" => "30 2 * * *",
+      "class" => "LoanerReclaimJob",
+      "queue" => "default",
+      "description" => "Daily reclaim sweep for loaner communicators unclaimed past LOANER_RECLAIM_AFTER_DAYS (default 90). Frees the SLP's slot.",
+    },
   })
 end

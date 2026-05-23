@@ -127,30 +127,30 @@ Rails.application.configure do
   # Skip DNS rebinding protection for the default health check endpoint.
   # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 
-  # SMTP Settings
-  # Username: your e-mail address
-  # Password: the password set in cPanel during the e-mail account set-up
-  # Incoming server type: IMAP or POP3
-  # Incoming server (IMAP): 993 port for SSL, 143 for TLS.
-  # Incoming server (POP3): 995 port for SSL, 110 for TLS.
-  # Outgoing server (SMTP): 465 port for SSL, 25/587 port for TLS.
-
-  #   config.action_mailer.delivery_method = :smtp
-  #   config.action_mailer.smtp_settings = {
-  #     address: "smtp.oxcs.bluehost.com",
-  #     port: 587,
-  #     user_name: ENV["SMTP_USERNAME"],
-  #     password: ENV["SMTP_PASSWORD"],
-  #     authentication: "plain",
-  #   }
-  # end
-
+  # Mailer transport. Authenticated SMTP submission is preferred: unlike the
+  # IP-allowlisted relay, it does not depend on the server's outbound IP, which
+  # changes when Hatchbox replaces the instance. Set SMTP_USERNAME / SMTP_PASSWORD
+  # on the server (a Google Workspace account plus an App Password).
+  #
+  # - With credentials present: authenticates against smtp.gmail.com.
+  # - Without credentials: falls back to the smtp-relay.gmail.com IP relay,
+  #   which requires the sender IP to be allowlisted in the Workspace admin
+  #   console (Apps > Google Workspace > Gmail > Routing > SMTP relay service).
+  #
+  # SMTP_ADDRESS overrides the host — e.g. set it to smtp-relay.gmail.com to
+  # use the relay endpoint *with* authentication, which permits sending from
+  # any From address in the domain (no per-address "send mail as" alias).
+  # Diagnose with: bin/rails 'mail:test[you@example.com]'
+  config.action_mailer.delivery_method = :smtp
+  smtp_username = ENV["SMTP_USERNAME"].presence
+  smtp_password = ENV["SMTP_PASSWORD"].presence
   config.action_mailer.smtp_settings = {
-    address: "smtp-relay.gmail.com",
+    address: ENV["SMTP_ADDRESS"].presence || (smtp_username ? "smtp.gmail.com" : "smtp-relay.gmail.com"),
     port: 587,
     domain: "speakanyway.com",
     enable_starttls_auto: true,
-    # If you use IP-based authentication only (no username/password):
-    authentication: nil,
+    user_name: smtp_username,
+    password: smtp_password,
+    authentication: smtp_username ? :plain : nil,
   }
 end

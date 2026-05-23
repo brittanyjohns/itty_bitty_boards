@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_13_150240) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_23_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -296,9 +296,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_13_150240) do
     t.jsonb "layout", default: {}
     t.bigint "owner_id"
     t.boolean "is_demo", default: false
+    t.string "status", default: "sandbox", null: false
+    t.string "claim_token"
+    t.datetime "claim_token_sent_at"
+    t.datetime "claimed_at"
+    t.datetime "loaner_started_at"
+    t.datetime "reclaimed_at"
+    t.datetime "archived_at"
+    t.index ["archived_at"], name: "index_child_accounts_on_archived_at"
     t.index ["authentication_token"], name: "index_child_accounts_on_authentication_token", unique: true
+    t.index ["claim_token"], name: "index_child_accounts_on_claim_token", unique: true
+    t.index ["loaner_started_at"], name: "index_child_accounts_on_loaner_started_at"
     t.index ["owner_id"], name: "index_child_accounts_on_owner_id"
     t.index ["reset_password_token"], name: "index_child_accounts_on_reset_password_token", unique: true
+    t.index ["status"], name: "index_child_accounts_on_status"
     t.index ["user_id"], name: "index_child_accounts_on_user_id"
     t.index ["username"], name: "index_child_accounts_on_username", unique: true
     t.index ["vendor_id"], name: "index_child_accounts_on_vendor_id"
@@ -323,6 +334,35 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_13_150240) do
     t.index ["original_board_id"], name: "index_child_boards_on_original_board_id"
     t.index ["position"], name: "index_child_boards_on_position"
     t.index ["published"], name: "index_child_boards_on_published"
+  end
+
+  create_table "coaching_phrase_audios", force: :cascade do |t|
+    t.text "text", null: false
+    t.string "voice", null: false
+    t.string "language", default: "en", null: false
+    t.string "phrase_key", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["phrase_key"], name: "index_coaching_phrase_audios_on_phrase_key", unique: true
+    t.index ["voice", "language"], name: "index_coaching_phrase_audios_on_voice_and_language"
+  end
+
+  create_table "coaching_prompt_sets", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.text "description"
+    t.jsonb "strategies", default: [], null: false
+    t.string "match_tags", default: [], array: true
+    t.string "source", default: "curated", null: false
+    t.bigint "user_id"
+    t.boolean "published", default: true, null: false
+    t.string "language", default: "en", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["match_tags"], name: "index_coaching_prompt_sets_on_match_tags", using: :gin
+    t.index ["slug"], name: "index_coaching_prompt_sets_on_slug", unique: true
+    t.index ["source", "published"], name: "index_coaching_prompt_sets_on_source_and_published"
+    t.index ["user_id"], name: "index_coaching_prompt_sets_on_user_id"
   end
 
   create_table "contest_entries", force: :cascade do |t|
@@ -888,12 +928,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_13_150240) do
     t.integer "plan_credits_balance", default: 0, null: false
     t.integer "topup_credits_balance", default: 0, null: false
     t.datetime "plan_credits_reset_at"
+    t.bigint "editable_board_id"
+    t.datetime "editable_board_id_set_at"
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
     t.index ["child_lookup_key"], name: "index_users_on_child_lookup_key", unique: true
     t.index ["confirmation_token"], name: "index_users_on_confirmation_token", unique: true
     t.index ["current_team_id"], name: "index_users_on_current_team_id"
     t.index ["delete_account_token"], name: "index_users_on_delete_account_token", unique: true
     t.index ["deleted_at"], name: "index_users_on_deleted_at"
+    t.index ["editable_board_id"], name: "index_users_on_editable_board_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["invitation_token"], name: "index_users_on_invitation_token", unique: true
     t.index ["jti"], name: "index_users_on_jti", unique: true

@@ -23,6 +23,10 @@ class DowngradeSoftTrialJob
         metadata: { source: "soft_trial_downgrade" },
       )
 
+      # Pin a default editable board so over-limit boards have a deterministic
+      # editable slot (matches apply_free_plan's behavior for Stripe cancels).
+      user.pin_default_editable_board!
+
       Rails.logger.info "DowngradeSoftTrialJob: downgraded user #{user.id} (#{user.email}) to free"
       count += 1
     rescue => e

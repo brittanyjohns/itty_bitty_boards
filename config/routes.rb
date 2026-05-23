@@ -107,6 +107,7 @@ Rails.application.routes.draw do
     resources :board_screenshot_imports
     post "board_screenshot_imports/:id/commit", to: "board_screenshot_imports#commit"
 
+    get "word_events/stats", to: "audits#communicator_stats", as: :word_events_stats
     get "word_events", to: "audits#word_events", as: :word_events
     post "webhooks", to: "webhooks#webhooks"
     resources :subscriptions do
@@ -251,6 +252,7 @@ Rails.application.routes.draw do
         put "update_to_default_docs"
         put "set_colors"
         post "regenerate_images"
+        patch "make_editable"
       end
     end
     resources :board_images do
@@ -281,6 +283,11 @@ Rails.application.routes.draw do
         post "rerun"
       end
     end
+    resources :coaching_prompts do
+      collection do
+        get "audio"
+      end
+    end
     resources :docs do
       collection do
         get "deleted"
@@ -306,9 +313,25 @@ Rails.application.routes.draw do
       member do
         post "assign_boards"
         post "send_setup_email"
+        # B3: promote sandbox → loaner. `lend` is the frontend-facing alias.
+        post "promote_to_loaner"
+        post "lend", to: "child_accounts#lend"
+        # B4: claim flow controls for the SLP side.
+        post "claim_link"
+        post "send_claim_link"
+        post "end_loan"
+        # #165: soft-archive sandbox communicators
+        post "archive"
+        post "unarchive"
         delete "remove_board"
       end
     end
+
+    # B4: parent-facing claim endpoints — fetched without auth (preview)
+    # or with a signed-in parent (claim). Lives at its own namespace so
+    # the URLs read naturally.
+    get  "communicator_claims/:token", to: "child_accounts#claim_preview", as: :communicator_claim_preview
+    post "communicator_claims/:token/claim", to: "child_accounts#claim", as: :communicator_claim
 
     resources :profiles do
       collection do

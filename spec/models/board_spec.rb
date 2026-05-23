@@ -84,6 +84,20 @@ RSpec.describe Board, type: :model do
       cloned = board.clone_with_images(user.id)
       expect(cloned.board_images.count).to eq(board.board_images.count)
     end
+
+    it "does not inherit the source's display_image_url snapshot" do
+      board.update_column(
+        :display_image_url,
+        "https://cdn.example.com/board_previews/#{board.id}/preview.png?v=123",
+      )
+      cloned = board.clone_with_images(user.id)
+      expect(cloned.read_attribute(:display_image_url)).to be_nil
+    end
+
+    it "defaults the clone to follow its own preview" do
+      cloned = board.clone_with_images(user.id)
+      expect(cloned.settings["display_follows_preview"]).to be true
+    end
   end
 
   describe "#update_grid_layout" do
@@ -281,6 +295,93 @@ RSpec.describe Board, type: :model do
           .with("a prompt", hash_including(language: "it"))
           .and_return({ content: '{"words":[]}' })
         board.get_word_suggestions_from_prompt("a prompt", language: "it")
+      end
+    end
+  end
+
+  describe "#api_view" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) do
+      FactoryBot.create(:board, user: user, published: true, position: 3,
+        data: { "current_word_list" => ["apple", "banana"] })
+    end
+
+    it "exposes published, position, and data from the board" do
+      view = board.api_view(user)
+      expect(view[:published]).to be(true)
+      expect(view[:position]).to eq(3)
+      expect(view[:data]).to eq("current_word_list" => ["apple", "banana"])
+    end
+  end
+
+  describe "#add_image" do
+    let(:user)  { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user, voice: "polly:kevin") }
+    let(:image) { FactoryBot.create(:image, user: user) }
+
+    # SaveAudioJob used to be enqueued twice per image: once explicitly here
+    # and once by BoardImage's after_create callback. add_image now leaves
+    # audio entirely to the callback.
+    it "enqueues SaveAudioJob exactly once for the new board image" do
+      expect { board.add_image(image.id) }
+        .to change(SaveAudioJob.jobs, :size).by(1)
+    end
+
+    it "enqueues the audio job for the created board image and voice" do
+      board_image = board.add_image(image.id)
+
+      args = SaveAudioJob.jobs.last["args"]
+      expect(args[1]).to eq("polly:kevin")
+      expect(args[2]).to eq(board_image.id)
+    end
+  end
+
+  describe "#display_image_url with display_follows_preview flag" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+
+    before do
+      board.update_column(:display_image_url, "https://example.com/user-cover.png")
+    end
+
+    context "when the flag is off" do
+      it "returns the stored column value" do
+        expect(board.display_image_url).to eq("https://example.com/user-cover.png")
+      end
+    end
+
+    context "when the flag is on but no preview is attached" do
+      it "still returns the stored column value (no preview to resolve to)" do
+        board.update!(settings: board.settings.merge("display_follows_preview" => true))
+        expect(board.display_image_url).to eq("https://example.com/user-cover.png")
+      end
+    end
+
+    context "when the flag is on and a preview is attached" do
+      before do
+        board.preview_image.attach(
+          io: StringIO.new("png-bytes"),
+          filename: "preview.png",
+          content_type: "image/png",
+        )
+        board.update!(settings: board.settings.merge("display_follows_preview" => true))
+      end
+
+      it "returns the live preview URL" do
+        expect(board.display_image_url).to eq(board.preview_image_url)
+      end
+
+      it "resolves to the new URL after the preview regenerates" do
+        original_url = board.display_image_url
+        board.preview_image.purge
+        board.preview_image.attach(
+          io: StringIO.new("new-png-bytes"),
+          filename: "preview.png",
+          content_type: "image/png",
+        )
+
+        expect(board.display_image_url).to eq(board.preview_image_url)
+        expect(board.display_image_url).not_to eq(original_url) if board.preview_image_url != original_url
       end
     end
   end

@@ -1,4 +1,113 @@
 namespace :users do
+  desc "Create a full demo user with communicators, boards, and word events spread over time. Example: rake users:create_demo[3,60,pro]"
+  task :create_demo, [:num_communicators, :days_ago, :plan_type] => :environment do |t, args|
+    num_communicators = (args[:num_communicators] || 2).to_i
+    days_ago = (args[:days_ago] || 60).to_i
+    plan_type = args[:plan_type] || "pro"
+
+    puts "=== Creating demo user (plan: #{plan_type}) with #{num_communicators} communicator(s) over #{days_ago} days ==="
+
+    user = create_seed_user(plan_type: plan_type, communicator_limit: num_communicators, board_limit: 50)
+
+    num_communicators.times do |i|
+      name = FFaker::Name.html_safe_name
+      puts "\n--- Communicator #{i + 1}: #{name} ---"
+      communicator_account = create_seed_communicator(user, name)
+      communicator_account.update!(last_sign_in_at: Time.current - rand(0..7).days)
+
+      boards = communicator_account.child_boards.includes(:board).to_a
+      3.times { create_board_for_communicator(communicator_account) } if boards.size < 3
+      communicator_account.reload
+
+      adj_min = (days_ago / 2.0).ceil
+      adj_max = days_ago
+      communicator_account.child_boards.includes(:board).each_with_index do |child_board, idx|
+        board = child_board.board
+        words = board.current_word_list
+        next if words.blank?
+
+        adj_days = rand(adj_min..adj_max)
+        timestamp = Time.current - adj_days.days + idx.seconds
+        count = create_word_events(words, user, board, communicator_account, timestamp: timestamp)
+        puts "  Created #{count} events for board '#{board.name}' (~#{adj_days} days ago)"
+      end
+    end
+
+    puts "\n=== Done! ==="
+    puts "Email: #{user.email}"
+    puts "Password: 111111"
+    puts "Plan: #{user.plan_type}"
+    puts "Communicators: #{user.communicator_accounts.count}"
+  end
+
+  desc "Seed word events for a single existing communicator account. Example: rake users:seed_word_events_for_communicator[99,60]"
+  task :seed_word_events_for_communicator, [:account_id, :days_ago] => :environment do |t, args|
+    communicator_account = ChildAccount.includes(:user, child_boards: :board).find(args[:account_id])
+    days_ago = (args[:days_ago] || 60).to_i
+    user = communicator_account.user
+
+    if communicator_account.child_boards.empty?
+      puts "No boards found for communicator #{communicator_account.id} — run create_word_events_for_communicator with create_board=true first"
+      next
+    end
+
+    puts "=== Seeding word events for #{communicator_account.name} (ID: #{communicator_account.id}) over #{days_ago} days ==="
+
+    adj_min = (days_ago / 2.0).ceil
+    adj_max = days_ago
+
+    communicator_account.child_boards.each_with_index do |child_board, idx|
+      board = child_board.board
+      words = board.current_word_list
+      next if words.blank?
+
+      adj_days = rand(adj_min..adj_max)
+      timestamp = Time.current - adj_days.days + idx.seconds
+      count = create_word_events(words, user, board, communicator_account, timestamp: timestamp)
+      puts "  Created #{count} events for '#{board.name}' (~#{adj_days} days ago)"
+    end
+
+    puts "\n=== Done! ==="
+  end
+
+  desc "Seed word events for all communicators on an existing user. Example: rake users:seed_word_events_for_user[42,60]"
+  task :seed_word_events_for_user, [:user_id, :days_ago] => :environment do |t, args|
+    user = User.includes(communicator_accounts: { child_boards: :board }).find(args[:user_id])
+    days_ago = (args[:days_ago] || 60).to_i
+
+    if user.communicator_accounts.empty?
+      puts "No communicator accounts found for user #{user.id}"
+      next
+    end
+
+    puts "=== Seeding word events for user #{user.id} (#{user.email}) over #{days_ago} days ==="
+
+    adj_min = (days_ago / 2.0).ceil
+    adj_max = days_ago
+
+    user.communicator_accounts.each do |communicator_account|
+      puts "\n--- #{communicator_account.name} (ID: #{communicator_account.id}) ---"
+
+      if communicator_account.child_boards.empty?
+        puts "  No boards — skipping"
+        next
+      end
+
+      communicator_account.child_boards.each_with_index do |child_board, idx|
+        board = child_board.board
+        words = board.current_word_list
+        next if words.blank?
+
+        adj_days = rand(adj_min..adj_max)
+        timestamp = Time.current - adj_days.days + idx.seconds
+        create_word_events(words, user, board, communicator_account, timestamp: timestamp)
+        puts "  Created #{words.size * 2} events for '#{board.name}' (~#{adj_days} days ago)"
+      end
+    end
+
+    puts "\n=== Done! ==="
+  end
+
   desc "Create a new user with optional communicator account and board. Example: rake users:create_basic_user_with_optional_communicator[true]"
   task :create_basic_user_with_optional_communicator, [:create_communicator] => :environment do |t, args|
     user = create_seed_user(plan_type: "basic", communicator_limit: 1, board_limit: 25)
@@ -32,7 +141,7 @@ namespace :users do
       words = board_to_use.current_word_list
       communicator_account.update!(last_sign_in_at: Time.current)
 
-      create_word_events(words, user, board_to_use, communicator_account)
+      create_word_events(words, user, board_to_use, communicator_account, timestamp: Time.current - rand(1..30).days)
       acct_ids << communicator_account.id
       puts "Created communicator account with username: #{communicator_account.username} and ID #{communicator_account.id}"
     end
@@ -70,8 +179,7 @@ namespace :users do
 
       timestamp = Time.current - adj_days_ago.days
       timestamp += index.seconds
-      create_word_events(words, user, board_to_use, communicator_account, timestamp: timestamp)
-      count += words.size * 2 # Each word creates two events
+      count += create_word_events(words, user, board_to_use, communicator_account, timestamp: timestamp)
     end
 
     puts "Done! - Created word events for account ID #{communicator_account.id}. - Days ago: #{days_ago}, Events processed: #{count}"
@@ -163,29 +271,82 @@ def update_profile(profile)
   profile.save!
 end
 
-def create_word_events(words, user, board, communicator_account, timestamp:)
-  # random_days_ago = rand(0..days_ago) if days_ago.is_a?(Integer)
-  # timestamp = Time.current - random_days_ago.days
-  puts "Creating word events for user ID #{user.id} on board ID #{board.id} with timestamp: #{timestamp}"
-  words.each_with_index do |word, index|
-    ts_for_event = timestamp + index.days
-    payload_1 = {
-      word: word,
-      previous_word: words[index - 1],
-      timestamp: ts_for_event,
-      user_id: user.id,
-      board_id: board.id,
-      child_account_id: communicator_account&.id,
-    }
-    WordEvent.create(payload_1)
-    payload_2 = {
-      word: word,
-      previous_word: words[index - 1],
-      timestamp: ts_for_event + 12.hours,
-      user_id: user.id,
-      board_id: board.id,
-      child_account_id: communicator_account&.id,
-    }
-    WordEvent.create(payload_2)
+TYPICAL_HOURS = [7, 9, 11, 13, 15, 17, 19].freeze
+
+def create_word_events(words, user, board, communicator_account, timestamp:, sessions: 6)
+  return if words.blank?
+
+  base_day = timestamp.beginning_of_day
+  total = 0
+
+  # Map each word to its board tile so seeded events can carry the same rich
+  # data a real click records: the image (which provides part of speech) and
+  # the tile's grid coordinates.
+  screen_size = "lg"
+  tiles_by_label = board.board_images.includes(:image).order(:position).index_by(&:label)
+  columns = board.columns_for_screen_size(screen_size).to_i
+  columns = 6 if columns < 1
+  rows = board.rows_for_screen_size(screen_size).to_i
+  rows = (tiles_by_label.size / columns.to_f).ceil if rows < 1
+  rows = 1 if rows < 1
+
+  sessions.times do |s|
+    # Each session is on a different day offset from the base timestamp
+    day_offset = s * (30 / sessions.to_f).floor
+    session_day = base_day + day_offset.days
+    hour = TYPICAL_HOURS.sample
+    session_start = session_day.change(hour: hour, min: rand(0..30))
+
+    # Click through a random subset of words (at least half, usually all)
+    session_words = words.sample(rand((words.size / 2)..words.size))
+    prev_word = nil
+
+    session_words.each_with_index do |word, i|
+      # Clicks are a few seconds apart, like a real board session
+      click_time = session_start + (i * rand(3..10)).seconds
+      tile = tiles_by_label[word]
+      WordEvent.create(
+        word: word,
+        previous_word: prev_word,
+        timestamp: click_time,
+        user_id: user.id,
+        board_id: board.id,
+        child_account_id: communicator_account&.id,
+        image_id: tile&.image_id,
+        board_image_id: tile&.id,
+        data: word_event_seed_data(tile, screen_size, columns, rows),
+      )
+      prev_word = word
+      total += 1
+    end
   end
+
+  total
+end
+
+# Mirrors the `data` jsonb that API::AuditsController#word_click records for a
+# real click, so seeded events render correctly on the Stats tab Board Click
+# Map. Falls back to a position-derived grid cell when a tile has no layout.
+def word_event_seed_data(board_image, screen_size, columns, rows)
+  return nil unless board_image
+
+  layout = board_image.layout.is_a?(Hash) ? board_image.layout[screen_size] : nil
+  cell =
+    if layout.is_a?(Hash) && layout["x"] && layout["y"]
+      { "x" => layout["x"], "y" => layout["y"], "w" => layout["w"] || 1, "h" => layout["h"] || 1 }
+    else
+      index = board_image.position.to_i
+      { "x" => index % columns, "y" => index / columns, "w" => 1, "h" => 1 }
+    end
+
+  {
+    screen_size: screen_size,
+    layout: cell,
+    x_position: cell["x"],
+    y_position: cell["y"],
+    width: cell["w"],
+    height: cell["h"],
+    number_of_columns: columns,
+    number_of_rows: rows,
+  }
 end

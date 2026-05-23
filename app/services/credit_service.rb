@@ -33,9 +33,8 @@ class CreditService
 
   # Default monthly grant by plan_type. Stripe Price metadata overrides at grant time.
   PLAN_MONTHLY_CREDITS = {
-    "free" => 10,
+    "free" => 5,
     "basic_trial" => 400, # Soft 14-day Basic trial set by User#set_soft_trial_plan
-    "myspeak" => 50,
     "basic" => 400,
     "pro" => 1500,
     "premium" => 1500,
@@ -50,6 +49,12 @@ class CreditService
     "basic_trial" => 14, # matches User#TRAIL_PERIOD (sic)
   }.freeze
   DEFAULT_INITIAL_PERIOD_DAYS = 30
+
+  # Floor for `grant_plan!` period_end. Any caller passing a past/today
+  # `period_end` gets clamped forward to this window. Prevents the
+  # "granted and expired same day" bug (issue #110 and follow-ups) where
+  # ExpirePlanCreditsJob would sweep the new grant to 0 within the hour.
+  MIN_GRANT_WINDOW = 1.day
 
   class << self
     def cost_for(feature_key)
@@ -137,6 +142,15 @@ class CreditService
     # so leftover plan credits from the previous period do not roll over.
     def grant_plan!(user, amount:, period_end:, stripe_event_id: nil, stripe_price_id: nil, metadata: {})
       raise ArgumentError, "amount must be positive" if amount <= 0
+
+      min_period_end = Time.current + MIN_GRANT_WINDOW
+      if period_end.blank? || period_end < min_period_end
+        Rails.logger.warn(
+          "[CreditService] grant_plan! period_end #{period_end.inspect} too soon; " \
+          "clamping to #{min_period_end} for user=#{user.id} metadata=#{metadata.inspect}"
+        )
+        period_end = min_period_end
+      end
 
       ActiveRecord::Base.transaction do
         if stripe_event_id.present? && CreditTransaction.exists?(stripe_event_id: stripe_event_id)

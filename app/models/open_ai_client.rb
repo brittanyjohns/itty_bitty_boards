@@ -172,23 +172,6 @@ class OpenAiClient
     end
   end
 
-  def describe_menu(img_url)
-    begin
-      response = openai_client.chat(parameters: {
-                                      model: GPT_VISION_MODEL,
-                                      messages: [{ role: "user",
-                                                  content: [{ type: "text",
-                                                              text: "This is a restaurant menu. Please describe the menu items. Please respond as json in the following format: #{expected_json_schema}" },
-                                                            { type: "image_url", image_url: { url: img_url } }] }],
-                                    })
-      Rails.logger.debug "*** ERROR *** Invaild Menu Description Response: #{response}" unless response
-    rescue => e
-      Rails.logger.debug "**** ERROR **** \n#{e.message}\n#{e.inspect}"
-    end
-    # save_response_locally(response)
-    response
-  end
-
   def create_image_prompt
     new_prompt = specific_image_prompt(@prompt)
     response = openai_client.chat(parameters: { model: GTP_MODEL, messages: [{ role: "user", content: [{ type: "text", text: new_prompt }] }] })
@@ -214,40 +197,6 @@ class OpenAiClient
     response = create_completion
     Rails.logger.debug "*** ERROR *** Invaild Formatted Board Response: #{response}" unless response
     response[:content] if response
-  end
-
-  def clarify_image_description(image_description, restaurant_name)
-    Rails.logger.debug "Missing image description.\n" && return unless image_description
-    @model = GTP_5_MODEL
-    @messages = [{ role: "user", content: [{ type: "text",
-                                           text: "Please parse the following text from a restaurant menu from the
-                                                restaurant '#{restaurant_name}' to
-                                                form a clear list of the food and beverage options ONLY.
-                                                Create a short image description for each item based on the name and description.
-                                                The NAME of the food or beverage is the most important part. Ensure that the name is accurate.
-                                                The description is optional. If no description is provided, then try to create a description based on the name.
-                                                Respond as json. 
-                                                Here is an EXAMPLE RESPONSE: #{expected_json_schema}\n
-                                                This is the text to parse: #{strip_image_description(image_description)}\n\n" }] }]
-    response = create_chat
-    Rails.logger.debug "*** ERROR *** Invaild Image Description Response: #{response}" unless response
-    [response, @messages[0][:content][0][:text]]
-  end
-
-  def format_menu_description(menu_description)
-    @model = GTP_MODEL
-    @messages = [{ role: "user", content: [{ type: "text",
-                                           text: "Please parse the following description from a restaurant menu to
-                                                form a clear list of the food and beverage options ONLY.
-                                                Create a short image description for each item based on the name and description.
-                                                The NAME of the food or beverage is the most important part. Ensure that the name is accurate.
-                                                The description is optional. If no description is provided, then try to create a description based on the name.
-                                                Respond as json.
-                                                Here is an EXAMPLE RESPONSE: #{expected_json_schema}\n
-                                                This is the text to parse: #{strip_image_description(menu_description)}\n" }] }]
-    response = create_chat
-    Rails.logger.debug "*** ERROR *** Invaild Menu Description Response: #{response}" unless response
-    response
   end
 
   # def categorize_word(word)
@@ -645,40 +594,6 @@ class OpenAiClient
     response
   end
 
-  def strip_image_description(image_description)
-    Rails.logger.debug "Missing image description.\n" && return unless image_description
-    stripped_description = image_description.gsub(/[^a-z ]/i, "")
-    stripped_description
-  end
-
-  def expected_json_schema
-    {
-      "menu_items": [
-        {
-          "name": "Chicken Tenders",
-          "description": "Served with french fries and honey mustard sauce.",
-          "image_description": "Chicken tenders with french fries and honey mustard sauce.",
-        },
-        {
-          "name": "Cheeseburger",
-          "description": "Served with french fries.",
-          "image_description": "Cheeseburger with french fries.",
-        },
-        {
-          "name": "Milk",
-        },
-        {
-          "name": "Apple Juice",
-          "image_description": "Apple juice in a cup.",
-        },
-        {
-          "name": "Ice Cream",
-          "description": "Vanilla ice cream with chocolate sauce.",
-        },
-      ],
-    }
-  end
-
   def save_response_locally(response)
     Rails.logger.debug "*** ERROR *** Invaild Image Description Response: #{response}" unless response
     File.open("response.json", "w") { |f| f.write(response) }
@@ -727,9 +642,9 @@ class OpenAiClient
     opts = {
       model: @model, # Required.
       messages: @messages, # Required.
-    # temperature: 0.7,
-    # response_format: { type: "json_object" },
     }
+    opts[:response_format] = @opts[:response_format] if @opts[:response_format].present?
+    opts[:temperature] = @opts[:temperature] if @opts[:temperature].present?
     begin
       response = openai_client.chat(
         parameters: opts,

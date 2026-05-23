@@ -17,6 +17,19 @@ class TeamUser < ApplicationRecord
   belongs_to :team
 
   before_create :set_defaults
+  before_destroy :snapshot_shared_boards_to_family
+
+  # Safety net for the SLP→family hand-off (B6 — issue #162). When this
+  # membership is destroyed, copy any boards this user shared into the
+  # family's ownership so the communicator never loses access.
+  def snapshot_shared_boards_to_family
+    BoardSnapshotService.snapshot_for_removed_member(team: team, removed_user: user)
+  rescue => e
+    Rails.logger.error "[TeamUser##{id}] board snapshot on destroy failed: #{e.message}"
+    # Never block the membership removal — the family losing future
+    # access is worse than a missed snapshot, which can be re-run.
+    true
+  end
 
   def set_defaults
     self.role.blank? ? self.role = "member" : self.role
@@ -39,6 +52,13 @@ class TeamUser < ApplicationRecord
     { "admin" => "Admin", "member" => "Member" }
   end
 
+  # True if this user is the owner of any child_account on the team. Used
+  # by `API::TeamsController` to block removal / role-change of the owner
+  # by anyone other than themselves (issue #166).
+  def account_owner?
+    team.account_owner?(user)
+  end
+
   def api_view
     {
       id: id,
@@ -46,6 +66,7 @@ class TeamUser < ApplicationRecord
       name: name,
       role: role,
       can_edit: user.can_add_boards_to_account?(team.account_ids),
+      is_account_owner: account_owner?,
       invitation_accepted_at: invitation_accepted_at,
       user_id: user_id,
       team_id: team_id,

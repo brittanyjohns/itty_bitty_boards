@@ -21,7 +21,7 @@ RSpec.describe CreditService, type: :service do
 
   describe ".monthly_credits_for" do
     it "returns the configured allowance per plan" do
-      expect(described_class.monthly_credits_for("free")).to eq(10)
+      expect(described_class.monthly_credits_for("free")).to eq(5)
       expect(described_class.monthly_credits_for("basic")).to eq(400)
       expect(described_class.monthly_credits_for("basic_trial")).to eq(400)
       expect(described_class.monthly_credits_for("pro")).to eq(1500)
@@ -105,6 +105,46 @@ RSpec.describe CreditService, type: :service do
       user.reload
       expect(user.plan_credits_balance).to eq(200)
       expect(user.credit_transactions.where(kind: "expire", source: "plan").count).to eq(1)
+    end
+
+    context "period_end clamp (prevents same-day-expire bug, issue #110)" do
+      it "clamps a past period_end forward to MIN_GRANT_WINDOW" do
+        allow(Rails.logger).to receive(:warn)
+        described_class.grant_plan!(user, amount: 100, period_end: 1.day.ago)
+        user.reload
+        expect(user.plan_credits_reset_at).to be_within(5.seconds)
+          .of(Time.current + described_class::MIN_GRANT_WINDOW)
+        expect(user.credit_transactions.where(kind: "plan_grant").last.expires_at)
+          .to be_within(5.seconds).of(Time.current + described_class::MIN_GRANT_WINDOW)
+      end
+
+      it "clamps a Time.current period_end forward" do
+        allow(Rails.logger).to receive(:warn)
+        described_class.grant_plan!(user, amount: 100, period_end: Time.current)
+        user.reload
+        expect(user.plan_credits_reset_at).to be_within(5.seconds)
+          .of(Time.current + described_class::MIN_GRANT_WINDOW)
+      end
+
+      it "clamps a nil period_end forward" do
+        allow(Rails.logger).to receive(:warn)
+        described_class.grant_plan!(user, amount: 100, period_end: nil)
+        user.reload
+        expect(user.plan_credits_reset_at).to be_within(5.seconds)
+          .of(Time.current + described_class::MIN_GRANT_WINDOW)
+      end
+
+      it "leaves a future period_end untouched" do
+        future = 45.days.from_now
+        described_class.grant_plan!(user, amount: 100, period_end: future)
+        user.reload
+        expect(user.plan_credits_reset_at).to be_within(2.seconds).of(future)
+      end
+
+      it "logs a warning when clamping" do
+        expect(Rails.logger).to receive(:warn).with(/too soon; clamping/)
+        described_class.grant_plan!(user, amount: 100, period_end: 1.hour.ago)
+      end
     end
   end
 

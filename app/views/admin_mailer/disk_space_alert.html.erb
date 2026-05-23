@@ -1,0 +1,18 @@
+<div class="container">
+    <div class="header">
+        <p>Server disk space <%= @severity == :critical ? "CRITICAL" : "warning" %></p>
+    </div>
+    <div class="content">
+        <p>The SpeakAnyWay production server's root disk is at <strong><%= @usage %>%</strong>.</p>
+        <p>Host: <%= @host %></p>
+        <p>Severity: <%= @severity.to_s.upcase %></p>
+        <hr>
+        <p>
+          Free disk space before the next deploy. If the disk fills completely the
+          box can wedge; recovery is to grow the EBS volume and reboot the instance
+          (cloud-init auto-extends the filesystem on boot).
+        </p>
+        <hr>
+        <p>This is an automated alert from DiskSpaceAlertJob.</p>
+    </div>
+</div>

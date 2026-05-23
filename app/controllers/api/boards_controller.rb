@@ -1,9 +1,10 @@
 class API::BoardsController < API::ApplicationController
   skip_before_action :authenticate_token!, only: %i[ index predictive_image_board show public_boards public_menu_boards common_boards pdf ]
 
-  before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts show ]
+  before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts show make_editable ]
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
   before_action :check_board_create_permissions, only: %i[ create clone ]
+  before_action :check_board_editable!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image format_with_ai add_image associate_image associate_images remove_image generate_preview_image ]
 
   def index
     limit_param = params[:limit].presence&.to_i
@@ -244,7 +245,8 @@ class API::BoardsController < API::ApplicationController
       effective_voice,
     ]
 
-    return unless stale?(etag: etag, last_modified: last_modified, template: false)
+    # TEMP Disable caching for predictive image board to ensure users see updates to their board immediately - will re-enable once we have better cache invalidation in place for this endpoint
+    # return unless stale?(etag: etag, last_modified: last_modified, template: false)
 
     payload = RailsPerformance.measure("Predictive Image Board") do
       board.api_view_for_native_grid(current_user, false, effective_voice)
@@ -320,9 +322,9 @@ class API::BoardsController < API::ApplicationController
     # turns a missing param into 0, which suppresses Board#set_screen_sizes
     # defaults (which only fill in nil) and breaks downstream callers like
     # GenerateBoardJob's `large_screen_columns || 6` (0 is truthy in Ruby).
-    @board.small_screen_columns  = board_params["small_screen_columns"].to_i  if board_params["small_screen_columns"].present?
+    @board.small_screen_columns = board_params["small_screen_columns"].to_i if board_params["small_screen_columns"].present?
     @board.medium_screen_columns = board_params["medium_screen_columns"].to_i if board_params["medium_screen_columns"].present?
-    @board.large_screen_columns  = board_params["large_screen_columns"].to_i  if board_params["large_screen_columns"].present?
+    @board.large_screen_columns = board_params["large_screen_columns"].to_i if board_params["large_screen_columns"].present?
     voice = VoiceService.normalize_voice(board_params["voice"] || params[:voice] || params[:voice_label])
     @board.voice = voice
     @board.language = board_params["language"].presence || current_user.i18n_locale.to_s
@@ -376,9 +378,9 @@ class API::BoardsController < API::ApplicationController
       # Same guard as create: only assign columns when the param is actually
       # present so an omitted value doesn't silently overwrite saved columns
       # with 0.
-      @board.small_screen_columns  = board_params["small_screen_columns"].to_i  if board_params["small_screen_columns"].present?
+      @board.small_screen_columns = board_params["small_screen_columns"].to_i if board_params["small_screen_columns"].present?
       @board.medium_screen_columns = board_params["medium_screen_columns"].to_i if board_params["medium_screen_columns"].present?
-      @board.large_screen_columns  = board_params["large_screen_columns"].to_i  if board_params["large_screen_columns"].present?
+      @board.large_screen_columns = board_params["large_screen_columns"].to_i if board_params["large_screen_columns"].present?
       voice = VoiceService.normalize_voice(board_params["voice"] || params[:voice] || params[:voice_label])
       @board.voice = voice
       @board.name = board_params["name"] unless board_params["name"].blank?
@@ -407,6 +409,14 @@ class API::BoardsController < API::ApplicationController
       @board.parent_id = @board_user&.id || User::DEFAULT_ADMIN_ID
       new_board_settings = @board.settings.merge(settings)
       @board.settings = new_board_settings
+
+      # When the user opts into "display follows preview" we nil out the
+      # denormalized column so the override getter resolves to the live
+      # preview URL. Any incoming `display_image_url` param is ignored in
+      # this mode — the form may echo back the previous resolved value.
+      if @board.display_follows_preview?
+        @board.display_image_url = nil
+      end
       @board.set_text_color(board_params["text_color"]) if board_params["text_color"].present?
 
       word_list = params["word_list"] || []
@@ -702,14 +712,30 @@ class API::BoardsController < API::ApplicationController
       img_saved = @image.save!
     end
 
+    new_doc = nil
     if (image_params[:docs].present?)
-      doc = @image.docs.new(image_params[:docs])
-      doc.user = current_user
-      doc.processed = true
-      doc.save
+      owns_image = @image.user_id == current_user.id
+      # Only mutate the image's "current" doc flags if the current user owns
+      # the image. Otherwise we'd be flipping global display state on someone
+      # else's image (or a shared/admin image) just because this user uploaded
+      # their own variant.
+      @image.docs.where(current: true).update_all(current: false) if owns_image
+      new_doc = @image.docs.new(image_params[:docs])
+      new_doc.user = current_user
+      new_doc.processed = true
+      new_doc.current = true if owns_image
+      new_doc.save
     end
     if img_saved
-      @board.add_image(@image.id) if @board
+      board_image = @board.add_image(@image.id) if @board
+
+      # Surface the uploaded doc on this board, even when the user doesn't own
+      # the underlying image. Mirrors DocsController#mark_as_current, which
+      # also updates board_image.display_image_url per-board.
+      if new_doc&.persisted? && @board
+        board_image ||= @board.board_images.find_by(image_id: @image.id)
+        board_image&.update(display_image_url: new_doc.tile_url)
+      end
 
       screen_size = params[:screen_size] || "lg"
       # @board.calculate_grid_layout_for_screen_size(screen_size)
@@ -818,7 +844,7 @@ class API::BoardsController < API::ApplicationController
       end
       communicator_account_ids.each do |communicator_account_id|
         communicator_account = ChildAccount.find(communicator_account_id)
-        if communicator_account.is_demo?
+        if communicator_account.sandbox?
           board_count = communicator_account.child_boards.all.count
           demo_limit = (communicator_account.settings["demo_board_limit"] || ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT).to_i
           if board_count >= demo_limit
@@ -898,13 +924,59 @@ class API::BoardsController < API::ApplicationController
     render json: { status: "ok", message: "Preview image generation job started" }
   end
 
+  # Designate this board as the user's editable board. On a downgraded (free)
+  # plan, all other owned boards become read-only; this lets the user choose
+  # which one keeps full edit access. Subject to a cooldown
+  # (User::EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS) so a user can't rotate the
+  # slot to edit every board one at a time.
+  def make_editable
+    return if @board.nil?
+
+    unless @board.user_id == current_user.id
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+
+    # No-op when the user re-picks the board that's already designated. Skip
+    # the cooldown check so a confirm/double-tap doesn't accidentally start
+    # the clock either.
+    if current_user.editable_board_id == @board.id
+      fresh_user = User.find(current_user.id)
+      render json: { user: fresh_user.api_view, board: @board.api_view(fresh_user) }
+      return
+    end
+
+    if !current_user.admin? && current_user.editable_board_switch_cooldown_active?
+      render json: {
+        error: "editable_board_cooldown",
+        message: "You can switch your editable board again on #{current_user.editable_board_switch_available_at.to_date.iso8601}.",
+        available_at: current_user.editable_board_switch_available_at,
+        cooldown_days: User::EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS,
+      }, status: :forbidden
+      return
+    end
+
+    current_user.update!(
+      editable_board_id: @board.id,
+      editable_board_id_set_at: Time.current,
+    )
+    fresh_user = User.find(current_user.id)
+    render json: { user: fresh_user.api_view, board: @board.api_view(fresh_user) }
+  end
+
   def pdf
+    bw_requested = ActiveModel::Type::Boolean.new.cast(params[:bw])
+    qr_param = params[:qr]
+    qr_requested = qr_param.nil? ? true : ActiveModel::Type::Boolean.new.cast(qr_param)
+    @bw = bw_requested
+
     render_data = Boards::RenderAssetData.new(
       board: @board,
       screen_size: params[:screen_size] || "lg",
-      hide_colors: params[:hide_colors] == "1",
+      hide_colors: bw_requested || params[:hide_colors] == "1",
       hide_header: params[:hide_header] == "1",
       routes: Rails.application.routes.url_helpers,
+      include_qr: qr_requested,
     ).call
 
     render_data.each do |key, value|
@@ -934,7 +1006,8 @@ class API::BoardsController < API::ApplicationController
 
     file_data = Grover.new(html, **grover_options).to_pdf
 
-    unless @board.pdf_file.attached?
+    default_variant = !bw_requested && qr_requested
+    if default_variant && !@board.pdf_file.attached?
       @board.pdf_file.attach(
         io: StringIO.new(file_data),
         filename: "#{@board.slug}-board.pdf",
@@ -942,8 +1015,9 @@ class API::BoardsController < API::ApplicationController
       )
     end
 
+    filename_suffix = bw_requested ? "-bw" : ""
     send_data file_data,
-      filename: "#{@board.slug}-board.pdf",
+      filename: "#{@board.slug}-board#{filename_suffix}.pdf",
       type: "application/pdf",
       disposition: disp
   end
@@ -1088,6 +1162,23 @@ class API::BoardsController < API::ApplicationController
     end
   end
 
+  # Boards over a downgraded user's plan limit are read-only: still fully
+  # usable (view/tap/audio) but not editable. Blocks content-mutating actions
+  # on a locked board with HTTP 403 (402 is reserved for credit exhaustion).
+  def check_board_editable!
+    set_board if @board.nil?
+    return if @board.nil? # set_board already rendered 404
+
+    return if current_user&.board_editable?(@board)
+
+    render json: {
+      error: "board_locked",
+      message: "This board is read-only on your current plan. Upgrade, or make it your editable board, to make changes.",
+      board_limit: current_user.board_limit,
+      editable_board_id: current_user.effective_editable_board_id,
+    }, status: :forbidden
+  end
+
   def boards_for_user
     Board.for_user(current_user)
   end
@@ -1098,9 +1189,11 @@ class API::BoardsController < API::ApplicationController
 
   # Optional communicator-profile fields passed by the frontend's
   # "Who is this board for?" picker. Returns a plain hash so it stays
-  # JSON-serializable for Sidekiq job args. All fields are optional.
+  # JSON-serializable for Sidekiq job args (strict_args rejects
+  # HashWithIndifferentAccess, which is what `to_h` alone returns).
+  # All fields are optional.
   def communicator_profile_params
-    params.permit(:age, :age_band, :aac_level, :vocab_type).to_h
+    params.permit(:age, :age_band, :aac_level, :vocab_type).to_h.to_hash
   end
 
   # Only allow a list of trusted parameters through.

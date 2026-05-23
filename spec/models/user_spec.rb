@@ -127,11 +127,11 @@ RSpec.describe User, type: :model do
     # NOTE: User#set_soft_trial_plan (before_save) flips plan_type "free" → "basic_trial"
     # for any user inside their 14-day free trial window. To test the "free" path,
     # explicitly age the user past the trial window before the after_create grant.
-    it "grants the free allowance (10) when the user is post-trial (free)" do
+    it "grants the free allowance (5) when the user is post-trial (free)" do
       user = FactoryBot.build(:user, plan_type: "free", created_at: 30.days.ago)
       user.save!
       expect(user.plan_type).to eq("free")
-      expect(user.plan_credits_balance).to eq(10)
+      expect(user.plan_credits_balance).to eq(5)
     end
 
     it "grants the basic allowance (400) when plan_type is explicitly basic" do
@@ -270,6 +270,29 @@ RSpec.describe User, type: :model do
     it "falls back to :en for empty values" do
       set_voice_language("   ")
       expect(user.i18n_locale).to eq(:en)
+    end
+  end
+
+  context "admin views expose ai_credits" do
+    it "includes the credit balance in admin_api_view" do
+      user = FactoryBot.create(:user, plan_type: "pro")
+      credits = user.admin_api_view["ai_credits"]
+      expect(credits[:total]).to eq(1500)
+      expect(credits[:plan]).to eq(1500)
+      expect(credits[:topup]).to eq(0)
+    end
+
+    it "includes the credit balance in admin_index_view" do
+      user = FactoryBot.create(:user, plan_type: "pro")
+      expect(user.admin_index_view["ai_credits"][:total]).to eq(1500)
+    end
+
+    it "reflects topup credits in the total" do
+      user = FactoryBot.create(:user, plan_type: "free", created_at: 30.days.ago)
+      CreditService.grant_topup!(user, amount: 25)
+      credits = user.reload.admin_api_view["ai_credits"]
+      expect(credits[:topup]).to eq(25)
+      expect(credits[:total]).to eq(credits[:plan] + 25)
     end
   end
 end

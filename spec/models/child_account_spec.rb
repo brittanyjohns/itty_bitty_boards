@@ -58,6 +58,22 @@ RSpec.describe ChildAccount, type: :model do
     end
   end
 
+  describe "#favorite_boards" do
+    it "returns favorited boards for a Free-tier user (MySpeak quick-comm board is not plan-gated)" do
+      free_user = FactoryBot.create(:user)
+      free_user.update_column(:plan_type, "free") # new users get a soft Basic trial; force genuine Free
+      account   = FactoryBot.create(:child_account, user: free_user)
+      fav_board = FactoryBot.create(:board, user: free_user)
+      favorited = FactoryBot.create(:child_board, child_account: account, board: fav_board, favorite: true)
+      FactoryBot.create(:child_board, child_account: account,
+                                      board: FactoryBot.create(:board, user: free_user),
+                                      favorite: false)
+
+      expect(free_user.paid_plan?).to be(false)
+      expect(account.favorite_boards).to contain_exactly(favorited)
+    end
+  end
+
   describe "authentication_token" do
     it "is generated automatically on create" do
       account = FactoryBot.create(:child_account, user: user)

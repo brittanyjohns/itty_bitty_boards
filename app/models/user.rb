@@ -68,6 +68,7 @@ class User < ApplicationRecord
 
   # Associations
   belongs_to :organization, optional: true
+  belongs_to :editable_board, class_name: "Board", optional: true
   has_many :boards, -> { where(is_template: false) }, class_name: "Board", dependent: :destroy
   has_many :template_boards, -> { where(is_template: true) }, class_name: "Board", dependent: :destroy
   has_many :total_boards, class_name: "Board", dependent: :destroy
@@ -97,13 +98,36 @@ class User < ApplicationRecord
            foreign_key: "owner_id",
            dependent: :destroy
 
+  has_many :sandbox_communicator_accounts,
+           -> { where(status: ChildAccount::SANDBOX) },
+           class_name: "ChildAccount",
+           foreign_key: "owner_id"
+
+  has_many :loaner_communicator_accounts,
+           -> { where(status: ChildAccount::LOANER) },
+           class_name: "ChildAccount",
+           foreign_key: "owner_id"
+
+  has_many :active_communicator_accounts,
+           -> { where(status: ChildAccount::ACTIVE) },
+           class_name: "ChildAccount",
+           foreign_key: "owner_id"
+
+  # Owned loaner+active accounts — what counts against the slot limit.
+  has_many :slotted_communicator_accounts,
+           -> { where(status: [ChildAccount::LOANER, ChildAccount::ACTIVE]) },
+           class_name: "ChildAccount",
+           foreign_key: "owner_id"
+
+  # Legacy aliases kept during the frontend cutover (issue #157). They
+  # now resolve through status, not the legacy is_demo column.
   has_many :demo_communicator_accounts,
-           -> { where(is_demo: true) },
+           -> { where(status: ChildAccount::SANDBOX) },
            class_name: "ChildAccount",
            foreign_key: "owner_id"
 
   has_many :paid_communicator_accounts,
-           -> { where(is_demo: false) },
+           -> { where(status: [ChildAccount::LOANER, ChildAccount::ACTIVE]) },
            class_name: "ChildAccount",
            foreign_key: "owner_id"
 
@@ -182,8 +206,6 @@ class User < ApplicationRecord
     case plan_type
     when "free"
       setup_free_limits
-    when "myspeak", "myspeak_yearly"
-      setup_myspeak_limits
     when "basic", "basic_yearly", "basic_trial"
       setup_basic_limits
     when "pro", "pro_yearly"
@@ -212,19 +234,22 @@ class User < ApplicationRecord
     plan_type == "pro" ? 5 : 2
   end
 
+  # Communicator slot math after the loaner-lifecycle rework (issue #156):
+  #
+  #   paid_communicator_limit — total owned `loaner` + `active` slots.
+  #                             Free has 1 because they can host one
+  #                             *claimed* communicator (B4), even though
+  #                             they cannot self-create one.
+  #   demo_communicator_limit — sandbox (no-login, board-capped) slots.
+  #
+  # `Permissions::CommunicatorLimits.self_create_allowed?` gates whether a
+  # user may create a non-sandbox communicator themselves (paid plan only).
   FREE_PLAN_LIMITS = {
     "plan_type" => "free",
     "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 1).to_i,
-    "paid_communicator_limit" => ENV.fetch("FREE_PAID_COMMUNICATOR_LIMIT", 0).to_i,
-    "demo_communicator_limit" => ENV.fetch("FREE_DEMO_COMMUNICATOR_LIMIT", 0).to_i,
+    "paid_communicator_limit" => ENV.fetch("FREE_PAID_COMMUNICATOR_LIMIT", 1).to_i,
+    "demo_communicator_limit" => ENV.fetch("FREE_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
     "ai_monthly_limit" => ENV.fetch("FREE_AI_MONTHLY_LIMIT", 5).to_i,
-  }.freeze
-  MYSPEAK_PLAN_LIMITS = {
-    "plan_type" => "myspeak",
-    "board_limit" => ENV.fetch("MYSPEAK_BOARD_LIMIT", 3).to_i,
-    "paid_communicator_limit" => ENV.fetch("MYSPEAK_PAID_COMMUNICATOR_LIMIT", 0).to_i,
-    "demo_communicator_limit" => ENV.fetch("MYSPEAK_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
-    "ai_monthly_limit" => ENV.fetch("MYSPEAK_AI_MONTHLY_LIMIT", 20).to_i,
   }.freeze
   BASIC_PLAN_LIMITS = {
     "plan_type" => "basic",
@@ -237,7 +262,7 @@ class User < ApplicationRecord
     "plan_type" => "pro",
     "board_limit" => ENV.fetch("PRO_BOARD_LIMIT", 300).to_i,
     "paid_communicator_limit" => ENV.fetch("PRO_PAID_COMMUNICATOR_LIMIT", 3).to_i,
-    "demo_communicator_limit" => ENV.fetch("PRO_DEMO_COMMUNICATOR_LIMIT", 10).to_i,
+    "demo_communicator_limit" => ENV.fetch("PRO_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
     "ai_monthly_limit" => ENV.fetch("PRO_AI_MONTHLY_LIMIT", 300).to_i,
   }.freeze
 
@@ -263,14 +288,6 @@ class User < ApplicationRecord
     self.settings["demo_communicator_limit"] = BASIC_PLAN_LIMITS["demo_communicator_limit"]
     self.settings["board_limit"] = BASIC_PLAN_LIMITS["board_limit"]
     self.settings["ai_monthly_limit"] = BASIC_PLAN_LIMITS["ai_monthly_limit"]
-  end
-
-  def setup_myspeak_limits
-    self.settings ||= {}
-    self.settings["paid_communicator_limit"] = MYSPEAK_PLAN_LIMITS["paid_communicator_limit"]
-    self.settings["demo_communicator_limit"] = MYSPEAK_PLAN_LIMITS["demo_communicator_limit"]
-    self.settings["board_limit"] = MYSPEAK_PLAN_LIMITS["board_limit"]
-    self.settings["ai_monthly_limit"] = MYSPEAK_PLAN_LIMITS["ai_monthly_limit"]
   end
 
   def setup_free_limits
@@ -478,6 +495,10 @@ class User < ApplicationRecord
 
   def has_all_settings?
     all_required_settings.all? { |setting| settings[setting] }
+  end
+
+  def audit_logging_disabled?
+    settings.present? && settings["disable_audit_logging"] == true
   end
 
   def ensure_settings
@@ -758,12 +779,6 @@ class User < ApplicationRecord
     UserMailer.welcome_pro_email(self).deliver_now
   end
 
-  def send_welcome_email_myspeak(slug)
-    Rails.logger.info "Sending myspeak welcome email to #{email} with slug #{slug}"
-    slug ||= settings["slug"] || email.split("@").first
-    UserMailer.welcome_with_claim_link_email(self, slug).deliver_now
-  end
-
   def send_welcome_email(plan_nickname = nil, slug = nil)
     unless plan_nickname
       plan_nickname = settings["plan_nickname"] || plan_type
@@ -775,11 +790,6 @@ class User < ApplicationRecord
         send_welcome_email_basic
       elsif plan_nickname.include?("pro") || plan_nickname.include?("plus")
         send_welcome_email_pro
-      elsif plan_nickname.include?("myspeak")
-        if slug.nil?
-          slug = settings["slug"] || email.split("@").first
-        end
-        send_welcome_email_myspeak(slug)
       else
         Rails.logger.error "Unknown plan nickname: #{plan_nickname}, sending free welcome email"
         send_welcome_email_free
@@ -825,23 +835,11 @@ class User < ApplicationRecord
     end
   end
 
-  def send_myspeak_setup_email
-    Rails.logger.info "Sending myspeak setup email to #{email}"
-    begin
-      SetupMailer.myspeak_setup_email(self).deliver_now
-      Rails.logger.info "Myspeak setup email sent to #{email}"
-    rescue => e
-      Rails.logger.error("Error sending myspeak setup email: #{e.message}")
-    end
-  end
-
   def send_setup_email
     Rails.logger.info "Sending setup email to #{email}"
     begin
       if vendor?
         send_vendor_setup_email
-      elsif myspeak?
-        send_myspeak_setup_email
       elsif pro? || plus? || premium?
         send_pro_setup_email
       elsif free?
@@ -971,8 +969,10 @@ class User < ApplicationRecord
     plan_type.include? "free"
   end
 
-  def myspeak?
-    plan_type.include? "myspeak"
+  # True when the user has the MySpeak feature (i.e. a demo-communicator slot).
+  # MySpeak is a free feature now, so this is true for Free and Pro.
+  def has_myspeak_feature?
+    (settings&.dig("demo_communicator_limit") || 0).to_i > 0
   end
 
   def basic?
@@ -984,7 +984,7 @@ class User < ApplicationRecord
   end
 
   def paid_plan?
-    basic? || pro? || plus? || premium? || admin? || myspeak? || pro_vendor?
+    basic? || pro? || plus? || premium? || admin? || pro_vendor?
   end
 
   def professional?
@@ -1029,9 +1029,6 @@ class User < ApplicationRecord
     if settings["welcome_email_sent"] == true
       return false
     end
-    if plan_type == "myspeak"
-      return false
-    end
     true
   end
 
@@ -1073,6 +1070,7 @@ class User < ApplicationRecord
   def admin_index_view
     view = as_json
     view["board_count"] = boards.count
+    view["ai_credits"] = CreditService.balance(self)
     view["stripe_customer_id"] = stripe_customer_id
     view["trial_days_left"] = trial_days_left
     view["last_sign_in_at"] = time_ago_in_words(last_sign_in_at) if last_sign_in_at
@@ -1116,6 +1114,7 @@ class User < ApplicationRecord
     view["current_sign_in_ip"] = current_sign_in_ip
     view["sign_in_count"] = sign_in_count
     view["tokens"] = tokens
+    view["ai_credits"] = CreditService.balance(self)
     view["phrase_board_id"] = settings["phrase_board_id"]
     view["opening_board_id"] = settings["opening_board_id"]
     view["has_dynamic_default"] = opening_board.present?
@@ -1180,9 +1179,11 @@ class User < ApplicationRecord
     myspeak_slug ||= settings["slug"] || email.split("@").first
     myspeak_name ||= display_name
     Rails.logger.info "Handling MySpeak setup for user #{email} with slug #{myspeak_slug} and name #{myspeak_name}"
-    @child_account = ChildAccount.new(username: myspeak_slug, name: myspeak_name)
-    # Type + ownership
-    @child_account.is_demo = true
+    @child_account = ChildAccount.new(username: myspeak_slug, name: myspeak_name, status: ChildAccount::SANDBOX)
+    if free?
+      @child_account.settings ||= {}
+      @child_account.settings["demo_board_limit"] = ChildAccount::FREE_DEMO_BOARD_LIMIT
+    end
     @child_account.owner = self
     @child_account.user = self if @child_account.respond_to?(:user=) # legacy (optional)
 
@@ -1224,6 +1225,78 @@ class User < ApplicationRecord
     board_count < board_limit
   end
 
+  # Count of the user's own (non-predefined) boards. Memoized because board
+  # list serialization calls board_editable? once per board.
+  def owned_board_count
+    @owned_board_count ||= boards.where(predefined: false).count
+  end
+
+  # The single board a limited-plan user keeps full edit access to. Returns
+  # the board they designated; if that's missing, falls back to a favorite or
+  # most-recently-updated owned board so a freshly-downgraded user is never
+  # locked out of everything before they pick one.
+  def effective_editable_board_id
+    return @effective_editable_board_id if defined?(@effective_editable_board_id)
+
+    @effective_editable_board_id =
+      if editable_board_id && boards.exists?(id: editable_board_id)
+        editable_board_id
+      else
+        boards.where(predefined: false)
+              .order(favorite: :desc, updated_at: :desc)
+              .limit(1)
+              .pick(:id)
+      end
+  end
+
+  # Pin a default editable board after a downgrade so the user has a working
+  # edit slot immediately. Idempotent — only writes when editable_board_id
+  # is blank, and only if effective_editable_board_id resolves to a board.
+  # Called from both downgrade paths: apply_free_plan (Stripe cancel/pause)
+  # and DowngradeSoftTrialJob (soft-trial expiry).
+  #
+  # Deliberately does NOT set editable_board_id_set_at — the initial default
+  # is the system's pick, not the user's. The user's first explicit
+  # make_editable call starts the cooldown clock.
+  def pin_default_editable_board!
+    return unless editable_board_id.blank?
+    default_id = effective_editable_board_id
+    return if default_id.blank?
+    update_column(:editable_board_id, default_id)
+  end
+
+  # How long a user must wait between editable-board switches. Closes the
+  # loophole where a free user could rotate the editable slot to edit every
+  # board one at a time. Configurable for support / experimentation.
+  EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS =
+    ENV.fetch("EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS", 14).to_i
+
+  # When the next make_editable call is permitted. Nil if no prior explicit
+  # pick (so the user can pick immediately) or if the cooldown has passed.
+  def editable_board_switch_available_at
+    return nil if editable_board_id_set_at.blank?
+    available = editable_board_id_set_at + EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS.days
+    available > Time.current ? available : nil
+  end
+
+  def editable_board_switch_cooldown_active?
+    editable_board_switch_available_at.present?
+  end
+
+  # Whether this user may edit the given board's content. Free users over
+  # their board limit can edit only their one designated board; everything
+  # else they own becomes read-only (still fully usable — view/tap/audio).
+  # Assumes FREE_BOARD_LIMIT == 1; if that ENV is raised this under-grants
+  # and the single editable_board_id needs to become a per-board flag.
+  def board_editable?(board)
+    return true if admin?
+    return true if board.nil? || board.user_id != id
+    return true if paid_plan?
+    return true if owned_board_count <= board_limit
+
+    board.id == effective_editable_board_id
+  end
+
   def public_page_url
     profile&.public_url
   end
@@ -1246,6 +1319,14 @@ class User < ApplicationRecord
 
     paid_comm_count = paid_communicator_accounts.length
     demo_comm_count = demo_communicator_accounts.length
+
+    # ---- Status-aware counts (loaner-lifecycle, issue #156) ----
+    # Single query, grouped by status, so we don't fire one query per
+    # association. Used by the dashboard slot counter + LoanerControls.
+    status_counts = communicator_accounts.group(:status).count
+    sandbox_count = status_counts.fetch(ChildAccount::SANDBOX, 0)
+    loaner_count  = status_counts.fetch(ChildAccount::LOANER, 0)
+    active_count  = status_counts.fetch(ChildAccount::ACTIVE, 0)
 
     # ---- Derived limits ----
     paid_comm_limit_total = comm_limit
@@ -1272,6 +1353,9 @@ class User < ApplicationRecord
       board_count: board_count,
       board_limit_reached: board_count >= board_limit,
       can_create_boards: can_create_boards,
+      editable_board_id: effective_editable_board_id,
+      editable_board_switch_available_at: editable_board_switch_available_at,
+      editable_board_switch_cooldown_days: EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS,
 
       # AI
       can_use_ai: can_use_ai?,
@@ -1290,7 +1374,7 @@ class User < ApplicationRecord
       plus: plus?,
       premium: premium?,
       paid_plan: paid_plan?,
-      myspeak: myspeak?,
+      myspeak: has_myspeak_feature?,
       professional: professional?,
       basic_vendor: vendor? && basic?,
       vendor: vendor?,
@@ -1311,6 +1395,14 @@ class User < ApplicationRecord
       demo_comm_account_limit: demo_limit,
       demo_comm_account_limit_reached: demo_comm_account_limit_reached,
       demo_communicator_count: demo_comm_count,
+
+      # Lifecycle counts (loaner-lifecycle, issue #156). Active+loaner
+      # together count against comm_account_limit. Free hosts one
+      # claimed; claimed_communicator_count = active for Free users.
+      sandbox_communicator_count: sandbox_count,
+      loaner_communicator_count: loaner_count,
+      active_communicator_count: active_count,
+      claimed_communicator_count: active_count,
 
       # Other settings-driven limits
       supervisor_limit: settings["supervisor_limit"] || 0,

@@ -214,19 +214,12 @@ class Board < ApplicationRecord
   end
 
   def generate_preview(generate_png: false, generate_pdf: false, hide_header: true, screen_size: "lg")
-    original_preview_image_url = preview_image_url
     Boards::GeneratePreviewAssets.new(
       board: self,
       screen_size: screen_size,
       hide_header: hide_header,
       routes: Rails.application.routes.url_helpers,
     ).call(generate_png: generate_png, generate_pdf: generate_pdf)
-    if generate_png
-      if self.preview_image.attached? && (display_image_url.blank? || display_image_url == original_preview_image_url)
-        preview_image_url = self.preview_image_url
-        update_column(:display_image_url, preview_image_url)
-      end
-    end
   end
 
   def generate_previews
@@ -234,12 +227,35 @@ class Board < ApplicationRecord
     # generate_preview(generate_pdf: true) # PDF with header for sharing
   end
 
+  # When `settings["display_follows_preview"]` is true, the board's
+  # display image should track the live preview rather than a frozen
+  # snapshot URL. Persisting *intent* sidesteps the stale `?v=` problem
+  # that arises when callers store a previous `preview_image_url` string.
+  def display_follows_preview?
+    return false unless settings.is_a?(Hash)
+    ActiveModel::Type::Boolean.new.cast(settings["display_follows_preview"]) == true
+  end
+
+  # Override the AR-generated getter so reads (including serializers) see
+  # the live preview URL when the user has opted into "follow preview".
+  # The setter is untouched — writes still go straight to the column.
+  def display_image_url
+    if display_follows_preview? && preview_image.attached?
+      return preview_image_url
+    end
+    read_attribute(:display_image_url)
+  end
+
   def preview_image_url
     return if !preview_image.attached?
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
       cdn_host = ENV["CDN_HOST"]
       if cdn_host
-        "#{cdn_host}/#{preview_image.key}" # Construct CloudFront URL
+        # Key is deterministic (board_previews/<id>/preview.png) so the URL is
+        # stable. Append `?v=<blob.created_at>` so clients and CloudFront pick
+        # up the new PNG on regeneration — the service purges + reuploads, so
+        # each regen mints a fresh blob row.
+        "#{cdn_host}/#{preview_image.key}?v=#{preview_image.blob.created_at.to_i}"
       else
         preview_image.url # Fallback to the direct Active Storage URL
       end
@@ -914,6 +930,7 @@ class Board < ApplicationRecord
 
     language_settings = @image.language_settings || {}
     language_settings[self.language] = { "display_label" => @image.label, "label" => @image.label }
+    self.voice = VoiceService.normalize_voice(self.voice)
     new_board_image = board_images.new(image_id: image_id.to_i, voice: self.voice, position: board_images_count, language: self.language)
     new_board_image.set_labels
     new_board_image.part_of_speech = @image.part_of_speech || "default"
@@ -937,18 +954,10 @@ class Board < ApplicationRecord
       Rails.logger.error "Image not found: #{image_id}"
       return
     end
-    self.voice = VoiceService.normalize_voice(self.voice)
 
-    if @image.existing_voices.include?(self.voice)
-      new_board_image.voice = self.voice
-    else
-      # @image.find_or_create_audio_file_for_voice(self.voice)
-      unless generated?
-        board_image_id = new_board_image.id
-        SaveAudioJob.perform_async([image_id], self.voice, board_image_id)
-      end
-    end
-
+    # Audio generation is enqueued by BoardImage's after_create callback
+    # (create_voice_audio_after_create). Don't enqueue SaveAudioJob a second
+    # time here.
     new_board_image.src = @image.display_image_url(self.user)
 
     unless new_board_image.save
@@ -980,6 +989,16 @@ class Board < ApplicationRecord
     @layouts = @board_images.pluck(:image_id, :layout)
 
     @cloned_board = @source.dup
+    # A clone gets its own freshly-generated preview (enqueued below via
+    # run_generate_preview_job). `dup` copies the source's
+    # display_image_url column verbatim — for boards that follow their
+    # preview that string points at the *source's* image, so the clone
+    # would render the wrong board. Default every clone to "follow my
+    # own preview" and drop the inherited snapshot.
+    @cloned_board.write_attribute(:display_image_url, nil)
+    @cloned_board.settings = (@cloned_board.settings || {}).merge(
+      "display_follows_preview" => true,
+    )
     @cloned_board.user_id = cloned_user_id
     @cloned_board.name = new_name
     @cloned_board.predefined = false
@@ -1263,9 +1282,9 @@ class Board < ApplicationRecord
       end
     end
 
-    self.small_screen_columns  = columns[:small_screen_columns].to_i  if columns[:small_screen_columns].present?
+    self.small_screen_columns = columns[:small_screen_columns].to_i if columns[:small_screen_columns].present?
     self.medium_screen_columns = columns[:medium_screen_columns].to_i if columns[:medium_screen_columns].present?
-    self.large_screen_columns  = columns[:large_screen_columns].to_i  if columns[:large_screen_columns].present?
+    self.large_screen_columns = columns[:large_screen_columns].to_i if columns[:large_screen_columns].present?
 
     if margins[:x].present? && margins[:y].present?
       self.margin_settings[screen_size] = { x: margins[:x].to_i, y: margins[:y].to_i }
@@ -1303,13 +1322,24 @@ class Board < ApplicationRecord
     (screen_dimension / num_of_columns).to_i
   end
 
+  # Format the board's layout using AI for word ordering + tile sizing, then
+  # deterministically pack tiles in Ruby so we never persist overlapping or
+  # gap-ridden layouts. Writes per-board_image layouts (primary source of
+  # truth for ViewBoard / EditBoardScreen via DraggableGrid) AND the board's
+  # aggregate layout (source of truth for BoardNativeGridPage) for all three
+  # screen sizes in one pass.
+  #
+  # screen_size is accepted for back-compat with callers but no longer affects
+  # behavior — all three screens are always written.
   def format_board_with_ai(screen_size: "lg", maintain_existing_layout: false)
-    columns = get_number_of_columns(screen_size)
     images = board_images.includes(:image).to_a
-    rows = (images.size / columns.to_f).ceil
+    return self if images.empty?
+
+    lg_columns = get_number_of_columns("lg")
+    rows_hint = (images.size / lg_columns.to_f).ceil
 
     existing = images.map do |bi|
-      layout = (bi.layout || {}).dig(screen_size) || {}
+      layout = (bi.layout || {}).dig("lg") || {}
       {
         word: bi.label,
         size: [layout["w"], layout["h"]].compact.presence || [1, 1],
@@ -1319,60 +1349,148 @@ class Board < ApplicationRecord
 
     payload = AiBoardFormatter.call(
       name: name,
-      columns: columns,
-      rows: rows,
+      columns: lg_columns,
+      rows: rows_hint,
       existing: existing,
       maintain_existing: maintain_existing_layout,
     )
 
     return self if payload.blank?
 
-    grid = payload["grid"].to_a
+    ordered = Array(payload["ordered_words"])
     by_label = images.index_by { |bi| bi.label.to_s.downcase }
 
+    # Build ordered (board_image, w, h, meta) tuples from the AI output.
+    ordered_items = []
+    seen_ids = Set.new
+    ordered.each do |item|
+      label = item["word"].to_s
+      bi = by_label[label.downcase]
+      next if bi.nil? || seen_ids.include?(bi.id)
+      seen_ids << bi.id
+
+      size = Array(item["size"])
+      w = size[0].to_i
+      h = size[1].to_i
+      w = 1 if w < 1
+      h = 1 if h < 1
+
+      ordered_items << {
+        board_image: bi,
+        w: w,
+        h: h,
+        frequency: item["frequency"],
+        part_of_speech: item["part_of_speech"],
+      }
+    end
+
+    # Append any board_images the AI dropped so we never lose tiles.
+    images.each do |bi|
+      next if seen_ids.include?(bi.id)
+      ordered_items << { board_image: bi, w: 1, h: 1, frequency: nil, part_of_speech: nil }
+    end
+
+    # Pack a layout per screen size using the same ordering.
+    packed_by_screen = {}
+    SCREEN_SIZES_FOR_AI_LAYOUT.each do |screen|
+      columns = get_number_of_columns(screen)
+      packed_by_screen[screen] = pack_layout_row_major(ordered_items, columns: columns)
+    end
+
     ActiveRecord::Base.transaction do
-      grid.each_with_index do |item, idx|
-        label = item["word"].to_s
-        bi = by_label[label.downcase]
-        next unless bi
+      ordered_items.each_with_index do |item, idx|
+        bi = item[:board_image]
 
-        pos = Array(item["position"] || [0, 0])
-        size = Array(item["size"] || [1, 1])
-        x = pos[0].to_i.clamp(0, columns - 1)
-        y = pos[1].to_i.clamp(0, [rows - 1, 0].max)
+        bi.data ||= {}
+        bi.data["label"] = bi.label.to_s
+        bi.data["part_of_speech"] = item[:part_of_speech] if item[:part_of_speech].present?
+        bi.data["bg_color"] = bi.background_color_for(item[:part_of_speech]) if item[:part_of_speech].present?
 
-        bi.data["label"] = label
-        bi.data[screen_size] ||= {}
-        bi.data[screen_size]["frequency"] = item["frequency"]
-        bi.data[screen_size]["size"] = size
-        bi.data["part_of_speech"] = item["part_of_speech"]
-        bi.data["bg_color"] = bi.background_color_for(item["part_of_speech"])
+        bi.layout ||= {}
+        SCREEN_SIZES_FOR_AI_LAYOUT.each do |screen|
+          cell = packed_by_screen[screen][idx]
+          bi.data[screen] ||= {}
+          bi.data[screen]["frequency"] = item[:frequency] if item[:frequency].present?
+          bi.data[screen]["size"] = [cell["w"], cell["h"]]
+          bi.layout[screen] = cell
+        end
 
         bi.position = idx
-        bi.layout ||= {}
-        bi.layout[screen_size] = { "x" => x, "y" => y, "w" => size[0], "h" => size[1], "i" => bi.id.to_s }
+        bi.skip_create_voice_audio = true if bi.respond_to?(:skip_create_voice_audio=)
         bi.save!
+        bi.clean_up_layout
 
-        if item["part_of_speech"].present? && bi.image.part_of_speech.blank?
-          bi.image.update!(part_of_speech: item["part_of_speech"])
+        if item[:part_of_speech].present? && bi.image && bi.image.part_of_speech.blank?
+          bi.image.update!(part_of_speech: item[:part_of_speech])
         end
       end
 
-      # optional explanations
+      # Mirror per-image layout up to board.layout for each screen so
+      # BoardNativeGridPage (which reads board.layout) stays in lockstep.
+      self.layout ||= {}
+      SCREEN_SIZES_FOR_AI_LAYOUT.each do |screen|
+        self.layout[screen] = packed_by_screen[screen]
+      end
+
       personable = payload["personable_explanation"].presence
       professional = payload["professional_explanation"].presence
 
-      if personable || professional
-        self.data["personable_explanation"] = "#{personable}" if personable
-        self.data["professional_explanation"] = "#{professional}" if professional
-        self.description = [self.data["personable_explanation"], self.data["professional_explanation"]].compact.join("\n") if description.blank?
-        save!
+      self.data ||= {}
+      self.data["personable_explanation"] = personable if personable
+      self.data["professional_explanation"] = professional if professional
+      if (personable || professional) && description.blank?
+        self.description = [self.data["personable_explanation"], self.data["professional_explanation"]].compact.join("\n")
       end
-      reset_layouts if maintain_existing_layout == false
+
+      save!
+      board_images.reset
     end
 
     self
   end
+
+  SCREEN_SIZES_FOR_AI_LAYOUT = %w[sm md lg].freeze
+  private_constant :SCREEN_SIZES_FOR_AI_LAYOUT
+
+  # Row-major packer with occupancy tracking. Walks ordered items, places
+  # each tile at the first free top-left cell that fits its w×h footprint
+  # without overlap. Clamps w to the column count and h to 2 (frontend assumes
+  # short tiles).
+  #
+  # ordered_items: array of { board_image:, w:, h:, ... }
+  # returns: array of { "i", "x", "y", "w", "h" } in the same order as input.
+  def pack_layout_row_major(ordered_items, columns:)
+    columns = columns.to_i
+    columns = 1 if columns < 1
+    occupied = Set.new
+    out = []
+
+    ordered_items.each do |item|
+      w = item[:w].to_i.clamp(1, columns)
+      h = item[:h].to_i.clamp(1, 2)
+
+      placed = false
+      y = 0
+      until placed
+        (0..(columns - w)).each do |x|
+          cells = []
+          w.times do |dx|
+            h.times { |dy| cells << [x + dx, y + dy] }
+          end
+          if cells.none? { |c| occupied.include?(c) }
+            cells.each { |c| occupied << c }
+            out << { "i" => item[:board_image].id.to_s, "x" => x, "y" => y, "w" => w, "h" => h }
+            placed = true
+            break
+          end
+        end
+        y += 1 unless placed
+      end
+    end
+
+    out
+  end
+  private :pack_layout_row_major
 
   def tmp_board_type
     case resource_type
@@ -1475,6 +1593,7 @@ class Board < ApplicationRecord
       created_at: created_at,
       updated_at: updated_at,
       settings: settings,
+      published: published,
       has_generating_images: has_generating_images?,
       number_of_columns: number_of_columns,
       small_screen_columns: small_screen_columns,
@@ -1568,7 +1687,6 @@ class Board < ApplicationRecord
           border_width: @board_image.border_width,
           border_radius: @board_image.border_radius,
           next_words: @board_image.next_words,
-          position: @board_image.position,
           src_url: @full_src_url,
           mute_name: mute_name,
           hide_label: @board_image.hide_label,
@@ -1581,7 +1699,6 @@ class Board < ApplicationRecord
           layout: @board_image.layout.with_indifferent_access,
           added_at: @board_image.added_at,
           part_of_speech: @image.part_of_speech,
-          data: @board_image.data,
           status: @board_image.status,
         }
       end,
@@ -1622,6 +1739,9 @@ class Board < ApplicationRecord
       #  For future implementation - can add more granular permissions for communicators
       can_edit = current_account.settings["can_edit_boards"] == true
     end
+    # Plan gating: a free user over their board limit can edit only their one
+    # designated board (User#board_editable?). Non-User viewers untouched.
+    can_edit &&= viewing_user.board_editable?(self) if can_edit && viewing_user.is_a?(User)
     {
       id: id,
       board_type: board_type,
@@ -1658,6 +1778,8 @@ class Board < ApplicationRecord
       description: description,
       featured: featured,
       can_edit: can_edit,
+      locked: locked_for?(viewing_user),
+      lock_reason: locked_for?(viewing_user) ? "free_plan_board_limit" : nil,
       category: category,
       parent_type: parent_type,
       parent_id: parent_id,
@@ -1775,7 +1897,6 @@ class Board < ApplicationRecord
           hide_label: @board_image.hide_label,
           text_color: @board_image.text_color,
           next_words: @board_image.next_words,
-          position: @board_image.position,
           src_url: @full_src_url,
           mute_name: mute_name,
           src: @full_src_url,
@@ -1787,7 +1908,6 @@ class Board < ApplicationRecord
           layout: @board_image.layout.with_indifferent_access,
           added_at: @board_image.added_at,
           part_of_speech: @image.part_of_speech,
-          data: @board_image.data,
           status: @board_image.status,
         }
       end,
@@ -1937,7 +2057,9 @@ class Board < ApplicationRecord
       slug: slug,
       name: name,
       word_list: current_word_list,
-      can_edit: viewing_user && (user_id == viewing_user.id || viewing_user.admin?),
+      can_edit: can_edit_for(viewing_user),
+      locked: locked_for?(viewing_user),
+      lock_reason: locked_for?(viewing_user) ? "free_plan_board_limit" : nil,
       is_template: is_template,
       display_image_url: display_image_url,
       preview_image_url: preview_image_url,
@@ -1953,8 +2075,34 @@ class Board < ApplicationRecord
     end
   end
 
+  # Whether viewing_user may edit this board's content. Owner/admin gate plus
+  # the plan-based read-only rule (User#board_editable?). Non-User viewers
+  # (e.g. ChildAccount) are not plan-gated here.
+  def can_edit_for(viewing_user)
+    return false unless viewing_user
+    return false unless user_id == viewing_user.id || viewing_user.try(:admin?)
+    return true unless viewing_user.is_a?(User)
+
+    viewing_user.board_editable?(self)
+  end
+
+  # True ONLY when this board is read-only for viewing_user because of the
+  # plan-based gate (User#board_editable?). False for non-owners, admins,
+  # paid users, ChildAccount viewers (their can_edit comes from a different
+  # permission, not a lock), and any case where the user could edit.
+  # This is what the frontend uses to show the "Read-only — make this my
+  # editable board" banner.
+  def locked_for?(viewing_user)
+    return false unless viewing_user.is_a?(User)
+    return false unless user_id == viewing_user.id
+    return false if viewing_user.admin?
+
+    !viewing_user.board_editable?(self)
+  end
+
   def api_view(viewing_user = nil)
-    can_edit = viewing_user && (user_id == viewing_user.id || viewing_user.admin?)
+    can_edit = can_edit_for(viewing_user)
+    locked = locked_for?(viewing_user)
 
     @in_a_public_group = false
     @display_image_url = display_image_url
@@ -1980,6 +2128,8 @@ class Board < ApplicationRecord
       in_use_by: in_use_by,
       communicator_account_data: in_use ? @original_child_boards&.map { |cb| { acct_id: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url } } : nil,
       can_edit: can_edit,
+      locked: locked,
+      lock_reason: locked ? "free_plan_board_limit" : nil,
       layout: layout,
       audio_url: audio_url,
       group_layout: group_layout,
@@ -1995,7 +2145,6 @@ class Board < ApplicationRecord
       small_screen_rows: rows_for_screen_size("sm"),
       personable_explanation: personable_explanation,
       professional_explanation: professional_explanation,
-      published: published,
       description: description,
       parent_type: parent_type,
       predefined: predefined,
@@ -2034,7 +2183,9 @@ class Board < ApplicationRecord
       bg_color: bg_color,
       text_color: text_color,
       # image_count: board_images_count,
-      can_edit: user_id == viewing_user&.id || viewing_user&.admin?,
+      can_edit: can_edit_for(viewing_user),
+      locked: locked_for?(viewing_user),
+      lock_reason: locked_for?(viewing_user) ? "free_plan_board_limit" : nil,
       display_image_url: display_image_url,
       preview_image_url: preview_image_url,
       word_sample: word_sample,

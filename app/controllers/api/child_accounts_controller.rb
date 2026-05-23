@@ -1,5 +1,8 @@
 class API::ChildAccountsController < API::ApplicationController
-  before_action :set_child_account, only: %i[ show update destroy ]
+  before_action :set_child_account, only: %i[ show update destroy promote_to_loaner lend claim_link send_claim_link end_loan archive unarchive ]
+  # Claim preview is the parent's "this is what you're about to claim"
+  # page — they may not be signed in yet, so it runs token-only.
+  skip_before_action :authenticate_token!, only: %i[ claim_preview ]
 
   # GET /child_accounts
   # GET /child_accounts.json
@@ -24,50 +27,317 @@ class API::ChildAccountsController < API::ApplicationController
     render json: { success: true }
   end
 
-  # POST /child_accounts
-  def create
-    is_demo = params[:is_demo] ? ActiveModel::Type::Boolean.new.cast(params[:is_demo]) : false
+  # POST /api/child_accounts/:id/promote_to_loaner
+  # Promotes a sandbox communicator to a loaner: provisions a passcode
+  # (caller may supply one), lifts the sandbox board cap, and starts
+  # counting against the owner's slot. The owner must be authorized to
+  # add a loaner slot (B2 limits).
+  def promote_to_loaner
+    unless @child_account.owner_id == current_user.id || current_user.admin?
+      render json: account_error_payload("Unauthorized"), status: :unauthorized
+      return
+    end
 
-    allowed, status, error = Permissions::CommunicatorLimits.can_create?(
-      user: current_user,
-      is_demo: is_demo,
+    unless @child_account.sandbox?
+      render json: account_error_payload("Only sandbox communicators can be promoted to loaner"), status: :unprocessable_entity
+      return
+    end
+
+    allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
+      user: @child_account.owner,
+      status: ChildAccount::LOANER,
     )
 
     unless allowed
-      render json: { error: error }, status: status
+      render json: account_error_payload(error), status: http_status
+      return
+    end
+
+    begin
+      @child_account.promote_to_loaner!(passcode: params[:passcode])
+      render json: @child_account.api_view(current_user), status: :ok
+    rescue ActiveRecord::RecordInvalid => e
+      render json: account_error_payload(e.record.errors.full_messages.join(", ")), status: :unprocessable_entity
+    end
+  end
+
+  # POST /api/child_accounts/:id/lend
+  # SLP-facing "Lend to a family" action. Promotes the sandbox to loaner
+  # (provisioning a passcode) and issues the claim token in one round
+  # trip so the frontend immediately sees `claim_url` on the returned
+  # account. Idempotent on a loaner — just rotates the claim token.
+  #
+  # Error responses always include the current account view so the
+  # frontend's "replace state with response" pattern doesn't blow away
+  # the status field and flip the UI into a misleading state.
+  def lend
+    # Ownership guard. By the time we pass this, the caller IS the
+    # current owner — which means a `status: active` here is a
+    # self-created active (not a family-claimed one). #164 lets the
+    # SLP lend it out (passcode gets rotated in promote_to_loaner!).
+    unless @child_account.owner_id == current_user.id || current_user.admin?
+      if @child_account.active?
+        render json: account_error_payload("This communicator is owned by someone else and can't be lent."),
+               status: :unprocessable_entity
+      else
+        render json: account_error_payload("Unauthorized"), status: :unauthorized
+      end
+      return
+    end
+
+    # Slot check — only meaningful when the account isn't already in
+    # the slot pool (sandbox). Loaners already count; active → loaner
+    # is a net-zero change to the slot count.
+    if @child_account.sandbox?
+      allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
+        user: @child_account.owner,
+        status: ChildAccount::LOANER,
+      )
+      unless allowed
+        Rails.logger.warn(
+          "[lend] denied for user=#{@child_account.owner_id} child_account=#{@child_account.id} " \
+          "plan_type=#{@child_account.owner&.plan_type.inspect} " \
+          "paid_limit=#{@child_account.owner&.settings&.dig("paid_communicator_limit").inspect} " \
+          "owned_slots=#{@child_account.owner ? Permissions::CommunicatorLimits.owned_slot_count(@child_account.owner) : "?"} " \
+          "reason=#{error}"
+        )
+        render json: account_error_payload(error), status: http_status
+        return
+      end
+    end
+
+    begin
+      @child_account.promote_to_loaner!(passcode: params[:passcode]) unless @child_account.loaner?
+      @child_account.generate_claim_token!
+      render json: @child_account.api_view(current_user), status: :ok
+    rescue ActiveRecord::RecordInvalid => e
+      Rails.logger.warn "[lend] validation failed for child_account=#{@child_account.id}: #{e.record.errors.full_messages.join(", ")}"
+      render json: account_error_payload(e.record.errors.full_messages.join(", ")), status: :unprocessable_entity
+    end
+  end
+
+  # POST /api/child_accounts/:id/claim_link
+  # SLP-only. Generates (or rotates) the claim token a parent uses to
+  # take ownership of this loaner. Returns the URL the SLP shares.
+  def claim_link
+    unless @child_account.owner_id == current_user.id || current_user.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+
+    unless @child_account.loaner?
+      render json: { error: "Only loaners can issue a claim link" }, status: :unprocessable_entity
+      return
+    end
+
+    @child_account.generate_claim_token!
+    render json: {
+      claim_token: @child_account.claim_token,
+      claim_url: @child_account.claim_link_url,
+      claim_token_sent_at: @child_account.claim_token_sent_at,
+    }, status: :ok
+  end
+
+  # POST /api/child_accounts/:id/send_claim_link
+  # Generates (or rotates) the claim token and emails it to the parent.
+  # Owner-only. Body: { email: "parent@example.com" }.
+  def send_claim_link
+    unless @child_account.owner_id == current_user.id || current_user.admin?
+      render json: account_error_payload("Unauthorized"), status: :unauthorized
+      return
+    end
+
+    unless @child_account.loaner?
+      render json: account_error_payload("Only loaners can issue a claim link"), status: :unprocessable_entity
+      return
+    end
+
+    email = params[:email].to_s.strip
+    if email.blank? || !email.include?("@")
+      render json: account_error_payload("A valid email is required"), status: :unprocessable_entity
+      return
+    end
+
+    @child_account.generate_claim_token! if @child_account.claim_token.blank?
+
+    begin
+      CommunicationAccountMailer.claim_link_email(@child_account, email, current_user).deliver_later
+    rescue => e
+      Rails.logger.error "[send_claim_link] mailer failed for child_account=#{@child_account.id}: #{e.message}"
+      render json: account_error_payload("Couldn't send the email. Please try again."), status: :service_unavailable
+      return
+    end
+
+    render json: { ok: true, claim_url: @child_account.claim_link_url, sent_to: email }, status: :ok
+  end
+
+  # GET /api/communicator_claims/:token
+  # Public preview shown on the parent's claim page before they sign in.
+  # Returns a stable shape so the frontend can render expired/claimed
+  # states without a separate request.
+  def claim_preview
+    account = ChildAccount.find_by(claim_token: params[:token])
+    if account.nil?
+      render json: { error: "Invalid or expired claim link", expired: true }, status: :not_found
+      return
+    end
+
+    if account.active?
+      render json: {
+        status: "claimed",
+        already_claimed: true,
+        owner_name: account.owner&.display_name,
+      }, status: :ok
+      return
+    end
+
+    expired = account.claim_token_sent_at.present? &&
+              account.claim_token_sent_at < LoanerReclaimJob::RECLAIM_AFTER.ago
+
+    render json: {
+      status: expired ? "expired" : account.status,
+      expired: expired,
+      already_claimed: false,
+      child_name: account.display_name,
+      communicator_name: account.display_name,
+      owner_name: account.owner&.display_name,
+      owner_email: account.owner&.email,
+    }, status: :ok
+  end
+
+  # POST /api/communicator_claims/:token/claim
+  # Parent (signed in) claims the loaner. Transfers ownership, swaps
+  # onto the parent's plan, frees the SLP's slot, keeps the SLP on the
+  # child's team as a supervisor.
+  #
+  # Response is wrapped as `{ account: ..., error: ... }` so the
+  # frontend can branch on `result.error` regardless of HTTP status.
+  def claim
+    account = ChildAccount.find_by(claim_token: params[:token])
+    unless account&.loaner?
+      render json: { error: "Invalid or expired claim link" }, status: :not_found
+      return
+    end
+
+    begin
+      account.claim_by!(user: current_user)
+      render json: { account: account.api_view(current_user) }, status: :ok
+    rescue ChildAccount::SlotFull => e
+      render json: {
+        error: "slot_full",
+        message: e.message,
+        upgrade_url: "/account/billing/upgrade",
+      }, status: :unprocessable_entity
+    rescue ActiveRecord::RecordInvalid => e
+      render json: { error: e.record.errors.full_messages.join(", ") }, status: :unprocessable_entity
+    end
+  end
+
+  # POST /api/child_accounts/:id/end_loan
+  # SLP ends the loan immediately (B5). Returns the slot.
+  def end_loan
+    unless @child_account.owner_id == current_user.id || current_user.admin?
+      render json: account_error_payload("Unauthorized"), status: :unauthorized
+      return
+    end
+
+    unless @child_account.loaner?
+      render json: account_error_payload("Only loaners can be reclaimed"), status: :unprocessable_entity
+      return
+    end
+
+    @child_account.reclaim!(reason: "manual")
+    render json: @child_account.api_view(current_user), status: :ok
+  end
+
+  # POST /api/child_accounts/:id/archive
+  # Soft-archive a sandbox communicator (issue #165). The record stays
+  # in the database with all its boards/settings/history — it just
+  # drops out of the default-scoped lists and stops counting against
+  # the sandbox limit. Sandbox-only; loaner/active have downstream
+  # effects (slot accounting, claim tokens) that need their own paths.
+  def archive
+    unless @child_account.owner_id == current_user.id || current_user.admin?
+      render json: account_error_payload("Unauthorized"), status: :unauthorized
+      return
+    end
+
+    unless @child_account.sandbox?
+      render json: account_error_payload("Only sandbox communicators can be archived"), status: :unprocessable_entity
+      return
+    end
+
+    @child_account.archive!
+    render json: @child_account.api_view(current_user), status: :ok
+  end
+
+  # POST /api/child_accounts/:id/unarchive
+  # Restore a previously-archived sandbox. Sandbox-only (loaner/active
+  # can't get into the archived state in the first place).
+  def unarchive
+    unless @child_account.owner_id == current_user.id || current_user.admin?
+      render json: account_error_payload("Unauthorized"), status: :unauthorized
+      return
+    end
+
+    unless @child_account.sandbox?
+      render json: account_error_payload("Only sandbox communicators can be unarchived"), status: :unprocessable_entity
+      return
+    end
+
+    @child_account.unarchive!
+    render json: @child_account.api_view(current_user), status: :ok
+  end
+
+  # POST /child_accounts
+  def create
+    is_demo = params[:is_demo] ? ActiveModel::Type::Boolean.new.cast(params[:is_demo]) : false
+    # Prefer the explicit lifecycle status param; fall back to legacy is_demo.
+    requested_status = params[:status].presence || (is_demo ? ChildAccount::SANDBOX : ChildAccount::ACTIVE)
+
+    allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
+      user: current_user,
+      status: requested_status,
+    )
+
+    unless allowed
+      render json: { error: error }, status: http_status
       return
     end
     username = params[:username]
     name = params[:name]
     nickname = params[:nickname]
 
-    @child_account = ChildAccount.new(username: username, name: name)
+    @child_account = ChildAccount.new(username: username, name: name, status: requested_status)
 
-    # Type + ownership
-    @child_account.is_demo = is_demo
+    # Ownership
     @child_account.owner = current_user
     @child_account.user = current_user if @child_account.respond_to?(:user=) # legacy (optional)
 
-    # Validate basic fields first
-    unless @child_account.valid?
-      render json: { errors: @child_account.errors.full_messages.join(", ") }, status: :unprocessable_entity
-      return
-    end
-
-    # Passcode (required)
+    # Passcode is required for loaner/active; sandbox accounts have no
+    # login. Assign before validation runs — the B3
+    # `loaner_or_active_must_have_login` validation will otherwise trip
+    # on every non-sandbox create.
     password = params[:password]
     password_confirmation = params[:password_confirmation]
 
-    if password != password_confirmation
+    if password.present? && password_confirmation.present? && password != password_confirmation
       render json: { error: "Passwords do not match" }, status: :unprocessable_entity
       return
     end
 
-    @child_account.passcode = password
+    @child_account.passcode = password if password.present? && requested_status != ChildAccount::SANDBOX
 
     # Optional attrs
     @child_account.settings = params[:settings] if params[:settings].present?
     @child_account.details = params[:details] if params[:details].present?
+
+    # A Free user's sandbox communicator is capped at one board; Pro sandbox
+    # accounts fall through to ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT.
+    if requested_status == ChildAccount::SANDBOX && current_user.free?
+      @child_account.settings ||= {}
+      @child_account.settings["demo_board_limit"] = ChildAccount::FREE_DEMO_BOARD_LIMIT
+    end
 
     # Profile linking (existing behavior)
     profile = nil
@@ -111,7 +381,8 @@ class API::ChildAccountsController < API::ApplicationController
       render json: @child_account.api_view(current_user), status: :created
     else
       Rails.logger.info "Invalid Child Account: errors: #{@child_account.errors.inspect}"
-      render json: { errors: @child_account.errors }, status: :unprocessable_entity
+      message = @child_account.errors.full_messages.join(", ")
+      render json: { error: message, errors: message }, status: :unprocessable_entity
     end
   end
 
@@ -122,18 +393,19 @@ class API::ChildAccountsController < API::ApplicationController
     username = params[:username]
     @child_account.username = username unless username.blank?
     @child_account.name = name unless name.blank?
-    was_a_demo = @child_account.is_demo
+    was_sandbox = @child_account.sandbox?
     is_demo = params[:is_demo] ? ActiveModel::Type::Boolean.new.cast(params[:is_demo]) : false
-    @child_account.is_demo = is_demo
-    if was_a_demo && !is_demo
-      # Changing from demo to paid - check limits
-      allowed, status, error = Permissions::CommunicatorLimits.can_create?(
+    requested_status = params[:status].presence || (is_demo ? ChildAccount::SANDBOX : ChildAccount::ACTIVE)
+    @child_account.status = requested_status
+    if was_sandbox && requested_status != ChildAccount::SANDBOX
+      # Promoting sandbox → loaner/active — re-check slot limits.
+      allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
         user: current_user,
-        is_demo: is_demo,
+        status: requested_status,
       )
 
       unless allowed
-        render json: { error: error }, status: status
+        render json: { error: error }, status: http_status
         return
       end
     end
@@ -172,7 +444,8 @@ class API::ChildAccountsController < API::ApplicationController
     if @child_account.save
       render json: @child_account.api_view(current_user), status: :ok
     else
-      render json: @child_account.errors, status: :unprocessable_entity
+      message = @child_account.errors.full_messages.join(", ")
+      render json: account_error_payload(message), status: :unprocessable_entity
     end
   end
 
@@ -180,7 +453,7 @@ class API::ChildAccountsController < API::ApplicationController
     @child_account = ChildAccount.find(params[:id])
     board_ids = params[:board_ids]
     total_boards = @child_account.child_boards.count + board_ids.size
-    if @child_account.is_demo?
+    if @child_account.sandbox?
       demo_limit = (@child_account.settings["demo_board_limit"] || ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT).to_i
       if total_boards > demo_limit
         render json: { error: "Demo board limit exceeded. You can have up to #{demo_limit} boards." }, status: :unprocessable_entity
@@ -215,13 +488,25 @@ class API::ChildAccountsController < API::ApplicationController
   private
 
   # Use callbacks to share common setup or constraints between actions.
+  # `with_archived` so unarchive (and admin maintenance) can target a
+  # soft-archived record — the default scope hides them otherwise.
   def set_child_account
     @parent_account = current_user
-    @child_account = ChildAccount.find(params[:id])
+    @child_account = ChildAccount.with_archived.find(params[:id])
   end
 
   # Only allow a list of trusted parameters through.
   def child_account_params
     params.require(:child_account).permit(:user_id, :username, :name)
+  end
+
+  # Mutation endpoints (lend, end_loan, etc.) return the current account
+  # view in error responses so a frontend that does
+  # `setState(response)` doesn't lose the status / is_demo fields and
+  # flip into the wrong UI state. The error message is included as a
+  # sibling field so callers that DO check can still surface it.
+  def account_error_payload(error)
+    view = @child_account ? @child_account.reload.api_view(current_user) : {}
+    view.merge(error: error.to_s, errors: error.to_s)
   end
 end

@@ -4,12 +4,24 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
 
   NO_CC_KEY = "NOCC".freeze
 
+  # Hosts we trust as Stripe Checkout `success_url` / `cancel_url` targets.
+  # We derive the redirect host from the incoming request's Origin/Referer
+  # so Netlify preview deploys "just work" without per-deploy env vars, but
+  # we don't want to be an open redirect — Stripe will happily send users
+  # to whatever success_url we hand it. Anything not on this list falls
+  # back to ENV["FRONT_END_URL"].
+  ALLOWED_FRONTEND_HOSTS = [
+    /\Alocalhost\z/,
+    /\A127\.0\.0\.1\z/,
+    /\A(.+\.)?speakanyway\.com\z/,
+    /\A(.+\.)?netlify\.app\z/,
+    /\A(.+\.)?hatchboxapp\.com\z/,
+  ].freeze
+
   PLAN_PRICE_IDS = {
     "free" => nil,
-    "myspeak" => ENV.fetch("STRIPE_PRICE_MYSPEAK", nil),
     "basic" => ENV.fetch("STRIPE_PRICE_BASIC", nil),
     "pro" => ENV.fetch("STRIPE_PRICE_PRO", nil),
-    "myspeak_yearly" => ENV.fetch("STRIPE_PRICE_MYSPEAK_YEAR", nil),
     "basic_yearly" => ENV.fetch("STRIPE_PRICE_BASIC_YEAR", nil),
     "pro_yearly" => ENV.fetch("STRIPE_PRICE_PRO_YEAR", nil),
     "partner_pro" => ENV.fetch("STRIPE_PRICE_PARTNER_PRO", nil),
@@ -49,8 +61,6 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     cancel_url = "#{frontend_base_url}/onboarding"
     if is_partner
       cancel_url = "#{frontend_base_url}/onboarding/partner"
-    elsif plan_key.include?("myspeak")
-      cancel_url = "#{frontend_base_url}/onboarding/myspeak"
     end
 
     bypass_payment_required = params[:bypass_payment_required] == "true" || promo_code&.upcase == NO_CC_KEY
@@ -133,8 +143,12 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
       mode: "payment",
       customer: current_user.stripe_customer_id,
       line_items: [{ price: price_id, quantity: quantity }],
-      success_url: "#{frontend_base_url}/account/billing/topup/success?session_id={CHECKOUT_SESSION_ID}",
-      cancel_url: "#{frontend_base_url}/account/billing",
+      # Match the frontend's existing /billing/success route, which reads
+      # ?type=topup&credits=N to render the "credits added" screen
+      # (itty-bitty-frontend Welcome.tsx). Stripe interpolates
+      # CHECKOUT_SESSION_ID; the other params are baked in here.
+      success_url: "#{frontend_base_url}/billing/success?session_id={CHECKOUT_SESSION_ID}&type=topup&credits=#{credit_amount * quantity}",
+      cancel_url: "#{frontend_base_url}/billing",
       allow_promotion_codes: true,
       metadata: {
         kind: "topup",
@@ -183,7 +197,30 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     current_user.update!(stripe_customer_id: customer.id)
   end
 
+  # Prefer the request's Origin (then Referer) when it points at a trusted
+  # host. This lets Netlify preview deploys, the production app, and local
+  # dev all redirect back to themselves after Stripe Checkout without
+  # needing the deploy URL baked into a server-side env var.
+  #
+  # Falls back to ENV["FRONT_END_URL"] when the request didn't supply a
+  # recognized origin (e.g. server-to-server calls in tests, mis-set CORS).
   def frontend_base_url
-    ENV["FRONT_END_URL"] || "http://localhost:8100"
+    candidate = request.headers["Origin"].presence || request.headers["Referer"].presence
+
+    if candidate.present?
+      begin
+        uri = URI.parse(candidate)
+        host = uri.host.to_s.downcase
+        if uri.scheme.in?(%w[http https]) && ALLOWED_FRONTEND_HOSTS.any? { |re| host.match?(re) }
+          base = +"#{uri.scheme}://#{uri.host}"
+          base << ":#{uri.port}" if uri.port && ![80, 443].include?(uri.port)
+          return base
+        end
+      rescue URI::InvalidURIError
+        # fall through to env fallback
+      end
+    end
+
+    ENV["FRONT_END_URL"].presence || "http://localhost:8100"
   end
 end

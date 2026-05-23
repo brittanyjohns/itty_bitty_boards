@@ -76,6 +76,7 @@ FactoryBot.define do
   factory :child_account do
     association :user
     sequence(:username) { |n| "child_#{n}" }
+    status { ChildAccount::SANDBOX }
   end
 
   factory(:user) do
@@ -88,6 +89,17 @@ FactoryBot.define do
     sequence(:email) { |n| "admin#{n}@example.com" }
     password { "password123" }
     role { "admin" }
+  end
+
+  # A real Free user (no longer in the soft-trial window). User#set_soft_trial_plan
+  # flips plan_type="free" to "basic_trial" when created_at is within the
+  # 14-day trial period, so we backdate created_at to stay genuinely free.
+  factory(:free_user, class: "User") do
+    sequence(:email) { |n| "free#{n}@example.com" }
+    password { "password123" }
+    role { "user" }
+    plan_type { "free" }
+    created_at { 1.year.ago }
   end
 
   factory(:board) do
@@ -129,5 +141,30 @@ FactoryBot.define do
     menu
     doc { FactoryBot.create(:doc) }
     user
+  end
+
+  factory(:word_event) do
+    association :user
+    sequence(:word) { |n| "word#{n}" }
+    timestamp { Time.current }
+  end
+
+  factory(:coaching_prompt_set) do
+    sequence(:name) { |n| "Coaching Set #{n}" }
+    sequence(:slug) { |n| "coaching-set-#{n}" }
+    description { "A friendly coaching set." }
+    strategies do
+      [
+        {
+          "label" => "Offer a choice",
+          "hint" => "Give two options.",
+          "example_phrases" => ["This or that?"],
+        },
+      ]
+    end
+    match_tags { [] }
+    source { "curated" }
+    published { true }
+    language { "en" }
   end
 end
