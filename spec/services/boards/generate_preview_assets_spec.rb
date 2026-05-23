@@ -44,20 +44,20 @@ RSpec.describe Boards::GeneratePreviewAssets, type: :service do
       expect(second_key).to eq("board_previews/#{board.id}/preview.png")
     end
 
-    it "creates a fresh blob row each regeneration so updated_at advances" do
+    it "creates a fresh blob row each regeneration so created_at advances" do
       service = described_class.new(
         board: board,
         routes: Rails.application.routes.url_helpers,
       )
 
       service.call(generate_png: true)
-      first_updated_at = board.reload.preview_image.blob.updated_at
+      first_updated_at = board.reload.preview_image.blob.created_at
 
       travel(1.second) do
         service.call(generate_png: true)
       end
 
-      second_updated_at = board.reload.preview_image.blob.updated_at
+      second_updated_at = board.reload.preview_image.blob.created_at
       expect(second_updated_at).to be > first_updated_at
     end
   end

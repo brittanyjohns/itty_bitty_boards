@@ -232,7 +232,8 @@ class Board < ApplicationRecord
   # snapshot URL. Persisting *intent* sidesteps the stale `?v=` problem
   # that arises when callers store a previous `preview_image_url` string.
   def display_follows_preview?
-    settings.is_a?(Hash) && settings["display_follows_preview"] == true
+    return false unless settings.is_a?(Hash)
+    ActiveModel::Type::Boolean.new.cast(settings["display_follows_preview"]) == true
   end
 
   # Override the AR-generated getter so reads (including serializers) see
@@ -251,10 +252,10 @@ class Board < ApplicationRecord
       cdn_host = ENV["CDN_HOST"]
       if cdn_host
         # Key is deterministic (board_previews/<id>/preview.png) so the URL is
-        # stable. Append `?v=<blob.updated_at>` so clients and CloudFront pick
-        # up the new PNG on regeneration without us having to chase
-        # denormalized copies of the URL.
-        "#{cdn_host}/#{preview_image.key}?v=#{preview_image.blob.updated_at.to_i}"
+        # stable. Append `?v=<blob.created_at>` so clients and CloudFront pick
+        # up the new PNG on regeneration — the service purges + reuploads, so
+        # each regen mints a fresh blob row.
+        "#{cdn_host}/#{preview_image.key}?v=#{preview_image.blob.created_at.to_i}"
       else
         preview_image.url # Fallback to the direct Active Storage URL
       end

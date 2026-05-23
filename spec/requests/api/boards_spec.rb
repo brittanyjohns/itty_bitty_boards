@@ -182,7 +182,8 @@ RSpec.describe "API::Boards", type: :request do
                   settings: { display_follows_preview: true },
                 },
               },
-              headers: auth_headers(user)
+              headers: auth_headers(user),
+              as: :json
 
         expect(response).to have_http_status(:ok)
         board.reload
