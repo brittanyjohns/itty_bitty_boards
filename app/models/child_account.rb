@@ -190,12 +190,7 @@ class ChildAccount < ApplicationRecord
   end
 
   def favorite_boards
-    if paid_plan? || user&.vendor?
-      child_boards.where(favorite: true)
-    else
-      []
-      # Board.public_boards
-    end
+    child_boards.where(favorite: true)
   end
 
   def role

@@ -72,7 +72,7 @@ user, so logs are in the user journal (no sudo needed).
 - `bin/prod-logs <unit-name>` — tail a specific unit (pass-through)
 - `bin/staging-logs [web|worker|all]` — same shape for staging
 - `bin/prod-disk-audit` — read-only snapshot of disk + journald + nginx
-  + app `log/` and `tmp/` sizes. Run any time you suspect disk pressure.
+  - app `log/` and `tmp/` sizes. Run any time you suspect disk pressure.
 
 Env overrides: `PROD_HOST`, `PROD_WEB_UNIT`, `PROD_WORKER_UNIT`,
 `PROD_ALL_UNIT` (and `STAGING_*` equivalents). `LINES=N` controls the
@@ -105,7 +105,7 @@ backlog size (default 200).
 - AI controllers gate via `check_credits!(feature_key:, feature_name:)` in
   `API::ApplicationController`. On insufficient balance it renders **HTTP 402**
   with `{ error: "insufficient_credits", feature, needed, balance, plan_credits,
-  topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
+topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
 - Reserve **HTTP 429** for true rate limiting (rapid-fire abuse), not credit
   exhaustion.
 - `MonthlyFeatureLimiter` is no longer in the AI hot path. It remains in the
@@ -179,21 +179,17 @@ Tasks:
 - Prefer FactoryBot.build over create where possible
 - Add focused tests for changed behavior
 - Avoid destructive S3/ActiveStorage behavior in tests
-- New features and bug fixes always get tests (per `~/.claude/CLAUDE.md`). Don't backfill tests for *existing* code unless asked.
+- New features and bug fixes always get tests (per `~/.claude/CLAUDE.md`). Don't backfill tests for _existing_ code unless asked.
 
 ## Testing Conventions
 
 - Rails test environment uses `:null_store` for Rails.cache — stub `Rails.cache` in specs that depend on caching behavior
 - Avoid `travel_to` with past timestamps for Redis keys (TTLs expire immediately); use future times or freeze time instead
-- After spec changes, run the full RSpec suite before declaring done
+- After spec changes, run the tests that depend on the changed code to ensure no regressions. Use `bin/rspec --only-failures` to rerun only failed specs.
 
 ## Rules for Editing This File
 
 When reviewing or rewriting CLAUDE.md, ALWAYS verify claims against the actual codebase first: read Gemfile/package.json, config files, routes, and a sampling of controllers/models. Never fabricate framework claims (e.g., 'API-only', 'FedRAMP-aware') or invent dependencies. If unsure, state 'unverified' rather than asserting.
-
-## PR review guidelines:
-
-Before pushing PRs, run the full RSpec suite locally and ensure 0 failures. When tests fail, distinguish spec bugs (factory/slug/cache/travel_to issues) from production bugs and fix both categories.
 
 ## Bash & Long-Running Commands
 
