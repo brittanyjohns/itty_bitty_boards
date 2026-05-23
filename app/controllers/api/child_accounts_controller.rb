@@ -129,7 +129,7 @@ class API::ChildAccountsController < API::ApplicationController
     username = params[:username]
     @child_account.username = username unless username.blank?
     @child_account.name = name unless name.blank?
-    was_a_demo = @child_account.is_demo
+    was_a_demo = @child_account.sandbox?
     is_demo = params[:is_demo] ? ActiveModel::Type::Boolean.new.cast(params[:is_demo]) : false
     @child_account.is_demo = is_demo
     if was_a_demo && !is_demo

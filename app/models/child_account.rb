@@ -26,12 +26,24 @@
 #  layout                 :jsonb
 #  owner_id               :bigint
 #  is_demo                :boolean          default(FALSE)
+#  status                 :string           default("sandbox"), not null
 #
 class ChildAccount < ApplicationRecord
   # devise :database_authenticatable, :trackable
   # devise :database_authenticatable, :registerable,
   #        :recoverable, :rememberable, :validatable,
   #        authentication_keys: [:username]
+
+  # Communicator lifecycle:
+  #   sandbox — no login, board-capped scratch space (old "demo")
+  #   loaner  — real login + full boards, owned by an SLP on a child's behalf;
+  #             counts against the owner's slot
+  #   active  — claimed/owned by the family; counts against their plan
+  STATUSES = %w[sandbox loaner active].freeze
+  SANDBOX = "sandbox".freeze
+  LOANER  = "loaner".freeze
+  ACTIVE  = "active".freeze
+
   DEMO_ACCOUNT_BOARD_LIMIT = 3
   # Board cap for the MySpeak demo communicator a Free user gets. Stored per
   # account in settings["demo_board_limit"]; Pro demo accounts keep the
@@ -58,8 +70,10 @@ class ChildAccount < ApplicationRecord
   # validates :passcode, length: { minimum: 6 }, on: :create
 
   validates :username, presence: true, uniqueness: true
-  # validate :demo_accounts_cannot_have_login
-  # validate :paid_accounts_must_have_login
+  validates :status, inclusion: { in: STATUSES }
+  # Repaired in B3 (#159):
+  # validate :sandbox_cannot_have_login
+  # validate :loaner_or_active_must_have_login
 
   delegate :display_docs_for_image, to: :user
 
@@ -83,9 +97,16 @@ class ChildAccount < ApplicationRecord
   scope :with_teams, -> { includes(teams: [:team_users]) }
   scope :created_today, -> { where("created_at >= ?", Time.zone.now.beginning_of_day) }
   scope :with_boards, -> { includes(child_boards: :board) }
-  scope :demo_accounts, -> { where(is_demo: true) }
-  scope :paid_accounts, -> { where(is_demo: false) }
+  # Lifecycle scopes. demo_accounts/paid_accounts are kept as thin aliases
+  # during the frontend cutover (F1) and removed when no callers remain.
+  scope :sandbox, -> { where(status: SANDBOX) }
+  scope :loaner,  -> { where(status: LOANER) }
+  scope :active,  -> { where(status: ACTIVE) }
+  scope :demo_accounts, -> { sandbox }
+  scope :paid_accounts, -> { where.not(status: SANDBOX) }
 
+  before_validation :set_status_from_is_demo, on: :create
+  before_save :sync_is_demo_alias
   before_save :set_owner_if_missing, if: -> { owner.nil? && user.present? }
   before_validation :set_username_if_missing, if: -> { username.blank? }
 
@@ -99,6 +120,47 @@ class ChildAccount < ApplicationRecord
 
   def set_owner_if_missing
     self.owner = user
+  end
+
+  # Lifecycle predicates
+  def sandbox? = status == SANDBOX
+  def loaner?  = status == LOANER
+  def active?  = status == ACTIVE
+
+  # `is_demo` is derived from status now. The DB column is retained until the
+  # frontend cutover (F1) is complete, then dropped. Writes to `is_demo` flow
+  # into `status` for backwards compatibility.
+  def is_demo
+    sandbox?
+  end
+
+  alias_method :is_demo?, :is_demo
+
+  def is_demo=(value)
+    truthy = ActiveModel::Type::Boolean.new.cast(value)
+    # Only flip from sandbox <-> active here. Loaner is set explicitly via the
+    # provisioning path (B3). Explicit writes to `is_demo` shouldn't silently
+    # demote a loaner.
+    if truthy
+      self.status = SANDBOX
+    elsif !loaner?
+      self.status = ACTIVE
+    end
+    super(truthy) if has_attribute?(:is_demo)
+  end
+
+  def set_status_from_is_demo
+    # New records that only set the legacy boolean still get a sensible status.
+    return if status_changed? || STATUSES.include?(status)
+    self.status = self[:is_demo] ? SANDBOX : ACTIVE
+  end
+
+  # Keep the legacy boolean in sync with status while the column lives, so
+  # any caller still reading the raw attribute sees a consistent value.
+  def sync_is_demo_alias
+    return unless has_attribute?(:is_demo)
+    desired = sandbox?
+    self[:is_demo] = desired if self[:is_demo] != desired
   end
 
   def self.valid_credentials?(username, password_to_set)
@@ -226,6 +288,7 @@ class ChildAccount < ApplicationRecord
       is_owner: viewing_user&.id == user_id,
       is_vendor: is_vendor,
       layout: layout,
+      status: status,
       is_demo: is_demo?,
       voice: voice,
       vendor: is_vendor ? cached_user.vendor.api_view(viewing_user) : nil,
@@ -545,6 +608,7 @@ class ChildAccount < ApplicationRecord
       is_owner: viewing_user&.id == user_id || viewing_user&.admin?,
       is_vendor: is_vendor,
       layout: layout,
+      status: status,
       is_demo: is_demo?,
       device_tag_url: device_tag_url,
       safety_id_url: safety_id_url,
@@ -656,6 +720,7 @@ class ChildAccount < ApplicationRecord
     current_board_list = current_board_list ? current_board_list.join(", ").truncate(150) : nil
     {
       id: id,
+      status: status,
       username: username,
       name: name,
       parent_name: user.display_name,
