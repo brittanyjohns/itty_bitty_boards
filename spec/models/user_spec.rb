@@ -272,4 +272,27 @@ RSpec.describe User, type: :model do
       expect(user.i18n_locale).to eq(:en)
     end
   end
+
+  context "admin views expose ai_credits" do
+    it "includes the credit balance in admin_api_view" do
+      user = FactoryBot.create(:user, plan_type: "pro")
+      credits = user.admin_api_view["ai_credits"]
+      expect(credits[:total]).to eq(1500)
+      expect(credits[:plan]).to eq(1500)
+      expect(credits[:topup]).to eq(0)
+    end
+
+    it "includes the credit balance in admin_index_view" do
+      user = FactoryBot.create(:user, plan_type: "pro")
+      expect(user.admin_index_view["ai_credits"][:total]).to eq(1500)
+    end
+
+    it "reflects topup credits in the total" do
+      user = FactoryBot.create(:user, plan_type: "free", created_at: 30.days.ago)
+      CreditService.grant_topup!(user, amount: 25)
+      credits = user.reload.admin_api_view["ai_credits"]
+      expect(credits[:topup]).to eq(25)
+      expect(credits[:total]).to eq(credits[:plan] + 25)
+    end
+  end
 end
