@@ -111,8 +111,11 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
   `users.editable_board_id`. If none is set, `effective_editable_board_id`
   falls back to a favorite or most-recently-updated board so a freshly-
   downgraded user is never fully locked out.
-- On downgrade, `apply_free_plan` pins this fallback into
-  `editable_board_id` so the frontend has a deterministic answer.
+- On downgrade, both paths call `User#pin_default_editable_board!` so the
+  frontend has a deterministic answer: `apply_free_plan` (Stripe
+  cancel/pause) and `DowngradeSoftTrialJob` (soft-trial expiry). Trial users
+  (`basic_trial` and Stripe `trialing`) are treated as paid by
+  `User#paid_plan?` while the trial is active, so the gate doesn't trigger.
 - The gate runs as a `check_board_editable!` `before_action` on the
   content-mutating actions in `API::BoardsController` and the matching set
   in `API::BoardImagesController`. Reads (`show`, `index`, `pdf`, audio

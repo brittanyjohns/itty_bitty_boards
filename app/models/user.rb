@@ -1221,6 +1221,18 @@ class User < ApplicationRecord
       end
   end
 
+  # Pin a default editable board after a downgrade so the user has a working
+  # edit slot immediately. Idempotent — only writes when editable_board_id
+  # is blank, and only if effective_editable_board_id resolves to a board.
+  # Called from both downgrade paths: apply_free_plan (Stripe cancel/pause)
+  # and DowngradeSoftTrialJob (soft-trial expiry).
+  def pin_default_editable_board!
+    return unless editable_board_id.blank?
+    default_id = effective_editable_board_id
+    return if default_id.blank?
+    update_column(:editable_board_id, default_id)
+  end
+
   # Whether this user may edit the given board's content. Free users over
   # their board limit can edit only their one designated board; everything
   # else they own becomes read-only (still fully usable — view/tap/audio).

@@ -427,10 +427,7 @@ class API::WebhooksController < API::ApplicationController
     # On downgrade, pin a default editable board so the user keeps one working
     # edit slot immediately. Their other boards become read-only (still fully
     # usable) until they upgrade or pick a different one.
-    if user.editable_board_id.blank?
-      default_editable_id = user.effective_editable_board_id
-      user.update_column(:editable_board_id, default_editable_id) if default_editable_id
-    end
+    user.pin_default_editable_board!
     # Grant the free tier's allowance immediately so canceled/paused users
     # land on free with a working balance, not 0. grant_plan! expires any
     # leftover plan credits internally (writes an `expire` ledger row).
