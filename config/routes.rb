@@ -320,6 +320,9 @@ Rails.application.routes.draw do
         post "claim_link"
         post "send_claim_link"
         post "end_loan"
+        # #165: soft-archive sandbox communicators
+        post "archive"
+        post "unarchive"
         delete "remove_board"
       end
     end
