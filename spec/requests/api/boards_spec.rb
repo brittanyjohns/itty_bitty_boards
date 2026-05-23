@@ -84,6 +84,37 @@ RSpec.describe "API::Boards", type: :request do
         end
       end
 
+      describe "language defaulting on create" do
+        it "defaults the board language to the creator's language when no param is sent" do
+          creator.update!(settings: { "voice" => { "language" => "es-US" } })
+          post "/api/boards",
+               params: { board: { name: "Spanish Board" } },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          expect(Board.order(:created_at).last.language).to eq("es")
+        end
+
+        it "uses an explicit language param over the creator's language" do
+          creator.update!(settings: { "voice" => { "language" => "es-US" } })
+          post "/api/boards",
+               params: { board: { name: "French Board", language: "fr" } },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          expect(Board.order(:created_at).last.language).to eq("fr")
+        end
+
+        it "defaults to English for a creator with no language setting" do
+          post "/api/boards",
+               params: { board: { name: "Default Board" } },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          expect(Board.order(:created_at).last.language).to eq("en")
+        end
+      end
+
       describe "GenerateBoardJob enqueue args" do
         # Sidekiq strict_args rejects HashWithIndifferentAccess. The job's
         # `profile` arg used to be `params.permit(...).to_h`, which is a

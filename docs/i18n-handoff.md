@@ -16,8 +16,8 @@ non-English language gets:
 
 1. **UI chrome** (buttons, headings, menus, forms, errors) in their language — *partially done* (Settings page only).
 2. **Board content** — image/tile labels in their language — *backend done, flows automatically*.
-3. **Audio** — TTS playback in their language — *partially done, needs verification*.
-4. **AI-generated content** — word suggestions, board/scenario generation in their language — *NOT done*.
+3. **Audio** — TTS playback in their language — *backend done* (Phase 1; per-language voices + translated text).
+4. **AI-generated content** — word suggestions, board/scenario generation in their language — *backend done* (Phase 1).
 5. **Emails** — transactional emails in their language — *infra done, 1 of ~20 templates migrated*.
 
 The 12 supported languages (canonical list = `Image.languages`):
@@ -80,54 +80,59 @@ The 12 supported languages (canonical list = `Image.languages`):
 
 ### Phase 1 — Backend content completeness (highest leverage)
 
-The backend is the source of truth for everything except UI chrome. Finish it
-first so the frontend has localized data to render.
+**Status: DONE except 1.4 (the prod backfill run).** Shipped: `language` is
+threaded through every AI word/board/scenario path, new boards default to the
+creator's language, the `set_labels` key bug is fixed, and the TTS pipeline now
+synthesizes translated text with language-appropriate voices.
 
-**1.1 — AI generation must respect language** *(the known gap; no issue yet — file one)*
-- `OpenAiClient#get_word_suggestions(name, count, exclude, board_type)`
-  (`app/models/open_ai_client.rb:477`) takes **no language param** — always
-  English. Add a `language` param and append `"Respond in #{LONG_LANGUAGE_NAMES[lang]}."`
-  to the prompt, mirroring `get_additional_words` (`open_ai_client.rb:459-462`).
-- `Board#get_word_suggestions` (`app/models/board.rb:2161`) must pass a
-  language through. **Decide the source of truth**: `board.language` or the
-  requesting `current_user.i18n_locale`. Recommendation: pass
-  `current_user.i18n_locale` from the controller, fall back to
-  `board.language`, fall back to `"en"`.
-- Same treatment for the scenario builder path (`Board#get_words_for_scenario`,
-  `app/models/board.rb:2147`) and `get_words` /`get_additional_words` — confirm
-  they receive the *user's* language, not just `board.language`.
-- Controllers to thread language through: `app/controllers/api/boards_controller.rb`
-  (word suggestion / generation actions), `app/controllers/api/scenarios_controller.rb`.
-- Tests: each `OpenAiClient` method with a non-`en` language asserts the
-  prompt contains the "Respond in <language>" instruction.
+**1.1 — AI generation respects language — DONE**
+- `OpenAiClient#append_language_instruction(text, language)` — shared helper
+  that appends `"Respond in <language>."` for supported non-`en` codes.
+  Applied in `get_word_suggestions`, `get_word_suggestions_from_prompt`,
+  `get_words_for_scenario`, and `get_additional_words`.
+- `Board`'s AI methods (`get_word_suggestions`,
+  `get_word_suggestions_from_prompt`, `get_word_suggestions_from_default_prompt`,
+  `get_words_for_predictive`, `get_words_for_scenario`) take an optional
+  `language:` kwarg, defaulting to `self.language`, falling back to `"en"`.
+- `Scenario#get_words_for_scenario` takes a `language` arg.
+- **Precedence:** synchronous controller endpoints
+  (`api/boards_controller#words`, `api/scenarios_controller#get_words`) pass
+  `current_user.i18n_locale.to_s` explicitly (the board may be a transient
+  unsaved object). The async `GenerateBoardJob` relies on `board.language`
+  (now defaulted by 1.2).
 
-**1.2 — New boards/images should default to the creator's language**
-- `app/controllers/api/boards_controller.rb:320,384` only set
-  `@board.language` when the param is present. On create, default it to
-  `current_user.i18n_locale.to_s` when the param is blank.
-- Verify `BoardImage` / `Image` `language` columns inherit sensibly (see
-  `BoardImage#set_labels`).
+**1.2 — New boards default to the creator's language — DONE**
+- `api/boards_controller#create` sets
+  `@board.language = board_params["language"].presence || current_user.i18n_locale.to_s`.
+  `#update` is unchanged (don't silently rewrite an existing board's language).
 
-**1.3 — Fix the `BoardImage#set_labels` symbol/string bug**
-- `app/models/board_image.rb:106-112`: `image.language_settings[lang.to_sym]`
-  — but `language_settings` is a jsonb column with **string** keys (see how
-  `Image#translate_to` writes them). This lookup silently returns `{}`.
-  Change to `lang.to_s`. Add a regression test.
+**1.3 — `BoardImage#set_labels` symbol/string bug — DONE**
+- `app/models/board_image.rb` now looks up `language_settings` with string
+  keys (`lang.to_s`, `["label"]`, `["display_label"]`), matching how
+  `Image#translate_to` writes them.
 
-**1.4 — Backfill translations for the public image library**
-- Existing admin/public images have empty `language_settings`. The
-  `translate:public_images LANG=<iso>` rake task exists but has not been run.
-- Run it per target language **after** Phase 4's language decision, or at
-  least for `es` now. Watch OpenAI cost — it's one API call per untranslated
-  image.
+**1.4 — Backfill translations for the public image library — PENDING (ops run)**
+- The `translate:public_images LANG=<iso>` rake task enqueues a
+  `TranslateImageJob` per untranslated public image (idempotent). Each job
+  makes one OpenAI translation call **and** — with the Phase 1.5 chaining —
+  one `CreateAllAudioJob`.
+- **Not yet run.** Needs to run against **production** (`RAILS_ENV=production`)
+  to translate the real library; running locally only touches the dev DB.
+  Watch the OpenAI bill and the Sidekiq `default`/`audio` queue depth.
 
-**1.5 — Verify per-language TTS audio generation**
-- Audio files are stored with a `_<lang>` filename suffix
-  (`app/models/audio_helper.rb`). Confirm that when a board/image has a
-  non-`en` language, `CreateAllAudioJob` / `VoiceService.synthesize_speech`
-  actually generates and resolves the language-specific audio, and that
-  `default_audio_url` picks the right file for the viewer's language.
-- Manual test: a Spanish board image → tap → hear Spanish audio.
+**1.5 — Per-language TTS audio generation — DONE**
+- `VoiceService.voices_for_language(iso)` — returns voices whose Polly
+  `language` tag matches the ISO prefix, plus all (language-agnostic) OpenAI
+  voices.
+- `AudioHelper#text_for_audio(language)` — resolves the translated label
+  (falling back to English `label`) as the text to synthesize.
+- `Image#create_voice_audio_files` / `#create_audio_for_select_voices` iterate
+  language-appropriate voices and synthesize translated text;
+  `AudioHelper#find_or_create_audio_file_for_voice` uses translated text too.
+- `TranslateImageJob` enqueues `CreateAllAudioJob(image_id, language, "select")`
+  after translating, so localized audio follows the translation.
+- Manual test still recommended (see Phase 5): a Spanish board image → tap →
+  hear Spanish audio.
 
 ### Phase 2 — Frontend UI chrome migration (the bulk of the work)
 
@@ -226,8 +231,8 @@ depth on the first few non-English signups.
 - itty_bitty_boards#102 — remaining mailer templates (Phase 3)
 - itty-bitty-frontend#95–#99 — per-area UI migration (Phase 2)
 - itty-bitty-frontend#100 — locale bundles for the other 10 languages (Phase 4)
-- **Not yet filed**: "AI word suggestions + board/scenario generation respect
-  language" (Phase 1.1) — file under the `multilingual support` label.
+- **Phase 1.4 (ops)**: run `RAILS_ENV=production bin/rails translate:public_images LANG=es`
+  to backfill the public image library — not yet done.
 
 ## Reference — the proven patterns
 

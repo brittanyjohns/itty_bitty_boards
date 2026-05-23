@@ -33,6 +33,21 @@ RSpec.describe TranslateImageJob, type: :job do
     allow(Image).to receive(:find_by).with(id: image.id).and_return(image)
     expect(image).to receive(:translate_to).with("es").and_return("hola")
     expect(image).to receive(:save!)
+    allow(CreateAllAudioJob).to receive(:perform_async)
+    described_class.new.perform(image.id, "es")
+  end
+
+  it "enqueues localized audio generation after translating" do
+    allow(Image).to receive(:find_by).with(id: image.id).and_return(image)
+    allow(image).to receive(:translate_to).and_return("hola")
+    allow(image).to receive(:save!)
+    expect(CreateAllAudioJob).to receive(:perform_async).with(image.id, "es", "select")
+    described_class.new.perform(image.id, "es")
+  end
+
+  it "does not enqueue audio when translation is skipped" do
+    image.update!(language_settings: { "es" => { "label" => "hola" } })
+    expect(CreateAllAudioJob).not_to receive(:perform_async)
     described_class.new.perform(image.id, "es")
   end
 end

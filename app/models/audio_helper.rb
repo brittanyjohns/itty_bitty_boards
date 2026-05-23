@@ -1,4 +1,13 @@
 module AudioHelper
+  # Text to synthesize for a given language: the translated label when
+  # available, falling back to the English `label`. `localized_label` lazily
+  # enqueues a TranslateImageJob when a supported translation is missing.
+  def text_for_audio(language)
+    lang = language.to_s
+    return label if lang.blank? || lang == "en"
+    localized_label(lang).presence || label
+  end
+
   # Always return [provider, raw_voice]
   def split_voice(voice_value)
     v = voice_value.to_s.strip
@@ -147,7 +156,7 @@ module AudioHelper
     existing = candidates.lazy.map { |fn| find_audio_by_filename(fn) }.find(&:present?)
     return existing if existing.present?
 
-    create_audio_from_text(label, voice_value, lang)
+    create_audio_from_text(text_for_audio(lang), voice_value, lang)
   end
 
   def default_audio_files

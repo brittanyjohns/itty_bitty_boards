@@ -104,11 +104,12 @@ class BoardImage < ApplicationRecord
   end
 
   def set_labels
-    lang = language || board.language || "en"
-    image_language_settings = image.language_settings[lang.to_sym] || {}
+    lang = (language || board&.language || "en").to_s
+    # language_settings is a jsonb column with string keys (see Image#translate_to)
+    image_language_settings = (image.language_settings || {})[lang] || {}
     self.language = lang
-    self.label = image_language_settings[:label] || image.label
-    self.display_label = image_language_settings[:display_label] || label
+    self.label = image_language_settings["label"] || image.label
+    self.display_label = image_language_settings["display_label"] || label
   end
 
   # Delegates to the underlying Image's language_settings. Stored `label` /

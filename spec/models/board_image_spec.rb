@@ -45,6 +45,32 @@ RSpec.describe BoardImage, type: :model do
     end
   end
 
+  describe "#set_labels" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:image) do
+      FactoryBot.create(:image,
+        label: "hello",
+        language_settings: { "es" => { "label" => "hola", "display_label" => "Hola" } })
+    end
+    let(:board) { FactoryBot.create(:board, user: user, language: "es") }
+
+    it "reads the translated label from the string-keyed language_settings jsonb" do
+      board_image = FactoryBot.create(:board_image, board: board, image: image, language: "es")
+      board_image.set_labels
+      expect(board_image.language).to eq("es")
+      expect(board_image.label).to eq("hola")
+      expect(board_image.display_label).to eq("Hola")
+    end
+
+    it "falls back to the English image label when no translation exists" do
+      image.update!(language_settings: {})
+      board_image = FactoryBot.create(:board_image, board: board, image: image, language: "es")
+      board_image.set_labels
+      expect(board_image.label).to eq("hello")
+      expect(board_image.display_label).to eq("hello")
+    end
+  end
+
   describe "#api_view" do
     let(:user) { FactoryBot.create(:user) }
     let(:image) do
