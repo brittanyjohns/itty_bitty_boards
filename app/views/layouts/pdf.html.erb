@@ -205,10 +205,25 @@
       .gray   { background-color: #808080d9; }
       .pink   { background-color: #ffc0e4; }
       .teal   { background-color: #18ddda; }
+
+      body.bw .tile {
+        border-color: #000 !important;
+        background: #fff !important;
+      }
+
+      body.bw .tile img,
+      body.bw .qr-small img {
+        filter: grayscale(100%);
+      }
+
+      body.bw .label {
+        background: #fff !important;
+        color: #000 !important;
+      }
     </style>
   </head>
 
-  <body>
+  <body class="<%= 'bw' if @bw %>">
     <div class="page">
       <%= yield %>
     </div>
