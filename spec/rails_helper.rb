@@ -32,7 +32,14 @@ RSpec.configure do |config|
   config.include FactoryBot::Syntax::Methods
   config.include Devise::Test::ControllerHelpers, type: :controller
   config.include AuthHelpers, type: :request
+  config.include ActiveSupport::Testing::TimeHelpers
 
   config.infer_spec_type_from_file_location!
   config.filter_rails_from_backtrace!
+
+  # Active Storage URL helpers need this set per-request in production; tests
+  # never run a real request cycle so we set it once globally.
+  config.before(:each) do
+    ActiveStorage::Current.url_options = { host: "localhost", port: 4000, protocol: "http" }
+  end
 end

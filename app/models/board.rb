@@ -214,19 +214,12 @@ class Board < ApplicationRecord
   end
 
   def generate_preview(generate_png: false, generate_pdf: false, hide_header: true, screen_size: "lg")
-    original_preview_image_url = preview_image_url
     Boards::GeneratePreviewAssets.new(
       board: self,
       screen_size: screen_size,
       hide_header: hide_header,
       routes: Rails.application.routes.url_helpers,
     ).call(generate_png: generate_png, generate_pdf: generate_pdf)
-    if generate_png
-      if self.preview_image.attached? && (display_image_url.blank? || display_image_url == original_preview_image_url)
-        preview_image_url = self.preview_image_url
-        update_column(:display_image_url, preview_image_url)
-      end
-    end
   end
 
   def generate_previews
@@ -234,12 +227,35 @@ class Board < ApplicationRecord
     # generate_preview(generate_pdf: true) # PDF with header for sharing
   end
 
+  # When `settings["display_follows_preview"]` is true, the board's
+  # display image should track the live preview rather than a frozen
+  # snapshot URL. Persisting *intent* sidesteps the stale `?v=` problem
+  # that arises when callers store a previous `preview_image_url` string.
+  def display_follows_preview?
+    return false unless settings.is_a?(Hash)
+    ActiveModel::Type::Boolean.new.cast(settings["display_follows_preview"]) == true
+  end
+
+  # Override the AR-generated getter so reads (including serializers) see
+  # the live preview URL when the user has opted into "follow preview".
+  # The setter is untouched — writes still go straight to the column.
+  def display_image_url
+    if display_follows_preview? && preview_image.attached?
+      return preview_image_url
+    end
+    read_attribute(:display_image_url)
+  end
+
   def preview_image_url
     return if !preview_image.attached?
     if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
       cdn_host = ENV["CDN_HOST"]
       if cdn_host
-        "#{cdn_host}/#{preview_image.key}" # Construct CloudFront URL
+        # Key is deterministic (board_previews/<id>/preview.png) so the URL is
+        # stable. Append `?v=<blob.created_at>` so clients and CloudFront pick
+        # up the new PNG on regeneration — the service purges + reuploads, so
+        # each regen mints a fresh blob row.
+        "#{cdn_host}/#{preview_image.key}?v=#{preview_image.blob.created_at.to_i}"
       else
         preview_image.url # Fallback to the direct Active Storage URL
       end
@@ -973,6 +989,16 @@ class Board < ApplicationRecord
     @layouts = @board_images.pluck(:image_id, :layout)
 
     @cloned_board = @source.dup
+    # A clone gets its own freshly-generated preview (enqueued below via
+    # run_generate_preview_job). `dup` copies the source's
+    # display_image_url column verbatim — for boards that follow their
+    # preview that string points at the *source's* image, so the clone
+    # would render the wrong board. Default every clone to "follow my
+    # own preview" and drop the inherited snapshot.
+    @cloned_board.write_attribute(:display_image_url, nil)
+    @cloned_board.settings = (@cloned_board.settings || {}).merge(
+      "display_follows_preview" => true,
+    )
     @cloned_board.user_id = cloned_user_id
     @cloned_board.name = new_name
     @cloned_board.predefined = false
