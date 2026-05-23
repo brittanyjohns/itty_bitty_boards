@@ -4,6 +4,8 @@ require "rails_helper"
 
 # Issue #160 (B4) — claim hand-off through the API.
 RSpec.describe "API::ChildAccounts claim flow", type: :request do
+  include ActiveJob::TestHelper
+
   let(:slp) { create(:user, plan_type: "pro", created_at: 2.months.ago) }
   let(:parent) do
     u = create(:user, created_at: 2.months.ago)
@@ -34,45 +36,123 @@ RSpec.describe "API::ChildAccounts claim flow", type: :request do
     end
   end
 
-  describe "GET /api/child_accounts/claim/:token (public preview)" do
+  describe "GET /api/communicator_claims/:token (public preview)" do
     before { loaner.generate_claim_token! }
 
-    it "returns minimal info without requiring auth" do
-      get "/api/child_accounts/claim/#{loaner.claim_token}"
+    it "returns the preview shape without requiring auth" do
+      get "/api/communicator_claims/#{loaner.claim_token}"
 
       expect(response).to have_http_status(:ok)
       body = JSON.parse(response.body)
-      expect(body["name"]).to eq(loaner.display_name)
+      expect(body["child_name"]).to eq(loaner.display_name)
+      expect(body["communicator_name"]).to eq(loaner.display_name)
       expect(body["owner_name"]).to eq(slp.display_name)
+      expect(body["owner_email"]).to eq(slp.email)
+      expect(body["status"]).to eq("loaner")
+      expect(body["expired"]).to be(false)
+      expect(body["already_claimed"]).to be(false)
+    end
+
+    it "reports already_claimed once the loaner has been claimed" do
+      loaner.claim_by!(user: parent)
+      get "/api/communicator_claims/#{loaner.claim_token}"
+      # claim clears the token, so this 404s — caller should have a
+      # token from BEFORE the claim. Simulate by re-issuing one on the
+      # now-active account (the preview just inspects the row).
+      loaner.update_column(:claim_token, "preview-token")
+
+      get "/api/communicator_claims/preview-token"
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["status"]).to eq("claimed")
+      expect(body["already_claimed"]).to be(true)
     end
 
     it "404s on an unknown token" do
-      get "/api/child_accounts/claim/garbage"
+      get "/api/communicator_claims/garbage"
       expect(response).to have_http_status(:not_found)
     end
   end
 
-  describe "POST /api/child_accounts/claim/:token" do
+  describe "POST /api/communicator_claims/:token/claim" do
     before { loaner.generate_claim_token! }
 
     it "lets the parent claim, transferring ownership" do
-      post "/api/child_accounts/claim/#{loaner.claim_token}", headers: auth_headers(parent)
+      post "/api/communicator_claims/#{loaner.claim_token}/claim", headers: auth_headers(parent)
 
       expect(response).to have_http_status(:ok)
-      loaner.reload
-      expect(loaner.status).to eq("active")
-      expect(loaner.owner_id).to eq(parent.id)
+      body = JSON.parse(response.body)
+      expect(body["account"]).to be_present
+      expect(body["account"]["status"]).to eq("active")
+      expect(loaner.reload.owner_id).to eq(parent.id)
     end
 
     it "returns slot_full when the parent has no room" do
       create(:child_account, user: parent, owner: parent, status: "active",
                              passcode: "x", username: "preclaimed-#{SecureRandom.hex(2)}")
 
-      post "/api/child_accounts/claim/#{loaner.claim_token}", headers: auth_headers(parent)
+      post "/api/communicator_claims/#{loaner.claim_token}/claim", headers: auth_headers(parent)
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(JSON.parse(response.body)["error"]).to eq("slot_full")
       expect(loaner.reload.status).to eq("loaner")
+    end
+  end
+
+  describe "POST /api/child_accounts/:id/lend" do
+    let!(:sandbox) do
+      account = create(:child_account, user: slp, owner: slp, status: "sandbox", passcode: nil)
+      account.ensure_team!(creator: slp)
+      account
+    end
+
+    it "promotes sandbox → loaner and returns a claim_url in one round trip" do
+      post "/api/child_accounts/#{sandbox.id}/lend", headers: auth_headers(slp)
+
+      expect(response).to have_http_status(:ok)
+      sandbox.reload
+      expect(sandbox.status).to eq("loaner")
+      expect(sandbox.claim_token).to be_present
+      body = JSON.parse(response.body)
+      expect(body["claim_url"]).to include(sandbox.claim_token)
+      expect(body["loaned_at"]).to be_present
+    end
+
+    it "rotates the token when called again on a loaner" do
+      sandbox.promote_to_loaner!(passcode: "abc")
+      old_token = sandbox.generate_claim_token!
+
+      post "/api/child_accounts/#{sandbox.id}/lend", headers: auth_headers(slp)
+      expect(response).to have_http_status(:ok)
+      expect(sandbox.reload.claim_token).not_to eq(old_token)
+    end
+  end
+
+  describe "POST /api/child_accounts/:id/send_claim_link" do
+    before do
+      loaner.generate_claim_token!
+      ActionMailer::Base.deliveries.clear
+    end
+
+    it "delivers the claim link to the supplied email" do
+      perform_enqueued_jobs do
+        post "/api/child_accounts/#{loaner.id}/send_claim_link",
+          params: { email: "family@example.com" },
+          headers: auth_headers(slp)
+      end
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["ok"]).to be(true)
+      expect(body["claim_url"]).to include(loaner.reload.claim_token)
+      expect(ActionMailer::Base.deliveries.last.to).to eq(["family@example.com"])
+    end
+
+    it "rejects a bad email" do
+      post "/api/child_accounts/#{loaner.id}/send_claim_link",
+        params: { email: "not-an-email" },
+        headers: auth_headers(slp)
+      expect(response).to have_http_status(:unprocessable_entity)
     end
   end
 

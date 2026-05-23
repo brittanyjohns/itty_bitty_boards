@@ -1320,6 +1320,14 @@ class User < ApplicationRecord
     paid_comm_count = paid_communicator_accounts.length
     demo_comm_count = demo_communicator_accounts.length
 
+    # ---- Status-aware counts (loaner-lifecycle, issue #156) ----
+    # Single query, grouped by status, so we don't fire one query per
+    # association. Used by the dashboard slot counter + LoanerControls.
+    status_counts = communicator_accounts.group(:status).count
+    sandbox_count = status_counts.fetch(ChildAccount::SANDBOX, 0)
+    loaner_count  = status_counts.fetch(ChildAccount::LOANER, 0)
+    active_count  = status_counts.fetch(ChildAccount::ACTIVE, 0)
+
     # ---- Derived limits ----
     paid_comm_limit_total = comm_limit
 
@@ -1387,6 +1395,14 @@ class User < ApplicationRecord
       demo_comm_account_limit: demo_limit,
       demo_comm_account_limit_reached: demo_comm_account_limit_reached,
       demo_communicator_count: demo_comm_count,
+
+      # Lifecycle counts (loaner-lifecycle, issue #156). Active+loaner
+      # together count against comm_account_limit. Free hosts one
+      # claimed; claimed_communicator_count = active for Free users.
+      sandbox_communicator_count: sandbox_count,
+      loaner_communicator_count: loaner_count,
+      active_communicator_count: active_count,
+      claimed_communicator_count: active_count,
 
       # Other settings-driven limits
       supervisor_limit: settings["supervisor_limit"] || 0,

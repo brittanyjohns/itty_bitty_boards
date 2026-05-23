@@ -1,5 +1,5 @@
 class API::ChildAccountsController < API::ApplicationController
-  before_action :set_child_account, only: %i[ show update destroy promote_to_loaner claim_link end_loan ]
+  before_action :set_child_account, only: %i[ show update destroy promote_to_loaner lend claim_link send_claim_link end_loan ]
   # Claim preview is the parent's "this is what you're about to claim"
   # page — they may not be signed in yet, so it runs token-only.
   skip_before_action :authenticate_token!, only: %i[ claim_preview ]
@@ -61,6 +61,42 @@ class API::ChildAccountsController < API::ApplicationController
     end
   end
 
+  # POST /api/child_accounts/:id/lend
+  # SLP-facing "Lend to a family" action. Promotes the sandbox to loaner
+  # (provisioning a passcode) and issues the claim token in one round
+  # trip so the frontend immediately sees `claim_url` on the returned
+  # account. Idempotent on a loaner — just rotates the claim token.
+  def lend
+    unless @child_account.owner_id == current_user.id || current_user.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+
+    if @child_account.active?
+      render json: { error: "This communicator has already been claimed" }, status: :unprocessable_entity
+      return
+    end
+
+    if @child_account.sandbox?
+      allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
+        user: @child_account.owner,
+        status: ChildAccount::LOANER,
+      )
+      unless allowed
+        render json: { error: error }, status: http_status
+        return
+      end
+    end
+
+    begin
+      @child_account.promote_to_loaner!(passcode: params[:passcode]) if @child_account.sandbox?
+      @child_account.generate_claim_token!
+      render json: @child_account.api_view(current_user), status: :ok
+    rescue ActiveRecord::RecordInvalid => e
+      render json: { errors: e.record.errors.full_messages.join(", ") }, status: :unprocessable_entity
+    end
+  end
+
   # POST /api/child_accounts/:id/claim_link
   # SLP-only. Generates (or rotates) the claim token a parent uses to
   # take ownership of this loaner. Returns the URL the SLP shares.
@@ -83,27 +119,80 @@ class API::ChildAccountsController < API::ApplicationController
     }, status: :ok
   end
 
-  # GET /api/child_accounts/claim/:token
-  # Public preview shown on the parent's claim page before they sign in.
-  def claim_preview
-    account = ChildAccount.find_by(claim_token: params[:token])
-    unless account&.loaner?
-      render json: { error: "Invalid or expired claim link" }, status: :not_found
+  # POST /api/child_accounts/:id/send_claim_link
+  # Generates (or rotates) the claim token and emails it to the parent.
+  # Owner-only. Body: { email: "parent@example.com" }.
+  def send_claim_link
+    unless @child_account.owner_id == current_user.id || current_user.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
 
+    unless @child_account.loaner?
+      render json: { error: "Only loaners can issue a claim link" }, status: :unprocessable_entity
+      return
+    end
+
+    email = params[:email].to_s.strip
+    if email.blank? || !email.include?("@")
+      render json: { error: "A valid email is required" }, status: :unprocessable_entity
+      return
+    end
+
+    @child_account.generate_claim_token! if @child_account.claim_token.blank?
+
+    begin
+      CommunicationAccountMailer.claim_link_email(@child_account, email, current_user).deliver_later
+    rescue => e
+      Rails.logger.error "[send_claim_link] mailer failed for child_account=#{@child_account.id}: #{e.message}"
+      render json: { error: "Couldn't send the email. Please try again." }, status: :service_unavailable
+      return
+    end
+
+    render json: { ok: true, claim_url: @child_account.claim_link_url, sent_to: email }, status: :ok
+  end
+
+  # GET /api/communicator_claims/:token
+  # Public preview shown on the parent's claim page before they sign in.
+  # Returns a stable shape so the frontend can render expired/claimed
+  # states without a separate request.
+  def claim_preview
+    account = ChildAccount.find_by(claim_token: params[:token])
+    if account.nil?
+      render json: { error: "Invalid or expired claim link", expired: true }, status: :not_found
+      return
+    end
+
+    if account.active?
+      render json: {
+        status: "claimed",
+        already_claimed: true,
+        owner_name: account.owner&.display_name,
+      }, status: :ok
+      return
+    end
+
+    expired = account.claim_token_sent_at.present? &&
+              account.claim_token_sent_at < LoanerReclaimJob::RECLAIM_AFTER.ago
+
     render json: {
-      id: account.id,
-      name: account.display_name,
+      status: expired ? "expired" : account.status,
+      expired: expired,
+      already_claimed: false,
+      child_name: account.display_name,
+      communicator_name: account.display_name,
       owner_name: account.owner&.display_name,
-      created_at: account.created_at,
+      owner_email: account.owner&.email,
     }, status: :ok
   end
 
-  # POST /api/child_accounts/claim/:token
+  # POST /api/communicator_claims/:token/claim
   # Parent (signed in) claims the loaner. Transfers ownership, swaps
   # onto the parent's plan, frees the SLP's slot, keeps the SLP on the
   # child's team as a supervisor.
+  #
+  # Response is wrapped as `{ account: ..., error: ... }` so the
+  # frontend can branch on `result.error` regardless of HTTP status.
   def claim
     account = ChildAccount.find_by(claim_token: params[:token])
     unless account&.loaner?
@@ -113,7 +202,7 @@ class API::ChildAccountsController < API::ApplicationController
 
     begin
       account.claim_by!(user: current_user)
-      render json: account.api_view(current_user), status: :ok
+      render json: { account: account.api_view(current_user) }, status: :ok
     rescue ChildAccount::SlotFull => e
       render json: {
         error: "slot_full",
@@ -121,7 +210,7 @@ class API::ChildAccountsController < API::ApplicationController
         upgrade_url: "/account/billing/upgrade",
       }, status: :unprocessable_entity
     rescue ActiveRecord::RecordInvalid => e
-      render json: { errors: e.record.errors.full_messages.join(", ") }, status: :unprocessable_entity
+      render json: { error: e.record.errors.full_messages.join(", ") }, status: :unprocessable_entity
     end
   end
 

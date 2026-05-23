@@ -263,6 +263,15 @@ class ChildAccount < ApplicationRecord
 
   class SlotFull < StandardError; end
 
+  # Surfaced on api_view so the frontend can render a countdown / "link
+  # expires" copy without needing to know the reclaim job's cutoff.
+  def loan_expires_at
+    return nil unless loaner?
+    anchor = claim_token_sent_at || loaner_started_at
+    return nil if anchor.blank?
+    anchor + LoanerReclaimJob::RECLAIM_AFTER
+  end
+
   # Sandbox communicators are no-login scratch spaces. Guarded by
   # new_record?/passcode_changed? so we don't break legacy sandbox rows
   # that already carry a passcode from the pre-lifecycle era.
@@ -393,6 +402,11 @@ class ChildAccount < ApplicationRecord
       layout: layout,
       status: status,
       is_demo: is_demo?,
+      claim_token: claim_token,
+      claim_url: claim_link_url,
+      loaned_at: loaner_started_at,
+      claimed_at: claimed_at,
+      loan_expires_at: loan_expires_at,
       voice: voice,
       vendor: is_vendor ? cached_user.vendor.api_view(viewing_user) : nil,
       vendor_profile: is_vendor ? cached_profile.api_view(viewing_user) : nil,
@@ -713,6 +727,11 @@ class ChildAccount < ApplicationRecord
       layout: layout,
       status: status,
       is_demo: is_demo?,
+      claim_token: claim_token,
+      claim_url: claim_link_url,
+      loaned_at: loaner_started_at,
+      claimed_at: claimed_at,
+      loan_expires_at: loan_expires_at,
       device_tag_url: device_tag_url,
       safety_id_url: safety_id_url,
       voice: voice,
