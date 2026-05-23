@@ -1,21 +1,25 @@
 namespace :plans do
-  # Map plan_type → the PLAN_LIMITS constant on User that defines the
-  # current per-tier defaults. partner_pro and basic_trial inherit
-  # their paid tier's slot math (matches User#setup_limits).
-  BACKFILL_LIMITS_BY_PLAN = {
-    "free"         => User::FREE_PLAN_LIMITS,
-    "basic"        => User::BASIC_PLAN_LIMITS,
-    "basic_yearly" => User::BASIC_PLAN_LIMITS,
-    "basic_trial"  => User::BASIC_PLAN_LIMITS,
-    "pro"          => User::PRO_PLAN_LIMITS,
-    "pro_yearly"   => User::PRO_PLAN_LIMITS,
-    "partner_pro"  => User::PRO_PLAN_LIMITS,
-  }.freeze
-
+  # Keep ALL references to autoloaded constants (User::*_PLAN_LIMITS)
+  # inside the task body. Rakefiles get loaded during asset precompile
+  # before Rails boots — a top-level `User::FREE_PLAN_LIMITS` raises
+  # `NameError: uninitialized constant User` during deploy.
   BACKFILL_LIMIT_KEYS = %w[paid_communicator_limit demo_communicator_limit board_limit ai_monthly_limit].freeze
 
   desc "Backfill per-tier limits onto user.settings, filling missing/zero values without clobbering admin-tuned higher values"
   task backfill_communicator_limits: :environment do
+    # Built at task-execution time (after :environment), so User is
+    # available. partner_pro and basic_trial inherit their paid tier's
+    # slot math (matches User#setup_limits).
+    limits_by_plan = {
+      "free"         => User::FREE_PLAN_LIMITS,
+      "basic"        => User::BASIC_PLAN_LIMITS,
+      "basic_yearly" => User::BASIC_PLAN_LIMITS,
+      "basic_trial"  => User::BASIC_PLAN_LIMITS,
+      "pro"          => User::PRO_PLAN_LIMITS,
+      "pro_yearly"   => User::PRO_PLAN_LIMITS,
+      "partner_pro"  => User::PRO_PLAN_LIMITS,
+    }.freeze
+
     dry_run = ENV["DRY_RUN"] == "true"
     only_plans = ENV["PLANS"]&.split(",")&.map(&:strip)
     updated = 0
@@ -29,7 +33,7 @@ namespace :plans do
     puts "[backfill_communicator_limits] starting (dry_run=#{dry_run} plans=#{only_plans || "all"})"
 
     scope.find_each(batch_size: 200) do |user|
-      defaults = BACKFILL_LIMITS_BY_PLAN[user.plan_type]
+      defaults = limits_by_plan[user.plan_type]
       unless defaults
         skipped += 1
         next
