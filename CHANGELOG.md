@@ -5,6 +5,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Team owner can't be removed or demoted by other team members
+
+- After the SLP→parent claim hand-off, the parent (new owner) is protected on the communicator's team. An SLP supervisor — or any non-owner team member — can no longer remove the parent owner via `DELETE /api/teams/:id/remove_member`, demote the owner via the invite endpoint, or self-promote themselves to admin. Attempts return HTTP 403 with structured errors (`cannot_remove_owner`, `cannot_change_owner_role`, `cannot_self_promote`). The owner can still remove themselves; system admins retain an escape hatch.
+- Team `show`/`index` `api_view` now exposes `account_owner_ids` and per-member `is_account_owner` so the frontend can hide destructive controls on the owner row.
+
 ### Changed — Downgraded users keep their boards (read-only, never deleted)
 - When a paid user (Basic/Pro) cancels and lands back on Free, their existing boards are no longer all fully editable. Boards beyond the Free limit (1) become **read-only**: they still open, cells still tap, audio still plays — so a non-speaking user's communication never breaks — but content-editing (renaming, layout changes, image swaps, audio uploads) is blocked behind an upgrade prompt. Previously, a Pro user with dozens of boards who cancelled kept full edit access to every one of them forever; only *creating* a new board was blocked.
 - Users pick which single board keeps full edit access via `PATCH /api/boards/:id/make_editable`. On downgrade the backend pins a sensible default (favorite or most-recent) so they're never fully locked out before they choose.

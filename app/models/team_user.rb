@@ -52,6 +52,13 @@ class TeamUser < ApplicationRecord
     { "admin" => "Admin", "member" => "Member" }
   end
 
+  # True if this user is the owner of any child_account on the team. Used
+  # by `API::TeamsController` to block removal / role-change of the owner
+  # by anyone other than themselves (issue #166).
+  def account_owner?
+    team.account_owner?(user)
+  end
+
   def api_view
     {
       id: id,
@@ -59,6 +66,7 @@ class TeamUser < ApplicationRecord
       name: name,
       role: role,
       can_edit: user.can_add_boards_to_account?(team.account_ids),
+      is_account_owner: account_owner?,
       invitation_accepted_at: invitation_accepted_at,
       user_id: user_id,
       team_id: team_id,

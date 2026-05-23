@@ -43,16 +43,26 @@ class API::TeamsController < API::ApplicationController
     user_email = team_user_params[:email]
     user_role = invite_role
     @team = Team.find(params[:id])
-    # @user = User.find_by(email: user_email)
-    # if @user
-    #   Rails.logger.info "Inviting existing user #{@user.id} to team #{@team.id}"
-    #   @user.invite_to_team!(@team, current_user, user_role)
-    # else
+
+    # Block role-change of an existing owner-pinned member, and block
+    # self-promotion to admin by non-owners. See issue #166.
+    existing_user = User.find_by(email: user_email)
+    if existing_user
+      existing_membership = TeamUser.find_by(user_id: existing_user.id, team_id: @team.id)
+      if existing_membership && existing_membership.role != user_role
+        if @team.account_owner?(existing_user) && existing_user != current_user
+          return render_team_permission_error("cannot_change_owner_role",
+                                              "You cannot change the role of the communicator's owner.")
+        end
+        if existing_user == current_user && user_role == "admin" &&
+           !current_user.admin? && !@team.account_owner?(current_user)
+          return render_team_permission_error("cannot_self_promote",
+                                              "You cannot promote yourself to admin.")
+        end
+      end
+    end
+
     @user = User.invite_new_user_to_team!(user_email, current_user, @team, user_role)
-    #   Rails.logger.info "Inviting new user #{@user.id} to team #{@team.id}"
-    #   # @user = User.create_from_email(user_email, nil, current_user.id)
-    # end
-    # @user = User.find_by(email: user_email) unless @user && @user.persisted?
     unless @user
       return render json: { error: "User not invited. Something went wrong." }, status: :unprocessable_entity
     end
@@ -70,7 +80,20 @@ class API::TeamsController < API::ApplicationController
   def remove_member
     @team = Team.find(params[:id])
     @user = User.find_by(email: params[:email])
+    return render json: { error: "User not found" }, status: :not_found unless @user
+
     @team_user = TeamUser.find_by(user_id: @user.id, team_id: @team.id)
+    return render json: { error: "Not a team member" }, status: :not_found unless @team_user
+
+    # Owner of any child_account on this team is owner-pinned: only the
+    # owner themselves (or a system admin) can remove them. Issue #166 —
+    # prevents an SLP supervisor from removing the parent owner after the
+    # claim hand-off.
+    if @team.account_owner?(@user) && @user != current_user && !current_user.admin?
+      return render_team_permission_error("cannot_remove_owner",
+                                          "You cannot remove the communicator's owner from the team.")
+    end
+
     @team_user.destroy!
     render json: @team.show_api_view(current_user)
   end
@@ -151,6 +174,10 @@ class API::TeamsController < API::ApplicationController
   end
 
   private
+
+  def render_team_permission_error(error_key, message)
+    render json: { error: error_key, message: message }, status: :forbidden
+  end
 
   # Use callbacks to share common setup or constraints between actions.
   def set_team

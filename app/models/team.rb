@@ -101,18 +101,34 @@ class Team < ApplicationRecord
     team_board.destroy if team_board
   end
 
+  # User ids of the owners of any child_account on this team. These users
+  # are "owner-pinned" — they cannot be removed or have their role changed
+  # by anyone other than themselves (or a system admin). The frontend reads
+  # this to hide destructive controls on the owner row.
+  def account_owner_ids
+    accounts.pluck(:owner_id).compact.uniq
+  end
+
+  def account_owner?(user)
+    return false unless user
+    account_owner_ids.include?(user.id)
+  end
+
   def index_api_view(viewing_user = nil)
+    owner_ids = account_owner_ids
     {
       id: id,
       name: name,
       created_by_id: created_by_id,
       created_by_name: created_by&.name,
       created_by_email: created_by&.email,
+      account_owner_ids: owner_ids,
       members: team_users.includes(:user).map { |tu|
-        { id: tu.id, name: tu.user.name, email: tu.user.email,
-          role: tu.role, plan_type: tu.user.plan_type }
+        { id: tu.id, user_id: tu.user_id, name: tu.user.name, email: tu.user.email,
+          role: tu.role, plan_type: tu.user.plan_type,
+          is_account_owner: owner_ids.include?(tu.user_id) }
       },
-      accounts: accounts.includes(:user).map { |a| { id: a.id, name: a.name, created_by_id: a.user_id, created_by_name: a.user&.name, created_by_email: a.user&.email, avatar_url: a.avatar_url } },
+      accounts: accounts.includes(:user).map { |a| { id: a.id, name: a.name, owner_id: a.owner_id, created_by_id: a.user_id, created_by_name: a.user&.name, created_by_email: a.user&.email, avatar_url: a.avatar_url } },
 
       created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
       updated_at: updated_at.strftime("%Y-%m-%d %H:%M:%S"),
@@ -120,6 +136,7 @@ class Team < ApplicationRecord
   end
 
   def show_api_view(viewing_user = nil)
+    owner_ids = account_owner_ids
     {
       id: id,
       name: name,
@@ -129,10 +146,12 @@ class Team < ApplicationRecord
       created_by_id: created_by_id,
       created_by_name: created_by&.name,
       created_by_email: created_by&.email,
-      accounts: accounts.includes(:user).map { |a| { id: a.id, name: a.name, created_by_id: a.user_id, created_by_name: a.user&.name, created_by_email: a.user&.email, avatar_url: a.avatar_url } },
+      account_owner_ids: owner_ids,
+      accounts: accounts.includes(:user).map { |a| { id: a.id, name: a.name, owner_id: a.owner_id, created_by_id: a.user_id, created_by_name: a.user&.name, created_by_email: a.user&.email, avatar_url: a.avatar_url } },
       members: team_users.includes(:user).map { |tu|
-        { id: tu.id, name: tu.user.name, email: tu.user.email,
-          role: tu.role, plan_type: tu.user.plan_type }
+        { id: tu.id, user_id: tu.user_id, name: tu.user.name, email: tu.user.email,
+          role: tu.role, plan_type: tu.user.plan_type,
+          is_account_owner: owner_ids.include?(tu.user_id) }
       },
       boards: team_boards.includes(board: :user).map { |tb| { id: tb.board_id, name: tb.board.name, board_type: tb.board.board_type, display_image_url: tb.board.display_image_url, added_by_id: tb.created_by_id, board_owner_name: tb.board.user&.display_name, board_owner_id: tb.board.user_id } },
       created_at: created_at.strftime("%Y-%m-%d %H:%M:%S"),
