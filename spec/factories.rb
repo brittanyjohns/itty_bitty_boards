@@ -76,6 +76,9 @@ FactoryBot.define do
   factory :child_account do
     association :user
     sequence(:username) { |n| "child_#{n}" }
+    status { ChildAccount::SANDBOX }
+    # Lifecycle (B3): sandbox = no login, loaner/active = login required.
+    passcode { status.to_s == ChildAccount::SANDBOX ? nil : SecureRandom.hex(4) }
   end
 
   factory(:user) do

@@ -313,6 +313,7 @@ Rails.application.routes.draw do
       member do
         post "assign_boards"
         post "send_setup_email"
+        post "promote_to_loaner"
         delete "remove_board"
       end
     end

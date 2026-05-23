@@ -71,9 +71,8 @@ class ChildAccount < ApplicationRecord
 
   validates :username, presence: true, uniqueness: true
   validates :status, inclusion: { in: STATUSES }
-  # Repaired in B3 (#159):
-  # validate :sandbox_cannot_have_login
-  # validate :loaner_or_active_must_have_login
+  validate :sandbox_cannot_have_login
+  validate :loaner_or_active_must_have_login
 
   delegate :display_docs_for_image, to: :user
 
@@ -169,17 +168,48 @@ class ChildAccount < ApplicationRecord
     account
   end
 
-  def demo_accounts_cannot_have_login
-    return unless is_demo?
-    if username.present? || passcode.present?
-      errors.add(:base, "Demo communicators cannot have a username or passcode.")
+  # Promote a sandbox communicator to a loaner: provision a passcode if
+  # one wasn't supplied and lift the sandbox board cap so the full plan
+  # limit applies. Idempotent on a loaner; raises on active.
+  def promote_to_loaner!(passcode: nil)
+    case status
+    when LOANER
+      return self
+    when ACTIVE
+      raise ArgumentError, "Cannot promote an active communicator back to loaner"
+    end
+
+    self.status = LOANER
+    self.passcode = passcode if passcode.present?
+    self.passcode = SecureRandom.alphanumeric(8) if self.passcode.blank?
+    # Sandbox board cap was per-account in settings["demo_board_limit"];
+    # remove it so the owner's plan board limit applies.
+    self.settings ||= {}
+    self.settings.delete("demo_board_limit")
+    save!
+    self
+  end
+
+  # Sandbox communicators are no-login scratch spaces. Guarded by
+  # new_record?/passcode_changed? so we don't break legacy sandbox rows
+  # that already carry a passcode from the pre-lifecycle era.
+  def sandbox_cannot_have_login
+    return unless sandbox?
+    return unless new_record? || passcode_changed?
+    if passcode.present?
+      errors.add(:passcode, "must be blank for sandbox communicators")
     end
   end
 
-  def paid_accounts_must_have_login
-    return if is_demo?
-    if username.blank? || passcode.blank?
-      errors.add(:base, "Paid communicators must have a username and passcode.")
+  # Loaner and active communicators are real accounts a child uses, so
+  # they must have a passcode. Only enforced for new records or when the
+  # status just changed (e.g. sandbox → loaner promotion) so legacy
+  # records that never had a passcode aren't retroactively invalidated.
+  def loaner_or_active_must_have_login
+    return if sandbox?
+    return unless new_record? || status_changed?
+    if passcode.blank?
+      errors.add(:passcode, "is required for loaner and active communicators")
     end
   end
 

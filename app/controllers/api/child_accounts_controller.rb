@@ -1,5 +1,5 @@
 class API::ChildAccountsController < API::ApplicationController
-  before_action :set_child_account, only: %i[ show update destroy ]
+  before_action :set_child_account, only: %i[ show update destroy promote_to_loaner ]
 
   # GET /child_accounts
   # GET /child_accounts.json
@@ -22,6 +22,40 @@ class API::ChildAccountsController < API::ApplicationController
     @child_account = ChildAccount.find(params[:id])
     @child_account.send_setup_email(current_user)
     render json: { success: true }
+  end
+
+  # POST /api/child_accounts/:id/promote_to_loaner
+  # Promotes a sandbox communicator to a loaner: provisions a passcode
+  # (caller may supply one), lifts the sandbox board cap, and starts
+  # counting against the owner's slot. The owner must be authorized to
+  # add a loaner slot (B2 limits).
+  def promote_to_loaner
+    unless @child_account.owner_id == current_user.id || current_user.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+
+    unless @child_account.sandbox?
+      render json: { error: "Only sandbox communicators can be promoted to loaner" }, status: :unprocessable_entity
+      return
+    end
+
+    allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
+      user: @child_account.owner,
+      status: ChildAccount::LOANER,
+    )
+
+    unless allowed
+      render json: { error: error }, status: http_status
+      return
+    end
+
+    begin
+      @child_account.promote_to_loaner!(passcode: params[:passcode])
+      render json: @child_account.api_view(current_user), status: :ok
+    rescue ActiveRecord::RecordInvalid => e
+      render json: { errors: e.record.errors.full_messages.join(", ") }, status: :unprocessable_entity
+    end
   end
 
   # POST /child_accounts
@@ -55,7 +89,7 @@ class API::ChildAccountsController < API::ApplicationController
       return
     end
 
-    # Passcode (required)
+    # Passcode is required for loaner/active; sandbox accounts have no login.
     password = params[:password]
     password_confirmation = params[:password_confirmation]
 
@@ -64,7 +98,7 @@ class API::ChildAccountsController < API::ApplicationController
       return
     end
 
-    @child_account.passcode = password
+    @child_account.passcode = password if password.present? && requested_status != ChildAccount::SANDBOX
 
     # Optional attrs
     @child_account.settings = params[:settings] if params[:settings].present?
