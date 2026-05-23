@@ -335,7 +335,8 @@ class API::ChildAccountsController < API::ApplicationController
       render json: @child_account.api_view(current_user), status: :created
     else
       Rails.logger.info "Invalid Child Account: errors: #{@child_account.errors.inspect}"
-      render json: { errors: @child_account.errors }, status: :unprocessable_entity
+      message = @child_account.errors.full_messages.join(", ")
+      render json: { error: message, errors: message }, status: :unprocessable_entity
     end
   end
 
@@ -397,7 +398,8 @@ class API::ChildAccountsController < API::ApplicationController
     if @child_account.save
       render json: @child_account.api_view(current_user), status: :ok
     else
-      render json: @child_account.errors, status: :unprocessable_entity
+      message = @child_account.errors.full_messages.join(", ")
+      render json: account_error_payload(message), status: :unprocessable_entity
     end
   end
 
