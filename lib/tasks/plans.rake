@@ -1,4 +1,82 @@
 namespace :plans do
+  # Map plan_type → the PLAN_LIMITS constant on User that defines the
+  # current per-tier defaults. partner_pro and basic_trial inherit
+  # their paid tier's slot math (matches User#setup_limits).
+  BACKFILL_LIMITS_BY_PLAN = {
+    "free"         => User::FREE_PLAN_LIMITS,
+    "basic"        => User::BASIC_PLAN_LIMITS,
+    "basic_yearly" => User::BASIC_PLAN_LIMITS,
+    "basic_trial"  => User::BASIC_PLAN_LIMITS,
+    "pro"          => User::PRO_PLAN_LIMITS,
+    "pro_yearly"   => User::PRO_PLAN_LIMITS,
+    "partner_pro"  => User::PRO_PLAN_LIMITS,
+  }.freeze
+
+  BACKFILL_LIMIT_KEYS = %w[paid_communicator_limit demo_communicator_limit board_limit ai_monthly_limit].freeze
+
+  desc "Backfill per-tier limits onto user.settings, filling missing/zero values without clobbering admin-tuned higher values"
+  task backfill_communicator_limits: :environment do
+    dry_run = ENV["DRY_RUN"] == "true"
+    only_plans = ENV["PLANS"]&.split(",")&.map(&:strip)
+    updated = 0
+    unchanged = 0
+    skipped = 0
+    by_plan = Hash.new(0)
+
+    scope = User.all
+    scope = scope.where(plan_type: only_plans) if only_plans
+
+    puts "[backfill_communicator_limits] starting (dry_run=#{dry_run} plans=#{only_plans || "all"})"
+
+    scope.find_each(batch_size: 200) do |user|
+      defaults = BACKFILL_LIMITS_BY_PLAN[user.plan_type]
+      unless defaults
+        skipped += 1
+        next
+      end
+
+      user.settings ||= {}
+      changes = {}
+
+      BACKFILL_LIMIT_KEYS.each do |key|
+        current = user.settings[key].to_i
+        # Fill when missing or explicitly 0 — never clobber a higher
+        # value an admin set intentionally.
+        if current <= 0 && defaults[key].to_i > 0
+          changes[key] = defaults[key]
+        end
+      end
+
+      if changes.empty?
+        unchanged += 1
+        next
+      end
+
+      by_plan[user.plan_type] += 1
+
+      if dry_run
+        puts "  would update user=#{user.id} plan=#{user.plan_type} changes=#{changes.inspect}"
+        updated += 1
+      else
+        user.settings.merge!(changes)
+        # update_columns to skip callbacks — the plan_type isn't
+        # changing, and we don't want before_save :setup_limits to
+        # also run and overwrite ai_monthly_limit etc.
+        user.update_columns(settings: user.settings, updated_at: Time.current)
+        updated += 1
+        print "." if updated % 100 == 0
+      end
+    rescue => e
+      skipped += 1
+      warn "[plans:backfill_communicator_limits] user #{user.id} failed: #{e.message}"
+    end
+
+    puts
+    puts "[backfill_communicator_limits] done. updated=#{updated} unchanged=#{unchanged} skipped=#{skipped}"
+    by_plan.sort.each { |plan, count| puts "  #{plan}: #{count}" }
+    puts "(dry run — no rows were written)" if dry_run
+  end
+
   desc "Migrate users on the retired MySpeak plan tier to the free plan"
   task migrate_myspeak_to_free: :environment do
     migrated = 0
