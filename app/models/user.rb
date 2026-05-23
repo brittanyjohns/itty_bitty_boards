@@ -1226,11 +1226,33 @@ class User < ApplicationRecord
   # is blank, and only if effective_editable_board_id resolves to a board.
   # Called from both downgrade paths: apply_free_plan (Stripe cancel/pause)
   # and DowngradeSoftTrialJob (soft-trial expiry).
+  #
+  # Deliberately does NOT set editable_board_id_set_at — the initial default
+  # is the system's pick, not the user's. The user's first explicit
+  # make_editable call starts the cooldown clock.
   def pin_default_editable_board!
     return unless editable_board_id.blank?
     default_id = effective_editable_board_id
     return if default_id.blank?
     update_column(:editable_board_id, default_id)
+  end
+
+  # How long a user must wait between editable-board switches. Closes the
+  # loophole where a free user could rotate the editable slot to edit every
+  # board one at a time. Configurable for support / experimentation.
+  EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS =
+    ENV.fetch("EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS", 14).to_i
+
+  # When the next make_editable call is permitted. Nil if no prior explicit
+  # pick (so the user can pick immediately) or if the cooldown has passed.
+  def editable_board_switch_available_at
+    return nil if editable_board_id_set_at.blank?
+    available = editable_board_id_set_at + EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS.days
+    available > Time.current ? available : nil
+  end
+
+  def editable_board_switch_cooldown_active?
+    editable_board_switch_available_at.present?
   end
 
   # Whether this user may edit the given board's content. Free users over
@@ -1296,6 +1318,8 @@ class User < ApplicationRecord
       board_limit_reached: board_count >= board_limit,
       can_create_boards: can_create_boards,
       editable_board_id: effective_editable_board_id,
+      editable_board_switch_available_at: editable_board_switch_available_at,
+      editable_board_switch_cooldown_days: EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS,
 
       # AI
       can_use_ai: can_use_ai?,

@@ -915,7 +915,9 @@ class API::BoardsController < API::ApplicationController
 
   # Designate this board as the user's editable board. On a downgraded (free)
   # plan, all other owned boards become read-only; this lets the user choose
-  # which one keeps full edit access.
+  # which one keeps full edit access. Subject to a cooldown
+  # (User::EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS) so a user can't rotate the
+  # slot to edit every board one at a time.
   def make_editable
     return if @board.nil?
 
@@ -924,7 +926,29 @@ class API::BoardsController < API::ApplicationController
       return
     end
 
-    current_user.update!(editable_board_id: @board.id)
+    # No-op when the user re-picks the board that's already designated. Skip
+    # the cooldown check so a confirm/double-tap doesn't accidentally start
+    # the clock either.
+    if current_user.editable_board_id == @board.id
+      fresh_user = User.find(current_user.id)
+      render json: { user: fresh_user.api_view, board: @board.api_view(fresh_user) }
+      return
+    end
+
+    if !current_user.admin? && current_user.editable_board_switch_cooldown_active?
+      render json: {
+        error: "editable_board_cooldown",
+        message: "You can switch your editable board again on #{current_user.editable_board_switch_available_at.to_date.iso8601}.",
+        available_at: current_user.editable_board_switch_available_at,
+        cooldown_days: User::EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS,
+      }, status: :forbidden
+      return
+    end
+
+    current_user.update!(
+      editable_board_id: @board.id,
+      editable_board_id_set_at: Time.current,
+    )
     fresh_user = User.find(current_user.id)
     render json: { user: fresh_user.api_view, board: @board.api_view(fresh_user) }
   end

@@ -77,6 +77,46 @@ RSpec.describe "Board read-only on downgrade", type: :model do
     end
   end
 
+  describe "editable-board switch cooldown" do
+    let(:user) { create(:free_user) }
+    let!(:board_a) { create(:board, user: user) }
+    let!(:board_b) { create(:board, user: user) }
+
+    it "is inactive while editable_board_id_set_at is nil" do
+      expect(user.editable_board_switch_available_at).to be_nil
+      expect(user.editable_board_switch_cooldown_active?).to be false
+    end
+
+    it "is active during the cooldown window after an explicit pick" do
+      user.update!(
+        editable_board_id: board_a.id,
+        editable_board_id_set_at: 3.days.ago,
+      )
+      fresh = User.find(user.id)
+      expect(fresh.editable_board_switch_cooldown_active?).to be true
+      expect(fresh.editable_board_switch_available_at).to be_within(5.seconds).of(
+        3.days.ago + User::EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS.days,
+      )
+    end
+
+    it "is inactive once the cooldown has elapsed" do
+      user.update!(
+        editable_board_id: board_a.id,
+        editable_board_id_set_at: (User::EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS + 1).days.ago,
+      )
+      fresh = User.find(user.id)
+      expect(fresh.editable_board_switch_cooldown_active?).to be false
+    end
+
+    it "pin_default_editable_board! does NOT start the cooldown clock" do
+      user.pin_default_editable_board!
+      fresh = User.find(user.id)
+      expect(fresh.editable_board_id).not_to be_nil
+      expect(fresh.editable_board_id_set_at).to be_nil
+      expect(fresh.editable_board_switch_cooldown_active?).to be false
+    end
+  end
+
   describe "Board#can_edit_for" do
     it "is false on a locked board and true on the designated board" do
       user = create(:free_user)

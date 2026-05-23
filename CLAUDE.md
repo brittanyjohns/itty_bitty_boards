@@ -111,6 +111,16 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
   `users.editable_board_id`. If none is set, `effective_editable_board_id`
   falls back to a favorite or most-recently-updated board so a freshly-
   downgraded user is never fully locked out.
+- **Switch cooldown:** `make_editable` enforces a cooldown
+  (`User::EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS`, default 14, ENV-tunable via
+  `EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS`) between explicit picks. Without it,
+  a free user could rotate the slot to edit every board one at a time and
+  defeat the gate. Admins bypass. The initial auto-pin from
+  `pin_default_editable_board!` does **not** start the clock — the user's
+  first real `make_editable` call does. Returns HTTP 403
+  `editable_board_cooldown` with `available_at` and `cooldown_days` when
+  blocked. A no-op re-pick of the already-designated board doesn't start
+  the clock either.
 - On downgrade, both paths call `User#pin_default_editable_board!` so the
   frontend has a deterministic answer: `apply_free_plan` (Stripe
   cancel/pause) and `DowngradeSoftTrialJob` (soft-trial expiry). Trial users
