@@ -1752,6 +1752,8 @@ class Board < ApplicationRecord
       description: description,
       featured: featured,
       can_edit: can_edit,
+      locked: locked_for?(viewing_user),
+      lock_reason: locked_for?(viewing_user) ? "free_plan_board_limit" : nil,
       category: category,
       parent_type: parent_type,
       parent_id: parent_id,
@@ -2030,6 +2032,8 @@ class Board < ApplicationRecord
       name: name,
       word_list: current_word_list,
       can_edit: can_edit_for(viewing_user),
+      locked: locked_for?(viewing_user),
+      lock_reason: locked_for?(viewing_user) ? "free_plan_board_limit" : nil,
       is_template: is_template,
       display_image_url: display_image_url,
       preview_image_url: preview_image_url,
@@ -2056,10 +2060,23 @@ class Board < ApplicationRecord
     viewing_user.board_editable?(self)
   end
 
+  # True ONLY when this board is read-only for viewing_user because of the
+  # plan-based gate (User#board_editable?). False for non-owners, admins,
+  # paid users, ChildAccount viewers (their can_edit comes from a different
+  # permission, not a lock), and any case where the user could edit.
+  # This is what the frontend uses to show the "Read-only — make this my
+  # editable board" banner.
+  def locked_for?(viewing_user)
+    return false unless viewing_user.is_a?(User)
+    return false unless user_id == viewing_user.id
+    return false if viewing_user.admin?
+
+    !viewing_user.board_editable?(self)
+  end
+
   def api_view(viewing_user = nil)
     can_edit = can_edit_for(viewing_user)
-    owned_by_viewer = viewing_user && user_id == viewing_user.id
-    locked = !!(owned_by_viewer && !can_edit && !viewing_user.try(:admin?))
+    locked = locked_for?(viewing_user)
 
     @in_a_public_group = false
     @display_image_url = display_image_url
@@ -2141,6 +2158,8 @@ class Board < ApplicationRecord
       text_color: text_color,
       # image_count: board_images_count,
       can_edit: can_edit_for(viewing_user),
+      locked: locked_for?(viewing_user),
+      lock_reason: locked_for?(viewing_user) ? "free_plan_board_limit" : nil,
       display_image_url: display_image_url,
       preview_image_url: preview_image_url,
       word_sample: word_sample,

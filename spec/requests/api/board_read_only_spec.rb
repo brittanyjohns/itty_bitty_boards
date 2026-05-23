@@ -34,7 +34,23 @@ RSpec.describe "API board read-only gating", type: :request do
       get "/api/boards/#{locked_board.id}", headers: auth_headers(user)
 
       expect(response).to have_http_status(:ok)
-      expect(JSON.parse(response.body)["can_edit"]).to be false
+      body = JSON.parse(response.body)
+      expect(body["can_edit"]).to be false
+      # The frontend keys its read-only banner off these fields, so the
+      # show response (api_view_with_predictive_images) must include them
+      # alongside can_edit. Regression guard for issue #155.
+      expect(body["locked"]).to be true
+      expect(body["lock_reason"]).to eq("free_plan_board_limit")
+    end
+
+    it "does not mark the designated editable board as locked" do
+      get "/api/boards/#{editable_board.id}", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["can_edit"]).to be true
+      expect(body["locked"]).to be false
+      expect(body["lock_reason"]).to be_nil
     end
   end
 
