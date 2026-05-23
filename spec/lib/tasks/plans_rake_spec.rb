@@ -32,11 +32,13 @@ RSpec.describe "plans rake task", type: :task do
       expect(myspeak_user.plan_status).to eq("active")
     end
 
-    it "applies free-plan limits, including the demo-communicator slot" do
+    it "applies free-plan limits, including the sandbox + claimable slots" do
       run_task
 
       settings = myspeak_user.reload.settings
       expect(settings["demo_communicator_limit"]).to eq(1)
+      # Free can host 1 claimed loaner/active (paid_communicator_limit=1).
+      expect(settings["paid_communicator_limit"]).to eq(1)
       expect(settings["board_limit"]).to eq(1)
       expect(settings["plan_nickname"]).to eq("free")
     end

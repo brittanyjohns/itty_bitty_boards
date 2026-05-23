@@ -27,24 +27,25 @@ class API::ChildAccountsController < API::ApplicationController
   # POST /child_accounts
   def create
     is_demo = params[:is_demo] ? ActiveModel::Type::Boolean.new.cast(params[:is_demo]) : false
+    # Prefer the explicit lifecycle status param; fall back to legacy is_demo.
+    requested_status = params[:status].presence || (is_demo ? ChildAccount::SANDBOX : ChildAccount::ACTIVE)
 
-    allowed, status, error = Permissions::CommunicatorLimits.can_create?(
+    allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
       user: current_user,
-      is_demo: is_demo,
+      status: requested_status,
     )
 
     unless allowed
-      render json: { error: error }, status: status
+      render json: { error: error }, status: http_status
       return
     end
     username = params[:username]
     name = params[:name]
     nickname = params[:nickname]
 
-    @child_account = ChildAccount.new(username: username, name: name)
+    @child_account = ChildAccount.new(username: username, name: name, status: requested_status)
 
-    # Type + ownership
-    @child_account.is_demo = is_demo
+    # Ownership
     @child_account.owner = current_user
     @child_account.user = current_user if @child_account.respond_to?(:user=) # legacy (optional)
 
@@ -69,9 +70,9 @@ class API::ChildAccountsController < API::ApplicationController
     @child_account.settings = params[:settings] if params[:settings].present?
     @child_account.details = params[:details] if params[:details].present?
 
-    # A Free user's MySpeak demo communicator is capped at one board; Pro demo
+    # A Free user's sandbox communicator is capped at one board; Pro sandbox
     # accounts fall through to ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT.
-    if is_demo && current_user.free?
+    if requested_status == ChildAccount::SANDBOX && current_user.free?
       @child_account.settings ||= {}
       @child_account.settings["demo_board_limit"] = ChildAccount::FREE_DEMO_BOARD_LIMIT
     end
@@ -129,18 +130,19 @@ class API::ChildAccountsController < API::ApplicationController
     username = params[:username]
     @child_account.username = username unless username.blank?
     @child_account.name = name unless name.blank?
-    was_a_demo = @child_account.sandbox?
+    was_sandbox = @child_account.sandbox?
     is_demo = params[:is_demo] ? ActiveModel::Type::Boolean.new.cast(params[:is_demo]) : false
-    @child_account.is_demo = is_demo
-    if was_a_demo && !is_demo
-      # Changing from demo to paid - check limits
-      allowed, status, error = Permissions::CommunicatorLimits.can_create?(
+    requested_status = params[:status].presence || (is_demo ? ChildAccount::SANDBOX : ChildAccount::ACTIVE)
+    @child_account.status = requested_status
+    if was_sandbox && requested_status != ChildAccount::SANDBOX
+      # Promoting sandbox → loaner/active — re-check slot limits.
+      allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
         user: current_user,
-        is_demo: is_demo,
+        status: requested_status,
       )
 
       unless allowed
-        render json: { error: error }, status: status
+        render json: { error: error }, status: http_status
         return
       end
     end
@@ -187,7 +189,7 @@ class API::ChildAccountsController < API::ApplicationController
     @child_account = ChildAccount.find(params[:id])
     board_ids = params[:board_ids]
     total_boards = @child_account.child_boards.count + board_ids.size
-    if @child_account.is_demo?
+    if @child_account.sandbox?
       demo_limit = (@child_account.settings["demo_board_limit"] || ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT).to_i
       if total_boards > demo_limit
         render json: { error: "Demo board limit exceeded. You can have up to #{demo_limit} boards." }, status: :unprocessable_entity

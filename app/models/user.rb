@@ -98,13 +98,36 @@ class User < ApplicationRecord
            foreign_key: "owner_id",
            dependent: :destroy
 
+  has_many :sandbox_communicator_accounts,
+           -> { where(status: ChildAccount::SANDBOX) },
+           class_name: "ChildAccount",
+           foreign_key: "owner_id"
+
+  has_many :loaner_communicator_accounts,
+           -> { where(status: ChildAccount::LOANER) },
+           class_name: "ChildAccount",
+           foreign_key: "owner_id"
+
+  has_many :active_communicator_accounts,
+           -> { where(status: ChildAccount::ACTIVE) },
+           class_name: "ChildAccount",
+           foreign_key: "owner_id"
+
+  # Owned loaner+active accounts — what counts against the slot limit.
+  has_many :slotted_communicator_accounts,
+           -> { where(status: [ChildAccount::LOANER, ChildAccount::ACTIVE]) },
+           class_name: "ChildAccount",
+           foreign_key: "owner_id"
+
+  # Legacy aliases kept during the frontend cutover (issue #157). They
+  # now resolve through status, not the legacy is_demo column.
   has_many :demo_communicator_accounts,
-           -> { where(is_demo: true) },
+           -> { where(status: ChildAccount::SANDBOX) },
            class_name: "ChildAccount",
            foreign_key: "owner_id"
 
   has_many :paid_communicator_accounts,
-           -> { where(is_demo: false) },
+           -> { where(status: [ChildAccount::LOANER, ChildAccount::ACTIVE]) },
            class_name: "ChildAccount",
            foreign_key: "owner_id"
 
@@ -211,13 +234,20 @@ class User < ApplicationRecord
     plan_type == "pro" ? 5 : 2
   end
 
-  # The MySpeak ID (a demo communicator + public profile) is a free feature:
-  # every Free user gets one demo communicator. ChildAccount::FREE_DEMO_BOARD_LIMIT
-  # caps how many boards that demo communicator can own.
+  # Communicator slot math after the loaner-lifecycle rework (issue #156):
+  #
+  #   paid_communicator_limit — total owned `loaner` + `active` slots.
+  #                             Free has 1 because they can host one
+  #                             *claimed* communicator (B4), even though
+  #                             they cannot self-create one.
+  #   demo_communicator_limit — sandbox (no-login, board-capped) slots.
+  #
+  # `Permissions::CommunicatorLimits.self_create_allowed?` gates whether a
+  # user may create a non-sandbox communicator themselves (paid plan only).
   FREE_PLAN_LIMITS = {
     "plan_type" => "free",
     "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 1).to_i,
-    "paid_communicator_limit" => ENV.fetch("FREE_PAID_COMMUNICATOR_LIMIT", 0).to_i,
+    "paid_communicator_limit" => ENV.fetch("FREE_PAID_COMMUNICATOR_LIMIT", 1).to_i,
     "demo_communicator_limit" => ENV.fetch("FREE_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
     "ai_monthly_limit" => ENV.fetch("FREE_AI_MONTHLY_LIMIT", 5).to_i,
   }.freeze
@@ -1149,9 +1179,7 @@ class User < ApplicationRecord
     myspeak_slug ||= settings["slug"] || email.split("@").first
     myspeak_name ||= display_name
     Rails.logger.info "Handling MySpeak setup for user #{email} with slug #{myspeak_slug} and name #{myspeak_name}"
-    @child_account = ChildAccount.new(username: myspeak_slug, name: myspeak_name)
-    # Type + ownership
-    @child_account.is_demo = true
+    @child_account = ChildAccount.new(username: myspeak_slug, name: myspeak_name, status: ChildAccount::SANDBOX)
     if free?
       @child_account.settings ||= {}
       @child_account.settings["demo_board_limit"] = ChildAccount::FREE_DEMO_BOARD_LIMIT
