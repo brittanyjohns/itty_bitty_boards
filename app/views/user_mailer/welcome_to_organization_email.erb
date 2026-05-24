@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Welcome to SpeakAnyWay!</title>
+  <title><%= t("user_mailer.welcome_to_organization_email.title") %></title>
   <style>
     body {
       background-color: #f4f4f4;
@@ -60,22 +60,22 @@
     <a class="logo" href="https://www.speakanyway.com" target="_blank" rel="noopener">
       <%= image_tag @logo.url, alt: "SpeakAnyWay Logo" %>
     </a>
-    <div class="header">You've Been Invited to Join!</div>
+    <div class="header"><%= t("user_mailer.welcome_to_organization_email.title") %></div>
     <div class="content">
-      <p><strong><%= @organization_admin_name %></strong> has invited you to join <strong><%= @organization_name %></strong> on SpeakAnyWay.</p>
-      <p>We are excited to have you on board! SpeakAnyWay is a powerful tool designed to enhance communication for individuals with speech and language challenges.</p>
-      <p>As a member of the <strong><%= @organization_name %></strong> organization, you will have access to a variety of features that will help you create and share personalized communication boards.</p>
-      <p>To get started, simply click the button below to log in to your account:</p>
+      <p><%= t("user_mailer.welcome_to_organization_email.intro_html", admin_name: @organization_admin_name, organization_name: @organization_name).html_safe %></p>
+      <p><%= t("user_mailer.welcome_to_organization_email.excited") %></p>
+      <p><%= t("user_mailer.welcome_to_organization_email.access_html", organization_name: @organization_name).html_safe %></p>
+      <p><%= t("user_mailer.welcome_to_organization_email.cta_intro") %></p>
 
       <p style="text-align: center;">
-        <a href="<%= @login_link %>" class="button">Finish Setting Up Your Account</a>
+        <a href="<%= @login_link %>" class="button"><%= t("user_mailer.welcome_to_organization_email.cta") %></a>
       </p>
-      <p>If you have any questions, feel free to <a href="mailto:help@speakanyway.com">reach out to our team</a> — we're always here to help!</p>
-      <p>Welcome aboard!</p>
-      <p>- The SpeakAnyWay Team</p>
+      <p><%= t("user_mailer.welcome_to_organization_email.questions_html").html_safe %></p>
+      <p><%= t("user_mailer.welcome_to_organization_email.welcome_aboard") %></p>
+      <p><%= t("user_mailer.welcome_to_organization_email.signature") %></p>
     </div>
     <div class="footer">
-      &copy; <%= Time.now.year %> SpeakAnyWay. All rights reserved.
+      <%= t("user_mailer.welcome_to_organization_email.copyright_html", year: Time.now.year).html_safe %>
     </div>
   </div>
 </body>
