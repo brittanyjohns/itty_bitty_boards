@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>Welcome to SpeakAnyWay Pro 🎉</title>
+  <title><%= t("user_mailer.welcome_pro_email.title") %></title>
   <meta name="color-scheme" content="light only">
   <style>
     body {
@@ -103,89 +103,66 @@
       </a>
     </div>
 
-    <h1>Welcome to SpeakAnyWay Pro 🎉</h1>
+    <h1><%= t("user_mailer.welcome_pro_email.title") %></h1>
     <p class="subtitle">
-      Built for families, classrooms, and professionals supporting multiple communicators.
+      <%= t("user_mailer.welcome_pro_email.subtitle") %>
     </p>
 
-    <p>Hi <%= @user.name.blank? ? "there" : @user.name %>,</p>
+    <p><%= @user.name.blank? ? t("user_mailer.welcome_pro_email.greeting_no_name") : t("user_mailer.welcome_pro_email.greeting_with_name", name: @user.name) %></p>
 
     <p>
-      Thanks for choosing <strong>SpeakAnyWay Pro</strong>!  
-      You now have powerful tools to support communication across home, school, therapy, and community settings.
+      <%= t("user_mailer.welcome_pro_email.intro_html").html_safe %>
     </p>
 
     <!-- ⭐ DEMO COMMUNICATOR HIGHLIGHT -->
     <div class="highlight">
-      <h2 style="margin-top:0;">⭐ New in Pro: Demo Communicator Accounts</h2>
+      <h2 style="margin-top:0;"><%= t("user_mailer.welcome_pro_email.demo_heading") %></h2>
       <p>
-        Your Pro plan includes <strong><%= demo_comm_limit %> Demo Communicator Accounts</strong> to start.
-        These are designed specifically for <strong>modeling, organizing, and planning</strong>
-        — without requiring a username or passcode.
+        <%= t("user_mailer.welcome_pro_email.demo_intro_html", count: demo_comm_limit).html_safe %>
       </p>
 
       <ul>
-        <li><strong>Model AAC</strong> during therapy or instruction without signing in</li>
-        <li><strong>Organize boards</strong> by student, classroom, activity, or routine</li>
-        <li>Create <strong>lesson-specific or temporary boards</strong> (field trips, themes, events)</li>
-        <li>Safely demonstrate AAC to families or teams without touching a child's account</li>
-        <li>Plan and build boards ahead of time, then copy them where needed</li>
+        <li><%= t("user_mailer.welcome_pro_email.demo_item_1_html").html_safe %></li>
+        <li><%= t("user_mailer.welcome_pro_email.demo_item_2_html").html_safe %></li>
+        <li><%= t("user_mailer.welcome_pro_email.demo_item_3_html").html_safe %></li>
+        <li><%= t("user_mailer.welcome_pro_email.demo_item_4") %></li>
+        <li><%= t("user_mailer.welcome_pro_email.demo_item_5") %></li>
       </ul>
 
       <p class="muted">
-        Demo Communicators are perfect for SLPs, teachers, aides, and caregivers who need flexibility without friction.
+        <%= t("user_mailer.welcome_pro_email.demo_note") %>
       </p>
     </div>
 
-    <h2>✨ What's included in Pro</h2>
+    <h2><%= t("user_mailer.welcome_pro_email.included_heading") %></h2>
     <ul>
-      <li>
-        <strong><%= pro_comm_limit %> Paid Communicator Accounts</strong>  
-        (username + passcode for switching devices and remote access)
-      </li>
-      <li>
-        <strong><%= demo_comm_limit %> Demo Communicator Accounts</strong>  
-        (no login — ideal for modeling and organization)
-      </li>
-      <li>
-        <strong>MySpeak+</strong> for every Paid Communicator  
-        (public access, emergency & medical info, instant QR access)
-      </li>
-      <li>
-        <strong>Unlimited Supporters</strong>  
-        (read-only access for teachers, aides, caregivers, and family)
-      </li>
-      <li>
-        Full access to <strong>AI features</strong> (word suggestions, layouts, board generation)
-      </li>
-      <li>
-        <strong>Advanced analytics</strong> to understand usage and progress
-      </li>
-      <li>
-        <strong>Priority support</strong> when you need help fast
-      </li>
-      <li>
-        <strong>PDF + QR exports</strong> for portable AAC anywhere
-      </li>
+      <li><%= t("user_mailer.welcome_pro_email.included_paid_html", count: pro_comm_limit).html_safe %></li>
+      <li><%= t("user_mailer.welcome_pro_email.included_demo_html", count: demo_comm_limit).html_safe %></li>
+      <li><%= t("user_mailer.welcome_pro_email.included_myspeak_html").html_safe %></li>
+      <li><%= t("user_mailer.welcome_pro_email.included_supporters_html").html_safe %></li>
+      <li><%= t("user_mailer.welcome_pro_email.included_ai_html").html_safe %></li>
+      <li><%= t("user_mailer.welcome_pro_email.included_analytics_html").html_safe %></li>
+      <li><%= t("user_mailer.welcome_pro_email.included_priority_html").html_safe %></li>
+      <li><%= t("user_mailer.welcome_pro_email.included_pdf_html").html_safe %></li>
     </ul>
 
-    <h2>🚀 Get set up in minutes</h2>
+    <h2><%= t("user_mailer.welcome_pro_email.setup_heading") %></h2>
     <ol>
-      <li>Create your paid Communicator Accounts for individuals.</li>
-      <li>Use Demo Communicators to model AAC or organize boards by theme.</li>
-      <li>Build boards using AI for routines, classroom, or community use.</li>
-      <li>Export boards as <strong>PDF + QR</strong> for offline or shared access.</li>
-      <li>Invite Supporters so everyone stays aligned.</li>
+      <li><%= t("user_mailer.welcome_pro_email.setup_item_1") %></li>
+      <li><%= t("user_mailer.welcome_pro_email.setup_item_2") %></li>
+      <li><%= t("user_mailer.welcome_pro_email.setup_item_3") %></li>
+      <li><%= t("user_mailer.welcome_pro_email.setup_item_4_html").html_safe %></li>
+      <li><%= t("user_mailer.welcome_pro_email.setup_item_5") %></li>
     </ol>
 
     <p style="text-align:center;">
       <a href="<%= @login_link || @frontend_url %>" class="btn">
-        Open Your Pro Dashboard
+        <%= t("user_mailer.welcome_pro_email.cta") %>
       </a>
     </p>
 
     <p class="muted" style="text-align:center;">
-      If the button doesn't work, copy this link:<br>
+      <%= t("user_mailer.welcome_pro_email.cta_fallback") %><br>
       <span style="word-break:break-all;">
         <%= @login_link || @frontend_url %>
       </span>
@@ -193,22 +170,19 @@
 
     <div class="divider"></div>
 
-    <h2>💡 Pro tips</h2>
+    <h2><%= t("user_mailer.welcome_pro_email.tips_heading") %></h2>
     <ul>
-      <li>Use Demo Communicators to test layouts before assigning them.</li>
-      <li>Name demos by activity (e.g., “Snack Time”, “Morning Routine”).</li>
-      <li>Review analytics to refine real-world vocabulary use.</li>
+      <li><%= t("user_mailer.welcome_pro_email.tips_item_1") %></li>
+      <li><%= t("user_mailer.welcome_pro_email.tips_item_2") %></li>
+      <li><%= t("user_mailer.welcome_pro_email.tips_item_3") %></li>
     </ul>
 
     <p class="footer">
-      Need help, onboarding support, or want to add more Communicators?<br>
-      Visit <a href="https://app.speakanyway.com/pricing" target="_blank">pricing</a> or reply to this email.
-      You can also reach us at
-      <a href="mailto:help@speakanyway.com">help@speakanyway.com</a>.
+      <%= t("user_mailer.welcome_pro_email.footer_help_html").html_safe %>
       <br><br>
-      Current Pro pricing: <strong><%= pro_price %></strong>. Cancel anytime.
+      <%= t("user_mailer.welcome_pro_email.footer_pricing_html", pro_price: pro_price).html_safe %>
       <br><br>
-      — The SpeakAnyWay Team 💜
+      <%= t("user_mailer.welcome_pro_email.footer_signature") %>
     </p>
   </div>
 </body>

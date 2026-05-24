@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Welcome to SpeakAnyWay 🎉</title>
+  <title><%= t("user_mailer.welcome_free_email.title") %></title>
   <meta name="color-scheme" content="light only">
   <style>
     /* Email-safe, inline-friendly styles */
@@ -173,7 +173,7 @@
 <body>
   <!-- Preheader (hidden preview text in inbox) -->
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
-    Welcome! You're on the Free plan—start using public boards now and upgrade to add Emergency contact info & custom boards.
+    <%= t("user_mailer.welcome_free_email.preheader") %>
   </div>
 
   <div class="container">
@@ -183,71 +183,67 @@
       </a>
     </div>
 
-    <div class="badge">Free plan</div>
-    <h1>Welcome to SpeakAnyWay 🎉</h1>
+    <div class="badge"><%= t("user_mailer.welcome_free_email.badge") %></div>
+    <h1><%= t("user_mailer.welcome_free_email.title") %></h1>
 
     <p class="intro">
-      Hi <%= @user.name.blank? ? "there" : @user.name %> — we're so glad you're here!
-      You're on the <strong>Free</strong> plan, which is perfect for getting started.
-      Explore public boards now, then upgrade anytime for emergency contact info, custom boards, and more.
+      <%= @user.name.blank? ? t("user_mailer.welcome_free_email.greeting_no_name") : t("user_mailer.welcome_free_email.greeting_with_name", name: @user.name) %>
+      <%= t("user_mailer.welcome_free_email.intro_html").html_safe %>
     </p>
 
     <p style="text-align:center;">
-      <a href="<%= @login_link %>" class="button">Log In & Start Exploring</a>
+      <a href="<%= @login_link %>" class="button"><%= t("user_mailer.welcome_free_email.cta") %></a>
     </p>
-    <p class="subtext">Having trouble with the button? Copy and paste this link: <br><span style="word-break:break-all;color:#6b6b6b;"><%= @login_link %></span></p>
+    <p class="subtext"><%= t("user_mailer.welcome_free_email.cta_fallback") %> <br><span style="word-break:break-all;color:#6b6b6b;"><%= @login_link %></span></p>
 
     <div class="section">
-      <h2>What you can do on Free</h2>
+      <h2><%= t("user_mailer.welcome_free_email.do_now_heading") %></h2>
       <ul class="check">
-        <li>Access <strong>ready-to-use public boards</strong> instantly.</li>
-        <li>Create and share basic communication boards.</li>
-        <li>Set up a <strong>MySpeak ID</strong> — a QR profile with safety info.</li>
-        <li>Collaborate with family, teachers, or therapists via link.</li>
+        <li><%= t("user_mailer.welcome_free_email.do_now_item_1_html").html_safe %></li>
+        <li><%= t("user_mailer.welcome_free_email.do_now_item_2") %></li>
+        <li><%= t("user_mailer.welcome_free_email.do_now_item_3_html").html_safe %></li>
+        <li><%= t("user_mailer.welcome_free_email.do_now_item_4") %></li>
       </ul>
     </div>
 
     <div class="section quickstart">
-      <h2 style="margin:0 0 6px 0;">Quick start (2 minutes)</h2>
+      <h2 style="margin:0 0 6px 0;"><%= t("user_mailer.welcome_free_email.quickstart_heading") %></h2>
       <ol>
-        <li>Open your dashboard and tap <strong>Public Boards</strong> to try a board right away.</li>
-        <li>Create your first board: add a few core words you use every day.</li>
-        <li>Share the link with a supporter (family/teacher/therapist) to collaborate.</li>
+        <li><%= t("user_mailer.welcome_free_email.quickstart_item_1_html").html_safe %></li>
+        <li><%= t("user_mailer.welcome_free_email.quickstart_item_2") %></li>
+        <li><%= t("user_mailer.welcome_free_email.quickstart_item_3") %></li>
       </ol>
     </div>
 
     <div class="section">
-      <h2>MySpeak ID — included free 🎉</h2>
+      <h2><%= t("user_mailer.welcome_free_email.myspeak_heading") %></h2>
       <p style="font-size:15px;color:#555;line-height:1.6;margin:0 0 12px;">
-        Your Free account includes a <strong>MySpeak ID</strong>: a scannable,
-        shareable profile page with a QR code, emergency contact info, and a
-        quick communication board — no upgrade required.
+        <%= t("user_mailer.welcome_free_email.myspeak_intro_html").html_safe %>
       </p>
       <ul class="check">
-        <li><strong>Safety info</strong> — emergency contacts + key medical notes.</li>
-        <li><strong>Your own QR page</strong> — scan to view essential info instantly.</li>
-        <li><strong>Print &amp; share</strong> — add the QR to backpacks, wallets, or lanyards.</li>
+        <li><%= t("user_mailer.welcome_free_email.myspeak_item_1_html").html_safe %></li>
+        <li><%= t("user_mailer.welcome_free_email.myspeak_item_2_html").html_safe %></li>
+        <li><%= t("user_mailer.welcome_free_email.myspeak_item_3_html").html_safe %></li>
       </ul>
 
       <div class="upgrade-box">
-        <h3>Need to build more? 🚀</h3>
-        <p>Basic adds unlimited boards, AI features, and Supporter accounts for collaboration.</p>
+        <h3><%= t("user_mailer.welcome_free_email.upgrade_heading") %></h3>
+        <p><%= t("user_mailer.welcome_free_email.upgrade_body") %></p>
         <p>
-          <a href="https://www.speakanyway.com/pricing" class="button">See Plans</a>
+          <a href="https://www.speakanyway.com/pricing" class="button"><%= t("user_mailer.welcome_free_email.upgrade_cta") %></a>
         </p>
       </div>
     </div>
 
     <div class="section" style="text-align:center;">
       <p style="font-size:14px;color:#444;margin:0 0 6px 0;">
-        Questions? Just reply to this email or contact us at
-        <a href="mailto:help@speakanyway.com" style="color:#7645ef;text-decoration:none;">help@speakanyway.com</a>.
+        <%= t("user_mailer.welcome_free_email.questions_html").html_safe %>
       </p>
     </div>
 
     <div class="footer">
-      <p>Thank you for choosing SpeakAnyWay 💜<br>— The SpeakAnyWay Team</p>
-      <p><a href="https://www.speakanyway.com" target="_blank">Visit our website</a></p>
+      <p><%= t("user_mailer.welcome_free_email.footer_thanks") %><br><%= t("user_mailer.welcome_free_email.footer_signature") %></p>
+      <p><a href="https://www.speakanyway.com" target="_blank"><%= t("user_mailer.welcome_free_email.footer_visit") %></a></p>
     </div>
   </div>
 </body>

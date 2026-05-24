@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>You've Got Mail!</title>
+  <title><%= t("user_mailer.message_notification_email.title") %></title>
   <style>
     body {
       background-color: #f4f4f4;
@@ -61,19 +61,19 @@
       <%= image_tag @logo.url, alt: "SpeakAnyWay Logo" %>
     </a>
     <div class="header">
-      You've Got Mail!
+      <%= t("user_mailer.message_notification_email.title") %>
     </div>
     <div class="content">
-      <p><strong><%= @sender.name %></strong> has sent you a message on SpeakAnyWay!</p>
-      
-      <p>To view the message, please click the button below:</p>
-      <a href="<%= @message_url %>" class="button">View Message</a>
-      <p> Happy chatting!</p>
+      <p><%= t("user_mailer.message_notification_email.intro_html", sender_name: @sender.name).html_safe %></p>
+
+      <p><%= t("user_mailer.message_notification_email.cta_intro") %></p>
+      <a href="<%= @message_url %>" class="button"><%= t("user_mailer.message_notification_email.cta") %></a>
+      <p><%= t("user_mailer.message_notification_email.sign_off") %></p>
     </div>
 
 
     <div class="footer">
-      &copy; <%= Time.now.year %> SpeakAnyWay. All rights reserved.
+      <%= t("user_mailer.message_notification_email.copyright_html", year: Time.now.year).html_safe %>
     </div>
   </div>
 </body>

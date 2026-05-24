@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Welcome to SpeakAnyWay!</title>
+  <title><%= t("user_mailer.welcome_new_vendor_email.title", vendor_name: @vendor_name) %></title>
   <style>
     body {
       background-color: #f4f4f4;
@@ -71,33 +71,33 @@
     <a class="logo" href="https://www.speakanyway.com" target="_blank" rel="noopener">
       <%= image_tag @logo.url, alt: "SpeakAnyWay Logo" %>
     </a>
-    <div class="header">Welcome to SpeakAnyWay, <%= @vendor_name %>!</div>
+    <div class="header"><%= t("user_mailer.welcome_new_vendor_email.title", vendor_name: @vendor_name) %></div>
     <div class="content">
-      <p><strong><%= @vendor_name %></strong>, thank you for joining SpeakAnyWay and helping make communication more inclusive for everyone.</p>
+      <p><%= t("user_mailer.welcome_new_vendor_email.intro_html", vendor_name: @vendor_name).html_safe %></p>
 
-      <p>You're now offering an accessible menu that helps nonverbal, autistic, and speech-limited customers order independently—with confidence.</p>
+      <p><%= t("user_mailer.welcome_new_vendor_email.mission") %></p>
 
-      <p>Here's how to get started:</p>
+      <p><%= t("user_mailer.welcome_new_vendor_email.how_to") %></p>
       <div>
-     Check your live menu at <a href="<%= @menu_url %>"><%= @menu_url %></a>
+        <%= t("user_mailer.welcome_new_vendor_email.live_menu_html", menu_url: @menu_url).html_safe %>
         <a href="<%= @setup_url %>" class="download-button">
-        View Your Setup Guide to Get Started
+        <%= t("user_mailer.welcome_new_vendor_email.setup_cta") %>
         </a>
-        <p>Display it at your counter, register, or menu</p>
-        <p>Let your community know you’re communication-friendly!</p>
+        <p><%= t("user_mailer.welcome_new_vendor_email.display_step") %></p>
+        <p><%= t("user_mailer.welcome_new_vendor_email.community_step") %></p>
       </div>
-      <p>To manage your menu, view orders, and access resources, visit your vendor dashboard:</p>
-      <p><strong>Vendor Dashboard:</strong> <%= @menu_url %></p>
+      <p><%= t("user_mailer.welcome_new_vendor_email.dashboard_intro") %></p>
+      <p><strong><%= t("user_mailer.welcome_new_vendor_email.dashboard_link_label") %></strong> <%= @menu_url %></p>
 
-        <a href="<%= @login_link %>" class="button">Visit Your Vendor Dashboard</a>
+        <a href="<%= @login_link %>" class="button"><%= t("user_mailer.welcome_new_vendor_email.dashboard_cta") %></a>
 
-      <p>Need any help? Just <a href="mailto:help@speakanyway.com">email our team</a> and we’ll be happy to assist.</p>
+      <p><%= t("user_mailer.welcome_new_vendor_email.help_html").html_safe %></p>
 
-      <p>Thanks again for making a difference.</p>
-      <p>- The SpeakAnyWay Team</p>
+      <p><%= t("user_mailer.welcome_new_vendor_email.thanks") %></p>
+      <p><%= t("user_mailer.welcome_new_vendor_email.signature") %></p>
     </div>
     <div class="footer">
-      &copy; <%= Time.now.year %> SpeakAnyWay. All rights reserved.
+      <%= t("user_mailer.welcome_new_vendor_email.copyright_html", year: Time.now.year).html_safe %>
     </div>
   </div>
 </body>

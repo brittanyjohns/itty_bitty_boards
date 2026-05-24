@@ -15,7 +15,9 @@ class UserMailer < BaseMailer
     @user_name = @user.name
     @support_email = "support@speakanyway.com"
     @confirmation_link = "#{ENV["FRONT_END_URL"] || "http://localhost:8100"}/delete-account/confirm"
-    mail(to: @user.email, subject: "Confirm Your SpeakAnyWay AAC Account Deletion")
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.delete_account_email.subject"))
+    end
   end
 
   def temporary_login_email(user, expiration_hours)
@@ -26,9 +28,10 @@ class UserMailer < BaseMailer
     Rails.logger.info "Generating temporary login link for user #{user.id} with token #{user.temp_login_token}"
     Rails.logger.info "Front end URL: #{@login_link}"
     @login_link += "/temp-login/#{user.temp_login_token}?email=#{ERB::Util.url_encode(user.email)}"
-    subject = "Your Temporary Login Link for SpeakAnyWay AAC"
     Rails.logger.info "Sending temporary login email to #{@user.email} with link: #{@login_link}"
-    mail(to: @user.email, subject: subject)
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.temporary_login_email.subject"))
+    end
   end
 
   def confirm_update_email(user, opts = {})
@@ -44,7 +47,9 @@ class UserMailer < BaseMailer
     @FRONT_END_URL = ENV["FRONT_END_URL"] || "http://localhost:8100"
     @confirmation_url = @FRONT_END_URL + "/confirm-email?confirmation_token=#{@token}"
 
-    mail to: @user.email
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.confirm_update_email.subject"))
+    end
   end
 
   def welcome_free_email(user)
@@ -63,9 +68,10 @@ class UserMailer < BaseMailer
 
     encoded_email = ERB::Util.url_encode(@user.email)
     @login_link += "?email=#{encoded_email}"
-    subject = "Welcome to SpeakAnyWay AAC!"
     Rails.logger.info "Sending welcome free email to #{@user.email} with login link: #{@login_link}"
-    mail(to: @user.email, subject: subject)
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.welcome_free_email.subject"))
+    end
   end
 
   def welcome_basic_email(user)
@@ -84,9 +90,10 @@ class UserMailer < BaseMailer
 
     encoded_email = ERB::Util.url_encode(@user.email)
     @login_link += "?email=#{encoded_email}"
-    subject = "Welcome to SpeakAnyWay AAC!"
-    Rails.logger.info "Sending welcome free email to #{@user.email} with login link: #{@login_link}"
-    mail(to: @user.email, subject: subject)
+    Rails.logger.info "Sending welcome basic email to #{@user.email} with login link: #{@login_link}"
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.welcome_basic_email.subject"))
+    end
   end
 
   def welcome_pro_email(user)
@@ -105,9 +112,10 @@ class UserMailer < BaseMailer
 
     encoded_email = ERB::Util.url_encode(@user.email)
     @login_link += "?email=#{encoded_email}"
-    subject = "Welcome to SpeakAnyWay AAC!"
-    Rails.logger.info "Sending welcome free email to #{@user.email} with login link: #{@login_link}"
-    mail(to: @user.email, subject: subject)
+    Rails.logger.info "Sending welcome pro email to #{@user.email} with login link: #{@login_link}"
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.welcome_pro_email.subject"))
+    end
   end
 
   def welcome_invitation_email(user, inviter_id)
@@ -117,10 +125,11 @@ class UserMailer < BaseMailer
     @inviter_name = @inviter.name
     @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
     @login_link += "/welcome/token/#{user.raw_invitation_token}"
-    subject = "You have been invited to join SpeakAnyWay AAC!"
     Rails.logger.info "Sending welcome invitation email to #{user.email} from #{inviter_id}"
     Rails.logger.info "Login link: #{@login_link}"
-    mail(to: @user.email, subject: subject)
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.welcome_invitation_email.subject"))
+    end
   end
 
   def welcome_new_vendor_email(user, vendor)
@@ -144,8 +153,12 @@ class UserMailer < BaseMailer
     end
     encoded_email = ERB::Util.url_encode(@user.email)
     @login_link += "?email=#{encoded_email}"
-    subject = "Welcome to SpeakAnyWay AAC - #{@vendor_name}!"
-    mail(to: @user.email, subject: subject)
+    with_user_locale(@user) do
+      mail(
+        to: @user.email,
+        subject: I18n.t("user_mailer.welcome_new_vendor_email.subject", vendor_name: @vendor_name),
+      )
+    end
   end
 
   def welcome_to_organization_email(user, organization)
@@ -164,10 +177,17 @@ class UserMailer < BaseMailer
       @login_link += "/welcome/token/#{user.raw_invitation_token}"
     end
     @login_link += "?email=#{user.email}"
-    subject = "You have been invited to join #{@organization_name} on SpeakAnyWay AAC!"
     Rails.logger.info "Sending welcome to organization email to #{@user.email} from #{@organization_admin.id}"
     Rails.logger.info "Login link: #{@login_link}"
-    mail(to: @user.email, subject: subject)
+    with_user_locale(@user) do
+      mail(
+        to: @user.email,
+        subject: I18n.t(
+          "user_mailer.welcome_to_organization_email.subject",
+          organization_name: @organization_name,
+        ),
+      )
+    end
   end
 
   def welcome_with_claim_link_email(user, slug)
@@ -197,9 +217,10 @@ class UserMailer < BaseMailer
     @claim_link += "/c/#{slug}"
     @mymyspeak_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
     @mymyspeak_link += "/my/#{slug}"
-    subject = "Welcome to MySpeak - Claim your profile!"
     Rails.logger.info "Sending welcome email to #{@user.email} with claim link"
-    mail(to: @user.email, subject: subject)
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.welcome_with_claim_link_email.subject"))
+    end
   end
 
   def message_notification_email(message)
@@ -211,8 +232,12 @@ class UserMailer < BaseMailer
     @message_sent_at = message.sent_at
     @message_read_at = message.read_at
     @message_url = "#{ENV["FRONT_END_URL"]}/messages/#{message.id}"
-    subject = "New message from #{@sender.name}"
     Rails.logger.info "Sending message notification email to #{@recipient.email}"
-    mail(to: @recipient.email, subject: subject)
+    with_user_locale(@recipient) do
+      mail(
+        to: @recipient.email,
+        subject: I18n.t("user_mailer.message_notification_email.subject", sender_name: @sender.name),
+      )
+    end
   end
 end
