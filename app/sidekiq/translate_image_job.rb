@@ -8,7 +8,15 @@ class TranslateImageJob
     return if image.label.blank?
 
     language = language.to_s
-    return if language.blank? || language == "en"
+    return if language.blank?
+    if language == "en"
+      Rails.logger.info("TranslateImageJob: image_id=#{image.id} language=#{language} skipping because it's English")
+      return unless image.language_settings.blank? || !image.language_settings.key?(language)
+      language_settings = image.language_settings || {}
+      image.language_settings = language_settings.merge(language => { "label" => image.label })
+      image.save!
+      return
+    end
     return unless Image.languages.include?(language)
 
     existing = (image.language_settings || {})[language]

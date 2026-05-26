@@ -37,9 +37,12 @@ namespace :translate do
       exit(1)
     end
 
-    scope = Image.where(user_id: [nil, User::DEFAULT_ADMIN_ID]).where.not(label: [nil, ""])
-    total = scope.count
+    public_board_ids = Board.public_boards.pluck(:id)
+    image_ids = BoardImage.where(board_id: public_board_ids).pluck(:image_id)
+    # We only want to translate images that are actually used in public boards, so we join with the images table and use distinct to avoid duplicates.
     queued = 0
+    scope = Image.where(id: image_ids).distinct
+    total = scope.count
     scope.find_each do |image|
       existing = (image.language_settings || {})[language]
       next if existing.is_a?(Hash) && (existing["label"] || existing[:label]).to_s.strip.present?
