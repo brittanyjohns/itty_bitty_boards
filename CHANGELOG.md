@@ -5,6 +5,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — PartnerMailer per-recipient i18n (#173)
+- `PartnerMailer` now extends `BaseMailer` (was `ApplicationMailer`).
+- `PartnerMailer#welcome_email` wraps `mail(...)` in
+  `with_user_locale(@user)` and resolves subject + body through `I18n.t`.
+- English and Spanish keys under `partner_mailer:` in
+  `config/locales/mailer.{en,es}.yml`.
+- Known limitation: `@start_date` / `@end_date` are still formatted in
+  English (`strftime("%B %d, %Y")`) and interpolated into the dates
+  string. Proper date localization would need `I18n.l` and `:date.formats`
+  locale data, which isn't currently set up project-wide. Tracked as
+  a follow-up.
+
 ### Changed — SetupMailer per-recipient i18n (#172)
 - `SetupMailer#myspeak_setup_email`, `vendor_setup_email`, `pro_setup_email`,
   and `basic_setup_email` now wrap `mail(...)` in `with_user_locale(@user)`
