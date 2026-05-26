@@ -5,6 +5,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — SetupMailer per-recipient i18n (#172)
+- `SetupMailer#myspeak_setup_email`, `vendor_setup_email`, `pro_setup_email`,
+  and `basic_setup_email` now wrap `mail(...)` in `with_user_locale(@user)`
+  and resolve subject + body through `I18n.t`. English and Spanish keys live
+  under `setup_mailer:` in `config/locales/mailer.{en,es}.yml`. Free users
+  whose `i18n_locale` is `:es` now receive setup emails in Spanish.
+- Vendor setup template now reads `@user.name` instead of the undefined
+  `@vendor.name`. The previous reference would have raised `NoMethodError`
+  whenever the vendor email actually rendered (the mailer action only ever
+  assigned `@user`); the error was masked by the same `rescue` that masked
+  #176.
+
 ### Fixed — SetupMailer free/SLP setup email actions (#176)
 - `User#send_free_setup_email` was calling a non-existent
   `SetupMailer#free_setup_email` action with an empty template, swallowing

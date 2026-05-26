@@ -2,6 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8" />
+    <title><%= t("setup_mailer.vendor_setup_email.title") %></title>
     <style>
       body {
         background-color: #f6f8fb;
@@ -47,38 +48,38 @@
   </head>
   <body>
     <div class="container">
-      <h1>Welcome to SpeakAnyWay Vendor Hub!</h1>
-
-      <p>Hi <%= @vendor.name || "there" %>,</p>
+      <h1><%= t("setup_mailer.vendor_setup_email.title") %></h1>
 
       <p>
-        Thanks for joining the SpeakAnyWay community! We're excited to help you make your business more accessible and inclusive for everyone — especially nonverbal customers and those who benefit from visual communication.
+        <%= @user.name.blank? ? t("setup_mailer.vendor_setup_email.greeting_no_name") : t("setup_mailer.vendor_setup_email.greeting_with_name", name: @user.name) %>
       </p>
 
-      <h2>🚀 Let's Get You Set Up</h2>
+      <p><%= t("setup_mailer.vendor_setup_email.intro") %></p>
+
+      <h2><%= t("setup_mailer.vendor_setup_email.setup_heading") %></h2>
       <ol>
-        <li>Log in at <a href="<%= @frontend_url %>"><%= @frontend_url %></a>.</li>
-        <li>Click on <strong>“My Vendor Profile”</strong> in your dashboard.</li>
-        <li>Add your menu, services, photos, and accessibility details.</li>
-        <li>Generate your custom <strong>QR code</strong> to display on signs, food trucks, or counters.</li>
-        <li>Customers can scan the code to view your business in a communication-friendly format — no app required.</li>
+        <li><%= t("setup_mailer.vendor_setup_email.step_1_html", link: link_to(@frontend_url, @frontend_url)).html_safe %></li>
+        <li><%= t("setup_mailer.vendor_setup_email.step_2_html").html_safe %></li>
+        <li><%= t("setup_mailer.vendor_setup_email.step_3") %></li>
+        <li><%= t("setup_mailer.vendor_setup_email.step_4_html").html_safe %></li>
+        <li><%= t("setup_mailer.vendor_setup_email.step_5") %></li>
       </ol>
 
-      <h2>✨ Why It Matters</h2>
+      <h2><%= t("setup_mailer.vendor_setup_email.why_heading") %></h2>
       <ul>
-        <li>✅ Make your business more inclusive and communication-accessible</li>
-        <li>✅ Help nonverbal and AAC users order with confidence</li>
-        <li>✅ Show your commitment to disability-friendly service</li>
-        <li>✅ Get listed in the growing <strong>SpeakAnyWay Vendor Directory</strong></li>
+        <li><%= t("setup_mailer.vendor_setup_email.why_item_1") %></li>
+        <li><%= t("setup_mailer.vendor_setup_email.why_item_2") %></li>
+        <li><%= t("setup_mailer.vendor_setup_email.why_item_3") %></li>
+        <li><%= t("setup_mailer.vendor_setup_email.why_item_4_html").html_safe %></li>
       </ul>
 
-      <a href="<%= @frontend_url %>vendors/dashboard" class="btn">Set Up My Vendor Page</a>
+      <a href="<%= @vendors_dashboard_url %>" class="btn"><%= t("setup_mailer.vendor_setup_email.cta") %></a>
 
       <p style="margin-top: 30px;">
-        Need help with setup or QR code printing? Just reply to this email or visit our <a href="<%= @frontend_url %>support">Support Center</a>.
+        <%= t("setup_mailer.vendor_setup_email.support_html", support_url: "#{@frontend_url}support").html_safe %>
       </p>
 
-      <p>Thanks for being part of the movement,<br/>- The SpeakAnyWay Team 💬</p>
+      <p><%= t("setup_mailer.vendor_setup_email.signoff") %><br/><%= t("setup_mailer.vendor_setup_email.signature") %></p>
     </div>
   </body>
 </html>
