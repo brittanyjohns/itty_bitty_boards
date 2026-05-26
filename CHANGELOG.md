@@ -5,6 +5,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Free = 1 MySpeak ID limit (#143)
+- Free users are now capped at **one MySpeak ID** (Profile). Basic/Pro
+  and admins remain unlimited. Trial users (`basic_trial`, Stripe
+  `trialing`) are treated as paid by `User#paid_plan?` and the gate
+  doesn't trigger.
+- "MySpeak ID" counts a Profile attached to the user directly *or* to
+  one of their `communicator_accounts`.
+- `POST /api/profiles` returns **HTTP 403** with
+  `{ error: "myspeak_id_limit_reached", message, limit, count }` when a
+  Free user is already at the cap.
+- Limit env-tunable via `FREE_MYSPEAK_ID_LIMIT` (default `1`).
+- New helpers on `User`: `#myspeak_id_limit`, `#myspeak_id_count`,
+  `#can_create_myspeak_id?`.
+
 ### Changed — CommunicationAccountMailer per-recipient i18n (#175)
 - `CommunicationAccountMailer` now extends `BaseMailer` (was
   `ApplicationMailer`).
