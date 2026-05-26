@@ -2,6 +2,7 @@
 <html>
   <head>
     <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
+    <title><%= t("setup_mailer.myspeak_setup_email.title") %></title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -37,28 +38,32 @@
   </head>
   <body>
     <div class="container">
-      <h1>Welcome to MySpeak!</h1>
+      <h1><%= t("setup_mailer.myspeak_setup_email.title") %></h1>
 
-      <p>Hi <%= @user.name || "there" %>,</p>
+      <p>
+        <%= @user.name.blank? ? t("setup_mailer.myspeak_setup_email.greeting_no_name") : t("setup_mailer.myspeak_setup_email.greeting_with_name", name: @user.name) %>
+      </p>
 
-      <p>We're so excited to have you join SpeakAnyWay. Your MySpeak profile helps others understand how you communicate best. Here's how to get set up:</p>
+      <p><%= t("setup_mailer.myspeak_setup_email.intro") %></p>
 
-      <h2>🛠️ Getting Started</h2>
+      <h2><%= t("setup_mailer.myspeak_setup_email.getting_started_heading") %></h2>
       <ol>
-        <li><strong>Log in:</strong> Visit <a href="<%= @frontend_url %>"><%= @frontend_url %></a> and log into your account.</li>
-        <li><strong>Go to MySpeak Settings:</strong> Click your profile icon and choose <em>“MySpeak Settings.”</em></li>
-        <li><strong>Fill out your info:</strong> Add your emergency contacts, allergies, communication preferences, and anything you want others to know.</li>
-        <li><strong>Generate your QR code:</strong> Once your profile is saved, your personal QR code will be created automatically!</li>
-        <li><strong>Print or share:</strong> You can print your MySpeak QR, add it to stickers, ID cards, or save it on your device.</li>
+        <li><%= t("setup_mailer.myspeak_setup_email.step_1_html", link: link_to(@frontend_url, @frontend_url)).html_safe %></li>
+        <li><%= t("setup_mailer.myspeak_setup_email.step_2_html").html_safe %></li>
+        <li><%= t("setup_mailer.myspeak_setup_email.step_3") %></li>
+        <li><%= t("setup_mailer.myspeak_setup_email.step_4") %></li>
+        <li><%= t("setup_mailer.myspeak_setup_email.step_5") %></li>
       </ol>
 
-      <p>Your MySpeak page makes it easier for others to connect and communicate with you — your way.</p>
+      <p><%= t("setup_mailer.myspeak_setup_email.outro") %></p>
 
-      <a href="<%= @mymyspeak_link %>" class="btn">Your MySpeak Profile</a>
+      <a href="<%= @mymyspeak_link %>" class="btn"><%= t("setup_mailer.myspeak_setup_email.cta") %></a>
 
-      <p style="margin-top: 30px;">Need help? Just reply to this email or visit our <a href="<%= @frontend_url %>support">Support Center</a>.</p>
+      <p style="margin-top: 30px;">
+        <%= t("setup_mailer.myspeak_setup_email.support_html", support_url: "#{@frontend_url}support").html_safe %>
+      </p>
 
-      <p>Thanks for being part of our community,<br/>- The SpeakAnyWay Team 💬</p>
+      <p><%= t("setup_mailer.myspeak_setup_email.signoff") %><br/><%= t("setup_mailer.myspeak_setup_email.signature") %></p>
     </div>
   </body>
 </html>

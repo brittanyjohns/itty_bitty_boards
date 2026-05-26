@@ -2,6 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8" />
+    <title><%= t("setup_mailer.basic_setup_email.title") %></title>
     <style>
       body {
         background-color: #f6f8fb;
@@ -47,36 +48,38 @@
   </head>
   <body>
     <div class="container">
-      <h1>Welcome to SpeakAnyWay Basic!</h1>
-
-      <p>Hi <%= @user.name || "there" %>,</p>
+      <h1><%= t("setup_mailer.basic_setup_email.title") %></h1>
 
       <p>
-        We're so glad you've joined the SpeakAnyWay community. Your Basic account gives you everything you need to get started with one Communicator and access to the tools that make communication easier and more personal.
+        <%= @user.name.blank? ? t("setup_mailer.basic_setup_email.greeting_no_name") : t("setup_mailer.basic_setup_email.greeting_with_name", name: @user.name) %>
       </p>
 
-      <h2>🎁 What's Included in Basic</h2>
+      <p><%= t("setup_mailer.basic_setup_email.intro") %></p>
+
+      <h2><%= t("setup_mailer.basic_setup_email.included_heading") %></h2>
       <ul>
-        <li>✅ 1 Communicator Account</li>
-        <li>✅ MySpeak profile and QR code for your Communicator</li>
-        <li>✅ Emergency contact info, allergies, communication preferences</li>
-        <li>✅ Access to all core tools and AI features</li>
-        <li>✅ Ability to build and save communication boards</li>
+        <li><%= t("setup_mailer.basic_setup_email.included_item_1") %></li>
+        <li><%= t("setup_mailer.basic_setup_email.included_item_2") %></li>
+        <li><%= t("setup_mailer.basic_setup_email.included_item_3") %></li>
+        <li><%= t("setup_mailer.basic_setup_email.included_item_4") %></li>
+        <li><%= t("setup_mailer.basic_setup_email.included_item_5") %></li>
       </ul>
 
-      <h2>🚀 How to Get Set Up</h2>
+      <h2><%= t("setup_mailer.basic_setup_email.setup_heading") %></h2>
       <ol>
-        <li>Log in at <a href="<%= @frontend_url %>"><%= @frontend_url %></a>.</li>
-        <li>Go to <strong>"My Boards"</strong> to start building your first communication board.</li>
-        <li>Visit <strong>"Communicator Accounts"</strong> to fill out your Communicator's info and generate your QR code.</li>
-        <li>Explore our AI-powered board tools and image search features!</li>
+        <li><%= t("setup_mailer.basic_setup_email.setup_step_1_html", link: link_to(@frontend_url, @frontend_url)).html_safe %></li>
+        <li><%= t("setup_mailer.basic_setup_email.setup_step_2_html").html_safe %></li>
+        <li><%= t("setup_mailer.basic_setup_email.setup_step_3_html").html_safe %></li>
+        <li><%= t("setup_mailer.basic_setup_email.setup_step_4") %></li>
       </ol>
 
-      <a href="<%= @frontend_url %>" class="btn">Get Started Now!</a>
+      <a href="<%= @frontend_url %>" class="btn"><%= t("setup_mailer.basic_setup_email.cta") %></a>
 
-      <p style="margin-top: 30px;">Have questions or need help? Just reply to this email or check out our <a href="<%= @frontend_url %>support">Support Center</a>.</p>
+      <p style="margin-top: 30px;">
+        <%= t("setup_mailer.basic_setup_email.support_html", support_url: "#{@frontend_url}support").html_safe %>
+      </p>
 
-      <p>Thanks for choosing SpeakAnyWay,<br/>- The SpeakAnyWay Team 💬</p>
+      <p><%= t("setup_mailer.basic_setup_email.signoff") %><br/><%= t("setup_mailer.basic_setup_email.signature") %></p>
     </div>
   </body>
 </html>
