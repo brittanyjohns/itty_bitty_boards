@@ -818,7 +818,7 @@ class User < ApplicationRecord
   def send_free_setup_email
     Rails.logger.info "Sending free setup email to #{email}"
     begin
-      SetupMailer.free_setup_email(self).deliver_now
+      UserMailer.welcome_free_email(self).deliver_now
       Rails.logger.info "Free setup email sent to #{email}"
     rescue => e
       Rails.logger.error("Error sending free setup email: #{e.message}")

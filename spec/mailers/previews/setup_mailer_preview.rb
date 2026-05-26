@@ -19,9 +19,4 @@ class SetupMailerPreview < ActionMailer::Preview
     user = User.find(User::DEFAULT_ADMIN_ID)
     SetupMailer.basic_setup_email(user)
   end
-
-  def free_setup_email
-    user = User.find(User::DEFAULT_ADMIN_ID)
-    SetupMailer.basic_setup_email(user) # Assuming basic setup is the same for free users
-  end
 end
