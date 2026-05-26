@@ -12,6 +12,10 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   suggestions even when the requesting user's UI is in English. The new
   `params[:language]` query param lets the caller override the board's
   language for one-off requests.
+- `POST /api/scenarios/suggestion` (the scenario description generator)
+  now honors `params[:language]`, falling back to the requesting user's
+  locale. Closes the last gap in #118 — the scenario suggestion path
+  previously built its own English-only prompt that ignored language.
 - Threading also reaches the social-story path (`OpenAiClient` and
   `Board#get_social_story_word_suggestions`), which previously had no
   language-aware prompt.
