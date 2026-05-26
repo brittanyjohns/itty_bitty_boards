@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Team Invitation</title>
+    <title><%= t("base_mailer.team_invitation_email.title") %></title>
     <style>
         body {
             background-color: #f0f0f0;
@@ -34,7 +34,7 @@
             margin-top: 10px;
             padding: 10px 20px;
             background-color:rgb(21, 58, 98);
-            
+
             text-decoration: none;
             border-radius: 5px;
             color: white;
@@ -44,17 +44,21 @@
 <body>
     <div class="container">
         <div class="header">
-            You're Invited to Join a Team on SpeakAnyWay!
+            <%= t("base_mailer.team_invitation_email.heading") %>
         </div>
         <div class="content">
-            <p>Hi <%= @invitee.name.blank? ? "there" : @invitee.name %>,</p>
-            <p>You've been invited by <%= @inviter.name %> to join the team "<%= @team.name %>" on SpeakAnyWay. This team allows for sharing boards with family members, therapists, or educators, making collaboration easy and efficient.</p>
-            <p>To accept the invitation and start collaborating, just click the button below:</p>
-                  <p style="text-align: center;"><a href="<%= @invitation_link %>" class="button" style="background-color:rgb(21, 58, 98); color: white; cursor: pointer;">Accept Invitation</a></p>
+            <p>
+              <%= @invitee.name.blank? ? t("base_mailer.team_invitation_email.greeting_no_name") : t("base_mailer.team_invitation_email.greeting_with_name", name: @invitee.name) %>
+            </p>
+            <p><%= t("base_mailer.team_invitation_email.body", inviter_name: @inviter.name, team_name: @team.name) %></p>
+            <p><%= t("base_mailer.team_invitation_email.cta_intro") %></p>
+            <p style="text-align: center;">
+              <a href="<%= @invitation_link %>" class="button" style="background-color:rgb(21, 58, 98); color: white; cursor: pointer;"><%= t("base_mailer.team_invitation_email.cta") %></a>
+            </p>
 
-            <p>If you have any questions or need assistance, feel free to contact our support team at <a href="mailto:help@speakanyway.com">help@speakanyway.com</a>.</p>
-            <p>Happy Communicating,</p>
-            <p>The SpeakAnyWay Team</p>
+            <p><%= t("base_mailer.team_invitation_email.support_html").html_safe %></p>
+            <p><%= t("base_mailer.team_invitation_email.signoff") %></p>
+            <p><%= t("base_mailer.team_invitation_email.signature") %></p>
         </div>
     </div>
 </body>

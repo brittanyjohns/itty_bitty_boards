@@ -420,3 +420,17 @@ en:
       voice_html: "Your voice will directly shape the future of the <strong>SpeakAnyWay Partner Program</strong>. 💜"
       thanks: "Thank you for joining the journey!"
       signature: "Brittany"
+
+  base_mailer:
+    team_invitation_email:
+      subject: "You have been invited to join a team on SpeakAnyWay AAC!"
+      title: "Team Invitation"
+      heading: "You're Invited to Join a Team on SpeakAnyWay!"
+      greeting_with_name: "Hi %{name},"
+      greeting_no_name: "Hi there,"
+      body: "You've been invited by %{inviter_name} to join the team \"%{team_name}\" on SpeakAnyWay. This team allows for sharing boards with family members, therapists, or educators, making collaboration easy and efficient."
+      cta_intro: "To accept the invitation and start collaborating, just click the button below:"
+      cta: "Accept Invitation"
+      support_html: "If you have any questions or need assistance, feel free to contact our support team at <a href=\"mailto:help@speakanyway.com\">help@speakanyway.com</a>."
+      signoff: "Happy Communicating,"
+      signature: "The SpeakAnyWay Team"
