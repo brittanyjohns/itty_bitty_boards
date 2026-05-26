@@ -9,31 +9,31 @@ RSpec.describe TranslateBoardImagesJob, type: :job do
   let!(:bi_b) { FactoryBot.create(:board_image, board: board, image: image_b) }
 
   it "skips when board is missing" do
-    expect(TranslateImageJob).not_to receive(:perform_async)
+    expect(TranslateImageJob).not_to receive(:perform_in)
     described_class.new.perform(0, "es")
   end
 
   it "skips when language is blank or 'en'" do
-    expect(TranslateImageJob).not_to receive(:perform_async)
+    expect(TranslateImageJob).not_to receive(:perform_in)
     described_class.new.perform(board.id, "en")
     described_class.new.perform(board.id, "")
   end
 
   it "skips when language is unsupported" do
-    expect(TranslateImageJob).not_to receive(:perform_async)
+    expect(TranslateImageJob).not_to receive(:perform_in)
     described_class.new.perform(board.id, "xx")
   end
 
-  it "queues a TranslateImageJob for each image missing the translation" do
-    expect(TranslateImageJob).to receive(:perform_async).with(image_a.id, "es")
-    expect(TranslateImageJob).to receive(:perform_async).with(image_b.id, "es")
+  it "queues a TranslateImageJob for each image missing the translation, staggered" do
+    expect(TranslateImageJob).to receive(:perform_in).with(0.seconds, image_a.id, "es")
+    expect(TranslateImageJob).to receive(:perform_in).with(2.seconds, image_b.id, "es")
     described_class.new.perform(board.id, "es")
   end
 
   it "skips images that already have the translation" do
     image_a.update!(language_settings: { "es" => { "label" => "hola" } })
-    expect(TranslateImageJob).not_to receive(:perform_async).with(image_a.id, "es")
-    expect(TranslateImageJob).to receive(:perform_async).with(image_b.id, "es")
+    expect(TranslateImageJob).not_to receive(:perform_in).with(anything, image_a.id, "es")
+    expect(TranslateImageJob).to receive(:perform_in).with(0.seconds, image_b.id, "es")
     described_class.new.perform(board.id, "es")
   end
 end
