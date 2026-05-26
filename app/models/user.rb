@@ -234,16 +234,15 @@ class User < ApplicationRecord
     plan_type == "pro" ? 5 : 2
   end
 
-  # Communicator slot math after the loaner-lifecycle rework (issue #156):
+  # Communicator slot math:
   #
   #   paid_communicator_limit — total owned `loaner` + `active` slots.
-  #                             Free has 1 because they can host one
-  #                             *claimed* communicator (B4), even though
-  #                             they cannot self-create one.
+  #                             Free has 1 (self-created or claimed).
   #   demo_communicator_limit — sandbox (no-login, board-capped) slots.
   #
-  # `Permissions::CommunicatorLimits.self_create_allowed?` gates whether a
-  # user may create a non-sandbox communicator themselves (paid plan only).
+  # `Permissions::CommunicatorLimits.self_create_allowed?` returns true
+  # whenever the user has any non-zero slot limit (i.e. has at least one
+  # slot to spend).
   FREE_PLAN_LIMITS = {
     "plan_type" => "free",
     "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 1).to_i,

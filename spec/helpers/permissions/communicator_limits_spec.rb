@@ -3,8 +3,8 @@
 require "rails_helper"
 
 RSpec.describe Permissions::CommunicatorLimits do
-  # Slot math after the loaner-lifecycle rework (issue #158):
-  #   Free  — 0 self-created; may host 1 claimed; +1 sandbox.
+  # Slot math:
+  #   Free  — 1 communicator (self-created or claimed); +1 sandbox.
   #   Basic — 2 self-created.
   #   Pro   — 3 self-created, loaner-capable.
 
@@ -33,12 +33,22 @@ RSpec.describe Permissions::CommunicatorLimits do
         expect(error).to match(/limit reached/i)
       end
 
-      it "blocks self-creating an active communicator (Free can't self-create)" do
+      it "allows self-creating one active communicator (Free gets 1 slot)" do
+        allowed, http_status, error = described_class.can_create?(user: user, status: ChildAccount::ACTIVE)
+
+        expect(allowed).to be(true)
+        expect(http_status).to eq(:ok)
+        expect(error).to be_nil
+      end
+
+      it "blocks a second active once the free slot is used" do
+        create(:child_account, user: user, owner: user, status: ChildAccount::ACTIVE)
+
         allowed, http_status, error = described_class.can_create?(user: user, status: ChildAccount::ACTIVE)
 
         expect(allowed).to be(false)
-        expect(http_status).to eq(:forbidden)
-        expect(error).to match(/does not allow|does not include/i)
+        expect(http_status).to eq(:unprocessable_entity)
+        expect(error).to match(/maximum.*reached/i)
       end
 
       it "still accepts the legacy is_demo:true shape" do

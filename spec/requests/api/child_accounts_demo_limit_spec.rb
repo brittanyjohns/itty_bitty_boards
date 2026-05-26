@@ -32,12 +32,22 @@ RSpec.describe "API::ChildAccounts sandbox + slot limits", type: :request do
         expect(response).to have_http_status(:unprocessable_entity)
       end
 
-      it "rejects self-creating a non-sandbox communicator on Free" do
+      it "allows self-creating one non-sandbox communicator on Free" do
         post "/api/child_accounts",
           params: { name: "Real", username: "real-#{SecureRandom.hex(3)}", status: "active", password: "abcdef", password_confirmation: "abcdef" },
           headers: auth_headers(user)
 
-        expect(response).to have_http_status(:forbidden)
+        expect(response).to have_http_status(:created)
+      end
+
+      it "blocks a second non-sandbox communicator once the Free slot is used" do
+        create(:child_account, user: user, owner: user, status: ChildAccount::ACTIVE)
+
+        post "/api/child_accounts",
+          params: { name: "Second", username: "second-#{SecureRandom.hex(3)}", status: "active", password: "abcdef", password_confirmation: "abcdef" },
+          headers: auth_headers(user)
+
+        expect(response).to have_http_status(:unprocessable_entity)
       end
 
       it "still accepts the legacy is_demo=true param for backwards compat" do

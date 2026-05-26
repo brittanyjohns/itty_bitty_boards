@@ -2,10 +2,10 @@ module Permissions
   module CommunicatorLimits
     extend self
 
-    # Slot math (per the loaner-lifecycle spec — issue #158):
+    # Slot math:
     #
-    #   Free  — 0 self-created (loaner/active). May host 1 *claimed* (a loaner
-    #           handed off SLP → parent). Plus the no-login sandbox.
+    #   Free  — 1 communicator (self-created or claimed). Plus the no-login
+    #           sandbox.
     #   Basic — 2 communicators (loaner + active total).
     #   Pro   — 3 communicators, loaner-capable, recycling.
     #
@@ -61,7 +61,7 @@ module Permissions
 
     def self_create_allowed?(user)
       return true if user.admin?
-      user.paid_plan?
+      slot_limit_for(user.settings || {}) > 0
     end
 
     private
@@ -77,10 +77,6 @@ module Permissions
     end
 
     def check_slot_self_create(user, settings)
-      unless self_create_allowed?(user)
-        return [false, :forbidden, "Your plan does not allow creating communicator accounts. Upgrade to Basic or Pro, or have one handed to you."]
-      end
-
       limit = slot_limit_for(settings)
       count = owned_slot_count(user)
 

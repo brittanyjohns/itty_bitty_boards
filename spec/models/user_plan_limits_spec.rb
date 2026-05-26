@@ -17,8 +17,8 @@ RSpec.describe User, "plan limits", type: :model do
     end
   end
 
-  # Per loaner-lifecycle issue #158:
-  #   Free  — 0 self-created, may HOST 1 claimed (slot pool = 1).
+  # Slot pool sizes (self-created or claimed):
+  #   Free  — 1.
   #   Basic — 2.
   #   Pro   — 3.
   describe "paid (loaner+active) communicator slot limits" do
