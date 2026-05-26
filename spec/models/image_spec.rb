@@ -103,8 +103,8 @@ RSpec.describe Image, type: :model do
   describe "#localized_label" do
     let(:image) do
       FactoryBot.create(:image,
-        label: "hello",
-        language_settings: { "es" => { "label" => "hola", "display_label" => "Hola" } })
+                        label: "hello",
+                        language_settings: { "es" => { "label" => "hola", "display_label" => "Hola" } })
     end
 
     it "returns the English label when language is nil" do
@@ -132,29 +132,34 @@ RSpec.describe Image, type: :model do
   describe "#localized_display_label" do
     let(:image) do
       FactoryBot.create(:image,
-        label: "hello",
-        language_settings: { "es" => { "label" => "hola", "display_label" => "Hola" } })
+                        label: "hello",
+                        language_settings: { "es" => { "label" => "hola", "display_label" => "Hola" } })
     end
 
-    it "returns the titleized English label by default" do
-      expect(image.localized_display_label(nil)).to eq("Hello")
+    it "returns the English label by default" do
+      expect(image.localized_display_label(nil)).to eq("hello")
     end
 
     it "returns the translated display_label when present" do
       expect(image.localized_display_label("es")).to eq("Hola")
     end
 
-    it "titleizes the translated label when only label is present" do
+    it "returns the translated label when only label is present" do
       image.update!(language_settings: { "es" => { "label" => "hola" } })
-      expect(image.localized_display_label("es")).to eq("Hola")
+      expect(image.localized_display_label("es")).to eq("hola")
+    end
+
+    it "returns the translated label when only label is present" do
+      image.update!(language_settings: { "es" => { "label" => "hola" } })
+      expect(image.localized_display_label("es")).to eq("hola")
     end
   end
 
   describe "#text_for_audio" do
     let(:image) do
       FactoryBot.create(:image,
-        label: "hello",
-        language_settings: { "es" => { "label" => "hola", "display_label" => "Hola" } })
+                        label: "hello",
+                        language_settings: { "es" => { "label" => "hola", "display_label" => "Hola" } })
     end
 
     it "returns the English label for 'en'" do

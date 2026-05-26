@@ -1104,7 +1104,7 @@ class Image < ApplicationRecord
   end
 
   def display_label
-    label&.titleize
+    label
   end
 
   # Looks up a translated label from language_settings; enqueues a background
@@ -1132,7 +1132,7 @@ class Image < ApplicationRecord
 
     entry = (language_settings || {})[lang]
     translated = entry.is_a?(Hash) ? (entry["display_label"] || entry[:display_label]) : nil
-    translated.presence || localized_label(lang).to_s.titleize
+    translated.presence || localized_label(lang).to_s
   end
 
   def prompt_to_send
