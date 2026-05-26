@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Account Set Up</title>
+    <title><%= t("communication_account_mailer.setup_email.title") %></title>
     <style>
         body {
             background-color: #f0f0f0;
@@ -34,7 +34,7 @@
             margin-top: 10px;
             padding: 10px 20px;
             background-color:rgb(21, 58, 98);
-            
+
             text-decoration: none;
             border-radius: 5px;
             color: white;
@@ -44,36 +44,38 @@
 <body>
     <div class="container">
         <div class="header">
-            You have a new account on SpeakAnyWay!
+            <%= t("communication_account_mailer.setup_email.heading") %>
         </div>
         <div class="content">
-            <p>Hi <%= @account.name.blank? ? "there" : @account.name %>,</p>
-            <p>You've been invited by <%= @sending_user.name %> to join SpeakAnyWay!</p>
-            
+            <p>
+              <%= @account.name.blank? ? t("communication_account_mailer.setup_email.greeting_no_name") : t("communication_account_mailer.setup_email.greeting_with_name", name: @account.name) %>
+            </p>
+            <p><%= t("communication_account_mailer.setup_email.invited_by", inviter_name: @sending_user&.name) %></p>
 
-            <p>To set up your account and start communicating, just click the button below:</p>
-            <p style="text-align: center;"><a href="<%= @startup_url %>" class="button" style="background-color:rgb(21, 58, 98); color: white; cursor: pointer;">
-            Set Up Account</a></p>
+            <p><%= t("communication_account_mailer.setup_email.cta_intro") %></p>
+            <p style="text-align: center;">
+              <a href="<%= @startup_url %>" class="button" style="background-color:rgb(21, 58, 98); color: white; cursor: pointer;"><%= t("communication_account_mailer.setup_email.cta") %></a>
+            </p>
 
             <p style="margin-top: 20px; text-align: center; font-weight: bold">
-            Your username is: <%= @account.username %><br>Your temporary password is: <%= @password %></p>
-            <p style="margin-top: 20px;">
-             You can change your password after you log in.</p>
-            <p>SpeakAnyWay is a communication platform that allows for sharing boards with family members, therapists, or educators, making collaboration easy and efficient.</p>
-            <p>With SpeakAnyWay, you can:</p>
+              <%= t("communication_account_mailer.setup_email.credentials_html", username: @account.username, password: @password).html_safe %>
+            </p>
+            <p style="margin-top: 20px;"><%= t("communication_account_mailer.setup_email.password_note") %></p>
+            <p><%= t("communication_account_mailer.setup_email.platform_intro") %></p>
+            <p><%= t("communication_account_mailer.setup_email.features_intro") %></p>
             <ul style="text-align: left;">
-                <li>Share boards with others</li>
-                <li>Collaborate on boards in real-time</li>
-                <li>Access boards from any device</li>
+                <li><%= t("communication_account_mailer.setup_email.feature_1") %></li>
+                <li><%= t("communication_account_mailer.setup_email.feature_2") %></li>
+                <li><%= t("communication_account_mailer.setup_email.feature_3") %></li>
             </ul>
             <p style="margin-top: 20px; font-weight: bold;">
-            
-            Click the button above to set up your account and start communicating!</p>
-            <p>Once you've set up your account, you can log in at <a href="https://www.speakanyway.com">www.speakanyway.com</a>.</p>
-            <p>Thank you for joining SpeakAnyWay!</p>
-            <p>If you have any questions or need assistance, feel free to contact our support team at <a href="mailto:help@speakanyway.com">help@speakanyway.com</a>.</p>
-            <p>Happy Communicating,</p>
-            <p>The SpeakAnyWay Team</p>
+              <%= t("communication_account_mailer.setup_email.cta_repeat") %>
+            </p>
+            <p><%= t("communication_account_mailer.setup_email.login_html").html_safe %></p>
+            <p><%= t("communication_account_mailer.setup_email.thanks") %></p>
+            <p><%= t("communication_account_mailer.setup_email.support_html").html_safe %></p>
+            <p><%= t("communication_account_mailer.setup_email.signoff") %></p>
+            <p><%= t("communication_account_mailer.setup_email.signature") %></p>
         </div>
     </div>
 </body>
