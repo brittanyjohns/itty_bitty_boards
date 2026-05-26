@@ -92,6 +92,20 @@ backlog size (default 200).
 - Premium features (Menu Board Creator, AI image generation) require active subscription
 - Subscription managed via Stripe/RevenueCat — check status before allowing access to premium endpoints
 
+### MySpeak ID limit (Free = 1)
+
+Free users are capped at **one MySpeak ID** (Profile). Basic/Pro/admin
+are unlimited. A "MySpeak ID" counts a Profile attached to the user
+directly *or* to one of their `communicator_accounts`. Implemented in
+`User#myspeak_id_limit` / `#myspeak_id_count` / `#can_create_myspeak_id?`,
+with limit env-tunable via `FREE_MYSPEAK_ID_LIMIT` (default `1`).
+
+`POST /api/profiles` is gated up front and returns **HTTP 403** with
+`{ error: "myspeak_id_limit_reached", message, limit, count }` when a
+Free user is already at the cap. Trial users (`basic_trial`, Stripe
+`trialing`) are treated as paid by `paid_plan?` and the gate doesn't
+trigger — consistent with how credit gates work.
+
 ### Board access on downgrade (read-only rule)
 
 When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to

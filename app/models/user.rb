@@ -1271,6 +1271,28 @@ class User < ApplicationRecord
   EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS =
     ENV.fetch("EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS", 14).to_i
 
+  # Free users get one MySpeak ID; Basic/Pro keep current (unlimited) behavior.
+  # A MySpeak ID = a Profile owned by the user directly or by one of their
+  # communicator accounts.
+  FREE_MYSPEAK_ID_LIMIT = ENV.fetch("FREE_MYSPEAK_ID_LIMIT", 1).to_i
+
+  def myspeak_id_limit
+    return nil if admin? || paid_plan?
+    FREE_MYSPEAK_ID_LIMIT
+  end
+
+  def myspeak_id_count
+    user_owned = Profile.where(profileable_type: "User", profileable_id: id).count
+    child_owned = Profile.where(profileable_type: "ChildAccount", profileable_id: communicator_accounts.select(:id)).count
+    user_owned + child_owned
+  end
+
+  def can_create_myspeak_id?
+    limit = myspeak_id_limit
+    return true if limit.nil?
+    myspeak_id_count < limit
+  end
+
   # When the next make_editable call is permitted. Nil if no prior explicit
   # pick (so the user can pick immediately) or if the cooldown has passed.
   def editable_board_switch_available_at

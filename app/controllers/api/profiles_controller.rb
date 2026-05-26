@@ -58,6 +58,18 @@ class API::ProfilesController < API::ApplicationController
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
+
+    unless current_user.can_create_myspeak_id?
+      limit = current_user.myspeak_id_limit
+      render json: {
+        error: "myspeak_id_limit_reached",
+        message: "Free accounts are limited to #{limit} MySpeak ID. Upgrade to Basic or Pro to add more.",
+        limit: limit,
+        count: current_user.myspeak_id_count,
+      }, status: :forbidden
+      return
+    end
+
     profile = Profile.new(profile_params)
     profile.profileable = current_user
 
