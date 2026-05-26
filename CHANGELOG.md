@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — BaseMailer team_invitation_email per-recipient i18n (#174)
+- `BaseMailer#team_invitation_email` now wraps `mail(...)` in
+  `with_user_locale(@invitee)` and resolves subject + body through
+  `I18n.t`. Locale keys under `base_mailer:` in
+  `config/locales/mailer.{en,es}.yml`. Invitees whose `i18n_locale` is
+  `:es` now receive team invitations in Spanish.
+- Deleted the orphan template
+  `app/views/base_mailer/invite_new_user_to_team_email.html.erb` —
+  no mailer action referenced it anywhere in the codebase.
+
 ### Changed — PartnerMailer per-recipient i18n (#173)
 - `PartnerMailer` now extends `BaseMailer` (was `ApplicationMailer`).
 - `PartnerMailer#welcome_email` wraps `mail(...)` in

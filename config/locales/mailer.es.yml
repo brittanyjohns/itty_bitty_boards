@@ -420,3 +420,17 @@ es:
       voice_html: "Tu voz dará forma directa al futuro del <strong>Programa de Socios de SpeakAnyWay</strong>. 💜"
       thanks: "¡Gracias por unirte al camino!"
       signature: "Brittany"
+
+  base_mailer:
+    team_invitation_email:
+      subject: "¡Te han invitado a unirte a un equipo en SpeakAnyWay AAC!"
+      title: "Invitación a un equipo"
+      heading: "¡Te han invitado a unirte a un equipo en SpeakAnyWay!"
+      greeting_with_name: "Hola %{name},"
+      greeting_no_name: "Hola,"
+      body: "%{inviter_name} te ha invitado a unirte al equipo \"%{team_name}\" en SpeakAnyWay. Este equipo permite compartir tableros con familiares, terapeutas o educadores, facilitando la colaboración."
+      cta_intro: "Para aceptar la invitación y empezar a colaborar, haz clic en el botón de abajo:"
+      cta: "Aceptar invitación"
+      support_html: "Si tienes alguna pregunta o necesitas ayuda, no dudes en escribir a nuestro equipo de soporte en <a href=\"mailto:help@speakanyway.com\">help@speakanyway.com</a>."
+      signoff: "Feliz comunicación,"
+      signature: "El equipo de SpeakAnyWay"

@@ -32,8 +32,13 @@ class BaseMailer < ApplicationMailer
     encoded_email = ERB::Util.url_encode(@invitee.email)
     @invitation_link += "?email=#{encoded_email}"
 
-    subject = "You have been invited to join a team on SpeakAnyWay AAC!"
-    mail(to: @invitee.email, subject: subject, from: "noreply@speakanyway.com")
+    with_user_locale(@invitee) do
+      mail(
+        to: @invitee.email,
+        subject: I18n.t("base_mailer.team_invitation_email.subject"),
+        from: "noreply@speakanyway.com",
+      )
+    end
     @invitee.update!(invitation_sent_at: Time.now)
   end
 end
