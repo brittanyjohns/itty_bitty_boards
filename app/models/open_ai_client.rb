@@ -462,7 +462,7 @@ class OpenAiClient
     response
   end
 
-  def get_social_story_word_suggestions(name, number_of_steps, max_number_of_words, words_to_exclude = [])
+  def get_social_story_word_suggestions(name, number_of_steps, max_number_of_words, words_to_exclude = [], language: "en")
     if words_to_exclude.is_a?(String)
       words_to_exclude = words_to_exclude.split(",").map(&:strip)
     end
@@ -505,6 +505,8 @@ class OpenAiClient
       Respond ONLY with valid JSON in this format:
       {"words": ["step one example", "next step example", "another step example"]}
     TEXT
+
+    text = append_language_instruction(text, language)
 
     @messages = [{
       role: "user",

@@ -5,6 +5,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — AI word suggestions respect `board.language`
+- `GET /api/boards/words` and `GET /api/boards/:id/additional_words` now
+  source the language for AI output as `params[:language] || board.language ||
+  current_user.i18n_locale`. A board with `language: "es"` returns Spanish
+  suggestions even when the requesting user's UI is in English. The new
+  `params[:language]` query param lets the caller override the board's
+  language for one-off requests.
+- Threading also reaches the social-story path (`OpenAiClient` and
+  `Board#get_social_story_word_suggestions`), which previously had no
+  language-aware prompt.
+
 ### Added — Multilingual backend content (i18n Phase 1)
 - **AI generation now respects the user's language.** Word suggestions, board
   generation, and scenario word lists previously always came back in English.
