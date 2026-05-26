@@ -1,4 +1,4 @@
-class PartnerMailer < ApplicationMailer
+class PartnerMailer < BaseMailer
   def welcome_email(user)
     @user = user
     @start_date = Time.current
@@ -7,6 +7,8 @@ class PartnerMailer < ApplicationMailer
     @front_end_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
     @sign_in_url = "#{@front_end_url}/users/sign-in?email=#{CGI.escape(@user.email)}"
 
-    mail(to: @user.email, subject: "Welcome to the SpeakAnyWay Partner Program!")
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("partner_mailer.welcome_email.subject"))
+    end
   end
 end
