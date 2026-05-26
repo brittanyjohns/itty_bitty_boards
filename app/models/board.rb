@@ -202,6 +202,12 @@ class Board < ApplicationRecord
 
   before_create :set_screen_sizes, :set_number_of_columns
   after_initialize :set_initial_layout, if: :layout_empty?
+  after_update_commit :retranslate_on_language_change
+
+  def retranslate_on_language_change
+    return unless saved_change_to_language?
+    schedule_translations_for(language)
+  end
 
   def run_generate_preview_job
     GenerateBoardPreviewJob.perform_async(id, { "generate_png" => true, "hide_header" => true }) # Generate PNG preview without header
