@@ -1175,33 +1175,6 @@ class User < ApplicationRecord
     true
   end
 
-  def handle_myspeak_setup(myspeak_name: nil, myspeak_slug: nil)
-    myspeak_slug ||= settings["slug"] || email.split("@").first
-    myspeak_name ||= display_name
-    Rails.logger.info "Handling MySpeak setup for user #{email} with slug #{myspeak_slug} and name #{myspeak_name}"
-    @child_account = ChildAccount.new(username: myspeak_slug, name: myspeak_name, status: ChildAccount::SANDBOX)
-    if free?
-      @child_account.settings ||= {}
-      @child_account.settings["demo_board_limit"] = ChildAccount::FREE_DEMO_BOARD_LIMIT
-    end
-    @child_account.owner = self
-    @child_account.user = self if @child_account.respond_to?(:user=) # legacy (optional)
-
-    # Validate basic fields first
-    unless @child_account.valid?
-      Rails.logger.error "Child account validation failed: #{@child_account.errors.full_messages.join(", ")}"
-      return nil
-    end
-    if @child_account.save
-      Rails.logger.info "Child account created with ID #{@child_account.id} for MySpeak setup"
-      @child_account.create_profile!
-      Rails.logger.info "Profile created with slug #{myspeak_slug} for MySpeak setup"
-    else
-      Rails.logger.error "Failed to save child account for MySpeak setup: #{@child_account.errors.full_messages.join(", ")}"
-    end
-    @child_account
-  end
-
   def reset_ai_limits!
     current_user = self
     feature_key = "ai_action"
