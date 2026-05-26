@@ -72,10 +72,8 @@ class API::Internal::BoardImagesController < API::Internal::ApplicationControlle
     if p[:image_id].present?
       Image.find_by(id: p[:image_id])
     elsif p[:label].present?
-      label = p[:label].to_s.strip
-      Image.find_by(label: label, user_id: current_user.id) ||
-        Image.public_img.find_by(label: label, user_id: [User::DEFAULT_ADMIN_ID, nil]) ||
-        Image.create(label: label, user_id: current_user.id)
+      language = p[:language].presence || @board&.language.presence || "en"
+      Image.find_or_create_for_label(p[:label], language: language, user: current_user)
     end
   end
 

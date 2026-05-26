@@ -174,4 +174,115 @@ RSpec.describe Image, type: :model do
       expect(image.text_for_audio("fr")).to eq("hello")
     end
   end
+
+  describe ".normalize_label" do
+    it "lowercases, strips, and removes diacritics" do
+      expect(Image.normalize_label("  Perró  ")).to eq("perro")
+    end
+
+    it "returns empty string for blank input" do
+      expect(Image.normalize_label(nil)).to eq("")
+      expect(Image.normalize_label("")).to eq("")
+    end
+  end
+
+  describe ".find_or_create_for_label" do
+    let(:user) { FactoryBot.create(:user) }
+
+    context "with English input" do
+      it "returns the user's existing image when label matches" do
+        owned = FactoryBot.create(:image, label: "dog", user_id: user.id)
+        FactoryBot.create(:image, label: "dog", user_id: nil, is_private: false)
+        result = Image.find_or_create_for_label("dog", language: "en", user: user)
+        expect(result).to eq(owned)
+      end
+
+      it "falls back to a public image when the user has none" do
+        public_image = FactoryBot.create(:image, label: "dog", user_id: nil, is_private: false)
+        result = Image.find_or_create_for_label("dog", language: "en", user: user)
+        expect(result).to eq(public_image)
+      end
+
+      it "creates a new English-canonical image when none exists" do
+        expect {
+          @image = Image.find_or_create_for_label("dog", language: "en", user: user)
+        }.to change { Image.count }.by(1)
+        expect(@image.label).to eq("dog")
+        expect(@image.language).to eq("en")
+        expect(@image.user_id).to eq(user.id)
+      end
+    end
+
+    context "with Spanish input" do
+      it "matches an existing image by its stored Spanish translation" do
+        dog = FactoryBot.create(
+          :image,
+          label: "dog",
+          user_id: nil,
+          is_private: false,
+          language_settings: { "es" => { "label" => "perro", "display_label" => "Perro" } },
+        )
+        result = Image.find_or_create_for_label("perro", language: "es", user: user)
+        expect(result).to eq(dog)
+      end
+
+      it "matches case- and diacritic-insensitively" do
+        dog = FactoryBot.create(
+          :image,
+          label: "dog",
+          user_id: nil,
+          is_private: false,
+          language_settings: { "es" => { "label" => "perro", "display_label" => "Perro" } },
+        )
+        result = Image.find_or_create_for_label("Perró", language: "es", user: user)
+        expect(result).to eq(dog)
+      end
+
+      it "translates input to English and matches on the canonical label" do
+        cat = FactoryBot.create(:image, label: "cat", user_id: nil, is_private: false)
+        allow(Image).to receive(:translate_to_english).with("gato", "es").and_return("cat")
+        result = Image.find_or_create_for_label("gato", language: "es", user: user)
+        expect(result).to eq(cat)
+        expect(result.reload.language_settings.dig("es", "label")).to eq("gato")
+      end
+
+      it "creates a canonical English image when translation succeeds but no match exists" do
+        allow(Image).to receive(:translate_to_english).with("gato", "es").and_return("cat")
+        expect {
+          @image = Image.find_or_create_for_label("gato", language: "es", user: user)
+        }.to change { Image.count }.by(1)
+        expect(@image.label).to eq("cat")
+        expect(@image.language).to eq("en")
+        expect(@image.language_settings.dig("es", "label")).to eq("gato")
+      end
+
+      it "falls back to creating with the raw input when translation fails" do
+        allow(Image).to receive(:translate_to_english).with("gato", "es").and_return(nil)
+        expect {
+          @image = Image.find_or_create_for_label("gato", language: "es", user: user)
+        }.to change { Image.count }.by(1)
+        expect(@image.label).to eq("gato")
+        expect(@image.language).to eq("es")
+      end
+
+      it "records the user's Spanish input on a match that lacked it" do
+        cat = FactoryBot.create(:image, label: "cat", user_id: nil, is_private: false)
+        allow(Image).to receive(:translate_to_english).with("gato", "es").and_return("cat")
+        Image.find_or_create_for_label("gato", language: "es", user: user)
+        expect(cat.reload.language_settings.dig("es", "label")).to eq("gato")
+        expect(cat.language_settings.dig("es", "display_label")).to eq("Gato")
+      end
+    end
+
+    it "returns nil for blank input" do
+      expect(Image.find_or_create_for_label(nil, language: "es", user: user)).to be_nil
+      expect(Image.find_or_create_for_label("   ", language: "es", user: user)).to be_nil
+    end
+
+    it "treats unknown languages as English" do
+      FactoryBot.create(:image, label: "dog", user_id: nil, is_private: false)
+      result = Image.find_or_create_for_label("dog", language: "xx", user: user)
+      expect(result.label).to eq("dog")
+    end
+  end
 end
