@@ -1885,7 +1885,9 @@ class Board < ApplicationRecord
           is_admin_image: is_admin_image,
           freeze_board: freeze_board,
           freeze_parent_board: freeze_parent_board,
+
           is_first_image: is_first_image,
+          image_language_settings: @image.language_settings,
           override_frozen: @board_image.override_frozen,
           position: @board_image.position,
           dynamic: is_dynamic,

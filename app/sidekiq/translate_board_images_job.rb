@@ -24,6 +24,7 @@ class TranslateBoardImagesJob
       next unless image && image.label.present?
 
       existing = (image.language_settings || {})[language]
+      Rails.logger.info("TranslateBoardImagesJob: board_id=#{board.id} image_id=#{image.id} language=#{language} existing=#{existing.inspect}")
       next if existing.is_a?(Hash) && (existing["label"] || existing[:label]).to_s.strip.present?
 
       TranslateImageJob.perform_in(offset.seconds, image.id, language)
