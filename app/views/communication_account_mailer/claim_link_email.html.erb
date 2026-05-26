@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Claim your communicator</title>
+  <title><%= t("communication_account_mailer.claim_link_email.title") %></title>
   <style>
     body { background:#f0f0f0; font-family:Arial,sans-serif; margin:0; padding:20px; }
     .container { background:#fff; margin:auto; max-width:600px; padding:24px; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,.1); }
@@ -14,14 +14,19 @@
 </head>
 <body>
   <div class="container">
-    <div class="header">Make <%= @child_name.presence || "this" %> communicator yours</div>
+    <%
+      owner = @owner_name.presence || t("communication_account_mailer.claim_link_email.default_owner_name")
+      child = @child_name.presence || t("communication_account_mailer.claim_link_email.default_child_name")
+      child_in_heading = @child_name.presence || t("communication_account_mailer.claim_link_email.default_child_in_heading")
+    %>
+    <div class="header"><%= t("communication_account_mailer.claim_link_email.heading", child_name: child_in_heading) %></div>
     <div class="content">
-      <p><%= @owner_name.presence || "Your therapist" %> set up a SpeakAnyWay communicator for <%= @child_name.presence || "your child" %> and is ready to hand it over.</p>
-      <p>Take ownership in a couple of taps. Your boards, your sign-in, your communicator — kept exactly as it is today.</p>
-      <p style="text-align:center;"><a href="<%= @claim_url %>" class="button">Claim the communicator</a></p>
-      <p class="muted">Free hosting for this one Communicator — no card needed. <%= @owner_name.presence || "Your therapist" %> stays linked as a supervisor; you can change that anytime.</p>
-      <p class="muted">If the button doesn't work, paste this link into your browser:<br><%= @claim_url %></p>
-      <p>Happy Communicating,<br>The SpeakAnyWay Team</p>
+      <p><%= t("communication_account_mailer.claim_link_email.intro", owner_name: owner, child_name: child) %></p>
+      <p><%= t("communication_account_mailer.claim_link_email.pitch") %></p>
+      <p style="text-align:center;"><a href="<%= @claim_url %>" class="button"><%= t("communication_account_mailer.claim_link_email.cta") %></a></p>
+      <p class="muted"><%= t("communication_account_mailer.claim_link_email.free_hosting", owner_name: owner) %></p>
+      <p class="muted"><%= t("communication_account_mailer.claim_link_email.fallback_link") %><br><%= @claim_url %></p>
+      <p><%= t("communication_account_mailer.claim_link_email.signoff") %><br><%= t("communication_account_mailer.claim_link_email.signature") %></p>
     </div>
   </div>
 </body>

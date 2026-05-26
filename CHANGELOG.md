@@ -5,6 +5,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — CommunicationAccountMailer per-recipient i18n (#175)
+- `CommunicationAccountMailer` now extends `BaseMailer` (was
+  `ApplicationMailer`).
+- `setup_email` and `claim_link_email` wrap `mail(...)` in
+  `with_user_locale(@account.owner)` and resolve subjects + bodies through
+  `I18n.t`. Locale keys under `communication_account_mailer:` in
+  `config/locales/mailer.{en,es}.yml`.
+- Recipient is the `ChildAccount.email` (or the parent email for the
+  claim flow), not a `User` — so the **owner's** locale is used, with a
+  safe fallback to `:en` when the account has no owner.
+- Bundled `claim_link_email` along with the explicitly-scoped
+  `setup_email` since they share the class — leaving one English would
+  defeat the goal of making the class locale-aware.
+
 ### Changed — BaseMailer team_invitation_email per-recipient i18n (#174)
 - `BaseMailer#team_invitation_email` now wraps `mail(...)` in
   `with_user_locale(@invitee)` and resolves subject + body through
