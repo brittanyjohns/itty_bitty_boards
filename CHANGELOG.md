@@ -5,6 +5,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Removed
+- `User#handle_myspeak_setup` — orphaned method from an earlier MySpeak
+  signup path with no callers anywhere in the codebase. Spotted while
+  closing the MySpeak-goes-free rollout audit (#144).
+
 ### Added — Free = 1 MySpeak ID limit (#143)
 - Free users are now capped at **one MySpeak ID** (Profile). Basic/Pro
   and admins remain unlimited. Trial users (`basic_trial`, Stripe
