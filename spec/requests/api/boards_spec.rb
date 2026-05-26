@@ -329,6 +329,62 @@ RSpec.describe "API::Boards", type: :request do
       expect(response).to have_http_status(:ok)
       expect(JSON.parse(response.body)).to eq(%w[doctor nurse clinic])
     end
+
+    describe "language threading" do
+      let!(:spanish_board) { create(:board, user: user, name: "Spanish Board", language: "es") }
+      let!(:english_board) { create(:board, user: user, name: "English Board", language: "en") }
+
+      it "forwards the Spanish board's language to the word suggestion service" do
+        expect_any_instance_of(Board).to receive(:get_word_suggestions)
+          .with("Spanish Board", 3, anything, hash_including(language: "es")).and_return(%w[hola adios gracias])
+        get "/api/boards/words",
+            params: { board_id: spanish_board.id, name: "Spanish Board", num_of_words: 3 },
+            headers: auth_headers(user)
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "forwards English when the board is English" do
+        expect_any_instance_of(Board).to receive(:get_word_suggestions)
+          .with("English Board", 3, anything, hash_including(language: "en")).and_return(%w[more help go])
+        get "/api/boards/words",
+            params: { board_id: english_board.id, name: "English Board", num_of_words: 3 },
+            headers: auth_headers(user)
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "lets params[:language] override the board's language" do
+        expect_any_instance_of(Board).to receive(:get_word_suggestions)
+          .with("English Board", 3, anything, hash_including(language: "fr")).and_return(%w[bonjour merci])
+        get "/api/boards/words",
+            params: { board_id: english_board.id, name: "English Board", num_of_words: 3, language: "fr" },
+            headers: auth_headers(user)
+        expect(response).to have_http_status(:ok)
+      end
+    end
+  end
+
+  describe "GET /api/boards/:id/additional_words" do
+    let!(:spanish_board) { create(:board, user: user, name: "Spanish Board", language: "es") }
+
+    it "forwards the board's language to Board#get_words" do
+      expect_any_instance_of(Board).to receive(:get_words)
+        .with(anything, anything, anything, anything, hash_including(language: "es"))
+        .and_return(%w[hola adios])
+      get "/api/boards/#{spanish_board.id}/additional_words",
+          params: { num_of_words: 2 },
+          headers: auth_headers(user)
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "lets params[:language] override the board's language" do
+      expect_any_instance_of(Board).to receive(:get_words)
+        .with(anything, anything, anything, anything, hash_including(language: "fr"))
+        .and_return(%w[bonjour])
+      get "/api/boards/#{spanish_board.id}/additional_words",
+          params: { num_of_words: 2, language: "fr" },
+          headers: auth_headers(user)
+      expect(response).to have_http_status(:ok)
+    end
   end
 
   describe "POST /api/boards/:id/add_image (upload)" do

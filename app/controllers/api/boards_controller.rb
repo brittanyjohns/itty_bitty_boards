@@ -612,7 +612,8 @@ class API::BoardsController < API::ApplicationController
     board_words = @board.board_images.map(&:label).uniq
     name_to_send = params[:prompt] || params[:name] || @board.name
     profile = CommunicatorProfile.from_params(params)
-    additional_words = @board.get_words(name_to_send, num_of_words, board_words, current_user.admin?, profile: profile)
+    resolved_language = params[:language].presence || @board.language.presence || "en"
+    additional_words = @board.get_words(name_to_send, num_of_words, board_words, current_user.admin?, language: resolved_language, profile: profile)
     render json: additional_words
   end
 
@@ -644,26 +645,30 @@ class API::BoardsController < API::ApplicationController
     num_of_words = params[:num_of_words].to_i || 24
     words_to_exclude = params[:words_to_exclude].is_a?(Array) ? params[:words_to_exclude] : @board&.current_word_list || []
     profile = CommunicatorProfile.from_params(params)
-    # The board may be a transient, unsaved object (no board_id), so the
-    # requesting user's language is the source of truth for AI output here.
-    user_language = current_user.i18n_locale.to_s
     @board ||= Board.new(name: prompt) # create a temporary board object to use the word suggestion methods if no board_id is provided
+    # Source language from explicit param first, then board.language, then user
+    # locale — so a Spanish-language board produces Spanish suggestions even
+    # when the user's locale is English, and a transient (board-less) request
+    # still picks up the user's locale.
+    resolved_language = params[:language].presence ||
+                        @board&.language.presence ||
+                        current_user.i18n_locale.to_s
     if creation_type == "social_story"
       number_of_steps = params[:number_of_steps].to_i
-      additional_words = @board.get_social_story_word_suggestions(prompt, number_of_steps, num_of_words, words_to_exclude)
+      additional_words = @board.get_social_story_word_suggestions(prompt, number_of_steps, num_of_words, words_to_exclude, language: resolved_language)
     elsif creation_type == "predictive"
-      additional_words = @board.get_words_for_predictive(prompt, num_of_words, language: user_language, profile: profile)
+      additional_words = @board.get_words_for_predictive(prompt, num_of_words, language: resolved_language, profile: profile)
     elsif creation_type == "custom"
       text = "Please give a list of #{num_of_words} words/phrases based on the following prompt: #{prompt} \n Theses will be used to create an AAC board so keep that in mind. Use lower case unless it's a proper noun and avoid special characters. Do not include any words on the board already: #{words_to_exclude.join(", ")}."
-      additional_words = @board.get_word_suggestions_from_prompt(text, language: user_language, profile: profile)
+      additional_words = @board.get_word_suggestions_from_prompt(text, language: resolved_language, profile: profile)
     elsif @board&.board_type == "menu"
-      additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words, language: user_language, profile: profile)
+      additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words, language: resolved_language, profile: profile)
     else
       board_name = @board&.name || prompt
       if prompt == board_name
-        additional_words = @board.get_word_suggestions(prompt, num_of_words, words_to_exclude, language: user_language, profile: profile)
+        additional_words = @board.get_word_suggestions(prompt, num_of_words, words_to_exclude, language: resolved_language, profile: profile)
       else
-        additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words, language: user_language, profile: profile)
+        additional_words = @board.get_word_suggestions_from_default_prompt(prompt, num_of_words, language: resolved_language, profile: profile)
       end
     end
     if additional_words.blank?

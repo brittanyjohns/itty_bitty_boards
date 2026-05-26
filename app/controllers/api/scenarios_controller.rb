@@ -133,7 +133,8 @@ class API::ScenariosController < API::ApplicationController
       render json: { error: "Name and age range cannot be blank" }, status: :unprocessable_entity
       return
     end
-    description = generate_scenario_description(name, age_range)
+    resolved_language = params[:language].presence || current_user.i18n_locale.to_s
+    description = generate_scenario_description(name, age_range, language: resolved_language)
     render json: { description: description }
   end
 
@@ -283,7 +284,7 @@ class API::ScenariosController < API::ApplicationController
     response.dig("choices", 0, "message", "content").split(",").map(&:strip)
   end
 
-  def generate_scenario_description(name, age_range)
+  def generate_scenario_description(name, age_range, language: "en")
     client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"])
 
     # prompt = <<~PROMPT
@@ -294,10 +295,12 @@ class API::ScenariosController < API::ApplicationController
     # PROMPT
     prompt = <<~PROMPT
                                               Give a factual description of the scenario "#{name}" for a student aged #{age_range} who uses AAC.
-    Do not invent names or characters. Just describe what typically happens, what they might see, hear, feel, and do. Focus on real-world routines, sensory details, emotions, and vocabulary they may need. 
+    Do not invent names or characters. Just describe what typically happens, what they might see, hear, feel, and do. Focus on real-world routines, sensory details, emotions, and vocabulary they may need.
       Use clear, simple language. Do not write it as a story. Do not include fictional events or dialogue.
       Keep it to 100 words or less.
     PROMPT
+
+    prompt = OpenAiClient.new({}).append_language_instruction(prompt, language)
 
     Rails.logger.debug "Generating scenario description with prompt: #{prompt}"
     response = client.chat(

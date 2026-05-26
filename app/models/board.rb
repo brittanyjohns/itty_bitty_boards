@@ -2267,9 +2267,10 @@ class Board < ApplicationRecord
     end
   end
 
-  def get_words(name_to_send, number_of_words, words_to_exclude = [], use_preview_model = false, profile: nil)
+  def get_words(name_to_send, number_of_words, words_to_exclude = [], use_preview_model = false, language: nil, profile: nil)
+    lang = language.presence || self.language.presence || "en"
     words_to_exclude = board_images.pluck(:label).map { |w| w.downcase }
-    response = OpenAiClient.new({}).get_additional_words(self, name_to_send, number_of_words, words_to_exclude, use_preview_model, language, profile: profile)
+    response = OpenAiClient.new({}).get_additional_words(self, name_to_send, number_of_words, words_to_exclude, use_preview_model, lang, profile: profile)
     begin
       if response
         if response[:content].blank?
@@ -2351,8 +2352,9 @@ class Board < ApplicationRecord
     end
   end
 
-  def get_social_story_word_suggestions(name_to_use, number_of_steps, max_number_of_words, words_to_exclude = [])
-    response = OpenAiClient.new({}).get_social_story_word_suggestions(name_to_use, number_of_steps, max_number_of_words, words_to_exclude)
+  def get_social_story_word_suggestions(name_to_use, number_of_steps, max_number_of_words, words_to_exclude = [], language: nil)
+    lang = language.presence || self.language.presence || "en"
+    response = OpenAiClient.new({}).get_social_story_word_suggestions(name_to_use, number_of_steps, max_number_of_words, words_to_exclude, language: lang)
     begin
       if response && response[:content].present?
         word_suggestions = response[:content].gsub("```json", "").gsub("```", "").strip
