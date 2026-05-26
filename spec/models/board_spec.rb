@@ -299,6 +299,33 @@ RSpec.describe Board, type: :model do
     end
   end
 
+  describe "language change retranslation" do
+    let(:board) { FactoryBot.create(:board, language: "en") }
+
+    it "schedules translations when language changes" do
+      expect(board).to receive(:schedule_translations_for).with("es")
+      board.update!(language: "es")
+    end
+
+    it "does not schedule when language is unchanged" do
+      expect(board).not_to receive(:schedule_translations_for)
+      board.update!(name: "renamed")
+    end
+
+    it "enqueues TranslateBoardImagesJob on language change" do
+      allow(Rails.cache).to receive(:exist?).and_return(false)
+      allow(Rails.cache).to receive(:write)
+      expect(TranslateBoardImagesJob).to receive(:perform_async).with(board.id, "es")
+      board.update!(language: "es")
+    end
+
+    it "is a no-op when switching to English" do
+      board.update!(language: "es")
+      expect(TranslateBoardImagesJob).not_to receive(:perform_async)
+      board.update!(language: "en")
+    end
+  end
+
   describe "#api_view" do
     let(:user) { FactoryBot.create(:user) }
     let(:board) do
