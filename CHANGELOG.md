@@ -5,6 +5,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — SetupMailer free/SLP setup email actions (#176)
+- `User#send_free_setup_email` was calling a non-existent
+  `SetupMailer#free_setup_email` action with an empty template, swallowing
+  a `NoMethodError` in a `rescue` and never delivering the email. It now
+  delivers `UserMailer#welcome_free_email` (already i18n'd, free-tier
+  appropriate). The admin "send setup email" action on
+  `/api/admin/users/:id/send_setup_email` now works for Free users.
+- Deleted the empty `setup_mailer/free_setup_email.html.erb` and
+  `setup_mailer/slp_setup_email.html.erb` templates. The SLP template had
+  no callers anywhere in the codebase.
+
 ### Changed — AI word suggestions respect `board.language`
 - `GET /api/boards/words` and `GET /api/boards/:id/additional_words` now
   source the language for AI output as `params[:language] || board.language ||

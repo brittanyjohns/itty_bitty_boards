@@ -295,4 +295,17 @@ RSpec.describe User, type: :model do
       expect(credits[:total]).to eq(credits[:plan] + 25)
     end
   end
+
+  describe "#send_free_setup_email" do
+    let(:user) { FactoryBot.create(:user, plan_type: "free") }
+
+    it "delivers UserMailer#welcome_free_email" do
+      expect {
+        user.send_free_setup_email
+      }.to change { ActionMailer::Base.deliveries.size }.by(1)
+
+      mail = ActionMailer::Base.deliveries.last
+      expect(mail.to).to eq([user.email])
+    end
+  end
 end
