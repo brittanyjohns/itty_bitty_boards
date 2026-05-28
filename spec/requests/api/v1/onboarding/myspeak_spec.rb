@@ -6,9 +6,16 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
 
   let(:user) do
     u = FactoryBot.create(:user)
-    # Pull out of the soft-trial window so paid_plan? is false and we can test
-    # the genuine Free state.
-    u.update_columns(plan_type: "free", created_at: 60.days.ago)
+    # Pull out of the soft-trial window so paid_plan? is false. The factory
+    # user gets seeded with Basic-tier limits via the soft-trial callback;
+    # overwrite the slot limits to match production Free state
+    # (paid_communicator_limit = 1, demo_communicator_limit = 1).
+    free_settings = u.settings.merge(
+      "paid_communicator_limit" => 1,
+      "demo_communicator_limit" => 1,
+      "board_limit" => 1,
+    )
+    u.update_columns(plan_type: "free", created_at: 60.days.ago, settings: free_settings)
     u
   end
 
@@ -45,7 +52,7 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
     end
 
     context "happy path" do
-      it "creates a child account + safety profile, attaches avatar, writes settings" do
+      it "creates an active child account + safety profile, attaches avatar, writes settings, sets up a team" do
         expect {
           post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
         }.to change { user.communicator_accounts.count }.by(1)
@@ -56,6 +63,12 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         child = user.communicator_accounts.order(:created_at).last
         expect(child.name).to eq("River Stone")
         expect(child.username).to eq("river-stone")
+        expect(child.status).to eq(ChildAccount::ACTIVE)
+
+        team = child.teams.first
+        expect(team).to be_present
+        expect(team.name).to eq("River Stone's Communication Team")
+        expect(team.team_users.where(user: user, role: "admin")).to exist
 
         profile = child.profile
         expect(profile.profile_kind).to eq("safety")
@@ -154,6 +167,24 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         expect(s["ice_contact_1"]["name"]).to eq("Sam")
         expect(s["ice_contact_2"]["name"]).to eq("Kit")
         expect(s["ice_contact_3"]).to be_nil
+      end
+    end
+
+    context "free user has no available communicator slot" do
+      it "returns 422 communicator_slot_unavailable" do
+        # Free's default paid_communicator_limit is 1. Take it.
+        FactoryBot.create(
+          :child_account,
+          user: user,
+          owner: user,
+          status: ChildAccount::ACTIVE,
+        )
+
+        post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        body = JSON.parse(response.body)
+        expect(body["error"]).to eq("communicator_slot_unavailable")
       end
     end
 

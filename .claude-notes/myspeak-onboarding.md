@@ -53,20 +53,35 @@ by `API::ApplicationController#authenticate_token!`)
 | 201    | `Profile#safety_view` hash (same payload the public `/my/:slug` returns)  | success                           |
 | 401    | `{ error: "Unauthorized" }`                                               | no/bad bearer token               |
 | 403    | `{ error: "myspeak_id_limit_reached", limit, count, message }`            | Free user at the 1-profile cap    |
+| 403    | `{ error: "communicator_slot_unavailable", message }`                     | plan has 0 communicator slots     |
+| 422    | `{ error: "communicator_slot_unavailable", message }`                     | all communicator slots in use     |
 | 422    | `{ error: "Onboarding failed", details: [...] }`                          | blank `name`, validation errors   |
 
 **Not 402.** 402 is reserved for credit exhaustion in this codebase.
 
 ## Transactional shape
 
-Everything happens inside `ActiveRecord::Base.transaction`:
+**Pre-transaction gates** (in order):
+
+1. `User#can_create_myspeak_id?` — Profile-count cap (Free = 1).
+   Returns **403 `myspeak_id_limit_reached`** if hit.
+2. `Permissions::CommunicatorLimits.can_create?(user:, status: ACTIVE)`
+   — slot cap from `user.settings["paid_communicator_limit"]`.
+   Returns **403/422 `communicator_slot_unavailable`** if hit.
+3. `name.present?` — **422** if blank.
+
+**Inside `ActiveRecord::Base.transaction`:**
 
 1. Compute a unique slug from `name.parameterize`, falling back to
    `<base>-2`, `<base>-3`, … up to 50 tries, then a random suffix.
    Checks `Profile.slug`, `Profile.username`, AND
    `ChildAccount.username`.
-2. `current_user.communicator_accounts.create!(name:, username:, user: current_user)`
-   — note `user:` is set explicitly (see footgun below).
+2. `current_user.communicator_accounts.create!(name:, username:, user: current_user, status: ChildAccount::ACTIVE)`
+   — note `user:` is explicit (see footgun below), and **`status:`
+   must be `ACTIVE`** so the communicator appears on the family
+   dashboard. The model default is `sandbox`, which is the Pro
+   no-login scratch space — sandbox communicators are filtered out
+   of the standard dashboard view.
 3. `Profile.new(profileable: child, profile_kind: "safety", username:, slug:, bio: care_notes, settings: ...)`.
 4. If `photo_data_url` matches `data:<ct>;base64,<payload>`, decode
    and `avatar.attach`.
@@ -75,6 +90,10 @@ Everything happens inside `ActiveRecord::Base.transaction`:
    `Board.find_by(slug: "myspeak-#{board_id}")` and create a favorited
    `ChildBoard`. **Silently skipped** if the board isn't seeded —
    logs a `Rails.logger.warn`, doesn't 422.
+7. `ensure_team_for(child)` — mirrors `API::ChildAccountsController#create`:
+   creates a `Team` named `"<name>'s Communication Team"`, attaches
+   the child via `TeamAccount`, and adds `current_user` as admin
+   (or `"professional"` if `current_user.professional?`).
 
 After the transaction commits, `profile.generate_attachments!` runs
 synchronously (Grover-based PDF/PNG generation) — same as
