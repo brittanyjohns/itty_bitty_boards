@@ -5,6 +5,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — `has_boards` flag on `User#api_view`
+- `User#api_view` now returns `has_boards: boolean` alongside
+  `board_count`. Derived from the already-computed `board_count`
+  (zero extra queries) so the new free-tier dashboard
+  (`itty-bitty-frontend` PR #183) can branch on an explicit boolean
+  instead of `(board_count ?? 0) > 0`. No behavior change for
+  existing clients — additive field only.
+
 ### Added — Free = 1 MySpeak ID limit (#143)
 - Free users are now capped at **one MySpeak ID** (Profile). Basic/Pro
   and admins remain unlimited. Trial users (`basic_trial`, Stripe
