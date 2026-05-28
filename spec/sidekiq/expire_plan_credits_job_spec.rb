@@ -39,5 +39,34 @@ RSpec.describe ExpirePlanCreditsJob, type: :sidekiq do
 
       expect { described_class.new.perform }.not_to change { CreditTransaction.count }
     end
+
+    it "skips users whose plan_credits_reset_at is NULL" do
+      user = reset_user_credits!(FactoryBot.create(:user))
+      user.update_columns(plan_credits_balance: 50, plan_credits_reset_at: nil)
+
+      expect { described_class.new.perform }.not_to change { user.reload.plan_credits_balance }
+    end
+
+    it "is idempotent across runs (second run is a no-op)" do
+      user = reset_user_credits!(FactoryBot.create(:user))
+      user.update_columns(plan_credits_balance: 30, plan_credits_reset_at: 1.day.ago)
+      described_class.new.perform
+
+      expect {
+        described_class.new.perform
+      }.not_to change { user.reload.credit_transactions.where(kind: "expire").count }
+    end
+
+    it "sweeps multiple users in a single run" do
+      a = reset_user_credits!(FactoryBot.create(:user))
+      b = reset_user_credits!(FactoryBot.create(:user))
+      a.update_columns(plan_credits_balance: 10, plan_credits_reset_at: 1.day.ago)
+      b.update_columns(plan_credits_balance: 20, plan_credits_reset_at: 1.hour.ago)
+
+      described_class.new.perform
+
+      expect(a.reload.plan_credits_balance).to eq(0)
+      expect(b.reload.plan_credits_balance).to eq(0)
+    end
   end
 end
