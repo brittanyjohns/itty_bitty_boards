@@ -350,6 +350,7 @@ class Profile < ApplicationRecord
 
   # --- Public settings whitelist ---
   SAFETY_PUBLIC_KEYS = %w[
+    pronouns
     allergies
     medical_conditions
     medications
