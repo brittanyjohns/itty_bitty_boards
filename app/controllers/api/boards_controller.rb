@@ -425,9 +425,9 @@ class API::BoardsController < API::ApplicationController
       current_word_list = @board.current_word_list
       word_list.each do |word|
         if word.is_a?(String) && word.present?
-          # if current_word_list.include?(word) && !duplicate_words
-          #   next
-          # end
+          if current_word_list.include?(word) && !duplicate_words
+            next
+          end
           words_to_create << word
         end
       end
