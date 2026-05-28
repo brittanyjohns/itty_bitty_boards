@@ -22,6 +22,20 @@ module API
             return
           end
 
+          # Slot check — the wizard creates a real owned (active) communicator,
+          # not a Pro-only sandbox scratch space. Free has 1 slot by default
+          # (FREE_PAID_COMMUNICATOR_LIMIT); over-cap is 422.
+          allowed, http_status, slot_error =
+            Permissions::CommunicatorLimits.can_create?(
+              user: current_user,
+              status: ChildAccount::ACTIVE,
+            )
+          unless allowed
+            render json: { error: "communicator_slot_unavailable", message: slot_error },
+                   status: http_status
+            return
+          end
+
           name = params[:name].to_s.strip
           if name.blank?
             render json: { error: "Onboarding failed", details: ["Name can't be blank"] },
@@ -39,15 +53,21 @@ module API
           unique = unique_slug_for(base_slug)
 
           profile = nil
+          child = nil
 
           ActiveRecord::Base.transaction do
             # `communicator_accounts` uses `owner_id` as the FK; set `user`
             # explicitly so downstream `api_view`s (which read
             # `child.user.pro?` etc.) don't see a nil user.
+            #
+            # Status MUST be ACTIVE — sandbox is the no-login Pro scratch
+            # space and is filtered out of the family dashboard. The
+            # MySpeak wizard is the family's first real communicator.
             child = current_user.communicator_accounts.create!(
               name: name,
               username: unique,
               user: current_user,
+              status: ChildAccount::ACTIVE,
             )
 
             profile = Profile.new(
@@ -64,6 +84,7 @@ module API
             profile.save!
 
             attach_starter_board(child, board_id)
+            ensure_team_for(child)
           end
 
           profile.generate_attachments! if profile.safety?
@@ -151,6 +172,18 @@ module API
           Profile.exists?(slug: value) ||
             Profile.exists?(username: value) ||
             ChildAccount.exists?(username: value)
+        end
+
+        # Mirrors API::ChildAccountsController#create — every new
+        # communicator gets a Team with the creator as admin, so team
+        # permission checks have something to anchor on later.
+        def ensure_team_for(child)
+          return if child.teams.exists?
+
+          team_name = child.name.present? ? "#{child.name}'s Communication Team" : "Communication Team"
+          team = Team.create!(name: team_name, created_by: current_user)
+          TeamAccount.create!(team: team, account: child)
+          team.add_member!(current_user, current_user.professional? ? "professional" : "admin")
         end
       end
     end
