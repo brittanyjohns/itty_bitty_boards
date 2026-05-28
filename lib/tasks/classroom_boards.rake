@@ -139,7 +139,7 @@ namespace :classroom_boards do
 
       spec[:labels].each do |label|
         next if board.images.where("LOWER(images.label) = ?", label.downcase).exists?
-        image = Image.public_img.find_or_create_by!(label: label.downcase) do |img|
+        image = Image.default_public.find_or_create_by!(label: label.downcase) do |img|
           img.image_prompt = "Create a clean, simple image representing '#{label}'."
         end
         board.add_image(image.id)

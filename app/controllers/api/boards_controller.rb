@@ -425,9 +425,9 @@ class API::BoardsController < API::ApplicationController
       current_word_list = @board.current_word_list
       word_list.each do |word|
         if word.is_a?(String) && word.present?
-          if current_word_list.include?(word) && !duplicate_words
-            next
-          end
+          # if current_word_list.include?(word) && !duplicate_words
+          #   next
+          # end
           words_to_create << word
         end
       end
@@ -435,6 +435,8 @@ class API::BoardsController < API::ApplicationController
       if !words_to_create.blank?
         @board.find_or_create_images_from_word_list(words_to_create)
       end
+
+      @board.set_current_word_list
 
       respond_to do |format|
         if @board.save

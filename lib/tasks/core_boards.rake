@@ -7,11 +7,11 @@ module CoreBoardsSeeder
   # The fixed 20-word core vocabulary. Order is row-major across the 4 core
   # columns: each line is one grid row. "I" stays capitalized intentionally.
   CORE_WORDS = %w[
-    I    want help yes
-    you  have give no
-    he   look go   what
-    she  like in   more
-    they it   on   stop
+    I want help yes
+    you have give no
+    he look go what
+    she like in more
+    they it on stop
   ].freeze
 
   COLUMNS = 8
@@ -76,20 +76,21 @@ module CoreBoardsSeeder
 
   def board_description(topic)
     "Core vocabulary paired with #{topic.downcase} words — an 8-column starter " \
-      "board with 20 fixed core words on the left and 20 #{topic.downcase} words " \
-      "on the right."
+    "board with 20 fixed core words on the left and 20 #{topic.downcase} words " \
+    "on the right."
   end
 
   # Reuses an existing image with artwork when one exists; otherwise an image
   # without artwork (the tile renders a placeholder). No image generation is
   # queued here on purpose.
   def find_or_build_image(label)
-    matches = Image.public_img.where(label: label).to_a
-    matches.find { |img| img.docs.any? } || matches.first ||
-      Image.public_img.create!(label: label) do |img|
-        img.image_prompt = "Create a simple, clear AAC-style illustration showing " \
-                           "'#{label}' in a literal, easy-to-understand way, with a " \
-                           "transparent background and no stylization. NO TEXT."
+    matches = Image.default_public.where(label: label).order(:created_at)
+    matches.find { |img| img.docs.any? } || matches.last ||
+      Image.default_public.new(label: label) do |img|
+        img.image_prompt = label
+        unless img.save
+          Rails.logger.warn "core_boards: failed to save image #{label.inspect}: #{img.errors.full_messages.join(", ")}"
+        end
       end
   end
 
@@ -182,7 +183,8 @@ end
 
 namespace :core_boards do
   desc "Create public 'Core + X' boards (20 core words + 20 topic words). " \
-       "ENV: TOPICS='Playground,Swimming' | COUNT=3 | AGE_RANGE='5-10' | DRY_RUN=1"
+       "ENV: TOPICS='Playground,Swimming' | COUNT=3 | AGE_RANGE='5-10' | DRY_RUN=1" \
+       "Usage: bin/rails core_boards:seed"
   task seed: :environment do
     ActiveRecord::Base.logger.level = Logger::WARN
     admin = User.find(User::DEFAULT_ADMIN_ID)
@@ -225,8 +227,7 @@ namespace :core_boards do
 
       CoreBoardsSeeder.configure_board!(board, admin, topic, curated)
 
-      topic_words =
-        if curated
+      topic_words = if curated
           curated[:words]
         else
           CoreBoardsSeeder.ai_topic_words(board, topic, age_range)

@@ -78,6 +78,7 @@ class Image < ApplicationRecord
   scope :sample_voices, -> { where(image_type: "SampleVoice") }
   scope :no_image_type, -> { where(image_type: nil) }
   scope :public_img, -> { non_sample_voices.where(is_private: [false, nil]) }
+  scope :default_public, -> { public_img.where(user_id: [nil, User::DEFAULT_ADMIN_ID]) }
   scope :private_img, -> { where(is_private: true) }
   scope :created_in_last_2_hours, -> { where("created_at > ?", 2.hours.ago) }
   scope :skipped, -> { where(open_symbol_status: "skipped") }
