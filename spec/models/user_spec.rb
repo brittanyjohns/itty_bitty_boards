@@ -296,6 +296,21 @@ RSpec.describe User, type: :model do
     end
   end
 
+  describe "#api_view has_boards flag" do
+    it "is false when the user has no boards" do
+      user = FactoryBot.create(:free_user)
+      expect(user.api_view[:has_boards]).to eq(false)
+      expect(user.api_view[:board_count]).to eq(0)
+    end
+
+    it "is true when the user has at least one board" do
+      user = FactoryBot.create(:free_user)
+      FactoryBot.create(:board, user: user)
+      expect(user.api_view[:has_boards]).to eq(true)
+      expect(user.api_view[:board_count]).to eq(1)
+    end
+  end
+
   describe "#send_free_setup_email" do
     let(:user) { FactoryBot.create(:user, plan_type: "free") }
 

@@ -1372,6 +1372,7 @@ class User < ApplicationRecord
       # Boards
       board_limit: board_limit,
       board_count: board_count,
+      has_boards: board_count > 0,
       board_limit_reached: board_count >= board_limit,
       can_create_boards: can_create_boards,
       editable_board_id: effective_editable_board_id,
