@@ -384,6 +384,10 @@ Rails.application.routes.draw do
     end
 
     namespace :v1 do
+      namespace :onboarding do
+        post :myspeak, to: "myspeak#create"
+      end
+
       resource :auth, only: [:create, :destroy]
       delete "/child_accounts/logout", to: "child_auths#destroy"
       post "/child_accounts/login", to: "child_auths#create"
