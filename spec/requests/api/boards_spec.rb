@@ -458,5 +458,40 @@ RSpec.describe "API::Boards", type: :request do
       board_image = board.board_images.find_by(image_id: foreign_image.id)
       expect(board_image.display_image_url).to eq(new_doc.tile_url)
     end
+
+    context "when the board is in a non-English language" do
+      let!(:spanish_board) { create(:board, user: user, name: "Tablero", language: "es") }
+
+      it "reuses an existing English image when the user enters its Spanish translation" do
+        dog = create(
+          :image,
+          label: "dog",
+          user_id: nil,
+          is_private: false,
+          language_settings: { "es" => { "label" => "perro", "display_label" => "Perro" } },
+        )
+
+        expect {
+          post "/api/boards/#{spanish_board.id}/add_image",
+               params: { image: { label: "perro" } },
+               headers: auth_headers(user)
+        }.not_to change(Image, :count)
+
+        expect(response).to have_http_status(:ok)
+        expect(spanish_board.reload.images).to include(dog)
+      end
+
+      it "records the user's Spanish input on the matched image's language_settings" do
+        cat = create(:image, label: "cat", user_id: nil, is_private: false)
+        allow(Image).to receive(:translate_to_english).with("gato", "es").and_return("cat")
+
+        post "/api/boards/#{spanish_board.id}/add_image",
+             params: { image: { label: "gato" } },
+             headers: auth_headers(user)
+
+        expect(response).to have_http_status(:ok)
+        expect(cat.reload.language_settings.dig("es", "label")).to eq("gato")
+      end
+    end
   end
 end

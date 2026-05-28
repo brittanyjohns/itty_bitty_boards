@@ -10,12 +10,13 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_23_180000) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_26_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
   enable_extension "pgcrypto"
   enable_extension "plpgsql"
+  enable_extension "unaccent"
 
   create_table "action_text_rich_texts", force: :cascade do |t|
     t.string "name", null: false
@@ -480,6 +481,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_23_180000) do
     t.jsonb "language_settings", default: {}
     t.string "language", default: "en"
     t.index ["category"], name: "index_images_on_category"
+    t.index ["language_settings"], name: "index_images_on_language_settings_gin", using: :gin
     t.index ["obf_id"], name: "index_images_on_obf_id"
     t.index ["use_custom_audio"], name: "index_images_on_use_custom_audio"
     t.index ["voice"], name: "index_images_on_voice"

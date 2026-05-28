@@ -14,12 +14,27 @@ class API::Account::ImagesController < API::Account::ApplicationController
     label = image_params["label"]
 
     is_private = image_params["private"] || false
-    @image = Image.find_by(label: label, user_id: @user.id)
-    @image = Image.public_img.find_by(label: label) unless @image
-    @found_image = @image
-    @image = Image.create(label: label, private: is_private, user_id: @user.id, image_prompt: image_params[:image_prompt], image_type: "User") unless @image || (@found_image && duplicate_image)
-
     @board = Board.find_by(id: image_params[:board_id]) unless image_params[:board_id].blank?
+    language = @board&.language.presence || @user.i18n_locale.to_s.presence || "en"
+
+    @found_image = Image.lookup_by_normalized_label(
+      Image.normalize_label(label),
+      language: language,
+      user: @user,
+    )
+    if @found_image
+      @image = @found_image
+      Image.record_localized_label!(@image, language, label) if language != "en"
+    else
+      @image = Image.find_or_create_for_label(label, language: language, user: @user)
+      if @image && @image.previously_new_record?
+        @image.update(
+          private: is_private,
+          image_prompt: image_params[:image_prompt],
+          image_type: "User",
+        )
+      end
+    end
     if @board.nil? && duplicate_image && !generate_image && !@image.blank?
       return render json: @image.api_view(@user), status: :ok
     end

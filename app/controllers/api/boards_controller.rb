@@ -705,17 +705,12 @@ class API::BoardsController < API::ApplicationController
   def add_image
     set_board
     # @board = Board.with_artifacts.find(params[:id])
-    @found_image = Image.find_by(label: image_params[:label], user_id: current_user.id, private: true)
-    @found_image ||= Image.find_by(label: image_params[:label])
-    if @found_image
-      @image = @found_image
-      img_saved = true
-    else
-      @image = Image.new
-      @image.user = current_user
-      @image.label = image_params[:label]
-      img_saved = @image.save!
-    end
+    @image = Image.find_or_create_for_label(
+      image_params[:label],
+      language: @board&.language.presence || "en",
+      user: current_user,
+    )
+    img_saved = @image&.persisted?
 
     new_doc = nil
     if (image_params[:docs].present?)

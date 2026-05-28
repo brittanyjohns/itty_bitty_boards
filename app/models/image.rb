@@ -562,6 +562,118 @@ class Image < ApplicationRecord
     ["en", "es", "fr", "de", "it", "ja", "ko", "nl", "pl", "pt", "ru", "zh"]
   end
 
+  # Strip + downcase + transliterate accents. Used for case- and
+  # diacritic-insensitive matching against the DB's `unaccent(lower(...))`.
+  def self.normalize_label(str)
+    return "" if str.blank?
+    ActiveSupport::Inflector.transliterate(str.to_s.strip.downcase)
+  end
+
+  # Returns an Image whose canonical (English) `label` corresponds to the
+  # user's `input_label`, honoring the requesting board/user's `language`.
+  #
+  # Identity model is English-canonical: `Image#label` is always English,
+  # and `Image#language_settings[<lang>] = { "label" => ..., "display_label"
+  # => ... }` holds the localized form. On a Spanish board, "perro" resolves
+  # to the existing "dog" image via its stored es translation; if no match
+  # exists, we translate "perro" → English ("dog") and find_or_create on
+  # the English term, then record the user's original Spanish input in
+  # language_settings.
+  #
+  # Args:
+  #   input_label - raw user-entered string
+  #   language    - the board's language (defaults to "en")
+  #   user        - optional User whose private images get lookup priority
+  #
+  # Returns a persisted Image, or nil if input is blank.
+  def self.find_or_create_for_label(input_label, language: "en", user: nil)
+    return nil if input_label.blank?
+
+    language = language.to_s.presence || "en"
+    language = "en" unless languages.include?(language)
+    norm = normalize_label(input_label)
+    return nil if norm.blank?
+
+    image = lookup_by_normalized_label(norm, language: language, user: user)
+
+    english_label = nil
+    if image.nil? && language != "en"
+      english_label = translate_to_english(input_label, language)
+      if english_label.present?
+        english_norm = normalize_label(english_label)
+        image = lookup_by_normalized_label(english_norm, language: "en", user: user)
+      end
+    end
+
+    if image.nil?
+      # Translation succeeded → create canonical English image.
+      # Translation failed or input was already English → create with the raw
+      # input and let the existing TranslateImageJob backfill translations.
+      if english_label.present?
+        image = create!(label: english_label.to_s.strip, language: "en", user_id: user&.id)
+      else
+        image = create!(label: input_label.to_s.strip, language: language, user_id: user&.id)
+      end
+    end
+
+    record_localized_label!(image, language, input_label) if language != "en"
+
+    image
+  end
+
+  # Lookup an image whose canonical label OR stored translation for `language`
+  # matches `norm` (a pre-normalized string). Returns the user's private match
+  # first, then a public match, or nil.
+  def self.lookup_by_normalized_label(norm, language:, user:)
+    return nil if norm.blank?
+
+    base = where(
+      "unaccent(lower(label)) = ? OR unaccent(lower(coalesce(language_settings -> ? ->> 'label', ''))) = ?",
+      norm, language, norm,
+    )
+
+    if user
+      owned = base.where(user_id: user.id).first
+      return owned if owned
+    end
+
+    base.public_img.first || base.first
+  end
+
+  # Records the user-entered localized form on the image so future lookups
+  # in this language find it instantly. Skipped for English (label already
+  # holds the canonical form).
+  def self.record_localized_label!(image, language, input_label)
+    return if language == "en"
+    return if image.nil? || input_label.blank?
+
+    settings = image.language_settings.is_a?(Hash) ? image.language_settings.deep_dup : {}
+    entry = settings[language].is_a?(Hash) ? settings[language] : {}
+
+    cleaned = input_label.to_s.strip
+    return if entry["label"].to_s == cleaned && entry["display_label"].present?
+
+    entry["label"] = cleaned if entry["label"].blank?
+    entry["display_label"] = cleaned.titleize if entry["display_label"].blank?
+    settings[language] = entry
+
+    image.update_column(:language_settings, settings)
+  end
+
+  # Synchronously translates `input` from `from_language` to English using
+  # OpenAiClient. Returns nil on failure (caller falls back to creating with
+  # the original input).
+  def self.translate_to_english(input, from_language)
+    return nil if input.blank? || from_language.to_s == "en"
+    return nil if Rails.env.test? # OpenAiClient.translate_text is a no-op in test
+
+    client = OpenAiClient.new({ prompt: input.to_s })
+    client.translate_text(input.to_s, from_language.to_s, "en")
+  rescue => e
+    Rails.logger.warn("Image.translate_to_english failed for #{input.inspect} (#{from_language}): #{e.class} #{e.message}")
+    nil
+  end
+
   def core_words
     ["yes", "no", "more", "stop", "go", "help", "please", "thank you", "sorry", "i want", "i feel", "bathroom", "thirsty", "hungry", "tired", "hurt", "happy", "sad", "play", "all done"]
   end
