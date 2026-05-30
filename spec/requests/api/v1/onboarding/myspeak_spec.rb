@@ -128,28 +128,94 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
       end
     end
 
-    context "board_id matches a seeded starter board" do
-      it "favorites it on the new communicator" do
-        admin = FactoryBot.create(:admin_user)
-        starter = Board.create!(
-          slug: "myspeak-basics",
+    context "board_id matches a public starter board" do
+      let(:admin) do
+        a = FactoryBot.create(:admin_user)
+        # Board.public_boards is anchored on User::DEFAULT_ADMIN_ID, so
+        # force the admin factory's row to that id rather than depending on
+        # the test db being clean.
+        a.update_columns(id: User::DEFAULT_ADMIN_ID) unless a.id == User::DEFAULT_ADMIN_ID
+        a
+      end
+
+      let(:starter) do
+        Board.create!(
           name: "Basic needs",
-          user: admin,
+          user_id: User::DEFAULT_ADMIN_ID,
           parent: admin,
           predefined: true,
           published: true,
           board_type: "board",
         )
+      end
+
+      it "clones the public board, attaches the clone as a favorited ChildBoard, and assigns ownership to current_user" do
+        starter # force creation
+
+        expect {
+          post "/api/v1/onboarding/myspeak",
+               params: base_payload.merge(board_id: starter.id).to_json, headers: headers
+        }.to change { Board.count }.by(1)
+         .and change { ChildBoard.count }.by(1)
+
+        expect(response).to have_http_status(:created)
+
+        child = user.communicator_accounts.last
+        cb = child.child_boards.last
+        expect(cb.favorite).to eq(true)
+        # The attached board is the *clone*, not the master.
+        expect(cb.board_id).not_to eq(starter.id)
+        expect(cb.board.user_id).to eq(user.id)
+        expect(cb.board.name).to eq(starter.name)
+        # Master untouched.
+        expect(starter.reload.user_id).to eq(User::DEFAULT_ADMIN_ID)
+      end
+
+      it "accepts board_id as a string (JSON normally sends integers, but be defensive)" do
+        starter
 
         post "/api/v1/onboarding/myspeak",
-             params: base_payload.merge(board_id: "basics").to_json, headers: headers
+             params: base_payload.merge(board_id: starter.id.to_s).to_json, headers: headers
 
         expect(response).to have_http_status(:created)
         child = user.communicator_accounts.last
-        cb = child.child_boards.find_by(board: starter)
-        expect(cb).to be_present
-        expect(cb.favorite).to eq(true)
-        expect(cb.created_by_id).to eq(user.id)
+        expect(child.child_boards.count).to eq(1)
+      end
+
+      it "silently skips when board_id references a board outside the public picker" do
+        private_board = Board.create!(
+          name: "Private board",
+          user: user, # not admin → not in Board.public_boards
+          parent: user,
+          predefined: false,
+          published: false,
+          board_type: "board",
+        )
+
+        expect {
+          post "/api/v1/onboarding/myspeak",
+               params: base_payload.merge(board_id: private_board.id).to_json, headers: headers
+        }.not_to change { ChildBoard.count }
+
+        expect(response).to have_http_status(:created)
+      end
+
+      it "silently skips when board_id is unknown" do
+        expect {
+          post "/api/v1/onboarding/myspeak",
+               params: base_payload.merge(board_id: 999_999).to_json, headers: headers
+        }.not_to change { ChildBoard.count }
+
+        expect(response).to have_http_status(:created)
+      end
+
+      it "silently skips when board_id is nil" do
+        expect {
+          post "/api/v1/onboarding/myspeak",
+               params: base_payload.merge(board_id: nil).to_json, headers: headers
+        }.not_to change { ChildBoard.count }
+
+        expect(response).to have_http_status(:created)
       end
     end
 
