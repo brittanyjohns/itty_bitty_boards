@@ -26,7 +26,12 @@ threads min_threads_count, max_threads_count
 # is explicit timeouts on outbound calls (SMTP, OpenAI, etc.) — see
 # config/environments/production.rb smtp_settings and app/models/open_ai_client.rb.
 if ENV["RAILS_ENV"] == "production"
-  worker_count = Integer(ENV.fetch("WEB_CONCURRENCY", 2))
+  # Hatchbox sets WEB_CONCURRENCY=0 by default on these apps, which would force
+  # puma into single mode and defeat the post-incident hardening. Treat 0
+  # (or unset / empty) as "use the safe default of 2"; honor any explicit
+  # positive override (e.g. WEB_CONCURRENCY=4 on a bigger box).
+  configured_concurrency = ENV["WEB_CONCURRENCY"].to_i
+  worker_count = configured_concurrency > 0 ? configured_concurrency : 2
   workers worker_count
   worker_timeout 30
   preload_app!
