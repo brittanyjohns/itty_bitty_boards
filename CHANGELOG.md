@@ -5,6 +5,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — MySpeak starter-board seed populates tiles + tags `myspeak` (#204)
+- `db/seeds/myspeak_starter_boards.rb` now creates **5** starter boards
+  (`myspeak-basics`, `myspeak-feelings`, `myspeak-social`,
+  `myspeak-food`, `myspeak-school`), tags each with `myspeak` so they
+  appear in `Board.myspeak_public_boards`, and seeds **6 starter tiles**
+  per board via `Board#find_or_create_images_from_word_list`.
+- Net effect: the MySpeak onboarding picker
+  (`GET /api/public_boards?myspeak=true`) renders 5 cards with real
+  tile previews instead of one empty card.
+- Idempotent: per-board tile add is gated by an existing-label check,
+  so re-running the seed will not duplicate `board_images`.
+- Run after deploy: `bin/rails runner db/seeds/myspeak_starter_boards.rb`.
+  Adding new tiles enqueues `GenerateImagesJob` for any image without an
+  existing display doc — let Sidekiq drain before verifying the picker.
+
 ### Added — `has_boards` flag on `User#api_view`
 - `User#api_view` now returns `has_boards: boolean` alongside
   `board_count`. Derived from the already-computed `board_count`
