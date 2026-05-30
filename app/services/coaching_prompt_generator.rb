@@ -152,7 +152,11 @@ class CoachingPromptGenerator
     end
 
     def openai_client
-      OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"], log_errors: true)
+      OpenAI::Client.new(
+        access_token: ENV["OPENAI_ACCESS_TOKEN"],
+        log_errors: true,
+        request_timeout: OpenAiClient::OPENAI_REQUEST_TIMEOUT_SECONDS,
+      )
     end
 
     # The fallback row is upserted by db/seeds.rb and is therefore expected to

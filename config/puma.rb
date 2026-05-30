@@ -11,15 +11,35 @@ max_threads_count = ENV.fetch("RAILS_MAX_THREADS") { 8 }
 min_threads_count = ENV.fetch("RAILS_MIN_THREADS") { max_threads_count }
 threads min_threads_count, max_threads_count
 
-# Specifies that the worker count should equal the number of processors in production.
+# Cluster mode in production: multiple workers + worker_timeout for resilience.
+# Set after the 2026-05-30 outage where puma in single mode silently wedged all
+# 8 threads on hung outbound calls (likely SMTP / OpenAI without timeouts) and
+# stopped serving requests for 38 minutes. With 2 workers, a single wedged worker
+# only halves capacity instead of taking the site down entirely.
+#
+# WEB_CONCURRENCY=2 default fits a t3.medium (2 vCPU, 3.8 GiB RAM): current
+# memory footprint ~165 MB single-mode, so 2 workers ≈ 350 MB — well within budget.
+#
+# worker_timeout 30 is a backstop for a Ruby-VM-level deadlock; it does NOT fire
+# when worker threads are merely blocked on IO (the heartbeat thread keeps running
+# while request threads block on socket recv). The real defense against IO wedges
+# is explicit timeouts on outbound calls (SMTP, OpenAI, etc.) — see
+# config/environments/production.rb smtp_settings and app/models/open_ai_client.rb.
 if ENV["RAILS_ENV"] == "production"
-  require "concurrent-ruby"
-  worker_count = Integer(ENV.fetch("WEB_CONCURRENCY") { Concurrent.physical_processor_count })
-  workers worker_count if worker_count > 1
+  worker_count = Integer(ENV.fetch("WEB_CONCURRENCY", 2))
+  workers worker_count
+  worker_timeout 30
+  preload_app!
+
+  # In cluster mode with preload_app!, the master loads the app once and forks
+  # workers. Forked workers must re-establish their own ActiveRecord connection
+  # pool — otherwise they share the master's connection and corrupt it.
+  on_worker_boot do
+    ActiveRecord::Base.establish_connection if defined?(ActiveRecord)
+  end
 end
 
-# Specifies the `worker_timeout` threshold that Puma will use to wait before
-# terminating a worker in development environments.
+# In development, prevent worker_timeout from interrupting debugger pauses.
 worker_timeout 3600 if ENV.fetch("RAILS_ENV", "development") == "development"
 
 # Specifies the `port` that Puma will listen on to receive requests; default is 3000.

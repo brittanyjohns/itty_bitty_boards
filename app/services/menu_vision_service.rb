@@ -122,7 +122,10 @@ class MenuVisionService
   end
 
   def default_openai_client
-    OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"])
+    OpenAI::Client.new(
+      access_token: ENV["OPENAI_ACCESS_TOKEN"],
+      request_timeout: OpenAiClient::OPENAI_REQUEST_TIMEOUT_SECONDS,
+    )
   end
 
   def default_logger
