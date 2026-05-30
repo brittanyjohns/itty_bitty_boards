@@ -394,12 +394,17 @@ RSpec.describe Board, type: :model do
         board.update!(settings: board.settings.merge("display_follows_preview" => true))
       end
 
+      # Active Storage signed URLs embed an `expires_at` derived from
+      # `Time.current`, so two `.url` calls a millisecond apart produce
+      # different strings. Freeze time so both calls share an expiry.
       it "returns the live preview URL" do
-        expect(board.display_image_url).to eq(board.preview_image_url)
+        freeze_time do
+          expect(board.display_image_url).to eq(board.preview_image_url)
+        end
       end
 
       it "resolves to the new URL after the preview regenerates" do
-        original_url = board.display_image_url
+        original_url = freeze_time { board.display_image_url }
         board.preview_image.purge
         board.preview_image.attach(
           io: StringIO.new("new-png-bytes"),
@@ -407,8 +412,10 @@ RSpec.describe Board, type: :model do
           content_type: "image/png",
         )
 
-        expect(board.display_image_url).to eq(board.preview_image_url)
-        expect(board.display_image_url).not_to eq(original_url) if board.preview_image_url != original_url
+        freeze_time do
+          expect(board.display_image_url).to eq(board.preview_image_url)
+          expect(board.display_image_url).not_to eq(original_url) if board.preview_image_url != original_url
+        end
       end
     end
   end
