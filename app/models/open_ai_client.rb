@@ -15,12 +15,25 @@ class OpenAiClient
     @prompt = @opts[:prompt] || "backup"
   end
 
+  # Default request timeout for OpenAI calls. ruby-openai's own default is 120s
+  # but several failure modes (TLS half-open, idle keep-alive) can stall longer.
+  # Explicit cap prevents a hung OpenAI request from holding a puma thread.
+  OPENAI_REQUEST_TIMEOUT_SECONDS = Integer(ENV.fetch("OPENAI_REQUEST_TIMEOUT", 60))
+
   def self.openai_client
-    @openai_client ||= OpenAI::Client.new(access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"), log_errors: true)
+    @openai_client ||= OpenAI::Client.new(
+      access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"),
+      log_errors: true,
+      request_timeout: OPENAI_REQUEST_TIMEOUT_SECONDS,
+    )
   end
 
   def openai_client
-    @openai_client ||= OpenAI::Client.new(access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"), log_errors: true)
+    @openai_client ||= OpenAI::Client.new(
+      access_token: ENV.fetch("OPENAI_ACCESS_TOKEN"),
+      log_errors: true,
+      request_timeout: OPENAI_REQUEST_TIMEOUT_SECONDS,
+    )
   end
 
   def specific_image_prompt(img_prompt)

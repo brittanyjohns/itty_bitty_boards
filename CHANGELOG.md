@@ -5,6 +5,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Harden production puma against silent outbound-call wedges (#207)
+- **Puma cluster mode in production.** `config/puma.rb` now sets `workers 2`
+  (overridable via `WEB_CONCURRENCY`), `worker_timeout 30`, and
+  `preload_app!` for production. A worker that wedges no longer takes the
+  whole site down — the other worker keeps serving at 50% capacity.
+- **SMTP timeouts.** `config/environments/production.rb` `smtp_settings`
+  now sets `open_timeout: 10` and `read_timeout: 20`. Previously a stalled
+  Gmail SMTP session could hang a puma thread for the Net::SMTP default
+  (much longer); on 2026-05-30 this contributed to a 38-minute outage where
+  all 8 single-mode threads silently wedged after a deploy.
+- **OpenAI request_timeout.** `OpenAiClient::OPENAI_REQUEST_TIMEOUT_SECONDS`
+  (defaults to 60s, overridable via `OPENAI_REQUEST_TIMEOUT`) is now passed
+  to every `OpenAI::Client.new` — the central wrapper and the nine direct
+  call sites in `app/services/*` and `app/controllers/api/scenarios_controller.rb`.
+- No user-facing behavior change; reliability/SLO improvement only.
+- Net effect: a future hang in SMTP or OpenAI raises an exception after the
+  cap instead of holding a thread; with cluster mode, even a deadlock that
+  the timeouts don't catch only halves capacity instead of taking the site
+  fully offline.
+
 ### Changed — MySpeak starter-board seed populates tiles + tags `myspeak` (#204)
 - `db/seeds/myspeak_starter_boards.rb` now creates **5** starter boards
   (`myspeak-basics`, `myspeak-feelings`, `myspeak-social`,

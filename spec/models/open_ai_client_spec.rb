@@ -144,4 +144,42 @@ RSpec.describe OpenAiClient do
       end
     end
   end
+
+  # Regression coverage for the 2026-05-30 production outage (see issue #207):
+  # OpenAI clients constructed without a request_timeout could stall a puma
+  # thread for the full ruby-openai default of 120s — or longer on TLS half-
+  # open conditions. We now pass an explicit cap.
+  describe "request_timeout" do
+    let(:fake_openai_client) { instance_double(OpenAI::Client) }
+
+    around do |example|
+      # Memoization on the class means a prior spec may have cached a client
+      # built without the kwarg. Clear both class- and instance-level caches.
+      described_class.instance_variable_set(:@openai_client, nil)
+      original_token = ENV["OPENAI_ACCESS_TOKEN"]
+      ENV["OPENAI_ACCESS_TOKEN"] = "test-token-not-used"
+      example.run
+    ensure
+      ENV["OPENAI_ACCESS_TOKEN"] = original_token
+      described_class.instance_variable_set(:@openai_client, nil)
+    end
+
+    it "passes request_timeout to OpenAI::Client.new from the class-level accessor" do
+      expect(OpenAI::Client).to receive(:new).with(
+        hash_including(request_timeout: OpenAiClient::OPENAI_REQUEST_TIMEOUT_SECONDS),
+      ).and_return(fake_openai_client)
+      expect(described_class.openai_client).to eq(fake_openai_client)
+    end
+
+    it "passes request_timeout to OpenAI::Client.new from the instance accessor" do
+      expect(OpenAI::Client).to receive(:new).with(
+        hash_including(request_timeout: OpenAiClient::OPENAI_REQUEST_TIMEOUT_SECONDS),
+      ).and_return(fake_openai_client)
+      expect(described_class.new({}).openai_client).to eq(fake_openai_client)
+    end
+
+    it "defaults the timeout to 60 seconds" do
+      expect(OpenAiClient::OPENAI_REQUEST_TIMEOUT_SECONDS).to eq(60)
+    end
+  end
 end
