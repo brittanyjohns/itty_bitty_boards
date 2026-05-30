@@ -2,12 +2,6 @@ module API
   module V1
     module Onboarding
       class MyspeakController < API::ApplicationController
-        STARTER_BOARD_SLUGS = {
-          "basics"   => "myspeak-basics",
-          "feelings" => "myspeak-feelings",
-          "social"   => "myspeak-social",
-        }.freeze
-
         MAX_SLUG_TRIES = 50
 
         def create
@@ -45,7 +39,7 @@ module API
 
           pronouns       = params[:pronouns].to_s.strip
           care_notes     = params[:care_notes].to_s
-          board_id       = params[:board_id].to_s
+          board_id       = params[:board_id]
           photo_data_url = params[:photo_data_url].to_s
           contacts       = Array(params[:contacts])
 
@@ -141,22 +135,43 @@ module API
           )
         end
 
+        # The frontend sends a Board#id (integer) for the picked public
+        # starter, "later" / nil to skip, or the string form of either. We
+        # clone the picked board for current_user so admin edits to the
+        # master never leak into a family's communicator, then favorite the
+        # ChildBoard that clone_with_images creates.
+        #
+        # Anything unparseable, unknown, or not in Board.public_boards is
+        # logged and skipped — the board step must never block setup.
         def attach_starter_board(child, board_id)
-          slug = STARTER_BOARD_SLUGS[board_id]
-          return unless slug
+          return if board_id.blank?
+          return if board_id.to_s == "later"
 
-          board = Board.find_by(slug: slug)
+          board = Board.find_by(id: board_id.to_i)
           unless board
-            Rails.logger.warn "[Onboarding::Myspeak] starter board #{slug.inspect} missing — skipping attachment"
+            Rails.logger.warn "[Onboarding::Myspeak] board id #{board_id.inspect} not found — skipping"
             return
           end
 
-          ChildBoard.create!(
-            board: board,
-            child_account: child,
-            created_by: current_user,
-            favorite: true,
-          )
+          # Allowlist against the picker's own scope. clone_with_images
+          # doesn't enforce ownership, so without this guard a client could
+          # send any id and clone a stranger's private board.
+          unless Board.public_boards.exists?(id: board.id)
+            Rails.logger.warn "[Onboarding::Myspeak] board #{board.id} is not a public board — skipping"
+            return
+          end
+
+          cloned = board.clone_with_images(current_user.id, board.name, child.voice, child)
+          unless cloned&.persisted?
+            Rails.logger.warn "[Onboarding::Myspeak] clone failed for board #{board.id}"
+            return
+          end
+
+          # clone_with_images creates the ChildBoard join row. Mark it the
+          # communicator's favorite to match the old behavior (the wizard's
+          # pick is the home board).
+          child_board = ChildBoard.find_by(child_account: child, board: cloned)
+          child_board&.update(favorite: true)
         end
 
         def unique_slug_for(base)
