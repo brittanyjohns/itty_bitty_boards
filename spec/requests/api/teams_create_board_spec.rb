@@ -14,7 +14,7 @@ RSpec.describe "API::Teams#create_board membership gate", type: :request do
     # Mirror the production shape: controllers always add the creator
     # as the admin team_user when ensuring a team for a child_account.
     t = account.ensure_team!(creator: owner)
-    t.add_member!(owner, "admin")
+    t.upsert_member!(owner, "admin")
     t
   end
   let(:board) { create(:board, user: owner) }
@@ -32,14 +32,14 @@ RSpec.describe "API::Teams#create_board membership gate", type: :request do
 
   it "lets a supervisor add a board" do
     user = create(:user, created_at: 2.months.ago)
-    team.add_member!(user, "supervisor")
+    team.upsert_member!(user, "supervisor")
     post_create_board(user)
     expect(response).to have_http_status(:ok)
   end
 
   it "lets a plain member add a board to the team library" do
     user = create(:user, created_at: 2.months.ago)
-    team.add_member!(user, "member")
+    team.upsert_member!(user, "member")
     post_create_board(user)
     expect(response).to have_http_status(:ok)
   end

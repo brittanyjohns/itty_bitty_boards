@@ -26,19 +26,19 @@ RSpec.describe User, "#can_add_boards_to_account?", type: :model do
 
   it "is true for a team member with role 'admin'" do
     user = create(:user, created_at: 2.months.ago)
-    team.add_member!(user, "admin")
+    team.upsert_member!(user, "admin")
     expect(user.can_add_boards_to_account?([account.id])).to be true
   end
 
   it "is true for a team member with role 'supervisor'" do
     user = create(:user, created_at: 2.months.ago)
-    team.add_member!(user, "supervisor")
+    team.upsert_member!(user, "supervisor")
     expect(user.can_add_boards_to_account?([account.id])).to be true
   end
 
   it "is false for a team member with role 'member' (read-only on the communicator)" do
     user = create(:user, created_at: 2.months.ago)
-    team.add_member!(user, "member")
+    team.upsert_member!(user, "member")
     expect(user.can_add_boards_to_account?([account.id])).to be false
   end
 

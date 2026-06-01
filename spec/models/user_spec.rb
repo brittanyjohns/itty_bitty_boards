@@ -195,11 +195,11 @@ RSpec.describe User, type: :model do
     subject(:invite_new_user_to_team!) do
       # current_user.invite_new_user_to_team!(user_to_invite_email, team)
       @user = User.create_from_email(user_to_invite_email, nil, current_user.id)
-      team.add_member!(@user) if @user
+      team.upsert_member!(@user) if @user
     end
     before do
       # Create a team and add the current user to it
-      team.add_member!(current_user, "admin")
+      team.upsert_member!(current_user, "admin")
       allow(User).to receive(:create_stripe_customer).and_return("cus_test_#{SecureRandom.hex(4)}")
     end
     it "adds the invited user to the team" do

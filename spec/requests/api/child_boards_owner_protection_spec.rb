@@ -35,8 +35,8 @@ RSpec.describe "API::ChildBoards owner protection", type: :request do
   end
   let!(:team) do
     t = child_account.ensure_team!(creator: slp)
-    t.add_member!(parent, "admin")
-    t.add_member!(slp, "supervisor")
+    t.upsert_member!(parent, "admin")
+    t.upsert_member!(slp, "supervisor")
     t
   end
   let(:slp_board) { create(:board, user: slp, name: "Shared by SLP") }
@@ -73,7 +73,7 @@ RSpec.describe "API::ChildBoards owner protection", type: :request do
     let(:admin_member) { create(:user, plan_type: "pro", created_at: 2.months.ago, stripe_customer_id: "cus_admin_member_stub") }
 
     before do
-      team.add_member!(admin_member, "admin")
+      team.upsert_member!(admin_member, "admin")
     end
 
     it "lets the communicator owner toggle favorite" do
@@ -105,7 +105,7 @@ RSpec.describe "API::ChildBoards owner protection", type: :request do
 
     it "blocks a plain `member` from toggling favorite (read-only, issue #216)" do
       plain_member = create(:user, created_at: 2.months.ago)
-      team.add_member!(plain_member, "member")
+      team.upsert_member!(plain_member, "member")
       patch "/api/child_boards/#{child_board.id}",
             params: { child_board: { favorite: true } },
             headers: auth_headers(plain_member)

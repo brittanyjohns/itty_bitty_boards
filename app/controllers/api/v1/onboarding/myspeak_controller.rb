@@ -202,13 +202,10 @@ module API
         # Mirrors API::ChildAccountsController#create — every new
         # communicator gets a Team with the creator as admin, so team
         # permission checks have something to anchor on later.
+        # `ChildAccount#ensure_team!` does the admin-add (issue #226).
         def ensure_team_for(child)
-          return if child.teams.exists?
-
           team_name = child.name.present? ? "#{child.name}'s Communication Team" : "Communication Team"
-          team = Team.create!(name: team_name, created_by: current_user)
-          TeamAccount.create!(team: team, account: child)
-          team.add_member!(current_user, "admin")
+          child.ensure_team!(creator: current_user, name: team_name)
         end
       end
     end

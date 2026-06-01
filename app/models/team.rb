@@ -33,28 +33,19 @@ class Team < ApplicationRecord
     end
   end
 
-  def add_member!(user, role = "member")
+  # Upsert a team membership: add `user` at `role`, or update an
+  # existing membership's role if it differs. Raises on validation
+  # failure (e.g. role outside `TeamUser::ROLES`). Returns the
+  # persisted TeamUser. Returns nil only when `user` is nil.
+  #
+  # Named `upsert_member!` rather than `add_member!` because the
+  # silent-role-overwrite behavior was a footgun under the old name
+  # (issue #226).
+  def upsert_member!(user, role = "member")
     return nil if user.nil?
-    if user && !users.include?(user)
-      team_user = team_users.new(user: user, role: role)
-      Rails.logger.debug "Adding user #{user.id} to team #{id} with role #{role}"
-      team_user.save
-    else
-      team_user = team_users.find_by(user_id: user.id)
-      Rails.logger.debug "Team user found: #{team_user.id} with role #{team_user.role}"
-      unless team_user
-        team_user = team_users.new(user: user, role: role)
-        team_user.save
-      end
-      if role != team_user.role
-        team_user.role = role
-        Rails.logger.debug "Updating user #{user.id} role to #{role} in team #{id}"
-        team_user.save
-      end
-    end
-    unless team_user.persisted?
-      Rails.logger.error "Could not add user #{user.id} to team #{id}: #{team_user.errors.full_messages.join(", ")}"
-    end
+    team_user = team_users.find_or_initialize_by(user_id: user.id)
+    team_user.role = role
+    team_user.save!
     team_user
   end
 
