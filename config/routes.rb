@@ -132,6 +132,7 @@ Rails.application.routes.draw do
     get "me/page_followers", to: "me#page_followers"
     get "me/credits", to: "me#credits"
     get "me/credit_transactions", to: "me#credit_transactions"
+    get "credits/feature_costs", to: "credits#feature_costs"
 
     post "word_click", to: "audits#word_click"
     post "public_word_click", to: "audits#public_word_click"
