@@ -14,8 +14,9 @@ require "rails_helper"
 #
 # - **#update / #toggle_favorite** (the favorite flag, plus any other
 #   curation-tier field on the join row) follow the **curation rule** —
-#   anyone with admin/member/supporter on the communicator's team, plus
-#   the owner and system admins. Same rule as `assign_boards`.
+#   the account owner, anyone with admin/supervisor on the team, and
+#   system admins. Same rule as `assign_boards`. Plain `member` is
+#   read-only on the communicator and is rejected (issue #216).
 #
 # Full matrix: marketing/.claude-notes/handoff-workflow.md
 RSpec.describe "API::ChildBoards owner protection", type: :request do
@@ -93,10 +94,21 @@ RSpec.describe "API::ChildBoards owner protection", type: :request do
       expect(child_board.reload.favorite).to eq(true)
     end
 
-    it "blocks the SLP supervisor from toggling favorite (403)" do
+    it "lets the SLP supervisor toggle favorite (curation tier, issue #216)" do
       patch "/api/child_boards/#{child_board.id}",
             params: { child_board: { favorite: true } },
             headers: auth_headers(slp)
+
+      expect(response).to have_http_status(:ok)
+      expect(child_board.reload.favorite).to eq(true)
+    end
+
+    it "blocks a plain `member` from toggling favorite (read-only, issue #216)" do
+      plain_member = create(:user, created_at: 2.months.ago)
+      team.add_member!(plain_member, "member")
+      patch "/api/child_boards/#{child_board.id}",
+            params: { child_board: { favorite: true } },
+            headers: auth_headers(plain_member)
 
       expect(response).to have_http_status(:forbidden)
       expect(child_board.reload.favorite).to eq(false)
