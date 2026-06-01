@@ -3,30 +3,21 @@ require "obf"
 module BoardsHelper
   def to_obf(viewing_user = nil)
     viewing_user ||= user
-    obf_board = OBF::Utils.obf_shell
-    obf_board = obf_board.with_indifferent_access
+    images = self.board_images.to_a
+
+    obf_board = OBF::Utils.obf_shell.with_indifferent_access
     obf_board[:id] = self.id.to_s
-    obf_board[:locale] = "en"
+    obf_board[:locale] = (respond_to?(:language) && language.presence) || "en"
     obf_board[:name] = self.name
     obf_board[:format] = OBF::OBF::FORMAT
     obf_board[:default_layout] = "landscape"
-
     obf_board[:description_html] = self.description_html
-    obf_board[:license] = self.license
+    obf_board[:license] = self.license if self.license.present?
     obf_board[:grid] = self.format_grid
-    obf_board[:images] = self.board_images.map { |image| image.to_obf_image_format(viewing_user) }
-    obf_board[:sounds] = self.board_images.map(&:to_obf_sound_format)
-    obf_board[:buttons] = self.board_images.map(&:to_obf_button_format)
-
-    # data = obf_board.to_json
-    # File.open("obf.obf", "w") { |file| file.write(data) }
+    obf_board[:images] = images.map { |bi| bi.to_obf_image_format(viewing_user) }
+    obf_board[:sounds] = images.map(&:to_obf_sound_format).compact
+    obf_board[:buttons] = images.map(&:to_obf_button_format)
     obf_board
-  end
-
-  def to_obz(viewing_user = nil)
-    obf_board = to_obf(viewing_user)
-    OBF::External.to_obz(obf_board, "new_obz.obz")
-    # A .obz file is a zip file containing an .obf file and all the images and sounds referenced by the .obf file.
   end
 
   def get_number_of_columns(screen_size = "lg")
@@ -40,10 +31,6 @@ module BoardsHelper
     else
       num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 12
     end
-  end
-
-  def to_pdf
-    OBF::PDF.from_obf("obf.obf", "obf.pdf")
   end
 
   def format_grid
