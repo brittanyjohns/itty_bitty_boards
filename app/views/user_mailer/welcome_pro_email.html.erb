@@ -93,8 +93,7 @@
 <body>
   <%# --- Dynamic limits (safe defaults) --- %>
   <% pro_price = (@pro_price || "$20/month") %>
-  <% pro_comm_limit = (@pro_comm_limit || @user&.comm_account_limit || 3) %>
-  <% demo_comm_limit = (@demo_comm_limit || 10) %>
+  <% pro_comm_limit = (@pro_comm_limit || @user&.comm_account_limit || 5) %>
 
   <div class="container">
     <div class="logo">
@@ -114,30 +113,28 @@
       <%= t("user_mailer.welcome_pro_email.intro_html").html_safe %>
     </p>
 
-    <!-- ⭐ DEMO COMMUNICATOR HIGHLIGHT -->
+    <!-- ⭐ LOANER COMMUNICATOR HIGHLIGHT -->
     <div class="highlight">
-      <h2 style="margin-top:0;"><%= t("user_mailer.welcome_pro_email.demo_heading") %></h2>
+      <h2 style="margin-top:0;"><%= t("user_mailer.welcome_pro_email.loaner_heading") %></h2>
       <p>
-        <%= t("user_mailer.welcome_pro_email.demo_intro_html", count: demo_comm_limit).html_safe %>
+        <%= t("user_mailer.welcome_pro_email.loaner_intro_html", count: pro_comm_limit).html_safe %>
       </p>
 
       <ul>
-        <li><%= t("user_mailer.welcome_pro_email.demo_item_1_html").html_safe %></li>
-        <li><%= t("user_mailer.welcome_pro_email.demo_item_2_html").html_safe %></li>
-        <li><%= t("user_mailer.welcome_pro_email.demo_item_3_html").html_safe %></li>
-        <li><%= t("user_mailer.welcome_pro_email.demo_item_4") %></li>
-        <li><%= t("user_mailer.welcome_pro_email.demo_item_5") %></li>
+        <li><%= t("user_mailer.welcome_pro_email.loaner_item_1_html").html_safe %></li>
+        <li><%= t("user_mailer.welcome_pro_email.loaner_item_2_html").html_safe %></li>
+        <li><%= t("user_mailer.welcome_pro_email.loaner_item_3_html").html_safe %></li>
       </ul>
 
       <p class="muted">
-        <%= t("user_mailer.welcome_pro_email.demo_note") %>
+        <%= t("user_mailer.welcome_pro_email.loaner_note") %>
       </p>
     </div>
 
     <h2><%= t("user_mailer.welcome_pro_email.included_heading") %></h2>
     <ul>
       <li><%= t("user_mailer.welcome_pro_email.included_paid_html", count: pro_comm_limit).html_safe %></li>
-      <li><%= t("user_mailer.welcome_pro_email.included_demo_html", count: demo_comm_limit).html_safe %></li>
+      <li><%= t("user_mailer.welcome_pro_email.included_demo_html").html_safe %></li>
       <li><%= t("user_mailer.welcome_pro_email.included_myspeak_html").html_safe %></li>
       <li><%= t("user_mailer.welcome_pro_email.included_supporters_html").html_safe %></li>
       <li><%= t("user_mailer.welcome_pro_email.included_ai_html").html_safe %></li>

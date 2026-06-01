@@ -208,6 +208,11 @@ A real **transfer ownership** flow doesn't exist yet — it's out of scope
 for #166 and will get its own endpoint (touches `child_account.owner_id`,
 not just team membership).
 
+**Full SLP→parent handoff contract** — including the permissions matrix
+(who can do what to a claimed communicator), the lifecycle states, and
+known backend-enforcement gaps — lives in
+`marketing/.claude-notes/handoff-workflow.md`. Keep that doc and this
+section in sync when the rules change.
 ### Editing the communicator object itself
 
 `ChildAccount#editable_by?(user)` returns true iff the user is the

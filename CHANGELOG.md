@@ -5,6 +5,24 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Pro plan now includes 5 Communicators (was 3)
+- `User::PRO_PLAN_LIMITS["paid_communicator_limit"]` default bumped
+  from `3` → `5` in `app/models/user.rb`. Same `PRO_PAID_COMMUNICATOR_LIMIT`
+  env var; if it's set in prod it now needs to be `5` (or unset to take
+  the new default).
+- Updated the slot-math comment block in
+  `app/helpers/permissions/communicator_limits.rb` and the test in
+  `spec/models/user_plan_limits_spec.rb`.
+- `welcome_pro_email.html.erb` fallback and `pro_setup_email`
+  locale string both updated to "5 Communicator Accounts".
+- **Backfill:** new `rake plans:bump_pro_to_five_communicators` task in
+  `lib/tasks/plans.rake`. Bumps any current Pro / `pro_yearly` /
+  `partner_pro` user whose `paid_communicator_limit` is 3 (or missing)
+  up to 5. Skips anyone already above 3 so admin-tuned values aren't
+  clobbered. Run with `DRY_RUN=true` first.
+- Decision rationale in `marketing/pricing-structure.md` (REVISED
+  2026-05-31 entry).
+
 ### Fixed — Subscription lifecycle bugs (#199)
 - `paid_plan?` now considers `plan_status`: a user with
   `plan_type=basic` + `plan_status=canceled` (e.g. a missed

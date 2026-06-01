@@ -20,12 +20,12 @@ RSpec.describe User, "plan limits", type: :model do
   # Slot pool sizes (self-created or claimed):
   #   Free  — 1.
   #   Basic — 2.
-  #   Pro   — 3.
+  #   Pro   — 5.  (Bumped from 3 on 2026-05-31; see pricing-structure.md.)
   describe "paid (loaner+active) communicator slot limits" do
     it "matches the locked slot math from the spec" do
       expect(User::FREE_PLAN_LIMITS["paid_communicator_limit"]).to eq(1)
       expect(User::BASIC_PLAN_LIMITS["paid_communicator_limit"]).to eq(2)
-      expect(User::PRO_PLAN_LIMITS["paid_communicator_limit"]).to eq(3)
+      expect(User::PRO_PLAN_LIMITS["paid_communicator_limit"]).to eq(5)
     end
   end
 

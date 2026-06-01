@@ -7,7 +7,7 @@ module Permissions
     #   Free  — 1 communicator (self-created or claimed). Plus the no-login
     #           sandbox.
     #   Basic — 2 communicators (loaner + active total).
-    #   Pro   — 3 communicators, loaner-capable, recycling.
+    #   Pro   — 5 communicators, loaner-capable, recycling.
     #
     # A `loaner` counts against the owner's (SLP's) slot. On claim the
     # ownership transfers and the slot frees on the SLP's side (see B4).
