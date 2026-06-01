@@ -60,6 +60,10 @@ class ChildBoard < ApplicationRecord
     board.display_image_url
   end
 
+  def preview_image_url
+    board.preview_image_url
+  end
+
   def other_boards
     child_account.child_boards.where.not(id: id)
   end
@@ -108,7 +112,8 @@ class ChildBoard < ApplicationRecord
       child_account_id: child_account_id,
       status: status,
       settings: settings,
-      display_image_url: display_image_url,
+      display_image_url: display_image_url || preview_image_url,
+      preview_image_url: preview_image_url,
       board_type: board.board_type,
       published: published,
       favorite: favorite,
