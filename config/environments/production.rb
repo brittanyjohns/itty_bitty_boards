@@ -152,5 +152,10 @@ Rails.application.configure do
     user_name: smtp_username,
     password: smtp_password,
     authentication: smtp_username ? :plain : nil,
+    # Explicit timeouts so a stalled Gmail SMTP session can't wedge a puma thread
+    # indefinitely. Without these, Net::SMTP uses generous defaults that contributed
+    # to the 2026-05-30 outage where all 8 threads stalled for 38 minutes.
+    open_timeout: 10,
+    read_timeout: 20,
   }
 end

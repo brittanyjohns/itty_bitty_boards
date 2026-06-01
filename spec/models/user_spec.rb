@@ -296,6 +296,51 @@ RSpec.describe User, type: :model do
     end
   end
 
+  describe "#api_view has_boards flag" do
+    it "is false when the user has no boards" do
+      user = FactoryBot.create(:free_user)
+      expect(user.api_view[:has_boards]).to eq(false)
+      expect(user.api_view[:board_count]).to eq(0)
+    end
+
+    it "is true when the user has at least one board" do
+      user = FactoryBot.create(:free_user)
+      FactoryBot.create(:board, user: user)
+      expect(user.api_view[:has_boards]).to eq(true)
+      expect(user.api_view[:board_count]).to eq(1)
+    end
+  end
+
+  describe "#ensure_minimum_communicator_slot!" do
+    it "bumps a 0 limit up to the free-plan default" do
+      user = FactoryBot.create(:free_user)
+      user.update_columns(settings: { "paid_communicator_limit" => 0 })
+
+      expect { user.ensure_minimum_communicator_slot! }
+        .to change { user.reload.settings["paid_communicator_limit"] }
+        .from(0).to(User::FREE_PLAN_LIMITS["paid_communicator_limit"])
+    end
+
+    it "initializes settings when paid_communicator_limit is missing" do
+      user = FactoryBot.create(:free_user)
+      user.update_columns(settings: {})
+
+      user.ensure_minimum_communicator_slot!
+
+      expect(user.reload.settings["paid_communicator_limit"])
+        .to eq(User::FREE_PLAN_LIMITS["paid_communicator_limit"])
+    end
+
+    it "leaves higher limits alone (e.g. basic/pro)" do
+      user = FactoryBot.create(:free_user)
+      user.update_columns(settings: { "paid_communicator_limit" => 3 })
+
+      user.ensure_minimum_communicator_slot!
+
+      expect(user.reload.settings["paid_communicator_limit"]).to eq(3)
+    end
+  end
+
   describe "#send_free_setup_email" do
     let(:user) { FactoryBot.create(:user, plan_type: "free") }
 

@@ -48,6 +48,7 @@ dump.rdb
 /vendor/bundle/
 .vscode/
 .claude/
+.claude-notes/
 
 # macOS system files
 */*/*/.DS_Store
@@ -57,3 +58,4 @@ spec/.DS_Store
 .DS_Store
 
 spec/data/*.obf
+

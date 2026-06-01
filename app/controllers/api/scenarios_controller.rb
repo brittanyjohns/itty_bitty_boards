@@ -196,7 +196,10 @@ class API::ScenariosController < API::ApplicationController
   def generate_first_question(scenario)
     initial_scenario = scenario.initial_description
     age_range = scenario.age_range
-    client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"])
+    client = OpenAI::Client.new(
+      access_token: ENV["OPENAI_ACCESS_TOKEN"],
+      request_timeout: OpenAiClient::OPENAI_REQUEST_TIMEOUT_SECONDS,
+    )
 
     prompt = <<~PROMPT
       The scenario is name: #{scenario.name} and was described as: #{initial_scenario}. The age range of the person in the given scenario is: #{age_range}.
@@ -225,7 +228,10 @@ class API::ScenariosController < API::ApplicationController
     question_1 = scenario.questions["question_1"]
     name = scenario.name
 
-    client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"])
+    client = OpenAI::Client.new(
+      access_token: ENV["OPENAI_ACCESS_TOKEN"],
+      request_timeout: OpenAiClient::OPENAI_REQUEST_TIMEOUT_SECONDS,
+    )
 
     prompt = <<~PROMPT
       The scenario is name: #{scenario.name} and is described as: #{initial_scenario}. The age range is: #{age_range}.
@@ -259,7 +265,10 @@ class API::ScenariosController < API::ApplicationController
     question_2 = scenario.questions["question_2"]
     answer_2 = scenario.answers["question_2"]
 
-    client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"])
+    client = OpenAI::Client.new(
+      access_token: ENV["OPENAI_ACCESS_TOKEN"],
+      request_timeout: OpenAiClient::OPENAI_REQUEST_TIMEOUT_SECONDS,
+    )
 
     prompt = <<~PROMPT
       The scenario is: #{initial_scenario}. The age range is: #{age_range}.
@@ -285,7 +294,10 @@ class API::ScenariosController < API::ApplicationController
   end
 
   def generate_scenario_description(name, age_range, language: "en")
-    client = OpenAI::Client.new(access_token: ENV["OPENAI_ACCESS_TOKEN"])
+    client = OpenAI::Client.new(
+      access_token: ENV["OPENAI_ACCESS_TOKEN"],
+      request_timeout: OpenAiClient::OPENAI_REQUEST_TIMEOUT_SECONDS,
+    )
 
     # prompt = <<~PROMPT
     #   Please generate a brief description of a scenario for a person named #{name} who is #{age_range} years old.

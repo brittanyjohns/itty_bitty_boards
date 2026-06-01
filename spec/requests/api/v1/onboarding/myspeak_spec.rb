@@ -6,9 +6,16 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
 
   let(:user) do
     u = FactoryBot.create(:user)
-    # Pull out of the soft-trial window so paid_plan? is false and we can test
-    # the genuine Free state.
-    u.update_columns(plan_type: "free", created_at: 60.days.ago)
+    # Pull out of the soft-trial window so paid_plan? is false. The factory
+    # user gets seeded with Basic-tier limits via the soft-trial callback;
+    # overwrite the slot limits to match production Free state
+    # (paid_communicator_limit = 1, demo_communicator_limit = 1).
+    free_settings = u.settings.merge(
+      "paid_communicator_limit" => 1,
+      "demo_communicator_limit" => 1,
+      "board_limit" => 1,
+    )
+    u.update_columns(plan_type: "free", created_at: 60.days.ago, settings: free_settings)
     u
   end
 
@@ -45,7 +52,7 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
     end
 
     context "happy path" do
-      it "creates a child account + safety profile, attaches avatar, writes settings" do
+      it "creates an active child account + safety profile, attaches avatar, writes settings, sets up a team" do
         expect {
           post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
         }.to change { user.communicator_accounts.count }.by(1)
@@ -56,6 +63,12 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         child = user.communicator_accounts.order(:created_at).last
         expect(child.name).to eq("River Stone")
         expect(child.username).to eq("river-stone")
+        expect(child.status).to eq(ChildAccount::ACTIVE)
+
+        team = child.teams.first
+        expect(team).to be_present
+        expect(team.name).to eq("River Stone's Communication Team")
+        expect(team.team_users.where(user: user, role: "admin")).to exist
 
         profile = child.profile
         expect(profile.profile_kind).to eq("safety")
@@ -115,28 +128,94 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
       end
     end
 
-    context "board_id matches a seeded starter board" do
-      it "favorites it on the new communicator" do
-        admin = FactoryBot.create(:admin_user)
-        starter = Board.create!(
-          slug: "myspeak-basics",
+    context "board_id matches a public starter board" do
+      let(:admin) do
+        a = FactoryBot.create(:admin_user)
+        # Board.public_boards is anchored on User::DEFAULT_ADMIN_ID, so
+        # force the admin factory's row to that id rather than depending on
+        # the test db being clean.
+        a.update_columns(id: User::DEFAULT_ADMIN_ID) unless a.id == User::DEFAULT_ADMIN_ID
+        a
+      end
+
+      let(:starter) do
+        Board.create!(
           name: "Basic needs",
-          user: admin,
+          user_id: User::DEFAULT_ADMIN_ID,
           parent: admin,
           predefined: true,
           published: true,
           board_type: "board",
         )
+      end
+
+      it "clones the public board, attaches the clone as a favorited ChildBoard, and assigns ownership to current_user" do
+        starter # force creation
+
+        expect {
+          post "/api/v1/onboarding/myspeak",
+               params: base_payload.merge(board_id: starter.id).to_json, headers: headers
+        }.to change { Board.count }.by(1)
+         .and change { ChildBoard.count }.by(1)
+
+        expect(response).to have_http_status(:created)
+
+        child = user.communicator_accounts.last
+        cb = child.child_boards.last
+        expect(cb.favorite).to eq(true)
+        # The attached board is the *clone*, not the master.
+        expect(cb.board_id).not_to eq(starter.id)
+        expect(cb.board.user_id).to eq(user.id)
+        expect(cb.board.name).to eq(starter.name)
+        # Master untouched.
+        expect(starter.reload.user_id).to eq(User::DEFAULT_ADMIN_ID)
+      end
+
+      it "accepts board_id as a string (JSON normally sends integers, but be defensive)" do
+        starter
 
         post "/api/v1/onboarding/myspeak",
-             params: base_payload.merge(board_id: "basics").to_json, headers: headers
+             params: base_payload.merge(board_id: starter.id.to_s).to_json, headers: headers
 
         expect(response).to have_http_status(:created)
         child = user.communicator_accounts.last
-        cb = child.child_boards.find_by(board: starter)
-        expect(cb).to be_present
-        expect(cb.favorite).to eq(true)
-        expect(cb.created_by_id).to eq(user.id)
+        expect(child.child_boards.count).to eq(1)
+      end
+
+      it "silently skips when board_id references a board outside the public picker" do
+        private_board = Board.create!(
+          name: "Private board",
+          user: user, # not admin → not in Board.public_boards
+          parent: user,
+          predefined: false,
+          published: false,
+          board_type: "board",
+        )
+
+        expect {
+          post "/api/v1/onboarding/myspeak",
+               params: base_payload.merge(board_id: private_board.id).to_json, headers: headers
+        }.not_to change { ChildBoard.count }
+
+        expect(response).to have_http_status(:created)
+      end
+
+      it "silently skips when board_id is unknown" do
+        expect {
+          post "/api/v1/onboarding/myspeak",
+               params: base_payload.merge(board_id: 999_999).to_json, headers: headers
+        }.not_to change { ChildBoard.count }
+
+        expect(response).to have_http_status(:created)
+      end
+
+      it "silently skips when board_id is nil" do
+        expect {
+          post "/api/v1/onboarding/myspeak",
+               params: base_payload.merge(board_id: nil).to_json, headers: headers
+        }.not_to change { ChildBoard.count }
+
+        expect(response).to have_http_status(:created)
       end
     end
 
@@ -154,6 +233,24 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         expect(s["ice_contact_1"]["name"]).to eq("Sam")
         expect(s["ice_contact_2"]["name"]).to eq("Kit")
         expect(s["ice_contact_3"]).to be_nil
+      end
+    end
+
+    context "free user has no available communicator slot" do
+      it "returns 422 communicator_slot_unavailable" do
+        # Free's default paid_communicator_limit is 1. Take it.
+        FactoryBot.create(
+          :child_account,
+          user: user,
+          owner: user,
+          status: ChildAccount::ACTIVE,
+        )
+
+        post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        body = JSON.parse(response.body)
+        expect(body["error"]).to eq("communicator_slot_unavailable")
       end
     end
 

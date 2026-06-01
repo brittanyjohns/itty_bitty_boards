@@ -2,12 +2,6 @@ module API
   module V1
     module Onboarding
       class MyspeakController < API::ApplicationController
-        STARTER_BOARD_SLUGS = {
-          "basics"   => "myspeak-basics",
-          "feelings" => "myspeak-feelings",
-          "social"   => "myspeak-social",
-        }.freeze
-
         MAX_SLUG_TRIES = 50
 
         def create
@@ -22,6 +16,20 @@ module API
             return
           end
 
+          # Slot check — the wizard creates a real owned (active) communicator,
+          # not a Pro-only sandbox scratch space. Free has 1 slot by default
+          # (FREE_PAID_COMMUNICATOR_LIMIT); over-cap is 422.
+          allowed, http_status, slot_error =
+            Permissions::CommunicatorLimits.can_create?(
+              user: current_user,
+              status: ChildAccount::ACTIVE,
+            )
+          unless allowed
+            render json: { error: "communicator_slot_unavailable", message: slot_error },
+                   status: http_status
+            return
+          end
+
           name = params[:name].to_s.strip
           if name.blank?
             render json: { error: "Onboarding failed", details: ["Name can't be blank"] },
@@ -31,7 +39,7 @@ module API
 
           pronouns       = params[:pronouns].to_s.strip
           care_notes     = params[:care_notes].to_s
-          board_id       = params[:board_id].to_s
+          board_id       = params[:board_id]
           photo_data_url = params[:photo_data_url].to_s
           contacts       = Array(params[:contacts])
 
@@ -39,15 +47,21 @@ module API
           unique = unique_slug_for(base_slug)
 
           profile = nil
+          child = nil
 
           ActiveRecord::Base.transaction do
             # `communicator_accounts` uses `owner_id` as the FK; set `user`
             # explicitly so downstream `api_view`s (which read
             # `child.user.pro?` etc.) don't see a nil user.
+            #
+            # Status MUST be ACTIVE — sandbox is the no-login Pro scratch
+            # space and is filtered out of the family dashboard. The
+            # MySpeak wizard is the family's first real communicator.
             child = current_user.communicator_accounts.create!(
               name: name,
               username: unique,
               user: current_user,
+              status: ChildAccount::ACTIVE,
             )
 
             profile = Profile.new(
@@ -64,6 +78,7 @@ module API
             profile.save!
 
             attach_starter_board(child, board_id)
+            ensure_team_for(child)
           end
 
           profile.generate_attachments! if profile.safety?
@@ -120,22 +135,43 @@ module API
           )
         end
 
+        # The frontend sends a Board#id (integer) for the picked public
+        # starter, "later" / nil to skip, or the string form of either. We
+        # clone the picked board for current_user so admin edits to the
+        # master never leak into a family's communicator, then favorite the
+        # ChildBoard that clone_with_images creates.
+        #
+        # Anything unparseable, unknown, or not in Board.public_boards is
+        # logged and skipped — the board step must never block setup.
         def attach_starter_board(child, board_id)
-          slug = STARTER_BOARD_SLUGS[board_id]
-          return unless slug
+          return if board_id.blank?
+          return if board_id.to_s == "later"
 
-          board = Board.find_by(slug: slug)
+          board = Board.find_by(id: board_id.to_i)
           unless board
-            Rails.logger.warn "[Onboarding::Myspeak] starter board #{slug.inspect} missing — skipping attachment"
+            Rails.logger.warn "[Onboarding::Myspeak] board id #{board_id.inspect} not found — skipping"
             return
           end
 
-          ChildBoard.create!(
-            board: board,
-            child_account: child,
-            created_by: current_user,
-            favorite: true,
-          )
+          # Allowlist against the picker's own scope. clone_with_images
+          # doesn't enforce ownership, so without this guard a client could
+          # send any id and clone a stranger's private board.
+          unless Board.public_boards.exists?(id: board.id)
+            Rails.logger.warn "[Onboarding::Myspeak] board #{board.id} is not a public board — skipping"
+            return
+          end
+
+          cloned = board.clone_with_images(current_user.id, board.name, child.voice, child)
+          unless cloned&.persisted?
+            Rails.logger.warn "[Onboarding::Myspeak] clone failed for board #{board.id}"
+            return
+          end
+
+          # clone_with_images creates the ChildBoard join row. Mark it the
+          # communicator's favorite to match the old behavior (the wizard's
+          # pick is the home board).
+          child_board = ChildBoard.find_by(child_account: child, board: cloned)
+          child_board&.update(favorite: true)
         end
 
         def unique_slug_for(base)
@@ -151,6 +187,18 @@ module API
           Profile.exists?(slug: value) ||
             Profile.exists?(username: value) ||
             ChildAccount.exists?(username: value)
+        end
+
+        # Mirrors API::ChildAccountsController#create — every new
+        # communicator gets a Team with the creator as admin, so team
+        # permission checks have something to anchor on later.
+        def ensure_team_for(child)
+          return if child.teams.exists?
+
+          team_name = child.name.present? ? "#{child.name}'s Communication Team" : "Communication Team"
+          team = Team.create!(name: team_name, created_by: current_user)
+          TeamAccount.create!(team: team, account: child)
+          team.add_member!(current_user, current_user.professional? ? "professional" : "admin")
         end
       end
     end

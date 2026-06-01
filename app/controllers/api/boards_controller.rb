@@ -425,9 +425,9 @@ class API::BoardsController < API::ApplicationController
       current_word_list = @board.current_word_list
       word_list.each do |word|
         if word.is_a?(String) && word.present?
-          # if current_word_list.include?(word) && !duplicate_words
-          #   next
-          # end
+          if current_word_list.include?(word) && !duplicate_words
+            next
+          end
           words_to_create << word
         end
       end
@@ -562,26 +562,23 @@ class API::BoardsController < API::ApplicationController
 
       if file_extension == ".obz"
         begin
-          file_bytes = uploaded_file.read
           @board_group = BoardGroup.create!(name: group_name, user_id: current_user.id)
-          importer = ObzImporter.new(file_bytes, current_user, board_group: @board_group, import_all: true)
-          result = importer.import!
-          root_board = result[:root_board]
+          result = ObzImporter.new(
+            uploaded_file.read, current_user,
+            board_group: @board_group, import_all: true,
+          ).import!
         rescue => e
           Rails.logger.error "OBZ import failed: #{e.message}"
           render json: { error: "OBZ import failed: #{e.message}" }, status: :unprocessable_entity
           return
         end
 
-        if result
-          render json: { status: "ok", message: "Importing OBZ file #{file_name} - Root board ID: #{@root_board_id}" }
-        else
-          render json: { error: "OBZ import failed" }, status: :unprocessable_entity
-        end
-        # ImportFromObzJob.perform_async(json_data, current_user&.id)
-        # render json: { status: "ok", message: "Importing OBZ file #{file_name} - Root board ID: #{@root_board_id}" }
-        # render json: { created_boards: created_boards }
-        # render json: { error: "OBZ import temporarily disabled" }, status: :unprocessable_entity
+        render json: {
+          status: "ok",
+          message: "Imported OBZ file #{file_name}",
+          board_group_id: @board_group.id,
+          root_board_id: result[:root_board]&.id,
+        }
       else
         render json: { error: "Unsupported file format" }, status: :unprocessable_entity
       end
@@ -600,7 +597,6 @@ class API::BoardsController < API::ApplicationController
       end
       board_name = json_data["name"] || "Imported Board"
 
-      # Board.from_obf(boardData, current_user, board_group, @board.id)
       ImportFromObfJob.perform_async(json_data, current_user.id, board_group&.id)
       render json: { status: "ok", message: "Importing OBF data for board #{board_name}" }
     else

@@ -25,6 +25,48 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   to the deprecated `invoice.subscription` field.
 - `API::BillingController#update_subscription` no longer calls a
   nonexistent `setup_limits_for_plan` method.
+### Changed — Harden production puma against silent outbound-call wedges (#207)
+- **Puma cluster mode in production.** `config/puma.rb` now sets `workers 2`
+  (overridable via `WEB_CONCURRENCY`), `worker_timeout 30`, and
+  `preload_app!` for production. A worker that wedges no longer takes the
+  whole site down — the other worker keeps serving at 50% capacity.
+- **SMTP timeouts.** `config/environments/production.rb` `smtp_settings`
+  now sets `open_timeout: 10` and `read_timeout: 20`. Previously a stalled
+  Gmail SMTP session could hang a puma thread for the Net::SMTP default
+  (much longer); on 2026-05-30 this contributed to a 38-minute outage where
+  all 8 single-mode threads silently wedged after a deploy.
+- **OpenAI request_timeout.** `OpenAiClient::OPENAI_REQUEST_TIMEOUT_SECONDS`
+  (defaults to 60s, overridable via `OPENAI_REQUEST_TIMEOUT`) is now passed
+  to every `OpenAI::Client.new` — the central wrapper and the nine direct
+  call sites in `app/services/*` and `app/controllers/api/scenarios_controller.rb`.
+- No user-facing behavior change; reliability/SLO improvement only.
+- Net effect: a future hang in SMTP or OpenAI raises an exception after the
+  cap instead of holding a thread; with cluster mode, even a deadlock that
+  the timeouts don't catch only halves capacity instead of taking the site
+  fully offline.
+
+### Changed — MySpeak starter-board seed populates tiles + tags `myspeak` (#204)
+- `db/seeds/myspeak_starter_boards.rb` now creates **5** starter boards
+  (`myspeak-basics`, `myspeak-feelings`, `myspeak-social`,
+  `myspeak-food`, `myspeak-school`), tags each with `myspeak` so they
+  appear in `Board.myspeak_public_boards`, and seeds **6 starter tiles**
+  per board via `Board#find_or_create_images_from_word_list`.
+- Net effect: the MySpeak onboarding picker
+  (`GET /api/public_boards?myspeak=true`) renders 5 cards with real
+  tile previews instead of one empty card.
+- Idempotent: per-board tile add is gated by an existing-label check,
+  so re-running the seed will not duplicate `board_images`.
+- Run after deploy: `bin/rails runner db/seeds/myspeak_starter_boards.rb`.
+  Adding new tiles enqueues `GenerateImagesJob` for any image without an
+  existing display doc — let Sidekiq drain before verifying the picker.
+
+### Added — `has_boards` flag on `User#api_view`
+- `User#api_view` now returns `has_boards: boolean` alongside
+  `board_count`. Derived from the already-computed `board_count`
+  (zero extra queries) so the new free-tier dashboard
+  (`itty-bitty-frontend` PR #183) can branch on an explicit boolean
+  instead of `(board_count ?? 0) > 0`. No behavior change for
+  existing clients — additive field only.
 
 ### Added — Free = 1 MySpeak ID limit (#143)
 - Free users are now capped at **one MySpeak ID** (Profile). Basic/Pro

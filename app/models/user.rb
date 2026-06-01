@@ -406,6 +406,22 @@ class User < ApplicationRecord
     settings["paid_communicator_limit"] || FREE_PLAN_LIMITS["paid_communicator_limit"]
   end
 
+  # Every signed-in user needs at least one communicator slot — otherwise
+  # the MySpeak wizard 403s on `Permissions::CommunicatorLimits.can_create?`
+  # ("Your plan does not include communicator accounts."). Older free
+  # accounts predate FREE_PLAN_LIMITS and have an explicit 0; new users
+  # whose settings haven't been initialized read as nil → 0 too. Bump to
+  # the free-plan default when below it; never lower an existing higher
+  # value.
+  def ensure_minimum_communicator_slot!
+    minimum = FREE_PLAN_LIMITS["paid_communicator_limit"]
+    self.settings ||= {}
+    current = settings["paid_communicator_limit"].to_i
+    return if current >= minimum
+    settings["paid_communicator_limit"] = minimum
+    save
+  end
+
   def get_stripe_subscriptions
     begin
       subscriptions = Stripe::Subscription.list({ customer: stripe_customer_id })
@@ -1389,6 +1405,7 @@ class User < ApplicationRecord
       # Boards
       board_limit: board_limit,
       board_count: board_count,
+      has_boards: board_count > 0,
       board_limit_reached: board_count >= board_limit,
       can_create_boards: can_create_boards,
       editable_board_id: effective_editable_board_id,

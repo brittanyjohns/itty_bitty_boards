@@ -394,12 +394,17 @@ RSpec.describe Board, type: :model do
         board.update!(settings: board.settings.merge("display_follows_preview" => true))
       end
 
+      # Active Storage signed URLs embed an `expires_at` derived from
+      # `Time.current`, so two `.url` calls a millisecond apart produce
+      # different strings. Freeze time so both calls share an expiry.
       it "returns the live preview URL" do
-        expect(board.display_image_url).to eq(board.preview_image_url)
+        freeze_time do
+          expect(board.display_image_url).to eq(board.preview_image_url)
+        end
       end
 
       it "resolves to the new URL after the preview regenerates" do
-        original_url = board.display_image_url
+        original_url = freeze_time { board.display_image_url }
         board.preview_image.purge
         board.preview_image.attach(
           io: StringIO.new("new-png-bytes"),
@@ -407,9 +412,108 @@ RSpec.describe Board, type: :model do
           content_type: "image/png",
         )
 
-        expect(board.display_image_url).to eq(board.preview_image_url)
-        expect(board.display_image_url).not_to eq(original_url) if board.preview_image_url != original_url
+        freeze_time do
+          expect(board.display_image_url).to eq(board.preview_image_url)
+          expect(board.display_image_url).not_to eq(original_url) if board.preview_image_url != original_url
+        end
       end
+    end
+  end
+
+  describe ".from_obf" do
+    let(:user) { create(:user) }
+
+    let(:obf_hash) do
+      {
+        "format" => "open-board-0.1",
+        "id" => "simple",
+        "locale" => "en",
+        "name" => "Simple Board",
+        "grid" => { "rows" => 2, "columns" => 2, "order" => [[1, 2], [nil, nil]] },
+        "buttons" => [
+          { "id" => 1, "label" => "happy" },
+          { "id" => 2, "label" => "sad" },
+        ],
+        "images" => [],
+        "sounds" => [],
+      }
+    end
+
+    it "creates a board with the right name, columns, and obf_id" do
+      board, _data = described_class.from_obf(obf_hash, user)
+      expect(board).to be_persisted
+      expect(board.name).to eq("Simple Board")
+      expect(board.obf_id).to eq("simple")
+      expect(board.large_screen_columns).to eq(2)
+    end
+
+    it "imports each button as a BoardImage and stamps grid coordinates" do
+      board, dynamic_data = described_class.from_obf(obf_hash, user)
+      expect(board.board_images.count).to eq(2)
+      expect(dynamic_data.values.map { |v| v["label"] }).to contain_exactly("happy", "sad")
+      happy_bi = board.board_images.joins(:image).where(images: { label: "happy" }).first
+      expect(happy_bi.layout["lg"]).to include("x" => 0, "y" => 0)
+    end
+
+    it "re-raises instead of silently returning nil on malformed input" do
+      expect {
+        described_class.from_obf("not json", user)
+      }.to raise_error(JSON::ParserError)
+    end
+
+    it "accepts a Hash, a JSON string, or a Pathname" do
+      json = obf_hash.to_json
+      expect(described_class.from_obf(json, user).first).to be_persisted
+    end
+  end
+
+  describe "#to_obf (export)" do
+    let(:user) { create(:user) }
+    let(:linked_board) { create(:board, user: user, name: "Drinks", obf_id: "drinks-123") }
+    let(:board) { create(:board, user: user, name: "Home", language: "es") }
+    let!(:plain_image) do
+      img = create(:image, label: "hello", user: user)
+      bi = board.board_images.create!(image_id: img.id, voice: "polly:kevin",
+                                      position: 0, skip_create_voice_audio: true)
+      bi
+    end
+    let!(:linked_image) do
+      img = create(:image, label: "drinks", user: user)
+      bi = board.board_images.create!(image_id: img.id, voice: "polly:kevin",
+                                      position: 1, skip_create_voice_audio: true)
+      bi.update_columns(predictive_board_id: linked_board.id)
+      bi
+    end
+
+    before do
+      allow_any_instance_of(BoardImage).to receive(:tile_image_url).and_return("https://example.test/img.png")
+      allow_any_instance_of(BoardImage).to receive(:audio_url).and_return(nil)
+    end
+
+    subject(:obf) { board.to_obf(user) }
+
+    it "matches the OBF spec shape with the expected top-level keys" do
+      expect(obf["format"]).to eq(OBF::OBF::FORMAT)
+      %w[id locale name grid images buttons sounds].each do |key|
+        expect(obf).to have_key(key), "expected exported obf to include #{key}"
+      end
+    end
+
+    it "uses the board's language for locale (regression: was hardcoded 'en')" do
+      expect(obf["locale"]).to eq("es")
+    end
+
+    it "emits a load_board on buttons whose BoardImage has a predictive_board_id (regression: links were dropped)" do
+      linked_btn = obf["buttons"].find { |b| b["id"] == linked_image.id.to_s }
+      expect(linked_btn).to be_present
+      expect(linked_btn["load_board"]).to include("id" => "drinks-123", "name" => "Drinks")
+
+      unlinked_btn = obf["buttons"].find { |b| b["id"] == plain_image.id.to_s }
+      expect(unlinked_btn["load_board"]).to be_nil
+    end
+
+    it "drops sound entries when there's no audio file (regression: emitted id='')" do
+      expect(obf["sounds"]).to be_empty
     end
   end
 end

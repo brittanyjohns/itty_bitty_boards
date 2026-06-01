@@ -208,6 +208,25 @@ A real **transfer ownership** flow doesn't exist yet — it's out of scope
 for #166 and will get its own endpoint (touches `child_account.owner_id`,
 not just team membership).
 
+### Editing the communicator object itself
+
+`ChildAccount#editable_by?(user)` returns true iff the user is the
+`owner_id` or a system admin. It's the helper that drives the
+`can_edit_communicator` flag on both `api_view` and `vendor_api_view`
+(issue #215). The frontend uses that flag to gate the Edit tab/form on a
+communicator — i.e. who can change name, username, voice, layout, and
+the safety profile.
+
+`can_edit_communicator` is **distinct from `can_edit`** in the same
+payload: `can_edit` answers "can this user curate boards on this
+communicator" (board sharers, including team members on a paid plan).
+`can_edit_communicator` answers "can this user mutate the communicator
+object itself" (owner-only by default). Keep both — they back different
+UI affordances.
+
+Full permissions matrix and the rationale for the split lives in
+`../speakanyway/marketing/.claude-notes/handoff-workflow.md`.
+
 ## AI gating: credit ledger (source of truth)
 
 - AI features are gated by **weighted credits** held in two balances on `users`:
