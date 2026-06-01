@@ -136,6 +136,14 @@ class ChildAccount < ApplicationRecord
   def loaner?  = status == LOANER
   def active?  = status == ACTIVE
 
+  # Can `user` edit the communicator object itself (name, username, voice,
+  # layout, safety info)? Distinct from `can_edit` in api_view, which
+  # answers "can this user curate boards on this communicator." Spec:
+  # marketing/.claude-notes/handoff-workflow.md (Permissions matrix).
+  def editable_by?(user)
+    user.present? && (user.id == owner_id || user.admin?)
+  end
+
   # `is_demo` is derived from status now. The DB column is retained until the
   # frontend cutover (F1) is complete, then dropped. Writes to `is_demo` flow
   # into `status` for backwards compatibility.
@@ -417,6 +425,7 @@ class ChildAccount < ApplicationRecord
       sign_in_count: sign_in_count,
       board_week_chart: board_week_chart,
       can_edit: viewing_user&.can_add_boards_to_account?([id]),
+      can_edit_communicator: editable_by?(viewing_user),
       is_owner: viewing_user&.id == user_id,
       is_vendor: is_vendor,
       layout: layout,
@@ -743,6 +752,7 @@ class ChildAccount < ApplicationRecord
       created_at: created_at,
       sign_in_count: sign_in_count,
       can_edit: viewing_user&.can_add_boards_to_account?([id]),
+      can_edit_communicator: editable_by?(viewing_user),
       is_owner: viewing_user&.id == user_id || viewing_user&.admin?,
       is_vendor: is_vendor,
       layout: layout,
