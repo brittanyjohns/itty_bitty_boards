@@ -81,6 +81,16 @@ module API
             ensure_team_for(child)
           end
 
+          # Fall back to a generated initials avatar when the parent
+          # skipped the photo step. The Safety ID card and Device Tag
+          # both embed the avatar, so without this they render with a
+          # broken image slot.
+          begin
+            profile.set_fake_avatar unless profile.avatar.attached?
+          rescue StandardError => e
+            Rails.logger.warn "[Onboarding::Myspeak#create] set_fake_avatar failed: #{e.message}"
+          end
+
           profile.generate_attachments! if profile.safety?
           render json: profile.safety_view, status: :created
         rescue ActiveRecord::RecordInvalid => e
