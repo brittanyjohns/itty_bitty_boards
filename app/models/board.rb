@@ -2000,26 +2000,6 @@ class Board < ApplicationRecord
     @buttons
   end
 
-  def to_obf_tmp(screen_size = "lg")
-    @board_images = board_images.with_artifacts.order(:position)
-    obf_data = {}
-    obf_
-    obf_data["name"] = name
-    # obf_data["description"] = description
-    obf_data["board_type"] = board_type
-    obf_data["images"] = @board_images.map do |bi|
-      image = bi.image
-      {
-        label: bi.label,
-        src: bi.display_image_url,
-        audio: bi.audio_url,
-        part_of_speech: image.part_of_speech,
-        layout: bi.layout[screen_size],
-      }
-    end
-    obf_data
-  end
-
   def self.create_from_obf(obf_data, user_id)
     obf_data = obf_data.with_indifferent_access
     user = User.find(user_id)
@@ -2449,363 +2429,194 @@ class Board < ApplicationRecord
   end
 
   def self.from_obf(data, current_user, board_group = nil, board_id = nil)
-    Rails.logger.info "Starting import from OBF format...board_group: #{board_group ? board_group.id : "none"}, board_id: #{board_id || "none"}"
-    if board_group
-      root_board_id = board_group.original_obf_root_id
-    else
-      root_board_id = nil
+    obj = parse_obf_input(data)
+    raise ArgumentError, "OBF data must be a Hash" unless obj.is_a?(Hash)
+
+    obf_id = obj["id"].to_s
+    is_root = board_group && board_group.original_obf_root_id == obf_id
+    grid = obj["grid"] || {}
+    columns = grid["columns"]
+    buttons = Array(obj["buttons"])
+    images_by_obf_id = Array(obj["images"]).index_by { |img| img["id"].to_s }
+    coords_by_button_id = build_coords_index(grid["order"])
+    dynamic_images = buttons.select { |item| item["load_board"] }
+    board_type = determine_board_type(dynamic_images, is_root)
+    board_data = { obf_grid: grid }
+    voice = obj["voice"] || "polly:kevin"
+
+    board = find_or_init_board_for_import(
+      board_id: board_id, obf_id: obf_id, name: obj["name"],
+      user: current_user, columns: columns, voice: voice,
+      board_data: board_data, board_type: board_type
+    )
+    board.save!
+
+    board_group.add_board(board) if board_group
+    if is_root && board_group && board_group.root_board_id != board.id
+      board_group.update(root_board_id: board.id)
     end
-    begin
-      screen_size = "lg"
-      dynamic_data = {}
-      if data.is_a?(String)
-        # Do nothing
-      elsif data.is_a?(Pathname)
-        data = data.read
-      else
-        Rails.logger.warn "Data is not a string or pathname - converting to string...#{data.class}"
-        data = data.to_json
-      end
 
-      obj = JSON.parse(data) rescue nil
-      unless obj
-        Rails.logger.error "Error parsing JSON data"
-        obj = data
-      end
+    dynamic_data = {}
+    temp_display_image = nil
+    reset_layouts_after_import = obj["reset_layouts_after_import"] || false
 
-      reset_layouts_after_import = obj["reset_layouts_after_import"] || false
+    buttons.each do |item|
+      image = find_or_create_image_for_button(item, current_user)
+      next unless image
 
-      board_name = obj["name"]
-      obf_id = obj["id"]
-      voice = obj["voice"] || "polly:kevin"
-      columns = obj["grid"]["columns"]
-      buttons = obj["buttons"] || []
-      large_screen_columns = columns
-      medium_screen_columns = columns
-      small_screen_columns = columns
-      number_of_columns = columns
-      board_data = { obf_grid: obj["grid"] }
-      is_root = root_board_id == obf_id
+      doc_data = images_by_obf_id[item["image_id"].to_s]
+      temp_display_image = attach_image_doc(image, doc_data, current_user) || temp_display_image
 
-      if board_id
-        board = Board.find_by(id: board_id, user_id: current_user.id)
-      end
+      coords = coords_by_button_id[item["id"].to_s]
+      reset_layouts_after_import ||= coords.nil?
 
-      board ||= Board.find_by(name: board_name, user_id: current_user.id, obf_id: obf_id)
-      if buttons.is_a?(String)
-        buttons = JSON.parse(buttons) rescue []
-      end
+      board_image = upsert_board_image(board, image, item, coords, temp_display_image)
+      dynamic_data[image.id] = {
+        "board_id" => board.id,
+        "board" => board,
+        "original_obf_id" => obf_id,
+        "dynamic_board" => item["load_board"],
+        "label" => item["label"],
+        "orginal_image_id" => item["image_id"],
+        "board_image_id" => board_image.id,
+      }
+    end
 
-      dynamic_images = buttons.select { |item| item["load_board"] != nil }
-      board_type = determine_board_type(dynamic_images, is_root)
-      if board
-        board.large_screen_columns = large_screen_columns
-        board.medium_screen_columns = medium_screen_columns
-        board.small_screen_columns = small_screen_columns
-        board.number_of_columns = number_of_columns
-        board.data = board_data
-        board.voice = voice
-        board.obf_id = obf_id
-        board.board_type = board_type
-        board.assign_parent
-        board.generate_unique_slug if board.slug.blank?
-        board.save!
-      else
-        board = Board.new(name: board_name, user_id: current_user.id, voice: voice,
-                          large_screen_columns: large_screen_columns, medium_screen_columns: medium_screen_columns, small_screen_columns: small_screen_columns,
-                          data: board_data, number_of_columns: number_of_columns, obf_id: obf_id, board_type: board_type)
-        board.generate_unique_slug
-        board.assign_parent
-      end
+    board.update!(display_image_url: temp_display_image) if temp_display_image
+    board.reset_layouts if reset_layouts_after_import
 
-      unless board.save
-        Rails.logger.warn "Board not saved: #{board.errors.full_messages.join(", ")}"
-        return
-      end
-      if board_group
-        board_group.add_board(board)
-      end
-      if is_root && board_group && board_group.root_board_id != board.id
-        board_group.update(root_board_id: board.id)
-      end
-      grid = obj["grid"]
-      if grid
-        rows = grid["rows"]
-        columns = grid["columns"]
-        grid_order = grid["order"]
-      end
+    [board, dynamic_data]
+  rescue StandardError => e
+    Rails.logger.error "[Board.from_obf] #{e.class}: #{e.message}"
+    Rails.logger.error e.backtrace.first(20).join("\n")
+    raise
+  end
 
-      temp_display_image = nil
-      @doc = nil
-
-      buttons.each do |item|
-        label = item["label"]
-        if item["ext_saw_image_id"]
-          image = Image.find_by(id: item["ext_saw_image_id"].to_i, user_id: current_user.id)
-        end
-        image ||= Image.where(user_id: current_user.id, label: label, obf_id: item["image_id"]).first
-        image ||= Image.where(user_id: current_user.id, label: label).first
-        found_image = image
-        image = Image.new(label: label, user_id: current_user.id, obf_id: item["image_id"]) unless image
-        Rails.logger.info "Processing image for button: #{label} - Found existing image: #{found_image ? "Yes (ID: #{found_image.id})" : "No"}"
-        image.save!
-
-        if !image
-          Rails.logger.error "Image not found for label: #{label}"
-          next
-        end
-
-        doc = obj["images"].detect { |s| s["id"] == item["image_id"] }
-
-        grid_coordinates = nil
-        if grid_order
-          grid_order.each_with_index do |row, y|
-            row.each_with_index do |cell, x|
-              if cell.blank?
-                next
-              end
-              if cell == item["id"]
-                grid_coordinates = [x, y]
-              end
-            end
-          end
-        else
-          Rails.logger.warn "No grid order found"
-          grid_coordinates = [0, 0]
-        end
-        if doc
-          url = doc["url"]
-          doc_data = doc["data"]
-
-          file_format = doc["content_type"] || "image/png"
-          file_format = "image/svg+xml" if file_format == "image/svg"
-          license = doc["license"]
-          raw_txt = "obf_id_#{doc["id"]}"
-          processed = "processed: #{Time.now}"
-          if url
-            temp_display_image = url
-            if image.docs.where(original_image_url: url).none?
-              downloaded_image = Down.download(url)
-              user_id = current_user.id
-              @doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
-              @doc.image.attach(io: downloaded_image, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{@doc.id}.#{@doc.extension}", content_type: file_format) if downloaded_image
-              image.update(status: "finished")
-              PreprocessDocTileVariantJob.perform_async(@doc.id) if @doc.image.attached?
-            end
-          elsif doc_data
-            data = Base64.decode64(doc_data)
-            user_id = current_user.id
-            @doc = image.docs.create!(raw: raw_txt, user_id: user_id, processed: processed, source_type: "ObfImport", original_image_url: url, license: license)
-            @doc.image.attach(data: doc_data, filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{@doc.id}.#{@doc.extension}", content_type: file_format) if data
-            PreprocessDocTileVariantJob.perform_async(@doc.id) if @doc.image.attached?
-            unless @doc.save
-              Rails.logger.error "Error saving doc: #{@doc.errors.full_messages}"
-            end
-            @doc.reload
-            temp_display_image = @doc.tile_url
-            image.update(status: "finished")
-          else
-            Rails.logger.debug "No URL or path found for image"
-          end
-        end
-
-        dynamic_board = item["load_board"]
-        Rails.logger.debug "BTN ITM: #{item.inspect}"
-        Rails.logger.info "Processing button: #{label} - Image ID: #{image.id} - Load Board: #{dynamic_board || "none"}"
-        existing_image = board.board_images.find_by(image_id: image.id)
-        if existing_image
-          new_board_image = existing_image
-        else
-          new_board_image = board.board_images.new(image_id: image.id.to_i, voice: board.voice, position: board.board_images_count, display_image_url: temp_display_image)
-          new_board_image.skip_create_voice_audio = true
-          new_board_image.save!
-        end
-        # new_board_image.create_image_variation!
-        if new_board_image && !grid_coordinates.blank?
-          new_board_image_layout = { "x" => grid_coordinates[0], "y" => grid_coordinates[1], "w" => 1, "h" => 1, "i" => new_board_image.id.to_s }
-          new_board_image.layout["lg"] = new_board_image_layout
-          new_board_image.layout["md"] = new_board_image_layout
-          new_board_image.layout["sm"] = new_board_image_layout
-
-          new_board_image.data ||= {}
-          new_board_image.data["obf_id"] = item["image_id"]
-          new_board_image.skip_create_voice_audio = true
-          new_board_image.save!
-        end
-        if !grid_coordinates
-          Rails.logger.warn "No grid coordinates found for image: #{image.label}"
-          reset_layouts_after_import = true
-        end
-        dynamic_data[image.id] = { "board_id" => board.id,
-                                   "board" => board,
-                                   "original_obf_id" => obj["id"],
-                                   "dynamic_board" => dynamic_board,
-                                   "label" => label,
-                                   "orginal_image_id" => item["image_id"],
-                                   "board_image_id" => new_board_image.id }
-      end
-      board.update!(display_image_url: temp_display_image) if temp_display_image
-      if reset_layouts_after_import
-        board.reset_layouts
-        board.update(status: "active")
-        Rails.logger.debug "Resetting layouts after import for board: #{board.name}"
-        board
-      end
-
-      return [board, dynamic_data]
-    rescue => e
-      Rails.logger.error "Error Importing from OBF: #{e}"
-      Rails.logger.error e.backtrace.join("\n")
-      @board&.reset_layouts
-      @board&.update(status: "error")
-      return nil
+  def self.parse_obf_input(data)
+    case data
+    when Hash then data
+    when Pathname then JSON.parse(data.read)
+    when String then JSON.parse(data)
+    else JSON.parse(data.to_json)
     end
   end
+  private_class_method :parse_obf_input
+
+  def self.build_coords_index(grid_order)
+    return {} unless grid_order.is_a?(Array)
+    index = {}
+    grid_order.each_with_index do |row, y|
+      Array(row).each_with_index do |cell, x|
+        next if cell.blank?
+        index[cell.to_s] = [x, y]
+      end
+    end
+    index
+  end
+  private_class_method :build_coords_index
+
+  def self.find_or_init_board_for_import(board_id:, obf_id:, name:, user:, columns:, voice:, board_data:, board_type:)
+    board = Board.find_by(id: board_id, user_id: user.id) if board_id
+    board ||= Board.where.not(obf_id: nil).find_by(user_id: user.id, obf_id: obf_id)
+
+    if board
+      board.assign_attributes(
+        name: name,
+        large_screen_columns: columns, medium_screen_columns: columns, small_screen_columns: columns,
+        number_of_columns: columns, data: board_data, voice: voice,
+        obf_id: obf_id, board_type: board_type,
+      )
+    else
+      board = Board.new(
+        name: name, user_id: user.id, voice: voice,
+        large_screen_columns: columns, medium_screen_columns: columns, small_screen_columns: columns,
+        data: board_data, number_of_columns: columns, obf_id: obf_id, board_type: board_type,
+      )
+      board.generate_unique_slug
+    end
+    board.assign_parent
+    board.generate_unique_slug if board.slug.blank?
+    board
+  end
+  private_class_method :find_or_init_board_for_import
+
+  def self.find_or_create_image_for_button(item, user)
+    label = item["label"]
+    image = nil
+    if item["ext_saw_image_id"]
+      image = Image.find_by(id: item["ext_saw_image_id"].to_i, user_id: user.id)
+    end
+    image ||= Image.find_by(user_id: user.id, label: label, obf_id: item["image_id"])
+    image ||= Image.find_by(user_id: user.id, label: label)
+    image ||= Image.create!(label: label, user_id: user.id, obf_id: item["image_id"])
+    image
+  end
+  private_class_method :find_or_create_image_for_button
+
+  def self.attach_image_doc(image, doc_meta, current_user)
+    return nil unless doc_meta
+
+    url = doc_meta["url"]
+    inline = doc_meta["data"]
+    content_type = doc_meta["content_type"] || "image/png"
+    content_type = "image/svg+xml" if content_type == "image/svg"
+    license = doc_meta["license"]
+    raw_txt = "obf_id_#{doc_meta["id"]}"
+    processed = "processed: #{Time.now}"
+
+    if url
+      return url if image.docs.where(original_image_url: url).exists?
+      downloaded = Down.download(url) rescue nil
+      return nil unless downloaded
+      doc = image.docs.create!(raw: raw_txt, user_id: current_user.id, processed: processed,
+                               source_type: "ObfImport", original_image_url: url, license: license)
+      doc.image.attach(io: downloaded,
+                       filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}",
+                       content_type: content_type)
+      image.update(status: "finished")
+      PreprocessDocTileVariantJob.perform_async(doc.id) if doc.image.attached?
+      url
+    elsif inline
+      doc = image.docs.create!(raw: raw_txt, user_id: current_user.id, processed: processed,
+                               source_type: "ObfImport", original_image_url: nil, license: license)
+      doc.image.attach(data: inline,
+                       filename: "img_#{image.label_for_filename}_#{image.id}_doc_#{doc.id}.#{doc.extension}",
+                       content_type: content_type)
+      PreprocessDocTileVariantJob.perform_async(doc.id) if doc.image.attached?
+      image.update(status: "finished")
+      doc.reload.tile_url
+    end
+  end
+  private_class_method :attach_image_doc
+
+  def self.upsert_board_image(board, image, item, coords, display_url)
+    board_image = board.board_images.find_by(image_id: image.id)
+    unless board_image
+      board_image = board.board_images.new(image_id: image.id, voice: board.voice,
+                                           position: board.board_images_count,
+                                           display_image_url: display_url)
+      board_image.skip_create_voice_audio = true
+      board_image.save!
+    end
+
+    if coords
+      layout = { "x" => coords[0], "y" => coords[1], "w" => 1, "h" => 1, "i" => board_image.id.to_s }
+      board_image.layout["lg"] = layout
+      board_image.layout["md"] = layout
+      board_image.layout["sm"] = layout
+      board_image.data ||= {}
+      board_image.data["obf_id"] = item["image_id"]
+      board_image.skip_create_voice_audio = true
+      board_image.save!
+    end
+
+    board_image
+  end
+  private_class_method :upsert_board_image
 
   def source_type
     data = self.data || {}
     data["source_type"] || nil
   end
 
-  def parse_obf_grid(obf_grid)
-    # Extract rows, columns, and order from the OBF grid
-    rows = obf_grid["rows"]
-    columns = obf_grid["columns"]
-    order = obf_grid["order"]
-
-    # Reconstruct the original grid layout
-    original_grid = []
-    order.each_with_index do |row, y|
-      row.each_with_index do |cell, x|
-        next if cell.nil? # Skip empty cells
-        original_grid << {
-          "x" => x,
-          "y" => y,
-          "w" => 1, # Assuming each cell is 1x1 in size; adjust if needed
-          "h" => 1, # Assuming each cell is 1x1 in size; adjust if needed
-          "i" => cell,
-        }
-      end
-    end
-    original_grid
-  end
-
-  def self.from_obz(extracted_obz_data, current_user, group_name = nil, root_board_id = nil)
-    extracted_obz_data = extracted_obz_data.with_indifferent_access
-    manifest = extracted_obz_data[:manifest]
-    boards = extracted_obz_data[:boards]
-    group_name ||= boards[0]["name"]
-    Rails.logger.debug "Creating board group: #{group_name} - root_board_id: #{root_board_id}"
-
-    board_group = BoardGroup.create!(name: group_name, user_id: current_user.id, original_obf_root_id: root_board_id)
-
-    created_boards = []
-    dynamic_data_array = []
-    boards.each_with_index do |board_data, index|
-      board_json = board_data.to_json
-      new_board, dynamic_data = from_obf(board_json, current_user, board_group)
-      if !new_board
-        Rails.logger.error "Error creating board from OBF - #{board_data["name"]}"
-        next
-      end
-      created_boards << { board_id: new_board&.id, original_obf_id: board_data["id"], board: new_board }
-      dynamic_data_array << dynamic_data
-      if new_board
-        Rails.logger.debug "Adding board to board group #{board_group.id} - #{new_board.name}"
-        new_board.board_groups << board_group
-        new_board.save!
-      else
-        Rails.logger.error "Error creating board from OBF"
-      end
-    end
-
-    if created_boards.empty?
-      Rails.logger.error "No boards created"
-      return
-    end
-
-    Rails.logger.debug ">>>> root_board_id: #{root_board_id}"
-    board_group.reload
-
-    if root_board_id
-      root_board = board_group.root_board
-      Rails.logger.debug "Root board found - group: #{group_name} - #{root_board.name}" if root_board
-      Rails.logger.debug "Root board not found - group: #{group_name}" unless root_board
-    else
-      Rails.logger.debug "Root board not found: #{root_board_id} - group: #{group_name}"
-      root_board = board_group.boards.order(:position).first
-    end
-    Rails.logger.debug "Root board: #{root_board&.name} - Updating board type to dynamic" if root_board
-    board_group.update!(root_board_id: root_board&.id) if root_board
-    root_board.update!(board_type: "dynamic") if root_board
-    if !root_board
-      Rails.logger.error ">>>> Root board not found - group: #{group_name}"
-    end
-
-    dynamic_data_array.each do |dynamic_data|
-      dynamic_data&.each do |image_id, data|
-        image = Image.find_by(id: image_id&.to_i, user_id: current_user.id)
-        board_image_id = data["board_image_id"]
-        board_image = BoardImage.find_by(id: board_image_id)
-        next unless board_image
-        if board_image
-          if data["dynamic_board"]
-            if created_boards.any? { |b| b[:original_obf_id] == data["dynamic_board"]["id"] }
-              dynamic_board = created_boards.find { |b| b[:original_obf_id] == data["dynamic_board"]["id"] }
-              dynamic_board_id = dynamic_board.with_indifferent_access[:board_id]
-              Rails.logger.debug "Setting predictive board for image: #{board_image.label} - #{dynamic_board_id}"
-              # image.predictive_board_id = dynamic_board_id
-              board_image.predictive_board_id = dynamic_board_id
-
-              board_image.save!
-            else
-              board_image.predictive_board_id = root_board.id if root_board
-              # image.image_type = "predictive"
-              board_image.save!
-            end
-          end
-        else
-          Rails.logger.warn "board_image not found for id: #{board_image_id}"
-        end
-      end
-    end
-
-    created_boards
-  end
-
-  def self.extract_manifest(zip_path, manifest_filename = "manifest.json")
-    Zip::File.open(zip_path) do |zip_file|
-      manifest_entry = zip_file.find_entry(manifest_filename)
-
-      raise "Manifest file '#{manifest_filename}' not found in the archive" unless manifest_entry
-
-      manifest_entry.get_input_stream.read
-    end
-  rescue Zip::Error => e
-    Rails.logger.debug "Failed to process the ZIP file: #{e.message}"
-    nil
-  end
-
-  def self.analyze_manifest(manifest_data)
-    manifest_data = JSON.parse(manifest_data)
-    parsed_data = manifest_data.with_indifferent_access
-    root_board_id = parsed_data[:root]
-    data = parsed_data[:paths]
-    pp data.keys
-    boards = data[:boards]
-    buttons = data[:buttons]
-    images = data[:images]
-    sounds = data[:sounds]
-    first_image = images&.first
-    {
-      board_count: boards&.count,
-      button_count: buttons&.count,
-      image_count: images&.count,
-      sound_count: sounds&.count,
-      root_board_id: root_board_id,
-    }
-  rescue JSON::ParserError => e
-    Rails.logger.debug "Failed to parse the manifest data: #{e.message}"
-    nil
-  end
 end

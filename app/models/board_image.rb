@@ -284,37 +284,34 @@ class BoardImage < ApplicationRecord
 
   def to_obf_image_format(viewing_user = nil)
     viewing_user ||= user
-    is_dynamic = board.board_type == "dynamic"
-    puts "is_dynamic: #{is_dynamic}"
     {
       id: id.to_s,
       url: tile_image_url(viewing_user),
-      width: 850, # this might need to be changed
-      height: 850, # this might need to be changed
       content_type: image.content_type,
       ext_saw_label: label,
       ext_saw_voice: voice,
       ext_board_type: board.board_type,
-    }
+    }.compact
   end
 
+  # Returns nil when there's no audio file to point at — caller compacts these.
+  # OBF requires each sound to have a unique id, so emitting an empty id is invalid.
   def to_obf_sound_format
-    audio_file = image.find_audio_for_voice(voice, language)
+    return nil if audio_url.blank?
     {
-      id: audio_file&.id.to_s,
-      ext_saw_label: label,
+      id: id.to_s,
       url: audio_url,
+      content_type: "audio/aac",
+      ext_saw_label: label,
       ext_saw_voice: voice,
       ext_board_type: board.board_type,
       ext_saw_image_id: id.to_s,
-      duration: 1, # this might need to be changed
-      content_type: "audio/aac",
     }
   end
 
   def to_obf_button_format
-    {
-      id: id.to_i,
+    btn = {
+      id: id.to_s,
       label: label,
       image_id: id.to_s,
       background_color: get_background_color_css,
@@ -322,6 +319,17 @@ class BoardImage < ApplicationRecord
       ext_saw_image_id: image_id.to_s,
       ext_saw_board_id: board_id.to_s,
     }
+    btn[:sound_id] = id.to_s if audio_url.present?
+    if predictive_board_id
+      target = Board.find_by(id: predictive_board_id)
+      if target
+        btn[:load_board] = {
+          id: (target.obf_id.presence || target.id.to_s),
+          name: target.name,
+        }
+      end
+    end
+    btn
   end
 
   def create_voice_audio
