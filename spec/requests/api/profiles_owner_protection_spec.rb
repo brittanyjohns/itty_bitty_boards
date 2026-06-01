@@ -34,6 +34,14 @@ RSpec.describe "API::Profiles owner protection", type: :request do
     )
   end
 
+  # The safety profile triggers Grover/puppeteer-driven PNG generation
+  # on update; that's out of scope for an authorization spec and isn't
+  # available in CI.
+  before do
+    allow_any_instance_of(Profile).to receive(:generate_attachments!).and_return(true)
+    allow_any_instance_of(Profile).to receive(:enqueue_audio_job_if_needed).and_return(true)
+  end
+
   describe "PATCH /api/profiles/:id (ChildAccount safety profile)" do
     let(:update_params) { { profile: { bio: "Updated bio" } } }
 
