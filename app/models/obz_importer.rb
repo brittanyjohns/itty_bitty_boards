@@ -38,7 +38,8 @@ class ObzImporter
     raise ImportError, "Root board could not be determined" unless root_obf_path
 
     boards_by_obf_id = {}
-    merged_dynamic_data = {}
+    obf_id_by_path = {}  # normalized zip path → obf_id, for resolving load_board.path
+    dynamic_data_rows = []
 
     paths_to_import = @import_all ? obf_paths : [root_obf_path]
 
@@ -55,34 +56,36 @@ class ObzImporter
       end
 
       if @board_group && same_norm_path?(path, root_obf_path) && @board_group.original_obf_root_id.blank?
-        Rails.logger.info "[ObzImporter] Setting BoardGroup original_obf_root_id to #{obf_json["id"].to_s} for BoardGroup ID #{@board_group.id}"
         @board_group.update(original_obf_root_id: obf_json["id"].to_s) rescue nil
       end
 
-      board, dynamic_data = Board.from_obf(obf_json.to_json, @current_user, @board_group, @board_id)
-      Rails.logger.info "[ObzImporter]Dynamic data keys from board ID #{board&.id}: #{dynamic_data.keys.join(", ")}" if dynamic_data
-      boards_by_obf_id[obf_json["id"].to_s] = board if board
-      Rails.logger.info "[ObzImporter] Board OBF ID: #{obf_json["id"].to_s}"
-      Rails.logger.info "[ObzImporter] Current merged dynamic data keys: #{merged_dynamic_data.keys.join(", ")}"
-      merged_dynamic_data.merge!(dynamic_data || {})
+      begin
+        board, dynamic_data = Board.from_obf(obf_json, @current_user, @board_group, @board_id)
+      rescue StandardError => e
+        Rails.logger.error "[ObzImporter] Skipping #{path}: #{e.class}: #{e.message}"
+        next
+      end
+      next unless board
+      obf_id = obf_json["id"].to_s
+      boards_by_obf_id[obf_id] = board
+      obf_id_by_path[normalize_zip_path(path)] = obf_id
+      dynamic_data_rows.concat(Array(dynamic_data).map { |_, row| row })
     end
 
     root_board = if @import_all
-        Rails.logger.info "[ObzImporter] Locating root board using original_obf_root_id #{@board_group.original_obf_root_id} for BoardGroup ID #{@board_group.id}"
-        root_obf_path = resolve_root_obf_path(obf_paths, manifest)
         root_obf_json = parse_json_document(read_entry(root_obf_path), context: root_obf_path)
         boards_by_obf_id[root_obf_json["id"].to_s]
       else
         boards_by_obf_id.values.first
       end
 
-    Rails.logger.info "[ObzImporter] Updating BoardGroup root_board_id to #{root_board&.id} for BoardGroup ID #{@board_group.id}"
-
     if @board_group && root_board && @board_group.root_board_id != root_board.id
       @board_group.update(root_board_id: root_board.id) rescue nil
     end
 
-    { boards: boards_by_obf_id, root_board: root_board, dynamic_data: merged_dynamic_data }
+    link_dynamic_boards!(dynamic_data_rows, boards_by_obf_id, obf_id_by_path, root_board)
+
+    { boards: boards_by_obf_id, root_board: root_board, dynamic_data: dynamic_data_rows }
   rescue ImportError => e
     Rails.logger.error "[ObzImporter] Import error: #{e.message}"
     raise
@@ -93,6 +96,42 @@ class ObzImporter
   end
 
   private
+
+  # --------------------------
+  # Post-import linking
+  # --------------------------
+
+  # Resolve `load_board` buttons captured by Board.from_obf into actual
+  # BoardImage#predictive_board_id links. Per the OBF spec, load_board may
+  # use either `id` (id of another OBF in the same package) or `path` (zip
+  # entry path). We try id first, then path, then fall back to root_board so
+  # navigation never dead-ends on a button the user expects to link somewhere.
+  def link_dynamic_boards!(rows, boards_by_obf_id, obf_id_by_path, root_board)
+    rows.each do |row|
+      dynamic_board = row["dynamic_board"]
+      next unless dynamic_board.is_a?(Hash)
+
+      board_image = BoardImage.find_by(id: row["board_image_id"])
+      next unless board_image
+
+      target = resolve_link_target(dynamic_board, boards_by_obf_id, obf_id_by_path) || root_board
+      next unless target
+
+      board_image.update_columns(predictive_board_id: target.id)
+    end
+  end
+
+  def resolve_link_target(dynamic_board, boards_by_obf_id, obf_id_by_path)
+    if (id_ref = dynamic_board["id"]).present? && (b = boards_by_obf_id[id_ref.to_s])
+      return b
+    end
+    if (path_ref = dynamic_board["path"]).present?
+      norm = normalize_zip_path(path_ref)
+      obf_id = obf_id_by_path[norm]
+      return boards_by_obf_id[obf_id] if obf_id
+    end
+    nil
+  end
 
   # --------------------------
   # ZIP reading + path index

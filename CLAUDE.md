@@ -92,6 +92,36 @@ backlog size (default 200).
 - Premium features (Menu Board Creator, AI image generation) require active subscription
 - Subscription managed via Stripe/RevenueCat — check status before allowing access to premium endpoints
 
+### `paid_plan?` semantics
+
+`User#paid_plan?` is the single gate for paid-tier checks. It considers
+**both** `plan_type` and `plan_status`:
+
+- Returns `false` when `plan_type` is `nil` or `free`.
+- Returns `false` when `plan_status` is `canceled`, `paused`,
+  `incomplete_expired`, or `unpaid` — even if `plan_type` is a paid tier.
+  This protects against a missed `subscription.deleted` webhook leaving
+  a user as `plan_type=basic` + `plan_status=canceled` and silently
+  passing paid gates.
+- `basic_trial` (soft trial) and Stripe `trialing` count as paid while
+  active — same rule as the MySpeak ID and credit gates.
+
+If you're adding a new paid-feature gate, call `current_user.paid_plan?`
+rather than reading `plan_type` directly.
+
+### Soft-trial assignment (`set_soft_trial_plan`)
+
+Soft-trial users start as `plan_type=basic_trial` for 14 days post-signup.
+Assignment runs as a **`before_create`** callback (not `before_save`), with
+an early-return guard: if the user already has a `paid_plan_type` set
+(i.e. they picked Basic/Pro at signup), the trial assignment is skipped.
+
+The earlier `before_save` version bounced users back to `basic_trial`
+on every save within the 14-day window — even after a deliberate
+downgrade (Stripe cancel, "Free" pick at checkout). If you touch this
+callback, preserve both invariants: trial only on initial create, and
+never overwrite an explicit paid_plan_type pick.
+
 ### MySpeak ID limit (Free = 1)
 
 Free users are capped at **one MySpeak ID** (Profile). Basic/Pro/admin
@@ -183,6 +213,24 @@ not just team membership).
 known backend-enforcement gaps — lives in
 `marketing/.claude-notes/handoff-workflow.md`. Keep that doc and this
 section in sync when the rules change.
+### Editing the communicator object itself
+
+`ChildAccount#editable_by?(user)` returns true iff the user is the
+`owner_id` or a system admin. It's the helper that drives the
+`can_edit_communicator` flag on both `api_view` and `vendor_api_view`
+(issue #215). The frontend uses that flag to gate the Edit tab/form on a
+communicator — i.e. who can change name, username, voice, layout, and
+the safety profile.
+
+`can_edit_communicator` is **distinct from `can_edit`** in the same
+payload: `can_edit` answers "can this user curate boards on this
+communicator" (board sharers, including team members on a paid plan).
+`can_edit_communicator` answers "can this user mutate the communicator
+object itself" (owner-only by default). Keep both — they back different
+UI affordances.
+
+Full permissions matrix and the rationale for the split lives in
+`../speakanyway/marketing/.claude-notes/handoff-workflow.md`.
 
 ## AI gating: credit ledger (source of truth)
 

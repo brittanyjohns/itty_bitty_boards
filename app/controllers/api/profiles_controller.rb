@@ -101,6 +101,15 @@ class API::ProfilesController < API::ApplicationController
 
   def update
     profile = Profile.find(params[:id])
+
+    # Safety / Emergency profile on a communicator is owner-only.
+    # See marketing/.claude-notes/handoff-workflow.md (Permissions matrix).
+    if profile.profileable_type == "ChildAccount" &&
+       !profile.profileable.editable_by?(current_user)
+      render json: { error: "not_owner" }, status: :forbidden
+      return
+    end
+
     slug = params.dig(:profile, :slug)
     if slug.blank?
       slug = profile.username.parameterize if profile.username.present?

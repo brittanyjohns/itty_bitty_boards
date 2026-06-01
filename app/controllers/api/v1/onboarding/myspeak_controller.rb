@@ -81,6 +81,16 @@ module API
             ensure_team_for(child)
           end
 
+          # Fall back to a generated initials avatar when the parent
+          # skipped the photo step. The Safety ID card and Device Tag
+          # both embed the avatar, so without this they render with a
+          # broken image slot.
+          begin
+            profile.set_fake_avatar unless profile.avatar.attached?
+          rescue StandardError => e
+            Rails.logger.warn "[Onboarding::Myspeak#create] set_fake_avatar failed: #{e.message}"
+          end
+
           profile.generate_attachments! if profile.safety?
           render json: profile.safety_view, status: :created
         rescue ActiveRecord::RecordInvalid => e
@@ -192,13 +202,10 @@ module API
         # Mirrors API::ChildAccountsController#create — every new
         # communicator gets a Team with the creator as admin, so team
         # permission checks have something to anchor on later.
+        # `ChildAccount#ensure_team!` does the admin-add (issue #226).
         def ensure_team_for(child)
-          return if child.teams.exists?
-
           team_name = child.name.present? ? "#{child.name}'s Communication Team" : "Communication Team"
-          team = Team.create!(name: team_name, created_by: current_user)
-          TeamAccount.create!(team: team, account: child)
-          team.add_member!(current_user, current_user.professional? ? "professional" : "admin")
+          child.ensure_team!(creator: current_user, name: team_name)
         end
       end
     end

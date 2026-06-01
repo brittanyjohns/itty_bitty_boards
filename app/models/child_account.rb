@@ -136,6 +136,14 @@ class ChildAccount < ApplicationRecord
   def loaner?  = status == LOANER
   def active?  = status == ACTIVE
 
+  # Can `user` edit the communicator object itself (name, username, voice,
+  # layout, safety info)? Distinct from `can_edit` in api_view, which
+  # answers "can this user curate boards on this communicator." Spec:
+  # marketing/.claude-notes/handoff-workflow.md (Permissions matrix).
+  def editable_by?(user)
+    user.present? && (user.id == owner_id || user.admin?)
+  end
+
   # `is_demo` is derived from status now. The DB column is retained until the
   # frontend cutover (F1) is complete, then dropped. Writes to `is_demo` flow
   # into `status` for backwards compatibility.
@@ -263,8 +271,8 @@ class ChildAccount < ApplicationRecord
 
       if previous_owner && previous_owner != user
         team = primary_team || ensure_team!(creator: user)
-        team.add_member!(previous_owner, "supervisor")
-        team.add_member!(user, "admin")
+        team.upsert_member!(previous_owner, "supervisor")
+        team.upsert_member!(user, "admin")
       end
     end
 
@@ -320,11 +328,21 @@ class ChildAccount < ApplicationRecord
     teams.first
   end
 
-  def ensure_team!(creator:)
+  # Ensure this communicator has a team. If it already does, return
+  # it as-is. Otherwise create one with `creator` as the team-creator
+  # AND as an `admin` team_user — i.e. the caller never has to follow
+  # up with `team.upsert_member!(creator, "admin")`. Issue #226.
+  #
+  # `name:` lets callers override the default "<communicator>'s Team"
+  # (e.g. the API controllers use "<communicator>'s Communication
+  # Team"). Passing nil falls back to the default.
+  def ensure_team!(creator:, name: nil)
     return primary_team if primary_team.present?
 
-    team = Team.create!(name: "#{name || "Communicator"}'s Team", created_by: creator)
+    team_name = name.presence || "#{self.name || "Communicator"}'s Team"
+    team = Team.create!(name: team_name, created_by: creator)
     TeamAccount.create!(team: team, account: self)
+    team.upsert_member!(creator, "admin") if creator
     team
   end
 
@@ -417,6 +435,7 @@ class ChildAccount < ApplicationRecord
       sign_in_count: sign_in_count,
       board_week_chart: board_week_chart,
       can_edit: viewing_user&.can_add_boards_to_account?([id]),
+      can_edit_communicator: editable_by?(viewing_user),
       is_owner: viewing_user&.id == user_id,
       is_vendor: is_vendor,
       layout: layout,
@@ -633,12 +652,18 @@ class ChildAccount < ApplicationRecord
              .where.not(board_id: used_ids)
   end
 
+  # Read-only team members across all of this account's teams. Named
+  # for backward-compat with the `supporters` field in `api_view`; new
+  # canonical role set is just `member`. Issue #216.
   def supporters
-    team_users.includes(:user).where(role: ["supporter", "member", "restricted"]).distinct.map(&:user)
+    team_users.includes(:user).where(role: "member").distinct.map(&:user)
   end
 
+  # Curators across all of this account's teams. `admin` is the
+  # account owner, `supervisor` is the SLP / power collaborator.
+  # Surfaced in `api_view` under the `supervisors` key. Issue #216.
   def supervisors
-    team_users.includes(:user).where(role: ["supervisor", "admin"]).distinct.map(&:user)
+    team_users.includes(:user).where(role: %w[admin supervisor]).distinct.map(&:user)
   end
 
   def startup_url
@@ -743,6 +768,7 @@ class ChildAccount < ApplicationRecord
       created_at: created_at,
       sign_in_count: sign_in_count,
       can_edit: viewing_user&.can_add_boards_to_account?([id]),
+      can_edit_communicator: editable_by?(viewing_user),
       is_owner: viewing_user&.id == user_id || viewing_user&.admin?,
       is_vendor: is_vendor,
       layout: layout,

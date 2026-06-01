@@ -21,8 +21,8 @@ RSpec.describe BoardSnapshotService, type: :service do
   let!(:slp_board) { create(:board, user: slp) }
 
   before do
-    team.add_member!(parent, "admin")
-    team.add_member!(slp, "supervisor")
+    team.upsert_member!(parent, "admin")
+    team.upsert_member!(slp, "supervisor")
     team.team_boards.create!(board: slp_board, created_by_id: slp.id)
   end
 

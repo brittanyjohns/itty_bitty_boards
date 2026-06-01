@@ -13,10 +13,21 @@
 #  can_edit               :boolean          default(FALSE)
 #
 class TeamUser < ApplicationRecord
+  # Canonical role set (issue #216). Permissions matrix lives in
+  # marketing/.claude-notes/handoff-workflow.md:
+  #   admin      — account owner; full curation + member management.
+  #   supervisor — power collaborator (SLP). Can curate boards on the
+  #                communicator but cannot edit the communicator object
+  #                or delete the account.
+  #   member     — read-only on the communicator; can add boards to the
+  #                team library but cannot assign them.
+  ROLES = %w[admin supervisor member].freeze
+
   belongs_to :user
   belongs_to :team
 
-  before_create :set_defaults
+  before_validation :set_defaults, on: :create
+  validates :role, inclusion: { in: ROLES, message: "must be admin, supervisor, or member" }
   before_destroy :snapshot_shared_boards_to_family
 
   # Safety net for the SLP→family hand-off (B6 — issue #162). When this
@@ -49,7 +60,7 @@ class TeamUser < ApplicationRecord
   end
 
   def self.roles
-    { "admin" => "Admin", "member" => "Member" }
+    { "admin" => "Admin", "supervisor" => "Supervisor", "member" => "Member" }
   end
 
   # True if this user is the owner of any child_account on the team. Used

@@ -87,6 +87,17 @@ class ChildBoard < ApplicationRecord
     board.board_type
   end
 
+  # Can `user` curate this child_board (toggle favorite, reorder, etc.)?
+  # Uses the curation tier — owner, system admin, or anyone on the
+  # communicator's team with admin/member/supporter role. Same shape as
+  # `assign_boards`. Detach (#destroy) is stricter — owner-only — because
+  # it bypasses the supervisor-removal snapshot safety net. Spec:
+  # marketing/.claude-notes/handoff-workflow.md (Permissions matrix).
+  def curatable_by?(user)
+    return false unless user
+    user.can_add_boards_to_account?([child_account_id])
+  end
+
   def api_view
     {
       id: id,

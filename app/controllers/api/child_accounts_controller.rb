@@ -1,5 +1,6 @@
 class API::ChildAccountsController < API::ApplicationController
-  before_action :set_child_account, only: %i[ show update destroy promote_to_loaner lend claim_link send_claim_link end_loan archive unarchive ]
+  before_action :set_child_account, only: %i[ show update destroy promote_to_loaner lend claim_link send_claim_link end_loan archive unarchive assign_boards send_setup_email ]
+  before_action :authorize_communicator_edit!, only: %i[ update assign_boards send_setup_email ]
   # Claim preview is the parent's "this is what you're about to claim"
   # page — they may not be signed in yet, so it runs token-only.
   skip_before_action :authenticate_token!, only: %i[ claim_preview ]
@@ -22,7 +23,6 @@ class API::ChildAccountsController < API::ApplicationController
   end
 
   def send_setup_email
-    @child_account = ChildAccount.find(params[:id])
     @child_account.send_setup_email(current_user)
     render json: { success: true }
   end
@@ -362,21 +362,12 @@ class API::ChildAccountsController < API::ApplicationController
         end
       end
 
-      # Team setup
-      team_name = if @child_account.name.present?
-          "#{@child_account.name}'s Communication Team"
-        else
-          "Communication Team"
-        end
-
-      team = @child_account.teams.first
-      unless team
-        team = Team.create!(name: team_name, created_by: current_user)
-        TeamAccount.create!(team: team, account: @child_account)
-      end
-
-      team_role = current_user.professional? ? "professional" : "admin"
-      team.add_member!(current_user, team_role)
+      # Team setup. `ensure_team!` adds the creator as admin; no
+      # follow-up call needed (issue #226).
+      team_name = @child_account.name.present? ?
+        "#{@child_account.name}'s Communication Team" :
+        "Communication Team"
+      @child_account.ensure_team!(creator: current_user, name: team_name)
 
       render json: @child_account.api_view(current_user), status: :created
     else
@@ -450,7 +441,6 @@ class API::ChildAccountsController < API::ApplicationController
   end
 
   def assign_boards
-    @child_account = ChildAccount.find(params[:id])
     board_ids = params[:board_ids]
     total_boards = @child_account.child_boards.count + board_ids.size
     if @child_account.sandbox?
@@ -498,6 +488,24 @@ class API::ChildAccountsController < API::ApplicationController
   # Only allow a list of trusted parameters through.
   def child_account_params
     params.require(:child_account).permit(:user_id, :username, :name)
+  end
+
+  # Issues #210 / #211 — content-mutating endpoints on the communicator
+  # itself (name, username, passcode, voice, settings, layout, boards
+  # roster, setup email) must be owner-only. SLP supervisors and other
+  # team members are read-only on the communicator object; they share
+  # boards via the team instead. System admins bypass.
+  #
+  # The inline ownership checks in `lend`, `end_loan`, `archive`,
+  # `unarchive`, `promote_to_loaner`, `claim_link`, and `send_claim_link`
+  # haven't been folded in here yet — each has its own error message /
+  # status nuance. Tracked as a follow-up.
+  def authorize_communicator_edit!
+    return if @child_account.editable_by?(current_user)
+
+    render json: account_error_payload("not_owner").merge(
+      message: "Only the owner can edit this communicator.",
+    ), status: :forbidden
   end
 
   # Mutation endpoints (lend, end_loan, etc.) return the current account

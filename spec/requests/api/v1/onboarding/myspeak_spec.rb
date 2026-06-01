@@ -236,6 +236,40 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
       end
     end
 
+    context "photo_data_url is blank" do
+      it "falls back to set_fake_avatar and still runs generate_attachments!" do
+        # Stub the network call to ui-avatars.com; attach a tiny fixture
+        # so profile.avatar is genuinely attached.
+        png_bytes = Base64.strict_decode64(PNG_DATA_URL.split(",", 2).last)
+        allow_any_instance_of(Profile).to receive(:set_fake_avatar) do |profile|
+          profile.avatar.attach(
+            io: StringIO.new(png_bytes),
+            filename: "#{profile.slug}.png",
+            content_type: "image/png",
+          )
+        end
+
+        expect_any_instance_of(Profile).to receive(:set_fake_avatar).and_call_original
+        expect_any_instance_of(Profile).to receive(:generate_attachments!).and_return(true)
+
+        post "/api/v1/onboarding/myspeak",
+             params: base_payload.merge(photo_data_url: "").to_json, headers: headers
+
+        expect(response).to have_http_status(:created)
+        profile = user.communicator_accounts.last.profile
+        expect(profile.avatar).to be_attached
+      end
+
+      it "does not overwrite an uploaded avatar with the fallback" do
+        expect_any_instance_of(Profile).not_to receive(:set_fake_avatar)
+
+        post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
+
+        expect(response).to have_http_status(:created)
+        expect(user.communicator_accounts.last.profile.avatar).to be_attached
+      end
+    end
+
     context "free user has no available communicator slot" do
       it "returns 422 communicator_slot_unavailable" do
         # Free's default paid_communicator_limit is 1. Take it.
