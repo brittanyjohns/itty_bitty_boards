@@ -208,7 +208,7 @@ module API
           team_name = child.name.present? ? "#{child.name}'s Communication Team" : "Communication Team"
           team = Team.create!(name: team_name, created_by: current_user)
           TeamAccount.create!(team: team, account: child)
-          team.add_member!(current_user, current_user.professional? ? "professional" : "admin")
+          team.add_member!(current_user, "admin")
         end
       end
     end

@@ -375,8 +375,7 @@ class API::ChildAccountsController < API::ApplicationController
         TeamAccount.create!(team: team, account: @child_account)
       end
 
-      team_role = current_user.professional? ? "professional" : "admin"
-      team.add_member!(current_user, team_role)
+      team.add_member!(current_user, "admin")
 
       render json: @child_account.api_view(current_user), status: :created
     else

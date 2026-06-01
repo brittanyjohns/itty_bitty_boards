@@ -642,12 +642,18 @@ class ChildAccount < ApplicationRecord
              .where.not(board_id: used_ids)
   end
 
+  # Read-only team members across all of this account's teams. Named
+  # for backward-compat with the `supporters` field in `api_view`; new
+  # canonical role set is just `member`. Issue #216.
   def supporters
-    team_users.includes(:user).where(role: ["supporter", "member", "restricted"]).distinct.map(&:user)
+    team_users.includes(:user).where(role: "member").distinct.map(&:user)
   end
 
+  # Curators across all of this account's teams. `admin` is the
+  # account owner, `supervisor` is the SLP / power collaborator.
+  # Surfaced in `api_view` under the `supervisors` key. Issue #216.
   def supervisors
-    team_users.includes(:user).where(role: ["supervisor", "admin"]).distinct.map(&:user)
+    team_users.includes(:user).where(role: %w[admin supervisor]).distinct.map(&:user)
   end
 
   def startup_url

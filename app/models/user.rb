@@ -621,11 +621,7 @@ class User < ApplicationRecord
     return false unless account
     return true if account.user_id == id
     return true if admin?
-    return true if account.team_users.where(user_id: id, role: "admin").exists?
-    return true if account.team_users.where(user_id: id, role: "member").exists?
-    return true if account.team_users.where(user_id: id, role: "supporter").exists?
-    return true if account.team_users.where(user_id: id, role: "restricted").exists?
-    false
+    account.team_users.where(user_id: id, role: TeamUser::ROLES).exists?
   end
 
   def can_edit_profile?(profile_id, profileable_type = "User")
@@ -645,6 +641,13 @@ class User < ApplicationRecord
     false
   end
 
+  # Can the user curate boards on the communicator? Issue #216 — only
+  # admin (account owner) and supervisor (SLP power-collaborator) can
+  # assign/reorder/favorite boards on the communicator. `member` is
+  # read-only on the communicator; they can add boards to the team
+  # library but cannot push them onto the communicator.
+  CURATE_ROLES = %w[admin supervisor].freeze
+
   def can_add_boards_to_account?(account_ids)
     return false unless account_ids
     account_id = account_ids.first
@@ -653,11 +656,7 @@ class User < ApplicationRecord
     return false unless account
     return true if account.user_id == id
     return true if admin?
-    return true if account.team_users.where(user_id: id, role: "admin").exists?
-    return true if account.team_users.where(user_id: id, role: "member").exists?
-    return true if account.team_users.where(user_id: id, role: "supporter").exists?
-    return false if account.team_users.where(user_id: id, role: "restricted").exists?
-    false
+    account.team_users.where(user_id: id, role: CURATE_ROLES).exists?
   end
 
   def can_favorite?(model)
@@ -1171,10 +1170,8 @@ class User < ApplicationRecord
   end
 
   def teams_with_read_access
-    # teams = Team.where(id: team_users.select(:team_id)).where.not(created_by_id: id)
-    # team_users.includes(:team).where(role: ["supporter", "member", "restricted"]).map(&:team).uniq
     teams.joins(:team_users)
-         .where(team_users: { role: ["supporter", "member", "restricted"] })
+         .where(team_users: { user_id: id, role: %w[supervisor member] })
          .where.not(teams: { created_by_id: id })
          .distinct
   end

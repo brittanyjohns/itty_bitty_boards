@@ -1,5 +1,6 @@
 class API::TeamsController < API::ApplicationController
   before_action :set_team, only: %i[ show edit update destroy remove_board invite ]
+  before_action :authorize_team_member!, only: %i[ create_board ]
   # after_action :verify_policy_scoped, only: :index
 
   # GET /teams or /teams.json
@@ -134,7 +135,6 @@ class API::TeamsController < API::ApplicationController
   end
 
   def create_board
-    @team = Team.find(params[:id])
     @board = Board.find(params[:board_id])
     @team_board = @team.add_board!(@board, current_user.id)
     if @team_board.save
@@ -185,13 +185,25 @@ class API::TeamsController < API::ApplicationController
     @team = Team.with_artifacts.find(params[:id])
   end
 
+  # Any team member (admin, supervisor, member) — or a system admin —
+  # may add boards to the team's library. Non-members get 403. Issue
+  # #216 — closes the gap where any signed-in user could write to any
+  # team's `team_boards`.
+  def authorize_team_member!
+    @team = Team.with_artifacts.find(params[:id])
+    return if current_user.admin?
+    return if @team.team_users.where(user_id: current_user.id, role: TeamUser::ROLES).exists?
+    render_team_permission_error("not_a_team_member",
+                                 "You must be on this team to add boards to it.")
+  end
+
   def team_user_params
     params.require(:team_user).permit(:email)
   end
 
   def invite_role
     role = params.dig(:team_user, :role).to_s
-    %w[admin member].include?(role) ? role : "member"
+    TeamUser::ROLES.include?(role) ? role : "member"
   end
 
   # Only allow a list of trusted parameters through.
