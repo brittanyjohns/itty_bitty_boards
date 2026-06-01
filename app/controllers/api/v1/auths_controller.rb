@@ -31,14 +31,14 @@ module API
             User.handle_new_partner_pro_subscription(user, params["plan_type"])
           end
 
-          # Send welcome email
-          # UserMailer.welcome_email(user).deliver_now
-          # user.send_welcome_email
           sign_in user
           user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
           user.ensure_minimum_communicator_slot!
           if user.role == "partner"
             user.send_partner_welcome_email
+          end
+          if params["plan_type"] != "partner_pro" && user.should_send_welcome_email?
+            user.send_welcome_email("free")
           end
           MailchimpEventJob.perform_async(user.id, "sign_up")
           render json: { token: user.authentication_token, user: user.api_view }

@@ -89,6 +89,50 @@ RSpec.describe "API::V1::Auth", type: :request do
     end
   end
 
+  describe "POST /api/v1/users (sign_up)" do
+    let(:valid_params) do
+      {
+        email: "new-free@example.com",
+        password: "password123",
+        password_confirmation: "password123",
+        name: "New Free",
+      }
+    end
+
+    before do
+      allow(User).to receive(:create_stripe_customer).and_return("cus_test")
+      allow(MailchimpEventJob).to receive(:perform_async)
+    end
+
+    it "sends the free welcome email on a plain signup" do
+      expect_any_instance_of(User).to receive(:send_welcome_email).with("free")
+
+      post "/api/v1/users", params: valid_params
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["token"]).to be_present
+    end
+
+    it "does not send the free welcome email for partner_pro signups" do
+      expect_any_instance_of(User).not_to receive(:send_welcome_email)
+      expect_any_instance_of(User).to receive(:send_partner_welcome_email)
+      allow(User).to receive(:handle_new_partner_pro_subscription)
+
+      post "/api/v1/users", params: valid_params.merge(plan_type: "partner_pro")
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "skips the welcome email when should_send_welcome_email? is false" do
+      allow_any_instance_of(User).to receive(:should_send_welcome_email?).and_return(false)
+      expect_any_instance_of(User).not_to receive(:send_welcome_email)
+
+      post "/api/v1/users", params: valid_params
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
   describe "GET /api/v1/users/current" do
     it "returns the current user when authenticated" do
       get "/api/v1/users/current", headers: auth_headers(user)
