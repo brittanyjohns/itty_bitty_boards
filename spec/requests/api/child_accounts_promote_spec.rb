@@ -18,7 +18,7 @@ RSpec.describe "API::ChildAccounts promote_to_loaner", type: :request do
   end
 
   it "rejects promotion when the owner is out of slots" do
-    3.times do |i|
+    5.times do |i|
       create(:child_account, user: user, owner: user, status: "loaner",
                              username: "p#{i}-#{SecureRandom.hex(2)}", passcode: "x#{i}")
     end
