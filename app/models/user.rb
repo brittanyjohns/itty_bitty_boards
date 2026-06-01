@@ -260,7 +260,7 @@ class User < ApplicationRecord
   PRO_PLAN_LIMITS = {
     "plan_type" => "pro",
     "board_limit" => ENV.fetch("PRO_BOARD_LIMIT", 300).to_i,
-    "paid_communicator_limit" => ENV.fetch("PRO_PAID_COMMUNICATOR_LIMIT", 3).to_i,
+    "paid_communicator_limit" => ENV.fetch("PRO_PAID_COMMUNICATOR_LIMIT", 5).to_i,
     "demo_communicator_limit" => ENV.fetch("PRO_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
     "ai_monthly_limit" => ENV.fetch("PRO_AI_MONTHLY_LIMIT", 300).to_i,
   }.freeze
