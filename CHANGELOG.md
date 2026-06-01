@@ -5,6 +5,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Subscription lifecycle bugs (#199)
+- `paid_plan?` now considers `plan_status`: a user with
+  `plan_type=basic` + `plan_status=canceled` (e.g. a missed
+  `subscription.deleted` webhook) no longer passes paid gates.
+  Returns `false` for nil plan_type instead of raising.
+- `set_soft_trial_plan` moved from `before_save` to `before_create` and
+  guards on `paid_plan_type`. Users who deliberately downgraded to free
+  or picked a paid tier at signup are no longer bounced back to
+  `basic_trial` on subsequent saves within the 14-day window.
+- `invoice.payment_failed` Stripe webhook is now handled — flips
+  `plan_status` to `past_due`. Does not downgrade; Stripe dunning still
+  drives the eventual `subscription.deleted`.
+- `handle_subscription_upsert` no longer silently downgrades paid users
+  to `free` when a Stripe Price is missing `plan_type` metadata; it
+  preserves the user's existing plan_type and logs a warning.
+- `handle_invoice_payment_succeeded` reads the new Stripe
+  `invoice.parent.subscription_details.subscription` path in addition
+  to the deprecated `invoice.subscription` field.
+- `API::BillingController#update_subscription` no longer calls a
+  nonexistent `setup_limits_for_plan` method.
 ### Changed — Harden production puma against silent outbound-call wedges (#207)
 - **Puma cluster mode in production.** `config/puma.rb` now sets `workers 2`
   (overridable via `WEB_CONCURRENCY`), `worker_timeout 30`, and

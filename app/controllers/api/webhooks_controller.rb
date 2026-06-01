@@ -52,6 +52,8 @@ class API::WebhooksController < API::ApplicationController
       handle_subscription_paused(event.data.object)
     when "invoice.payment_succeeded"
       handle_invoice_payment_succeeded(event.data.object, event.id)
+    when "invoice.payment_failed"
+      handle_invoice_payment_failed(event.data.object)
     else
       Rails.logger.info "[StripeWebhook] Ignoring unhandled event type=#{event.type}"
     end
@@ -183,14 +185,9 @@ class API::WebhooksController < API::ApplicationController
     user = find_user_for_subscription(subscription)
     unless user
       Rails.logger.error "[StripeWebhook] subscription upsert: no user for customer #{subscription.customer}"
-
-      # wait a second and retry
-      sleep 1
-      user = find_user_for_subscription(subscription)
-      unless user
-        Rails.logger.error "[StripeWebhook] subscription upsert: still no user for customer #{subscription.customer} after retry"
-        return
-      end
+      # Return without retrying — Stripe will re-deliver the webhook if we 4xx,
+      # and a blocking sleep in-request can wedge the worker under load.
+      return
     end
 
     Rails.logger.info "[StripeWebhook] user #{user.email} found with role #{user.role} and plan_type #{user.plan_type}"
@@ -207,9 +204,16 @@ class API::WebhooksController < API::ApplicationController
 
     meta = price.metadata || {}
 
-    plan_type = meta["plan_type"].presence || "free"
+    # Preserve the user's current plan_type when the Stripe Price has no
+    # plan_type metadata. The old behavior silently downgraded paid users to
+    # "free" any time a Price was misconfigured.
+    plan_type = meta["plan_type"].presence
+    if plan_type.blank?
+      Rails.logger.warn "[StripeWebhook] subscription upsert: Price #{price.id} has no plan_type metadata; keeping user.plan_type=#{user.plan_type}"
+      plan_type = user.plan_type.presence
+    end
 
-    user.plan_type = plan_type
+    user.plan_type = plan_type if plan_type.present?
     user.plan_status = subscription.status
     user.stripe_subscription_id ||= subscription.id
 
@@ -249,7 +253,7 @@ class API::WebhooksController < API::ApplicationController
   # Grants plan credits whose period_end = subscription.current_period_end.
   # Idempotent on the Stripe event id (one grant per invoice event).
   def handle_invoice_payment_succeeded(invoice, event_id)
-    sub_id = invoice.respond_to?(:subscription) ? invoice.subscription : nil
+    sub_id = subscription_id_from_invoice(invoice)
     return unless sub_id.present?
 
     # Look up the subscription to read its current_period_end and Price.metadata
@@ -330,6 +334,45 @@ class API::WebhooksController < API::ApplicationController
     Rails.logger.info "[StripeWebhook][trial] granted user=#{user.id} amount=#{amount} trial_end=#{period_end}"
   rescue => e
     Rails.logger.error "[StripeWebhook] handle_trial_credit_grant error: #{e.class} - #{e.message}"
+  end
+
+  # Mark the user's subscription as past_due. Stripe will keep retrying
+  # the charge per its dunning rules; we just need state visibility so
+  # downstream code (and the user) can see something went wrong. We do NOT
+  # downgrade the plan here — Stripe will fire `customer.subscription.deleted`
+  # if the dunning attempts fail out.
+  def handle_invoice_payment_failed(invoice)
+    sub_id = subscription_id_from_invoice(invoice)
+    return unless sub_id.present?
+
+    subscription = Stripe::Subscription.retrieve(sub_id)
+    user = find_user_for_subscription(subscription)
+    unless user
+      Rails.logger.error "[StripeWebhook][invoice_failed] no user for subscription #{sub_id}"
+      return
+    end
+    return if user.admin?
+
+    user.update!(plan_status: "past_due")
+    Rails.logger.info "[StripeWebhook][invoice_failed] marked user=#{user.id} plan_status=past_due sub=#{sub_id}"
+  rescue => e
+    Rails.logger.error "[StripeWebhook] handle_invoice_payment_failed error: #{e.class} - #{e.message}"
+  end
+
+  # Read the subscription id off an invoice. The newer Stripe API
+  # (2024-06-20+) exposes it at `invoice.parent.subscription_details.subscription`
+  # while older API versions use `invoice.subscription` directly. Read both,
+  # prefer the new path.
+  def subscription_id_from_invoice(invoice)
+    if invoice.respond_to?(:parent) && invoice.parent
+      parent = invoice.parent
+      if parent.respond_to?(:subscription_details) && parent.subscription_details
+        details = parent.subscription_details
+        new_id = details.respond_to?(:subscription) ? details.subscription : nil
+        return new_id if new_id.present?
+      end
+    end
+    invoice.respond_to?(:subscription) ? invoice.subscription : nil
   end
 
   # Pull current_period_end off a Subscription regardless of whether the

@@ -166,7 +166,11 @@ class User < ApplicationRecord
   before_destroy :delete_stripe_customer
   before_destroy :unassign_vendor
 
-  before_save :set_soft_trial_plan, if: :free_trial?
+  # Only run on create — running on every save would bounce a user back to
+  # basic_trial any time they were deliberately set to "free" within the
+  # 14-day signup window (Stripe cancellation, checkout "Free" pick, etc.).
+  # The auths controller calls set_soft_trial_plan explicitly when needed.
+  before_create :set_soft_trial_plan, if: :free_trial?
   before_save :setup_limits, if: :plan_type_changed?
   before_save :update_vendor, if: :plan_type_changed?
 
@@ -198,6 +202,10 @@ class User < ApplicationRecord
   attr_accessor :skip_plan_setup
 
   def set_soft_trial_plan
+    # A non-blank paid_plan_type means the user has previously been on a paid
+    # plan (set by apply_free_plan on cancel/pause and by the soft-trial
+    # downgrade job). Don't bounce them back into basic_trial mid-trial-window.
+    return if paid_plan_type.present?
     self.plan_type = "basic_trial" if plan_type.blank? || plan_type == "free"
     setup_limits
   end
@@ -998,8 +1006,17 @@ class User < ApplicationRecord
     plan_type.include? "plus"
   end
 
+  # Plan statuses that mean the user is NOT actually paid right now, even if
+  # plan_type is still on a paid tier. Belt-and-suspenders: the webhook *should*
+  # reset plan_type to "free" on cancel/pause, but if a webhook is missed the
+  # model shouldn't continue treating them as paid.
+  UNPAID_STATUSES = %w[canceled paused incomplete_expired unpaid].freeze
+
   def paid_plan?
-    basic? || pro? || plus? || premium? || admin? || pro_vendor?
+    return true if admin?
+    return false if plan_type.blank?
+    return false if UNPAID_STATUSES.include?(plan_status.to_s)
+    basic? || pro? || plus? || premium? || pro_vendor?
   end
 
   def professional?
