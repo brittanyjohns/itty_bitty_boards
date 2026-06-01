@@ -92,6 +92,36 @@ backlog size (default 200).
 - Premium features (Menu Board Creator, AI image generation) require active subscription
 - Subscription managed via Stripe/RevenueCat — check status before allowing access to premium endpoints
 
+### `paid_plan?` semantics
+
+`User#paid_plan?` is the single gate for paid-tier checks. It considers
+**both** `plan_type` and `plan_status`:
+
+- Returns `false` when `plan_type` is `nil` or `free`.
+- Returns `false` when `plan_status` is `canceled`, `paused`,
+  `incomplete_expired`, or `unpaid` — even if `plan_type` is a paid tier.
+  This protects against a missed `subscription.deleted` webhook leaving
+  a user as `plan_type=basic` + `plan_status=canceled` and silently
+  passing paid gates.
+- `basic_trial` (soft trial) and Stripe `trialing` count as paid while
+  active — same rule as the MySpeak ID and credit gates.
+
+If you're adding a new paid-feature gate, call `current_user.paid_plan?`
+rather than reading `plan_type` directly.
+
+### Soft-trial assignment (`set_soft_trial_plan`)
+
+Soft-trial users start as `plan_type=basic_trial` for 14 days post-signup.
+Assignment runs as a **`before_create`** callback (not `before_save`), with
+an early-return guard: if the user already has a `paid_plan_type` set
+(i.e. they picked Basic/Pro at signup), the trial assignment is skipped.
+
+The earlier `before_save` version bounced users back to `basic_trial`
+on every save within the 14-day window — even after a deliberate
+downgrade (Stripe cancel, "Free" pick at checkout). If you touch this
+callback, preserve both invariants: trial only on initial create, and
+never overwrite an explicit paid_plan_type pick.
+
 ### MySpeak ID limit (Free = 1)
 
 Free users are capped at **one MySpeak ID** (Profile). Basic/Pro/admin

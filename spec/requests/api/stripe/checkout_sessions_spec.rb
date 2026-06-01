@@ -7,9 +7,20 @@ RSpec.describe "POST /api/stripe/checkout_sessions (subscription)", type: :reque
   let(:user) { FactoryBot.create(:user) }
 
   before do
-    ENV["STRIPE_PRICE_BASIC"] = "price_basic_monthly"
-    ENV["STRIPE_PRICE_PRO"] = "price_pro_monthly"
-    ENV["STRIPE_PRICE_PARTNER_PRO"] = "price_partner_pro"
+    # PLAN_PRICE_IDS is a frozen constant resolved at class load, so writing
+    # to ENV in `before` blocks doesn't update it. Stub the constant directly
+    # so the controller sees the test price IDs.
+    stub_const(
+      "API::Stripe::CheckoutSessionsController::PLAN_PRICE_IDS",
+      {
+        "free" => nil,
+        "basic" => "price_basic_monthly",
+        "pro" => "price_pro_monthly",
+        "basic_yearly" => "price_basic_yearly",
+        "pro_yearly" => "price_pro_yearly",
+        "partner_pro" => "price_partner_pro",
+      }.freeze
+    )
     ENV["STRIPE_PARTNER_PILOT_PROMO"] = "PARTNERPILOT26"
     # The controller calls Stripe::Customer.create / Stripe::PromotionCode.list
     # for the partner promo path; stub anything we don't explicitly handle.
