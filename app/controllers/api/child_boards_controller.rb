@@ -3,6 +3,9 @@ class API::ChildBoardsController < API::ApplicationController
   respond_to :json
   skip_before_action :authenticate_token!, only: %i[show current]
   before_action :authenticate_child_token!, only: %i[show current]
+  before_action :load_child_board, only: %i[toggle_favorite update destroy]
+  before_action :authorize_curate!, only: %i[toggle_favorite update]
+  before_action :authorize_detach!, only: %i[destroy]
 
   # GET /boards/1 or /boards/1.json
   def show
@@ -27,10 +30,7 @@ class API::ChildBoardsController < API::ApplicationController
   end
 
   def toggle_favorite
-    @child_board = ChildBoard.find(params[:id])
-
     result = @child_board.toggle_favorite
-    # render json: @child_board.api_view
     unless result
       render json: { error: "You can only favorite 80 boards" }, status: :unprocessable_entity
       return
@@ -40,7 +40,6 @@ class API::ChildBoardsController < API::ApplicationController
   end
 
   def update
-    @child_board = ChildBoard.find(params[:id])
     if @child_board.update(board_params)
       render json: @child_board.api_view
     else
@@ -50,14 +49,8 @@ class API::ChildBoardsController < API::ApplicationController
 
   def destroy
     Rails.logger.info "Deleting child board with ID: #{params[:id]}"
-
-    @child_board = ChildBoard.find(params[:id])
     @board = @child_board.board
-    unless @board.user_id == current_user.id
-      Rails.logger.warn "Unauthorized attempt to delete child board ID: #{params[:id]} by user ID: #{current_user.id}"
-      render json: { error: "Unauthorized" }, status: :unauthorized
-      return
-    end
+
     if @board.is_template
       Rails.logger.info "Deleting associated board ID: #{@board.id}"
       @child_board.destroy
@@ -71,6 +64,32 @@ class API::ChildBoardsController < API::ApplicationController
   end
 
   private
+
+  def load_child_board
+    @child_board = ChildBoard.find(params[:id])
+  end
+
+  # Curation tier: owner, admin, or any team member with
+  # admin/member/supporter role on the communicator. Backs the favorite
+  # toggle and any other curation-only field on the join row.
+  def authorize_curate!
+    return if @child_board.curatable_by?(current_user)
+
+    Rails.logger.warn "Unauthorized curation attempt on child_board ID: #{@child_board.id} by user ID: #{current_user&.id}"
+    render json: { error: "Unauthorized" }, status: :forbidden
+  end
+
+  # Detach (destroy) is owner-only. Letting a supervisor unshare a board
+  # via this endpoint would bypass `TeamUser#before_destroy`'s snapshot
+  # safety net — the family would lose access to a board they were
+  # relying on. If an SLP wants to stop sharing, she removes herself
+  # from the team, which triggers the snapshot copy.
+  def authorize_detach!
+    return if @child_board.child_account.editable_by?(current_user)
+
+    Rails.logger.warn "Unauthorized detach attempt on child_board ID: #{@child_board.id} by user ID: #{current_user&.id}"
+    render json: { error: "Unauthorized" }, status: :forbidden
+  end
 
   # Use callbacks to share common setup or constraints between actions.
   def set_child_board
