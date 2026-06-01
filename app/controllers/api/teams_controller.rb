@@ -67,15 +67,11 @@ class API::TeamsController < API::ApplicationController
     unless @user
       return render json: { error: "User not invited. Something went wrong." }, status: :unprocessable_entity
     end
-    @team_user = @team.add_member!(@user, user_role) if @user
+    @team.upsert_member!(@user, user_role)
 
-    respond_to do |format|
-      if @team_user.save
-        format.json { render json: @team.show_api_view(current_user), status: :created }
-      else
-        format.json { render json: @team_user.errors, status: :unprocessable_entity }
-      end
-    end
+    render json: @team.show_api_view(current_user), status: :created
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { errors: e.record.errors }, status: :unprocessable_entity
   end
 
   def remove_member
@@ -110,7 +106,7 @@ class API::TeamsController < API::ApplicationController
 
     respond_to do |format|
       if @team.save
-        @team.add_member!(current_user, "admin")
+        @team.upsert_member!(current_user, "admin")
         initial_account = current_user.communicator_accounts.find_by(id: account_id) if account_id.present?
         @team.add_communicator!(initial_account) if initial_account
 

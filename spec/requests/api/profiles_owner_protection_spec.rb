@@ -22,8 +22,8 @@ RSpec.describe "API::Profiles owner protection", type: :request do
   end
   let!(:team) do
     t = account.ensure_team!(creator: slp)
-    t.add_member!(parent, "admin")
-    t.add_member!(slp, "supervisor")
+    t.upsert_member!(parent, "admin")
+    t.upsert_member!(slp, "supervisor")
     t
   end
   let!(:child_profile) do

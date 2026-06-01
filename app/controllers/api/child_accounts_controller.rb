@@ -362,20 +362,12 @@ class API::ChildAccountsController < API::ApplicationController
         end
       end
 
-      # Team setup
-      team_name = if @child_account.name.present?
-          "#{@child_account.name}'s Communication Team"
-        else
-          "Communication Team"
-        end
-
-      team = @child_account.teams.first
-      unless team
-        team = Team.create!(name: team_name, created_by: current_user)
-        TeamAccount.create!(team: team, account: @child_account)
-      end
-
-      team.add_member!(current_user, "admin")
+      # Team setup. `ensure_team!` adds the creator as admin; no
+      # follow-up call needed (issue #226).
+      team_name = @child_account.name.present? ?
+        "#{@child_account.name}'s Communication Team" :
+        "Communication Team"
+      @child_account.ensure_team!(creator: current_user, name: team_name)
 
       render json: @child_account.api_view(current_user), status: :created
     else

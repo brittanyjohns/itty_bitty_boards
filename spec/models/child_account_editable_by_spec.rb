@@ -11,7 +11,7 @@ RSpec.describe ChildAccount, "#editable_by?", type: :model do
   let!(:account) do
     acct = create(:child_account, user: owner, owner: owner, status: "active")
     team = acct.ensure_team!(creator: owner)
-    team.add_member!(supervisor, "supervisor")
+    team.upsert_member!(supervisor, "supervisor")
     acct
   end
 

@@ -271,8 +271,8 @@ class ChildAccount < ApplicationRecord
 
       if previous_owner && previous_owner != user
         team = primary_team || ensure_team!(creator: user)
-        team.add_member!(previous_owner, "supervisor")
-        team.add_member!(user, "admin")
+        team.upsert_member!(previous_owner, "supervisor")
+        team.upsert_member!(user, "admin")
       end
     end
 
@@ -328,11 +328,21 @@ class ChildAccount < ApplicationRecord
     teams.first
   end
 
-  def ensure_team!(creator:)
+  # Ensure this communicator has a team. If it already does, return
+  # it as-is. Otherwise create one with `creator` as the team-creator
+  # AND as an `admin` team_user — i.e. the caller never has to follow
+  # up with `team.upsert_member!(creator, "admin")`. Issue #226.
+  #
+  # `name:` lets callers override the default "<communicator>'s Team"
+  # (e.g. the API controllers use "<communicator>'s Communication
+  # Team"). Passing nil falls back to the default.
+  def ensure_team!(creator:, name: nil)
     return primary_team if primary_team.present?
 
-    team = Team.create!(name: "#{name || "Communicator"}'s Team", created_by: creator)
+    team_name = name.presence || "#{self.name || "Communicator"}'s Team"
+    team = Team.create!(name: team_name, created_by: creator)
     TeamAccount.create!(team: team, account: self)
+    team.upsert_member!(creator, "admin") if creator
     team
   end
 
