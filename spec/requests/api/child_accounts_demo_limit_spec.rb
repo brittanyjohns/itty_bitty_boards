@@ -73,8 +73,8 @@ RSpec.describe "API::ChildAccounts sandbox + slot limits", type: :request do
         expect(account.settings["demo_board_limit"]).to be_nil
       end
 
-      it "allows up to three self-created loaner/active communicators, then 422s" do
-        3.times do |i|
+      it "allows up to five self-created loaner/active communicators, then 422s" do
+        5.times do |i|
           create(:child_account, user: user, owner: user, status: "active",
                                  username: "p#{i}-#{SecureRandom.hex(2)}")
         end

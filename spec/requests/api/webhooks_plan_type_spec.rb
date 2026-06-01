@@ -97,12 +97,12 @@ RSpec.describe "POST /api/webhooks (plan_type)", type: :request do
   end
 
   describe "customer.subscription.created (active)" do
-    it "sets plan_type and plan_status, fires welcome email" do
+    it "sets plan_type and plan_status" do
       user.update!(plan_type: "free", plan_status: nil, settings: {})
       sub = build_subscription(price: build_price(plan_type: "pro"))
       stub_event(sub, type: "customer.subscription.created")
 
-      expect_any_instance_of(User).to receive(:send_welcome_email).at_least(:once)
+      expect_any_instance_of(User).not_to receive(:send_welcome_email)
 
       post_webhook("{}", header_with_signature)
 

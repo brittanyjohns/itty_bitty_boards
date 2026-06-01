@@ -92,8 +92,8 @@ RSpec.describe Permissions::CommunicatorLimits do
     context "pro user" do
       let(:user) { create(:user, plan_type: "pro", created_at: 2.months.ago) }
 
-      it "allows up to three self-created communicators" do
-        3.times { create(:child_account, user: user, owner: user, status: ChildAccount::LOANER) }
+      it "allows up to five self-created communicators" do
+        5.times { create(:child_account, user: user, owner: user, status: ChildAccount::LOANER) }
 
         allowed, http_status, _error = described_class.can_create?(user: user, status: ChildAccount::LOANER)
         expect(allowed).to be(false)
