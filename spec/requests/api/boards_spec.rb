@@ -30,6 +30,20 @@ RSpec.describe "API::Boards", type: :request do
           headers: auth_headers(user)
       expect(response).to have_http_status(:ok)
     end
+
+    # Regression: an OBF/OBZ import sets boards.obf_id, and the index used
+    # to silently drop them via `where(obf_id: nil)`. User-visible symptom
+    # was board_count=6 but the listing returning 4 boards. The filter
+    # belongs on cross-user discovery, not on a user's own index.
+    it "includes the user's OBF-imported boards in the listing" do
+      create(:board, user: user, name: "Imported Greetings", obf_id: "greetings")
+      get "/api/boards",
+          params: { per_page: 50 },
+          headers: auth_headers(user)
+      expect(response).to have_http_status(:ok)
+      names = JSON.parse(response.body).fetch("boards").map { |b| b["name"] }
+      expect(names).to include("Imported Greetings")
+    end
   end
 
   describe "POST /api/boards" do
