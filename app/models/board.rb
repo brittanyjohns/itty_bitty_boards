@@ -2615,7 +2615,12 @@ class Board < ApplicationRecord
       board_image = board.board_images.new(image_id: image.id, voice: board.voice,
                                            position: board.board_images_count,
                                            display_image_url: display_url)
-      board_image.skip_create_voice_audio = true
+      # Let BoardImage's after_create :create_voice_audio_after_create
+      # fire — that's the canonical hook for enqueuing SaveAudioJob, and
+      # an existing pre-rendered Polly file (same image+voice+language)
+      # is reused, so the job is cheap when there is one to reuse.
+      # Previously skipped here; result was imported tiles had no audio
+      # at all because nothing else compensated.
       board_image.save!
     end
 
@@ -2626,6 +2631,9 @@ class Board < ApplicationRecord
       board_image.layout["sm"] = layout
       board_image.data ||= {}
       board_image.data["obf_id"] = item["image_id"]
+      # Skip on update — after_create doesn't fire on save here anyway,
+      # this just keeps the flag explicit so future readers don't think
+      # we want re-enqueue on every layout tweak.
       board_image.skip_create_voice_audio = true
       board_image.save!
     end
