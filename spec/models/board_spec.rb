@@ -465,6 +465,20 @@ RSpec.describe Board, type: :model do
       json = obf_hash.to_json
       expect(described_class.from_obf(json, user).first).to be_persisted
     end
+
+    # Regression: imported tiles used to set skip_create_voice_audio=true,
+    # which silenced BoardImage's after_create audio hook. Result: tapping
+    # an imported tile produced no sound. Audio should enqueue exactly the
+    # same way as boards created any other way.
+    it "enqueues SaveAudioJob for each imported BoardImage so tile audio works" do
+      Sidekiq::Testing.fake! do
+        SaveAudioJob.clear
+        described_class.from_obf(obf_hash, user)
+        expect(SaveAudioJob.jobs.size).to eq(2)
+        voices = SaveAudioJob.jobs.map { |j| j["args"][1] }
+        expect(voices).to all(be_present)
+      end
+    end
   end
 
   describe ".from_obf — image policy (private + opt-in for binaries)" do
