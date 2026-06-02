@@ -7,8 +7,15 @@ class API::ChildAccountsController < API::ApplicationController
 
   # GET /child_accounts
   # GET /child_accounts.json
+  #
+  # `?archived=true` returns the caller's soft-archived sandboxes (issue
+  # #165). Default scope hides archived rows; the `.archived` scope
+  # unscopes `archived_at` and filters to non-null. Without the param,
+  # behavior is unchanged.
   def index
-    @child_accounts = ChildAccount.with_boards.where(user_id: current_user.id).order(name: :asc)
+    scope = ChildAccount.with_boards.where(user_id: current_user.id)
+    scope = scope.archived if ActiveModel::Type::Boolean.new.cast(params[:archived])
+    @child_accounts = scope.order(name: :asc)
     render json: @child_accounts.map(&:index_api_view)
   end
 
