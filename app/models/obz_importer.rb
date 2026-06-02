@@ -11,7 +11,11 @@ require "set"
 class ObzImporter
   class ImportError < StandardError; end
 
-  def initialize(file_or_bytes, current_user, board_group: nil, board_id: nil, import_all: true)
+  # import_options forwards to Board.from_obf — see that method for keys.
+  # ObzImporter additionally persists an "imported_from_obf" audit block on
+  # the BoardGroup's settings JSONB so we always know whether image binaries
+  # were pulled in, and who acknowledged the license.
+  def initialize(file_or_bytes, current_user, board_group: nil, board_id: nil, import_all: true, import_options: {})
     @file_or_bytes = file_or_bytes
     @current_user = current_user
     @board_group = board_group
@@ -20,10 +24,12 @@ class ObzImporter
     end
     @board_id = board_id
     @import_all = import_all
+    @import_options = (import_options || {}).symbolize_keys
 
     @entries = {}  # original_path => raw_bytes
     @path_index = {}  # normalized_path => original_path
     @manifest_dir = ""  # directory (normalized) where manifest.json was found
+    @root_license = nil
   end
 
   def import!
@@ -59,8 +65,12 @@ class ObzImporter
         @board_group.update(original_obf_root_id: obf_json["id"].to_s) rescue nil
       end
 
+      if same_norm_path?(path, root_obf_path)
+        @root_license = obf_json["license"]
+      end
+
       begin
-        board, dynamic_data = Board.from_obf(obf_json, @current_user, @board_group, @board_id)
+        board, dynamic_data = Board.from_obf(obf_json, @current_user, @board_group, @board_id, import_options: @import_options)
       rescue StandardError => e
         Rails.logger.error "[ObzImporter] Skipping #{path}: #{e.class}: #{e.message}"
         next
@@ -85,6 +95,8 @@ class ObzImporter
 
     link_dynamic_boards!(dynamic_data_rows, boards_by_obf_id, obf_id_by_path, root_board)
 
+    persist_import_audit!
+
     { boards: boards_by_obf_id, root_board: root_board, dynamic_data: dynamic_data_rows }
   rescue ImportError => e
     Rails.logger.error "[ObzImporter] Import error: #{e.message}"
@@ -96,6 +108,32 @@ class ObzImporter
   end
 
   private
+
+  # --------------------------
+  # Audit log on BoardGroup
+  # --------------------------
+
+  # Stamp BoardGroup.settings["imported_from_obf"] with what we did and who
+  # acknowledged it. Captured every import (with or without opt-in) so we
+  # can answer "did this group pull in binaries?" later.
+  def persist_import_audit!
+    return unless @board_group
+
+    audit = {
+      "include_images" => @import_options[:include_images] ? true : false,
+      "license_acknowledged" => @import_options[:license_acknowledged] ? true : false,
+      "acknowledged_by_user_id" => @import_options[:acknowledged_by_user_id],
+      "acknowledged_at" => @import_options[:license_acknowledged] ? Time.current.iso8601 : nil,
+      "imported_by_user_id" => @current_user&.id,
+      "root_license" => @root_license,
+    }
+
+    settings = @board_group.settings.is_a?(Hash) ? @board_group.settings.dup : {}
+    settings["imported_from_obf"] = audit
+    @board_group.update(settings: settings)
+  rescue StandardError => e
+    Rails.logger.warn "[ObzImporter] Failed to persist import audit: #{e.message}"
+  end
 
   # --------------------------
   # Post-import linking

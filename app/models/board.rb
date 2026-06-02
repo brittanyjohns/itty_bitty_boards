@@ -2428,9 +2428,20 @@ class Board < ApplicationRecord
     end
   end
 
-  def self.from_obf(data, current_user, board_group = nil, board_id = nil)
+  # import_options controls copyright-sensitive behavior during OBF/OBZ import.
+  # Keys (all optional, all default to safe values):
+  #   include_images:           Boolean. When false (default), imported Image
+  #                             records are created (always is_private: true),
+  #                             but NO image binaries are downloaded or attached
+  #                             to Docs. When true, attach_image_doc runs.
+  #   license_acknowledged:     Boolean. Audit-only; recorded by ObzImporter on
+  #                             BoardGroup.settings. Must be true to set
+  #                             include_images: true (enforced by controller).
+  #   acknowledged_by_user_id:  Integer. Audit-only.
+  def self.from_obf(data, current_user, board_group = nil, board_id = nil, import_options: {})
     obj = parse_obf_input(data)
     raise ArgumentError, "OBF data must be a Hash" unless obj.is_a?(Hash)
+    import_options = (import_options || {}).symbolize_keys
 
     obf_id = obj["id"].to_s
     is_root = board_group && board_group.original_obf_root_id == obf_id
@@ -2465,7 +2476,7 @@ class Board < ApplicationRecord
       next unless image
 
       doc_data = images_by_obf_id[item["image_id"].to_s]
-      temp_display_image = attach_image_doc(image, doc_data, current_user) || temp_display_image
+      temp_display_image = attach_image_doc(image, doc_data, current_user, import_options: import_options) || temp_display_image
 
       coords = coords_by_button_id[item["id"].to_s]
       reset_layouts_after_import ||= coords.nil?
@@ -2540,6 +2551,10 @@ class Board < ApplicationRecord
   end
   private_class_method :find_or_init_board_for_import
 
+  # Newly-created Images from OBF/OBZ import are ALWAYS is_private: true.
+  # An admin can flip the flag later via the admin UI. Existing matches are
+  # returned as-is — we don't downgrade visibility on something the user
+  # already owns.
   def self.find_or_create_image_for_button(item, user)
     label = item["label"]
     image = nil
@@ -2548,13 +2563,18 @@ class Board < ApplicationRecord
     end
     image ||= Image.find_by(user_id: user.id, label: label, obf_id: item["image_id"])
     image ||= Image.find_by(user_id: user.id, label: label)
-    image ||= Image.create!(label: label, user_id: user.id, obf_id: item["image_id"])
+    image ||= Image.create!(label: label, user_id: user.id, obf_id: item["image_id"], is_private: true)
     image
   end
   private_class_method :find_or_create_image_for_button
 
-  def self.attach_image_doc(image, doc_meta, current_user)
+  # Downloads / attaches an image binary from an OBF image entry to a Doc on
+  # the SpeakAnyWay Image. Copyright-sensitive: gated behind
+  # import_options[:include_images]. When the user hasn't opted in, returns
+  # nil and the tile renders with a label-only Image (no symbol binary).
+  def self.attach_image_doc(image, doc_meta, current_user, import_options: {})
     return nil unless doc_meta
+    return nil unless (import_options || {}).symbolize_keys[:include_images]
 
     url = doc_meta["url"]
     inline = doc_meta["data"]

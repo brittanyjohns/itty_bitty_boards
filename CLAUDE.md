@@ -306,6 +306,33 @@ Tasks:
   and `plan_credits_balance = 0`, then re-grants their tier allowance with
   `period_end = 30.days.from_now`.
 
+## OBF/OBZ import — copyright policy
+
+Imports via `POST /api/boards/import_obf` are gated to avoid silently
+pulling licensed symbol artwork (SymbolStix, etc.) into the public
+image pool:
+
+- **Default (no opt-in):** board structure imports, `Image` rows are
+  created **`is_private: true`**, but **no image binaries are downloaded
+  or attached to `Docs`**. The `attach_image_doc` step is skipped.
+- **With opt-in:** client must send `include_images=true` AND
+  `image_license_acknowledged=true`. Without the ack, the controller
+  returns **HTTP 400 `image_license_required`**. The importer then
+  calls `Down.download` per OBF image entry and attaches Docs.
+- **`is_private: true` is non-negotiable.** Set in
+  `Board.find_or_create_image_for_button` on every newly-created Image,
+  regardless of opt-in. Existing images matched by label are returned
+  as-is — we don't downgrade visibility on something the user already
+  owns. Admin can flip individual images public later via existing UI.
+- **Audit trail** lives on `BoardGroup.settings["imported_from_obf"]`:
+  `include_images`, `license_acknowledged`, `acknowledged_by_user_id`,
+  `acknowledged_at`, `imported_by_user_id`, and the OBF root board's
+  `license` block (author, source URL, license type) if present.
+- Plumbed through `ObzImporter#initialize(import_options:)`,
+  `Board.from_obf(... import_options:)`, and `ImportFromObfJob#perform`
+  (4th positional arg). All default to `{}` for backward compat with
+  callers that don't care.
+
 ## Do not
 
 - Do not install new gems without asking first

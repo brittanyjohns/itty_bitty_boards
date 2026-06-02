@@ -35,6 +35,55 @@ RSpec.describe "API::Boards OBF/OBZ import + export", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
       expect(JSON.parse(response.body)["error"]).to match(/unsupported/i)
     end
+
+    context "image opt-in policy" do
+      def fresh_upload
+        Rack::Test::UploadedFile.new(obz_path, "application/zip")
+      end
+
+      it "succeeds without opt-in and reports include_images=false" do
+        post "/api/boards/import_obf",
+             params: { file: fresh_upload },
+             headers: auth_headers(user)
+        expect(response).to have_http_status(:ok)
+        expect(JSON.parse(response.body)["include_images"]).to eq(false)
+      end
+
+      it "marks all newly-created Images as is_private" do
+        post "/api/boards/import_obf",
+             params: { file: fresh_upload },
+             headers: auth_headers(user)
+        expect(user.images.where(label: ["happy", "sad"]).pluck(:is_private)).to all(eq(true))
+      end
+
+      it "returns 400 image_license_required when include_images=true without ack" do
+        post "/api/boards/import_obf",
+             params: { file: fresh_upload, include_images: "true" },
+             headers: auth_headers(user)
+        expect(response).to have_http_status(:bad_request)
+        expect(JSON.parse(response.body)["error"]).to eq("image_license_required")
+      end
+
+      it "succeeds and persists the audit when include_images=true with ack" do
+        post "/api/boards/import_obf",
+             params: {
+               file: fresh_upload,
+               include_images: "true",
+               image_license_acknowledged: "true",
+             },
+             headers: auth_headers(user)
+        expect(response).to have_http_status(:ok)
+        body = JSON.parse(response.body)
+        expect(body["include_images"]).to eq(true)
+
+        bg = BoardGroup.find(body["board_group_id"])
+        expect(bg.settings["imported_from_obf"]).to include(
+          "include_images" => true,
+          "license_acknowledged" => true,
+          "acknowledged_by_user_id" => user.id,
+        )
+      end
+    end
   end
 
   describe "GET /api/boards/:id/download_obf" do

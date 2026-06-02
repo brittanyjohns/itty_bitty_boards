@@ -467,6 +467,75 @@ RSpec.describe Board, type: :model do
     end
   end
 
+  describe ".from_obf — image policy (private + opt-in for binaries)" do
+    let(:user) { create(:user) }
+
+    let(:obf_with_image_url) do
+      {
+        "format" => "open-board-0.1",
+        "id" => "imgtest",
+        "name" => "ImgTest",
+        "grid" => { "rows" => 1, "columns" => 1, "order" => [["b1"]] },
+        "buttons" => [{ "id" => "b1", "label" => "hi", "image_id" => "i1" }],
+        "images" => [{
+          "id" => "i1",
+          "url" => "https://example.test/symbol.png",
+          "width" => 1, "height" => 1, "content_type" => "image/png",
+        }],
+        "sounds" => [],
+      }
+    end
+
+    before do
+      # Don't trigger downstream variant preprocessing during unit specs.
+      allow(PreprocessDocTileVariantJob).to receive(:perform_async)
+    end
+
+    context "by default (include_images not set)" do
+      it "creates Image rows as is_private: true" do
+        # Down.download should never even be called.
+        expect(Down).not_to receive(:download)
+        described_class.from_obf(obf_with_image_url, user)
+        image = Image.find_by(user: user, label: "hi")
+        expect(image).to be_present
+        expect(image.is_private).to eq(true)
+      end
+
+      it "does NOT attach a Doc for an OBF image entry — binary opt-in is off" do
+        allow(Down).to receive(:download)  # safety; should not be called
+        expect {
+          described_class.from_obf(obf_with_image_url, user)
+        }.not_to change { Doc.count }
+      end
+    end
+
+    context "with import_options include_images: true" do
+      # We stub Down.download => nil to short-circuit attach_image_doc cleanly
+      # (existing code: nil download → return nil before any Active Storage work).
+      # The point of these specs is the GATE — that opt-in flips the call from
+      # blocked to attempted — not the downstream attach/storage stack.
+      before { allow(Down).to receive(:download).and_return(nil) }
+
+      it "still marks Image rows is_private: true (non-negotiable)" do
+        described_class.from_obf(obf_with_image_url, user, nil, nil,
+                                 import_options: { include_images: true })
+        expect(Image.find_by(user: user, label: "hi").is_private).to eq(true)
+      end
+
+      it "calls Down.download for the URL (gate is open)" do
+        expect(Down).to receive(:download).with("https://example.test/symbol.png")
+        described_class.from_obf(obf_with_image_url, user, nil, nil,
+                                 import_options: { include_images: true })
+      end
+    end
+
+    it "does NOT downgrade an existing public Image found by label match" do
+      existing = create(:image, label: "hi", user: user, is_private: false)
+      described_class.from_obf(obf_with_image_url, user)
+      expect(existing.reload.is_private).to eq(false)
+    end
+  end
+
   describe "#to_obf (export)" do
     let(:user) { create(:user) }
     let(:linked_board) { create(:board, user: user, name: "Drinks", obf_id: "drinks-123") }

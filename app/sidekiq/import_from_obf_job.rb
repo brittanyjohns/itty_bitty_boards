@@ -1,7 +1,7 @@
 class ImportFromObfJob
   include Sidekiq::Job
 
-  def perform(board_data, user_id, board_group_id = nil)
+  def perform(board_data, user_id, board_group_id = nil, import_options = {})
     current_user = User.find_by(id: user_id)
     return unless current_user
     unless board_data.is_a?(Hash)
@@ -18,7 +18,7 @@ class ImportFromObfJob
       return
     end
     Rails.logger.debug "Created new board with ID #{@board.id} for import"
-    @board, _data = Board.from_obf(board_data, current_user, board_group, @board.id)
+    @board, _data = Board.from_obf(board_data, current_user, board_group, @board.id, import_options: import_options || {})
     if @board
       @board.update(status: "active")
       Rails.logger.debug "Board import completed successfully for board ID #{@board.id}"

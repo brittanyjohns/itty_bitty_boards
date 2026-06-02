@@ -554,6 +554,16 @@ class API::BoardsController < API::ApplicationController
   end
 
   def import_obf
+    # Image binaries (e.g. licensed SymbolStix PNGs) are NEVER pulled in by
+    # default. The client must opt in with `include_images=true` AND confirm
+    # via `image_license_acknowledged=true`. Newly-created Images are always
+    # is_private (see Board.find_or_create_image_for_button).
+    import_options, ack_error = parse_obf_import_options
+    if ack_error
+      render json: ack_error, status: :bad_request
+      return
+    end
+
     if params[:file].present?
       uploaded_file = params[:file]
       file_name = uploaded_file.original_filename
@@ -566,6 +576,7 @@ class API::BoardsController < API::ApplicationController
           result = ObzImporter.new(
             uploaded_file.read, current_user,
             board_group: @board_group, import_all: true,
+            import_options: import_options,
           ).import!
         rescue => e
           Rails.logger.error "OBZ import failed: #{e.message}"
@@ -578,6 +589,7 @@ class API::BoardsController < API::ApplicationController
           message: "Imported OBZ file #{file_name}",
           board_group_id: @board_group.id,
           root_board_id: result[:root_board]&.id,
+          include_images: import_options[:include_images],
         }
       else
         render json: { error: "Unsupported file format" }, status: :unprocessable_entity
@@ -597,11 +609,38 @@ class API::BoardsController < API::ApplicationController
       end
       board_name = json_data["name"] || "Imported Board"
 
-      ImportFromObfJob.perform_async(json_data, current_user.id, board_group&.id)
-      render json: { status: "ok", message: "Importing OBF data for board #{board_name}" }
+      # Sidekiq serializes args to JSON — pass string-keyed hash.
+      ImportFromObfJob.perform_async(json_data, current_user.id, board_group&.id, import_options.stringify_keys)
+      render json: {
+        status: "ok",
+        message: "Importing OBF data for board #{board_name}",
+        include_images: import_options[:include_images],
+      }
     else
       render json: { error: "No file or data provided" }, status: :unprocessable_entity
     end
+  end
+
+  # Pulls the three opt-in params off the request and validates that
+  # `image_license_acknowledged` accompanies `include_images=true`. Returns
+  # [options_hash, error_response_or_nil].
+  def parse_obf_import_options
+    include_images = ActiveModel::Type::Boolean.new.cast(params[:include_images]) || false
+    ack = ActiveModel::Type::Boolean.new.cast(params[:image_license_acknowledged]) || false
+
+    if include_images && !ack
+      return [nil, {
+        error: "image_license_required",
+        message: "include_images=true requires image_license_acknowledged=true. " \
+                 "Imports must confirm permission to use the bundled images.",
+      }]
+    end
+
+    [{
+      include_images: include_images,
+      license_acknowledged: ack,
+      acknowledged_by_user_id: ack ? current_user.id : nil,
+    }, nil]
   end
 
   def additional_words
