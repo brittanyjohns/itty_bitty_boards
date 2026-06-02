@@ -68,23 +68,61 @@ RSpec.describe ChildAccount, "soft-archive", type: :model do
       expect(account.child_boards.count).to eq(1)
     end
 
-    it "refuses on a loaner" do
+    it "refuses on a loaner with end_loan guidance" do
       account = create(:child_account, user: user, owner: user, status: "loaner")
-      expect { account.archive! }.to raise_error(ArgumentError)
+      expect { account.archive! }.to raise_error(ArgumentError, /end_loan|reclaim/i)
     end
 
-    it "refuses on an active" do
+    it "allows an active owner to archive (issue #237)" do
       account = create(:child_account, user: user, owner: user, status: "active")
-      expect { account.archive! }.to raise_error(ArgumentError)
+      account.archive!
+      expect(account.archived_at).to be_within(5.seconds).of(Time.current)
+      expect(account.status).to eq("active")
+    end
+
+    it "writes archive_reason and archived_status to settings on active archive" do
+      account = create(:child_account, user: user, owner: user, status: "active")
+      account.archive!(reason: "owner_request")
+      expect(account.settings["archive_reason"]).to eq("owner_request")
+      expect(account.settings["archived_status"]).to eq("active")
     end
   end
 
   describe "#unarchive!" do
-    it "clears archived_at" do
+    it "clears archived_at on a sandbox" do
       account = create(:child_account, user: user, owner: user, status: "sandbox")
       account.archive!
       ChildAccount.with_archived.find(account.id).unarchive!
       expect(account.reload.archived_at).to be_nil
+    end
+
+    it "restores an archived active as active when the owner has a free slot" do
+      user.setup_pro_limits
+      user.save!
+      account = create(:child_account, user: user, owner: user, status: "active")
+      account.archive!
+
+      ChildAccount.with_archived.find(account.id).unarchive!
+      account.reload
+      expect(account.archived_at).to be_nil
+      expect(account.status).to eq("active")
+      expect(account.settings["archive_reason"]).to be_nil
+      expect(account.settings["archived_status"]).to be_nil
+    end
+
+    it "raises SlotFull when the owner is at the slot cap" do
+      user.setup_pro_limits
+      user.save!
+      pro_limit = user.settings["paid_communicator_limit"]
+
+      account = create(:child_account, user: user, owner: user, status: "active")
+      account.archive!
+
+      # Fill every paid slot so unarchive has nowhere to land.
+      pro_limit.times { create(:child_account, user: user, owner: user, status: "active") }
+
+      target = ChildAccount.with_archived.find(account.id)
+      expect { target.unarchive! }.to raise_error(ChildAccount::SlotFull)
     end
   end
 
@@ -98,6 +136,28 @@ RSpec.describe ChildAccount, "soft-archive", type: :model do
 
       view = user.api_view
       expect(view[:sandbox_communicator_count]).to eq(1)
+    end
+
+    it "frees the paid slot when an active is archived (issue #237)" do
+      user.setup_pro_limits
+      user.save!
+      create(:child_account, user: user, owner: user, status: "active")
+      archived = create(:child_account, user: user, owner: user, status: "active")
+      archived.archive!
+
+      expect(user.paid_communicator_accounts.reload.count).to eq(1)
+      expect(user.api_view[:active_communicator_count]).to eq(1)
+    end
+  end
+
+  describe "team visibility" do
+    it "hides an archived active from team_accounts joins" do
+      account = create(:child_account, user: user, owner: user, status: "active")
+      team = account.ensure_team!(creator: user)
+      expect(team.accounts.reload).to include(account)
+
+      account.archive!
+      expect(team.accounts.reload).not_to include(account)
     end
   end
 end

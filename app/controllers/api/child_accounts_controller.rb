@@ -258,42 +258,41 @@ class API::ChildAccountsController < API::ApplicationController
   end
 
   # POST /api/child_accounts/:id/archive
-  # Soft-archive a sandbox communicator (issue #165). The record stays
-  # in the database with all its boards/settings/history — it just
-  # drops out of the default-scoped lists and stops counting against
-  # the sandbox limit. Sandbox-only; loaner/active have downstream
-  # effects (slot accounting, claim tokens) that need their own paths.
+  # Soft-archive a communicator (issues #165, #237). The record stays in
+  # the database with all its boards/settings/history — it just drops out
+  # of the default-scoped lists. Allowed for sandbox and owner-controlled
+  # active. Loaner is excluded — use end_loan first to clear the claim
+  # token and slot accounting.
   def archive
     unless @child_account.owner_id == current_user.id || current_user.admin?
       render json: account_error_payload("Unauthorized"), status: :unauthorized
       return
     end
 
-    unless @child_account.sandbox?
-      render json: account_error_payload("Only sandbox communicators can be archived"), status: :unprocessable_entity
+    if @child_account.loaner?
+      render json: account_error_payload("End the loan first via end_loan."), status: :unprocessable_entity
       return
     end
 
-    @child_account.archive!
+    @child_account.archive!(reason: "owner_request")
     render json: @child_account.api_view(current_user), status: :ok
   end
 
   # POST /api/child_accounts/:id/unarchive
-  # Restore a previously-archived sandbox. Sandbox-only (loaner/active
-  # can't get into the archived state in the first place).
+  # Restore a previously-archived communicator. Sandbox restores as a
+  # sandbox; active restores as active, but only if the owner still has
+  # a free slot (archiving freed it, and the owner may have filled it).
   def unarchive
     unless @child_account.owner_id == current_user.id || current_user.admin?
       render json: account_error_payload("Unauthorized"), status: :unauthorized
       return
     end
 
-    unless @child_account.sandbox?
-      render json: account_error_payload("Only sandbox communicators can be unarchived"), status: :unprocessable_entity
-      return
-    end
-
     @child_account.unarchive!
     render json: @child_account.api_view(current_user), status: :ok
+  rescue ChildAccount::SlotFull => e
+    render json: account_error_payload(e.message.presence || "At your communicator slot limit. Free a slot before restoring."),
+           status: :unprocessable_entity
   end
 
   # POST /child_accounts

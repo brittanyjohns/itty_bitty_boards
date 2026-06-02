@@ -32,6 +32,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   without changes, but imports will be structure-only until the
   frontend adds an "Import images" + "I have permission" pair of
   checkboxes that send the new params.
+### Changed — Owners can archive active communicators (issue #237)
+- `ChildAccount#archive!` now allows archiving owner-controlled active
+  communicators in addition to sandboxes. Loaner is still excluded —
+  callers get an `ArgumentError` pointing at `end_loan` / `reclaim!`.
+- Archive stamps `settings["archive_reason"]` and
+  `settings["archived_status"]` so support has an audit trail and
+  `unarchive!` can restore the original status cleanly.
+- `ChildAccount#unarchive!` re-checks the owner's slot limit when
+  restoring a previously-active record (archive frees the slot via the
+  default scope; the owner may have filled it). Raises
+  `ChildAccount::SlotFull` when at-cap.
+- `POST /api/child_accounts/:id/archive` now returns 200 for an active
+  owner, 422 (`End the loan first via end_loan.`) for a loaner, and
+  401 for non-owners. `POST /:id/unarchive` returns 422 with the slot
+  message when the owner is at-cap.
+- Frontend `LoanerControls.tsx` work is tracked separately in
+  `rally25rs/itty-bitty-frontend`.
 
 ### Changed — Pro plan now includes 5 Communicators (was 3)
 - `User::PRO_PLAN_LIMITS["paid_communicator_limit"]` default bumped
