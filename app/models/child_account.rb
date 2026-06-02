@@ -297,18 +297,46 @@ class ChildAccount < ApplicationRecord
 
   class SlotFull < StandardError; end
 
-  # Soft-archive a sandbox communicator (issue #165). Sandbox-only — the
-  # loaner/active paths have downstream effects (slot accounting, claim
-  # tokens, family ownership) that need their own flows (`end_loan`).
-  def archive!
-    raise ArgumentError, "Only sandbox communicators can be archived" unless sandbox?
+  # Soft-archive a communicator (issues #165, #237). Allowed for sandbox
+  # and active (owner-controlled) accounts. Loaner is excluded — it has
+  # downstream effects (slot accounting, claim tokens, family ownership)
+  # that need their own flow via `end_loan` / `reclaim!`.
+  #
+  # Archiving an active frees the owner's slot via the default scope,
+  # matching how archived sandboxes drop out of the sandbox count. The
+  # status field is preserved so unarchive can restore the original state;
+  # we also stamp the pre-archive status in settings as an audit trail.
+  def archive!(reason: "owner_request")
+    if loaner?
+      raise ArgumentError, "Loaner communicators must end the loan first (see end_loan / reclaim!)"
+    end
     return self if archived_at.present?
-    update!(archived_at: Time.current)
+
+    self.settings ||= {}
+    self.settings["archive_reason"] = reason
+    self.settings["archived_status"] = status
+    self.archived_at = Time.current
+    save!
     self
   end
 
+  # Restore an archived communicator. If it was an active when archived,
+  # re-check the owner's slot limit before un-archiving — archiving freed
+  # the slot, so the owner may have filled it in the meantime.
   def unarchive!
-    update!(archived_at: nil)
+    archived_status = settings&.dig("archived_status") || status
+
+    if archived_status == ACTIVE && owner.present?
+      allowed, _http_status, error =
+        Permissions::CommunicatorLimits.can_create?(user: owner, status: ACTIVE)
+      raise SlotFull, (error || "Maximum number of communicator accounts reached.") unless allowed
+    end
+
+    self.settings ||= {}
+    self.settings.delete("archive_reason")
+    self.settings.delete("archived_status")
+    self.archived_at = nil
+    save!
     self
   end
 
