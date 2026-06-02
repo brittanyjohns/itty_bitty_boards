@@ -130,7 +130,14 @@ class API::BoardsController < API::ApplicationController
     # ---------------------------
     # 3. NORMAL MODE (no search)
     # ---------------------------
-    base_scope = current_user.boards.where(obf_id: nil)
+    # NOTE: deliberately no `where(obf_id: nil)` here. That filter belongs
+    # on cross-user discovery scopes (Board.searchable, Board.public_boards)
+    # — it keeps a user's imports out of OTHER users' search results. On a
+    # user's OWN index, we have to show their imports too; otherwise
+    # `boards.count` (which exposes board_count in api_view) reports 6 while
+    # this listing renders 4, and imported boards become unreachable from
+    # the boards page.
+    base_scope = current_user.boards
     filtered_scope = apply_filter(base_scope, filter)
     filtered_scope = filtered_scope.with_any_tags(selected_tags) if selected_tags.present?
 

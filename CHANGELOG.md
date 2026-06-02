@@ -32,6 +32,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   without changes, but imports will be structure-only until the
   frontend adds an "Import images" + "I have permission" pair of
   checkboxes that send the new params.
+- **Fixed alongside:** `GET /api/boards` (user's own listing) used to
+  silently drop OBF-imported boards via `where(obf_id: nil)`, so
+  `board_count` and the visible list disagreed (e.g. 6 vs 4).
+  The filter belongs on cross-user discovery scopes
+  (`Board.searchable`, `Board.public_boards`), not on a user's own
+  index. Removed there; kept on the discovery scopes.
 ### Changed — Owners can archive active communicators (issue #237)
 - `ChildAccount#archive!` now allows archiving owner-controlled active
   communicators in addition to sandboxes. Loaner is still excluded —
