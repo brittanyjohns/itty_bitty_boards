@@ -85,6 +85,16 @@ backlog size (default 200).
   90% (critical). Alerts are debounced in Redis to once per severity per 6h.
   Skipped on staging, since staging shares the production EC2 box. Added
   after a disk-full outage wedged the box during a deploy.
+- **External `/up` monitor (BetterStack):** HTTP monitor hits
+  `https://670kd.hatchboxapp.com/up` (prod) every 3 min. Pages on failure
+  via SMS to the on-call number + email to `ADMIN_EMAIL`. No Rails code
+  backs this — `/up` is the stock `Rails::HealthController` route in
+  `config/routes.rb`. Catches failure modes the in-app jobs can't: wedged
+  puma (the 2026-05-30 outage), nginx/DNS/network, full-box down.
+  Configured in BetterStack's UI; nothing in this repo to change when
+  tuning the monitor. Staging is intentionally not monitored — it shares
+  the prod box, so a prod alert covers both. Added after the 2026-05-30
+  outage where puma was alive per systemd but all threads were wedged.
 
 ## Subscription model
 
