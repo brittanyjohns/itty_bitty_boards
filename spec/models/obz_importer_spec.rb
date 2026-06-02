@@ -68,6 +68,44 @@ RSpec.describe ObzImporter, type: :model do
     end
   end
 
+  describe "#import! — image policy audit on BoardGroup.settings" do
+    it "stamps imported_from_obf with include_images=false by default" do
+      described_class.new(fixture_bytes("simple.obz"), user, board_group: board_group).import!
+      audit = board_group.reload.settings["imported_from_obf"]
+      expect(audit).to include(
+        "include_images" => false,
+        "license_acknowledged" => false,
+        "imported_by_user_id" => user.id,
+      )
+      expect(audit["acknowledged_at"]).to be_nil
+    end
+
+    it "records the acknowledgment timestamp + acknowledger when opted in" do
+      described_class.new(
+        fixture_bytes("simple.obz"), user, board_group: board_group,
+        import_options: {
+          include_images: true,
+          license_acknowledged: true,
+          acknowledged_by_user_id: user.id,
+        }
+      ).import!
+      audit = board_group.reload.settings["imported_from_obf"]
+      expect(audit).to include(
+        "include_images" => true,
+        "license_acknowledged" => true,
+        "acknowledged_by_user_id" => user.id,
+      )
+      expect(audit["acknowledged_at"]).to be_present
+    end
+
+    it "marks freshly-created Images is_private: true regardless of opt-in" do
+      described_class.new(fixture_bytes("simple.obz"), user, board_group: board_group).import!
+      imported = user.images.where(label: ["happy", "sad"])
+      expect(imported.count).to eq(2)
+      expect(imported.pluck(:is_private)).to all(eq(true))
+    end
+  end
+
   describe "#import! with a malformed archive" do
     it "raises ObzImporter::ImportError when the zip has no .obf entries" do
       empty_zip = StringIO.new

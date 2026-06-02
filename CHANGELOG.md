@@ -5,6 +5,34 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — OBF/OBZ import: opt-in for image binaries, private-by-default (#239)
+- `POST /api/boards/import_obf` no longer downloads or stores image
+  binaries from imported `.obz` / `.obf` files by default. Board
+  structure imports as before; tiles render with their label and the
+  user's existing matching images, but bundled symbol PNGs are not
+  pulled into S3 unless the client opts in.
+- Two new params:
+  - `include_images` (bool, default `false`) — when `true`, the importer
+    calls `Down.download` per OBF image entry and creates Docs.
+  - `image_license_acknowledged` (bool, default `false`) — required to
+    be `true` when `include_images=true`. Otherwise the request returns
+    **HTTP 400 `image_license_required`**.
+- Every `Image` row created via OBF/OBZ import is now `is_private: true`,
+  unconditionally. They never enter the `public_img` scope or other
+  users' search results. An admin can flip individual images public later.
+- `BoardGroup.settings["imported_from_obf"]` now records the audit trail
+  per import: `include_images`, `license_acknowledged`,
+  `acknowledged_by_user_id`, `acknowledged_at`, `imported_by_user_id`,
+  and the OBF root board's `license` block (if any).
+- **Why:** previously, importing a CoughDrop / TouchChat `.obz` with
+  proprietary symbol assets (e.g. SymbolStix) would land those PNGs in
+  S3 with `is_private=false`, exposing licensed artwork to every user
+  via `Image.searchable_images_for`.
+- **Frontend impact:** existing upload modal continues to succeed
+  without changes, but imports will be structure-only until the
+  frontend adds an "Import images" + "I have permission" pair of
+  checkboxes that send the new params.
+
 ### Changed — Pro plan now includes 5 Communicators (was 3)
 - `User::PRO_PLAN_LIMITS["paid_communicator_limit"]` default bumped
   from `3` → `5` in `app/models/user.rb`. Same `PRO_PAID_COMMUNICATOR_LIMIT`
