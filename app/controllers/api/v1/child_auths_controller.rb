@@ -11,6 +11,19 @@ class API::V1::ChildAuthsController < API::ApplicationController
       auth_token = child.authentication_token
       user_context = child.user
 
+      # Fallback-mode communicators (over the Free slot limit after a downgrade)
+      # can't sign in privately — redirect the client to the public MySpeak page,
+      # which stays open and read-only. A system admin still bypasses for support
+      # access. Issue #255 (frontend redirect: itty-bitty-frontend#275).
+      if child.fallback_mode? && !user_context&.admin?
+        return render json: {
+                        error: "communicator_in_fallback",
+                        message: "Private sign-in is unavailable on the Free plan for this communicator. Open its public MySpeak page instead, or upgrade to restore sign-in.",
+                        redirect_url: child.public_url,
+                        public_url: child.public_url,
+                      }, status: :forbidden
+      end
+
       unless child.can_sign_in?(user_context)
         if user_context&.admin?
           child.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip, sign_in_count: child.sign_in_count + 1)

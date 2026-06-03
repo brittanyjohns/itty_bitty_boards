@@ -136,6 +136,43 @@ class ChildAccount < ApplicationRecord
   def loaner?  = status == LOANER
   def active?  = status == ACTIVE
 
+  # --- Fallback mode (issue #255) --------------------------------------------
+  # A communicator that still exists but exceeds the owner's slot limit *because
+  # the account downgraded to Free*. It keeps its boards, MySpeak/profile, and
+  # public_url, but private passcode sign-in is blocked (`can_sign_in?` returns
+  # false; the controller redirects to the public page). Read-only on the public
+  # fallback — no board editing.
+  #
+  # The marker is only ever set/cleared by User#reconcile_communicator_fallback!,
+  # so a fresh Free signup (capped at 1 communicator) is never flagged — this
+  # state is only ever a consequence of a downgrade. It clears automatically on
+  # re-upgrade when a slot frees up.
+  FALLBACK_MODE_KEY = "fallback_mode".freeze
+
+  def fallback_mode?
+    settings.present? && settings[FALLBACK_MODE_KEY] == true
+  end
+
+  def enter_fallback!(reason: "downgrade")
+    return self if fallback_mode?
+    self.settings ||= {}
+    self.settings[FALLBACK_MODE_KEY] = true
+    self.settings["fallback_since"] = Time.current
+    self.settings["fallback_reason"] = reason
+    save!
+    self
+  end
+
+  def exit_fallback!
+    return self unless fallback_mode?
+    self.settings ||= {}
+    self.settings.delete(FALLBACK_MODE_KEY)
+    self.settings.delete("fallback_since")
+    self.settings.delete("fallback_reason")
+    save!
+    self
+  end
+
   # Can `user` edit the communicator object itself (name, username, voice,
   # layout, safety info)? Distinct from `can_edit` in api_view, which
   # answers "can this user curate boards on this communicator." Spec:
@@ -539,6 +576,8 @@ class ChildAccount < ApplicationRecord
         }
       end,
       can_sign_in: can_sign_in?,
+      fallback_mode: fallback_mode?,
+      fallback_since: settings&.dig("fallback_since"),
       available_boards: available_boards_for_user(viewing_user).map do |b|
         {
           id: b.id,
@@ -611,9 +650,14 @@ class ChildAccount < ApplicationRecord
       return true
     end
 
-    if self.user.admin?
+    if self.user&.admin?
       return true
     end
+
+    # Fallback-mode communicators (over the Free slot limit after a downgrade)
+    # can't use private passcode sign-in. A system admin (handled above) still
+    # bypasses for support access; the public MySpeak page stays open. #255.
+    return false if fallback_mode?
 
     if user
       if user.paid_plan? || user.vendor?
@@ -622,9 +666,6 @@ class ChildAccount < ApplicationRecord
         user.free_trial? || false
       end
     else
-      if self.user.admin?
-        return true
-      end
       Rails.logger.error "No user provided for can_sign_in check"
       false
     end
@@ -884,6 +925,8 @@ class ChildAccount < ApplicationRecord
         }
       end,
       can_sign_in: can_sign_in?,
+      fallback_mode: fallback_mode?,
+      fallback_since: settings&.dig("fallback_since"),
       available_boards: available_boards_for_user(viewing_user).map do |b|
         {
           id: b.id,
@@ -934,6 +977,8 @@ class ChildAccount < ApplicationRecord
       free_trial: user.free_trial?,
       admin: user.admin?,
       can_sign_in: can_sign_in?,
+      fallback_mode: fallback_mode?,
+      fallback_since: settings&.dig("fallback_since"),
       # profile: profile&.api_view,
       week_chart: week_chart,
       avatar_url: profile&.avatar_url,
