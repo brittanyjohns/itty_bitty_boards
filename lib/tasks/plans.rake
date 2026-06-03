@@ -160,4 +160,42 @@ namespace :plans do
            "so RefreshFreeTierCreditsJob (daily) re-grants the free-tier allowance."
     end
   end
+
+  desc "Migrate users on the retired basic_trial soft-trial tier to the free plan " \
+       "(drafts/drop-basic-trial-option-a.md). Mirrors DowngradeSoftTrialJob so " \
+       "credits/limits/boards land cleanly."
+  task migrate_basic_trial_to_free: :environment do
+    migrated = 0
+    skipped = 0
+
+    User.where(plan_type: "basic_trial").find_each do |user|
+      user.setup_free_limits
+      user.plan_type = "free"
+      user.plan_status = "active"
+      user.plan_expires_at = nil
+      user.settings ||= {}
+      user.settings["plan_nickname"] = "free"
+      user.save!
+
+      # Re-grant the free-tier allowance so they don't see balance=0 after
+      # losing the 400-credit trial grant (mirrors DowngradeSoftTrialJob).
+      CreditService.grant_plan!(
+        user,
+        amount: CreditService.monthly_credits_for("free"),
+        period_end: CreditService.initial_period_end_for("free"),
+        metadata: { source: "basic_trial_migration" },
+      )
+
+      # Pin a default editable board so over-limit boards have a deterministic
+      # editable slot (matches DowngradeSoftTrialJob / apply_free_plan).
+      user.pin_default_editable_board!
+      migrated += 1
+      print "." if migrated % 100 == 0
+    rescue => e
+      skipped += 1
+      warn "[plans:migrate_basic_trial_to_free] user #{user.id} failed: #{e.message}"
+    end
+
+    puts "\nMigration complete. migrated=#{migrated} skipped=#{skipped}"
+  end
 end

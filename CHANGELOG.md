@@ -5,6 +5,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Drop the no-CC `basic_trial` soft trial (Option A)
+- Every new signup now starts on **Free** (5 credits, Free-tier limits)
+  instead of the 14-day no-credit-card `basic_trial`. The credit-card
+  Stripe trial is unchanged. This closes the loophole where a signup could
+  stack ~28 days of premium-level access (no-CC trial + CC Stripe trial)
+  before the first charge.
+- Removed the `before_create :set_soft_trial_plan` callback (replaced with
+  `setup_new_user_free_plan`, which applies Free limits on create) and the
+  login-time re-apply in `API::V1::AuthsController#create`.
+- Existing `basic_trial` users are migrated to Free via the one-off
+  `bin/rails plans:migrate_basic_trial_to_free` task (run on production
+  after deploy). The remaining `basic_trial` plumbing
+  (`CreditService`, `setup_limits`, `RefreshFreeTierCreditsJob`,
+  `DowngradeSoftTrialJob`) is kept as a harmless fallback.
+
 ### Changed — Board create accepts topic + word_list together (#246)
 - `POST /api/boards` now accepts a situation (`topic`/`prompt`) and seed
   words (`word_list`) in the same request. The redesigned `/boards/new`

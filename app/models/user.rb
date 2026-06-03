@@ -166,11 +166,14 @@ class User < ApplicationRecord
   before_destroy :delete_stripe_customer
   before_destroy :unassign_vendor
 
-  # Only run on create — running on every save would bounce a user back to
-  # basic_trial any time they were deliberately set to "free" within the
-  # 14-day signup window (Stripe cancellation, checkout "Free" pick, etc.).
-  # The auths controller calls set_soft_trial_plan explicitly when needed.
-  before_create :set_soft_trial_plan, if: :free_trial?
+  # Every new signup lands on Free — the no-CC `basic_trial` soft trial was
+  # removed (drafts/drop-basic-trial-option-a.md). The `plan_type` column
+  # already defaults to "free"; this callback just applies the Free-tier
+  # limits in-memory on create so the account has a board slot, a communicator
+  # slot, and the AI monthly limit set from the start. The 5-credit initial
+  # grant is handled by after_create :grant_initial_plan_credits, which reads
+  # the user's plan_type ("free").
+  before_create :setup_new_user_free_plan
   before_save :setup_limits, if: :plan_type_changed?
   before_save :update_vendor, if: :plan_type_changed?
 
@@ -201,6 +204,24 @@ class User < ApplicationRecord
 
   attr_accessor :skip_plan_setup
 
+  # before_create hook: put new signups on Free with the correct limits.
+  # Mutates settings in-memory only (no save) since the record isn't
+  # persisted yet. setup_free_limits sets paid_communicator_limit to the
+  # FREE default, which already satisfies ensure_minimum_communicator_slot!.
+  #
+  # Only applies Free limits when the account is actually Free. Accounts
+  # created with an explicit paid/basic_trial plan_type get their limits from
+  # before_save :setup_limits (which fires on plan_type_changed?) — don't
+  # clobber those here.
+  def setup_new_user_free_plan
+    self.plan_type = "free" if plan_type.blank?
+    setup_free_limits if plan_type == "free"
+  end
+
+  # DEPRECATED: the no-CC soft trial was removed
+  # (drafts/drop-basic-trial-option-a.md). No longer wired to any callback or
+  # controller — kept defined as harmless fallback during the cutover. Safe to
+  # delete once the basic_trial cohort is confirmed empty.
   def set_soft_trial_plan
     # A non-blank paid_plan_type means the user has previously been on a paid
     # plan (set by apply_free_plan on cancel/pause and by the soft-trial
