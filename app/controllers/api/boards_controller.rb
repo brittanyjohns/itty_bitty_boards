@@ -343,17 +343,30 @@ class API::BoardsController < API::ApplicationController
 
     respond_to do |format|
       if @board.save
-        word_count = params[:wordCount].presence || params[:word_count].presence.to_i || 12
+        # Clamp word_count server-side so a malicious/oversized client value
+        # can't drive a huge AI prompt. The merged "Build a board" form sends
+        # either camelCase (wordCount) or snake_case (word_count).
+        word_count = (params[:wordCount].presence || params[:word_count].presence || 12).to_i.clamp(1, 50)
         case creation_type
-        when "default"
+        when "default", "scenario"
+          # The redesigned /boards/new merges "from scratch" and "from
+          # scenario" into one form, so topic (situation) and word_list (seed
+          # words) can arrive together. The frontend picks the creation_type;
+          # both paths share the same job args. age_range is optional —
+          # GenerateBoardJob falls back to its own default when it's blank.
           word_list = params[:word_list]&.compact
-          if word_list.present?
-            GenerateBoardJob.perform_async(@board.id, creation_type, { "word_list" => word_list })
-          end
-        when "scenario"
-          topic = params[:topic] || params[:prompt] || @board.name
+          topic     = params[:topic] || params[:prompt] || @board.name
           age_range = params[:ageRange].presence || params[:age_range].presence
-          GenerateBoardJob.perform_async(@board.id, creation_type, { "topic" => topic, "age_range" => age_range, "word_count" => word_count, "profile" => communicator_profile_params })
+
+          job_args = {
+            "topic"      => topic,
+            "age_range"  => age_range,
+            "word_count" => word_count,
+            "profile"    => communicator_profile_params,
+          }
+          job_args["word_list"] = word_list if word_list.present?
+
+          GenerateBoardJob.perform_async(@board.id, creation_type, job_args)
         else
           GenerateBoardJob.perform_async(@board.id, creation_type, { "word_count" => word_count, "profile" => communicator_profile_params })
         end

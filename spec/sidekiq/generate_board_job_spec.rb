@@ -107,4 +107,51 @@ RSpec.describe GenerateBoardJob, type: :job do
       )
     end
   end
+
+  describe "default creation with both seed words and a topic" do
+    let(:board) do
+      create(:board, user: user, name: "Morning Routine", board_type: "default", large_screen_columns: 5)
+    end
+
+    before do
+      allow_any_instance_of(Board).to receive(:find_or_create_images_from_word_list)
+      allow_any_instance_of(Board).to receive(:reset_layouts)
+      allow_any_instance_of(Board).to receive(:generate_previews)
+      allow_any_instance_of(described_class).to receive(:sleep)
+    end
+
+    it "combines the seed word_list with topic-generated words (deduped)" do
+      allow(Board).to receive(:find_by).with(id: board.id).and_return(board)
+      expect(board).to receive(:get_words_for_scenario)
+        .with("morning routine", nil, 5, profile: nil)
+        .and_return(%w[wake eat])
+
+      captured = nil
+      allow(board).to receive(:find_or_create_images_from_word_list) { |w| captured = w }
+
+      described_class.new.perform(
+        board.id,
+        "default",
+        { "topic" => "morning routine", "word_list" => %w[wake brush], "word_count" => 5 },
+      )
+
+      expect(captured).to eq(%w[wake brush eat])
+    end
+
+    it "uses the seed words alone when no topic is given" do
+      allow(Board).to receive(:find_by).with(id: board.id).and_return(board)
+      expect(board).not_to receive(:get_words_for_scenario)
+
+      captured = nil
+      allow(board).to receive(:find_or_create_images_from_word_list) { |w| captured = w }
+
+      described_class.new.perform(
+        board.id,
+        "default",
+        { "word_list" => %w[apple banana], "word_count" => 5 },
+      )
+
+      expect(captured).to eq(%w[apple banana])
+    end
+  end
 end

@@ -12,20 +12,28 @@ class GenerateBoardJob
         board.update_column(:status, "generating_words")
         profile = CommunicatorProfile.from_params(options["profile"] || {})
         case board_creation_type
-        when "default"
-          words = options["word_list"] || options["wordList"] || []
-        when "scenario"
+        when "default", "scenario"
+          # The merged "Build a board" form can send seed words (word_list)
+          # and a topic together. Seed words are used as-is; when a topic is
+          # present we also generate scenario words and combine them. A board
+          # with seed words but no topic just keeps the seed words.
+          seed_words = (options["word_list"] || options["wordList"] || []).compact
           topic = options["topic"].to_s.strip
           age_range = options["age_range"].presence || options["ageRange"].presence
-          if word_count <= 0 || word_count > 80
-            Rails.logger.warn "Word count of #{word_count} is out of bounds for Board ID #{board.id}."
-            # `|| 6` doesn't fire on 0 (truthy in Ruby), which mattered when
-            # api/internal/boards#create coerced missing columns to 0. Guard
-            # against any caller that still produces a zero column count.
-            lrg_cols = board.large_screen_columns.to_i.positive? ? board.large_screen_columns : 6
-            word_count = lrg_cols * 4
+
+          generated = []
+          if topic.present?
+            if word_count <= 0 || word_count > 80
+              Rails.logger.warn "Word count of #{word_count} is out of bounds for Board ID #{board.id}."
+              # `|| 6` doesn't fire on 0 (truthy in Ruby), which mattered when
+              # api/internal/boards#create coerced missing columns to 0. Guard
+              # against any caller that still produces a zero column count.
+              lrg_cols = board.large_screen_columns.to_i.positive? ? board.large_screen_columns : 6
+              word_count = lrg_cols * 4
+            end
+            generated = board.get_words_for_scenario(topic, age_range, word_count, profile: profile) || []
           end
-          words = board.get_words_for_scenario(topic, age_range, word_count, profile: profile)
+          words = (seed_words + generated).uniq
         when "menu"
           # Placeholder for future menu-based word generation logic
           words = []

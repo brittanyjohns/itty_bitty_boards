@@ -174,6 +174,95 @@ RSpec.describe "API::Boards", type: :request do
             expect(opts["profile"]).to be_empty
           end
         end
+
+        it "passes topic + word_list together for default creation" do
+          post "/api/boards",
+               params: {
+                 board: { name: "Build A Board" },
+                 board_creation_type: "default",
+                 topic: "morning routine",
+                 word_list: %w[wake brush eat],
+                 wordCount: 12,
+               },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          expect(GenerateBoardJob).to have_received(:perform_async) do |_id, type, opts|
+            expect(type).to eq("default")
+            expect(opts["topic"]).to eq("morning routine")
+            expect(opts["word_list"]).to eq(%w[wake brush eat])
+            expect(opts["word_count"]).to eq(12)
+          end
+        end
+
+        it "passes topic + word_list together for scenario creation" do
+          post "/api/boards",
+               params: {
+                 board: { name: "Coffee Shop" },
+                 board_creation_type: "scenario",
+                 topic: "ordering coffee",
+                 word_list: %w[latte size],
+                 ageRange: "10-15",
+                 wordCount: 8,
+               },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          expect(GenerateBoardJob).to have_received(:perform_async) do |_id, type, opts|
+            expect(type).to eq("scenario")
+            expect(opts["topic"]).to eq("ordering coffee")
+            expect(opts["word_list"]).to eq(%w[latte size])
+            expect(opts["age_range"]).to eq("10-15")
+          end
+        end
+
+        it "clamps word_count above 50 down to 50" do
+          post "/api/boards",
+               params: {
+                 board: { name: "Too Many Words" },
+                 board_creation_type: "default",
+                 topic: "animals",
+                 wordCount: 999,
+               },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          expect(GenerateBoardJob).to have_received(:perform_async) do |_id, _type, opts|
+            expect(opts["word_count"]).to eq(50)
+          end
+        end
+
+        it "clamps word_count below 1 up to 1" do
+          post "/api/boards",
+               params: {
+                 board: { name: "No Words" },
+                 board_creation_type: "default",
+                 topic: "animals",
+                 wordCount: 0,
+               },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          expect(GenerateBoardJob).to have_received(:perform_async) do |_id, _type, opts|
+            expect(opts["word_count"]).to eq(1)
+          end
+        end
+
+        it "does not error when age_range is omitted" do
+          post "/api/boards",
+               params: {
+                 board: { name: "No Age Range" },
+                 board_creation_type: "scenario",
+                 topic: "going to the park",
+                 wordCount: 12,
+               },
+               headers: auth_headers(creator)
+
+          expect(response).to have_http_status(:created)
+          expect(GenerateBoardJob).to have_received(:perform_async) do |_id, _type, opts|
+            expect(opts["age_range"]).to be_nil
+          end
+        end
       end
     end
   end
