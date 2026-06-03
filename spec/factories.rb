@@ -91,9 +91,11 @@ FactoryBot.define do
     role { "admin" }
   end
 
-  # A real Free user (no longer in the soft-trial window). User#set_soft_trial_plan
-  # flips plan_type="free" to "basic_trial" when created_at is within the
-  # 14-day trial period, so we backdate created_at to stay genuinely free.
+  # An explicit Free user. As of drafts/drop-basic-trial-option-a.md every new
+  # signup already lands on Free (the no-CC basic_trial soft trial was removed),
+  # so the base :user factory is also Free. This factory just makes the intent
+  # explicit; the backdated created_at is kept for specs that assert a user is
+  # past any trial window.
   factory(:free_user, class: "User") do
     sequence(:email) { |n| "free#{n}@example.com" }
     password { "password123" }

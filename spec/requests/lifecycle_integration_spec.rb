@@ -45,10 +45,13 @@ RSpec.describe "Subscription lifecycle (end-to-end)", type: :request do
     )
   end
 
-  it "walks signup → trial → upgrade → cancel → soft-trial sweep" do
-    # ----- Step 1: signup -----
-    # New users land in basic_trial with 400 plan credits (User#after_create
-    # → CreditService.ensure_initial_grant!) and no Stripe customer yet.
+  it "walks legacy basic_trial → trial → upgrade → cancel → soft-trial sweep" do
+    # ----- Step 1: legacy basic_trial account -----
+    # New signups now land on free (the no-CC soft trial was removed,
+    # drafts/drop-basic-trial-option-a.md), but basic_trial remains a valid
+    # fallback state we must keep handling. Construct one explicitly: it gets
+    # the 400-credit grant (User#after_create → CreditService.ensure_initial_grant!)
+    # and no Stripe customer yet.
     user = FactoryBot.create(:user, stripe_customer_id: "cus_lifecycle", plan_type: "basic_trial")
     expect(user.plan_type).to eq("basic_trial")
     expect(user.plan_credits_balance).to eq(400)

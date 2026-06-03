@@ -80,9 +80,17 @@ RSpec.describe User, type: :model do
     end
   end
   context "plan_type checks" do
-    it "defaults to basic_trial plan (soft trial) on signup" do
+    it "defaults to free plan on signup (no-CC soft trial removed)" do
       user = FactoryBot.create(:user)
-      expect(user.plan_type).to eq("basic_trial")
+      expect(user.plan_type).to eq("free")
+    end
+
+    it "applies Free-tier limits on signup" do
+      user = FactoryBot.create(:user)
+      expect(user.settings["board_limit"]).to eq(User::FREE_PLAN_LIMITS["board_limit"])
+      expect(user.settings["paid_communicator_limit"]).to eq(User::FREE_PLAN_LIMITS["paid_communicator_limit"])
+      expect(user.settings["demo_communicator_limit"]).to eq(User::FREE_PLAN_LIMITS["demo_communicator_limit"])
+      expect(user.settings["ai_monthly_limit"]).to eq(User::FREE_PLAN_LIMITS["ai_monthly_limit"])
     end
 
     it "does not override an explicitly set plan_type on create" do
@@ -93,7 +101,7 @@ RSpec.describe User, type: :model do
     it "does not change plan_type on subsequent saves" do
       user = FactoryBot.create(:user)
       user.update!(name: "Updated")
-      expect(user.plan_type).to eq("basic_trial")
+      expect(user.plan_type).to eq("free")
     end
 
     it "recognizes pro plan" do
@@ -119,21 +127,11 @@ RSpec.describe User, type: :model do
   end
 
   context "initial plan-credit grant on signup" do
-    it "grants the basic_trial allowance (400) by default since new users land in basic_trial" do
+    it "grants the free allowance (5) by default since new users land on free" do
       user = FactoryBot.create(:user)
-      expect(user.plan_type).to eq("basic_trial")
-      expect(user.plan_credits_balance).to eq(400)
-      expect(user.credit_transactions.where(kind: "plan_grant").count).to eq(1)
-    end
-
-    # NOTE: User#set_soft_trial_plan (before_save) flips plan_type "free" → "basic_trial"
-    # for any user inside their 14-day free trial window. To test the "free" path,
-    # explicitly age the user past the trial window before the after_create grant.
-    it "grants the free allowance (5) when the user is post-trial (free)" do
-      user = FactoryBot.build(:user, plan_type: "free", created_at: 30.days.ago)
-      user.save!
       expect(user.plan_type).to eq("free")
       expect(user.plan_credits_balance).to eq(5)
+      expect(user.credit_transactions.where(kind: "plan_grant").count).to eq(1)
     end
 
     it "grants the basic allowance (400) when plan_type is explicitly basic" do
@@ -146,14 +144,8 @@ RSpec.describe User, type: :model do
       expect(user.plan_credits_balance).to eq(1500)
     end
 
-    it "sets plan_credits_reset_at = 14 days from now for basic_trial users" do
+    it "sets plan_credits_reset_at = 30 days from now for free users (default)" do
       user = FactoryBot.create(:user)
-      expect(user.plan_credits_reset_at).to be_within(5.seconds).of(14.days.from_now)
-    end
-
-    it "sets plan_credits_reset_at = 30 days from now for post-trial free users" do
-      user = FactoryBot.build(:user, plan_type: "free", created_at: 30.days.ago)
-      user.save!
       expect(user.plan_credits_reset_at).to be_within(5.seconds).of(30.days.from_now)
     end
 
@@ -161,6 +153,26 @@ RSpec.describe User, type: :model do
       admin = FactoryBot.create(:admin_user)
       expect(admin.plan_credits_balance).to eq(0)
       expect(admin.credit_transactions.where(kind: "plan_grant")).to be_empty
+    end
+  end
+
+  # Regression guard for drafts/drop-basic-trial-option-a.md: the no-CC
+  # basic_trial soft trial was removed, so every brand-new signup must land on
+  # Free with Free limits and the 5-credit initial grant — no 400-credit trial.
+  context "fresh signup (no-CC soft trial removed)" do
+    it "lands on free with Free limits, a communicator slot, and a 5-credit grant" do
+      user = FactoryBot.create(:user)
+
+      expect(user.plan_type).to eq("free")
+      expect(user.settings["board_limit"]).to eq(User::FREE_PLAN_LIMITS["board_limit"])
+      expect(user.settings["ai_monthly_limit"]).to eq(User::FREE_PLAN_LIMITS["ai_monthly_limit"])
+      # At least the Free-tier communicator slot so the MySpeak wizard doesn't 403.
+      expect(user.settings["paid_communicator_limit"])
+        .to eq(User::FREE_PLAN_LIMITS["paid_communicator_limit"])
+      expect(user.settings["paid_communicator_limit"].to_i).to be >= 1
+
+      expect(user.plan_credits_balance).to eq(5)
+      expect(user.credit_transactions.where(kind: "plan_grant").count).to eq(1)
     end
   end
 

@@ -13,7 +13,7 @@ RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
     end
 
     it "refreshes a basic_trial user whose reset_at has passed" do
-      user = FactoryBot.create(:user) # defaults to basic_trial
+      user = FactoryBot.create(:user, plan_type: "basic_trial") # legacy fallback tier
       user.update_columns(plan_credits_balance: 0, plan_credits_reset_at: 1.minute.ago, stripe_subscription_id: nil)
 
       described_class.new.perform

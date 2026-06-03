@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe CreditService, type: :service do
   let(:user) { FactoryBot.create(:user) }
 
-  # New users land in `basic_trial` and get an after_create plan_grant (400).
+  # New users land on `free` and get an after_create plan_grant (5).
   # These specs test CreditService in isolation, so wipe the auto-grant first.
   before { reset_user_credits!(user) }
 

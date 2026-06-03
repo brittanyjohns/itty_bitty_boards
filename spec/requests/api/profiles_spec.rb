@@ -2,14 +2,9 @@ require "rails_helper"
 
 RSpec.describe "API::Profiles", type: :request do
   describe "POST /api/profiles (MySpeak ID limit)" do
-    # New users within TRAIL_PERIOD (14 days) get auto-bumped to basic_trial,
-    # which `paid_plan?` treats as paid. To test the true Free state, bypass
-    # callbacks with update_columns so plan_type stays "free".
-    let(:free_user) do
-      user = FactoryBot.create(:user)
-      user.update_columns(plan_type: "free", created_at: 30.days.ago)
-      user
-    end
+    # New signups land on Free (the no-CC basic_trial soft trial was removed,
+    # drafts/drop-basic-trial-option-a.md), so the base factory is already Free.
+    let(:free_user) { FactoryBot.create(:user) }
     let(:pro_user) { FactoryBot.create(:user, plan_type: "pro") }
 
     let(:create_params) do

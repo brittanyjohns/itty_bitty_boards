@@ -1,6 +1,6 @@
 # Test helper for the AI credit ledger.
 #
-# New users land in `basic_trial` and get an automatic plan-credit grant
+# New users land on `free` and get an automatic plan-credit grant
 # from User#after_create. Specs that test credit-related behavior in
 # isolation usually want to start from a clean ledger, so they can set
 # up the exact balance they want to exercise. This helper does that.

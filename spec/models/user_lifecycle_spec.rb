@@ -6,17 +6,20 @@ require "rails_helper"
 #   - spec/requests/api/webhooks_plan_type_spec.rb (webhook-driven mutations)
 #   - spec/sidekiq/downgrade_soft_trial_job_spec.rb (job-driven downgrade)
 RSpec.describe User, type: :model do
-  describe "#set_soft_trial_plan" do
-    it "promotes a blank plan_type to basic_trial on create" do
+  # The no-CC basic_trial soft trial was removed
+  # (drafts/drop-basic-trial-option-a.md). Every new signup lands on Free.
+  describe "signup plan defaults (#setup_new_user_free_plan)" do
+    it "puts a blank plan_type on free with Free limits on create" do
       user = User.new(email: "a@example.com", password: "password123", plan_type: nil)
       user.save!
-      expect(user.plan_type).to eq("basic_trial")
+      expect(user.plan_type).to eq("free")
+      expect(user.settings["board_limit"]).to eq(User::FREE_PLAN_LIMITS["board_limit"])
     end
 
-    it "promotes plan_type='free' to basic_trial when within the trial window" do
+    it "keeps a fresh free user on free even within the old trial window" do
       user = User.new(email: "b@example.com", password: "password123", plan_type: "free")
       user.save!
-      expect(user.plan_type).to eq("basic_trial")
+      expect(user.plan_type).to eq("free")
     end
 
     it "does NOT overwrite an explicit 'basic' plan on create" do
@@ -31,12 +34,8 @@ RSpec.describe User, type: :model do
       expect(user.plan_type).to eq("pro")
     end
 
-    # Regression for bug 3 (downgrade-then-save inside trial window).
-    it "does NOT re-promote a user who has been deliberately downgraded (paid_plan_type set)" do
-      user = FactoryBot.create(:user) # basic_trial inside window
-      user.update!(plan_type: "free", paid_plan_type: "basic")
-      # Trigger any save — without the paid_plan_type guard, the before_save
-      # callback would bounce them back to basic_trial.
+    it "does NOT re-promote a free user on subsequent saves" do
+      user = FactoryBot.create(:user) # free
       user.touch
       expect(user.reload.plan_type).to eq("free")
     end
