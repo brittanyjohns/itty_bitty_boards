@@ -78,7 +78,7 @@ class API::UsersController < API::ApplicationController
     if current_user.update(unconfirmed_email: new_email)
       token = SecureRandom.hex(16)
       if current_user.update(confirmation_token: token, confirmation_sent_at: Time.current)
-        UserMailer.confirm_update_email(current_user).deliver_now
+        UserMailer.confirm_update_email(current_user).deliver_later
         render json: {
                  message: "Confirmation email sent to #{new_email}. Your current email will stay active until you confirm.",
                  current_email: current_user.email,
@@ -122,7 +122,7 @@ class API::UsersController < API::ApplicationController
       token = SecureRandom.hex(16)
       current_user.update(confirmation_token: token, confirmation_sent_at: Time.current)
     end
-    UserMailer.confirm_update_email(current_user).deliver_now
+    UserMailer.confirm_update_email(current_user).deliver_later
 
     render json: {
       message: "Confirmation email resent to #{pending_email}.",

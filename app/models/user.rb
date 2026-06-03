@@ -731,7 +731,7 @@ class User < ApplicationRecord
   end
 
   def invite_to_team!(team, inviter, role = "member")
-    BaseMailer.team_invitation_email(self, inviter, team, role).deliver_now
+    BaseMailer.team_invitation_email(self, inviter, team, role).deliver_later
     if stripe_customer_id.nil?
       stripe_customer_id = User.create_stripe_customer(email)
       update!(stripe_customer_id: stripe_customer_id)
@@ -746,7 +746,7 @@ class User < ApplicationRecord
         u.skip_invitation = true
       end
     end
-    BaseMailer.team_invitation_email(@user, inviter, team, role).deliver_now
+    BaseMailer.team_invitation_email(@user, inviter, team, role).deliver_later
     if @user.stripe_customer_id.nil?
       stripe_customer_id = User.create_stripe_customer(new_user_email)
       @user.update!(stripe_customer_id: stripe_customer_id)
@@ -757,7 +757,7 @@ class User < ApplicationRecord
   def send_partner_welcome_email
     Rails.logger.info "Sending partner welcome email to #{email}"
     begin
-      PartnerMailer.welcome_email(self).deliver_now
+      PartnerMailer.welcome_email(self).deliver_later
       Rails.logger.info "Partner welcome email sent to #{email}"
     rescue => e
       Rails.logger.error("Error sending partner welcome email: #{e.message}")
@@ -768,7 +768,7 @@ class User < ApplicationRecord
     Rails.logger.info "Sending temporary login email to #{email}"
     begin
       TempLoginService.issue_for!(self)
-      UserMailer.temporary_login_email(self, User::TEMP_LOGIN_TOKEN_EXPIRY_HOURS).deliver_now
+      UserMailer.temporary_login_email(self, User::TEMP_LOGIN_TOKEN_EXPIRY_HOURS).deliver_later
       Rails.logger.info "Temporary login email sent to #{email}"
     rescue => e
       Rails.logger.error("Error sending temporary login email: #{e.message}")
@@ -778,27 +778,27 @@ class User < ApplicationRecord
   def send_general_welcome_email
     Rails.logger.info "Preparing to send welcome email to #{email}"
     begin
-      UserMailer.welcome_email(self).deliver_now
+      UserMailer.welcome_email(self).deliver_later
       self.settings["welcome_email_sent"] = true
       self.save
-      AdminMailer.new_user_email(self).deliver_now
+      AdminMailer.new_user_email(self).deliver_later
       update_mailchimp_subscription
     end
   end
 
   def send_welcome_email_free
     Rails.logger.info "Sending free welcome email to #{email}"
-    UserMailer.welcome_free_email(self).deliver_now
+    UserMailer.welcome_free_email(self).deliver_later
   end
 
   def send_welcome_email_basic
     Rails.logger.info "Sending basic welcome email to #{email}"
-    UserMailer.welcome_basic_email(self).deliver_now
+    UserMailer.welcome_basic_email(self).deliver_later
   end
 
   def send_welcome_email_pro
     Rails.logger.info "Sending pro welcome email to #{email}"
-    UserMailer.welcome_pro_email(self).deliver_now
+    UserMailer.welcome_pro_email(self).deliver_later
   end
 
   def send_welcome_email(plan_nickname = nil, slug = nil)
@@ -818,7 +818,7 @@ class User < ApplicationRecord
       end
       self.settings["welcome_email_sent"] = true
       self.save
-      AdminMailer.new_user_email(self).deliver_now
+      AdminMailer.new_user_email(self).deliver_later
       update_mailchimp_subscription
 
       Rails.logger.info "Welcome email sent to #{email}"
@@ -830,7 +830,7 @@ class User < ApplicationRecord
   def send_pro_setup_email
     Rails.logger.info "Sending pro setup email to #{email}"
     begin
-      SetupMailer.pro_setup_email(self).deliver_now
+      SetupMailer.pro_setup_email(self).deliver_later
       Rails.logger.info "Pro setup email sent to #{email}"
     rescue => e
       Rails.logger.error("Error sending pro setup email: #{e.message}")
@@ -840,7 +840,7 @@ class User < ApplicationRecord
   def send_free_setup_email
     Rails.logger.info "Sending free setup email to #{email}"
     begin
-      UserMailer.welcome_free_email(self).deliver_now
+      UserMailer.welcome_free_email(self).deliver_later
       Rails.logger.info "Free setup email sent to #{email}"
     rescue => e
       Rails.logger.error("Error sending free setup email: #{e.message}")
@@ -850,7 +850,7 @@ class User < ApplicationRecord
   def send_vendor_setup_email
     Rails.logger.info "Sending vendor setup email to #{email}"
     begin
-      SetupMailer.vendor_setup_email(self).deliver_now
+      SetupMailer.vendor_setup_email(self).deliver_later
       Rails.logger.info "Vendor setup email sent to #{email}"
     rescue => e
       Rails.logger.error("Error sending vendor setup email: #{e.message}")
@@ -876,8 +876,8 @@ class User < ApplicationRecord
   def send_welcome_invitation_email(inviter_id)
     Rails.logger.info "Sending welcome invitation email to #{email} from user ID #{inviter_id}"
     begin
-      UserMailer.welcome_invitation_email(self, inviter_id).deliver_now
-      # AdminMailer.new_user_email(self).deliver_now
+      UserMailer.welcome_invitation_email(self, inviter_id).deliver_later
+      # AdminMailer.new_user_email(self).deliver_later
     rescue => e
       Rails.logger.error("Error sending welcome invitation email: #{e.message}")
     end
@@ -887,7 +887,7 @@ class User < ApplicationRecord
     business_name = vendor.business_name
     Rails.logger.info "Sending welcome new vendor email to #{email} for business #{business_name}"
     begin
-      UserMailer.welcome_new_vendor_email(self, vendor).deliver_now
+      UserMailer.welcome_new_vendor_email(self, vendor).deliver_later
     rescue => e
       Rails.logger.error("Error sending welcome new vendor email: #{e.message}")
     end
@@ -896,7 +896,7 @@ class User < ApplicationRecord
   def send_welcome_to_organization_email(inviter_id)
     Rails.logger.info "Sending welcome to organization email to #{email} from user ID #{inviter_id}"
     begin
-      UserMailer.welcome_to_organization_email(self, inviter_id).deliver_now
+      UserMailer.welcome_to_organization_email(self, inviter_id).deliver_later
     rescue => e
       Rails.logger.error("Error sending welcome to organization email: #{e.message}")
     end
@@ -905,7 +905,7 @@ class User < ApplicationRecord
   def send_welcome_with_claim_link_email(slug)
     Rails.logger.info "Sending welcome with claim link email to #{email} with slug #{slug}"
     begin
-      UserMailer.welcome_with_claim_link_email(self, slug).deliver_now
+      UserMailer.welcome_with_claim_link_email(self, slug).deliver_later
     rescue => e
       Rails.logger.error("Error sending welcome with claim link email: #{e.message}")
     end

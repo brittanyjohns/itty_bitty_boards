@@ -98,7 +98,7 @@ RSpec.describe "API::ChildAccounts owner protection", type: :request do
 
   describe "POST /api/child_accounts/:id/send_setup_email" do
     before do
-      mailer = double("CommunicationAccountMailer", deliver_now: true)
+      mailer = double("CommunicationAccountMailer", deliver_later: true)
       allow(CommunicationAccountMailer).to receive(:setup_email).and_return(mailer)
     end
 

@@ -5,6 +5,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Background-queue all user-lifecycle emails (#207, phase 2)
+- Every inline `deliver_now` in request and lifecycle paths is now
+  `deliver_later`. Welcome, plan-change, team invitation, claim-link,
+  setup, confirm-email-update, message notification, and admin
+  feedback emails all enqueue to Sidekiq instead of blocking the
+  request thread on SMTP.
+- Affected files: `app/models/user.rb` (17 sites),
+  `app/controllers/api/users_controller.rb` (2 sites),
+  `app/models/message.rb`, `app/models/feedback_item.rb`,
+  `app/models/child_account.rb`. `DiskSpaceAlertJob` still uses
+  `deliver_now` — it already runs inside Sidekiq.
+- Closes the last hot-path SMTP risk identified in the 2026-05-30
+  outage (#207). Pairs with PR #208 (SMTP timeouts, OpenAI timeouts,
+  puma cluster mode).
+- User-visible: faster HTTP responses on signup, plan change, team
+  invites, email-change confirmation. Email arrival time unchanged
+  (Gmail-side delivery dominates).
+- Added `spec/lib/no_inline_mailer_delivery_spec.rb` as a regression
+  guard so a new `deliver_now` outside `app/sidekiq/` fails CI.
+
 ### Changed — OBF/OBZ import: opt-in for image binaries, private-by-default (#239)
 - `POST /api/boards/import_obf` no longer downloads or stores image
   binaries from imported `.obz` / `.obf` files by default. Board

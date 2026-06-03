@@ -582,7 +582,7 @@ class ChildAccount < ApplicationRecord
   end
 
   def send_setup_email(sending_user)
-    CommunicationAccountMailer.setup_email(self, sending_user).deliver_now
+    CommunicationAccountMailer.setup_email(self, sending_user).deliver_later
   end
 
   def create_profile!
