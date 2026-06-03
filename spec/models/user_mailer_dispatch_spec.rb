@@ -31,8 +31,22 @@ RSpec.describe "User lifecycle mailers enqueue instead of delivering inline" do
   it "enqueues the team invitation email from invite_to_team!" do
     inviter = FactoryBot.create(:user)
     team = FactoryBot.create(:team)
+    # invite_to_team! also lazily provisions a Stripe customer; stub it so the
+    # test stays focused on mailer dispatch and doesn't hit the real Stripe API.
+    allow(User).to receive(:create_stripe_customer).and_return("cus_test_#{SecureRandom.hex(4)}")
     expect {
       user.invite_to_team!(team, inviter, "member")
+    }.to have_enqueued_mail(BaseMailer, :team_invitation_email)
+  end
+
+  it "enqueues the team invitation email from invite_new_user_to_team!" do
+    inviter = FactoryBot.create(:user)
+    team = FactoryBot.create(:team)
+    # Like invite_to_team!, this path lazily provisions a Stripe customer for
+    # the (possibly brand-new) invitee; stub it to keep the test on dispatch.
+    allow(User).to receive(:create_stripe_customer).and_return("cus_test_#{SecureRandom.hex(4)}")
+    expect {
+      User.invite_new_user_to_team!("invitee-#{SecureRandom.hex(4)}@example.com", inviter, team, "member")
     }.to have_enqueued_mail(BaseMailer, :team_invitation_email)
   end
 
