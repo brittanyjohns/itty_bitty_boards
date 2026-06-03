@@ -32,16 +32,17 @@ RSpec.describe "BoardImages AI gating (credits)", type: :request do
   let!(:board_image) { create(:board_image, board: board, image: image) }
 
   describe "POST /api/board_images/:id/create_edit" do
-    it "returns 402 insufficient_credits when balance is below image_edit cost (3)" do
+    it "returns 402 insufficient_credits when balance is below image_edit cost (5)" do
       post "/api/board_images/#{board_image.id}/create_edit", params: { prompt: "x" }
       expect(response.status).to eq(402)
       expect(j["error"]).to eq("insufficient_credits")
       expect(j["feature"]).to eq("image_edit")
-      expect(j["needed"]).to eq(3)
+      expect(j["needed"]).to eq(5)
     end
 
     it "succeeds while credits are available, then blocks once exhausted" do
-      CreditService.grant_plan!(user, amount: 9, period_end: 30.days.from_now)
+      # image_edit costs 5; grant exactly 3 calls' worth so the 4th is blocked.
+      CreditService.grant_plan!(user, amount: 15, period_end: 30.days.from_now)
 
       3.times do
         post "/api/board_images/#{board_image.id}/create_edit", params: { prompt: "x" }

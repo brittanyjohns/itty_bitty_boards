@@ -5,6 +5,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Reprice AI feature credit costs
+- Adjusted per-feature credit costs in `CreditService::FEATURE_COSTS`:
+  `image_edit` 3 → 5, `image_generation` 5 → 3, `screenshot_import` 5 → 3,
+  `scenario_create` 10 → 5, and `menu_create` 10 → 5. (`word_suggestion`,
+  `board_format`, and `image_variation` are unchanged.)
+- Aligned the credit specs (`credit_service_spec`, `credit_enforcement_spec`,
+  `board_images_rate_limit_spec`) with the new costs — the repricing landed
+  without updating them, which had turned `main` red.
+
 ### Changed — Drop the no-CC `basic_trial` soft trial (Option A)
 - Every new signup now starts on **Free** (5 credits, Free-tier limits)
   instead of the 14-day no-credit-card `basic_trial`. The credit-card

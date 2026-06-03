@@ -23,7 +23,7 @@ RSpec.describe "Credit enforcement on AI endpoints", type: :request do
       expect(body).to include(
         "error" => "insufficient_credits",
         "feature" => "scenario_create",
-        "needed" => 10,
+        "needed" => 5,
         "balance" => 0,
         "plan_credits" => 0,
         "topup_credits" => 0,
@@ -36,10 +36,10 @@ RSpec.describe "Credit enforcement on AI endpoints", type: :request do
   describe "spending the configured weight per feature" do
     before { CreditService.grant_plan!(user, amount: 1000, period_end: 30.days.from_now) }
 
-    it "image_generation costs 5" do
+    it "image_generation costs 3" do
       expect {
         post "/api/images/generate", params: { image: { label: "cat", image_prompt: "cat" } }, headers: auth
-      }.to change { user.reload.plan_credits_balance }.by(-5)
+      }.to change { user.reload.plan_credits_balance }.by(-3)
     end
 
     it "word_suggestion costs 1" do
@@ -50,10 +50,10 @@ RSpec.describe "Credit enforcement on AI endpoints", type: :request do
       }.to change { user.reload.plan_credits_balance }.by(-1)
     end
 
-    it "scenario_create costs 10" do
+    it "scenario_create costs 5" do
       expect {
         post "/api/scenarios", params: { scenario: { name: "morning routine" } }, headers: auth
-      }.to change { user.reload.plan_credits_balance }.by(-10)
+      }.to change { user.reload.plan_credits_balance }.by(-5)
     end
   end
 
@@ -72,16 +72,16 @@ RSpec.describe "Credit enforcement on AI endpoints", type: :request do
 
   describe "drains plan credits before top-up" do
     before do
-      CreditService.grant_plan!(user, amount: 3, period_end: 30.days.from_now)
+      CreditService.grant_plan!(user, amount: 2, period_end: 30.days.from_now)
       CreditService.grant_topup!(user, amount: 100, stripe_event_id: "evt_seed")
     end
 
     it "uses plan balance first for an image_generation call" do
       post "/api/images/generate", params: { image: { label: "cat", image_prompt: "cat" } }, headers: auth
       user.reload
-      # cost 5 — plan had 3, topup absorbs 2
+      # cost 3 — plan had 2, topup absorbs 1
       expect(user.plan_credits_balance).to eq(0)
-      expect(user.topup_credits_balance).to eq(98)
+      expect(user.topup_credits_balance).to eq(99)
     end
   end
 end
