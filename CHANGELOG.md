@@ -5,6 +5,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Board create accepts topic + word_list together (#246)
+- `POST /api/boards` now accepts a situation (`topic`/`prompt`) and seed
+  words (`word_list`) in the same request. The redesigned `/boards/new`
+  merges "Create from Scratch" and "Create from Scenario" into one
+  "Build a board" form; the `default` and `scenario` creation types now
+  share a single code path in `API::BoardsController#create`.
+- `word_count` is clamped server-side to `1..50` (accepts either
+  `wordCount` or `word_count`), so an oversized client value can't drive
+  a huge AI prompt.
+- `age_range` (`ageRange`/`age_range`) is optional on both paths —
+  `GenerateBoardJob` falls back to its own default when blank.
+- `GenerateBoardJob`'s `default`/`scenario` strategy now combines the
+  seed `word_list` with topic-generated words (deduped). A board with
+  seed words but no topic just keeps the seed words.
+- Affected files: `app/controllers/api/boards_controller.rb`,
+  `app/sidekiq/generate_board_job.rb`.
+
 ### Changed — Background-queue all user-lifecycle emails (#207, phase 2)
 - Every inline `deliver_now` in request and lifecycle paths is now
   `deliver_later`. Welcome, plan-change, team invitation, claim-link,
