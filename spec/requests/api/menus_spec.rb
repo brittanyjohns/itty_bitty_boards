@@ -10,6 +10,13 @@ RSpec.describe "API::Menus", type: :request do
       )
     end
 
+    # Menu creation is credit-gated (menu_create = 10 credits). Free signups
+    # only grant 5, so give the user enough to clear check_credits! — these
+    # specs exercise menu creation, not the credit gate itself.
+    before do
+      CreditService.grant_plan!(user, amount: 100, period_end: 30.days.from_now)
+    end
+
     it "requires authentication" do
       post "/api/menus", params: { menu: { name: "Lunch" } }
       expect(response).to have_http_status(:unauthorized)
