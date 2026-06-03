@@ -21,12 +21,12 @@ class CreditService
   FEATURE_COSTS = {
     "word_suggestion" => 1,
     "board_format" => 2,
-    "image_edit" => 3,
+    "image_edit" => 5,
     "image_variation" => 3,
-    "image_generation" => 5,
-    "screenshot_import" => 5,
-    "scenario_create" => 10,
-    "menu_create" => 10,
+    "image_generation" => 3,
+    "screenshot_import" => 3,
+    "scenario_create" => 5,
+    "menu_create" => 5,
     # Legacy single-bucket key (during shadow mode / migration)
     "ai_action" => 1,
   }.freeze
