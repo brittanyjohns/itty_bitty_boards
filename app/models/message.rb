@@ -58,10 +58,9 @@ class Message < ApplicationRecord
   def notify_recipient
     if recipient.should_receive_notifications?
       begin
-        UserMailer.message_notification_email(self).deliver_now
-      rescue Net::SMTPFatalError => e
-        Rails.logger.error "Failed to send email: #{e.message}"
-        puts "Failed to send email: #{e.message}"
+        UserMailer.message_notification_email(self).deliver_later
+      rescue => e
+        Rails.logger.error "Failed to enqueue notification email: #{e.message}"
       end
       recipient.set_recently_notified!
       puts "Notification sent to #{recipient.email} about new message from #{sender.email}"

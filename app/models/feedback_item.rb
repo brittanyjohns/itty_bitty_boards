@@ -59,6 +59,6 @@ class FeedbackItem < ApplicationRecord
   private
 
   def send_admin_notification
-    AdminMailer.new_feedback_email(self).deliver_now
+    AdminMailer.new_feedback_email(self).deliver_later
   end
 end

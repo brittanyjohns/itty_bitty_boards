@@ -60,6 +60,8 @@
 require "rails_helper"
 
 RSpec.describe User, type: :model do
+  include ActiveJob::TestHelper
+
   after(:all) do
     Team.destroy_all
     User.destroy_all
@@ -216,7 +218,9 @@ RSpec.describe User, type: :model do
     end
 
     it "sends an invitation email to the invited user" do
-      expect { subject }.to change { ActionMailer::Base.deliveries.count }.by(1)
+      expect {
+        perform_enqueued_jobs { subject }
+      }.to change { ActionMailer::Base.deliveries.count }.by(1)
       last_email = ActionMailer::Base.deliveries.last
       expect(last_email.to).to include(user_to_invite_email)
       expect(last_email.subject).to include("You have been invited to join SpeakAnyWay AAC!")
@@ -346,7 +350,7 @@ RSpec.describe User, type: :model do
 
     it "delivers UserMailer#welcome_free_email" do
       expect {
-        user.send_free_setup_email
+        perform_enqueued_jobs { user.send_free_setup_email }
       }.to change { ActionMailer::Base.deliveries.size }.by(1)
 
       mail = ActionMailer::Base.deliveries.last
