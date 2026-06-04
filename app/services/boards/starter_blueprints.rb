@@ -48,7 +48,7 @@ module Boards
     end
 
     def resolve_tile(tile, user)
-      image = Image.where(label: tile[:label]).where(user_id: [nil, user.id]).first
+      image = Image.where(label: tile[:label]).where(user_id: [nil, user.id, User::DEFAULT_ADMIN_ID], private: [nil, false]).first
       raise "Boards::StarterBlueprints: no Image for label #{tile[:label].inspect}" unless image
 
       resolved = { label: tile[:label], image_id: image.id }
