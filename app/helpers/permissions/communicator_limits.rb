@@ -4,8 +4,10 @@ module Permissions
 
     # Slot math:
     #
-    #   Free  — 1 communicator (self-created or claimed). Plus the no-login
-    #           sandbox.
+    #   Free  — 1 full (login) communicator, CLAIM/HAND-OFF ONLY. A Free user
+    #           never self-creates a full communicator: every self-create is a
+    #           no-login sandbox "MySpeak Free account" (see self_create_status).
+    #           The 1 paid slot only ever fills via a claim (see can_claim?).
     #   Basic — 2 communicators (loaner + active total).
     #   Pro   — 5 communicators, loaner-capable, recycling.
     #
@@ -43,6 +45,19 @@ module Permissions
       return [false, :unprocessable_entity, "Maximum number of communicator accounts reached."] if owned_count >= slot_limit
 
       [true, :ok, nil]
+    end
+
+    # The status a *self-created* communicator must take for this user. A Free
+    # user never self-creates a full (login) communicator — their one paid slot
+    # is reserved for a claim/hand-off (see can_claim?) — so every self-create
+    # (the generic create form AND the MySpeak onboarding wizard) is forced to a
+    # no-login sandbox "MySpeak Free account", regardless of what was requested.
+    # Paid plans self-create whatever they asked for. The frontend mirrors this
+    # in communicator_status.defaultSelfCreateIsSandbox.
+    def self_create_status(user:, requested:)
+      return ChildAccount::SANDBOX if user&.free?
+
+      requested
     end
 
     # The total non-sandbox slots a user occupies right now. Used by the

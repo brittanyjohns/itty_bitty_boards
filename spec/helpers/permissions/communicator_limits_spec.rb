@@ -4,7 +4,9 @@ require "rails_helper"
 
 RSpec.describe Permissions::CommunicatorLimits do
   # Slot math:
-  #   Free  — 1 communicator (self-created or claimed); +1 sandbox.
+  #   Free  — 1 full communicator, CLAIM/HAND-OFF ONLY; +1 sandbox self-create.
+  #           (`can_create?` reports the active slot as available capacity, but a
+  #           self-create is coerced to sandbox by `.self_create_status`.)
   #   Basic — 2 self-created.
   #   Pro   — 3 self-created, loaner-capable.
 
@@ -33,7 +35,10 @@ RSpec.describe Permissions::CommunicatorLimits do
         expect(error).to match(/limit reached/i)
       end
 
-      it "allows self-creating one active communicator (Free gets 1 slot)" do
+      it "reports the active slot as available capacity (the slot a claim fills)" do
+        # `can_create?` is a pure capacity check — the Free user has 1 active
+        # slot. Whether a *self-create* may take it is the separate policy in
+        # `.self_create_status` (it can't: self-creates are coerced to sandbox).
         allowed, http_status, error = described_class.can_create?(user: user, status: ChildAccount::ACTIVE)
 
         expect(allowed).to be(true)
@@ -99,6 +104,36 @@ RSpec.describe Permissions::CommunicatorLimits do
         expect(allowed).to be(false)
         expect(http_status).to eq(:unprocessable_entity)
       end
+    end
+  end
+
+  describe ".self_create_status" do
+    it "forces a Free user's self-create to sandbox, whatever was requested" do
+      user = create(:user, created_at: 2.months.ago)
+      user.setup_free_limits
+      user.save!
+
+      expect(
+        described_class.self_create_status(user: user, requested: ChildAccount::ACTIVE),
+      ).to eq(ChildAccount::SANDBOX)
+      expect(
+        described_class.self_create_status(user: user, requested: ChildAccount::LOANER),
+      ).to eq(ChildAccount::SANDBOX)
+      expect(
+        described_class.self_create_status(user: user, requested: ChildAccount::SANDBOX),
+      ).to eq(ChildAccount::SANDBOX)
+    end
+
+    it "leaves a paid user's requested status untouched" do
+      basic = create(:user, plan_type: "basic", created_at: 2.months.ago)
+      pro = create(:user, plan_type: "pro", created_at: 2.months.ago)
+
+      expect(
+        described_class.self_create_status(user: basic, requested: ChildAccount::ACTIVE),
+      ).to eq(ChildAccount::ACTIVE)
+      expect(
+        described_class.self_create_status(user: pro, requested: ChildAccount::ACTIVE),
+      ).to eq(ChildAccount::ACTIVE)
     end
   end
 

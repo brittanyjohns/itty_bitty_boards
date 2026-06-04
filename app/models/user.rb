@@ -272,7 +272,10 @@ class User < ApplicationRecord
   # Communicator slot math:
   #
   #   paid_communicator_limit — total owned `loaner` + `active` slots.
-  #                             Free has 1 (self-created or claimed).
+  #                             Free has 1, CLAIM/HAND-OFF ONLY — a Free user
+  #                             never self-creates into it (self-creates are
+  #                             always no-login sandboxes; see
+  #                             Permissions::CommunicatorLimits.self_create_status).
   #   demo_communicator_limit — sandbox (no-login, board-capped) slots.
   #
   # `Permissions::CommunicatorLimits.self_create_allowed?` returns true

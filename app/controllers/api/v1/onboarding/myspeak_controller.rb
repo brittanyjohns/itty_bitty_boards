@@ -16,13 +16,18 @@ module API
             return
           end
 
-          # Slot check — the wizard creates a real owned (active) communicator,
-          # not a Pro-only sandbox scratch space. Free has 1 slot by default
-          # (FREE_PAID_COMMUNICATOR_LIMIT); over-cap is 422.
+          # A self-create's status is plan-driven: a Free user's MySpeak account
+          # is a no-login sandbox ("MySpeak Free account"); paid plans get a real
+          # owned (active) communicator. Free's one full slot is claim/hand-off
+          # only (see Permissions::CommunicatorLimits). Over-cap is 422.
+          status = Permissions::CommunicatorLimits.self_create_status(
+            user: current_user,
+            requested: ChildAccount::ACTIVE,
+          )
           allowed, http_status, slot_error =
             Permissions::CommunicatorLimits.can_create?(
               user: current_user,
-              status: ChildAccount::ACTIVE,
+              status: status,
             )
           unless allowed
             render json: { error: "communicator_slot_unavailable", message: slot_error },
@@ -54,14 +59,15 @@ module API
             # explicitly so downstream `api_view`s (which read
             # `child.user.pro?` etc.) don't see a nil user.
             #
-            # Status MUST be ACTIVE — sandbox is the no-login Pro scratch
-            # space and is filtered out of the family dashboard. The
-            # MySpeak wizard is the family's first real communicator.
+            # `status` is plan-driven (see above): a Free user's MySpeak account
+            # is a no-login sandbox; paid plans get a full (active) communicator.
+            # Sandbox communicators still appear on the family dashboard — the
+            # index lists every owned account regardless of status.
             child = current_user.communicator_accounts.create!(
               name: name,
               username: unique,
               user: current_user,
-              status: ChildAccount::ACTIVE,
+              status: status,
             )
 
             profile = Profile.new(
