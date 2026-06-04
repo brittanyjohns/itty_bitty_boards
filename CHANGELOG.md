@@ -18,6 +18,30 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   nothing is hardcoded. Triggers fire in production only; staging/dev stay off
   unless `MAILCHIMP_JOURNEYS_ENABLED=true`, so real users are never emailed
   from non-prod.
+### Added — Communicator fallback mode on downgrade (#255)
+- A paid account dropping to Free now **retains** its over-limit communicators
+  instead of stranding them: boards, MySpeak/profile, and the public page all
+  stay intact. The communicators beyond the Free slot limit enter "fallback
+  mode" — private passcode sign-in is blocked, but the public MySpeak page
+  stays open and read-only, so a nonspeaking child is never cut off mid-use.
+- Sign-in attempts on a fallback communicator return HTTP 403
+  `communicator_in_fallback` with a `redirect_url` to the public page (the
+  frontend redirect lands in itty-bitty-frontend#275). `fallback_mode` is
+  exposed on the communicator API so the client can tell "in fallback" from
+  "doesn't exist."
+- Re-upgrading to Basic/Pro **automatically restores** sign-in, most-recently-
+  active communicators first; any still over the new plan's limit stay in
+  fallback. No manual re-claim. New Free signups remain capped at 1 communicator
+  and are never flagged — fallback only ever results from a downgrade.
+
+### Changed — Reprice AI feature credit costs
+- Adjusted per-feature credit costs in `CreditService::FEATURE_COSTS`:
+  `image_edit` 3 → 5, `image_generation` 5 → 3, `screenshot_import` 5 → 3,
+  `scenario_create` 10 → 5, and `menu_create` 10 → 5. (`word_suggestion`,
+  `board_format`, and `image_variation` are unchanged.)
+- Aligned the credit specs (`credit_service_spec`, `credit_enforcement_spec`,
+  `board_images_rate_limit_spec`) with the new costs — the repricing landed
+  without updating them, which had turned `main` red.
 
 ### Changed — Drop the no-CC `basic_trial` soft trial (Option A)
 - Every new signup now starts on **Free** (5 credits, Free-tier limits)

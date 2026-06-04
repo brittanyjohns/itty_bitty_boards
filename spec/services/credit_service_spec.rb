@@ -9,9 +9,9 @@ RSpec.describe CreditService, type: :service do
 
   describe ".cost_for" do
     it "returns the configured weight for a known feature" do
-      expect(described_class.cost_for("image_generation")).to eq(5)
+      expect(described_class.cost_for("image_generation")).to eq(3)
       expect(described_class.cost_for(:word_suggestion)).to eq(1)
-      expect(described_class.cost_for("menu_create")).to eq(10)
+      expect(described_class.cost_for("menu_create")).to eq(5)
     end
 
     it "defaults to 1 for unknown features" do
@@ -181,22 +181,25 @@ RSpec.describe CreditService, type: :service do
 
     it "drains plan credits first" do
       described_class.grant_topup!(user, amount: 50, stripe_event_id: "t1")
-      described_class.spend!(user, feature_key: "image_generation") # cost 5
+      described_class.spend!(user, feature_key: "image_generation") # cost 3
       user.reload
-      expect(user.plan_credits_balance).to eq(5)
+      expect(user.plan_credits_balance).to eq(7)
       expect(user.topup_credits_balance).to eq(50)
       tx = user.credit_transactions.spends.last
       expect(tx.feature_key).to eq("image_generation")
-      expect(tx.amount).to eq(-5)
+      expect(tx.amount).to eq(-3)
     end
 
     it "spills into topup when plan is insufficient" do
       described_class.grant_topup!(user, amount: 50, stripe_event_id: "t2")
-      described_class.spend!(user, feature_key: "menu_create") # cost 10, plan has 10
-      described_class.spend!(user, feature_key: "menu_create") # cost 10, must come from topup
+      # plan starts at 10; three menu_create spends (cost 5 each) total 15,
+      # so the third must draw from topup.
+      described_class.spend!(user, feature_key: "menu_create") # cost 5, plan 10 -> 5
+      described_class.spend!(user, feature_key: "menu_create") # cost 5, plan 5 -> 0
+      described_class.spend!(user, feature_key: "menu_create") # cost 5, from topup 50 -> 45
       user.reload
       expect(user.plan_credits_balance).to eq(0)
-      expect(user.topup_credits_balance).to eq(40)
+      expect(user.topup_credits_balance).to eq(45)
     end
 
     it "raises InsufficientCredits when total balance < cost" do

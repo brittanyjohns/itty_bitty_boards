@@ -224,6 +224,43 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
   frees one board. If the ENV is ever raised above 1, revisit this to a
   per-board flag or join table.
 
+### Communicator sign-in on downgrade (fallback mode)
+
+Mirror of the board read-only rule, for communicators (issue #255). When a
+paid account drops to Free, communicators **beyond the Free slot limit are
+retained, never deleted/archived** — boards, MySpeak/profile, and `public_url`
+all stay intact. The over-limit ones enter **fallback mode**: private passcode
+sign-in is blocked, but the public MySpeak page stays open and read-only, so a
+nonspeaking child is never stranded mid-use.
+
+- **Marker is stored, not derived.** `ChildAccount#fallback_mode?` reads
+  `settings["fallback_mode"]` (with `fallback_since` / `fallback_reason`). Set
+  and cleared **only** by `User#reconcile_communicator_fallback!`, so a fresh
+  Free signup (capped at 1) is never flagged — fallback is *only ever a
+  consequence of downgrade*. Use `enter_fallback!` / `exit_fallback!`.
+- **One reconciler, both directions.** `User#reconcile_communicator_fallback!`
+  orders slotted (loaner+active) communicators **most-recently-active first**
+  (`last_sign_in_at` desc, nulls last), keeps the top `slot_limit` signable,
+  and flags the overflow. A downgrade flags the overflow; a re-upgrade restores
+  them as slots free up (no manual re-claim); any still over the new limit stay
+  in fallback. Idempotent; admins are never limited.
+- **Trigger:** `after_save :reconcile_communicator_fallback!, if:
+  :saved_change_to_plan_type?` on `User`. Every plan transition (Stripe
+  cancel/pause via `apply_free_plan`, `DowngradeSoftTrialJob`, and upgrades via
+  the subscription-upsert webhook) routes plan changes through `plan_type=` +
+  `save`, so this one callback covers all of them.
+- **Gate:** `ChildAccount#can_sign_in?` returns `false` for fallback
+  communicators (a system-admin `user_context` still bypasses for support).
+  `API::V1::ChildAuthsController#create` enforces it specifically for fallback:
+  returns **HTTP 403** `{ error: "communicator_in_fallback", message,
+  redirect_url, public_url }` so the frontend redirects to the public page
+  (companion frontend issue itty-bitty-frontend#275). The older broad
+  `can_sign_in?` controller check stays disabled — only fallback is enforced,
+  so non-fallback Free communicators keep working (AAC "usage must never break").
+- **API exposure:** `fallback_mode` + `fallback_since` on ChildAccount
+  `api_view` / `index_api_view` / `vendor_api_view`, letting the frontend tell
+  "exists but in fallback" from "doesn't exist."
+
 ## Team permissions — owner protection
 
 Communicators (`child_account`) have an `owner_id` (the family/parent
