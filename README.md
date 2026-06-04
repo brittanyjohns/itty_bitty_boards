@@ -657,6 +657,131 @@ loop do
 end
 ```
 
+## OBF / OBZ import & export
+
+SpeakAnyWay can import and export boards in the [Open Board Format](https://www.openboardformat.org/)
+— `.obf` (a single board, JSON) and `.obz` (a ZIP package of multiple linked
+boards plus their image/sound assets). This is how boards move between
+SpeakAnyWay and other AAC apps (CoughDrop, etc.).
+
+These routes live under `namespace :api` and require a normal authenticated
+user session (JWT) — they are **not** part of the internal API key surface.
+
+| Method & path | Action | What it does |
+|---|---|---|
+| `POST /api/boards/import_obf` | `BoardsController#import_obf` | Import an `.obz` file **or** inline OBF JSON |
+| `POST /api/boards/analyze_obz` | `BoardsController#analyze_obz` | Inspect an `.obz` package without importing |
+| `GET /api/boards/:id/download_obf` | `BoardsController#download_obf` | Export one board as an `.obf` file |
+
+### Copyright / image-license policy (read this first)
+
+OBF packages from other apps often bundle **licensed symbol artwork**
+(SymbolStix, PCS, etc.). To avoid silently pulling that artwork into our
+public image pool, imports are gated:
+
+- **Default — structure only, no binaries.** Without opt-in, the board
+  structure (buttons, layout, labels) is imported and `Image` rows are
+  created, but **no image binaries are downloaded or attached**. Every
+  newly-created `Image` is `is_private: true`, regardless of opt-in. Existing
+  images matched by label are reused as-is (we don't downgrade their
+  visibility).
+- **Opting into image binaries.** The client must send **both**
+  `include_images=true` **and** `image_license_acknowledged=true`. Sending
+  `include_images=true` without the acknowledgement returns
+  **HTTP 400 `image_license_required`**. With both flags, the importer
+  downloads/decodes each OBF image and attaches it.
+- **Audit trail.** Every import records consent on
+  `BoardGroup.settings["imported_from_obf"]`: `include_images`,
+  `license_acknowledged`, `acknowledged_by_user_id`, `acknowledged_at`,
+  `imported_by_user_id`, and the root board's OBF `license` block if present.
+
+### Importing — `POST /api/boards/import_obf`
+
+Accepts one of two inputs:
+
+- **`file`** — a multipart `.obz` upload. Imported **synchronously** by
+  `ObzImporter`: a `BoardGroup` is created, every `.obf` board inside is
+  imported, `load_board` references are linked into navigable predictive
+  boards, and the audit block is persisted. Returns the new
+  `board_group_id` and `root_board_id`.
+- **`data`** — inline OBF JSON for a single board. Queued to the
+  **`ImportFromObfJob`** Sidekiq worker (async); the board appears with
+  `status: "importing"` and flips to `active`/`error` when the job finishes.
+
+| Param | Required | Notes |
+|---|---|---|
+| `file` | one of `file`/`data` | `.obz` upload (other extensions → 422) |
+| `data` | one of `file`/`data` | Inline OBF JSON (single board) |
+| `group_name` | no | Names the created `BoardGroup` (file path only) |
+| `board_group_id` | no | Attach inline import to an existing group |
+| `include_images` | no | Opt in to downloading image binaries (default `false`) |
+| `image_license_acknowledged` | no | Must be `true` when `include_images=true` |
+
+Responses:
+
+- `200 OK` (file): `{ status, message, board_group_id, root_board_id, include_images }`
+- `200 OK` (data): `{ status, message, include_images }` (job enqueued)
+- `400 image_license_required` — `include_images=true` without acknowledgement
+- `422` — unsupported file format, invalid JSON, or no file/data provided
+
+```bash
+# Structure only (default, no image binaries)
+curl -X POST https://<host>/api/boards/import_obf \
+  -H "Authorization: Bearer <user-jwt>" \
+  -F "file=@board-set.obz" \
+  -F "group_name=My imported set"
+
+# Include image binaries — both flags required
+curl -X POST https://<host>/api/boards/import_obf \
+  -H "Authorization: Bearer <user-jwt>" \
+  -F "file=@board-set.obz" \
+  -F "include_images=true" \
+  -F "image_license_acknowledged=true"
+```
+
+### Analyzing — `POST /api/boards/analyze_obz`
+
+A dry-run inspector (`ObzAnalyzer`) for an `.obz` upload. Reads the package
+**without importing anything** and returns a report — `package` overview,
+`manifest`, resolved `root_board`, aggregate `totals`, per-board stats, and a
+`warnings` array (missing media refs, non-string IDs, unresolved manifest
+paths, duplicate asset IDs). Useful for previewing a package or debugging a
+failed import.
+
+```bash
+curl -X POST https://<host>/api/boards/analyze_obz \
+  -H "Authorization: Bearer <user-jwt>" \
+  -F "file=@board-set.obz"
+```
+
+### Exporting — `GET /api/boards/:id/download_obf`
+
+Serializes one board to OBF 0.1 JSON (`Board#to_obf`) and returns it as a
+`board.obf` attachment (`application/json`). The payload follows the OBF spec
+— `grid`, `buttons`, `images`, and `sounds` — with `load_board` links emitted
+for predictive sub-boards. The exported `license` defaults to **CC BY-SA 4.0**
+unless the board sets its own. Export is **not** gated by the import image
+policy.
+
+```bash
+curl -X GET https://<host>/api/boards/<board_id>/download_obf \
+  -H "Authorization: Bearer <user-jwt>" \
+  -o board.obf
+```
+
+### Where the code lives
+
+- `app/controllers/api/boards_controller.rb` — `import_obf`, `analyze_obz`,
+  `download_obf`, and `parse_obf_import_options` (the license gate)
+- `app/models/obz_importer.rb` — `.obz` package importer (`#import!`)
+- `app/models/board.rb` — `Board.from_obf`, `find_or_create_image_for_button`
+  (`is_private: true`), `attach_image_doc` (skipped unless `include_images`)
+- `app/services/obz_analyzer.rb` — `.obz` inspection report
+- `app/sidekiq/import_from_obf_job.rb` — async inline-JSON import
+- `app/helpers/boards_helper.rb` — `to_obf` export serialization
+- Specs: `spec/requests/api/boards/import_export_spec.rb`,
+  `spec/models/obz_importer_spec.rb`
+
 ## Local Development in Docker
 
 The DB and backend services can be run in Docker using `docker compose`.
