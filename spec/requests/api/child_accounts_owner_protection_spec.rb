@@ -96,6 +96,55 @@ RSpec.describe "API::ChildAccounts owner protection", type: :request do
     end
   end
 
+  # Sandbox accounts are capped server-side (settings["demo_board_limit"],
+  # default ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT). The cap must count
+  # *boards*, not the characters of a scalar id — board_ids can arrive as a
+  # single value rather than an array, and an earlier version measured its
+  # `.size` before normalizing, so "42" counted as 2 boards.
+  describe "POST /api/child_accounts/:id/assign_boards (sandbox limit)" do
+    let!(:sandbox) do
+      create(:child_account,
+             user: parent,
+             owner: parent,
+             status: ChildAccount::SANDBOX,
+             settings: { "demo_board_limit" => 1 })
+    end
+    # Multi-digit id so a `.size`-on-string regression (2) differs from the
+    # real count (1) and would trip the cap incorrectly.
+    let!(:public_board) { Board.create!(id: 90_001, user: slp, name: "Public Board", number_of_columns: 3, predefined: true) }
+
+    it "counts a single (scalar) board id as one board against the cap" do
+      expect {
+        post "/api/child_accounts/#{sandbox.id}/assign_boards",
+             params: { board_ids: public_board.id },
+             headers: auth_headers(parent)
+      }.to change { sandbox.reload.child_boards.count }.by(1)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "rejects with 422 once the sandbox is over its board limit" do
+      sandbox.update!(settings: { "demo_board_limit" => 0 })
+
+      expect {
+        post "/api/child_accounts/#{sandbox.id}/assign_boards",
+             params: { board_ids: [public_board.id] },
+             headers: auth_headers(parent)
+      }.not_to change { sandbox.reload.child_boards.count }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(JSON.parse(response.body)["error"]).to match(/Demo board limit exceeded/)
+    end
+
+    it "returns 422 when no board_ids are provided" do
+      post "/api/child_accounts/#{sandbox.id}/assign_boards",
+           headers: auth_headers(parent)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(JSON.parse(response.body)["error"]).to eq("No board_ids provided")
+    end
+  end
+
   describe "POST /api/child_accounts/:id/send_setup_email" do
     before do
       mailer = double("CommunicationAccountMailer", deliver_later: true)

@@ -448,6 +448,16 @@ class API::ChildAccountsController < API::ApplicationController
 
   def assign_boards
     board_ids = params[:board_ids]
+    if board_ids.blank?
+      render json: { error: "No board_ids provided" }, status: :unprocessable_entity
+      return
+    end
+
+    # Normalize a single id (String/Integer) to an array *before* counting,
+    # so the sandbox limit check below counts boards — not the characters of
+    # a bare string id (e.g. "123".size == 3 would corrupt the cap check).
+    board_ids = Array(board_ids).map(&:to_i)
+
     total_boards = @child_account.child_boards.count + board_ids.size
     if @child_account.sandbox?
       demo_limit = (@child_account.settings["demo_board_limit"] || ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT).to_i
@@ -456,19 +466,13 @@ class API::ChildAccountsController < API::ApplicationController
         return
       end
     end
-    if board_ids
-      if board_ids.is_a?(String) || board_ids.is_a?(Integer)
-        board_ids = [board_ids.to_i]
-      end
-      board_ids.each do |board_id|
-        board = Board.find(board_id)
-        voice = @child_account.voice || "polly:kevin"
-        child_board_copy = board.clone_with_images(current_user&.id, board.name, voice, @child_account)
-      end
-      render json: @child_account.api_view(current_user), status: :ok
-    else
-      render json: { error: "No board_ids provided" }, status: :unprocessable_entity
+
+    board_ids.each do |board_id|
+      board = Board.find(board_id)
+      voice = @child_account.voice || "polly:kevin"
+      board.clone_with_images(current_user&.id, board.name, voice, @child_account)
     end
+    render json: @child_account.api_view(current_user), status: :ok
   end
 
   # DELETE /child_accounts/1
