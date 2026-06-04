@@ -5,6 +5,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Mailchimp Customer Journey triggers
+- The backend can now enrol a contact into a **Mailchimp Customer Journey**
+  via its API-trigger step, so events in the app send real, on-brand emails
+  designed in the Mailchimp UI (`MailchimpService#trigger_journey`). This
+  reuses the existing `MailchimpMarketing` gem — no new dependency.
+- New `MailchimpEventJob` event type `"journey"` (takes `journey_key`).
+  The first wired journey is **`welcome`**, enqueued on signup alongside the
+  existing welcome email.
+- Journey IDs are resolved per-environment from ENV
+  (`MAILCHIMP_JOURNEY_<KEY>_ID` / `_STEP`) via `MailchimpClient.journey`, so
+  nothing is hardcoded. Triggers fire in production only; staging/dev stay off
+  unless `MAILCHIMP_JOURNEYS_ENABLED=true`, so real users are never emailed
+  from non-prod.
+
 ### Changed — Drop the no-CC `basic_trial` soft trial (Option A)
 - Every new signup now starts on **Free** (5 credits, Free-tier limits)
   instead of the 14-day no-credit-card `basic_trial`. The credit-card
