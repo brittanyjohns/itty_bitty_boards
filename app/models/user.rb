@@ -177,6 +177,12 @@ class User < ApplicationRecord
   before_save :setup_limits, if: :plan_type_changed?
   before_save :update_vendor, if: :plan_type_changed?
 
+  # Reconcile communicator fallback mode whenever the plan changes (issue #255).
+  # Runs after save (so the new slot limits in `settings` are persisted) and in
+  # both directions: a downgrade flags over-limit communicators, a re-upgrade
+  # restores them as slots free up. See reconcile_communicator_fallback!.
+  after_save :reconcile_communicator_fallback!, if: :saved_change_to_plan_type?
+
   # Grant the user's tier's monthly AI credit allowance on signup so the
   # very first AI call doesn't 402. Idempotent in CreditService — safe to
   # call again if a callback runs twice.
@@ -1313,6 +1319,37 @@ class User < ApplicationRecord
     default_id = effective_editable_board_id
     return if default_id.blank?
     update_column(:editable_board_id, default_id)
+  end
+
+  # Reconcile which of this user's communicators are in "fallback mode" after a
+  # plan change (issue #255). Keeps the most-recently-active slotted
+  # communicators (up to the plan's slot limit) signable and flags the overflow
+  # as fallback. Runs in both directions from one place:
+  #
+  #   - Downgrade (paid -> free): slot_limit drops, the overflow gets flagged so
+  #     their boards/MySpeak/public_url survive but private sign-in is blocked.
+  #   - Re-upgrade (free -> paid): slot_limit rises, the now-in-limit
+  #     communicators are restored most-recently-active first; any still over the
+  #     new limit stay in fallback.
+  #
+  # Idempotent. Only ever touches slotted (loaner/active) communicators, so a
+  # fresh Free signup (capped at 1) is never flagged. Admins are never limited.
+  def reconcile_communicator_fallback!
+    limit = Permissions::CommunicatorLimits.slot_limit_for(settings || {})
+    limit = nil if admin?
+
+    accounts = slotted_communicator_accounts
+                 .order(Arel.sql("last_sign_in_at DESC NULLS LAST, updated_at DESC, id DESC"))
+                 .to_a
+
+    accounts.each_with_index do |account, index|
+      keep = limit.nil? || index < limit
+      if keep
+        account.exit_fallback! if account.fallback_mode?
+      else
+        account.enter_fallback! unless account.fallback_mode?
+      end
+    end
   end
 
   # How long a user must wait between editable-board switches. Closes the
