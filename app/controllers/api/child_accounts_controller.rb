@@ -300,6 +300,12 @@ class API::ChildAccountsController < API::ApplicationController
     is_demo = params[:is_demo] ? ActiveModel::Type::Boolean.new.cast(params[:is_demo]) : false
     # Prefer the explicit lifecycle status param; fall back to legacy is_demo.
     requested_status = params[:status].presence || (is_demo ? ChildAccount::SANDBOX : ChildAccount::ACTIVE)
+    # A Free user never self-creates a full communicator — every self-create is a
+    # no-login sandbox "MySpeak Free account" (full login is claim/hand-off only).
+    requested_status = Permissions::CommunicatorLimits.self_create_status(
+      user: current_user,
+      requested: requested_status,
+    )
 
     allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
       user: current_user,
@@ -395,15 +401,26 @@ class API::ChildAccountsController < API::ApplicationController
     requested_status = params[:status].presence || (is_demo ? ChildAccount::SANDBOX : ChildAccount::ACTIVE)
     @child_account.status = requested_status
     if was_sandbox && requested_status != ChildAccount::SANDBOX
-      # Promoting sandbox → loaner/active — re-check slot limits.
-      allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
+      # A Free user can't self-promote a sandbox into a full communicator
+      # (claim/hand-off only) — keep it a sandbox. Paid plans may promote, so
+      # re-check slot limits. Only the sandbox→active path is touched here, so
+      # an existing claimed/active communicator is never demoted.
+      requested_status = Permissions::CommunicatorLimits.self_create_status(
         user: current_user,
-        status: requested_status,
+        requested: requested_status,
       )
+      @child_account.status = requested_status
 
-      unless allowed
-        render json: { error: error }, status: http_status
-        return
+      if requested_status != ChildAccount::SANDBOX
+        allowed, http_status, error = Permissions::CommunicatorLimits.can_create?(
+          user: current_user,
+          status: requested_status,
+        )
+
+        unless allowed
+          render json: { error: error }, status: http_status
+          return
+        end
       end
     end
 

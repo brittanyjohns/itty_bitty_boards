@@ -52,7 +52,7 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
     end
 
     context "happy path" do
-      it "creates an active child account + safety profile, attaches avatar, writes settings, sets up a team" do
+      it "creates a no-login sandbox (MySpeak Free) child account + safety profile, attaches avatar, writes settings, sets up a team" do
         expect {
           post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
         }.to change { user.communicator_accounts.count }.by(1)
@@ -63,7 +63,9 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         child = user.communicator_accounts.order(:created_at).last
         expect(child.name).to eq("River Stone")
         expect(child.username).to eq("river-stone")
-        expect(child.status).to eq(ChildAccount::ACTIVE)
+        # A Free user's self-created MySpeak account is a no-login sandbox —
+        # full login only ever arrives via claim/hand-off.
+        expect(child.status).to eq(ChildAccount::SANDBOX)
 
         team = child.teams.first
         expect(team).to be_present
@@ -88,6 +90,22 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         expect(body["profile_kind"]).to eq("safety")
         expect(body["settings"]["pronouns"]).to eq("they/them")
         expect(body["settings"]["ice_contact_1"]["phone"]).to eq("555-0101")
+      end
+    end
+
+    context "paid user" do
+      let(:user) do
+        u = FactoryBot.create(:user)
+        u.update_columns(plan_type: "pro", created_at: 60.days.ago)
+        u
+      end
+
+      it "creates a full (active) communicator — only Free self-creates are sandboxed" do
+        post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
+
+        expect(response).to have_http_status(:created)
+        child = user.communicator_accounts.order(:created_at).last
+        expect(child.status).to eq(ChildAccount::ACTIVE)
       end
     end
 
@@ -272,12 +290,13 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
 
     context "free user has no available communicator slot" do
       it "returns 422 communicator_slot_unavailable" do
-        # Free's default paid_communicator_limit is 1. Take it.
+        # A Free MySpeak account is a no-login sandbox, so the binding limit is
+        # the sandbox slot (demo_communicator_limit = 1). Take it.
         FactoryBot.create(
           :child_account,
           user: user,
           owner: user,
-          status: ChildAccount::ACTIVE,
+          status: ChildAccount::SANDBOX,
         )
 
         post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers

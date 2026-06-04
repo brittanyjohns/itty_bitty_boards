@@ -32,16 +32,19 @@ RSpec.describe "API::ChildAccounts sandbox + slot limits", type: :request do
         expect(response).to have_http_status(:unprocessable_entity)
       end
 
-      it "allows self-creating one non-sandbox communicator on Free" do
+      it "coerces a Free user's active self-create into a no-login sandbox" do
         post "/api/child_accounts",
           params: { name: "Real", username: "real-#{SecureRandom.hex(3)}", status: "active", password: "abcdef", password_confirmation: "abcdef" },
           headers: auth_headers(user)
 
         expect(response).to have_http_status(:created)
+        # Free self-creates are always sandbox — full login is claim/hand-off only.
+        account = ChildAccount.where(owner_id: user.id).order(:created_at).last
+        expect(account.status).to eq(ChildAccount::SANDBOX)
       end
 
-      it "blocks a second non-sandbox communicator once the Free slot is used" do
-        create(:child_account, user: user, owner: user, status: ChildAccount::ACTIVE)
+      it "blocks a Free user's active self-create once the sandbox slot is used (it's coerced to sandbox)" do
+        create(:child_account, user: user, owner: user, status: ChildAccount::SANDBOX)
 
         post "/api/child_accounts",
           params: { name: "Second", username: "second-#{SecureRandom.hex(3)}", status: "active", password: "abcdef", password_confirmation: "abcdef" },
