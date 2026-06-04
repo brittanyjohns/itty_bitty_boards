@@ -100,6 +100,28 @@ class MailchimpService
     nil
   end
 
+  # Enrol a contact into a Mailchimp Customer Journey via its API-trigger step.
+  # Mailchimp then sends the email designed in that journey. The contact must
+  # already be an audience member; if Mailchimp 404s we upsert them and retry
+  # once (guarded so a misconfigured journey_id can't loop forever).
+  def trigger_journey(user, journey_id:, step_id:)
+    attempted_subscribe = false
+    begin
+      @client.customer_journeys.trigger(
+        journey_id,
+        step_id,
+        { email_address: user.email }
+      )
+    rescue MailchimpMarketing::ApiError => e
+      if e.status == 404 && !attempted_subscribe
+        attempted_subscribe = true
+        retry if record_new_subscriber(user)
+      end
+      Rails.logger.error "[Mailchimp] Failed to trigger journey #{journey_id}/#{step_id}: #{e.message}"
+      nil
+    end
+  end
+
   def update_subscriber_tags(email, tags_to_add = [], tags_to_remove = [])
     list_id = ENV.fetch("MAILCHIMP_AUDIENCE_ID")
     subscriber_hash_email = subscriber_hash(email)

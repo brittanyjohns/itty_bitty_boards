@@ -93,6 +93,10 @@ jobs:
           MAILCHIMP_API_KEY:                ${{ secrets.STAGING_MAILCHIMP_API_KEY }}
           MAILCHIMP_SERVER_PREFIX:          ${{ secrets.STAGING_MAILCHIMP_SERVER_PREFIX }}
           MAILCHIMP_AUDIENCE_ID:            ${{ secrets.STAGING_MAILCHIMP_AUDIENCE_ID }}
+          # Customer Journey triggers (leave the enable secret unset to keep journeys off on staging)
+          MAILCHIMP_JOURNEYS_ENABLED:       ${{ secrets.STAGING_MAILCHIMP_JOURNEYS_ENABLED }}
+          MAILCHIMP_JOURNEY_WELCOME_ID:     ${{ secrets.STAGING_MAILCHIMP_JOURNEY_WELCOME_ID }}
+          MAILCHIMP_JOURNEY_WELCOME_STEP:   ${{ secrets.STAGING_MAILCHIMP_JOURNEY_WELCOME_STEP }}
 
           # ---- SMTP (Gmail relay) ----
           SMTP_USERNAME:                    ${{ secrets.STAGING_SMTP_USERNAME }}

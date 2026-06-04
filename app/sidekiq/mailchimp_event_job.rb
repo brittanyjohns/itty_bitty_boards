@@ -14,6 +14,18 @@ class MailchimpEventJob
     when "sign_up"
       tags = options[:tags] || []
       mailchimp.record_new_subscriber(user, tags: tags)
+    when "journey"
+      key = options["journey_key"] || options[:journey_key]
+      unless MailchimpClient.journeys_enabled?
+        Rails.logger.info("[Mailchimp] Journeys disabled; skipping '#{key}' for user #{user_id}")
+        return
+      end
+      journey = MailchimpClient.journey(key)
+      unless journey
+        Rails.logger.warn("[Mailchimp] No journey configured for key '#{key}'; skipping")
+        return
+      end
+      mailchimp.trigger_journey(user, journey_id: journey[:journey_id], step_id: journey[:step_id])
     else
       Rails.logger.warn("Unknown Mailchimp event type: #{event_type}")
     end

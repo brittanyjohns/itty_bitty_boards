@@ -96,6 +96,38 @@ backlog size (default 200).
   the prod box, so a prod alert covers both. Added after the 2026-05-30
   outage where puma was alive per systemd but all threads were wedged.
 
+## Mailchimp integration
+
+We use the Mailchimp **Marketing API** (`MailchimpMarketing` gem, official
+GitHub build). Two distinct uses:
+
+- **CRM sync (existing):** `MailchimpService` upserts contacts
+  (`record_new_subscriber`), tags by plan tier, and records sign-in/sign-up
+  events. Fired async via `MailchimpEventJob` (event types `sign_up` /
+  `sign_in`) from `API::V1::AuthsController` and the Stripe checkout controller.
+- **Customer Journey triggers (email):** `MailchimpService#trigger_journey`
+  enrols a contact into a journey's **API-trigger step**
+  (`@client.customer_journeys.trigger`), so Mailchimp sends the email designed
+  in that journey. The contact is upserted-and-retried-once if Mailchimp 404s.
+  Wired through the `MailchimpEventJob` `"journey"` event type, which takes a
+  `journey_key`.
+
+  - **Journey IDs are never hardcoded.** `MailchimpClient.journey(key)` resolves
+    a symbolic key (e.g. `:welcome`) to `{ journey_id, step_id }` from
+    `MAILCHIMP_JOURNEY_<KEY>_ID` / `_STEP` ENV vars; unconfigured keys no-op
+    with a log line. Adding a new journey = new ENV pair + a
+    `MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "<key>" })`
+    enqueue. The first wired journey is `welcome` (enqueued on signup).
+  - **Env-gated to avoid emailing real users from non-prod.**
+    `MailchimpClient.journeys_enabled?` returns true in production (and only
+    production — staging is excluded via `AppEnv.staging?`); dev/staging fire
+    only when `MAILCHIMP_JOURNEYS_ENABLED=true`. CRM sync is **not** gated.
+
+App transactional email (welcome, password reset) still goes through
+ActionMailer/Gmail SMTP, **not** Mailchimp. True 1:1 transactional via Mailchimp
+would require the separate Transactional/Mandrill product (different gem + key +
+paid add-on) — not integrated.
+
 ## Subscription model
 
 - Most features are free

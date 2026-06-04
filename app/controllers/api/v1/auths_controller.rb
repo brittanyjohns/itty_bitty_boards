@@ -39,6 +39,7 @@ module API
           end
           if params["plan_type"] != "partner_pro" && user.should_send_welcome_email?
             user.send_welcome_email("free")
+            MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "welcome" })
           end
           MailchimpEventJob.perform_async(user.id, "sign_up")
           render json: { token: user.authentication_token, user: user.api_view }

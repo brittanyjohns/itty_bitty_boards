@@ -9,7 +9,7 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do
     origins("http://localhost:8100",
             "https://speakanyway.com",
-            "http://www.speakanyway.com",
+            "https://www.speakanyway.com",
             "https://app.speakanyway.com",
             "http://app.speakanyway.com",
             "https://ypk9e.hatchboxapp.com",
