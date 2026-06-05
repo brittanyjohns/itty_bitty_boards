@@ -25,6 +25,8 @@ module Boards
                                       tiles: [{ label: "apple" }, { label: "water" }, { label: "snack" }] } },
         { label: "Feelings", children: { name: "Feelings",
                                          tiles: [{ label: "happy" }, { label: "sad" }, { label: "tired" }] } },
+        { label: "Play", children: { name: "Play",
+                                     tiles: [{ label: "ball" }, { label: "bubbles" }, { label: "music" }] } },
       ],
     }.freeze
 
@@ -37,7 +39,45 @@ module Boards
       ],
     }.freeze
 
+    # Registry keyed by the stable string the wizard/API sends. Add a tree here
+    # and it's instantly selectable in the picker (via #catalog) and buildable
+    # (via #for) — no other wiring.
+    TEMPLATES = {
+      "home" => HOME,
+      "daily_routine" => DAILY_ROUTINE,
+    }.freeze
+
     module_function
+
+    # Stable keys the API/wizard can request.
+    def template_keys
+      TEMPLATES.keys
+    end
+
+    # Raw (unresolved, label-only) tree for a key, or nil if unknown.
+    def tree_for(key)
+      TEMPLATES[key.to_s]
+    end
+
+    # Resolve a template key -> builder-ready blueprint for `user`.
+    # Returns nil for an unknown key (caller decides how to surface that).
+    def for(key, user)
+      tree = tree_for(key)
+      tree && resolve(tree, user)
+    end
+
+    # Label-only catalog for the picker UI: no Image resolution, so it's cheap
+    # and safe to serve even before symbols are seeded. Each entry exposes the
+    # core tile labels so the frontend can render a preview grid.
+    def catalog
+      TEMPLATES.map do |key, tree|
+        {
+          key: key,
+          name: tree[:name],
+          tiles: Array(tree[:tiles]).map { |t| t[:label] },
+        }
+      end
+    end
 
     # Resolve a label-based tree into a builder-ready blueprint for `user`.
     def resolve(tree, user)
