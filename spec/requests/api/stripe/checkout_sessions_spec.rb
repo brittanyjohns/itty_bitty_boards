@@ -50,7 +50,11 @@ RSpec.describe "POST /api/stripe/checkout_sessions (subscription)", type: :reque
       expect(captured[:mode]).to eq("subscription")
       expect(captured[:customer]).to eq("cus_existing")
       expect(captured[:line_items]).to eq([{ price: "price_basic_monthly", quantity: 1 }])
-      expect(captured[:subscription_data]).to eq(trial_period_days: 14)
+      expect(captured[:subscription_data][:trial_period_days]).to eq(14)
+      # No-card reverse trial: lapses cancel cleanly instead of charging.
+      expect(captured[:subscription_data][:trial_settings]).to eq(
+        end_behavior: { missing_payment_method: "cancel" },
+      )
       expect(captured[:metadata][:user_id]).to eq(user.id)
       expect(captured[:metadata][:plan_key]).to eq("basic")
       # When no promo, allow_promotion_codes is enabled
@@ -122,6 +126,57 @@ RSpec.describe "POST /api/stripe/checkout_sessions (subscription)", type: :reque
 
       expect(response).to have_http_status(:bad_request)
       expect(JSON.parse(response.body)["error"]).to eq("Failed to create checkout session")
+    end
+  end
+
+  describe "payment_method_collection (no-card reverse trial / A-B arm)" do
+    let(:captured) { {} }
+
+    before do
+      user.update!(stripe_customer_id: "cus_existing")
+      ENV.delete("STRIPE_PAYMENT_METHOD_COLLECTION")
+      allow(Stripe::Checkout::Session).to receive(:create) do |params|
+        captured.replace(params)
+        OpenStruct.new(url: "https://stripe.test/x")
+      end
+    end
+
+    it "defaults to no-card (if_required) for a Basic/Pro trial" do
+      do_post.call({ plan_key: "basic" })
+      expect(captured[:payment_method_collection]).to eq("if_required")
+    end
+
+    it "forces the card-required arm when params[:require_card] is true" do
+      do_post.call({ plan_key: "basic", require_card: "true" })
+      expect(captured[:payment_method_collection]).to eq("always")
+    end
+
+    it "forces the card-required arm via STRIPE_PAYMENT_METHOD_COLLECTION=always" do
+      ENV["STRIPE_PAYMENT_METHOD_COLLECTION"] = "always"
+      do_post.call({ plan_key: "basic" })
+      expect(captured[:payment_method_collection]).to eq("always")
+    ensure
+      ENV.delete("STRIPE_PAYMENT_METHOD_COLLECTION")
+    end
+
+    it "lets the NOCC bypass win over the card-required arm" do
+      ENV["STRIPE_PAYMENT_METHOD_COLLECTION"] = "always"
+      do_post.call({ plan_key: "basic", promo_code: "NOCC" })
+      expect(captured[:payment_method_collection]).to eq("if_required")
+    ensure
+      ENV.delete("STRIPE_PAYMENT_METHOD_COLLECTION")
+    end
+
+    it "records a trial_started analytics event with the arm metadata" do
+      expect {
+        do_post.call({ plan_key: "basic" })
+      }.to change { AnalyticsEvent.for_event("trial_started").count }.by(1)
+
+      event = AnalyticsEvent.for_event("trial_started").last
+      expect(event.user_id).to eq(user.id)
+      expect(event.metadata["plan_key"]).to eq("basic")
+      expect(event.metadata["require_card"]).to eq(false)
+      expect(event.metadata["payment_method_collection"]).to eq("if_required")
     end
   end
 

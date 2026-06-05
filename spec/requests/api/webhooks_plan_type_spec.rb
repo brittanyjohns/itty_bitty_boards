@@ -122,6 +122,94 @@ RSpec.describe "POST /api/webhooks (plan_type)", type: :request do
     end
   end
 
+  describe "customer.subscription.updated (no-card trial lapsed → Free)" do
+    # Issue #264: a no-card reverse trial that ends without an upgrade arrives
+    # as a terminal status (unpaid / incomplete_expired). The user must drop to
+    # Free in fallback mode, not stay stranded in a non-active paid state.
+    %w[unpaid incomplete_expired].each do |terminal_status|
+      it "downgrades to Free and preserves paid_plan_type for status=#{terminal_status}" do
+        user.update!(plan_type: "basic", plan_status: "trialing", paid_plan_type: nil)
+        sub = build_subscription(status: terminal_status)
+        stub_event(sub, type: "customer.subscription.updated")
+
+        post_webhook("{}", header_with_signature)
+
+        user.reload
+        expect(user.plan_type).to eq("free")
+        expect(user.paid_plan_type).to eq("basic")
+        expect(user.plan_status).to eq(terminal_status)
+        expect(user.stripe_subscription_id).to be_nil
+      end
+    end
+
+    it "triggers fallback-mode reconciliation on the trial-lapse downgrade" do
+      user.update!(plan_type: "basic", plan_status: "trialing")
+      sub = build_subscription(status: "unpaid")
+      stub_event(sub, type: "customer.subscription.updated")
+
+      # plan_type changes basic→free, so the User after_save callback runs.
+      expect_any_instance_of(User).to receive(:reconcile_communicator_fallback!).and_call_original
+
+      post_webhook("{}", header_with_signature)
+    end
+
+    it "does NOT downgrade a real payer whose renewal is past_due" do
+      # past_due is dunning, not a lapsed no-card trial — keep the paid plan,
+      # don't force Free.
+      user.update!(plan_type: "basic", plan_status: "active")
+      sub = build_subscription(status: "past_due", price: build_price(plan_type: "basic", monthly_credits: 400, id: "price_basic"))
+      stub_event(sub, type: "customer.subscription.updated")
+
+      post_webhook("{}", header_with_signature)
+
+      user.reload
+      expect(user.plan_type).to eq("basic")
+      expect(user.plan_status).to eq("past_due")
+    end
+  end
+
+  describe "customer.subscription.updated (trial → paid conversion)" do
+    it "fires a subscription_started event on the non-active → active transition" do
+      user.update!(plan_type: "basic", plan_status: "trialing")
+      sub = build_subscription(status: "active", price: build_price(plan_type: "basic", monthly_credits: 400, id: "price_basic"))
+      stub_event(sub, type: "customer.subscription.updated")
+
+      expect {
+        post_webhook("{}", header_with_signature)
+      }.to change { AnalyticsEvent.for_event("subscription_started").count }.by(1)
+
+      event = AnalyticsEvent.for_event("subscription_started").last
+      expect(event.user_id).to eq(user.id)
+      expect(event.metadata["previous_status"]).to eq("trialing")
+    end
+
+    it "does not double-count subscription_started on an active → active renewal" do
+      user.update!(plan_type: "basic", plan_status: "active")
+      sub = build_subscription(status: "active", price: build_price(plan_type: "basic", monthly_credits: 400, id: "price_basic"))
+      stub_event(sub, type: "customer.subscription.updated")
+
+      expect {
+        post_webhook("{}", header_with_signature)
+      }.not_to change { AnalyticsEvent.for_event("subscription_started").count }
+    end
+  end
+
+  describe "customer.subscription.trial_will_end" do
+    it "records a trial_will_end analytics event without changing plan state" do
+      user.update!(plan_type: "basic", plan_status: "trialing")
+      sub = build_subscription(status: "trialing", trial_end: 3.days.from_now)
+      stub_event(sub, type: "customer.subscription.trial_will_end")
+
+      expect {
+        post_webhook("{}", header_with_signature)
+      }.to change { AnalyticsEvent.for_event("trial_will_end").count }.by(1)
+
+      user.reload
+      expect(user.plan_type).to eq("basic")
+      expect(user.plan_status).to eq("trialing")
+    end
+  end
+
   describe "customer.subscription.deleted" do
     it "preserves paid_plan_type and sets plan_status='canceled'" do
       user.update!(plan_type: "pro", paid_plan_type: nil)

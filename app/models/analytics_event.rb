@@ -8,6 +8,8 @@ class AnalyticsEvent < ApplicationRecord
 
   VALID_EVENT_TYPES = %w[
     user_signed_up
+    trial_started
+    trial_will_end
     subscription_started
     subscription_canceled
     board_generated

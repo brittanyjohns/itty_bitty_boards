@@ -54,7 +54,18 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     end
     is_partner = plan_key == "partner_pro"
 
-    payment_method_collection = ENV["STRIPE_PAYMENT_METHOD_COLLECTION"] == "always" ? "always" : "if_required"
+    # No-card reverse trial is the default (issue #264): a Basic/Pro trial
+    # starts with no card on file and, if it ends without an upgrade, the
+    # account drops to Free (handled in API::WebhooksController) rather than
+    # being charged or stranded `past_due`.
+    #
+    # The card-required arm ("always") is the A/B experiment's control. It can
+    # be forced per-request via params[:require_card] (so the PostHog
+    # experiment can drive the split from the frontend) or globally via the
+    # STRIPE_PAYMENT_METHOD_COLLECTION=always env override.
+    require_card = params[:require_card].to_s == "true" ||
+                   ENV["STRIPE_PAYMENT_METHOD_COLLECTION"] == "always"
+    payment_method_collection = require_card ? "always" : "if_required"
     ensure_customer!
 
     trial_days = 14
@@ -63,10 +74,13 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
       cancel_url = "#{frontend_base_url}/onboarding/partner"
     end
 
+    # Explicit no-card bypass (legacy NOCC promo / param). Always wins over the
+    # card-required arm — used for partner pilots and support comps.
     bypass_payment_required = params[:bypass_payment_required] == "true" || promo_code&.upcase == NO_CC_KEY
 
     if bypass_payment_required
       payment_method_collection = "if_required"
+      require_card = false
     end
 
     promo_code_str = nil
@@ -102,10 +116,30 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     end
     session_params[:subscription_data] = {
       trial_period_days: trial_days,
+      # When a no-card trial ends with no payment method on file, cancel the
+      # subscription instead of generating an unpayable invoice. The resulting
+      # `customer.subscription.deleted` webhook downgrades the user to Free in
+      # fallback mode (issue #264 + #255) — never an unexpected charge, never
+      # stuck `past_due`. Harmless on the card-required arm: a payment method
+      # is present, so this end_behavior never triggers and the card is charged.
+      trial_settings: {
+        end_behavior: { missing_payment_method: "cancel" },
+      },
     }
 
     session = Stripe::Checkout::Session.create(session_params)
     current_user.update!(paid_plan_type: plan_key)
+    # Measure trial starts so trial→paid conversion is computable against the
+    # later `subscription_started` event (issue #264 A/B instrumentation).
+    AnalyticsEvent.track(
+      "trial_started",
+      user_id: current_user.id,
+      metadata: {
+        plan_key: plan_key,
+        require_card: require_card,
+        payment_method_collection: payment_method_collection,
+      },
+    )
     Rails.logger.info "session: #{session.inspect}"
     render json: { url: session.url }
   rescue StandardError => e

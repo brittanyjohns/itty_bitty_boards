@@ -134,6 +134,31 @@ paid add-on) — not integrated.
 - Premium features (Menu Board Creator, AI image generation) require active subscription
 - Subscription managed via Stripe/RevenueCat — check status before allowing access to premium endpoints
 
+### No-card reverse trial (Basic/Pro)
+
+Basic/Pro trials default to **no credit card** (issue #264). In
+`API::Stripe::CheckoutSessionsController#create`, `payment_method_collection`
+is `"if_required"` by default; the card-required A/B arm is forced via
+`params[:require_card] == "true"` (PostHog-driven from the frontend) or the
+`STRIPE_PAYMENT_METHOD_COLLECTION=always` env override. The legacy `NOCC` /
+`bypass_payment_required` no-card path still wins over both.
+
+The trial subscription is created with
+`subscription_data.trial_settings.end_behavior.missing_payment_method =
+"cancel"`, so a no-card trial that lapses **cancels cleanly** →
+`customer.subscription.deleted` → `apply_free_plan` (Free + fallback mode,
+#255). As a safety net, `API::WebhooksController#handle_subscription_upsert`
+also routes terminal statuses (`unpaid`, `incomplete_expired` —
+`TRIAL_LAPSED_STATUSES`) to `apply_free_plan`. **`past_due` is excluded** —
+that's a real payer's failed renewal, left in Stripe dunning
+(`handle_invoice_payment_failed`).
+
+Trial→paid is measured via `AnalyticsEvent`: `trial_started` (checkout),
+`trial_will_end` (Stripe pre-end webhook), `subscription_started` (fired on
+the non-active→active transition in the upsert; guarded so renewals don't
+double-count). Primary A/B metric is **net paid users per 100 signups**, not
+trial→paid rate.
+
 ### `paid_plan?` semantics
 
 `User#paid_plan?` is the single gate for paid-tier checks. It considers

@@ -46,6 +46,8 @@ class API::WebhooksController < API::ApplicationController
       if event.type == "customer.subscription.created"
         handle_trial_credit_grant(event.data.object, event.id)
       end
+    when "customer.subscription.trial_will_end"
+      handle_trial_will_end(event.data.object)
     when "customer.subscription.deleted"
       handle_subscription_deleted(event.data.object)
     when "customer.subscription.paused"
@@ -66,7 +68,40 @@ class API::WebhooksController < API::ApplicationController
 
   private
 
+  # Terminal Stripe subscription statuses that mean "the trial/subscription
+  # ended without a successful payment." A no-card reverse trial (issue #264)
+  # lands here when it lapses. `past_due` is deliberately NOT in this list — a
+  # real payer's failed renewal stays in dunning (see handle_invoice_payment_failed).
+  TRIAL_LAPSED_STATUSES = %w[unpaid incomplete_expired].freeze
+
   # ========== Event handlers ==========
+
+  # Stripe fires this ~3 days before a trial ends. No state change here — the
+  # actual downgrade happens when the trial truly ends (subscription canceled
+  # via the `missing_payment_method: cancel` end_behavior, or upsert sees a
+  # terminal status). We record an analytics event so the trial-ending upgrade
+  # nudge (frontend #293) is measurable.
+  def handle_trial_will_end(subscription)
+    user = find_user_for_subscription(subscription)
+    unless user
+      Rails.logger.error "[StripeWebhook] trial_will_end: no user for customer #{subscription.customer}"
+      return
+    end
+
+    trial_end = subscription.respond_to?(:trial_end) ? subscription.trial_end : nil
+    AnalyticsEvent.track(
+      "trial_will_end",
+      user_id: user.id,
+      metadata: {
+        plan_type: user.plan_type,
+        subscription_id: subscription.id,
+        trial_end: trial_end,
+      },
+    )
+    Rails.logger.info "[StripeWebhook] trial_will_end: user=#{user.id} sub=#{subscription.id}"
+  rescue => e
+    Rails.logger.error "[StripeWebhook] handle_trial_will_end error: #{e.class} - #{e.message}"
+  end
 
   def handle_customer_created(customer)
     stripe_customer_id = customer.id
@@ -192,6 +227,20 @@ class API::WebhooksController < API::ApplicationController
       return
     end
 
+    # A no-card reverse trial that ends without an upgrade lands here as
+    # `unpaid` / `incomplete_expired` (terminal, no payment ever taken). Drop
+    # the user to Free in fallback mode (#255) instead of leaving them stranded
+    # in a non-active paid state. `past_due` is intentionally excluded — that's
+    # a real payer's failed renewal where Stripe dunning should keep retrying
+    # (handled by invoice.payment_failed). See issue #264.
+    if TRIAL_LAPSED_STATUSES.include?(subscription.status)
+      apply_free_plan(user, subscription.status)
+      Rails.logger.info "[StripeWebhook] subscription upsert: user=#{user.id} status=#{subscription.status} -> downgraded to free (trial lapsed / unpaid)"
+      return
+    end
+
+    previous_status = user.plan_status
+
     price = first_price_from_subscription(subscription)
     unless price
       Rails.logger.error "[StripeWebhook] subscription upsert: no price for subscription #{subscription.id}"
@@ -216,6 +265,21 @@ class API::WebhooksController < API::ApplicationController
     user.setup_limits
 
     user.save!
+
+    # Fire `subscription_started` on the trial→paid (or any non-active→active)
+    # conversion so trial→paid is measurable against `trial_started`. Guarded on
+    # the status transition so renewals (active→active) don't double-count.
+    if subscription.status == "active" && previous_status != "active"
+      AnalyticsEvent.track(
+        "subscription_started",
+        user_id: user.id,
+        metadata: {
+          plan_type: user.plan_type,
+          previous_status: previous_status,
+          subscription_id: subscription.id,
+        },
+      )
+    end
 
     # Optional: team seats logic if this is a team plan
     if meta["team_seats"].present?

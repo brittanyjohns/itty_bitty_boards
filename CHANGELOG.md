@@ -5,6 +5,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — No-card reverse trial for Basic/Pro (issue #264)
+- Starting a Basic/Pro trial **no longer requires a credit card** by default.
+  Checkout uses `payment_method_collection: "if_required"` (no-card reverse
+  trial): 14 days of full access, and when the trial ends without an upgrade
+  the account drops to **Free in fallback mode** (#255) — never an unexpected
+  charge, never stuck `past_due`.
+- The trial subscription is created with
+  `trial_settings.end_behavior.missing_payment_method = "cancel"`, so a
+  no-card trial lapses by cleanly canceling → `customer.subscription.deleted`
+  → existing Free downgrade. As a safety net, the webhook also downgrades to
+  Free when a subscription update arrives as `unpaid` / `incomplete_expired`.
+  `past_due` is left in Stripe dunning (real payers' failed renewals).
+- The card-required arm is kept for the A/B experiment: force it per-request
+  with `require_card=true` (PostHog-driven) or globally via
+  `STRIPE_PAYMENT_METHOD_COLLECTION=always`. The `NOCC` /
+  `bypass_payment_required` no-card path still wins over both.
+- New analytics events so trial→paid is measurable: `trial_started` (on
+  checkout), `trial_will_end` (Stripe pre-end webhook), and
+  `subscription_started` (on the trial→paid conversion).
+
 ### Added — Mailchimp Customer Journey triggers
 - The backend can now enrol a contact into a **Mailchimp Customer Journey**
   via its API-trigger step, so events in the app send real, on-brand emails
