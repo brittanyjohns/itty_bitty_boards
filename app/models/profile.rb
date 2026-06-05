@@ -256,7 +256,6 @@ class Profile < ApplicationRecord
 
       # Boards shown publicly should be safe/public
       public_boards: public_boards.map(&:api_view),
-      general_public_boards: Board.public_boards.map(&:api_view),
 
       # If you need this for the UI, keep it minimal
       profileable_type: profileable_type,
@@ -293,7 +292,6 @@ class Profile < ApplicationRecord
       # If you want this on creator pages, keep it public-only
       public_boards: public_boards.map(&:api_view),
       user_boards: user_boards.map(&:api_view),
-      general_public_boards: Board.public_boards.map(&:api_view),
       email: email,
       public_about_html: safe_html(public_about&.body&.to_s),
       public_intro_html: safe_html(public_intro&.body&.to_s),

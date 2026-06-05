@@ -11,6 +11,13 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - Do NOT add compliance claims (FedRAMP, HIPAA, SOC2) unless explicitly evidenced in code
 - List actual major dependencies, not assumed ones
 
+## Git / Code
+
+- Ensure you are on a clean branch off of origin/main
+- Never work directly on main - create the new branch when before changing anything
+- Always work on worktrees unless told otherwise
+- Clean up the stale worktrees once the PR has been closed
+
 ## Stack
 
 - **Framework:** Rails 7
@@ -111,7 +118,6 @@ GitHub build). Two distinct uses:
   in that journey. The contact is upserted-and-retried-once if Mailchimp 404s.
   Wired through the `MailchimpEventJob` `"journey"` event type, which takes a
   `journey_key`.
-
   - **Journey IDs are never hardcoded.** `MailchimpClient.journey(key)` resolves
     a symbolic key (e.g. `:welcome`) to `{ journey_id, step_id }` from
     `MAILCHIMP_JOURNEY_<KEY>_ID` / `_STEP` ENV vars; unconfigured keys no-op
@@ -168,7 +174,7 @@ never overwrite an explicit paid_plan_type pick.
 
 Free users are capped at **one MySpeak ID** (Profile). Basic/Pro/admin
 are unlimited. A "MySpeak ID" counts a Profile attached to the user
-directly *or* to one of their `communicator_accounts`. Implemented in
+directly _or_ to one of their `communicator_accounts`. Implemented in
 `User#myspeak_id_limit` / `#myspeak_id_count` / `#can_create_myspeak_id?`,
 with limit env-tunable via `FREE_MYSPEAK_ID_LIMIT` (default `1`).
 
@@ -219,7 +225,7 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
   `create`/`clone`/`create_from_template` stay on the existing
   `check_board_create_permissions`.
 - Returns **HTTP 403** with `{ error: "board_locked", message, board_limit,
-  editable_board_id }`. **Not 402** — 402 is reserved for credit exhaustion.
+editable_board_id }`. **Not 402** — 402 is reserved for credit exhaustion.
 - **Assumes `FREE_BOARD_LIMIT == 1`.** The single `editable_board_id` only
   frees one board. If the ENV is ever raised above 1, revisit this to a
   per-board flag or join table.
@@ -236,8 +242,8 @@ nonspeaking child is never stranded mid-use.
 - **Marker is stored, not derived.** `ChildAccount#fallback_mode?` reads
   `settings["fallback_mode"]` (with `fallback_since` / `fallback_reason`). Set
   and cleared **only** by `User#reconcile_communicator_fallback!`, so a fresh
-  Free signup (capped at 1) is never flagged — fallback is *only ever a
-  consequence of downgrade*. Use `enter_fallback!` / `exit_fallback!`.
+  Free signup (capped at 1) is never flagged — fallback is _only ever a
+  consequence of downgrade_. Use `enter_fallback!` / `exit_fallback!`.
 - **One reconciler, both directions.** `User#reconcile_communicator_fallback!`
   orders slotted (loaner+active) communicators **most-recently-active first**
   (`last_sign_in_at` desc, nulls last), keeps the top `slot_limit` signable,
@@ -245,7 +251,7 @@ nonspeaking child is never stranded mid-use.
   them as slots free up (no manual re-claim); any still over the new limit stay
   in fallback. Idempotent; admins are never limited.
 - **Trigger:** `after_save :reconcile_communicator_fallback!, if:
-  :saved_change_to_plan_type?` on `User`. Every plan transition (Stripe
+:saved_change_to_plan_type?` on `User`. Every plan transition (Stripe
   cancel/pause via `apply_free_plan`, `DowngradeSoftTrialJob`, and upgrades via
   the subscription-upsert webhook) routes plan changes through `plan_type=` +
   `save`, so this one callback covers all of them.
@@ -253,7 +259,7 @@ nonspeaking child is never stranded mid-use.
   communicators (a system-admin `user_context` still bypasses for support).
   `API::V1::ChildAuthsController#create` enforces it specifically for fallback:
   returns **HTTP 403** `{ error: "communicator_in_fallback", message,
-  redirect_url, public_url }` so the frontend redirects to the public page
+redirect_url, public_url }` so the frontend redirects to the public page
   (companion frontend issue itty-bitty-frontend#275). The older broad
   `can_sign_in?` controller check stays disabled — only fallback is enforced,
   so non-fallback Free communicators keep working (AAC "usage must never break").
@@ -272,7 +278,7 @@ any non-owner. Full matrix in issue #166. Server-side rules:
 - `DELETE /api/teams/:id/remove_member` returns **HTTP 403
   `cannot_remove_owner`** if the target is owner-pinned and the caller is
   neither that user nor a system admin. The owner can remove themselves.
-- `POST /api/teams/:id/invite`, when it would change an *existing*
+- `POST /api/teams/:id/invite`, when it would change an _existing_
   membership's role, returns **HTTP 403 `cannot_change_owner_role`** if
   the target is owner-pinned (and the caller isn't that user). It also
   returns **HTTP 403 `cannot_self_promote`** if a non-owner non-admin
@@ -292,6 +298,7 @@ not just team membership).
 known backend-enforcement gaps — lives in
 `marketing/.claude-notes/handoff-workflow.md`. Keep that doc and this
 section in sync when the rules change.
+
 ### Editing the communicator object itself
 
 `ChildAccount#editable_by?(user)` returns true iff the user is the
@@ -431,7 +438,9 @@ image pool:
 
 - Rails test environment uses `:null_store` for Rails.cache — stub `Rails.cache` in specs that depend on caching behavior
 - Avoid `travel_to` with past timestamps for Redis keys (TTLs expire immediately); use future times or freeze time instead
-- After spec changes, run the tests that depend on the changed code to ensure no regressions. Use `bin/rspec --only-failures` to rerun only failed specs.
+- After spec changes, run the tests that depend on the changed code to ensure no regressions. Don't run the full suite unless instructed. - Use `bin/rspec --only-failures` to rerun only failed specs.
+- Stub out DEVISE_JWT_SECRET_KEY=test as needed for tests that involve authentication, to avoid JWT encoding/decoding errors.
+- Don't forget to set RAILS_ENV=test when running tests locally, to ensure the test database and config are used.
 
 ## Rules for Editing This File
 

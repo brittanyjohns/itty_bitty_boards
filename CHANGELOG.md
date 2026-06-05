@@ -5,6 +5,22 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Board images on public MySpeak / profile pages
+- Communicator boards on a public profile (`GET /api/profiles/public/:slug`)
+  now show their artwork. A communicator board is a clone of an
+  original/template board and usually has no preview image of its own, so
+  `ChildBoard#display_image_url` / `#preview_image_url` were returning `nil`
+  and the public page rendered blank tiles. These now fall back to the
+  `original_board`'s image, matching the fallback already used in
+  `ChildAccount#api_view`.
+
+### Changed — Slimmer public profile payload
+- `Profile#safety_view` (public MySpeak page) and `Profile#public_page_view`
+  (Pro landing page) no longer embed `general_public_boards` — a full dump of
+  every public board that neither page consumed. The unclaimed-profile claim
+  flow still receives it via `Profile#placeholder_view`, which is where the
+  frontend (`ClaimProfilePage`) actually reads it.
+
 ### Added — Mailchimp Customer Journey triggers
 - The backend can now enrol a contact into a **Mailchimp Customer Journey**
   via its API-trigger step, so events in the app send real, on-brand emails

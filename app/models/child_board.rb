@@ -56,12 +56,17 @@ class ChildBoard < ApplicationRecord
     WordEvent.where(board_id: board.id, child_account_id: child_account.id).order(created_at: :desc)
   end
 
+  # A communicator board is a clone of an original/template board and often
+  # has no preview image of its own (preview generation runs for the template,
+  # not every per-communicator clone). Fall back to the `original_board`'s
+  # image so MySpeak/profile payloads aren't left with blank tiles. Mirrors
+  # the fallback in `ChildAccount#api_view`.
   def display_image_url
-    board.display_image_url
+    board.display_image_url.presence || original_board&.display_image_url
   end
 
   def preview_image_url
-    board.preview_image_url
+    board.preview_image_url.presence || original_board&.preview_image_url
   end
 
   def other_boards
