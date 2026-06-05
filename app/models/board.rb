@@ -125,6 +125,10 @@ class Board < ApplicationRecord
   scope :created_today, -> { where("created_at > ?", 1.day.ago.end_of_day) }
   scope :created_yesterday, -> { where("created_at > ? AND created_at < ?", 1.day.ago.beginning_of_day, Time.zone.now.beginning_of_day) }
   scope :communikate_boards, -> { where("name ILIKE ?", "%CommuniKate%") }
+  # Board Builder persists a linked tree (root + folder sub-boards). The
+  # sub-boards are marked settings["builder_child"]=true so the whole tree
+  # counts as ONE board against the user's limit (see User#countable_board_count).
+  scope :not_builder_child, -> { where("NOT COALESCE((settings->>'builder_child')::boolean, false)") }
 
   scope :including_images, -> { includes(board_images: :image) }
   scope :public_boards, -> { where(user_id: User::DEFAULT_ADMIN_ID, predefined: true, published: true).where.not(parent_type: "Menu").where(obf_id: nil) }

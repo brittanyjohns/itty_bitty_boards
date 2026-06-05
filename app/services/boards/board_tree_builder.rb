@@ -60,6 +60,9 @@ module Boards
       board.assign_parent                            # => parent is the owning User
       board.voice = VoiceService.normalize_voice(@communicator.voice)
       board.generate_unique_slug
+      # Sub-boards (folders) don't count against the user's board limit — the
+      # whole tree counts as one via its root. See User#countable_board_count.
+      board.settings = (board.settings || {}).merge("builder_child" => true) if depth.positive?
       board.save!
 
       Array(node[:tiles]).each do |tile|

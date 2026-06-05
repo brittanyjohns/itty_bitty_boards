@@ -217,6 +217,14 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
   `User#board_editable?` (`app/models/user.rb`) and `Board#can_edit_for`
   (`app/models/board.rb`). The board's `api_view` exposes `can_edit`,
   `locked`, and `lock_reason` for the frontend.
+- "Over their board limit" is computed by `User#countable_board_count` (own,
+  non-predefined, non-`builder_child` boards) vs `User#board_limit`. This is the
+  **single source of truth** for board counting — `User#at_board_limit?` wraps
+  it (admins never limited), and every creation gate (create, clone,
+  `create_from_template`, `import_obf`, menus, generated-board claim,
+  Board Builder) plus the `can_create_boards` api_view flag and this read-only
+  rule all route through it. Board Builder sub-boards are excluded so a built
+  tree counts as one (see the Board Builder section).
 - The user picks which single board keeps full edit access via
   `PATCH /api/boards/:id/make_editable`. The selection is persisted on
   `users.editable_board_id`. If none is set, `effective_editable_board_id`
@@ -473,6 +481,13 @@ Endpoints (`API::V1::BoardBuilderController`, both auth-gated):
   favorited root board's `api_view` (**201**). **422 `unknown_template`** /
   **422 `build_failed`** (the build is transactional — failure rolls back, no
   orphans). The frontend page ships separately in `itty-bitty-frontend`.
+  - **Board-limit gated, but a tree counts as ONE board.** `create` returns
+    **422 "Maximum number of boards reached"** when `current_user.at_board_limit?`
+    (see the board-limit section below). Because one wizard run persists a whole
+    linked tree, `BoardTreeBuilder` marks every sub-board (depth > 0)
+    `settings["builder_child"] = true`, and `User#countable_board_count` excludes
+    them — so the tree counts as its single root, not ~5. This also keeps the
+    whole built set editable (the read-only lock keys off the same count).
 
 ## Do not
 

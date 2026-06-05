@@ -189,7 +189,7 @@ class API::MenusController < API::ApplicationController
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
-    unless current_user.admin? || current_user.boards.count < current_user.board_limit
+    if current_user.at_board_limit?
       render json: { error: "Maximum number of boards reached. Please upgrade to add more." }, status: :unprocessable_entity
       return
     end

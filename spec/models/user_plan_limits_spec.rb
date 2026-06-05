@@ -41,6 +41,43 @@ RSpec.describe User, "plan limits", type: :model do
     end
   end
 
+  describe "#countable_board_count / #at_board_limit? (board-limit counting)" do
+    let(:user) { create(:free_user) } # board_limit 1
+
+    it "counts the user's own non-predefined boards" do
+      create(:board, user: user)
+      expect(user.countable_board_count).to eq(1)
+      expect(user.at_board_limit?).to be(true)
+    end
+
+    it "excludes predefined boards from the count" do
+      create(:board, user: user, predefined: true)
+      expect(user.countable_board_count).to eq(0)
+      expect(user.at_board_limit?).to be(false)
+    end
+
+    it "counts a Board Builder tree as ONE (excludes builder_child sub-boards)" do
+      create(:board, user: user, name: "root")
+      create(:board, user: user, name: "Food",  settings: { "builder_child" => true })
+      create(:board, user: user, name: "Play",  settings: { "builder_child" => true })
+      expect(user.countable_board_count).to eq(1)
+      expect(user.at_board_limit?).to be(true)
+    end
+
+    it "never limits admins" do
+      admin = create(:admin_user)
+      create(:board, user: admin)
+      expect(admin.at_board_limit?).to be(false)
+    end
+
+    it "exposes can_create_boards as the inverse of at_board_limit?" do
+      expect(user.can_create_boards).to be(true)
+      create(:board, user: user)
+      # Fresh instance — countable_board_count memoizes, matching the controller.
+      expect(User.find(user.id).can_create_boards).to be(false)
+    end
+  end
+
   describe "#has_myspeak_feature?" do
     it "is true when the user has a sandbox communicator slot" do
       user = build(:user, settings: { "demo_communicator_limit" => 1 })
