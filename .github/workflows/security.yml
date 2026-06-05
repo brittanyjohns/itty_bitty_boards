@@ -37,8 +37,18 @@ jobs:
       #   CVE-2026-33195  activestorage path traversal (DiskService)
       #   CVE-2026-33202  activestorage glob injection (DiskService)
       #   CVE-2026-33658  activestorage DoS (proxy mode multi-range)
+      #
+      # The two puma CVEs below are PROXY protocol v1 parser bugs, only
+      # reachable when a `bind` enables `proxy_protocol`. config/puma.rb binds
+      # by plain port (nginx proxies over normal HTTP), so they are not
+      # exploitable here. The fix is a major puma bump (6.5.0 -> 7.2.1+/8.0.2+);
+      # tracked in https://github.com/brittanyjohns/itty_bitty_boards/issues/266
+      # — remove these two ignores once that upgrade merges.
+      #   CVE-2026-47736  puma PROXY protocol v1 parser memory exhaustion
+      #   CVE-2026-47737  puma PROXY protocol v1 repeated headers (keep-alive)
       - run: |
           bundle exec bundler-audit check --update \
             --ignore CVE-2026-33168 CVE-2026-33169 CVE-2026-33170 \
                      CVE-2026-33173 CVE-2026-33174 CVE-2026-33176 \
-                     CVE-2026-33195 CVE-2026-33202 CVE-2026-33658
+                     CVE-2026-33195 CVE-2026-33202 CVE-2026-33658 \
+                     CVE-2026-47736 CVE-2026-47737
