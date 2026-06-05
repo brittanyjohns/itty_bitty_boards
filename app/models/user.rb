@@ -1273,21 +1273,24 @@ class User < ApplicationRecord
     limiter.reset_limit!
   end
 
-  def can_create_boards
-    board_limit = settings["board_limit"]&.to_i
-    if board_limit.nil? || board_limit <= 0
-      board_limit = FREE_PLAN_LIMITS["board_limit"]
-      settings["board_limit"] = board_limit
-      save
-    end
-    board_count = boards.count
-    board_count < board_limit
+  # Single source of truth for "how many boards count against the limit."
+  # Excludes predefined boards and Board Builder sub-boards — a builder wizard
+  # run persists a whole linked tree, but the user only chose one thing, so the
+  # tree counts as ONE (its root). Memoized because board list serialization
+  # calls board_editable? once per board.
+  def countable_board_count
+    @countable_board_count ||= boards.where(predefined: false).not_builder_child.count
   end
 
-  # Count of the user's own (non-predefined) boards. Memoized because board
-  # list serialization calls board_editable? once per board.
-  def owned_board_count
-    @owned_board_count ||= boards.where(predefined: false).count
+  # The one gate every board-creation path checks. Admins are never limited.
+  def at_board_limit?
+    return false if admin?
+
+    countable_board_count >= board_limit
+  end
+
+  def can_create_boards
+    !at_board_limit?
   end
 
   # The single board a limited-plan user keeps full edit access to. Returns
@@ -1404,7 +1407,7 @@ class User < ApplicationRecord
     return true if admin?
     return true if board.nil? || board.user_id != id
     return true if paid_plan?
-    return true if owned_board_count <= board_limit
+    return true if countable_board_count <= board_limit
 
     board.id == effective_editable_board_id
   end

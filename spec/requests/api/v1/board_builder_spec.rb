@@ -130,6 +130,53 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       end
     end
 
+    context "board-limit gate (a built tree counts as ONE board)" do
+      it "returns 422 and builds nothing when the user is already at their limit" do
+        create(:board, user: user) # user is Free (limit 1) → now at limit
+
+        expect {
+          post "/api/v1/board_builder",
+               params: { communicator_id: communicator.id, template: "home" }.to_json,
+               headers: headers
+        }.not_to change { Board.count }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(JSON.parse(response.body)["error"]).to match(/Maximum number of boards/)
+      end
+
+      it "counts the whole built tree as one, so a second build is blocked" do
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home",
+                       interests: ["dinosaurs"] }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:created)
+
+        fresh = User.find(user.id)
+        # The tree persisted multiple boards, but it counts as one.
+        expect(fresh.boards.where(predefined: false).count).to be > 1
+        expect(fresh.countable_board_count).to eq(1)
+
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home" }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:unprocessable_entity)
+      end
+
+      it "keeps the whole built set editable (no spurious board_locked)" do
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home",
+                       interests: ["dinosaurs"] }.to_json,
+             headers: headers
+        root = Board.find(JSON.parse(response.body)["id"])
+
+        fresh = User.find(user.id)
+        child = fresh.boards.where("COALESCE((settings->>'builder_child')::boolean, false)").first
+        expect(child).to be_present
+        expect(fresh.board_editable?(root)).to be(true)
+        expect(fresh.board_editable?(child)).to be(true)
+      end
+    end
+
     context "when the tree builder fails mid-build" do
       it "returns 422 build_failed with a warm message" do
         allow_any_instance_of(Boards::BoardTreeBuilder)

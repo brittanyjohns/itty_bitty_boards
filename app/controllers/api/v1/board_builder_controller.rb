@@ -24,6 +24,15 @@ module API
           return
         end
 
+        # A wizard run persists a linked tree but counts as ONE board (the root;
+        # sub-boards are marked builder_child). So gate on current state — block
+        # only when the user is already at/over their limit.
+        if current_user.at_board_limit?
+          render json: { error: "Maximum number of boards reached (#{current_user.countable_board_count}/#{current_user.board_limit}). Please upgrade to add more." },
+                 status: :unprocessable_entity
+          return
+        end
+
         assembler = Boards::BlueprintAssembler.new(
           template:  params[:template],
           interests: params[:interests],

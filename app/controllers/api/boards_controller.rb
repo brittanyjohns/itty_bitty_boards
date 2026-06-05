@@ -3,7 +3,7 @@ class API::BoardsController < API::ApplicationController
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts show make_editable ]
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
-  before_action :check_board_create_permissions, only: %i[ create clone ]
+  before_action :check_board_create_permissions, only: %i[ create clone create_from_template import_obf ]
   before_action :check_board_editable!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image format_with_ai add_image associate_image associate_images remove_image generate_preview_image ]
 
   def index
@@ -1087,17 +1087,16 @@ class API::BoardsController < API::ApplicationController
   private
 
   def check_board_create_permissions
-    return if current_user.admin?
     unless current_user
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
+    return if current_user.admin?
+
+    # Fresh instance so the count isn't stale from earlier in the request.
     refreshed_user = User.find(current_user.id)
-    refreshed_user.boards.reload
-    user_board_count = refreshed_user.boards.where(predefined: false).count
-    if user_board_count >= refreshed_user.board_limit
-      render json: { error: "Maximum number of boards reached (#{user_board_count}/#{refreshed_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_entity
-      return
+    if refreshed_user.at_board_limit?
+      render json: { error: "Maximum number of boards reached (#{refreshed_user.countable_board_count}/#{refreshed_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_entity
     end
   end
 

@@ -117,6 +117,13 @@ Label-only picker catalog. No `Image` resolution.
 - **422 `unknown_template`** — template key not in the registry (builds nothing).
 - **422 `build_failed`** — `BoardTreeBuilder::BuildError` mid-build; the whole
   build rolls back in its transaction, so no orphan boards.
+- **422 "Maximum number of boards reached"** — `current_user.at_board_limit?`
+  when `create` is called. Gated like every other creation path, **but a built
+  tree counts as ONE board**: `BoardTreeBuilder` marks sub-boards (depth > 0)
+  `settings["builder_child"] = true`, and `User#countable_board_count`
+  (the single source of truth for board counting) excludes them. So a Free user
+  (limit 1) can build one tree, and the tree's own sub-boards never trip the
+  read-only lock; a second build is blocked.
 
 ## Decisions & future work
 
@@ -134,6 +141,7 @@ Label-only picker catalog. No `Image` resolution.
 - `spec/services/boards/interest_categories_spec.rb` — lexicon contract.
 - `spec/services/boards/board_tree_builder_spec.rb` — the persistence half (#259).
 - `spec/requests/api/v1/board_builder_spec.rb` — endpoint happy path
-  (routing + favorites), auth, ownership, unknown template, build failure.
+  (routing + favorites), auth, ownership, unknown template, build failure,
+  and the board-limit gate (tree counts as one; set stays editable).
 
 Run: `RAILS_ENV=test bundle exec rspec spec/services/boards spec/requests/api/v1/board_builder_spec.rb`

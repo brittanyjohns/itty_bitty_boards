@@ -5,6 +5,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Board limit now enforced on all creation paths
+- Three board-creation paths previously bypassed the plan board limit entirely:
+  the **Board Builder** (`POST /api/v1/board_builder`), **OBF/OBZ import**
+  (`POST /api/boards/import_obf`), and **create from template**
+  (`POST /api/boards/create_from_template`). A Free user (limit 1) could blow
+  past the cap through any of them — worst with the Board Builder, where one
+  wizard run persists a whole linked tree (~5+ boards). All three now return
+  **HTTP 422** when the user is already at their limit.
+- A **Board Builder tree counts as ONE board** against the limit: its folder
+  sub-boards are marked `settings["builder_child"]` and excluded from the count,
+  so the wizard's own output never trips the read-only lock.
+- Board-limit counting is centralized on `User#countable_board_count` /
+  `User#at_board_limit?` (excludes predefined + builder-child boards). All gates
+  — create, clone, menus, generated-board claim, and the three above — and the
+  `can_create_boards` api_view flag now share this one definition, fixing prior
+  count drift (`boards.count` vs filtered count).
+
 ### Changed — No-card reverse trial for Basic/Pro (issue #264)
 - Starting a Basic/Pro trial **no longer requires a credit card** by default.
   Checkout uses `payment_method_collection: "if_required"` (no-card reverse

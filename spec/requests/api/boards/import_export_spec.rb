@@ -36,6 +36,21 @@ RSpec.describe "API::Boards OBF/OBZ import + export", type: :request do
       expect(JSON.parse(response.body)["error"]).to match(/unsupported/i)
     end
 
+    context "board-limit gate" do
+      it "returns 422 and imports nothing when the user is already at their limit" do
+        create(:board, user: user) # user is Free (limit 1) → now at limit
+
+        expect {
+          post "/api/boards/import_obf",
+               params: { file: obz_upload },
+               headers: auth_headers(user)
+        }.not_to change { user.boards.count }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(JSON.parse(response.body)["error"]).to match(/Maximum number of boards/)
+      end
+    end
+
     context "image opt-in policy" do
       def fresh_upload
         Rack::Test::UploadedFile.new(obz_path, "application/zip")
