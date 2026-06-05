@@ -177,6 +177,18 @@ module Boards
 
       image = resolve_or_create_image(word)
       board.add_image(image.id)
+      generate_art_if_blank(image, board)
+    end
+
+    # A novel interest word (no existing public/admin art) clones in blank; queue
+    # AI art so it fills in "later", matching Board#find_or_create_images_from_word_list
+    # (board.rb:900/905). Words that resolved to existing art are skipped, so we
+    # never pay to regenerate something we already have.
+    def generate_art_if_blank(image, board)
+      return if image.display_tile_url(@owner).present?
+      return if image.docs.any? { |doc| [User::DEFAULT_ADMIN_ID, @owner.id].include?(doc.user_id) }
+
+      GenerateImagesJob.perform_async([image.id], board.id)
     end
 
     # Create a "My Favorites" fringe owned by the user, marked builder_child so
