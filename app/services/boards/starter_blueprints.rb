@@ -67,15 +67,37 @@ module Boards
       tree && resolve(tree, user)
     end
 
-    # Label-only catalog for the picker UI: no Image resolution, so it's cheap
-    # and safe to serve even before symbols are seeded. Each entry exposes the
-    # core tile labels so the frontend can render a preview grid.
+    # Picker catalog: the hardcoded label-only starter trees PLUS any seeded
+    # "robust vocabulary set" templates (Core 60/84), found by their root-board
+    # marker (Boards::RobustSets). Each entry exposes core tile labels so the
+    # frontend can render a preview grid, and a `kind` so it can group/badge
+    # them. Robust sets that aren't seeded in this environment simply don't
+    # appear.
     def catalog
+      starter_catalog + robust_catalog
+    end
+
+    # The hardcoded label-only starter trees. Cheap and safe to serve even
+    # before symbols are seeded (no Image resolution).
+    def starter_catalog
       TEMPLATES.map do |key, tree|
         {
           key: key,
           name: tree[:name],
+          kind: "starter",
           tiles: Array(tree[:tiles]).map { |t| t[:label] },
+        }
+      end
+    end
+
+    # Seeded robust sets, sourced from their predefined root boards.
+    def robust_catalog
+      Boards::RobustSets.all_roots.map do |root|
+        {
+          key: Boards::RobustSets.slug_for(root),
+          name: root.name,
+          kind: "robust",
+          tiles: root.board_images.order(:position).map(&:label),
         }
       end
     end
