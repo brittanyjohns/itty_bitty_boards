@@ -20,30 +20,70 @@ RSpec.describe Boards::BlueprintAssembler, type: :service do
     context "with a known template and interests" do
       before { seed_template_images! }
 
-      it "returns the resolved template with a 'My Favorites' folder of interests appended" do
+      # A top-level folder tile by label, and the labels inside its child board.
+      def folder(blueprint, label)
+        blueprint[:tiles].find { |t| t[:label] == label }
+      end
+
+      def folder_labels(blueprint, label)
+        folder(blueprint, label)[:children][:tiles].map { |t| t[:label] }
+      end
+
+      it "gives every assembled tile a resolved integer image_id" do
         blueprint = described_class.new(
-          template: "home", interests: ["dinosaurs", "trains"], user: user,
+          template: "home", interests: ["apple", "trains", "grandma"], user: user,
         ).call
 
         expect(blueprint[:name]).to eq("Home")
-
-        # Every tile (core + favorites) has a resolved integer image_id.
         all_tiles(blueprint).each { |t| expect(t[:image_id]).to be_a(Integer) }
+      end
+
+      it "routes each interest into the matching category folder the template has" do
+        blueprint = described_class.new(
+          template: "home", interests: ["banana", "scared", "dinosaurs"], user: user,
+        ).call
+
+        expect(folder_labels(blueprint, "Food")).to include("banana")
+        expect(folder_labels(blueprint, "Feelings")).to include("scared")
+        expect(folder_labels(blueprint, "Play")).to include("dinosaurs")
+        # Everything found a home — no catch-all folder appended.
+        expect(blueprint[:tiles].map { |t| t[:label] }).not_to include("My Favorites")
+      end
+
+      it "puts interests with no matching folder in a 'My Favorites' catch-all" do
+        blueprint = described_class.new(
+          template: "home", interests: ["grandma", "minecraft"], user: user,
+        ).call
 
         favorites = blueprint[:tiles].last
         expect(favorites[:label]).to eq("My Favorites")
         expect(favorites[:children][:name]).to eq("My Favorites")
-        expect(favorites[:children][:tiles].map { |t| t[:label] }).to eq(["dinosaurs", "trains"])
+        expect(favorites[:children][:tiles].map { |t| t[:label] }).to contain_exactly("grandma", "minecraft")
       end
 
-      it "leaves the curated core untouched (interests only live in the folder)" do
+      it "splits a mixed list between category folders and 'My Favorites'" do
         blueprint = described_class.new(
-          template: "home", interests: ["dinosaurs"], user: user,
+          template: "home", interests: ["apple", "grandma"], user: user,
         ).call
 
-        core_labels = blueprint[:tiles][0..-2].map { |t| t[:label] }
-        expect(core_labels).to include("I", "want", "Food", "Feelings")
-        expect(core_labels).not_to include("dinosaurs")
+        expect(folder_labels(blueprint, "Food")).to include("apple")
+        expect(folder_labels(blueprint, "My Favorites")).to eq(["grandma"])
+      end
+
+      it "dedupes an interest against a folder's existing seed tile" do
+        # HOME's Food folder already seeds "apple"; routing it again must not dup.
+        blueprint = described_class.new(template: "home", interests: ["apple"], user: user).call
+        expect(folder_labels(blueprint, "Food").count("apple")).to eq(1)
+      end
+
+      it "leaves the curated core tiles untouched (interests never appear at top level)" do
+        blueprint = described_class.new(
+          template: "home", interests: ["apple", "grandma"], user: user,
+        ).call
+
+        top_labels = blueprint[:tiles].map { |t| t[:label] }
+        expect(top_labels).to include("I", "want", "Food", "Feelings", "Play")
+        expect(top_labels).not_to include("apple", "grandma")
       end
     end
 

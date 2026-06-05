@@ -5,6 +5,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Board Builder wizard endpoint
+- New `POST /api/v1/board_builder` builds a complete, linked board set for a
+  communicator from a starter **template** plus a few **interest words**, in
+  one round-trip, and `GET /api/v1/board_builder/templates` serves the picker
+  catalog. Standalone feature (separate from MySpeak onboarding); the React
+  page ships in the frontend.
+- **Interest routing:** each interest is placed into a matching category folder
+  the chosen template has (`apple` → Food, `dinosaurs` → Play); anything with
+  no match lands in a single **"My Favorites"** folder, deduped, so nothing the
+  user typed is dropped. Interests are normalized, capped at 12, and saved to
+  the communicator so the wizard can be re-run.
+- Built on the deterministic `Boards::BoardTreeBuilder` (the linked-set
+  persistence half). No schema changes. See `.claude-notes/board-builder.md`.
+
 ### Added — Mailchimp Customer Journey triggers
 - The backend can now enrol a contact into a **Mailchimp Customer Journey**
   via its API-trigger step, so events in the app send real, on-brand emails
