@@ -17,11 +17,13 @@
 #   blueprint = assembler.call            # => builder-ready blueprint (or raises)
 #   assembler.interests                   # => normalized list, for persisting
 #
-# Interest placement (v1 decision): all interests land in ONE "My Favorites"
-# folder hanging off the root, leaving the curated core untouched.
-# FUTURE: route interests into matching category boards (trains -> Play,
-# apple -> Food) via a word->category map. Deferred on purpose — see
-# drafts/board-builder-wizard-step3-plan.md.
+# Interest placement: each interest is routed into a matching category folder
+# the chosen template already has (apple -> Food, trains -> Play) via
+# Boards::InterestCategories. The curated core tiles are left untouched — an
+# interest only ever *adds* a tile to an existing folder's child board, deduped
+# against what's already there. Anything with no matching folder (grandma, a
+# brand-new word) falls through to a single appended "My Favorites" folder, so
+# nothing the user typed is ever dropped. See .claude-notes/board-builder.md.
 module Boards
   class BlueprintAssembler
     FAVORITES_NAME = "My Favorites"
@@ -37,28 +39,60 @@ module Boards
       @interests    = normalize_interests(interests)
     end
 
-    # Returns a builder-ready blueprint: { name:, tiles: [ ...image_ids..., favorites? ] }.
+    # Returns a builder-ready blueprint: the resolved template with interests
+    # routed into matching category folders and any leftovers in "My Favorites".
     # Raises UnknownTemplate if the template key isn't registered.
     def call
       blueprint = StarterBlueprints.for(@template_key, @user)
       raise UnknownTemplate, "unknown template #{@template_key.inspect}" if blueprint.nil?
 
-      blueprint[:tiles] = blueprint[:tiles] + [favorites_folder] if @interests.any?
+      route_interests!(blueprint) if @interests.any?
       blueprint
     end
 
     private
 
-    # A folder tile (has `children`) pointing at a board built from the interest
-    # words. The folder tile itself needs an image (board_images.image_id is NOT
-    # NULL), so we resolve/create one for the folder label too.
-    def favorites_folder
+    # Drop each interest into the template folder its category maps to; collect
+    # whatever has no home and hang it off a single "My Favorites" folder.
+    def route_interests!(blueprint)
+      folders  = folder_tiles_by_label(blueprint)
+      unrouted = []
+
+      @interests.each do |word|
+        category = Boards::InterestCategories.category_for(word)
+        folder   = category && folders[category]
+        folder ? add_interest_to_folder(folder, word) : unrouted << word
+      end
+
+      blueprint[:tiles] = blueprint[:tiles] + [favorites_folder(unrouted)] if unrouted.any?
+    end
+
+    # { "Food" => <folder tile>, ... } for every top-level tile that's a folder.
+    def folder_tiles_by_label(blueprint)
+      blueprint[:tiles].each_with_object({}) do |tile, map|
+        map[tile[:label]] = tile if tile[:children]
+      end
+    end
+
+    # Append an interest tile to a folder's child board, deduping (case-
+    # insensitively) against the seed tiles and any interest already routed here.
+    def add_interest_to_folder(folder, word)
+      existing = folder[:children][:tiles].map { |t| t[:label].to_s.downcase }
+      return if existing.include?(word.downcase)
+
+      folder[:children][:tiles] << { label: word, image_id: resolve_or_create_image(word).id }
+    end
+
+    # A folder tile (has `children`) pointing at a board built from the leftover
+    # interest words. The folder tile itself needs an image (board_images.image_id
+    # is NOT NULL), so we resolve/create one for the folder label too.
+    def favorites_folder(words)
       {
         label:    FAVORITES_NAME,
         image_id: resolve_or_create_image(FAVORITES_NAME).id,
         children: {
           name:  FAVORITES_NAME,
-          tiles: @interests.map { |word| { label: word, image_id: resolve_or_create_image(word).id } },
+          tiles: words.map { |word| { label: word, image_id: resolve_or_create_image(word).id } },
         },
       }
     end

@@ -437,6 +437,41 @@ image pool:
   (4th positional arg). All default to `{}` for backward compat with
   callers that don't care.
 
+## Board Builder wizard
+
+Turns wizard input — a starter **template** + a few **interest words** — into
+a real linked `Board` set attached to a communicator. **Standalone** feature,
+*not* part of MySpeak onboarding. Full subsystem doc:
+`.claude-notes/board-builder.md`.
+
+Three seams (input contract tightens left→right):
+
+- `Boards::StarterBlueprints` — `TEMPLATES` registry of label-only starter
+  trees (`"home"`, `"daily_routine"`). Add a tree to the hash → instantly in
+  the picker (`#catalog`) and buildable (`#for`). Resolution raises on a
+  missing core symbol.
+- `Boards::BlueprintAssembler` — the resolution + routing seam. Resolves every
+  label to an `image_id` (create-if-missing for new interest words, blank art
+  for v1), then **routes interests into category folders** via
+  `Boards::InterestCategories` (apple→Food, trains→Play). Routing is dynamic
+  by template (only into a folder the chosen template has); anything unmatched
+  falls through to one appended **"My Favorites"** folder, deduped, nothing
+  dropped. Interests are normalized + capped at 12.
+- `Boards::BoardTreeBuilder` (#259) — persists the tree from a blueprint of
+  **already-resolved `image_id`s only**. Keep it dumb; all resolution lives in
+  the assembler.
+
+Endpoints (`API::V1::BoardBuilderController`, both auth-gated):
+
+- `GET /api/v1/board_builder/templates` — label-only picker catalog.
+- `POST /api/v1/board_builder` `{ communicator_id, template, interests }` —
+  ownership check (**404 `communicator_not_found`** for a communicator not in
+  `current_user.communicator_accounts`), assemble → build → persist normalized
+  interests to `child_account.details["interests"]` (jsonb merge), return the
+  favorited root board's `api_view` (**201**). **422 `unknown_template`** /
+  **422 `build_failed`** (the build is transactional — failure rolls back, no
+  orphans). The frontend page ships separately in `itty-bitty-frontend`.
+
 ## Do not
 
 - Do not install new gems without asking first

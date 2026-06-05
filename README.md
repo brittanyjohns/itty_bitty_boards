@@ -792,6 +792,47 @@ curl -X GET https://<host>/api/boards/<board_id>/download_obf \
 - Specs: `spec/requests/api/boards/import_export_spec.rb`,
   `spec/models/obz_importer_spec.rb`
 
+## Board Builder wizard
+
+Builds a real, linked board set for a communicator from two wizard inputs — a
+starter **template** and a few **interest words** — in one round-trip. It's a
+standalone feature (separate from the MySpeak setup wizard). The React page
+ships in `itty-bitty-frontend`.
+
+**Endpoints** (both require `Authorization: Bearer <token>`):
+
+```
+GET  /api/v1/board_builder/templates   # label-only picker catalog
+POST /api/v1/board_builder             # build a set for a communicator
+```
+
+`POST` body:
+
+```json
+{ "communicator_id": 42, "template": "home", "interests": ["dinosaurs", "grandma"] }
+```
+
+What happens: each interest is routed into a matching category folder the
+chosen template has (`apple` → Food, `dinosaurs` → Play); anything with no
+match lands in a single **"My Favorites"** folder, so nothing is dropped. The
+root board is attached to the communicator as a favorited board, and the
+normalized interests are saved to `child_account.details` so the wizard can be
+re-run. Responds `201` with the root board's `api_view`; `404
+communicator_not_found` if the communicator isn't on your account; `422
+unknown_template` / `422 build_failed` otherwise.
+
+### Where the code lives
+
+- `app/controllers/api/v1/board_builder_controller.rb` — the two endpoints
+- `app/services/boards/blueprint_assembler.rb` — label→image_id resolution +
+  interest routing (the front of the pipe)
+- `app/services/boards/interest_categories.rb` — the interest→category lexicon
+- `app/services/boards/starter_blueprints.rb` — the `TEMPLATES` registry
+- `app/services/boards/board_tree_builder.rb` — persists the linked tree
+- Design doc: `.claude-notes/board-builder.md`
+- Specs: `spec/services/boards/*_spec.rb`,
+  `spec/requests/api/v1/board_builder_spec.rb`
+
 ## Local Development in Docker
 
 The DB and backend services can be run in Docker using `docker compose`.

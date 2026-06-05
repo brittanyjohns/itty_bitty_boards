@@ -25,6 +25,8 @@ module Boards
                                       tiles: [{ label: "apple" }, { label: "water" }, { label: "snack" }] } },
         { label: "Feelings", children: { name: "Feelings",
                                          tiles: [{ label: "happy" }, { label: "sad" }, { label: "tired" }] } },
+        { label: "Play", children: { name: "Play",
+                                     tiles: [{ label: "ball" }, { label: "bubbles" }, { label: "music" }] } },
       ],
     }.freeze
 

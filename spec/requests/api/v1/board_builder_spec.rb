@@ -45,11 +45,12 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
     end
 
     context "happy path" do
-      it "builds a linked board set owned by the user, attaches a favorited root, and persists interests" do
+      it "builds a linked set, routes interests into category vs favorites folders, and persists interests" do
+        # dinosaurs -> the template's Play folder; grandma -> "My Favorites".
         expect {
           post "/api/v1/board_builder",
                params: { communicator_id: communicator.id, template: "home",
-                         interests: ["dinosaurs", "trains"] }.to_json,
+                         interests: ["dinosaurs", "grandma"] }.to_json,
                headers: headers
         }.to change { communicator.child_boards.count }.by(1)
 
@@ -63,13 +64,19 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         child_board = communicator.child_boards.find_by(board_id: root.id)
         expect(child_board.favorite).to eq(true)
 
-        # A "My Favorites" folder tile links to a board built from the interests.
+        # "dinosaurs" was routed into the existing Play folder (alongside seeds).
+        play_tile = root.board_images.find { |bi| bi.label == "Play" }
+        expect(play_tile.predictive_board_id).to be_present
+        play_board = Board.find(play_tile.predictive_board_id)
+        expect(play_board.board_images.map(&:label)).to include("dinosaurs", "ball")
+
+        # "grandma" had no category folder, so it landed in "My Favorites".
         favorites_tile = root.board_images.find { |bi| bi.label == "My Favorites" }
         expect(favorites_tile.predictive_board_id).to be_present
         favorites_board = Board.find(favorites_tile.predictive_board_id)
-        expect(favorites_board.board_images.map(&:label)).to contain_exactly("dinosaurs", "trains")
+        expect(favorites_board.board_images.map(&:label)).to contain_exactly("grandma")
 
-        expect(communicator.reload.details["interests"]).to eq(["dinosaurs", "trains"])
+        expect(communicator.reload.details["interests"]).to eq(["dinosaurs", "grandma"])
       end
 
       it "builds the core template with no favorites folder when interests are empty" do
@@ -101,6 +108,20 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
                headers: headers
         }.not_to change { Board.count }
         expect(response).to have_http_status(:unprocessable_entity)
+      end
+    end
+
+    context "when the tree builder fails mid-build" do
+      it "returns 422 build_failed with a warm message" do
+        allow_any_instance_of(Boards::BoardTreeBuilder)
+          .to receive(:call).and_raise(Boards::BoardTreeBuilder::BuildError, "boom")
+
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home" }.to_json,
+             headers: headers
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(JSON.parse(response.body)["error"]).to eq("build_failed")
       end
     end
   end
