@@ -196,8 +196,12 @@ lose.
   board), favorites the root as a ChildBoard, and routes interests into the
   cloned fringe pages by category name — unmatched → an auto-created, linked
   `builder_child` "My Favorites" page. Interest normalization/dedup/cap mirror
-  `BlueprintAssembler`. clone_with_images returns clones with a stale
-  counter/association cache, so routing reloads boards before adding tiles.
+  `BlueprintAssembler`. A novel interest word with no existing public/admin
+  symbol is created and **queued for AI art** (`GenerateImagesJob`), mirroring
+  `Board#find_or_create_images_from_word_list` — words that resolve to existing
+  art are skipped, so we never pay to regenerate. clone_with_images returns
+  clones with a stale counter/association cache, so routing reloads boards
+  before adding tiles.
 
 **Synchronous (v1) — execution note.** The build runs in-request (the existing
 contract). image_ids are pre-resolved so the work is DB-bound; previews, audio,

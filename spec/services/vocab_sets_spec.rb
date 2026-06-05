@@ -43,6 +43,20 @@ RSpec.describe VocabSets do
       expect(Boards::RobustSets.slug_for(root)).to eq("core-60")
     end
 
+    it "names every fringe page after a recognized interest category so routing lands" do
+      # Guards against content drift: if a fringe page is renamed to something
+      # InterestCategories doesn't know, interests for it silently fall to
+      # "My Favorites". The placeholder's pages are Food/Feelings/Play.
+      VocabSets.seed_slug!("core-60")
+
+      fringe_names = Board.where(user_id: admin.id).where.not(name: "Core 60").pluck(:name)
+      expect(fringe_names).not_to be_empty
+      fringe_names.each do |name|
+        expect(Boards::InterestCategories.categories).to include(name),
+                                                          "fringe page #{name.inspect} is not a routable interest category"
+      end
+    end
+
     it "is idempotent — re-seeding doesn't duplicate boards or roots" do
       VocabSets.seed_slug!("core-60")
       expect { VocabSets.seed_slug!("core-60") }.not_to change { Board.where(user_id: admin.id).count }

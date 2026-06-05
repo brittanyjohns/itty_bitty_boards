@@ -131,6 +131,19 @@ RSpec.describe Boards::SeededSetCloner do
       expect(User.find(owner.id).countable_board_count).to eq(1)
     end
 
+    it "queues AI art for a novel interest word with no existing symbol" do
+      expect(GenerateImagesJob).to receive(:perform_async).with(kind_of(Array), kind_of(Integer)).at_least(:once)
+
+      described_class.new(source[:root], communicator: communicator, interests: ["dinosaurs"]).call
+    end
+
+    it "does not queue art when the interest already exists on the fringe" do
+      # "apple" is already on the cloned Food page -> deduped, nothing created.
+      expect(GenerateImagesJob).not_to receive(:perform_async)
+
+      described_class.new(source[:root], communicator: communicator, interests: ["apple"]).call
+    end
+
     it "does not mutate the source seed set" do
       described_class.new(source[:root], communicator: communicator, interests: ["pizza"]).call
 
