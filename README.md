@@ -208,7 +208,17 @@ webhooks:
   trial period.
 - `customer.subscription.deleted` / `.paused` → expire plan credits
   (top-up credits preserved).
+- `customer.subscription.updated` with status `unpaid` /
+  `incomplete_expired` (a lapsed no-card trial) → downgrade to Free in
+  fallback mode (issue #264). `past_due` is left in Stripe dunning.
 - Hourly `ExpirePlanCreditsJob` as a backstop.
+
+**No-card reverse trial (issue #264):** Basic/Pro trials default to no
+card on file (`payment_method_collection: "if_required"`). When a no-card
+trial ends, Stripe cancels it (`trial_settings.end_behavior.missing_payment_method
+= "cancel"`) and the user lands on Free — never charged, never stuck
+`past_due`. The card-required A/B arm is forced per-request with
+`require_card=true` or globally via `STRIPE_PAYMENT_METHOD_COLLECTION=always`.
 
 Admins bypass the credit check. `MonthlyFeatureLimiter` is no longer in
 the AI hot path.
