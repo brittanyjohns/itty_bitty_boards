@@ -181,6 +181,17 @@ class ChildAccount < ApplicationRecord
     user.present? && (user.id == owner_id || user.admin?)
   end
 
+  # Most-recent Board Builder root still attached to this communicator, if any.
+  # Detector for the re-run duplicate guard (issue #269): the wizard marks each
+  # root board settings["builder_root"] = true. Deletion-safe — if the user
+  # deletes the set, the join row goes with it, so this returns nil and a
+  # re-run is treated as a fresh build.
+  def board_builder_root
+    boards.where("COALESCE((boards.settings->>'builder_root')::boolean, false)")
+          .order("boards.created_at DESC")
+          .first
+  end
+
   # `is_demo` is derived from status now. The DB column is retained until the
   # frontend cutover (F1) is complete, then dropped. Writes to `is_demo` flow
   # into `status` for backwards compatibility.

@@ -164,6 +164,30 @@ RSpec.describe Boards::BoardTreeBuilder, type: :service do
       expect { builder.call }.to raise_error(StandardError)
     end
 
+    it "marks the root builder_root and sub-boards builder_child (issue #269 / #270)" do
+      blueprint = {
+        name: "Home",
+        tiles: [
+          { label: "I", image_id: image_id_for("I") },
+          { label: "Food", image_id: image_id_for("Food"), children: {
+            name: "Food",
+            tiles: [{ label: "apple", image_id: image_id_for("apple") }],
+          } },
+        ],
+      }
+
+      root = described_class.new(blueprint, communicator: communicator).call
+
+      # Root is the re-run detector marker, and stays countable (not builder_child).
+      expect(root.settings["builder_root"]).to be(true)
+      expect(root.settings["builder_child"]).to be_falsey
+
+      food_tile = root.board_images.find { |bi| bi.label == "Food" }
+      sub_board = Board.find(food_tile.predictive_board_id)
+      expect(sub_board.settings["builder_child"]).to be(true)
+      expect(sub_board.settings["builder_root"]).to be_falsey
+    end
+
     it "raises when the communicator has no owning user" do
       ownerless = create(:child_account, user: nil)
       blueprint = { name: "Home", tiles: [] }

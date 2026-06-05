@@ -9,6 +9,10 @@ module API
     # blueprint, BoardTreeBuilder persists the linked tree and attaches the root
     # to the communicator, and we stash the normalized interests on the
     # communicator so the wizard can be re-run / pre-filled.
+    #
+    # Re-run guard (issue #269): if the communicator already has a builder set,
+    # create returns HTTP 409 `board_builder_set_exists` instead of silently
+    # duplicating it; the client re-sends with `confirm=true` to build another.
     class BoardBuilderController < API::ApplicationController
       # Label-only template catalog for the picker grid.
       def templates
@@ -30,6 +34,20 @@ module API
         if current_user.at_board_limit?
           render json: { error: "Maximum number of boards reached (#{current_user.countable_board_count}/#{current_user.board_limit}). Please upgrade to add more." },
                  status: :unprocessable_entity
+          return
+        end
+
+        # Re-run guard (issue #269): if this communicator already has a builder
+        # set, don't silently stack a second favorited root. Warn so the frontend
+        # can confirm; `confirm=true` is the explicit "build another" opt-in.
+        existing = communicator.board_builder_root
+        if existing && params[:confirm].to_s != "true"
+          render json: { error: "board_builder_set_exists",
+                         message: "You already built a board set for this communicator. Build another?",
+                         existing_root_id: existing.id,
+                         existing_root_name: existing.name,
+                         built_at: existing.created_at },
+                 status: :conflict
           return
         end
 

@@ -488,6 +488,17 @@ Endpoints (`API::V1::BoardBuilderController`, both auth-gated):
     `settings["builder_child"] = true`, and `User#countable_board_count` excludes
     them — so the tree counts as its single root, not ~5. This also keeps the
     whole built set editable (the read-only lock keys off the same count).
+  - **Re-run guard (issue #269): detect + warn, never silently dupe.** If the
+    communicator already has a builder set, `create` returns **409
+    `board_builder_set_exists`** (`{ existing_root_id, existing_root_name,
+    built_at }`) instead of stacking a second favorited root; the client
+    re-sends with **`confirm=true`** to build another. Detection is
+    `ChildAccount#board_builder_root` — each root is marked
+    `settings["builder_root"] = true` by `BoardTreeBuilder` (counterpart to
+    `builder_child`; does **not** affect the board-limit count). It's
+    deletion-safe: delete the set and a re-run is a fresh build. The 409 check
+    runs *after* the board-limit gate, so a Free user at their limit gets the
+    422 first.
 
 ## Do not
 
