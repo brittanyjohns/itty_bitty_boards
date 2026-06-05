@@ -177,6 +177,51 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       end
     end
 
+    context "re-run guard (issue #269)" do
+      # Raise the board limit so the #270 limit gate doesn't pre-empt the re-run
+      # guard — that gate only blocks Free users; the dup problem is paid users.
+      before { user.update!(settings: user.settings.to_h.merge("board_limit" => 10)) }
+
+      it "warns with 409 board_builder_set_exists on a re-run and builds nothing" do
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home" }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:created)
+        first_root_id = JSON.parse(response.body)["id"]
+
+        boards_before = Board.count
+        child_boards_before = communicator.child_boards.count
+
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home" }.to_json,
+             headers: headers
+
+        expect(response).to have_http_status(:conflict)
+        body = JSON.parse(response.body)
+        expect(body["error"]).to eq("board_builder_set_exists")
+        expect(body["existing_root_id"]).to eq(first_root_id)
+
+        # Guarded — nothing new was persisted.
+        expect(Board.count).to eq(boards_before)
+        expect(communicator.child_boards.count).to eq(child_boards_before)
+      end
+
+      it "builds another set when confirm=true" do
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home" }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:created)
+
+        expect {
+          post "/api/v1/board_builder",
+               params: { communicator_id: communicator.id, template: "home", confirm: true }.to_json,
+               headers: headers
+        }.to change { communicator.child_boards.count }.by(1)
+
+        expect(response).to have_http_status(:created)
+      end
+    end
+
     context "when the tree builder fails mid-build" do
       it "returns 422 build_failed with a warm message" do
         allow_any_instance_of(Boards::BoardTreeBuilder)

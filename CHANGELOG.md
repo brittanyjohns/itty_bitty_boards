@@ -5,6 +5,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Board Builder no longer silently duplicates a board set on re-run
+- Re-running the wizard for the same communicator used to silently create a
+  **second board set** with another `favorite: true` root (issue #269). The
+  board-limit gate (#270) already blocked Free users on a re-run, but paid
+  users (Basic/Pro) could stack duplicates.
+- `POST /api/v1/board_builder` now **detects an existing builder set and warns**:
+  it returns **HTTP 409** `{ error: "board_builder_set_exists", message,
+  existing_root_id, existing_root_name, built_at }` instead of building. The
+  client confirms and re-sends with **`confirm=true`** to intentionally build
+  another set.
+- Detection is durable and deletion-safe: each builder **root** board is now
+  marked `settings["builder_root"] = true` (the counterpart to the sub-board
+  `builder_child` marker), and `ChildAccount#board_builder_root` looks for one
+  still attached to the communicator. Delete the set and a re-run is treated as
+  a fresh build. The root stays countable — `builder_root` does not affect the
+  board-limit count.
+
 ### Fixed — Board limit now enforced on all creation paths
 - Three board-creation paths previously bypassed the plan board limit entirely:
   the **Board Builder** (`POST /api/v1/board_builder`), **OBF/OBZ import**

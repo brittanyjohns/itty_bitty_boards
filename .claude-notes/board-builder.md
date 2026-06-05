@@ -114,6 +114,18 @@ Label-only picker catalog. No `Image` resolution.
   persists the normalized interests to `child_account.details["interests"]`
   (jsonb merge, non-destructive — so the wizard can be re-run / pre-filled),
   and returns the root board's `api_view` with **HTTP 201**.
+- **409 `board_builder_set_exists`** — re-run guard (issue #269). When the
+  communicator already has a builder set, `create` returns
+  `{ error, message, existing_root_id, existing_root_name, built_at }` and
+  builds nothing, so the wizard never silently stacks a second favorited root.
+  The client confirms and re-sends with **`confirm=true`** to build another set.
+  Detection is `ChildAccount#board_builder_root`: each root is marked
+  `settings["builder_root"] = true` by `BoardTreeBuilder`, and the helper finds
+  one still attached to the communicator (deletion-safe — delete the set and a
+  re-run is a fresh build). `builder_root` is the counterpart to `builder_child`
+  and does **not** affect the board-limit count (only `builder_child` is
+  excluded from `countable_board_count`). The gate runs after the board-limit
+  check, so Free users at their limit still get the 422 below first.
 - **422 `unknown_template`** — template key not in the registry (builds nothing).
 - **422 `build_failed`** — `BoardTreeBuilder::BuildError` mid-build; the whole
   build rolls back in its transaction, so no orphan boards.
@@ -129,6 +141,13 @@ Label-only picker catalog. No `Image` resolution.
 
 - **Interests persisted** to `child_account.details` (not a new column) so the
   wizard is idempotent/re-runnable.
+- **Re-running the wizard (open decision #3) — RESOLVED: detect + warn.** A
+  re-run is non-destructive and never silently dupes: the backend returns
+  **409 `board_builder_set_exists`** unless `confirm=true` is sent. We keep
+  the prior set intact rather than replacing it (option 1 in issue #269), and
+  the marker is `settings["builder_root"]` on the root board (not a `details`
+  marker, which would go stale if the board were deleted). Frontend confirm UX
+  is a small follow-up (frontend repo).
 - **Blank-art interest images** are acceptable for v1.
 - **Future:** richer lexicon + more category folders across templates; AI
   symbol generation for new interest words; per-tile voice/label overrides

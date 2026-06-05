@@ -63,6 +63,10 @@ module Boards
       # Sub-boards (folders) don't count against the user's board limit — the
       # whole tree counts as one via its root. See User#countable_board_count.
       board.settings = (board.settings || {}).merge("builder_child" => true) if depth.positive?
+      # Mark the root so a re-run can detect an existing builder set and warn
+      # instead of silently duplicating it (issue #269). Root stays countable —
+      # countable_board_count only excludes builder_child, not builder_root.
+      board.settings = (board.settings || {}).merge("builder_root" => true) if depth.zero?
       board.save!
 
       Array(node[:tiles]).each do |tile|
