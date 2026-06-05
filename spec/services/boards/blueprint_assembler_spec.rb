@@ -3,8 +3,9 @@ require "rails_helper"
 RSpec.describe Boards::BlueprintAssembler, type: :service do
   let(:user) { create(:user) }
 
-  # The "home" template resolves every core label -> Image, raising if any is
-  # missing, so seed images for the whole HOME tree before exercising it.
+  # The "home" template resolves every core label -> Image (create-if-missing).
+  # Seeding the HOME tree up front exercises the reuse path and keeps these
+  # specs focused on routing rather than image creation.
   def seed_template_images!
     labels = collect_labels(Boards::StarterBlueprints::HOME)
     labels.each { |label| create(:image, label: label, user_id: user.id) }

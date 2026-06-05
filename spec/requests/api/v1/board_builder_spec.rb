@@ -5,8 +5,9 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
   let(:communicator) { create(:child_account, user: user) }
   let(:headers) { auth_headers(user).merge("Content-Type" => "application/json") }
 
-  # The "home" template resolves every core label -> Image; seed them so a build
-  # doesn't blow up on a missing symbol.
+  # The "home" template resolves every core label -> Image. Core labels now
+  # create-if-missing, so seeding isn't required for a build to succeed; these
+  # specs seed to exercise the reuse path and keep label assertions stable.
   def seed_template_images!
     collect_labels(Boards::StarterBlueprints::HOME).each do |label|
       create(:image, label: label, user_id: user.id)
@@ -87,6 +88,24 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(response).to have_http_status(:created)
         root = Board.find(JSON.parse(response.body)["id"])
         expect(root.board_images.map(&:label)).not_to include("My Favorites")
+      end
+    end
+
+    context "with no core symbols seeded (the staging 500 regression)" do
+      # Reproduces the outage: a build used to 500 with
+      # RuntimeError("no Image for label \"Food\"") when the curated symbols
+      # weren't seeded. Core labels now self-heal, so the build succeeds.
+      it "builds successfully, creating images for the core labels" do
+        no_seed_user = create(:user)
+        no_seed_comm = create(:child_account, user: no_seed_user)
+        no_seed_headers = auth_headers(no_seed_user).merge("Content-Type" => "application/json")
+
+        post "/api/v1/board_builder",
+             params: { communicator_id: no_seed_comm.id, template: "home" }.to_json,
+             headers: no_seed_headers
+
+        expect(response).to have_http_status(:created)
+        expect(Image.find_by(label: "Food", user_id: no_seed_user.id)).to be_present
       end
     end
 

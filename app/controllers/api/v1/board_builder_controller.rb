@@ -49,6 +49,13 @@ module API
         render json: { error: "build_failed",
                        message: "Something went wrong building the board set — your info is safe, give it another try." },
                status: :unprocessable_entity
+      rescue StandardError => e
+        # Last-resort guard: never leak an internal error (or a 500) to the
+        # client. Core symbols now self-heal, so this should be rare.
+        Rails.logger.error "[BoardBuilder] unexpected error: #{e.class}: #{e.message}"
+        render json: { error: "build_failed",
+                       message: "Something went wrong building the board set — your info is safe, give it another try." },
+               status: :unprocessable_entity
       end
     end
   end

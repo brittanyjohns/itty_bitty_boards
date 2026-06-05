@@ -47,10 +47,13 @@ hash and it is instantly selectable in the picker (`#catalog`) and buildable
 (`#for`) — no other wiring.
 
 Templates are defined by **label** (DB-portable). `StarterBlueprints.for(key,
-user)` resolves each label to an `Image#id` for that user at call time and
-**raises** if a core label has no `Image` — so the curated templates assume
-their symbols are seeded. `#catalog` is label-only (no `Image` resolution),
-so the picker grid is cheap and safe to serve even before symbols exist.
+user)` resolves each label to an `Image#id` for that user at call time,
+**creating a blank-art image if a core label has none** (same create-if-missing
+path the interest words use) so a template builds even when its curated symbols
+aren't seeded in this environment — including the capitalized folder labels
+(`Food`, `Feelings`, `Play`, `Bathroom`), which are folder names rather than
+seeded vocabulary. `#catalog` is label-only (no `Image` resolution), so the
+picker grid is cheap and safe to serve even before symbols exist.
 
 `HOME` carries category folders `Food`, `Feelings`, `Play`; `DAILY_ROUTINE`
 carries `Bathroom`. Those folder labels are what interest routing targets.
