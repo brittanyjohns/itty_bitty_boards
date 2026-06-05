@@ -500,34 +500,6 @@ Endpoints (`API::V1::BoardBuilderController`, both auth-gated):
     runs *after* the board-limit gate, so a Free user at their limit gets the
     422 first.
 
-### Robust vocabulary sets (Core 60 / Core 84)
-
-A second template **kind** beside the label-only starter trees: pre-authored
-core vocabulary sets, **authored as OBF/OBZ** and seeded as admin-owned
-predefined boards, then **deep-cloned per user** on build (so authored grid
-layout + `part_of_speech` colors survive). Reuses `ObzImporter` (seed) and
-`Board#clone_with_images` (build). SpeakAnyWay content only.
-
-- **Seed:** `bin/rails vocab_sets:seed` (logic in the `VocabSets` service)
-  zips the editable OBF-JSON under `db/seeds/board_builder_sets/<slug>/` and
-  imports it via `ObzImporter` as `User::DEFAULT_ADMIN_ID` with
-  **`board_group: nil`**. **No `BoardGroup`** — a set is identified by a marker
-  on its **root board** (`settings["board_builder_robust_slug"]`), queried via
-  `Boards::RobustSets`. Idempotent (`Board.from_obf` upserts by
-  `(user_id, obf_id)`). Format spec: `db/seeds/board_builder_sets/README.md`.
-  Slugs `core-60` (ships a placeholder), `core-84` (TBD).
-- **Build:** `#create` branches on `Boards::RobustSets.find_root(template)`.
-  A match runs `Boards::SeededSetCloner` (walks the linked set to depth 2,
-  clones each board, **rewires** `predictive_board_id` to the clones, marks
-  root `builder_root` / rest `builder_child`, favorites the root ChildBoard,
-  routes interests into the cloned fringe pages / "My Favorites"). Same
-  synchronous **201** response and the **same** limit (422) and re-run (409)
-  guards as the starter path — counts as ONE board.
-- `GET /board_builder/templates` entries now carry `kind: "starter" | "robust"`.
-- v1 is **synchronous** (DB-bound work; previews/audio/AI art already async).
-  If a finalized set is materially larger than the placeholder, move the clone
-  to a background job + "building" state — see `.claude-notes/board-builder.md`.
-
 ## Do not
 
 - Do not install new gems without asking first

@@ -5,36 +5,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
-### Added — Robust vocabulary sets for the Board Builder (Core 60/84)
-- The Board Builder picker now offers pre-authored **core vocabulary sets** (a
-  real core grid + fringe category pages) alongside the small starter templates.
-  Picking one **deep-clones** the seeded set for the communicator and routes the
-  child's interest words into the cloned fringe pages — same one-round-trip
-  flow, same `POST /api/v1/board_builder` → **201** contract.
-- **Authored as our own OBF/OBZ**, reusing existing infrastructure end to end:
-  sets are seeded with `ObzImporter` (grid layout + `part_of_speech` colors +
-  `load_board`→`predictive_board_id` links), then cloned per user with
-  `Board#clone_with_images` — so authored layout/colors are preserved (a
-  rebuild-from-labels would drop them). Uses **SpeakAnyWay content only**.
-- **Seeder:** `bin/rails vocab_sets:seed` imports the editable OBF-JSON source
-  under `db/seeds/board_builder_sets/<slug>/` as admin, **with no `BoardGroup`** —
-  a set is identified by a marker on its **root board**
-  (`settings["board_builder_robust_slug"]`, via `Boards::RobustSets`).
-  Idempotent. `bin/rails 'vocab_sets:build[core-60]'` emits a distributable
-  `.obz`. Format spec: `db/seeds/board_builder_sets/README.md`. Slugs:
-  `core-60` (ships with a **placeholder** set), `core-84` (content TBD).
-- **A cloned set counts as ONE board** (root marked `builder_root`, the rest
-  `builder_child`) and respects the plan board limit (**422**) and the re-run
-  guard (**409** `board_builder_set_exists` unless `confirm=true`) — the same
-  gates as the starter-template path. New `GET /api/v1/board_builder/templates`
-  entries carry `kind: "starter" | "robust"`.
-- Build runs **synchronously** for v1 (the work is DB-bound; previews/audio/AI
-  art are already backgrounded). If a finalized set lands materially larger than
-  the placeholder, the clone can move to a background job + "building" state
-  (see `.claude-notes/board-builder.md`).
-- New: `Boards::SeededSetCloner`, `Boards::RobustSets`, `VocabSets` service +
-  `lib/tasks/vocab_sets.rake`. No schema changes.
-
 ### Fixed — Board Builder no longer silently duplicates a board set on re-run
 - Re-running the wizard for the same communicator used to silently create a
   **second board set** with another `favorite: true` root (issue #269). The

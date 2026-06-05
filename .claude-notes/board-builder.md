@@ -153,74 +153,14 @@ Label-only picker catalog. No `Image` resolution.
   symbol generation for new interest words; per-tile voice/label overrides
   (today `add_image` derives the label from the `Image`).
 
-## Robust seeded sets (Core 60 / Core 84)
-
-A second template kind: pre-authored, evidence-based **core vocabulary sets**
-(a real core grid + fringe category pages), offered alongside the hardcoded
-starter trees. Instead of building from label-only trees, a robust set is
-**authored as OBF/OBZ**, **seeded** once as admin-owned predefined boards, then
-**deep-cloned per user** on build — preserving the authored grid layout,
-core-tile borders, and `part_of_speech` colors that a rebuild-from-labels would
-lose.
-
-**Authoring + seeding (reuses `ObzImporter`):**
-- Source lives in `db/seeds/board_builder_sets/<slug>/` as editable OBF JSON
-  (`manifest.json` + `boards/*.obf`). Format spec: that dir's `README.md`
-  (share it with whoever authors the word content). Slugs: `core-60`, `core-84`.
-- `bin/rails vocab_sets:seed` (logic in the `VocabSets` service) zips the JSON
-  in memory and imports via `ObzImporter` as `User::DEFAULT_ADMIN_ID` with
-  **`board_group: nil`** — this feature is **root-board only, no `BoardGroup`**.
-  `ObzImporter` lays out the grid, colors tiles by `part_of_speech`, and wires
-  `load_board` → `predictive_board_id`.
-- The set is identified ENTIRELY by a marker on its **root board**:
-  `settings["board_builder_robust"] = true` + `["board_builder_robust_slug"]`.
-  `Boards::RobustSets` (`find_root` / `all_roots` / `slug_for` / `mark_root!`)
-  is the single place that query lives. Idempotent: `Board.from_obf` upserts by
-  `(user_id, obf_id)`.
-
-**Per-user build (reuses `clone_with_images`):**
-- `Boards::StarterBlueprints.catalog` merges the static trees (`kind:
-  "starter"`) with seeded robust sets (`kind: "robust"`, found by root marker).
-- `API::V1::BoardBuilderController#create` branches: if `template` resolves to a
-  robust set via `RobustSets.find_root`, it runs **`Boards::SeededSetCloner`**
-  instead of `BlueprintAssembler` + `BoardTreeBuilder`. Same guards, same
-  response (synchronous **201** with the cloned root) — and the same
-  `at_board_limit?` (422) and `board_builder_root` (409, unless `confirm=true`)
-  gates, which work unchanged because the clone is marked `builder_root`.
-- `SeededSetCloner` walks the source set (root + fringe via
-  `predictive_board_id`, BFS bounded to `MAX_DEPTH = 2`, cycle-safe), clones
-  each board with `clone_with_images` (no `communicator_account` arg → no fringe
-  ChildBoards), **rewires** each cloned folder tile's `predictive_board_id` from
-  the source sub-board to its clone (out-of-set pointers nulled), marks the root
-  `builder_root` + the rest `builder_child` (so the whole set counts as **ONE**
-  board), favorites the root as a ChildBoard, and routes interests into the
-  cloned fringe pages by category name — unmatched → an auto-created, linked
-  `builder_child` "My Favorites" page. Interest normalization/dedup/cap mirror
-  `BlueprintAssembler`. clone_with_images returns clones with a stale
-  counter/association cache, so routing reloads boards before adding tiles.
-
-**Synchronous (v1) — execution note.** The build runs in-request (the existing
-contract). image_ids are pre-resolved so the work is DB-bound; previews, audio,
-and AI art for brand-new interest words are already async jobs. A spike on a
-worst-case ~600-tile set measured ~3s (test env); realistic Core 60/84 sets
-(~120–200 tiles) are ~1s. **If a real set lands materially larger (>~300
-tiles)** and request latency bites, move `SeededSetCloner` into a background job
-with a `status: "building"` root + 202/polling — coordinated with the frontend.
-
 ## Tests
 
 - `spec/services/boards/blueprint_assembler_spec.rb` — routing, catch-all,
   dedup, normalization, image create/reuse, unknown template.
 - `spec/services/boards/interest_categories_spec.rb` — lexicon contract.
 - `spec/services/boards/board_tree_builder_spec.rb` — the persistence half (#259).
-- `spec/services/boards/seeded_set_cloner_spec.rb` — deep clone: rewire,
-  builder markers, favorite ChildBoard, cycle-safety, interest routing +
-  My Favorites, counts-as-one, source untouched.
-- `spec/services/vocab_sets_spec.rb` — seeder: OBZ import, root marker,
-  predefined/published, no BoardGroup, idempotent.
 - `spec/requests/api/v1/board_builder_spec.rb` — endpoint happy path
   (routing + favorites), auth, ownership, unknown template, build failure,
-  the board-limit gate (tree counts as one; set stays editable), and the
-  robust clone path (catalog, build, limit, re-run).
+  and the board-limit gate (tree counts as one; set stays editable).
 
-Run: `RAILS_ENV=test bundle exec rspec spec/services/boards spec/services/vocab_sets_spec.rb spec/requests/api/v1/board_builder_spec.rb`
+Run: `RAILS_ENV=test bundle exec rspec spec/services/boards spec/requests/api/v1/board_builder_spec.rb`

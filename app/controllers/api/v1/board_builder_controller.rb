@@ -51,36 +51,19 @@ module API
           return
         end
 
-        # Two build paths share the same guards/response shape:
-        #  - a seeded "robust vocabulary set" (Core 60/84) -> deep-clone the
-        #    seeded set and route interests into the cloned fringe pages;
-        #  - a hardcoded starter template (home/daily_routine) -> assemble a
-        #    label blueprint and build a fresh linked tree.
-        robust_root = Boards::RobustSets.find_root(params[:template])
+        assembler = Boards::BlueprintAssembler.new(
+          template:  params[:template],
+          interests: params[:interests],
+          user:      current_user,
+        )
+        blueprint = assembler.call
 
-        if robust_root
-          cloner = Boards::SeededSetCloner.new(
-            robust_root, communicator: communicator,
-            interests: params[:interests], favorite_root: true,
-          )
-          root = cloner.call
-          interests = cloner.interests
-        else
-          assembler = Boards::BlueprintAssembler.new(
-            template:  params[:template],
-            interests: params[:interests],
-            user:      current_user,
-          )
-          blueprint = assembler.call
-
-          root = Boards::BoardTreeBuilder.new(
-            blueprint, communicator: communicator, favorite_root: true,
-          ).call
-          interests = assembler.interests
-        end
+        root = Boards::BoardTreeBuilder.new(
+          blueprint, communicator: communicator, favorite_root: true,
+        ).call
 
         # Persist the normalized interests for re-runs (jsonb merge, non-destructive).
-        communicator.update!(details: (communicator.details || {}).merge("interests" => interests))
+        communicator.update!(details: (communicator.details || {}).merge("interests" => assembler.interests))
 
         render json: root.api_view(current_user), status: :created
       rescue Boards::BlueprintAssembler::UnknownTemplate => e
@@ -88,7 +71,7 @@ module API
         render json: { error: "unknown_template",
                        message: "That template isn't available. Pick one from the list and try again." },
                status: :unprocessable_entity
-      rescue Boards::BoardTreeBuilder::BuildError, Boards::SeededSetCloner::CloneError => e
+      rescue Boards::BoardTreeBuilder::BuildError => e
         Rails.logger.warn "[BoardBuilder] build failed: #{e.message}"
         render json: { error: "build_failed",
                        message: "Something went wrong building the board set — your info is safe, give it another try." },
