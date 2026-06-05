@@ -448,8 +448,10 @@ Three seams (input contract tightens left→right):
 
 - `Boards::StarterBlueprints` — `TEMPLATES` registry of label-only starter
   trees (`"home"`, `"daily_routine"`). Add a tree to the hash → instantly in
-  the picker (`#catalog`) and buildable (`#for`). Resolution raises on a
-  missing core symbol.
+  the picker (`#catalog`) and buildable (`#for`). Core labels resolve
+  **create-if-missing** (blank art, same path as interest words), so a template
+  builds even when its curated symbols — including the capitalized folder labels
+  (`Food`, `Feelings`, `Play`, `Bathroom`) — aren't seeded in this environment.
 - `Boards::BlueprintAssembler` — the resolution + routing seam. Resolves every
   label to an `image_id` (create-if-missing for new interest words, blank art
   for v1), then **routes interests into category folders** via

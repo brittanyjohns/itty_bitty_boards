@@ -7,8 +7,9 @@
 #
 # NOTE: the label -> image_id step is intentionally OUTSIDE the builder. The
 # builder's input contract is a blueprint of already-resolved image_ids;
-# real label->image_id resolution (against interests, AI, etc.) is a separate
-# seam not built here.
+# resolution lives here. Core labels resolve create-if-missing (blank art),
+# mirroring the interest path in Boards::BlueprintAssembler, so a template can
+# build even when its curated symbols aren't seeded in this environment.
 #
 # Console exercise:
 #   Boards::BoardTreeBuilder.new(
@@ -88,12 +89,23 @@ module Boards
     end
 
     def resolve_tile(tile, user)
-      image = Image.where(label: tile[:label]).where(user_id: [nil, user.id, User::DEFAULT_ADMIN_ID], is_private: [nil, false]).first
-      raise "Boards::StarterBlueprints: no Image for label #{tile[:label].inspect}" unless image
-
-      resolved = { label: tile[:label], image_id: image.id }
+      resolved = { label: tile[:label], image_id: resolve_or_create_image(tile[:label], user).id }
       resolved[:children] = resolve(tile[:children], user) if tile[:children]
       resolved
+    end
+
+    # Resolve a core label -> Image, creating a blank-art image if none exists.
+    # Mirrors Boards::BlueprintAssembler#resolve_or_create_image (the interest
+    # path) so the templates self-heal: a missing core symbol — including the
+    # capitalized folder labels ("Food", "Feelings", "Play"), which are folder
+    # names, not seeded vocabulary — yields a blank tile instead of a 500. Art
+    # can be added later. Resolution order: the user's own image, then a
+    # public/admin image, else create.
+    def resolve_or_create_image(label, user)
+      image = user.images.find_by(label: label)
+      image ||= Image.public_img.find_by(label: label, user_id: [User::DEFAULT_ADMIN_ID, nil])
+      image ||= Image.create!(label: label, user_id: user.id)
+      image
     end
 
     def home(user)
