@@ -1,0 +1,154 @@
+require "rails_helper"
+
+RSpec.describe Boards::SeededSetCloner do
+  let(:admin) { create(:admin_user) }
+  let(:owner) { create(:user) }
+  let(:communicator) { create(:child_account, user: owner) }
+
+  # Builds an admin-owned seeded set: a root core board linked to two fringe
+  # category pages (Food, Feelings) via predictive_board_id, plus a deliberate
+  # CYCLE (a Feelings tile links back to the root) to exercise cycle-safety.
+  def build_source_set!
+    root     = create(:board, user: admin, name: "Core 60", predefined: true, published: true)
+    food     = create(:board, user: admin, name: "Food", predefined: true, published: true)
+    feelings = create(:board, user: admin, name: "Feelings", predefined: true, published: true)
+
+    %w[I want help].each do |label|
+      create(:board_image, board: root, label: label, image: create(:image, label: label, user_id: admin.id))
+    end
+    food_tile = create(:board_image, board: root, label: "Food",
+                                     image: create(:image, label: "Food", user_id: admin.id))
+    food_tile.update!(predictive_board_id: food.id)
+    feelings_tile = create(:board_image, board: root, label: "Feelings",
+                                         image: create(:image, label: "Feelings", user_id: admin.id))
+    feelings_tile.update!(predictive_board_id: feelings.id)
+
+    %w[apple banana].each do |label|
+      create(:board_image, board: food, label: label, image: create(:image, label: label, user_id: admin.id))
+    end
+    %w[happy sad].each do |label|
+      create(:board_image, board: feelings, label: label, image: create(:image, label: label, user_id: admin.id))
+    end
+
+    # CYCLE: a Feelings tile points back at the root.
+    back = create(:board_image, board: feelings, label: "home",
+                                image: create(:image, label: "home", user_id: admin.id))
+    back.update!(predictive_board_id: root.id)
+
+    { root: root, food: food, feelings: feelings, food_tile: food_tile, feelings_tile: feelings_tile }
+  end
+
+  let(:source) { build_source_set! }
+
+  describe "#call" do
+    it "clones the linked set for the owner and counts the whole set as ONE board" do
+      # Fresh User each evaluation — countable_board_count is memoized and
+      # survives reload, so owner.reload would report a stale 0.
+      expect {
+        @root = described_class.new(source[:root], communicator: communicator).call
+      }.to change { User.find(owner.id).countable_board_count }.from(0).to(1)
+
+      expect(@root.user_id).to eq(owner.id)
+      expect(@root.predefined).to be(false)
+      expect(@root.settings["builder_root"]).to be(true)
+
+      # 3 source boards (root + Food + Feelings) -> 3 owner-owned clones; the
+      # cycle does not clone the root twice.
+      owner_boards = owner.boards
+      expect(owner_boards.count).to eq(3)
+      fringe = owner_boards.where("COALESCE((settings->>'builder_child')::boolean, false)")
+      expect(fringe.count).to eq(2)
+      expect(fringe.pluck(:name)).to contain_exactly("Food", "Feelings")
+    end
+
+    it "rewires folder tiles to the cloned fringe boards and nulls out-of-set pointers" do
+      root = described_class.new(source[:root], communicator: communicator).call
+
+      cloned_food = owner.boards.find_by(name: "Food")
+      cloned_feelings = owner.boards.find_by(name: "Feelings")
+
+      food_tile = root.board_images.find_by(label: "Food")
+      expect(food_tile.predictive_board_id).to eq(cloned_food.id)
+
+      # The cloned Feelings board's cyclic "home" tile pointed back at the root —
+      # that target is in the set, so it rewires to the cloned root (not nulled).
+      home_tile = cloned_feelings.board_images.find_by(label: "home")
+      expect(home_tile.predictive_board_id).to eq(root.id)
+
+      # No cloned tile may still point at a SOURCE board.
+      source_ids = [source[:root].id, source[:food].id, source[:feelings].id]
+      cloned_predictive = owner.boards.flat_map { |b| b.board_images.pluck(:predictive_board_id) }.compact
+      expect(cloned_predictive & source_ids).to be_empty
+    end
+
+    it "attaches exactly one favorite ChildBoard (the root), none for fringe" do
+      root = described_class.new(source[:root], communicator: communicator).call
+
+      child_boards = communicator.child_boards.reload
+      expect(child_boards.count).to eq(1)
+      expect(child_boards.first.board_id).to eq(root.id)
+      expect(child_boards.first.favorite).to be(true)
+    end
+
+    it "routes interests into matching cloned fringe pages" do
+      root = described_class.new(
+        source[:root], communicator: communicator, interests: ["apple", "happy"]
+      ).call
+
+      cloned_food = owner.boards.find_by(name: "Food")
+      cloned_feelings = owner.boards.find_by(name: "Feelings")
+
+      # "apple" already exists on Food -> deduped (no second tile).
+      expect(cloned_food.board_images.where(label: "apple").count).to eq(1)
+      # "happy" already exists on Feelings -> deduped too.
+      expect(cloned_feelings.board_images.where(label: "happy").count).to eq(1)
+    end
+
+    it "adds a brand-new food interest to the cloned Food page" do
+      root = described_class.new(
+        source[:root], communicator: communicator, interests: ["pizza"]
+      ).call
+
+      cloned_food = owner.boards.find_by(name: "Food")
+      expect(cloned_food.board_images.map(&:label)).to include("pizza")
+    end
+
+    it "routes unmatched interests into a created, linked, builder_child 'My Favorites'" do
+      root = described_class.new(
+        source[:root], communicator: communicator, interests: ["grandma"]
+      ).call
+
+      favorites = owner.boards.find_by(name: "My Favorites")
+      expect(favorites).to be_present
+      expect(favorites.settings["builder_child"]).to be(true)
+      expect(favorites.board_images.map(&:label)).to include("grandma")
+
+      # Linked from the root via a folder tile.
+      fav_tile = root.board_images.find_by(label: "My Favorites")
+      expect(fav_tile.predictive_board_id).to eq(favorites.id)
+
+      # Still counts as ONE board (favorites is builder_child).
+      expect(User.find(owner.id).countable_board_count).to eq(1)
+    end
+
+    it "does not mutate the source seed set" do
+      described_class.new(source[:root], communicator: communicator, interests: ["pizza"]).call
+
+      expect(source[:root].reload.predefined).to be(true)
+      expect(source[:food_tile].reload.predictive_board_id).to eq(source[:food].id)
+      # Source boards still belong to admin; clones belong to the owner.
+      expect(Board.where(user_id: admin.id).count).to eq(3)
+      expect(source[:food].reload.board_images.map { |bi| bi.image.label }).to contain_exactly("apple", "banana")
+    end
+
+    it "raises CloneError when the communicator has no owning user" do
+      orphan = build(:child_account)
+      allow(orphan).to receive(:owner).and_return(nil)
+      allow(orphan).to receive(:user).and_return(nil)
+
+      expect {
+        described_class.new(source[:root], communicator: orphan).call
+      }.to raise_error(Boards::SeededSetCloner::CloneError)
+    end
+  end
+end

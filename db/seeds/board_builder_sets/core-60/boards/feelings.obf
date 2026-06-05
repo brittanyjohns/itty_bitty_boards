@@ -1,0 +1,25 @@
+{
+  "format": "open-board-0.1",
+  "id": "feelings",
+  "locale": "en",
+  "name": "Feelings",
+  "description_html": "PLACEHOLDER fringe page. The board NAME must stay a recognized interest category (Feelings) so the Board Builder routes feeling interests here.",
+  "grid": {
+    "rows": 2,
+    "columns": 3,
+    "order": [
+      [1, 2, 3],
+      [4, 5, 6]
+    ]
+  },
+  "buttons": [
+    { "id": 1, "label": "happy", "part_of_speech": "adjective" },
+    { "id": 2, "label": "sad", "part_of_speech": "adjective" },
+    { "id": 3, "label": "tired", "part_of_speech": "adjective" },
+    { "id": 4, "label": "mad", "part_of_speech": "adjective" },
+    { "id": 5, "label": "scared", "part_of_speech": "adjective" },
+    { "id": 6, "label": "calm", "part_of_speech": "adjective" }
+  ],
+  "images": [],
+  "sounds": []
+}

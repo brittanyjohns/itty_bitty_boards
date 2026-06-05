@@ -1,0 +1,32 @@
+{
+  "format": "open-board-0.1",
+  "id": "core-60",
+  "locale": "en",
+  "name": "Core 60",
+  "description_html": "PLACEHOLDER Core 60 starter board. Replace the buttons/grid with the finalized Core 60 vocabulary. Folder tiles (Food, Feelings, Play) link to fringe category pages so the Board Builder can route a child's interests into them.",
+  "grid": {
+    "rows": 3,
+    "columns": 4,
+    "order": [
+      [1, 2, 3, 4],
+      [5, 6, 7, 8],
+      [9, 10, 11, 12]
+    ]
+  },
+  "buttons": [
+    { "id": 1, "label": "I", "part_of_speech": "pronoun" },
+    { "id": 2, "label": "you", "part_of_speech": "pronoun" },
+    { "id": 3, "label": "want", "part_of_speech": "verb" },
+    { "id": 4, "label": "more", "part_of_speech": "adjective" },
+    { "id": 5, "label": "help", "part_of_speech": "verb" },
+    { "id": 6, "label": "like", "part_of_speech": "verb" },
+    { "id": 7, "label": "go", "part_of_speech": "verb" },
+    { "id": 8, "label": "stop", "part_of_speech": "verb" },
+    { "id": 9, "label": "Food", "part_of_speech": "noun", "load_board": { "path": "boards/food.obf" } },
+    { "id": 10, "label": "Feelings", "part_of_speech": "noun", "load_board": { "path": "boards/feelings.obf" } },
+    { "id": 11, "label": "Play", "part_of_speech": "noun", "load_board": { "path": "boards/play.obf" } },
+    { "id": 12, "label": "all done", "part_of_speech": "verb" }
+  ],
+  "images": [],
+  "sounds": []
+}

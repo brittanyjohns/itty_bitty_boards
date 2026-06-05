@@ -1,0 +1,12 @@
+{
+  "format": "open-board-0.1",
+  "root": "boards/core-60.obf",
+  "paths": {
+    "boards": {
+      "core-60": "boards/core-60.obf",
+      "food": "boards/food.obf",
+      "feelings": "boards/feelings.obf",
+      "play": "boards/play.obf"
+    }
+  }
+}

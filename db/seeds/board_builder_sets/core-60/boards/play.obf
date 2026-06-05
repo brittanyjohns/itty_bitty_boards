@@ -1,0 +1,25 @@
+{
+  "format": "open-board-0.1",
+  "id": "play",
+  "locale": "en",
+  "name": "Play",
+  "description_html": "PLACEHOLDER fringe page. The board NAME must stay a recognized interest category (Play) so the Board Builder routes play interests here.",
+  "grid": {
+    "rows": 2,
+    "columns": 3,
+    "order": [
+      [1, 2, 3],
+      [4, 5, 6]
+    ]
+  },
+  "buttons": [
+    { "id": 1, "label": "ball", "part_of_speech": "noun" },
+    { "id": 2, "label": "music", "part_of_speech": "noun" },
+    { "id": 3, "label": "books", "part_of_speech": "noun" },
+    { "id": 4, "label": "bubbles", "part_of_speech": "noun" },
+    { "id": 5, "label": "blocks", "part_of_speech": "noun" },
+    { "id": 6, "label": "cars", "part_of_speech": "noun" }
+  ],
+  "images": [],
+  "sounds": []
+}
