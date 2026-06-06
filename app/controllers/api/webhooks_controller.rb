@@ -45,6 +45,7 @@ class API::WebhooksController < API::ApplicationController
       # via invoice.payment_succeeded below, but trials have no invoice yet.
       if event.type == "customer.subscription.created"
         handle_trial_credit_grant(event.data.object, event.id)
+        handle_trial_started_analytics(event.data.object)
       end
     when "customer.subscription.trial_will_end"
       handle_trial_will_end(event.data.object)
@@ -279,6 +280,16 @@ class API::WebhooksController < API::ApplicationController
           subscription_id: subscription.id,
         },
       )
+      # Server-side PostHog mirror (itty-bitty-frontend#307) so the money-path
+      # funnel completes for users who never return to the success screen.
+      PosthogService.capture_for_user(
+        user,
+        "subscription_started",
+        properties: {
+          plan: user.plan_type,
+          billing_interval: billing_interval_from_price(price),
+        },
+      )
     end
 
     # Optional: team seats logic if this is a team plan
@@ -380,6 +391,33 @@ class API::WebhooksController < API::ApplicationController
     Rails.logger.error "[StripeWebhook] handle_trial_credit_grant error: #{e.class} - #{e.message}"
   end
 
+  # A trial only truly begins when Stripe creates the subscription with a trial
+  # period (status "trialing") — so we fire the server-side PostHog
+  # `trial_started` here rather than from the frontend (itty-bitty-frontend#307).
+  # PostHog-only: the internal `trial_started` AnalyticsEvent is already recorded
+  # at checkout (CheckoutSessionsController), so we don't double-count there.
+  # Called only from `customer.subscription.created`, so it can't re-fire on
+  # trialing→trialing updates.
+  def handle_trial_started_analytics(subscription)
+    return unless subscription.status == "trialing"
+
+    user = find_user_for_subscription(subscription)
+    return unless user
+    return if user.admin?
+
+    price = first_price_from_subscription(subscription)
+    plan = (price&.metadata || {})["plan_type"].presence || user.plan_type
+
+    PosthogService.capture_for_user(
+      user,
+      "trial_started",
+      properties: { plan: plan },
+      set: { plan: plan },
+    )
+  rescue => e
+    Rails.logger.error "[StripeWebhook] handle_trial_started_analytics error: #{e.class} - #{e.message}"
+  end
+
   # Mark the user's subscription as past_due. Stripe will keep retrying
   # the charge per its dunning rules; we just need state visibility so
   # downstream code (and the user) can see something went wrong. We do NOT
@@ -434,8 +472,31 @@ class API::WebhooksController < API::ApplicationController
       return
     end
 
+    # Capture the plan we're leaving BEFORE apply_free_plan resets it to "free".
+    cancelled_plan = user.plan_type
+    reason = cancellation_reason_from_subscription(subscription)
+
     apply_free_plan(user)
     Rails.logger.info "[StripeWebhook] subscription deleted: downgraded user=#{user.id} to free"
+
+    # Internal + PostHog analytics for the cancellation (itty-bitty-frontend#307).
+    # Cancellation happens entirely inside Stripe's billing portal, so the
+    # frontend never sees it — capture it server-side. $set plan -> "free"
+    # (user.plan_type is now free after apply_free_plan) keeps cohorts correct.
+    AnalyticsEvent.track(
+      "subscription_canceled",
+      user_id: user.id,
+      metadata: {
+        plan_type: cancelled_plan,
+        reason: reason,
+        subscription_id: subscription.id,
+      },
+    )
+    PosthogService.capture_for_user(
+      user,
+      "subscription_cancelled",
+      properties: { plan: cancelled_plan, reason: reason },
+    )
   rescue => e
     Rails.logger.error "[StripeWebhook] handle_subscription_deleted error: #{e.class} - #{e.message}"
   end
@@ -481,6 +542,40 @@ class API::WebhooksController < API::ApplicationController
     item = subscription.items&.data&.first
     return nil unless item
     item.price
+  end
+
+  # Map a Stripe Price's recurring interval to the frontend's billing_interval
+  # values ("monthly" / "yearly") so the money-path funnel lines up across
+  # client- and server-fired events. Returns nil when no recurring interval is
+  # present (defensive — one-time prices, or a Price without `recurring`).
+  def billing_interval_from_price(price)
+    recurring = price.respond_to?(:recurring) ? price.recurring : nil
+    return nil if recurring.nil?
+
+    interval = recurring.respond_to?(:interval) ? recurring.interval : recurring["interval"]
+    case interval
+    when "month" then "monthly"
+    when "year" then "yearly"
+    else interval
+    end
+  rescue => e
+    Rails.logger.error "[StripeWebhook] billing_interval_from_price error: #{e.class} - #{e.message}"
+    nil
+  end
+
+  # Best-effort cancellation reason from Stripe's cancellation_details
+  # (feedback is the user-selected reason in the billing portal; reason is the
+  # system reason). nil when Stripe didn't collect one.
+  def cancellation_reason_from_subscription(subscription)
+    details = subscription.respond_to?(:cancellation_details) ? subscription.cancellation_details : nil
+    return nil if details.nil?
+
+    feedback = details.respond_to?(:feedback) ? details.feedback : details["feedback"]
+    reason = details.respond_to?(:reason) ? details.reason : details["reason"]
+    feedback.presence || reason.presence
+  rescue => e
+    Rails.logger.error "[StripeWebhook] cancellation_reason_from_subscription error: #{e.class} - #{e.message}"
+    nil
   end
 
   def apply_team_limits_for(user, subscription, meta)
