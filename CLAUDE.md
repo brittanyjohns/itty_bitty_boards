@@ -484,6 +484,36 @@ image pool:
   (4th positional arg). All default to `{}` for backward compat with
   callers that don't care.
 
+## Board Sets (BoardGroup) — user CRUD + limits
+
+Board Sets (`BoardGroup`, user-facing name "Board Sets") are user-owned
+collections of boards. CRUD is open to any signed-in user;
+`predefined: true` sets stay admin-curated. Viewing is **public by link** —
+`index`, `show`, `show_by_slug`, and `preset` keep
+`skip_before_action :authenticate_token!`.
+
+- **Owner-or-admin authorization.** Every mutating action in
+  `API::BoardGroupsController` (`update`, `destroy`, `rearrange_boards`,
+  `save_layout`, `remove_board`, `add_board`) routes through the private
+  `authorize_board_group!` helper: admins always pass; everyone else is
+  blocked (**HTTP 403** `"You don't have permission to modify this board
+  set."`) unless they own the set *and* it isn't `predefined`. Before this
+  work, `rearrange_boards`/`save_layout`/`remove_board` had **no** auth at all
+  — any user could mutate anyone's set. `create` is open to all authed users.
+- **Protected flags.** `board_group_params` strips `predefined` and `featured`
+  for non-admins, so a regular user can't self-promote their set into the
+  curated/featured pools.
+- **Per-plan creation limits.** Mirrors the board-limit pattern.
+  `User#board_group_limit` resolves from the plan hash by `plan_type` (Free 1,
+  Basic 25, Pro 50; ENV-overridable via `FREE_/BASIC_/PRO_BOARD_GROUP_LIMIT`),
+  with a `settings["board_group_limit"]` override. `User#countable_board_group_count`
+  counts own non-predefined sets; `User#at_board_group_limit?` is the gate
+  (admins exempt). `create` returns **HTTP 422** `{ error, limit, count }` at
+  the cap. **Not 402** — 402 is reserved for credit exhaustion.
+- **`add_board` route.** `POST /api/board_groups/:id/add_board/:board_id`
+  (`BoardGroup#add_board` does the join + layout init). Beyond the owner-or-admin
+  set check, the *board* must belong to the caller or be predefined/public.
+
 ## Board Builder wizard
 
 Turns wizard input — a starter **template** + a few **interest words** — into
