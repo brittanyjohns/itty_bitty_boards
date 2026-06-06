@@ -5,6 +5,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Bulk display-label case transform
+- `PUT /api/board_images/update` now accepts `payload[:label_case]`
+  (`"upper"`, `"lower"`, or `"sentence"`). When present, each selected board
+  image's `display_label` is rewritten in that case (sentence = first letter
+  up, rest down). Falls back to the image's `label` when `display_label` is
+  blank. Powers the "Aa" case buttons in the frontend bulk-edit drawer.
+
 ### Added — Robust vocabulary sets for the Board Builder (Core 60/84)
 - The Board Builder picker now offers pre-authored **core vocabulary sets** (a
   real core grid + fringe category pages) alongside the small starter templates.
