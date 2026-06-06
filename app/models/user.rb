@@ -284,6 +284,7 @@ class User < ApplicationRecord
   FREE_PLAN_LIMITS = {
     "plan_type" => "free",
     "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 1).to_i,
+    "board_group_limit" => ENV.fetch("FREE_BOARD_GROUP_LIMIT", 1).to_i,
     "paid_communicator_limit" => ENV.fetch("FREE_PAID_COMMUNICATOR_LIMIT", 1).to_i,
     "demo_communicator_limit" => ENV.fetch("FREE_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
     "ai_monthly_limit" => ENV.fetch("FREE_AI_MONTHLY_LIMIT", 5).to_i,
@@ -291,6 +292,7 @@ class User < ApplicationRecord
   BASIC_PLAN_LIMITS = {
     "plan_type" => "basic",
     "board_limit" => ENV.fetch("BASIC_BOARD_LIMIT", 100).to_i,
+    "board_group_limit" => ENV.fetch("BASIC_BOARD_GROUP_LIMIT", 25).to_i,
     "paid_communicator_limit" => ENV.fetch("BASIC_PAID_COMMUNICATOR_LIMIT", 2).to_i,
     "demo_communicator_limit" => ENV.fetch("BASIC_DEMO_COMMUNICATOR_LIMIT", 0).to_i,
     "ai_monthly_limit" => ENV.fetch("BASIC_AI_MONTHLY_LIMIT", 100).to_i,
@@ -298,6 +300,7 @@ class User < ApplicationRecord
   PRO_PLAN_LIMITS = {
     "plan_type" => "pro",
     "board_limit" => ENV.fetch("PRO_BOARD_LIMIT", 300).to_i,
+    "board_group_limit" => ENV.fetch("PRO_BOARD_GROUP_LIMIT", 50).to_i,
     "paid_communicator_limit" => ENV.fetch("PRO_PAID_COMMUNICATOR_LIMIT", 5).to_i,
     "demo_communicator_limit" => ENV.fetch("PRO_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
     "ai_monthly_limit" => ENV.fetch("PRO_AI_MONTHLY_LIMIT", 300).to_i,
@@ -430,6 +433,23 @@ class User < ApplicationRecord
 
   def board_limit
     settings["board_limit"] || FREE_PLAN_LIMITS["board_limit"]
+  end
+
+  # Per-plan Board Set (BoardGroup) creation cap. Mirrors `board_limit`, but
+  # resolves from the plan hash by `plan_type` so existing paid users get the
+  # right cap without a settings backfill. An explicit `settings` override
+  # still wins. Defaults: free 1, basic 25, pro 50 (all ENV-overridable).
+  def board_group_limit
+    return settings["board_group_limit"].to_i if settings["board_group_limit"].present?
+
+    case plan_type
+    when "basic", "basic_yearly", "basic_trial"
+      BASIC_PLAN_LIMITS["board_group_limit"]
+    when "pro", "pro_yearly", "partner_pro"
+      PRO_PLAN_LIMITS["board_group_limit"]
+    else
+      FREE_PLAN_LIMITS["board_group_limit"]
+    end
   end
 
   def comm_account_limit
@@ -1291,6 +1311,19 @@ class User < ApplicationRecord
 
   def can_create_boards
     !at_board_limit?
+  end
+
+  # Board Sets the user owns that count against their plan cap. Predefined
+  # (admin-curated) sets are excluded — only the user's own sets count.
+  def countable_board_group_count
+    board_groups.where(predefined: [false, nil]).count
+  end
+
+  # The gate every Board Set creation path checks. Admins are never limited.
+  def at_board_group_limit?
+    return false if admin?
+
+    countable_board_group_count >= board_group_limit
   end
 
   # The single board a limited-plan user keeps full edit access to. Returns

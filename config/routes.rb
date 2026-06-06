@@ -202,6 +202,7 @@ Rails.application.routes.draw do
       member do
         post "rearrange_boards"
         post "save_layout"
+        post "add_board/:board_id", to: "board_groups#add_board"
         post "remove_board/:board_id", to: "board_groups#remove_board"
       end
     end
