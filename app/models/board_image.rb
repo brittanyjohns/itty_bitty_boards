@@ -587,7 +587,7 @@ class BoardImage < ApplicationRecord
       end
       Rails.logger.debug "Created image edit with ID #{image_url.class}"
       # strip quotes if present
-      url = image_url.gsub(/^\"|\"$/, "")
+      url = image_url.gsub(/^"|"$/, "")
       Rails.logger.debug "Generated image edit URL: #{url}"
       self.display_image_url = url
       self.save!
