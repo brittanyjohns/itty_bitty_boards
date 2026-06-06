@@ -119,6 +119,10 @@ gem "stripe", "~> 12.0"
 # MAilCHIMP
 gem 'MailchimpMarketing', :git => 'https://github.com/mailchimp/mailchimp-marketing-ruby.git'
 
+# PostHog server-side analytics (subscription lifecycle events fired from
+# the Stripe webhook). See PosthogService / config/initializers/posthog.rb.
+gem "posthog-ruby", "~> 2.0"
+
 # To use Braintree + PayPal, also include:
 gem "braintree", "~> 4.7"
 

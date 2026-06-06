@@ -363,6 +363,8 @@ GEM
     pg_search (2.3.7)
       activerecord (>= 6.1)
       activesupport (>= 6.1)
+    posthog-ruby (2.11.0)
+      concurrent-ruby (~> 1)
     pp (0.6.3)
       prettyprint
     prawn (2.5.0)
@@ -601,6 +603,7 @@ DEPENDENCIES
   pay (~> 7.0)
   pg (~> 1.1)
   pg_search
+  posthog-ruby (~> 2.0)
   puma (>= 5.0)
   pundit (~> 2.3)
   rack-cors

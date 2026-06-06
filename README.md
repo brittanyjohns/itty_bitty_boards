@@ -33,6 +33,9 @@
   - `GOOGLE_CUSTOM_SEARCH_CX` - Google Custom Search CX
   - `PREDICTIVE_DEFAULT_ID` - Predictive Default ID (going to be removed)
   - `INTERNAL_API_KEY` - Shared key used to authenticate the internal API (see "Internal API" section below)
+  - `POSTHOG_API_KEY` - PostHog project API key for server-side capture of subscription lifecycle events (use the same project the frontend reports to). When blank, server-side capture no-ops.
+  - `POSTHOG_HOST` - PostHog ingestion host (optional; defaults to `https://us.i.posthog.com`)
+  - `POSTHOG_CAPTURE_ENABLED` - Set to `true` to fire server-side PostHog events outside production (dev/staging opt-in). Production fires automatically; staging stays off unless this is set.
 
 - Database creation:
 
