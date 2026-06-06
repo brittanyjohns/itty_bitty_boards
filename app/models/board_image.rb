@@ -513,7 +513,13 @@ class BoardImage < ApplicationRecord
     # self.display_image_url = image.display_tile_url(user)
     self.display_image_url = image.src_url
     self.next_words = image.next_words || []
-    self.part_of_speech = image.part_of_speech || "default"
+    # Respect a part_of_speech that was explicitly set before create (e.g. a
+    # clone via Board#clone_with_images dup'ing a seeded tile, #279) — only
+    # fall back to the shared Image's value when this record carries none.
+    # New records get the column default ("default"), which counts as "none".
+    if part_of_speech.blank? || part_of_speech == "default"
+      self.part_of_speech = image.part_of_speech || "default"
+    end
   end
 
   def create_voice_audio_after_create
@@ -581,7 +587,7 @@ class BoardImage < ApplicationRecord
       end
       Rails.logger.debug "Created image edit with ID #{image_url.class}"
       # strip quotes if present
-      url = image_url.gsub(/^"|"$/, "")
+      url = image_url.gsub(/^\"|\"$/, "")
       Rails.logger.debug "Generated image edit URL: #{url}"
       self.display_image_url = url
       self.save!
