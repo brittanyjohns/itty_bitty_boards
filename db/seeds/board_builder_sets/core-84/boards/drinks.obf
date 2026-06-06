@@ -17,7 +17,7 @@
         7,
         8,
         9,
-        10
+        null
       ],
       [
         11,
@@ -76,8 +76,8 @@
         22,
         23,
         24,
-        25,
-        26
+        null,
+        null
       ]
     ]
   },
@@ -126,11 +126,6 @@
       "id": 9,
       "label": "thirsty",
       "part_of_speech": "adjective"
-    },
-    {
-      "id": 10,
-      "label": "more",
-      "part_of_speech": "social"
     },
     {
       "id": 11,
@@ -225,19 +220,6 @@
       "load_board": {
         "path": "boards/more.obf"
       }
-    },
-    {
-      "id": 25,
-      "label": "Keyboard",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/keyboard.obf"
-      }
-    },
-    {
-      "id": 26,
-      "label": "more",
-      "part_of_speech": "social"
     }
   ],
   "images": [],

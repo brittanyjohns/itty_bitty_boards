@@ -44,7 +44,6 @@
         30
       ],
       [
-        31,
         32,
         33,
         34,
@@ -53,6 +52,7 @@
         37,
         38,
         39,
+        31,
         40
       ],
       [
@@ -63,21 +63,21 @@
         45,
         46,
         47,
-        48,
-        49,
-        50
-      ],
-      [
         51,
         52,
-        53,
+        53
+      ],
+      [
+        null,
         54,
         55,
         56,
         57,
         58,
         59,
-        60
+        60,
+        null,
+        null
       ]
     ]
   },
@@ -316,21 +316,6 @@
       "id": 47,
       "label": "yes",
       "part_of_speech": "social"
-    },
-    {
-      "id": 48,
-      "label": "please",
-      "part_of_speech": "social"
-    },
-    {
-      "id": 49,
-      "label": "thank you",
-      "part_of_speech": "social"
-    },
-    {
-      "id": 50,
-      "label": "and",
-      "part_of_speech": "conjunction"
     },
     {
       "id": 51,
