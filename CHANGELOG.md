@@ -25,6 +25,30 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Run `bin/rails vocab_sets:seed` once after deploy to apply colors and
   one-page settings to existing seeded sets (already-cloned user sets keep
   their old colors).
+### Added — Bulk display-label case transform
+- `PUT /api/board_images/update` now accepts `payload[:label_case]`
+  (`"upper"`, `"lower"`, or `"sentence"`). When present, each selected board
+  image's `display_label` is rewritten in that case (sentence = first letter
+  up, rest down). Falls back to the image's `label` when `display_label` is
+  blank. Powers the "Aa" case buttons in the frontend bulk-edit drawer.
+### Changed — Board Sets (BoardGroup) CRUD opened to all users
+- Creating, editing, and organizing **Board Sets** is no longer admin-only.
+  Any signed-in user can now create their own sets and manage the boards in
+  them. Viewing stays public-by-link (`show` / `show_by_slug` / `preset`).
+- **Security fix:** `rearrange_boards`, `save_layout`, and `remove_board` had
+  **no authorization** — any signed-in user could modify (or empty out)
+  anyone's set, including admin-curated predefined ones. All mutating actions
+  (`update`, `destroy`, `rearrange_boards`, `save_layout`, `remove_board`, and
+  the new `add_board`) now require the caller to be the set's owner or an admin,
+  returning **HTTP 403** otherwise. Predefined sets remain admin-only.
+- Regular users can no longer create or flip a set to `predefined`/`featured`
+  — those params are stripped for non-admins.
+- **Per-plan creation limits** (mirrors the board limit): Free 1, Basic 25,
+  Pro 50. At the cap, `create` returns **HTTP 422** with `{ error, limit,
+  count }`. Admins are unlimited. New optional env vars (defaults are sane):
+  `FREE_BOARD_GROUP_LIMIT`, `BASIC_BOARD_GROUP_LIMIT`, `PRO_BOARD_GROUP_LIMIT`.
+- New route `POST /api/board_groups/:id/add_board/:board_id` adds a board the
+  caller owns (or a predefined/public board) to one of their sets.
 
 ### Added — Server-side PostHog subscription lifecycle events
 - The Stripe webhook now fires three **server-side** PostHog events so the

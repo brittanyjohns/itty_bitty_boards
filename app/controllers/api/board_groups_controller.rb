@@ -43,6 +43,15 @@ class API::BoardGroupsController < API::ApplicationController
   end
 
   def create
+    if current_user.at_board_group_limit?
+      render json: {
+        error: "You've reached your plan's board set limit. Upgrade to create more.",
+        limit: current_user.board_group_limit,
+        count: current_user.countable_board_group_count,
+      }, status: :unprocessable_entity
+      return
+    end
+
     board_group = BoardGroup.new
     board_group.user = current_user
     Rails.logger.debug "Creating Board Group with parameters: #{board_group_params.inspect}"
@@ -66,7 +75,7 @@ class API::BoardGroupsController < API::ApplicationController
     if board_group.save
       mark_default(board_group)
       # board_group.calculate_grid_layout_for_screen_size(screen_size)
-      render json: board_group.api_view_with_boards(current_user)
+      render json: board_group.api_view_with_boards(current_user), status: :created
     else
       render json: { errors: board_group.errors.full_messages }, status: :unprocessable_entity
     end
@@ -82,6 +91,8 @@ class API::BoardGroupsController < API::ApplicationController
 
   def rearrange_boards
     board_group = BoardGroup.find(params[:id])
+    return unless authorize_board_group!(board_group)
+
     screen_size = params[:screen_size] || "lg"
     board_group.calculate_grid_layout_for_screen_size(screen_size)
     board_group.save
@@ -90,6 +101,8 @@ class API::BoardGroupsController < API::ApplicationController
 
   def save_layout
     @board_group = BoardGroup.find(params[:id])
+    return unless authorize_board_group!(@board_group)
+
     save_layout!
 
     @board_group.reload
@@ -98,6 +111,8 @@ class API::BoardGroupsController < API::ApplicationController
 
   def remove_board
     board_group = BoardGroup.find(params[:id])
+    return unless authorize_board_group!(board_group)
+
     board = Board.find(params[:board_id])
     board_group_boards = board_group.board_group_boards.find_by(board: board)
     if board_group_boards.nil?
@@ -115,11 +130,9 @@ class API::BoardGroupsController < API::ApplicationController
   end
 
   def update
-    unless current_user&.admin?
-      render json: { error: "Unauthorized" }, status: :unauthorized
-      return
-    end
     board_group = BoardGroup.find(params[:id])
+    return unless authorize_board_group!(board_group)
+
     Rails.logger.debug "Updating parameters: #{params.inspect}"
     board_group.predefined = board_group_params[:predefined]
     board_group.number_of_columns = board_group_params[:number_of_columns]
@@ -185,20 +198,56 @@ class API::BoardGroupsController < API::ApplicationController
   end
 
   def destroy
-    unless current_user&.admin?
-      render json: { error: "Unauthorized" }, status: :unauthorized
-      return
-    end
     board_group = BoardGroup.find(params[:id])
+    return unless authorize_board_group!(board_group)
+
     board_group.destroy
 
     render json: { message: "Board Group deleted" }
   end
 
+  def add_board
+    board_group = BoardGroup.find(params[:id])
+    return unless authorize_board_group!(board_group)
+
+    board = Board.find(params[:board_id])
+    unless current_user&.admin? || board.user_id == current_user&.id || board.predefined? || board.public_board?
+      render json: { error: "You don't have permission to add this board." }, status: :forbidden
+      return
+    end
+
+    board_group.add_board(board)
+    board_group.reload
+    render json: board_group.api_view_with_boards(current_user)
+  rescue ActiveRecord::RecordNotFound
+    render json: { error: "Board or Board Group not found" }, status: :not_found
+  end
+
   private
 
+  # Owner-or-admin gate for mutating a Board Set. Non-admins may only touch
+  # their own, non-predefined sets (predefined sets stay admin-curated even
+  # if somehow owned). Renders 403 and returns false when the caller isn't
+  # allowed; returns true otherwise so callers can `return unless ...`.
+  def authorize_board_group!(board_group)
+    return true if current_user&.admin?
+
+    if board_group.predefined? || board_group.user_id != current_user&.id
+      render json: { error: "You don't have permission to modify this board set." }, status: :forbidden
+      return false
+    end
+    true
+  end
+
   def board_group_params
-    params.require(:board_group).permit(:name, :featured, :description, :display_image_url, :predefined, :number_of_columns, :small_screen_columns, :medium_screen_columns, :large_screen_columns, board_ids: [], settings: {}, margin_settings: {}, make_default: [true, false], screen_size: [:lg, :md, :sm], layout: [])
+    permitted = params.require(:board_group).permit(:name, :featured, :description, :display_image_url, :predefined, :number_of_columns, :small_screen_columns, :medium_screen_columns, :large_screen_columns, board_ids: [], settings: {}, margin_settings: {}, make_default: [true, false], screen_size: [:lg, :md, :sm], layout: [])
+    # Only admins may curate `predefined`/`featured` sets. Strip them for
+    # everyone else so a regular user can't self-promote their own set.
+    unless current_user&.admin?
+      permitted.delete(:predefined)
+      permitted.delete(:featured)
+    end
+    permitted
   end
 
   def mark_default(board_group)
