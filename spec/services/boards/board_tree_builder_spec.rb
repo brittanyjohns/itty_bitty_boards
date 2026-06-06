@@ -195,5 +195,77 @@ RSpec.describe Boards::BoardTreeBuilder, type: :service do
       expect { described_class.new(blueprint, communicator: ownerless).call }
         .to raise_error(Boards::BoardTreeBuilder::BuildError, /owning user/)
     end
+
+    context "with an adopted root (async path via BuildBoardSetJob)" do
+      # Mirrors the controller's in-request root creation.
+      def precreated_root
+        root = Board.new(name: "Home", user: owner)
+        root.board_type = "dynamic"
+        root.assign_parent
+        root.generate_unique_slug
+        root.settings = (root.settings || {}).merge("builder_root" => true)
+        root.status = "building_board"
+        root.save!
+        communicator.child_boards.create!(board: root, created_by_id: owner.id).update!(favorite: true)
+        root
+      end
+
+      let(:blueprint) do
+        {
+          name: "Home",
+          tiles: [
+            { label: "I", image_id: image_id_for("I") },
+            { label: "Food", image_id: image_id_for("Food"), children: {
+              name: "Food",
+              tiles: [{ label: "apple", image_id: image_id_for("apple") }],
+            } },
+          ],
+        }
+      end
+
+      it "builds the tree into the adopted root instead of creating a new one" do
+        root = precreated_root
+
+        returned = nil
+        expect {
+          returned = described_class.new(blueprint, communicator: communicator, root: root).call
+        }.to change { Board.where(user_id: owner.id).count }.by(1) # only the Food sub-board
+
+        expect(returned.id).to eq(root.id)
+        expect(root.reload.board_images.map(&:label)).to contain_exactly("I", "Food")
+        food_tile = root.board_images.find { |bi| bi.label == "Food" }
+        expect(Board.find(food_tile.predictive_board_id).settings["builder_child"]).to be(true)
+      end
+
+      it "preserves the adopted root's identity (name, slug, status) and does not re-attach" do
+        root = precreated_root
+        original_slug = root.slug
+
+        expect {
+          described_class.new(blueprint, communicator: communicator, root: root).call
+        }.not_to change { communicator.child_boards.count }
+
+        root.reload
+        expect(root.name).to eq("Home")
+        expect(root.slug).to eq(original_slug)
+        # Status is the JOB's to flip; the builder must not touch it.
+        expect(root.status).to eq("building_board")
+        expect(communicator.child_boards.where(board_id: root.id).count).to eq(1)
+      end
+
+      it "rolls back children/tiles on failure but leaves the adopted root" do
+        root = precreated_root
+        bad = blueprint.deep_dup
+        bad[:tiles] << { label: "broken", image_id: 999_999_999 }
+
+        expect {
+          described_class.new(bad, communicator: communicator, root: root).call
+        }.to raise_error(StandardError)
+
+        expect(root.reload).to be_persisted
+        expect(root.board_images.count).to eq(0)
+        expect(Board.where(user_id: owner.id).where.not(id: root.id).count).to eq(0)
+      end
+    end
   end
 end

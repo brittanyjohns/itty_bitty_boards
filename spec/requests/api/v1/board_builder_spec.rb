@@ -63,7 +63,10 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
   end
 
   describe "POST /api/v1/board_builder" do
-    before { seed_template_images! }
+    before do
+      seed_template_images!
+      BuildBoardSetJob.clear # Sidekiq fake-mode queues accumulate across examples
+    end
 
     context "without auth" do
       it "returns 401" do
@@ -74,25 +77,52 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       end
     end
 
-    context "happy path" do
-      it "builds a linked set, routes interests into category vs favorites folders, and persists interests" do
-        # dinosaurs -> the template's Play folder; grandma -> "My Favorites".
+    context "happy path (async)" do
+      it "returns 201 immediately with the root in building_board and enqueues BuildBoardSetJob with the right args" do
         expect {
           post "/api/v1/board_builder",
                params: { communicator_id: communicator.id, template: "home",
                          interests: ["dinosaurs", "grandma"] }.to_json,
                headers: headers
         }.to change { communicator.child_boards.count }.by(1)
+          .and change { BuildBoardSetJob.jobs.size }.by(1)
 
         expect(response).to have_http_status(:created)
         body = JSON.parse(response.body)
+        expect(body["status"]).to eq("building_board")
 
         root = Board.find(body["id"])
         expect(root.name).to eq("Home")
         expect(root.user_id).to eq(user.id)
+        expect(root.settings["builder_root"]).to be(true)
+        expect(root.status).to eq("building_board")
+        # The root is created bare — the job builds the tiles/sub-boards.
+        expect(root.board_images.count).to eq(0)
 
+        # Attach + favorite happen in-request, so the set shows on the
+        # communicator immediately (in "building" state).
         child_board = communicator.child_boards.find_by(board_id: root.id)
         expect(child_board.favorite).to eq(true)
+
+        # Interests are normalized + persisted in-request for re-run prefill.
+        expect(communicator.reload.details["interests"]).to eq(["dinosaurs", "grandma"])
+
+        expect(BuildBoardSetJob.jobs.last["args"])
+          .to eq([root.id, communicator.id, "home", ["dinosaurs", "grandma"]])
+      end
+
+      it "builds a linked set, routes interests into category vs favorites folders, and completes (job drained)" do
+        # dinosaurs -> the template's Play folder; grandma -> "My Favorites".
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home",
+                       interests: ["dinosaurs", "grandma"] }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:created)
+
+        BuildBoardSetJob.drain
+
+        root = Board.find(JSON.parse(response.body)["id"])
+        expect(root.status).to eq("complete")
 
         # "dinosaurs" was routed into the existing Play folder (alongside seeds).
         play_tile = root.board_images.find { |bi| bi.label == "Play" }
@@ -106,7 +136,11 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         favorites_board = Board.find(favorites_tile.predictive_board_id)
         expect(favorites_board.board_images.map(&:label)).to contain_exactly("grandma")
 
-        expect(communicator.reload.details["interests"]).to eq(["dinosaurs", "grandma"])
+        # Only the ROOT carries a generation status; children stay default.
+        sub_boards = User.find(user.id).boards
+                         .where("COALESCE((settings->>'builder_child')::boolean, false)")
+        expect(sub_boards).to be_present
+        expect(sub_boards.pluck(:status)).not_to include("building_board", "complete", "failed")
       end
 
       it "builds the core template with no favorites folder when interests are empty" do
@@ -115,6 +149,8 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
              headers: headers
 
         expect(response).to have_http_status(:created)
+        BuildBoardSetJob.drain
+
         root = Board.find(JSON.parse(response.body)["id"])
         expect(root.board_images.map(&:label)).not_to include("My Favorites")
       end
@@ -134,7 +170,9 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
              headers: no_seed_headers
 
         expect(response).to have_http_status(:created)
+        BuildBoardSetJob.drain
         expect(Image.find_by(label: "Food", user_id: no_seed_user.id)).to be_present
+        expect(Board.find(JSON.parse(response.body)["id"]).status).to eq("complete")
       end
     end
 
@@ -149,25 +187,29 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
     end
 
     context "unknown template" do
-      it "returns 422 and builds nothing" do
+      it "returns 422, builds nothing, and enqueues no job" do
+        jobs_before = BuildBoardSetJob.jobs.size
         expect {
           post "/api/v1/board_builder",
                params: { communicator_id: communicator.id, template: "nope" }.to_json,
                headers: headers
         }.not_to change { Board.count }
+        expect(BuildBoardSetJob.jobs.size).to eq(jobs_before)
         expect(response).to have_http_status(:unprocessable_entity)
       end
     end
 
     context "board-limit gate (a built tree counts as ONE board)" do
-      it "returns 422 and builds nothing when the user is already at their limit" do
+      it "returns 422, builds nothing, and enqueues no job when the user is already at their limit" do
         create(:board, user: user) # user is Free (limit 1) → now at limit
+        jobs_before = BuildBoardSetJob.jobs.size
 
         expect {
           post "/api/v1/board_builder",
                params: { communicator_id: communicator.id, template: "home" }.to_json,
                headers: headers
         }.not_to change { Board.count }
+        expect(BuildBoardSetJob.jobs.size).to eq(jobs_before)
 
         expect(response).to have_http_status(:unprocessable_entity)
         expect(JSON.parse(response.body)["error"]).to match(/Maximum number of boards/)
@@ -179,6 +221,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
                        interests: ["dinosaurs"] }.to_json,
              headers: headers
         expect(response).to have_http_status(:created)
+        BuildBoardSetJob.drain
 
         fresh = User.find(user.id)
         # The tree persisted multiple boards, but it counts as one.
@@ -196,6 +239,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
              params: { communicator_id: communicator.id, template: "home",
                        interests: ["dinosaurs"] }.to_json,
              headers: headers
+        BuildBoardSetJob.drain
         root = Board.find(JSON.parse(response.body)["id"])
 
         fresh = User.find(user.id)
@@ -217,6 +261,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
              headers: headers
         expect(response).to have_http_status(:created)
         first_root_id = JSON.parse(response.body)["id"]
+        BuildBoardSetJob.drain
 
         boards_before = Board.count
         child_boards_before = communicator.child_boards.count
@@ -235,6 +280,23 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(communicator.child_boards.count).to eq(child_boards_before)
       end
 
+      it "trips the guard even while the first build is still running (#271 async window)" do
+        # Root exists with status building_board the moment the 201 returns —
+        # a concurrent second request must 409, not double-build.
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home" }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:created)
+        root_id = JSON.parse(response.body)["id"]
+        expect(Board.find(root_id).status).to eq("building_board") # job not drained
+
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home" }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:conflict)
+        expect(JSON.parse(response.body)["error"]).to eq("board_builder_set_exists")
+      end
+
       it "builds another set when confirm=true" do
         post "/api/v1/board_builder",
              params: { communicator_id: communicator.id, template: "home" }.to_json,
@@ -251,10 +313,9 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       end
     end
 
-    context "when the tree builder fails mid-build" do
-      it "returns 422 build_failed with a warm message" do
-        allow_any_instance_of(Boards::BoardTreeBuilder)
-          .to receive(:call).and_raise(Boards::BoardTreeBuilder::BuildError, "boom")
+    context "when something fails in-request after the root was created" do
+      it "returns 422 build_failed and marks the root failed (no stuck building_board)" do
+        allow(BuildBoardSetJob).to receive(:perform_async).and_raise(StandardError, "redis down")
 
         post "/api/v1/board_builder",
              params: { communicator_id: communicator.id, template: "home" }.to_json,
@@ -262,11 +323,43 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
 
         expect(response).to have_http_status(:unprocessable_entity)
         expect(JSON.parse(response.body)["error"]).to eq("build_failed")
+
+        root = communicator.reload.board_builder_root
+        expect(root).to be_present
+        expect(root.status).to eq("failed")
+      end
+    end
+
+    context "when the build job fails mid-build" do
+      # The full failure matrix (transaction rollback, no orphan children,
+      # retry idempotency) lives in spec/sidekiq/build_board_set_job_spec.rb;
+      # this covers the user-visible request-level artifact.
+      it "leaves the root as the failed artifact and the next run 409s until confirmed" do
+        # Lift the Free board limit so the second POST reaches the 409 guard
+        # (the limit gate runs first and the failed root still counts as one).
+        user.update!(settings: user.settings.to_h.merge("board_limit" => 10))
+        allow_any_instance_of(Boards::BoardTreeBuilder)
+          .to receive(:call).and_raise(Boards::BoardTreeBuilder::BuildError, "boom")
+
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home" }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:created)
+        root_id = JSON.parse(response.body)["id"]
+
+        expect { BuildBoardSetJob.drain }.to raise_error(Boards::BoardTreeBuilder::BuildError)
+        expect(Board.find(root_id).status).to eq("failed")
+
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home" }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:conflict)
+        expect(JSON.parse(response.body)["error"]).to eq("board_builder_set_exists")
       end
     end
 
     context "robust seeded set (clone path)" do
-      it "clones the seeded set, favorites the root, and routes interests into the cloned fringe" do
+      it "returns 201 with a building_board root named for the set, then the job clones and routes interests" do
         seed_robust_set!
 
         expect {
@@ -275,24 +368,40 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
                          interests: ["pizza"] }.to_json,
                headers: headers
         }.to change { communicator.child_boards.count }.by(1)
+          .and change { BuildBoardSetJob.jobs.size }.by(1)
 
         expect(response).to have_http_status(:created)
         root = Board.find(JSON.parse(response.body)["id"])
         expect(root.name).to eq("Core 60")
         expect(root.user_id).to eq(user.id)
         expect(root.settings["builder_root"]).to be(true)
+        expect(root.status).to eq("building_board")
 
         child_board = communicator.child_boards.find_by(board_id: root.id)
         expect(child_board.favorite).to eq(true)
 
+        expect(communicator.reload.details["interests"]).to eq(["pizza"])
+        expect(BuildBoardSetJob.jobs.last["args"])
+          .to eq([root.id, communicator.id, "core-60", ["pizza"]])
+
+        BuildBoardSetJob.drain
+        root.reload
+        expect(root.status).to eq("complete")
+
         # The whole cloned set counts as ONE board.
         expect(User.find(user.id).countable_board_count).to eq(1)
 
-        # "pizza" routed into the cloned Food fringe page.
+        # Cloned core tiles landed on the SAME root the 201 returned.
+        expect(root.board_images.map(&:label)).to include("I", "Food")
+
+        # "pizza" routed into the cloned Food fringe page, linked from the root.
         cloned_food = user.boards.find_by(name: "Food")
         expect(cloned_food.board_images.map(&:label)).to include("apple", "pizza")
+        food_tile = root.board_images.find { |bi| bi.label == "Food" }
+        expect(food_tile.predictive_board_id).to eq(cloned_food.id)
 
-        expect(communicator.reload.details["interests"]).to eq(["pizza"])
+        # The user's copy must never surface as a pickable robust template.
+        expect(Boards::RobustSets.all_roots.pluck(:id)).not_to include(root.id)
       end
 
       it "is blocked by the board limit (422) — a cloned set still counts as one" do

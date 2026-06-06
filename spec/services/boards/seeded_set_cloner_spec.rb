@@ -163,6 +163,93 @@ RSpec.describe Boards::SeededSetCloner do
         described_class.new(source[:root], communicator: orphan).call
       }.to raise_error(Boards::SeededSetCloner::CloneError)
     end
+
+    context "with an adopted root (async path via BuildBoardSetJob)" do
+      # Mirrors the controller's in-request root creation.
+      def precreated_root(name: "Core 60")
+        root = Board.new(name: name, user: owner)
+        root.board_type = "dynamic"
+        root.assign_parent
+        root.generate_unique_slug
+        root.settings = (root.settings || {}).merge("builder_root" => true)
+        root.status = "building_board"
+        root.save!
+        communicator.child_boards.create!(board: root, created_by_id: owner.id).update!(favorite: true)
+        root
+      end
+
+      it "clones the source root's tiles INTO the adopted root and rewires links to the clones" do
+        root = precreated_root
+
+        returned = described_class.new(source[:root], communicator: communicator, root: root).call
+
+        expect(returned.id).to eq(root.id)
+        root.reload
+        expect(root.board_images.map(&:label)).to include("I", "want", "help", "Food", "Feelings")
+
+        cloned_food = owner.boards.find_by(name: "Food")
+        food_tile = root.board_images.find_by(label: "Food")
+        expect(food_tile.predictive_board_id).to eq(cloned_food.id)
+
+        # The cycle tile on the cloned Feelings board points back at the ADOPTED root.
+        cloned_feelings = owner.boards.find_by(name: "Feelings")
+        expect(cloned_feelings.board_images.find_by(label: "home").predictive_board_id).to eq(root.id)
+
+        # 1 adopted root + 2 fringe clones, still counted as ONE board.
+        expect(owner.boards.count).to eq(3)
+        expect(User.find(owner.id).countable_board_count).to eq(1)
+      end
+
+      it "preserves the adopted root's identity, does not re-attach, and never inherits the robust catalog markers" do
+        Boards::RobustSets.mark_root!(source[:root], "core-60")
+        root = precreated_root
+        original_slug = root.slug
+
+        expect {
+          described_class.new(source[:root], communicator: communicator, root: root).call
+        }.not_to change { communicator.child_boards.count }
+
+        root.reload
+        expect(root.name).to eq("Core 60")
+        expect(root.slug).to eq(original_slug)
+        expect(root.user_id).to eq(owner.id)
+        # Status is the JOB's to flip; the cloner must not touch it.
+        expect(root.status).to eq("building_board")
+        expect(root.settings["builder_root"]).to be(true)
+        # The user's copy must never surface as a pickable robust template.
+        expect(Boards::RobustSets.all_roots.pluck(:id)).to contain_exactly(source[:root].id)
+      end
+
+      it "routes interests into the cloned fringe pages under the adopted root" do
+        root = precreated_root
+
+        described_class.new(
+          source[:root], communicator: communicator, interests: ["pizza", "grandma"], root: root
+        ).call
+
+        cloned_food = owner.boards.find_by(name: "Food")
+        expect(cloned_food.board_images.map(&:label)).to include("pizza")
+
+        favorites = owner.boards.find_by(name: "My Favorites")
+        expect(favorites.board_images.map(&:label)).to include("grandma")
+        fav_tile = root.reload.board_images.find_by(label: "My Favorites")
+        expect(fav_tile.predictive_board_id).to eq(favorites.id)
+      end
+
+      it "rolls back fringe clones/tiles on failure but leaves the adopted root" do
+        root = precreated_root
+        allow_any_instance_of(described_class)
+          .to receive(:route_interests!).and_raise(Boards::SeededSetCloner::CloneError, "boom")
+
+        expect {
+          described_class.new(source[:root], communicator: communicator, root: root).call
+        }.to raise_error(Boards::SeededSetCloner::CloneError)
+
+        expect(root.reload).to be_persisted
+        expect(root.board_images.count).to eq(0)
+        expect(owner.boards.where.not(id: root.id).count).to eq(0)
+      end
+    end
   end
 
   # Regression for #278: seed BOTH real sets (whose fringe ids are now
