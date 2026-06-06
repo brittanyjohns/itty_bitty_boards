@@ -109,18 +109,16 @@ module Boards
       image
     end
 
+    # Normalization lives in Boards::InterestWords (shared with the cloner
+    # and the controller, which persists the list and feeds BuildBoardSetJob).
+    # Casing matches find_or_create_images_from_word_list: multi-char words
+    # kept as typed, lone "i" -> "I", other single chars lowercased.
     def normalize_interests(list)
-      Array(list).map { |s| normalize_word(s) }.reject(&:blank?).uniq.first(MAX_INTERESTS)
+      Boards::InterestWords.normalize_list(list, max: MAX_INTERESTS)
     end
 
-    # Match the casing convention used elsewhere (find_or_create_images_from_word_list):
-    # multi-char words kept as typed, lone "i" -> "I", other single chars lowercased.
     def normalize_word(string)
-      word = string.to_s.strip
-      return "" if word.blank?
-      return "I" if word.casecmp("i").zero?
-
-      word.length > 1 ? word : word.downcase
+      Boards::InterestWords.normalize_word(string)
     end
   end
 end
