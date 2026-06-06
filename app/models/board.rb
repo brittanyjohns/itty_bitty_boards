@@ -2442,6 +2442,14 @@ class Board < ApplicationRecord
   #                             BoardGroup.settings. Must be true to set
   #                             include_images: true (enforced by controller).
   #   acknowledged_by_user_id:  Integer. Audit-only.
+  #   apply_button_attributes:  Boolean. When true, each button's authored
+  #                             part_of_speech (and OBF-standard
+  #                             background_color / border_color when present) is
+  #                             applied to the BoardImage, so tile colors follow
+  #                             the authored Fitzgerald key instead of whatever
+  #                             the shared Image record happens to carry (#279).
+  #                             Used by the VocabSets seeder; user OBZ imports
+  #                             keep the historical default (off).
   def self.from_obf(data, current_user, board_group = nil, board_id = nil, import_options: {})
     obj = parse_obf_input(data)
     raise ArgumentError, "OBF data must be a Hash" unless obj.is_a?(Hash)
@@ -2474,6 +2482,7 @@ class Board < ApplicationRecord
     dynamic_data = {}
     temp_display_image = nil
     reset_layouts_after_import = obj["reset_layouts_after_import"] || false
+    apply_button_attributes = import_options[:apply_button_attributes] ? true : false
 
     buttons.each do |item|
       image = find_or_create_image_for_button(item, current_user)
@@ -2485,7 +2494,8 @@ class Board < ApplicationRecord
       coords = coords_by_button_id[item["id"].to_s]
       reset_layouts_after_import ||= coords.nil?
 
-      board_image = upsert_board_image(board, image, item, coords, temp_display_image)
+      board_image = upsert_board_image(board, image, item, coords, temp_display_image,
+                                       apply_button_attributes: apply_button_attributes)
       dynamic_data[image.id] = {
         "board_id" => board.id,
         "board" => board,
@@ -2613,7 +2623,7 @@ class Board < ApplicationRecord
   end
   private_class_method :attach_image_doc
 
-  def self.upsert_board_image(board, image, item, coords, display_url)
+  def self.upsert_board_image(board, image, item, coords, display_url, apply_button_attributes: false)
     board_image = board.board_images.find_by(image_id: image.id)
     unless board_image
       board_image = board.board_images.new(image_id: image.id, voice: board.voice,
@@ -2628,6 +2638,8 @@ class Board < ApplicationRecord
       board_image.save!
     end
 
+    apply_obf_part_of_speech(board_image, image, item) if apply_button_attributes
+
     if coords
       layout = { "x" => coords[0], "y" => coords[1], "w" => 1, "h" => 1, "i" => board_image.id.to_s }
       board_image.layout["lg"] = layout
@@ -2640,11 +2652,51 @@ class Board < ApplicationRecord
       # we want re-enqueue on every layout tweak.
       board_image.skip_create_voice_audio = true
       board_image.save!
+    elsif board_image.changed?
+      board_image.skip_create_voice_audio = true
+      board_image.save!
     end
+
+    apply_obf_explicit_colors(board_image, item) if apply_button_attributes
 
     board_image
   end
   private_class_method :upsert_board_image
+
+  # #279: honor the OBF button's authored part_of_speech so the tile gets its
+  # Fitzgerald-key color (ColorHelper::PRESET_DATA) instead of inheriting
+  # whatever the shared Image record carries. Assigns only — the caller's save
+  # persists it (and BoardImage's before_update :set_colors recomputes when the
+  # value changed). set_colors is also run here directly so a re-seed heals a
+  # stale bg_color even when part_of_speech itself didn't change.
+  # The shared Image is backfilled ONLY when its part_of_speech is blank —
+  # never overwrite a value an admin (or the categorizer) already set.
+  def self.apply_obf_part_of_speech(board_image, image, item)
+    pos = item["part_of_speech"].presence
+    return unless pos
+
+    board_image.part_of_speech = pos
+    board_image.set_colors
+    # update_column: skip Image's ensure_defaults/save callbacks, which would
+    # re-categorize and could fight the authored value.
+    image.update_column(:part_of_speech, pos) if image.part_of_speech.blank?
+  end
+  private_class_method :apply_obf_part_of_speech
+
+  # OBF-standard explicit button colors (background_color / border_color) win
+  # over the part-of-speech preset. Applied via update_columns AFTER the main
+  # save so BoardImage's set_colors callback can't recompute over them.
+  def self.apply_obf_explicit_colors(board_image, item)
+    updates = {}
+    if item["background_color"].present?
+      bg = ColorHelper.to_hex(item["background_color"], default: "#FFFFFF")
+      updates[:bg_color] = bg
+      updates[:text_color] = ColorHelper.text_hex_for(bg)
+    end
+    updates[:border_color] = item["border_color"] if item["border_color"].present?
+    board_image.update_columns(updates) if updates.any?
+  end
+  private_class_method :apply_obf_explicit_colors
 
   def source_type
     data = self.data || {}
