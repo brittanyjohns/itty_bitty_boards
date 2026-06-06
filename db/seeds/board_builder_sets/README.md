@@ -32,13 +32,13 @@ db/seeds/board_builder_sets/
     boards/
       core-60.obf                <- root core board (home 10×6)
       people.obf  feelings.obf  food.obf  drinks.obf   <- fringe category pages
-      play.obf  places.obf  body.obf  more.obf  keyboard.obf
+      play.obf  places.obf  body.obf  more.obf
   core-84/                       <- same shape: home 12×7 superset + the core-60
     manifest.json                   fringe + School / Time / Describe pages
     boards/
       core-84.obf
       people.obf  feelings.obf  food.obf  drinks.obf  play.obf  places.obf
-      body.obf  more.obf  keyboard.obf  school.obf  time.obf  describe.obf
+      body.obf  more.obf  school.obf  time.obf  describe.obf
 ```
 
 The seeder reads this directory, zips it **in memory** into an `.obz`, and feeds
@@ -53,7 +53,7 @@ One `.obf` per board. Minimal shape:
 ```jsonc
 {
   "format": "open-board-0.1",
-  "id": "food",                  // unique within the set; matches manifest paths key
+  "id": "core-60:food",          // MUST be namespaced "<slug>:<name>" — see "OBF id namespacing"
   "locale": "en",
   "name": "Food",                // see "Fringe board names" below — load-bearing
   "grid": { "rows": 2, "columns": 3, "order": [[1,2,3],[4,5,6]] },
@@ -95,16 +95,40 @@ One `.obf` per board. Minimal shape:
 ```jsonc
 {
   "format": "open-board-0.1",
-  "root": "boards/core-60.obf",   // the core board the user lands on
+  "root": "boards/core-60.obf",   // path, NOT an id — never namespaced
   "paths": {
     "boards": {
-      "core-60": "boards/core-60.obf",
-      "food":    "boards/food.obf"
-      // one entry per board id -> path
+      "core-60:core-60": "boards/core-60.obf",
+      "core-60:food":    "boards/food.obf"
+      // one entry per namespaced board id -> path
     }
   }
 }
 ```
+
+## OBF id namespacing (one rule, non-negotiable)
+
+Every board's top-level **`id`** MUST be prefixed with its set slug:
+`"<slug>:<name>"` (e.g. `"core-60:people"`, `"core-84:people"`,
+`"core-60:core-60"`). The `paths.boards` **keys** in `manifest.json` use the
+same namespaced ids.
+
+Why: `Board.from_obf` resolves the target board by `(user_id, obf_id)`, and both
+sets seed as the same admin user. Before namespacing, Core 60 and Core 84 shared
+the bare ids (`people`, `food`, …), so both roots ended up linked to **one**
+shared fringe board and the last set seeded won the in-set Home pointer — leaving
+the other set's cloned pages with dead Home tiles (#278).
+
+What is NOT namespaced:
+
+- **Button `id`s** stay local integers (`1`, `2`, …) — they're scoped to one board.
+- **`load_board.path`** stays a zip path (`"boards/play.obf"`) — links resolve by
+  path, so they're unaffected by the namespace. Don't use `load_board.id`.
+- **`manifest.root`** is a path, not an id.
+
+Adding a board to a set = give its `.obf` a `"<slug>:<name>"` id and add the same
+key to the manifest. The seeder's destructive sync (below) cleans up any board or
+tile you remove.
 
 ## Fringe board names are load-bearing
 
@@ -138,3 +162,16 @@ bin/rails 'vocab_sets:build[core-60]'     # emit a distributable .obz
 
 Seeding is **idempotent**: re-running finds the existing set by its root
 `board_builder_robust_slug` and updates in place (no duplicates).
+
+Seeding is also a **destructive sync** (admin-owned set boards only — user clones
+are deep copies and never touched): after upserting, the seeder
+
+- destroys any tile (`board_image`) on a seeded board whose label is no longer in
+  the source OBF (so removing a tile from the JSON removes it on re-seed), and
+- destroys any admin-owned board whose `obf_id` belonged to this set but is no
+  longer in the manifest — including the legacy **un-namespaced** ids
+  (`people`, `food`, …) and fully-removed boards (`keyboard`).
+
+That last step makes the migration off the pre-namespacing collision era (#278)
+and the #276 content revisions **self-healing**: one `bin/rails vocab_sets:seed`
+after deploy cleans up the old shared boards — no manual console work needed.

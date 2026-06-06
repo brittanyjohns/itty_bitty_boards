@@ -1,6 +1,6 @@
 {
   "format": "open-board-0.1",
-  "id": "body",
+  "id": "core-60:body",
   "locale": "en",
   "name": "Body",
   "grid": {

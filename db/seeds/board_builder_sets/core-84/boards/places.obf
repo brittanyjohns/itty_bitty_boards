@@ -1,6 +1,6 @@
 {
   "format": "open-board-0.1",
-  "id": "places",
+  "id": "core-84:places",
   "locale": "en",
   "name": "Places",
   "grid": {
