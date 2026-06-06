@@ -3,13 +3,14 @@ require "rails_helper"
 RSpec.describe VocabSets do
   # The seeder imports as User::DEFAULT_ADMIN_ID, so an admin with that id must
   # exist. The authored Core 60 source ships in db/seeds/board_builder_sets/:
-  # a 10×6 core home + 9 fringe category pages.
+  # a 10×6 core home + 8 fringe category pages. (The Keyboard page was removed
+  # 2026-06-06 — the keyboard feature isn't built yet.)
   let!(:admin) { create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
 
-  # The authored Core 60 set: root + 9 fringe pages.
+  # The authored Core 60 set: root + 8 fringe pages.
   CORE_60_BOARD_NAMES = [
     "Core 60", "People", "Feelings", "Food", "Drinks",
-    "Play", "Places", "Body", "More", "Keyboard"
+    "Play", "Places", "Body", "More"
   ].freeze
 
   describe ".available_slugs" do
@@ -31,7 +32,7 @@ RSpec.describe VocabSets do
       expect(@root.settings["board_builder_robust"]).to be(true)
       expect(@root.settings["board_builder_robust_slug"]).to eq("core-60")
 
-      # Root + 9 fringe pages, all admin-owned and predefined/published.
+      # Root + 8 fringe pages, all admin-owned and predefined/published.
       admin_boards = Board.where(user_id: admin.id)
       expect(admin_boards.pluck(:name)).to contain_exactly(*CORE_60_BOARD_NAMES)
       expect(admin_boards.all? { |b| b.predefined && b.published }).to be(true)
@@ -40,6 +41,15 @@ RSpec.describe VocabSets do
       food_tile = @root.board_images.find_by(label: "Food")
       expect(food_tile.predictive_board_id).to be_present
       expect(Board.find(food_tile.predictive_board_id).name).to eq("Food")
+    end
+
+    it "does not create self-link folder tiles on fringe pages" do
+      # Each fringe page's own folder is intentionally absent from its nav row
+      # (a tile pointing at its own board isn't dynamic — see BoardImage#is_dynamic?).
+      root = VocabSets.seed_slug!("core-60")
+      food_board = Board.find(root.board_images.find_by(label: "Food").predictive_board_id)
+      food_self_links = food_board.board_images.where(predictive_board_id: food_board.id)
+      expect(food_self_links).to be_empty
     end
 
     it "is findable via Boards::RobustSets after seeding" do
@@ -52,8 +62,8 @@ RSpec.describe VocabSets do
     it "ships fringe pages for the interest categories it can route into" do
       # The set names some fringe pages after routable interest categories
       # (Food/Feelings/Play) so the wizard drops matching interests there. Other
-      # pages (People/Places/Body/Drinks/Keyboard/More) have no matching category
-      # yet — interests for those fall through to the auto "My Favorites" page by
+      # pages (People/Places/Body/Drinks/More) have no matching category yet —
+      # interests for those fall through to the auto "My Favorites" page by
       # design (nothing is dropped). This guards the routable pages against drift:
       # if Food/Feelings/Play were renamed, routing would silently break.
       VocabSets.seed_slug!("core-60")

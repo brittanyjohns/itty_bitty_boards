@@ -32,9 +32,9 @@
         20
       ],
       [
-        null,
-        null,
-        null,
+        31,
+        32,
+        33,
         null,
         null,
         null,
@@ -75,9 +75,9 @@
         25,
         26,
         27,
-        28,
-        29,
-        30
+        null,
+        null,
+        null
       ]
     ]
   },
@@ -179,11 +179,8 @@
     },
     {
       "id": 20,
-      "label": "Keyboard",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/keyboard.obf"
-      }
+      "label": "later",
+      "part_of_speech": "adverb"
     },
     {
       "id": 21,
@@ -242,25 +239,19 @@
       }
     },
     {
-      "id": 28,
-      "label": "More",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/more.obf"
-      }
-    },
-    {
-      "id": 29,
-      "label": "Keyboard",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/keyboard.obf"
-      }
-    },
-    {
-      "id": 30,
-      "label": "more",
+      "id": 31,
+      "label": "please",
       "part_of_speech": "social"
+    },
+    {
+      "id": 32,
+      "label": "thank you",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 33,
+      "label": "and",
+      "part_of_speech": "conjunction"
     }
   ],
   "images": [],

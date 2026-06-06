@@ -29,7 +29,7 @@
         17,
         18,
         19,
-        20
+        null
       ],
       [
         21,
@@ -52,8 +52,8 @@
         null,
         null,
         null,
-        null,
-        null
+        31,
+        20
       ],
       [
         null,
@@ -71,13 +71,13 @@
         22,
         23,
         24,
-        25,
+        null,
         26,
         27,
         28,
         29,
-        30,
-        31
+        null,
+        null
       ]
     ]
   },
@@ -215,14 +215,6 @@
       }
     },
     {
-      "id": 25,
-      "label": "Food",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/food.obf"
-      }
-    },
-    {
       "id": 26,
       "label": "Play",
       "part_of_speech": "noun",
@@ -252,14 +244,6 @@
       "part_of_speech": "noun",
       "load_board": {
         "path": "boards/more.obf"
-      }
-    },
-    {
-      "id": 30,
-      "label": "Keyboard",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/keyboard.obf"
       }
     },
     {

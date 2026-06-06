@@ -74,10 +74,10 @@
         24,
         25,
         26,
-        27,
+        null,
         28,
-        29,
-        30
+        null,
+        null
       ]
     ]
   },
@@ -231,33 +231,12 @@
       }
     },
     {
-      "id": 27,
-      "label": "Body",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/body.obf"
-      }
-    },
-    {
       "id": 28,
       "label": "More",
       "part_of_speech": "noun",
       "load_board": {
         "path": "boards/more.obf"
       }
-    },
-    {
-      "id": 29,
-      "label": "Keyboard",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/keyboard.obf"
-      }
-    },
-    {
-      "id": 30,
-      "label": "more",
-      "part_of_speech": "social"
     }
   ],
   "images": [],

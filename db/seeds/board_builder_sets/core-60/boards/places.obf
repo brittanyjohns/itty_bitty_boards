@@ -73,11 +73,11 @@
         23,
         24,
         25,
-        26,
+        null,
         27,
         28,
-        29,
-        30
+        null,
+        null
       ]
     ]
   },
@@ -223,14 +223,6 @@
       }
     },
     {
-      "id": 26,
-      "label": "Places",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/places.obf"
-      }
-    },
-    {
       "id": 27,
       "label": "Body",
       "part_of_speech": "noun",
@@ -245,19 +237,6 @@
       "load_board": {
         "path": "boards/more.obf"
       }
-    },
-    {
-      "id": 29,
-      "label": "Keyboard",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/keyboard.obf"
-      }
-    },
-    {
-      "id": 30,
-      "label": "more",
-      "part_of_speech": "social"
     }
   ],
   "images": [],

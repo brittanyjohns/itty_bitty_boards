@@ -76,8 +76,8 @@
         24,
         25,
         26,
-        27,
-        28
+        null,
+        null
       ]
     ]
   },
@@ -235,19 +235,6 @@
       "load_board": {
         "path": "boards/more.obf"
       }
-    },
-    {
-      "id": 27,
-      "label": "Keyboard",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/keyboard.obf"
-      }
-    },
-    {
-      "id": 28,
-      "label": "more",
-      "part_of_speech": "social"
     }
   ],
   "images": [],

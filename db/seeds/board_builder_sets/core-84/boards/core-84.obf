@@ -50,7 +50,6 @@
         36
       ],
       [
-        37,
         38,
         39,
         40,
@@ -59,6 +58,7 @@
         43,
         44,
         45,
+        37,
         46,
         47,
         48
@@ -71,25 +71,11 @@
         53,
         54,
         55,
-        56,
-        57,
-        58,
-        59,
-        60
-      ],
-      [
         61,
         62,
         63,
-        64,
-        65,
-        66,
-        67,
-        68,
-        69,
-        70,
-        71,
-        72
+        59,
+        60
       ],
       [
         73,
@@ -98,10 +84,24 @@
         76,
         77,
         78,
+        82,
         79,
         80,
         81,
-        82,
+        71,
+        72
+      ],
+      [
+        null,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        null,
+        null,
         83,
         84
       ]
@@ -384,21 +384,6 @@
       "part_of_speech": "social"
     },
     {
-      "id": 56,
-      "label": "please",
-      "part_of_speech": "social"
-    },
-    {
-      "id": 57,
-      "label": "thank you",
-      "part_of_speech": "social"
-    },
-    {
-      "id": 58,
-      "label": "and",
-      "part_of_speech": "conjunction"
-    },
-    {
       "id": 59,
       "label": "different",
       "part_of_speech": "adjective"
@@ -545,11 +530,8 @@
     },
     {
       "id": 82,
-      "label": "Keyboard",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/keyboard.obf"
-      }
+      "label": "can",
+      "part_of_speech": "verb"
     },
     {
       "id": 83,

@@ -11,8 +11,7 @@
       "play": "boards/play.obf",
       "places": "boards/places.obf",
       "body": "boards/body.obf",
-      "more": "boards/more.obf",
-      "keyboard": "boards/keyboard.obf"
+      "more": "boards/more.obf"
     }
   }
 }
