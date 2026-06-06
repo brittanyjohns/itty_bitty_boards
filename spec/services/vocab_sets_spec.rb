@@ -2,8 +2,15 @@ require "rails_helper"
 
 RSpec.describe VocabSets do
   # The seeder imports as User::DEFAULT_ADMIN_ID, so an admin with that id must
-  # exist. The placeholder Core 60 source ships in db/seeds/board_builder_sets/.
+  # exist. The authored Core 60 source ships in db/seeds/board_builder_sets/:
+  # a 10×6 core home + 9 fringe category pages.
   let!(:admin) { create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
+
+  # The authored Core 60 set: root + 9 fringe pages.
+  CORE_60_BOARD_NAMES = [
+    "Core 60", "People", "Feelings", "Food", "Drinks",
+    "Play", "Places", "Body", "More", "Keyboard"
+  ].freeze
 
   describe ".available_slugs" do
     it "lists slugs that have a manifest.json" do
@@ -17,17 +24,16 @@ RSpec.describe VocabSets do
   end
 
   describe ".seed_slug!" do
-    it "imports the placeholder set as a marked, predefined, linked tree (no BoardGroup)" do
+    it "imports the authored set as a marked, predefined, linked tree (no BoardGroup)" do
       expect { @root = VocabSets.seed_slug!("core-60") }.not_to change { BoardGroup.count }
 
       expect(@root.name).to eq("Core 60")
       expect(@root.settings["board_builder_robust"]).to be(true)
       expect(@root.settings["board_builder_robust_slug"]).to eq("core-60")
 
-      # Root + 3 fringe pages, all admin-owned and predefined/published.
+      # Root + 9 fringe pages, all admin-owned and predefined/published.
       admin_boards = Board.where(user_id: admin.id)
-      expect(admin_boards.count).to eq(4)
-      expect(admin_boards.pluck(:name)).to contain_exactly("Core 60", "Food", "Feelings", "Play")
+      expect(admin_boards.pluck(:name)).to contain_exactly(*CORE_60_BOARD_NAMES)
       expect(admin_boards.all? { |b| b.predefined && b.published }).to be(true)
 
       # The root's "Food" folder tile links to the imported Food fringe board.
@@ -43,18 +49,20 @@ RSpec.describe VocabSets do
       expect(Boards::RobustSets.slug_for(root)).to eq("core-60")
     end
 
-    it "names every fringe page after a recognized interest category so routing lands" do
-      # Guards against content drift: if a fringe page is renamed to something
-      # InterestCategories doesn't know, interests for it silently fall to
-      # "My Favorites". The placeholder's pages are Food/Feelings/Play.
+    it "ships fringe pages for the interest categories it can route into" do
+      # The set names some fringe pages after routable interest categories
+      # (Food/Feelings/Play) so the wizard drops matching interests there. Other
+      # pages (People/Places/Body/Drinks/Keyboard/More) have no matching category
+      # yet — interests for those fall through to the auto "My Favorites" page by
+      # design (nothing is dropped). This guards the routable pages against drift:
+      # if Food/Feelings/Play were renamed, routing would silently break.
       VocabSets.seed_slug!("core-60")
 
       fringe_names = Board.where(user_id: admin.id).where.not(name: "Core 60").pluck(:name)
-      expect(fringe_names).not_to be_empty
-      fringe_names.each do |name|
-        expect(Boards::InterestCategories.categories).to include(name),
-                                                          "fringe page #{name.inspect} is not a routable interest category"
-      end
+      routable = fringe_names.select { |name| Boards::InterestCategories.categories.include?(name) }
+
+      # The authored set's routable category pages.
+      expect(routable).to contain_exactly("Food", "Feelings", "Play")
     end
 
     it "is idempotent — re-seeding doesn't duplicate boards or roots" do

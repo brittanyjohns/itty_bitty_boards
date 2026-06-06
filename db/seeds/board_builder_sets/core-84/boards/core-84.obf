@@ -1,11 +1,11 @@
 {
   "format": "open-board-0.1",
-  "id": "core-60",
+  "id": "core-84",
   "locale": "en",
-  "name": "Core 60",
+  "name": "Core 84",
   "grid": {
-    "rows": 6,
-    "columns": 10,
+    "rows": 7,
+    "columns": 12,
     "order": [
       [
         1,
@@ -17,11 +17,11 @@
         7,
         8,
         9,
-        10
+        10,
+        11,
+        12
       ],
       [
-        11,
-        12,
         13,
         14,
         15,
@@ -29,33 +29,31 @@
         17,
         18,
         19,
-        20
-      ],
-      [
+        20,
         21,
         22,
         23,
-        24,
+        24
+      ],
+      [
         25,
         26,
         27,
         28,
         29,
-        30
-      ],
-      [
+        30,
         31,
         32,
         33,
         34,
         35,
-        36,
+        36
+      ],
+      [
         37,
         38,
         39,
-        40
-      ],
-      [
+        40,
         41,
         42,
         43,
@@ -63,11 +61,11 @@
         45,
         46,
         47,
-        48,
-        49,
-        50
+        48
       ],
       [
+        49,
+        50,
         51,
         52,
         53,
@@ -78,6 +76,34 @@
         58,
         59,
         60
+      ],
+      [
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72
+      ],
+      [
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84
       ]
     ]
   },
@@ -134,221 +160,271 @@
     },
     {
       "id": 11,
-      "label": "want",
+      "label": "need",
       "part_of_speech": "verb"
     },
     {
       "id": 12,
-      "label": "go",
-      "part_of_speech": "verb"
+      "label": "why",
+      "part_of_speech": "question"
     },
     {
       "id": 13,
-      "label": "stop",
+      "label": "want",
       "part_of_speech": "verb"
     },
     {
       "id": 14,
-      "label": "help",
+      "label": "go",
       "part_of_speech": "verb"
     },
     {
       "id": 15,
-      "label": "like",
+      "label": "stop",
       "part_of_speech": "verb"
     },
     {
       "id": 16,
-      "label": "have",
+      "label": "help",
       "part_of_speech": "verb"
     },
     {
       "id": 17,
-      "label": "do",
+      "label": "like",
       "part_of_speech": "verb"
     },
     {
       "id": 18,
-      "label": "get",
+      "label": "have",
       "part_of_speech": "verb"
     },
     {
       "id": 19,
-      "label": "make",
+      "label": "do",
       "part_of_speech": "verb"
     },
     {
       "id": 20,
-      "label": "put",
+      "label": "get",
       "part_of_speech": "verb"
     },
     {
       "id": 21,
-      "label": "look",
+      "label": "make",
       "part_of_speech": "verb"
     },
     {
       "id": 22,
-      "label": "see",
+      "label": "put",
       "part_of_speech": "verb"
     },
     {
       "id": 23,
-      "label": "eat",
+      "label": "know",
       "part_of_speech": "verb"
     },
     {
       "id": 24,
-      "label": "drink",
-      "part_of_speech": "verb"
+      "label": "how",
+      "part_of_speech": "question"
     },
     {
       "id": 25,
-      "label": "play",
+      "label": "look",
       "part_of_speech": "verb"
     },
     {
       "id": 26,
-      "label": "come",
+      "label": "see",
       "part_of_speech": "verb"
     },
     {
       "id": 27,
-      "label": "give",
+      "label": "eat",
       "part_of_speech": "verb"
     },
     {
       "id": 28,
-      "label": "open",
+      "label": "drink",
       "part_of_speech": "verb"
     },
     {
       "id": 29,
-      "label": "turn",
+      "label": "play",
       "part_of_speech": "verb"
     },
     {
       "id": 30,
-      "label": "feel",
+      "label": "come",
       "part_of_speech": "verb"
     },
     {
       "id": 31,
+      "label": "give",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 32,
+      "label": "open",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 33,
+      "label": "turn",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 34,
+      "label": "feel",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 35,
+      "label": "think",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 36,
+      "label": "when",
+      "part_of_speech": "question"
+    },
+    {
+      "id": 37,
       "label": "more",
       "part_of_speech": "social"
     },
     {
-      "id": 32,
+      "id": 38,
       "label": "all",
       "part_of_speech": "determiner"
     },
     {
-      "id": 33,
+      "id": 39,
       "label": "some",
       "part_of_speech": "determiner"
     },
     {
-      "id": 34,
+      "id": 40,
       "label": "big",
       "part_of_speech": "adjective"
     },
     {
-      "id": 35,
+      "id": 41,
       "label": "little",
       "part_of_speech": "adjective"
     },
     {
-      "id": 36,
+      "id": 42,
       "label": "good",
       "part_of_speech": "adjective"
     },
     {
-      "id": 37,
+      "id": 43,
       "label": "bad",
       "part_of_speech": "adjective"
     },
     {
-      "id": 38,
+      "id": 44,
       "label": "hot",
       "part_of_speech": "adjective"
     },
     {
-      "id": 39,
+      "id": 45,
       "label": "cold",
       "part_of_speech": "adjective"
     },
     {
-      "id": 40,
+      "id": 46,
       "label": "all done",
       "part_of_speech": "social"
     },
     {
-      "id": 41,
+      "id": 47,
+      "label": "same",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 48,
+      "label": "because",
+      "part_of_speech": "conjunction"
+    },
+    {
+      "id": 49,
       "label": "in",
       "part_of_speech": "preposition"
     },
     {
-      "id": 42,
+      "id": 50,
       "label": "on",
       "part_of_speech": "preposition"
     },
     {
-      "id": 43,
+      "id": 51,
       "label": "up",
       "part_of_speech": "preposition"
     },
     {
-      "id": 44,
+      "id": 52,
       "label": "down",
       "part_of_speech": "preposition"
     },
     {
-      "id": 45,
+      "id": 53,
       "label": "not",
       "part_of_speech": "important_function"
     },
     {
-      "id": 46,
+      "id": 54,
       "label": "no",
       "part_of_speech": "important_function"
     },
     {
-      "id": 47,
+      "id": 55,
       "label": "yes",
       "part_of_speech": "social"
     },
     {
-      "id": 48,
+      "id": 56,
       "label": "please",
       "part_of_speech": "social"
     },
     {
-      "id": 49,
+      "id": 57,
       "label": "thank you",
       "part_of_speech": "social"
     },
     {
-      "id": 50,
+      "id": 58,
       "label": "and",
       "part_of_speech": "conjunction"
     },
     {
-      "id": 51,
+      "id": 59,
+      "label": "different",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 60,
+      "label": "but",
+      "part_of_speech": "conjunction"
+    },
+    {
+      "id": 61,
       "label": "what",
       "part_of_speech": "question"
     },
     {
-      "id": 52,
+      "id": 62,
       "label": "where",
       "part_of_speech": "question"
     },
     {
-      "id": 53,
+      "id": 63,
       "label": "who",
       "part_of_speech": "question"
     },
     {
-      "id": 54,
+      "id": 64,
       "label": "People",
       "part_of_speech": "noun",
       "load_board": {
@@ -356,7 +432,7 @@
       }
     },
     {
-      "id": 55,
+      "id": 65,
       "label": "Feelings",
       "part_of_speech": "noun",
       "load_board": {
@@ -364,7 +440,7 @@
       }
     },
     {
-      "id": 56,
+      "id": 66,
       "label": "Food",
       "part_of_speech": "noun",
       "load_board": {
@@ -372,7 +448,7 @@
       }
     },
     {
-      "id": 57,
+      "id": 67,
       "label": "Play",
       "part_of_speech": "noun",
       "load_board": {
@@ -380,7 +456,7 @@
       }
     },
     {
-      "id": 58,
+      "id": 68,
       "label": "Places",
       "part_of_speech": "noun",
       "load_board": {
@@ -388,7 +464,7 @@
       }
     },
     {
-      "id": 59,
+      "id": 69,
       "label": "Body",
       "part_of_speech": "noun",
       "load_board": {
@@ -396,12 +472,94 @@
       }
     },
     {
-      "id": 60,
+      "id": 70,
       "label": "More",
       "part_of_speech": "noun",
       "load_board": {
         "path": "boards/more.obf"
       }
+    },
+    {
+      "id": 71,
+      "label": "again",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 72,
+      "label": "now",
+      "part_of_speech": "adverb"
+    },
+    {
+      "id": 73,
+      "label": "with",
+      "part_of_speech": "preposition"
+    },
+    {
+      "id": 74,
+      "label": "for",
+      "part_of_speech": "preposition"
+    },
+    {
+      "id": 75,
+      "label": "out",
+      "part_of_speech": "preposition"
+    },
+    {
+      "id": 76,
+      "label": "off",
+      "part_of_speech": "preposition"
+    },
+    {
+      "id": 77,
+      "label": "here",
+      "part_of_speech": "determiner"
+    },
+    {
+      "id": 78,
+      "label": "there",
+      "part_of_speech": "determiner"
+    },
+    {
+      "id": 79,
+      "label": "School",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/school.obf"
+      }
+    },
+    {
+      "id": 80,
+      "label": "Time",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/time.obf"
+      }
+    },
+    {
+      "id": 81,
+      "label": "Describe",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/describe.obf"
+      }
+    },
+    {
+      "id": 82,
+      "label": "Keyboard",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/keyboard.obf"
+      }
+    },
+    {
+      "id": 83,
+      "label": "mine",
+      "part_of_speech": "pronoun"
+    },
+    {
+      "id": 84,
+      "label": "wait",
+      "part_of_speech": "verb"
     }
   ],
   "images": [],

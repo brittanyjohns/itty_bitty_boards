@@ -22,7 +22,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   (`settings["board_builder_robust_slug"]`, via `Boards::RobustSets`).
   Idempotent. `bin/rails 'vocab_sets:build[core-60]'` emits a distributable
   `.obz`. Format spec: `db/seeds/board_builder_sets/README.md`. Slugs:
-  `core-60` (ships with a **placeholder** set), `core-84` (content TBD).
+  `core-60` and `core-84` (both now ship **authored** content — see below).
 - **A cloned set counts as ONE board** (root marked `builder_root`, the rest
   `builder_child`) and respects the plan board limit (**422**) and the re-run
   guard (**409** `board_builder_set_exists` unless `confirm=true`) — the same
@@ -34,6 +34,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   (see `.claude-notes/board-builder.md`).
 - New: `Boards::SeededSetCloner`, `Boards::RobustSets`, `VocabSets` service +
   `lib/tasks/vocab_sets.rake`. No schema changes.
+- **Real Core 60 / Core 84 content seeded.** Both sets now ship authored
+  SpeakAnyWay vocabulary, replacing the Core 60 placeholder and adding Core 84:
+  Core 60 is a 10×6 core home + 9 fringe category pages (People, Feelings, Food,
+  Drinks, Play, Places, Body, More, Keyboard); Core 84 is the 12×7 superset home
+  with the same fringe plus School, Time, and Describe pages. Every tile carries
+  a `part_of_speech` color and fringe folders link via `load_board`. Run
+  `bin/rails vocab_sets:seed` to seed both as predefined, root-marked sets.
 
 ### Fixed — Board Builder no longer silently duplicates a board set on re-run
 - Re-running the wizard for the same communicator used to silently create a
