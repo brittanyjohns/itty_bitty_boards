@@ -3,18 +3,18 @@
   "root": "boards/core-84.obf",
   "paths": {
     "boards": {
-      "core-84": "boards/core-84.obf",
-      "people": "boards/people.obf",
-      "feelings": "boards/feelings.obf",
-      "food": "boards/food.obf",
-      "drinks": "boards/drinks.obf",
-      "play": "boards/play.obf",
-      "places": "boards/places.obf",
-      "body": "boards/body.obf",
-      "more": "boards/more.obf",
-      "school": "boards/school.obf",
-      "time": "boards/time.obf",
-      "describe": "boards/describe.obf"
+      "core-84:core-84": "boards/core-84.obf",
+      "core-84:people": "boards/people.obf",
+      "core-84:feelings": "boards/feelings.obf",
+      "core-84:food": "boards/food.obf",
+      "core-84:drinks": "boards/drinks.obf",
+      "core-84:play": "boards/play.obf",
+      "core-84:places": "boards/places.obf",
+      "core-84:body": "boards/body.obf",
+      "core-84:more": "boards/more.obf",
+      "core-84:school": "boards/school.obf",
+      "core-84:time": "boards/time.obf",
+      "core-84:describe": "boards/describe.obf"
     }
   }
 }

@@ -164,4 +164,35 @@ RSpec.describe Boards::SeededSetCloner do
       }.to raise_error(Boards::SeededSetCloner::CloneError)
     end
   end
+
+  # Regression for #278: seed BOTH real sets (whose fringe ids are now
+  # namespaced), then clone each. Pre-fix, the two sets shared fringe boards and
+  # whichever seeded last won the Home pointer, so the other set's clones shipped
+  # with dead Home tiles on every fringe page.
+  describe "cloning a real seeded robust set" do
+    let!(:seed_admin) { create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
+
+    before do
+      VocabSets.seed_slug!("core-60")
+      VocabSets.seed_slug!("core-84")
+    end
+
+    %w[core-60 core-84].each do |slug|
+      it "gives #{slug} clones a working Home tile on every fringe page" do
+        source_root = Boards::RobustSets.find_root(slug)
+        cloned_root = described_class.new(source_root, communicator: communicator).call
+
+        fringe = owner.boards.where("COALESCE((settings->>'builder_child')::boolean, false)")
+        expect(fringe.count).to be > 0
+
+        # Every fringe page carries a Home tile, and it resolves to the cloned
+        # root (in-set) — never nulled, never the other set's root.
+        fringe.each do |board|
+          home = board.board_images.find_by(label: "Home")
+          expect(home).to be_present, "expected fringe '#{board.name}' to have a Home tile"
+          expect(home.predictive_board_id).to eq(cloned_root.id)
+        end
+      end
+    end
+  end
 end

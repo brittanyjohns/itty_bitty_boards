@@ -1,6 +1,6 @@
 {
   "format": "open-board-0.1",
-  "id": "food",
+  "id": "core-84:food",
   "locale": "en",
   "name": "Food",
   "grid": {

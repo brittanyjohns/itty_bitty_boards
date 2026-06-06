@@ -56,11 +56,31 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `lib/tasks/vocab_sets.rake`. No schema changes.
 - **Real Core 60 / Core 84 content seeded.** Both sets now ship authored
   SpeakAnyWay vocabulary, replacing the Core 60 placeholder and adding Core 84:
-  Core 60 is a 10×6 core home + 9 fringe category pages (People, Feelings, Food,
-  Drinks, Play, Places, Body, More, Keyboard); Core 84 is the 12×7 superset home
+  Core 60 is a 10×6 core home + 8 fringe category pages (People, Feelings, Food,
+  Drinks, Play, Places, Body, More); Core 84 is the 12×7 superset home
   with the same fringe plus School, Time, and Describe pages. Every tile carries
   a `part_of_speech` color and fringe folders link via `load_board`. Run
   `bin/rails vocab_sets:seed` to seed both as predefined, root-marked sets.
+
+### Fixed — Board Builder vocab-set seeder now syncs removals and isolates the two sets (#277, #278)
+- **Re-seed now propagates content removals (#277).** `bin/rails vocab_sets:seed`
+  previously only upserted, so tiles and boards removed from the OBF source
+  survived a re-seed (e.g. after the Keyboard board and the please/thank-you/and
+  home tiles were cut). The seeder now runs a **destructive sync over admin-owned
+  set boards only**: it destroys tiles whose label is gone from the source OBF and
+  destroys boards whose `obf_id` left the manifest. `Board.from_obf` semantics for
+  user OBZ imports are unchanged; **user clones (deep copies) are never touched.**
+- **Core 60 and Core 84 no longer share fringe boards (#278).** Both sets used the
+  same bare OBF ids (`people`, `food`, …) and seed as the same admin, so both roots
+  linked to one shared fringe board and the last-seeded set won the in-set Home
+  pointer — leaving the other set's cloned pages with **dead Home tiles**. Every
+  board id in the seed source is now namespaced `"<slug>:<name>"` (e.g.
+  `core-60:people`), so each set seeds its own disjoint fringe tree with in-set
+  Home links.
+- **Migration is self-healing.** The same prune step destroys the legacy
+  un-namespaced boards (`people`, `food`, …) and the removed `keyboard` board, so a
+  single `bin/rails vocab_sets:seed` after deploy cleans up the collision-era
+  boards — no manual console cleanup.
 
 ### Fixed — Board Builder no longer silently duplicates a board set on re-run
 - Re-running the wizard for the same communicator used to silently create a

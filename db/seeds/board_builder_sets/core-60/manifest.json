@@ -3,15 +3,15 @@
   "root": "boards/core-60.obf",
   "paths": {
     "boards": {
-      "core-60": "boards/core-60.obf",
-      "people": "boards/people.obf",
-      "feelings": "boards/feelings.obf",
-      "food": "boards/food.obf",
-      "drinks": "boards/drinks.obf",
-      "play": "boards/play.obf",
-      "places": "boards/places.obf",
-      "body": "boards/body.obf",
-      "more": "boards/more.obf"
+      "core-60:core-60": "boards/core-60.obf",
+      "core-60:people": "boards/people.obf",
+      "core-60:feelings": "boards/feelings.obf",
+      "core-60:food": "boards/food.obf",
+      "core-60:drinks": "boards/drinks.obf",
+      "core-60:play": "boards/play.obf",
+      "core-60:places": "boards/places.obf",
+      "core-60:body": "boards/body.obf",
+      "core-60:more": "boards/more.obf"
     }
   }
 }

@@ -1,6 +1,6 @@
 {
   "format": "open-board-0.1",
-  "id": "time",
+  "id": "core-84:time",
   "locale": "en",
   "name": "Time",
   "grid": {
