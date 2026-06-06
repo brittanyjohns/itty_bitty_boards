@@ -1,6 +1,6 @@
 {
   "format": "open-board-0.1",
-  "id": "play",
+  "id": "core-84:play",
   "locale": "en",
   "name": "Play",
   "grid": {
