@@ -162,6 +162,100 @@ RSpec.describe VocabSets do
     end
   end
 
+  describe "tile colors from authored part_of_speech (#279)" do
+    # Modified Fitzgerald key, via ColorHelper::PRESET_DATA:
+    #   pronoun -> yellow, verb -> green, question -> purple.
+    EXPECTED_TILES = {
+      "I" => { pos: "pronoun", hex: "#FFEA75" },
+      "want" => { pos: "verb", hex: "#A1F571" },
+      "what" => { pos: "question", hex: "#A07AFF" },
+    }.freeze
+
+    def expect_authored_colors(board)
+      EXPECTED_TILES.each do |label, expected|
+        tile = board.board_images.find_by(label: label)
+        expect(tile).to be_present, "expected a '#{label}' tile on #{board.name}"
+        expect(tile.part_of_speech).to eq(expected[:pos]),
+          "expected '#{label}' part_of_speech #{expected[:pos]}, got #{tile.part_of_speech}"
+        expect(tile.bg_color).to eq(expected[:hex]),
+          "expected '#{label}' bg_color #{expected[:hex]}, got #{tile.bg_color}"
+      end
+    end
+
+    it "colors seeded home tiles per the authored OBF part_of_speech" do
+      root = VocabSets.seed_slug!("core-60")
+      expect_authored_colors(root)
+    end
+
+    it "restores authored colors on re-seed after a tile was mangled" do
+      root = VocabSets.seed_slug!("core-60")
+      tile = root.board_images.find_by(label: "I")
+      tile.update_columns(part_of_speech: "noun", bg_color: "#FFFFFF")
+
+      VocabSets.seed_slug!("core-60")
+      expect_authored_colors(root.reload)
+    end
+
+    it "heals a stale bg_color on re-seed even when part_of_speech is already right" do
+      root = VocabSets.seed_slug!("core-60")
+      tile = root.board_images.find_by(label: "I")
+      tile.update_columns(bg_color: "#FFFFFF") # pos stays "pronoun"
+
+      VocabSets.seed_slug!("core-60")
+      expect(root.reload.board_images.find_by(label: "I").bg_color).to eq("#FFEA75")
+    end
+
+    it "never overwrites a non-blank part_of_speech on the shared Image record" do
+      root = VocabSets.seed_slug!("core-60")
+      image = root.board_images.find_by(label: "I").image
+      image.update_column(:part_of_speech, "noun") # an admin's deliberate choice
+
+      VocabSets.seed_slug!("core-60")
+      expect(image.reload.part_of_speech).to eq("noun")
+      # ...while the seeded tile still follows the authored OBF value.
+      expect(root.reload.board_images.find_by(label: "I").part_of_speech).to eq("pronoun")
+    end
+
+    it "backfills a blank Image part_of_speech from the authored OBF" do
+      root = VocabSets.seed_slug!("core-60")
+      image = root.board_images.find_by(label: "I").image
+      image.update_column(:part_of_speech, nil)
+
+      VocabSets.seed_slug!("core-60")
+      expect(image.reload.part_of_speech).to eq("pronoun")
+    end
+  end
+
+  describe "one-page display (no scrolling)" do
+    it "marks every seeded board disable_scroll so the native page fits it on one screen" do
+      VocabSets.seed_slug!("core-60")
+
+      boards = Board.where(user_id: admin.id)
+      expect(boards).not_to be_empty
+      boards.each do |board|
+        expect(board.settings["disable_scroll"]).to be(true),
+          "expected #{board.name} to have settings['disable_scroll'] = true"
+      end
+    end
+
+    it "keeps disable_scroll set across a re-seed" do
+      VocabSets.seed_slug!("core-60")
+      VocabSets.seed_slug!("core-60")
+
+      expect(Board.where(user_id: admin.id).all? { |b| b.settings["disable_scroll"] == true }).to be(true)
+    end
+
+    it "preserves each home board's authored grid (Core 60: 10×6, Core 84: 12×7)" do
+      c60 = VocabSets.seed_slug!("core-60")
+      c84 = VocabSets.seed_slug!("core-84")
+
+      expect(c60.large_screen_columns).to eq(10)
+      expect(c60.large_screen_rows).to eq(6)
+      expect(c84.large_screen_columns).to eq(12)
+      expect(c84.large_screen_rows).to eq(7)
+    end
+  end
+
   # All admin-owned board ids reachable from a seeded set's root (root + fringe).
   def collect_set_board_ids(root)
     ids = [root.id]

@@ -5,6 +5,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Board Builder seeded sets: tile colors + one-page display (#279)
+- **Tile colors now follow the authored Fitzgerald key.** `Board.from_obf`
+  gained an opt-in `import_options[:apply_button_attributes]` (used by the
+  `vocab_sets:seed` seeder only): each OBF button's authored `part_of_speech`
+  is applied to the BoardImage and its background color derived via
+  `ColorHelper::PRESET_DATA` (e.g. pronouns yellow `#FFEA75`, verbs green
+  `#A1F571`, questions purple `#A07AFF`). OBF-standard explicit
+  `background_color`/`border_color` win when authored. The shared Image's
+  `part_of_speech` is backfilled only when blank — never overwritten. Re-seed
+  heals mangled colors; user OBZ imports are unchanged.
+- **Clones keep the authored colors.** `BoardImage#set_defaults` now respects a
+  part_of_speech already present on the record (e.g. set by
+  `Board#clone_with_images`' dup) instead of always re-reading the shared Image.
+- **Seeded boards display on one page.** The seeder stamps
+  `settings["disable_scroll"] = true` on every set board; the native board page
+  reads this and fits the whole authored grid (Core 60: 10×6, Core 84: 12×7)
+  on screen without scrolling. Cloned user sets inherit it.
+- Run `bin/rails vocab_sets:seed` once after deploy to apply colors and
+  one-page settings to existing seeded sets (already-cloned user sets keep
+  their old colors).
 ### Added — Bulk display-label case transform
 - `PUT /api/board_images/update` now accepts `payload[:label_case]`
   (`"upper"`, `"lower"`, or `"sentence"`). When present, each selected board

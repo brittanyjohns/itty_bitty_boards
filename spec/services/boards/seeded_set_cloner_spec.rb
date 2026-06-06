@@ -194,5 +194,38 @@ RSpec.describe Boards::SeededSetCloner do
         end
       end
     end
+
+    # #279: the seeded set's Fitzgerald-key colors (from each OBF button's
+    # authored part_of_speech) must survive the deep clone. Pre-fix, the import
+    # dropped part_of_speech, so the cloner faithfully copied wrong colors.
+    it "carries the authored part_of_speech colors onto the cloned set" do
+      source_root = Boards::RobustSets.find_root("core-60")
+      cloned_root = described_class.new(source_root, communicator: communicator).call
+
+      { "I" => ["pronoun", "#FFEA75"],
+        "want" => ["verb", "#A1F571"],
+        "what" => ["question", "#A07AFF"] }.each do |label, (pos, hex)|
+        tile = cloned_root.board_images.find_by(label: label)
+        expect(tile).to be_present, "expected a cloned '#{label}' tile"
+        expect(tile.part_of_speech).to eq(pos)
+        expect(tile.bg_color).to eq(hex)
+      end
+    end
+
+    # One-page display: the seeder stamps settings["disable_scroll"] on every
+    # set board (read by the frontend's BoardNativeGridPage); clone_with_images
+    # dups settings, so user clones must inherit it on root AND fringe.
+    it "carries disable_scroll (one-page display) onto every cloned board" do
+      source_root = Boards::RobustSets.find_root("core-60")
+      cloned_root = described_class.new(source_root, communicator: communicator).call
+
+      expect(cloned_root.settings["disable_scroll"]).to be(true)
+      fringe = owner.boards.where("COALESCE((settings->>'builder_child')::boolean, false)")
+      expect(fringe.count).to be > 0
+      fringe.each do |board|
+        expect(board.settings["disable_scroll"]).to be(true),
+          "expected cloned fringe '#{board.name}' to keep disable_scroll"
+      end
+    end
   end
 end

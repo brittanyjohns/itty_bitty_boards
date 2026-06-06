@@ -79,6 +79,10 @@ module VocabSets
         include_images: true, # our own art; copyright gate is for third-party .obz
         license_acknowledged: true,
         acknowledged_by_user_id: admin.id,
+        # #279: apply each button's authored part_of_speech (Fitzgerald-key
+        # color) to the BoardImage. Seeder-only — user OBZ imports keep the
+        # historical Board.from_obf behavior.
+        apply_button_attributes: true,
       },
     ).import!
 
@@ -87,6 +91,12 @@ module VocabSets
 
     boards_by_obf_id = result[:boards]
     boards_by_obf_id.values.each do |board|
+      # disable_scroll: the native board page (BoardNativeGridPage) reads
+      # settings["disable_scroll"] and, when true, locks IonContent scrolling
+      # and sizes rows so the whole authored grid (Core 60: 10×6,
+      # Core 84: 12×7) renders on one page. clone_with_images dups settings,
+      # so user clones inherit it.
+      board.settings = (board.settings || {}).merge("disable_scroll" => true)
       board.update!(predefined: true, published: true)
     end
     Boards::RobustSets.mark_root!(root, slug)
