@@ -32,17 +32,26 @@ module Boards
     # communicator (same contract as BlueprintAssembler#interests).
     attr_reader :interests
 
-    def initialize(source_root, communicator:, interests: [], favorite_root: true)
+    # `root:` (optional) is an ADOPTED root: a board the caller already created
+    # (named, parented, slugged, marked builder_root, attached to the
+    # communicator) — the async path, where BuildBoardSetJob fills in the set
+    # under the root the controller returned with status "building_board".
+    # When a root is adopted, the source root's CONTENT (tiles, layout columns)
+    # is cloned INTO it instead of dup-ing a fresh board, and the caller owns
+    # the ChildBoard attach/favorite.
+    def initialize(source_root, communicator:, interests: [], favorite_root: true, root: nil)
       @source_root   = source_root
       @communicator  = communicator
       @owner         = communicator.owner || communicator.user
       @interests     = normalize_interests(interests)
       @favorite_root = favorite_root
+      @root          = root
     end
 
     # Clones the whole linked set + routes interests in a single transaction so a
-    # mid-build failure leaves no orphan boards or dangling ChildBoard. Returns
-    # the cloned root Board.
+    # mid-build failure leaves no orphan boards or dangling ChildBoard (with an
+    # adopted root, the rollback strips every fringe board/tile and leaves the
+    # bare root for the caller to mark "failed"). Returns the cloned root Board.
     def call
       raise CloneError, "communicator has no owning user" unless @owner
       raise CloneError, "no source root board" if @source_root.nil?
@@ -53,7 +62,7 @@ module Boards
         mark_builder_settings!
 
         root = @map.fetch(@source_root.id)
-        attach_root_to_communicator(root)
+        attach_root_to_communicator(root) unless adopted_root?
         route_interests!(root)
         # clone_with_images leaves the in-memory clones with a stale
         # board_images_count / association cache; hand back a fresh root.
@@ -62,6 +71,10 @@ module Boards
     end
 
     private
+
+    def adopted_root?
+      @root.present?
+    end
 
     # BFS over predictive_board_id links from the root, bounded to MAX_DEPTH and
     # cycle-safe (visited set). A board reachable twice is collected once. Root
@@ -90,13 +103,81 @@ module Boards
 
     # Clone each source board for the owner. NO communicator_account arg, so
     # fringe boards don't each get a ChildBoard (only the root is attached, in
-    # attach_root_to_communicator). Returns { source_board_id => cloned Board }.
+    # attach_root_to_communicator). With an adopted root, the source ROOT's
+    # content is cloned into the pre-created board instead of dup-ing a new
+    # one. Returns { source_board_id => cloned Board }.
     def clone_all(source_boards)
       source_boards.each_with_object({}) do |src, map|
-        cloned = src.clone_with_images(@owner.id)
+        cloned =
+          if adopted_root? && src.id == @source_root.id
+            clone_into_adopted_root(src)
+          else
+            src.clone_with_images(@owner.id)
+          end
         raise CloneError, "failed to clone source board #{src.id}" if cloned.nil?
 
         map[src.id] = cloned
+      end
+    end
+
+    # The adopted-root version of Board#clone_with_images: copy the source
+    # root's presentation attributes and tiles into the board the controller
+    # pre-created, leaving the identity its 201 payload already exposed (name,
+    # slug, user, parent, voice, status "building_board") untouched.
+    def clone_into_adopted_root(src)
+      root = @root
+      root.board_type            = src.board_type
+      root.number_of_columns     = src.number_of_columns
+      root.small_screen_columns  = src.small_screen_columns
+      root.medium_screen_columns = src.medium_screen_columns
+      root.large_screen_columns  = src.large_screen_columns
+      root.margin_settings       = src.margin_settings
+      root.layout                = src.layout
+      root.bg_color              = src.bg_color
+      root.language              = src.language
+      root.description           = src.description
+      # Source settings minus the robust-set catalog markers — a user's copy
+      # must never surface as a pickable template (the dup-based clone path
+      # predates this concern). The controller's own settings (builder_root)
+      # win on conflict; display_follows_preview mirrors clone_with_images.
+      root.settings = (src.settings || {})
+        .except(Boards::RobustSets::ROOT_MARKER, Boards::RobustSets::SLUG_MARKER)
+        .merge(root.settings || {})
+        .merge("display_follows_preview" => true)
+      root.save!
+
+      copy_tiles!(src, root)
+      root.run_generate_preview_job if root.board_images.reload.any?
+      # clone_with_images repoints the owner's pre-existing tiles that target
+      # the SOURCE board at the clone; keep that parity for the adopted root.
+      UpdateUserBoardsJob.perform_async(root.id, src.id) if src.user_id != root.user_id
+      root
+    end
+
+    # Mirrors the per-tile copy inside Board#clone_with_images: dup each
+    # BoardImage so the authored layout/colors/part_of_speech survive, re-point
+    # it at an image the owner can use, and keep predictive_board_id verbatim —
+    # rewire_predictive_links! translates the pointers afterwards.
+    def copy_tiles!(src, target)
+      src.board_images.each do |board_image|
+        original_image = board_image.image
+        image = original_image
+        if image.user_id
+          image = Image.find_by(label: image.label, user_id: target.user_id) if image.user_id == target.user_id
+        else
+          image = Image.find_by(label: image.label, user_id: [nil, target.user_id, User::DEFAULT_ADMIN_ID])
+        end
+        image ||= Image.create(label: original_image.label, user_id: target.user_id)
+
+        new_board_image = board_image.dup
+        new_board_image.board_id = target.id
+        new_board_image.image_id = image.id
+        new_board_image.set_labels
+        new_board_image.display_label = board_image.display_label
+        new_board_image.voice = board_image.voice
+        new_board_image.predictive_board_id = board_image.predictive_board_id
+        new_board_image.audio_url = board_image.audio_url
+        new_board_image.save!
       end
     end
 
@@ -219,17 +300,14 @@ module Boards
       image
     end
 
+    # Normalization lives in Boards::InterestWords (shared with the assembler
+    # and the controller, which persists the list and feeds BuildBoardSetJob).
     def normalize_interests(list)
-      Array(list).map { |s| normalize_word(s) }.reject(&:blank?).uniq.first(MAX_INTERESTS)
+      Boards::InterestWords.normalize_list(list, max: MAX_INTERESTS)
     end
 
-    # multi-char words kept as typed, lone "i" -> "I", other single chars lowercased.
     def normalize_word(string)
-      word = string.to_s.strip
-      return "" if word.blank?
-      return "I" if word.casecmp("i").zero?
-
-      word.length > 1 ? word : word.downcase
+      Boards::InterestWords.normalize_word(string)
     end
   end
 end
