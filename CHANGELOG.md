@@ -11,6 +11,25 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   image's `display_label` is rewritten in that case (sentence = first letter
   up, rest down). Falls back to the image's `label` when `display_label` is
   blank. Powers the "Aa" case buttons in the frontend bulk-edit drawer.
+### Added — Server-side PostHog subscription lifecycle events
+- The Stripe webhook now fires three **server-side** PostHog events so the
+  money-path funnel (pricing page → `checkout_started` → `subscription_started`)
+  is buildable, and so conversions aren't missed when a user closes the
+  success tab (itty-bitty-frontend#307, backend half):
+  - **`trial_started`** `{ plan }` — on `customer.subscription.created` when the
+    subscription is `trialing`.
+  - **`subscription_started`** `{ plan, billing_interval }` — on the
+    non-active→active transition (trial→paid / first activation).
+  - **`subscription_cancelled`** `{ plan, reason? }` — on
+    `customer.subscription.deleted` (reason from Stripe's cancellation_details
+    when present).
+- Each event also updates the person's `plan` property (`$set`), and uses
+  `distinct_id = user.id.to_s` to match the frontend's `posthog.identify`
+  contract so events land on the same person.
+- Capture is **production-only** by default (staging/dev opt in via
+  `POSTHOG_CAPTURE_ENABLED=true`) and wrapped so a PostHog failure can never
+  break a Stripe webhook. New env vars: `POSTHOG_API_KEY`, `POSTHOG_HOST`
+  (default `https://us.i.posthog.com`), `POSTHOG_CAPTURE_ENABLED`.
 
 ### Added — Robust vocabulary sets for the Board Builder (Core 60/84)
 - The Board Builder picker now offers pre-authored **core vocabulary sets** (a

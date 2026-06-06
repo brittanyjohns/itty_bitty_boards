@@ -128,6 +128,45 @@ ActionMailer/Gmail SMTP, **not** Mailchimp. True 1:1 transactional via Mailchimp
 would require the separate Transactional/Mandrill product (different gem + key +
 paid add-on) — not integrated.
 
+## PostHog server-side analytics
+
+`PosthogService` (`app/models/posthog_service.rb`) captures the
+**subscription lifecycle events that are only knowable server-side** (Stripe
+webhooks), via the `posthog-ruby` gem. These complement the frontend's own
+PostHog events (which fire intent + `checkout_started`); the backend completes
+the money-path funnel (itty-bitty-frontend#307). Fired from
+`API::WebhooksController`:
+
+- **`trial_started`** `{ plan }` — `handle_trial_started_analytics`, on
+  `customer.subscription.created` when `status == "trialing"`. PostHog-only —
+  the internal `trial_started` AnalyticsEvent already fires at checkout, so we
+  don't double-count.
+- **`subscription_started`** `{ plan, billing_interval }` — in
+  `handle_subscription_upsert`, on the non-active→active transition (alongside
+  the existing `subscription_started` AnalyticsEvent). `billing_interval` is
+  derived from the Stripe Price's `recurring.interval` (`month`→`monthly`,
+  `year`→`yearly`) to match the frontend's `checkout_started` values.
+- **`subscription_cancelled`** `{ plan, reason? }` — in
+  `handle_subscription_deleted`, capturing the plan being left *before*
+  `apply_free_plan` resets it; `reason` from Stripe's `cancellation_details`.
+  Also records an internal `subscription_canceled` AnalyticsEvent for parity.
+
+Key contracts:
+
+- **`distinct_id = user.id.to_s`.** The frontend identifies people as
+  `String(user.id)` (`posthog.identify`), so the backend must use the same id
+  for events to land on the same person. `capture_for_user` enforces this.
+- **Person `plan` stays in sync.** Every capture `$set`s the `plan` property
+  (defaults to `user.plan_type`; cancellation explicitly `$set`s `plan: free`).
+- **Env-gated, prod-only.** `PosthogClient.enabled?` (`config/initializers/
+  posthog.rb`) returns true in production only (staging excluded via
+  `AppEnv.staging?`); dev/staging fire only when `POSTHOG_CAPTURE_ENABLED=true`.
+  Requires `POSTHOG_API_KEY`; `POSTHOG_HOST` defaults to
+  `https://us.i.posthog.com`. Mirrors the Mailchimp-journeys gate.
+- **Never breaks the webhook.** `capture_for_user` rescues and logs — a PostHog
+  outage can't 500 a Stripe webhook. Captures are async (the SDK enqueues to its
+  own background flush thread), so no Sidekiq job is needed.
+
 ## Subscription model
 
 - Most features are free
