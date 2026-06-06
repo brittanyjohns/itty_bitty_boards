@@ -82,6 +82,8 @@ class API::BoardImagesController < API::ApplicationController
     create_new_board = payload[:create_new_board] || !new_board_name.blank?
     layout_updates = payload[:layout_updates] if payload[:layout_updates]
     update_to_default_doc = payload[:update_to_default_doc] if payload[:update_to_default_doc]
+    # Bulk display-label case transform: "upper", "lower", or "sentence".
+    label_case = payload[:label_case].to_s if payload[:label_case].present?
 
     if create_new_board
       new_board_name ||= "New Board"
@@ -133,6 +135,11 @@ class API::BoardImagesController < API::ApplicationController
       end
       if make_static
         board_image.predictive_board_id = nil
+      end
+      if label_case
+        source = board_image.display_label.presence || board_image.label
+        transformed = transform_label_case(source, label_case)
+        board_image.display_label = transformed if transformed.present?
       end
 
       layout_to_update = layout_updates.find { |update| update["board_image_id"].to_i == board_image.id } if layout_updates
@@ -321,6 +328,21 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   private
+
+  # Apply a bulk case transform to a display label.
+  #   "upper"    -> "I WANT MORE"
+  #   "lower"    -> "i want more"
+  #   "sentence" -> "I want more" (first letter up, rest down)
+  # Unknown modes return the text unchanged.
+  def transform_label_case(text, mode)
+    return text if text.blank?
+    case mode.to_s
+    when "upper"    then text.upcase
+    when "lower"    then text.downcase
+    when "sentence" then text.capitalize
+    else text
+    end
+  end
 
   # Block edits to a board image when its board is read-only for this user
   # (a downgraded user over their board limit). Playing audio and viewing are

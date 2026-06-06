@@ -5,6 +5,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Bulk display-label case transform
+- `PUT /api/board_images/update` now accepts `payload[:label_case]`
+  (`"upper"`, `"lower"`, or `"sentence"`). When present, each selected board
+  image's `display_label` is rewritten in that case (sentence = first letter
+  up, rest down). Falls back to the image's `label` when `display_label` is
+  blank. Powers the "Aa" case buttons in the frontend bulk-edit drawer.
 ### Changed — Board Sets (BoardGroup) CRUD opened to all users
 - Creating, editing, and organizing **Board Sets** is no longer admin-only.
   Any signed-in user can now create their own sets and manage the boards in
