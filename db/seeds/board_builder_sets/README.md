@@ -7,16 +7,16 @@ admin-owned, predefined boards by `bin/rails vocab_sets:seed`, then **cloned
 per user** by the wizard.
 
 > **Share this file with the vocabulary session.** It defines the exact format,
-> the slugs, and the conventions the word content must follow. The finalized
-> word lists live in the workspace `drafts/` folder; drop them in here by
-> overwriting the placeholder `.obf` JSON.
+> the slugs, and the conventions the word content must follow. Both Core 60 and
+> Core 84 are now authored (below); the `.obf` JSON in each set dir is the source
+> of truth — edit it in place to revise the word content.
 
 ## Slugs (stable identifiers)
 
 | slug      | name    | status                          |
 |-----------|---------|---------------------------------|
-| `core-60` | Core 60 | **placeholder** (this dir)      |
-| `core-84` | Core 84 | not yet authored                |
+| `core-60` | Core 60 | **authored** (home 10×6 + 9 fringe pages) |
+| `core-84` | Core 84 | **authored** (home 12×7 superset + fringe + School/Time/Describe) |
 
 The slug is the key the wizard sends as `template` and the identifier stamped on
 the seeded **root board** (`settings["board_builder_robust_slug"]`). It must be
@@ -30,11 +30,15 @@ db/seeds/board_builder_sets/
   core-60/
     manifest.json                <- OBZ manifest (root + path map)
     boards/
-      core-60.obf                <- root core board
-      food.obf                   <- fringe category page
-      feelings.obf
-      play.obf
-  core-84/                       <- same shape, when authored
+      core-60.obf                <- root core board (home 10×6)
+      people.obf  feelings.obf  food.obf  drinks.obf   <- fringe category pages
+      play.obf  places.obf  body.obf  more.obf  keyboard.obf
+  core-84/                       <- same shape: home 12×7 superset + the core-60
+    manifest.json                   fringe + School / Time / Describe pages
+    boards/
+      core-84.obf
+      people.obf  feelings.obf  food.obf  drinks.obf  play.obf  places.obf
+      body.obf  more.obf  keyboard.obf  school.obf  time.obf  describe.obf
 ```
 
 The seeder reads this directory, zips it **in memory** into an `.obz`, and feeds

@@ -3,22 +3,262 @@
   "id": "feelings",
   "locale": "en",
   "name": "Feelings",
-  "description_html": "PLACEHOLDER fringe page. The board NAME must stay a recognized interest category (Feelings) so the Board Builder routes feeling interests here.",
   "grid": {
-    "rows": 2,
-    "columns": 3,
+    "rows": 6,
+    "columns": 10,
     "order": [
-      [1, 2, 3],
-      [4, 5, 6]
+      [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ]
     ]
   },
   "buttons": [
-    { "id": 1, "label": "happy", "part_of_speech": "adjective" },
-    { "id": 2, "label": "sad", "part_of_speech": "adjective" },
-    { "id": 3, "label": "tired", "part_of_speech": "adjective" },
-    { "id": 4, "label": "mad", "part_of_speech": "adjective" },
-    { "id": 5, "label": "scared", "part_of_speech": "adjective" },
-    { "id": 6, "label": "calm", "part_of_speech": "adjective" }
+    {
+      "id": 1,
+      "label": "happy",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 2,
+      "label": "sad",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 3,
+      "label": "mad",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 4,
+      "label": "scared",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 5,
+      "label": "tired",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 6,
+      "label": "sick",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 7,
+      "label": "hurt",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 8,
+      "label": "silly",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 9,
+      "label": "frustrated",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 10,
+      "label": "surprised",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 11,
+      "label": "proud",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 12,
+      "label": "hungry",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 13,
+      "label": "thirsty",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 14,
+      "label": "bored",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 15,
+      "label": "excited",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 16,
+      "label": "calm",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 17,
+      "label": "love",
+      "part_of_speech": "verb"
+    },
+    {
+      "id": 18,
+      "label": "ok",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 19,
+      "label": "sorry",
+      "part_of_speech": "social"
+    },
+    {
+      "id": 20,
+      "label": "better",
+      "part_of_speech": "adjective"
+    },
+    {
+      "id": 21,
+      "label": "Home",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/core-60.obf"
+      }
+    },
+    {
+      "id": 22,
+      "label": "People",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/people.obf"
+      }
+    },
+    {
+      "id": 23,
+      "label": "Feelings",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/feelings.obf"
+      }
+    },
+    {
+      "id": 24,
+      "label": "Food",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/food.obf"
+      }
+    },
+    {
+      "id": 25,
+      "label": "Play",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/play.obf"
+      }
+    },
+    {
+      "id": 26,
+      "label": "Places",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/places.obf"
+      }
+    },
+    {
+      "id": 27,
+      "label": "Body",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/body.obf"
+      }
+    },
+    {
+      "id": 28,
+      "label": "More",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/more.obf"
+      }
+    },
+    {
+      "id": 29,
+      "label": "Keyboard",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/keyboard.obf"
+      }
+    },
+    {
+      "id": 30,
+      "label": "more",
+      "part_of_speech": "social"
+    }
   ],
   "images": [],
   "sounds": []

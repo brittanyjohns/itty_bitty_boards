@@ -195,7 +195,7 @@
       "label": "Home",
       "part_of_speech": "noun",
       "load_board": {
-        "path": "boards/core-60.obf"
+        "path": "boards/core-84.obf"
       }
     },
     {

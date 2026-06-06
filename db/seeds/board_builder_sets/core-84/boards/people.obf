@@ -1,8 +1,8 @@
 {
   "format": "open-board-0.1",
-  "id": "food",
+  "id": "people",
   "locale": "en",
-  "name": "Food",
+  "name": "People",
   "grid": {
     "rows": 6,
     "columns": 10,
@@ -26,180 +26,152 @@
         14,
         15,
         16,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
         17,
         18,
         19,
-        20
-      ],
-      [
+        20,
         21,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      [
         22,
         23,
         24,
         25,
-        26,
-        27,
-        28,
-        29,
-        30,
-        31
+        26
       ]
     ]
   },
   "buttons": [
     {
       "id": 1,
-      "label": "eat",
-      "part_of_speech": "verb"
+      "label": "mom",
+      "part_of_speech": "noun"
     },
     {
       "id": 2,
-      "label": "snack",
+      "label": "dad",
       "part_of_speech": "noun"
     },
     {
       "id": 3,
-      "label": "apple",
+      "label": "grandma",
       "part_of_speech": "noun"
     },
     {
       "id": 4,
-      "label": "banana",
+      "label": "grandpa",
       "part_of_speech": "noun"
     },
     {
       "id": 5,
-      "label": "cracker",
+      "label": "sister",
       "part_of_speech": "noun"
     },
     {
       "id": 6,
-      "label": "cookie",
+      "label": "brother",
       "part_of_speech": "noun"
     },
     {
       "id": 7,
-      "label": "bread",
+      "label": "baby",
       "part_of_speech": "noun"
     },
     {
       "id": 8,
-      "label": "cheese",
+      "label": "family",
       "part_of_speech": "noun"
     },
     {
       "id": 9,
-      "label": "pizza",
+      "label": "friend",
       "part_of_speech": "noun"
     },
     {
       "id": 10,
-      "label": "chicken",
+      "label": "teacher",
       "part_of_speech": "noun"
     },
     {
       "id": 11,
-      "label": "pasta",
+      "label": "doctor",
       "part_of_speech": "noun"
     },
     {
       "id": 12,
-      "label": "rice",
+      "label": "nurse",
       "part_of_speech": "noun"
     },
     {
       "id": 13,
-      "label": "fruit",
-      "part_of_speech": "noun"
+      "label": "me",
+      "part_of_speech": "pronoun"
     },
     {
       "id": 14,
-      "label": "veggie",
-      "part_of_speech": "noun"
+      "label": "you",
+      "part_of_speech": "pronoun"
     },
     {
       "id": 15,
-      "label": "egg",
+      "label": "boy",
       "part_of_speech": "noun"
     },
     {
       "id": 16,
-      "label": "yogurt",
+      "label": "girl",
       "part_of_speech": "noun"
     },
     {
       "id": 17,
-      "label": "hungry",
-      "part_of_speech": "adjective"
-    },
-    {
-      "id": 18,
-      "label": "hot",
-      "part_of_speech": "adjective"
-    },
-    {
-      "id": 19,
-      "label": "cold",
-      "part_of_speech": "adjective"
-    },
-    {
-      "id": 20,
-      "label": "all done",
-      "part_of_speech": "social"
-    },
-    {
-      "id": 21,
-      "label": "Drinks",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/drinks.obf"
-      }
-    },
-    {
-      "id": 22,
       "label": "Home",
       "part_of_speech": "noun",
       "load_board": {
-        "path": "boards/core-60.obf"
+        "path": "boards/core-84.obf"
       }
     },
     {
-      "id": 23,
+      "id": 18,
       "label": "People",
       "part_of_speech": "noun",
       "load_board": {
@@ -207,7 +179,7 @@
       }
     },
     {
-      "id": 24,
+      "id": 19,
       "label": "Feelings",
       "part_of_speech": "noun",
       "load_board": {
@@ -215,7 +187,7 @@
       }
     },
     {
-      "id": 25,
+      "id": 20,
       "label": "Food",
       "part_of_speech": "noun",
       "load_board": {
@@ -223,7 +195,7 @@
       }
     },
     {
-      "id": 26,
+      "id": 21,
       "label": "Play",
       "part_of_speech": "noun",
       "load_board": {
@@ -231,7 +203,7 @@
       }
     },
     {
-      "id": 27,
+      "id": 22,
       "label": "Places",
       "part_of_speech": "noun",
       "load_board": {
@@ -239,7 +211,7 @@
       }
     },
     {
-      "id": 28,
+      "id": 23,
       "label": "Body",
       "part_of_speech": "noun",
       "load_board": {
@@ -247,7 +219,7 @@
       }
     },
     {
-      "id": 29,
+      "id": 24,
       "label": "More",
       "part_of_speech": "noun",
       "load_board": {
@@ -255,7 +227,7 @@
       }
     },
     {
-      "id": 30,
+      "id": 25,
       "label": "Keyboard",
       "part_of_speech": "noun",
       "load_board": {
@@ -263,7 +235,7 @@
       }
     },
     {
-      "id": 31,
+      "id": 26,
       "label": "more",
       "part_of_speech": "social"
     }
