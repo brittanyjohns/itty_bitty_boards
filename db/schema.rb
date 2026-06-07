@@ -10,12 +10,13 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_01_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_07_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
   enable_extension "pgcrypto"
   enable_extension "plpgsql"
+  enable_extension "unaccent"
 
   create_table "action_text_rich_texts", force: :cascade do |t|
     t.string "name", null: false
@@ -480,6 +481,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_01_120000) do
     t.jsonb "language_settings", default: {}
     t.string "language", default: "en"
     t.index ["category"], name: "index_images_on_category"
+    t.index ["language_settings"], name: "index_images_on_language_settings_gin", using: :gin
     t.index ["obf_id"], name: "index_images_on_obf_id"
     t.index ["use_custom_audio"], name: "index_images_on_use_custom_audio"
     t.index ["voice"], name: "index_images_on_voice"
@@ -722,6 +724,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_01_120000) do
     t.string "resource_type"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+  end
+
+  create_table "processed_webhook_events", force: :cascade do |t|
+    t.string "provider", null: false
+    t.string "event_id", null: false
+    t.string "event_type"
+    t.bigint "user_id"
+    t.string "environment"
+    t.jsonb "payload", default: {}, null: false
+    t.datetime "processed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider", "event_id"], name: "index_processed_webhook_events_on_provider_and_event_id", unique: true
+    t.index ["user_id"], name: "index_processed_webhook_events_on_user_id"
   end
 
   create_table "product_categories", force: :cascade do |t|

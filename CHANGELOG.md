@@ -5,6 +5,27 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — RevenueCat / Apple IAP subscription path reaches Stripe parity
+- **Closed a self-upgrade hole.** `POST /api/billing/update_subscription` no
+  longer trusts the native client's claimed plan. It now verifies the user's
+  entitlement against RevenueCat's REST API (`RevenueCat::Client`) and returns
+  **403 `Subscription could not be verified`** unless the claimed tier matches
+  an active entitlement. Requires `REVENUECAT_REST_API_KEY`.
+- **Real RevenueCat webhook.** `POST /api/billing/webhooks` (previously a no-op
+  stub) now verifies a shared-secret `Authorization` header
+  (`REVENUECAT_WEBHOOK_AUTH_HEADER`, 401 on mismatch) and handles the full
+  lifecycle, mirroring the Stripe webhook: `INITIAL_PURCHASE`/`RENEWAL`/
+  `PRODUCT_CHANGE` grant the tier's credits, `EXPIRATION`/`SUBSCRIPTION_PAUSED`
+  downgrade to free, `CANCELLATION` is analytics-only (access kept until
+  expiry), `BILLING_ISSUE` keeps access during the grace period, plus
+  `UNCANCELLATION` and `TRANSFER`. Fires the same `subscription_started` /
+  `subscription_canceled` analytics + PostHog events as Stripe.
+- **Idempotent & sandbox-safe.** Events are de-duped via a new
+  `processed_webhook_events` table (unique on `provider`+`event_id`), so replays
+  no-op; SANDBOX events are ignored in real production.
+- Downgrade-to-free logic is now shared (`Billing::PlanTransitions`) so Stripe
+  and RevenueCat cancellations land a user on free identically.
+
 ### Changed — Core 84 home reflowed to 14×6 with a right-side nav rail
 - The Core 84 home board is now **14 columns × 6 rows** (was 12×7): on the
   one-page (no-scroll) layout, a 7th row rendered below the fold on iPad — the

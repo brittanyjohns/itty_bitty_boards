@@ -173,6 +173,40 @@ Key contracts:
 - Premium features (Menu Board Creator, AI image generation) require active subscription
 - Subscription managed via Stripe/RevenueCat — check status before allowing access to premium endpoints
 
+### RevenueCat / Apple IAP path (parity with Stripe)
+
+Native iOS/Android purchases go through RevenueCat, not Stripe. The path mirrors
+the Stripe webhook semantics in `API::WebhooksController`. **RevenueCat's
+`app_user_id` IS the Rails `user.id`** (the app configures Purchases with
+`String(user.id)`), so webhook user lookup is `User.find_by(id:)`.
+
+- **`update_subscription` is not client-trusted.** `POST /api/billing/update_subscription`
+  verifies the entitlement against RevenueCat's REST API (`RevenueCat::Client#verified_plan_for`)
+  before flipping `plan_type`; returns **403 `Subscription could not be verified`**
+  on mismatch or when the REST key is unset. It sets `plan_type`/`plan_status`
+  only — the webhook is the sole credit-grant authority (matches Stripe).
+- **`POST /api/billing/webhooks`** (`RevenueCat::WebhookProcessor`): verifies a
+  shared-secret `Authorization` header (`ENV["REVENUECAT_WEBHOOK_AUTH_HEADER"]`,
+  401 on mismatch — RevenueCat uses a shared secret, not HMAC). Event map:
+  `INITIAL_PURCHASE`/`NON_RENEWING_PURCHASE`/`RENEWAL`/`PRODUCT_CHANGE` →
+  `CreditService.grant_plan!`; `EXPIRATION`/`SUBSCRIPTION_PAUSED` →
+  `Billing::PlanTransitions.apply_free_plan`; `CANCELLATION` → analytics only,
+  **no downgrade** (still entitled until expiry); `BILLING_ISSUE` →
+  `plan_status="past_due"`, access kept; `UNCANCELLATION` → back to active;
+  `TRANSFER` → downgrade losing ids, REST-re-verify gaining ids.
+- **Idempotency + audit:** `processed_webhook_events` (unique `provider`+`event_id`)
+  gates the whole handler (covers non-credit events); the credit grant also
+  reuses `credit_transactions.stripe_event_id` with an `rc_<event_id>` token.
+- **Sandbox gating:** SANDBOX events are ignored only in real production
+  (`Rails.env.production? && !AppEnv.staging?`); honored in dev/test/staging.
+- **Mapping:** `RevenueCat::PlanMapping` (entitlement/product → normalized
+  `basic`/`pro`). ⚠️ `PRODUCT_TO_PLAN` keys must match the exact App Store
+  Connect product ids — confirm against a real sandbox webhook.
+- **Timestamps differ by surface:** webhooks send epoch **ms**
+  (`expiration_at_ms`); the v1 REST API sends ISO8601 strings.
+- `Billing::PlanTransitions.apply_free_plan` is the shared downgrade path for
+  both Stripe (`WebhooksController#apply_free_plan` delegates to it) and RevenueCat.
+
 ### No-card reverse trial (Basic/Pro)
 
 Basic/Pro trials default to **no credit card** (issue #264). In
