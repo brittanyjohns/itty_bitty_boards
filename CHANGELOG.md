@@ -15,15 +15,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `bin/rails vocab_sets:seed` applies the new layout to the seeded set.
   Seed-content rule going forward: **max 6 rows** on one-page boards.
 
-### Added — Per-board thumbnails in the "Active · N" linked-boards list
-- `api_view_with_predictive_images` now exposes `display_image_url` and
-  `preview_image_url` on each `parent_boards` entry, so the frontend's branded
-  LinkedBoardsModal (itty-bitty-frontend#320) can show a real thumbnail per
-  linked board instead of only the colored initial chip. `display_image_url`
-  resolves the board's stored cover with a live-preview fallback (mirrors how a
-  board's own thumbnail is computed). The `parent_boards` query preloads the
-  preview-image attachment to avoid an N+1 across linked boards.
-
 ### Fixed — Board Builder seeded sets: tile colors + one-page display (#279)
 - **Tile colors now follow the authored Fitzgerald key.** `Board.from_obf`
   gained an opt-in `import_options[:apply_button_attributes]` (used by the
@@ -121,7 +112,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - **Real Core 60 / Core 84 content seeded.** Both sets now ship authored
   SpeakAnyWay vocabulary, replacing the Core 60 placeholder and adding Core 84:
   Core 60 is a 10×6 core home + 8 fringe category pages (People, Feelings, Food,
-  Drinks, Play, Places, Body, More); Core 84 is the 14×6 superset home
+  Drinks, Play, Places, Body, More); Core 84 is the 12×7 superset home
   with the same fringe plus School, Time, and Describe pages. Every tile carries
   a `part_of_speech` color and fringe folders link via `load_board`. Run
   `bin/rails vocab_sets:seed` to seed both as predefined, root-marked sets.
