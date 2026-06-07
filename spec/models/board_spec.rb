@@ -420,6 +420,48 @@ RSpec.describe Board, type: :model do
     end
   end
 
+  describe "#api_view_with_predictive_images parent_boards thumbnails" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:child) { FactoryBot.create(:board, user: user) }
+    let(:parent) { FactoryBot.create(:board, user: user) }
+
+    before do
+      # A "parent board" is one whose board_image points back at `child`
+      # via predictive_board_id.
+      FactoryBot.create(:board_image, board: parent, predictive_board_id: child.id)
+    end
+
+    it "exposes display_image_url and preview_image_url for each parent board" do
+      entry = child.api_view_with_predictive_images(user)[:parent_boards].find { |pb| pb[:id] == parent.id }
+
+      expect(entry).to include(:id, :name, :slug, :board_type, :display_image_url, :preview_image_url)
+    end
+
+    it "falls back to the stored display_image_url when no preview is attached" do
+      parent.update_column(:display_image_url, "https://example.com/parent-cover.png")
+
+      entry = child.api_view_with_predictive_images(user)[:parent_boards].find { |pb| pb[:id] == parent.id }
+
+      expect(entry[:display_image_url]).to eq("https://example.com/parent-cover.png")
+      expect(entry[:preview_image_url]).to be_nil
+    end
+
+    it "uses the live preview URL when a preview image is attached" do
+      parent.preview_image.attach(
+        io: StringIO.new("png-bytes"),
+        filename: "preview.png",
+        content_type: "image/png",
+      )
+
+      freeze_time do
+        entry = child.api_view_with_predictive_images(user)[:parent_boards].find { |pb| pb[:id] == parent.id }
+
+        expect(entry[:preview_image_url]).to eq(parent.preview_image_url)
+        expect(entry[:display_image_url]).to eq(parent.preview_image_url)
+      end
+    end
+  end
+
   describe ".from_obf" do
     let(:user) { create(:user) }
 
