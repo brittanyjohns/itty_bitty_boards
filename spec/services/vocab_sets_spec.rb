@@ -245,14 +245,14 @@ RSpec.describe VocabSets do
       expect(Board.where(user_id: admin.id).all? { |b| b.settings["disable_scroll"] == true }).to be(true)
     end
 
-    it "preserves each home board's authored grid (Core 60: 10×6, Core 84: 12×7)" do
+    it "preserves each home board's authored grid (Core 60: 10×6, Core 84: 14×6)" do
       c60 = VocabSets.seed_slug!("core-60")
       c84 = VocabSets.seed_slug!("core-84")
 
       expect(c60.large_screen_columns).to eq(10)
       expect(c60.large_screen_rows).to eq(6)
-      expect(c84.large_screen_columns).to eq(12)
-      expect(c84.large_screen_rows).to eq(7)
+      expect(c84.large_screen_columns).to eq(14)
+      expect(c84.large_screen_rows).to eq(6)
     end
   end
 
