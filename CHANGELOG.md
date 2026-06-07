@@ -5,6 +5,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Per-board thumbnails in the "Active · N" linked-boards list
+- `api_view_with_predictive_images` now exposes `display_image_url` and
+  `preview_image_url` on each `parent_boards` entry, so the frontend's branded
+  LinkedBoardsModal (itty-bitty-frontend#320) can show a real thumbnail per
+  linked board instead of only the colored initial chip. `display_image_url`
+  resolves the board's stored cover with a live-preview fallback (mirrors how a
+  board's own thumbnail is computed). The `parent_boards` query preloads the
+  preview-image attachment to avoid an N+1 across linked boards.
+
 ### Fixed — Board Builder seeded sets: tile colors + one-page display (#279)
 - **Tile colors now follow the authored Fitzgerald key.** `Board.from_obf`
   gained an opt-in `import_options[:apply_button_attributes]` (used by the

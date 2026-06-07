@@ -380,7 +380,13 @@ class Board < ApplicationRecord
     unless viewing_user_id
       []
     end
-    Board.joins(:board_images).where(board_images: { predictive_board_id: id }, user_id: viewing_user_id, is_template: false).where.not(id: id).distinct
+    Board.joins(:board_images)
+      .where(board_images: { predictive_board_id: id }, user_id: viewing_user_id, is_template: false)
+      .where.not(id: id)
+      # Preload the preview-image attachment so the serializer can build a
+      # per-board thumbnail URL without an N+1 across parent boards.
+      .with_attached_preview_image
+      .distinct
   end
 
   def update_board_images_to_default_docs!
@@ -1765,7 +1771,7 @@ class Board < ApplicationRecord
       child_boards: @original_child_boards&.map { |cb| { board_id: cb.board_id, name: cb.name, child_account_id: cb.child_account_id, username: cb.child_account&.username } },
       in_use: in_use,
       is_template: is_template,
-      parent_boards: @parent_boards&.map { |pb| { id: pb.id, name: pb.name, slug: pb.slug, board_type: pb.board_type } },
+      parent_boards: @parent_boards&.map { |pb| { id: pb.id, name: pb.name, slug: pb.slug, board_type: pb.board_type, display_image_url: pb.display_image_url || pb.preview_image_url, preview_image_url: pb.preview_image_url } },
       public_url: public_url,
       # board_groups: board_groups,
       slug: slug,
