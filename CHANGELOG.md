@@ -5,16 +5,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
-### Changed — Core 84 home reflowed to 14×6 with a right-side nav rail
-- The Core 84 home board is now **14 columns × 6 rows** (was 12×7): on the
-  one-page (no-scroll) layout, a 7th row rendered below the fold on iPad — the
-  design baseline. Core word rows 1–5 are unchanged; row 6 absorbs `mine` and
-  `wait`; all 10 fringe folders (People, Feelings, Food, Play, Places, Body,
-  School, Time, Describe, More) now live in a 2-column rail on the right edge
-  instead of being scattered through rows 6–7. Re-running
-  `bin/rails vocab_sets:seed` applies the new layout to the seeded set.
-  Seed-content rule going forward: **max 6 rows** on one-page boards.
-
 ### Added — Per-board thumbnails in the "Active · N" linked-boards list
 - `api_view_with_predictive_images` now exposes `display_image_url` and
   `preview_image_url` on each `parent_boards` entry, so the frontend's branded
@@ -39,7 +29,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `Board#clone_with_images`' dup) instead of always re-reading the shared Image.
 - **Seeded boards display on one page.** The seeder stamps
   `settings["disable_scroll"] = true` on every set board; the native board page
-  reads this and fits the whole authored grid (Core 60: 10×6, Core 84: 14×6)
+  reads this and fits the whole authored grid (Core 60: 10×6, Core 84: 12×7)
   on screen without scrolling. Cloned user sets inherit it.
 - Run `bin/rails vocab_sets:seed` once after deploy to apply colors and
   one-page settings to existing seeded sets (already-cloned user sets keep
@@ -121,7 +111,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - **Real Core 60 / Core 84 content seeded.** Both sets now ship authored
   SpeakAnyWay vocabulary, replacing the Core 60 placeholder and adding Core 84:
   Core 60 is a 10×6 core home + 8 fringe category pages (People, Feelings, Food,
-  Drinks, Play, Places, Body, More); Core 84 is the 14×6 superset home
+  Drinks, Play, Places, Body, More); Core 84 is the 12×7 superset home
   with the same fringe plus School, Time, and Describe pages. Every tile carries
   a `part_of_speech` color and fringe folders link via `load_board`. Run
   `bin/rails vocab_sets:seed` to seed both as predefined, root-marked sets.
