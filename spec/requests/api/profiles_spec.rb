@@ -92,6 +92,13 @@ RSpec.describe "API::Profiles", type: :request do
       p
     end
 
+    before do
+      # generate_attachments! shells out to Grover/puppeteer to render the
+      # safety ID card and device tag. Not what these specs are about and
+      # not available on CI. The onboarding spec stubs this identically.
+      allow_any_instance_of(Profile).to receive(:generate_attachments!).and_return(true)
+    end
+
     def put_slug(value, as: owner)
       put "/api/profiles/#{profile.id}",
           params: { profile: { slug: value } },

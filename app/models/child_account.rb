@@ -637,7 +637,7 @@ class ChildAccount < ApplicationRecord
 
   def create_profile!
     return if profile.present?
-    slug = username&.parameterize
+    slug = sluggify_for_profile(username)
     unless slug
       Rails.logger.error "\nUsername is nil, cannot create profile\n"
       return
@@ -650,6 +650,22 @@ class ChildAccount < ApplicationRecord
     profile.set_fake_avatar
     profile.save!
     profile
+  end
+
+  # Profile slugs must match Profile::SLUG_FORMAT (3–40 lowercase letters /
+  # digits / hyphens, no leading-or-trailing hyphen). `String#parameterize`
+  # keeps underscores, so legacy usernames like "child_1" would otherwise
+  # produce a slug that fails the format validation. We sanitize aggressively
+  # here and pad short results so any non-empty username yields a valid slug.
+  def sluggify_for_profile(value)
+    return nil if value.nil?
+    base = value.to_s.parameterize
+                .tr("_", "-")
+                .gsub(/-+/, "-")
+                .gsub(/^-+|-+$/, "")
+                .downcase
+    base = "u-#{base}" if base.length.positive? && base.length < 3
+    base.presence
   end
 
   def print_credentials
