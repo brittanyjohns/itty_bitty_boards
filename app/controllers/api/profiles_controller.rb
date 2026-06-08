@@ -1,5 +1,5 @@
 class API::ProfilesController < API::ApplicationController
-  skip_before_action :authenticate_token!, only: %i[public check_placeholder generate claim_placeholder next_placeholder]
+  skip_before_action :authenticate_token!, only: %i[public check_placeholder generate claim_placeholder next_placeholder check_slug]
 
   def index
     @profile = current_user&.profile
@@ -110,12 +110,36 @@ class API::ProfilesController < API::ApplicationController
       return
     end
 
-    slug = params.dig(:profile, :slug)
-    if slug.blank?
-      slug = profile.username.parameterize if profile.username.present?
+    # Slug update gating — the public URL slug is editable at most once per
+    # 7 days for everyone except admins. The frontend uses the error code +
+    # next_edit_at to render a "Locked until <date>" hint.
+    requested_slug = params.dig(:profile, :slug).to_s.strip.downcase.presence
+    if requested_slug && requested_slug != profile.slug
+      unless profile.slug_editable? || current_user&.admin?
+        next_at = profile.slug_editable_at
+        render json: {
+          error: "slug_locked",
+          next_edit_at: next_at,
+          message: "You can change your link again on #{next_at&.to_date&.iso8601}.",
+        }, status: :unprocessable_entity
+        return
+      end
+
+      # slug_unavailable_reason counts the profile's own slug as a collision;
+      # recompute "taken" while excluding this profile's id so a no-op-equivalent
+      # submission isn't rejected.
+      reason = Profile.slug_unavailable_reason(requested_slug)
+      if reason == :taken && Profile.slug_available?(requested_slug, except_id: profile.id)
+        reason = nil
+      end
+
+      if reason
+        render json: slug_error_for(reason), status: :unprocessable_entity
+        return
+      end
+
+      profile.slug = requested_slug
     end
-    slug ||= SecureRandom.hex(4)
-    profile.slug = slug
 
     public_about = params.dig(:profile, :public_about_html)
     public_intro = params.dig(:profile, :public_intro_html)
@@ -135,6 +159,23 @@ class API::ProfilesController < API::ApplicationController
         error: "Profile update failed",
         details: profile.errors.full_messages,
       }, status: :unprocessable_entity
+    end
+  end
+
+  # Live availability check used by the slug picker UI. Returns the same
+  # reason vocabulary the create/update endpoints use.
+  def check_slug
+    candidate = params[:slug].to_s.strip.downcase
+    if candidate.blank?
+      render json: { available: false, reason: "format" }
+      return
+    end
+
+    reason = Profile.slug_unavailable_reason(candidate)
+    if reason
+      render json: { available: false, reason: reason.to_s, slug: candidate }
+    else
+      render json: { available: true, reason: "ok", slug: candidate }
     end
   end
 
@@ -240,6 +281,31 @@ class API::ProfilesController < API::ApplicationController
   end
 
   private
+
+  # Maps a Profile.slug_unavailable_reason symbol to the JSON shape the
+  # client renders next to the slug field. Keep error codes in sync with
+  # the strings the React `SlugField` checks.
+  def slug_error_for(reason)
+    case reason
+    when :format
+      {
+        error: "slug_invalid",
+        message: "Links must be 3–40 characters: lowercase letters, numbers, and hyphens.",
+      }
+    when :reserved
+      {
+        error: "slug_reserved",
+        message: "That link is reserved. Please pick another.",
+      }
+    when :taken
+      {
+        error: "slug_taken",
+        message: "That link is already in use.",
+      }
+    else
+      { error: "slug_invalid", message: "That link can't be used." }
+    end
+  end
 
   def set_placeholders
     @available_placeholders = Profile.available_placeholders
