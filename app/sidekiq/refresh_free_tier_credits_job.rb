@@ -70,6 +70,13 @@ class RefreshFreeTierCreditsJob
     User
       .where(plan_type: REFRESHABLE_PLAN_TYPES)
       .where("plan_credits_reset_at IS NULL OR plan_credits_reset_at <= ?", Time.current)
-      .where(stripe_subscription_id: [nil, ""])
+      # No Stripe subscription (free, App Store/RevenueCat, admin/demo) OR a
+      # *yearly* Stripe subscription. Monthly Stripe subs are excluded — their
+      # invoice.payment_succeeded webhook drives the monthly grant. Yearly Stripe
+      # subs only invoice once a year, so without this they'd never re-grant.
+      .where(
+        "stripe_subscription_id IS NULL OR stripe_subscription_id = '' " \
+        "OR settings->>'billing_interval' = 'yearly'",
+      )
   end
 end

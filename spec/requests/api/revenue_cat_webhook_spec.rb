@@ -47,6 +47,21 @@ RSpec.describe "POST /api/billing/webhooks (RevenueCat)", type: :request do
       expect(AnalyticsEvent.where(event_type: "subscription_started", user_id: user.id).count).to eq(1)
     end
 
+    it "caps a yearly purchase's credit window to ~1 month so it refreshes monthly" do
+      event = rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id,
+                       entitlement_ids: ["basic"], product_id: "basic_yearly",
+                       expiration_at_ms: ((Time.current + 365.days).to_f * 1000).to_i)
+
+      post_rc_webhook(event)
+
+      user.reload
+      expect(user.plan_type).to eq("basic")
+      expect(user.settings["billing_interval"]).to eq("yearly")
+      # Window pulled back from a year to the monthly cap; RefreshFreeTierCreditsJob
+      # re-grants each month (RC subs have no stripe_subscription_id).
+      expect(user.plan_credits_reset_at).to be_within(1.day).of(Time.current + CreditService::MAX_GRANT_WINDOW)
+    end
+
     it "is idempotent: a replayed event id grants once and records one event row" do
       event = rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id, id: "rc_evt_dupe")
 

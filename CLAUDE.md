@@ -460,15 +460,26 @@ Plan-credit lifecycle:
   flips expired `basic_trial` users to `free` and grants the free-tier
   allowance immediately.
 - **Monthly credit refresh:** `RefreshFreeTierCreditsJob` (daily at
-  3am UTC) re-grants the tier allowance to **any user without a
-  `stripe_subscription_id`** whose `plan_credits_reset_at` has passed —
-  covers free/basic_trial users, App Store/RevenueCat subscribers, and
-  admin/demo accounts on paid tiers (granting their actual plan_type's
-  allowance, e.g. Pro = 1500). Stripe-driven paying users
-  (`basic`, `pro`, `partner_pro` with an active
-  `stripe_subscription_id`) refresh through `invoice.payment_succeeded`
-  instead. Class name kept for cron stability; scope is broader than
-  the name suggests.
+  3am UTC) re-grants the tier allowance to users whose
+  `plan_credits_reset_at` has passed and who are **either** without a
+  `stripe_subscription_id` (free/basic_trial, App Store/RevenueCat
+  subscribers, admin/demo accounts on paid tiers) **or** on a **yearly**
+  Stripe sub (`settings["billing_interval"] == "yearly"`). It grants the
+  user's actual plan_type allowance (e.g. Pro = 1500). **Monthly** Stripe
+  payers refresh through `invoice.payment_succeeded` instead, so they're
+  excluded. Class name kept for cron stability; scope is broader than the
+  name suggests.
+- **Monthly bucket, any billing cadence:** plan credits are a monthly
+  allowance, so `grant_plan!` caps `period_end` at
+  `MAX_GRANT_WINDOW` (35 days). Without this, a **yearly** subscriber's
+  grant would set `plan_credits_reset_at` a year out and they'd get one
+  month's credits stretched across the year. The cap pulls the reset back
+  to ~1 month; the monthly re-grant then comes from
+  `invoice.payment_succeeded` (monthly Stripe), the RevenueCat `RENEWAL`
+  webhook, or `RefreshFreeTierCreditsJob` (yearly Stripe + all RevenueCat).
+  Monthly subs (period ≤ 35d) are never capped. `billing_interval` is
+  persisted on `users.settings` by both the Stripe upsert and the
+  RevenueCat purchase handler.
 - **Backstop:** `ExpirePlanCreditsJob` runs hourly and zeroes any plan
   balance whose `plan_credits_reset_at` has passed. Cheap and idempotent —
   safe to invoke any time.

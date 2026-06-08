@@ -93,6 +93,8 @@ module RevenueCat
 
       user.plan_type = plan_type
       user.plan_status = "active"
+      interval = RevenueCat::PlanMapping.billing_interval_for_product(@event["product_id"])
+      user.settings["billing_interval"] = interval if interval.present?
       user.setup_limits
       user.save!
 

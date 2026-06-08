@@ -26,6 +26,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Downgrade-to-free logic is now shared (`Billing::PlanTransitions`) so Stripe
   and RevenueCat cancellations land a user on free identically.
 
+### Fixed — Yearly subscribers now get monthly AI credits, not one annual lump
+- Plan credits are a **monthly** allowance, but a yearly subscription's grant
+  previously set `plan_credits_reset_at` a full year out — so a yearly Basic/Pro
+  subscriber received a single month's credits to last 12 months (this affected
+  both Stripe and the new RevenueCat path). `CreditService.grant_plan!` now caps
+  the grant window at `MAX_GRANT_WINDOW` (35 days), and `RefreshFreeTierCreditsJob`
+  re-grants monthly for yearly Stripe subs (`settings["billing_interval"] ==
+  "yearly"`) and all RevenueCat subs. Monthly subscribers are unchanged.
+
 ### Changed — Core 84 home reflowed to 14×6 with a right-side nav rail
 - The Core 84 home board is now **14 columns × 6 rows** (was 12×7): on the
   one-page (no-scroll) layout, a 7th row rendered below the fold on iPad — the

@@ -263,6 +263,11 @@ class API::WebhooksController < API::ApplicationController
     user.plan_status = subscription.status
     user.stripe_subscription_id ||= subscription.id
 
+    # Persist the billing cadence so RefreshFreeTierCreditsJob can re-grant
+    # yearly subscribers monthly (monthly subs refresh via invoice instead).
+    interval = billing_interval_from_price(price)
+    user.settings["billing_interval"] = interval if interval.present?
+
     user.setup_limits
 
     user.save!
