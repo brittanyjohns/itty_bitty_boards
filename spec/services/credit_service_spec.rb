@@ -134,11 +134,27 @@ RSpec.describe CreditService, type: :service do
           .of(Time.current + described_class::MIN_GRANT_WINDOW)
       end
 
-      it "leaves a future period_end untouched" do
-        future = 45.days.from_now
+      it "leaves a future period_end within the window untouched" do
+        future = 20.days.from_now
         described_class.grant_plan!(user, amount: 100, period_end: future)
         user.reload
         expect(user.plan_credits_reset_at).to be_within(2.seconds).of(future)
+      end
+
+      it "caps a period_end beyond MAX_GRANT_WINDOW (yearly billing) to the window" do
+        described_class.grant_plan!(user, amount: 400, period_end: 365.days.from_now)
+        user.reload
+        # A yearly subscriber's reset is pulled back to ~1 month so credits
+        # refresh monthly instead of once a year.
+        expect(user.plan_credits_reset_at).to be_within(5.seconds)
+          .of(Time.current + described_class::MAX_GRANT_WINDOW)
+      end
+
+      it "leaves a monthly period_end (≤ MAX_GRANT_WINDOW) uncapped" do
+        monthly = 30.days.from_now
+        described_class.grant_plan!(user, amount: 400, period_end: monthly)
+        user.reload
+        expect(user.plan_credits_reset_at).to be_within(2.seconds).of(monthly)
       end
 
       it "logs a warning when clamping" do

@@ -56,6 +56,16 @@ class CreditService
   # ExpirePlanCreditsJob would sweep the new grant to 0 within the hour.
   MIN_GRANT_WINDOW = 1.day
 
+  # Ceiling for `grant_plan!` period_end. Plan credits are a MONTHLY bucket
+  # (PLAN_MONTHLY_CREDITS), so a grant must never reset further out than ~1
+  # month — otherwise a YEARLY subscriber would receive a single month's
+  # allowance stretched across the whole year. Monthly subs (period ≤ 31d) are
+  # never capped, so their invoice/RENEWAL cadence still drives the reset.
+  # Yearly subs land here: their reset is pulled back to ~1 month and the
+  # monthly re-grant is handled by RefreshFreeTierCreditsJob (which now covers
+  # yearly Stripe subs and all RevenueCat subs).
+  MAX_GRANT_WINDOW = 35.days
+
   class << self
     def cost_for(feature_key)
       FEATURE_COSTS[feature_key.to_s] || 1
@@ -151,6 +161,11 @@ class CreditService
         )
         period_end = min_period_end
       end
+
+      # Cap the window so a yearly billing period can't stretch one month's
+      # allowance across a year. RefreshFreeTierCreditsJob re-grants monthly.
+      max_period_end = Time.current + MAX_GRANT_WINDOW
+      period_end = max_period_end if period_end > max_period_end
 
       ActiveRecord::Base.transaction do
         if stripe_event_id.present? && CreditTransaction.exists?(stripe_event_id: stripe_event_id)

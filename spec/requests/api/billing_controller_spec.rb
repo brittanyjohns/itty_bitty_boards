@@ -1,9 +1,9 @@
 require "rails_helper"
 
-# Covers the RevenueCat / App Store hand-off endpoint. Native clients call
-# this directly after the OS-level purchase completes; there's no Stripe
-# webhook in this path, so the server has to trust the client and flip
-# plan_type / plan_status itself.
+# Covers the RevenueCat / App Store hand-off endpoint. Native clients call this
+# right after the OS-level purchase completes. The server does NOT trust the
+# client's claimed plan: it verifies the entitlement against RevenueCat's REST
+# API before flipping plan_type / plan_status.
 RSpec.describe "POST /api/billing/update_subscription", type: :request do
   let(:user) { FactoryBot.create(:user, plan_type: "free", created_at: 1.year.ago) }
 
@@ -12,7 +12,14 @@ RSpec.describe "POST /api/billing/update_subscription", type: :request do
     allow_any_instance_of(User).to receive(:send_welcome_email)
   end
 
-  it "upgrades a free user to basic and records purchase_platform" do
+  def stub_rc_verified(plan_type:, ok: true)
+    allow_any_instance_of(RevenueCat::Client).to receive(:verified_plan_for)
+      .and_return(RevenueCat::Client::Result.new(ok?: ok, plan_type: plan_type))
+  end
+
+  it "upgrades a verified free user to basic and records purchase_platform" do
+    stub_rc_verified(plan_type: "basic")
+
     expect {
       post "/api/billing/update_subscription",
            params: { plan_key: "basic", purchase_platform: "ios" },
@@ -25,7 +32,9 @@ RSpec.describe "POST /api/billing/update_subscription", type: :request do
     expect(JSON.parse(response.body)).to eq("success" => true, "plan_key" => "basic")
   end
 
-  it "upgrades a free user to pro" do
+  it "upgrades a verified free user to pro" do
+    stub_rc_verified(plan_type: "pro")
+
     post "/api/billing/update_subscription",
          params: { plan_key: "pro", purchase_platform: "android" },
          headers: auth_headers(user)
@@ -35,6 +44,8 @@ RSpec.describe "POST /api/billing/update_subscription", type: :request do
   end
 
   it "applies the plan's limits (Basic plan board_limit)" do
+    stub_rc_verified(plan_type: "basic")
+
     post "/api/billing/update_subscription",
          params: { plan_key: "basic", purchase_platform: "ios" },
          headers: auth_headers(user)
@@ -42,7 +53,30 @@ RSpec.describe "POST /api/billing/update_subscription", type: :request do
     expect(user.reload.settings["board_limit"]).to eq(User::BASIC_PLAN_LIMITS["board_limit"])
   end
 
-  it "rejects an unknown plan_key with 400" do
+  it "rejects with 403 when RevenueCat can't verify the entitlement" do
+    stub_rc_verified(plan_type: nil, ok: false)
+
+    post "/api/billing/update_subscription",
+         params: { plan_key: "basic", purchase_platform: "ios" },
+         headers: auth_headers(user)
+
+    expect(response).to have_http_status(:forbidden)
+    expect(JSON.parse(response.body)["error"]).to eq("Subscription could not be verified")
+    expect(user.reload.plan_type).to eq("free")
+  end
+
+  it "rejects with 403 when the verified plan doesn't match the claimed plan" do
+    stub_rc_verified(plan_type: "basic") # verified basic, but client claims pro
+
+    post "/api/billing/update_subscription",
+         params: { plan_key: "pro", purchase_platform: "ios" },
+         headers: auth_headers(user)
+
+    expect(response).to have_http_status(:forbidden)
+    expect(user.reload.plan_type).to eq("free")
+  end
+
+  it "rejects an unknown plan_key with 400 (before hitting RevenueCat)" do
     post "/api/billing/update_subscription",
          params: { plan_key: "premium" },
          headers: auth_headers(user)
@@ -61,7 +95,8 @@ RSpec.describe "POST /api/billing/update_subscription", type: :request do
     expect(JSON.parse(response.body)["error"]).to eq("plan_key is required")
   end
 
-  it "sends the welcome email after upgrade" do
+  it "sends the welcome email after a verified upgrade" do
+    stub_rc_verified(plan_type: "basic")
     expect_any_instance_of(User).to receive(:send_welcome_email).with("basic")
 
     post "/api/billing/update_subscription",

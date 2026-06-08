@@ -5,6 +5,46 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — RevenueCat / Apple IAP subscription path reaches Stripe parity
+- **Closed a self-upgrade hole.** `POST /api/billing/update_subscription` no
+  longer trusts the native client's claimed plan. It now verifies the user's
+  entitlement against RevenueCat's REST API (`RevenueCat::Client`) and returns
+  **403 `Subscription could not be verified`** unless the claimed tier matches
+  an active entitlement. Requires `REVENUECAT_REST_API_KEY`.
+- **Real RevenueCat webhook.** `POST /api/billing/webhooks` (previously a no-op
+  stub) now verifies a shared-secret `Authorization` header
+  (`REVENUECAT_WEBHOOK_AUTH_HEADER`, 401 on mismatch) and handles the full
+  lifecycle, mirroring the Stripe webhook: `INITIAL_PURCHASE`/`RENEWAL`/
+  `PRODUCT_CHANGE` grant the tier's credits, `EXPIRATION`/`SUBSCRIPTION_PAUSED`
+  downgrade to free, `CANCELLATION` is analytics-only (access kept until
+  expiry), `BILLING_ISSUE` keeps access during the grace period, plus
+  `UNCANCELLATION` and `TRANSFER`. Fires the same `subscription_started` /
+  `subscription_canceled` analytics + PostHog events as Stripe.
+- **Idempotent & sandbox-safe.** Events are de-duped via a new
+  `processed_webhook_events` table (unique on `provider`+`event_id`), so replays
+  no-op; SANDBOX events are ignored in real production.
+- Downgrade-to-free logic is now shared (`Billing::PlanTransitions`) so Stripe
+  and RevenueCat cancellations land a user on free identically.
+
+### Fixed — Yearly subscribers now get monthly AI credits, not one annual lump
+- Plan credits are a **monthly** allowance, but a yearly subscription's grant
+  previously set `plan_credits_reset_at` a full year out — so a yearly Basic/Pro
+  subscriber received a single month's credits to last 12 months (this affected
+  both Stripe and the new RevenueCat path). `CreditService.grant_plan!` now caps
+  the grant window at `MAX_GRANT_WINDOW` (35 days), and `RefreshFreeTierCreditsJob`
+  re-grants monthly for yearly Stripe subs (`settings["billing_interval"] ==
+  "yearly"`) and all RevenueCat subs. Monthly subscribers are unchanged.
+
+### Changed — Core 84 home reflowed to 14×6 with a right-side nav rail
+- The Core 84 home board is now **14 columns × 6 rows** (was 12×7): on the
+  one-page (no-scroll) layout, a 7th row rendered below the fold on iPad — the
+  design baseline. Core word rows 1–5 are unchanged; row 6 absorbs `mine` and
+  `wait`; all 10 fringe folders (People, Feelings, Food, Play, Places, Body,
+  School, Time, Describe, More) now live in a 2-column rail on the right edge
+  instead of being scattered through rows 6–7. Re-running
+  `bin/rails vocab_sets:seed` applies the new layout to the seeded set.
+  Seed-content rule going forward: **max 6 rows** on one-page boards.
+
 ### Added — Per-board thumbnails in the "Active · N" linked-boards list
 - `api_view_with_predictive_images` now exposes `display_image_url` and
   `preview_image_url` on each `parent_boards` entry, so the frontend's branded

@@ -25,8 +25,8 @@ RSpec.describe "credits rake tasks", type: :task do
       expect(grant.expires_at).to be_within(1.minute).of(30.days.from_now)
     end
 
-    it "uses plan_expires_at when it is in the future" do
-      future = 45.days.from_now
+    it "uses plan_expires_at when it is in the future (within the monthly window)" do
+      future = 20.days.from_now
       user = reset_user_credits!(FactoryBot.create(:user, plan_type: "pro"))
       user.update_columns(plan_expires_at: future)
 
@@ -34,6 +34,19 @@ RSpec.describe "credits rake tasks", type: :task do
 
       grant = user.credit_transactions.find_by(kind: "plan_grant")
       expect(grant.expires_at).to be_within(1.second).of(future)
+    end
+
+    it "caps a far-future plan_expires_at to the monthly grant window" do
+      user = reset_user_credits!(FactoryBot.create(:user, plan_type: "pro"))
+      user.update_columns(plan_expires_at: 365.days.from_now)
+
+      task.invoke
+
+      grant = user.credit_transactions.find_by(kind: "plan_grant")
+      # Plan credits are a monthly bucket — grant_plan! caps the window so a
+      # year-out expiry can't stretch one month's allowance across the year.
+      expect(grant.expires_at).to be_within(5.seconds)
+        .of(Time.current + CreditService::MAX_GRANT_WINDOW)
     end
 
     it "uses 30.days.from_now when plan_expires_at is nil" do

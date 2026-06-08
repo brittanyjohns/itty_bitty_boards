@@ -48,7 +48,7 @@ RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
       expect(user.reload.plan_credits_balance).to eq(400)
     end
 
-    it "leaves Stripe-driven paid users alone (refresh comes from invoice.payment_succeeded)" do
+    it "leaves MONTHLY Stripe-driven paid users alone (refresh comes from invoice.payment_succeeded)" do
       user = FactoryBot.create(:user, plan_type: "pro")
       user.update_columns(
         plan_credits_balance: 0,
@@ -57,6 +57,20 @@ RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
       )
 
       expect { described_class.new.perform }.not_to change { user.reload.plan_credits_balance }
+    end
+
+    it "refreshes a YEARLY Stripe subscriber (their invoice only fires once a year)" do
+      user = FactoryBot.create(:user, plan_type: "pro")
+      user.update!(settings: user.settings.merge("billing_interval" => "yearly"))
+      user.update_columns(
+        plan_credits_balance: 0,
+        plan_credits_reset_at: 2.days.ago,
+        stripe_subscription_id: "sub_stripe_yearly",
+      )
+
+      expect {
+        described_class.new.perform
+      }.to change { user.reload.plan_credits_balance }.from(0).to(1500)
     end
 
     it "skips admins" do

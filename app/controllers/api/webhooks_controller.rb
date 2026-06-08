@@ -263,6 +263,11 @@ class API::WebhooksController < API::ApplicationController
     user.plan_status = subscription.status
     user.stripe_subscription_id ||= subscription.id
 
+    # Persist the billing cadence so RefreshFreeTierCreditsJob can re-grant
+    # yearly subscribers monthly (monthly subs refresh via invoice instead).
+    interval = billing_interval_from_price(price)
+    user.settings["billing_interval"] = interval if interval.present?
+
     user.setup_limits
 
     user.save!
@@ -598,32 +603,10 @@ class API::WebhooksController < API::ApplicationController
     end
   end
 
+  # Downgrade-to-free now lives in Billing::PlanTransitions so the Stripe and
+  # RevenueCat webhooks share one code path.
   def apply_free_plan(user, status = "canceled")
-    original_plan_type = user.plan_type
-    user.plan_type = User::FREE_PLAN_LIMITS["plan_type"]
-    user.paid_plan_type = original_plan_type
-    user.plan_status = status
-    user.setup_free_limits
-    user.stripe_subscription_id = nil
-    user.save!
-    # On downgrade, pin a default editable board so the user keeps one working
-    # edit slot immediately. Their other boards become read-only (still fully
-    # usable) until they upgrade or pick a different one.
-    user.pin_default_editable_board!
-    # Grant the free tier's allowance immediately so canceled/paused users
-    # land on free with a working balance, not 0. grant_plan! expires any
-    # leftover plan credits internally (writes an `expire` ledger row).
-    # Top-up credits are untouched — users keep what they paid for ad hoc.
-    free_amount = CreditService.monthly_credits_for("free")
-    CreditService.grant_plan!(
-      user,
-      amount: free_amount,
-      period_end: CreditService.initial_period_end_for("free"),
-      metadata: {
-        reason: "subscription_#{status}",
-        previous_plan_type: original_plan_type,
-      },
-    )
+    Billing::PlanTransitions.apply_free_plan(user, status)
   end
 
   def to_int_or_nil(value)
