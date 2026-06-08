@@ -136,6 +136,53 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
       end
     end
 
+    context "user-picked slug from the 'Pick your link' wizard step" do
+      it "uses the picked slug when it's available and well-formed" do
+        post "/api/v1/onboarding/myspeak",
+             params: base_payload.merge(slug: "my-custom-link").to_json, headers: headers
+
+        expect(response).to have_http_status(:created)
+        profile = user.communicator_accounts.last.profile
+        expect(profile.slug).to eq("my-custom-link")
+        expect(profile.username).to eq("my-custom-link")
+      end
+
+      it "rejects a picked slug with bad format (422 slug_invalid)" do
+        post "/api/v1/onboarding/myspeak",
+             params: base_payload.merge(slug: "Bad_Slug!").to_json, headers: headers
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(JSON.parse(response.body)["error"]).to eq("slug_invalid")
+      end
+
+      it "rejects a reserved slug (422 slug_reserved)" do
+        post "/api/v1/onboarding/myspeak",
+             params: base_payload.merge(slug: "admin").to_json, headers: headers
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(JSON.parse(response.body)["error"]).to eq("slug_reserved")
+      end
+
+      it "rejects a taken slug (422 slug_taken)" do
+        Profile.create!(username: "river-stone", slug: "river-stone", bio: "x", intro: "y")
+
+        post "/api/v1/onboarding/myspeak",
+             params: base_payload.merge(slug: "river-stone").to_json, headers: headers
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(JSON.parse(response.body)["error"]).to eq("slug_taken")
+      end
+
+      it "falls back to auto-generated slug when slug param is blank" do
+        post "/api/v1/onboarding/myspeak",
+             params: base_payload.merge(slug: "").to_json, headers: headers
+
+        expect(response).to have_http_status(:created)
+        profile = user.communicator_accounts.last.profile
+        expect(profile.slug).to eq("river-stone")
+      end
+    end
+
     context "board_id 'later'" do
       it "does not create a ChildBoard" do
         expect {

@@ -35,14 +35,41 @@ class Profile < ApplicationRecord
   has_one_attached :device_tag_png
   has_one_attached :device_tag_pdf
 
+  # Slug rules — kept in sync with API::ProfilesController#check_slug and
+  # Onboarding::Myspeak. The format is the public-URL part (e.g. /my/<slug>),
+  # so we want lowercase, 3–40 chars, alphanumeric + hyphens, no leading or
+  # trailing hyphen.
+  SLUG_FORMAT = /\A[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])?\z/.freeze
+  SLUG_EDIT_WINDOW = 7.days
+
+  # Routes that conflict with public-URL prefixes (`/my/:slug`, `/u/:slug`,
+  # etc.) or that look administrative enough that we don't want anyone
+  # squatting them as a public link.
+  RESERVED_SLUGS = %w[
+    admin api auth account help
+    my u v p c m
+    onboarding myspeak speakanyway
+    signup signin login logout
+    settings dashboard
+    profile profiles claim
+    public privacy terms support
+  ].freeze
+
   validates :username, presence: true, uniqueness: true
   validates :slug, presence: true, uniqueness: true
+  # Format/reserved/numeric checks run only on new records or when the slug
+  # is actually being changed. This leaves legacy rows undisturbed when an
+  # unrelated field (bio, intro, settings) is updated.
+  validates :slug, format: { with: SLUG_FORMAT, message: "must be 3–40 lowercase letters, numbers, or hyphens" }, if: :slug_format_validatable?
+  validate :slug_not_reserved, if: :slug_format_validatable?
+  validate :slug_not_pure_numeric, if: :slug_format_validatable?
   validates :claim_token, presence: true, uniqueness: true, if: -> { placeholder? }
 
   before_validation :set_defaults, on: :create
   before_validation :ensure_slug, on: :create
 
   before_save :set_kind
+  before_save :touch_slug_changed_at
 
   has_rich_text :public_about
   has_rich_text :public_intro
@@ -201,6 +228,8 @@ class Profile < ApplicationRecord
       id: id,
       username: username,
       slug: slug,
+      slug_changed_at: slug_changed_at,
+      slug_editable_at: slug_editable_at,
       bio: bio,
       intro: intro,
       profile_kind: profile_kind,
@@ -240,6 +269,7 @@ class Profile < ApplicationRecord
       username: username,
       name: profileable.respond_to?(:name) ? profileable.name : username,
       slug: slug,
+      slug_editable_at: slug_editable_at,
       profile_kind: profile_kind,
 
       public_url: public_url,
@@ -626,6 +656,72 @@ class Profile < ApplicationRecord
   def ensure_slug
     self.slug = username.to_s.parameterize if slug.blank? && username.present?
   end
+
+  # --- Slug edit window ---
+  # Returns true if the slug can be changed right now — either it has never
+  # been edited (post-create) or the SLUG_EDIT_WINDOW has elapsed since the
+  # last edit. Admins bypass this at the controller layer.
+  def slug_editable?
+    return true if slug_changed_at.blank?
+    slug_changed_at < SLUG_EDIT_WINDOW.ago
+  end
+
+  def slug_editable_at
+    return nil if slug_changed_at.blank?
+    slug_changed_at + SLUG_EDIT_WINDOW
+  end
+
+  # Cross-system uniqueness check. The onboarding flow already blocks slugs
+  # that collide with any Profile.slug, Profile.username, or
+  # ChildAccount.username — we mirror that here so editing and onboarding
+  # agree on what "available" means.
+  def self.slug_available?(value, except_id: nil)
+    value = value.to_s.strip.downcase
+    return false if value.blank?
+
+    profile_scope = Profile.where(slug: value).or(Profile.where(username: value))
+    profile_scope = profile_scope.where.not(id: except_id) if except_id
+    return false if profile_scope.exists?
+
+    !ChildAccount.exists?(username: value)
+  end
+
+  # Reason codes mirror the JSON returned by ProfilesController#check_slug so
+  # both the controller and the UI can use the same vocabulary.
+  def self.slug_unavailable_reason(value)
+    value = value.to_s.strip.downcase
+    return :format if value.blank? || !value.match?(SLUG_FORMAT)
+    return :reserved if RESERVED_SLUGS.include?(value)
+    return :reserved if value.match?(/\A\d+\z/)
+    return :taken unless slug_available?(value)
+    nil
+  end
+
+  private
+
+  def slug_format_validatable?
+    slug.present? && (new_record? || slug_changed?)
+  end
+
+  def slug_not_reserved
+    return if slug.blank?
+    errors.add(:slug, "is reserved") if RESERVED_SLUGS.include?(slug)
+  end
+
+  def slug_not_pure_numeric
+    return if slug.blank?
+    errors.add(:slug, "cannot be all numbers") if slug.match?(/\A\d+\z/)
+  end
+
+  # Records the moment slug changes — but only for edits, not the initial
+  # create. Onboarding-generated slugs should not consume the 7-day window.
+  def touch_slug_changed_at
+    return unless slug_changed?
+    return if new_record?
+    self.slug_changed_at = Time.current
+  end
+
+  public
 
   def default_profile_kind
     # sensible default without breaking existing behavior

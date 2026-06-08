@@ -48,8 +48,24 @@ module API
           photo_data_url = params[:photo_data_url].to_s
           contacts       = Array(params[:contacts])
 
-          base_slug = name.parameterize.presence || "communicator-#{SecureRandom.hex(3)}"
-          unique = unique_slug_for(base_slug)
+          # Slug picking — the wizard's "Pick your link" step lets the user
+          # customize the slug before submit. If they accept the default we
+          # still derive from the name; if blank we fall back to a generated
+          # placeholder. User-supplied slugs go through the same format /
+          # reserved / availability checks the edit endpoint enforces.
+          requested_slug = params[:slug].to_s.strip.downcase.presence
+
+          if requested_slug
+            reason = Profile.slug_unavailable_reason(requested_slug)
+            if reason
+              render json: slug_error_payload(reason), status: :unprocessable_entity
+              return
+            end
+            unique = requested_slug
+          else
+            base_slug = name.parameterize.presence || "communicator-#{SecureRandom.hex(3)}"
+            unique = unique_slug_for(base_slug)
+          end
 
           profile = nil
           child = nil
@@ -108,6 +124,22 @@ module API
         end
 
         private
+
+        # Mirrors API::ProfilesController#slug_error_for. Kept inline to
+        # avoid a controller-to-controller call, but using the same error
+        # codes so the React SlugField only has to know one vocabulary.
+        def slug_error_payload(reason)
+          case reason
+          when :format
+            { error: "slug_invalid", message: "Links must be 3–40 characters: lowercase letters, numbers, and hyphens." }
+          when :reserved
+            { error: "slug_reserved", message: "That link is reserved. Please pick another." }
+          when :taken
+            { error: "slug_taken", message: "That link is already in use." }
+          else
+            { error: "slug_invalid", message: "That link can't be used." }
+          end
+        end
 
         def build_settings(pronouns:, contacts:)
           settings = {}

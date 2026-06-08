@@ -340,6 +340,7 @@ Rails.application.routes.draw do
         get "placeholders"
         get "next_placeholder"
         get "public/:slug", to: "profiles#public"
+        get "check_slug", to: "profiles#check_slug"
         post "generate"
       end
     end
