@@ -16,6 +16,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_08_120000) do
   enable_extension "pg_trgm"
   enable_extension "pgcrypto"
   enable_extension "plpgsql"
+  enable_extension "unaccent"
 
   create_table "action_text_rich_texts", force: :cascade do |t|
     t.string "name", null: false
@@ -722,6 +723,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_08_120000) do
     t.string "resource_type"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+  end
+
+  create_table "processed_webhook_events", force: :cascade do |t|
+    t.string "provider", null: false
+    t.string "event_id", null: false
+    t.string "event_type"
+    t.bigint "user_id"
+    t.string "environment"
+    t.jsonb "payload", default: {}, null: false
+    t.datetime "processed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider", "event_id"], name: "index_processed_webhook_events_on_provider_and_event_id", unique: true
+    t.index ["user_id"], name: "index_processed_webhook_events_on_user_id"
   end
 
   create_table "product_categories", force: :cascade do |t|

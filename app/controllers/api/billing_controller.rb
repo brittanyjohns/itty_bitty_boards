@@ -1,6 +1,13 @@
 class API::BillingController < API::ApplicationController
-  before_action :authenticate_token!
+  before_action :authenticate_token!, except: :webhooks
+  skip_before_action :authenticate_token!, only: :webhooks
+  protect_from_forgery except: :webhooks if respond_to?(:protect_from_forgery)
 
+  # Native clients call this right after an App Store / Play purchase completes.
+  # We do NOT trust the client's claimed plan: before flipping plan_type we ask
+  # RevenueCat's REST API whether this user actually owns the entitlement. The
+  # webhook is the sole credit-grant authority (mirrors the Stripe path), so we
+  # only set plan_type/plan_status here.
   def update_subscription
     plan_key = params[:plan_key]
     purchase_platform = params[:purchase_platform] || ""
@@ -8,13 +15,23 @@ class API::BillingController < API::ApplicationController
       render json: { error: "plan_key is required" }, status: :bad_request
       return
     end
+
+    unless %w[basic pro].include?(plan_key)
+      render json: { error: "Invalid plan_key" }, status: :bad_request
+      return
+    end
+
+    normalized_plan_key = normalize_plan_key(plan_key)
+
+    result = RevenueCat::Client.new.verified_plan_for(current_user.id.to_s)
+    unless result.ok? && result.plan_type == normalized_plan_key
+      Rails.logger.warn "[Billing] update_subscription rejected user=#{current_user.id} " \
+        "claimed=#{normalized_plan_key} verified=#{result.plan_type.inspect} ok=#{result.ok?}"
+      render json: { error: "Subscription could not be verified" }, status: :forbidden
+      return
+    end
+
     begin
-      acceptable_plans = %w[basic pro]
-      unless acceptable_plans.include?(plan_key)
-        render json: { error: "Invalid plan_key" }, status: :bad_request
-        return
-      end
-      normalized_plan_key = normalize_plan_key(plan_key)
       current_user.plan_type = normalized_plan_key
       current_user.plan_status = "active"
       current_user.settings["purchase_platform"] = purchase_platform
@@ -28,12 +45,22 @@ class API::BillingController < API::ApplicationController
     end
   end
 
+  # RevenueCat subscription lifecycle webhook. Verifies the shared-secret
+  # Authorization header, then hands the event to RevenueCat::WebhookProcessor.
   def webhooks
-    payload = request.body.read
-    Rails.logger.info "[BillingWebhook] Received payload: #{payload}"
-    render json: { status_code: 200 }
+    unless RevenueCat::WebhookProcessor.authorized?(request.headers["Authorization"])
+      render json: { error: "unauthorized" }, status: :unauthorized
+      return
+    end
+
+    payload = JSON.parse(request.body.read)
+    result = RevenueCat::WebhookProcessor.new(payload).process
+    render json: { status: result.status }, status: result.http_status
+  rescue JSON::ParserError => e
+    Rails.logger.error "[RCWebhook] JSON parse error: #{e.message}"
+    render json: { error: "invalid_payload" }, status: :bad_request
   rescue => e
-    Rails.logger.error "[BillingWebhook] Unexpected error: #{e.class} - #{e.message}\n#{e.backtrace.join("\n")}"
+    Rails.logger.error "[RCWebhook] Unexpected error: #{e.class} - #{e.message}\n#{e.backtrace.first(5).join("\n")}"
     render json: { error: "server_error" }, status: :bad_request
   end
 end

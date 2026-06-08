@@ -26,6 +26,8 @@
   - `STRIPE_PRICE_TOPUP_SMALL` - Stripe Price ID for the small credit pack (100 credits)
   - `STRIPE_PRICE_TOPUP_MEDIUM` - Stripe Price ID for the medium credit pack (500 credits)
   - `STRIPE_PRICE_TOPUP_LARGE` - Stripe Price ID for the large credit pack (1500 credits)
+  - `REVENUECAT_WEBHOOK_AUTH_HEADER` - Shared secret matched against the `Authorization` header on RevenueCat webhooks (`/api/billing/webhooks`). When blank, the webhook rejects every request with 401.
+  - `REVENUECAT_REST_API_KEY` - RevenueCat v1 secret REST API key used to verify a subscriber's entitlement server-side before `/api/billing/update_subscription` flips a plan. When blank, verification fails closed (update_subscription returns 403).
   - `CDN_HOST` - CDN Host (optional)
   - `DEVISE_JWT_SECRET_KEY` - Devise JWT Secret Key
   - `DOMAIN` - Domain

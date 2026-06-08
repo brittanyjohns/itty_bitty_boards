@@ -173,6 +173,40 @@ Key contracts:
 - Premium features (Menu Board Creator, AI image generation) require active subscription
 - Subscription managed via Stripe/RevenueCat — check status before allowing access to premium endpoints
 
+### RevenueCat / Apple IAP path (parity with Stripe)
+
+Native iOS/Android purchases go through RevenueCat, not Stripe. The path mirrors
+the Stripe webhook semantics in `API::WebhooksController`. **RevenueCat's
+`app_user_id` IS the Rails `user.id`** (the app configures Purchases with
+`String(user.id)`), so webhook user lookup is `User.find_by(id:)`.
+
+- **`update_subscription` is not client-trusted.** `POST /api/billing/update_subscription`
+  verifies the entitlement against RevenueCat's REST API (`RevenueCat::Client#verified_plan_for`)
+  before flipping `plan_type`; returns **403 `Subscription could not be verified`**
+  on mismatch or when the REST key is unset. It sets `plan_type`/`plan_status`
+  only — the webhook is the sole credit-grant authority (matches Stripe).
+- **`POST /api/billing/webhooks`** (`RevenueCat::WebhookProcessor`): verifies a
+  shared-secret `Authorization` header (`ENV["REVENUECAT_WEBHOOK_AUTH_HEADER"]`,
+  401 on mismatch — RevenueCat uses a shared secret, not HMAC). Event map:
+  `INITIAL_PURCHASE`/`NON_RENEWING_PURCHASE`/`RENEWAL`/`PRODUCT_CHANGE` →
+  `CreditService.grant_plan!`; `EXPIRATION`/`SUBSCRIPTION_PAUSED` →
+  `Billing::PlanTransitions.apply_free_plan`; `CANCELLATION` → analytics only,
+  **no downgrade** (still entitled until expiry); `BILLING_ISSUE` →
+  `plan_status="past_due"`, access kept; `UNCANCELLATION` → back to active;
+  `TRANSFER` → downgrade losing ids, REST-re-verify gaining ids.
+- **Idempotency + audit:** `processed_webhook_events` (unique `provider`+`event_id`)
+  gates the whole handler (covers non-credit events); the credit grant also
+  reuses `credit_transactions.stripe_event_id` with an `rc_<event_id>` token.
+- **Sandbox gating:** SANDBOX events are ignored only in real production
+  (`Rails.env.production? && !AppEnv.staging?`); honored in dev/test/staging.
+- **Mapping:** `RevenueCat::PlanMapping` (entitlement/product → normalized
+  `basic`/`pro`). ⚠️ `PRODUCT_TO_PLAN` keys must match the exact App Store
+  Connect product ids — confirm against a real sandbox webhook.
+- **Timestamps differ by surface:** webhooks send epoch **ms**
+  (`expiration_at_ms`); the v1 REST API sends ISO8601 strings.
+- `Billing::PlanTransitions.apply_free_plan` is the shared downgrade path for
+  both Stripe (`WebhooksController#apply_free_plan` delegates to it) and RevenueCat.
+
 ### No-card reverse trial (Basic/Pro)
 
 Basic/Pro trials default to **no credit card** (issue #264). In
@@ -426,15 +460,26 @@ Plan-credit lifecycle:
   flips expired `basic_trial` users to `free` and grants the free-tier
   allowance immediately.
 - **Monthly credit refresh:** `RefreshFreeTierCreditsJob` (daily at
-  3am UTC) re-grants the tier allowance to **any user without a
-  `stripe_subscription_id`** whose `plan_credits_reset_at` has passed —
-  covers free/basic_trial users, App Store/RevenueCat subscribers, and
-  admin/demo accounts on paid tiers (granting their actual plan_type's
-  allowance, e.g. Pro = 1500). Stripe-driven paying users
-  (`basic`, `pro`, `partner_pro` with an active
-  `stripe_subscription_id`) refresh through `invoice.payment_succeeded`
-  instead. Class name kept for cron stability; scope is broader than
-  the name suggests.
+  3am UTC) re-grants the tier allowance to users whose
+  `plan_credits_reset_at` has passed and who are **either** without a
+  `stripe_subscription_id` (free/basic_trial, App Store/RevenueCat
+  subscribers, admin/demo accounts on paid tiers) **or** on a **yearly**
+  Stripe sub (`settings["billing_interval"] == "yearly"`). It grants the
+  user's actual plan_type allowance (e.g. Pro = 1500). **Monthly** Stripe
+  payers refresh through `invoice.payment_succeeded` instead, so they're
+  excluded. Class name kept for cron stability; scope is broader than the
+  name suggests.
+- **Monthly bucket, any billing cadence:** plan credits are a monthly
+  allowance, so `grant_plan!` caps `period_end` at
+  `MAX_GRANT_WINDOW` (35 days). Without this, a **yearly** subscriber's
+  grant would set `plan_credits_reset_at` a year out and they'd get one
+  month's credits stretched across the year. The cap pulls the reset back
+  to ~1 month; the monthly re-grant then comes from
+  `invoice.payment_succeeded` (monthly Stripe), the RevenueCat `RENEWAL`
+  webhook, or `RefreshFreeTierCreditsJob` (yearly Stripe + all RevenueCat).
+  Monthly subs (period ≤ 35d) are never capped. `billing_interval` is
+  persisted on `users.settings` by both the Stripe upsert and the
+  RevenueCat purchase handler.
 - **Backstop:** `ExpirePlanCreditsJob` runs hourly and zeroes any plan
   balance whose `plan_credits_reset_at` has passed. Cheap and idempotent —
   safe to invoke any time.
