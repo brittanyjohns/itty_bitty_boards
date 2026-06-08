@@ -60,7 +60,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `Board#clone_with_images`' dup) instead of always re-reading the shared Image.
 - **Seeded boards display on one page.** The seeder stamps
   `settings["disable_scroll"] = true` on every set board; the native board page
-  reads this and fits the whole authored grid (Core 60: 10×6, Core 84: 14×6)
+  reads this and fits the whole authored grid (Core 60: 10×6, Core 84: 12×7)
   on screen without scrolling. Cloned user sets inherit it.
 - Run `bin/rails vocab_sets:seed` once after deploy to apply colors and
   one-page settings to existing seeded sets (already-cloned user sets keep
@@ -142,7 +142,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - **Real Core 60 / Core 84 content seeded.** Both sets now ship authored
   SpeakAnyWay vocabulary, replacing the Core 60 placeholder and adding Core 84:
   Core 60 is a 10×6 core home + 8 fringe category pages (People, Feelings, Food,
-  Drinks, Play, Places, Body, More); Core 84 is the 14×6 superset home
+  Drinks, Play, Places, Body, More); Core 84 is the 12×7 superset home
   with the same fringe plus School, Time, and Describe pages. Every tile carries
   a `part_of_speech` color and fringe folders link via `load_board`. Run
   `bin/rails vocab_sets:seed` to seed both as predefined, root-marked sets.
