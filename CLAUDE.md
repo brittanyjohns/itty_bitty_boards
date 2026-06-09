@@ -107,8 +107,10 @@ GitHub build). Two distinct uses:
   `sign_in`) from `API::V1::AuthsController` and the Stripe checkout controller.
 - **Customer Journey triggers (email):** `MailchimpService#trigger_journey`
   enrols a contact into a journey's **API-trigger step**
-  (`@client.customer_journeys.trigger`), so Mailchimp sends the email designed
-  in that journey. The contact is upserted-and-retried-once if Mailchimp 404s.
+  (`@client.customerJourneys.trigger` — the gem accessor is camelCase; there is
+  **no** snake_case `customer_journeys` alias, so it raises NoMethodError), so
+  Mailchimp sends the email designed in that journey. The contact is
+  upserted-and-retried-once if Mailchimp 404s.
   Wired through the `MailchimpEventJob` `"journey"` event type, which takes a
   `journey_key`.
 
