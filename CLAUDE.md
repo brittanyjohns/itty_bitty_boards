@@ -137,6 +137,21 @@ GitHub build). Two distinct uses:
       It's a **second touch** distinct from `first_board_nudge` — different copy
       ("a while back you said yes…") and it *may* fire for a user who got the 48h
       nudge weeks earlier (the two flags are independent), but only ever once.
+    - `trial_wrap` — enqueued by `MailchimpTrialWrapJob`, triggered from the
+      `customer.subscription.trial_will_end` Stripe webhook (~3 days before a
+      Stripe no-card reverse trial ends; soft `basic_trial` was retired).
+      **Personalized:** the job first pushes merge fields `TRIAL_END` (formatted
+      date) / `BOARDS` (`countable_board_count`) / `COMMS`
+      (`communicator_accounts.count`) via `MailchimpService#update_merge_fields`,
+      then triggers — so the copy can say "you made N boards, M communicators;
+      keep them by continuing." Requires those 3 merge fields to exist in the
+      Mailchimp audience (tag names ≤10 chars: `TRIAL_END`, `BOARDS`, `COMMS`).
+    - `win_back` — enqueued by `MailchimpWinBackJob` (daily, 4:30am UTC)
+      re-engaging recently-dormant active users: non-admin, **≥1 board**, last
+      sign-in `WIN_BACK_DORMANT_MIN_DAYS`–`WIN_BACK_DORMANT_MAX_DAYS` (default
+      14–30) days ago. The `user.settings["win_back_nudge_sent"]` flag makes it
+      once-only. Requiring ≥1 board keeps it distinct from `legacy_signup_nudge`
+      (never made a board).
   - **Env-gated to avoid emailing real users from non-prod.**
     `MailchimpClient.journeys_enabled?` returns true in production (and only
     production — staging is excluded via `AppEnv.staging?`); dev/staging fire

@@ -10,6 +10,37 @@ RSpec.describe MailchimpService do
     allow(client).to receive(:customer_journeys).and_return(journeys)
   end
 
+  describe "#update_merge_fields" do
+    let(:lists) { double("lists") }
+
+    before do
+      allow(client).to receive(:lists).and_return(lists)
+      stub_const("ENV", ENV.to_h.merge("MAILCHIMP_AUDIENCE_ID" => "aud_123"))
+    end
+
+    it "upserts the contact's merge fields by subscriber hash" do
+      hash = Digest::MD5.hexdigest("parent@example.com")
+      expect(lists).to receive(:set_list_member).with(
+        "aud_123",
+        hash,
+        {
+          email_address: "parent@example.com",
+          status_if_new: "subscribed",
+          merge_fields: { "BOARDS" => "3" },
+        },
+      )
+
+      described_class.new.update_merge_fields(user, { "BOARDS" => "3" })
+    end
+
+    it "swallows Mailchimp API errors and returns nil" do
+      allow(lists).to receive(:set_list_member)
+        .and_raise(MailchimpMarketing::ApiError.new(status: 500, message: "boom"))
+
+      expect(described_class.new.update_merge_fields(user, { "BOARDS" => "3" })).to be_nil
+    end
+  end
+
   describe "#trigger_journey" do
     it "triggers the journey for the contact by email" do
       expect(journeys).to receive(:trigger).with(10, 20, { email_address: "parent@example.com" })

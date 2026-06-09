@@ -5,6 +5,25 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Mailchimp trial-wrap (#5) and win-back (#6) lifecycle journeys
+- **Trial wrapping up (#5).** The `customer.subscription.trial_will_end` Stripe
+  webhook now enqueues `MailchimpTrialWrapJob`, which **personalizes** the email
+  before triggering: it pushes the contact's `TRIAL_END` (formatted date),
+  `BOARDS` (board count), and `COMMS` (communicator count) merge fields via the
+  new `MailchimpService#update_merge_fields`, then fires the `trial_wrap`
+  Customer Journey — so the copy can say "you made N boards and M communicators;
+  keep them by continuing." Fires ~3 days before a Stripe no-card reverse trial
+  ends (soft `basic_trial` was retired, so all trials are Stripe trials).
+- **Win-back (#6).** New `MailchimpWinBackJob` (Sidekiq-cron, daily at 4:30am
+  UTC) re-engages recently-dormant active users: non-admin, **≥1 board**, last
+  sign-in 14–30 days ago (`WIN_BACK_DORMANT_MIN_DAYS` / `_MAX_DAYS`, tunable).
+  Per-user dedupe via `user.settings["win_back_nudge_sent"]`. Requiring ≥1 board
+  keeps it cleanly distinct from the legacy never-made-a-board journey (#7).
+- Inert until configured: both no-op until `MAILCHIMP_JOURNEY_TRIAL_WRAP_ID` /
+  `_STEP` and `MAILCHIMP_JOURNEY_WIN_BACK_ID` / `_STEP` are set, and journeys
+  stay prod-only by default. #5 also needs the 3 merge fields created in the
+  Mailchimp audience. (Issue #291.)
+
 ### Added — Mailchimp legacy stalled-signup re-engagement journey (#7)
 - **Monthly re-engagement.** New `MailchimpLegacySignupNudgeJob` (Sidekiq-cron,
   5am UTC on the 1st of each month) finds non-admin users who created an account
