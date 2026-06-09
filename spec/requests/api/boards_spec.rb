@@ -562,4 +562,58 @@ RSpec.describe "API::Boards", type: :request do
       expect(board_image.display_image_url).to eq(new_doc.tile_url)
     end
   end
+
+  # Mailchimp "hit_limit" Customer Journey trigger (issue #291, journey #3).
+  # Enqueued from check_board_create_permissions when a Free user trips the
+  # board cap on create / clone / create_from_template. Deduped 14d via
+  # Rails.cache so a user mashing the create button isn't spammed.
+  describe "POST /api/boards triggers the Mailchimp hit_limit journey" do
+    let(:free_user) { create(:free_user) }
+    let!(:existing_board) { create(:board, user: free_user) }
+    let(:memory_cache) { ActiveSupport::Cache::MemoryStore.new }
+
+    before do
+      allow(Rails).to receive(:cache).and_return(memory_cache)
+      MailchimpEventJob.clear
+    end
+
+    it "enqueues MailchimpEventJob with journey_key=hit_limit on a Free user at the cap" do
+      expect {
+        post "/api/boards",
+             params: { board: { name: "Second" } },
+             headers: auth_headers(free_user)
+      }.to change(MailchimpEventJob.jobs, :size).by(1)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(MailchimpEventJob.jobs.last["args"]).to eq(
+        [free_user.id, "journey", { "journey_key" => "hit_limit" }],
+      )
+    end
+
+    it "sets a Rails.cache dedupe key so the next 422 doesn't re-enqueue" do
+      post "/api/boards",
+           params: { board: { name: "Second" } },
+           headers: auth_headers(free_user)
+
+      expect(memory_cache.read("mailchimp:hit_limit:#{free_user.id}")).to eq(true)
+
+      expect {
+        post "/api/boards",
+             params: { board: { name: "Third" } },
+             headers: auth_headers(free_user)
+      }.not_to change(MailchimpEventJob.jobs, :size)
+    end
+
+    it "logs and swallows errors so a Mailchimp blip can't 500 the create request" do
+      allow(MailchimpEventJob).to receive(:perform_async).and_raise("redis down")
+      expect(Rails.logger).to receive(:warn).with(/hit_limit enqueue failed/)
+
+      post "/api/boards",
+           params: { board: { name: "Second" } },
+           headers: auth_headers(free_user)
+
+      # The 422 response itself is unaffected.
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+  end
 end

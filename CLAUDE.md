@@ -117,7 +117,18 @@ GitHub build). Two distinct uses:
     `MAILCHIMP_JOURNEY_<KEY>_ID` / `_STEP` ENV vars; unconfigured keys no-op
     with a log line. Adding a new journey = new ENV pair + a
     `MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "<key>" })`
-    enqueue. The first wired journey is `welcome` (enqueued on signup).
+    enqueue. Wired journey keys:
+    - `welcome` — enqueued from `API::V1::AuthsController#sign_up` and
+      `API::Stripe::CheckoutSessionsController` on signup.
+    - `hit_limit` — enqueued from `API::BoardsController#check_board_create_permissions`
+      when a Free user trips the board cap on create/clone/create_from_template.
+      Free-only; deduped per user for 14 days via `Rails.cache` so a user
+      mashing the create button isn't spammed.
+    - `first_board_nudge` — enqueued by `MailchimpFirstBoardNudgeJob` (daily
+      at 4am UTC) for non-admin users who signed up 48-72h ago with no boards.
+      The `user.settings["first_board_nudge_sent"]` flag prevents re-nudging
+      across runs. Window has 24h slop so a single missed cron run doesn't
+      permanently skip users.
   - **Env-gated to avoid emailing real users from non-prod.**
     `MailchimpClient.journeys_enabled?` returns true in production (and only
     production — staging is excluded via `AppEnv.staging?`); dev/staging fire

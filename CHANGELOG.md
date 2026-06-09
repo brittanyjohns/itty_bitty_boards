@@ -5,6 +5,25 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Mailchimp Customer Journey triggers for first-board nudge (#2) and hit-your-limit (#3) emails
+- **First-board nudge.** New `MailchimpFirstBoardNudgeJob` (Sidekiq-cron,
+  daily at 4am UTC) finds non-admin users who signed up 48-72h ago with no
+  boards and enqueues the Mailchimp `first_board_nudge` Customer Journey.
+  Per-user dedupe via `user.settings["first_board_nudge_sent"]` so the
+  same user isn't nudged across runs; the 24h window gives a missed cron
+  run a chance to catch up. (Issue #291, journey #2.)
+- **Hit-your-limit.** `API::BoardsController#check_board_create_permissions`
+  now enqueues the Mailchimp `hit_limit` Customer Journey when a Free user
+  trips the board cap on `create` / `clone` / `create_from_template`. Free
+  users only; deduped per user for 14 days via `Rails.cache` so a user
+  mashing the create button isn't spammed. Guarded so a Mailchimp/Redis
+  blip can't 500 the API request. (Issue #291, journey #3.)
+- Inert until configured: both keys no-op until
+  `MAILCHIMP_JOURNEY_FIRST_BOARD_NUDGE_ID/_STEP` and
+  `MAILCHIMP_JOURNEY_HIT_LIMIT_ID/_STEP` ENV vars are set, and journeys
+  remain prod-only by default (`MAILCHIMP_JOURNEYS_ENABLED=true` to
+  override in staging/dev).
+
 ### Added — RevenueCat / Apple IAP subscription path reaches Stripe parity
 - **Closed a self-upgrade hole.** `POST /api/billing/update_subscription` no
   longer trusts the native client's claimed plan. It now verifies the user's

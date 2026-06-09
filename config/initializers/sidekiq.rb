@@ -42,5 +42,11 @@ Sidekiq.configure_server do |config|
       "queue" => "default",
       "description" => "Daily reclaim sweep for loaner communicators unclaimed past LOANER_RECLAIM_AFTER_DAYS (default 90). Frees the SLP's slot.",
     },
+    "mailchimp_first_board_nudge" => {
+      "cron" => "0 4 * * *",
+      "class" => "MailchimpFirstBoardNudgeJob",
+      "queue" => "default",
+      "description" => "Daily Mailchimp Customer Journey trigger for users who signed up 48-72h ago without making a board. Runs at 4am UTC, after DowngradeSoftTrialJob (2am) and RefreshFreeTierCreditsJob (3am). Flags user.settings[\"first_board_nudge_sent\"] so each user is only nudged once.",
+    },
   })
 end
