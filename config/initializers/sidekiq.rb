@@ -48,5 +48,11 @@ Sidekiq.configure_server do |config|
       "queue" => "default",
       "description" => "Daily Mailchimp Customer Journey trigger for users who signed up 48-72h ago without making a board. Runs at 4am UTC, after DowngradeSoftTrialJob (2am) and RefreshFreeTierCreditsJob (3am). Flags user.settings[\"first_board_nudge_sent\"] so each user is only nudged once.",
     },
+    "mailchimp_legacy_signup_nudge" => {
+      "cron" => "0 5 1 * *",
+      "class" => "MailchimpLegacySignupNudgeJob",
+      "queue" => "default",
+      "description" => "Monthly Mailchimp Customer Journey trigger (5am UTC on the 1st) re-engaging legacy stalled signups: non-admin users created over LEGACY_SIGNUP_NUDGE_AGE_DAYS (default 30) ago, no boards, no sign-in within LEGACY_SIGNUP_NUDGE_INACTIVE_DAYS (default 30). Flags user.settings[\"legacy_signup_nudge_sent\"] so each user is only nudged once. Second-touch — may fire for users who got the 48h first_board_nudge weeks earlier.",
+    },
   })
 end
