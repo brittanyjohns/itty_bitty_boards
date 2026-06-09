@@ -2,12 +2,13 @@ require "rails_helper"
 
 RSpec.describe MailchimpService do
   let(:client) { double("MailchimpClient") }
-  let(:journeys) { double("customer_journeys") }
+  let(:journeys) { double("customerJourneys") }
   let(:user) { FactoryBot.build(:user, email: "parent@example.com") }
 
   before do
     allow(MailchimpClient).to receive(:client).and_return(client)
-    allow(client).to receive(:customer_journeys).and_return(journeys)
+    # Gem accessor is camelCase `customerJourneys` (no snake_case alias).
+    allow(client).to receive(:customerJourneys).and_return(journeys)
   end
 
   describe "#update_merge_fields" do
@@ -81,6 +82,16 @@ RSpec.describe MailchimpService do
 
       expect(Rails.logger).to receive(:error).with(/Failed to trigger journey 10\/20/)
       expect(service.trigger_journey(user, journey_id: 10, step_id: 20)).to be_nil
+    end
+
+    # Regression guard for the NoMethodError that the mocked tests above can't
+    # catch: the real MailchimpMarketing::Client exposes the journeys API as
+    # camelCase `customerJourneys`, with no snake_case `customer_journeys`.
+    # Using the wrong name 500s every trigger in production.
+    it "calls the gem's real camelCase journeys accessor" do
+      bare_client = MailchimpMarketing::Client.new
+      expect(bare_client).to respond_to(:customerJourneys)
+      expect(bare_client).not_to respond_to(:customer_journeys)
     end
   end
 end

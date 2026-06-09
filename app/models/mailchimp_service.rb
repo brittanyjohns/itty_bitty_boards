@@ -107,7 +107,10 @@ class MailchimpService
   def trigger_journey(user, journey_id:, step_id:)
     attempted_subscribe = false
     begin
-      @client.customer_journeys.trigger(
+      # NOTE: the MailchimpMarketing gem exposes this API as `customerJourneys`
+      # (camelCase) — there is no snake_case `customer_journeys` accessor, so
+      # using it raises NoMethodError at runtime.
+      @client.customerJourneys.trigger(
         journey_id,
         step_id,
         { email_address: user.email }
