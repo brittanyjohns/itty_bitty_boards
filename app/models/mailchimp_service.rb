@@ -122,6 +122,28 @@ class MailchimpService
     end
   end
 
+  # Upsert merge fields on a contact (e.g. trial-wrap personalization:
+  # TRIAL_END / BOARDS / COMMS). Uses set_list_member so it creates the
+  # contact if missing (status_if_new: subscribed) and updates merge fields
+  # if present. Guarded — a Mailchimp blip logs and returns nil rather than
+  # raising into the caller (which is usually a journey-trigger job).
+  def update_merge_fields(user, fields)
+    list_id = ENV.fetch("MAILCHIMP_AUDIENCE_ID")
+    subscriber_hash_email = subscriber_hash(user.email)
+    @client.lists.set_list_member(
+      list_id,
+      subscriber_hash_email,
+      {
+        email_address: user.email,
+        status_if_new: "subscribed",
+        merge_fields: fields,
+      }
+    )
+  rescue MailchimpMarketing::ApiError => e
+    Rails.logger.warn "[Mailchimp] update_merge_fields failed for #{user.email}: #{e.message}"
+    nil
+  end
+
   def update_subscriber_tags(email, tags_to_add = [], tags_to_remove = [])
     list_id = ENV.fetch("MAILCHIMP_AUDIENCE_ID")
     subscriber_hash_email = subscriber_hash(email)

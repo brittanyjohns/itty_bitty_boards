@@ -54,5 +54,11 @@ Sidekiq.configure_server do |config|
       "queue" => "default",
       "description" => "Monthly Mailchimp Customer Journey trigger (5am UTC on the 1st) re-engaging legacy stalled signups: non-admin users created over LEGACY_SIGNUP_NUDGE_AGE_DAYS (default 30) ago, no boards, no sign-in within LEGACY_SIGNUP_NUDGE_INACTIVE_DAYS (default 30). Flags user.settings[\"legacy_signup_nudge_sent\"] so each user is only nudged once. Second-touch — may fire for users who got the 48h first_board_nudge weeks earlier.",
     },
+    "mailchimp_win_back" => {
+      "cron" => "30 4 * * *",
+      "class" => "MailchimpWinBackJob",
+      "queue" => "default",
+      "description" => "Daily Mailchimp Customer Journey trigger (4:30am UTC) re-engaging recently-dormant active users: non-admin users with >=1 board whose last sign-in is WIN_BACK_DORMANT_MIN_DAYS-WIN_BACK_DORMANT_MAX_DAYS (default 14-30) days ago. Flags user.settings[\"win_back_nudge_sent\"] so each user is only nudged once.",
+    },
   })
 end

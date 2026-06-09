@@ -99,6 +99,12 @@ class API::WebhooksController < API::ApplicationController
         trial_end: trial_end,
       },
     )
+
+    # Mailchimp "trial wrapping up" Customer Journey (#291, journey #5).
+    # Personalizes with board/communicator counts + the trial end date.
+    # Inert until the journey ENV vars are configured.
+    MailchimpTrialWrapJob.perform_async(user.id, trial_end)
+
     Rails.logger.info "[StripeWebhook] trial_will_end: user=#{user.id} sub=#{subscription.id}"
   rescue => e
     Rails.logger.error "[StripeWebhook] handle_trial_will_end error: #{e.class} - #{e.message}"
