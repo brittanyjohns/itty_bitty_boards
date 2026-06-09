@@ -23,6 +23,7 @@ class MailchimpTrialWrapJob
   def perform(user_id, trial_end_epoch = nil)
     user = User.find_by(id: user_id)
     return unless user
+    return if user.demo_user? # never email demo/internal accounts
 
     unless MailchimpClient.journeys_enabled?
       Rails.logger.info("[Mailchimp] Journeys disabled; skipping #{JOURNEY_KEY} for user #{user_id}")

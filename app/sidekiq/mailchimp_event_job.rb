@@ -16,6 +16,14 @@ class MailchimpEventJob
       mailchimp.record_new_subscriber(user, tags: tags)
     when "journey"
       key = options["journey_key"] || options[:journey_key]
+      # Never send lifecycle journey emails to demo/internal accounts
+      # (same definition that drives the Mailchimp DEMO_USER merge field).
+      # CRM sync (sign_up/sign_in) is intentionally NOT gated — we still
+      # want demo contacts in the audience, tagged as demo.
+      if user.demo_user?
+        Rails.logger.info("[Mailchimp] Skipping journey '#{key}' for demo user #{user_id}")
+        return
+      end
       unless MailchimpClient.journeys_enabled?
         Rails.logger.info("[Mailchimp] Journeys disabled; skipping '#{key}' for user #{user_id}")
         return

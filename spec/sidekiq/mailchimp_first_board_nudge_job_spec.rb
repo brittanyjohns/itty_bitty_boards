@@ -54,6 +54,14 @@ RSpec.describe MailchimpFirstBoardNudgeJob, type: :job do
       end
     end
 
+    context "when the user is a demo/internal account" do
+      it "is skipped (not enqueued, not flagged) even if otherwise eligible" do
+        user = create_eligible_user(email: "qa@speakanyway.com")
+        expect { job.perform }.not_to change(MailchimpEventJob.jobs, :size)
+        expect(user.reload.settings["first_board_nudge_sent"]).not_to eq(true)
+      end
+    end
+
     context "when the user signed up less than 48h ago" do
       it "is skipped" do
         create_eligible_user(created_at: 24.hours.ago)

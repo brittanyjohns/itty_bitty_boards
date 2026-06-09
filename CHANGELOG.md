@@ -5,6 +5,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Mailchimp lifecycle journeys never email demo/internal accounts
+- All Customer Journey sends now skip `user.demo_user?` accounts (email contains
+  `bhannajohns+` or `@speakanyway.com` — the same definition behind the
+  `DEMO_USER` merge field). A single guard in `MailchimpEventJob`'s journey
+  branch covers welcome / first_board_nudge / hit_limit / legacy_signup_nudge /
+  win_back; `MailchimpTrialWrapJob` has its own guard. The cohort-sweep jobs
+  also skip demo users so they aren't flagged. CRM contact sync is unchanged —
+  demo contacts remain in the audience, tagged as demo.
+
 ### Added — Mailchimp trial-wrap (#5) and win-back (#6) lifecycle journeys
 - **Trial wrapping up (#5).** The `customer.subscription.trial_will_end` Stripe
   webhook now enqueues `MailchimpTrialWrapJob`, which **personalizes** the email
