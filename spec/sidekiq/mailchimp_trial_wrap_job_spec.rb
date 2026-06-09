@@ -50,6 +50,16 @@ RSpec.describe MailchimpTrialWrapJob, type: :job do
       job.perform(user.id, nil)
     end
 
+    it "skips (no merge-field sync, no trigger) for a demo/internal user" do
+      demo = create(:user, email: "qa@speakanyway.com")
+      allow(MailchimpClient).to receive(:journeys_enabled?).and_return(true)
+      allow(MailchimpClient).to receive(:journey).with("trial_wrap").and_return(journey_id: 50, step_id: 60)
+      expect(mailchimp).not_to receive(:update_merge_fields)
+      expect(mailchimp).not_to receive(:trigger_journey)
+
+      job.perform(demo.id, 1_781_000_000)
+    end
+
     it "skips when the trial_wrap journey isn't configured" do
       allow(MailchimpClient).to receive(:journeys_enabled?).and_return(true)
       allow(MailchimpClient).to receive(:journey).with("trial_wrap").and_return(nil)
