@@ -5,6 +5,22 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Mailchimp legacy stalled-signup re-engagement journey (#7)
+- **Monthly re-engagement.** New `MailchimpLegacySignupNudgeJob` (Sidekiq-cron,
+  5am UTC on the 1st of each month) finds non-admin users who created an account
+  a while ago (`LEGACY_SIGNUP_NUDGE_AGE_DAYS`, default 30), never made a board,
+  and haven't signed in recently (`LEGACY_SIGNUP_NUDGE_INACTIVE_DAYS`, default
+  30), then enqueues the Mailchimp `legacy_signup_nudge` Customer Journey.
+  Per-user dedupe via `user.settings["legacy_signup_nudge_sent"]` so each user
+  is nudged once, ever.
+- **Second touch, not a duplicate.** Distinct from the 48h `first_board_nudge`
+  (#2) — different copy and a separate flag, so a long-dormant user who got the
+  48h nudge weeks earlier may receive this once. Catches both the current
+  backlog of cold signups and future stalls as they age past the threshold.
+- Inert until configured: no-ops until `MAILCHIMP_JOURNEY_LEGACY_SIGNUP_NUDGE_ID`
+  / `_STEP` ENV vars are set; journeys stay prod-only by default
+  (`MAILCHIMP_JOURNEYS_ENABLED=true` to override in staging/dev). (Issue #294.)
+
 ### Added — Mailchimp Customer Journey triggers for first-board nudge (#2) and hit-your-limit (#3) emails
 - **First-board nudge.** New `MailchimpFirstBoardNudgeJob` (Sidekiq-cron,
   daily at 4am UTC) finds non-admin users who signed up 48-72h ago with no

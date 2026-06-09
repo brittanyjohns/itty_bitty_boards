@@ -129,6 +129,14 @@ GitHub build). Two distinct uses:
       The `user.settings["first_board_nudge_sent"]` flag prevents re-nudging
       across runs. Window has 24h slop so a single missed cron run doesn't
       permanently skip users.
+    - `legacy_signup_nudge` — enqueued by `MailchimpLegacySignupNudgeJob`
+      (monthly, 5am UTC on the 1st) re-engaging cold legacy signups: non-admin
+      users created over `LEGACY_SIGNUP_NUDGE_AGE_DAYS` (default 30) ago, no
+      boards, no sign-in within `LEGACY_SIGNUP_NUDGE_INACTIVE_DAYS` (default 30).
+      The `user.settings["legacy_signup_nudge_sent"]` flag makes it once-only.
+      It's a **second touch** distinct from `first_board_nudge` — different copy
+      ("a while back you said yes…") and it *may* fire for a user who got the 48h
+      nudge weeks earlier (the two flags are independent), but only ever once.
   - **Env-gated to avoid emailing real users from non-prod.**
     `MailchimpClient.journeys_enabled?` returns true in production (and only
     production — staging is excluded via `AppEnv.staging?`); dev/staging fire
