@@ -30,6 +30,24 @@ RSpec.describe "API::V1::Auth", type: :request do
     end
   end
 
+  # Regression: this route used to point at the non-existent auths#sign_in
+  # action, so every request raised ActionNotFound. It now routes to
+  # auths#create, same as /api/v1/login.
+  describe "POST /api/v1/users/sign_in" do
+    it "signs in with valid credentials" do
+      post "/api/v1/users/sign_in", params: { email: user.email, password: "password123" }
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["token"]).to eq(user.authentication_token)
+      expect(body["user"]).to be_present
+    end
+
+    it "returns 401 with invalid credentials" do
+      post "/api/v1/users/sign_in", params: { email: user.email, password: "wrongpassword" }
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
   describe "POST /api/v1/forgot_password" do
     context "when the email belongs to a registered user" do
       it "returns 200" do
