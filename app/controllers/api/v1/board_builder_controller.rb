@@ -116,7 +116,7 @@ module API
         # BuildBoardSetJob fails — no refund path needed, by decision.
         BuildBoardSetJob.perform_async(root.id, communicator.id, params[:template].to_s, interests)
 
-        render json: root.api_view(current_user), status: :created
+        render json: serialize_built_root(root), status: :created
       rescue Boards::BlueprintAssembler::UnknownTemplate => e
         Rails.logger.warn "[BoardBuilder] #{e.message}"
         render json: { error: "unknown_template",
@@ -133,11 +133,29 @@ module API
         # If the root already committed (e.g. the enqueue itself raised), don't
         # strand it in "building_board" — mark it failed so the duplicate guard
         # offers the normal confirm-to-rebuild path instead of a stuck spinner.
-        Rails.logger.error "[BoardBuilder] unexpected error: #{e.class}: #{e.message}"
+        # Backtrace included because a message alone has proven too thin to
+        # locate post-commit failures (e.g. an image_processing tempfile race).
+        Rails.logger.error "[BoardBuilder] unexpected error: #{e.class}: #{e.message}\n#{e.backtrace&.first(15)&.join("\n")}"
         root.update_column(:status, "failed") if defined?(root) && root&.persisted?
         render json: { error: "build_failed",
                        message: "Something went wrong building the board set — your info is safe, give it another try." },
                status: :unprocessable_entity
+      end
+
+      private
+
+      # Board#api_view walks images/attachments and can trip on transient
+      # ActiveStorage/variant races. By this point the root is committed and
+      # BuildBoardSetJob is enqueued — failing the request here would report a
+      # false failure for a build that's running (and the rescue below would
+      # mark it "failed" out from under the job). Degrade to a minimal payload
+      # instead; the frontend polls GET /api/boards/:id for the full view.
+      def serialize_built_root(root)
+        root.api_view(current_user)
+      rescue StandardError => e
+        Rails.logger.warn "[BoardBuilder] api_view failed for board #{root.id}, returning minimal payload: #{e.class}: #{e.message}"
+        { id: root.id, board_id: root.id, name: root.name, slug: root.slug,
+          board_type: root.board_type, user_id: root.user_id, status: root.status }
       end
     end
   end
