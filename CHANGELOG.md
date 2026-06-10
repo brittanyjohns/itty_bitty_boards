@@ -5,6 +5,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — AI image generation no longer charges credits for first-time fills
+- `POST /api/images/generate` only spends `image_generation` credits when the image
+  **already has a picture** (the user is replacing/customizing it). Generating an image
+  for a tile/label that has **no picture yet** now generates the image for **free** — we
+  don't charge users to build the shared image library. The credit gate moved from an
+  unconditional check at the top of the action to `Image#display_image_url(user).present?`.
+  Regenerate / image-edit / image-variation are unchanged (they always act on an existing
+  image, so they keep charging).
+
 ### Changed — Transactional free welcome slimmed to a receipt (dual-welcome, #293 option A)
 - `UserMailer.welcome_free_email` is now a short **receipt** — account-ready
   confirmation + sign-in link, with a closing line that hands off to the

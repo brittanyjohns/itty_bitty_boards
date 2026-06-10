@@ -458,7 +458,6 @@ class API::ImagesController < API::ApplicationController
 
   def generate
     @current_user = current_user
-    return unless check_credits!(feature_key: "image_generation", feature_name: "AI Image Generation")
     label = image_params[:label].present? ? image_params[:label] : image_params[:image_prompt]
     image_prompt = image_params[:image_prompt]
     stripped_prompt = image_prompt.gsub("[[REPLACE_LABEL]]", "").strip
@@ -467,6 +466,13 @@ class API::ImagesController < API::ApplicationController
       @image = Image.find(params[:id])
     else
       @image = Image.find_or_create_by(label: label, user_id: @current_user.id, private: false, image_prompt: stripped_prompt, image_type: "Generated")
+    end
+
+    # Building the library is free: only charge when the image already has a
+    # displayable picture for this user (i.e. they're replacing/customizing it).
+    # First-time generation for an empty tile generates the image but isn't billed.
+    if @image.display_image_url(@current_user).present?
+      return unless check_credits!(feature_key: "image_generation", feature_name: "AI Image Generation")
     end
 
     if needs_replacement?(label, stripped_prompt)
