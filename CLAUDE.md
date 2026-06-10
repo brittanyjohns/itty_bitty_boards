@@ -174,6 +174,15 @@ ActionMailer/Gmail SMTP, **not** Mailchimp. True 1:1 transactional via Mailchimp
 would require the separate Transactional/Mandrill product (different gem + key +
 paid add-on) — not integrated.
 
+**Dual welcome (decision #293, option A).** A new Free signup gets **two**
+emails by design: (1) the transactional `UserMailer.welcome_free_email` over SMTP
+— deliberately slimmed to a short **receipt** (account-ready + sign-in link, no
+marketing sections), and (2) the Mailchimp `welcome` Customer Journey, which
+carries the warm "let's make your first board" story. The receipt's closing line
+("we'll follow up in a moment with where to start") hands off to the journey, so
+they complement rather than duplicate. If you ever want only one, gate the
+transactional send in `auths#sign_up` or unset the welcome journey ENV vars.
+
 ## PostHog server-side analytics
 
 `PosthogService` (`app/models/posthog_service.rb`) captures the

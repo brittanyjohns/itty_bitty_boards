@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Transactional free welcome slimmed to a receipt (dual-welcome, #293 option A)
+- `UserMailer.welcome_free_email` is now a short **receipt** — account-ready
+  confirmation + sign-in link, with a closing line that hands off to the
+  Mailchimp `welcome` Customer Journey ("we'll follow up with where to start").
+  Removed the marketing sections (what-you-can-do, quick-start, MySpeak ID,
+  upgrade box) that duplicated the journey's content. Subject, the "Free plan"
+  badge, and the sign-in CTA are unchanged. EN + ES both updated. This lets the
+  transactional receipt and the warm Mailchimp welcome coexist without
+  overlapping (issue #293, option A).
+
 ### Changed — Mailchimp lifecycle journeys never email demo/internal accounts
 - All Customer Journey sends now skip `user.demo_user?` accounts (email contains
   `bhannajohns+` or `@speakanyway.com` — the same definition behind the
