@@ -36,10 +36,22 @@ RSpec.describe "Credit enforcement on AI endpoints", type: :request do
   describe "spending the configured weight per feature" do
     before { CreditService.grant_plan!(user, amount: 1000, period_end: 30.days.from_now) }
 
-    it "image_generation costs 3" do
+    it "image_generation costs 3 when the image already has a picture" do
+      # Only replacing/customizing an existing image is billed; stub a displayable
+      # doc so the charge path is exercised (S3-safe, no real ActiveStorage blob).
+      allow_any_instance_of(Image).to receive(:display_image_url).and_return("https://example.com/cat.png")
       expect {
         post "/api/images/generate", params: { image: { label: "cat", image_prompt: "cat" } }, headers: auth
       }.to change { user.reload.plan_credits_balance }.by(-3)
+    end
+
+    it "image_generation is free when there is no existing image (building the library)" do
+      before_balance = user.reload.plan_credits_balance
+      # The image is still generated (job enqueued) — just not billed.
+      expect {
+        post "/api/images/generate", params: { image: { label: "cat", image_prompt: "cat" } }, headers: auth
+      }.to change(GenerateImageJob.jobs, :size).by(1)
+      expect(user.reload.plan_credits_balance).to eq(before_balance)
     end
 
     it "word_suggestion costs 1" do
@@ -70,6 +82,26 @@ RSpec.describe "Credit enforcement on AI endpoints", type: :request do
     end
   end
 
+  describe "image_generation gating depends on whether a picture already exists" do
+    # `user` starts at a zero balance here — the global before clears the grant
+    # and this block adds none.
+
+    it "returns 402 (and does not generate) when replacing an existing image with no credits" do
+      allow_any_instance_of(Image).to receive(:display_image_url).and_return("https://example.com/cat.png")
+      expect {
+        post "/api/images/generate", params: { image: { label: "cat", image_prompt: "cat" } }, headers: auth
+      }.not_to change(GenerateImageJob.jobs, :size)
+      expect(response).to have_http_status(402)
+    end
+
+    it "still generates a first-time image for free at a zero balance" do
+      expect {
+        post "/api/images/generate", params: { image: { label: "cat", image_prompt: "cat" } }, headers: auth
+      }.to change(GenerateImageJob.jobs, :size).by(1)
+      expect(response).not_to have_http_status(402)
+    end
+  end
+
   describe "drains plan credits before top-up" do
     before do
       CreditService.grant_plan!(user, amount: 2, period_end: 30.days.from_now)
@@ -77,6 +109,8 @@ RSpec.describe "Credit enforcement on AI endpoints", type: :request do
     end
 
     it "uses plan balance first for an image_generation call" do
+      # Billed path requires an existing picture to replace/customize.
+      allow_any_instance_of(Image).to receive(:display_image_url).and_return("https://example.com/cat.png")
       post "/api/images/generate", params: { image: { label: "cat", image_prompt: "cat" } }, headers: auth
       user.reload
       # cost 3 — plan had 2, topup absorbs 1

@@ -499,6 +499,15 @@ Full permissions matrix and the rationale for the split lives in
 topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
 - Reserve **HTTP 429** for true rate limiting (rapid-fire abuse), not credit
   exhaustion.
+- **`image_generation` is free for first-time fills.** `API::ImagesController#generate`
+  (`POST /api/images/generate`) only calls `check_credits!` when the image **already
+  has a displayable picture** for the user (`Image#display_image_url(user).present?` —
+  the same "is there a doc to set?" notion as `Board#find_or_create_images_from_word_list`).
+  Generating an image for an empty tile/label (no doc yet) still enqueues
+  `GenerateImageJob` but is **not billed** — we don't charge users to build the shared
+  image library. Charging only applies when they're replacing/customizing an existing
+  image. `regenerate_images`, `create_image_edit`, and `create_image_variation` act on
+  images that already have a picture, so they keep charging unconditionally.
 - `MonthlyFeatureLimiter` is no longer in the AI hot path. It remains in the
   codebase as a generic Redis-counter helper for any future non-AI rate
   limits, but no controller currently calls it.
