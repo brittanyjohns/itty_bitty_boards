@@ -1,4 +1,6 @@
 class API::MenusController < API::ApplicationController
+  include MailchimpHitLimitNotifier
+
   before_action :set_menu, only: %i[ show edit update destroy ]
   before_action :check_board_create_permissions, only: %i[ create ]
 
@@ -191,8 +193,7 @@ class API::MenusController < API::ApplicationController
     end
     if current_user.at_board_limit?
       render json: { error: "Maximum number of boards reached. Please upgrade to add more." }, status: :unprocessable_entity
-      return
+      notify_mailchimp_hit_limit(current_user)
     end
-    return true
   end
 end

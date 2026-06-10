@@ -1,4 +1,6 @@
 class API::BoardsController < API::ApplicationController
+  include MailchimpHitLimitNotifier
+
   skip_before_action :authenticate_token!, only: %i[ index predictive_image_board show public_boards public_menu_boards common_boards pdf ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts show make_editable ]
@@ -1099,24 +1101,6 @@ class API::BoardsController < API::ApplicationController
       render json: { error: "Maximum number of boards reached (#{refreshed_user.countable_board_count}/#{refreshed_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_entity
       notify_mailchimp_hit_limit(refreshed_user)
     end
-  end
-
-  # Enqueue the Mailchimp "hit_limit" Customer Journey when a Free user
-  # bumps into the board cap. Deduped per user (Rails.cache, 14d TTL) so
-  # a user mashing the create button doesn't get the email re-sent. Fires
-  # for create / clone / create_from_template (the three actions gated by
-  # check_board_create_permissions). Guarded — any Redis/Sidekiq blip
-  # logs a warning rather than 500ing the API request.
-  def notify_mailchimp_hit_limit(user)
-    return unless user.plan_type == "free"
-
-    dedupe_key = "mailchimp:hit_limit:#{user.id}"
-    return if Rails.cache.read(dedupe_key)
-
-    MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "hit_limit" })
-    Rails.cache.write(dedupe_key, true, expires_in: 14.days)
-  rescue StandardError => e
-    Rails.logger.warn("[Mailchimp] hit_limit enqueue failed for user #{user.id}: #{e.message}")
   end
 
   def apply_filter(scope, filter)

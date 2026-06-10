@@ -5,6 +5,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — hit_limit journey no longer self-suppresses, and now fires from the Menu creator
+- The `hit_limit` Mailchimp journey's 14-day dedupe key is now stamped **only
+  when the journey can actually fire** (Free user, journeys enabled for the
+  env, journey configured). Previously the key was written on every enqueue,
+  so a single no-op — ENV unset, staging/dev, or a demo account — would silently
+  suppress the email for 14 days even after the cause was fixed. (No
+  `demo_user?` guard at the enqueue site while the #306 temporary revert is in
+  effect — restore it alongside #297.)
+- A Free user who trips the board cap via the **Menu Board Creator**
+  (`POST /api/menus`) now gets the `hit_limit` journey too; previously only the
+  `/api/boards` create/clone/template paths enqueued it. The logic is shared via
+  a new `MailchimpHitLimitNotifier` controller concern.
+- Added `bin/rails 'mailchimp:clear_hit_limit_dedupe[USER_ID]'` to clear a stuck
+  dedupe key for a user.
+
 ### Changed — Demo/internal accounts receive Mailchimp journey emails again (temporary)
 - Reverted #297 for now: the `user.demo_user?` guards in `MailchimpEventJob`,
   `MailchimpTrialWrapJob`, and the cohort-sweep jobs are removed, so demo

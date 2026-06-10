@@ -54,4 +54,34 @@ RSpec.describe "API::Menus", type: :request do
       }.to change(EnhanceImageDescriptionJob.jobs, :size).by(1)
     end
   end
+
+  # The Menu Board Creator is gated by the same board cap as regular board
+  # creation, so a Free user who trips it should get the hit_limit journey too
+  # (previously only the /api/boards path enqueued it).
+  describe "POST /api/menus triggers the Mailchimp hit_limit journey at the board cap" do
+    let(:free_user) { create(:free_user) }
+    let!(:existing_board) { create(:board, user: free_user) }
+    let(:memory_cache) { ActiveSupport::Cache::MemoryStore.new }
+
+    before do
+      allow(Rails).to receive(:cache).and_return(memory_cache)
+      allow(MailchimpClient).to receive(:journeys_enabled?).and_return(true)
+      allow(MailchimpClient).to receive(:journey).with("hit_limit")
+        .and_return({ journey_id: 1, step_id: 2 })
+      MailchimpEventJob.clear
+    end
+
+    it "enqueues the hit_limit journey when a Free user trips the cap via the Menu creator" do
+      expect {
+        post "/api/menus",
+             params: { menu: { name: "Lunch" } },
+             headers: auth_headers(free_user)
+      }.to change(MailchimpEventJob.jobs, :size).by(1)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(MailchimpEventJob.jobs.last["args"]).to eq(
+        [free_user.id, "journey", { "journey_key" => "hit_limit" }],
+      )
+    end
+  end
 end
