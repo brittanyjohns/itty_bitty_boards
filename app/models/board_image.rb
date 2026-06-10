@@ -41,7 +41,12 @@ class BoardImage < ApplicationRecord
   # before_save :save_display_image_url, if: -> { display_image_url.blank? }
   before_save :check_predictive_board
   before_update :set_colors, if: :part_of_speech_changed?
-  after_create :create_voice_audio_after_create, unless: -> { skip_create_voice_audio }
+  # after_create_commit (not after_create): tiles are often created inside a
+  # larger transaction (Board Builder clones a whole linked set in one), and
+  # an after_create enqueue lets Sidekiq run SaveAudioJob before the commit —
+  # the job can't find the row ("BoardImage with ID ... not found") and the
+  # tile ends up with no audio_url.
+  after_create_commit :create_voice_audio_after_create, unless: -> { skip_create_voice_audio }
 
   include BoardsHelper
   include ImageHelper
