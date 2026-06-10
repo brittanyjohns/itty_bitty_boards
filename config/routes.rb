@@ -401,7 +401,7 @@ Rails.application.routes.draw do
       get "/child_accounts/current", to: "child_auths#current"
       get "users/current", to: "auths#current"
       post "users", to: "auths#sign_up"
-      post "users/sign_in", to: "auths#sign_in"
+      post "users/sign_in", to: "auths#create"
       post "users/sign_out", to: "auths#destroy"
       post "login", to: "auths#create"
       post "forgot_password", to: "auths#forgot_password"
