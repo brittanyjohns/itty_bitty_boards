@@ -313,6 +313,30 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       end
     end
 
+    context "when serializing the 201 payload fails after the job is enqueued" do
+      it "still returns 201 with a minimal payload and leaves the build running" do
+        # Board#api_view can trip on transient ActiveStorage/variant races.
+        # By then the root is committed and BuildBoardSetJob is enqueued —
+        # a 422 here would be a false failure (and would mark a running
+        # build "failed" out from under the job).
+        allow_any_instance_of(Board).to receive(:api_view).and_raise(StandardError, "variant race")
+
+        expect {
+          post "/api/v1/board_builder",
+               params: { communicator_id: communicator.id, template: "home" }.to_json,
+               headers: headers
+        }.to change { BuildBoardSetJob.jobs.size }.by(1)
+
+        expect(response).to have_http_status(:created)
+        body = JSON.parse(response.body)
+        expect(body["name"]).to eq("Home")
+        expect(body["status"]).to eq("building_board")
+
+        root = Board.find(body["id"])
+        expect(root.status).to eq("building_board") # not stomped to "failed"
+      end
+    end
+
     context "when something fails in-request after the root was created" do
       it "returns 422 build_failed and marks the root failed (no stuck building_board)" do
         allow(BuildBoardSetJob).to receive(:perform_async).and_raise(StandardError, "redis down")

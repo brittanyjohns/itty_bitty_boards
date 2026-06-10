@@ -101,4 +101,42 @@ RSpec.describe BoardImage, type: :model do
       expect(view[:display_label]).to eq("Hola")
     end
   end
+
+  describe "voice audio enqueue (after_create_commit)" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+    let(:image) { FactoryBot.create(:image, label: "hello", user_id: user.id) }
+
+    before do
+      # No pre-existing audio for the voice -> the callback takes the
+      # SaveAudioJob branch.
+      allow_any_instance_of(BoardImage).to receive(:audio_url_for_voice).and_return(nil)
+      SaveAudioJob.clear
+    end
+
+    it "defers SaveAudioJob until the enclosing transaction commits" do
+      # Board Builder clones a whole linked set in one transaction; an
+      # after_create enqueue let Sidekiq run SaveAudioJob before the row was
+      # visible ("BoardImage with ID ... not found") and the tile shipped
+      # without audio.
+      ActiveRecord::Base.transaction do
+        FactoryBot.create(:board_image, board: board, image: image)
+        expect(SaveAudioJob.jobs).to be_empty
+      end
+      expect(SaveAudioJob.jobs.size).to eq(1)
+    end
+
+    it "does not enqueue when the transaction rolls back" do
+      ActiveRecord::Base.transaction do
+        FactoryBot.create(:board_image, board: board, image: image)
+        raise ActiveRecord::Rollback
+      end
+      expect(SaveAudioJob.jobs).to be_empty
+    end
+
+    it "respects skip_create_voice_audio" do
+      FactoryBot.create(:board_image, board: board, image: image, skip_create_voice_audio: true)
+      expect(SaveAudioJob.jobs).to be_empty
+    end
+  end
 end
