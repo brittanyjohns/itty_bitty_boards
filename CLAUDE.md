@@ -577,6 +577,22 @@ Tasks:
   and `plan_credits_balance = 0`, then re-grants their tier allowance with
   `period_end = 30.days.from_now`.
 
+## Beta-end entitlement audit
+
+- `bin/rails beta:audit_entitlements` — **read-only** sweep comparing every
+  user's persisted `settings` limits (`board_limit`, effective communicator
+  slot limit, `ai_monthly_limit`) and actual usage (`countable_board_count`,
+  owned loaner+active communicators) against the entitlement for their
+  `plan_type` (the `FREE/BASIC/PRO_PLAN_LIMITS` hashes). Prints summary counts
+  and writes flagged users to `tmp/beta_audit_<date>.csv` (path overridable
+  via `BETA_AUDIT_CSV`). Admin/partner accounts are listed but marked
+  `exempt`. Closes the gap where beta-era users kept Pro-level `settings`
+  while `plan_type` stayed `free` (enforcement reads `settings`; the
+  reconcile callback only fires on `plan_type` change). Phase 2 — a
+  reconciliation task (`beta:end_beta`) — gets built only if this audit
+  finds over-entitled users. See
+  `.claude-notes/beta-end-founding-rate-handoff.md`.
+
 ## OBF/OBZ import — copyright policy
 
 Imports via `POST /api/boards/import_obf` are gated to avoid silently
