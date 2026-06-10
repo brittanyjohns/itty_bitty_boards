@@ -82,14 +82,6 @@ RSpec.describe MailchimpLegacySignupNudgeJob, type: :job do
       end
     end
 
-    context "when the user is a demo/internal account" do
-      it "is skipped (not enqueued, not flagged) even if otherwise eligible" do
-        user = create_legacy_user(email: "qa@speakanyway.com")
-        expect { job.perform }.not_to change(MailchimpEventJob.jobs, :size)
-        expect(user.reload.settings["legacy_signup_nudge_sent"]).not_to eq(true)
-      end
-    end
-
     context "ENV threshold overrides" do
       it "honors LEGACY_SIGNUP_NUDGE_AGE_DAYS" do
         create_legacy_user(created_at: 20.days.ago, last_sign_in_at: nil)

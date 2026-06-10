@@ -35,14 +35,5 @@ RSpec.describe MailchimpEventJob, type: :sidekiq do
 
       described_class.new.perform(user.id, "journey", { "journey_key" => "mystery" })
     end
-
-    it "skips (no trigger) for a demo/internal user even when enabled + configured" do
-      demo = FactoryBot.create(:user, email: "qa@speakanyway.com")
-      allow(MailchimpClient).to receive(:journeys_enabled?).and_return(true)
-      allow(MailchimpClient).to receive(:journey).with("welcome").and_return(journey_id: 10, step_id: 20)
-      expect(mailchimp).not_to receive(:trigger_journey)
-
-      described_class.new.perform(demo.id, "journey", { "journey_key" => "welcome" })
-    end
   end
 end

@@ -5,6 +5,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Demo/internal accounts receive Mailchimp journey emails again (temporary)
+- Reverted #297 for now: the `user.demo_user?` guards in `MailchimpEventJob`,
+  `MailchimpTrialWrapJob`, and the cohort-sweep jobs are removed, so demo
+  accounts (`bhannajohns+` / `@speakanyway.com` emails) can receive lifecycle
+  journey emails — useful for end-to-end testing of the journeys. Re-apply by
+  reverting this revert when testing is done.
+
 ### Changed — AI image generation no longer charges credits for first-time fills
 - `POST /api/images/generate` only spends `image_generation` credits when the image
   **already has a picture** (the user is replacing/customizing it). Generating an image
@@ -35,15 +42,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   badge, and the sign-in CTA are unchanged. EN + ES both updated. This lets the
   transactional receipt and the warm Mailchimp welcome coexist without
   overlapping (issue #293, option A).
-
-### Changed — Mailchimp lifecycle journeys never email demo/internal accounts
-- All Customer Journey sends now skip `user.demo_user?` accounts (email contains
-  `bhannajohns+` or `@speakanyway.com` — the same definition behind the
-  `DEMO_USER` merge field). A single guard in `MailchimpEventJob`'s journey
-  branch covers welcome / first_board_nudge / hit_limit / legacy_signup_nudge /
-  win_back; `MailchimpTrialWrapJob` has its own guard. The cohort-sweep jobs
-  also skip demo users so they aren't flagged. CRM contact sync is unchanged —
-  demo contacts remain in the audience, tagged as demo.
 
 ### Added — Mailchimp trial-wrap (#5) and win-back (#6) lifecycle journeys
 - **Trial wrapping up (#5).** The `customer.subscription.trial_will_end` Stripe
