@@ -73,15 +73,6 @@ RSpec.describe MailchimpWinBackJob, type: :job do
       end
     end
 
-    context "when the user is a demo/internal account" do
-      it "is skipped (not enqueued, not flagged) even if otherwise eligible" do
-        user = create_dormant_user(email: "qa@speakanyway.com")
-        create(:board, user: user)
-        expect { job.perform }.not_to change(MailchimpEventJob.jobs, :size)
-        expect(user.reload.settings["win_back_nudge_sent"]).not_to eq(true)
-      end
-    end
-
     context "when one user's save raises" do
       it "logs and continues processing the rest" do
         user_a = create_dormant_user

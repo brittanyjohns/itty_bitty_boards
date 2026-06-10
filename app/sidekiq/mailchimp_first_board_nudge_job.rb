@@ -23,7 +23,6 @@ class MailchimpFirstBoardNudgeJob
 
     eligible_users.find_each do |user|
       next if already_nudged?(user)
-      next if user.demo_user?
       next if user.boards.any?
 
       enqueue_and_flag(user)
