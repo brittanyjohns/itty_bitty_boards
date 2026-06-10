@@ -53,6 +53,115 @@ RSpec.describe "POST /api/webhooks (PostHog analytics)", type: :request do
     )
   end
 
+  def build_checkout_session(metadata: { "user_id" => user.id.to_s }, **overrides)
+    OpenStruct.new(
+      {
+        id: "cs_test_#{SecureRandom.hex(4)}",
+        customer: user.stripe_customer_id,
+        customer_details: OpenStruct.new(email: user.email),
+        subscription: "sub_#{SecureRandom.hex(3)}",
+        amount_total: 999,
+        currency: "usd",
+        metadata: metadata,
+      }.merge(overrides),
+    )
+  end
+
+  describe "checkout_completed (checkout.session.completed)" do
+    context "subscription checkout" do
+      it "captures checkout_completed with the picked plan, kind, amount and currency" do
+        user.update!(paid_plan_type: "pro", plan_type: "free")
+        session = build_checkout_session
+        stub_event(session, type: "checkout.session.completed")
+
+        expect(PosthogService).to receive(:capture_for_user).with(
+          an_object_having_attributes(id: user.id),
+          "checkout_completed",
+          properties: {
+            plan: "pro",
+            kind: "subscription",
+            amount_total: 999,
+            currency: "usd",
+            source: "stripe_webhook",
+          },
+        )
+
+        post_webhook("{}", header_with_signature)
+      end
+
+      it "falls back to plan_type when no paid_plan_type is set" do
+        user.update!(paid_plan_type: nil, plan_type: "basic")
+        session = build_checkout_session
+        stub_event(session, type: "checkout.session.completed")
+
+        expect(PosthogService).to receive(:capture_for_user).with(
+          anything, "checkout_completed",
+          properties: hash_including(plan: "basic"),
+        )
+
+        post_webhook("{}", header_with_signature)
+      end
+
+      it "does not capture when no user can be resolved" do
+        session = build_checkout_session(
+          metadata: { "user_id" => "0" },
+          customer: "cus_nobody",
+          customer_details: nil,
+        )
+        stub_event(session, type: "checkout.session.completed")
+
+        expect(PosthogService).not_to receive(:capture_for_user)
+
+        post_webhook("{}", header_with_signature)
+      end
+    end
+
+    context "topup checkout" do
+      let(:topup_metadata) do
+        {
+          "kind" => "topup",
+          "user_id" => user.id.to_s,
+          "pack_key" => "small",
+          "credit_amount" => "100",
+        }
+      end
+
+      it "captures checkout_completed with kind=topup after the credits are granted" do
+        session = build_checkout_session(metadata: topup_metadata, amount_total: 499)
+        stub_event(session, type: "checkout.session.completed")
+
+        expect(PosthogService).to receive(:capture_for_user).with(
+          an_object_having_attributes(id: user.id),
+          "checkout_completed",
+          properties: {
+            plan: "basic",
+            kind: "topup",
+            amount_total: 499,
+            currency: "usd",
+            source: "stripe_webhook",
+          },
+        )
+
+        expect {
+          post_webhook("{}", header_with_signature)
+        }.to change { user.reload.topup_credits_balance }.by(100)
+      end
+
+      it "does not capture when the topup is not credited" do
+        session = build_checkout_session(
+          metadata: { "kind" => "topup" },
+          customer: nil,
+          customer_details: nil,
+        )
+        stub_event(session, type: "checkout.session.completed")
+
+        expect(PosthogService).not_to receive(:capture_for_user)
+
+        post_webhook("{}", header_with_signature)
+      end
+    end
+  end
+
   describe "subscription_started (non-active → active)" do
     it "captures subscription_started with plan + billing_interval" do
       user.update!(plan_status: "trialing")
