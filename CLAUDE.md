@@ -192,6 +192,17 @@ PostHog events (which fire intent + `checkout_started`); the backend completes
 the money-path funnel (itty-bitty-frontend#307). Fired from
 `API::WebhooksController`:
 
+- **`checkout_completed`** `{ plan, kind, amount_total, currency, source }` —
+  on `checkout.session.completed`, the **authoritative** purchase-completion
+  event (fires even if the user never returns to the success page; the frontend
+  adds a client-side echo separately). Subscription checkouts capture in
+  `handle_checkout_completed` (`plan` from `paid_plan_type` — the plan picked at
+  session create, since the subscription upsert may not have run yet;
+  `kind: "subscription"`); topups capture in `handle_topup_completed` after the
+  credit grant succeeds (`kind: "topup"`, `plan` = current `plan_type`). No
+  event-id guard (matching the handler), so a Stripe webhook retry may
+  re-capture — acceptable for analytics; the topup credit grant itself stays
+  idempotent.
 - **`trial_started`** `{ plan }` — `handle_trial_started_analytics`, on
   `customer.subscription.created` when `status == "trialing"`. PostHog-only —
   the internal `trial_started` AnalyticsEvent already fires at checkout, so we

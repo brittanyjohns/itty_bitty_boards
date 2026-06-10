@@ -166,6 +166,23 @@ class API::WebhooksController < API::ApplicationController
       },
     )
     Rails.logger.info "[StripeWebhook][topup] credited user=#{user.id} amount=#{credit_amount} session=#{session.id}"
+
+    # Checkout-completion analytics for topups (itty-bitty-frontend#307). The
+    # credit grant above is idempotent on the event id, but a webhook retry may
+    # re-capture this event; acceptable for analytics. `plan` is the user's
+    # current plan — a topup doesn't pick one.
+    PosthogService.capture_for_user(
+      user,
+      "checkout_completed",
+      properties: {
+        plan: user.plan_type,
+        kind: "topup",
+        amount_total: session.amount_total,
+        currency: session.currency,
+        source: "stripe_webhook",
+      },
+    )
+
     true
   rescue => e
     Rails.logger.error "[StripeWebhook][topup] error: #{e.class} - #{e.message}"
@@ -213,6 +230,25 @@ class API::WebhooksController < API::ApplicationController
     )
 
     Rails.logger.info "[StripeWebhook] Linked checkout.session #{session.id} to user #{user.id}"
+
+    # Authoritative checkout-completion event (itty-bitty-frontend#307) — fires
+    # even when the user never returns to the success page. The frontend adds a
+    # client-side echo separately. No event-id guard here (matching this
+    # handler), so a Stripe webhook retry may re-capture; acceptable for
+    # analytics. `paid_plan_type` is the plan picked at session create — the
+    # subscription upsert may not have updated `plan_type` yet.
+    PosthogService.capture_for_user(
+      user,
+      "checkout_completed",
+      properties: {
+        plan: user.paid_plan_type.presence || user.plan_type,
+        kind: metadata["kind"].presence || "subscription",
+        amount_total: session.amount_total,
+        currency: session.currency,
+        source: "stripe_webhook",
+      },
+    )
+
     user
   rescue => e
     Rails.logger.error "[StripeWebhook] handle_checkout_completed error: #{e.class} - #{e.message}"

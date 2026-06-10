@@ -13,6 +13,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   unconditional check at the top of the action to `Image#display_image_url(user).present?`.
   Regenerate / image-edit / image-variation are unchanged (they always act on an existing
   image, so they keep charging).
+### Added — Server-side `checkout_completed` PostHog event (upgrade funnel)
+- The Stripe `checkout.session.completed` webhook now captures a
+  `checkout_completed` PostHog event `{ plan, kind, amount_total, currency,
+  source: "stripe_webhook" }` for both subscription checkouts and credit
+  topups (`kind: "topup"`), making checkout outcomes visible in the upgrade
+  funnel even when the user never returns to the success page. No new ENV
+  vars — activates in production via the existing PostHog gate.
+
+### Fixed — Dead `POST /api/v1/users/sign_in` route
+- The route pointed at a non-existent `auths#sign_in` action, so any caller
+  got a server error. It now routes to `auths#create`, identical to
+  `POST /api/v1/login`.
 
 ### Changed — Transactional free welcome slimmed to a receipt (dual-welcome, #293 option A)
 - `UserMailer.welcome_free_email` is now a short **receipt** — account-ready
