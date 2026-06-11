@@ -18,9 +18,24 @@ module API
     # create returns HTTP 409 `board_builder_set_exists` instead of silently
     # duplicating it; the client re-sends with `confirm=true` to build another.
     class BoardBuilderController < API::ApplicationController
-      # Label-only template catalog for the picker grid.
+      # Robust-set slugs used for the server-side template recommendation.
+      # These are the keys vocab_sets:seed stamps on the seeded roots; the
+      # recommendation is only emitted when the slug is actually in the
+      # catalog (i.e. seeded in this environment).
+      RECOMMENDED_SMALL_SET = "core-60"
+      RECOMMENDED_LARGE_SET = "core-84"
+
+      # Label-only template catalog for the picker grid. With an optional
+      # communicator_id (scoped to the caller's own communicators), a stored
+      # profile yields a server-side template recommendation: young/emerging
+      # communicators get the smaller core set, everyone else the larger one.
       def templates
-        render json: { templates: Boards::StarterBlueprints.catalog }, status: :ok
+        catalog = Boards::StarterBlueprints.catalog
+        recommended, reason = recommend_template(catalog)
+        render json: { templates: catalog,
+                       recommended_template: recommended,
+                       recommendation_reason: reason },
+               status: :ok
       end
 
       def create
@@ -143,6 +158,29 @@ module API
       end
 
       private
+
+      # [recommended_template_key, reason] for the optional communicator_id
+      # param, or [nil, nil] when there's no usable stored profile (or the
+      # recommended set isn't seeded in this environment). Ownership-scoped:
+      # someone else's communicator id resolves to nil and is ignored.
+      def recommend_template(catalog)
+        return [nil, nil] if params[:communicator_id].blank?
+
+        communicator = current_user.communicator_accounts.find_by(id: params[:communicator_id])
+        profile = CommunicatorProfile.for(communicator: communicator)
+        return [nil, nil] unless profile
+
+        if profile.young? || profile.emerging?
+          slug = RECOMMENDED_SMALL_SET
+          reason = "A smaller core vocabulary is a good starting point for young or emerging communicators."
+        else
+          slug = RECOMMENDED_LARGE_SET
+          reason = "A larger core vocabulary gives this communicator more room to grow."
+        end
+        return [nil, nil] unless catalog.any? { |t| t[:key] == slug }
+
+        [slug, reason]
+      end
 
       # Board#api_view walks images/attachments and can trip on transient
       # ActiveStorage/variant races. By this point the root is committed and
