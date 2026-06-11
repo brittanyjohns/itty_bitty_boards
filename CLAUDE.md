@@ -674,7 +674,12 @@ Three seams (input contract tightens left→right):
 
 Endpoints (`API::V1::BoardBuilderController`, both auth-gated):
 
-- `GET /api/v1/board_builder/templates` — label-only picker catalog.
+- `GET /api/v1/board_builder/templates` — label-only picker catalog. Accepts an
+  optional `communicator_id` (scoped to `current_user.communicator_accounts`);
+  when that communicator has a usable stored profile, the response includes
+  `recommended_template` (Core 60's slug for young/emerging, else Core 84's —
+  only if that set is seeded here) and a `recommendation_reason` string. No
+  profile → both `null`.
 - `POST /api/v1/board_builder` `{ communicator_id, template, interests }` —
   ownership check (**404 `communicator_not_found`** for a communicator not in
   `current_user.communicator_accounts`), assemble → build → persist normalized
@@ -728,6 +733,27 @@ layout + `part_of_speech` colors survive). Reuses `ObzImporter` (seed) and
 - v1 is **synchronous** (DB-bound work; previews/audio/AI art already async).
   If a finalized set is materially larger than the placeholder, move the clone
   to a background job + "building" state — see `.claude-notes/board-builder.md`.
+
+### Stored communicator profile (AAC personalization)
+
+`aac_level` / `vocab_type` / `age_band` live in **`child_accounts.details`**
+(jsonb, same pattern as `details["interests"]` — no columns). `ChildAccount`
+defines typed accessors over them, normalizes (downcase/strip, blank clears the
+key), and validates against `CommunicatorProfile::AAC_LEVELS / VOCAB_TYPES /
+AGE_BANDS` on every save — including the wholesale `details=` assignment in the
+communicator update controller. Exposed top-level (next to `details`) in the
+ChildAccount `api_view` / `vendor_api_view`.
+
+`CommunicatorProfile.for(params:, communicator:)` is the merge constructor:
+explicit request params override stored fields **field by field**; returns nil
+when both sources are empty (no profile = unchanged behavior). Consumers:
+`boards#words`, `boards#additional_words`, and `GenerateBoardJob` all accept an
+optional `communicator_id` — always resolved via
+`current_user.communicator_accounts` (controller-side for the job; the id in
+job options is pre-validated), never a bare `ChildAccount.find`. An id the
+caller doesn't own is silently ignored. Personalization reaches **AI
+word-suggestion prompts and the template recommendation only** — the Board
+Builder's deterministic build path is unchanged.
 
 ## Do not
 

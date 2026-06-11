@@ -60,6 +60,67 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       expect(robust["name"]).to eq("Core 60")
       expect(robust["tiles"]).to include("I", "Food")
     end
+
+    describe "recommended_template" do
+      it "is null without a communicator_id" do
+        seed_robust_set!
+        get "/api/v1/board_builder/templates", headers: headers
+
+        body = JSON.parse(response.body)
+        expect(body["recommended_template"]).to be_nil
+        expect(body["recommendation_reason"]).to be_nil
+      end
+
+      it "is null when the communicator has no stored profile" do
+        seed_robust_set!
+        get "/api/v1/board_builder/templates",
+            params: { communicator_id: communicator.id }, headers: headers
+
+        expect(JSON.parse(response.body)["recommended_template"]).to be_nil
+      end
+
+      it "recommends the small core set for a young/emerging communicator" do
+        seed_robust_set!(slug: "core-60")
+        communicator.update!(details: { "aac_level" => "emerging", "age_band" => "4-6" })
+
+        get "/api/v1/board_builder/templates",
+            params: { communicator_id: communicator.id }, headers: headers
+
+        body = JSON.parse(response.body)
+        expect(body["recommended_template"]).to eq("core-60")
+        expect(body["recommendation_reason"]).to be_present
+      end
+
+      it "recommends the large core set for an older proficient communicator" do
+        seed_robust_set!(slug: "core-84")
+        communicator.update!(details: { "aac_level" => "proficient", "age_band" => "15-18" })
+
+        get "/api/v1/board_builder/templates",
+            params: { communicator_id: communicator.id }, headers: headers
+
+        expect(JSON.parse(response.body)["recommended_template"]).to eq("core-84")
+      end
+
+      it "is null when the recommended set isn't seeded in this environment" do
+        communicator.update!(details: { "aac_level" => "emerging" })
+
+        get "/api/v1/board_builder/templates",
+            params: { communicator_id: communicator.id }, headers: headers
+
+        expect(JSON.parse(response.body)["recommended_template"]).to be_nil
+      end
+
+      it "ignores another user's communicator_id" do
+        seed_robust_set!
+        other = create(:child_account, user: create(:user),
+                                       details: { "aac_level" => "emerging" })
+
+        get "/api/v1/board_builder/templates",
+            params: { communicator_id: other.id }, headers: headers
+
+        expect(JSON.parse(response.body)["recommended_template"]).to be_nil
+      end
+    end
   end
 
   describe "POST /api/v1/board_builder" do

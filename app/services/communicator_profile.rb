@@ -30,6 +30,24 @@ class CommunicatorProfile
     profile.present? ? profile : nil
   end
 
+  # Merge constructor: request params override the communicator's stored
+  # profile (child_accounts.details), field by field — an explicit picker value
+  # wins, anything the picker left blank falls back to what's stored on the
+  # communicator. Returns nil when neither source has usable data, preserving
+  # the "no profile = unchanged behavior" contract of from_params.
+  def self.for(params: nil, communicator: nil)
+    fetch = ->(key) { params && (params[key] || params[key.to_s]).presence }
+    stored = communicator&.details || {}
+    profile = new(
+      age: fetch.call(:age) || stored["age"],
+      age_band: fetch.call(:age_band) || stored["age_band"],
+      aac_level: fetch.call(:aac_level) || stored["aac_level"],
+      vocab_type: fetch.call(:vocab_type) || stored["vocab_type"],
+      age_range: fetch.call(:age_range)
+    )
+    profile.present? ? profile : nil
+  end
+
   # `age_range` is the legacy free-text param already used by the scenario flow;
   # it's accepted as a fallback when no structured age/age_band is given.
   def initialize(age: nil, age_band: nil, aac_level: nil, vocab_type: nil, age_range: nil)
