@@ -27,7 +27,7 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - **Serializers:** jsonapi-serializer gem
 - **Hosting:** Hatchbox / EC2
   - Production: `main` branch → `speakanyway.com` (Hatchbox app `670kd.hatchboxapp.com`)
-  - Staging: `staging` branch → `https://ypk9e.hatchboxapp.com`. Long-lived branch — push experimental commits directly to it (deploys are handled by Hatchbox's own push hook on the `staging` branch). To resync `staging` to match `main` (or any ref) and trigger a deploy, run the `Deploy staging (manual)` workflow via `workflow_dispatch` (see `.github/workflows/staging-deploy.yml`). Staging-specific behavior is gated on `ENV["STAGING"] == "true"` — both envs run with `RAILS_ENV=production`. Use the `AppEnv.staging?` helper (`app/models/app_env.rb`) for this check in app code.
+  - Staging: `staging` branch → `https://ypk9e.hatchboxapp.com`. **Deploy branch, not a development branch** — it mirrors `main`. Promote by force-pushing `origin/main` onto `staging` and then running the `Deploy staging (manual)` workflow via `workflow_dispatch` (see `.github/workflows/staging-deploy.yml`) — pushing to `staging` alone does NOT trigger a deploy; the workflow is what fires the Hatchbox deploy. (Brittany's `deploy-staging` skill does both steps.) Any commits on `staging` that aren't on `main` are treated as drift and will be wiped by the next promotion's force-push — don't push experimental work there expecting it to survive. Staging-specific behavior is gated on `ENV["STAGING"] == "true"` — both envs run with `RAILS_ENV=production`. Use the `AppEnv.staging?` helper (`app/models/app_env.rb`) for this check in app code.
   - **Staging skips paid OpenAI image calls.** When `AppEnv.staging?`, `OpenAiClient#create_image` / `#create_image_variation`, `ImageVariationService`, and `ImageEditService` return the bundled `public/placeholder.jpeg` instead of calling OpenAI. The rest of the image pipeline runs normally.
 
 ## Frontend
@@ -737,15 +737,12 @@ layout + `part_of_speech` colors survive). Reuses `ObzImporter` (seed) and
 - Do not expose internal errors in API responses — return generic messages to the client
 - Do not hardcode any environment-specific values (use ENV variables)
 
-## Testing preferences:
+## Testing
 
 - Prefer FactoryBot.build over create where possible
 - Add focused tests for changed behavior
 - Avoid destructive S3/ActiveStorage behavior in tests
 - New features and bug fixes always get tests (per `~/.claude/CLAUDE.md`). Don't backfill tests for _existing_ code unless asked.
-
-## Testing Conventions
-
 - Rails test environment uses `:null_store` for Rails.cache — stub `Rails.cache` in specs that depend on caching behavior
 - Avoid `travel_to` with past timestamps for Redis keys (TTLs expire immediately); use future times or freeze time instead
 - After spec changes, run the tests that depend on the changed code to ensure no regressions. Use `bin/rspec --only-failures` to rerun only failed specs.
