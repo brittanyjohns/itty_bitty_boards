@@ -11,6 +11,18 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - Do NOT add compliance claims (FedRAMP, HIPAA, SOC2) unless explicitly evidenced in code
 - List actual major dependencies, not assumed ones
 
+## Workflow / Behavior
+
+- Do not enter plan mode or start exploring/orchestrating when the user asks to directly execute an existing task (e.g., "run the smoke tests", "make the PR"). Execute the literal request first; only plan when the task is genuinely ambiguous or large.
+
+## Workflow / PR Conventions
+
+- When the goal is to open a PR, prioritize shipping it quickly: run only the directly-relevant tests, not the full suite, unless explicitly asked. Open the PR as soon as the targeted changes pass.
+
+## Repo / Environment
+
+- When working on a worktree branch, confirm the target checkout path before editing — the Explore agent may return primary-checkout paths. Verify edits land in the correct worktree (`config/application.yml` is symlinked across 17 worktrees).
+
 ## Stack
 
 - **Framework:** Rails 7
@@ -729,6 +741,10 @@ layout + `part_of_speech` colors survive). Reuses `ObzImporter` (seed) and
   If a finalized set is materially larger than the placeholder, move the clone
   to a background job + "building" state — see `.claude-notes/board-builder.md`.
 
+## Security / Deployment
+
+- Never SSH to production or push secrets/run privileged commands without explicit authorization; for blocked sandbox/secret operations, hand the user a copy-paste local script.
+
 ## Do not
 
 - Do not install new gems without asking first
@@ -749,6 +765,7 @@ layout + `part_of_speech` colors survive). Reuses `ObzImporter` (seed) and
 - Rails test environment uses `:null_store` for Rails.cache — stub `Rails.cache` in specs that depend on caching behavior
 - Avoid `travel_to` with past timestamps for Redis keys (TTLs expire immediately); use future times or freeze time instead
 - After spec changes, run the tests that depend on the changed code to ensure no regressions. Use `bin/rspec --only-failures` to rerun only failed specs.
+- After verifying RSpec output and confirming completion, clearly state the verification result so it isn't re-requested.
 
 ## Rules for Editing This File
 
