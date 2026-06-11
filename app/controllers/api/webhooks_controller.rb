@@ -113,6 +113,11 @@ class API::WebhooksController < API::ApplicationController
   def handle_customer_created(customer)
     stripe_customer_id = customer.id
     user = User.find_by(stripe_customer_id: stripe_customer_id)
+    # Also match by email before inviting: when email_signup creates the
+    # Stripe customer, this webhook can race the stripe_customer_id save, and
+    # invite! on the existing pending-invite user would rotate the
+    # invitation_token — invalidating the magic link just emailed.
+    user ||= User.find_by(email: customer.email&.downcase) if customer.email.present?
     if !user && customer.email.present?
       Rails.logger.error "[StripeWebhook] customer.created: no user found for customer #{stripe_customer_id} - Creating one"
       user = User.invite!(email: customer.email, skip_invitation: true)

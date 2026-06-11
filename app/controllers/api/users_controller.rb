@@ -46,7 +46,11 @@ class API::UsersController < API::ApplicationController
     @user.password = password
     @user.password_confirmation = password_confirmation
     @user.force_password_reset = false
-    if @user.save
+    # Invited accounts must accept the invitation here: devise_invitable's
+    # valid_password? returns nil while invitation_token is present, so a
+    # plain save would store a password the user can never sign in with.
+    saved = @user.invited_to_sign_up? ? @user.accept_invitation! : @user.save
+    if saved && @user.errors.empty?
       render json: { success: true }, status: :ok
     else
       render json: @user.errors, status: :unprocessable_entity

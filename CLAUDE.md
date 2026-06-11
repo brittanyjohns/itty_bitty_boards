@@ -294,6 +294,41 @@ the non-active→active transition in the upsert; guarded so renewals don't
 double-count). Primary A/B metric is **net paid users per 100 signups**, not
 trial→paid rate.
 
+### Email-only (passwordless) signup — paid-intent path
+
+`POST /api/v1/users/email_signup` (itty-bitty-frontend#367): a paid-intent
+visitor types just an email → passwordless account via
+`User.invite!(skip_invitation: true)` → signed in (same `{ token, user }`
+envelope as `sign_up`) → frontend proceeds to Stripe Checkout. Free/partner/
+demo/myspeak signups keep using `sign_up`. Key invariants:
+
+- **"Passwordless" = pending invitation, NOT blank `encrypted_password`.**
+  devise_invitable assigns a random password inside `invite!`; what makes the
+  account passwordless is that `valid_password?` returns nil while
+  `invitation_token` is present. `user.api_view`'s `needs_password` flag is
+  `invited_to_sign_up?` for this reason.
+- **Setting the initial password must go through `accept_invitation!`** — a
+  naive `update(password:)` on an invited user stores a password that can
+  never sign in. Both `POST /api/v1/users/set_password` (new, 422
+  `password_already_set` for non-invited users) and the legacy
+  `POST /api/set-password` honor this.
+- **Welcome-email magic link:** the raw invitation token must be passed as an
+  explicit String argument down the
+  `send_welcome_email(raw_invitation_token:)` → `UserMailer.welcome_*_email`
+  chain — the virtual attr on User is nil after `deliver_later`'s GlobalID
+  round-trip (this bug made the `/welcome/token/` link never render).
+- **`customer.created` webhook** matches existing users by email before
+  inviting, so it can't rotate a just-issued invitation token when the
+  webhook races email_signup's `stripe_customer_id` save.
+- `email_signup` never sets `paid_plan_type` (checkout owns it) and skips
+  Stripe-customer creation for `platform=ios/android`, like `sign_up`.
+- **Billing portal for everyone:** `POST /api/subscriptions/billing_portal`
+  lazily creates the Stripe customer via `User#ensure_stripe_customer!`
+  (shared with checkout's `ensure_customer!`) and rescues `Stripe::StripeError`
+  → 400 generic message. Requires a saved Customer-portal default config in
+  the Stripe dashboard (test + live) — see `docs/stripe-setup.md` §4b.
+  Optional `STRIPE_PORTAL_CONFIG_ID` pins a dedicated config.
+
 ### `paid_plan?` semantics
 
 `User#paid_plan?` is the single gate for paid-tier checks. It considers

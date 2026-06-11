@@ -9,12 +9,19 @@ class API::SubscriptionsController < API::ApplicationController
   end
 
   def billing_portal
-    # Create a billing portal
-    session = Stripe::BillingPortal::Session.create({
-      customer: current_user.stripe_customer_id,
+    # Free accounts (mobile signups, legacy users) may not have a Stripe
+    # customer yet — create one lazily so the portal works for everyone.
+    customer_id = current_user.ensure_stripe_customer!
+    portal_params = {
+      customer: customer_id,
       return_url: "#{DOMAIN}/dashboard",
-    })
+    }
+    portal_params[:configuration] = ENV["STRIPE_PORTAL_CONFIG_ID"] if ENV["STRIPE_PORTAL_CONFIG_ID"].present?
+    session = Stripe::BillingPortal::Session.create(portal_params)
     render json: { url: session&.url }, status: 200
+  rescue Stripe::StripeError => e
+    Rails.logger.error "billing_portal: #{e.class} - #{e.message} (user #{current_user.id})"
+    render json: { error: "Failed to create billing portal session" }, status: :bad_request
   end
 
   def create_customer_session
