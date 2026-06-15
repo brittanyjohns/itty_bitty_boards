@@ -64,8 +64,10 @@ RSpec.describe "POST /api/stripe/checkout_sessions (subscription)", type: :reque
     it "creates a Stripe customer when the user has none yet" do
       user.update!(stripe_customer_id: nil)
 
+      # ensure_customer! delegates to User.create_stripe_customer, which
+      # passes an options hash (not kwargs) — match accordingly.
       expect(Stripe::Customer).to receive(:create)
-        .with(email: user.email)
+        .with({ email: user.email })
         .and_return(OpenStruct.new(id: "cus_new_123"))
       expect(Stripe::Checkout::Session).to receive(:create).and_return(OpenStruct.new(url: "https://stripe.test/x"))
 

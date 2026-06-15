@@ -10,22 +10,31 @@ RSpec.describe "User lifecycle mailers enqueue instead of delivering inline" do
 
   let(:user) { FactoryBot.create(:user) }
 
+  # The second arg is the raw invitation token (nil for normal signups) —
+  # it must travel as an explicit argument because the virtual attr doesn't
+  # survive deliver_later's GlobalID round-trip.
   it "enqueues the welcome (free) email" do
     expect {
       user.send_welcome_email_free
-    }.to have_enqueued_mail(UserMailer, :welcome_free_email).with(user)
+    }.to have_enqueued_mail(UserMailer, :welcome_free_email).with(user, nil)
   end
 
   it "enqueues the welcome (basic) email" do
     expect {
       user.send_welcome_email_basic
-    }.to have_enqueued_mail(UserMailer, :welcome_basic_email).with(user)
+    }.to have_enqueued_mail(UserMailer, :welcome_basic_email).with(user, nil)
   end
 
   it "enqueues the welcome (pro) email" do
     expect {
       user.send_welcome_email_pro
-    }.to have_enqueued_mail(UserMailer, :welcome_pro_email).with(user)
+    }.to have_enqueued_mail(UserMailer, :welcome_pro_email).with(user, nil)
+  end
+
+  it "threads the raw invitation token through send_welcome_email" do
+    expect {
+      user.send_welcome_email("free", nil, raw_invitation_token: "RAW123")
+    }.to have_enqueued_mail(UserMailer, :welcome_free_email).with(user, "RAW123")
   end
 
   it "enqueues the team invitation email from invite_to_team!" do

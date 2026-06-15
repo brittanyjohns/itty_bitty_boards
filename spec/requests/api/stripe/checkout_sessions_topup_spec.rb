@@ -59,7 +59,7 @@ RSpec.describe "POST /api/stripe/checkout_sessions/topup", type: :request do
 
   it "creates a stripe customer if the user does not have one yet" do
     expect(user.stripe_customer_id).to be_blank
-    expect(Stripe::Customer).to receive(:create).with(email: user.email).and_return(OpenStruct.new(id: "cus_new"))
+    expect(Stripe::Customer).to receive(:create).with({ email: user.email }).and_return(OpenStruct.new(id: "cus_new"))
     expect(Stripe::Checkout::Session).to receive(:create).and_return(OpenStruct.new(url: "https://example/cs"))
 
     post "/api/stripe/checkout_sessions/topup",

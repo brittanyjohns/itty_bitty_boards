@@ -62,6 +62,23 @@ RSpec.describe UserMailer, type: :mailer do
       expect(mail.html_part.body.decoded).to include("Plan Gratis")
       expect(mail.html_part.body.decoded).to include("Inicia sesión y empieza a explorar")
     end
+
+    # The raw invitation token must travel as an explicit argument — the
+    # virtual attr on the user is nil after deliver_later's GlobalID
+    # round-trip, which is why the magic link never rendered before.
+    it "links to the magic-link welcome page when a raw invitation token is passed" do
+      use_locale(user, "en-US")
+      mail = described_class.welcome_free_email(user, "RAWTOKEN123").deliver_now
+      expect(mail.html_part.body.decoded).to include("/welcome/token/RAWTOKEN123")
+    end
+
+    it "falls back to the sign-in link without a token (pins current behavior)" do
+      use_locale(user, "en-US")
+      mail = described_class.welcome_free_email(user).deliver_now
+      body = mail.html_part.body.decoded
+      expect(body).to include("/users/sign-in")
+      expect(body).not_to include("/welcome/token/")
+    end
   end
 
   describe "#welcome_basic_email" do

@@ -5,6 +5,31 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Email-only signup API + billing portal for free accounts (frictionless paid signup)
+- `POST /api/v1/users/email_signup`: paid-intent visitors create an account with
+  just an email (passwordless via invitation), get signed in immediately, and
+  proceed to Stripe Checkout. Duplicate emails return 422 `email_taken`.
+- `POST /api/v1/users/set_password` (authenticated): sets the initial password on
+  a passwordless account, routed through `accept_invitation!` so the password
+  actually works (devise_invitable ignores `valid_password?` while an invitation
+  is pending). The legacy `POST /api/set-password` endpoint got the same fix.
+- `user.api_view` now exposes `needs_password` (pending-invite accounts), driving
+  the frontend's post-checkout "set a password" prompt.
+- `POST /api/subscriptions/billing_portal` now works for accounts with no Stripe
+  customer (lazily creates one) and returns 400 with a generic message on Stripe
+  errors instead of 500. Optional `STRIPE_PORTAL_CONFIG_ID` env pins a dedicated
+  portal configuration.
+
+### Fixed — Welcome email magic link never rendered
+- `UserMailer.welcome_free_email` / `welcome_basic_email` / `welcome_pro_email`
+  always fell back to the `/users/sign-in` link: the raw invitation token is a
+  virtual attribute that doesn't survive `deliver_later`'s GlobalID round-trip.
+  The token now travels as an explicit argument, so invited users get the
+  `/welcome/token/<token>` one-click sign-in link.
+- The `customer.created` Stripe webhook now matches existing users by email
+  before inviting, so it can no longer rotate a just-issued invitation token
+  (which invalidated the magic link emailed seconds earlier).
+
 ### Changed — Demo/internal accounts receive Mailchimp journey emails again (temporary)
 - Reverted #297 for now: the `user.demo_user?` guards in `MailchimpEventJob`,
   `MailchimpTrialWrapJob`, and the cohort-sweep jobs are removed, so demo
