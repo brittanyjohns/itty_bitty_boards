@@ -43,6 +43,20 @@ RSpec.describe "POST /api/billing/update_subscription", type: :request do
     expect(user.settings["purchase_platform"]).to eq("android")
   end
 
+  it "does NOT clobber an in-progress trial to active for the same plan" do
+    # The RC webhook marked this trialist 'trialing'; the racing client call must
+    # not flip it to 'active' (which would mask the trial).
+    user.update!(plan_type: "pro", plan_status: "trialing")
+    stub_rc_verified(plan_type: "pro")
+
+    post "/api/billing/update_subscription",
+         params: { plan_key: "pro", purchase_platform: "ios" },
+         headers: auth_headers(user)
+
+    expect(response).to have_http_status(:ok)
+    expect(user.reload.plan_status).to eq("trialing")
+  end
+
   it "applies the plan's limits (Basic plan board_limit)" do
     stub_rc_verified(plan_type: "basic")
 

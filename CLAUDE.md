@@ -287,6 +287,22 @@ the Stripe webhook semantics in `API::WebhooksController`. **RevenueCat's
   **no downgrade** (still entitled until expiry); `BILLING_ISSUE` →
   `plan_status="past_due"`, access kept; `UNCANCELLATION` → back to active;
   `TRANSFER` → downgrade losing ids, REST-re-verify gaining ids.
+- **Trials (period_type).** A 14-day App Store free trial arrives as
+  `INITIAL_PURCHASE` with `period_type=TRIAL` (`TRIAL_PERIOD_TYPES = TRIAL/INTRO`).
+  `handle_purchase` then sets `plan_status="trialing"` (not `active`; `paid_plan?`
+  treats both as paid, so gating is unaffected), persists `settings["trial_ends_at"]`
+  (ISO8601, from `expiration_at_ms`), and fires **`trial_started`** analytics
+  (internal `AnalyticsEvent` + PostHog — both, since IAP has no checkout to
+  originate the internal one) **instead of** `subscription_started`.
+  `subscription_started` fires on **conversion**: a normal-period `RENEWAL`/
+  `PRODUCT_CHANGE` when the user was `trialing` (status → `active`,
+  `trial_ends_at` cleared). An unconverted `EXPIRATION` of a `trialing` user tags
+  its `subscription_canceled` analytics `reason: "trial_expired"` (vs
+  `"expiration"` for paid churn). The client `update_subscription` call preserves
+  an in-progress `trialing` status for the same plan so it can't clobber the
+  trial the webhook recorded. **No trial-ending reminder yet** — Apple/RevenueCat
+  send no `trial_will_end` webhook; a scheduled job keyed on `trial_ends_at` is a
+  pending follow-up (mirrors Stripe's `MailchimpTrialWrapJob`).
 - **Idempotency + audit:** `processed_webhook_events` (unique `provider`+`event_id`)
   gates the whole handler (covers non-credit events); the credit grant also
   reuses `credit_transactions.stripe_event_id` with an `rc_<event_id>` token.

@@ -12,6 +12,11 @@ module RevenueCat
   class WebhookProcessor
     PROVIDER = "revenuecat"
 
+    # RevenueCat `period_type` values that mean the user is in a free/intro trial
+    # (as opposed to NORMAL paid or a PROMOTIONAL grant). A 14-day App Store free
+    # trial arrives as period_type=TRIAL on the INITIAL_PURCHASE.
+    TRIAL_PERIOD_TYPES = %w[TRIAL INTRO].freeze
+
     Result = Struct.new(:status, :http_status, keyword_init: true)
 
     # RevenueCat authenticates webhooks with a shared secret it sends verbatim
@@ -91,10 +96,27 @@ module RevenueCat
       plan_type = resolve_plan_type
       return unless plan_type
 
+      # Capture the prior status BEFORE mutating it so we can detect a
+      # trial→paid conversion (was trialing, now a normal-period RENEWAL).
+      was_trialing = user.plan_status == "trialing"
+      trialing = trial_period?
+
       user.plan_type = plan_type
-      user.plan_status = "active"
+      # RevenueCat sends period_type=TRIAL/INTRO during a free/intro trial. Mark
+      # the user "trialing" (matching the Stripe path) instead of "active" so a
+      # trialist is distinguishable from a payer. paid_plan? treats both as paid,
+      # so access/credit gates are unaffected.
+      user.plan_status = trialing ? "trialing" : "active"
       interval = RevenueCat::PlanMapping.billing_interval_for_product(@event["product_id"])
       user.settings["billing_interval"] = interval if interval.present?
+      # Persist the trial end so RevenueCatTrialEndingJob can nudge ~3 days out —
+      # Apple/RevenueCat send no trial_will_end webhook, so we compute it. Cleared
+      # once the trial resolves (converts or expires).
+      if trialing
+        user.settings["trial_ends_at"] = expiration_time&.iso8601
+      else
+        user.settings.delete("trial_ends_at")
+      end
       user.setup_limits
       user.save!
 
@@ -119,12 +141,19 @@ module RevenueCat
       # a no-op while a real upgrade (basic→pro) re-welcomes, matching Stripe.
       user.send_plan_welcome_email_once!(plan_type)
 
-      # fire_started distinguishes a genuine start (INITIAL/NON_RENEWING) from a
-      # renewal/product-change. An IAP user goes straight from free(active) to
-      # paid(active) with no intermediate status, so we can't guard on a status
-      # transition the way Stripe does — the flag is the signal. Event-level
-      # idempotency prevents a re-delivered purchase from double-firing.
-      fire_subscription_started(user, plan_type) if fire_started
+      # Analytics. fire_started marks a genuine start (INITIAL/NON_RENEWING) vs a
+      # renewal/product-change. On a trial start we fire trial_started (parity
+      # with Stripe); on a paid start, subscription_started. A RENEWAL that
+      # converts a trial (was trialing, now normal) fires subscription_started so
+      # trial→paid is measurable. Event-level idempotency stops re-deliveries from
+      # double-firing.
+      if fire_started && trialing
+        fire_trial_started(user, plan_type)
+      elsif fire_started
+        fire_subscription_started(user, plan_type)
+      elsif was_trialing && !trialing
+        fire_subscription_started(user, plan_type)
+      end
     end
 
     # Auto-renew turned off but the user keeps access until the period ends — no
@@ -143,15 +172,19 @@ module RevenueCat
 
     def handle_expiration(user)
       cancelled_plan = user.plan_type
+      # A trial that lapsed without converting vs a paid sub that churned — same
+      # downgrade, but distinct analytics reason so trial conversion is measurable.
+      reason = user.plan_status == "trialing" ? "trial_expired" : "expiration"
+      user.settings.delete("trial_ends_at")
       Billing::PlanTransitions.apply_free_plan(user, "canceled")
       AnalyticsEvent.track(
         "subscription_canceled",
         user_id: user.id,
-        metadata: { plan_type: cancelled_plan, provider: PROVIDER, reason: "expiration" },
+        metadata: { plan_type: cancelled_plan, provider: PROVIDER, reason: reason },
       )
       PosthogService.capture_for_user(
         user, "subscription_cancelled",
-        properties: { plan: cancelled_plan, reason: "expiration" }
+        properties: { plan: cancelled_plan, reason: reason }
       )
     end
 
@@ -203,7 +236,31 @@ module RevenueCat
       )
     end
 
+    # Free/intro trial began. Mirrors the Stripe trial_started analytics, but
+    # fires both the internal AnalyticsEvent and the PostHog event since IAP has
+    # no checkout step to originate the internal one. subscription_started is
+    # fired later, on conversion, so a trial isn't counted as a paid start.
+    def fire_trial_started(user, plan_type)
+      AnalyticsEvent.track(
+        "trial_started",
+        user_id: user.id,
+        metadata: { plan_type: plan_type, provider: PROVIDER, product_id: @event["product_id"], store: @event["store"] },
+      )
+      PosthogService.capture_for_user(
+        user, "trial_started",
+        properties: {
+          plan: plan_type,
+          billing_interval: RevenueCat::PlanMapping.billing_interval_for_product(@event["product_id"]),
+        },
+        set: { plan: plan_type },
+      )
+    end
+
     # --- helpers -------------------------------------------------------------
+
+    def trial_period?
+      TRIAL_PERIOD_TYPES.include?(@event["period_type"].to_s.upcase)
+    end
 
     def resolve_plan_type
       RevenueCat::PlanMapping.resolve_plan_type(

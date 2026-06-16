@@ -160,6 +160,51 @@ RSpec.describe "POST /api/billing/webhooks (RevenueCat)", type: :request do
     end
   end
 
+  describe "free trial (period_type=TRIAL)" do
+    it "starts a trial: marks plan_status trialing, stores trial_ends_at, fires trial_started (not subscription_started)" do
+      trial_end_ms = ((Time.current + 14.days).to_f * 1000).to_i
+      event = rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id,
+                       entitlement_ids: ["pro"], product_id: "com.speakanyway.pro.monthly",
+                       period_type: "TRIAL", expiration_at_ms: trial_end_ms)
+
+      post_rc_webhook(event)
+
+      user.reload
+      expect(user.plan_type).to eq("pro")
+      expect(user.plan_status).to eq("trialing")
+      expect(user).to be_paid_plan # trialing counts as paid for gating
+      expect(Time.parse(user.settings["trial_ends_at"])).to be_within(60.seconds).of(Time.at(trial_end_ms / 1000.0))
+      expect(AnalyticsEvent.where(event_type: "trial_started", user_id: user.id).count).to eq(1)
+      expect(AnalyticsEvent.where(event_type: "subscription_started", user_id: user.id).count).to eq(0)
+    end
+
+    it "converts a trial to paid on a normal RENEWAL: active, clears trial_ends_at, fires subscription_started" do
+      user.update!(plan_type: "pro", plan_status: "trialing",
+                   settings: user.settings.merge("trial_ends_at" => 1.day.from_now.iso8601))
+
+      # A RENEWAL with no period_type is a normal (paid) period.
+      post_rc_webhook(rc_event(type: "RENEWAL", app_user_id: user.id, entitlement_ids: ["pro"]))
+
+      user.reload
+      expect(user.plan_status).to eq("active")
+      expect(user.settings).not_to have_key("trial_ends_at")
+      expect(AnalyticsEvent.where(event_type: "subscription_started", user_id: user.id).count).to eq(1)
+    end
+
+    it "expires an unconverted trial: downgrades to free and tags the churn reason trial_expired" do
+      user.update!(plan_type: "pro", plan_status: "trialing",
+                   settings: user.settings.merge("trial_ends_at" => 1.day.from_now.iso8601))
+
+      post_rc_webhook(rc_event(type: "EXPIRATION", app_user_id: user.id))
+
+      user.reload
+      expect(user.plan_type).to eq("free")
+      expect(user.settings).not_to have_key("trial_ends_at")
+      ev = AnalyticsEvent.where(event_type: "subscription_canceled", user_id: user.id).last
+      expect(ev.metadata["reason"]).to eq("trial_expired")
+    end
+  end
+
   describe "CANCELLATION" do
     it "does NOT downgrade (still entitled until expiry) and records the analytics event" do
       user.update!(plan_type: "pro", plan_status: "active")
