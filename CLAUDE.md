@@ -899,6 +899,14 @@ Builder's deterministic build path is unchanged.
 - Rails test environment uses `:null_store` for Rails.cache — stub `Rails.cache` in specs that depend on caching behavior
 - Avoid `travel_to` with past timestamps for Redis keys (TTLs expire immediately); use future times or freeze time instead
 - After spec changes, run the tests that depend on the changed code to ensure no regressions. Use `bin/rspec --only-failures` to rerun only failed specs.
+- **Known order-dependent spec:** `spec/services/vocab_sets_spec.rb` "keeps
+  authored tiles intact across a re-seed" counts `board_images` on the shared
+  seeded `core-60` root and assumes no other example writes to it. Under RSpec's
+  random order it can fail (`expected N, got N+k`) when an unrelated spec runs
+  first. CI runs `bundle exec rspec` with no pinned seed, so a red on this test
+  for an unrelated PR is almost always order-flakiness — rerun the job (fresh
+  seed) before suspecting your diff. Real fix: scope the count to the root the
+  test created, or clean up the polluting spec.
 
 ## Rules for Editing This File
 
