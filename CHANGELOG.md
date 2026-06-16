@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Expose plan_status and persist Stripe trial_ends_at (#324, #325)
+- `User#api_view` now includes `plan_status` so the frontend can distinguish a
+  payment-provider trial (`"trialing"`) from an active paid plan.
+- Stripe webhook (`handle_subscription_upsert`) persists
+  `settings["trial_ends_at"]` (ISO8601) when a subscription is trialing, and
+  clears it on conversion or cancellation — matching the RevenueCat path.
+  The frontend's trial countdown now works for both web and iOS trials.
+- `GET /api/v1/users/current` calls `reconcile_stranded_plan!` so a stale
+  plan_status self-heals on the user-fetch path, not only at sign-in.
+
 ### Added — Promo-aware one-click plan switch for existing subscribers (#308)
 - **`POST /api/subscriptions/change_plan_portal_session`** lets an existing
   subscriber switch plans (e.g. basic-monthly → the yearly Founding rate) with

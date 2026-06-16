@@ -211,11 +211,13 @@ module API
       def current
         @current_user = current_user
         if @current_user
+          @current_user.reconcile_stranded_plan!
           @view = @current_user.api_view
           render json: { user: @view }
         else
           @current_user = user_from_token
           if @current_user
+            @current_user.reconcile_stranded_plan!
             render json: { user: @current_user.api_view }
           else
             render json: { error: "Unauthorized - No user signed in" }, status: :unauthorized
