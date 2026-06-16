@@ -46,6 +46,37 @@ RSpec.describe "API::V1::Auth", type: :request do
       post "/api/v1/users/sign_in", params: { email: user.email, password: "wrongpassword" }
       expect(response).to have_http_status(:unauthorized)
     end
+
+    context "when the user is stranded in paid/unpaid limbo (missed downgrade webhook)" do
+      let!(:stranded) do
+        create(:user, email: "stranded@example.com", password: "password123",
+          plan_type: "basic", plan_status: "paused",
+          stripe_subscription_id: "sub_stranded", plan_credits_balance: 0)
+      end
+
+      it "self-heals to Free with credits at sign-in, without a Stripe call" do
+        post "/api/v1/users/sign_in", params: { email: stranded.email, password: "password123" }
+
+        expect(response).to have_http_status(:ok)
+        stranded.reload
+        expect(stranded.plan_type).to eq("free")
+        expect(stranded.paid_plan_type).to eq("basic")
+        expect(stranded.stripe_subscription_id).to be_nil
+        expect(stranded.plan_credits_balance).to eq(CreditService.monthly_credits_for("free"))
+      end
+    end
+
+    it "leaves a healthy paid user untouched at sign-in" do
+      paid = create(:user, email: "paid@example.com", password: "password123",
+        plan_type: "basic", plan_status: "active", stripe_subscription_id: "sub_active")
+
+      post "/api/v1/users/sign_in", params: { email: paid.email, password: "password123" }
+
+      expect(response).to have_http_status(:ok)
+      paid.reload
+      expect(paid.plan_type).to eq("basic")
+      expect(paid.stripe_subscription_id).to eq("sub_active")
+    end
   end
 
   describe "POST /api/v1/forgot_password" do

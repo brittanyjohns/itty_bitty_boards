@@ -132,4 +132,73 @@ RSpec.describe "plans rake task", type: :task do
       expect(mystery.reload.settings["paid_communicator_limit"]).to eq(0)
     end
   end
+
+  describe "plans:reconcile_stranded_paid" do
+    let(:task) { Rake::Task["plans:reconcile_stranded_paid"] }
+
+    def apply!
+      ENV["DRY_RUN"] = "false"
+      begin
+        run_task
+      ensure
+        ENV.delete("DRY_RUN")
+      end
+    end
+
+    User::UNPAID_STATUSES.each do |status|
+      it "downgrades a paid user stuck at plan_status=#{status} to Free with credits" do
+        user = create(:user, plan_type: "basic", plan_status: status,
+          stripe_subscription_id: "sub_stranded", plan_credits_balance: 0)
+
+        apply!
+
+        user.reload
+        expect(user.plan_type).to eq("free")
+        expect(user.paid_plan_type).to eq("basic")
+        expect(user.plan_status).to eq(status) # status reason preserved
+        expect(user.stripe_subscription_id).to be_nil
+        expect(user.plan_credits_balance).to eq(CreditService.monthly_credits_for("free"))
+      end
+    end
+
+    it "leaves a healthy active paid user untouched" do
+      active = create(:user, plan_type: "basic", plan_status: "active",
+        stripe_subscription_id: "sub_active")
+
+      apply!
+
+      active.reload
+      expect(active.plan_type).to eq("basic")
+      expect(active.stripe_subscription_id).to eq("sub_active")
+    end
+
+    it "leaves a basic_trial user to DowngradeSoftTrialJob (not in scope)" do
+      trial = create(:user, plan_type: "basic_trial", plan_status: "paused")
+
+      apply!
+
+      expect(trial.reload.plan_type).to eq("basic_trial")
+    end
+
+    it "defaults to a dry run that reports but writes nothing" do
+      user = create(:user, plan_type: "pro", plan_status: "paused",
+        stripe_subscription_id: "sub_stranded")
+
+      run_task # no DRY_RUN override → dry run
+
+      expect(user.reload.plan_type).to eq("pro")
+      expect(user.stripe_subscription_id).to eq("sub_stranded")
+    end
+
+    it "is idempotent — a reconciled user no longer matches the scope" do
+      user = create(:user, plan_type: "basic", plan_status: "paused",
+        stripe_subscription_id: "sub_stranded")
+
+      apply!
+      expect { apply! }.not_to raise_error
+      user.reload
+      expect(user.plan_type).to eq("free")
+      expect(user.paid_plan_type).to eq("basic") # not clobbered to "free" on re-run
+    end
+  end
 end

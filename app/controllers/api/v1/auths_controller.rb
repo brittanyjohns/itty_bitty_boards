@@ -140,6 +140,11 @@ module API
               user.save!
             end
           end
+          # Self-heal a stranded plan (paid plan_type + non-paying status) with
+          # no Stripe call — safety net for missed/out-of-order downgrade
+          # webhooks so the user lands on Free with credits instead of stuck at
+          # 0. No-op for healthy accounts; rescues internally.
+          user.reconcile_stranded_plan!
           sign_in user
           user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
           user.ensure_minimum_communicator_slot!

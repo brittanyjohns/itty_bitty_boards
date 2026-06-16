@@ -198,4 +198,55 @@ namespace :plans do
 
     puts "\nMigration complete. migrated=#{migrated} skipped=#{skipped}"
   end
+
+  # One-off recovery for users stranded by the paused-subscription webhook gap
+  # (PR fixing handle_subscription_upsert). The webhook fix only prevents NEW
+  # strandings — users already in the bad state need this reconcile.
+  #
+  # A "stranded" user has a non-paying plan_status (UNPAID_STATUSES: canceled,
+  # paused, incomplete_expired, unpaid) while plan_type is still a paid tier.
+  # They were never properly downgraded to free, so paid_plan? is false (no paid
+  # features) yet RefreshFreeTierCreditsJob skips them and no invoice fires —
+  # they sit at 0 credits indefinitely.
+  #
+  # This is STATE-based, not cause-based: it heals every stranded user (paused,
+  # canceled, lapsed, etc.) regardless of which webhook race put them there.
+  # apply_free_plan keeps the existing status reason, grants the free allowance,
+  # pins an editable board, and clears stripe_subscription_id. Naturally
+  # idempotent — once a user is free they no longer match the scope.
+  #
+  # Defaults to DRY RUN. Apply with: DRY_RUN=false bin/rails plans:reconcile_stranded_paid
+  task reconcile_stranded_paid: :environment do
+    dry_run = ENV["DRY_RUN"] != "false"
+
+    # Paid tiers that should never coexist with an unpaid status. basic_trial is
+    # excluded (handled by DowngradeSoftTrialJob); free/nil are already correct.
+    scope = User
+      .where(plan_status: User::UNPAID_STATUSES)
+      .where.not(plan_type: ["free", "basic_trial", nil])
+
+    total = scope.count
+    puts "[plans:reconcile_stranded_paid] dry_run=#{dry_run} stranded_users=#{total}"
+
+    reconciled = 0
+    failed = 0
+
+    scope.find_each(batch_size: 200) do |user|
+      puts "  user=#{user.id} email=#{user.email} plan_type=#{user.plan_type} " \
+           "plan_status=#{user.plan_status} plan_credits=#{user.plan_credits_balance}"
+      next if dry_run
+
+      Billing::PlanTransitions.apply_free_plan(user, user.plan_status)
+      reconciled += 1
+    rescue => e
+      failed += 1
+      warn "[plans:reconcile_stranded_paid] user #{user.id} failed: #{e.class} #{e.message}"
+    end
+
+    if dry_run
+      puts "\nDRY RUN — no changes written. Re-run with DRY_RUN=false to apply."
+    else
+      puts "\nReconcile complete. reconciled=#{reconciled} failed=#{failed}"
+    end
+  end
 end
