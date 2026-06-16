@@ -172,6 +172,40 @@ RSpec.describe "POST /api/webhooks (plan_type)", type: :request do
     end
   end
 
+  describe "customer.subscription.updated (status=paused → Free)" do
+    # Regression: a paused subscription also arrives as customer.subscription.updated
+    # with status=paused. The upsert path used to keep plan_type=basic and only
+    # set plan_status=paused, leaving the user stranded — not paid, but with a
+    # stripe_subscription_id still set so RefreshFreeTierCreditsJob skipped them
+    # and no invoice fired to re-grant credits (0 credits forever). It must drop
+    # to Free, exactly like the dedicated customer.subscription.paused handler.
+    it "downgrades to Free, preserves paid_plan_type, and clears the subscription id" do
+      user.update!(plan_type: "basic", plan_status: "active", paid_plan_type: nil,
+        stripe_subscription_id: "sub_paused_via_updated")
+      sub = build_subscription(status: "paused", price: build_price(plan_type: "basic", monthly_credits: 400, id: "price_basic"))
+      stub_event(sub, type: "customer.subscription.updated")
+
+      post_webhook("{}", header_with_signature)
+
+      user.reload
+      expect(user.plan_type).to eq("free")
+      expect(user.paid_plan_type).to eq("basic")
+      expect(user.plan_status).to eq("paused")
+      expect(user.stripe_subscription_id).to be_nil
+    end
+
+    it "grants the free-tier credit allowance so the user isn't stranded at 0" do
+      user.update!(plan_type: "basic", plan_status: "active",
+        plan_credits_balance: 0, stripe_subscription_id: "sub_paused_via_updated")
+      sub = build_subscription(status: "paused", price: build_price(plan_type: "basic", monthly_credits: 400, id: "price_basic"))
+      stub_event(sub, type: "customer.subscription.updated")
+
+      post_webhook("{}", header_with_signature)
+
+      expect(user.reload.plan_credits_balance).to eq(CreditService.monthly_credits_for("free"))
+    end
+  end
+
   describe "customer.subscription.updated (trial → paid conversion)" do
     it "fires a subscription_started event on the non-active → active transition" do
       user.update!(plan_type: "basic", plan_status: "trialing")

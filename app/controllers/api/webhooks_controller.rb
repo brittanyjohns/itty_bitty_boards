@@ -287,6 +287,23 @@ class API::WebhooksController < API::ApplicationController
       return
     end
 
+    # A paused subscription stops billing indefinitely, so there's no invoice
+    # to re-grant credits. Treat it exactly like the dedicated
+    # `customer.subscription.paused` handler: drop to Free with the free credit
+    # allowance and clear stripe_subscription_id (so RefreshFreeTierCreditsJob
+    # picks the user up for monthly refreshes). Stripe fires BOTH
+    # `customer.subscription.updated` (status=paused) and
+    # `customer.subscription.paused`, and webhook ordering isn't guaranteed —
+    # without this, a late `.updated` re-upserts the user back to
+    # plan_type=basic/status=paused with a restored subscription id, stranding
+    # them with 0 credits (not paid, but also never refreshed to Free's 5).
+    # apply_free_plan is idempotent, so handling it in both paths is safe.
+    if subscription.status == "paused"
+      apply_free_plan(user, "paused")
+      Rails.logger.info "[StripeWebhook] subscription upsert: user=#{user.id} status=paused -> downgraded to free"
+      return
+    end
+
     previous_status = user.plan_status
 
     price = first_price_from_subscription(subscription)
