@@ -19,6 +19,45 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   a new `MailchimpHitLimitNotifier` controller concern.
 - Added `bin/rails 'mailchimp:clear_hit_limit_dedupe[USER_ID]'` to clear a stuck
   dedupe key for a user.
+### Fixed — Paid-trial signups got the "Free account" welcome email
+- `email_signup` (paid-intent path) was hardcoded to send `welcome_free_email`
+  ("You're on the Free plan") before the user reached Stripe checkout, so
+  Basic/Pro trialists got the wrong email. It now sends a plan-neutral
+  `welcome_email_receipt` ("Your account is ready") tracked under
+  `settings["receipt_email_sent"]`.
+- The plan-correct `welcome_basic_email` / `welcome_pro_email` now ship from
+  `API::WebhooksController#handle_subscription_upsert` on the first transition
+  into `trialing` or `active`, via the new
+  `User#send_plan_welcome_email_once!` (idempotent per `plan_type` via
+  `settings["plan_welcome_sent_for"]`). This is the first path that delivers a
+  Basic/Pro welcome to web subscribers; mobile IAP is unchanged.
+- The Mailchimp `welcome` journey enqueue at signup is unchanged here — a
+  plan-aware journey is tracked as a follow-up.
+
+### Added — Email-only signup API + billing portal for free accounts (frictionless paid signup)
+- `POST /api/v1/users/email_signup`: paid-intent visitors create an account with
+  just an email (passwordless via invitation), get signed in immediately, and
+  proceed to Stripe Checkout. Duplicate emails return 422 `email_taken`.
+- `POST /api/v1/users/set_password` (authenticated): sets the initial password on
+  a passwordless account, routed through `accept_invitation!` so the password
+  actually works (devise_invitable ignores `valid_password?` while an invitation
+  is pending). The legacy `POST /api/set-password` endpoint got the same fix.
+- `user.api_view` now exposes `needs_password` (pending-invite accounts), driving
+  the frontend's post-checkout "set a password" prompt.
+- `POST /api/subscriptions/billing_portal` now works for accounts with no Stripe
+  customer (lazily creates one) and returns 400 with a generic message on Stripe
+  errors instead of 500. Optional `STRIPE_PORTAL_CONFIG_ID` env pins a dedicated
+  portal configuration.
+
+### Fixed — Welcome email magic link never rendered
+- `UserMailer.welcome_free_email` / `welcome_basic_email` / `welcome_pro_email`
+  always fell back to the `/users/sign-in` link: the raw invitation token is a
+  virtual attribute that doesn't survive `deliver_later`'s GlobalID round-trip.
+  The token now travels as an explicit argument, so invited users get the
+  `/welcome/token/<token>` one-click sign-in link.
+- The `customer.created` Stripe webhook now matches existing users by email
+  before inviting, so it can no longer rotate a just-issued invitation token
+  (which invalidated the magic link emailed seconds earlier).
 
 ### Changed — Demo/internal accounts receive Mailchimp journey emails again (temporary)
 - Reverted #297 for now: the `user.demo_user?` guards in `MailchimpEventJob`,

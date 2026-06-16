@@ -113,6 +113,11 @@ class API::WebhooksController < API::ApplicationController
   def handle_customer_created(customer)
     stripe_customer_id = customer.id
     user = User.find_by(stripe_customer_id: stripe_customer_id)
+    # Also match by email before inviting: when email_signup creates the
+    # Stripe customer, this webhook can race the stripe_customer_id save, and
+    # invite! on the existing pending-invite user would rotate the
+    # invitation_token — invalidating the magic link just emailed.
+    user ||= User.find_by(email: customer.email&.downcase) if customer.email.present?
     if !user && customer.email.present?
       Rails.logger.error "[StripeWebhook] customer.created: no user found for customer #{stripe_customer_id} - Creating one"
       user = User.invite!(email: customer.email, skip_invitation: true)
@@ -313,6 +318,16 @@ class API::WebhooksController < API::ApplicationController
     user.setup_limits
 
     user.save!
+
+    # Send the plan-correct welcome once we know what plan they're on. This is
+    # the only path that delivers welcome_basic_email / welcome_pro_email to
+    # web subscribers (mobile IAP welcomes happen in BillingController). Fires
+    # on the first transition into `trialing` or `active`; idempotent per
+    # plan_type via send_plan_welcome_email_once!, so subscription.updated
+    # re-fires don't re-email and a real plan change still re-welcomes.
+    if %w[trialing active].include?(subscription.status) && previous_status != subscription.status
+      user.send_plan_welcome_email_once!(user.plan_type)
+    end
 
     # Fire `subscription_started` on the trial→paid (or any non-active→active)
     # conversion so trial→paid is measurable against `trial_started`. Guarded on

@@ -25,6 +25,49 @@ RSpec.describe CommunicatorProfile do
     end
   end
 
+  describe ".for" do
+    let(:communicator) do
+      FactoryBot.build(:child_account,
+        details: { "aac_level" => "emerging", "age_band" => "4-6", "vocab_type" => "core" })
+    end
+
+    it "returns nil with no params and no communicator" do
+      expect(described_class.for(params: nil, communicator: nil)).to be_nil
+      expect(described_class.for(params: {})).to be_nil
+    end
+
+    it "builds entirely from the communicator's stored details" do
+      profile = described_class.for(communicator: communicator)
+      expect(profile.aac_level).to eq("emerging")
+      expect(profile.age_band).to eq("4-6")
+      expect(profile.vocab_type).to eq("core")
+    end
+
+    it "lets explicit params override stored values, field by field" do
+      profile = described_class.for(params: { "aac_level" => "proficient" }, communicator: communicator)
+      expect(profile.aac_level).to eq("proficient") # overridden
+      expect(profile.age_band).to eq("4-6")         # stored value kept
+      expect(profile.vocab_type).to eq("core")      # stored value kept
+    end
+
+    it "falls back to stored values when a param is blank" do
+      profile = described_class.for(params: { "aac_level" => "" }, communicator: communicator)
+      expect(profile.aac_level).to eq("emerging")
+    end
+
+    it "reads a stored age from details" do
+      comm = FactoryBot.build(:child_account, details: { "age" => 5 })
+      profile = described_class.for(communicator: comm)
+      expect(profile.age).to eq(5)
+      expect(profile.age_band).to eq("4-6")
+    end
+
+    it "returns nil when the communicator has no usable profile fields" do
+      comm = FactoryBot.build(:child_account, details: { "interests" => ["trains"] })
+      expect(described_class.for(communicator: comm)).to be_nil
+    end
+  end
+
   describe "normalization" do
     it "derives an age band from a raw age" do
       expect(described_class.new(age: 4).age_band).to eq("4-6")

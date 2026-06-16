@@ -225,10 +225,7 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
   private
 
   def ensure_customer!
-    return if current_user.stripe_customer_id.present?
-
-    customer = Stripe::Customer.create(email: current_user.email)
-    current_user.update!(stripe_customer_id: customer.id)
+    current_user.ensure_stripe_customer!
   end
 
   # Prefer the request's Origin (then Referer) when it points at a trusted

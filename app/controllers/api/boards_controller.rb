@@ -365,12 +365,15 @@ class API::BoardsController < API::ApplicationController
             "age_range"  => age_range,
             "word_count" => word_count,
             "profile"    => communicator_profile_params,
+            # Ownership is checked here (profile_communicator scopes to the
+            # caller); the job receives a pre-validated id.
+            "communicator_id" => profile_communicator&.id,
           }
           job_args["word_list"] = word_list if word_list.present?
 
           GenerateBoardJob.perform_async(@board.id, creation_type, job_args)
         else
-          GenerateBoardJob.perform_async(@board.id, creation_type, { "word_count" => word_count, "profile" => communicator_profile_params })
+          GenerateBoardJob.perform_async(@board.id, creation_type, { "word_count" => word_count, "profile" => communicator_profile_params, "communicator_id" => profile_communicator&.id })
         end
         format.json { render json: @board, status: :created }
       else
@@ -670,7 +673,7 @@ class API::BoardsController < API::ApplicationController
     num_of_words = params[:num_of_words].to_i || 10
     board_words = @board.board_images.map(&:label).uniq
     name_to_send = params[:prompt] || params[:name] || @board.name
-    profile = CommunicatorProfile.from_params(params)
+    profile = CommunicatorProfile.for(params: params, communicator: profile_communicator)
     resolved_language = params[:language].presence || @board.language.presence || "en"
     additional_words = @board.get_words(name_to_send, num_of_words, board_words, current_user.admin?, language: resolved_language, profile: profile)
     render json: additional_words
@@ -703,7 +706,7 @@ class API::BoardsController < API::ApplicationController
     prompt = params[:prompt].presence || params[:name]
     num_of_words = params[:num_of_words].to_i || 24
     words_to_exclude = params[:words_to_exclude].is_a?(Array) ? params[:words_to_exclude] : @board&.current_word_list || []
-    profile = CommunicatorProfile.from_params(params)
+    profile = CommunicatorProfile.for(params: params, communicator: profile_communicator)
     @board ||= Board.new(name: prompt) # create a temporary board object to use the word suggestion methods if no board_id is provided
     # Source language from explicit param first, then board.language, then user
     # locale — so a Spanish-language board produces Spanish suggestions even
@@ -1258,6 +1261,15 @@ class API::BoardsController < API::ApplicationController
   # All fields are optional.
   def communicator_profile_params
     params.permit(:age, :age_band, :aac_level, :vocab_type).to_h.to_hash
+  end
+
+  # Optional communicator for profile-aware AI calls. Scoped to the caller's
+  # own communicator_accounts — an id belonging to another user resolves to
+  # nil (ignored), never a bare ChildAccount.find.
+  def profile_communicator
+    return nil if params[:communicator_id].blank?
+
+    current_user.communicator_accounts.find_by(id: params[:communicator_id])
   end
 
   # Only allow a list of trusted parameters through.

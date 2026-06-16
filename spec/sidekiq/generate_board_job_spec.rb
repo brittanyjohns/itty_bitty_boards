@@ -106,6 +106,28 @@ RSpec.describe GenerateBoardJob, type: :job do
         },
       )
     end
+
+    it "merges a stored communicator profile under explicit profile params (communicator_id)" do
+      communicator = create(:child_account, user: user,
+                                            details: { "aac_level" => "emerging", "age_band" => "4-6" })
+      expect(board).to receive(:get_words_for_scenario) do |_topic, _age_range, _word_count, profile:|
+        expect(profile.aac_level).to eq("proficient") # explicit param wins
+        expect(profile.age_band).to eq("4-6")         # stored field fills the gap
+        ["hi"]
+      end
+      allow(Board).to receive(:find_by).with(id: board.id).and_return(board)
+
+      described_class.new.perform(
+        board.id,
+        "scenario",
+        {
+          "topic" => "doctor visit",
+          "word_count" => 20,
+          "profile" => { "aac_level" => "proficient" },
+          "communicator_id" => communicator.id,
+        },
+      )
+    end
   end
 
   describe "default creation with both seed words and a topic" do

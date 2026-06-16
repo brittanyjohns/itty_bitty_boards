@@ -554,6 +554,15 @@ class User < ApplicationRecord
     result["id"]
   end
 
+  # Lazily create the Stripe customer on first billing touch. Mobile signups
+  # and legacy accounts have no customer until they hit checkout or the
+  # billing portal.
+  def ensure_stripe_customer!
+    return stripe_customer_id if stripe_customer_id.present?
+    update!(stripe_customer_id: User.create_stripe_customer(email))
+    stripe_customer_id
+  end
+
   def all_required_settings
     %w[wait_to_speak disable_audit_logging enable_image_display enable_text_display show_labels show_tutorial]
   end
@@ -836,35 +845,38 @@ class User < ApplicationRecord
     end
   end
 
-  def send_welcome_email_free
+  def send_welcome_email_free(raw_invitation_token = nil)
     Rails.logger.info "Sending free welcome email to #{email}"
-    UserMailer.welcome_free_email(self).deliver_later
+    UserMailer.welcome_free_email(self, raw_invitation_token).deliver_later
   end
 
-  def send_welcome_email_basic
+  def send_welcome_email_basic(raw_invitation_token = nil)
     Rails.logger.info "Sending basic welcome email to #{email}"
-    UserMailer.welcome_basic_email(self).deliver_later
+    UserMailer.welcome_basic_email(self, raw_invitation_token).deliver_later
   end
 
-  def send_welcome_email_pro
+  def send_welcome_email_pro(raw_invitation_token = nil)
     Rails.logger.info "Sending pro welcome email to #{email}"
-    UserMailer.welcome_pro_email(self).deliver_later
+    UserMailer.welcome_pro_email(self, raw_invitation_token).deliver_later
   end
 
-  def send_welcome_email(plan_nickname = nil, slug = nil)
+  # raw_invitation_token: pass the in-memory token from invite! so the welcome
+  # email can render the /welcome/token/ magic link — the virtual attr doesn't
+  # survive deliver_later's GlobalID round-trip, so it must travel as a String.
+  def send_welcome_email(plan_nickname = nil, slug = nil, raw_invitation_token: nil)
     unless plan_nickname
       plan_nickname = settings["plan_nickname"] || plan_type
     end
     begin
       if plan_nickname.nil? || plan_nickname.include?("free")
-        send_welcome_email_free
+        send_welcome_email_free(raw_invitation_token)
       elsif plan_nickname.include?("basic")
-        send_welcome_email_basic
+        send_welcome_email_basic(raw_invitation_token)
       elsif plan_nickname.include?("pro") || plan_nickname.include?("plus")
-        send_welcome_email_pro
+        send_welcome_email_pro(raw_invitation_token)
       else
         Rails.logger.error "Unknown plan nickname: #{plan_nickname}, sending free welcome email"
-        send_welcome_email_free
+        send_welcome_email_free(raw_invitation_token)
       end
       self.settings["welcome_email_sent"] = true
       self.save
@@ -1111,6 +1123,46 @@ class User < ApplicationRecord
       return false
     end
     true
+  end
+
+  # Receipt for paid-intent (email_signup) flows: confirms account creation
+  # without naming a plan, since the user hasn't picked one yet at Stripe
+  # checkout. Tracked under its own flag so the later plan-specific welcome
+  # (sent from the Stripe webhook on trial/active) isn't suppressed.
+  def should_send_welcome_receipt_email?
+    return false if admin?
+    return false if settings["receipt_email_sent"] == true
+    return false if settings["welcome_email_sent"] == true
+    true
+  end
+
+  def send_welcome_receipt_email(raw_invitation_token: nil)
+    Rails.logger.info "Sending welcome receipt email to #{email}"
+    begin
+      UserMailer.welcome_email_receipt(self, raw_invitation_token).deliver_later
+      self.settings["receipt_email_sent"] = true
+      save
+      AdminMailer.new_user_email(self).deliver_later
+      update_mailchimp_subscription
+      Rails.logger.info "Welcome receipt email sent to #{email}"
+    rescue => e
+      Rails.logger.error("Error sending welcome receipt email: #{e.message}")
+    end
+  end
+
+  # Called from the Stripe webhook on trial start / non-active→active. Sends
+  # the plan-correct welcome at most once per plan_type, so re-fires of
+  # subscription.updated don't re-email and a true plan change (basic→pro)
+  # still sends. Independent of the email_signup receipt flag.
+  def send_plan_welcome_email_once!(plan_nickname)
+    return if admin?
+    return if plan_nickname.blank?
+    plan_key = plan_nickname.to_s
+    sent_for = Array(settings["plan_welcome_sent_for"])
+    return if sent_for.include?(plan_key)
+    send_welcome_email(plan_key)
+    self.settings["plan_welcome_sent_for"] = (sent_for + [plan_key]).uniq
+    save
   end
 
   def new_user?
@@ -1488,6 +1540,12 @@ class User < ApplicationRecord
     {
       id: id,
       organization_id: organization_id,
+      # Pending-invite accounts (email_signup, webhook-invited) — drives the
+      # frontend's post-checkout "set a password" prompt. Not
+      # encrypted_password.blank?: devise_invitable assigns a random password
+      # on invite!, but valid_password? is nil until the invitation is
+      # accepted, so a pending invite is effectively passwordless.
+      needs_password: invited_to_sign_up?,
       profile: profile&.user_api_view,
       delete_account_token: delete_account_token,
       public_page_url: public_page_url,

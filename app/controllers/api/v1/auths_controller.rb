@@ -1,7 +1,7 @@
 module API
   module V1
     class AuthsController < ApplicationController
-      skip_before_action :authenticate_token!, only: [:create, :sign_up, :current, :destroy, :forgot_password, :reset_password, :reset_password_invite]
+      skip_before_action :authenticate_token!, only: [:create, :sign_up, :email_signup, :current, :destroy, :forgot_password, :reset_password, :reset_password_invite]
 
       def sign_up
         name = params["name"] || (params["user"] && params["user"]["name"]) || ""
@@ -45,6 +45,84 @@ module API
           render json: { token: user.authentication_token, user: user.api_view }
         else
           render json: { error: user.errors.full_messages.join(", ") }, status: :unprocessable_entity
+        end
+      end
+
+      # Email-only signup for the paid-intent path (frictionless paid signup,
+      # itty-bitty-frontend#367). Creates a passwordless account via invite!
+      # and signs the user in; password is set later via set_password or the
+      # welcome email's magic link. Free/partner/demo/myspeak signups keep
+      # using sign_up.
+      def email_signup
+        email = params[:email].to_s.strip.downcase
+        platform = params["platform"] || ""
+
+        # invite! saves with validate: false, so email format must be checked here.
+        unless Devise.email_regexp.match?(email)
+          render json: { error: "A valid email is required" }, status: :unprocessable_entity
+          return
+        end
+
+        if User.exists?(email: email)
+          render json: { error: "Email has already been taken", error_code: "email_taken" }, status: :unprocessable_entity
+          return
+        end
+
+        begin
+          user = User.invite!(email: email, skip_invitation: true)
+        rescue ActiveRecord::RecordNotUnique
+          render json: { error: "Email has already been taken", error_code: "email_taken" }, status: :unprocessable_entity
+          return
+        end
+        unless user.persisted?
+          render json: { error: user.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          return
+        end
+        # The raw token only exists in memory on this instance — capture it for
+        # the welcome email's magic link. Never rendered to the client.
+        raw_invitation_token = user.raw_invitation_token
+
+        if platform != "ios" && platform != "android"
+          user.update(stripe_customer_id: User.create_stripe_customer(user.email))
+        else
+          Rails.logger.warn "Mobile platform email signup for user #{user.email}, skipping Stripe customer creation for platform: #{platform}"
+        end
+
+        sign_in user
+        user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
+        user.ensure_minimum_communicator_slot!
+        # email_signup is the paid-intent path: no plan picked yet, so send a
+        # plan-neutral receipt now. The real plan welcome ships from the Stripe
+        # webhook once trial/active. The Mailchimp `welcome` journey is still
+        # enqueued here (follow-up: make journey plan-aware too).
+        if user.should_send_welcome_receipt_email?
+          user.send_welcome_receipt_email(raw_invitation_token: raw_invitation_token)
+          MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "welcome" })
+        end
+        MailchimpEventJob.perform_async(user.id, "sign_up")
+        render json: { token: user.authentication_token, user: user.api_view }
+      end
+
+      # Sets the initial password on a passwordless (invited) account.
+      # Authenticated — not in the skip_before_action list. Must go through
+      # accept_invitation! while an invitation is pending: devise_invitable's
+      # valid_password? returns nil while invitation_token is present, so a
+      # plain update would store a password the user can never sign in with.
+      def set_password
+        # Only pending invites qualify — anyone else already has a working
+        # password (devise_invitable assigns a random one on invite!, so
+        # encrypted_password.present? can't tell the two apart).
+        unless current_user.invited_to_sign_up?
+          render json: { error: "Password already set", error_code: "password_already_set" }, status: :unprocessable_entity
+          return
+        end
+        current_user.password = params[:password]
+        current_user.password_confirmation = params[:password_confirmation]
+        saved = current_user.accept_invitation!
+        if saved && current_user.errors.empty?
+          render json: { user: current_user.api_view }
+        else
+          render json: { error: current_user.errors.full_messages.join(", ") }, status: :unprocessable_entity
         end
       end
 

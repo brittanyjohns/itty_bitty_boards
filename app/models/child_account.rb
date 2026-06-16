@@ -119,11 +119,62 @@ class ChildAccount < ApplicationRecord
   before_save :set_owner_if_missing, if: -> { owner.nil? && user.present? }
   before_validation :set_username_if_missing, if: -> { username.blank? }
 
+  # AAC personalization fields, stored in the details jsonb (same pattern as
+  # details["interests"] — no columns). They feed CommunicatorProfile.for so
+  # word-suggestion AI calls and the Board Builder's template recommendation
+  # can be personalized without the picker being re-filled every time.
+  AAC_PROFILE_FIELDS = {
+    "aac_level" => CommunicatorProfile::AAC_LEVELS,
+    "vocab_type" => CommunicatorProfile::VOCAB_TYPES,
+    "age_band" => CommunicatorProfile::AGE_BANDS,
+  }.freeze
+
+  AAC_PROFILE_FIELDS.each_key do |field|
+    define_method(field) { details&.dig(field) }
+    define_method("#{field}=") do |value|
+      self.details = (details || {}).merge(field => value)
+    end
+  end
+
+  before_validation :normalize_aac_profile_fields
+  validate :validate_aac_profile_fields
+
   def set_username_if_missing
     if name.present?
       self.username = name.parameterize
     else
       self.username = "comm#{SecureRandom.hex(4)}"
+    end
+  end
+
+  # Runs on every save path (typed setter or wholesale details= from the
+  # update controller): downcases/strips the three profile keys and drops
+  # blank ones, so clearing a field is always allowed.
+  def normalize_aac_profile_fields
+    return if details.blank?
+
+    AAC_PROFILE_FIELDS.each_key do |field|
+      next unless details.key?(field)
+
+      value = details[field].to_s.strip.downcase
+      if value.blank?
+        details.delete(field)
+      else
+        details[field] = value
+      end
+    end
+  end
+
+  def validate_aac_profile_fields
+    return if details.blank?
+
+    AAC_PROFILE_FIELDS.each do |field, allowed|
+      value = details[field]
+      next if value.blank?
+
+      unless allowed.include?(value)
+        errors.add(field.to_sym, "must be one of: #{allowed.join(', ')}")
+      end
     end
   end
 
@@ -553,6 +604,9 @@ class ChildAccount < ApplicationRecord
       teams: teams.map { |t| t.index_api_view(viewing_user) },
       settings: settings,
       details: details,
+      aac_level: aac_level,
+      vocab_type: vocab_type,
+      age_band: age_band,
       user_id: user_id,
       go_to_words: go_to_words,
       go_to_boards: cached_go_to_boards.map do |board|
@@ -912,6 +966,9 @@ class ChildAccount < ApplicationRecord
       teams: teams.map { |t| t.index_api_view(viewing_user) },
       settings: settings,
       details: details,
+      aac_level: aac_level,
+      vocab_type: vocab_type,
+      age_band: age_band,
       user_id: user_id,
       go_to_words: go_to_words,
       go_to_boards: cached_go_to_boards.map do |board|

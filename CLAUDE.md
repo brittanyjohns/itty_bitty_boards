@@ -189,6 +189,23 @@ carries the warm "let's make your first board" story. The receipt's closing line
 they complement rather than duplicate. If you ever want only one, gate the
 transactional send in `auths#sign_up` or unset the welcome journey ENV vars.
 
+**Paid-intent welcome — two-stage.** `email_signup` (the PR #312 path) runs
+**before** Stripe checkout, so the plan isn't known. It sends a **plan-neutral
+receipt** (`UserMailer.welcome_email_receipt`, "your account is ready / sign
+in") and tracks it under `settings["receipt_email_sent"]` — distinct from the
+`welcome_email_sent` flag so the later plan welcome isn't suppressed. The
+**plan-correct welcome** (`welcome_basic_email` / `welcome_pro_email`) ships
+from `API::WebhooksController#handle_subscription_upsert` on the first
+transition into `trialing` or `active`, via `User#send_plan_welcome_email_once!`.
+That helper is idempotent per `plan_type` (recorded in
+`settings["plan_welcome_sent_for"]`), so `subscription.updated` re-fires and
+`trialing→active` for the same plan don't re-email, but a real plan change
+(`basic → pro`) still re-welcomes. This is the only path that delivers the
+Basic/Pro welcome to **web** subscribers — mobile IAP still goes through
+`BillingController#update_subscription`. The Mailchimp `welcome` journey is
+still enqueued from `email_signup` today (Free-flavored copy) — making the
+journey plan-aware is tracked as a follow-up.
+
 ## PostHog server-side analytics
 
 `PosthogService` (`app/models/posthog_service.rb`) captures the
@@ -303,6 +320,41 @@ Trial→paid is measured via `AnalyticsEvent`: `trial_started` (checkout),
 the non-active→active transition in the upsert; guarded so renewals don't
 double-count). Primary A/B metric is **net paid users per 100 signups**, not
 trial→paid rate.
+
+### Email-only (passwordless) signup — paid-intent path
+
+`POST /api/v1/users/email_signup` (itty-bitty-frontend#367): a paid-intent
+visitor types just an email → passwordless account via
+`User.invite!(skip_invitation: true)` → signed in (same `{ token, user }`
+envelope as `sign_up`) → frontend proceeds to Stripe Checkout. Free/partner/
+demo/myspeak signups keep using `sign_up`. Key invariants:
+
+- **"Passwordless" = pending invitation, NOT blank `encrypted_password`.**
+  devise_invitable assigns a random password inside `invite!`; what makes the
+  account passwordless is that `valid_password?` returns nil while
+  `invitation_token` is present. `user.api_view`'s `needs_password` flag is
+  `invited_to_sign_up?` for this reason.
+- **Setting the initial password must go through `accept_invitation!`** — a
+  naive `update(password:)` on an invited user stores a password that can
+  never sign in. Both `POST /api/v1/users/set_password` (new, 422
+  `password_already_set` for non-invited users) and the legacy
+  `POST /api/set-password` honor this.
+- **Welcome-email magic link:** the raw invitation token must be passed as an
+  explicit String argument down the
+  `send_welcome_email(raw_invitation_token:)` → `UserMailer.welcome_*_email`
+  chain — the virtual attr on User is nil after `deliver_later`'s GlobalID
+  round-trip (this bug made the `/welcome/token/` link never render).
+- **`customer.created` webhook** matches existing users by email before
+  inviting, so it can't rotate a just-issued invitation token when the
+  webhook races email_signup's `stripe_customer_id` save.
+- `email_signup` never sets `paid_plan_type` (checkout owns it) and skips
+  Stripe-customer creation for `platform=ios/android`, like `sign_up`.
+- **Billing portal for everyone:** `POST /api/subscriptions/billing_portal`
+  lazily creates the Stripe customer via `User#ensure_stripe_customer!`
+  (shared with checkout's `ensure_customer!`) and rescues `Stripe::StripeError`
+  → 400 generic message. Requires a saved Customer-portal default config in
+  the Stripe dashboard (test + live) — see `docs/stripe-setup.md` §4b.
+  Optional `STRIPE_PORTAL_CONFIG_ID` pins a dedicated config.
 
 ### `paid_plan?` semantics
 
@@ -684,7 +736,12 @@ Three seams (input contract tightens left→right):
 
 Endpoints (`API::V1::BoardBuilderController`, both auth-gated):
 
-- `GET /api/v1/board_builder/templates` — label-only picker catalog.
+- `GET /api/v1/board_builder/templates` — label-only picker catalog. Accepts an
+  optional `communicator_id` (scoped to `current_user.communicator_accounts`);
+  when that communicator has a usable stored profile, the response includes
+  `recommended_template` (Core 60's slug for young/emerging, else Core 84's —
+  only if that set is seeded here) and a `recommendation_reason` string. No
+  profile → both `null`.
 - `POST /api/v1/board_builder` `{ communicator_id, template, interests }` —
   ownership check (**404 `communicator_not_found`** for a communicator not in
   `current_user.communicator_accounts`), assemble → build → persist normalized
@@ -738,6 +795,27 @@ layout + `part_of_speech` colors survive). Reuses `ObzImporter` (seed) and
 - v1 is **synchronous** (DB-bound work; previews/audio/AI art already async).
   If a finalized set is materially larger than the placeholder, move the clone
   to a background job + "building" state — see `.claude-notes/board-builder.md`.
+
+### Stored communicator profile (AAC personalization)
+
+`aac_level` / `vocab_type` / `age_band` live in **`child_accounts.details`**
+(jsonb, same pattern as `details["interests"]` — no columns). `ChildAccount`
+defines typed accessors over them, normalizes (downcase/strip, blank clears the
+key), and validates against `CommunicatorProfile::AAC_LEVELS / VOCAB_TYPES /
+AGE_BANDS` on every save — including the wholesale `details=` assignment in the
+communicator update controller. Exposed top-level (next to `details`) in the
+ChildAccount `api_view` / `vendor_api_view`.
+
+`CommunicatorProfile.for(params:, communicator:)` is the merge constructor:
+explicit request params override stored fields **field by field**; returns nil
+when both sources are empty (no profile = unchanged behavior). Consumers:
+`boards#words`, `boards#additional_words`, and `GenerateBoardJob` all accept an
+optional `communicator_id` — always resolved via
+`current_user.communicator_accounts` (controller-side for the job; the id in
+job options is pre-validated), never a bare `ChildAccount.find`. An id the
+caller doesn't own is silently ignored. Personalization reaches **AI
+word-suggestion prompts and the template recommendation only** — the Board
+Builder's deterministic build path is unchanged.
 
 ## Do not
 

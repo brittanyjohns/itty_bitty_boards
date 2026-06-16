@@ -102,7 +102,11 @@ RSpec.describe "POST /api/webhooks (plan_type)", type: :request do
       sub = build_subscription(price: build_price(plan_type: "pro"))
       stub_event(sub, type: "customer.subscription.created")
 
-      expect_any_instance_of(User).not_to receive(:send_welcome_email)
+      # Plan welcome IS sent from this webhook now (the only path that
+      # delivers welcome_pro_email to web subscribers). Full per-plan
+      # idempotency coverage lives in webhooks_plan_welcome_spec.rb.
+      allow(UserMailer).to receive(:welcome_pro_email).and_return(double(deliver_later: true))
+      allow(AdminMailer).to receive(:new_user_email).and_return(double(deliver_later: true))
 
       post_webhook("{}", header_with_signature)
 

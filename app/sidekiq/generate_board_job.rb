@@ -10,7 +10,11 @@ class GenerateBoardJob
       words = []
       begin
         board.update_column(:status, "generating_words")
-        profile = CommunicatorProfile.from_params(options["profile"] || {})
+        # communicator_id arrives pre-validated (boards#create scopes it to
+        # the caller's own communicator_accounts before enqueueing). Explicit
+        # profile params still override the stored fields, field by field.
+        communicator = ChildAccount.find_by(id: options["communicator_id"]) if options["communicator_id"].present?
+        profile = CommunicatorProfile.for(params: options["profile"] || {}, communicator: communicator)
         case board_creation_type
         when "default", "scenario"
           # The merged "Build a board" form can send seed words (word_list)

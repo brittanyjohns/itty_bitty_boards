@@ -95,6 +95,27 @@ point at the staging marketing site).
 If you add a new trusted frontend host, update both the allowlist and
 this section.
 
+## 4b. Customer portal configuration (billing portal for free accounts)
+
+`POST /api/subscriptions/billing_portal` works for **every** account —
+free users included (the backend lazily creates a Stripe customer on
+first billing touch). `Stripe::BillingPortal::Session.create` requires a
+**default portal configuration** saved in the dashboard, in **both test
+and live mode** — a mode with no saved default errors until you save one
+once.
+
+Checklist (Settings → Billing → Customer portal, each mode):
+
+- Invoice history: **ON** (receipts are the main value for free users)
+- Customer information update: **ON**
+- Payment method update: **ON**
+- Don't regress paid users' cancel/update-subscription settings — the
+  portal config is shared by free and paid customers.
+
+Optional: a dedicated portal configuration can be pinned via
+`STRIPE_PORTAL_CONFIG_ID` (Hatchbox env). Default unset — the dashboard
+default config is used.
+
 ## 5. Staging-specific setup (Stripe Sandbox)
 
 Staging has its own webhook endpoint pointing at the staging app. To set

@@ -52,66 +52,47 @@ class UserMailer < BaseMailer
     end
   end
 
-  def welcome_free_email(user)
+  # Plan-neutral "your account is ready" receipt for paid-intent signups
+  # (email_signup): the user hasn't reached Stripe checkout yet, so we don't
+  # know which plan to welcome them onto. The real plan welcome is sent later
+  # from the Stripe webhook (handle_subscription_upsert) once trial/active.
+  def welcome_email_receipt(user, raw_invitation_token = nil)
     @user = user
     @user_name = @user.name
-    @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
-    if @user.raw_invitation_token.nil?
-      @user = User.find(user.id) # Reload user to ensure raw_invitation_token is up-to-date
-      @login_link += "/users/sign-in"
-    else
-      Rails.logger.info "User #{@user.id} already has a raw_invitation_token, using it for welcome link"
-      token = @user.raw_invitation_token
-      Rails.logger.info "User #{@user.id} has raw_invitation_token: #{token}"
-      @login_link += "/welcome/token/#{token}"
+    @login_link = welcome_login_link(user, raw_invitation_token)
+    Rails.logger.info "Sending welcome receipt email to #{@user.email} with login link: #{@login_link}"
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.welcome_email_receipt.subject"))
     end
+  end
 
-    encoded_email = ERB::Util.url_encode(@user.email)
-    @login_link += "?email=#{encoded_email}"
+  # raw_invitation_token must be passed explicitly as a String: the virtual
+  # attr on @user is always nil here because deliver_later round-trips the
+  # User through GlobalID. Without the arg, links fall back to /users/sign-in.
+  def welcome_free_email(user, raw_invitation_token = nil)
+    @user = user
+    @user_name = @user.name
+    @login_link = welcome_login_link(user, raw_invitation_token)
     Rails.logger.info "Sending welcome free email to #{@user.email} with login link: #{@login_link}"
     with_user_locale(@user) do
       mail(to: @user.email, subject: I18n.t("user_mailer.welcome_free_email.subject"))
     end
   end
 
-  def welcome_basic_email(user)
+  def welcome_basic_email(user, raw_invitation_token = nil)
     @user = user
     @user_name = @user.name
-    @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
-    if @user.raw_invitation_token.nil?
-      @user = User.find(user.id) # Reload user to ensure raw_invitation_token is up-to-date
-      @login_link += "/users/sign-in"
-    else
-      Rails.logger.info "User #{@user.id} already has a raw_invitation_token, using it for welcome link"
-      token = @user.raw_invitation_token
-      Rails.logger.info "User #{@user.id} has raw_invitation_token: #{token}"
-      @login_link += "/welcome/token/#{token}"
-    end
-
-    encoded_email = ERB::Util.url_encode(@user.email)
-    @login_link += "?email=#{encoded_email}"
+    @login_link = welcome_login_link(user, raw_invitation_token)
     Rails.logger.info "Sending welcome basic email to #{@user.email} with login link: #{@login_link}"
     with_user_locale(@user) do
       mail(to: @user.email, subject: I18n.t("user_mailer.welcome_basic_email.subject"))
     end
   end
 
-  def welcome_pro_email(user)
+  def welcome_pro_email(user, raw_invitation_token = nil)
     @user = user
     @user_name = @user.name
-    @login_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
-    if @user.raw_invitation_token.nil?
-      @user = User.find(user.id) # Reload user to ensure raw_invitation_token is up-to-date
-      @login_link += "/users/sign-in"
-    else
-      Rails.logger.info "User #{@user.id} already has a raw_invitation_token, using it for welcome link"
-      token = @user.raw_invitation_token
-      Rails.logger.info "User #{@user.id} has raw_invitation_token: #{token}"
-      @login_link += "/welcome/token/#{token}"
-    end
-
-    encoded_email = ERB::Util.url_encode(@user.email)
-    @login_link += "?email=#{encoded_email}"
+    @login_link = welcome_login_link(user, raw_invitation_token)
     Rails.logger.info "Sending welcome pro email to #{@user.email} with login link: #{@login_link}"
     with_user_locale(@user) do
       mail(to: @user.email, subject: I18n.t("user_mailer.welcome_pro_email.subject"))
@@ -239,5 +220,13 @@ class UserMailer < BaseMailer
         subject: I18n.t("user_mailer.message_notification_email.subject", sender_name: @sender.name),
       )
     end
+  end
+
+  private
+
+  def welcome_login_link(user, raw_invitation_token)
+    link = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    link += raw_invitation_token.present? ? "/welcome/token/#{raw_invitation_token}" : "/users/sign-in"
+    link + "?email=#{ERB::Util.url_encode(user.email)}"
   end
 end

@@ -464,6 +464,51 @@ RSpec.describe "API::Boards", type: :request do
         expect(response).to have_http_status(:ok)
       end
     end
+
+    describe "stored communicator profile (communicator_id)" do
+      let!(:communicator) do
+        create(:child_account, user: user,
+                               details: { "aac_level" => "emerging", "age_band" => "4-6" })
+      end
+
+      it "builds the profile from the communicator's stored details" do
+        expect_any_instance_of(Board).to receive(:get_word_suggestions) do |_b, _p, _n, _excl, profile:, **|
+          expect(profile.aac_level).to eq("emerging")
+          expect(profile.age_band).to eq("4-6")
+          %w[more help go]
+        end
+        get "/api/boards/words",
+            params: { name: "Doctor Visit", num_of_words: 3, communicator_id: communicator.id },
+            headers: auth_headers(user)
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "lets explicit params override stored fields, field by field" do
+        expect_any_instance_of(Board).to receive(:get_word_suggestions) do |_b, _p, _n, _excl, profile:, **|
+          expect(profile.aac_level).to eq("proficient") # param wins
+          expect(profile.age_band).to eq("4-6")         # stored field kept
+          %w[volcano excavate]
+        end
+        get "/api/boards/words",
+            params: { name: "Doctor Visit", num_of_words: 3,
+                      communicator_id: communicator.id, aac_level: "proficient" },
+            headers: auth_headers(user)
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "ignores another user's communicator_id (no cross-account leak)" do
+        other = create(:child_account, user: create(:user),
+                                       details: { "aac_level" => "emerging" })
+        expect_any_instance_of(Board).to receive(:get_word_suggestions) do |_b, _p, _n, _excl, profile:, **|
+          expect(profile).to be_nil
+          %w[doctor nurse]
+        end
+        get "/api/boards/words",
+            params: { name: "Doctor Visit", num_of_words: 3, communicator_id: other.id },
+            headers: auth_headers(user)
+        expect(response).to have_http_status(:ok)
+      end
+    end
   end
 
   describe "GET /api/boards/:id/additional_words" do

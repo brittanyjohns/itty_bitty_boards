@@ -62,7 +62,14 @@ for wt in "${REGISTERED[@]}"; do
     continue
   fi
   dirty=$(git -C "$wt" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
-  unpushed=$(git -C "$wt" log '@{u}..' --oneline 2>/dev/null | wc -l | tr -d ' ')
+  if git -C "$wt" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
+    unpushed=$(git -C "$wt" log '@{u}..' --oneline 2>/dev/null | wc -l | tr -d ' ')
+  else
+    # No upstream: nothing is on the remote, so any commits beyond
+    # origin/main count as unpushed work. (Without this branch, the
+    # failing @{u} lookup + pipefail silently killed the whole script.)
+    unpushed=$(git -C "$wt" log origin/main..HEAD --oneline 2>/dev/null | wc -l | tr -d ' ' || echo 1)
+  fi
   if [[ "$dirty" != "0" || "$unpushed" != "0" ]]; then
     PROTECTED+=("$wt  (dirty=$dirty, unpushed=$unpushed)")
   else
