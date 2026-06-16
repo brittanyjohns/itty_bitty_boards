@@ -35,4 +35,23 @@ namespace :mailchimp do
     MailchimpUpsertSubscriberJob.perform_async(user.id)
     puts "Enqueued MailchimpUpsertSubscriberJob for user #{user.id} (#{user.email})"
   end
+
+  # Recovery for a user whose hit_limit dedupe key got stamped while the
+  # journey couldn't actually send (older code stamped on enqueue). Clearing
+  # the key lets the email fire again the next time they trip the board cap.
+  desc "Clear the hit_limit journey dedupe key for a user"
+  task :clear_hit_limit_dedupe, [:user_id] => :environment do |t, args|
+    user_id = args[:user_id]
+    if user_id.blank?
+      puts "Usage: bin/rails 'mailchimp:clear_hit_limit_dedupe[USER_ID]'"
+      next
+    end
+
+    key = "mailchimp:hit_limit:#{user_id}"
+    if Rails.cache.delete(key)
+      puts "Cleared #{key}"
+    else
+      puts "No dedupe key found at #{key} (nothing to clear)"
+    end
+  end
 end

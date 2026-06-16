@@ -619,6 +619,11 @@ RSpec.describe "API::Boards", type: :request do
 
     before do
       allow(Rails).to receive(:cache).and_return(memory_cache)
+      # The journey only enqueues (and stamps the dedupe key) when it can
+      # actually fire, so the happy-path tests stub journeys on.
+      allow(MailchimpClient).to receive(:journeys_enabled?).and_return(true)
+      allow(MailchimpClient).to receive(:journey).with("hit_limit")
+        .and_return({ journey_id: 1, step_id: 2 })
       MailchimpEventJob.clear
     end
 
@@ -647,6 +652,48 @@ RSpec.describe "API::Boards", type: :request do
              params: { board: { name: "Third" } },
              headers: auth_headers(free_user)
       }.not_to change(MailchimpEventJob.jobs, :size)
+    end
+
+    it "does not enqueue or stamp the dedupe key when journeys are disabled" do
+      # Regression: a no-op must not poison the 14-day dedupe key, or the email
+      # stays silently suppressed once journeys are turned on.
+      allow(MailchimpClient).to receive(:journeys_enabled?).and_return(false)
+
+      expect {
+        post "/api/boards",
+             params: { board: { name: "Second" } },
+             headers: auth_headers(free_user)
+      }.not_to change(MailchimpEventJob.jobs, :size)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(memory_cache.read("mailchimp:hit_limit:#{free_user.id}")).to be_nil
+    end
+
+    it "does not enqueue or stamp the dedupe key when the journey is unconfigured" do
+      allow(MailchimpClient).to receive(:journey).with("hit_limit").and_return(nil)
+
+      expect {
+        post "/api/boards",
+             params: { board: { name: "Second" } },
+             headers: auth_headers(free_user)
+      }.not_to change(MailchimpEventJob.jobs, :size)
+
+      expect(memory_cache.read("mailchimp:hit_limit:#{free_user.id}")).to be_nil
+    end
+
+    it "enqueues for a demo/internal account while the #306 temporary revert is in effect" do
+      # #297's demo_user? guards are temporarily reverted (#306) so demo
+      # accounts can E2E-test the journeys. When #297 is restored, flip this
+      # back to asserting no enqueue and no dedupe-key write.
+      allow_any_instance_of(User).to receive(:demo_user?).and_return(true)
+
+      expect {
+        post "/api/boards",
+             params: { board: { name: "Second" } },
+             headers: auth_headers(free_user)
+      }.to change(MailchimpEventJob.jobs, :size).by(1)
+
+      expect(memory_cache.read("mailchimp:hit_limit:#{free_user.id}")).to eq(true)
     end
 
     it "logs and swallows errors so a Mailchimp blip can't 500 the create request" do

@@ -122,10 +122,20 @@ GitHub build). Two distinct uses:
     enqueue. Wired journey keys:
     - `welcome` — enqueued from `API::V1::AuthsController#sign_up` and
       `API::Stripe::CheckoutSessionsController` on signup.
-    - `hit_limit` — enqueued from `API::BoardsController#check_board_create_permissions`
-      when a Free user trips the board cap on create/clone/create_from_template.
+    - `hit_limit` — enqueued when a Free user trips the board cap, from the
+      `MailchimpHitLimitNotifier` concern's `notify_mailchimp_hit_limit`, shared
+      by `API::BoardsController#check_board_create_permissions`
+      (create/clone/create_from_template) **and**
+      `API::MenusController#check_board_create_permissions` (Menu Board Creator).
       Free-only; deduped per user for 14 days via `Rails.cache` so a user
-      mashing the create button isn't spammed.
+      mashing the create button isn't spammed. **The dedupe key is stamped only
+      when the journey can actually fire** — Free user, journeys enabled for
+      the env, and the `hit_limit` journey configured — so a no-op (ENV unset,
+      staging/dev) can't poison the 14-day key and silently suppress the email
+      after the cause is fixed. (The concern's `demo_user?` guard is out while
+      the #306 temporary revert is in effect — re-add it when #297 is
+      restored.) Recovery: clear a stuck key with
+      `bin/rails 'mailchimp:clear_hit_limit_dedupe[USER_ID]'`.
     - `first_board_nudge` — enqueued by `MailchimpFirstBoardNudgeJob` (daily
       at 4am UTC) for non-admin users who signed up 48-72h ago with no boards.
       The `user.settings["first_board_nudge_sent"]` flag prevents re-nudging
