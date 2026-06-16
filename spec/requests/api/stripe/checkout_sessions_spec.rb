@@ -220,22 +220,25 @@ RSpec.describe "POST /api/stripe/checkout_sessions (subscription)", type: :reque
 
   describe "#update_user_from_session" do
     let(:session_id) { "cs_test_session_xyz" }
-    let(:fake_session) do
+
+    def fake_session(status: "complete", plan_key: "basic_yearly", subscription: nil, user_id: user.id)
       OpenStruct.new(
         id: session_id,
-        metadata: OpenStruct.new(user_id: user.id, plan_key: "basic_yearly"),
+        status: status,
+        subscription: subscription,
+        metadata: OpenStruct.new(user_id: user_id, plan_key: plan_key),
       )
     end
 
-    before do
-      allow(Stripe::Checkout::Session).to receive(:retrieve).with(session_id).and_return(fake_session)
+    def stub_session(**opts)
+      allow(Stripe::Checkout::Session).to receive(:retrieve).with(session_id).and_return(fake_session(**opts))
     end
 
-    it "normalizes plan_key, sets plan_status=active, and enqueues a Mailchimp event" do
+    it "on a completed session: normalizes plan_key, sets plan_status=active, enqueues Mailchimp" do
+      stub_session(status: "complete", plan_key: "basic_yearly")
+
       expect {
-        post "/api/stripe/update_user_from_session",
-             params: { session_id: session_id },
-             headers: auth_headers(user)
+        post "/api/stripe/update_user_from_session", params: { session_id: session_id }, headers: auth_headers(user)
       }.to change { MailchimpEventJob.jobs.size }.by(1)
 
       expect(response).to have_http_status(:ok)
@@ -244,15 +247,42 @@ RSpec.describe "POST /api/stripe/checkout_sessions (subscription)", type: :reque
       expect(user.plan_status).to eq("active")
     end
 
-    it "404s when the session metadata.user_id resolves to no user" do
-      bad_session = OpenStruct.new(id: session_id, metadata: OpenStruct.new(user_id: 99_999_999, plan_key: "basic"))
-      allow(Stripe::Checkout::Session).to receive(:retrieve).with(session_id).and_return(bad_session)
+    it "does NOT grant a plan for an incomplete/abandoned session (no payment)" do
+      user.update!(plan_type: "free", plan_status: nil)
+      stub_session(status: "open", plan_key: "pro")
 
-      post "/api/stripe/update_user_from_session",
-           params: { session_id: session_id },
-           headers: auth_headers(user)
+      expect {
+        post "/api/stripe/update_user_from_session", params: { session_id: session_id }, headers: auth_headers(user)
+      }.not_to change { MailchimpEventJob.jobs.size }
 
-      expect(response).to have_http_status(:not_found)
+      expect(response).to have_http_status(:ok)
+      expect(user.reload.plan_type).to eq("free")
+    end
+
+    it "reflects the real subscription status (trialing), not a blanket 'active'" do
+      sub = OpenStruct.new(
+        status: "trialing",
+        items: OpenStruct.new(data: [OpenStruct.new(price: OpenStruct.new(metadata: { "plan_type" => "pro" }))]),
+      )
+      allow(Stripe::Subscription).to receive(:retrieve).with("sub_123").and_return(sub)
+      stub_session(status: "complete", plan_key: "basic", subscription: "sub_123")
+
+      post "/api/stripe/update_user_from_session", params: { session_id: session_id }, headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      user.reload
+      expect(user.plan_type).to eq("pro")       # from the subscription's price metadata
+      expect(user.plan_status).to eq("trialing") # status-correct, doesn't clobber the webhook
+    end
+
+    it "403s when the session belongs to a different user" do
+      stub_session(status: "complete", user_id: 99_999_999, plan_key: "pro")
+
+      expect {
+        post "/api/stripe/update_user_from_session", params: { session_id: session_id }, headers: auth_headers(user)
+      }.not_to change { user.reload.plan_type }
+
+      expect(response).to have_http_status(:forbidden)
     end
   end
 end

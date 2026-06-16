@@ -200,29 +200,64 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     render json: { error: "Failed to create top-up session" }, status: :bad_request
   end
 
+  # Best-effort fast-path the frontend calls on the Stripe success redirect to
+  # reflect the new plan without waiting for the webhook. The Stripe webhook
+  # remains the source of truth for plan + credits — this only mirrors what it
+  # will set, and grants NOTHING for a checkout that didn't actually complete.
   def update_user_from_session
-    session_id = params[:session_id].to_s
-    session = Stripe::Checkout::Session.retrieve(session_id)
-    user_id = session.metadata.user_id
-    plan_key = session.metadata.plan_key
-    user = User.find_by(id: user_id)
-    if user.nil?
-      render json: { error: "User not found" }, status: :not_found
+    session = Stripe::Checkout::Session.retrieve(params[:session_id].to_s)
+
+    # Only the authenticated owner may reconcile from their own checkout —
+    # don't let one user act on another's session.
+    if session.metadata&.user_id.to_s != current_user.id.to_s
+      render json: { error: "Session does not belong to this user" }, status: :forbidden
       return
     end
-    normalized_plan_key = normalize_plan_key(plan_key)
-    user.plan_type = normalized_plan_key
-    user.plan_status = "active"
-    user.setup_limits
-    user.save!
-    MailchimpEventJob.perform_async(user.id, "sign_up")
+
+    # CRITICAL: only a COMPLETED checkout grants a plan. An abandoned/expired
+    # session is "open"/"expired" — reflecting its plan_key would hand a paid
+    # tier to someone who never paid. No-op (not an error) so the frontend can
+    # retry while the webhook catches up.
+    unless session.status == "complete"
+      render json: { success: true, status: session.status }
+      return
+    end
+
+    plan_type, plan_status = plan_and_status_from_session(session)
+    if plan_type.present?
+      current_user.plan_type = plan_type
+      current_user.plan_status = plan_status
+      current_user.setup_limits
+      current_user.save!
+      MailchimpEventJob.perform_async(current_user.id, "sign_up")
+    end
     render json: { success: true }
-  rescue StandardError => e
+  rescue Stripe::StripeError, StandardError => e
     Rails.logger.error "Error updating user from session: #{e.class} - #{e.message}"
     render json: { error: "Failed to update user from session" }, status: :bad_request
   end
 
   private
+
+  # Plan tier + status for a COMPLETED checkout. Prefers the real subscription
+  # (status-correct: trialing vs active, plan from the price metadata) so a
+  # no-card trial isn't recorded as "active" and clobbering the webhook's
+  # "trialing"; falls back to the session's plan_key. Credits are NOT granted
+  # here — the webhook (invoice.payment_succeeded / subscription.created) is the
+  # sole credit-grant authority.
+  def plan_and_status_from_session(session)
+    plan_key = session.metadata&.plan_key
+    status = "active"
+
+    if session.subscription.present?
+      sub = Stripe::Subscription.retrieve(session.subscription.to_s)
+      status = %w[trialing active].include?(sub.status.to_s) ? sub.status.to_s : "active"
+      price = sub.items&.data&.first&.price
+      plan_key = (price&.metadata || {})["plan_type"].presence || plan_key
+    end
+
+    [normalize_plan_key(plan_key).presence, status]
+  end
 
   def ensure_customer!
     current_user.ensure_stripe_customer!

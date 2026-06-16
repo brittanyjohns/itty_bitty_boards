@@ -379,7 +379,21 @@ demo/myspeak signups keep using `sign_up`. Key invariants:
   round-trip (this bug made the `/welcome/token/` link never render).
 - **`customer.created` webhook** matches existing users by email before
   inviting, so it can't rotate a just-issued invitation token when the
-  webhook races email_signup's `stripe_customer_id` save.
+  webhook races email_signup's `stripe_customer_id` save. It then **links**
+  the customer (`update_columns(stripe_customer_id:)` when blank — never
+  repoints an existing id; `update_columns` avoids touching the token), so the
+  link is self-healing rather than depending on email_signup's separate save.
+  The invite! fallback is race-safe: a unique-violation re-finds by email
+  instead of duplicating.
+- **`POST /api/stripe/update_user_from_session`** is a best-effort fast-path the
+  frontend hits on the Stripe success redirect; the webhook stays the source of
+  truth for plan + credits. It **only reflects a plan when the session actually
+  completed** (`session.status == "complete"`) — an abandoned/expired session
+  can't grant a paid tier without payment — and only the authenticated **owner**
+  of the session may call it (403 otherwise). It reads the real subscription
+  status (`trialing`/`active`) so a no-card trial isn't recorded as `active`
+  (and can't clobber the webhook's `trialing`); it grants **no credits** (webhook
+  authority).
 - `email_signup` never sets `paid_plan_type` (checkout owns it) and skips
   Stripe-customer creation for `platform=ios/android`, like `sign_up`.
 - **Billing portal for everyone:** `POST /api/subscriptions/billing_portal`
