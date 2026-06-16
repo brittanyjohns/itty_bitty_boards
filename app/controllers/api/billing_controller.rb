@@ -32,8 +32,13 @@ class API::BillingController < API::ApplicationController
     end
 
     begin
+      # Don't clobber an in-progress trial. The RC webhook marks a trialist
+      # "trialing" (period_type=TRIAL); this client call races it after the same
+      # purchase and verified_plan_for can't see the trial flag, so preserve the
+      # trialing status for the same plan and let the webhook own trial→active.
+      keep_trialing = current_user.plan_status == "trialing" && current_user.plan_type == normalized_plan_key
       current_user.plan_type = normalized_plan_key
-      current_user.plan_status = "active"
+      current_user.plan_status = keep_trialing ? "trialing" : "active"
       current_user.settings["purchase_platform"] = purchase_platform
       # setup_limits runs as a before_save callback when plan_type changes.
       current_user.save!

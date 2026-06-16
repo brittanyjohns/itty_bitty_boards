@@ -5,6 +5,22 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — RevenueCat (iOS/Apple) free trials are now first-class
+- The RevenueCat webhook reads `period_type`: a `TRIAL`/`INTRO`
+  `INITIAL_PURCHASE` now marks the user `plan_status="trialing"` (was always
+  `active`), persists `settings["trial_ends_at"]`, and fires a distinct
+  `trial_started` analytics event (internal + PostHog) instead of
+  `subscription_started`. `subscription_started` now fires on **conversion**
+  (a normal-period renewal/product-change out of a trial), and an unconverted
+  trial `EXPIRATION` is tagged `reason: "trial_expired"` — so iOS trial→paid
+  conversion is measurable, matching the Stripe path.
+- `BillingController#update_subscription` (the client confirmation call)
+  preserves an in-progress `trialing` status for the same plan so it can't
+  race-clobber the trial the webhook recorded.
+- Not included yet: a 3-days-before trial-ending reminder. Apple/RevenueCat send
+  no `trial_will_end` webhook, so this needs a scheduled job keyed on
+  `trial_ends_at` (tracked as a follow-up).
+
 ### Fixed — RevenueCat product-id mapping didn't match the real App Store ids
 - `RevenueCat::PlanMapping::PRODUCT_TO_PLAN` keyed on bare package names
   (`basic_monthly`, `pro_yearly`), but Apple/RevenueCat emit reverse-DNS product
