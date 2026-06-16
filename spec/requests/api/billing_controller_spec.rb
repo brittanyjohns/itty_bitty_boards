@@ -104,6 +104,24 @@ RSpec.describe "POST /api/billing/update_subscription", type: :request do
          headers: auth_headers(user)
   end
 
+  it "only sends the welcome email once across repeated verified calls (idempotent)" do
+    stub_rc_verified(plan_type: "basic")
+    # Override the global no-op stub so the real send_plan_welcome_email_once!
+    # guard runs; spy on the mailer to count actual sends.
+    allow_any_instance_of(User).to receive(:send_welcome_email).and_call_original
+    allow(UserMailer).to receive(:welcome_basic_email).and_return(double(deliver_later: true))
+
+    2.times do
+      post "/api/billing/update_subscription",
+           params: { plan_key: "basic", purchase_platform: "ios" },
+           headers: auth_headers(user)
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(UserMailer).to have_received(:welcome_basic_email).once
+    expect(user.reload.settings["plan_welcome_sent_for"]).to include("basic")
+  end
+
   it "is auth-gated (no token → unauthorized)" do
     post "/api/billing/update_subscription",
          params: { plan_key: "basic" }

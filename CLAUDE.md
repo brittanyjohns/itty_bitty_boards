@@ -191,10 +191,24 @@ That helper is idempotent per `plan_type` (recorded in
 `settings["plan_welcome_sent_for"]`), so `subscription.updated` re-fires and
 `trialing→active` for the same plan don't re-email, but a real plan change
 (`basic → pro`) still re-welcomes. This is the only path that delivers the
-Basic/Pro welcome to **web** subscribers — mobile IAP still goes through
-`BillingController#update_subscription`. The Mailchimp `welcome` journey is
-still enqueued from `email_signup` today (Free-flavored copy) — making the
-journey plan-aware is tracked as a follow-up.
+Basic/Pro welcome to **web** subscribers. **Mobile IAP delivers the same
+plan-correct welcome from `RevenueCat::WebhookProcessor#handle_purchase`** (also
+via `send_plan_welcome_email_once!`), so the RC **webhook** is the source of
+truth — a dropped `BillingController#update_subscription` client call no longer
+strands a paying user without a welcome. That client endpoint also calls
+`send_plan_welcome_email_once!` (was the non-idempotent `send_welcome_email`),
+so the webhook + client paths can't double-email. The Mailchimp `welcome`
+journey is still enqueued from `email_signup` today (Free-flavored copy) —
+making the journey plan-aware is tracked as a follow-up.
+
+**Stripe webhook idempotency gate.** `API::WebhooksController#webhooks` records
+each handled event in `processed_webhook_events` (`provider: "stripe"`) and
+short-circuits a replayed event id with `{ status: "already_processed" }` —
+mirroring the RevenueCat processor. The record is written **only after a clean
+run**, so a handler that raises still returns 4xx and lets Stripe retry. Credit
+grants were already deduped on `stripe_event_id`; this extends idempotency to
+the non-credit handlers (`apply_free_plan` on delete/pause, `past_due` on
+`payment_failed`) so retries/dashboard replays don't pollute the credit ledger.
 
 ## PostHog server-side analytics
 

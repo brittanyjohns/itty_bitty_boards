@@ -5,6 +5,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — iOS/Apple (RevenueCat) buyers could get no welcome email; Stripe webhook replays polluted the credit ledger
+- **IAP welcome email is now webhook-driven.**
+  `RevenueCat::WebhookProcessor#handle_purchase` now sends the plan-correct
+  welcome (`User#send_plan_welcome_email_once!`) on purchase/upgrade. Previously
+  the welcome only fired from the client's `POST /api/billing/update_subscription`
+  call, so a dropped request (backgrounded app, crash, flaky network) after a
+  completed App Store purchase left a paying user with no welcome email. The
+  webhook is now the source of truth, matching the Stripe path.
+- **IAP welcome is now idempotent.** `BillingController#update_subscription`
+  switched from `send_welcome_email` to the idempotent
+  `send_plan_welcome_email_once!`, so a retried client call (or the webhook +
+  client both firing) can't double-email.
+- **Stripe webhook is now idempotent end-to-end.**
+  `API::WebhooksController#webhooks` records each handled event in
+  `processed_webhook_events` and skips a replayed event id. Credit grants were
+  already deduped on `stripe_event_id`; this extends the guard to non-credit
+  handlers (downgrade on delete/pause, `past_due` on payment failure) so Stripe
+  retries and dashboard replays no longer add duplicate ledger rows. The event
+  is recorded only after a clean run, so genuine failures still get retried.
+
 ### Fixed — Paid-trial signups got the "Free account" welcome email
 - `email_signup` (paid-intent path) was hardcoded to send `welcome_free_email`
   ("You're on the Free plan") before the user reached Stripe checkout, so

@@ -24,6 +24,19 @@ class API::WebhooksController < API::ApplicationController
 
     Rails.logger.info "[StripeWebhook] Received event #{event.id} (#{event.type})"
 
+    # Idempotency gate. Stripe resends the same event id on delivery retries and
+    # dashboard replays. Credit grants are already deduped on stripe_event_id,
+    # but the non-credit handlers (apply_free_plan on delete/pause, past_due on
+    # payment_failed) have no such guard and re-running them pollutes the credit
+    # ledger with repeated expire/grant rows. This extends idempotency to the
+    # whole handler, mirroring the RevenueCat processor. We record the event only
+    # AFTER a clean run (see end of method), so a mid-handler crash still returns
+    # a 4xx and lets Stripe retry the delivery.
+    if ProcessedWebhookEvent.exists?(provider: STRIPE_PROVIDER, event_id: event.id)
+      Rails.logger.info "[StripeWebhook] event #{event.id} already processed; skipping"
+      return render json: { success: true, status: "already_processed" }
+    end
+
     case event.type
     when "customer.created"
       handle_customer_created(event.data.object)
@@ -61,6 +74,7 @@ class API::WebhooksController < API::ApplicationController
       Rails.logger.info "[StripeWebhook] Ignoring unhandled event type=#{event.type}"
     end
 
+    record_processed_event!(event)
     render json: result
   rescue => e
     Rails.logger.error "[StripeWebhook] Unexpected error: #{e.class} - #{e.message}\n#{e.backtrace.join("\n")}"
@@ -68,6 +82,22 @@ class API::WebhooksController < API::ApplicationController
   end
 
   private
+
+  STRIPE_PROVIDER = "stripe"
+
+  # Record a fully-processed event for idempotency + audit. Called only after the
+  # handler runs without raising. Swallows the unique-index race from a
+  # concurrent duplicate delivery — either way the event is processed.
+  def record_processed_event!(event)
+    ProcessedWebhookEvent.create!(
+      provider: STRIPE_PROVIDER,
+      event_id: event.id,
+      event_type: event.type,
+      processed_at: Time.current,
+    )
+  rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
+    Rails.logger.info "[StripeWebhook] event #{event.id} recorded concurrently; skipping duplicate insert"
+  end
 
   # Terminal Stripe subscription statuses that mean "the trial/subscription
   # ended without a successful payment." A no-card reverse trial (issue #264)

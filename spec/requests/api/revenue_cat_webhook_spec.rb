@@ -100,6 +100,52 @@ RSpec.describe "POST /api/billing/webhooks (RevenueCat)", type: :request do
     end
   end
 
+  describe "plan-correct welcome email" do
+    # The webhook — not the client's update_subscription call — is the source of
+    # truth for the IAP welcome email, so a dropped client request can't strand a
+    # paying user with no welcome. Idempotent per plan_type, mirroring Stripe.
+    before do
+      allow(UserMailer).to receive(:welcome_basic_email).and_return(double(deliver_later: true))
+      allow(UserMailer).to receive(:welcome_pro_email).and_return(double(deliver_later: true))
+    end
+
+    it "sends the Pro welcome on INITIAL_PURCHASE and records the plan as sent" do
+      post_rc_webhook(rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id,
+                               entitlement_ids: ["pro"], product_id: "pro_monthly"))
+
+      expect(UserMailer).to have_received(:welcome_pro_email).once
+      expect(user.reload.settings["plan_welcome_sent_for"]).to include("pro")
+    end
+
+    it "does NOT re-send on a RENEWAL of the same plan" do
+      user.update!(plan_type: "pro", plan_status: "active",
+                   settings: user.settings.merge("plan_welcome_sent_for" => ["pro"]))
+
+      post_rc_webhook(rc_event(type: "RENEWAL", app_user_id: user.id, entitlement_ids: ["pro"]))
+
+      expect(UserMailer).not_to have_received(:welcome_pro_email)
+    end
+
+    it "sends the Pro welcome on a PRODUCT_CHANGE upgrade even after Basic was sent" do
+      user.update!(plan_type: "basic", plan_status: "active",
+                   settings: user.settings.merge("plan_welcome_sent_for" => ["basic"]))
+
+      post_rc_webhook(rc_event(type: "PRODUCT_CHANGE", app_user_id: user.id,
+                               entitlement_ids: ["pro"], product_id: "pro_monthly"))
+
+      expect(UserMailer).to have_received(:welcome_pro_email).once
+      expect(UserMailer).not_to have_received(:welcome_basic_email)
+    end
+
+    it "does not send a welcome email for admins" do
+      user.update!(role: "admin")
+
+      post_rc_webhook(rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id, entitlement_ids: ["pro"]))
+
+      expect(UserMailer).not_to have_received(:welcome_pro_email)
+    end
+  end
+
   describe "CANCELLATION" do
     it "does NOT downgrade (still entitled until expiry) and records the analytics event" do
       user.update!(plan_type: "pro", plan_status: "active")
