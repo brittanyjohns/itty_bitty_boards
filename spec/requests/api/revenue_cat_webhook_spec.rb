@@ -161,6 +161,17 @@ RSpec.describe "POST /api/billing/webhooks (RevenueCat)", type: :request do
   end
 
   describe "free trial (period_type=TRIAL)" do
+    it "re-arms the trial-ending nudge flag when a new trial starts" do
+      user.update!(plan_type: "free", plan_status: "free",
+                   settings: user.settings.merge("rc_trial_wrap_sent" => true))
+
+      post_rc_webhook(rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id,
+                               entitlement_ids: ["pro"], product_id: "com.speakanyway.pro.monthly",
+                               period_type: "TRIAL"))
+
+      expect(user.reload.settings).not_to have_key("rc_trial_wrap_sent")
+    end
+
     it "starts a trial: marks plan_status trialing, stores trial_ends_at, fires trial_started (not subscription_started)" do
       trial_end_ms = ((Time.current + 14.days).to_f * 1000).to_i
       event = rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id,
