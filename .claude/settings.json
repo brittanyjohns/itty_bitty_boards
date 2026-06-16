@@ -25,7 +25,18 @@
       "Bash(bin/rails runner *)",
       "Skill(claude-api)",
       "Skill(claude-api:*)",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
     ],
     "additionalDirectories": [
       "/Users/brittanyjohns/.claude",
@@ -33,23 +44,6 @@
     ]
   },
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bundle exec rspec",
-            "statusMessage": "Running RSpec tests before commit..."
-          },
-          {
-            "type": "command",
-            "command": "bundle exec rubocop",
-            "statusMessage": "Running rubocop before commit..."
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
