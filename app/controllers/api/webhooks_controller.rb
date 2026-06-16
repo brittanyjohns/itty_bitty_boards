@@ -383,6 +383,12 @@ class API::WebhooksController < API::ApplicationController
     interval = billing_interval_from_price(price)
     user.settings["billing_interval"] = interval if interval.present?
 
+    if subscription.status == "trialing" && subscription.trial_end.present?
+      user.settings["trial_ends_at"] = Time.at(subscription.trial_end).iso8601
+    else
+      user.settings.delete("trial_ends_at")
+    end
+
     user.setup_limits
 
     user.save!

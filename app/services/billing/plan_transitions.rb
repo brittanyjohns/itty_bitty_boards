@@ -22,6 +22,7 @@ module Billing
       user.plan_status = status
       user.setup_free_limits
       user.stripe_subscription_id = nil
+      user.settings.delete("trial_ends_at")
       user.save!
       user.pin_default_editable_board!
 

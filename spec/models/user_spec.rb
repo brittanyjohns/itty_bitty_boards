@@ -312,6 +312,19 @@ RSpec.describe User, type: :model do
     end
   end
 
+  describe "#api_view plan_status" do
+    it "includes plan_status in the response" do
+      user = FactoryBot.create(:user, plan_type: "basic", plan_status: "trialing")
+      expect(user.api_view[:plan_status]).to eq("trialing")
+    end
+
+    it "returns nil plan_status when not set" do
+      user = FactoryBot.create(:user, plan_status: nil)
+      expect(user.api_view).to have_key(:plan_status)
+      expect(user.api_view[:plan_status]).to be_nil
+    end
+  end
+
   describe "#api_view has_boards flag" do
     it "is false when the user has no boards" do
       user = FactoryBot.create(:free_user)

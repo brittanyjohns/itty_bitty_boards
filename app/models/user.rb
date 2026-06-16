@@ -1615,6 +1615,7 @@ class User < ApplicationRecord
       basic_vendor: vendor? && basic?,
       vendor: vendor?,
       plan_type: plan_type,
+      plan_status: plan_status,
       plan_expires_at: plan_exp,
       free_trial: free_trial?,
       trial_expired: trial_expired?,
