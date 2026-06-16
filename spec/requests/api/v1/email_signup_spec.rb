@@ -67,19 +67,41 @@ RSpec.describe "POST /api/v1/users/email_signup", type: :request do
       end
     end
 
-    it "sends the welcome email with the raw invitation token (magic link)" do
+    it "sends the plan-neutral receipt email with the raw invitation token (magic link)" do
       mail = double(deliver_later: true)
       captured_args = nil
-      allow(UserMailer).to receive(:welcome_free_email) do |*args|
+      allow(UserMailer).to receive(:welcome_email_receipt) do |*args|
         captured_args = args
         mail
       end
+      allow(AdminMailer).to receive(:new_user_email).and_return(double(deliver_later: true))
 
       do_post(email: "buyer@example.com")
 
       expect(captured_args[0].email).to eq("buyer@example.com")
       expect(captured_args[1]).to be_a(String)
       expect(captured_args[1]).to be_present
+    end
+
+    it "does NOT send the Free welcome email at signup (plan unknown until checkout)" do
+      allow(UserMailer).to receive(:welcome_free_email).and_call_original
+      allow(UserMailer).to receive(:welcome_email_receipt).and_return(double(deliver_later: true))
+      allow(AdminMailer).to receive(:new_user_email).and_return(double(deliver_later: true))
+
+      do_post(email: "buyer@example.com")
+
+      expect(UserMailer).not_to have_received(:welcome_free_email)
+    end
+
+    it "marks receipt_email_sent but not welcome_email_sent" do
+      allow(UserMailer).to receive(:welcome_email_receipt).and_return(double(deliver_later: true))
+      allow(AdminMailer).to receive(:new_user_email).and_return(double(deliver_later: true))
+
+      do_post(email: "buyer@example.com")
+      user = User.find_by(email: "buyer@example.com")
+
+      expect(user.settings["receipt_email_sent"]).to eq(true)
+      expect(user.settings["welcome_email_sent"]).not_to eq(true)
     end
 
     it "enqueues the Mailchimp welcome journey and sign_up event" do

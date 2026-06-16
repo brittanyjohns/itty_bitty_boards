@@ -91,8 +91,12 @@ module API
         sign_in user
         user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
         user.ensure_minimum_communicator_slot!
-        if user.should_send_welcome_email?
-          user.send_welcome_email("free", nil, raw_invitation_token: raw_invitation_token)
+        # email_signup is the paid-intent path: no plan picked yet, so send a
+        # plan-neutral receipt now. The real plan welcome ships from the Stripe
+        # webhook once trial/active. The Mailchimp `welcome` journey is still
+        # enqueued here (follow-up: make journey plan-aware too).
+        if user.should_send_welcome_receipt_email?
+          user.send_welcome_receipt_email(raw_invitation_token: raw_invitation_token)
           MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "welcome" })
         end
         MailchimpEventJob.perform_async(user.id, "sign_up")

@@ -52,6 +52,20 @@ class UserMailer < BaseMailer
     end
   end
 
+  # Plan-neutral "your account is ready" receipt for paid-intent signups
+  # (email_signup): the user hasn't reached Stripe checkout yet, so we don't
+  # know which plan to welcome them onto. The real plan welcome is sent later
+  # from the Stripe webhook (handle_subscription_upsert) once trial/active.
+  def welcome_email_receipt(user, raw_invitation_token = nil)
+    @user = user
+    @user_name = @user.name
+    @login_link = welcome_login_link(user, raw_invitation_token)
+    Rails.logger.info "Sending welcome receipt email to #{@user.email} with login link: #{@login_link}"
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.welcome_email_receipt.subject"))
+    end
+  end
+
   # raw_invitation_token must be passed explicitly as a String: the virtual
   # attr on @user is always nil here because deliver_later round-trips the
   # User through GlobalID. Without the arg, links fall back to /users/sign-in.

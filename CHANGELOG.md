@@ -5,6 +5,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Paid-trial signups got the "Free account" welcome email
+- `email_signup` (paid-intent path) was hardcoded to send `welcome_free_email`
+  ("You're on the Free plan") before the user reached Stripe checkout, so
+  Basic/Pro trialists got the wrong email. It now sends a plan-neutral
+  `welcome_email_receipt` ("Your account is ready") tracked under
+  `settings["receipt_email_sent"]`.
+- The plan-correct `welcome_basic_email` / `welcome_pro_email` now ship from
+  `API::WebhooksController#handle_subscription_upsert` on the first transition
+  into `trialing` or `active`, via the new
+  `User#send_plan_welcome_email_once!` (idempotent per `plan_type` via
+  `settings["plan_welcome_sent_for"]`). This is the first path that delivers a
+  Basic/Pro welcome to web subscribers; mobile IAP is unchanged.
+- The Mailchimp `welcome` journey enqueue at signup is unchanged here — a
+  plan-aware journey is tracked as a follow-up.
+
 ### Added — Email-only signup API + billing portal for free accounts (frictionless paid signup)
 - `POST /api/v1/users/email_signup`: paid-intent visitors create an account with
   just an email (passwordless via invitation), get signed in immediately, and
