@@ -171,7 +171,7 @@ RSpec.describe "POST /api/webhooks (PostHog analytics)", type: :request do
       expect(PosthogService).to receive(:capture_for_user).with(
         an_object_having_attributes(id: user.id),
         "subscription_started",
-        properties: { plan: "basic", billing_interval: "monthly" },
+        properties: { plan: "basic", billing_interval: "monthly", source: "stripe_webhook" },
       )
 
       post_webhook("{}", header_with_signature)
