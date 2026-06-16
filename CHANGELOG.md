@@ -5,6 +5,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — iOS/Apple trial-ending reminder email
+- New `RevenueCatTrialEndingJob` (daily cron, 5am UTC) sends the "trial wrapping
+  up" reminder to RevenueCat trialists ~`REVENUECAT_TRIAL_REMINDER_LEAD_DAYS`
+  (default 3) before their trial ends. Apple/RevenueCat send no `trial_will_end`
+  webhook (unlike Stripe), so this computes the reminder from the
+  `settings["trial_ends_at"]` the webhook persists and enqueues the shared
+  `MailchimpTrialWrapJob` (same `trial_wrap` journey + merge fields as web).
+  Flags `settings["rc_trial_wrap_sent"]` so each trial is nudged once (re-armed
+  when a new trial starts). Keying on `trial_ends_at` scopes it to RC trials, so
+  Stripe trialists are never double-nudged. This completes iOS/Stripe trial
+  parity.
+
 ### Added — RevenueCat (iOS/Apple) free trials are now first-class
 - The RevenueCat webhook reads `period_type`: a `TRIAL`/`INTRO`
   `INITIAL_PURCHASE` now marks the user `plan_status="trialing"` (was always
@@ -17,9 +29,8 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - `BillingController#update_subscription` (the client confirmation call)
   preserves an in-progress `trialing` status for the same plan so it can't
   race-clobber the trial the webhook recorded.
-- Not included yet: a 3-days-before trial-ending reminder. Apple/RevenueCat send
-  no `trial_will_end` webhook, so this needs a scheduled job keyed on
-  `trial_ends_at` (tracked as a follow-up).
+- The 3-days-before trial-ending reminder is delivered by the new
+  `RevenueCatTrialEndingJob` (see the entry above).
 
 ### Fixed — RevenueCat product-id mapping didn't match the real App Store ids
 - `RevenueCat::PlanMapping::PRODUCT_TO_PLAN` keyed on bare package names

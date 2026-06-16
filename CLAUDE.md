@@ -141,7 +141,10 @@ GitHub build). Two distinct uses:
       nudge weeks earlier (the two flags are independent), but only ever once.
     - `trial_wrap` — enqueued by `MailchimpTrialWrapJob`, triggered from the
       `customer.subscription.trial_will_end` Stripe webhook (~3 days before a
-      Stripe no-card reverse trial ends; soft `basic_trial` was retired).
+      Stripe no-card reverse trial ends; soft `basic_trial` was retired). The
+      **iOS/Apple equivalent** is `RevenueCatTrialEndingJob` (daily cron) — Apple
+      sends no trial_will_end webhook, so it computes the ~3-day reminder from
+      `settings["trial_ends_at"]` and enqueues this same job.
       **Personalized:** the job first pushes merge fields `TRIAL_END` (formatted
       date) / `BOARDS` (`countable_board_count`) / `COMMS`
       (`communicator_accounts.count`) via `MailchimpService#update_merge_fields`,
@@ -300,9 +303,13 @@ the Stripe webhook semantics in `API::WebhooksController`. **RevenueCat's
   its `subscription_canceled` analytics `reason: "trial_expired"` (vs
   `"expiration"` for paid churn). The client `update_subscription` call preserves
   an in-progress `trialing` status for the same plan so it can't clobber the
-  trial the webhook recorded. **No trial-ending reminder yet** — Apple/RevenueCat
-  send no `trial_will_end` webhook; a scheduled job keyed on `trial_ends_at` is a
-  pending follow-up (mirrors Stripe's `MailchimpTrialWrapJob`).
+  trial the webhook recorded. **Trial-ending reminder:** Apple/RevenueCat send no
+  `trial_will_end` webhook (unlike Stripe), so `RevenueCatTrialEndingJob` (daily,
+  5am UTC) computes it from `settings["trial_ends_at"]` and enqueues the shared
+  `MailchimpTrialWrapJob` ~`REVENUECAT_TRIAL_REMINDER_LEAD_DAYS` (default 3) out.
+  Flags `settings["rc_trial_wrap_sent"]` (once per trial; re-armed when a new
+  trial starts). Keying on `trial_ends_at` scopes it to RC trials — Stripe
+  trialists never have it set, so they can't be double-nudged.
 - **Idempotency + audit:** `processed_webhook_events` (unique `provider`+`event_id`)
   gates the whole handler (covers non-credit events); the credit grant also
   reuses `credit_transactions.stripe_event_id` with an `rc_<event_id>` token.

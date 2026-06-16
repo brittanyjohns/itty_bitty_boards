@@ -111,9 +111,11 @@ module RevenueCat
       user.settings["billing_interval"] = interval if interval.present?
       # Persist the trial end so RevenueCatTrialEndingJob can nudge ~3 days out —
       # Apple/RevenueCat send no trial_will_end webhook, so we compute it. Cleared
-      # once the trial resolves (converts or expires).
+      # once the trial resolves (converts or expires). Starting a (new) trial also
+      # re-arms the once-per-trial nudge flag.
       if trialing
         user.settings["trial_ends_at"] = expiration_time&.iso8601
+        user.settings.delete("rc_trial_wrap_sent")
       else
         user.settings.delete("trial_ends_at")
       end
