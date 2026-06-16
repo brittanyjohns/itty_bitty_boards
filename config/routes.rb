@@ -72,6 +72,7 @@ Rails.application.routes.draw do
 
   #  API routes
   namespace :api, defaults: { format: :json } do
+    get "stats", to: "stats#index"
     namespace :stripe do
       resources :checkout_sessions, only: :create do
         collection do
