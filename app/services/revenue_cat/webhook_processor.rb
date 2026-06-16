@@ -111,6 +111,14 @@ module RevenueCat
         },
       )
 
+      # Deliver the plan-correct welcome email. The webhook — not the client's
+      # update_subscription call — is the source of truth here: previously an IAP
+      # buyer only got a welcome if the app successfully POSTed back, so a dropped
+      # request (backgrounded app, crash, network) left a paying user with none.
+      # send_plan_welcome_email_once! is idempotent per plan_type, so a RENEWAL is
+      # a no-op while a real upgrade (basic→pro) re-welcomes, matching Stripe.
+      user.send_plan_welcome_email_once!(plan_type)
+
       # fire_started distinguishes a genuine start (INITIAL/NON_RENEWING) from a
       # renewal/product-change. An IAP user goes straight from free(active) to
       # paid(active) with no intermediate status, so we can't guard on a status
