@@ -2581,8 +2581,8 @@ class Board < ApplicationRecord
     if item["ext_saw_image_id"]
       image = Image.find_by(id: item["ext_saw_image_id"].to_i, user_id: user.id)
     end
-    image ||= Image.find_by(user_id: user.id, label: label, obf_id: item["image_id"])
-    image ||= Image.find_by(user_id: user.id, label: label)
+    image ||= Image.where(user_id: user.id, label: label, obf_id: item["image_id"]).order(:id).first
+    image ||= Image.where(user_id: user.id, label: label).order(:id).first
     image ||= Image.create!(label: label, user_id: user.id, obf_id: item["image_id"], is_private: true)
     image
   end
