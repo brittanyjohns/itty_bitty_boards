@@ -6,12 +6,18 @@ module RevenueCat
   # (see itty-bitty-frontend/src/services/iap.ts), so entitlement ids are the
   # primary signal; the store product id is a fallback.
   #
-  # NOTE: PRODUCT_TO_PLAN keys must match the EXACT product identifiers that
-  # App Store Connect / Google Play emit in webhook + REST payloads (usually
-  # reverse-DNS, e.g. "com.speakanyway.basic.monthly"). The bare names below
-  # mirror the RevenueCat *package* identifiers the app uses today; confirm
-  # against a real sandbox webhook and adjust. resolve_plan_type logs when it
-  # can't resolve so a wrong/missing key is loud, not silent.
+  # PRODUCT_TO_PLAN keys must match the EXACT product identifiers App Store
+  # Connect / Google Play emit in webhook + REST payloads. Apple sends reverse-DNS
+  # ids (e.g. "com.speakanyway.basic.monthly"); these are confirmed against the
+  # RevenueCat product catalog (Offerings → default). The bare names
+  # ("basic_monthly", …) are the RevenueCat *package* identifiers the app
+  # references and a plausible Google Play base-plan id shape — kept as a
+  # defensive fallback so a payload carrying the short id still resolves. Confirm
+  # the Play ids when that store goes live. resolve_plan_type logs when it can't
+  # resolve, so a wrong/missing key is loud, not silent.
+  #
+  # MySpeak subscriptions (com.speakanyway.myspeak.*) are intentionally NOT mapped
+  # — MySpeak is a separate feature, not a basic/pro plan tier.
   module PlanMapping
     ENTITLEMENT_TO_PLAN = {
       "basic" => "basic",
@@ -19,6 +25,15 @@ module RevenueCat
     }.freeze
 
     PRODUCT_TO_PLAN = {
+      # App Store product identifiers (the ids Apple/RevenueCat actually send).
+      "com.speakanyway.basic.monthly" => { plan_type: "basic", billing_interval: "monthly" },
+      "com.speakanyway.basic.yearly" => { plan_type: "basic", billing_interval: "yearly" },
+      "com.speakanyway.pro.monthly" => { plan_type: "pro", billing_interval: "monthly" },
+      "com.speakanyway.pro.yearly" => { plan_type: "pro", billing_interval: "yearly" },
+      # QA/test product. Sandbox-only in practice — real production ignores
+      # SANDBOX events — but mapping it lets sandbox webhooks resolve fully.
+      "com.test.basic.monthly" => { plan_type: "basic", billing_interval: "monthly" },
+      # Legacy/defensive bare names (RevenueCat package ids; plausible Play shape).
       "basic_monthly" => { plan_type: "basic", billing_interval: "monthly" },
       "basic_yearly" => { plan_type: "basic", billing_interval: "yearly" },
       "pro_monthly" => { plan_type: "pro", billing_interval: "monthly" },

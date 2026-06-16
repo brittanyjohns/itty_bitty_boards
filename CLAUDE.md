@@ -293,8 +293,14 @@ the Stripe webhook semantics in `API::WebhooksController`. **RevenueCat's
 - **Sandbox gating:** SANDBOX events are ignored only in real production
   (`Rails.env.production? && !AppEnv.staging?`); honored in dev/test/staging.
 - **Mapping:** `RevenueCat::PlanMapping` (entitlement/product → normalized
-  `basic`/`pro`). ⚠️ `PRODUCT_TO_PLAN` keys must match the exact App Store
-  Connect product ids — confirm against a real sandbox webhook.
+  `basic`/`pro`). Entitlement ids (`basic`/`pro`) are the primary signal; the
+  store product id is a fallback (and the only source of `billing_interval`).
+  `PRODUCT_TO_PLAN` keys are the **real reverse-DNS App Store ids** confirmed
+  against the RevenueCat catalog (`com.speakanyway.{basic,pro}.{monthly,yearly}`),
+  plus the legacy bare package names (`basic_monthly`, …) kept as a defensive
+  fallback and a `com.test.basic.monthly` QA product. MySpeak products
+  (`com.speakanyway.myspeak.*`) are intentionally **unmapped** (separate feature,
+  not a plan tier). Confirm Google Play ids when that store goes live.
 - **Timestamps differ by surface:** webhooks send epoch **ms**
   (`expiration_at_ms`); the v1 REST API sends ISO8601 strings.
 - `Billing::PlanTransitions.apply_free_plan` is the shared downgrade path for
