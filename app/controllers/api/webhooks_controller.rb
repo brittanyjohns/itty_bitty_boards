@@ -142,21 +142,42 @@ class API::WebhooksController < API::ApplicationController
 
   def handle_customer_created(customer)
     stripe_customer_id = customer.id
+    email = customer.email&.downcase
+
     user = User.find_by(stripe_customer_id: stripe_customer_id)
-    # Also match by email before inviting: when email_signup creates the
-    # Stripe customer, this webhook can race the stripe_customer_id save, and
-    # invite! on the existing pending-invite user would rotate the
-    # invitation_token — invalidating the magic link just emailed.
-    user ||= User.find_by(email: customer.email&.downcase) if customer.email.present?
-    if !user && customer.email.present?
-      Rails.logger.error "[StripeWebhook] customer.created: no user found for customer #{stripe_customer_id} - Creating one"
-      user = User.invite!(email: customer.email, skip_invitation: true)
+    # Match by email before inviting: when email_signup creates the Stripe
+    # customer, this webhook can race the stripe_customer_id save, and invite!
+    # on the existing pending-invite user would rotate the invitation_token —
+    # invalidating the magic link just emailed.
+    user ||= User.find_by(email: email) if email.present?
+
+    if !user && email.present?
+      # No account for this customer. Create one, but stay race-safe: a
+      # concurrent delivery (or this webhook racing email_signup's own user
+      # save) could try the same email, so re-find on a unique violation
+      # instead of raising/duplicating.
+      Rails.logger.error "[StripeWebhook] customer.created: no user for customer #{stripe_customer_id} - inviting #{email}"
+      begin
+        user = User.invite!(email: email, skip_invitation: true)
+      rescue ActiveRecord::RecordNotUnique
+        user = User.find_by(email: email)
+      end
     elsif !user
       Rails.logger.error "[StripeWebhook] customer.created: no user found for customer #{stripe_customer_id} and no email present"
       return
     end
     return unless user
-    Rails.logger.info "[StripeWebhook] customer.created: customer #{customer.id} created"
+
+    # Link the customer to the user so subsequent subscription/invoice webhooks
+    # resolve by stripe_customer_id and we don't depend on email_signup's
+    # separate save winning the race. Only fill a blank id (never repoint an
+    # existing customer); update_columns avoids touching the invitation_token.
+    if user.stripe_customer_id.blank?
+      user.update_columns(stripe_customer_id: stripe_customer_id)
+      Rails.logger.info "[StripeWebhook] customer.created: linked customer #{stripe_customer_id} to user #{user.id}"
+    else
+      Rails.logger.info "[StripeWebhook] customer.created: user #{user.id} already linked (#{user.stripe_customer_id})"
+    end
   rescue => e
     Rails.logger.error "[StripeWebhook] handle_customer_created error: #{e.class} - #{e.message}"
   end

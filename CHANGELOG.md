@@ -5,6 +5,22 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Stripe checkout/signup hardening (entitlement bypass + customer linking)
+- **`POST /api/stripe/update_user_from_session` could grant a paid plan for an
+  unpaid checkout.** It set `plan_type`/`plan_status=active` straight from the
+  session's `plan_key` metadata without checking the checkout completed, so
+  hitting the success URL with an abandoned/expired session's id flipped the
+  user to a paid tier for free. It now requires `session.status == "complete"`,
+  only lets the authenticated **owner** of the session reconcile from it (403
+  otherwise), and reads the **real subscription status** (`trialing`/`active`)
+  so a no-card trial is no longer recorded as `active` (and can't clobber the
+  webhook's `trialing`). Credits remain webhook-only.
+- **`customer.created` webhook now links the Stripe customer to the user**
+  (fills a blank `stripe_customer_id`, never repoints an existing one) instead
+  of relying on `email_signup`'s separate save winning the race, and the
+  invite-fallback is race-safe (re-finds by email on a unique violation rather
+  than duplicating the account).
+
 ### Added — iOS/Apple trial-ending reminder email
 - New `RevenueCatTrialEndingJob` (daily cron, 5am UTC) sends the "trial wrapping
   up" reminder to RevenueCat trialists ~`REVENUECAT_TRIAL_REMINDER_LEAD_DAYS`
