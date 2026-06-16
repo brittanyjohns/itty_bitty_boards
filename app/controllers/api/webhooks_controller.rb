@@ -319,6 +319,16 @@ class API::WebhooksController < API::ApplicationController
 
     user.save!
 
+    # Send the plan-correct welcome once we know what plan they're on. This is
+    # the only path that delivers welcome_basic_email / welcome_pro_email to
+    # web subscribers (mobile IAP welcomes happen in BillingController). Fires
+    # on the first transition into `trialing` or `active`; idempotent per
+    # plan_type via send_plan_welcome_email_once!, so subscription.updated
+    # re-fires don't re-email and a real plan change still re-welcomes.
+    if %w[trialing active].include?(subscription.status) && previous_status != subscription.status
+      user.send_plan_welcome_email_once!(user.plan_type)
+    end
+
     # Fire `subscription_started` on the trial→paid (or any non-active→active)
     # conversion so trial→paid is measurable against `trial_started`. Guarded on
     # the status transition so renewals (active→active) don't double-count.

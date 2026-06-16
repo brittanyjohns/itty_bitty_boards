@@ -1125,6 +1125,46 @@ class User < ApplicationRecord
     true
   end
 
+  # Receipt for paid-intent (email_signup) flows: confirms account creation
+  # without naming a plan, since the user hasn't picked one yet at Stripe
+  # checkout. Tracked under its own flag so the later plan-specific welcome
+  # (sent from the Stripe webhook on trial/active) isn't suppressed.
+  def should_send_welcome_receipt_email?
+    return false if admin?
+    return false if settings["receipt_email_sent"] == true
+    return false if settings["welcome_email_sent"] == true
+    true
+  end
+
+  def send_welcome_receipt_email(raw_invitation_token: nil)
+    Rails.logger.info "Sending welcome receipt email to #{email}"
+    begin
+      UserMailer.welcome_email_receipt(self, raw_invitation_token).deliver_later
+      self.settings["receipt_email_sent"] = true
+      save
+      AdminMailer.new_user_email(self).deliver_later
+      update_mailchimp_subscription
+      Rails.logger.info "Welcome receipt email sent to #{email}"
+    rescue => e
+      Rails.logger.error("Error sending welcome receipt email: #{e.message}")
+    end
+  end
+
+  # Called from the Stripe webhook on trial start / non-active→active. Sends
+  # the plan-correct welcome at most once per plan_type, so re-fires of
+  # subscription.updated don't re-email and a true plan change (basic→pro)
+  # still sends. Independent of the email_signup receipt flag.
+  def send_plan_welcome_email_once!(plan_nickname)
+    return if admin?
+    return if plan_nickname.blank?
+    plan_key = plan_nickname.to_s
+    sent_for = Array(settings["plan_welcome_sent_for"])
+    return if sent_for.include?(plan_key)
+    send_welcome_email(plan_key)
+    self.settings["plan_welcome_sent_for"] = (sent_for + [plan_key]).uniq
+    save
+  end
+
   def new_user?
     return false if admin?
     return false if created_at < 1.hour.ago

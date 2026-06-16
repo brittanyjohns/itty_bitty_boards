@@ -179,6 +179,23 @@ carries the warm "let's make your first board" story. The receipt's closing line
 they complement rather than duplicate. If you ever want only one, gate the
 transactional send in `auths#sign_up` or unset the welcome journey ENV vars.
 
+**Paid-intent welcome — two-stage.** `email_signup` (the PR #312 path) runs
+**before** Stripe checkout, so the plan isn't known. It sends a **plan-neutral
+receipt** (`UserMailer.welcome_email_receipt`, "your account is ready / sign
+in") and tracks it under `settings["receipt_email_sent"]` — distinct from the
+`welcome_email_sent` flag so the later plan welcome isn't suppressed. The
+**plan-correct welcome** (`welcome_basic_email` / `welcome_pro_email`) ships
+from `API::WebhooksController#handle_subscription_upsert` on the first
+transition into `trialing` or `active`, via `User#send_plan_welcome_email_once!`.
+That helper is idempotent per `plan_type` (recorded in
+`settings["plan_welcome_sent_for"]`), so `subscription.updated` re-fires and
+`trialing→active` for the same plan don't re-email, but a real plan change
+(`basic → pro`) still re-welcomes. This is the only path that delivers the
+Basic/Pro welcome to **web** subscribers — mobile IAP still goes through
+`BillingController#update_subscription`. The Mailchimp `welcome` journey is
+still enqueued from `email_signup` today (Free-flavored copy) — making the
+journey plan-aware is tracked as a follow-up.
+
 ## PostHog server-side analytics
 
 `PosthogService` (`app/models/posthog_service.rb`) captures the

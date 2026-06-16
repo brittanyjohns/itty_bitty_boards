@@ -22,6 +22,20 @@ en:
       footer_signature: "— The SpeakAnyWay Team"
       footer_visit: "Visit our website"
 
+    welcome_email_receipt:
+      subject: "Your SpeakAnyWay account is ready"
+      preheader: "Sign in any time — your account is set up."
+      title: "Your account is ready"
+      greeting_with_name: "Hi %{name},"
+      greeting_no_name: "Hi there,"
+      intro: "Your SpeakAnyWay account is set up. Sign in any time to pick up where you left off."
+      cta: "Sign In"
+      cta_fallback: "If the button doesn't work, copy and paste this link:"
+      ps_html: "We'll follow up with a quick welcome once your plan is confirmed. Questions? Just reply — a real person reads these."
+      footer_thanks: "Thank you for choosing SpeakAnyWay 💜"
+      footer_signature: "— The SpeakAnyWay Team"
+      footer_visit: "Visit our website"
+
     welcome_free_email:
       subject: "Welcome to SpeakAnyWay AAC!"
       preheader: "Your account is ready — here's your sign-in link."
