@@ -5,6 +5,22 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Promo-aware one-click plan switch for existing subscribers (#308)
+- **`POST /api/subscriptions/change_plan_portal_session`** lets an existing
+  subscriber switch plans (e.g. basic-monthly → the yearly Founding rate) with
+  the promo pre-applied — no fresh checkout (which would double-bill an active
+  sub), no manually typed code. Params: `plan_key` (required), `promo_code`
+  (optional). It resolves the plan to a Stripe price (shared `PLAN_PRICE_IDS`),
+  looks up the active promotion code the same graceful way checkout does, finds
+  the user's own active/trialing/past_due subscription, and opens a Stripe
+  Customer-portal **deep link** (`flow_data.subscription_update_confirm`) that
+  pre-selects the new price + discount. Stripe renders its own confirm page
+  (price change + proration), so we never mutate the subscription directly; the
+  resulting `customer.subscription.updated` webhook applies the new entitlements
+  exactly like a manual portal switch. Returns 422 when the user has no
+  active subscription (those users belong in checkout) or an unknown plan, and
+  400 (generic message) on any Stripe error. Frontend wiring lands separately.
+
 ### Fixed — Stripe checkout/signup hardening (entitlement bypass + customer linking)
 - **`POST /api/stripe/update_user_from_session` could grant a paid plan for an
   unpaid checkout.** It set `plan_type`/`plan_status=active` straight from the
