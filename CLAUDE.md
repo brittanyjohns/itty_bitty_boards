@@ -402,6 +402,24 @@ demo/myspeak signups keep using `sign_up`. Key invariants:
   → 400 generic message. Requires a saved Customer-portal default config in
   the Stripe dashboard (test + live) — see `docs/stripe-setup.md` §4b.
   Optional `STRIPE_PORTAL_CONFIG_ID` pins a dedicated config.
+- **Promo-aware plan switch for existing subscribers (#308):**
+  `POST /api/subscriptions/change_plan_portal_session` (`plan_key` required,
+  `promo_code` optional) lets a current subscriber switch plans with a promo
+  pre-applied — the path free users get via a fresh Checkout session, which
+  existing subscribers can't use (a new checkout on an active sub double-bills).
+  It resolves `plan_key` via the shared `API::Stripe::CheckoutSessionsController::PLAN_PRICE_IDS`,
+  looks up the active promotion code the same graceful way checkout does, finds
+  the user's own active/trialing/past_due subscription, and opens a portal
+  **deep link** (`flow_data.subscription_update_confirm`) pre-selecting the new
+  price + discount. Stripe renders its own confirm page (price change +
+  proration) — we never call `Stripe::Subscription.update` directly — and the
+  resulting `customer.subscription.updated` webhook applies entitlements exactly
+  like a manual portal switch (`Price.metadata["plan_type"]` → `handle_subscription_upsert`).
+  422 when there's no active subscription (those users belong in checkout) or an
+  unknown/`free` plan; 400 generic on Stripe error; honors `STRIPE_PORTAL_CONFIG_ID`.
+  The Stripe portal config must permit subscription updates for the relevant
+  products for the flow to render. Frontend CTA wiring is a separate PR
+  (itty-bitty-frontend#369 keeps the portal fallback until it lands).
 
 ### `paid_plan?` semantics
 
