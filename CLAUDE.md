@@ -19,7 +19,7 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - **Auth:** Devise + devise-jwt
 - **Authorization:** Pundit
 - **Background jobs:** Sidekiq (v7) + Redis
-- **Payments:** Stripe and RevenueCat (via webhook)
+- **Payments:** Stripe and RevenueCat (via webhook). Admin revenue metrics combine both via `MissionControl::RevenueMetrics` (see "Mission Control revenue metrics" under the RevenueCat / Apple IAP section).
 - **File storage:** S3 (Active Storage)
 - **Email:** Action Mailer over Gmail SMTP. Both environments authenticate against `smtp.gmail.com` when `SMTP_USERNAME`/`SMTP_PASSWORD` are set (a Google Workspace account + App Password); production falls back to the `smtp-relay.gmail.com` IP-allowlisted relay when no credentials are present. `SMTP_ADDRESS` overrides the SMTP host. The `mailgun-ruby` gem is in the Gemfile but is not the active delivery transport. Diagnose delivery with `bin/rails 'mail:test[you@example.com]'`.
 - **TTS/Audio:** AWS Polly
@@ -328,6 +328,33 @@ the Stripe webhook semantics in `API::WebhooksController`. **RevenueCat's
   (`expiration_at_ms`); the v1 REST API sends ISO8601 strings.
 - `Billing::PlanTransitions.apply_free_plan` is the shared downgrade path for
   both Stripe (`WebhooksController#apply_free_plan` delegates to it) and RevenueCat.
+
+### Mission Control revenue metrics (Stripe + RevenueCat)
+
+Admin Mission Control revenue is computed by `MissionControl::RevenueMetrics`
+(`app/services/mission_control/`), which combines two sources and **no longer
+reads the local `subscriptions` table** (that table is sparsely populated — the
+webhooks write plan state onto the `User` row, not into `subscriptions`). Added
+in PR #333 / issue #331.
+
+- **`MissionControl::StripeRevenueSource`** — live `Stripe::Subscription.list`
+  for **active + trialing** subs (paginated). Computes active-sub count, MRR
+  (yearly normalized to monthly), and a plan breakdown from price metadata.
+  Cached 10 min via `Rails.cache` (key `mission_control/stripe_revenue`).
+  Rescues `Stripe::StripeError` gracefully (nil values + error message).
+- **`MissionControl::RevenuecatRevenueSource`** — estimates App Store /
+  RevenueCat subscriber revenue **from the local DB, not the RevenueCat API**:
+  paid users (`basic`/`pro`, active/trialing, non-admin) with **no**
+  `stripe_subscription_id`. MRR is estimated from `plan_type` +
+  `settings["billing_interval"]` using ENV-tunable price fallbacks:
+  `RC_ESTIMATED_BASIC_MONTHLY_CENTS` (499), `RC_ESTIMATED_PRO_MONTHLY_CENTS`
+  (999), `RC_ESTIMATED_BASIC_YEARLY_CENTS` (4999), and
+  `RC_ESTIMATED_PRO_YEARLY_CENTS` (9999). Excludes admins.
+- **`MissionControl::RevenueMetrics`** — combines both: top-level
+  `:active_subscriptions`, `:estimated_mrr_cents`, `:mrr_usd`, with per-source
+  breakdowns nested under `:stripe` and `:revenuecat`; `revenue_source` is
+  `"stripe+revenuecat"`. The admin Mission Control view shows the Stripe/App
+  Store sub split, per-source plan breakdowns, and an error state.
 
 ### No-card reverse trial (Basic/Pro)
 
