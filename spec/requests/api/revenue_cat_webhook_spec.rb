@@ -62,6 +62,20 @@ RSpec.describe "POST /api/billing/webhooks (RevenueCat)", type: :request do
       expect(user.plan_credits_reset_at).to be_within(1.day).of(Time.current + CreditService::MAX_GRANT_WINDOW)
     end
 
+    it "records billing_interval from the real reverse-DNS App Store product id" do
+      # Apple/RevenueCat send dotted product ids (com.speakanyway.pro.yearly), not
+      # the bare package names. Guards against the mapping silently failing to set
+      # billing_interval for IAP subscribers.
+      event = rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id,
+                       entitlement_ids: ["pro"], product_id: "com.speakanyway.pro.yearly")
+
+      post_rc_webhook(event)
+
+      user.reload
+      expect(user.plan_type).to eq("pro")
+      expect(user.settings["billing_interval"]).to eq("yearly")
+    end
+
     it "is idempotent: a replayed event id grants once and records one event row" do
       event = rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id, id: "rc_evt_dupe")
 
@@ -97,6 +111,108 @@ RSpec.describe "POST /api/billing/webhooks (RevenueCat)", type: :request do
 
       expect(user.reload.plan_type).to eq("pro")
       expect(user.plan_credits_balance).to eq(CreditService.monthly_credits_for("pro"))
+    end
+  end
+
+  describe "plan-correct welcome email" do
+    # The webhook — not the client's update_subscription call — is the source of
+    # truth for the IAP welcome email, so a dropped client request can't strand a
+    # paying user with no welcome. Idempotent per plan_type, mirroring Stripe.
+    before do
+      allow(UserMailer).to receive(:welcome_basic_email).and_return(double(deliver_later: true))
+      allow(UserMailer).to receive(:welcome_pro_email).and_return(double(deliver_later: true))
+    end
+
+    it "sends the Pro welcome on INITIAL_PURCHASE and records the plan as sent" do
+      post_rc_webhook(rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id,
+                               entitlement_ids: ["pro"], product_id: "pro_monthly"))
+
+      expect(UserMailer).to have_received(:welcome_pro_email).once
+      expect(user.reload.settings["plan_welcome_sent_for"]).to include("pro")
+    end
+
+    it "does NOT re-send on a RENEWAL of the same plan" do
+      user.update!(plan_type: "pro", plan_status: "active",
+                   settings: user.settings.merge("plan_welcome_sent_for" => ["pro"]))
+
+      post_rc_webhook(rc_event(type: "RENEWAL", app_user_id: user.id, entitlement_ids: ["pro"]))
+
+      expect(UserMailer).not_to have_received(:welcome_pro_email)
+    end
+
+    it "sends the Pro welcome on a PRODUCT_CHANGE upgrade even after Basic was sent" do
+      user.update!(plan_type: "basic", plan_status: "active",
+                   settings: user.settings.merge("plan_welcome_sent_for" => ["basic"]))
+
+      post_rc_webhook(rc_event(type: "PRODUCT_CHANGE", app_user_id: user.id,
+                               entitlement_ids: ["pro"], product_id: "pro_monthly"))
+
+      expect(UserMailer).to have_received(:welcome_pro_email).once
+      expect(UserMailer).not_to have_received(:welcome_basic_email)
+    end
+
+    it "does not send a welcome email for admins" do
+      user.update!(role: "admin")
+
+      post_rc_webhook(rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id, entitlement_ids: ["pro"]))
+
+      expect(UserMailer).not_to have_received(:welcome_pro_email)
+    end
+  end
+
+  describe "free trial (period_type=TRIAL)" do
+    it "re-arms the trial-ending nudge flag when a new trial starts" do
+      user.update!(plan_type: "free", plan_status: "free",
+                   settings: user.settings.merge("rc_trial_wrap_sent" => true))
+
+      post_rc_webhook(rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id,
+                               entitlement_ids: ["pro"], product_id: "com.speakanyway.pro.monthly",
+                               period_type: "TRIAL"))
+
+      expect(user.reload.settings).not_to have_key("rc_trial_wrap_sent")
+    end
+
+    it "starts a trial: marks plan_status trialing, stores trial_ends_at, fires trial_started (not subscription_started)" do
+      trial_end_ms = ((Time.current + 14.days).to_f * 1000).to_i
+      event = rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id,
+                       entitlement_ids: ["pro"], product_id: "com.speakanyway.pro.monthly",
+                       period_type: "TRIAL", expiration_at_ms: trial_end_ms)
+
+      post_rc_webhook(event)
+
+      user.reload
+      expect(user.plan_type).to eq("pro")
+      expect(user.plan_status).to eq("trialing")
+      expect(user).to be_paid_plan # trialing counts as paid for gating
+      expect(Time.parse(user.settings["trial_ends_at"])).to be_within(60.seconds).of(Time.at(trial_end_ms / 1000.0))
+      expect(AnalyticsEvent.where(event_type: "trial_started", user_id: user.id).count).to eq(1)
+      expect(AnalyticsEvent.where(event_type: "subscription_started", user_id: user.id).count).to eq(0)
+    end
+
+    it "converts a trial to paid on a normal RENEWAL: active, clears trial_ends_at, fires subscription_started" do
+      user.update!(plan_type: "pro", plan_status: "trialing",
+                   settings: user.settings.merge("trial_ends_at" => 1.day.from_now.iso8601))
+
+      # A RENEWAL with no period_type is a normal (paid) period.
+      post_rc_webhook(rc_event(type: "RENEWAL", app_user_id: user.id, entitlement_ids: ["pro"]))
+
+      user.reload
+      expect(user.plan_status).to eq("active")
+      expect(user.settings).not_to have_key("trial_ends_at")
+      expect(AnalyticsEvent.where(event_type: "subscription_started", user_id: user.id).count).to eq(1)
+    end
+
+    it "expires an unconverted trial: downgrades to free and tags the churn reason trial_expired" do
+      user.update!(plan_type: "pro", plan_status: "trialing",
+                   settings: user.settings.merge("trial_ends_at" => 1.day.from_now.iso8601))
+
+      post_rc_webhook(rc_event(type: "EXPIRATION", app_user_id: user.id))
+
+      user.reload
+      expect(user.plan_type).to eq("free")
+      expect(user.settings).not_to have_key("trial_ends_at")
+      ev = AnalyticsEvent.where(event_type: "subscription_canceled", user_id: user.id).last
+      expect(ev.metadata["reason"]).to eq("trial_expired")
     end
   end
 

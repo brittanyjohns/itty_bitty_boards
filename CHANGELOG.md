@@ -19,6 +19,105 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   a new `MailchimpHitLimitNotifier` controller concern.
 - Added `bin/rails 'mailchimp:clear_hit_limit_dedupe[USER_ID]'` to clear a stuck
   dedupe key for a user.
+### Added — Expose plan_status and persist Stripe trial_ends_at (#324, #325)
+- `User#api_view` now includes `plan_status` so the frontend can distinguish a
+  payment-provider trial (`"trialing"`) from an active paid plan.
+- Stripe webhook (`handle_subscription_upsert`) persists
+  `settings["trial_ends_at"]` (ISO8601) when a subscription is trialing, and
+  clears it on conversion or cancellation — matching the RevenueCat path.
+  The frontend's trial countdown now works for both web and iOS trials.
+- `GET /api/v1/users/current` calls `reconcile_stranded_plan!` so a stale
+  plan_status self-heals on the user-fetch path, not only at sign-in.
+
+### Added — Promo-aware one-click plan switch for existing subscribers (#308)
+- **`POST /api/subscriptions/change_plan_portal_session`** lets an existing
+  subscriber switch plans (e.g. basic-monthly → the yearly Founding rate) with
+  the promo pre-applied — no fresh checkout (which would double-bill an active
+  sub), no manually typed code. Params: `plan_key` (required), `promo_code`
+  (optional). It resolves the plan to a Stripe price (shared `PLAN_PRICE_IDS`),
+  looks up the active promotion code the same graceful way checkout does, finds
+  the user's own active/trialing/past_due subscription, and opens a Stripe
+  Customer-portal **deep link** (`flow_data.subscription_update_confirm`) that
+  pre-selects the new price + discount. Stripe renders its own confirm page
+  (price change + proration), so we never mutate the subscription directly; the
+  resulting `customer.subscription.updated` webhook applies the new entitlements
+  exactly like a manual portal switch. Returns 422 when the user has no
+  active subscription (those users belong in checkout) or an unknown plan, and
+  400 (generic message) on any Stripe error. Frontend wiring lands separately.
+
+### Fixed — Stripe checkout/signup hardening (entitlement bypass + customer linking)
+- **`POST /api/stripe/update_user_from_session` could grant a paid plan for an
+  unpaid checkout.** It set `plan_type`/`plan_status=active` straight from the
+  session's `plan_key` metadata without checking the checkout completed, so
+  hitting the success URL with an abandoned/expired session's id flipped the
+  user to a paid tier for free. It now requires `session.status == "complete"`,
+  only lets the authenticated **owner** of the session reconcile from it (403
+  otherwise), and reads the **real subscription status** (`trialing`/`active`)
+  so a no-card trial is no longer recorded as `active` (and can't clobber the
+  webhook's `trialing`). Credits remain webhook-only.
+- **`customer.created` webhook now links the Stripe customer to the user**
+  (fills a blank `stripe_customer_id`, never repoints an existing one) instead
+  of relying on `email_signup`'s separate save winning the race, and the
+  invite-fallback is race-safe (re-finds by email on a unique violation rather
+  than duplicating the account).
+
+### Added — iOS/Apple trial-ending reminder email
+- New `RevenueCatTrialEndingJob` (daily cron, 5am UTC) sends the "trial wrapping
+  up" reminder to RevenueCat trialists ~`REVENUECAT_TRIAL_REMINDER_LEAD_DAYS`
+  (default 3) before their trial ends. Apple/RevenueCat send no `trial_will_end`
+  webhook (unlike Stripe), so this computes the reminder from the
+  `settings["trial_ends_at"]` the webhook persists and enqueues the shared
+  `MailchimpTrialWrapJob` (same `trial_wrap` journey + merge fields as web).
+  Flags `settings["rc_trial_wrap_sent"]` so each trial is nudged once (re-armed
+  when a new trial starts). Keying on `trial_ends_at` scopes it to RC trials, so
+  Stripe trialists are never double-nudged. This completes iOS/Stripe trial
+  parity.
+
+### Added — RevenueCat (iOS/Apple) free trials are now first-class
+- The RevenueCat webhook reads `period_type`: a `TRIAL`/`INTRO`
+  `INITIAL_PURCHASE` now marks the user `plan_status="trialing"` (was always
+  `active`), persists `settings["trial_ends_at"]`, and fires a distinct
+  `trial_started` analytics event (internal + PostHog) instead of
+  `subscription_started`. `subscription_started` now fires on **conversion**
+  (a normal-period renewal/product-change out of a trial), and an unconverted
+  trial `EXPIRATION` is tagged `reason: "trial_expired"` — so iOS trial→paid
+  conversion is measurable, matching the Stripe path.
+- `BillingController#update_subscription` (the client confirmation call)
+  preserves an in-progress `trialing` status for the same plan so it can't
+  race-clobber the trial the webhook recorded.
+- The 3-days-before trial-ending reminder is delivered by the new
+  `RevenueCatTrialEndingJob` (see the entry above).
+
+### Fixed — RevenueCat product-id mapping didn't match the real App Store ids
+- `RevenueCat::PlanMapping::PRODUCT_TO_PLAN` keyed on bare package names
+  (`basic_monthly`, `pro_yearly`), but Apple/RevenueCat emit reverse-DNS product
+  ids (`com.speakanyway.basic.monthly`, …). As a result the product-id fallback
+  for plan resolution never matched, and `settings["billing_interval"]` was never
+  set for IAP subscribers (analytics gap + a latent failure if a webhook ever
+  arrived without entitlement ids). Added the real App Store ids (confirmed
+  against the RevenueCat catalog) while keeping the bare names as a defensive
+  fallback. MySpeak products are intentionally left unmapped.
+
+### Fixed — iOS/Apple (RevenueCat) buyers could get no welcome email; Stripe webhook replays polluted the credit ledger
+- **IAP welcome email is now webhook-driven.**
+  `RevenueCat::WebhookProcessor#handle_purchase` now sends the plan-correct
+  welcome (`User#send_plan_welcome_email_once!`) on purchase/upgrade. Previously
+  the welcome only fired from the client's `POST /api/billing/update_subscription`
+  call, so a dropped request (backgrounded app, crash, flaky network) after a
+  completed App Store purchase left a paying user with no welcome email. The
+  webhook is now the source of truth, matching the Stripe path.
+- **IAP welcome is now idempotent.** `BillingController#update_subscription`
+  switched from `send_welcome_email` to the idempotent
+  `send_plan_welcome_email_once!`, so a retried client call (or the webhook +
+  client both firing) can't double-email.
+- **Stripe webhook is now idempotent end-to-end.**
+  `API::WebhooksController#webhooks` records each handled event in
+  `processed_webhook_events` and skips a replayed event id. Credit grants were
+  already deduped on `stripe_event_id`; this extends the guard to non-credit
+  handlers (downgrade on delete/pause, `past_due` on payment failure) so Stripe
+  retries and dashboard replays no longer add duplicate ledger rows. The event
+  is recorded only after a clean run, so genuine failures still get retried.
+
 ### Fixed — Paid-trial signups got the "Free account" welcome email
 - `email_signup` (paid-intent path) was hardcoded to send `welcome_free_email`
   ("You're on the Free plan") before the user reached Stripe checkout, so

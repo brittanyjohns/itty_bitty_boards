@@ -24,6 +24,19 @@ class API::WebhooksController < API::ApplicationController
 
     Rails.logger.info "[StripeWebhook] Received event #{event.id} (#{event.type})"
 
+    # Idempotency gate. Stripe resends the same event id on delivery retries and
+    # dashboard replays. Credit grants are already deduped on stripe_event_id,
+    # but the non-credit handlers (apply_free_plan on delete/pause, past_due on
+    # payment_failed) have no such guard and re-running them pollutes the credit
+    # ledger with repeated expire/grant rows. This extends idempotency to the
+    # whole handler, mirroring the RevenueCat processor. We record the event only
+    # AFTER a clean run (see end of method), so a mid-handler crash still returns
+    # a 4xx and lets Stripe retry the delivery.
+    if ProcessedWebhookEvent.exists?(provider: STRIPE_PROVIDER, event_id: event.id)
+      Rails.logger.info "[StripeWebhook] event #{event.id} already processed; skipping"
+      return render json: { success: true, status: "already_processed" }
+    end
+
     case event.type
     when "customer.created"
       handle_customer_created(event.data.object)
@@ -61,6 +74,7 @@ class API::WebhooksController < API::ApplicationController
       Rails.logger.info "[StripeWebhook] Ignoring unhandled event type=#{event.type}"
     end
 
+    record_processed_event!(event)
     render json: result
   rescue => e
     Rails.logger.error "[StripeWebhook] Unexpected error: #{e.class} - #{e.message}\n#{e.backtrace.join("\n")}"
@@ -68,6 +82,22 @@ class API::WebhooksController < API::ApplicationController
   end
 
   private
+
+  STRIPE_PROVIDER = "stripe"
+
+  # Record a fully-processed event for idempotency + audit. Called only after the
+  # handler runs without raising. Swallows the unique-index race from a
+  # concurrent duplicate delivery — either way the event is processed.
+  def record_processed_event!(event)
+    ProcessedWebhookEvent.create!(
+      provider: STRIPE_PROVIDER,
+      event_id: event.id,
+      event_type: event.type,
+      processed_at: Time.current,
+    )
+  rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
+    Rails.logger.info "[StripeWebhook] event #{event.id} recorded concurrently; skipping duplicate insert"
+  end
 
   # Terminal Stripe subscription statuses that mean "the trial/subscription
   # ended without a successful payment." A no-card reverse trial (issue #264)
@@ -112,21 +142,42 @@ class API::WebhooksController < API::ApplicationController
 
   def handle_customer_created(customer)
     stripe_customer_id = customer.id
+    email = customer.email&.downcase
+
     user = User.find_by(stripe_customer_id: stripe_customer_id)
-    # Also match by email before inviting: when email_signup creates the
-    # Stripe customer, this webhook can race the stripe_customer_id save, and
-    # invite! on the existing pending-invite user would rotate the
-    # invitation_token — invalidating the magic link just emailed.
-    user ||= User.find_by(email: customer.email&.downcase) if customer.email.present?
-    if !user && customer.email.present?
-      Rails.logger.error "[StripeWebhook] customer.created: no user found for customer #{stripe_customer_id} - Creating one"
-      user = User.invite!(email: customer.email, skip_invitation: true)
+    # Match by email before inviting: when email_signup creates the Stripe
+    # customer, this webhook can race the stripe_customer_id save, and invite!
+    # on the existing pending-invite user would rotate the invitation_token —
+    # invalidating the magic link just emailed.
+    user ||= User.find_by(email: email) if email.present?
+
+    if !user && email.present?
+      # No account for this customer. Create one, but stay race-safe: a
+      # concurrent delivery (or this webhook racing email_signup's own user
+      # save) could try the same email, so re-find on a unique violation
+      # instead of raising/duplicating.
+      Rails.logger.error "[StripeWebhook] customer.created: no user for customer #{stripe_customer_id} - inviting #{email}"
+      begin
+        user = User.invite!(email: email, skip_invitation: true)
+      rescue ActiveRecord::RecordNotUnique
+        user = User.find_by(email: email)
+      end
     elsif !user
       Rails.logger.error "[StripeWebhook] customer.created: no user found for customer #{stripe_customer_id} and no email present"
       return
     end
     return unless user
-    Rails.logger.info "[StripeWebhook] customer.created: customer #{customer.id} created"
+
+    # Link the customer to the user so subsequent subscription/invoice webhooks
+    # resolve by stripe_customer_id and we don't depend on email_signup's
+    # separate save winning the race. Only fill a blank id (never repoint an
+    # existing customer); update_columns avoids touching the invitation_token.
+    if user.stripe_customer_id.blank?
+      user.update_columns(stripe_customer_id: stripe_customer_id)
+      Rails.logger.info "[StripeWebhook] customer.created: linked customer #{stripe_customer_id} to user #{user.id}"
+    else
+      Rails.logger.info "[StripeWebhook] customer.created: user #{user.id} already linked (#{user.stripe_customer_id})"
+    end
   rescue => e
     Rails.logger.error "[StripeWebhook] handle_customer_created error: #{e.class} - #{e.message}"
   end
@@ -287,6 +338,23 @@ class API::WebhooksController < API::ApplicationController
       return
     end
 
+    # A paused subscription stops billing indefinitely, so there's no invoice
+    # to re-grant credits. Treat it exactly like the dedicated
+    # `customer.subscription.paused` handler: drop to Free with the free credit
+    # allowance and clear stripe_subscription_id (so RefreshFreeTierCreditsJob
+    # picks the user up for monthly refreshes). Stripe fires BOTH
+    # `customer.subscription.updated` (status=paused) and
+    # `customer.subscription.paused`, and webhook ordering isn't guaranteed —
+    # without this, a late `.updated` re-upserts the user back to
+    # plan_type=basic/status=paused with a restored subscription id, stranding
+    # them with 0 credits (not paid, but also never refreshed to Free's 5).
+    # apply_free_plan is idempotent, so handling it in both paths is safe.
+    if subscription.status == "paused"
+      apply_free_plan(user, "paused")
+      Rails.logger.info "[StripeWebhook] subscription upsert: user=#{user.id} status=paused -> downgraded to free"
+      return
+    end
+
     previous_status = user.plan_status
 
     price = first_price_from_subscription(subscription)
@@ -314,6 +382,12 @@ class API::WebhooksController < API::ApplicationController
     # yearly subscribers monthly (monthly subs refresh via invoice instead).
     interval = billing_interval_from_price(price)
     user.settings["billing_interval"] = interval if interval.present?
+
+    if subscription.status == "trialing" && subscription.trial_end.present?
+      user.settings["trial_ends_at"] = Time.at(subscription.trial_end).iso8601
+    else
+      user.settings.delete("trial_ends_at")
+    end
 
     user.setup_limits
 

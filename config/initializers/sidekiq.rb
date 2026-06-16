@@ -60,5 +60,11 @@ Sidekiq.configure_server do |config|
       "queue" => "default",
       "description" => "Daily Mailchimp Customer Journey trigger (4:30am UTC) re-engaging recently-dormant active users: non-admin users with >=1 board whose last sign-in is WIN_BACK_DORMANT_MIN_DAYS-WIN_BACK_DORMANT_MAX_DAYS (default 14-30) days ago. Flags user.settings[\"win_back_nudge_sent\"] so each user is only nudged once.",
     },
+    "revenuecat_trial_ending" => {
+      "cron" => "0 5 * * *",
+      "class" => "RevenueCatTrialEndingJob",
+      "queue" => "default",
+      "description" => "Daily (5am UTC) trial-ending reminder for RevenueCat (iOS/Apple) trialists ~REVENUECAT_TRIAL_REMINDER_LEAD_DAYS (default 3) before settings[\"trial_ends_at\"]. Apple/RevenueCat send no trial_will_end webhook (unlike Stripe), so this computes it and enqueues the shared MailchimpTrialWrapJob. Flags user.settings[\"rc_trial_wrap_sent\"] so each trial is nudged once.",
+    },
   })
 end

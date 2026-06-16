@@ -43,6 +43,20 @@ RSpec.describe "POST /api/billing/update_subscription", type: :request do
     expect(user.settings["purchase_platform"]).to eq("android")
   end
 
+  it "does NOT clobber an in-progress trial to active for the same plan" do
+    # The RC webhook marked this trialist 'trialing'; the racing client call must
+    # not flip it to 'active' (which would mask the trial).
+    user.update!(plan_type: "pro", plan_status: "trialing")
+    stub_rc_verified(plan_type: "pro")
+
+    post "/api/billing/update_subscription",
+         params: { plan_key: "pro", purchase_platform: "ios" },
+         headers: auth_headers(user)
+
+    expect(response).to have_http_status(:ok)
+    expect(user.reload.plan_status).to eq("trialing")
+  end
+
   it "applies the plan's limits (Basic plan board_limit)" do
     stub_rc_verified(plan_type: "basic")
 
@@ -102,6 +116,24 @@ RSpec.describe "POST /api/billing/update_subscription", type: :request do
     post "/api/billing/update_subscription",
          params: { plan_key: "basic", purchase_platform: "ios" },
          headers: auth_headers(user)
+  end
+
+  it "only sends the welcome email once across repeated verified calls (idempotent)" do
+    stub_rc_verified(plan_type: "basic")
+    # Override the global no-op stub so the real send_plan_welcome_email_once!
+    # guard runs; spy on the mailer to count actual sends.
+    allow_any_instance_of(User).to receive(:send_welcome_email).and_call_original
+    allow(UserMailer).to receive(:welcome_basic_email).and_return(double(deliver_later: true))
+
+    2.times do
+      post "/api/billing/update_subscription",
+           params: { plan_key: "basic", purchase_platform: "ios" },
+           headers: auth_headers(user)
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(UserMailer).to have_received(:welcome_basic_email).once
+    expect(user.reload.settings["plan_welcome_sent_for"]).to include("basic")
   end
 
   it "is auth-gated (no token → unauthorized)" do

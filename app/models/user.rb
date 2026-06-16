@@ -1080,6 +1080,35 @@ class User < ApplicationRecord
     basic? || pro? || plus? || premium? || pro_vendor?
   end
 
+  # True when the user is in the "stranded" limbo state: a non-paying
+  # plan_status (UNPAID_STATUSES) while plan_type is still a paid tier. This
+  # happens when a downgrade webhook is missed or arrives out of order (e.g. the
+  # paused-subscription race). Such a user gets no paid features AND no credit
+  # refresh — stuck at 0 credits indefinitely. basic_trial is excluded (owned by
+  # DowngradeSoftTrialJob); free/blank plan_types are already correct.
+  def plan_stranded?
+    return false if admin?
+    return false unless UNPAID_STATUSES.include?(plan_status.to_s)
+    return false if plan_type.blank?
+    return false if plan_type == "free" || plan_type == "basic_trial"
+    true
+  end
+
+  # Self-heal the stranded state with no external (Stripe) call — we already
+  # have everything locally. Idempotent: a no-op unless plan_stranded?. Safe to
+  # call on the sign-in hot path; rescues so a reconcile failure can never block
+  # sign-in (AAC usage must never break). Returns true if it reconciled.
+  def reconcile_stranded_plan!
+    return false unless plan_stranded?
+
+    Billing::PlanTransitions.apply_free_plan(self, plan_status)
+    Rails.logger.info "[User#reconcile_stranded_plan!] healed stranded user=#{id} -> free (was status=#{plan_status})"
+    true
+  rescue => e
+    Rails.logger.error "[User#reconcile_stranded_plan!] user=#{id} failed: #{e.class} #{e.message}"
+    false
+  end
+
   def professional?
     pro? || plus? || premium?
   end
@@ -1586,6 +1615,7 @@ class User < ApplicationRecord
       basic_vendor: vendor? && basic?,
       vendor: vendor?,
       plan_type: plan_type,
+      plan_status: plan_status,
       plan_expires_at: plan_exp,
       free_trial: free_trial?,
       trial_expired: trial_expired?,

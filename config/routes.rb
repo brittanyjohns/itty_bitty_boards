@@ -113,6 +113,7 @@ Rails.application.routes.draw do
     resources :subscriptions do
       collection do
         post "billing_portal"
+        post "change_plan_portal_session"
         post "add_item"
         post "create_customer_session"
         get "list"

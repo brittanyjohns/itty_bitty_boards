@@ -83,7 +83,16 @@ module API
         raw_invitation_token = user.raw_invitation_token
 
         if platform != "ios" && platform != "android"
-          user.update(stripe_customer_id: User.create_stripe_customer(user.email))
+          # Best-effort: the user is already persisted (invite! above), so a
+          # Stripe hiccup here must not 500 the request — that would strand a
+          # created account and the frontend would fall back to the full
+          # sign-up form, which then fails with "email taken". Checkout and the
+          # billing portal lazily ensure the customer via ensure_stripe_customer!.
+          begin
+            user.update(stripe_customer_id: User.create_stripe_customer(user.email))
+          rescue => e
+            Rails.logger.error "email_signup: Stripe customer creation failed for #{user.email}: #{e.message} — continuing; customer will be ensured at checkout"
+          end
         else
           Rails.logger.warn "Mobile platform email signup for user #{user.email}, skipping Stripe customer creation for platform: #{platform}"
         end
@@ -140,6 +149,11 @@ module API
               user.save!
             end
           end
+          # Self-heal a stranded plan (paid plan_type + non-paying status) with
+          # no Stripe call — safety net for missed/out-of-order downgrade
+          # webhooks so the user lands on Free with credits instead of stuck at
+          # 0. No-op for healthy accounts; rescues internally.
+          user.reconcile_stranded_plan!
           sign_in user
           user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
           user.ensure_minimum_communicator_slot!
@@ -197,11 +211,13 @@ module API
       def current
         @current_user = current_user
         if @current_user
+          @current_user.reconcile_stranded_plan!
           @view = @current_user.api_view
           render json: { user: @view }
         else
           @current_user = user_from_token
           if @current_user
+            @current_user.reconcile_stranded_plan!
             render json: { user: @current_user.api_view }
           else
             render json: { error: "Unauthorized - No user signed in" }, status: :unauthorized

@@ -53,6 +53,26 @@ RSpec.describe "POST /api/v1/users/email_signup", type: :request do
       expect(User.find_by(email: "buyer@example.com").stripe_customer_id).to eq("cus_email_signup")
     end
 
+    it "still succeeds (200) and returns the user when Stripe customer creation fails" do
+      # Regression: a Stripe hiccup must not 500 after invite! has persisted the
+      # user — that stranded created accounts and the frontend fell back to the
+      # full sign-up form, which then failed with "email taken". The customer is
+      # lazily ensured at checkout instead.
+      allow(User).to receive(:create_stripe_customer)
+        .and_raise(Stripe::APIConnectionError.new("boom"))
+
+      expect {
+        do_post(email: "buyer@example.com")
+      }.to change(User, :count).by(1)
+
+      expect(response).to have_http_status(:ok)
+      user = User.find_by(email: "buyer@example.com")
+      body = JSON.parse(response.body)
+      expect(body["token"]).to eq(user.authentication_token)
+      expect(body["user"]["id"]).to eq(user.id)
+      expect(user.stripe_customer_id).to be_nil
+    end
+
     it "does not set paid_plan_type (checkout owns it)" do
       do_post(email: "buyer@example.com")
       expect(User.find_by(email: "buyer@example.com").paid_plan_type).to be_blank

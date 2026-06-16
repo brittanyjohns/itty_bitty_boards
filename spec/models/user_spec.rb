@@ -312,6 +312,19 @@ RSpec.describe User, type: :model do
     end
   end
 
+  describe "#api_view plan_status" do
+    it "includes plan_status in the response" do
+      user = FactoryBot.create(:user, plan_type: "basic", plan_status: "trialing")
+      expect(user.api_view[:plan_status]).to eq("trialing")
+    end
+
+    it "returns nil plan_status when not set" do
+      user = FactoryBot.create(:user, plan_status: nil)
+      expect(user.api_view).to have_key(:plan_status)
+      expect(user.api_view[:plan_status]).to be_nil
+    end
+  end
+
   describe "#api_view has_boards flag" do
     it "is false when the user has no boards" do
       user = FactoryBot.create(:free_user)
@@ -367,6 +380,56 @@ RSpec.describe User, type: :model do
 
       mail = ActionMailer::Base.deliveries.last
       expect(mail.to).to eq([user.email])
+    end
+  end
+
+  describe "#plan_stranded? / #reconcile_stranded_plan!" do
+    User::UNPAID_STATUSES.each do |status|
+      it "flags a paid plan_type with unpaid status=#{status} as stranded" do
+        user = FactoryBot.build(:user, plan_type: "basic", plan_status: status)
+        expect(user.plan_stranded?).to be(true)
+      end
+    end
+
+    it "is not stranded when actively paid" do
+      user = FactoryBot.build(:user, plan_type: "pro", plan_status: "active")
+      expect(user.plan_stranded?).to be(false)
+    end
+
+    it "is not stranded on free or basic_trial even with an unpaid status" do
+      expect(FactoryBot.build(:user, plan_type: "free", plan_status: "canceled").plan_stranded?).to be(false)
+      expect(FactoryBot.build(:user, plan_type: "basic_trial", plan_status: "paused").plan_stranded?).to be(false)
+    end
+
+    it "is never stranded for admins" do
+      user = FactoryBot.build(:user, role: "admin", plan_type: "basic", plan_status: "paused")
+      expect(user.plan_stranded?).to be(false)
+    end
+
+    it "reconciles a stranded user to Free with the free credit allowance" do
+      user = FactoryBot.create(:user, plan_type: "basic", plan_status: "paused",
+        stripe_subscription_id: "sub_x", plan_credits_balance: 0)
+
+      expect(user.reconcile_stranded_plan!).to be(true)
+
+      user.reload
+      expect(user.plan_type).to eq("free")
+      expect(user.paid_plan_type).to eq("basic")
+      expect(user.plan_status).to eq("paused") # status reason preserved
+      expect(user.stripe_subscription_id).to be_nil
+      expect(user.plan_credits_balance).to eq(CreditService.monthly_credits_for("free"))
+    end
+
+    it "is a no-op (returns false) for a healthy user" do
+      user = FactoryBot.create(:user, plan_type: "basic", plan_status: "active")
+      expect(user.reconcile_stranded_plan!).to be(false)
+      expect(user.reload.plan_type).to eq("basic")
+    end
+
+    it "never raises on sign-in path — rescues internally" do
+      user = FactoryBot.create(:user, plan_type: "basic", plan_status: "paused")
+      allow(Billing::PlanTransitions).to receive(:apply_free_plan).and_raise(StandardError, "boom")
+      expect(user.reconcile_stranded_plan!).to be(false)
     end
   end
 end
