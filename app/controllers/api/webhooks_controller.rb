@@ -424,6 +424,7 @@ class API::WebhooksController < API::ApplicationController
         properties: {
           plan: user.plan_type,
           billing_interval: billing_interval_from_price(price),
+          source: "stripe_webhook",
         },
       )
     end
