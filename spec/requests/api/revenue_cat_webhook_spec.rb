@@ -62,6 +62,20 @@ RSpec.describe "POST /api/billing/webhooks (RevenueCat)", type: :request do
       expect(user.plan_credits_reset_at).to be_within(1.day).of(Time.current + CreditService::MAX_GRANT_WINDOW)
     end
 
+    it "records billing_interval from the real reverse-DNS App Store product id" do
+      # Apple/RevenueCat send dotted product ids (com.speakanyway.pro.yearly), not
+      # the bare package names. Guards against the mapping silently failing to set
+      # billing_interval for IAP subscribers.
+      event = rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id,
+                       entitlement_ids: ["pro"], product_id: "com.speakanyway.pro.yearly")
+
+      post_rc_webhook(event)
+
+      user.reload
+      expect(user.plan_type).to eq("pro")
+      expect(user.settings["billing_interval"]).to eq("yearly")
+    end
+
     it "is idempotent: a replayed event id grants once and records one event row" do
       event = rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id, id: "rc_evt_dupe")
 

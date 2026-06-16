@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — RevenueCat product-id mapping didn't match the real App Store ids
+- `RevenueCat::PlanMapping::PRODUCT_TO_PLAN` keyed on bare package names
+  (`basic_monthly`, `pro_yearly`), but Apple/RevenueCat emit reverse-DNS product
+  ids (`com.speakanyway.basic.monthly`, …). As a result the product-id fallback
+  for plan resolution never matched, and `settings["billing_interval"]` was never
+  set for IAP subscribers (analytics gap + a latent failure if a webhook ever
+  arrived without entitlement ids). Added the real App Store ids (confirmed
+  against the RevenueCat catalog) while keeping the bare names as a defensive
+  fallback. MySpeak products are intentionally left unmapped.
+
 ### Fixed — iOS/Apple (RevenueCat) buyers could get no welcome email; Stripe webhook replays polluted the credit ledger
 - **IAP welcome email is now webhook-driven.**
   `RevenueCat::WebhookProcessor#handle_purchase` now sends the plan-correct
