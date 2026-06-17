@@ -56,7 +56,10 @@ Rails.application.routes.draw do
   # HTML admin area (Mission Control dashboard)
   namespace :admin do
     root "dashboard#index"
-    resource :mission_control, only: [:show], controller: 'mission_control'
+    resource :mission_control, only: [:show], controller: 'mission_control' do
+      post :cleanup_demo
+    end
+    resources :users, only: [:index, :show], as: :dashboard_users
   end
 
   get "main/index", as: :home
@@ -463,6 +466,7 @@ Rails.application.routes.draw do
         end
         collection do
           delete "destroy_users"
+          delete "cleanup_demo"
           get "export"
         end
       end

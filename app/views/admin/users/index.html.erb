@@ -1,0 +1,112 @@
+<% content_for :page_title, "Users" %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-white tracking-tight">Users</h1>
+    <p class="text-sm text-gray-500 mt-0.5"><%= @total_count %> total</p>
+  </div>
+</div>
+
+<%# ─── Search + filter bar ─────────────────────────────────── %>
+<div class="flex flex-wrap items-center gap-3 mb-6">
+  <%= form_tag admin_dashboard_users_path, method: :get, class: "flex items-center gap-3 flex-wrap", data: { turbo: false } do %>
+    <input type="text" name="search" value="<%= @search %>" placeholder="Search by email or name…"
+           class="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-white placeholder-gray-600 w-64 focus:border-indigo-500 focus:outline-none">
+
+    <select name="filter"
+            class="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-white focus:border-indigo-500 focus:outline-none">
+      <option value="" <%= "selected" if @filter.blank? %>>All users</option>
+      <option value="admin" <%= "selected" if @filter == "admin" %>>Admins</option>
+      <option value="pro" <%= "selected" if @filter == "pro" %>>Pro</option>
+      <option value="basic" <%= "selected" if @filter == "basic" %>>Basic</option>
+      <option value="free" <%= "selected" if @filter == "free" %>>Free</option>
+      <option value="trial" <%= "selected" if @filter == "trial" %>>Trial</option>
+      <option value="demo" <%= "selected" if @filter == "demo" %>>Demo accounts</option>
+      <option value="locked" <%= "selected" if @filter == "locked" %>>Locked</option>
+    </select>
+
+    <input type="hidden" name="sort" value="<%= @sort %>">
+    <input type="hidden" name="dir" value="<%= @dir %>">
+
+    <button type="submit"
+            class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded px-4 py-1.5 transition-colors">
+      Search
+    </button>
+    <% if @search.present? || @filter.present? %>
+      <%= link_to "Clear", admin_dashboard_users_path,
+            class: "text-xs text-gray-400 hover:text-white transition-colors" %>
+    <% end %>
+  <% end %>
+</div>
+
+<%# ─── Users table ─────────────────────────────────────────── %>
+<div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b border-gray-800">
+        <% [
+          ["Email",      "email"],
+          ["Name",       "name"],
+          ["Plan",       "plan_type"],
+          ["Boards",     "boards"],
+          ["Sign-ins",   "sign_in_count"],
+          ["Created",    "created_at"],
+        ].each do |label, col| %>
+          <th class="text-left text-xs font-medium text-gray-500 px-5 py-3">
+            <% next_dir = (@sort == col && @dir == "asc") ? "desc" : "asc" %>
+            <%= link_to admin_dashboard_users_path(sort: col, dir: next_dir, search: @search, filter: @filter),
+                  class: "hover:text-white transition-colors inline-flex items-center gap-1" do %>
+              <%= label %>
+              <% if @sort == col %>
+                <span class="text-indigo-400"><%= @dir == "asc" ? "↑" : "↓" %></span>
+              <% end %>
+            <% end %>
+          </th>
+        <% end %>
+        <th class="px-5 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-800/60">
+      <% @users.each do |user| %>
+        <tr class="hover:bg-gray-800/40 transition-colors">
+          <td class="px-5 py-3 text-xs text-gray-300 font-mono">
+            <%= link_to user.email, admin_dashboard_user_path(user), class: "hover:text-indigo-400 transition-colors" %>
+          </td>
+          <td class="px-5 py-3 text-xs text-gray-400">
+            <%= user.name.presence || "—" %>
+          </td>
+          <td class="px-5 py-3">
+            <span class="<%= plan_badge_class(user) %> inline-block text-xs rounded px-2 py-0.5">
+              <%= user.plan_type || "none" %>
+            </span>
+            <% if user.admin? %>
+              <span class="bg-yellow-900/60 text-yellow-300 inline-block text-xs rounded px-2 py-0.5 ml-1">admin</span>
+            <% end %>
+            <% if user.locked? %>
+              <span class="bg-red-900/60 text-red-300 inline-block text-xs rounded px-2 py-0.5 ml-1">locked</span>
+            <% end %>
+          </td>
+          <td class="px-5 py-3 text-xs text-gray-400 text-center">
+            <%= user.boards.size %>
+          </td>
+          <td class="px-5 py-3 text-xs text-gray-500 text-center">
+            <%= user.sign_in_count %>
+          </td>
+          <td class="px-5 py-3 text-xs text-gray-500 whitespace-nowrap">
+            <%= user.created_at.strftime("%b %-d, %Y") %>
+          </td>
+          <td class="px-5 py-3 text-right">
+            <%= link_to "View", admin_dashboard_user_path(user),
+                  class: "text-xs text-indigo-400 hover:text-indigo-300 transition-colors" %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <% if @users.empty? %>
+    <div class="px-5 py-10 text-center text-sm text-gray-600">
+      No users found.
+    </div>
+  <% end %>
+</div>
