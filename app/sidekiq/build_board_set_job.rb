@@ -27,7 +27,7 @@ class BuildBoardSetJob
   include Sidekiq::Job
   sidekiq_options retry: 1, queue: :default
 
-  def perform(root_board_id, communicator_id, template, interests = [])
+  def perform(root_board_id, communicator_id, template, interests = [], categories = {})
     root = Board.find_by(id: root_board_id)
     unless root
       Rails.logger.error "BuildBoardSetJob: Board with ID #{root_board_id} not found."
@@ -53,10 +53,13 @@ class BuildBoardSetJob
     begin
       robust_root = Boards::RobustSets.find_root(template)
 
+      explicit_categories = categories.is_a?(Hash) ? categories : {}
+
       if robust_root
         Boards::SeededSetCloner.new(
           robust_root, communicator: communicator,
           interests: interests, root: root,
+          explicit_categories: explicit_categories,
         ).call
       else
         owner = communicator.owner || communicator.user
@@ -64,6 +67,7 @@ class BuildBoardSetJob
           template:  template,
           interests: interests,
           user:      owner,
+          explicit_categories: explicit_categories,
         )
         blueprint = assembler.call
 

@@ -5,6 +5,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Board Builder: expanded interest categories + categorized picker endpoint
+- Expanded interest dictionary from 4 categories (~120 words) to 18 categories
+  (~504 words). New categories: Animals, Art & Craft, Clothing, Family & People,
+  Health & Body, Home, Music, Nature & Outdoors, Places, School, Social, Sports,
+  Technology, Transportation.
+- New `GET /api/v1/board_builder/interest_categories` endpoint returns the full
+  category dictionary for the frontend's categorized interest picker.
+- Interest cap raised from 12 to 20.
+- `create` now accepts interests as `[{ word, category }]` hashes for explicit
+  routing from the picker (plain strings still work via dictionary lookup).
+
 ### Improved — Admin dashboard: light/dark toggle + engagement metrics
 - **Light mode default** with a toggle in the top-right nav. Preference persists
   in localStorage. All admin pages (Dashboard, Mission Control, Users) use CSS

@@ -23,7 +23,7 @@
 module Boards
   class SeededSetCloner
     MAX_DEPTH      = 2 # mirror Boards::BoardTreeBuilder — root + 2 levels
-    MAX_INTERESTS  = 12 # mirror Boards::BlueprintAssembler
+    MAX_INTERESTS  = Boards::InterestWords::MAX_INTERESTS
     FAVORITES_NAME = "My Favorites"
 
     class CloneError < StandardError; end
@@ -39,13 +39,14 @@ module Boards
     # When a root is adopted, the source root's CONTENT (tiles, layout columns)
     # is cloned INTO it instead of dup-ing a fresh board, and the caller owns
     # the ChildBoard attach/favorite.
-    def initialize(source_root, communicator:, interests: [], favorite_root: true, root: nil)
-      @source_root   = source_root
-      @communicator  = communicator
-      @owner         = communicator.owner || communicator.user
-      @interests     = normalize_interests(interests)
-      @favorite_root = favorite_root
-      @root          = root
+    def initialize(source_root, communicator:, interests: [], favorite_root: true, root: nil, explicit_categories: {})
+      @source_root          = source_root
+      @communicator         = communicator
+      @owner                = communicator.owner || communicator.user
+      @interests            = normalize_interests(interests)
+      @favorite_root        = favorite_root
+      @root                 = root
+      @explicit_categories  = explicit_categories || {}
     end
 
     # Clones the whole linked set + routes interests in a single transaction so a
@@ -225,7 +226,7 @@ module Boards
       unrouted = []
 
       @interests.each do |word|
-        category = Boards::InterestCategories.category_for(word)
+        category = @explicit_categories[word] || Boards::InterestCategories.category_for(word)
         fringe   = category && fringe_by_name[category.to_s.downcase]
         fringe ? add_interest_to_board(fringe, word) : unrouted << word
       end
