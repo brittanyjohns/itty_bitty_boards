@@ -4,6 +4,8 @@ RSpec.describe BuildBoardSetJob do
   let(:user) { create(:user) }
   let(:communicator) { create(:child_account, user: user) }
 
+  before { allow_any_instance_of(Grover).to receive(:to_png).and_return(ChunkyPNG::Image.new(1, 1).to_blob) }
+
   # Mirrors what Api::V1::BoardBuilderController#create persists in-request
   # before enqueueing this job: a bare root in "building_board", attached to
   # the communicator as a favorite.
@@ -191,9 +193,6 @@ RSpec.describe BuildBoardSetJob do
 
       expect_any_instance_of(Board).to receive(:generate_previews).once.and_call_original
 
-      # Stub Grover so the test doesn't need Chrome
-      allow_any_instance_of(Grover).to receive(:to_png).and_return(ChunkyPNG::Image.new(1, 1).to_blob)
-
       described_class.new.perform(root.id, communicator.id, "home", ["dinosaurs"])
 
       root.reload
@@ -206,8 +205,6 @@ RSpec.describe BuildBoardSetJob do
       root = precreate_root!(name: "Core 60")
 
       expect_any_instance_of(Board).to receive(:generate_previews).once.and_call_original
-
-      allow_any_instance_of(Grover).to receive(:to_png).and_return(ChunkyPNG::Image.new(1, 1).to_blob)
 
       described_class.new.perform(root.id, communicator.id, "core-60", ["pizza"])
 
