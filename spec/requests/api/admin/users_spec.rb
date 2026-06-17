@@ -63,4 +63,74 @@ RSpec.describe "API::Admin::Users", type: :request do
       end
     end
   end
+
+  describe "DELETE /api/admin/users/cleanup_demo" do
+    let!(:demo1) { create(:user, email: "bhannajohns+one@gmail.com") }
+    let!(:demo2) { create(:user, email: "bhannajohns+two@gmail.com") }
+    let!(:demo_with_boards) { create(:user, email: "test@speakanyway.com") }
+
+    before do
+      2.times { create(:board, user: demo_with_boards) }
+    end
+
+    context "when unauthenticated" do
+      it "returns 401" do
+        delete "/api/admin/users/cleanup_demo"
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+
+    context "when authenticated as non-admin" do
+      it "returns 401" do
+        delete "/api/admin/users/cleanup_demo", headers: auth_headers(user)
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+
+    context "when authenticated as admin" do
+      it "deletes demo users keeping top N by board count" do
+        expect {
+          delete "/api/admin/users/cleanup_demo",
+                 params: { keep_count: 1 },
+                 headers: auth_headers(admin)
+        }.to change(User, :count).by(-2)
+
+        expect(response).to have_http_status(:ok)
+        body = JSON.parse(response.body)
+        expect(body["deleted_count"]).to eq(2)
+        expect(body["preserved_count"]).to eq(1)
+        expect(User.exists?(demo_with_boards.id)).to be true
+      end
+
+      it "respects exclude_ids" do
+        expect {
+          delete "/api/admin/users/cleanup_demo",
+                 params: { keep_count: 1, exclude_ids: [demo1.id] },
+                 headers: auth_headers(admin)
+        }.to change(User, :count).by(-1)
+
+        expect(User.exists?(demo1.id)).to be true
+        expect(User.exists?(demo_with_boards.id)).to be true
+      end
+
+      it "never includes admin accounts in demo cleanup" do
+        admin_demo = create(:admin_user, email: "bhannajohns+admin@gmail.com")
+
+        delete "/api/admin/users/cleanup_demo",
+               params: { keep_count: 0 },
+               headers: auth_headers(admin)
+
+        expect(User.exists?(admin_demo.id)).to be true
+      end
+
+      it "never touches non-demo users" do
+        delete "/api/admin/users/cleanup_demo",
+               params: { keep_count: 0 },
+               headers: auth_headers(admin)
+
+        expect(User.exists?(user.id)).to be true
+        expect(User.exists?(admin.id)).to be true
+      end
+    end
+  end
 end

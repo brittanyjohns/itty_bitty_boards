@@ -245,7 +245,58 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     render json: response
   end
 
+  def cleanup_demo
+    unless current_admin&.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+
+    keep_count = (params[:keep_count] || 5).to_i
+    exclude_ids = Array(params[:exclude_ids]).map(&:to_i)
+
+    demo_users = User.demo_accounts.includes(:boards)
+    excluded = demo_users.where(id: exclude_ids)
+    candidates = demo_users.where.not(id: exclude_ids)
+
+    ranked = candidates.sort_by { |u| -u.boards.size }
+    kept = ranked.first(keep_count)
+    to_delete = ranked.drop(keep_count)
+
+    deleted_count = 0
+    errors = []
+    to_delete.each do |user|
+      destroy_demo_user!(user)
+      deleted_count += 1
+    rescue => e
+      errors << { id: user.id, email: user.email, error: e.message }
+    end
+
+    preserved = (kept + excluded.to_a).map { |u| { id: u.id, email: u.email, boards: u.boards.size } }
+
+    render json: {
+      deleted_count: deleted_count,
+      preserved_count: preserved.size,
+      preserved: preserved,
+      errors: errors.presence
+    }.compact
+  end
+
   private
+
+  def destroy_demo_user!(user)
+    User.transaction do
+      user.boards.destroy_all
+      user.communicator_accounts.destroy_all
+      user.board_groups.destroy_all
+      user.word_events.delete_all
+      user.credit_transactions.delete_all
+      user.openai_prompts.delete_all
+      user.team_users.delete_all
+      user.subscriptions.delete_all
+      user.profile&.destroy
+      user.delete
+    end
+  end
 
   # Use callbacks to share common setup or constraints between actions.
   def set_user
