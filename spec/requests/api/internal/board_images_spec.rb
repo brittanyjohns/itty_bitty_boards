@@ -22,7 +22,7 @@ RSpec.describe "API::Internal::BoardImages", type: :request do
            params: {}.to_json,
            headers: auth_headers
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(JSON.parse(response.body)["error"]).to match(/image_id or label is required/)
     end
 
@@ -126,7 +126,7 @@ RSpec.describe "API::Internal::BoardImages", type: :request do
            params: { cells: [] }.to_json,
            headers: auth_headers
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(JSON.parse(response.body)["error"]).to match(/cells must be a non-empty array/)
     end
 
@@ -172,7 +172,7 @@ RSpec.describe "API::Internal::BoardImages", type: :request do
              headers: auth_headers
       }.not_to change { board.reload.board_images.count }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       errors = JSON.parse(response.body)["errors"]
       expect(errors).to be_an(Array)
       expect(errors.first["index"]).to eq(1)

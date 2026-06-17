@@ -31,7 +31,7 @@ RSpec.describe Permissions::CommunicatorLimits do
         allowed, http_status, error = described_class.can_create?(user: user, status: ChildAccount::SANDBOX)
 
         expect(allowed).to be(false)
-        expect(http_status).to eq(:unprocessable_entity)
+        expect(http_status).to eq(:unprocessable_content)
         expect(error).to match(/limit reached/i)
       end
 
@@ -52,7 +52,7 @@ RSpec.describe Permissions::CommunicatorLimits do
         allowed, http_status, error = described_class.can_create?(user: user, status: ChildAccount::ACTIVE)
 
         expect(allowed).to be(false)
-        expect(http_status).to eq(:unprocessable_entity)
+        expect(http_status).to eq(:unprocessable_content)
         expect(error).to match(/maximum.*reached/i)
       end
 
@@ -72,7 +72,7 @@ RSpec.describe Permissions::CommunicatorLimits do
         allowed, http_status, error = described_class.can_create?(user: user, status: ChildAccount::ACTIVE)
 
         expect(allowed).to be(false)
-        expect(http_status).to eq(:unprocessable_entity)
+        expect(http_status).to eq(:unprocessable_content)
         expect(error).to match(/maximum.*reached/i)
       end
 
@@ -90,7 +90,7 @@ RSpec.describe Permissions::CommunicatorLimits do
 
         allowed, http_status, _error = described_class.can_create?(user: user, status: ChildAccount::LOANER)
         expect(allowed).to be(false)
-        expect(http_status).to eq(:unprocessable_entity)
+        expect(http_status).to eq(:unprocessable_content)
       end
     end
 
@@ -102,7 +102,7 @@ RSpec.describe Permissions::CommunicatorLimits do
 
         allowed, http_status, _error = described_class.can_create?(user: user, status: ChildAccount::LOANER)
         expect(allowed).to be(false)
-        expect(http_status).to eq(:unprocessable_entity)
+        expect(http_status).to eq(:unprocessable_content)
       end
     end
   end
@@ -153,7 +153,7 @@ RSpec.describe Permissions::CommunicatorLimits do
 
       allowed, http_status, error = described_class.can_claim?(user: user)
       expect(allowed).to be(false)
-      expect(http_status).to eq(:unprocessable_entity)
+      expect(http_status).to eq(:unprocessable_content)
       expect(error).to match(/maximum/i)
     end
   end

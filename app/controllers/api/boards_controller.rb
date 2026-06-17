@@ -37,7 +37,7 @@ class API::BoardsController < API::ApplicationController
       .uniq
 
     if filter_param.present? && !Board::SAFE_FILTERS.include?(filter_param)
-      render json: { error: "Invalid filter" }, status: :unprocessable_entity
+      render json: { error: "Invalid filter" }, status: :unprocessable_content
       return
     end
     filter = filter_param
@@ -375,7 +375,7 @@ class API::BoardsController < API::ApplicationController
         end
         format.json { render json: @board, status: :created }
       else
-        format.json { render json: @board.errors, status: :unprocessable_entity }
+        format.json { render json: @board.errors, status: :unprocessable_content }
       end
     end
   end
@@ -486,7 +486,7 @@ class API::BoardsController < API::ApplicationController
           broadcast_board_update!
           format.json { render json: @board.api_view_with_images(current_user), status: :ok }
         else
-          format.json { render json: @board.errors, status: :unprocessable_entity }
+          format.json { render json: @board.errors, status: :unprocessable_content }
         end
       end
     end
@@ -497,12 +497,12 @@ class API::BoardsController < API::ApplicationController
     return unless check_credits!(feature_key: "image_generation", feature_name: "AI Image Regeneration")
     board_image_ids = params[:board_image_ids]
     if board_image_ids.blank? || !board_image_ids.is_a?(Array)
-      render json: { error: "board_image_ids parameter is required and must be an array" }, status: :unprocessable_entity
+      render json: { error: "board_image_ids parameter is required and must be an array" }, status: :unprocessable_content
       return
     end
     board_images = @board.board_images.where(id: board_image_ids)
     if board_images.empty?
-      render json: { error: "No valid board images found for the provided IDs" }, status: :unprocessable_entity
+      render json: { error: "No valid board images found for the provided IDs" }, status: :unprocessable_content
       return
     end
     image_ids = board_images.pluck(:image_id)
@@ -546,7 +546,7 @@ class API::BoardsController < API::ApplicationController
       render json: @board.api_view_with_images(current_user)
     else
       Rails.logger.error "Setting colors failed for some images: #{results.inspect}"
-      render json: { error: "Setting colors failed for some images" }, status: :unprocessable_entity
+      render json: { error: "Setting colors failed for some images" }, status: :unprocessable_content
     end
   end
 
@@ -554,7 +554,7 @@ class API::BoardsController < API::ApplicationController
     set_board
     image_data = board_params[:preset_display_image]
     if image_data.blank?
-      render json: { error: "No image data provided" }, status: :unprocessable_entity
+      render json: { error: "No image data provided" }, status: :unprocessable_content
       return
     end
 
@@ -603,7 +603,7 @@ class API::BoardsController < API::ApplicationController
           ).import!
         rescue => e
           Rails.logger.error "OBZ import failed: #{e.message}"
-          render json: { error: "OBZ import failed: #{e.message}" }, status: :unprocessable_entity
+          render json: { error: "OBZ import failed: #{e.message}" }, status: :unprocessable_content
           return
         end
 
@@ -615,7 +615,7 @@ class API::BoardsController < API::ApplicationController
           include_images: import_options[:include_images],
         }
       else
-        render json: { error: "Unsupported file format" }, status: :unprocessable_entity
+        render json: { error: "Unsupported file format" }, status: :unprocessable_content
       end
     elsif params[:data].present?
       boardData = params[:data]&.to_json
@@ -627,7 +627,7 @@ class API::BoardsController < API::ApplicationController
 
       json_data = JSON.parse(boardData) rescue nil
       unless json_data
-        render json: { error: "Invalid JSON data" }, status: :unprocessable_entity
+        render json: { error: "Invalid JSON data" }, status: :unprocessable_content
         return
       end
       board_name = json_data["name"] || "Imported Board"
@@ -640,7 +640,7 @@ class API::BoardsController < API::ApplicationController
         include_images: import_options[:include_images],
       }
     else
-      render json: { error: "No file or data provided" }, status: :unprocessable_entity
+      render json: { error: "No file or data provided" }, status: :unprocessable_content
     end
   end
 
@@ -685,15 +685,15 @@ class API::BoardsController < API::ApplicationController
 
   def words
     if params[:name].blank?
-      render json: { error: "Name parameter is required" }, status: :unprocessable_entity
+      render json: { error: "Name parameter is required" }, status: :unprocessable_content
       return
     end
     if params[:num_of_words].blank? || params[:num_of_words].to_i <= 0
-      render json: { error: "num_of_words parameter must be a positive integer" }, status: :unprocessable_entity
+      render json: { error: "num_of_words parameter must be a positive integer" }, status: :unprocessable_content
       return
     end
     if params[:num_of_words].to_i > 50
-      render json: { error: "num_of_words parameter cannot exceed 50" }, status: :unprocessable_entity
+      render json: { error: "num_of_words parameter cannot exceed 50" }, status: :unprocessable_content
     end
     if params[:board_id].present?
       @board = Board.find_by(id: params[:board_id])
@@ -733,12 +733,12 @@ class API::BoardsController < API::ApplicationController
     end
     if additional_words.blank?
       Rails.logger.error "No additional words found for prompt: #{prompt} - creation_type: #{creation_type}"
-      render json: { error: "No additional words found" }, status: :unprocessable_entity
+      render json: { error: "No additional words found" }, status: :unprocessable_content
       return
     end
     unless additional_words.is_a?(Array)
       Rails.logger.error "Invalid response from word suggestion service: #{additional_words.inspect}"
-      render json: { error: "Invalid response from word suggestion service" }, status: :unprocessable_entity
+      render json: { error: "Invalid response from word suggestion service" }, status: :unprocessable_content
       return
     end
     normalize_words = additional_words.map do |word|
@@ -810,7 +810,7 @@ class API::BoardsController < API::ApplicationController
 
       render json: @board_with_images
     else
-      render json: img_saved.errors, status: :unprocessable_entity
+      render json: img_saved.errors, status: :unprocessable_content
     end
   end
 
@@ -818,11 +818,11 @@ class API::BoardsController < API::ApplicationController
     @image = Image.find(params[:image_id])
     screen_size = params[:screen_size] || "lg"
     if @board.images.include?(@image)
-      render json: { error: "Image already associated with board" }, status: :unprocessable_entity
+      render json: { error: "Image already associated with board" }, status: :unprocessable_content
       return
     end
     if @board.predefined && !current_user.admin?
-      render json: { error: "Cannot add images to predefined boards" }, status: :unprocessable_entity
+      render json: { error: "Cannot add images to predefined boards" }, status: :unprocessable_content
       return
     end
 
@@ -832,7 +832,7 @@ class API::BoardsController < API::ApplicationController
       broadcast_board_update!
       render json: @board.api_view_with_images(current_user), notice: notice
     else
-      render json: { error: "Error adding image to board" }, status: :unprocessable_entity
+      render json: { error: "Error adding image to board" }, status: :unprocessable_content
     end
   end
 
@@ -840,12 +840,12 @@ class API::BoardsController < API::ApplicationController
     images = Image.where(id: params[:image_ids])
     screen_size = params[:screen_size] || "lg"
     if @board.images.include?(images)
-      render json: { error: "Image already associated with board" }, status: :unprocessable_entity
+      render json: { error: "Image already associated with board" }, status: :unprocessable_content
       return
     end
 
     if @board.predefined && !current_user.admin?
-      render json: { error: "Cannot add images to predefined boards" }, status: :unprocessable_entity
+      render json: { error: "Cannot add images to predefined boards" }, status: :unprocessable_content
       return
     end
 
@@ -868,14 +868,14 @@ class API::BoardsController < API::ApplicationController
     @board = Board.find(params[:id])
 
     if params[:board_group_ids].blank?
-      render json: { error: "No board group IDs provided" }, status: :unprocessable_entity
+      render json: { error: "No board group IDs provided" }, status: :unprocessable_content
       return
     elsif params[:board_group_ids].is_a?(String)
       board_group_ids = params[:board_group_ids].split(",").map(&:strip).map(&:to_i)
     elsif params[:board_group_ids].is_a?(Array)
       board_group_ids = params[:board_group_ids].map(&:to_i)
     else
-      render json: { error: "Invalid board group IDs format" }, status: :unprocessable_entity
+      render json: { error: "Invalid board group IDs format" }, status: :unprocessable_content
       return
     end
     board_group_ids.each do |board_group_id|
@@ -926,16 +926,16 @@ class API::BoardsController < API::ApplicationController
         @board.reload
         render json: @board.api_view_with_predictive_images(current_user, true), status: :ok
       else
-        render json: { error: { message: record_errors } }, status: :unprocessable_entity
+        render json: { error: { message: record_errors } }, status: :unprocessable_content
       end
     else
-      render json: { error: { message: "No board_ids provided" } }, status: :unprocessable_entity
+      render json: { error: { message: "No board_ids provided" } }, status: :unprocessable_content
     end
   end
 
   def remove_image
     if @board.predefined && !current_user.admin?
-      render json: { error: "Cannot remove images from predefined boards" }, status: :unprocessable_entity
+      render json: { error: "Cannot remove images from predefined boards" }, status: :unprocessable_content
       return
     end
     @board_image = BoardImage.find_by(id: params[:board_image_id])
@@ -1099,7 +1099,7 @@ class API::BoardsController < API::ApplicationController
     # Fresh instance so the count isn't stale from earlier in the request.
     refreshed_user = User.find(current_user.id)
     if refreshed_user.at_board_limit?
-      render json: { error: "Maximum number of boards reached (#{refreshed_user.countable_board_count}/#{refreshed_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_entity
+      render json: { error: "Maximum number of boards reached (#{refreshed_user.countable_board_count}/#{refreshed_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_content
       notify_mailchimp_hit_limit(refreshed_user)
     end
   end

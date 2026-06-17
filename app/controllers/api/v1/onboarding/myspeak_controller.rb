@@ -38,7 +38,7 @@ module API
           name = params[:name].to_s.strip
           if name.blank?
             render json: { error: "Onboarding failed", details: ["Name can't be blank"] },
-                   status: :unprocessable_entity
+                   status: :unprocessable_content
             return
           end
 
@@ -58,7 +58,7 @@ module API
           if requested_slug
             reason = Profile.slug_unavailable_reason(requested_slug)
             if reason
-              render json: slug_error_payload(reason), status: :unprocessable_entity
+              render json: slug_error_payload(reason), status: :unprocessable_content
               return
             end
             unique = requested_slug
@@ -120,7 +120,7 @@ module API
           render json: {
             error: "Onboarding failed",
             details: e.record.errors.full_messages,
-          }, status: :unprocessable_entity
+          }, status: :unprocessable_content
         end
 
         private

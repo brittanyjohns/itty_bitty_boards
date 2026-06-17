@@ -49,7 +49,7 @@ class API::BillingController < API::ApplicationController
       render json: { success: true, plan_key: plan_key }
     rescue StandardError => e
       Rails.logger.error "Failed to update subscription for User ID: #{current_user.id}, Plan Key: #{plan_key} - Error: #{e.message}"
-      render json: { error: "Failed to update subscription: #{e.message}" }, status: :unprocessable_entity
+      render json: { error: "Failed to update subscription: #{e.message}" }, status: :unprocessable_content
     end
   end
 

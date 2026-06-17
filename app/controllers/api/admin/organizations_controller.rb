@@ -14,7 +14,7 @@ class API::Admin::OrganizationsController < API::Admin::ApplicationController
     if @organization.save
       render json: @organization.api_view(current_admin), status: :created
     else
-      render json: @organization.errors, status: :unprocessable_entity
+      render json: @organization.errors, status: :unprocessable_content
     end
   end
 
@@ -23,7 +23,7 @@ class API::Admin::OrganizationsController < API::Admin::ApplicationController
     if @organization.update(organization_params)
       render json: @organization.api_view(current_admin)
     else
-      render json: @organization.errors, status: :unprocessable_entity
+      render json: @organization.errors, status: :unprocessable_content
     end
   end
 
@@ -43,7 +43,7 @@ class API::Admin::OrganizationsController < API::Admin::ApplicationController
       @user.organization_id = @organization.id
       @user.save
     else
-      render json: { error: "Failed to invite user" }, status: :unprocessable_entity
+      render json: { error: "Failed to invite user" }, status: :unprocessable_content
       return
     end
     render json: @user.api_view
@@ -51,7 +51,7 @@ class API::Admin::OrganizationsController < API::Admin::ApplicationController
     # if @organization.users << @user
     #   render json: @organization.api_view(current_admin)
     # else
-    #   render json: { error: "Failed to assign user" }, status: :unprocessable_entity
+    #   render json: { error: "Failed to assign user" }, status: :unprocessable_content
     # end
   end
 
@@ -61,7 +61,7 @@ class API::Admin::OrganizationsController < API::Admin::ApplicationController
     if @organization.users.delete(@user)
       render json: @organization.api_view(current_admin)
     else
-      render json: { error: "Failed to remove user" }, status: :unprocessable_entity
+      render json: { error: "Failed to remove user" }, status: :unprocessable_content
     end
   end
 
@@ -70,7 +70,7 @@ class API::Admin::OrganizationsController < API::Admin::ApplicationController
     if @organization.destroy
       render json: { message: "Organization deleted successfully" }, status: :ok
     else
-      render json: { error: "Failed to delete organization" }, status: :unprocessable_entity
+      render json: { error: "Failed to delete organization" }, status: :unprocessable_content
     end
   end
 

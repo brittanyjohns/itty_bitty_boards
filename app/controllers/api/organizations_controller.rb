@@ -11,7 +11,7 @@ class API::OrganizationsController < API::ApplicationController
     if @organization.update(organization_params)
       render json: @organization.api_view(current_user)
     else
-      render json: @organization.errors, status: :unprocessable_entity
+      render json: @organization.errors, status: :unprocessable_content
     end
   end
 

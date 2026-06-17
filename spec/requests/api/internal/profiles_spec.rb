@@ -127,7 +127,7 @@ RSpec.describe "API::Internal::Profiles", type: :request do
             params: { profile: { username: "" } }.to_json,
             headers: json_headers
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       body = JSON.parse(response.body)
       expect(body["error"]).to eq("Profile update failed")
       expect(body["details"]).to be_an(Array)

@@ -16,7 +16,7 @@ class API::CoachingPromptsController < API::ApplicationController
     end
 
     if text.length > 500
-      render json: { error: "text too long" }, status: :unprocessable_entity
+      render json: { error: "text too long" }, status: :unprocessable_content
       return
     end
 
@@ -68,7 +68,7 @@ class API::CoachingPromptsController < API::ApplicationController
     if set.save
       render json: set.api_view_for(current_user), status: :created
     else
-      render json: { errors: set.errors.full_messages }, status: :unprocessable_entity
+      render json: { errors: set.errors.full_messages }, status: :unprocessable_content
     end
   end
 
@@ -82,7 +82,7 @@ class API::CoachingPromptsController < API::ApplicationController
     if @set.update(update_params)
       render json: @set.api_view_for(current_user)
     else
-      render json: { errors: @set.errors.full_messages }, status: :unprocessable_entity
+      render json: { errors: @set.errors.full_messages }, status: :unprocessable_content
     end
   end
 

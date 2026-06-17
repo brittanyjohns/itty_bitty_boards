@@ -32,7 +32,7 @@ class API::ChildBoardsController < API::ApplicationController
   def toggle_favorite
     result = @child_board.toggle_favorite
     unless result
-      render json: { error: "You can only favorite 80 boards" }, status: :unprocessable_entity
+      render json: { error: "You can only favorite 80 boards" }, status: :unprocessable_content
       return
     end
     @child_account = ChildAccount.includes(child_boards: :board).find(@child_board.child_account_id)
@@ -43,7 +43,7 @@ class API::ChildBoardsController < API::ApplicationController
     if @child_board.update(board_params)
       render json: @child_board.api_view
     else
-      render json: @child_board.errors, status: :unprocessable_entity
+      render json: @child_board.errors, status: :unprocessable_content
     end
   end
 

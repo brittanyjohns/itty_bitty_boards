@@ -30,7 +30,7 @@ RSpec.describe "API::ChildAccounts AAC profile", type: :request do
             params: { details: { aac_level: "wizard" } }.to_json,
             headers: headers
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(communicator.reload.aac_level).to be_nil
     end
 

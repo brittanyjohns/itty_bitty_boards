@@ -52,7 +52,7 @@ class API::MessagesController < API::ApplicationController
       @message.notify_recipient
       render json: @message.show_api_view(current_user), status: :created, location: @message
     else
-      render json: @message.errors, status: :unprocessable_entity
+      render json: @message.errors, status: :unprocessable_content
     end
   end
 
@@ -61,7 +61,7 @@ class API::MessagesController < API::ApplicationController
     if @message.update(message_params)
       render json: @message, status: :ok, location: @message
     else
-      render json: @message.errors, status: :unprocessable_entity
+      render json: @message.errors, status: :unprocessable_content
     end
   end
 

@@ -12,7 +12,7 @@ class API::Profiles::AssetsController < API::ApplicationController
     if attachment.attached?
       render json: { url: @profile.url_for_attachment(attachment) }
     else
-      render json: { error: "Unable to generate safety ID." }, status: :unprocessable_entity
+      render json: { error: "Unable to generate safety ID." }, status: :unprocessable_content
     end
   end
 
@@ -26,7 +26,7 @@ class API::Profiles::AssetsController < API::ApplicationController
     if attachment.attached?
       render json: { url: @profile.url_for_attachment(attachment) }
     else
-      render json: { error: "Unable to generate device tag." }, status: :unprocessable_entity
+      render json: { error: "Unable to generate device tag." }, status: :unprocessable_content
     end
   end
 

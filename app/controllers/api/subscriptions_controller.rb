@@ -44,7 +44,7 @@ class API::SubscriptionsController < API::ApplicationController
     price_id = API::Stripe::CheckoutSessionsController::PLAN_PRICE_IDS[plan_key]
 
     if price_id.blank?
-      render json: { error: "Unknown or unsupported plan" }, status: :unprocessable_entity
+      render json: { error: "Unknown or unsupported plan" }, status: :unprocessable_content
       return
     end
 
@@ -52,13 +52,13 @@ class API::SubscriptionsController < API::ApplicationController
     if customer_id.blank?
       # No Stripe customer means no subscription to update — these users
       # belong in checkout, not here.
-      render json: { error: "No active subscription to change" }, status: :unprocessable_entity
+      render json: { error: "No active subscription to change" }, status: :unprocessable_content
       return
     end
 
     subscription = active_subscription_for(customer_id)
     if subscription.nil?
-      render json: { error: "No active subscription to change" }, status: :unprocessable_entity
+      render json: { error: "No active subscription to change" }, status: :unprocessable_content
       return
     end
 
@@ -99,25 +99,25 @@ class API::SubscriptionsController < API::ApplicationController
     price_id = API::Stripe::CheckoutSessionsController::PLAN_PRICE_IDS[plan_key]
 
     if price_id.blank?
-      render json: { error: "Unknown or unsupported plan" }, status: :unprocessable_entity
+      render json: { error: "Unknown or unsupported plan" }, status: :unprocessable_content
       return
     end
 
     customer_id = current_user.stripe_customer_id
     if customer_id.blank?
-      render json: { error: "No active subscription to change" }, status: :unprocessable_entity
+      render json: { error: "No active subscription to change" }, status: :unprocessable_content
       return
     end
 
     subscription = active_subscription_for(customer_id)
     if subscription.nil?
-      render json: { error: "No active subscription to change" }, status: :unprocessable_entity
+      render json: { error: "No active subscription to change" }, status: :unprocessable_content
       return
     end
 
     current_price = subscription.items.data.first.price
     if current_price.id == price_id
-      render json: { error: "Already on this plan" }, status: :unprocessable_entity
+      render json: { error: "Already on this plan" }, status: :unprocessable_content
       return
     end
 
@@ -167,25 +167,25 @@ class API::SubscriptionsController < API::ApplicationController
     price_id = API::Stripe::CheckoutSessionsController::PLAN_PRICE_IDS[plan_key]
 
     if price_id.blank?
-      render json: { error: "Unknown or unsupported plan" }, status: :unprocessable_entity
+      render json: { error: "Unknown or unsupported plan" }, status: :unprocessable_content
       return
     end
 
     customer_id = current_user.stripe_customer_id
     if customer_id.blank?
-      render json: { error: "No active subscription to change" }, status: :unprocessable_entity
+      render json: { error: "No active subscription to change" }, status: :unprocessable_content
       return
     end
 
     subscription = active_subscription_for(customer_id)
     if subscription.nil?
-      render json: { error: "No active subscription to change" }, status: :unprocessable_entity
+      render json: { error: "No active subscription to change" }, status: :unprocessable_content
       return
     end
 
     current_price = subscription.items.data.first.price
     if current_price.id == price_id
-      render json: { error: "Already on this plan" }, status: :unprocessable_entity
+      render json: { error: "Already on this plan" }, status: :unprocessable_content
       return
     end
 

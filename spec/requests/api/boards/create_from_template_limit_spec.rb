@@ -14,7 +14,7 @@ RSpec.describe "API::Boards create_from_template board-limit gate", type: :reque
              headers: auth_headers(user)
       }.not_to change { Board.count }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(JSON.parse(response.body)["error"]).to match(/Maximum number of boards/)
     end
 

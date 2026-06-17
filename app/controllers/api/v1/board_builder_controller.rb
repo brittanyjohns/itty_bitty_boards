@@ -62,7 +62,7 @@ module API
         # only when the user is already at/over their limit.
         if current_user.at_board_limit?
           render json: { error: "Maximum number of boards reached (#{current_user.countable_board_count}/#{current_user.board_limit}). Please upgrade to add more." },
-                 status: :unprocessable_entity
+                 status: :unprocessable_content
           return
         end
 
@@ -148,12 +148,12 @@ module API
         Rails.logger.warn "[BoardBuilder] #{e.message}"
         render json: { error: "unknown_template",
                        message: "That template isn't available. Pick one from the list and try again." },
-               status: :unprocessable_entity
+               status: :unprocessable_content
       rescue Boards::BoardTreeBuilder::BuildError, Boards::SeededSetCloner::CloneError => e
         Rails.logger.warn "[BoardBuilder] build failed: #{e.message}"
         render json: { error: "build_failed",
                        message: "Something went wrong building the board set — your info is safe, give it another try." },
-               status: :unprocessable_entity
+               status: :unprocessable_content
       rescue StandardError => e
         # Last-resort guard: never leak an internal error (or a 500) to the
         # client. Core symbols now self-heal, so this should be rare.
@@ -166,7 +166,7 @@ module API
         root.update_column(:status, "failed") if defined?(root) && root&.persisted?
         render json: { error: "build_failed",
                        message: "Something went wrong building the board set — your info is safe, give it another try." },
-               status: :unprocessable_entity
+               status: :unprocessable_content
       end
 
       private

@@ -27,7 +27,7 @@ module Permissions
       when ChildAccount::LOANER, ChildAccount::ACTIVE
         check_slot_self_create(user, settings)
       else
-        [false, :unprocessable_entity, "Unknown communicator status: #{status}"]
+        [false, :unprocessable_content, "Unknown communicator status: #{status}"]
       end
     end
 
@@ -42,7 +42,7 @@ module Permissions
       owned_count = owned_slot_count(user)
 
       return [false, :forbidden, "Your plan does not include communicator accounts."] if slot_limit <= 0
-      return [false, :unprocessable_entity, "Maximum number of communicator accounts reached."] if owned_count >= slot_limit
+      return [false, :unprocessable_content, "Maximum number of communicator accounts reached."] if owned_count >= slot_limit
 
       [true, :ok, nil]
     end
@@ -86,7 +86,7 @@ module Permissions
       count = user.communicator_accounts.where(status: ChildAccount::SANDBOX).count
 
       return [false, :forbidden, "Your plan does not include sandbox communicators."] if limit <= 0
-      return [false, :unprocessable_entity, "Sandbox communicator limit reached."] if count >= limit
+      return [false, :unprocessable_content, "Sandbox communicator limit reached."] if count >= limit
 
       [true, :ok, nil]
     end
@@ -96,7 +96,7 @@ module Permissions
       count = owned_slot_count(user)
 
       return [false, :forbidden, "Your plan does not include communicator accounts."] if limit <= 0
-      return [false, :unprocessable_entity, "Maximum number of communicator accounts reached."] if count >= limit
+      return [false, :unprocessable_content, "Maximum number of communicator accounts reached."] if count >= limit
 
       [true, :ok, nil]
     end

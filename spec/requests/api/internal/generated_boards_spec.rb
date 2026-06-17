@@ -24,7 +24,7 @@ RSpec.describe "API::Internal::GeneratedBoards", type: :request do
              params: {}.to_json,
              headers: auth_headers
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["error"]).to eq("Topic is required")
       end
 

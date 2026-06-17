@@ -41,7 +41,7 @@ class API::Admin::EventsController < API::Admin::ApplicationController
   # POST /events or /events.json
   def create
     @event = Event.new(event_params)
-    render json: { success: @event.save ? @event.persisted? : @event.errors }, status: @event.save ? :created : :unprocessable_entity
+    render json: { success: @event.save ? @event.persisted? : @event.errors }, status: @event.save ? :created : :unprocessable_content
   end
 
   # PATCH/PUT /events/1 or /events/1.json
@@ -50,7 +50,7 @@ class API::Admin::EventsController < API::Admin::ApplicationController
       if @event.update(event_params)
         format.json { render :show, status: :ok, location: @event }
       else
-        format.json { render json: @event.errors, status: :unprocessable_entity }
+        format.json { render json: @event.errors, status: :unprocessable_content }
       end
     end
   end

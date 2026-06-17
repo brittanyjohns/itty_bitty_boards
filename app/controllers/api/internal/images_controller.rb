@@ -3,7 +3,7 @@ class API::Internal::ImagesController < API::Internal::ApplicationController
     label = image_params[:label]
 
     if label.blank?
-      render json: { error: "label is required" }, status: :unprocessable_entity
+      render json: { error: "label is required" }, status: :unprocessable_content
       return
     end
 
@@ -16,7 +16,7 @@ class API::Internal::ImagesController < API::Internal::ApplicationController
     if @image.persisted?
       render json: @image.with_display_doc(current_user), status: :created
     else
-      render json: { errors: @image.errors }, status: :unprocessable_entity
+      render json: { errors: @image.errors }, status: :unprocessable_content
     end
   end
 
@@ -25,7 +25,7 @@ class API::Internal::ImagesController < API::Internal::ApplicationController
     prompt = image_params[:image_prompt].to_s.gsub("[[REPLACE_LABEL]]", "").strip
 
     if label.blank?
-      render json: { error: "label or image_prompt is required" }, status: :unprocessable_entity
+      render json: { error: "label or image_prompt is required" }, status: :unprocessable_content
       return
     end
 

@@ -10,7 +10,7 @@ module API
         password = params["password"] || (params["auth"] && params["auth"]["password"])
         password_confirmation = params["password_confirmation"] || (params["auth"] && params["auth"]["password_confirmation"])
         if email.blank? || password.blank? || password_confirmation.blank?
-          render json: { error: "Email, password, and password confirmation are required" }, status: :unprocessable_entity
+          render json: { error: "Email, password, and password confirmation are required" }, status: :unprocessable_content
           return
         end
 
@@ -44,7 +44,7 @@ module API
           MailchimpEventJob.perform_async(user.id, "sign_up")
           render json: { token: user.authentication_token, user: user.api_view }
         else
-          render json: { error: user.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render json: { error: user.errors.full_messages.join(", ") }, status: :unprocessable_content
         end
       end
 
@@ -59,23 +59,23 @@ module API
 
         # invite! saves with validate: false, so email format must be checked here.
         unless Devise.email_regexp.match?(email)
-          render json: { error: "A valid email is required" }, status: :unprocessable_entity
+          render json: { error: "A valid email is required" }, status: :unprocessable_content
           return
         end
 
         if User.exists?(email: email)
-          render json: { error: "Email has already been taken", error_code: "email_taken" }, status: :unprocessable_entity
+          render json: { error: "Email has already been taken", error_code: "email_taken" }, status: :unprocessable_content
           return
         end
 
         begin
           user = User.invite!(email: email, skip_invitation: true)
         rescue ActiveRecord::RecordNotUnique
-          render json: { error: "Email has already been taken", error_code: "email_taken" }, status: :unprocessable_entity
+          render json: { error: "Email has already been taken", error_code: "email_taken" }, status: :unprocessable_content
           return
         end
         unless user.persisted?
-          render json: { error: user.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render json: { error: user.errors.full_messages.join(", ") }, status: :unprocessable_content
           return
         end
         # The raw token only exists in memory on this instance — capture it for
@@ -122,7 +122,7 @@ module API
         # password (devise_invitable assigns a random one on invite!, so
         # encrypted_password.present? can't tell the two apart).
         unless current_user.invited_to_sign_up?
-          render json: { error: "Password already set", error_code: "password_already_set" }, status: :unprocessable_entity
+          render json: { error: "Password already set", error_code: "password_already_set" }, status: :unprocessable_content
           return
         end
         current_user.password = params[:password]
@@ -131,7 +131,7 @@ module API
         if saved && current_user.errors.empty?
           render json: { user: current_user.api_view }
         else
-          render json: { error: current_user.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render json: { error: current_user.errors.full_messages.join(", ") }, status: :unprocessable_content
         end
       end
 

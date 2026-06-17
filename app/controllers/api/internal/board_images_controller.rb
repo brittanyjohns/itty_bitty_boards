@@ -3,7 +3,7 @@ class API::Internal::BoardImagesController < API::Internal::ApplicationControlle
     @board = Board.find(params[:board_id])
 
     image = resolve_image_from(params)
-    return render json: { error: "image_id or label is required" }, status: :unprocessable_entity if image.nil?
+    return render json: { error: "image_id or label is required" }, status: :unprocessable_content if image.nil?
 
     board_image = @board.add_image(image.id)
 
@@ -12,7 +12,7 @@ class API::Internal::BoardImagesController < API::Internal::ApplicationControlle
       render json: board_image.api_view(current_user), status: :created
     else
       errors = board_image&.errors&.full_messages&.join(", ") || "Unable to add image to board"
-      render json: { error: errors }, status: :unprocessable_entity
+      render json: { error: errors }, status: :unprocessable_content
     end
   end
 
@@ -21,7 +21,7 @@ class API::Internal::BoardImagesController < API::Internal::ApplicationControlle
 
     raw_cells = params[:cells]
     unless raw_cells.is_a?(Array) && raw_cells.any?
-      return render json: { error: "cells must be a non-empty array" }, status: :unprocessable_entity
+      return render json: { error: "cells must be a non-empty array" }, status: :unprocessable_content
     end
 
     created = []
@@ -60,7 +60,7 @@ class API::Internal::BoardImagesController < API::Internal::ApplicationControlle
     end
 
     if errors.any?
-      render json: { errors: errors }, status: :unprocessable_entity
+      render json: { errors: errors }, status: :unprocessable_content
     else
       render json: created.map { |bi| bi.api_view(current_user) }, status: :created
     end

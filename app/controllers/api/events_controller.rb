@@ -16,7 +16,7 @@ class API::EventsController < API::ApplicationController
     if new_entry.persisted?
       render json: { success: true, entry: new_entry.api_view }, status: :created
     else
-      render json: { success: false, errors: new_entry.errors }, status: :unprocessable_entity
+      render json: { success: false, errors: new_entry.errors }, status: :unprocessable_content
     end
   end
 

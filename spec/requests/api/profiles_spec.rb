@@ -128,7 +128,7 @@ RSpec.describe "API::Profiles", type: :request do
 
       it "returns 422 slug_locked with next_edit_at" do
         put_slug("different-link")
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         body = JSON.parse(response.body)
         expect(body["error"]).to eq("slug_locked")
         expect(body["next_edit_at"]).to be_present
@@ -145,13 +145,13 @@ RSpec.describe "API::Profiles", type: :request do
     context "validation errors" do
       it "returns slug_invalid for bad format" do
         put_slug("Bad_Slug!!")
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["error"]).to eq("slug_invalid")
       end
 
       it "returns slug_reserved for reserved words" do
         put_slug("admin")
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["error"]).to eq("slug_reserved")
       end
 
@@ -159,7 +159,7 @@ RSpec.describe "API::Profiles", type: :request do
         other_child = FactoryBot.create(:child_account, user: owner, owner: owner)
         Profile.new(profileable: other_child, username: "taken-name", slug: "taken-name").save!
         put_slug("taken-name")
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["error"]).to eq("slug_taken")
       end
     end

@@ -34,7 +34,7 @@ class API::ScenariosController < API::ApplicationController
     Rails.logger.debug "PARAMS: #{scenario_params}"
     initial_description = params[:prompt_text]
     if initial_description.blank?
-      render json: { error: "Initial description cannot be blank" }, status: :unprocessable_entity
+      render json: { error: "Initial description cannot be blank" }, status: :unprocessable_content
       return
     end
     token_limit = params[:token_limit] || 10
@@ -57,7 +57,7 @@ class API::ScenariosController < API::ApplicationController
         # CreateScenarioBoardJob.perform_async(@open_prompt.id)
         format.json { render json: @scenario, status: :created }
       else
-        format.json { render json: @scenario.errors, status: :unprocessable_entity }
+        format.json { render json: @scenario.errors, status: :unprocessable_content }
       end
     end
   end
@@ -65,7 +65,7 @@ class API::ScenariosController < API::ApplicationController
   def answer
     answer = params[:answer]
     if answer.blank?
-      render json: { error: "Answer cannot be blank" }, status: :unprocessable_entity
+      render json: { error: "Answer cannot be blank" }, status: :unprocessable_content
       return
     end
     question_number = params[:question_number]
@@ -113,7 +113,7 @@ class API::ScenariosController < API::ApplicationController
     @age_range = params[:age_range]
     @num_of_images = params[:number_of_images] || 12
     if @name.blank? || @age_range.blank?
-      render json: { error: "Name and age range cannot be blank" }, status: :unprocessable_entity
+      render json: { error: "Name and age range cannot be blank" }, status: :unprocessable_content
       return
     end
     @description = params[:prompt_text]
@@ -130,7 +130,7 @@ class API::ScenariosController < API::ApplicationController
     name = params[:name]
     age_range = params[:age_range]
     if name.blank? || age_range.blank?
-      render json: { error: "Name and age range cannot be blank" }, status: :unprocessable_entity
+      render json: { error: "Name and age range cannot be blank" }, status: :unprocessable_content
       return
     end
     resolved_language = params[:language].presence || current_user.i18n_locale.to_s
@@ -164,8 +164,8 @@ class API::ScenariosController < API::ApplicationController
         format.html { redirect_to scenario_url(@scenario), notice: "Scenario was successfully updated." }
         format.json { render :show, status: :ok, location: @scenario }
       else
-        format.html { render :edit, status: :unprocessable_entity }
-        format.json { render json: @scenario.errors, status: :unprocessable_entity }
+        format.html { render :edit, status: :unprocessable_content }
+        format.json { render json: @scenario.errors, status: :unprocessable_content }
       end
     end
   end

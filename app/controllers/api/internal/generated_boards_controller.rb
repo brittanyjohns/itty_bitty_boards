@@ -8,7 +8,7 @@ class API::Internal::GeneratedBoardsController < API::Internal::ApplicationContr
     board_name = params[:name].presence || generated_board_name(topic, age_range)
 
     if topic.blank?
-      render json: { error: "Topic is required" }, status: :unprocessable_entity
+      render json: { error: "Topic is required" }, status: :unprocessable_content
       return
     end
 
@@ -33,12 +33,12 @@ class API::Internal::GeneratedBoardsController < API::Internal::ApplicationContr
         render json: { id: board.id, name: board.name, status: board.status }, status: :created
       else
         Rails.logger.error("API::Internal::GeneratedBoardsController#create save failed: #{board.errors.full_messages.join(", ")}")
-        render json: { error: board.errors.full_messages.join(", ") }, status: :unprocessable_entity
+        render json: { error: board.errors.full_messages.join(", ") }, status: :unprocessable_content
       end
     rescue => e
       Rails.logger.error("API::Internal::GeneratedBoardsController#create raised: #{e.class} - #{e.message}")
       board.destroy if board&.persisted?
-      render json: { error: "Unable to generate board" }, status: :unprocessable_entity
+      render json: { error: "Unable to generate board" }, status: :unprocessable_content
     end
   end
 

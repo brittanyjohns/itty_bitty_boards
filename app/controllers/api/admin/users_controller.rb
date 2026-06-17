@@ -95,7 +95,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     if @user.save
       render json: @user.admin_api_view, status: :ok
     else
-      render json: @user.errors, status: :unprocessable_entity
+      render json: @user.errors, status: :unprocessable_content
     end
   end
 
@@ -113,7 +113,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     if @user.send_welcome_email(plan_nickname)
       render json: { success: true }, status: :ok
     else
-      render json: { error: "Failed to send welcome email" }, status: :unprocessable_entity
+      render json: { error: "Failed to send welcome email" }, status: :unprocessable_content
     end
   end
 
@@ -131,7 +131,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     if @user.send_setup_email
       render json: { success: true }, status: :ok
     else
-      render json: { error: "Failed to send set up email" }, status: :unprocessable_entity
+      render json: { error: "Failed to send set up email" }, status: :unprocessable_content
     end
   end
 
@@ -145,7 +145,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     if @user.send_partner_welcome_email
       render json: { success: true }, status: :ok
     else
-      render json: { error: "Failed to send partner welcome email" }, status: :unprocessable_entity
+      render json: { error: "Failed to send partner welcome email" }, status: :unprocessable_content
     end
   end
 
@@ -163,7 +163,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     if @user.send_temp_login_email
       render json: { success: true }, status: :ok
     else
-      render json: { error: "Failed to send temporary login email" }, status: :unprocessable_entity
+      render json: { error: "Failed to send temporary login email" }, status: :unprocessable_content
     end
   end
 
@@ -204,7 +204,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
   #     if @user.save
   #       format.json { render json: @user, status: :ok }
   #     else
-  #       format.json { render json: @user.errors, status: :unprocessable_entity }
+  #       format.json { render json: @user.errors, status: :unprocessable_content }
   #     end
   #   end
   # end
@@ -216,13 +216,13 @@ class API::Admin::UsersController < API::Admin::ApplicationController
       return
     end
     if @user.admin?
-      render json: { error: "Cannot delete an admin user" }, status: :unprocessable_entity
+      render json: { error: "Cannot delete an admin user" }, status: :unprocessable_content
       return
     end
     begin
       @user.soft_delete_account!(reason: "admin_deleted", actor_id: current_admin.id) unless @user.soft_deleted?
     rescue StripeHelper::AccountDeletionError => e
-      render json: { error: e.message }, status: :unprocessable_entity
+      render json: { error: e.message }, status: :unprocessable_content
       return
     end
     Rails.logger.info "User #{@user.id} deleted by #{current_admin.display_name}"
@@ -237,7 +237,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
       return
     end
     unless params[:user_ids].present?
-      render json: { error: "No user_ids provided" }, status: :unprocessable_entity
+      render json: { error: "No user_ids provided" }, status: :unprocessable_content
       return
     end
     users = User.where(id: params[:user_ids]).where.not(role: "admin")

@@ -28,7 +28,7 @@ RSpec.describe "API::ChildAccounts archive", type: :request do
     it "refuses on loaner with end_loan guidance" do
       loaner = create(:child_account, user: user, owner: user, status: "loaner", username: "ln-#{SecureRandom.hex(2)}")
       post "/api/child_accounts/#{loaner.id}/archive", headers: auth_headers(user)
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.body).to match(/end_loan/i)
     end
 
@@ -90,7 +90,7 @@ RSpec.describe "API::ChildAccounts archive", type: :request do
       pro_limit.times { create(:child_account, user: user, owner: user, status: "active") }
 
       post "/api/child_accounts/#{active.id}/unarchive", headers: auth_headers(user)
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(response.body).to match(/communicator/i)
     end
   end

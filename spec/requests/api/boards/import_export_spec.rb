@@ -32,7 +32,7 @@ RSpec.describe "API::Boards OBF/OBZ import + export", type: :request do
       post "/api/boards/import_obf",
            params: { file: txt },
            headers: auth_headers(user)
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(JSON.parse(response.body)["error"]).to match(/unsupported/i)
     end
 
@@ -46,7 +46,7 @@ RSpec.describe "API::Boards OBF/OBZ import + export", type: :request do
                headers: auth_headers(user)
         }.not_to change { user.boards.count }
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["error"]).to match(/Maximum number of boards/)
       end
     end

@@ -9,7 +9,7 @@ class API::FeedbackController < API::ApplicationController
     if @item.save
       render json: { ok: true }, status: :created
     else
-      render json: { ok: false, errors: @item.errors.full_messages }, status: :unprocessable_entity
+      render json: { ok: false, errors: @item.errors.full_messages }, status: :unprocessable_content
     end
   end
 

@@ -629,7 +629,7 @@ RSpec.describe "API::Boards", type: :request do
              headers: auth_headers(free_user)
       }.to change(MailchimpEventJob.jobs, :size).by(1)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(MailchimpEventJob.jobs.last["args"]).to eq(
         [free_user.id, "journey", { "journey_key" => "hit_limit" }],
       )
@@ -658,7 +658,7 @@ RSpec.describe "API::Boards", type: :request do
            headers: auth_headers(free_user)
 
       # The 422 response itself is unaffected.
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 end

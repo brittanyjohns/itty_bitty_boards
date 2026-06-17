@@ -65,13 +65,13 @@ class API::TeamsController < API::ApplicationController
 
     @user = User.invite_new_user_to_team!(user_email, current_user, @team, user_role)
     unless @user
-      return render json: { error: "User not invited. Something went wrong." }, status: :unprocessable_entity
+      return render json: { error: "User not invited. Something went wrong." }, status: :unprocessable_content
     end
     @team.upsert_member!(@user, user_role)
 
     render json: @team.show_api_view(current_user), status: :created
   rescue ActiveRecord::RecordInvalid => e
-    render json: { errors: e.record.errors }, status: :unprocessable_entity
+    render json: { errors: e.record.errors }, status: :unprocessable_content
   end
 
   def remove_member
@@ -112,7 +112,7 @@ class API::TeamsController < API::ApplicationController
 
         format.json { render json: @team.show_api_view(current_user), status: :created }
       else
-        format.json { render json: @team.errors, status: :unprocessable_entity }
+        format.json { render json: @team.errors, status: :unprocessable_content }
       end
     end
   end
@@ -136,7 +136,7 @@ class API::TeamsController < API::ApplicationController
     if @team_board.save
       render json: @team.show_api_view(current_user)
     else
-      render json: @team_board.errors, status: :unprocessable_entity
+      render json: @team_board.errors, status: :unprocessable_content
     end
   end
 
@@ -154,8 +154,8 @@ class API::TeamsController < API::ApplicationController
         format.html { redirect_to team_url(@team), notice: "Team was successfully updated." }
         format.json { render :show, status: :ok, location: @team }
       else
-        format.html { render :edit, status: :unprocessable_entity }
-        format.json { render json: @team.errors, status: :unprocessable_entity }
+        format.html { render :edit, status: :unprocessable_content }
+        format.json { render json: @team.errors, status: :unprocessable_content }
       end
     end
   end
