@@ -61,6 +61,18 @@ module API
       true
     rescue CreditService::InsufficientCredits => e
       balance = CreditService.balance(current_user)
+
+      PosthogService.capture_for_user(
+        current_user,
+        "credits_exhausted",
+        properties: {
+          feature_key: feature_key.to_s,
+          needed: e.needed,
+          balance: balance[:total],
+          plan_type: current_user.plan_type,
+        },
+      )
+
       render json: {
         error: "insufficient_credits",
         message: "You don't have enough AI credits for #{feature_name || feature_key.to_s.titleize}. Buy more credits or upgrade your plan.",

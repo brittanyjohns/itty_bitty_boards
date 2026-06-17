@@ -127,10 +127,10 @@ RSpec.describe User, type: :model do
   end
 
   context "initial plan-credit grant on signup" do
-    it "grants the free allowance (5) by default since new users land on free" do
+    it "grants the free allowance (25) by default since new users land on free" do
       user = FactoryBot.create(:user)
       expect(user.plan_type).to eq("free")
-      expect(user.plan_credits_balance).to eq(5)
+      expect(user.plan_credits_balance).to eq(25)
       expect(user.credit_transactions.where(kind: "plan_grant").count).to eq(1)
     end
 
@@ -158,9 +158,9 @@ RSpec.describe User, type: :model do
 
   # Regression guard for drafts/drop-basic-trial-option-a.md: the no-CC
   # basic_trial soft trial was removed, so every brand-new signup must land on
-  # Free with Free limits and the 5-credit initial grant — no 400-credit trial.
+  # Free with Free limits and the 25-credit initial grant — no 400-credit trial.
   context "fresh signup (no-CC soft trial removed)" do
-    it "lands on free with Free limits, a communicator slot, and a 5-credit grant" do
+    it "lands on free with Free limits, a communicator slot, and a 25-credit grant" do
       user = FactoryBot.create(:user)
 
       expect(user.plan_type).to eq("free")
@@ -171,7 +171,7 @@ RSpec.describe User, type: :model do
         .to eq(User::FREE_PLAN_LIMITS["paid_communicator_limit"])
       expect(user.settings["paid_communicator_limit"].to_i).to be >= 1
 
-      expect(user.plan_credits_balance).to eq(5)
+      expect(user.plan_credits_balance).to eq(25)
       expect(user.credit_transactions.where(kind: "plan_grant").count).to eq(1)
     end
   end

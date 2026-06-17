@@ -22,7 +22,7 @@ RSpec.describe DowngradeSoftTrialJob, type: :job do
         # Pretend they spent most of their basic_trial allowance.
         user.update_columns(plan_credits_balance: 12, plan_credits_reset_at: 1.day.ago)
 
-        expect { job.perform }.to change { user.reload.plan_credits_balance }.to(5)
+        expect { job.perform }.to change { user.reload.plan_credits_balance }.to(25)
         expect(user.plan_credits_reset_at).to be_within(5.seconds).of(30.days.from_now)
         tx = user.credit_transactions.where(kind: "plan_grant").order(created_at: :desc).first
         expect(tx.metadata["source"]).to eq("soft_trial_downgrade")

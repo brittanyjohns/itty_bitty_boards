@@ -8,7 +8,7 @@ RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
 
       expect {
         described_class.new.perform
-      }.to change { user.reload.plan_credits_balance }.from(0).to(5)
+      }.to change { user.reload.plan_credits_balance }.from(0).to(25)
       expect(user.plan_credits_reset_at).to be_within(5.seconds).of(30.days.from_now)
     end
 
@@ -86,7 +86,7 @@ RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
 
       described_class.new.perform
       user.reload
-      expect(user.plan_credits_balance).to eq(5)
+      expect(user.plan_credits_balance).to eq(25)
       expect(user.credit_transactions.where(kind: "expire", source: "plan").count).to be >= 1
     end
 
