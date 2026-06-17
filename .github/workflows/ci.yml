@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 jobs:
-  rspec:
+  rspec-shard:
     runs-on: ubuntu-latest
 
     strategy:
@@ -83,3 +83,15 @@ jobs:
           fi
           echo "Running $(echo "$FILES" | wc -l | tr -d ' ') spec files (shard ${{ matrix.ci_node_index }})"
           bundle exec rspec $FAIL_FAST $FILES
+
+  rspec:
+    needs: rspec-shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check shard results
+        run: |
+          if [ "${{ needs.rspec-shard.result }}" != "success" ]; then
+            echo "One or more RSpec shards failed"
+            exit 1
+          fi
