@@ -1,10 +1,10 @@
 require "rails_helper"
 
 RSpec.describe "API::Boards", type: :request do
-  let!(:user)        { create(:user) }
-  let!(:other_user)  { create(:user) }
-  let!(:board)       { create(:board, user: user, name: "User Board Alpha") }
-  let!(:other_board) { create(:board, user: other_user, name: "Other Board Beta") }
+  let_it_be(:user)        { create(:user) }
+  let_it_be(:other_user)  { create(:user) }
+  let_it_be(:board, reload: true) { create(:board, user: user, name: "User Board Alpha") }
+  let_it_be(:other_board) { create(:board, user: other_user, name: "Other Board Beta") }
 
   describe "GET /api/boards" do
     it "returns 200 for unauthenticated requests (public boards are accessible)" do

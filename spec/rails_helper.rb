@@ -7,6 +7,10 @@ abort("The Rails environment is running in production mode!") if Rails.env.produ
 require "rspec/rails"
 require "sidekiq/testing"
 Sidekiq::Testing.fake!
+require "test_prof/recipes/rspec/let_it_be"
+require "test_prof/recipes/rspec/before_all"
+require "webmock/rspec"
+WebMock.disable_net_connect!(allow_localhost: true)
 
 Rails.root.glob("spec/support/**/*.rb").sort.each { |f| require f }
 

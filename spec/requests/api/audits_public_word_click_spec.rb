@@ -1,10 +1,10 @@
 require "rails_helper"
 
 RSpec.describe "API::Audits public word click", type: :request do
-  let!(:user) { create(:user) }
-  let!(:account) { create(:child_account, user: user) }
-  let!(:profile) { create(:profile, profileable: account) }
-  let!(:board) { create(:board, user: user) }
+  let_it_be(:user, reload: true) { create(:user) }
+  let_it_be(:account, reload: true) { create(:child_account, user: user) }
+  let_it_be(:profile) { create(:profile, profileable: account) }
+  let_it_be(:board) { create(:board, user: user) }
 
   before do
     allow_any_instance_of(API::AuditsController)

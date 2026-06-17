@@ -1,19 +1,19 @@
 require "rails_helper"
 
 RSpec.describe "API::CoachingPrompts", type: :request do
-  let!(:user)  { create(:user) }
-  let!(:other) { create(:user) }
+  let_it_be(:user)  { create(:user) }
+  let_it_be(:other) { create(:user) }
 
-  let!(:snack) do
+  let_it_be(:snack) do
     create(:coaching_prompt_set,
-      slug: "snack_time_test",
-      name: "Snack Time Test",
-      match_tags: %w[snack snack_time],
+      slug: "rspec_snack_test",
+      name: "RSpec Snack Test",
+      match_tags: %w[rspec_snack_tag],
       published: true,
       user_id: nil)
   end
 
-  let!(:my_set) do
+  let_it_be(:my_set) do
     create(:coaching_prompt_set,
       slug: "user-mine",
       name: "My Custom Set",
@@ -22,7 +22,7 @@ RSpec.describe "API::CoachingPrompts", type: :request do
       published: true)
   end
 
-  let!(:other_user_set) do
+  let_it_be(:other_user_set) do
     create(:coaching_prompt_set,
       slug: "user-other",
       name: "Other User Set",
@@ -41,19 +41,19 @@ RSpec.describe "API::CoachingPrompts", type: :request do
       get "/api/coaching_prompts", headers: auth_headers(user)
       expect(response).to have_http_status(:ok)
       slugs = JSON.parse(response.body).map { |r| r["slug"] }
-      expect(slugs).to include("snack_time_test", "user-mine")
+      expect(slugs).to include("rspec_snack_test", "user-mine")
       expect(slugs).not_to include("user-other")
     end
   end
 
   describe "GET /api/coaching_prompts?board_id=:id" do
-    let(:board) { create(:board, user: user, tags: ["snack_time"]) }
+    let(:board) { create(:board, user: user, tags: ["rspec_snack_tag"]) }
 
     it "returns the curated prompt set when the board has a matching tag" do
       get "/api/coaching_prompts", params: { board_id: board.id }, headers: auth_headers(user)
       expect(response).to have_http_status(:ok)
       json = JSON.parse(response.body)
-      expect(json["slug"]).to eq("snack_time_test")
+      expect(json["slug"]).to eq("rspec_snack_test")
     end
 
     it "404s when the board does not exist" do

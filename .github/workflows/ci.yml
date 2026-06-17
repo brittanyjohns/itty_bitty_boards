@@ -9,6 +9,12 @@ jobs:
   rspec:
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: false
+      matrix:
+        ci_node_index: [0, 1, 2]
+        ci_node_total: [3]
+
     services:
       postgres:
         image: postgres:15
@@ -36,7 +42,7 @@ jobs:
 
     env:
       RAILS_ENV: test
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/itty_bitty_boards_test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/itty_bitty_boards_test_${{ matrix.ci_node_index }}
       # Dummy secrets so boot doesn't require config/master.key or real keys
       # in CI. Initializers that ENV.fetch these will read the dummies.
       SECRET_KEY_BASE: dummy-ci-secret-key-base-not-used-in-prod
@@ -61,8 +67,19 @@ jobs:
           ruby-version: 3.3.0
           bundler-cache: true
 
+      - name: Create test database
+        run: |
+          PGPASSWORD=postgres createdb -h localhost -U postgres itty_bitty_boards_test_${{ matrix.ci_node_index }}
+
       - name: Prepare test database
         run: bin/rails db:schema:load
 
-      - name: RSpec
-        run: bundle exec rspec
+      - name: RSpec (shard ${{ matrix.ci_node_index }}/${{ matrix.ci_node_total }})
+        run: |
+          FILES=$(find spec -name '*_spec.rb' | sort | awk "NR % ${{ matrix.ci_node_total }} == ${{ matrix.ci_node_index }}")
+          FAIL_FAST=""
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            FAIL_FAST="--fail-fast"
+          fi
+          echo "Running $(echo "$FILES" | wc -l | tr -d ' ') spec files (shard ${{ matrix.ci_node_index }})"
+          bundle exec rspec $FAIL_FAST $FILES

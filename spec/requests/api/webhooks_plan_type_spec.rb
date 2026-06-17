@@ -6,7 +6,7 @@ require "rails_helper"
 RSpec.describe "POST /api/webhooks (plan_type)", type: :request do
   include StripeHelpers
 
-  let!(:user) do
+  let_it_be(:user, reload: true) do
     FactoryBot.create(:user,
       stripe_customer_id: "cus_plan_type_user",
       plan_type: "basic",
