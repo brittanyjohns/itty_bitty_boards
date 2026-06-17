@@ -38,6 +38,11 @@ namespace :vocab_sets do
     end
 
     puts "[vocab_sets:seed] done"
+
+    unless dry_run
+      puts "[vocab_sets:seed] Also seeding standalone fringe templates..."
+      Rake::Task["fringe_templates:seed"].invoke
+    end
   end
 
   desc "Emit a distributable .obz for a slug to tmp/<slug>.obz"

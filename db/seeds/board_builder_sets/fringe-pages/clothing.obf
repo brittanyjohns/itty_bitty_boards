@@ -1,0 +1,23 @@
+{
+  "format": "open-board-0.1",
+  "id": "fringe:clothing",
+  "locale": "en",
+  "name": "Clothing",
+  "grid": { "rows": 3, "columns": 4, "order": [[1,2,3,4],[5,6,7,8],[9,10,11,12]] },
+  "buttons": [
+    { "id": 1, "label": "shirt", "part_of_speech": "noun" },
+    { "id": 2, "label": "pants", "part_of_speech": "noun" },
+    { "id": 3, "label": "shoes", "part_of_speech": "noun" },
+    { "id": 4, "label": "hat", "part_of_speech": "noun" },
+    { "id": 5, "label": "socks", "part_of_speech": "noun" },
+    { "id": 6, "label": "jacket", "part_of_speech": "noun" },
+    { "id": 7, "label": "dress", "part_of_speech": "noun" },
+    { "id": 8, "label": "pajamas", "part_of_speech": "noun" },
+    { "id": 9, "label": "put on", "part_of_speech": "verb" },
+    { "id": 10, "label": "take off", "part_of_speech": "verb" },
+    { "id": 11, "label": "zipper", "part_of_speech": "noun" },
+    { "id": 12, "label": "boots", "part_of_speech": "noun" }
+  ],
+  "images": [],
+  "sounds": []
+}

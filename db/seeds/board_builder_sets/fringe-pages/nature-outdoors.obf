@@ -1,0 +1,23 @@
+{
+  "format": "open-board-0.1",
+  "id": "fringe:nature-outdoors",
+  "locale": "en",
+  "name": "Nature & Outdoors",
+  "grid": { "rows": 3, "columns": 4, "order": [[1,2,3,4],[5,6,7,8],[9,10,11,12]] },
+  "buttons": [
+    { "id": 1, "label": "tree", "part_of_speech": "noun" },
+    { "id": 2, "label": "flower", "part_of_speech": "noun" },
+    { "id": 3, "label": "sun", "part_of_speech": "noun" },
+    { "id": 4, "label": "rain", "part_of_speech": "noun" },
+    { "id": 5, "label": "snow", "part_of_speech": "noun" },
+    { "id": 6, "label": "garden", "part_of_speech": "noun" },
+    { "id": 7, "label": "rock", "part_of_speech": "noun" },
+    { "id": 8, "label": "sky", "part_of_speech": "noun" },
+    { "id": 9, "label": "plant", "part_of_speech": "verb" },
+    { "id": 10, "label": "dig", "part_of_speech": "verb" },
+    { "id": 11, "label": "wet", "part_of_speech": "adjective" },
+    { "id": 12, "label": "cold", "part_of_speech": "adjective" }
+  ],
+  "images": [],
+  "sounds": []
+}

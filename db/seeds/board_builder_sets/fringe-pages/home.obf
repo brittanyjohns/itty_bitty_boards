@@ -1,0 +1,23 @@
+{
+  "format": "open-board-0.1",
+  "id": "fringe:home",
+  "locale": "en",
+  "name": "Home",
+  "grid": { "rows": 3, "columns": 4, "order": [[1,2,3,4],[5,6,7,8],[9,10,11,12]] },
+  "buttons": [
+    { "id": 1, "label": "bed", "part_of_speech": "noun" },
+    { "id": 2, "label": "table", "part_of_speech": "noun" },
+    { "id": 3, "label": "chair", "part_of_speech": "noun" },
+    { "id": 4, "label": "door", "part_of_speech": "noun" },
+    { "id": 5, "label": "window", "part_of_speech": "noun" },
+    { "id": 6, "label": "couch", "part_of_speech": "noun" },
+    { "id": 7, "label": "kitchen", "part_of_speech": "noun" },
+    { "id": 8, "label": "room", "part_of_speech": "noun" },
+    { "id": 9, "label": "light", "part_of_speech": "noun" },
+    { "id": 10, "label": "blanket", "part_of_speech": "noun" },
+    { "id": 11, "label": "open", "part_of_speech": "verb" },
+    { "id": 12, "label": "close", "part_of_speech": "verb" }
+  ],
+  "images": [],
+  "sounds": []
+}

@@ -61,6 +61,68 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       expect(robust["tiles"]).to include("I", "Food")
     end
 
+    it "includes complexity levels with key, name, description, fringe_page_range" do
+      get "/api/v1/board_builder/templates", headers: headers
+
+      body = JSON.parse(response.body)
+      levels = body["levels"]
+      expect(levels.size).to eq(3)
+      keys = levels.map { |l| l["key"] }
+      expect(keys).to eq(%w[starter standard extended])
+      levels.each do |level|
+        expect(level).to have_key("name")
+        expect(level).to have_key("description")
+        expect(level).to have_key("fringe_page_range")
+      end
+    end
+
+    describe "recommended_level" do
+      it "is null without a communicator_id" do
+        get "/api/v1/board_builder/templates", headers: headers
+        expect(JSON.parse(response.body)["recommended_level"]).to be_nil
+      end
+
+      it "is null when the communicator has no stored profile" do
+        get "/api/v1/board_builder/templates",
+            params: { communicator_id: communicator.id }, headers: headers
+        expect(JSON.parse(response.body)["recommended_level"]).to be_nil
+      end
+
+      it "recommends starter for a young/emerging communicator" do
+        communicator.update!(details: { "aac_level" => "emerging", "age_band" => "4-6" })
+        get "/api/v1/board_builder/templates",
+            params: { communicator_id: communicator.id }, headers: headers
+
+        body = JSON.parse(response.body)
+        expect(body["recommended_level"]).to eq("starter")
+        expect(body["recommendation_reason"]).to be_present
+      end
+
+      it "recommends standard for a developing communicator (age 11+)" do
+        communicator.update!(details: { "aac_level" => "developing", "age_band" => "11-14" })
+        get "/api/v1/board_builder/templates",
+            params: { communicator_id: communicator.id }, headers: headers
+
+        expect(JSON.parse(response.body)["recommended_level"]).to eq("standard")
+      end
+
+      it "recommends standard for a young teen (11-14)" do
+        communicator.update!(details: { "age_band" => "11-14" })
+        get "/api/v1/board_builder/templates",
+            params: { communicator_id: communicator.id }, headers: headers
+
+        expect(JSON.parse(response.body)["recommended_level"]).to eq("standard")
+      end
+
+      it "recommends extended for an older proficient communicator" do
+        communicator.update!(details: { "aac_level" => "proficient", "age_band" => "15-18" })
+        get "/api/v1/board_builder/templates",
+            params: { communicator_id: communicator.id }, headers: headers
+
+        expect(JSON.parse(response.body)["recommended_level"]).to eq("extended")
+      end
+    end
+
     describe "recommended_template" do
       it "is null without a communicator_id" do
         seed_robust_set!
@@ -581,6 +643,57 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
                headers: headers
         }.to change { communicator.child_boards.count }.by(1)
         expect(response).to have_http_status(:created)
+      end
+    end
+
+    context "complexity level param (Phase 2)" do
+      before do
+        seed_robust_set!
+        seed_template_images!
+        BuildBoardSetJob.clear
+      end
+
+      it "returns 201 and enqueues the job with the level key" do
+        expect {
+          post "/api/v1/board_builder",
+               params: { communicator_id: communicator.id, level: "standard",
+                         interests: ["pizza"] }.to_json,
+               headers: headers
+        }.to change { BuildBoardSetJob.jobs.size }.by(1)
+
+        expect(response).to have_http_status(:created)
+        body = JSON.parse(response.body)
+        expect(body["status"]).to eq("building_board")
+        expect(body["name"]).to eq("Core 60")
+
+        expect(BuildBoardSetJob.jobs.last["args"][2]).to eq("standard")
+      end
+
+      it "returns 422 for an unknown level" do
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, level: "mega" }.to_json,
+             headers: headers
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(JSON.parse(response.body)["error"]).to eq("unknown_template")
+      end
+
+      it "returns 422 when neither level nor template is provided" do
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id }.to_json,
+             headers: headers
+
+        expect(response).to have_http_status(:unprocessable_entity)
+      end
+
+      it "prefers level over template when both are sent" do
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, level: "starter",
+                       template: "home" }.to_json,
+             headers: headers
+
+        expect(response).to have_http_status(:created)
+        expect(BuildBoardSetJob.jobs.last["args"][2]).to eq("starter")
       end
     end
   end

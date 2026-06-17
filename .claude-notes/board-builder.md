@@ -149,9 +149,9 @@ Label-only picker catalog. No `Image` resolution.
   marker, which would go stale if the board were deleted). Frontend confirm UX
   is a small follow-up (frontend repo).
 - **Blank-art interest images** are acceptable for v1.
-- **Future:** richer lexicon + more category folders across templates; AI
-  symbol generation for new interest words; per-tile voice/label overrides
-  (today `add_image` derives the label from the `Image`).
+- **Future:** per-tile voice/label overrides (today `add_image` derives the
+  label from the `Image`); clinically-validated level recommendations (see
+  below).
 
 ## Robust seeded sets (Core 60 / Core 84)
 
@@ -211,6 +211,122 @@ worst-case ~600-tile set measured ~3s (test env); realistic Core 60/84 sets
 tiles)** and request latency bites, move `SeededSetCloner` into a background job
 with a `status: "building"` root + 202/polling — coordinated with the frontend.
 
+## Phase 2: complexity levels + hybrid build
+
+Phase 2 replaces raw template keys with **complexity levels** that control how
+many fringe pages a built set includes and where the content comes from. The
+`level` param is the intended wizard path; the legacy `template` param still
+works unchanged.
+
+### Complexity levels
+
+| Level    | Core template | Fringe pages | Default categories                        |
+|----------|---------------|--------------|-------------------------------------------|
+| Starter  | core-60       | 4-6          | Food, Feelings                            |
+| Standard | core-60       | 8-10         | Food, Feelings, Play, People              |
+| Extended | core-84       | 10-15        | Food, Feelings, Play, People, Places, Body, Social |
+
+### The planning service (`Boards::StructurePlanner`)
+
+Takes `level`, `profile`, `interests`, `explicit_categories`, `user` and returns
+a `Result` struct:
+
+```
+Result { level, core_template, fringe_pages, excluded_fringe_pages,
+         catch_all_interests, ai_credits_needed }
+```
+
+Each fringe page entry has `{ name, source, interests }` where `source` is one
+of:
+
+- **`:seed_set`** — the category page already ships with the core template clone
+  (Food, Feelings, People, etc.). The clone includes it natively.
+- **`:prebuilt`** — a standalone OBF fringe template exists (Animals, Music,
+  etc.). Cloned per user via `Board#clone_with_images`.
+- **`:ai_generated`** — no pre-built content. `Boards::AiPageGenerator` creates
+  a page of ~10 tiles via OpenAI, credit-gated at 2 credits per page.
+
+**Seed set name mismatches:** InterestCategories uses "Family & People" and
+"Health & Body", but seed sets use "People" and "Body". `CATEGORY_SEED_ALIASES`
+resolves this without renaming either side.
+
+**Credit downgrade:** when the user can't afford all AI-generated pages, the
+planner moves their interests to `catch_all_interests` (→ "My Favorites")
+instead of failing the build.
+
+### Fringe page templates (`Boards::FringeTemplates`)
+
+Standalone OBF boards seeded from `db/seeds/board_builder_sets/fringe-pages/`.
+11 categories covering topics not in the core seed sets. Each board is:
+- Owned by `DEFAULT_ADMIN_ID`, predefined, published
+- Marked with `settings["fringe_template_category"]` (lowercase category name)
+- Seeded via `bin/rails fringe_templates:seed` (also auto-runs after
+  `vocab_sets:seed`)
+
+To add a new fringe template: create a `.obf` file in the seed directory
+following the existing format (see any `.obf` file), then run the seed task.
+
+### AI page generation (`Boards::AiPageGenerator`)
+
+Generates a `{ name, tiles }` blueprint from interests via OpenAI chat
+completion. Profile-aware: when a `CommunicatorProfile` is provided, the prompt
+includes AAC-level and age-appropriate vocabulary guidance. Validations:
+- At least 1 interest required
+- Response must be parseable JSON with a `name` and `tiles` array
+- At least `MIN_TILES` (6) tiles required
+- Tiles capped at the requested count (default `TARGET_TILES` = 10)
+- Blank labels filtered
+
+Cost: 2 credits per page (`ai_board_page` feature key in `CreditService`).
+
+### Hybrid build path (`BuildBoardSetJob`)
+
+When the build key is a StructurePlanner level (starter/standard/extended), the
+job runs the hybrid path:
+
+1. **Plan** via `StructurePlanner` → fringe page list + exclusions
+2. **Clone seed set** via `SeededSetCloner` with `exclude_fringe:` (drops
+   unneeded seed set pages from the clone)
+3. **Clone prebuilt templates** — for each `:prebuilt` page, clone the admin
+   template, link from root, route interests into it
+4. **AI-generate** — for each `:ai_generated` page, check credits → generate →
+   build board → link from root. Falls back to My Favorites on insufficient
+   credits or generation failure
+5. **Catch-all** — remaining unmatched interests → "My Favorites"
+
+Legacy template keys (`core-60`, `home`, etc.) route to the original
+clone-only or blueprint-only paths, unchanged.
+
+### Level recommendation heuristic
+
+The controller's `recommend_level` maps communicator profile to a level:
+
+| Condition                                  | Level    |
+|--------------------------------------------|----------|
+| `profile.young?` (age ≤ 10) OR `emerging?` | Starter  |
+| `profile.developing?` OR `young_teen?` (11-14) | Standard |
+| Everything else (proficient, older, etc.)  | Extended |
+
+**These are reasonable heuristics, not clinically validated.** They're based on
+general AAC principles (younger/emerging communicators benefit from fewer,
+focused categories; proficient/older communicators can handle broader vocabulary)
+but have no specific clinical research or product usage data backing the exact
+thresholds. Revisit when real usage data or SLP feedback is available.
+
+### New CreditService additions
+
+- `CreditService::FEATURE_COSTS["ai_board_page"] = 2`
+- `CreditService.can_spend?(user, feature_key:, amount:)` — balance check
+  without locking or spending. Used by the planner's credit downgrade logic.
+
+### Endpoint changes
+
+- `GET /api/v1/board_builder/templates` — now returns `levels` (array),
+  `recommended_level`, and `recommendation_reason` alongside the existing
+  `templates`/`recommended_template` fields.
+- `POST /api/v1/board_builder` — accepts `level` (new, preferred) OR `template`
+  (legacy). `level` takes precedence when both are sent.
+
 ## Tests
 
 - `spec/services/boards/blueprint_assembler_spec.rb` — routing, catch-all,
@@ -219,12 +335,26 @@ with a `status: "building"` root + 202/polling — coordinated with the frontend
 - `spec/services/boards/board_tree_builder_spec.rb` — the persistence half (#259).
 - `spec/services/boards/seeded_set_cloner_spec.rb` — deep clone: rewire,
   builder markers, favorite ChildBoard, cycle-safety, interest routing +
-  My Favorites, counts-as-one, source untouched.
+  My Favorites, counts-as-one, source untouched, `exclude_fringe:`.
+- `spec/services/boards/structure_planner_spec.rb` — level normalization,
+  core_template mapping, fringe page planning (seed_set/prebuilt/ai_generated),
+  capping, excluded pages, catch-all, credit downgrade, explicit categories.
+- `spec/services/boards/fringe_templates_spec.rb` — find, all_templates,
+  seed_obf!.
+- `spec/services/boards/ai_page_generator_spec.rb` — happy path, error cases,
+  tile capping, profile guidance, blank label filtering.
+- `spec/services/communicator_profile_spec.rb` — developing?, young_teen?.
+- `spec/services/credit_service_spec.rb` — can_spend?, ai_board_page feature
+  key.
 - `spec/services/vocab_sets_spec.rb` — seeder: OBZ import, root marker,
   predefined/published, no BoardGroup, idempotent.
+- `spec/sidekiq/build_board_set_job_spec.rb` — starter template, robust set,
+  hybrid path (standard level, starter exclusions, no-credits fallback, legacy
+  passthrough), failure, retry idempotency.
 - `spec/requests/api/v1/board_builder_spec.rb` — endpoint happy path
   (routing + favorites), auth, ownership, unknown template, build failure,
-  the board-limit gate (tree counts as one; set stays editable), and the
-  robust clone path (catalog, build, limit, re-run).
+  the board-limit gate (tree counts as one; set stays editable), the robust
+  clone path, and the complexity level path (levels in response,
+  recommended_level, level param in create).
 
-Run: `RAILS_ENV=test bundle exec rspec spec/services/boards spec/services/vocab_sets_spec.rb spec/requests/api/v1/board_builder_spec.rb`
+Run: `RAILS_ENV=test bundle exec rspec spec/services/boards spec/services/vocab_sets_spec.rb spec/services/communicator_profile_spec.rb spec/services/credit_service_spec.rb spec/sidekiq/build_board_set_job_spec.rb spec/requests/api/v1/board_builder_spec.rb`

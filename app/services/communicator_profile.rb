@@ -76,6 +76,16 @@ class CommunicatorProfile
     aac_level == "emerging" || (aac_level.nil? && young?)
   end
 
+  def developing?
+    aac_level == "developing"
+  end
+
+  def young_teen?
+    return age.between?(11, 14) if age.present?
+
+    age_band == "11-14"
+  end
+
   # Single string appended to AI prompts. Empty when the profile is blank.
   def prompt_guidance
     return "" if blank?

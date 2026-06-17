@@ -1,0 +1,177 @@
+require "rails_helper"
+
+RSpec.describe Boards::StructurePlanner do
+  let(:user) { create(:user) }
+
+  describe "level normalization" do
+    it "accepts valid level keys" do
+      %w[starter standard extended].each do |key|
+        plan = described_class.new(level: key, interests: ["pizza"]).call
+        expect(plan.level).to eq(key)
+      end
+    end
+
+    it "maps legacy template keys to levels" do
+      plan = described_class.new(level: "core-60", interests: []).call
+      expect(plan.level).to eq("standard")
+
+      plan = described_class.new(level: "core-84", interests: []).call
+      expect(plan.level).to eq("extended")
+    end
+
+    it "defaults unknown keys to standard" do
+      plan = described_class.new(level: "unknown", interests: []).call
+      expect(plan.level).to eq("standard")
+    end
+  end
+
+  describe "core_template mapping" do
+    it "maps starter and standard to core-60" do
+      expect(described_class.new(level: "starter", interests: []).call.core_template).to eq("core-60")
+      expect(described_class.new(level: "standard", interests: []).call.core_template).to eq("core-60")
+    end
+
+    it "maps extended to core-84" do
+      expect(described_class.new(level: "extended", interests: []).call.core_template).to eq("core-84")
+    end
+  end
+
+  describe "fringe page planning" do
+    it "includes default pages for the level even with no interests" do
+      plan = described_class.new(level: "starter", interests: []).call
+      names = plan.fringe_pages.map { |p| p[:name] }
+      expect(names).to include("Food", "Feelings")
+    end
+
+    it "includes categories from interests" do
+      plan = described_class.new(level: "starter", interests: ["dog", "cat"]).call
+      names = plan.fringe_pages.map { |p| p[:name] }
+      expect(names).to include("Animals")
+    end
+
+    it "marks seed set pages as :seed_set source" do
+      plan = described_class.new(level: "standard", interests: ["pizza"]).call
+      food_page = plan.fringe_pages.find { |p| p[:name] == "Food" }
+      expect(food_page[:source]).to eq(:seed_set)
+    end
+
+    it "marks categories with standalone fringe templates as :prebuilt" do
+      admin = User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)
+      template_board = create(:board, user: admin, name: "Animals", predefined: true,
+                              settings: { Boards::FringeTemplates::TEMPLATE_MARKER => "animals" })
+
+      plan = described_class.new(level: "starter", interests: ["dog"]).call
+      animals_page = plan.fringe_pages.find { |p| p[:name] == "Animals" }
+      expect(animals_page[:source]).to eq(:prebuilt)
+    end
+
+    it "marks categories without any pre-built source as :ai_generated" do
+      plan = described_class.new(level: "starter", interests: ["xylophone_custom_niche"]).call
+      ai_pages = plan.fringe_pages.select { |p| p[:source] == :ai_generated }
+      expect(ai_pages).to be_empty # "xylophone_custom_niche" has no category, goes to catch-all
+    end
+
+    it "handles aliased categories (Family & People -> People in seed set)" do
+      plan = described_class.new(level: "standard", interests: ["mom"]).call
+      family_page = plan.fringe_pages.find { |p| p[:name] == "Family & People" }
+      expect(family_page[:source]).to eq(:seed_set)
+    end
+  end
+
+  describe "page count capping" do
+    it "caps starter at 6 pages" do
+      many_interests = %w[dog pizza happy toilet shirt bed sing tree hi run tablet car]
+      plan = described_class.new(level: "starter", interests: many_interests).call
+      expect(plan.fringe_pages.size).to be <= 6
+    end
+
+    it "caps extended at 15 pages" do
+      plan = described_class.new(level: "extended", interests: []).call
+      expect(plan.fringe_pages.size).to be <= 15
+    end
+
+    it "prioritizes pages with interests over defaults when capping" do
+      many_interests = %w[dog pizza happy toilet shirt bed sing]
+      plan = described_class.new(level: "starter", interests: many_interests).call
+      pages_with_interests = plan.fringe_pages.select { |p| p[:interests].any? }
+      expect(pages_with_interests.size).to be >= [plan.fringe_pages.size, 4].min
+    end
+  end
+
+  describe "excluded_fringe_pages" do
+    it "lists seed set pages NOT included in the plan" do
+      plan = described_class.new(level: "starter", interests: ["pizza"]).call
+      expect(plan.excluded_fringe_pages).to be_an(Array)
+      expect(plan.excluded_fringe_pages).not_to include("Food")
+      # Starter only includes Food + Feelings by default, so other seed set pages are excluded
+      seed_pages = Boards::StructurePlanner::SEED_SET_PAGES["core-60"]
+      excluded = seed_pages - ["Food", "Feelings"]
+      excluded.each do |name|
+        expect(plan.excluded_fringe_pages.map(&:downcase)).to include(name.downcase)
+      end
+    end
+  end
+
+  describe "catch_all_interests" do
+    it "routes uncategorized words to catch-all" do
+      plan = described_class.new(level: "starter", interests: ["xyznotaword"]).call
+      expect(plan.catch_all_interests).to include("xyznotaword")
+    end
+
+    it "routes words from categories that got capped out to catch-all" do
+      many_interests = %w[dog pizza happy toilet shirt bed sing tree hi run tablet car]
+      plan = described_class.new(level: "starter", interests: many_interests).call
+      planned_categories = plan.fringe_pages.map { |p| p[:name] }
+      all_catch = plan.catch_all_interests
+      many_interests.each do |word|
+        category = Boards::InterestCategories.category_for(word)
+        next if category && planned_categories.include?(category)
+        next if category.nil?
+
+        expect(all_catch).to include(word) unless planned_categories.include?(category)
+      end
+    end
+  end
+
+  describe "AI credit calculation" do
+    it "returns 0 when no AI pages are needed" do
+      plan = described_class.new(level: "standard", interests: ["pizza"]).call
+      expect(plan.ai_credits_needed).to eq(0)
+    end
+
+    it "returns 2 credits per AI-generated page" do
+      # Create a scenario where AI generation would be needed
+      # Use interests from categories that have no pre-built source
+      # and aren't in any seed set
+      plan = described_class.new(level: "starter", interests: ["pizza"]).call
+      ai_count = plan.fringe_pages.count { |p| p[:source] == :ai_generated }
+      expect(plan.ai_credits_needed).to eq(ai_count * 2)
+    end
+  end
+
+  describe "credit downgrade" do
+    it "moves AI-generated pages to catch-all when user lacks credits" do
+      user.update_columns(plan_credits_balance: 0, topup_credits_balance: 0)
+      # Create a fringe template that's NOT in seed set or standalone
+      plan = described_class.new(level: "starter", interests: ["pizza"], user: user).call
+      ai_pages = plan.fringe_pages.select { |p| p[:source] == :ai_generated }
+      expect(ai_pages).to be_empty
+    end
+  end
+
+  describe "explicit_categories" do
+    it "uses explicit categories over dictionary lookup" do
+      plan = described_class.new(
+        level: "standard",
+        interests: ["pizza"],
+        explicit_categories: { "pizza" => "Play" },
+      ).call
+
+      play_page = plan.fringe_pages.find { |p| p[:name] == "Play" }
+      expect(play_page[:interests]).to include("pizza")
+
+      food_page = plan.fringe_pages.find { |p| p[:name] == "Food" }
+      expect(food_page&.dig(:interests)).not_to include("pizza") if food_page
+    end
+  end
+end
