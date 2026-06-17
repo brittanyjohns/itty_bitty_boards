@@ -287,18 +287,9 @@ class API::Admin::UsersController < API::Admin::ApplicationController
   private
 
   def destroy_demo_user!(user)
-    User.transaction do
-      user.boards.destroy_all
-      user.communicator_accounts.destroy_all
-      user.board_groups.destroy_all
-      user.word_events.delete_all
-      user.credit_transactions.delete_all
-      user.openai_prompts.delete_all
-      user.team_users.delete_all
-      user.subscriptions.delete_all
-      user.profile&.destroy
-      user.delete
-    end
+    user.soft_delete_account!(reason: "demo_cleanup", actor_id: current_admin.id) unless user.soft_deleted?
+    user.destroy!
+  end
   end
 
   # Use callbacks to share common setup or constraints between actions.
