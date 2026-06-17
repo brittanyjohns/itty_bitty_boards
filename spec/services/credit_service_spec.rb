@@ -21,7 +21,7 @@ RSpec.describe CreditService, type: :service do
 
   describe ".monthly_credits_for" do
     it "returns the configured allowance per plan" do
-      expect(described_class.monthly_credits_for("free")).to eq(5)
+      expect(described_class.monthly_credits_for("free")).to eq(25)
       expect(described_class.monthly_credits_for("basic")).to eq(400)
       expect(described_class.monthly_credits_for("basic_trial")).to eq(400)
       expect(described_class.monthly_credits_for("pro")).to eq(1500)
