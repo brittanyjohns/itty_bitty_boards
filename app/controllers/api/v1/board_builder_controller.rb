@@ -38,6 +38,16 @@ module API
                status: :ok
       end
 
+      def interest_categories
+        categories = Boards::InterestCategories::KEYWORDS.map do |name, words|
+          { name: name, words: words.sort }
+        end.sort_by { |c| c[:name] }
+
+        render json: { categories: categories,
+                       max_interests: Boards::InterestWords::MAX_INTERESTS },
+               status: :ok
+      end
+
       def create
         communicator = current_user.communicator_accounts.find_by(id: params[:communicator_id])
         unless communicator
@@ -95,8 +105,10 @@ module API
         owner = communicator.owner || communicator.user
         raise Boards::BoardTreeBuilder::BuildError, "communicator has no owning user" unless owner
 
-        interests = Boards::InterestWords.normalize_list(params[:interests])
-        root_name = robust_root ? robust_root.name : starter_tree[:name]
+        raw_interests = params[:interests]
+        interests  = Boards::InterestWords.normalize_list(raw_interests)
+        categories = Boards::InterestWords.extract_categories(raw_interests)
+        root_name  = robust_root ? robust_root.name : starter_tree[:name]
 
         # Create the root in-request so the 201 payload (and the duplicate
         # guard, and the board-limit count) see it immediately; the job adopts
@@ -129,7 +141,7 @@ module API
         # which was ALREADY queued asynchronously (GenerateImagesJob) and is
         # paid where it always was. So there is nothing to refund if
         # BuildBoardSetJob fails — no refund path needed, by decision.
-        BuildBoardSetJob.perform_async(root.id, communicator.id, params[:template].to_s, interests)
+        BuildBoardSetJob.perform_async(root.id, communicator.id, params[:template].to_s, interests, categories)
 
         render json: serialize_built_root(root), status: :created
       rescue Boards::BlueprintAssembler::UnknownTemplate => e

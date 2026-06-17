@@ -397,8 +397,9 @@ Rails.application.routes.draw do
       end
 
       # Board Builder wizard (hybrid: pick a starter template + add interests).
-      get  "board_builder/templates", to: "board_builder#templates"
-      post "board_builder",           to: "board_builder#create"
+      get  "board_builder/templates",           to: "board_builder#templates"
+      get  "board_builder/interest_categories", to: "board_builder#interest_categories"
+      post "board_builder",                     to: "board_builder#create"
 
       resource :auth, only: [:create, :destroy]
       delete "/child_accounts/logout", to: "child_auths#destroy"

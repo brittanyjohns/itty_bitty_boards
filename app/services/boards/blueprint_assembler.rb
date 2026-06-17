@@ -27,16 +27,17 @@
 module Boards
   class BlueprintAssembler
     FAVORITES_NAME = "My Favorites"
-    MAX_INTERESTS  = 12
+    MAX_INTERESTS  = Boards::InterestWords::MAX_INTERESTS
 
     class UnknownTemplate < StandardError; end
 
     attr_reader :interests
 
-    def initialize(template:, user:, interests: [])
-      @template_key = template.to_s
-      @user         = user
-      @interests    = normalize_interests(interests)
+    def initialize(template:, user:, interests: [], explicit_categories: {})
+      @template_key        = template.to_s
+      @user                = user
+      @interests           = normalize_interests(interests)
+      @explicit_categories = explicit_categories || {}
     end
 
     # Returns a builder-ready blueprint: the resolved template with interests
@@ -59,7 +60,7 @@ module Boards
       unrouted = []
 
       @interests.each do |word|
-        category = Boards::InterestCategories.category_for(word)
+        category = @explicit_categories[word] || Boards::InterestCategories.category_for(word)
         folder   = category && folders[category]
         folder ? add_interest_to_folder(folder, word) : unrouted << word
       end

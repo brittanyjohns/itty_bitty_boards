@@ -123,6 +123,27 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
     end
   end
 
+  describe "GET /api/v1/board_builder/interest_categories" do
+    it "returns all categories with sorted words and max_interests" do
+      get "/api/v1/board_builder/interest_categories", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+
+      expect(body["max_interests"]).to eq(20)
+      categories = body["categories"]
+      expect(categories.size).to be >= 15
+
+      names = categories.map { |c| c["name"] }
+      expect(names).to eq(names.sort)
+      expect(names).to include("Food", "Animals", "Music", "Play")
+
+      food = categories.find { |c| c["name"] == "Food" }
+      expect(food["words"]).to eq(food["words"].sort)
+      expect(food["words"]).to include("pizza", "apple")
+    end
+  end
+
   describe "POST /api/v1/board_builder" do
     before do
       seed_template_images!
@@ -169,7 +190,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(communicator.reload.details["interests"]).to eq(["dinosaurs", "grandma"])
 
         expect(BuildBoardSetJob.jobs.last["args"])
-          .to eq([root.id, communicator.id, "home", ["dinosaurs", "grandma"]])
+          .to eq([root.id, communicator.id, "home", ["dinosaurs", "grandma"], {}])
       end
 
       it "builds a linked set, routes interests into category vs favorites folders, and completes (job drained)" do
@@ -202,6 +223,42 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
                          .where("COALESCE((settings->>'builder_child')::boolean, false)")
         expect(sub_boards).to be_present
         expect(sub_boards.pluck(:status)).not_to include("building_board", "complete", "failed")
+      end
+
+      it "accepts interests as { word, category } hashes and routes by explicit category" do
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home",
+                       interests: [
+                         { word: "pizza", category: "Food" },
+                         { word: "grandma", category: "Play" },
+                       ] }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:created)
+
+        body = JSON.parse(response.body)
+        expect(communicator.reload.details["interests"]).to eq(["pizza", "grandma"])
+
+        BuildBoardSetJob.drain
+
+        root = Board.find(body["id"])
+        # "grandma" has no dictionary category but was explicitly routed to Play
+        play_tile = root.board_images.find { |bi| bi.label == "Play" }
+        play_board = Board.find(play_tile.predictive_board_id)
+        expect(play_board.board_images.map(&:label)).to include("grandma")
+
+        # No "My Favorites" needed — everything was explicitly routed
+        expect(root.board_images.map(&:label)).not_to include("My Favorites")
+      end
+
+      it "accepts more than 12 interests (new max is 20)" do
+        interests = (1..15).map { |n| "word#{n}" }
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home",
+                       interests: interests }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:created)
+
+        expect(communicator.reload.details["interests"].size).to eq(15)
       end
 
       it "builds the core template with no favorites folder when interests are empty" do
@@ -467,7 +524,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
 
         expect(communicator.reload.details["interests"]).to eq(["pizza"])
         expect(BuildBoardSetJob.jobs.last["args"])
-          .to eq([root.id, communicator.id, "core-60", ["pizza"]])
+          .to eq([root.id, communicator.id, "core-60", ["pizza"], {}])
 
         BuildBoardSetJob.drain
         root.reload

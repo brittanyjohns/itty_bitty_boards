@@ -821,7 +821,9 @@ Three seams (input contract tightens left→right):
   `Boards::InterestCategories` (apple→Food, trains→Play). Routing is dynamic
   by template (only into a folder the chosen template has); anything unmatched
   falls through to one appended **"My Favorites"** folder, deduped, nothing
-  dropped. Interests are normalized + capped at 12.
+  dropped. Interests are normalized + capped at 20. When the frontend sends
+  `[{ word, category }]` entries, the explicit category overrides the dictionary
+  lookup — so the categorized picker's selections route deterministically.
 - `Boards::BoardTreeBuilder` (#259) — persists the tree from a blueprint of
   **already-resolved `image_id`s only**. Keep it dumb; all resolution lives in
   the assembler.
@@ -834,8 +836,13 @@ Endpoints (`API::V1::BoardBuilderController`, both auth-gated):
   `recommended_template` (Core 60's slug for young/emerging, else Core 84's —
   only if that set is seeded here) and a `recommendation_reason` string. No
   profile → both `null`.
+- `GET /api/v1/board_builder/interest_categories` — returns the full category
+  dictionary (`{ categories: [{ name, words }], max_interests }`) for the
+  frontend's categorized interest picker. 18 categories, ~504 words.
 - `POST /api/v1/board_builder` `{ communicator_id, template, interests }` —
-  ownership check (**404 `communicator_not_found`** for a communicator not in
+  `interests` accepts plain strings or `[{ word, category }]` hashes; explicit
+  categories override the dictionary lookup. Ownership check (**404
+  `communicator_not_found`** for a communicator not in
   `current_user.communicator_accounts`), assemble → build → persist normalized
   interests to `child_account.details["interests"]` (jsonb merge), return the
   favorited root board's `api_view` (**201**). **422 `unknown_template`** /
