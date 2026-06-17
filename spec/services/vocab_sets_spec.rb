@@ -61,18 +61,18 @@ RSpec.describe VocabSets do
 
     it "ships fringe pages for the interest categories it can route into" do
       # The set names some fringe pages after routable interest categories
-      # (Food/Feelings/Play) so the wizard drops matching interests there. Other
-      # pages (People/Places/Body/Drinks/More) have no matching category yet —
-      # interests for those fall through to the auto "My Favorites" page by
-      # design (nothing is dropped). This guards the routable pages against drift:
-      # if Food/Feelings/Play were renamed, routing would silently break.
+      # so the wizard drops matching interests there. Other pages
+      # (People/Body/Drinks/More) have no matching category — interests for
+      # those fall through to the auto "My Favorites" page by design (nothing
+      # is dropped). This guards the routable pages against drift: if these
+      # were renamed, routing would silently break.
       VocabSets.seed_slug!("core-60")
 
       fringe_names = Board.where(user_id: admin.id).where.not(name: "Core 60").pluck(:name)
       routable = fringe_names.select { |name| Boards::InterestCategories.categories.include?(name) }
 
       # The authored set's routable category pages.
-      expect(routable).to contain_exactly("Food", "Feelings", "Play")
+      expect(routable).to contain_exactly("Food", "Feelings", "Places", "Play")
     end
 
     it "is idempotent — re-seeding doesn't duplicate boards or roots" do
