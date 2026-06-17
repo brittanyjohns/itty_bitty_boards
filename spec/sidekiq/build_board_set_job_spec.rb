@@ -185,6 +185,38 @@ RSpec.describe BuildBoardSetJob do
     end
   end
 
+  describe "preview generation" do
+    it "generates a preview synchronously before marking the root complete (starter)" do
+      root = precreate_root!(name: "Home")
+
+      expect_any_instance_of(Board).to receive(:generate_previews).once.and_call_original
+
+      # Stub Grover so the test doesn't need Chrome
+      allow_any_instance_of(Grover).to receive(:to_png).and_return(ChunkyPNG::Image.new(1, 1).to_blob)
+
+      described_class.new.perform(root.id, communicator.id, "home", ["dinosaurs"])
+
+      root.reload
+      expect(root.status).to eq("complete")
+      expect(root.preview_image).to be_attached
+    end
+
+    it "generates a preview synchronously before marking the root complete (robust set)" do
+      seed_robust_set!
+      root = precreate_root!(name: "Core 60")
+
+      expect_any_instance_of(Board).to receive(:generate_previews).once.and_call_original
+
+      allow_any_instance_of(Grover).to receive(:to_png).and_return(ChunkyPNG::Image.new(1, 1).to_blob)
+
+      described_class.new.perform(root.id, communicator.id, "core-60", ["pizza"])
+
+      root.reload
+      expect(root.status).to eq("complete")
+      expect(root.preview_image).to be_attached
+    end
+  end
+
   describe "failure path" do
     it "marks the root failed, re-raises, and leaves no orphan children" do
       root = precreate_root!(name: "Home")

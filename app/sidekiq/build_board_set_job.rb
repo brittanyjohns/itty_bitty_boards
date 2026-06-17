@@ -53,6 +53,7 @@ class BuildBoardSetJob
         build_legacy(root, communicator, level_or_template, interests, explicit_categories)
       end
 
+      generate_preview!(root)
       root.update_column(:status, "complete")
     rescue => e
       Rails.logger.error "\n**** SIDEKIQ - BuildBoardSetJob #{root.id} #{level_or_template.inspect} \n\nERROR **** \n#{e.message}\n#{e.backtrace&.join("\n")}\n"
@@ -218,6 +219,12 @@ class BuildBoardSetJob
     return if image.docs.any? { |doc| [User::DEFAULT_ADMIN_ID, owner.id].include?(doc.user_id) }
 
     GenerateImagesJob.perform_async([image.id], board.id)
+  end
+
+  def generate_preview!(root)
+    root.reload
+    root.generate_previews
+    root.update_preset_display_image_url(root.preview_image_url) if root.preview_image.attached?
   end
 
   # Legacy path: backward-compatible with direct template keys (core-60, core-84, home, etc.)
