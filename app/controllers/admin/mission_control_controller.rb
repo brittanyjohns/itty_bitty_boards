@@ -20,7 +20,7 @@ module Admin
 
       demo_users = User.demo_accounts.includes(:boards)
       excluded = demo_users.where(id: exclude_ids)
-      candidates = demo_users.where.not(id: exclude_ids)
+      candidates = demo_users.where.not(id: exclude_ids).where.not(role: "admin")
 
       ranked = candidates.sort_by { |u| -u.boards.size }
       kept = ranked.first(keep_count)

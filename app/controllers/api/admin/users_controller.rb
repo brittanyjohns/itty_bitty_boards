@@ -261,6 +261,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     excluded = demo_users.where(id: exclude_ids)
     candidates = demo_users.where.not(id: exclude_ids)
 
+    candidates = candidates.where.not(role: "admin")
     ranked = candidates.sort_by { |u| -u.boards.size }
     kept = ranked.first(keep_count)
     to_delete = ranked.drop(keep_count)
