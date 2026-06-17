@@ -98,8 +98,8 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(body["recommendation_reason"]).to be_present
       end
 
-      it "recommends standard for a developing communicator" do
-        communicator.update!(details: { "aac_level" => "developing", "age_band" => "7-10" })
+      it "recommends standard for a developing communicator (age 11+)" do
+        communicator.update!(details: { "aac_level" => "developing", "age_band" => "11-14" })
         get "/api/v1/board_builder/templates",
             params: { communicator_id: communicator.id }, headers: headers
 

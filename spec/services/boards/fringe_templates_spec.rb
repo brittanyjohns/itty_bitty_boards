@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe Boards::FringeTemplates do
-  let(:admin) { create(:admin_user) }
+  let(:admin) { User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
 
   describe ".find" do
     it "returns nil for blank category" do
