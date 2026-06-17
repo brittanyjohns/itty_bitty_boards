@@ -122,19 +122,21 @@ class API::SubscriptionsController < API::ApplicationController
     end
 
     item = subscription.items.data.first
-    invoice_params = {
-      customer: customer_id,
-      subscription: subscription.id,
-      subscription_items: [{ id: item.id, price: price_id }],
-      subscription_proration_behavior: "create_prorations",
+    details = {
+      items: [{ id: item.id, price: price_id }],
+      proration_behavior: "create_prorations",
     }
 
     promo = resolve_promotion_code(params[:promo_code])
     if promo.present?
-      invoice_params[:subscription_details] = {
-        discounts: [{ promotion_code: promo.id }],
-      }
+      details[:discounts] = [{ promotion_code: promo.id }]
     end
+
+    invoice_params = {
+      customer: customer_id,
+      subscription: subscription.id,
+      subscription_details: details,
+    }
 
     upcoming = Stripe::Invoice.upcoming(invoice_params)
     new_price = Stripe::Price.retrieve(price_id)

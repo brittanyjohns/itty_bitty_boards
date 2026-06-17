@@ -62,12 +62,13 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
       expect(body["discount"]).to be_nil
     end
 
-    it "calls Invoice.upcoming with proration params" do
+    it "calls Invoice.upcoming with subscription_details params" do
       expect(Stripe::Invoice).to receive(:upcoming) do |params|
         expect(params[:customer]).to eq("cus_existing")
         expect(params[:subscription]).to eq("sub_active")
-        expect(params[:subscription_items]).to eq([{ id: "si_123", price: "price_pro" }])
-        expect(params[:subscription_proration_behavior]).to eq("create_prorations")
+        expect(params[:subscription_details][:items]).to eq([{ id: "si_123", price: "price_pro" }])
+        expect(params[:subscription_details][:proration_behavior]).to eq("create_prorations")
+        expect(params).not_to have_key(:subscription_items)
         upcoming_invoice
       end
 
