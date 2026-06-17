@@ -771,6 +771,10 @@ image pool:
   `Board.from_obf(... import_options:)`, and `ImportFromObfJob#perform`
   (4th positional arg). All default to `{}` for backward compat with
   callers that don't care.
+- **`Board.from_obf` returns a tuple** `[board, dynamic_data]`, not a bare
+  `Board`. Callers must destructure: `board, _dynamic = Board.from_obf(...)`.
+  Signature: `from_obf(data, current_user, board_group = nil, board_id = nil,
+  import_options: {})` — don't swap `current_user` and `board_group`.
 
 ## Board Sets (BoardGroup) — user CRUD + limits
 
@@ -978,6 +982,10 @@ Builder's deterministic build path is unchanged.
 - Rails test environment uses `:null_store` for Rails.cache — stub `Rails.cache` in specs that depend on caching behavior
 - Avoid `travel_to` with past timestamps for Redis keys (TTLs expire immediately); use future times or freeze time instead
 - After spec changes, run the tests that depend on the changed code to ensure no regressions. Use `bin/rspec --only-failures` to rerun only failed specs.
+- Services that query `DEFAULT_ADMIN_ID` (`FringeTemplates`, `RobustSets`,
+  `VocabSets`) need the admin created with that specific ID in specs —
+  `create(:admin_user)` assigns a random ID and the lookups return nil.
+  Use: `User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)`
 
 ## Rules for Editing This File
 
