@@ -224,7 +224,13 @@ class BuildBoardSetJob
   def generate_preview!(root)
     root.reload
     root.generate_previews
+    # In production the CDN path builds the URL without request context;
+    # in dev/test the Disk service needs ActiveStorage::Current.url_options
+    # which isn't available inside a Sidekiq job. The preset URL is a
+    # nice-to-have cache — preview_image_url resolves live on every API call.
     root.update_preset_display_image_url(root.preview_image_url) if root.preview_image.attached?
+  rescue ArgumentError => e
+    raise unless e.message.include?("url_options")
   end
 
   # Legacy path: backward-compatible with direct template keys (core-60, core-84, home, etc.)
