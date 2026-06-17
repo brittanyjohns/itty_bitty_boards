@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-gray-950">
+<html lang="en" class="h-full">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,50 +8,144 @@
   <%= csp_meta_tag %>
   <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
   <%= javascript_include_tag "application", "data-turbo-track": "reload", defer: true %>
+  <style>
+    /* Light mode (default) */
+    :root {
+      --bg-body: #f9fafb;       /* gray-50 */
+      --bg-surface: #ffffff;
+      --bg-surface-alt: #f3f4f6; /* gray-100 */
+      --bg-nav: #ffffff;
+      --border: #e5e7eb;         /* gray-200 */
+      --border-light: #f3f4f6;
+      --text-primary: #111827;   /* gray-900 */
+      --text-secondary: #6b7280; /* gray-500 */
+      --text-muted: #9ca3af;     /* gray-400 */
+      --text-accent: #6366f1;    /* indigo-500 */
+      --text-accent-hover: #4f46e5;
+      --badge-bg: #f3f4f6;
+      --input-bg: #ffffff;
+      --input-border: #d1d5db;
+      --hover-row: rgba(243, 244, 246, 0.6);
+    }
+    /* Dark mode */
+    html.dark {
+      --bg-body: #030712;       /* gray-950 */
+      --bg-surface: #111827;    /* gray-900 */
+      --bg-surface-alt: #1f2937; /* gray-800 */
+      --bg-nav: #111827;
+      --border: #1f2937;
+      --border-light: rgba(31, 41, 55, 0.6);
+      --text-primary: #f3f4f6;
+      --text-secondary: #9ca3af;
+      --text-muted: #6b7280;
+      --text-accent: #818cf8;
+      --badge-bg: #1f2937;
+      --input-bg: #1f2937;
+      --input-border: #374151;
+      --hover-row: rgba(31, 41, 55, 0.4);
+    }
+    body.admin-body {
+      background: var(--bg-body);
+      color: var(--text-primary);
+    }
+    .admin-nav { background: var(--bg-nav); border-color: var(--border); }
+    .admin-card { background: var(--bg-surface); border-color: var(--border); }
+    .admin-card-alt { background: var(--bg-surface-alt); }
+    .text-t1 { color: var(--text-primary); }
+    .text-t2 { color: var(--text-secondary); }
+    .text-t3 { color: var(--text-muted); }
+    .text-accent { color: var(--text-accent); }
+    .border-t { border-color: var(--border); }
+    .border-t-light { border-color: var(--border-light); }
+    .admin-badge { background: var(--badge-bg); }
+    .admin-input {
+      background: var(--input-bg);
+      border-color: var(--input-border);
+      color: var(--text-primary);
+    }
+    .admin-hover-row:hover { background: var(--hover-row); }
+    .admin-flash-ok { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.2); color: #16a34a; }
+    .admin-flash-err { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); color: #dc2626; }
+    html.dark .admin-flash-ok { background: rgba(34,197,94,0.15); color: #86efac; }
+    html.dark .admin-flash-err { background: rgba(239,68,68,0.15); color: #fca5a5; }
+
+    .theme-toggle {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 6px; cursor: pointer;
+      font-size: 12px; border: 1px solid var(--border);
+      background: var(--bg-surface); color: var(--text-secondary);
+      transition: all 0.15s;
+    }
+    .theme-toggle:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+  </style>
+  <script>
+    (function() {
+      var t = localStorage.getItem('admin_theme');
+      if (t === 'dark') document.documentElement.classList.add('dark');
+    })();
+  </script>
 </head>
-<body class="h-full bg-gray-950 text-gray-100 font-sans antialiased">
+<body class="h-full admin-body font-sans antialiased">
 
   <%# Top nav %>
-  <header class="bg-gray-900 border-b border-gray-800">
+  <header class="admin-nav border-b">
     <div class="max-w-screen-2xl mx-auto px-6 h-14 flex items-center justify-between">
       <div class="flex items-center gap-6">
         <%= link_to admin_root_path, class: "flex items-center gap-3 group" do %>
-          <span class="text-xs font-semibold tracking-widest uppercase text-indigo-400 group-hover:text-indigo-300 transition-colors">SpeakAnyWay</span>
-          <span class="text-gray-700">/</span>
-          <span class="text-sm font-medium text-white">Admin</span>
+          <span class="text-xs font-semibold tracking-widest uppercase text-accent">SpeakAnyWay</span>
+          <span class="text-t3">/</span>
+          <span class="text-sm font-medium text-t1">Admin</span>
         <% end %>
 
         <nav class="hidden md:flex items-center gap-1">
           <%= link_to "Dashboard", admin_root_path,
-                class: "text-xs px-3 py-1.5 rounded #{current_page?(admin_root_path) ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800/60"} transition-colors" %>
+                class: "text-xs px-3 py-1.5 rounded #{current_page?(admin_root_path) ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Mission Control", admin_mission_control_path,
-                class: "text-xs px-3 py-1.5 rounded #{current_page?(admin_mission_control_path) ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800/60"} transition-colors" %>
+                class: "text-xs px-3 py-1.5 rounded #{current_page?(admin_mission_control_path) ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Users", admin_dashboard_users_path,
-                class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/users") ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800/60"} transition-colors" %>
+                class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/users") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Sidekiq", "/sidekiq",
-                class: "text-xs px-3 py-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-800/60 transition-colors" %>
+                class: "text-xs px-3 py-1.5 rounded text-t2 hover:text-t1 transition-colors" %>
         </nav>
       </div>
 
-      <div class="flex items-center gap-4 text-xs text-gray-400">
+      <div class="flex items-center gap-4 text-xs text-t2">
+        <button class="theme-toggle" onclick="toggleAdminTheme()" id="theme-btn" title="Toggle light/dark mode">
+          <span id="theme-icon">&#9788;</span>
+          <span id="theme-label">Light</span>
+        </button>
         <span><%= current_user.email %></span>
         <%= button_to "Sign out", destroy_user_session_path, method: :delete,
-              class: "text-gray-500 hover:text-white transition-colors bg-transparent border-0 cursor-pointer p-0" %>
+              class: "text-t3 hover:text-t1 transition-colors bg-transparent border-0 cursor-pointer p-0" %>
       </div>
     </div>
   </header>
 
   <%# Flash messages %>
   <% if notice.present? %>
-    <div class="bg-green-900/40 border-b border-green-800 text-green-300 text-sm px-6 py-2"><%= notice %></div>
+    <div class="admin-flash-ok border-b text-sm px-6 py-2"><%= notice %></div>
   <% end %>
   <% if alert.present? %>
-    <div class="bg-red-900/40 border-b border-red-800 text-red-300 text-sm px-6 py-2"><%= alert %></div>
+    <div class="admin-flash-err border-b text-sm px-6 py-2"><%= alert %></div>
   <% end %>
 
   <main class="max-w-screen-2xl mx-auto px-6 py-8">
     <%= yield %>
   </main>
 
+  <script>
+    function toggleAdminTheme() {
+      var html = document.documentElement;
+      var isDark = html.classList.toggle('dark');
+      localStorage.setItem('admin_theme', isDark ? 'dark' : 'light');
+      updateThemeButton();
+    }
+    function updateThemeButton() {
+      var isDark = document.documentElement.classList.contains('dark');
+      document.getElementById('theme-icon').innerHTML = isDark ? '&#9790;' : '&#9788;';
+      document.getElementById('theme-label').textContent = isDark ? 'Dark' : 'Light';
+    }
+    updateThemeButton();
+  </script>
 </body>
 </html>

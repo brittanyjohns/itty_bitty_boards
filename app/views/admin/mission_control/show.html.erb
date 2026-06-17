@@ -3,18 +3,19 @@
 <%# ─── Page header ─────────────────────────────────────────── %>
 <div class="flex items-center justify-between mb-8">
   <div>
-    <h1 class="text-2xl font-semibold text-white tracking-tight">Overview</h1>
-    <p class="text-sm text-gray-500 mt-0.5"><%= Time.zone.now.strftime("%A, %B %-d %Y · %H:%M %Z") %></p>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">Overview</h1>
+    <p class="text-sm text-t3 mt-0.5"><%= Time.zone.now.strftime("%A, %B %-d %Y · %H:%M %Z") %></p>
   </div>
   <a href="<%= admin_mission_control_path %>"
-     class="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 rounded px-3 py-1.5 transition-colors">
+     class="text-xs text-t2 hover:text-t1 border rounded px-3 py-1.5 transition-colors"
+     style="border-color: var(--border);">
     ↺ Refresh
   </a>
 </div>
 
 <%# ─── Today at a glance ───────────────────────────────────── %>
 <section class="mb-10">
-  <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-4">Today</h2>
+  <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Today</h2>
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
     <%= render "stat_card", label: "Signups",      value: @overview[:signups_today],     sub: "#{@overview[:signups_7d]} last 7d" %>
     <%= render "stat_card", label: "Boards",       value: @overview[:boards_today],      sub: "#{@overview[:boards_7d]} last 7d" %>
@@ -23,16 +24,50 @@
   </div>
 </section>
 
+<%# ─── Engagement ─────────────────────────────────────────── %>
+<section class="mb-10">
+  <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Engagement</h2>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <%= render "stat_card", label: "Active Users (7d)",  value: @overview[:active_users_7d],  sub: "signed in last 7 days" %>
+    <%= render "stat_card", label: "Active Users (30d)", value: @overview[:active_users_30d], sub: "signed in last 30 days" %>
+    <%= render "stat_card", label: "Trial Users",        value: @overview[:trial_users],      sub: "currently trialing" %>
+    <%= render "stat_card", label: "Communicators",      value: @overview[:communicator_accounts], sub: "active accounts" %>
+  </div>
+</section>
+
+<%# ─── Signup trend (last 7 days) ──────────────────────────── %>
+<% daily = @overview[:signups_daily_7d] || {} %>
+<% if daily.any? || @overview[:signups_7d].to_i > 0 %>
+  <section class="mb-10">
+    <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Signup Trend (Last 7 Days)</h2>
+    <div class="admin-card border rounded-xl p-6">
+      <div class="flex items-end gap-2" style="height: 120px;">
+        <% max_val = [daily.values.max.to_i, 1].max %>
+        <% 7.times do |i| %>
+          <% date = (6 - i).days.ago.to_date.to_s %>
+          <% count = daily[date].to_i %>
+          <% height_pct = (count.to_f / max_val * 100).round %>
+          <div class="flex-1 flex flex-col items-center gap-1">
+            <span class="text-xs font-medium text-t1"><%= count %></span>
+            <div class="w-full rounded-t" style="height: <%= [height_pct, 4].max %>%; min-height: 4px; background: <%= count > 0 ? "var(--text-accent)" : "var(--border)" %>;"></div>
+            <span class="text-[10px] text-t3"><%= (6 - i).days.ago.strftime("%-m/%-d") %></span>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </section>
+<% end %>
+
 <%# ─── Two-column grid: Revenue + Health ──────────────────── %>
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
 
   <%# Revenue ─────────────────────────────────────────────── %>
-  <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
-    <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-5">
+  <div class="admin-card border rounded-xl p-6">
+    <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-5">
       Subscriptions &amp; Revenue
     </h2>
     <% if @revenue[:revenue_error] %>
-      <p class="text-xs text-red-400 mb-3">Stripe error: <%= @revenue[:revenue_error] %></p>
+      <p class="text-xs text-red-500 mb-3">Stripe error: <%= @revenue[:revenue_error] %></p>
     <% end %>
     <dl class="space-y-3">
       <%= render "metric_row", label: "Active subscriptions (total)", value: @revenue[:active_subscriptions] %>
@@ -52,13 +87,13 @@
     <%# ── Per-source plan breakdowns ── %>
     <% stripe_plans = @revenue.dig(:stripe, :plan_breakdown) %>
     <% if stripe_plans.present? %>
-      <div class="mt-5 pt-4 border-t border-gray-800">
-        <p class="text-xs text-gray-500 mb-3">Stripe plan breakdown</p>
+      <div class="mt-5 pt-4" style="border-top: 1px solid var(--border);">
+        <p class="text-xs text-t2 mb-3">Stripe plan breakdown</p>
         <div class="flex flex-wrap gap-2">
           <% stripe_plans.each do |plan, count| %>
-            <span class="inline-flex items-center gap-1.5 text-xs bg-gray-800 rounded px-2.5 py-1">
-              <span class="text-gray-300"><%= plan.presence || "unknown" %></span>
-              <span class="text-indigo-400 font-medium"><%= count %></span>
+            <span class="inline-flex items-center gap-1.5 text-xs admin-badge rounded px-2.5 py-1">
+              <span class="text-t2"><%= plan.presence || "unknown" %></span>
+              <span class="text-accent font-medium"><%= count %></span>
             </span>
           <% end %>
         </div>
@@ -67,13 +102,13 @@
 
     <% rc_plans = @revenue.dig(:revenuecat, :plan_breakdown) %>
     <% if rc_plans.present? %>
-      <div class="mt-5 pt-4 border-t border-gray-800">
-        <p class="text-xs text-gray-500 mb-3">App Store plan breakdown (local DB)</p>
+      <div class="mt-5 pt-4" style="border-top: 1px solid var(--border);">
+        <p class="text-xs text-t2 mb-3">App Store plan breakdown (local DB)</p>
         <div class="flex flex-wrap gap-2">
           <% rc_plans.each do |plan, count| %>
-            <span class="inline-flex items-center gap-1.5 text-xs bg-gray-800 rounded px-2.5 py-1">
-              <span class="text-gray-300"><%= plan.presence || "unknown" %></span>
-              <span class="text-indigo-400 font-medium"><%= count %></span>
+            <span class="inline-flex items-center gap-1.5 text-xs admin-badge rounded px-2.5 py-1">
+              <span class="text-t2"><%= plan.presence || "unknown" %></span>
+              <span class="text-accent font-medium"><%= count %></span>
             </span>
           <% end %>
         </div>
@@ -81,13 +116,13 @@
     <% end %>
 
     <% if @revenue[:plan_breakdown].present? %>
-      <div class="mt-5 pt-4 border-t border-gray-800">
-        <p class="text-xs text-gray-500 mb-3">All users by plan (local DB)</p>
+      <div class="mt-5 pt-4" style="border-top: 1px solid var(--border);">
+        <p class="text-xs text-t2 mb-3">All users by plan (local DB)</p>
         <div class="flex flex-wrap gap-2">
           <% @revenue[:plan_breakdown].each do |plan, count| %>
-            <span class="inline-flex items-center gap-1.5 text-xs bg-gray-800 rounded px-2.5 py-1">
-              <span class="text-gray-300"><%= plan.presence || "none" %></span>
-              <span class="text-indigo-400 font-medium"><%= count %></span>
+            <span class="inline-flex items-center gap-1.5 text-xs admin-badge rounded px-2.5 py-1">
+              <span class="text-t2"><%= plan.presence || "none" %></span>
+              <span class="text-accent font-medium"><%= count %></span>
             </span>
           <% end %>
         </div>
@@ -96,8 +131,8 @@
   </div>
 
   <%# System Health ─────────────────────────────────────────── %>
-  <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
-    <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-5">System Health</h2>
+  <div class="admin-card border rounded-xl p-6">
+    <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-5">System Health</h2>
     <dl class="space-y-3">
       <%= render "health_row", label: "Database",   ok: @health[:db_connected] %>
       <%= render "health_row", label: "Redis",       ok: @health[:redis_connected] %>
@@ -113,13 +148,13 @@
     </dl>
 
     <% if @health[:sidekiq_queues].present? %>
-      <div class="mt-5 pt-4 border-t border-gray-800">
-        <p class="text-xs text-gray-500 mb-3">Queue depths</p>
+      <div class="mt-5 pt-4" style="border-top: 1px solid var(--border);">
+        <p class="text-xs text-t2 mb-3">Queue depths</p>
         <div class="flex flex-wrap gap-2">
           <% @health[:sidekiq_queues].each do |queue, depth| %>
-            <span class="inline-flex items-center gap-1.5 text-xs bg-gray-800 rounded px-2.5 py-1">
-              <span class="text-gray-300"><%= queue %></span>
-              <span class="<%= depth.to_i > 0 ? "text-yellow-400" : "text-gray-500" %> font-medium"><%= depth %></span>
+            <span class="inline-flex items-center gap-1.5 text-xs admin-badge rounded px-2.5 py-1">
+              <span class="text-t2"><%= queue %></span>
+              <span class="<%= depth.to_i > 0 ? "text-yellow-500" : "text-t3" %> font-medium"><%= depth %></span>
             </span>
           <% end %>
         </div>
@@ -130,25 +165,25 @@
 
 <%# ─── AI usage ───────────────────────────────────────────── %>
 <section class="mb-10">
-  <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
-    <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-5">AI Usage</h2>
+  <div class="admin-card border rounded-xl p-6">
+    <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-5">AI Usage</h2>
     <div class="grid grid-cols-2 md:grid-cols-3 gap-6">
       <div>
-        <p class="text-xs text-gray-500 mb-1">Boards generated</p>
-        <p class="text-2xl font-semibold text-white"><%= @usage[:ai_boards_today] %><span class="text-sm text-gray-500 ml-1">today</span></p>
-        <p class="text-xs text-gray-600 mt-0.5"><%= @usage[:ai_boards_7d] %> last 7d · <%= @usage[:ai_boards_30d] %> last 30d</p>
+        <p class="text-xs text-t2 mb-1">Boards generated</p>
+        <p class="text-2xl font-semibold text-t1"><%= @usage[:ai_boards_today] %><span class="text-sm text-t3 ml-1">today</span></p>
+        <p class="text-xs text-t3 mt-0.5"><%= @usage[:ai_boards_7d] %> last 7d · <%= @usage[:ai_boards_30d] %> last 30d</p>
       </div>
       <div>
-        <p class="text-xs text-gray-500 mb-1">AI prompts sent</p>
-        <p class="text-2xl font-semibold text-white"><%= @usage[:ai_prompts_today] %><span class="text-sm text-gray-500 ml-1">today</span></p>
-        <p class="text-xs text-gray-600 mt-0.5"><%= @usage[:ai_prompts_30d] %> last 30d</p>
+        <p class="text-xs text-t2 mb-1">AI prompts sent</p>
+        <p class="text-2xl font-semibold text-t1"><%= @usage[:ai_prompts_today] %><span class="text-sm text-t3 ml-1">today</span></p>
+        <p class="text-xs text-t3 mt-0.5"><%= @usage[:ai_prompts_30d] %> last 30d</p>
       </div>
       <div>
-        <p class="text-xs text-gray-500 mb-1">Generation failures</p>
-        <p class="text-2xl font-semibold <%= @usage[:ai_failures_today].to_i > 0 ? "text-red-400" : "text-white" %>">
-          <%= @usage[:ai_failures_today] %><span class="text-sm text-gray-500 ml-1">today</span>
+        <p class="text-xs text-t2 mb-1">Generation failures</p>
+        <p class="text-2xl font-semibold <%= @usage[:ai_failures_today].to_i > 0 ? "text-red-500" : "text-t1" %>">
+          <%= @usage[:ai_failures_today] %><span class="text-sm text-t3 ml-1">today</span>
         </p>
-        <p class="text-xs text-gray-600 mt-0.5"><%= @usage[:ai_failures_7d] %> last 7d</p>
+        <p class="text-xs text-t3 mt-0.5"><%= @usage[:ai_failures_7d] %> last 7d</p>
       </div>
     </div>
   </div>
@@ -156,7 +191,7 @@
 
 <%# ─── Totals ─────────────────────────────────────────────── %>
 <section class="mb-10">
-  <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-4">All-Time Totals</h2>
+  <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">All-Time Totals</h2>
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
     <%= render "stat_card", label: "Total Users",       value: number_with_delimiter(@overview[:total_users]) %>
     <%= render "stat_card", label: "Total Boards",      value: number_with_delimiter(@overview[:total_boards]) %>
@@ -167,23 +202,23 @@
 
 <%# ─── Demo user cleanup ───────────────────────────────────── %>
 <section class="mb-10">
-  <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-4">Demo Users</h2>
-  <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+  <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Demo Users</h2>
+  <div class="admin-card border rounded-xl p-6">
     <div class="flex items-center justify-between mb-4">
-      <p class="text-sm text-gray-300">
-        <span class="text-2xl font-semibold text-white"><%= @demo_user_count %></span>
-        <span class="text-gray-500 ml-1">demo accounts</span>
+      <p class="text-sm text-t2">
+        <span class="text-2xl font-semibold text-t1"><%= @demo_user_count %></span>
+        <span class="text-t3 ml-1">demo accounts</span>
       </p>
     </div>
 
     <% if @demo_users_preview.any? %>
       <div class="mb-5">
-        <p class="text-xs text-gray-500 mb-2">Top demo users by board count:</p>
+        <p class="text-xs text-t2 mb-2">Top demo users by board count:</p>
         <div class="flex flex-wrap gap-2">
           <% @demo_users_preview.each do |u| %>
-            <span class="inline-flex items-center gap-1.5 text-xs bg-gray-800 rounded px-2.5 py-1">
-              <span class="text-gray-400"><%= u[:email] %></span>
-              <span class="text-indigo-400 font-medium"><%= u[:boards] %> boards</span>
+            <span class="inline-flex items-center gap-1.5 text-xs admin-badge rounded px-2.5 py-1">
+              <span class="text-t2"><%= u[:email] %></span>
+              <span class="text-accent font-medium"><%= u[:boards] %> boards</span>
             </span>
           <% end %>
         </div>
@@ -191,18 +226,20 @@
     <% end %>
 
     <% if @demo_user_count > 0 %>
-      <%= form_tag cleanup_demo_admin_mission_control_path, method: :post, class: "border-t border-gray-800 pt-4",
+      <%= form_tag cleanup_demo_admin_mission_control_path, method: :post, class: "pt-4",
+            style: "border-top: 1px solid var(--border);",
             data: { turbo: false } do %>
         <div class="flex flex-wrap items-end gap-4">
           <div>
-            <label for="keep_count" class="block text-xs text-gray-500 mb-1">Keep top N by boards</label>
+            <label for="keep_count" class="block text-xs text-t2 mb-1">Keep top N by boards</label>
             <input type="number" name="keep_count" id="keep_count" value="5" min="0" max="<%= @demo_user_count %>"
-                   class="w-20 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-white focus:border-indigo-500 focus:outline-none">
+                   class="w-20 admin-input border rounded px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none">
           </div>
           <div class="flex-1 min-w-[200px]">
-            <label for="exclude_ids" class="block text-xs text-gray-500 mb-1">Exclude IDs (comma-separated, optional)</label>
+            <label for="exclude_ids" class="block text-xs text-t2 mb-1">Exclude IDs (comma-separated, optional)</label>
             <input type="text" name="exclude_ids" id="exclude_ids" placeholder="e.g. 42, 99"
-                   class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none">
+                   class="w-full admin-input border rounded px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                   style="::placeholder { color: var(--text-muted); }">
           </div>
           <button type="submit" onclick="return confirm('This will permanently delete demo users. Continue?')"
                   class="bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded px-4 py-1.5 transition-colors">
@@ -216,23 +253,24 @@
 
 <%# ─── Recent events ──────────────────────────────────────── %>
 <section>
-  <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-4">Recent Events</h2>
+  <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Recent Events</h2>
 
   <% if @recent_events.any? %>
-    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+    <div class="admin-card border rounded-xl overflow-hidden">
       <table class="w-full text-sm" id="events-table">
         <thead>
-          <tr class="border-b border-gray-800">
-            <th class="text-left text-xs font-medium text-gray-500 px-5 py-3 w-36">When</th>
-            <th class="text-left text-xs font-medium text-gray-500 px-5 py-3 w-56">Event</th>
-            <th class="text-left text-xs font-medium text-gray-500 px-5 py-3">User</th>
-            <th class="text-left text-xs font-medium text-gray-500 px-5 py-3">Details</th>
+          <tr style="border-bottom: 1px solid var(--border);">
+            <th class="text-left text-xs font-medium text-t2 px-5 py-3 w-36">When</th>
+            <th class="text-left text-xs font-medium text-t2 px-5 py-3 w-56">Event</th>
+            <th class="text-left text-xs font-medium text-t2 px-5 py-3">User</th>
+            <th class="text-left text-xs font-medium text-t2 px-5 py-3">Details</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-gray-800/60">
+        <tbody>
           <% @recent_events.each_with_index do |event, idx| %>
-            <tr class="hover:bg-gray-800/40 transition-colors cursor-pointer event-row" data-event-idx="<%= idx %>">
-              <td class="px-5 py-3 text-xs text-gray-500 whitespace-nowrap">
+            <tr class="admin-hover-row transition-colors cursor-pointer event-row" data-event-idx="<%= idx %>"
+                style="border-bottom: 1px solid var(--border-light);">
+              <td class="px-5 py-3 text-xs text-t3 whitespace-nowrap">
                 <%= time_ago_in_words(event.occurred_at) %> ago
               </td>
               <td class="px-5 py-3">
@@ -240,43 +278,43 @@
                   <%= event.event_type %>
                 </span>
               </td>
-              <td class="px-5 py-3 text-xs text-gray-400">
+              <td class="px-5 py-3 text-xs text-t2">
                 <%= event.user&.email || "—" %>
               </td>
-              <td class="px-5 py-3 text-xs text-gray-600 font-mono">
+              <td class="px-5 py-3 text-xs text-t3 font-mono">
                 <% if event.metadata.present? %>
                   <span class="truncate block max-w-xs"><%= event.metadata.map { |k, v| "#{k}: #{v}" }.join(" · ") %></span>
-                  <span class="text-indigo-400 text-[10px] ml-1">▸ click to expand</span>
+                  <span class="text-accent text-[10px] ml-1">▸ click to expand</span>
                 <% end %>
               </td>
             </tr>
             <tr class="event-detail hidden" id="event-detail-<%= idx %>">
-              <td colspan="4" class="px-5 py-4 bg-gray-800/30">
+              <td colspan="4" class="px-5 py-4" style="background: var(--hover-row);">
                 <div class="grid grid-cols-1 gap-1.5">
                   <div class="flex items-baseline gap-2 text-xs">
-                    <span class="text-gray-500 font-medium shrink-0 w-24">Event ID</span>
-                    <span class="text-gray-300 font-mono"><%= event.id %></span>
+                    <span class="text-t2 font-medium shrink-0 w-24">Event ID</span>
+                    <span class="text-t1 font-mono"><%= event.id %></span>
                   </div>
                   <div class="flex items-baseline gap-2 text-xs">
-                    <span class="text-gray-500 font-medium shrink-0 w-24">Occurred at</span>
-                    <span class="text-gray-300"><%= event.occurred_at.strftime("%Y-%m-%d %H:%M:%S %Z") %></span>
+                    <span class="text-t2 font-medium shrink-0 w-24">Occurred at</span>
+                    <span class="text-t1"><%= event.occurred_at.strftime("%Y-%m-%d %H:%M:%S %Z") %></span>
                   </div>
                   <div class="flex items-baseline gap-2 text-xs">
-                    <span class="text-gray-500 font-medium shrink-0 w-24">User</span>
-                    <span class="text-gray-300"><%= event.user&.email || "—" %> <% if event.user_id %><span class="text-gray-600">(id: <%= event.user_id %>)</span><% end %></span>
+                    <span class="text-t2 font-medium shrink-0 w-24">User</span>
+                    <span class="text-t1"><%= event.user&.email || "—" %> <% if event.user_id %><span class="text-t3">(id: <%= event.user_id %>)</span><% end %></span>
                   </div>
                   <% if event.metadata.present? %>
-                    <div class="mt-2 pt-2 border-t border-gray-700/50">
-                      <p class="text-xs text-gray-500 font-medium mb-1.5">Metadata</p>
+                    <div class="mt-2 pt-2" style="border-top: 1px solid var(--border-light);">
+                      <p class="text-xs text-t2 font-medium mb-1.5">Metadata</p>
                       <% event.metadata.each do |key, value| %>
                         <div class="flex items-baseline gap-2 text-xs py-0.5">
-                          <span class="text-indigo-400 font-mono shrink-0 min-w-[120px]"><%= key %></span>
-                          <span class="text-gray-300 font-mono break-all"><%= value.is_a?(Hash) || value.is_a?(Array) ? value.to_json : value %></span>
+                          <span class="text-accent font-mono shrink-0 min-w-[120px]"><%= key %></span>
+                          <span class="text-t1 font-mono break-all"><%= value.is_a?(Hash) || value.is_a?(Array) ? value.to_json : value %></span>
                         </div>
                       <% end %>
                     </div>
                   <% else %>
-                    <p class="text-xs text-gray-600 mt-2">No metadata.</p>
+                    <p class="text-xs text-t3 mt-2">No metadata.</p>
                   <% end %>
                 </div>
               </td>
@@ -296,11 +334,8 @@
       });
     </script>
   <% else %>
-    <div class="bg-gray-900 border border-gray-800 rounded-xl px-5 py-10 text-center text-sm text-gray-600">
+    <div class="admin-card border rounded-xl px-5 py-10 text-center text-sm text-t3">
       No events recorded yet. Events will appear here as activity happens.
     </div>
   <% end %>
 </section>
-
-<%# ─── Partials ───────────────────────────────────────────── %>
-<% # stat_card partial is inlined below via content_for for simplicity %>

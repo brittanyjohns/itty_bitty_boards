@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Improved — Admin dashboard: light/dark toggle + engagement metrics
+- **Light mode default** with a toggle in the top-right nav. Preference persists
+  in localStorage. All admin pages (Dashboard, Mission Control, Users) use CSS
+  variable theming that works in both modes.
+- **New Engagement section** on Mission Control: Active Users (7d), Active Users
+  (30d), Trial Users (currently trialing), and Communicator accounts.
+- **Signup Trend chart** showing daily signups for the last 7 days as a bar chart.
+- All admin views (Dashboard, Mission Control, Users list, User detail) updated
+  from hard-coded dark-only colors to CSS-variable theming.
+
 ### Added — Expose plan_status and persist Stripe trial_ends_at (#324, #325)
 - `User#api_view` now includes `plan_status` so the frontend can distinguish a
   payment-provider trial (`"trialing"`) from an active paid plan.
