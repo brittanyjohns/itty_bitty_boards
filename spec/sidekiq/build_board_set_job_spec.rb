@@ -4,6 +4,8 @@ RSpec.describe BuildBoardSetJob do
   let(:user) { create(:user) }
   let(:communicator) { create(:child_account, user: user) }
 
+  before { allow_any_instance_of(Grover).to receive(:to_png).and_return(ChunkyPNG::Image.new(1, 1).to_blob) }
+
   # Mirrors what Api::V1::BoardBuilderController#create persists in-request
   # before enqueueing this job: a bare root in "building_board", attached to
   # the communicator as a favorite.
@@ -182,6 +184,33 @@ RSpec.describe BuildBoardSetJob do
 
       root.reload
       expect(root.status).to eq("complete")
+    end
+  end
+
+  describe "preview generation" do
+    it "generates a preview synchronously before marking the root complete (starter)" do
+      root = precreate_root!(name: "Home")
+
+      expect_any_instance_of(Board).to receive(:generate_previews).once.and_call_original
+
+      described_class.new.perform(root.id, communicator.id, "home", ["dinosaurs"])
+
+      root.reload
+      expect(root.status).to eq("complete")
+      expect(root.preview_image).to be_attached
+    end
+
+    it "generates a preview synchronously before marking the root complete (robust set)" do
+      seed_robust_set!
+      root = precreate_root!(name: "Core 60")
+
+      expect_any_instance_of(Board).to receive(:generate_previews).once.and_call_original
+
+      described_class.new.perform(root.id, communicator.id, "core-60", ["pizza"])
+
+      root.reload
+      expect(root.status).to eq("complete")
+      expect(root.preview_image).to be_attached
     end
   end
 

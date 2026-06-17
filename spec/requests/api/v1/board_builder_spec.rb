@@ -5,6 +5,8 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
   let(:communicator) { create(:child_account, user: user) }
   let(:headers) { auth_headers(user).merge("Content-Type" => "application/json") }
 
+  before { allow_any_instance_of(Grover).to receive(:to_png).and_return(ChunkyPNG::Image.new(1, 1).to_blob) }
+
   # The "home" template resolves every core label -> Image. Core labels now
   # create-if-missing, so seeding isn't required for a build to succeed; these
   # specs seed to exercise the reuse path and keep label assertions stable.

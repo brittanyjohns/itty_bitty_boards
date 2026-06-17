@@ -156,7 +156,6 @@ module Boards
       root.save!
 
       copy_tiles!(src, root)
-      root.run_generate_preview_job if root.board_images.reload.any?
       # clone_with_images repoints the owner's pre-existing tiles that target
       # the SOURCE board at the clone; keep that parity for the adopted root.
       UpdateUserBoardsJob.perform_async(root.id, src.id) if src.user_id != root.user_id
