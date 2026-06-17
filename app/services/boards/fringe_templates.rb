@@ -37,7 +37,7 @@ module Boards
       admin_user = User.find_by(id: admin_id)
       raise "Admin user (#{admin_id}) not found" unless admin_user
 
-      board = Board.from_obf(
+      board, _dynamic_data = Board.from_obf(
         obf_data, admin_user, nil,
         import_options: {
           apply_button_attributes: true,
