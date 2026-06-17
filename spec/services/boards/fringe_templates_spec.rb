@@ -40,6 +40,7 @@ RSpec.describe Boards::FringeTemplates do
     it "creates a board from an OBF file path" do
       path = Rails.root.join("db/seeds/board_builder_sets/fringe-pages/animals.obf")
       skip "OBF seed file not present" unless File.exist?(path)
+      admin # force-create the DEFAULT_ADMIN_ID user
 
       board = described_class.seed_obf!(path)
       expect(board).to be_persisted
