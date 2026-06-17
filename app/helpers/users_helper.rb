@@ -16,9 +16,12 @@ module UsersHelper
     if admin?
       raise AccountDeletionError, "Admin accounts cannot be soft-deleted"
     end
+
+    AnalyticsEvent.track(:account_deleted, user_id: id, metadata: { reason: reason, actor_id: actor_id })
+
     # Use a stable, unique anonymized email so uniqueness validations don't break
     og_email = email
-    anon = "deleted-#{id}-#{SecureRandom.hex(8)}@#{SOFT_DELETE_EMAIL_DOMAIN}"
+    anon = "deleted-#{id}-#{SecureRandom.hex(8)}@#{StripeHelper::SOFT_DELETE_EMAIL_DOMAIN}"
 
     self.email = anon
     self.name = "Deleted User"

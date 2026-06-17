@@ -220,12 +220,12 @@ class API::Admin::UsersController < API::Admin::ApplicationController
       return
     end
     begin
-      @user.destroy!
-    rescue ActiveRecord::RecordNotDestroyed => e
+      @user.soft_delete_account!(reason: "admin_deleted", actor_id: current_admin.id) unless @user.soft_deleted?
+    rescue StripeHelper::AccountDeletionError => e
       render json: { error: e.message }, status: :unprocessable_entity
       return
     end
-    puts "User #{@user.id} deleted by #{current_admin.display_name}"
+    Rails.logger.info "User #{@user.id} deleted by #{current_admin.display_name}"
 
     render json: { success: true }
   end
@@ -240,9 +240,11 @@ class API::Admin::UsersController < API::Admin::ApplicationController
       render json: { error: "No user_ids provided" }, status: :unprocessable_entity
       return
     end
-    result = User.where(id: params[:user_ids]).map(&:destroy!)
-    response = result.all? ? { status: :ok } : { status: :unprocessable_entity }
-    render json: response
+    users = User.where(id: params[:user_ids]).where.not(role: "admin")
+    users.each do |u|
+      u.soft_delete_account!(reason: "admin_deleted", actor_id: current_admin.id) unless u.soft_deleted?
+    end
+    render json: { status: :ok }
   end
 
   def cleanup_demo
@@ -258,6 +260,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     excluded = demo_users.where(id: exclude_ids)
     candidates = demo_users.where.not(id: exclude_ids)
 
+    candidates = candidates.where.not(role: "admin")
     ranked = candidates.sort_by { |u| -u.boards.size }
     kept = ranked.first(keep_count)
     to_delete = ranked.drop(keep_count)
@@ -284,18 +287,7 @@ class API::Admin::UsersController < API::Admin::ApplicationController
   private
 
   def destroy_demo_user!(user)
-    User.transaction do
-      user.boards.destroy_all
-      user.communicator_accounts.destroy_all
-      user.board_groups.destroy_all
-      user.word_events.delete_all
-      user.credit_transactions.delete_all
-      user.openai_prompts.delete_all
-      user.team_users.delete_all
-      user.subscriptions.delete_all
-      user.profile&.destroy
-      user.delete
-    end
+    user.soft_delete_account!(reason: "demo_cleanup", actor_id: current_admin.id) unless user.soft_deleted?
   end
 
   # Use callbacks to share common setup or constraints between actions.

@@ -20,7 +20,7 @@ module Admin
 
       demo_users = User.demo_accounts.includes(:boards)
       excluded = demo_users.where(id: exclude_ids)
-      candidates = demo_users.where.not(id: exclude_ids)
+      candidates = demo_users.where.not(id: exclude_ids).where.not(role: "admin")
 
       ranked = candidates.sort_by { |u| -u.boards.size }
       kept = ranked.first(keep_count)
@@ -45,18 +45,7 @@ module Admin
     private
 
     def destroy_demo_user!(user)
-      User.transaction do
-        user.boards.destroy_all
-        user.communicator_accounts.destroy_all
-        user.board_groups.destroy_all
-        user.word_events.delete_all
-        user.credit_transactions.delete_all
-        user.openai_prompts.delete_all
-        user.team_users.delete_all
-        user.subscriptions.delete_all
-        user.profile&.destroy
-        user.delete
-      end
+      user.soft_delete_account!(reason: "demo_cleanup", actor_id: current_user.id) unless user.soft_deleted?
     end
   end
 end

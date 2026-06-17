@@ -94,4 +94,81 @@ RSpec.describe MailchimpService do
       expect(bare_client).not_to respond_to(:customer_journeys)
     end
   end
+
+  describe "#archive_subscriber" do
+    let(:lists) { double("lists") }
+    let(:user) { FactoryBot.build(:user, id: 42, email: "doomed@example.com") }
+
+    before do
+      allow(client).to receive(:lists).and_return(lists)
+      stub_const("ENV", ENV.to_h.merge("MAILCHIMP_AUDIENCE_ID" => "aud_123"))
+    end
+
+    it "tags the contact as AccountDeleted and unsubscribes them" do
+      hash = Digest::MD5.hexdigest("doomed@example.com")
+
+      expect(lists).to receive(:update_list_member_tags).with(
+        "aud_123",
+        hash,
+        { tags: [
+          { name: "AccountDeleted", status: "active" },
+          { name: "deleted:user_requested", status: "active" },
+        ] },
+      )
+      expect(lists).to receive(:update_list_member).with(
+        "aud_123",
+        hash,
+        { status: "unsubscribed" },
+      )
+
+      expect(described_class.new.archive_subscriber(user, reason: "user_requested")).to eq(true)
+    end
+
+    it "returns true and logs when the subscriber is not found (404)" do
+      allow(lists).to receive(:update_list_member_tags)
+      allow(lists).to receive(:update_list_member)
+        .and_raise(MailchimpMarketing::ApiError.new(status: 404, message: "Not Found"))
+
+      expect(described_class.new.archive_subscriber(user)).to eq(true)
+    end
+
+    it "returns false on other API errors" do
+      allow(lists).to receive(:update_list_member_tags)
+      allow(lists).to receive(:update_list_member)
+        .and_raise(MailchimpMarketing::ApiError.new(status: 500, message: "boom"))
+
+      expect(described_class.new.archive_subscriber(user)).to eq(false)
+    end
+  end
+
+  describe "#delete_subscriber_permanently" do
+    let(:lists) { double("lists") }
+    let(:user) { FactoryBot.build(:user, id: 42, email: "gone@example.com") }
+
+    before do
+      allow(client).to receive(:lists).and_return(lists)
+      stub_const("ENV", ENV.to_h.merge("MAILCHIMP_AUDIENCE_ID" => "aud_123"))
+    end
+
+    it "permanently deletes the subscriber" do
+      hash = Digest::MD5.hexdigest("gone@example.com")
+      expect(lists).to receive(:delete_list_member_permanent).with("aud_123", hash)
+
+      expect(described_class.new.delete_subscriber_permanently(user)).to eq(true)
+    end
+
+    it "returns true when the subscriber does not exist (404)" do
+      allow(lists).to receive(:delete_list_member_permanent)
+        .and_raise(MailchimpMarketing::ApiError.new(status: 404, message: "Not Found"))
+
+      expect(described_class.new.delete_subscriber_permanently(user)).to eq(true)
+    end
+
+    it "returns false on other API errors" do
+      allow(lists).to receive(:delete_list_member_permanent)
+        .and_raise(MailchimpMarketing::ApiError.new(status: 500, message: "boom"))
+
+      expect(described_class.new.delete_subscriber_permanently(user)).to eq(false)
+    end
+  end
 end
