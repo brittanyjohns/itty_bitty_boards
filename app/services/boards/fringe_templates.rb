@@ -38,7 +38,7 @@ module Boards
       raise "Admin user (#{admin_id}) not found" unless admin_user
 
       board = Board.from_obf(
-        obf_data, nil, admin_user,
+        obf_data, admin_user, nil,
         import_options: {
           apply_button_attributes: true,
         },
