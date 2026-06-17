@@ -221,12 +221,11 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     end
     begin
       @user.soft_delete_account!(reason: "admin_deleted", actor_id: current_admin.id) unless @user.soft_deleted?
-      @user.destroy!
-    rescue StripeHelper::AccountDeletionError, ActiveRecord::RecordNotDestroyed => e
+    rescue StripeHelper::AccountDeletionError => e
       render json: { error: e.message }, status: :unprocessable_entity
       return
     end
-    Rails.logger.info "User #{@user.id} hard-deleted by #{current_admin.display_name}"
+    Rails.logger.info "User #{@user.id} deleted by #{current_admin.display_name}"
 
     render json: { success: true }
   end
@@ -242,10 +241,10 @@ class API::Admin::UsersController < API::Admin::ApplicationController
       return
     end
     users = User.where(id: params[:user_ids]).where.not(role: "admin")
-    users.each { |u| u.soft_delete_account!(reason: "admin_deleted", actor_id: current_admin.id) unless u.soft_deleted? }
-    result = users.map(&:destroy!)
-    response = result.all? ? { status: :ok } : { status: :unprocessable_entity }
-    render json: response
+    users.each do |u|
+      u.soft_delete_account!(reason: "admin_deleted", actor_id: current_admin.id) unless u.soft_deleted?
+    end
+    render json: { status: :ok }
   end
 
   def cleanup_demo
@@ -289,7 +288,6 @@ class API::Admin::UsersController < API::Admin::ApplicationController
 
   def destroy_demo_user!(user)
     user.soft_delete_account!(reason: "demo_cleanup", actor_id: current_admin.id) unless user.soft_deleted?
-    user.destroy!
   end
 
   # Use callbacks to share common setup or constraints between actions.

@@ -46,7 +46,6 @@ module Admin
 
     def destroy_demo_user!(user)
       user.soft_delete_account!(reason: "demo_cleanup", actor_id: current_user.id) unless user.soft_deleted?
-      user.destroy!
     end
   end
 end
