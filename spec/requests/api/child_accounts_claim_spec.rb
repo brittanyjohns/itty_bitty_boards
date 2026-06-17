@@ -93,7 +93,7 @@ RSpec.describe "API::ChildAccounts claim flow", type: :request do
 
       post "/api/communicator_claims/#{loaner.claim_token}/claim", headers: auth_headers(parent)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(JSON.parse(response.body)["error"]).to eq("slot_full")
       expect(loaner.reload.status).to eq("loaner")
     end
@@ -163,7 +163,7 @@ RSpec.describe "API::ChildAccounts claim flow", type: :request do
 
         post "/api/child_accounts/#{slp_active.id}/lend", headers: auth_headers(slp)
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["error"]).to match(/owned by someone else/i)
         expect(slp_active.reload.status).to eq("active")
       end
@@ -194,7 +194,7 @@ RSpec.describe "API::ChildAccounts claim flow", type: :request do
       post "/api/child_accounts/#{loaner.id}/send_claim_link",
         params: { email: "not-an-email" },
         headers: auth_headers(slp)
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 

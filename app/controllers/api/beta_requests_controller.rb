@@ -27,7 +27,7 @@ class API::BetaRequestsController < API::ApplicationController
     @beta_request = BetaRequest.new(beta_request_params)
     client_ip = params["ip"] || request.remote_ip
     @beta_request.details = { client_ip: client_ip }
-    render json: { success: @beta_request.save ? @beta_request.persisted? : @beta_request.errors }, status: @beta_request.save ? :created : :unprocessable_entity
+    render json: { success: @beta_request.save ? @beta_request.persisted? : @beta_request.errors }, status: @beta_request.save ? :created : :unprocessable_content
   end
 
   # PATCH/PUT /beta_requests/1 or /beta_requests/1.json
@@ -36,7 +36,7 @@ class API::BetaRequestsController < API::ApplicationController
       if @beta_request.update(beta_request_params)
         format.json { render :show, status: :ok, location: @beta_request }
       else
-        format.json { render json: @beta_request.errors, status: :unprocessable_entity }
+        format.json { render json: @beta_request.errors, status: :unprocessable_content }
       end
     end
   end

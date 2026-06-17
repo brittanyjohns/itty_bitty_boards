@@ -33,8 +33,8 @@ class API::OpenaiPromptsController < API::ApplicationController
 
         format.json { render json: @board.api_view_with_images(current_user), status: :created }
       else
-        format.html { render :new, status: :unprocessable_entity }
-        format.json { render json: @openai_prompt.errors, status: :unprocessable_entity }
+        format.html { render :new, status: :unprocessable_content }
+        format.json { render json: @openai_prompt.errors, status: :unprocessable_content }
       end
     end
   end
@@ -46,8 +46,8 @@ class API::OpenaiPromptsController < API::ApplicationController
         format.html { redirect_to openai_prompt_url(@openai_prompt), notice: "Openai prompt was successfully updated." }
         format.json { render :show, status: :ok, location: @openai_prompt }
       else
-        format.html { render :edit, status: :unprocessable_entity }
-        format.json { render json: @openai_prompt.errors, status: :unprocessable_entity }
+        format.html { render :edit, status: :unprocessable_content }
+        format.json { render json: @openai_prompt.errors, status: :unprocessable_content }
       end
     end
   end

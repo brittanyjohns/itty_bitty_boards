@@ -130,7 +130,7 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
     it "returns 422" do
       do_post(plan_key: "basic")
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(JSON.parse(response.body)["error"]).to eq("Already on this plan")
     end
   end
@@ -139,7 +139,7 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
     it "returns 422" do
       do_post(plan_key: "nonsense")
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(JSON.parse(response.body)["error"]).to eq("Unknown or unsupported plan")
     end
   end
@@ -148,7 +148,7 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
     it "returns 422" do
       do_post(plan_key: "free")
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 
@@ -158,7 +158,7 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
     it "returns 422" do
       do_post
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(JSON.parse(response.body)["error"]).to eq("No active subscription to change")
     end
   end
@@ -172,7 +172,7 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
     it "returns 422" do
       do_post
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 

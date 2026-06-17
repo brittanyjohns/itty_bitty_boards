@@ -113,7 +113,7 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
       it "returns 422" do
         post "/api/v1/onboarding/myspeak",
              params: base_payload.merge(name: "").to_json, headers: headers
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["details"]).to include(/Name/)
       end
     end
@@ -151,7 +151,7 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         post "/api/v1/onboarding/myspeak",
              params: base_payload.merge(slug: "Bad_Slug!").to_json, headers: headers
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["error"]).to eq("slug_invalid")
       end
 
@@ -159,7 +159,7 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         post "/api/v1/onboarding/myspeak",
              params: base_payload.merge(slug: "admin").to_json, headers: headers
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["error"]).to eq("slug_reserved")
       end
 
@@ -169,7 +169,7 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         post "/api/v1/onboarding/myspeak",
              params: base_payload.merge(slug: "river-stone").to_json, headers: headers
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["error"]).to eq("slug_taken")
       end
 
@@ -348,7 +348,7 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
 
         post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         body = JSON.parse(response.body)
         expect(body["error"]).to eq("communicator_slot_unavailable")
       end

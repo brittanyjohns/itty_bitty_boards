@@ -29,7 +29,7 @@ RSpec.describe "API::ChildAccounts sandbox + slot limits", type: :request do
           params: { name: "Second", username: "second-#{SecureRandom.hex(3)}", status: "sandbox", password: "abcdef", password_confirmation: "abcdef" },
           headers: auth_headers(user)
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
       end
 
       it "coerces a Free user's active self-create into a no-login sandbox" do
@@ -50,7 +50,7 @@ RSpec.describe "API::ChildAccounts sandbox + slot limits", type: :request do
           params: { name: "Second", username: "second-#{SecureRandom.hex(3)}", status: "active", password: "abcdef", password_confirmation: "abcdef" },
           headers: auth_headers(user)
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
       end
 
       it "still accepts the legacy is_demo=true param for backwards compat" do
@@ -86,7 +86,7 @@ RSpec.describe "API::ChildAccounts sandbox + slot limits", type: :request do
           params: { name: "Extra", username: "extra-#{SecureRandom.hex(3)}", status: "active", password: "abcdef", password_confirmation: "abcdef" },
           headers: auth_headers(user)
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["error"]).to match(/maximum/i)
       end
     end
@@ -104,7 +104,7 @@ RSpec.describe "API::ChildAccounts sandbox + slot limits", type: :request do
           params: { name: "Third", username: "third-#{SecureRandom.hex(3)}", status: "active", password: "abcdef", password_confirmation: "abcdef" },
           headers: auth_headers(user)
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
       end
 
       # Regression for PR #163 review: the pre-save valid? check fired

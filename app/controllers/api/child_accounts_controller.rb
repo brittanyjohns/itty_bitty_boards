@@ -46,7 +46,7 @@ class API::ChildAccountsController < API::ApplicationController
     end
 
     unless @child_account.sandbox?
-      render json: account_error_payload("Only sandbox communicators can be promoted to loaner"), status: :unprocessable_entity
+      render json: account_error_payload("Only sandbox communicators can be promoted to loaner"), status: :unprocessable_content
       return
     end
 
@@ -64,7 +64,7 @@ class API::ChildAccountsController < API::ApplicationController
       @child_account.promote_to_loaner!(passcode: params[:passcode])
       render json: @child_account.api_view(current_user), status: :ok
     rescue ActiveRecord::RecordInvalid => e
-      render json: account_error_payload(e.record.errors.full_messages.join(", ")), status: :unprocessable_entity
+      render json: account_error_payload(e.record.errors.full_messages.join(", ")), status: :unprocessable_content
     end
   end
 
@@ -85,7 +85,7 @@ class API::ChildAccountsController < API::ApplicationController
     unless @child_account.owner_id == current_user.id || current_user.admin?
       if @child_account.active?
         render json: account_error_payload("This communicator is owned by someone else and can't be lent."),
-               status: :unprocessable_entity
+               status: :unprocessable_content
       else
         render json: account_error_payload("Unauthorized"), status: :unauthorized
       end
@@ -119,7 +119,7 @@ class API::ChildAccountsController < API::ApplicationController
       render json: @child_account.api_view(current_user), status: :ok
     rescue ActiveRecord::RecordInvalid => e
       Rails.logger.warn "[lend] validation failed for child_account=#{@child_account.id}: #{e.record.errors.full_messages.join(", ")}"
-      render json: account_error_payload(e.record.errors.full_messages.join(", ")), status: :unprocessable_entity
+      render json: account_error_payload(e.record.errors.full_messages.join(", ")), status: :unprocessable_content
     end
   end
 
@@ -133,7 +133,7 @@ class API::ChildAccountsController < API::ApplicationController
     end
 
     unless @child_account.loaner?
-      render json: { error: "Only loaners can issue a claim link" }, status: :unprocessable_entity
+      render json: { error: "Only loaners can issue a claim link" }, status: :unprocessable_content
       return
     end
 
@@ -155,13 +155,13 @@ class API::ChildAccountsController < API::ApplicationController
     end
 
     unless @child_account.loaner?
-      render json: account_error_payload("Only loaners can issue a claim link"), status: :unprocessable_entity
+      render json: account_error_payload("Only loaners can issue a claim link"), status: :unprocessable_content
       return
     end
 
     email = params[:email].to_s.strip
     if email.blank? || !email.include?("@")
-      render json: account_error_payload("A valid email is required"), status: :unprocessable_entity
+      render json: account_error_payload("A valid email is required"), status: :unprocessable_content
       return
     end
 
@@ -234,9 +234,9 @@ class API::ChildAccountsController < API::ApplicationController
         error: "slot_full",
         message: e.message,
         upgrade_url: "/account/billing/upgrade",
-      }, status: :unprocessable_entity
+      }, status: :unprocessable_content
     rescue ActiveRecord::RecordInvalid => e
-      render json: { error: e.record.errors.full_messages.join(", ") }, status: :unprocessable_entity
+      render json: { error: e.record.errors.full_messages.join(", ") }, status: :unprocessable_content
     end
   end
 
@@ -249,7 +249,7 @@ class API::ChildAccountsController < API::ApplicationController
     end
 
     unless @child_account.loaner?
-      render json: account_error_payload("Only loaners can be reclaimed"), status: :unprocessable_entity
+      render json: account_error_payload("Only loaners can be reclaimed"), status: :unprocessable_content
       return
     end
 
@@ -270,7 +270,7 @@ class API::ChildAccountsController < API::ApplicationController
     end
 
     if @child_account.loaner?
-      render json: account_error_payload("End the loan first via end_loan."), status: :unprocessable_entity
+      render json: account_error_payload("End the loan first via end_loan."), status: :unprocessable_content
       return
     end
 
@@ -292,7 +292,7 @@ class API::ChildAccountsController < API::ApplicationController
     render json: @child_account.api_view(current_user), status: :ok
   rescue ChildAccount::SlotFull => e
     render json: account_error_payload(e.message.presence || "At your communicator slot limit. Free a slot before restoring."),
-           status: :unprocessable_entity
+           status: :unprocessable_content
   end
 
   # POST /child_accounts
@@ -334,7 +334,7 @@ class API::ChildAccountsController < API::ApplicationController
     password_confirmation = params[:password_confirmation]
 
     if password.present? && password_confirmation.present? && password != password_confirmation
-      render json: { error: "Passwords do not match" }, status: :unprocessable_entity
+      render json: { error: "Passwords do not match" }, status: :unprocessable_content
       return
     end
 
@@ -369,7 +369,7 @@ class API::ChildAccountsController < API::ApplicationController
           @child_account.create_profile!
         rescue => e
           Rails.logger.error "Failed to create profile for ChildAccount #{@child_account.id}: #{e.message}"
-          render json: { error: "Error creating profile for child account: #{e.message}" }, status: :unprocessable_entity
+          render json: { error: "Error creating profile for child account: #{e.message}" }, status: :unprocessable_content
           return
         end
       end
@@ -385,7 +385,7 @@ class API::ChildAccountsController < API::ApplicationController
     else
       Rails.logger.info "Invalid Child Account: errors: #{@child_account.errors.inspect}"
       message = @child_account.errors.full_messages.join(", ")
-      render json: { error: message, errors: message }, status: :unprocessable_entity
+      render json: { error: message, errors: message }, status: :unprocessable_content
     end
   end
 
@@ -426,7 +426,7 @@ class API::ChildAccountsController < API::ApplicationController
 
     if params[:password] && params[:password_confirmation]
       if params[:password] != params[:password_confirmation]
-        render json: { error: "Passwords do not match" }, status: :unprocessable_entity
+        render json: { error: "Passwords do not match" }, status: :unprocessable_content
         return
       end
       passcode = params[:password]
@@ -459,14 +459,14 @@ class API::ChildAccountsController < API::ApplicationController
       render json: @child_account.api_view(current_user), status: :ok
     else
       message = @child_account.errors.full_messages.join(", ")
-      render json: account_error_payload(message), status: :unprocessable_entity
+      render json: account_error_payload(message), status: :unprocessable_content
     end
   end
 
   def assign_boards
     board_ids = params[:board_ids]
     if board_ids.blank?
-      render json: { error: "No board_ids provided" }, status: :unprocessable_entity
+      render json: { error: "No board_ids provided" }, status: :unprocessable_content
       return
     end
 
@@ -479,7 +479,7 @@ class API::ChildAccountsController < API::ApplicationController
     if @child_account.sandbox?
       demo_limit = (@child_account.settings["demo_board_limit"] || ChildAccount::DEMO_ACCOUNT_BOARD_LIMIT).to_i
       if total_boards > demo_limit
-        render json: { error: "Demo board limit exceeded. You can have up to #{demo_limit} boards." }, status: :unprocessable_entity
+        render json: { error: "Demo board limit exceeded. You can have up to #{demo_limit} boards." }, status: :unprocessable_content
         return
       end
     end

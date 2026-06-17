@@ -141,7 +141,7 @@ RSpec.describe "POST /api/v1/users/email_signup", type: :request do
         do_post(email: "taken@example.com")
       }.not_to change(User, :count)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       body = JSON.parse(response.body)
       expect(body["error_code"]).to eq("email_taken")
       expect(body["error"]).to eq("Email has already been taken")
@@ -153,7 +153,7 @@ RSpec.describe "POST /api/v1/users/email_signup", type: :request do
 
       do_post(email: "taken@example.com")
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(JSON.parse(response.body)["error_code"]).to eq("email_taken")
     end
   end
@@ -164,7 +164,7 @@ RSpec.describe "POST /api/v1/users/email_signup", type: :request do
         expect {
           do_post(email: bad)
         }.not_to change(User, :count)
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["error"]).to be_present
       end
     end

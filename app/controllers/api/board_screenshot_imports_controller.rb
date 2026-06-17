@@ -30,7 +30,7 @@ class API::BoardScreenshotImportsController < API::ApplicationController
     elsif image.present?
       import.image.attach(image)
     else
-      render json: { error: "No image provided" }, status: :unprocessable_entity
+      render json: { error: "No image provided" }, status: :unprocessable_content
       return
     end
     import.save!
@@ -62,7 +62,7 @@ class API::BoardScreenshotImportsController < API::ApplicationController
       if import.update(status: "needs_review")
         render json: { ok: true }
       else
-        render json: { error: "Failed to update import" }, status: :unprocessable_entity
+        render json: { error: "Failed to update import" }, status: :unprocessable_content
       end
     end
   end

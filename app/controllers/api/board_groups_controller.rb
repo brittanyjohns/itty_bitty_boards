@@ -48,7 +48,7 @@ class API::BoardGroupsController < API::ApplicationController
         error: "You've reached your plan's board set limit. Upgrade to create more.",
         limit: current_user.board_group_limit,
         count: current_user.countable_board_group_count,
-      }, status: :unprocessable_entity
+      }, status: :unprocessable_content
       return
     end
 
@@ -77,7 +77,7 @@ class API::BoardGroupsController < API::ApplicationController
       # board_group.calculate_grid_layout_for_screen_size(screen_size)
       render json: board_group.api_view_with_boards(current_user), status: :created
     else
-      render json: { errors: board_group.errors.full_messages }, status: :unprocessable_entity
+      render json: { errors: board_group.errors.full_messages }, status: :unprocessable_content
     end
     if boards.blank?
       Rails.logger.debug "No boards provided, saving empty board group"
@@ -193,7 +193,7 @@ class API::BoardGroupsController < API::ApplicationController
       Rails.logger.debug "Board Group updated successfully: #{board_group.id}"
       render json: board_group.api_view_with_boards(current_user)
     else
-      render json: { errors: board_group.errors.full_messages }, status: :unprocessable_entity
+      render json: { errors: board_group.errors.full_messages }, status: :unprocessable_content
     end
   end
 
@@ -269,7 +269,7 @@ class API::BoardGroupsController < API::ApplicationController
       layout = params[:layout].to_unsafe_h
     else
       Rails.logger.error "Invalid layout format: #{params[:layout].class}"
-      render json: { error: "Invalid layout format" }, status: :unprocessable_entity and return
+      render json: { error: "Invalid layout format" }, status: :unprocessable_content and return
     end
 
     Rails.logger.debug "Received layout: #{layout.inspect}"

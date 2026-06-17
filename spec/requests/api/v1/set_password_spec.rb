@@ -36,7 +36,7 @@ RSpec.describe "set password endpoints", type: :request do
           params: { password: "newpassword1", password_confirmation: "different1" },
           headers: auth_headers(invited_user)
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         invited_user.reload
         expect(invited_user.invitation_token).to be_present
         expect(User.valid_credentials?("invited@example.com", "newpassword1")).to be_nil
@@ -47,7 +47,7 @@ RSpec.describe "set password endpoints", type: :request do
           params: { password: "x", password_confirmation: "x" },
           headers: auth_headers(invited_user)
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         invited_user.reload
         expect(invited_user.invitation_token).to be_present
         expect(User.valid_credentials?("invited@example.com", "x")).to be_nil
@@ -62,7 +62,7 @@ RSpec.describe "set password endpoints", type: :request do
           params: { password: "newpassword1", password_confirmation: "newpassword1" },
           headers: auth_headers(user)
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["error_code"]).to eq("password_already_set")
       end
     end

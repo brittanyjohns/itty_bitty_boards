@@ -27,7 +27,7 @@ RSpec.describe "API::ChildAccounts promote_to_loaner", type: :request do
       params: { passcode: "rentme01" },
       headers: auth_headers(user)
 
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
     expect(sandbox.reload.status).to eq("sandbox")
   end
 
@@ -37,7 +37,7 @@ RSpec.describe "API::ChildAccounts promote_to_loaner", type: :request do
     post "/api/child_accounts/#{sandbox.id}/promote_to_loaner",
       headers: auth_headers(user)
 
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
   end
 
   it "rejects unauthorized users" do

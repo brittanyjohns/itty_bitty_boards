@@ -76,8 +76,8 @@ class API::DocsController < API::ApplicationController
         format.html { redirect_to @doc.documentable, notice: "Doc was successfully created." }
         format.json { render :show, status: :created, location: @doc }
       else
-        format.html { render :new, status: :unprocessable_entity }
-        format.json { render json: @doc.errors, status: :unprocessable_entity }
+        format.html { render :new, status: :unprocessable_content }
+        format.json { render json: @doc.errors, status: :unprocessable_content }
       end
     end
   end
@@ -89,8 +89,8 @@ class API::DocsController < API::ApplicationController
         format.html { redirect_to doc_url(@doc), notice: "Doc was successfully updated." }
         format.json { render :show, status: :ok, location: @doc }
       else
-        format.html { render :edit, status: :unprocessable_entity }
-        format.json { render json: @doc.errors, status: :unprocessable_entity }
+        format.html { render :edit, status: :unprocessable_content }
+        format.json { render json: @doc.errors, status: :unprocessable_content }
       end
     end
   end
@@ -157,7 +157,7 @@ class API::DocsController < API::ApplicationController
       # @image_with_display_doc = @image.with_display_doc(current_user)
     rescue => e
       puts "Error: #{e.message}"
-      render json: { error: e.message }, status: :unprocessable_entity
+      render json: { error: e.message }, status: :unprocessable_content
       return
     end
     # @image_with_display_doc = @image.with_display_doc(@current_user, @board, @board_image)

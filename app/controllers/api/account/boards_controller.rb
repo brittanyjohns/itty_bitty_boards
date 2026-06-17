@@ -37,7 +37,7 @@ class API::Account::BoardsController < API::Account::ApplicationController
       elsif params[:filter].present?
         filter = params[:filter]
         unless Board::SAFE_FILTERS.include?(filter)
-          render json: { error: "Invalid filter" }, status: :unprocessable_entity
+          render json: { error: "Invalid filter" }, status: :unprocessable_content
           return
         end
 

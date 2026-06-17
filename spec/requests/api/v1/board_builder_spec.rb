@@ -313,7 +313,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
                headers: headers
         }.not_to change { Board.count }
         expect(BuildBoardSetJob.jobs.size).to eq(jobs_before)
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
       end
     end
 
@@ -329,7 +329,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         }.not_to change { Board.count }
         expect(BuildBoardSetJob.jobs.size).to eq(jobs_before)
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["error"]).to match(/Maximum number of boards/)
       end
 
@@ -349,7 +349,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         post "/api/v1/board_builder",
              params: { communicator_id: communicator.id, template: "home" }.to_json,
              headers: headers
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
       end
 
       it "keeps the whole built set editable (no spurious board_locked)" do
@@ -463,7 +463,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
              params: { communicator_id: communicator.id, template: "home" }.to_json,
              headers: headers
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["error"]).to eq("build_failed")
 
         root = communicator.reload.board_builder_root
@@ -556,7 +556,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
                headers: headers
         }.not_to change { communicator.child_boards.count }
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(JSON.parse(response.body)["error"]).to match(/Maximum number of boards/)
       end
 

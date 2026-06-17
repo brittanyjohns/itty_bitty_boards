@@ -139,7 +139,7 @@ RSpec.describe "API::CoachingPrompts", type: :request do
       get "/api/coaching_prompts/audio",
         params: { text: "x" * 501, voice: "polly:kevin" },
         headers: auth_headers(user)
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "returns the audio URL and caches the row" do

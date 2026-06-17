@@ -20,7 +20,7 @@ class API::OpenSymbolsController < API::ApplicationController
     if @symbol.persisted?
       render json: @symbol, status: :created
     else
-      render json: { errors: @symbol.errors.full_messages }, status: :unprocessable_entity
+      render json: { errors: @symbol.errors.full_messages }, status: :unprocessable_content
     end
   end
 

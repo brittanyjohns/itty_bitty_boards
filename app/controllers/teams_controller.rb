@@ -22,8 +22,8 @@ class TeamsController < ApplicationController
         format.html { redirect_to team_url(@team), notice: "Your current team has been set to: #{current_user.current_team&.name}. You can change this at any time from your profile page." }
         format.json { render :show, status: :ok, location: @team }
       else
-        format.html { render :show, status: :unprocessable_entity }
-        format.json { render json: current_user.errors, status: :unprocessable_entity }
+        format.html { render :show, status: :unprocessable_content }
+        format.json { render json: current_user.errors, status: :unprocessable_content }
       end
     end
   end
@@ -48,8 +48,8 @@ class TeamsController < ApplicationController
         format.html { redirect_to team_url(@team), notice: "Team was successfully created." }
         format.json { render :show, status: :created, location: @team }
       else
-        format.html { render :new, status: :unprocessable_entity }
-        format.json { render json: @team.errors, status: :unprocessable_entity }
+        format.html { render :new, status: :unprocessable_content }
+        format.json { render json: @team.errors, status: :unprocessable_content }
       end
     end
   end
@@ -89,8 +89,8 @@ class TeamsController < ApplicationController
         format.html { redirect_to team_url(@team), notice: "Team was successfully updated." }
         format.json { render :show, status: :ok, location: @team }
       else
-        format.html { render :edit, status: :unprocessable_entity }
-        format.json { render json: @team.errors, status: :unprocessable_entity }
+        format.html { render :edit, status: :unprocessable_content }
+        format.json { render json: @team.errors, status: :unprocessable_content }
       end
     end
   end

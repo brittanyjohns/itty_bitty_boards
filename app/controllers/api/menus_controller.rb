@@ -61,7 +61,7 @@ class API::MenusController < API::ApplicationController
     @board.status = "pending"
     unless @board.save
       Rails.logger.error "Failed to create board for menu: #{@menu.id} - #{@menu.name}"
-      render json: { error: "Failed to create board for menu. #{@board.errors.full_messages.join(", ")}" }, status: :unprocessable_entity
+      render json: { error: "Failed to create board for menu. #{@board.errors.full_messages.join(", ")}" }, status: :unprocessable_content
       return
     end
 
@@ -69,20 +69,20 @@ class API::MenusController < API::ApplicationController
     message = "Re-running image description job."
     unless @board
       message = "No board found for this menu."
-      render json: { message: message }, status: :unprocessable_entity
+      render json: { message: message }, status: :unprocessable_content
       # redirect_to menu_url(@menu), notice: "No board found for this menu."
       return
     end
     # if current_user.tokens < 1 && !current_user.admin?
     #   message = "Not enough tokens to re-run image description job."
-    #   render json: { error: message }, status: :unprocessable_entity
+    #   render json: { error: message }, status: :unprocessable_content
     #   # redirect_to menu_url(@menu), notice: "Not enough tokens to re-run image description job."
     #   return
     # end
     # if @board.cost >= @menu.token_limit && !current_user.admin?
     #   Rails.logger.info "Board cost: #{@board.cost} >= Menu token limit: #{@menu.token_limit}"
     #   message = "This menu has already used all of its tokens. Menu token limit: #{@menu.token_limit}"
-    #   render json: { error: message }, status: :unprocessable_entity
+    #   render json: { error: message }, status: :unprocessable_content
     #   # redirect_to menu_url(@menu), notice: "This menu has already used all of its tokens."
     #   return
     # end
@@ -106,7 +106,7 @@ class API::MenusController < API::ApplicationController
     @menu.user = @current_user
     @menu.menu_image.attach(menu_params[:docs][:image]) if menu_params[:docs] && menu_params[:docs][:image]
     unless @menu.save
-      render json: @menu.errors, status: :unprocessable_entity
+      render json: @menu.errors, status: :unprocessable_content
       return
     end
     doc = @menu.docs.new(menu_params[:docs])
@@ -118,12 +118,12 @@ class API::MenusController < API::ApplicationController
       @board.preview_image.attach(menu_params[:docs][:image]) if menu_params[:docs] && menu_params[:docs][:image]
       if @board.nil?
         Rails.logger.error "Failed to create board for menu: #{@menu.id} - #{@menu.name}"
-        render json: { error: "Failed to create board for menu." }, status: :unprocessable_entity
+        render json: { error: "Failed to create board for menu." }, status: :unprocessable_content
         return
       end
       unless @board.save
         Rails.logger.error "Failed to save board for menu: #{@menu.id} - #{@menu.name} - Errors: #{@board.errors.full_messages.join(", ")}"
-        render json: { error: "Failed to save board for menu. #{@board.errors.full_messages.join(", ")}" }, status: :unprocessable_entity
+        render json: { error: "Failed to save board for menu. #{@board.errors.full_messages.join(", ")}" }, status: :unprocessable_content
         return
       end
       @menu.run_image_description_job(@board.id, screen_size)
@@ -145,7 +145,7 @@ class API::MenusController < API::ApplicationController
       }
       render json: @menu_with_display_doc, status: :created
     else
-      render json: @menu.errors, status: :unprocessable_entity
+      render json: @menu.errors, status: :unprocessable_content
     end
   end
 
@@ -158,7 +158,7 @@ class API::MenusController < API::ApplicationController
     if @menu.update(menu_params)
       render json: @menu, status: :ok
     else
-      render json: @menu.errors, status: :unprocessable_entity
+      render json: @menu.errors, status: :unprocessable_content
     end
   end
 
@@ -190,7 +190,7 @@ class API::MenusController < API::ApplicationController
       return
     end
     if current_user.at_board_limit?
-      render json: { error: "Maximum number of boards reached. Please upgrade to add more." }, status: :unprocessable_entity
+      render json: { error: "Maximum number of boards reached. Please upgrade to add more." }, status: :unprocessable_content
       return
     end
     return true

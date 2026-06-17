@@ -132,7 +132,7 @@ RSpec.describe "API::ChildAccounts owner protection", type: :request do
              headers: auth_headers(parent)
       }.not_to change { sandbox.reload.child_boards.count }
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(JSON.parse(response.body)["error"]).to match(/Demo board limit exceeded/)
     end
 
@@ -140,7 +140,7 @@ RSpec.describe "API::ChildAccounts owner protection", type: :request do
       post "/api/child_accounts/#{sandbox.id}/assign_boards",
            headers: auth_headers(parent)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       expect(JSON.parse(response.body)["error"]).to eq("No board_ids provided")
     end
   end

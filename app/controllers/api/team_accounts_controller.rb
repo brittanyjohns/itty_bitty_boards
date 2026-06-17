@@ -22,7 +22,7 @@ class API::TeamAccountsController < API::ApplicationController
         @team.reload
         format.json { render json: @team.show_api_view, status: :created }
       else
-        format.json { render json: @team_account.errors, status: :unprocessable_entity }
+        format.json { render json: @team_account.errors, status: :unprocessable_content }
       end
     end
   end
@@ -34,8 +34,8 @@ class API::TeamAccountsController < API::ApplicationController
         format.html { redirect_to team_account_url(@team_account), notice: "TeamAccount was successfully updated." }
         format.json { render :show, status: :ok, location: @team_account }
       else
-        format.html { render :edit, status: :unprocessable_entity }
-        format.json { render json: @team_account.errors, status: :unprocessable_entity }
+        format.html { render :edit, status: :unprocessable_content }
+        format.json { render json: @team_account.errors, status: :unprocessable_content }
       end
     end
   end

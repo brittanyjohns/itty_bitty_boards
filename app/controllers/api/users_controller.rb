@@ -30,7 +30,7 @@ class API::UsersController < API::ApplicationController
     if @user.save
       render json: @user, status: :ok
     else
-      render json: @user.errors, status: :unprocessable_entity
+      render json: @user.errors, status: :unprocessable_content
     end
   end
 
@@ -40,7 +40,7 @@ class API::UsersController < API::ApplicationController
     password = params[:password]
     password_confirmation = params[:password_confirmation]
     if password != password_confirmation
-      render json: { error: "Password confirmation does not match" }, status: :unprocessable_entity
+      render json: { error: "Password confirmation does not match" }, status: :unprocessable_content
       return
     end
     @user.password = password
@@ -53,7 +53,7 @@ class API::UsersController < API::ApplicationController
     if saved && @user.errors.empty?
       render json: { success: true }, status: :ok
     else
-      render json: @user.errors, status: :unprocessable_entity
+      render json: @user.errors, status: :unprocessable_content
     end
   end
 
@@ -64,7 +64,7 @@ class API::UsersController < API::ApplicationController
     new_email = params[:email].to_s.strip.downcase
 
     if new_email.blank?
-      return render json: { error: "Email can't be blank" }, status: :unprocessable_entity
+      return render json: { error: "Email can't be blank" }, status: :unprocessable_content
     end
 
     if new_email == current_user.email
@@ -76,7 +76,7 @@ class API::UsersController < API::ApplicationController
 
     if User.where.not(id: current_user.id).exists?(email: new_email) ||
        User.where.not(id: current_user.id).exists?(unconfirmed_email: new_email)
-      return render json: { error: "Email is already taken" }, status: :unprocessable_entity
+      return render json: { error: "Email is already taken" }, status: :unprocessable_content
     end
 
     if current_user.update(unconfirmed_email: new_email)
@@ -89,10 +89,10 @@ class API::UsersController < API::ApplicationController
                  pending_email: current_user.unconfirmed_email,
                }, status: :ok
       else
-        render json: { error: "Failed to update email" }, status: :unprocessable_entity
+        render json: { error: "Failed to update email" }, status: :unprocessable_content
       end
     else
-      render json: { errors: current_user.errors.full_messages }, status: :unprocessable_entity
+      render json: { errors: current_user.errors.full_messages }, status: :unprocessable_content
     end
   end
 
@@ -101,7 +101,7 @@ class API::UsersController < API::ApplicationController
     user = User.find_by(confirmation_token: token)
 
     if user.nil? || user.confirmation_token != token
-      return render json: { error: "Invalid or expired token" }, status: :unprocessable_entity
+      return render json: { error: "Invalid or expired token" }, status: :unprocessable_content
     end
     user.email = user.unconfirmed_email
     user.unconfirmed_email = nil
@@ -110,7 +110,7 @@ class API::UsersController < API::ApplicationController
     if user.save
       render json: { message: "Email change confirmed", email: user.email }, status: :ok
     else
-      render json: { errors: user.errors.full_messages }, status: :unprocessable_entity
+      render json: { errors: user.errors.full_messages }, status: :unprocessable_content
     end
   end
 
@@ -118,7 +118,7 @@ class API::UsersController < API::ApplicationController
     pending_email = current_user.unconfirmed_email
 
     if pending_email.blank?
-      return render json: { error: "No pending email change." }, status: :unprocessable_entity
+      return render json: { error: "No pending email change." }, status: :unprocessable_content
     end
 
     # current_user.send_confirmation_instructions
@@ -141,7 +141,7 @@ class API::UsersController < API::ApplicationController
 
       render json: { message: "Pending email change canceled." }, status: :ok
     else
-      render json: { error: "No pending email change." }, status: :unprocessable_entity
+      render json: { error: "No pending email change." }, status: :unprocessable_content
     end
   end
 
@@ -160,7 +160,7 @@ class API::UsersController < API::ApplicationController
       if @user.save
         format.json { render json: @user, status: :ok }
       else
-        format.json { render json: @user.errors, status: :unprocessable_entity }
+        format.json { render json: @user.errors, status: :unprocessable_content }
       end
     end
   end
@@ -183,12 +183,12 @@ class API::UsersController < API::ApplicationController
     # so we skip token verification for Apple users
 
     # if @user.nil? || @user.email != params[:email] || @user.delete_account_token != params[:token]
-    #   render json: { error: "Invalid or expired token" }, status: :unprocessable_entity
+    #   render json: { error: "Invalid or expired token" }, status: :unprocessable_content
     #   return
     # end
 
     # if @user.nil? || @user.delete_account_token_expires_at.nil? || @user.delete_account_token_expires_at < Time.current
-    #   render json: { error: "Invalid or expired token" }, status: :unprocessable_entity
+    #   render json: { error: "Invalid or expired token" }, status: :unprocessable_content
     #   return
     # end
     if @user.admin?
@@ -198,7 +198,7 @@ class API::UsersController < API::ApplicationController
     if @user.soft_delete_account!(reason: "user_requested", actor_id: @user.id)
       render json: { success: true }, status: :ok
     else
-      render json: { error: "Failed to delete account" }, status: :unprocessable_entity
+      render json: { error: "Failed to delete account" }, status: :unprocessable_content
     end
   end
 

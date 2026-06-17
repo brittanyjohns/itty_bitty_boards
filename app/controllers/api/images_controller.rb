@@ -87,7 +87,7 @@ class API::ImagesController < API::ApplicationController
       @image.reload
       render json: @image.api_view(@current_user), status: :created
     else
-      render json: @image.errors, status: :unprocessable_entity
+      render json: @image.errors, status: :unprocessable_content
     end
   end
 
@@ -123,7 +123,7 @@ class API::ImagesController < API::ApplicationController
         render json: { image_url: saved_image_url, id: @image.id, doc_id: @doc.id }
       end
     else
-      render json: @image.errors, status: :unprocessable_entity
+      render json: @image.errors, status: :unprocessable_content
     end
   end
 
@@ -215,7 +215,7 @@ class API::ImagesController < API::ApplicationController
       @image_with_display_doc = @image.with_display_doc(current_user)
       render json: { status: "ok", image: @image_with_display_doc, audio_file: @audio_file.first, audio_url: new_audio_file_url, filename: @file_name_to_save, voice: @image.voice_from_filename(@file_name_to_save) }
     else
-      render json: @image.errors, status: :unprocessable_entity
+      render json: @image.errors, status: :unprocessable_content
     end
   end
 
@@ -336,7 +336,7 @@ class API::ImagesController < API::ApplicationController
         @image_with_display_doc = @image.attributes.merge({ display_doc: doc.attributes, src: doc.tile_url })
         render json: @image.with_display_doc(@current_user), status: :created
       else
-        render json: @image.errors, status: :unprocessable_entity
+        render json: @image.errors, status: :unprocessable_content
       end
     else
       if @image.save
@@ -345,7 +345,7 @@ class API::ImagesController < API::ApplicationController
         @image_with_display_doc = @image.with_display_doc(@current_user)
         render json: @image_with_display_doc, status: :created
       else
-        render json: @image.errors, status: :unprocessable_entity
+        render json: @image.errors, status: :unprocessable_content
       end
     end
   end
@@ -358,7 +358,7 @@ class API::ImagesController < API::ApplicationController
     if @doc.save
       render json: @image, status: :created
     else
-      render json: @image.errors, status: :unprocessable_entity
+      render json: @image.errors, status: :unprocessable_content
     end
   end
 
@@ -432,7 +432,7 @@ class API::ImagesController < API::ApplicationController
   def create_symbol
     @image = Image.find(params[:id])
     if @image.open_symbol_status == "disabled"
-      render json: { status: "error", message: "Symbol generation is disabled for this image." }, status: :unprocessable_entity
+      render json: { status: "error", message: "Symbol generation is disabled for this image." }, status: :unprocessable_content
       return
     end
     limit = current_user.admin? ? ADMIN_SYMBOL_LIMIT : SYMBOL_LIMMIT
@@ -446,7 +446,7 @@ class API::ImagesController < API::ApplicationController
     @image_with_display_doc = @image.with_display_doc(@current_user, @board, @board_image)
     if result[:total] == 0
       @image.update(open_symbol_status: "disabled")
-      render json: { status: "error", message: "No symbols created for image.", image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) }, status: :unprocessable_entity
+      render json: { status: "error", message: "No symbols created for image.", image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user) }, status: :unprocessable_content
       return
     end
     render json: { image: @image_with_display_doc, board: @board&.api_view(@current_user), board_image: @board_image&.api_view(@current_user), status: "ok", created: result[:created], skipped: result[:skipped], total: result[:total] }
@@ -604,7 +604,7 @@ class API::ImagesController < API::ApplicationController
     if @image.update(image_params)
       render json: @image.with_display_doc(current_user)
     else
-      render json: @image.errors, status: :unprocessable_entity
+      render json: @image.errors, status: :unprocessable_content
     end
   end
 

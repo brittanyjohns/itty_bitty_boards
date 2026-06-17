@@ -36,7 +36,7 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
       enqueue_generation_job!(creation_type)
       render json: @board, status: :created
     else
-      render json: { errors: @board.errors }, status: :unprocessable_entity
+      render json: { errors: @board.errors }, status: :unprocessable_content
     end
   end
 
@@ -109,7 +109,7 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
       apply_layout_if_present!
       render json: @board.api_view_with_images(current_user)
     else
-      render json: { errors: @board.errors }, status: :unprocessable_entity
+      render json: { errors: @board.errors }, status: :unprocessable_content
     end
   end
 

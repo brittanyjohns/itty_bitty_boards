@@ -17,7 +17,7 @@ class API::Internal::ProfilesController < API::Internal::ApplicationController
       render json: {
         error: "Profile update failed",
         details: @profile.errors.full_messages,
-      }, status: :unprocessable_entity
+      }, status: :unprocessable_content
     end
   end
 

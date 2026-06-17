@@ -33,7 +33,7 @@ RSpec.describe "API::BoardGroups", type: :request do
 
       post "/api/board_groups", params: { board_group: { name: "Second" } }, headers: auth_headers(user)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
       body = JSON.parse(response.body)
       expect(body["error"]).to match(/board set limit/i)
       expect(body["limit"]).to eq(1)

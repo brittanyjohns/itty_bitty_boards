@@ -95,7 +95,7 @@ class API::ProfilesController < API::ApplicationController
       render json: {
         error: "Profile creation failed",
         details: profile.errors.full_messages,
-      }, status: :unprocessable_entity
+      }, status: :unprocessable_content
     end
   end
 
@@ -121,7 +121,7 @@ class API::ProfilesController < API::ApplicationController
           error: "slug_locked",
           next_edit_at: next_at,
           message: "You can change your link again on #{next_at&.to_date&.iso8601}.",
-        }, status: :unprocessable_entity
+        }, status: :unprocessable_content
         return
       end
 
@@ -134,7 +134,7 @@ class API::ProfilesController < API::ApplicationController
       end
 
       if reason
-        render json: slug_error_for(reason), status: :unprocessable_entity
+        render json: slug_error_for(reason), status: :unprocessable_content
         return
       end
 
@@ -158,7 +158,7 @@ class API::ProfilesController < API::ApplicationController
       render json: {
         error: "Profile update failed",
         details: profile.errors.full_messages,
-      }, status: :unprocessable_entity
+      }, status: :unprocessable_content
     end
   end
 
@@ -189,11 +189,11 @@ class API::ProfilesController < API::ApplicationController
     slug = username.parameterize
     @profile = Profile.find_by(slug: slug) if @profile.nil?
     if @profile
-      render json: { error: "This username has been taken. Please try again." }, status: :unprocessable_entity
+      render json: { error: "This username has been taken. Please try again." }, status: :unprocessable_content
       return
     end
     if params[:user_email].blank?
-      render json: { error: "Email is required" }, status: :unprocessable_entity
+      render json: { error: "Email is required" }, status: :unprocessable_content
       return
     end
     if params[:user_email].present?
@@ -204,7 +204,7 @@ class API::ProfilesController < API::ApplicationController
         params[:user_id] = user.id
         params[:user_email] = user.email
       else
-        render json: { error: "Failed to invite user" }, status: :unprocessable_entity
+        render json: { error: "Failed to invite user" }, status: :unprocessable_content
         return
       end
     end
@@ -213,7 +213,7 @@ class API::ProfilesController < API::ApplicationController
     if @profile
       render json: @profile.placeholder_view
     else
-      render json: { error: "Failed to generate placeholder" }, status: :unprocessable_entity
+      render json: { error: "Failed to generate placeholder" }, status: :unprocessable_content
     end
   end
 
@@ -222,7 +222,7 @@ class API::ProfilesController < API::ApplicationController
   #   if @profile.update(profile_params)
   #     render json: @profile.api_view(current_user)
   #   else
-  #     render json: @profile.errors, status: :unprocessable_entity
+  #     render json: @profile.errors, status: :unprocessable_content
   #   end
   # end
 
@@ -239,7 +239,7 @@ class API::ProfilesController < API::ApplicationController
 
   def claim_placeholder
     if params[:claim_token].blank?
-      render json: { error: "Claim token is required" }, status: :unprocessable_entity
+      render json: { error: "Claim token is required" }, status: :unprocessable_content
       return
     end
     @profile = Profile.find_by(claim_token: params[:claim_token]) if params[:claim_token].present?
@@ -250,7 +250,7 @@ class API::ProfilesController < API::ApplicationController
     email = params[:email]
     slug = params[:slug]
     if email.blank?
-      render json: { error: "Email is required" }, status: :unprocessable_entity
+      render json: { error: "Email is required" }, status: :unprocessable_content
       return
     end
     if slug.blank?
@@ -271,7 +271,7 @@ class API::ProfilesController < API::ApplicationController
       @profile = @profile.claim!(slug, @user)
     rescue StandardError => e
       Rails.logger.error "Failed to claim profile: #{e.message}"
-      render json: { errors: e.message }, status: :unprocessable_entity and return
+      render json: { errors: e.message }, status: :unprocessable_content and return
     end
     @profile.reload
     @slug = @profile.slug

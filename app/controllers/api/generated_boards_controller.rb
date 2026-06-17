@@ -10,7 +10,7 @@ class API::GeneratedBoardsController < API::ApplicationController
     word_count = params[:wordCount].presence || params[:word_count].presence || 12
     board_name = params[:name].presence || generated_board_name(topic, age_range)
     if topic.blank?
-      render json: { error: "Topic is required" }, status: :unprocessable_entity
+      render json: { error: "Topic is required" }, status: :unprocessable_content
       return
     end
     now = Time.now
@@ -47,12 +47,12 @@ class API::GeneratedBoardsController < API::ApplicationController
                }, status: :created
       else
         Rails.logger.error("GeneratedBoardsController#create failed to save board #{board.id}: #{board.errors.full_messages.join(", ")}")
-        render json: { error: board.errors.full_messages.join(", ") }, status: :unprocessable_entity
+        render json: { error: board.errors.full_messages.join(", ") }, status: :unprocessable_content
       end
     rescue => e
       Rails.logger.error("GeneratedBoardsController#create failed for board #{board.id}: #{e.class} - #{e.message}")
       board.destroy if board.persisted?
-      render json: { error: "Unable to generate board" }, status: :unprocessable_entity
+      render json: { error: "Unable to generate board" }, status: :unprocessable_content
     end
   end
 
@@ -68,12 +68,12 @@ class API::GeneratedBoardsController < API::ApplicationController
       return
     end
     if current_user.at_board_limit?
-      render json: { error: "Maximum number of boards reached (#{current_user.countable_board_count}/#{current_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_entity
+      render json: { error: "Maximum number of boards reached (#{current_user.countable_board_count}/#{current_user.board_limit}). Please upgrade to add more." }, status: :unprocessable_content
       return
     end
 
     if !@board.generated?
-      render json: { error: "This board is not claimable" }, status: :unprocessable_entity
+      render json: { error: "This board is not claimable" }, status: :unprocessable_content
       return
     end
 

@@ -14,7 +14,7 @@ class API::PageFollowsController < API::ApplicationController
     if follow.save
       render json: { ok: true }, status: :created
     else
-      render json: { ok: false, errors: follow.errors.full_messages }, status: :unprocessable_entity
+      render json: { ok: false, errors: follow.errors.full_messages }, status: :unprocessable_content
     end
   end
 

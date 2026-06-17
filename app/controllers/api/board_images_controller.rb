@@ -27,7 +27,7 @@ class API::BoardImagesController < API::ApplicationController
       render json: @board_image.api_view(current_user)
     else
       Rails.logger.error "Failed to set current audio for BoardImage ID: #{params[:id]} - #{@board_image.errors.full_messages}"
-      render json: @board_image.errors, status: :unprocessable_entity
+      render json: @board_image.errors, status: :unprocessable_content
     end
   end
 
@@ -43,7 +43,7 @@ class API::BoardImagesController < API::ApplicationController
       @board.broadcast_board_update!
       render json: @board_image.api_view(current_user)
     else
-      render json: @board_image.errors, status: :unprocessable_entity
+      render json: @board_image.errors, status: :unprocessable_content
     end
   end
 
@@ -51,12 +51,12 @@ class API::BoardImagesController < API::ApplicationController
     board_image_ids = params[:board_image_ids]
     @board = Board.includes(:board_images).find(params[:board_id])
     if @board.nil?
-      render json: { error: "Board not found" }, status: :unprocessable_entity
+      render json: { error: "Board not found" }, status: :unprocessable_content
       return
     end
     payload = params[:payload]
     if payload.nil?
-      render json: { error: "No payload provided" }, status: :unprocessable_entity
+      render json: { error: "No payload provided" }, status: :unprocessable_content
       return
     end
     layout_updates = payload[:layout_updates] if payload[:layout_updates]
@@ -64,7 +64,7 @@ class API::BoardImagesController < API::ApplicationController
       board_image_ids = layout_updates.map { |item| item[:board_image_id].to_i }.compact
     end
     if board_image_ids.nil? || board_image_ids.empty?
-      render json: { error: "No board image IDs provided" }, status: :unprocessable_entity
+      render json: { error: "No board image IDs provided" }, status: :unprocessable_content
       return
     end
     board_images = @board.board_images.where(id: board_image_ids)
@@ -167,7 +167,7 @@ class API::BoardImagesController < API::ApplicationController
       @board.broadcast_board_update!
       render json: { board: @board.api_view_with_predictive_images(current_user, true) }
     else
-      render json: { error: "Failed to update some board images" }, status: :unprocessable_entity
+      render json: { error: "Failed to update some board images" }, status: :unprocessable_content
     end
   end
 
@@ -175,12 +175,12 @@ class API::BoardImagesController < API::ApplicationController
     board_image_ids = params[:board_image_ids]
     @board = Board.find(params[:board_id])
     if @board.nil?
-      render json: { error: "Board not found" }, status: :unprocessable_entity
+      render json: { error: "Board not found" }, status: :unprocessable_content
       return
     end
     board_images = BoardImage.where(id: board_image_ids, board_id: @board.id)
     if board_images.empty?
-      render json: { error: "No board images found" }, status: :unprocessable_entity
+      render json: { error: "No board images found" }, status: :unprocessable_content
       return
     end
     results = []
@@ -195,14 +195,14 @@ class API::BoardImagesController < API::ApplicationController
       @board.broadcast_board_update!
       render json: { board: @board.api_view_with_predictive_images(current_user, true) }
     else
-      render json: { error: "Failed to remove some board images" }, status: :unprocessable_entity
+      render json: { error: "Failed to remove some board images" }, status: :unprocessable_content
     end
   end
 
   def create_image_edit
     @board_image = BoardImage.find(params[:id])
     if @board_image.nil?
-      render json: { error: "Board image not found" }, status: :unprocessable_entity
+      render json: { error: "Board image not found" }, status: :unprocessable_content
       return
     end
     begin
@@ -212,7 +212,7 @@ class API::BoardImagesController < API::ApplicationController
       EditBoardImageJob.perform_async(@board_image.id, prompt, transparent_background)
     rescue => e
       Rails.logger.error "Error while creating image edit for BoardImage ID #{@board_image.id}: #{e.message}"
-      render json: { error: "Failed to create image edit" }, status: :unprocessable_entity
+      render json: { error: "Failed to create image edit" }, status: :unprocessable_content
       return
     end
 
@@ -220,14 +220,14 @@ class API::BoardImagesController < API::ApplicationController
     if @board_image.update(status: "editing")
       render json: @board_image.api_view(current_user) and return
     else
-      render json: { error: "Failed to create image edit" }, status: :unprocessable_entity
+      render json: { error: "Failed to create image edit" }, status: :unprocessable_content
     end
   end
 
   def create_image_variation
     @board_image = BoardImage.find(params[:id])
     if @board_image.nil?
-      render json: { error: "Board image not found" }, status: :unprocessable_entity
+      render json: { error: "Board image not found" }, status: :unprocessable_content
       return
     end
     return unless check_credits!(feature_key: "image_variation", feature_name: "AI Image Variations")
@@ -238,7 +238,7 @@ class API::BoardImagesController < API::ApplicationController
     if @image_variation
       render json: @board_image.api_view(current_user)
     else
-      render json: { error: "Failed to create image variation" }, status: :unprocessable_entity
+      render json: { error: "Failed to create image variation" }, status: :unprocessable_content
     end
   end
 
@@ -268,7 +268,7 @@ class API::BoardImagesController < API::ApplicationController
       @board_image.reload
       render json: @board_image.api_view(current_user)
     else
-      render json: @board_image.errors, status: :unprocessable_entity
+      render json: @board_image.errors, status: :unprocessable_content
     end
   end
 
@@ -285,7 +285,7 @@ class API::BoardImagesController < API::ApplicationController
     if @board_image.update(audio_url: default_audio_url)
       render json: @board_image.api_view(current_user)
     else
-      render json: @board_image.errors, status: :unprocessable_entity
+      render json: @board_image.errors, status: :unprocessable_content
     end
   end
 
@@ -296,25 +296,25 @@ class API::BoardImagesController < API::ApplicationController
 
     @board = Board.find(@board_id)
     if @board.nil?
-      render json: { error: "Board not found" }, status: :unprocessable_entity
+      render json: { error: "Board not found" }, status: :unprocessable_content
       return
     end
 
     @board_image = BoardImage.find_by(board_id: @board_id, image_id: @image_id)
     if @board_image.nil?
-      render json: { error: "Board image not found" }, status: :unprocessable_entity
+      render json: { error: "Board image not found" }, status: :unprocessable_content
       return
     end
     @new_image = Image.find(params[:new_image_id]&.to_i)
     @board_image.image = @new_image
     if @new_image.user_id != current_user.id
-      render json: { error: "You do not have permission to move this image" }, status: :unprocessable_entity
+      render json: { error: "You do not have permission to move this image" }, status: :unprocessable_content
     end
 
     if @board_image.save
       render json: @board_image.api_view(current_user)
     else
-      render json: @board_image.errors, status: :unprocessable_entity
+      render json: @board_image.errors, status: :unprocessable_content
     end
   end
 
@@ -375,7 +375,7 @@ class API::BoardImagesController < API::ApplicationController
     @board_image = BoardImage.includes(:audio_files_attachments).find_by(id: params[:id])
     if @board_image.nil?
       Rails.logger.error "BoardImage with ID #{params[:id]} not found."
-      render json: { error: "Board image not found" }, status: :unprocessable_entity
+      render json: { error: "Board image not found" }, status: :unprocessable_content
       return
     end
   end

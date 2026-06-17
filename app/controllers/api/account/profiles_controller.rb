@@ -9,7 +9,7 @@ class API::Account::ProfilesController < API::Account::ApplicationController
     if @profile.update(profile_params)
       render json: @profile.api_view
     else
-      render json: @profile.errors, status: :unprocessable_entity
+      render json: @profile.errors, status: :unprocessable_content
     end
   end
 

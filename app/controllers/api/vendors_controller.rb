@@ -37,7 +37,7 @@ class API::VendorsController < API::ApplicationController
     if @vendor
       render json: @vendor.api_view(current_user), status: :created
     else
-      render json: { error: "Failed to create vendor" }, status: :unprocessable_entity
+      render json: { error: "Failed to create vendor" }, status: :unprocessable_content
     end
   end
 
@@ -45,14 +45,14 @@ class API::VendorsController < API::ApplicationController
     email = params[:user_email]
     business_name = params[:business_name]
     if email.blank? || business_name.blank?
-      render json: { error: "Email and business name are required" }, status: :unprocessable_entity
+      render json: { error: "Email and business name are required" }, status: :unprocessable_content
       return
     end
     @vendor = Vendor.create_from_email(email, business_name, params[:business_email], params[:website])
     if @vendor
       render json: @vendor.api_view(current_user), status: :created
     else
-      render json: { error: "Failed to generate vendor" }, status: :unprocessable_entity
+      render json: { error: "Failed to generate vendor" }, status: :unprocessable_content
     end
   end
 
@@ -61,7 +61,7 @@ class API::VendorsController < API::ApplicationController
     if @vendor.update(vendor_params)
       render json: @vendor.api_view(current_user)
     else
-      render json: @vendor.errors, status: :unprocessable_entity
+      render json: @vendor.errors, status: :unprocessable_content
     end
   end
 
@@ -74,7 +74,7 @@ class API::VendorsController < API::ApplicationController
     if @vendor.destroy
       render json: { message: "Vendor deleted successfully" }, status: :ok
     else
-      render json: { error: "Failed to delete vendor" }, status: :unprocessable_entity
+      render json: { error: "Failed to delete vendor" }, status: :unprocessable_content
     end
   end
 
