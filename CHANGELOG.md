@@ -5,6 +5,33 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Board Builder: complexity levels, AI fringe pages, hybrid build (Phase 2)
+- **Complexity levels** replace raw template keys in the wizard: Starter (4-6
+  fringe pages), Standard (8-10), Extended (10-15). Legacy `template` param
+  still works; new `level` param is the intended path forward.
+- `GET /api/v1/board_builder/templates` now returns a `levels` array with key,
+  name, description, and fringe_page_range for each level, plus a
+  `recommended_level` based on the communicator's stored profile.
+- **StructurePlanner** decides which fringe pages to include per level, resolving
+  each to one of three sources: `:seed_set` (already in the core clone),
+  `:prebuilt` (standalone OBF template), or `:ai_generated` (OpenAI).
+- **11 standalone fringe page OBF templates** seeded via
+  `bin/rails fringe_templates:seed`: Animals, Art & Craft, Bathroom, Clothing,
+  Home, Music, Nature & Outdoors, Social, Sports, Technology, Transportation.
+- **AiPageGenerator** service generates niche interest pages via OpenAI when no
+  pre-built content exists (e.g., a user's unique hobby). Profile-aware prompts
+  tailor vocabulary to the communicator's AAC level and age.
+- **`ai_board_page` credit feature key** (cost: 2 credits per AI-generated page).
+  Graceful fallback: if the user lacks credits, niche interests route to the
+  "My Favorites" catch-all instead of failing.
+- `CreditService.can_spend?` — balance check without locking/spending.
+- `SeededSetCloner` now supports `exclude_fringe:` to skip seed set pages the
+  planner doesn't need for the chosen level.
+- Level recommendation heuristics: young/emerging → Starter,
+  developing/young-teen → Standard, proficient/older → Extended. **These are
+  reasonable defaults, not clinically validated** — revisit with AAC research
+  or user data before treating them as authoritative.
+
 ### Added — Board Builder: expanded interest categories + categorized picker endpoint
 - Expanded interest dictionary from 4 categories (~120 words) to 18 categories
   (~504 words). New categories: Animals, Art & Craft, Clothing, Family & People,

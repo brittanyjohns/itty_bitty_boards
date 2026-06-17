@@ -642,7 +642,9 @@ Full permissions matrix and the rationale for the split lives in
   Webhook-driven grants are idempotent on `stripe_event_id`.
 - Entry point: `CreditService.spend!(user, feature_key:, amount: nil)` raises
   `CreditService::InsufficientCredits` when out of credits. Per-feature costs
-  live in `CreditService::FEATURE_COSTS`.
+  live in `CreditService::FEATURE_COSTS`. `CreditService.can_spend?(user,
+  feature_key:, amount:)` checks balance without locking/spending (used by
+  `StructurePlanner`'s credit downgrade logic).
 - AI controllers gate via `check_credits!(feature_key:, feature_name:)` in
   `API::ApplicationController`. On insufficient balance it renders **HTTP 402**
   with `{ error: "insufficient_credits", feature, needed, balance, plan_credits,
@@ -828,22 +830,65 @@ Three seams (input contract tightens left→right):
   **already-resolved `image_id`s only**. Keep it dumb; all resolution lives in
   the assembler.
 
-Endpoints (`API::V1::BoardBuilderController`, both auth-gated):
+### Complexity levels (Phase 2)
 
-- `GET /api/v1/board_builder/templates` — label-only picker catalog. Accepts an
-  optional `communicator_id` (scoped to `current_user.communicator_accounts`);
-  when that communicator has a usable stored profile, the response includes
-  `recommended_template` (Core 60's slug for young/emerging, else Core 84's —
-  only if that set is seeded here) and a `recommendation_reason` string. No
-  profile → both `null`.
+Phase 2 replaces raw template keys with **complexity levels** — Starter,
+Standard, Extended — that control how many fringe pages a built set includes and
+where they come from. The `level` param is the intended path forward; `template`
+still works for backward compat.
+
+- **`Boards::StructurePlanner`** — the planning service. Takes a level + profile
+  + interests → decides which fringe pages to include, resolving each to one of
+  three source types:
+  - `:seed_set` — already in the core template clone (Food, Feelings, etc.)
+  - `:prebuilt` — standalone OBF fringe template, cloned per user
+  - `:ai_generated` — built on the fly via `Boards::AiPageGenerator` (OpenAI)
+  Constants: `LEVELS` (starter→core-60/4-6 pages, standard→core-60/8-10,
+  extended→core-84/10-15), `SEED_SET_PAGES`, `CATEGORY_SEED_ALIASES` (maps
+  InterestCategories names like "Family & People" to seed set page names like
+  "People").
+- **`Boards::FringeTemplates`** — module for standalone fringe page templates.
+  Seeded from `db/seeds/board_builder_sets/fringe-pages/*.obf` via
+  `bin/rails fringe_templates:seed` (also auto-runs after `vocab_sets:seed`).
+  11 categories: Animals, Art & Craft, Bathroom, Clothing, Home, Music,
+  Nature & Outdoors, Social, Sports, Technology, Transportation. Boards are
+  marked with `settings["fringe_template_category"]` and owned by
+  `DEFAULT_ADMIN_ID`.
+- **`Boards::AiPageGenerator`** — OpenAI-powered page generation for niche
+  interests with no pre-built source. Returns a `{ name, tiles }` blueprint.
+  Profile-aware prompts. Credit-gated: costs 2 credits (`ai_board_page` feature
+  key). Falls back to "My Favorites" catch-all when user lacks credits or
+  generation fails.
+- **`BuildBoardSetJob`** routes between the hybrid path (when `level` is a
+  `StructurePlanner::LEVELS` key) and the legacy path (direct template keys like
+  `core-60`, `home`). The hybrid path: plan → clone seed set with exclusions →
+  clone prebuilt templates → AI-generate niche pages → route catch-all.
+- **`SeededSetCloner`** now accepts `exclude_fringe:` — a list of page names to
+  skip during the clone (the planner's excluded pages).
+- **Level recommendation heuristic:** young/emerging → Starter,
+  developing/young_teen → Standard, proficient/older → Extended. Based on
+  `CommunicatorProfile` helpers (`developing?`, `young_teen?`). **Not clinically
+  validated** — reasonable defaults that should be revisited with AAC research or
+  user data.
+
+Endpoints (`API::V1::BoardBuilderController`, all auth-gated):
+
+- `GET /api/v1/board_builder/templates` — label-only picker catalog. Returns
+  `levels` (array of `{ key, name, description, fringe_page_range }`),
+  `recommended_level` (profile-based, null without a communicator), and
+  `recommendation_reason`. Also returns legacy `templates` array and
+  `recommended_template` for backward compat. Accepts an optional
+  `communicator_id` (scoped to `current_user.communicator_accounts`).
 - `GET /api/v1/board_builder/interest_categories` — returns the full category
   dictionary (`{ categories: [{ name, words }], max_interests }`) for the
   frontend's categorized interest picker. 18 categories, ~504 words.
-- `POST /api/v1/board_builder` `{ communicator_id, template, interests }` —
+- `POST /api/v1/board_builder` `{ communicator_id, level, interests }` or
+  `{ communicator_id, template, interests }` — `level` is preferred; `template`
+  is the legacy path. `level` takes precedence when both are sent.
   `interests` accepts plain strings or `[{ word, category }]` hashes; explicit
   categories override the dictionary lookup. Ownership check (**404
   `communicator_not_found`** for a communicator not in
-  `current_user.communicator_accounts`), assemble → build → persist normalized
+  `current_user.communicator_accounts`), plan → build → persist normalized
   interests to `child_account.details["interests"]` (jsonb merge), return the
   favorited root board's `api_view` (**201**). **422 `unknown_template`** /
   **422 `build_failed`** (the build is transactional — failure rolls back, no
