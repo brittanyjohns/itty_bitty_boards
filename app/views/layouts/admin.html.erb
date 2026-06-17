@@ -26,6 +26,8 @@
                 class: "text-xs px-3 py-1.5 rounded #{current_page?(admin_root_path) ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800/60"} transition-colors" %>
           <%= link_to "Mission Control", admin_mission_control_path,
                 class: "text-xs px-3 py-1.5 rounded #{current_page?(admin_mission_control_path) ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800/60"} transition-colors" %>
+          <%= link_to "Users", admin_dashboard_users_path,
+                class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/users") ? "bg-gray-800 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800/60"} transition-colors" %>
           <%= link_to "Sidekiq", "/sidekiq",
                 class: "text-xs px-3 py-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-800/60 transition-colors" %>
         </nav>

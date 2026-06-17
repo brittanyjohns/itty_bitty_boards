@@ -1,0 +1,237 @@
+<% content_for :page_title, @user.email %>
+
+<div class="mb-6">
+  <%= link_to "← Users", admin_dashboard_users_path, class: "text-xs text-gray-400 hover:text-white transition-colors" %>
+</div>
+
+<%# ─── Header ─────────────────────────────────────────────── %>
+<div class="flex items-start justify-between mb-8">
+  <div>
+    <h1 class="text-2xl font-semibold text-white tracking-tight"><%= @user.email %></h1>
+    <p class="text-sm text-gray-500 mt-0.5">
+      <%= @user.name.presence || "No name" %> · ID <%= @user.id %>
+      <% if @user.demo_user? %>
+        <span class="text-yellow-400 ml-1">(demo account)</span>
+      <% end %>
+    </p>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="<%= plan_badge_class(@user) %> inline-block text-xs rounded px-2.5 py-1">
+      <%= @user.plan_type || "none" %>
+    </span>
+    <% if @user.admin? %>
+      <span class="bg-yellow-900/60 text-yellow-300 inline-block text-xs rounded px-2.5 py-1">admin</span>
+    <% end %>
+    <% if @user.locked? %>
+      <span class="bg-red-900/60 text-red-300 inline-block text-xs rounded px-2.5 py-1">locked</span>
+    <% end %>
+  </div>
+</div>
+
+<%# ─── Stats cards ────────────────────────────────────────── %>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+    <p class="text-xs text-gray-500 mb-1">Boards</p>
+    <p class="text-2xl font-semibold text-white"><%= @boards.size %></p>
+  </div>
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+    <p class="text-xs text-gray-500 mb-1">Communicators</p>
+    <p class="text-2xl font-semibold text-white"><%= @communicators.size %></p>
+  </div>
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+    <p class="text-xs text-gray-500 mb-1">Credits</p>
+    <p class="text-2xl font-semibold text-white"><%= @credit_balance %></p>
+  </div>
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+    <p class="text-xs text-gray-500 mb-1">Sign-ins</p>
+    <p class="text-2xl font-semibold text-white"><%= @user.sign_in_count %></p>
+  </div>
+</div>
+
+<%# ─── Two-column: Account + Activity ────────────────────── %>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+
+  <%# Account details ──────────────────────────────────────── %>
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+    <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-4">Account</h2>
+    <dl class="space-y-2.5 text-xs">
+      <% [
+        ["Role",             @user.role],
+        ["Plan type",        @user.plan_type],
+        ["Plan status",      @user.plan_status],
+        ["Paid plan type",   @user.paid_plan_type.presence || "—"],
+        ["Stripe customer",  @user.stripe_customer_id.presence || "—"],
+        ["Stripe sub",       @user.stripe_subscription_id.presence || "—"],
+        ["Created",          @user.created_at.strftime("%b %-d, %Y %H:%M %Z")],
+        ["Last sign-in",     @user.last_sign_in_at&.strftime("%b %-d, %Y %H:%M %Z") || "Never"],
+        ["Last sign-in IP",  @user.last_sign_in_ip.presence || "—"],
+      ].each do |label, value| %>
+        <div class="flex justify-between">
+          <dt class="text-gray-500"><%= label %></dt>
+          <dd class="text-gray-300 font-mono text-right"><%= value %></dd>
+        </div>
+      <% end %>
+    </dl>
+  </div>
+
+  <%# Settings snapshot ────────────────────────────────────── %>
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+    <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-4">Settings</h2>
+    <% if @user.settings.present? %>
+      <dl class="space-y-2 text-xs">
+        <% @user.settings.each do |key, value| %>
+          <% next if key == "voice" %>
+          <div class="flex justify-between gap-4">
+            <dt class="text-gray-500 shrink-0"><%= key %></dt>
+            <dd class="text-gray-300 font-mono text-right truncate max-w-[200px]" title="<%= value %>">
+              <%= value.is_a?(Hash) || value.is_a?(Array) ? value.to_json : value %>
+            </dd>
+          </div>
+        <% end %>
+      </dl>
+    <% else %>
+      <p class="text-xs text-gray-600">No settings.</p>
+    <% end %>
+  </div>
+</div>
+
+<%# ─── Boards ─────────────────────────────────────────────── %>
+<section class="mb-8">
+  <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-4">
+    Boards <span class="text-gray-600">(<%= @boards.size %>)</span>
+  </h2>
+
+  <% if @boards.any? %>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-800">
+            <th class="text-left text-xs font-medium text-gray-500 px-5 py-3">Name</th>
+            <th class="text-left text-xs font-medium text-gray-500 px-5 py-3">Images</th>
+            <th class="text-left text-xs font-medium text-gray-500 px-5 py-3">Updated</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-800/60">
+          <% @boards.each do |board| %>
+            <tr class="hover:bg-gray-800/40 transition-colors">
+              <td class="px-5 py-2.5 text-xs text-gray-300"><%= board.name %></td>
+              <td class="px-5 py-2.5 text-xs text-gray-500"><%= board.board_images.size %></td>
+              <td class="px-5 py-2.5 text-xs text-gray-500 whitespace-nowrap"><%= board.updated_at.strftime("%b %-d, %Y") %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% else %>
+    <p class="text-xs text-gray-600">No boards.</p>
+  <% end %>
+</section>
+
+<%# ─── Communicators ──────────────────────────────────────── %>
+<section class="mb-8">
+  <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-4">
+    Communicators <span class="text-gray-600">(<%= @communicators.size %>)</span>
+  </h2>
+
+  <% if @communicators.any? %>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-800">
+            <th class="text-left text-xs font-medium text-gray-500 px-5 py-3">Name</th>
+            <th class="text-left text-xs font-medium text-gray-500 px-5 py-3">Username</th>
+            <th class="text-left text-xs font-medium text-gray-500 px-5 py-3">Status</th>
+            <th class="text-left text-xs font-medium text-gray-500 px-5 py-3">Created</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-800/60">
+          <% @communicators.each do |ca| %>
+            <tr class="hover:bg-gray-800/40 transition-colors">
+              <td class="px-5 py-2.5 text-xs text-gray-300"><%= ca.name.presence || "—" %></td>
+              <td class="px-5 py-2.5 text-xs text-gray-400 font-mono"><%= ca.username.presence || "—" %></td>
+              <td class="px-5 py-2.5">
+                <span class="inline-block text-xs rounded px-2 py-0.5
+                  <%= ca.status == "active" ? "bg-green-900/60 text-green-300" :
+                      ca.status == "loaner" ? "bg-blue-900/60 text-blue-300" :
+                      "bg-gray-800 text-gray-400" %>">
+                  <%= ca.status %>
+                </span>
+              </td>
+              <td class="px-5 py-2.5 text-xs text-gray-500 whitespace-nowrap"><%= ca.created_at.strftime("%b %-d, %Y") %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% else %>
+    <p class="text-xs text-gray-600">No communicators.</p>
+  <% end %>
+</section>
+
+<%# ─── Recent events ──────────────────────────────────────── %>
+<section>
+  <h2 class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-4">
+    Recent Events <span class="text-gray-600">(<%= @recent_events.size %>)</span>
+  </h2>
+
+  <% if @recent_events.any? %>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-800">
+            <th class="text-left text-xs font-medium text-gray-500 px-5 py-3">When</th>
+            <th class="text-left text-xs font-medium text-gray-500 px-5 py-3">Event</th>
+            <th class="text-left text-xs font-medium text-gray-500 px-5 py-3">Details</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-800/60">
+          <% @recent_events.each_with_index do |event, idx| %>
+            <tr class="hover:bg-gray-800/40 transition-colors cursor-pointer user-event-row" data-event-idx="<%= idx %>">
+              <td class="px-5 py-2.5 text-xs text-gray-500 whitespace-nowrap">
+                <%= time_ago_in_words(event.occurred_at) %> ago
+              </td>
+              <td class="px-5 py-2.5">
+                <span class="<%= event_badge_class(event.event_type) %> inline-block text-xs font-mono rounded px-2 py-0.5">
+                  <%= event.event_type %>
+                </span>
+              </td>
+              <td class="px-5 py-2.5 text-xs text-gray-600 font-mono">
+                <% if event.metadata.present? %>
+                  <span class="truncate block max-w-sm"><%= event.metadata.map { |k, v| "#{k}: #{v}" }.join(" · ") %></span>
+                  <span class="text-indigo-400 text-[10px]">▸ expand</span>
+                <% end %>
+              </td>
+            </tr>
+            <tr class="hidden user-event-detail" id="user-event-detail-<%= idx %>">
+              <td colspan="3" class="px-5 py-3 bg-gray-800/30">
+                <div class="text-xs space-y-1">
+                  <% if event.metadata.present? %>
+                    <% event.metadata.each do |key, value| %>
+                      <div class="flex gap-2">
+                        <span class="text-indigo-400 font-mono shrink-0 min-w-[120px]"><%= key %></span>
+                        <span class="text-gray-300 font-mono break-all"><%= value.is_a?(Hash) || value.is_a?(Array) ? value.to_json : value %></span>
+                      </div>
+                    <% end %>
+                  <% else %>
+                    <p class="text-gray-600">No metadata.</p>
+                  <% end %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <script>
+      document.querySelectorAll('.user-event-row').forEach(function(row) {
+        row.addEventListener('click', function() {
+          var idx = this.dataset.eventIdx;
+          document.getElementById('user-event-detail-' + idx).classList.toggle('hidden');
+        });
+      });
+    </script>
+  <% else %>
+    <p class="text-xs text-gray-600">No events recorded for this user.</p>
+  <% end %>
+</section>

@@ -14,5 +14,17 @@ module Admin
     def event_badge_class(event_type)
       EVENT_BADGE_CLASSES.fetch(event_type, "bg-gray-800 text-gray-400")
     end
+
+    PLAN_BADGE_CLASSES = {
+      "pro"         => "bg-purple-900/60 text-purple-300",
+      "basic"       => "bg-blue-900/60 text-blue-300",
+      "basic_trial" => "bg-teal-900/60 text-teal-300",
+      "free"        => "bg-gray-800 text-gray-400",
+      "partner_pro" => "bg-green-900/60 text-green-300",
+    }.freeze
+
+    def plan_badge_class(user)
+      PLAN_BADGE_CLASSES.fetch(user.plan_type.to_s, "bg-gray-800 text-gray-400")
+    end
   end
 end

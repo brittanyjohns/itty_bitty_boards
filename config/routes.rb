@@ -59,6 +59,7 @@ Rails.application.routes.draw do
     resource :mission_control, only: [:show], controller: 'mission_control' do
       post :cleanup_demo
     end
+    resources :users, only: [:index, :show], as: :dashboard_users
   end
 
   get "main/index", as: :home
