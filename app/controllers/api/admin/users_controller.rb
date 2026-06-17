@@ -291,7 +291,6 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     user.soft_delete_account!(reason: "demo_cleanup", actor_id: current_admin.id) unless user.soft_deleted?
     user.destroy!
   end
-  end
 
   # Use callbacks to share common setup or constraints between actions.
   def set_user
