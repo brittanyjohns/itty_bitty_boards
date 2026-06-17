@@ -1,59 +1,57 @@
 require "rails_helper"
 
 RSpec.describe Boards::SeededSetCloner do
-  let(:admin) { create(:admin_user) }
+  # Shared source set — built once via before_all. Each example's clones and
+  # modifications run inside a savepoint that auto-rolls back.
+  before_all do
+    @admin = create(:admin_user)
+    @source = build_source_set!(@admin)
+  end
+
+  # Fresh owner + communicator per example (clones belong to them and get
+  # rolled back; the shared source set survives).
   let(:owner) { create(:user) }
   let(:communicator) { create(:child_account, user: owner) }
 
-  # Builds an admin-owned seeded set: a root core board linked to two fringe
-  # category pages (Food, Feelings) via predictive_board_id, plus a deliberate
-  # CYCLE (a Feelings tile links back to the root) to exercise cycle-safety.
-  def build_source_set!
-    root     = create(:board, user: admin, name: "Core 60", predefined: true, published: true)
-    food     = create(:board, user: admin, name: "Food", predefined: true, published: true)
-    feelings = create(:board, user: admin, name: "Feelings", predefined: true, published: true)
+  def build_source_set!(admin_user)
+    root     = create(:board, user: admin_user, name: "Core 60", predefined: true, published: true)
+    food     = create(:board, user: admin_user, name: "Food", predefined: true, published: true)
+    feelings = create(:board, user: admin_user, name: "Feelings", predefined: true, published: true)
 
     %w[I want help].each do |label|
-      create(:board_image, board: root, label: label, image: create(:image, label: label, user_id: admin.id))
+      create(:board_image, board: root, label: label, image: create(:image, label: label, user_id: admin_user.id))
     end
     food_tile = create(:board_image, board: root, label: "Food",
-                                     image: create(:image, label: "Food", user_id: admin.id))
+                                     image: create(:image, label: "Food", user_id: admin_user.id))
     food_tile.update!(predictive_board_id: food.id)
     feelings_tile = create(:board_image, board: root, label: "Feelings",
-                                         image: create(:image, label: "Feelings", user_id: admin.id))
+                                         image: create(:image, label: "Feelings", user_id: admin_user.id))
     feelings_tile.update!(predictive_board_id: feelings.id)
 
     %w[apple banana].each do |label|
-      create(:board_image, board: food, label: label, image: create(:image, label: label, user_id: admin.id))
+      create(:board_image, board: food, label: label, image: create(:image, label: label, user_id: admin_user.id))
     end
     %w[happy sad].each do |label|
-      create(:board_image, board: feelings, label: label, image: create(:image, label: label, user_id: admin.id))
+      create(:board_image, board: feelings, label: label, image: create(:image, label: label, user_id: admin_user.id))
     end
 
-    # CYCLE: a Feelings tile points back at the root.
     back = create(:board_image, board: feelings, label: "home",
-                                image: create(:image, label: "home", user_id: admin.id))
+                                image: create(:image, label: "home", user_id: admin_user.id))
     back.update!(predictive_board_id: root.id)
 
     { root: root, food: food, feelings: feelings, food_tile: food_tile, feelings_tile: feelings_tile }
   end
 
-  let(:source) { build_source_set! }
-
   describe "#call" do
     it "clones the linked set for the owner and counts the whole set as ONE board" do
-      # Fresh User each evaluation — countable_board_count is memoized and
-      # survives reload, so owner.reload would report a stale 0.
       expect {
-        @root = described_class.new(source[:root], communicator: communicator).call
+        @root = described_class.new(@source[:root], communicator: communicator).call
       }.to change { User.find(owner.id).countable_board_count }.from(0).to(1)
 
       expect(@root.user_id).to eq(owner.id)
       expect(@root.predefined).to be(false)
       expect(@root.settings["builder_root"]).to be(true)
 
-      # 3 source boards (root + Food + Feelings) -> 3 owner-owned clones; the
-      # cycle does not clone the root twice.
       owner_boards = owner.boards
       expect(owner_boards.count).to eq(3)
       fringe = owner_boards.where("COALESCE((settings->>'builder_child')::boolean, false)")
@@ -62,7 +60,7 @@ RSpec.describe Boards::SeededSetCloner do
     end
 
     it "rewires folder tiles to the cloned fringe boards and nulls out-of-set pointers" do
-      root = described_class.new(source[:root], communicator: communicator).call
+      root = described_class.new(@source[:root], communicator: communicator).call
 
       cloned_food = owner.boards.find_by(name: "Food")
       cloned_feelings = owner.boards.find_by(name: "Feelings")
@@ -70,19 +68,16 @@ RSpec.describe Boards::SeededSetCloner do
       food_tile = root.board_images.find_by(label: "Food")
       expect(food_tile.predictive_board_id).to eq(cloned_food.id)
 
-      # The cloned Feelings board's cyclic "home" tile pointed back at the root —
-      # that target is in the set, so it rewires to the cloned root (not nulled).
       home_tile = cloned_feelings.board_images.find_by(label: "home")
       expect(home_tile.predictive_board_id).to eq(root.id)
 
-      # No cloned tile may still point at a SOURCE board.
-      source_ids = [source[:root].id, source[:food].id, source[:feelings].id]
+      source_ids = [@source[:root].id, @source[:food].id, @source[:feelings].id]
       cloned_predictive = owner.boards.flat_map { |b| b.board_images.pluck(:predictive_board_id) }.compact
       expect(cloned_predictive & source_ids).to be_empty
     end
 
     it "attaches exactly one favorite ChildBoard (the root), none for fringe" do
-      root = described_class.new(source[:root], communicator: communicator).call
+      root = described_class.new(@source[:root], communicator: communicator).call
 
       child_boards = communicator.child_boards.reload
       expect(child_boards.count).to eq(1)
@@ -92,21 +87,19 @@ RSpec.describe Boards::SeededSetCloner do
 
     it "routes interests into matching cloned fringe pages" do
       root = described_class.new(
-        source[:root], communicator: communicator, interests: ["apple", "happy"]
+        @source[:root], communicator: communicator, interests: ["apple", "happy"]
       ).call
 
       cloned_food = owner.boards.find_by(name: "Food")
       cloned_feelings = owner.boards.find_by(name: "Feelings")
 
-      # "apple" already exists on Food -> deduped (no second tile).
       expect(cloned_food.board_images.where(label: "apple").count).to eq(1)
-      # "happy" already exists on Feelings -> deduped too.
       expect(cloned_feelings.board_images.where(label: "happy").count).to eq(1)
     end
 
     it "adds a brand-new food interest to the cloned Food page" do
       root = described_class.new(
-        source[:root], communicator: communicator, interests: ["pizza"]
+        @source[:root], communicator: communicator, interests: ["pizza"]
       ).call
 
       cloned_food = owner.boards.find_by(name: "Food")
@@ -115,7 +108,7 @@ RSpec.describe Boards::SeededSetCloner do
 
     it "routes unmatched interests into a created, linked, builder_child 'My Favorites'" do
       root = described_class.new(
-        source[:root], communicator: communicator, interests: ["grandma"]
+        @source[:root], communicator: communicator, interests: ["grandma"]
       ).call
 
       favorites = owner.boards.find_by(name: "My Favorites")
@@ -123,41 +116,37 @@ RSpec.describe Boards::SeededSetCloner do
       expect(favorites.settings["builder_child"]).to be(true)
       expect(favorites.board_images.map(&:label)).to include("grandma")
 
-      # Linked from the root via a folder tile.
       fav_tile = root.board_images.find_by(label: "My Favorites")
       expect(fav_tile.predictive_board_id).to eq(favorites.id)
 
-      # Still counts as ONE board (favorites is builder_child).
       expect(User.find(owner.id).countable_board_count).to eq(1)
     end
 
     it "queues AI art for a novel interest word with no existing symbol" do
       expect(GenerateImagesJob).to receive(:perform_async).with(kind_of(Array), kind_of(Integer)).at_least(:once)
 
-      described_class.new(source[:root], communicator: communicator, interests: ["dinosaurs"]).call
+      described_class.new(@source[:root], communicator: communicator, interests: ["dinosaurs"]).call
     end
 
     it "does not queue art when the interest already exists on the fringe" do
-      # "apple" is already on the cloned Food page -> deduped, nothing created.
       expect(GenerateImagesJob).not_to receive(:perform_async)
 
-      described_class.new(source[:root], communicator: communicator, interests: ["apple"]).call
+      described_class.new(@source[:root], communicator: communicator, interests: ["apple"]).call
     end
 
     it "does not mutate the source seed set" do
-      described_class.new(source[:root], communicator: communicator, interests: ["pizza"]).call
+      described_class.new(@source[:root], communicator: communicator, interests: ["pizza"]).call
 
-      expect(source[:root].reload.predefined).to be(true)
-      expect(source[:food_tile].reload.predictive_board_id).to eq(source[:food].id)
-      # Source boards still belong to admin; clones belong to the owner.
-      expect(Board.where(user_id: admin.id).count).to eq(3)
-      expect(source[:food].reload.board_images.map { |bi| bi.image.label }).to contain_exactly("apple", "banana")
+      expect(@source[:root].reload.predefined).to be(true)
+      expect(@source[:food_tile].reload.predictive_board_id).to eq(@source[:food].id)
+      expect(Board.where(user_id: @admin.id).count).to eq(3)
+      expect(@source[:food].reload.board_images.map { |bi| bi.image.label }).to contain_exactly("apple", "banana")
     end
 
     context "with exclude_fringe:" do
       it "skips excluded fringe boards from the clone" do
         root = described_class.new(
-          source[:root], communicator: communicator,
+          @source[:root], communicator: communicator,
           exclude_fringe: ["Food"],
         ).call
 
@@ -170,7 +159,7 @@ RSpec.describe Boards::SeededSetCloner do
 
       it "is case-insensitive" do
         described_class.new(
-          source[:root], communicator: communicator,
+          @source[:root], communicator: communicator,
           exclude_fringe: ["food"],
         ).call
 
@@ -179,7 +168,7 @@ RSpec.describe Boards::SeededSetCloner do
 
       it "never excludes the root" do
         root = described_class.new(
-          source[:root], communicator: communicator,
+          @source[:root], communicator: communicator,
           exclude_fringe: ["Core 60"],
         ).call
 
@@ -194,12 +183,11 @@ RSpec.describe Boards::SeededSetCloner do
       allow(orphan).to receive(:user).and_return(nil)
 
       expect {
-        described_class.new(source[:root], communicator: orphan).call
+        described_class.new(@source[:root], communicator: orphan).call
       }.to raise_error(Boards::SeededSetCloner::CloneError)
     end
 
     context "with an adopted root (async path via BuildBoardSetJob)" do
-      # Mirrors the controller's in-request root creation.
       def precreated_root(name: "Core 60")
         root = Board.new(name: name, user: owner)
         root.board_type = "dynamic"
@@ -215,7 +203,7 @@ RSpec.describe Boards::SeededSetCloner do
       it "clones the source root's tiles INTO the adopted root and rewires links to the clones" do
         root = precreated_root
 
-        returned = described_class.new(source[:root], communicator: communicator, root: root).call
+        returned = described_class.new(@source[:root], communicator: communicator, root: root).call
 
         expect(returned.id).to eq(root.id)
         root.reload
@@ -225,40 +213,36 @@ RSpec.describe Boards::SeededSetCloner do
         food_tile = root.board_images.find_by(label: "Food")
         expect(food_tile.predictive_board_id).to eq(cloned_food.id)
 
-        # The cycle tile on the cloned Feelings board points back at the ADOPTED root.
         cloned_feelings = owner.boards.find_by(name: "Feelings")
         expect(cloned_feelings.board_images.find_by(label: "home").predictive_board_id).to eq(root.id)
 
-        # 1 adopted root + 2 fringe clones, still counted as ONE board.
         expect(owner.boards.count).to eq(3)
         expect(User.find(owner.id).countable_board_count).to eq(1)
       end
 
       it "preserves the adopted root's identity, does not re-attach, and never inherits the robust catalog markers" do
-        Boards::RobustSets.mark_root!(source[:root], "core-60")
+        Boards::RobustSets.mark_root!(@source[:root], "core-60")
         root = precreated_root
         original_slug = root.slug
 
         expect {
-          described_class.new(source[:root], communicator: communicator, root: root).call
+          described_class.new(@source[:root], communicator: communicator, root: root).call
         }.not_to change { communicator.child_boards.count }
 
         root.reload
         expect(root.name).to eq("Core 60")
         expect(root.slug).to eq(original_slug)
         expect(root.user_id).to eq(owner.id)
-        # Status is the JOB's to flip; the cloner must not touch it.
         expect(root.status).to eq("building_board")
         expect(root.settings["builder_root"]).to be(true)
-        # The user's copy must never surface as a pickable robust template.
-        expect(Boards::RobustSets.all_roots.pluck(:id)).to contain_exactly(source[:root].id)
+        expect(Boards::RobustSets.all_roots.pluck(:id)).to contain_exactly(@source[:root].id)
       end
 
       it "routes interests into the cloned fringe pages under the adopted root" do
         root = precreated_root
 
         described_class.new(
-          source[:root], communicator: communicator, interests: ["pizza", "grandma"], root: root
+          @source[:root], communicator: communicator, interests: ["pizza", "grandma"], root: root
         ).call
 
         cloned_food = owner.boards.find_by(name: "Food")
@@ -276,7 +260,7 @@ RSpec.describe Boards::SeededSetCloner do
           .to receive(:route_interests!).and_raise(Boards::SeededSetCloner::CloneError, "boom")
 
         expect {
-          described_class.new(source[:root], communicator: communicator, root: root).call
+          described_class.new(@source[:root], communicator: communicator, root: root).call
         }.to raise_error(Boards::SeededSetCloner::CloneError)
 
         expect(root.reload).to be_persisted
@@ -286,14 +270,12 @@ RSpec.describe Boards::SeededSetCloner do
     end
   end
 
-  # Regression for #278: seed BOTH real sets (whose fringe ids are now
-  # namespaced), then clone each. Pre-fix, the two sets shared fringe boards and
-  # whichever seeded last won the Home pointer, so the other set's clones shipped
-  # with dead Home tiles on every fringe page.
+  # Regression for #278: seed BOTH real sets, then clone each.
   describe "cloning a real seeded robust set" do
-    let!(:seed_admin) { create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
-
-    before do
+    before_all do
+      register_openai_webmock_stub!
+      register_external_webmock_stubs!
+      @seed_admin = create(:admin_user, id: User::DEFAULT_ADMIN_ID)
       VocabSets.seed_slug!("core-60")
       VocabSets.seed_slug!("core-84")
     end
@@ -306,8 +288,6 @@ RSpec.describe Boards::SeededSetCloner do
         fringe = owner.boards.where("COALESCE((settings->>'builder_child')::boolean, false)")
         expect(fringe.count).to be > 0
 
-        # Every fringe page carries a Home tile, and it resolves to the cloned
-        # root (in-set) — never nulled, never the other set's root.
         fringe.each do |board|
           home = board.board_images.find_by(label: "Home")
           expect(home).to be_present, "expected fringe '#{board.name}' to have a Home tile"
@@ -316,9 +296,6 @@ RSpec.describe Boards::SeededSetCloner do
       end
     end
 
-    # #279: the seeded set's Fitzgerald-key colors (from each OBF button's
-    # authored part_of_speech) must survive the deep clone. Pre-fix, the import
-    # dropped part_of_speech, so the cloner faithfully copied wrong colors.
     it "carries the authored part_of_speech colors onto the cloned set" do
       source_root = Boards::RobustSets.find_root("core-60")
       cloned_root = described_class.new(source_root, communicator: communicator).call
@@ -333,9 +310,6 @@ RSpec.describe Boards::SeededSetCloner do
       end
     end
 
-    # One-page display: the seeder stamps settings["disable_scroll"] on every
-    # set board (read by the frontend's BoardNativeGridPage); clone_with_images
-    # dups settings, so user clones must inherit it on root AND fringe.
     it "carries disable_scroll (one-page display) onto every cloned board" do
       source_root = Boards::RobustSets.find_root("core-60")
       cloned_root = described_class.new(source_root, communicator: communicator).call

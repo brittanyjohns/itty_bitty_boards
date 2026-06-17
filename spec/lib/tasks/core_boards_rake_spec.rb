@@ -8,18 +8,14 @@ RSpec.describe "core_boards rake task", type: :task do
 
   let(:task) { Rake::Task["core_boards:seed"] }
 
-  # Run the task, resetting the rake invocation guard so it can be called again.
   def run_task
     task.reenable
     task.invoke
   end
 
   before do
-    # Public/predefined boards are owned by the admin user the task looks up.
-    FactoryBot.create(:user, id: User::DEFAULT_ADMIN_ID)
-    # part-of-speech classification calls OpenAI on Image creation — stub it.
+    FactoryBot.create(:user, id: User::DEFAULT_ADMIN_ID) unless User.exists?(User::DEFAULT_ADMIN_ID)
     allow(AacWordCategorizer).to receive(:categorize).and_return("noun")
-    # Tile creation enqueues TTS audio jobs; keep the queue out of the test.
     allow(SaveAudioJob).to receive(:perform_async)
   end
 
@@ -57,7 +53,7 @@ RSpec.describe "core_boards rake task", type: :task do
       labels = board.board_images.order(:position).pluck(:label)
       expect(labels[0, 4]).to eq(%w[I want help yes])
       expect(labels[4, 4]).to eq(%w[lunch eat hot cold])
-      expect(labels[8]).to eq("you") # next core row starts again at column 0
+      expect(labels[8]).to eq("you")
     end
 
     it "gives core tiles a black border and leaves topic tiles borderless" do
