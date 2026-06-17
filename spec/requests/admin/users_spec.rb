@@ -3,9 +3,9 @@ require "rails_helper"
 RSpec.describe "Admin::Users", type: :request do
   include Devise::Test::IntegrationHelpers
 
-  let!(:admin) { create(:admin_user) }
-  let!(:user1) { create(:user, email: "alice@example.com", name: "Alice") }
-  let!(:user2) { create(:user, email: "bob@example.com", name: "Bob", plan_type: "pro") }
+  let_it_be(:admin) { create(:admin_user) }
+  let_it_be(:user1, reload: true) { create(:user, email: "alice@example.com", name: "Alice") }
+  let_it_be(:user2) { create(:user, email: "bob@example.com", name: "Bob", plan_type: "pro") }
 
   before do
     allow_any_instance_of(ActionView::Helpers::AssetTagHelper)

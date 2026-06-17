@@ -5,7 +5,7 @@ require "rails_helper"
 # downgrades to free, cancellation is analytics-only (still entitled until
 # expiry), billing issue keeps access during the grace period.
 RSpec.describe "POST /api/billing/webhooks (RevenueCat)", type: :request do
-  let!(:user) { FactoryBot.create(:user, plan_type: "free") }
+  let_it_be(:user, reload: true) { FactoryBot.create(:user, plan_type: "free") }
 
   before { reset_user_credits!(user) }
 

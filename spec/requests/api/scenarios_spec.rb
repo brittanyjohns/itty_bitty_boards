@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe "API::Scenarios", type: :request do
-  let!(:user) { create(:user) }
+  let_it_be(:user, reload: true) { create(:user) }
 
   describe "POST /api/scenarios/suggestion" do
     let(:fake_client) { instance_double(OpenAI::Client) }

@@ -7,13 +7,13 @@ RSpec.describe CoachingPromptGenerator do
   describe ".for" do
     let!(:snack_set) do
       create(:coaching_prompt_set,
-        slug: "snack_time_test",
-        match_tags: %w[snack snack_time],
+        slug: "rspec_gen_snack",
+        match_tags: %w[rspec_gen_snack_tag],
         published: true)
     end
 
     it "returns the curated set when one matches" do
-      board.update!(tags: ["snack_time"])
+      board.update!(tags: ["rspec_gen_snack_tag"])
       expect(described_class.for(board)).to eq(snack_set)
     end
 
@@ -30,10 +30,11 @@ RSpec.describe CoachingPromptGenerator do
     it "returns the seeded fallback set when staging is on" do
       board.update!(tags: ["unrelated"])
       allow(AppEnv).to receive(:staging?).and_return(true)
-      fallback = create(:coaching_prompt_set,
-        slug: CoachingPromptGenerator::FALLBACK_SLUG,
-        published: false,
-        match_tags: [])
+      fallback = CoachingPromptSet.find_or_create_by!(slug: CoachingPromptGenerator::FALLBACK_SLUG) do |set|
+        set.name = "Fallback"
+        set.published = false
+        set.match_tags = []
+      end
 
       expect(described_class.for(board)).to eq(fallback)
     end
@@ -79,10 +80,11 @@ RSpec.describe CoachingPromptGenerator do
     it "returns the fallback when OpenAI raises an error" do
       board.update!(tags: ["unknown_topic"])
       allow(AppEnv).to receive(:staging?).and_return(false)
-      fallback = create(:coaching_prompt_set,
-        slug: CoachingPromptGenerator::FALLBACK_SLUG,
-        published: false,
-        match_tags: [])
+      fallback = CoachingPromptSet.find_or_create_by!(slug: CoachingPromptGenerator::FALLBACK_SLUG) do |set|
+        set.name = "Fallback"
+        set.published = false
+        set.match_tags = []
+      end
 
       fake_client = instance_double(OpenAI::Client)
       allow(OpenAI::Client).to receive(:new).and_return(fake_client)
