@@ -118,6 +118,8 @@ Rails.application.routes.draw do
       collection do
         post "billing_portal"
         post "change_plan_portal_session"
+        post "preview_plan_change"
+        post "change_plan"
         post "add_item"
         post "create_customer_session"
         get "list"
