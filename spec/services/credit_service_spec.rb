@@ -314,6 +314,69 @@ RSpec.describe CreditService, type: :service do
     end
   end
 
+  describe ".admin_adjust!" do
+    let(:admin_user) { FactoryBot.create(:admin_user) }
+
+    it "adds plan credits and records an admin_adjust transaction" do
+      described_class.grant_plan!(user, amount: 10, period_end: 30.days.from_now)
+
+      txn = described_class.admin_adjust!(user, amount: 50, source: "plan", admin: admin_user, reason: "support request")
+
+      user.reload
+      expect(user.plan_credits_balance).to eq(60)
+      expect(txn.kind).to eq("admin_adjust")
+      expect(txn.amount).to eq(50)
+      expect(txn.source).to eq("plan")
+      expect(txn.metadata["admin_id"]).to eq(admin_user.id)
+      expect(txn.metadata["reason"]).to eq("support request")
+    end
+
+    it "removes plan credits with a negative amount" do
+      described_class.grant_plan!(user, amount: 100, period_end: 30.days.from_now)
+
+      txn = described_class.admin_adjust!(user, amount: -30, source: "plan", admin: admin_user)
+
+      user.reload
+      expect(user.plan_credits_balance).to eq(70)
+      expect(txn.amount).to eq(-30)
+    end
+
+    it "adds topup credits" do
+      txn = described_class.admin_adjust!(user, amount: 200, source: "topup", admin: admin_user)
+
+      user.reload
+      expect(user.topup_credits_balance).to eq(200)
+      expect(txn.source).to eq("topup")
+    end
+
+    it "removes topup credits" do
+      described_class.grant_topup!(user, amount: 100)
+
+      txn = described_class.admin_adjust!(user, amount: -40, source: "topup", admin: admin_user)
+
+      user.reload
+      expect(user.topup_credits_balance).to eq(60)
+    end
+
+    it "raises when amount is zero" do
+      expect {
+        described_class.admin_adjust!(user, amount: 0, source: "plan", admin: admin_user)
+      }.to raise_error(ArgumentError, /must not be zero/)
+    end
+
+    it "raises when adjustment would make balance negative" do
+      expect {
+        described_class.admin_adjust!(user, amount: -10, source: "plan", admin: admin_user)
+      }.to raise_error(ArgumentError, /negative/)
+    end
+
+    it "raises for invalid source" do
+      expect {
+        described_class.admin_adjust!(user, amount: 10, source: "invalid", admin: admin_user)
+      }.to raise_error(ArgumentError, /invalid source/)
+    end
+  end
+
   describe ".shadow_spend" do
     it "returns true and decrements when there are enough credits" do
       described_class.grant_plan!(user, amount: 10, period_end: 30.days.from_now)

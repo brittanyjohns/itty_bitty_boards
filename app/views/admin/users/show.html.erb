@@ -40,13 +40,101 @@
   </div>
   <div class="admin-card border rounded-xl p-4">
     <p class="text-xs text-t2 mb-1">Credits</p>
-    <p class="text-2xl font-semibold text-t1"><%= @credit_balance %></p>
+    <p class="text-2xl font-semibold text-t1"><%= @credit_balance[:total] %></p>
+    <p class="text-[10px] text-t3 mt-1">
+      Plan: <%= @credit_balance[:plan] %> · Topup: <%= @credit_balance[:topup] %>
+    </p>
   </div>
   <div class="admin-card border rounded-xl p-4">
     <p class="text-xs text-t2 mb-1">Sign-ins</p>
     <p class="text-2xl font-semibold text-t1"><%= @user.sign_in_count %></p>
   </div>
 </div>
+
+<%# ─── Credit adjustment ──────────────────────────────────── %>
+<div class="admin-card border rounded-xl p-6 mb-8">
+  <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Adjust Credits</h2>
+
+  <div id="credit-flash" class="hidden text-xs rounded px-3 py-2 mb-4"></div>
+
+  <form id="credit-adjust-form" class="flex flex-wrap items-end gap-3">
+    <div>
+      <label class="block text-[10px] text-t3 mb-1">Amount</label>
+      <input type="number" name="amount" required
+             class="admin-input w-28 text-sm px-2.5 py-1.5 rounded border bg-transparent text-t1"
+             placeholder="e.g. 100 or -50">
+    </div>
+    <div>
+      <label class="block text-[10px] text-t3 mb-1">Source</label>
+      <select name="source" class="admin-input text-sm px-2.5 py-1.5 rounded border bg-transparent text-t1">
+        <option value="plan">Plan</option>
+        <option value="topup">Topup</option>
+      </select>
+    </div>
+    <div class="flex-1 min-w-[140px]">
+      <label class="block text-[10px] text-t3 mb-1">Reason (optional)</label>
+      <input type="text" name="reason"
+             class="admin-input w-full text-sm px-2.5 py-1.5 rounded border bg-transparent text-t1"
+             placeholder="e.g. support request, testing">
+    </div>
+    <button type="submit"
+            class="text-sm font-medium px-4 py-1.5 rounded transition-colors"
+            style="background: var(--accent); color: var(--bg);">
+      Apply
+    </button>
+  </form>
+
+  <p class="text-[10px] text-t3 mt-2">Positive = add credits, negative = remove. Recorded as admin_adjust in the ledger.</p>
+</div>
+
+<script>
+  document.getElementById('credit-adjust-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var form = e.target;
+    var flash = document.getElementById('credit-flash');
+    var btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = '…';
+
+    var data = {
+      amount: parseInt(form.amount.value, 10),
+      source: form.source.value,
+      reason: form.reason.value || null
+    };
+
+    fetch('/api/admin/users/<%= @user.id %>/adjust_credits', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify(data)
+    })
+    .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, body: j }; }); })
+    .then(function(res) {
+      flash.classList.remove('hidden', 'bg-green-900/60', 'text-green-300', 'bg-red-900/60', 'text-red-300');
+      if (res.ok) {
+        flash.classList.add('bg-green-900/60', 'text-green-300');
+        flash.textContent = 'Credits adjusted. Plan: ' + res.body.balance.plan + ' · Topup: ' + res.body.balance.topup + ' · Total: ' + res.body.balance.total;
+        form.amount.value = '';
+        form.reason.value = '';
+      } else {
+        flash.classList.add('bg-red-900/60', 'text-red-300');
+        flash.textContent = res.body.error || 'Something went wrong.';
+      }
+    })
+    .catch(function(err) {
+      flash.classList.remove('hidden', 'bg-green-900/60', 'text-green-300', 'bg-red-900/60', 'text-red-300');
+      flash.classList.add('bg-red-900/60', 'text-red-300');
+      flash.textContent = 'Network error: ' + err.message;
+    })
+    .finally(function() {
+      btn.disabled = false;
+      btn.textContent = 'Apply';
+    });
+  });
+</script>
 
 <%# ─── Two-column: Account + Activity ────────────────────── %>
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">

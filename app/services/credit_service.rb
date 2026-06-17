@@ -284,6 +284,35 @@ class CreditService
       end
     end
 
+    # Admin-only adjustment. Positive amount adds credits, negative removes them.
+    # Records an admin_adjust transaction for audit trail.
+    def admin_adjust!(user, amount:, source: "plan", admin:, reason: nil)
+      raise ArgumentError, "amount must not be zero" if amount.zero?
+      raise ArgumentError, "invalid source" unless %w[plan topup].include?(source)
+
+      ActiveRecord::Base.transaction do
+        user.lock!
+
+        if source == "plan"
+          new_balance = user.plan_credits_balance.to_i + amount
+          raise ArgumentError, "adjustment would make plan balance negative (#{new_balance})" if new_balance < 0
+          user.update_columns(plan_credits_balance: new_balance)
+        else
+          new_balance = user.topup_credits_balance.to_i + amount
+          raise ArgumentError, "adjustment would make topup balance negative (#{new_balance})" if new_balance < 0
+          user.update_columns(topup_credits_balance: new_balance)
+        end
+
+        CreditTransaction.create!(
+          user: user,
+          amount: amount,
+          kind: "admin_adjust",
+          source: source,
+          metadata: { admin_id: admin.id, admin_email: admin.email, reason: reason }.compact,
+        )
+      end
+    end
+
     # Shadow-mode: try to spend, but never raise. Returns true if it would have succeeded.
     # Used during Phase 1 rollout for telemetry.
     def shadow_spend(user, feature_key:, amount: nil, metadata: {})

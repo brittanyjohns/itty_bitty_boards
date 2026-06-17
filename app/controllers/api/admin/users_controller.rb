@@ -1,5 +1,5 @@
 class API::Admin::UsersController < API::Admin::ApplicationController
-  before_action :set_user, only: %i[ show destroy update ]
+  before_action :set_user, only: %i[ show destroy update adjust_credits ]
 
   # GET /users or /users.json
   ALLOWED_SORT_FIELDS = %w[created_at updated_at email name board_count].freeze
@@ -97,6 +97,38 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     else
       render json: @user.errors, status: :unprocessable_content
     end
+  end
+
+  def adjust_credits
+    unless current_admin&.admin?
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
+
+    amount = params[:amount].to_i
+    source = params[:source].presence_in(%w[plan topup]) || "plan"
+    reason = params[:reason].presence
+
+    if amount.zero?
+      render json: { error: "Amount must not be zero" }, status: :unprocessable_content
+      return
+    end
+
+    txn = CreditService.admin_adjust!(
+      @user,
+      amount: amount,
+      source: source,
+      admin: current_admin,
+      reason: reason,
+    )
+
+    render json: {
+      success: true,
+      transaction_id: txn.id,
+      balance: CreditService.balance(@user.reload),
+    }
+  rescue ArgumentError => e
+    render json: { error: e.message }, status: :unprocessable_content
   end
 
   def send_welcome_email

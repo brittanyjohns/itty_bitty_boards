@@ -466,6 +466,7 @@ Rails.application.routes.draw do
           post "send_setup_email"
           post "send_temp_login_email"
           post "send_partner_welcome_email"
+          post "adjust_credits"
         end
         collection do
           delete "destroy_users"
