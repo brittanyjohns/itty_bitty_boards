@@ -1,0 +1,21 @@
+{
+  "format": "open-board-0.1",
+  "id": "fringe:social",
+  "locale": "en",
+  "name": "Social",
+  "grid": { "rows": 3, "columns": 4, "order": [[1,2,3,4],[5,6,7,8],[9,10,null,null]] },
+  "buttons": [
+    { "id": 1, "label": "hi", "part_of_speech": "social" },
+    { "id": 2, "label": "bye", "part_of_speech": "social" },
+    { "id": 3, "label": "please", "part_of_speech": "social" },
+    { "id": 4, "label": "sorry", "part_of_speech": "social" },
+    { "id": 5, "label": "share", "part_of_speech": "verb" },
+    { "id": 6, "label": "turn", "part_of_speech": "noun" },
+    { "id": 7, "label": "wait", "part_of_speech": "verb" },
+    { "id": 8, "label": "help", "part_of_speech": "verb" },
+    { "id": 9, "label": "stop", "part_of_speech": "verb" },
+    { "id": 10, "label": "mine", "part_of_speech": "pronoun" }
+  ],
+  "images": [],
+  "sounds": []
+}

@@ -133,4 +133,33 @@ RSpec.describe CommunicatorProfile do
         .to match(/favor core vocabulary/i)
     end
   end
+
+  describe "#developing?" do
+    it "is true for developing aac_level" do
+      expect(described_class.new(aac_level: "developing")).to be_developing
+    end
+
+    it "is false for other levels" do
+      expect(described_class.new(aac_level: "emerging")).not_to be_developing
+      expect(described_class.new(aac_level: "proficient")).not_to be_developing
+      expect(described_class.new).not_to be_developing
+    end
+  end
+
+  describe "#young_teen?" do
+    it "is true for age 11-14" do
+      expect(described_class.new(age: 11)).to be_young_teen
+      expect(described_class.new(age: 14)).to be_young_teen
+    end
+
+    it "is false for younger/older ages" do
+      expect(described_class.new(age: 10)).not_to be_young_teen
+      expect(described_class.new(age: 15)).not_to be_young_teen
+    end
+
+    it "falls back to age_band when no age" do
+      expect(described_class.new(age_band: "11-14")).to be_young_teen
+      expect(described_class.new(age_band: "7-10")).not_to be_young_teen
+    end
+  end
 end

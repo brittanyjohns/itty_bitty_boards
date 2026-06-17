@@ -29,6 +29,7 @@ class CreditService
     "menu_create" => 5,
     # Legacy single-bucket key (during shadow mode / migration)
     "ai_action" => 1,
+    "ai_board_page" => 2,
   }.freeze
 
   # Default monthly grant by plan_type. Stripe Price metadata overrides at grant time.
@@ -112,6 +113,12 @@ class CreditService
         total: user.plan_credits_balance.to_i + user.topup_credits_balance.to_i,
         reset_at: user.plan_credits_reset_at,
       }
+    end
+
+    def can_spend?(user, feature_key: nil, amount: nil)
+      amount ||= (feature_key ? cost_for(feature_key) : 1)
+      total = user.plan_credits_balance.to_i + user.topup_credits_balance.to_i
+      total >= amount
     end
 
     # Spend credits for an AI feature. Plan credits drained first, then top-up.

@@ -1,0 +1,23 @@
+{
+  "format": "open-board-0.1",
+  "id": "fringe:music",
+  "locale": "en",
+  "name": "Music",
+  "grid": { "rows": 3, "columns": 4, "order": [[1,2,3,4],[5,6,7,8],[9,10,11,12]] },
+  "buttons": [
+    { "id": 1, "label": "sing", "part_of_speech": "verb" },
+    { "id": 2, "label": "dance", "part_of_speech": "verb" },
+    { "id": 3, "label": "listen", "part_of_speech": "verb" },
+    { "id": 4, "label": "clap", "part_of_speech": "verb" },
+    { "id": 5, "label": "drum", "part_of_speech": "noun" },
+    { "id": 6, "label": "guitar", "part_of_speech": "noun" },
+    { "id": 7, "label": "piano", "part_of_speech": "noun" },
+    { "id": 8, "label": "song", "part_of_speech": "noun" },
+    { "id": 9, "label": "loud", "part_of_speech": "adjective" },
+    { "id": 10, "label": "quiet", "part_of_speech": "adjective" },
+    { "id": 11, "label": "music", "part_of_speech": "noun" },
+    { "id": 12, "label": "beat", "part_of_speech": "noun" }
+  ],
+  "images": [],
+  "sounds": []
+}

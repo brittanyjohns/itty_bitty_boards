@@ -1,0 +1,21 @@
+{
+  "format": "open-board-0.1",
+  "id": "fringe:technology",
+  "locale": "en",
+  "name": "Technology",
+  "grid": { "rows": 3, "columns": 4, "order": [[1,2,3,4],[5,6,7,8],[9,10,null,null]] },
+  "buttons": [
+    { "id": 1, "label": "tablet", "part_of_speech": "noun" },
+    { "id": 2, "label": "phone", "part_of_speech": "noun" },
+    { "id": 3, "label": "computer", "part_of_speech": "noun" },
+    { "id": 4, "label": "movie", "part_of_speech": "noun" },
+    { "id": 5, "label": "watch", "part_of_speech": "verb" },
+    { "id": 6, "label": "play", "part_of_speech": "verb" },
+    { "id": 7, "label": "video", "part_of_speech": "noun" },
+    { "id": 8, "label": "game", "part_of_speech": "noun" },
+    { "id": 9, "label": "screen", "part_of_speech": "noun" },
+    { "id": 10, "label": "charge", "part_of_speech": "verb" }
+  ],
+  "images": [],
+  "sounds": []
+}

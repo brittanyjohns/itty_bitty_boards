@@ -39,7 +39,7 @@ module Boards
     # When a root is adopted, the source root's CONTENT (tiles, layout columns)
     # is cloned INTO it instead of dup-ing a fresh board, and the caller owns
     # the ChildBoard attach/favorite.
-    def initialize(source_root, communicator:, interests: [], favorite_root: true, root: nil, explicit_categories: {})
+    def initialize(source_root, communicator:, interests: [], favorite_root: true, root: nil, explicit_categories: {}, exclude_fringe: [])
       @source_root          = source_root
       @communicator         = communicator
       @owner                = communicator.owner || communicator.user
@@ -47,6 +47,7 @@ module Boards
       @favorite_root        = favorite_root
       @root                 = root
       @explicit_categories  = explicit_categories || {}
+      @exclude_fringe       = Array(exclude_fringe).map { |n| n.to_s.strip.downcase }
     end
 
     # Clones the whole linked set + routes interests in a single transaction so a
@@ -88,6 +89,7 @@ module Boards
       until queue.empty?
         board, depth = queue.shift
         next if board.nil? || visited[board.id]
+        next if board.id != root.id && excluded_fringe?(board)
 
         visited[board.id] = true
         ordered << board
@@ -100,6 +102,12 @@ module Boards
       end
 
       ordered
+    end
+
+    def excluded_fringe?(board)
+      return false if @exclude_fringe.empty?
+
+      @exclude_fringe.include?(board.name.to_s.strip.downcase)
     end
 
     # Clone each source board for the owner. NO communicator_account arg, so

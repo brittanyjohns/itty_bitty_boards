@@ -1,0 +1,23 @@
+{
+  "format": "open-board-0.1",
+  "id": "fringe:sports",
+  "locale": "en",
+  "name": "Sports",
+  "grid": { "rows": 3, "columns": 4, "order": [[1,2,3,4],[5,6,7,8],[9,10,11,12]] },
+  "buttons": [
+    { "id": 1, "label": "run", "part_of_speech": "verb" },
+    { "id": 2, "label": "swim", "part_of_speech": "verb" },
+    { "id": 3, "label": "kick", "part_of_speech": "verb" },
+    { "id": 4, "label": "throw", "part_of_speech": "verb" },
+    { "id": 5, "label": "catch", "part_of_speech": "verb" },
+    { "id": 6, "label": "jump", "part_of_speech": "verb" },
+    { "id": 7, "label": "ball", "part_of_speech": "noun" },
+    { "id": 8, "label": "race", "part_of_speech": "noun" },
+    { "id": 9, "label": "soccer", "part_of_speech": "noun" },
+    { "id": 10, "label": "basketball", "part_of_speech": "noun" },
+    { "id": 11, "label": "fast", "part_of_speech": "adjective" },
+    { "id": 12, "label": "win", "part_of_speech": "verb" }
+  ],
+  "images": [],
+  "sounds": []
+}

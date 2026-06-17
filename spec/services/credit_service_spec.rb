@@ -291,6 +291,29 @@ RSpec.describe CreditService, type: :service do
     end
   end
 
+  describe ".can_spend?" do
+    it "returns true when balance covers the amount" do
+      described_class.grant_plan!(user, amount: 10, period_end: 30.days.from_now)
+      expect(described_class.can_spend?(user, feature_key: "ai_board_page")).to be true
+    end
+
+    it "returns false when balance is insufficient" do
+      expect(described_class.can_spend?(user, feature_key: "ai_board_page")).to be false
+    end
+
+    it "checks a specific amount when provided" do
+      described_class.grant_plan!(user, amount: 3, period_end: 30.days.from_now)
+      expect(described_class.can_spend?(user, amount: 3)).to be true
+      expect(described_class.can_spend?(user, amount: 4)).to be false
+    end
+  end
+
+  describe "ai_board_page feature key" do
+    it "is defined with a cost of 2" do
+      expect(described_class.cost_for("ai_board_page")).to eq(2)
+    end
+  end
+
   describe ".shadow_spend" do
     it "returns true and decrements when there are enough credits" do
       described_class.grant_plan!(user, amount: 10, period_end: 30.days.from_now)

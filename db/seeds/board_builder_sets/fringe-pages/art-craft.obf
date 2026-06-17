@@ -1,0 +1,23 @@
+{
+  "format": "open-board-0.1",
+  "id": "fringe:art-craft",
+  "locale": "en",
+  "name": "Art & Craft",
+  "grid": { "rows": 3, "columns": 4, "order": [[1,2,3,4],[5,6,7,8],[9,10,11,12]] },
+  "buttons": [
+    { "id": 1, "label": "draw", "part_of_speech": "verb" },
+    { "id": 2, "label": "paint", "part_of_speech": "verb" },
+    { "id": 3, "label": "cut", "part_of_speech": "verb" },
+    { "id": 4, "label": "glue", "part_of_speech": "verb" },
+    { "id": 5, "label": "color", "part_of_speech": "verb" },
+    { "id": 6, "label": "make", "part_of_speech": "verb" },
+    { "id": 7, "label": "crayon", "part_of_speech": "noun" },
+    { "id": 8, "label": "paper", "part_of_speech": "noun" },
+    { "id": 9, "label": "scissors", "part_of_speech": "noun" },
+    { "id": 10, "label": "stickers", "part_of_speech": "noun" },
+    { "id": 11, "label": "clay", "part_of_speech": "noun" },
+    { "id": 12, "label": "glitter", "part_of_speech": "noun" }
+  ],
+  "images": [],
+  "sounds": []
+}

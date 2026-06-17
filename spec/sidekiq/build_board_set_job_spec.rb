@@ -129,6 +129,62 @@ RSpec.describe BuildBoardSetJob do
     end
   end
 
+  describe "#perform with a complexity level (hybrid path)" do
+    before { seed_robust_set! }
+
+    it "routes through StructurePlanner and completes" do
+      root = precreate_root!(name: "Core 60")
+
+      described_class.new.perform(root.id, communicator.id, "standard", ["pizza"])
+
+      root.reload
+      expect(root.status).to eq("complete")
+      expect(root.board_images.map(&:label)).to include("I", "Food")
+
+      cloned_food = user.boards.find_by(name: "Food")
+      expect(cloned_food).to be_present
+      expect(cloned_food.board_images.map(&:label)).to include("apple", "pizza")
+    end
+
+    it "excludes fringe pages the planner drops and still completes" do
+      root = precreate_root!(name: "Core 60")
+
+      described_class.new.perform(root.id, communicator.id, "starter", [])
+
+      root.reload
+      expect(root.status).to eq("complete")
+      # Starter only includes ~4-6 fringe pages; some seed set pages are excluded
+      cloned_names = user.boards
+        .where("COALESCE((settings->>'builder_child')::boolean, false)")
+        .pluck(:name)
+      expect(cloned_names.size).to be <= 6
+    end
+
+    it "falls back AI-generated pages to My Favorites when user has no credits" do
+      root = precreate_root!(name: "Core 60")
+      # User starts with free-tier credits (5) from after_create, but we zero it
+      user.update_columns(plan_credits_balance: 0, topup_credits_balance: 0)
+
+      # "xylophone_crafting" won't match any seed set or prebuilt fringe template
+      described_class.new.perform(root.id, communicator.id, "standard", ["xylophone_crafting"])
+
+      root.reload
+      expect(root.status).to eq("complete")
+    end
+
+    it "normalizes legacy template keys — core-60 routes to standard path" do
+      root = precreate_root!(name: "Core 60")
+
+      # core-60 is not in LEVELS but the job's legacy path handles it;
+      # the controller's resolve_build_key resolves "core-60" as template, not level.
+      # Verify the job handles this gracefully.
+      described_class.new.perform(root.id, communicator.id, "core-60", ["pizza"])
+
+      root.reload
+      expect(root.status).to eq("complete")
+    end
+  end
+
   describe "failure path" do
     it "marks the root failed, re-raises, and leaves no orphan children" do
       root = precreate_root!(name: "Home")

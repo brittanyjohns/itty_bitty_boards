@@ -154,6 +154,40 @@ RSpec.describe Boards::SeededSetCloner do
       expect(source[:food].reload.board_images.map { |bi| bi.image.label }).to contain_exactly("apple", "banana")
     end
 
+    context "with exclude_fringe:" do
+      it "skips excluded fringe boards from the clone" do
+        root = described_class.new(
+          source[:root], communicator: communicator,
+          exclude_fringe: ["Food"],
+        ).call
+
+        expect(owner.boards.find_by(name: "Food")).to be_nil
+        expect(owner.boards.find_by(name: "Feelings")).to be_present
+
+        food_tile = root.board_images.find_by(label: "Food")
+        expect(food_tile.predictive_board_id).to be_nil
+      end
+
+      it "is case-insensitive" do
+        described_class.new(
+          source[:root], communicator: communicator,
+          exclude_fringe: ["food"],
+        ).call
+
+        expect(owner.boards.find_by(name: "Food")).to be_nil
+      end
+
+      it "never excludes the root" do
+        root = described_class.new(
+          source[:root], communicator: communicator,
+          exclude_fringe: ["Core 60"],
+        ).call
+
+        expect(root).to be_present
+        expect(root.name).to eq("Core 60")
+      end
+    end
+
     it "raises CloneError when the communicator has no owning user" do
       orphan = build(:child_account)
       allow(orphan).to receive(:owner).and_return(nil)
