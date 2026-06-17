@@ -1698,7 +1698,8 @@ class User < ApplicationRecord
         delete_stripe_customer: delete_stripe_customer,
       )
     else
-      anonymize_personal_data_and_delete_all_data(deleted_at: Time.current, reason: reason, actor_id: actor_id)
+      enqueue_deletion_cleanup!(reason: reason)
+      anonymize_personal_data_and_delete_all_data!(deleted_at: Time.current, reason: reason, actor_id: actor_id)
     end
   end
 

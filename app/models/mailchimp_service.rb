@@ -176,6 +176,49 @@ class MailchimpService
     nil
   end
 
+  def archive_subscriber(user, reason: "user_requested")
+    list_id = ENV.fetch("MAILCHIMP_AUDIENCE_ID")
+    subscriber_hash_email = subscriber_hash(user.email)
+
+    update_subscriber_tags(
+      user.email,
+      ["AccountDeleted", "deleted:#{reason}"],
+      []
+    )
+
+    @client.lists.update_list_member(
+      list_id,
+      subscriber_hash_email,
+      { status: "unsubscribed" }
+    )
+
+    Rails.logger.info("[Mailchimp] Archived subscriber #{user.id} (#{reason})")
+    true
+  rescue MailchimpMarketing::ApiError => e
+    if e.status == 404
+      Rails.logger.info("[Mailchimp] Subscriber #{user.id} not found in audience — nothing to archive")
+      return true
+    end
+    Rails.logger.error("[Mailchimp] archive_subscriber failed for user #{user.id}: #{e.message}")
+    false
+  end
+
+  def delete_subscriber_permanently(user)
+    list_id = ENV.fetch("MAILCHIMP_AUDIENCE_ID")
+    subscriber_hash_email = subscriber_hash(user.email)
+
+    @client.lists.delete_list_member_permanent(list_id, subscriber_hash_email)
+    Rails.logger.info("[Mailchimp] Permanently deleted subscriber #{user.id}")
+    true
+  rescue MailchimpMarketing::ApiError => e
+    if e.status == 404
+      Rails.logger.info("[Mailchimp] Subscriber #{user.id} not found — nothing to delete")
+      return true
+    end
+    Rails.logger.error("[Mailchimp] delete_subscriber_permanently failed for user #{user.id}: #{e.message}")
+    false
+  end
+
   def create_audience(name, contact_info, campaign_defaults)
     response = @client.lists.create_list(
       name: name,

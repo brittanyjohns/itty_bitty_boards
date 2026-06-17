@@ -12,6 +12,7 @@ class AnalyticsEvent < ApplicationRecord
     trial_will_end
     subscription_started
     subscription_canceled
+    account_deleted
     board_generated
     ai_board_generated
     ai_generation_failed

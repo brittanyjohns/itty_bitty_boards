@@ -52,13 +52,16 @@ module StripeHelper
         raise AccountDeletionError, "Stripe cleanup failed: #{e.class} #{e.message}"
       end
 
-      # 2) App-side access shutdown
+      # 2) Enqueue third-party cleanup while we still have the original email
+      enqueue_deletion_cleanup!(reason: reason)
+
+      # 3) App-side access shutdown
       revoke_all_sessions_and_tokens!
 
-      # 3) Anonymize / tombstone
+      # 4) Anonymize / tombstone
       anonymize_personal_data_and_delete_all_data!(deleted_at: now, reason: reason, actor_id: actor_id)
 
-      # 4) Plan state (optional but helpful for UI/admin)
+      # 5) Plan state (optional but helpful for UI/admin)
       self.plan_status = "deleted"
       self.plan_expires_at = now
       self.plan_type = "free"
@@ -135,4 +138,7 @@ module StripeHelper
 
   # --- App-side helpers ---
 
+  def enqueue_deletion_cleanup!(reason: "user_requested")
+    AccountDeletionCleanupJob.perform_async(id, email, reason.to_s)
+  end
 end
