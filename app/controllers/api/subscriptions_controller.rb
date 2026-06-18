@@ -3,9 +3,14 @@ class API::SubscriptionsController < API::ApplicationController
   PRO_PLAN_PRICE_ID = ENV["PRO_PLAN_PRICE_ID"]
 
   def index
-    stripe_customer_id = current_user.stripe_customer_id
+    # Free/legacy/mobile accounts may not have a Stripe customer yet; create
+    # one lazily so listing subscriptions never blows up on a nil customer.
+    stripe_customer_id = current_user.ensure_stripe_customer!
     @subscriptions = Stripe::Subscription.list({ customer: stripe_customer_id })
     render json: { subscriptions: @subscriptions, stripe_customer_id: stripe_customer_id }, status: 200
+  rescue Stripe::StripeError => e
+    Rails.logger.error "subscriptions#index: #{e.class} - #{e.message} (user #{current_user.id})"
+    render json: { error: "Failed to load subscriptions" }, status: :bad_request
   end
 
   def billing_portal
@@ -218,21 +223,27 @@ class API::SubscriptionsController < API::ApplicationController
   end
 
   def create_customer_session
-    customer_id = current_user.stripe_customer_id
+    customer_id = current_user.ensure_stripe_customer!
     customer_session =
       Stripe::CustomerSession.create({
         customer: customer_id,
         components: { pricing_table: { enabled: true } },
       })
     render json: { client_secret: customer_session.client_secret }, status: 200
+  rescue Stripe::StripeError => e
+    Rails.logger.error "subscriptions#create_customer_session: #{e.class} - #{e.message} (user #{current_user.id})"
+    render json: { error: "Failed to create customer session" }, status: :bad_request
   end
 
   def list
-    customer_id = current_user.stripe_customer_id
+    customer_id = current_user.ensure_stripe_customer!
     subscriptions_result = Stripe::Subscription.list({ customer: customer_id })
     subscriptions = subscriptions_result.data
     has_more = subscriptions_result.has_more
     render json: { subscriptions: subscriptions, has_more: has_more }, status: 200
+  rescue Stripe::StripeError => e
+    Rails.logger.error "subscriptions#list: #{e.class} - #{e.message} (user #{current_user.id})"
+    render json: { error: "Failed to load subscriptions" }, status: :bad_request
   end
 
   def add_item
@@ -240,11 +251,16 @@ class API::SubscriptionsController < API::ApplicationController
     price_list = Stripe::Price.list({ lookup_keys: [lookup_key] })
     price = price_list.data.first
     price_id = price.id
-    customer_id = current_user.stripe_customer_id
+    customer_id = current_user.ensure_stripe_customer!
     subscriptions_result = Stripe::Subscription.list({ customer: customer_id })
 
     subscriptions = subscriptions_result["data"]
     subscription = subscriptions.first
+    # A customer with no subscription (e.g. a free user) has nothing to add to.
+    if subscription.nil?
+      render json: { error: "No active subscription to modify" }, status: :unprocessable_content
+      return
+    end
     existing_items = subscription["items"]["data"]
 
     existing_item = existing_items.find { |item| item["price"]["id"] == price_id }
@@ -260,6 +276,9 @@ class API::SubscriptionsController < API::ApplicationController
     end
 
     render json: { subscription: subscription }, status: 200
+  rescue Stripe::StripeError => e
+    Rails.logger.error "subscriptions#add_item: #{e.class} - #{e.message} (user #{current_user.id})"
+    render json: { error: "Failed to update subscription" }, status: :bad_request
   end
 
   private
