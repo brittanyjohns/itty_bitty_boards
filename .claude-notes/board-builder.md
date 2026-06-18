@@ -81,9 +81,35 @@ into a matching **category folder the chosen template actually has**:
 Interests are normalized first: trimmed, blanks dropped, deduped, lone `i` →
 `I`, capped at `MAX_INTERESTS` (12). An interest word with no existing `Image`
 gets a freshly-created one (`is_private: false`, **blank art** for v1 — art
-can be generated later). Resolution order mirrors
-`Board#find_or_create_images_from_word_list`: the user's own image → a
-public/admin image → create.
+can be generated later).
+
+### Image resolution (`Boards::ImageResolver`) — prefer art
+
+All three build paths (cloner, assembler, `BuildBoardSetJob`) resolve a tile
+label to an `Image` through `Boards::ImageResolver.resolve(label, owner:)`,
+which **prefers an image that actually has artwork**:
+
+1. the owner's own image for the label that has a `Doc`,
+2. a curated public/admin image for the label that has a `Doc`,
+3. else any existing image for the label, else a freshly-created blank.
+
+Two subtleties it fixes:
+
+- **Art over blank.** A naive `find_by(label:)` returns the lowest-id match,
+  which is often a blank, art-less image the OBF seed created for that label —
+  so a folder tile (Animals, People, Feelings…) rendered empty even though a
+  curated image with art existed. `Image#display_doc` has no label fallback, so
+  once a tile points at a blank image it stays blank.
+- **Case-insensitive matching.** Folder labels are capitalized ("Animals")
+  while curated library art is often lowercase ("animals"); a case-sensitive
+  match would miss it. Matching is case-insensitive, but a newly-created image
+  keeps the normalized label's casing.
+
+Because `BoardImage#set_defaults` derives the tile `label` from its image,
+pointing a folder at a lowercase art image would rename the tile. So the
+curated folder name is pinned explicitly: `SeededSetCloner#copy_tiles!` restores
+the authored label/display_label post-save, and `BuildBoardSetJob#add_folder_tile!`
+sets the tile text to the category name.
 
 ## Endpoint contract
 

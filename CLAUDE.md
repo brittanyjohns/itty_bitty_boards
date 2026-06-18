@@ -894,6 +894,17 @@ still works for backward compat.
   during the clone. Still used by callers that want a trimmed clone; the hybrid
   build now passes `[]` (clone intact). `StructurePlanner#excluded_fringe_pages`
   is still computed on the plan but no longer consumed by the build.
+- **Tile images prefer art (`Boards::ImageResolver`).** All three build paths
+  (cloner, `BlueprintAssembler`, `BuildBoardSetJob`) resolve a tile label via
+  `Boards::ImageResolver.resolve(label, owner:)`, which prefers an image that
+  has a `Doc` (artwork) over a blank same-label image and matches labels
+  **case-insensitively** (folder labels are capitalized, curated art is often
+  lowercase). Without this, category folder tiles (Animals, People, Feelings…)
+  rendered blank because resolution grabbed a label-only image the OBF seed
+  created. Because `BoardImage#set_defaults` derives the tile label from its
+  image, the curated folder name is pinned explicitly so an upgraded lowercase
+  art image doesn't rename the tile (`copy_tiles!` restores the authored label;
+  `BuildBoardSetJob#add_folder_tile!` sets the category name).
 - **Level recommendation heuristic:** young/emerging → Starter,
   developing/young_teen → Standard, proficient/older → Extended. Based on
   `CommunicatorProfile` helpers (`developing?`, `young_teen?`). **Not clinically

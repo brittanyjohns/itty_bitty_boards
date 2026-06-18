@@ -170,9 +170,7 @@ class BuildBoardSetJob
     cloned.settings = (cloned.settings || {}).merge("builder_child" => true)
     cloned.save!
 
-    folder_image = resolve_or_create_image(owner, page_plan[:name])
-    folder_tile = root.add_image(folder_image.id)
-    folder_tile&.update!(predictive_board_id: cloned.id)
+    add_folder_tile!(root, owner, page_plan[:name], cloned.id)
 
     Array(page_plan[:interests]).each { |word| add_interest_to_board(owner, cloned, word) }
     true
@@ -235,9 +233,7 @@ class BuildBoardSetJob
       generate_art_if_blank(owner, image, fringe)
     end
 
-    folder_image = resolve_or_create_image(owner, blueprint[:name])
-    folder_tile = root.add_image(folder_image.id)
-    folder_tile&.update!(predictive_board_id: fringe.id)
+    add_folder_tile!(root, owner, blueprint[:name], fringe.id)
 
     fringe
   end
@@ -262,9 +258,7 @@ class BuildBoardSetJob
       favorites.settings = (favorites.settings || {}).merge("builder_child" => true)
       favorites.save!
 
-      folder_image = resolve_or_create_image(owner, "My Favorites")
-      folder_tile = root.add_image(folder_image.id)
-      folder_tile&.update!(predictive_board_id: favorites.id)
+      add_folder_tile!(root, owner, "My Favorites", favorites.id)
     end
 
     words.each do |word|
@@ -282,12 +276,22 @@ class BuildBoardSetJob
     generate_art_if_blank(owner, image, board)
   end
 
+  # Prefer an art-bearing image so category folder tiles (Animals, Music, …)
+  # and routed interests render with a picture by default instead of blank.
   def resolve_or_create_image(owner, label)
-    word = Boards::InterestWords.normalize_word(label)
-    image = owner.images.find_by(label: word)
-    image ||= Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil])
-    image ||= Image.create!(label: word, user_id: owner.id)
-    image
+    Boards::ImageResolver.resolve(label, owner: owner)
+  end
+
+  # Adds a category folder tile linking to `predictive_board_id`. Resolves an
+  # art-bearing image for `name`, then pins the tile text to `name` — the art
+  # image may be stored under different casing ("animals"), and BoardImage's
+  # set_defaults derives the label from the image, so the curated folder name
+  # ("Animals") is restored explicitly.
+  def add_folder_tile!(root, owner, name, predictive_board_id)
+    image = resolve_or_create_image(owner, name)
+    tile = root.add_image(image.id)
+    tile&.update!(predictive_board_id: predictive_board_id, label: name, display_label: name)
+    tile
   end
 
   def generate_art_if_blank(owner, image, board)

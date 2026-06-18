@@ -98,16 +98,11 @@ module Boards
       }
     end
 
-    # Mirrors Board#find_or_create_images_from_word_list resolution order:
-    # the user's own image, then a public/admin image, else create a new one.
-    # A freshly-created image starts with no symbol art — acceptable for v1
-    # (blank tile, art can be generated later). See the plan doc's symbol note.
+    # Prefer an art-bearing image (shared with the cloner / BuildBoardSetJob) so
+    # category folder tiles (Food, Feelings, Play…) and routed interests render
+    # with a picture by default instead of blank.
     def resolve_or_create_image(label)
-      word = normalize_word(label)
-      image = @user.images.find_by(label: word)
-      image ||= Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil])
-      image ||= Image.create!(label: word, user_id: @user.id)
-      image
+      Boards::ImageResolver.resolve(label, owner: @user)
     end
 
     # Normalization lives in Boards::InterestWords (shared with the cloner
@@ -116,10 +111,6 @@ module Boards
     # kept as typed, lone "i" -> "I", other single chars lowercased.
     def normalize_interests(list)
       Boards::InterestWords.normalize_list(list, max: MAX_INTERESTS)
-    end
-
-    def normalize_word(string)
-      Boards::InterestWords.normalize_word(string)
     end
   end
 end

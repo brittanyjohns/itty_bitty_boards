@@ -100,4 +100,23 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     expect(root.board_images.count).to be <= CORE_84_GRID_CELLS
     expect(dead_folder_tiles(root)).to be_empty
   end
+
+  it "gives category folder tiles a curated image instead of a blank one" do
+    admin = User.find_by(id: User::DEFAULT_ADMIN_ID)
+    # Curated, art-bearing admin images for an authored folder (People, cloned)
+    # and a new fringe folder (Animals, added by the build). Lowercase labels to
+    # prove case-insensitive matching against the capitalized folder labels.
+    people_art = create(:image, label: "people", user_id: admin.id)
+    create(:doc, documentable: people_art, user: admin)
+    animals_art = create(:image, label: "animals", user_id: admin.id)
+    create(:doc, documentable: animals_art, user: admin)
+
+    root = build!([{ "word" => "dog", "category" => "Animals" }])
+
+    people_tile = root.board_images.find { |bi| bi.label == "People" }
+    animals_tile = root.board_images.find { |bi| bi.label == "Animals" }
+
+    expect(Boards::ImageResolver.art?(people_tile.image)).to be(true)
+    expect(Boards::ImageResolver.art?(animals_tile.image)).to be(true)
+  end
 end
