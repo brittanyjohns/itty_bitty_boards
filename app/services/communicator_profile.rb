@@ -10,8 +10,12 @@ class CommunicatorProfile
   AAC_LEVELS = %w[emerging developing proficient].freeze
   VOCAB_TYPES = %w[core fringe balanced].freeze
   AGE_BANDS = %w[4-6 7-10 11-14 15-18 adult].freeze
+  # Natural Language Acquisition (NLA) stages for gestalt language processors,
+  # 1–6. Optional metadata stored as an INTEGER (unlike the string enums above)
+  # — see ChildAccount#normalize_aac_profile_fields for the int handling.
+  GLP_STAGES = (1..6).to_a.freeze
 
-  attr_reader :age, :age_band, :aac_level, :vocab_type
+  attr_reader :age, :age_band, :aac_level, :vocab_type, :glp_stage
 
   # Build from a params-like hash (string or symbol keys). Returns nil when no
   # usable profile data is present, so callers can do `CommunicatorProfile.from_params(...)`
@@ -25,6 +29,7 @@ class CommunicatorProfile
       age_band: fetch.call(:age_band),
       aac_level: fetch.call(:aac_level),
       vocab_type: fetch.call(:vocab_type),
+      glp_stage: fetch.call(:glp_stage),
       age_range: fetch.call(:age_range)
     )
     profile.present? ? profile : nil
@@ -43,6 +48,7 @@ class CommunicatorProfile
       age_band: fetch.call(:age_band) || stored["age_band"],
       aac_level: fetch.call(:aac_level) || stored["aac_level"],
       vocab_type: fetch.call(:vocab_type) || stored["vocab_type"],
+      glp_stage: fetch.call(:glp_stage) || stored["glp_stage"],
       age_range: fetch.call(:age_range)
     )
     profile.present? ? profile : nil
@@ -50,15 +56,17 @@ class CommunicatorProfile
 
   # `age_range` is the legacy free-text param already used by the scenario flow;
   # it's accepted as a fallback when no structured age/age_band is given.
-  def initialize(age: nil, age_band: nil, aac_level: nil, vocab_type: nil, age_range: nil)
+  def initialize(age: nil, age_band: nil, aac_level: nil, vocab_type: nil, glp_stage: nil, age_range: nil)
     @age = normalize_age(age)
     @age_band = normalize_age_band(age_band) || band_for_age(@age) || normalize_age_band(age_range)
     @aac_level = normalize_enum(aac_level, AAC_LEVELS)
     @vocab_type = normalize_enum(vocab_type, VOCAB_TYPES)
+    @glp_stage = normalize_glp_stage(glp_stage)
   end
 
   def present?
-    age.present? || age_band.present? || aac_level.present? || vocab_type.present?
+    age.present? || age_band.present? || aac_level.present? ||
+      vocab_type.present? || glp_stage.present?
   end
 
   def blank?
@@ -86,11 +94,25 @@ class CommunicatorProfile
     age_band == "11-14"
   end
 
+  # Gestalt language processing (NLA) stage predicates. All false when no
+  # glp_stage is set, so non-GLP communicators behave exactly as before.
+  def gestalt_early?
+    glp_stage.present? && glp_stage <= 2
+  end
+
+  def gestalt_emerging?
+    glp_stage.present? && glp_stage.between?(3, 4)
+  end
+
+  def gestalt_advanced?
+    glp_stage.present? && glp_stage >= 5
+  end
+
   # Single string appended to AI prompts. Empty when the profile is blank.
   def prompt_guidance
     return "" if blank?
 
-    [descriptor_sentence, level_guidance, vocab_guidance].compact.join(" ")
+    [descriptor_sentence, level_guidance, vocab_guidance, gestalt_guidance].compact.join(" ")
   end
 
   private
@@ -114,6 +136,13 @@ class CommunicatorProfile
 
     normalized = value.to_s.strip.downcase
     allowed.include?(normalized) ? normalized : nil
+  end
+
+  def normalize_glp_stage(value)
+    return nil if value.blank?
+
+    stage = value.to_i
+    GLP_STAGES.include?(stage) ? stage : nil
   end
 
   def band_for_age(age)
@@ -160,6 +189,26 @@ class CommunicatorProfile
       "Favor topic-specific fringe vocabulary relevant to the board's theme."
     when "balanced"
       "Aim for a balanced mix of core and fringe vocabulary."
+    end
+  end
+
+  # Gestalt-language-processor guidance, keyed to the NLA stage. Nil (and so
+  # dropped from prompt_guidance) when no glp_stage is set — keeps prompts for
+  # non-GLP communicators unchanged.
+  def gestalt_guidance
+    return nil if glp_stage.blank?
+
+    intro = "This communicator is a gestalt language processor at NLA Stage #{glp_stage}."
+    if gestalt_early?
+      "#{intro} Use whole familiar phrases and scripts, not single words. " \
+        "Prioritize phrases from their daily routines, favorite shows, and songs. " \
+        "Avoid isolated vocabulary."
+    elsif gestalt_emerging?
+      "#{intro} Mix single words with short phrases. Support novel 2-3 word " \
+        "combinations. Include both whole phrases and individual high-frequency words."
+    else
+      "#{intro} Use full sentences with varied grammar. Support complex sentence " \
+        "construction with verb tenses and modifiers."
     end
   end
 end

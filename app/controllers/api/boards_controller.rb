@@ -774,6 +774,10 @@ class API::BoardsController < API::ApplicationController
       @image = Image.new
       @image.user = current_user
       @image.label = image_params[:label]
+      # part_of_speech: "phrase" distinguishes gestalt whole-phrase tiles
+      # (Script Collector) from single-word tiles. Optional; falls back to the
+      # model default otherwise.
+      @image.part_of_speech = image_params[:part_of_speech] if image_params[:part_of_speech].present?
       img_saved = @image.save!
     end
 
@@ -800,6 +804,15 @@ class API::BoardsController < API::ApplicationController
       if new_doc&.persisted? && @board
         board_image ||= @board.board_images.find_by(image_id: @image.id)
         board_image&.update(display_image_url: new_doc.tile_url)
+      end
+
+      # Gestalt-specific tile metadata (Script Collector). Free-form: where the
+      # phrase came from and what communicative function it serves. Stored on
+      # board_images.data jsonb alongside any existing keys.
+      gestalt = gestalt_metadata
+      if gestalt.present? && @board
+        board_image ||= @board.board_images.find_by(image_id: @image.id)
+        board_image&.update(data: (board_image.data || {}).merge(gestalt))
       end
 
       screen_size = params[:screen_size] || "lg"
@@ -1267,7 +1280,19 @@ class API::BoardsController < API::ApplicationController
   end
 
   def image_params
-    params.require(:image).permit(:label, :image_prompt, :display_image, audio_files: [], docs: [:id, :user_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
+    params.require(:image).permit(:label, :image_prompt, :display_image, :part_of_speech, audio_files: [], docs: [:id, :user_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
+  end
+
+  # Optional gestalt tile metadata for add_image (Script Collector). Free-form
+  # strings stored on board_images.data; returns {} when absent so the merge is
+  # a no-op for non-gestalt tiles.
+  def gestalt_metadata
+    return {} if params[:data].blank?
+
+    params.require(:data)
+          .permit(:gestalt_source, :utterance_function)
+          .to_h
+          .reject { |_k, v| v.blank? }
   end
 
   # Optional communicator-profile fields passed by the frontend's

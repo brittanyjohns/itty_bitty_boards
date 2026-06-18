@@ -44,5 +44,37 @@ RSpec.describe "API::ChildAccounts AAC profile", type: :request do
       expect(response).to have_http_status(:ok)
       expect(communicator.reload.aac_level).to be_nil
     end
+
+    it "persists glp_stage as an integer and exposes it in the api_view" do
+      patch "/api/child_accounts/#{communicator.id}",
+            params: { details: { glp_stage: 3, aac_level: "developing" } }.to_json,
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["glp_stage"]).to eq(3)
+      expect(body["aac_level"]).to eq("developing")
+      expect(communicator.reload.details["glp_stage"]).to eq(3)
+    end
+
+    it "rejects an out-of-range glp_stage" do
+      patch "/api/child_accounts/#{communicator.id}",
+            params: { details: { glp_stage: 7 } }.to_json,
+            headers: headers
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(communicator.reload.glp_stage).to be_nil
+    end
+
+    it "clears glp_stage when sent blank" do
+      communicator.update!(details: { "glp_stage" => 2 })
+
+      patch "/api/child_accounts/#{communicator.id}",
+            params: { details: { glp_stage: nil } }.to_json,
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(communicator.reload.glp_stage).to be_nil
+    end
   end
 end

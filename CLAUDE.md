@@ -1001,6 +1001,41 @@ caller doesn't own is silently ignored. Personalization reaches **AI
 word-suggestion prompts and the template recommendation only** — the Board
 Builder's deterministic build path is unchanged.
 
+### Gestalt language support (GLP)
+
+A communicator may also carry an optional **NLA stage** for gestalt language
+processors: `glp_stage` (integer 1–6), stored in `child_accounts.details` next
+to the AAC fields. It **measures something different from `aac_level`** — it
+doesn't replace it; both can be set independently. Wiring:
+
+- `glp_stage` is in `ChildAccount::AAC_PROFILE_FIELDS` (so it rides the same
+  typed accessor + wholesale-`details=` validation), but listed in
+  `INTEGER_PROFILE_FIELDS` so normalization coerces it to an **integer** instead
+  of downcasing it to a string (which would fail the `GLP_STAGES` inclusion
+  check). Validated against `CommunicatorProfile::GLP_STAGES` (`(1..6)`). Exposed
+  on the ChildAccount `api_view` / `vendor_api_view`.
+- `CommunicatorProfile` gains `glp_stage`, the predicates `gestalt_early?`
+  (1–2) / `gestalt_emerging?` (3–4) / `gestalt_advanced?` (5–6), and appends
+  stage-specific `prompt_guidance` (whole phrases at early stages → full
+  sentences at advanced). A glp-only profile is `present?`, so `.for` returns
+  it. No `glp_stage` ⇒ no gestalt guidance (backward compatible).
+- **GLP board templates** (`Boards::GlpTemplates`): six predefined, admin-owned
+  whole-phrase template boards, identified by `category: "glp"` +
+  `is_template: true` (not starter blueprints or robust sets). `TEMPLATES` is the
+  single source of truth for both the idempotent seed (`bin/rails
+  glp_templates:seed`, via `.seed!`) and the stage-aware recommendation
+  (`.recommended_for`). They surface in `GET /api/v1/board_builder/templates`
+  (`kind: "glp"`, a `glp_templates` array, and a stage-driven
+  `recommended_template`); `?template_type=glp` returns only GLP templates. They
+  are **catalog/recommendation metadata** — the wizard `create` build path still
+  only builds starter/robust keys.
+- **Whole-phrase tiles:** `part_of_speech: "phrase"` marks a gestalt script
+  tile. `Image#ensure_defaults` preserves an explicit `"phrase"` POS instead of
+  re-categorizing it as a single word (every other label is still categorized as
+  before). Script Collector adds tiles via `POST /api/boards/:id/add_image` with
+  `image[part_of_speech]=phrase` and optional free-form `data[gestalt_source]` /
+  `data[utterance_function]`, stored on `board_images.data`.
+
 ## Do not
 
 - Do not install new gems without asking first

@@ -65,4 +65,51 @@ RSpec.describe ChildAccount, type: :model do
       expect(account.details).to eq({ "interests" => ["dinosaurs"] })
     end
   end
+
+  # glp_stage is the integer profile field — NLA stage 1–6, stored alongside the
+  # string enums but normalized/validated as an integer.
+  describe "glp_stage (integer profile field)" do
+    it "coerces a string stage to an integer and stays valid" do
+      account.glp_stage = "3"
+      expect(account).to be_valid
+      expect(account.details["glp_stage"]).to eq(3)
+      expect(account.glp_stage).to eq(3)
+    end
+
+    it "accepts an integer stage as-is" do
+      account.glp_stage = 2
+      expect(account).to be_valid
+      expect(account.details["glp_stage"]).to eq(2)
+    end
+
+    it "rejects an out-of-range stage" do
+      account.glp_stage = 7
+      expect(account).not_to be_valid
+      expect(account.errors[:glp_stage]).to be_present
+    end
+
+    it "allows clearing the stage with nil/blank (key dropped)" do
+      account.glp_stage = 3
+      account.glp_stage = nil
+      expect(account).to be_valid
+      expect(account.details).not_to have_key("glp_stage")
+      expect(account.glp_stage).to be_nil
+    end
+
+    it "saves independently of the string profile fields" do
+      account.glp_stage = 2
+      account.aac_level = "developing"
+      expect(account).to be_valid
+      expect(account.glp_stage).to eq(2)
+      expect(account.aac_level).to eq("developing")
+    end
+
+    it "validates a wholesale details assignment of glp_stage too" do
+      account.details = { "glp_stage" => 9 }
+      expect(account).not_to be_valid
+      account.details = { "glp_stage" => 4 }
+      expect(account).to be_valid
+      expect(account.details["glp_stage"]).to eq(4)
+    end
+  end
 end
