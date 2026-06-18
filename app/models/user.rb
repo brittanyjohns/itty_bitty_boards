@@ -148,6 +148,17 @@ class User < ApplicationRecord
 
   scope :non_admin, -> { where("role IS NULL OR role != ?", "admin") }
   scope :demo_accounts, -> { non_admin.where("email LIKE ? OR email LIKE ?", "%bhannajohns+%", "%@speakanyway.com") }
+  # SQL counterpart of #paid_plan?: a paid tier whose status isn't a
+  # non-paying one. basic_trial / trialing count as paid while active, same
+  # as the instance method. Excludes UNPAID_STATUSES (canceled/paused/etc.)
+  # so a stranded "basic + canceled" user is not counted as paying.
+  scope :paid, -> {
+    where("plan_status IS NULL OR plan_status NOT IN (?)", UNPAID_STATUSES)
+      .where(
+        "plan_type LIKE '%basic%' OR plan_type = 'pro' OR plan_type LIKE '%plus%' " \
+        "OR plan_type LIKE '%premium%' OR (plan_type LIKE '%pro%' AND role = 'vendor')",
+      )
+  }
   scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
 
   include WordEventsHelper

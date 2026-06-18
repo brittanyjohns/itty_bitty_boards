@@ -148,6 +148,10 @@
       <%= render "metric_row",
             label: "Total processed",
             value: number_with_delimiter(@health[:sidekiq_processed].to_i) %>
+      <%= render "metric_row",
+            label: "Total failed",
+            value: number_with_delimiter(@health[:sidekiq_failed].to_i),
+            danger: @health[:sidekiq_failed].to_i > 0 %>
     </dl>
 
     <% if @health[:sidekiq_queues].present? %>

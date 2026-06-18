@@ -35,7 +35,7 @@ module MissionControl
           estimated_mrr_usd:    rc[:estimated_mrr_usd],
           plan_breakdown:       rc[:plan_breakdown],
         },
-        paid_users:             User.non_admin.where.not(plan_type: ["free", nil]).count,
+        paid_users:             User.non_admin.paid.count,
         free_users:             User.non_admin.where(plan_type: "free").count,
         plan_breakdown:         plan_breakdown,
       }
