@@ -876,10 +876,35 @@ still works for backward compat.
   generation fails.
 - **`BuildBoardSetJob`** routes between the hybrid path (when `level` is a
   `StructurePlanner::LEVELS` key) and the legacy path (direct template keys like
-  `core-60`, `home`). The hybrid path: plan → clone seed set with exclusions →
-  clone prebuilt templates → AI-generate niche pages → route catch-all.
-- **`SeededSetCloner`** now accepts `exclude_fringe:` — a list of page names to
-  skip during the clone (the planner's excluded pages).
+  `core-60`, `home`). The hybrid path: plan → clone seed set **intact** →
+  add prebuilt/AI fringe pages **within the authored grid** → route catch-all to
+  "My Favorites".
+- **Grid cap (no overflow / no dead tiles).** The authored core board fills its
+  grid with a few intentional empty cells (Core 84 = 7×12 = 84 cells, 81 tiles,
+  3 gaps). `Board#add_image` fills the next open cell and only starts a new row
+  once the grid is full, so adding one folder tile per fringe page used to spill
+  onto a stray extra row (the "85th tile"). `BuildBoardSetJob#add_fringe_pages_within_grid!`
+  caps the top-level folder tiles it adds to `root_open_cells`, reserving a cell
+  for "My Favorites" when leftovers are expected; interest-bearing pages go first,
+  the rest fold into My Favorites (nothing dropped). The job clones the seed set
+  **intact** (`exclude_fringe: []`) so every authored folder — People…Describe,
+  **including More** — stays linked to a real board; the prior exclusion path left
+  stripped pages as dead, unlinked folder tiles.
+- **`SeededSetCloner`** accepts `exclude_fringe:` — a list of page names to skip
+  during the clone. Still used by callers that want a trimmed clone; the hybrid
+  build now passes `[]` (clone intact). `StructurePlanner#excluded_fringe_pages`
+  is still computed on the plan but no longer consumed by the build.
+- **Tile images prefer art (`Boards::ImageResolver`).** All three build paths
+  (cloner, `BlueprintAssembler`, `BuildBoardSetJob`) resolve a tile label via
+  `Boards::ImageResolver.resolve(label, owner:)`, which prefers an image that
+  has a `Doc` (artwork) over a blank same-label image and matches labels
+  **case-insensitively** (folder labels are capitalized, curated art is often
+  lowercase). Without this, category folder tiles (Animals, People, Feelings…)
+  rendered blank because resolution grabbed a label-only image the OBF seed
+  created. Because `BoardImage#set_defaults` derives the tile label from its
+  image, the curated folder name is pinned explicitly so an upgraded lowercase
+  art image doesn't rename the tile (`copy_tiles!` restores the authored label;
+  `BuildBoardSetJob#add_folder_tile!` sets the category name).
 - **Level recommendation heuristic:** young/emerging → Starter,
   developing/young_teen → Standard, proficient/older → Extended. Based on
   `CommunicatorProfile` helpers (`developing?`, `young_teen?`). **Not clinically

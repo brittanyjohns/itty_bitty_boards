@@ -148,18 +148,21 @@ RSpec.describe BuildBoardSetJob do
       expect(cloned_food.board_images.map(&:label)).to include("apple", "pizza")
     end
 
-    it "excludes fringe pages the planner drops and still completes" do
+    it "clones the authored core set intact (no dead folder tiles) and completes" do
       root = precreate_root!(name: "Core 60")
 
       described_class.new.perform(root.id, communicator.id, "starter", [])
 
       root.reload
       expect(root.status).to eq("complete")
-      # Starter only includes ~4-6 fringe pages; some seed set pages are excluded
-      cloned_names = user.boards
-        .where("COALESCE((settings->>'builder_child')::boolean, false)")
-        .pluck(:name)
-      expect(cloned_names.size).to be <= 6
+      # The authored set is cloned intact — every folder tile on the root links
+      # to a real board. None are left dead (excluding authored seed pages used
+      # to strip the sub-board while leaving its tile behind).
+      dead = root.board_images.select do |bi|
+        label = bi.label.to_s
+        label.length > 2 && label[0] == label[0].upcase && bi.predictive_board_id.nil?
+      end
+      expect(dead).to be_empty
     end
 
     it "falls back AI-generated pages to My Favorites when user has no credits" do

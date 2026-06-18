@@ -177,6 +177,16 @@ module Boards
         end
         image ||= Image.create(label: original_image.label, user_id: target.user_id)
 
+        # The seed often points folder tiles (Animals, People, Feelings…) and
+        # some core words at a blank, art-less Image for that label. When the
+        # resolved image has no art, upgrade to a curated art-bearing image for
+        # the same label so the tile isn't blank. Only ever blank -> art, never
+        # the reverse (a tile that already has art is left untouched).
+        unless Boards::ImageResolver.art?(image)
+          arted = Boards::ImageResolver.resolve(original_image.label, owner: @owner)
+          image = arted if Boards::ImageResolver.art?(arted)
+        end
+
         new_board_image = board_image.dup
         new_board_image.board_id = target.id
         new_board_image.image_id = image.id
@@ -186,6 +196,13 @@ module Boards
         new_board_image.predictive_board_id = board_image.predictive_board_id
         new_board_image.audio_url = board_image.audio_url
         new_board_image.save!
+
+        # BoardImage#set_defaults (before_create) derives label from the image,
+        # so an upgraded art image stored under different casing ("people") would
+        # rename the tile. Restore the AUTHORED tile text ("People") post-save.
+        if new_board_image.label != board_image.label || new_board_image.display_label != board_image.display_label
+          new_board_image.update_columns(label: board_image.label, display_label: board_image.display_label)
+        end
       end
     end
 
@@ -293,29 +310,23 @@ module Boards
       favorites.save!
 
       folder_tile = root.add_image(resolve_or_create_image(FAVORITES_NAME).id)
-      folder_tile&.update!(predictive_board_id: favorites.id)
+      # Pin the tile text to FAVORITES_NAME — an art image may be stored under
+      # different casing and BoardImage#set_defaults derives label from it.
+      folder_tile&.update!(predictive_board_id: favorites.id,
+                           label: FAVORITES_NAME, display_label: FAVORITES_NAME)
       favorites
     end
 
-    # Mirror Board#find_or_create_images_from_word_list / BlueprintAssembler:
-    # the owner's own image, then a public/admin image, else create. A fresh
-    # image starts with no art — acceptable for v1 (blank tile, AI art later).
+    # Prefer an art-bearing image (shared with BuildBoardSetJob) so folder tiles
+    # and routed interests render with a picture by default instead of blank.
     def resolve_or_create_image(label)
-      word  = normalize_word(label)
-      image = @owner.images.find_by(label: word)
-      image ||= Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil])
-      image ||= Image.create!(label: word, user_id: @owner.id)
-      image
+      Boards::ImageResolver.resolve(label, owner: @owner)
     end
 
     # Normalization lives in Boards::InterestWords (shared with the assembler
     # and the controller, which persists the list and feeds BuildBoardSetJob).
     def normalize_interests(list)
       Boards::InterestWords.normalize_list(list, max: MAX_INTERESTS)
-    end
-
-    def normalize_word(string)
-      Boards::InterestWords.normalize_word(string)
     end
   end
 end

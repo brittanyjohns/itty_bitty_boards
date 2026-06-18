@@ -88,13 +88,14 @@ class BuildBoardSetJob
         robust_root, communicator: communicator,
         interests: seed_set_interests, root: root,
         explicit_categories: explicit_categories,
-        exclude_fringe: plan.excluded_fringe_pages,
+        # Clone the authored core set INTACT. Excluding "unplanned" seed pages
+        # used to strip their sub-boards while leaving the root's folder tiles
+        # behind — dead tiles that open nothing (More/School/Time/Describe).
+        exclude_fringe: [],
       ).call
     end
 
-    clone_prebuilt_fringe_pages!(root, communicator, plan)
-    generate_ai_fringe_pages!(root, communicator, owner, plan, profile)
-    add_to_favorites!(root, communicator, plan.catch_all_interests) if plan.catch_all_interests.any?
+    add_fringe_pages_within_grid!(root, communicator, owner, profile, plan)
   end
 
   def collect_seed_set_interests(plan)
@@ -103,45 +104,118 @@ class BuildBoardSetJob
       .flat_map { |p| p[:interests] || [] }
   end
 
-  def clone_prebuilt_fringe_pages!(root, communicator, plan)
-    owner = communicator.owner || communicator.user
-    plan.fringe_pages.select { |p| p[:source] == :prebuilt }.each do |page_plan|
-      fringe_source = Boards::FringeTemplates.find(page_plan[:name])
-      next unless fringe_source
+  # The authored core board fills its grid, with a few intentional empty cells.
+  # Board#add_image drops a new tile into the first open cell and only starts a
+  # NEW row once the grid is full (see BoardsHelper#next_available_cell). So
+  # adding one folder tile per fringe page overflows the authored grid onto a
+  # stray extra row — the "85th tile" on a 7x12 (84-cell) Core 84 board.
+  #
+  # Cap the top-level folder tiles we add to the number of open cells. Pages we
+  # can't fit fold their interests into the single "My Favorites" catch-all
+  # (one tile, deduped) so nothing the child asked for is dropped — it just
+  # lands in Favorites instead of its own page.
+  def add_fringe_pages_within_grid!(root, communicator, owner, profile, plan)
+    root.reload
+    open_cells = root_open_cells(root)
 
-      cloned = fringe_source.clone_with_images(owner.id)
-      next unless cloned
+    # Seed-set pages already live in the clone; they need no new tile. Only
+    # prebuilt/AI pages add a top-level folder. Interest-bearing pages first so
+    # a nearly-full grid still gets the pages the child actually asked for.
+    new_pages = plan.fringe_pages
+      .reject { |p| p[:source] == :seed_set }
+      .sort_by { |p| (p[:interests] || []).any? ? 0 : 1 }
 
-      cloned.settings = (cloned.settings || {}).merge("builder_child" => true)
-      cloned.save!
+    catch_all = Array(plan.catch_all_interests).dup
 
-      folder_image = resolve_or_create_image(owner, page_plan[:name])
-      folder_tile = root.add_image(folder_image.id)
-      folder_tile&.update!(predictive_board_id: cloned.id)
+    # The total tiles we add (standalone pages + a possible My Favorites) must
+    # fit the open cells. We need a My Favorites cell whenever something will
+    # be left over — an initial catch-all, OR more pages than will fit. Reserve
+    # that cell up front so a page can't claim it and push Favorites onto a
+    # stray new row.
+    needs_favorites = catch_all.any? || new_pages.size > open_cells
+    max_pages = open_cells - (needs_favorites ? 1 : 0)
+    max_pages = 0 if max_pages.negative?
 
-      (page_plan[:interests] || []).each do |word|
-        add_interest_to_board(owner, cloned, word)
+    placed = 0
+    new_pages.each do |page_plan|
+      if placed < max_pages && add_single_fringe_page!(root, communicator, owner, profile, page_plan)
+        placed += 1
+      else
+        catch_all.concat(Array(page_plan[:interests]))
       end
+    end
+
+    add_to_favorites!(root, communicator, catch_all) if catch_all.any?
+  end
+
+  # Adds one fringe page as a top-level folder tile. Returns true only when a
+  # tile was actually added, so the caller decrements its grid budget for real
+  # placements only (an AI page that falls back to Favorites for lack of
+  # credits adds no tile and returns false).
+  def add_single_fringe_page!(root, communicator, owner, profile, page_plan)
+    case page_plan[:source]
+    when :prebuilt     then clone_one_prebuilt_page!(root, owner, page_plan)
+    when :ai_generated then generate_one_ai_page!(root, communicator, owner, profile, page_plan)
+    else false
     end
   end
 
-  def generate_ai_fringe_pages!(root, communicator, owner, plan, profile)
-    plan.fringe_pages.select { |p| p[:source] == :ai_generated }.each do |page_plan|
-      if CreditService.can_spend?(owner, feature_key: "ai_board_page")
-        blueprint = Boards::AiPageGenerator.new(
-          interests: page_plan[:interests],
-          profile: profile,
-        ).call
+  def clone_one_prebuilt_page!(root, owner, page_plan)
+    fringe_source = Boards::FringeTemplates.find(page_plan[:name])
+    return false unless fringe_source
 
-        fringe = build_fringe_from_blueprint!(root, owner, communicator, blueprint)
-        CreditService.spend!(owner, feature_key: "ai_board_page")
-      else
-        add_to_favorites!(root, communicator, page_plan[:interests] || [])
-      end
-    rescue Boards::AiPageGenerator::GenerationError => e
-      Rails.logger.warn "[BuildBoardSetJob] AI page generation failed for #{page_plan[:name]}: #{e.message}"
-      add_to_favorites!(root, communicator, page_plan[:interests] || [])
+    cloned = fringe_source.clone_with_images(owner.id)
+    return false unless cloned
+
+    cloned.settings = (cloned.settings || {}).merge("builder_child" => true)
+    cloned.save!
+
+    add_folder_tile!(root, owner, page_plan[:name], cloned.id)
+
+    Array(page_plan[:interests]).each { |word| add_interest_to_board(owner, cloned, word) }
+    true
+  end
+
+  # Returns true when an AI page tile was added; false when it fell back (no
+  # credits, or generation failed) so the caller folds the interests into My
+  # Favorites instead.
+  def generate_one_ai_page!(root, communicator, owner, profile, page_plan)
+    return false unless CreditService.can_spend?(owner, feature_key: "ai_board_page")
+
+    blueprint = Boards::AiPageGenerator.new(
+      interests: page_plan[:interests],
+      profile: profile,
+    ).call
+
+    build_fringe_from_blueprint!(root, owner, communicator, blueprint)
+    CreditService.spend!(owner, feature_key: "ai_board_page")
+    true
+  rescue Boards::AiPageGenerator::GenerationError => e
+    Rails.logger.warn "[BuildBoardSetJob] AI page generation failed for #{page_plan[:name]}: #{e.message}"
+    false
+  end
+
+  # Open cells on the authored core grid before a new tile would spill onto a
+  # fresh row — mirrors BoardsHelper#next_available_cell's placement rule
+  # (fill gaps in the existing rows first, only then start a new row).
+  def root_open_cells(board, screen_size = "lg")
+    board.update_board_layout(screen_size)
+    grid = board.layout[screen_size] || {}
+    return 0 if grid.empty?
+
+    columns = board.get_number_of_columns(screen_size)
+    occupied = []
+    max_row = 0
+    grid.each_value do |cell|
+      x = cell["x"] || 0
+      y = cell["y"] || 0
+      w = cell["w"] || 1
+      h = cell["h"] || 1
+      h.times { |dy| w.times { |dx| occupied << [x + dx, y + dy] } }
+      max_row = [max_row, y + h - 1].max
     end
+
+    [(columns * (max_row + 1)) - occupied.uniq.size, 0].max
   end
 
   def build_fringe_from_blueprint!(root, owner, communicator, blueprint)
@@ -159,9 +233,7 @@ class BuildBoardSetJob
       generate_art_if_blank(owner, image, fringe)
     end
 
-    folder_image = resolve_or_create_image(owner, blueprint[:name])
-    folder_tile = root.add_image(folder_image.id)
-    folder_tile&.update!(predictive_board_id: fringe.id)
+    add_folder_tile!(root, owner, blueprint[:name], fringe.id)
 
     fringe
   end
@@ -186,9 +258,7 @@ class BuildBoardSetJob
       favorites.settings = (favorites.settings || {}).merge("builder_child" => true)
       favorites.save!
 
-      folder_image = resolve_or_create_image(owner, "My Favorites")
-      folder_tile = root.add_image(folder_image.id)
-      folder_tile&.update!(predictive_board_id: favorites.id)
+      add_folder_tile!(root, owner, "My Favorites", favorites.id)
     end
 
     words.each do |word|
@@ -206,12 +276,22 @@ class BuildBoardSetJob
     generate_art_if_blank(owner, image, board)
   end
 
+  # Prefer an art-bearing image so category folder tiles (Animals, Music, …)
+  # and routed interests render with a picture by default instead of blank.
   def resolve_or_create_image(owner, label)
-    word = Boards::InterestWords.normalize_word(label)
-    image = owner.images.find_by(label: word)
-    image ||= Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil])
-    image ||= Image.create!(label: word, user_id: owner.id)
-    image
+    Boards::ImageResolver.resolve(label, owner: owner)
+  end
+
+  # Adds a category folder tile linking to `predictive_board_id`. Resolves an
+  # art-bearing image for `name`, then pins the tile text to `name` — the art
+  # image may be stored under different casing ("animals"), and BoardImage's
+  # set_defaults derives the label from the image, so the curated folder name
+  # ("Animals") is restored explicitly.
+  def add_folder_tile!(root, owner, name, predictive_board_id)
+    image = resolve_or_create_image(owner, name)
+    tile = root.add_image(image.id)
+    tile&.update!(predictive_board_id: predictive_board_id, label: name, display_label: name)
+    tile
   end
 
   def generate_art_if_blank(owner, image, board)

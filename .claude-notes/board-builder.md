@@ -81,9 +81,35 @@ into a matching **category folder the chosen template actually has**:
 Interests are normalized first: trimmed, blanks dropped, deduped, lone `i` →
 `I`, capped at `MAX_INTERESTS` (12). An interest word with no existing `Image`
 gets a freshly-created one (`is_private: false`, **blank art** for v1 — art
-can be generated later). Resolution order mirrors
-`Board#find_or_create_images_from_word_list`: the user's own image → a
-public/admin image → create.
+can be generated later).
+
+### Image resolution (`Boards::ImageResolver`) — prefer art
+
+All three build paths (cloner, assembler, `BuildBoardSetJob`) resolve a tile
+label to an `Image` through `Boards::ImageResolver.resolve(label, owner:)`,
+which **prefers an image that actually has artwork**:
+
+1. the owner's own image for the label that has a `Doc`,
+2. a curated public/admin image for the label that has a `Doc`,
+3. else any existing image for the label, else a freshly-created blank.
+
+Two subtleties it fixes:
+
+- **Art over blank.** A naive `find_by(label:)` returns the lowest-id match,
+  which is often a blank, art-less image the OBF seed created for that label —
+  so a folder tile (Animals, People, Feelings…) rendered empty even though a
+  curated image with art existed. `Image#display_doc` has no label fallback, so
+  once a tile points at a blank image it stays blank.
+- **Case-insensitive matching.** Folder labels are capitalized ("Animals")
+  while curated library art is often lowercase ("animals"); a case-sensitive
+  match would miss it. Matching is case-insensitive, but a newly-created image
+  keeps the normalized label's casing.
+
+Because `BoardImage#set_defaults` derives the tile `label` from its image,
+pointing a folder at a lowercase art image would rename the tile. So the
+curated folder name is pinned explicitly: `SeededSetCloner#copy_tiles!` restores
+the authored label/display_label post-save, and `BuildBoardSetJob#add_folder_tile!`
+sets the tile text to the category name.
 
 ## Endpoint contract
 
@@ -284,15 +310,41 @@ Cost: 2 credits per page (`ai_board_page` feature key in `CreditService`).
 When the build key is a StructurePlanner level (starter/standard/extended), the
 job runs the hybrid path:
 
-1. **Plan** via `StructurePlanner` → fringe page list + exclusions
-2. **Clone seed set** via `SeededSetCloner` with `exclude_fringe:` (drops
-   unneeded seed set pages from the clone)
-3. **Clone prebuilt templates** — for each `:prebuilt` page, clone the admin
-   template, link from root, route interests into it
-4. **AI-generate** — for each `:ai_generated` page, check credits → generate →
-   build board → link from root. Falls back to My Favorites on insufficient
-   credits or generation failure
-5. **Catch-all** — remaining unmatched interests → "My Favorites"
+1. **Plan** via `StructurePlanner` → fringe page list (+ catch-all)
+2. **Clone seed set INTACT** via `SeededSetCloner` with `exclude_fringe: []`.
+   The authored core set is cloned whole — every authored folder tile
+   (People…Describe, including **More**) stays linked to a real board, and
+   seed-category interests route into the matching cloned folders.
+3. **Add prebuilt / AI fringe pages within the grid** — `add_fringe_pages_within_grid!`.
+   Each `:prebuilt`/`:ai_generated` page becomes a *new* top-level folder tile,
+   but only while open cells remain on the authored grid (see the grid-cap note
+   below). `:prebuilt` clones the admin template + routes interests; `:ai_generated`
+   checks credits → generates → builds → links (falls back when out of credits).
+4. **Catch-all** — interests with no fitted page (initial unmatched + any pages
+   that didn't fit the grid + AI pages that fell back) → a single "My Favorites".
+
+#### Grid cap: never overflow the authored core grid
+
+The authored core board fills its grid with a few intentional empty cells
+(Core 84 = 7×12 = 84 cells, 81 tiles, 3 gaps). `Board#add_image` drops a tile
+into the first open cell and only starts a **new row** once the grid is full
+(`BoardsHelper#next_available_cell`). So naively adding one folder tile per
+fringe page overflowed onto a stray extra row — the "85th tile" bug.
+
+`add_fringe_pages_within_grid!` caps the top-level folder tiles it adds to the
+number of open cells (`root_open_cells`), reserving one cell for "My Favorites"
+whenever leftovers are expected. Interest-bearing pages are placed first, so a
+nearly-full grid still gets the pages the child actually asked for; anything
+that doesn't fit folds into My Favorites — nothing typed is dropped. Net result:
+a built robust set never exceeds its authored grid and never leaves a dead
+(unlinked) folder tile behind.
+
+> The old hybrid path *excluded* "unplanned" seed pages via
+> `StructurePlanner#excluded_fringe_pages` + `SeededSetCloner(exclude_fringe:)`.
+> That stripped authored sub-boards while leaving their root folder tiles
+> behind — dead tiles (More/School/Time/Describe) that opened nothing. The job
+> no longer excludes; `excluded_fringe_pages` is still computed on the plan but
+> unused by the build.
 
 Legacy template keys (`core-60`, `home`, etc.) route to the original
 clone-only or blueprint-only paths, unchanged.
