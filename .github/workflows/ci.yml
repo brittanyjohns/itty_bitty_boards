@@ -52,21 +52,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Active Storage variant processing (Doc#tile_url and friends) loads
-      # libvips at runtime via ruby-vips. Without it, any spec that attaches
-      # an image and touches a Doc raises LoadError: cannot open vips.so.42.
-      # Package name differs across Ubuntu versions: 24.04 ships libvips42t64
-      # (time_t transition), 22.04 ships libvips42. Try the newer name first.
-      # Skip apt-get update — the runner image's package cache is fresh enough
-      # and the full index refresh can stall 10-18 min on slow Azure mirrors.
+      # Active Storage variant processing loads libvips at runtime. Without
+      # it, specs that attach images raise LoadError: cannot open vips.so.42.
+      # Azure mirrors are intermittently slow (10-18 min stalls), so we cache
+      # the installed debs across runs. Cache key includes the runner image
+      # version so a new image busts the cache cleanly.
+      - name: Cache libvips apt packages
+        id: cache-libvips
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-cache
+          key: apt-libvips-${{ runner.os }}-${{ runner.arch }}-v1
+
       - name: Install libvips
         run: |
           if dpkg -s libvips42t64 &>/dev/null; then
             echo "libvips42t64 already installed"
+          elif [ -d ~/apt-cache ]; then
+            echo "Restoring libvips from cache"
+            sudo cp ~/apt-cache/*.deb /var/cache/apt/archives/ 2>/dev/null || true
+            sudo dpkg -i ~/apt-cache/*.deb 2>/dev/null \
+              || sudo apt-get install -y --no-install-recommends --fix-broken
           else
-            sudo apt-get install -y --no-install-recommends libvips42t64 2>/dev/null \
-              || (sudo apt-get update && sudo apt-get install -y --no-install-recommends libvips42t64) \
+            echo "Cold install — downloading libvips"
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends libvips42t64 \
               || sudo apt-get install -y --no-install-recommends libvips42
+            mkdir -p ~/apt-cache
+            cp /var/cache/apt/archives/lib{vips,cgif,exif,hdf5,hwy,imagequant,imath,jxl,matio,openexr,openslide,poppler,rsvg,spng,aec,sz}*.deb ~/apt-cache/ 2>/dev/null || true
+            cp /var/cache/apt/archives/poppler-data*.deb ~/apt-cache/ 2>/dev/null || true
           fi
 
       - uses: ruby/setup-ruby@v1
