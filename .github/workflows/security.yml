@@ -46,9 +46,16 @@ jobs:
       # — remove these two ignores once that upgrade merges.
       #   CVE-2026-47736  puma PROXY protocol v1 parser memory exhaustion
       #   CVE-2026-47737  puma PROXY protocol v1 repeated headers (keep-alive)
+      #
+      # excon < 1.5.0 leaks sensitive headers on redirect. Pinned to < 1 by
+      # MailchimpMarketing gem; only used for server-to-server Mailchimp API
+      # calls (no user-controlled redirects). Remove once MailchimpMarketing
+      # supports excon >= 1.x.
+      #   CVE-2026-54171  excon header leak on redirect
       - run: |
           bundle exec bundler-audit check --update \
             --ignore CVE-2026-33168 CVE-2026-33169 CVE-2026-33170 \
                      CVE-2026-33173 CVE-2026-33174 CVE-2026-33176 \
                      CVE-2026-33195 CVE-2026-33202 CVE-2026-33658 \
-                     CVE-2026-47736 CVE-2026-47737
+                     CVE-2026-47736 CVE-2026-47737 \
+                     CVE-2026-54171
