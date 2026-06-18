@@ -215,12 +215,23 @@ the non-credit handlers (`apply_free_plan` on delete/pause, `past_due` on
 
 ## PostHog server-side analytics
 
-`PosthogService` (`app/models/posthog_service.rb`) captures the
-**subscription lifecycle events that are only knowable server-side** (Stripe
-webhooks), via the `posthog-ruby` gem. These complement the frontend's own
-PostHog events (which fire intent + `checkout_started`); the backend completes
-the money-path funnel (itty-bitty-frontend#307). Fired from
-`API::WebhooksController`:
+`PosthogService` (`app/models/posthog_service.rb`) captures events that must
+be reliable regardless of whether the frontend JS SDK loads (ad blockers, JS
+errors, etc.), via the `posthog-ruby` gem. These complement the frontend's own
+PostHog events; the backend ensures the full funnel is always captured
+(itty-bitty-frontend#307).
+
+**Auth events** — fired from `API::V1::AuthsController`:
+
+- **`user_signed_up`** `{ signup_method, plan_type, platform }` — on successful
+  `sign_up` (`signup_method: "standard"`) or `email_signup`
+  (`signup_method: "email_only"`). `platform` is `"web"`, `"ios"`, or
+  `"android"`. Ensures signups are tracked even when the frontend PostHog JS is
+  blocked by ad blockers.
+- **`user_signed_in`** `{ plan_type }` — on successful password login
+  (`#create`). Same ad-blocker-resilience rationale.
+
+**Subscription lifecycle events** — fired from `API::WebhooksController`:
 
 - **`checkout_completed`** `{ plan, kind, amount_total, currency, source }` —
   on `checkout.session.completed`, the **authoritative** purchase-completion
