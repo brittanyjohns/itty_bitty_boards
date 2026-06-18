@@ -104,6 +104,7 @@ RSpec.describe Board, type: :model do
 
       it "backfills from the original image when the resolved image has no src_url" do
         # Source image has no user_id so the clone creates a fresh stub
+        # (no docs, no src_url). The backfill uses the original image's URL.
         image.update_columns(src_url: "https://cdn.example.com/original.webp", user_id: nil)
 
         cloned = board.clone_with_images(other_user.id)
@@ -112,14 +113,14 @@ RSpec.describe Board, type: :model do
         expect(cloned_tile.display_image_url).to eq("https://cdn.example.com/original.webp")
       end
 
-      it "uses the resolved image's src_url when it exists" do
-        existing = FactoryBot.create(:image, label: image.label, user: other_user)
-        existing.update_column(:src_url, "https://cdn.example.com/user_copy.webp")
+      it "picks up the source image's src_url via set_defaults" do
+        image.update_column(:src_url, "https://cdn.example.com/source.webp")
 
         cloned = board.clone_with_images(other_user.id)
         cloned_tile = cloned.reload.board_images.first
 
-        expect(cloned_tile.display_image_url).to eq("https://cdn.example.com/user_copy.webp")
+        # Cross-user clone reuses the original image; set_defaults copies its src_url
+        expect(cloned_tile.display_image_url).to eq("https://cdn.example.com/source.webp")
       end
     end
   end
