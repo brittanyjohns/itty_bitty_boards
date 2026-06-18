@@ -606,6 +606,38 @@ RSpec.describe "API::Boards", type: :request do
       board_image = board.board_images.find_by(image_id: foreign_image.id)
       expect(board_image.display_image_url).to eq(new_doc.tile_url)
     end
+
+    # Script Collector (gestalt) support: a whole-phrase tile carries its source
+    # and communicative function, stored on board_images.data.
+    it "stores gestalt metadata and a phrase part_of_speech on the tile" do
+      post "/api/boards/#{board.id}/add_image",
+           params: {
+             image: { label: "I want more", part_of_speech: "phrase" },
+             data: { gestalt_source: "Bluey S3E4", utterance_function: "request" },
+           },
+           headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+
+      new_image = Image.find_by(label: "I want more")
+      expect(new_image.part_of_speech).to eq("phrase")
+
+      board_image = board.reload.board_images.find_by(image_id: new_image.id)
+      expect(board_image.part_of_speech).to eq("phrase")
+      expect(board_image.data["gestalt_source"]).to eq("Bluey S3E4")
+      expect(board_image.data["utterance_function"]).to eq("request")
+    end
+
+    it "leaves board_images.data untouched when no gestalt metadata is sent" do
+      post "/api/boards/#{board.id}/add_image",
+           params: { image: { label: "plain word" } },
+           headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      new_image = Image.find_by(label: "plain word")
+      board_image = board.reload.board_images.find_by(image_id: new_image.id)
+      expect(board_image.data).not_to have_key("gestalt_source")
+    end
   end
 
   # Mailchimp "hit_limit" Customer Journey trigger (issue #291, journey #3).

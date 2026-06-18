@@ -241,6 +241,12 @@ class Image < ApplicationRecord
   def ensure_defaults
     if image_type == "menu"
       self.part_of_speech = "noun"
+    elsif part_of_speech == "phrase"
+      # Whole-phrase gestalt tiles (Script Collector / GLP templates) keep their
+      # explicit "phrase" part of speech instead of being re-categorized as a
+      # single word. Only set colors if they haven't been chosen yet.
+      self.bg_color = background_color_for(part_of_speech) if bg_color.blank?
+      self.text_color = text_color_for(bg_color) if text_color.blank?
     else
       pos = AacWordCategorizer.categorize(label)
       self.part_of_speech = pos

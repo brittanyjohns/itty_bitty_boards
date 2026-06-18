@@ -127,7 +127,13 @@ class ChildAccount < ApplicationRecord
     "aac_level" => CommunicatorProfile::AAC_LEVELS,
     "vocab_type" => CommunicatorProfile::VOCAB_TYPES,
     "age_band" => CommunicatorProfile::AGE_BANDS,
+    "glp_stage" => CommunicatorProfile::GLP_STAGES,
   }.freeze
+
+  # glp_stage is the lone integer profile field (NLA stage 1–6); the rest are
+  # string enums. Normalization/validation below branch on this so an integer
+  # isn't downcased into a string that fails the GLP_STAGES inclusion check.
+  INTEGER_PROFILE_FIELDS = %w[glp_stage].freeze
 
   AAC_PROFILE_FIELDS.each_key do |field|
     define_method(field) { details&.dig(field) }
@@ -148,19 +154,31 @@ class ChildAccount < ApplicationRecord
   end
 
   # Runs on every save path (typed setter or wholesale details= from the
-  # update controller): downcases/strips the three profile keys and drops
-  # blank ones, so clearing a field is always allowed.
+  # update controller): normalizes each profile key (downcases/strips the
+  # string enums; coerces glp_stage to an integer) and drops blank ones, so
+  # clearing a field is always allowed.
   def normalize_aac_profile_fields
     return if details.blank?
 
     AAC_PROFILE_FIELDS.each_key do |field|
       next unless details.key?(field)
 
-      value = details[field].to_s.strip.downcase
-      if value.blank?
-        details.delete(field)
+      if INTEGER_PROFILE_FIELDS.include?(field)
+        # Coerce to integer (handles "3" and 3). Blank clears the key; an
+        # out-of-range value survives to fail validation below.
+        value = details[field]
+        if value.blank?
+          details.delete(field)
+        else
+          details[field] = value.to_i
+        end
       else
-        details[field] = value
+        value = details[field].to_s.strip.downcase
+        if value.blank?
+          details.delete(field)
+        else
+          details[field] = value
+        end
       end
     end
   end
@@ -607,6 +625,7 @@ class ChildAccount < ApplicationRecord
       aac_level: aac_level,
       vocab_type: vocab_type,
       age_band: age_band,
+      glp_stage: glp_stage,
       user_id: user_id,
       go_to_words: go_to_words,
       go_to_boards: cached_go_to_boards.map do |board|
@@ -969,6 +988,7 @@ class ChildAccount < ApplicationRecord
       aac_level: aac_level,
       vocab_type: vocab_type,
       age_band: age_band,
+      glp_stage: glp_stage,
       user_id: user_id,
       go_to_words: go_to_words,
       go_to_boards: cached_go_to_boards.map do |board|

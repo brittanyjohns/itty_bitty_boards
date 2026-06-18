@@ -20,15 +20,35 @@ module API
       ].freeze
 
       def templates
+        glp_catalog = Boards::GlpTemplates.catalog
+
+        # `?template_type=glp` narrows the picker to GLP templates only. Omit it
+        # for the full (backward-compatible) catalog.
+        if params[:template_type].to_s.downcase == "glp"
+          glp_template, glp_reason = recommend_glp_template
+          render json: {
+            templates: glp_catalog,
+            glp_templates: glp_catalog,
+            recommended_template: glp_template,
+            recommendation_reason: glp_reason,
+          }, status: :ok
+          return
+        end
+
         catalog = Boards::StarterBlueprints.catalog
         recommended_tmpl, tmpl_reason = recommend_template(catalog)
         level_rec = recommend_level
+        glp_template, glp_reason = recommend_glp_template
+
         render json: {
           levels: COMPLEXITY_LEVELS,
           recommended_level: level_rec&.dig(:key),
-          recommendation_reason: level_rec&.dig(:reason) || tmpl_reason,
-          templates: catalog,
-          recommended_template: recommended_tmpl,
+          # A GLP-stage communicator gets the gestalt recommendation; otherwise
+          # fall back to the existing level/template reasons.
+          recommendation_reason: glp_reason || level_rec&.dig(:reason) || tmpl_reason,
+          templates: catalog + glp_catalog,
+          glp_templates: glp_catalog,
+          recommended_template: glp_template || recommended_tmpl,
         }, status: :ok
       end
 
@@ -170,6 +190,25 @@ module API
         return [nil, nil] unless catalog.any? { |t| t[:key] == slug }
 
         [slug, reason]
+      end
+
+      # Stage-appropriate GLP template recommendation for the requested
+      # communicator. Returns [slug, reason] when the communicator has a
+      # glp_stage AND a matching template board is actually seeded; nil
+      # otherwise (no communicator, no stage, or unseeded environment).
+      def recommend_glp_template
+        return nil if params[:communicator_id].blank?
+
+        communicator = current_user.communicator_accounts.find_by(id: params[:communicator_id])
+        return nil unless communicator
+
+        stage = CommunicatorProfile.for(communicator: communicator)&.glp_stage
+        return nil if stage.blank?
+
+        slug = Boards::GlpTemplates.recommended_for(stage)
+        return nil if slug.blank? || !Boards::GlpTemplates.boards.exists?(slug: slug)
+
+        [slug, "Recommended for gestalt language processors at NLA Stage #{stage}."]
       end
 
       def recommend_level

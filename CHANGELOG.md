@@ -5,6 +5,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Gestalt language (GLP) support
+- Communicators can now carry an optional **NLA stage** (`glp_stage`, 1–6),
+  stored in `child_accounts.details` alongside the existing AAC profile fields
+  (`aac_level`/`vocab_type`/`age_band`) — it measures something different, so it
+  doesn't replace them. Set it via the existing communicator-update `details`
+  param; it's exposed on the communicator `api_view`. Drives gestalt-aware AI
+  word-suggestion prompts (whole phrases at early stages → full sentences at
+  advanced stages) via `CommunicatorProfile`.
+- Six predefined **GLP board templates** of whole-phrase tiles — Greetings &
+  Social, Requests & Wants, Protests & Boundaries, Comments & Observations,
+  Feelings & Emotions, Transitions & Routines — available on all plans. Seed
+  with `bin/rails glp_templates:seed` (idempotent). They surface in
+  `GET /api/v1/board_builder/templates` (with `glp_templates` + a stage-aware
+  `recommended_template`), and `?template_type=glp` narrows the picker to GLP
+  only.
+- **Script Collector** support on `POST /api/boards/:id/add_image`: a tile can
+  be marked `part_of_speech: "phrase"` (a whole-phrase gestalt tile, no longer
+  re-categorized as a single word) and carry free-form `gestalt_source` /
+  `utterance_function` metadata, stored on `board_images.data`.
+
 ### Fixed — Board Builder: category folder tiles render blank
 - Category folder tiles (Animals, People, Feelings, Food…) on a built set now
   show a curated symbol by default instead of a blank tile. Resolution grabbed

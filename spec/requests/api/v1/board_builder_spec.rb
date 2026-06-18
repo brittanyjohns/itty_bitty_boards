@@ -196,6 +196,48 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(JSON.parse(response.body)["recommended_template"]).to be_nil
       end
     end
+
+    describe "GLP templates (gestalt language support)" do
+      def seed_glp_templates!
+        Boards::GlpTemplates.seed!(admin: create(:admin_user))
+      end
+
+      it "includes seeded GLP templates (kind=glp), with no recommendation absent a communicator" do
+        seed_glp_templates!
+        get "/api/v1/board_builder/templates", headers: headers
+
+        body = JSON.parse(response.body)
+        glp = body["templates"].find { |t| t["key"] == "glp-greetings-social" }
+        expect(glp).to be_present
+        expect(glp["kind"]).to eq("glp")
+        expect(body["glp_templates"].map { |t| t["key"] }).to include("glp-greetings-social")
+        # No communicator → no GLP recommendation.
+        expect(body["recommended_template"]).to be_nil
+      end
+
+      it "recommends a stage-appropriate GLP template when the communicator has a glp_stage" do
+        seed_glp_templates!
+        communicator.update!(details: { "glp_stage" => 1 })
+
+        get "/api/v1/board_builder/templates",
+            params: { communicator_id: communicator.id }, headers: headers
+
+        body = JSON.parse(response.body)
+        expect(body["recommended_template"]).to eq("glp-greetings-social")
+        expect(body["recommendation_reason"]).to match(/gestalt|NLA Stage 1/i)
+      end
+
+      it "returns only GLP templates with ?template_type=glp" do
+        seed_glp_templates!
+        get "/api/v1/board_builder/templates",
+            params: { template_type: "glp" }, headers: headers
+
+        body = JSON.parse(response.body)
+        kinds = body["templates"].map { |t| t["kind"] }.uniq
+        expect(kinds).to eq(["glp"])
+        expect(body["templates"].map { |t| t["key"] }).not_to include("home")
+      end
+    end
   end
 
   describe "GET /api/v1/board_builder/interest_categories" do

@@ -162,4 +162,67 @@ RSpec.describe CommunicatorProfile do
       expect(described_class.new(age_band: "7-10")).not_to be_young_teen
     end
   end
+
+  describe "glp_stage (gestalt language processing)" do
+    it "builds from params (string or integer) and stores an integer" do
+      expect(described_class.from_params({ "glp_stage" => "3" }).glp_stage).to eq(3)
+      expect(described_class.from_params({ glp_stage: 5 }).glp_stage).to eq(5)
+    end
+
+    it "makes a glp-only profile present (so .for returns it)" do
+      comm = FactoryBot.build(:child_account, details: { "glp_stage" => 2 })
+      profile = described_class.for(communicator: comm)
+      expect(profile).to be_present
+      expect(profile.glp_stage).to eq(2)
+    end
+
+    it "rejects out-of-range and non-numeric stages" do
+      expect(described_class.new(glp_stage: 7).glp_stage).to be_nil
+      expect(described_class.new(glp_stage: 0).glp_stage).to be_nil
+      expect(described_class.new(glp_stage: "abc").glp_stage).to be_nil
+      expect(described_class.new(glp_stage: nil).glp_stage).to be_nil
+    end
+
+    it "exposes stage-band predicates" do
+      expect(described_class.new(glp_stage: 1)).to be_gestalt_early
+      expect(described_class.new(glp_stage: 2)).to be_gestalt_early
+      expect(described_class.new(glp_stage: 3)).to be_gestalt_emerging
+      expect(described_class.new(glp_stage: 4)).to be_gestalt_emerging
+      expect(described_class.new(glp_stage: 5)).to be_gestalt_advanced
+      expect(described_class.new(glp_stage: 6)).to be_gestalt_advanced
+    end
+
+    it "leaves all gestalt predicates false when no stage is set" do
+      profile = described_class.new(aac_level: "developing")
+      expect(profile).not_to be_gestalt_early
+      expect(profile).not_to be_gestalt_emerging
+      expect(profile).not_to be_gestalt_advanced
+    end
+
+    describe "#prompt_guidance" do
+      it "adds whole-phrase guidance for early stages (1-2)" do
+        guidance = described_class.new(glp_stage: 1).prompt_guidance
+        expect(guidance).to match(/gestalt language processor at NLA Stage 1/i)
+        expect(guidance).to match(/whole familiar phrases|scripts/i)
+        expect(guidance).to match(/avoid isolated vocabulary/i)
+      end
+
+      it "adds mixed word-and-phrase guidance for emerging stages (3-4)" do
+        guidance = described_class.new(glp_stage: 4).prompt_guidance
+        expect(guidance).to match(/NLA Stage 4/i)
+        expect(guidance).to match(/single words with short phrases/i)
+      end
+
+      it "adds full-sentence guidance for advanced stages (5-6)" do
+        guidance = described_class.new(glp_stage: 6).prompt_guidance
+        expect(guidance).to match(/NLA Stage 6/i)
+        expect(guidance).to match(/full sentences|verb tenses/i)
+      end
+
+      it "adds no gestalt guidance when glp_stage is unset (backward compatible)" do
+        guidance = described_class.new(age: 4, aac_level: "emerging").prompt_guidance
+        expect(guidance).not_to match(/gestalt|NLA Stage/i)
+      end
+    end
+  end
 end
