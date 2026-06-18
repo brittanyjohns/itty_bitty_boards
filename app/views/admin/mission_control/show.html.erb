@@ -76,6 +76,9 @@
         <%= render "metric_row", label: "  ↳ App Store (est.)", value: @revenue.dig(:revenuecat, :active_subscriptions) %>
       <% end %>
       <%= render "metric_row", label: "New Stripe (last 7d)", value: @revenue[:new_subs_7d] %>
+      <% (@revenue[:new_subs_7d_by_plan] || {}).each do |plan, count| %>
+        <%= render "metric_row", label: "  ↳ #{plan.presence || "unknown"}", value: count %>
+      <% end %>
       <%= render "metric_row", label: "Paid users",            value: @revenue[:paid_users] %>
       <%= render "metric_row", label: "Free users",            value: @revenue[:free_users] %>
       <% if @revenue[:estimated_mrr_cents].to_i > 0 %>

@@ -22,6 +22,7 @@ module MissionControl
         revenue_source:         "stripe+revenuecat",
         revenue_cached_at:      stripe[:cached_at],
         revenue_error:          stripe[:error],
+        new_subs_7d_by_plan:    stripe[:new_subs_7d_by_plan] || {},
         stripe:                 {
           active_subscriptions: stripe_subs,
           mrr_cents:            stripe_mrr,

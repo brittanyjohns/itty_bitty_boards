@@ -25,12 +25,16 @@ module MissionControl
       plan_counts = Hash.new(0)
       total_monthly_cents = 0
       new_in_7d = 0
+      new_in_7d_by_plan = Hash.new(0)
 
       subs.each do |sub|
         plan_name = extract_plan_name(sub)
         plan_counts[plan_name] += 1
         total_monthly_cents += monthly_amount_cents(sub)
-        new_in_7d += 1 if Time.at(sub.created) > 7.days.ago
+        if Time.at(sub.created) > 7.days.ago
+          new_in_7d += 1
+          new_in_7d_by_plan[plan_name] += 1
+        end
       end
 
       {
@@ -40,6 +44,7 @@ module MissionControl
         mrr_cents: total_monthly_cents,
         mrr_usd: (total_monthly_cents / 100.0).round(2),
         new_subs_7d: new_in_7d,
+        new_subs_7d_by_plan: new_in_7d_by_plan.sort_by { |_, v| -v }.to_h,
         plan_breakdown: plan_counts.sort_by { |_, v| -v }.to_h,
       }
     end
@@ -100,6 +105,7 @@ module MissionControl
         mrr_cents: nil,
         mrr_usd: nil,
         new_subs_7d: nil,
+        new_subs_7d_by_plan: {},
         plan_breakdown: {},
         error: error,
       }
