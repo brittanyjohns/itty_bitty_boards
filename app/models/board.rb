@@ -1062,6 +1062,13 @@ class Board < ApplicationRecord
         new_board_image.predictive_board_id = board_image.predictive_board_id
         new_board_image.audio_url = board_image.audio_url
         new_board_image.save
+
+        # When the resolved image is a newly created stub (no docs yet),
+        # set_defaults leaves display_image_url blank. Fall back to the
+        # source image's URL so the tile isn't broken on first render.
+        if new_board_image.persisted? && new_board_image.display_image_url.blank? && original_image.src_url.present?
+          new_board_image.update_column(:display_image_url, original_image.src_url)
+        end
       end
     end
     @cloned_board.run_generate_preview_job if @cloned_board.board_images.any? && @cloned_board.valid?

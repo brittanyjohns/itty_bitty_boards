@@ -128,8 +128,15 @@ class Image < ApplicationRecord
   end
 
   def update_board_images_display_image
+    old_url = src_url_previously_was
     board_images.each do |bi|
-      bi.update!(display_image_url: src_url) if bi.display_image_url.blank?
+      if bi.display_image_url.blank?
+        bi.update!(display_image_url: src_url)
+      elsif old_url.present? && bi.display_image_url == old_url
+        # Tile was tracking the previous default — update it.
+        # User-custom tiles point to their own doc's URL and are skipped.
+        bi.update!(display_image_url: src_url)
+      end
     end
   end
 

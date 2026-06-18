@@ -179,4 +179,38 @@ RSpec.describe Image, type: :model do
       expect(image.text_for_audio("fr")).to eq("hello")
     end
   end
+
+  describe "#update_board_images_display_image" do
+    let(:user)  { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+    let(:image) { FactoryBot.create(:image, user: user, src_url: "https://cdn.example.com/old.webp") }
+    let!(:board_image) do
+      FactoryBot.create(:board_image, board: board, image: image, skip_create_voice_audio: true).tap do |bi|
+        bi.update_column(:display_image_url, "https://cdn.example.com/old.webp")
+      end
+    end
+
+    it "updates tiles that still show the previous default URL" do
+      image.update!(src_url: "https://cdn.example.com/new.webp")
+
+      board_image.reload
+      expect(board_image.display_image_url).to eq("https://cdn.example.com/new.webp")
+    end
+
+    it "fills tiles with a blank display_image_url" do
+      board_image.update_column(:display_image_url, nil)
+      image.update!(src_url: "https://cdn.example.com/new.webp")
+
+      board_image.reload
+      expect(board_image.display_image_url).to eq("https://cdn.example.com/new.webp")
+    end
+
+    it "does not overwrite a user-custom URL that differs from the old src_url" do
+      board_image.update_column(:display_image_url, "https://cdn.example.com/user_custom_doc.webp")
+      image.update!(src_url: "https://cdn.example.com/new.webp")
+
+      board_image.reload
+      expect(board_image.display_image_url).to eq("https://cdn.example.com/user_custom_doc.webp")
+    end
+  end
 end

@@ -226,7 +226,11 @@ class BoardImage < ApplicationRecord
   end
 
   def tile_image_url(viewing_user = nil)
-    display_image_url || image.display_tile_url(viewing_user) || image.display_image_url(viewing_user) || image.src_url
+    display_image_url.presence ||
+      image.display_tile_url(viewing_user) ||
+      image.display_image_url(viewing_user) ||
+      image.src_url.presence ||
+      Image.find_by(label: image.label, user_id: [nil, User::DEFAULT_ADMIN_ID])&.src_url
   end
 
   def get_predictive_image_for(viewing_user)
