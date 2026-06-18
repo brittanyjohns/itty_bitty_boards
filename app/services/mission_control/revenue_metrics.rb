@@ -22,6 +22,7 @@ module MissionControl
         revenue_source:         "stripe+revenuecat",
         revenue_cached_at:      stripe[:cached_at],
         revenue_error:          stripe[:error],
+        new_subs_7d_by_plan:    stripe[:new_subs_7d_by_plan] || {},
         stripe:                 {
           active_subscriptions: stripe_subs,
           mrr_cents:            stripe_mrr,
@@ -34,7 +35,7 @@ module MissionControl
           estimated_mrr_usd:    rc[:estimated_mrr_usd],
           plan_breakdown:       rc[:plan_breakdown],
         },
-        paid_users:             User.non_admin.where.not(plan_type: ["free", nil]).count,
+        paid_users:             User.non_admin.paid.count,
         free_users:             User.non_admin.where(plan_type: "free").count,
         plan_breakdown:         plan_breakdown,
       }

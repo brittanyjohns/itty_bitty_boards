@@ -19,7 +19,7 @@
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
     <%= render "stat_card", label: "Signups",      value: @overview[:signups_today],     sub: "#{@overview[:signups_7d]} last 7d (registered accounts)" %>
     <%= render "stat_card", label: "Boards",       value: @overview[:boards_today],      sub: "#{@overview[:boards_7d]} last 7d" %>
-    <%= render "stat_card", label: "AI Boards",    value: @usage[:ai_boards_today],      sub: "#{@usage[:ai_boards_7d]} last 7d" %>
+    <%= render "stat_card", label: "Builder Sets",  value: @usage[:builder_sets_today],   sub: "#{@usage[:builder_sets_7d]} last 7d" %>
     <%= render "stat_card", label: "Word Events",  value: @overview[:word_events_today], sub: "#{@overview[:word_events_7d]} last 7d" %>
   </div>
 </section>
@@ -76,6 +76,9 @@
         <%= render "metric_row", label: "  ↳ App Store (est.)", value: @revenue.dig(:revenuecat, :active_subscriptions) %>
       <% end %>
       <%= render "metric_row", label: "New Stripe (last 7d)", value: @revenue[:new_subs_7d] %>
+      <% (@revenue[:new_subs_7d_by_plan] || {}).each do |plan, count| %>
+        <%= render "metric_row", label: "  ↳ #{plan.presence || "unknown"}", value: count %>
+      <% end %>
       <%= render "metric_row", label: "Paid users",            value: @revenue[:paid_users] %>
       <%= render "metric_row", label: "Free users",            value: @revenue[:free_users] %>
       <% if @revenue[:estimated_mrr_cents].to_i > 0 %>
@@ -145,6 +148,10 @@
       <%= render "metric_row",
             label: "Total processed",
             value: number_with_delimiter(@health[:sidekiq_processed].to_i) %>
+      <%= render "metric_row",
+            label: "Total failed",
+            value: number_with_delimiter(@health[:sidekiq_failed].to_i),
+            danger: @health[:sidekiq_failed].to_i > 0 %>
     </dl>
 
     <% if @health[:sidekiq_queues].present? %>

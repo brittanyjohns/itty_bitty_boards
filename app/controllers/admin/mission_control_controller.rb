@@ -7,11 +7,14 @@ module Admin
       @health   = MissionControl::SystemHealthMetrics.call
       @recent_events = AnalyticsEvent.recent.limit(25).includes(:user)
 
-      demo_users = User.demo_accounts.includes(:boards)
-      @demo_user_count = demo_users.count
-      @demo_users_preview = demo_users.sort_by { |u| -u.boards.size }.first(10).map do |u|
-        { id: u.id, email: u.email, boards: u.boards.size, created_at: u.created_at }
-      end
+      @demo_user_count = User.demo_accounts.count
+      @demo_users_preview = User.demo_accounts
+        .left_joins(:boards)
+        .select("users.id, users.email, users.created_at, COUNT(boards.id) AS boards_count")
+        .group("users.id")
+        .order(Arel.sql("COUNT(boards.id) DESC"))
+        .limit(10)
+        .map { |u| { id: u.id, email: u.email, boards: u.boards_count, created_at: u.created_at } }
     end
 
     def cleanup_demo
@@ -32,12 +35,13 @@ module Admin
         destroy_demo_user!(user)
         deleted_count += 1
       rescue => e
-        errors << "#{user.email}: #{e.message}"
+        Rails.logger.error("[DemoCleanup] Failed to delete #{user.email}: #{e.class} - #{e.message}")
+        errors << user.email
       end
 
       flash_msg = "Deleted #{deleted_count} demo user#{"s" unless deleted_count == 1}."
-      flash_msg += " Kept #{kept.size + excluded.size} (top #{keep_count} by boards + #{excluded.size} excluded)." if kept.any? || excluded.any?
-      flash_msg += " Errors: #{errors.join("; ")}" if errors.any?
+      flash_msg += " Kept #{kept.size + excluded.size}." if kept.any? || excluded.any?
+      flash_msg += " #{errors.size} error#{"s" unless errors.size == 1} (check logs)." if errors.any?
 
       redirect_to admin_mission_control_path, notice: flash_msg
     end

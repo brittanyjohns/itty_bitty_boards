@@ -28,10 +28,11 @@ module MissionControl
       Time.zone.now.beginning_of_day..Time.zone.now.end_of_day
     end
 
+    # group_by_day buckets in Time.zone (not UTC) and zero-fills missing days,
+    # so the chart aligns with the Time.zone-based "today" cards.
     def signups_daily_7d
       User.non_admin
-          .where(created_at: 7.days.ago.beginning_of_day..)
-          .group("DATE(created_at)")
+          .group_by_day(:created_at, last: 7)
           .count
           .transform_keys(&:to_s)
     end
