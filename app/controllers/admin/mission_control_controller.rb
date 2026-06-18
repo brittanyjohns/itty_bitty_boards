@@ -7,11 +7,14 @@ module Admin
       @health   = MissionControl::SystemHealthMetrics.call
       @recent_events = AnalyticsEvent.recent.limit(25).includes(:user)
 
-      demo_users = User.demo_accounts.includes(:boards)
-      @demo_user_count = demo_users.count
-      @demo_users_preview = demo_users.sort_by { |u| -u.boards.size }.first(10).map do |u|
-        { id: u.id, email: u.email, boards: u.boards.size, created_at: u.created_at }
-      end
+      @demo_user_count = User.demo_accounts.count
+      @demo_users_preview = User.demo_accounts
+        .left_joins(:boards)
+        .select("users.id, users.email, users.created_at, COUNT(boards.id) AS boards_count")
+        .group("users.id")
+        .order(Arel.sql("COUNT(boards.id) DESC"))
+        .limit(10)
+        .map { |u| { id: u.id, email: u.email, boards: u.boards_count, created_at: u.created_at } }
     end
 
     def cleanup_demo
