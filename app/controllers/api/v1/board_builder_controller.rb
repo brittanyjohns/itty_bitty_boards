@@ -7,13 +7,16 @@ module API
       COMPLEXITY_LEVELS = [
         { key: "starter", name: "Starter",
           description: "A focused set with essential categories — great for beginning communicators.",
-          fringe_page_range: "4-6" },
+          fringe_page_range: "4-6",
+          grid_rows: 6, grid_columns: 10 },
         { key: "standard", name: "Standard",
           description: "A solid vocabulary foundation with a good range of categories.",
-          fringe_page_range: "8-10" },
+          fringe_page_range: "8-10",
+          grid_rows: 6, grid_columns: 10 },
         { key: "extended", name: "Extended",
           description: "A full vocabulary set with broad category coverage.",
-          fringe_page_range: "10-15" },
+          fringe_page_range: "10-15",
+          grid_rows: 7, grid_columns: 12 },
       ].freeze
 
       def templates

@@ -78,6 +78,17 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       end
     end
 
+    it "includes grid dimensions in levels" do
+      get "/api/v1/board_builder/templates", headers: headers
+      levels = JSON.parse(response.body)["levels"]
+      starter = levels.find { |l| l["key"] == "starter" }
+      expect(starter["grid_rows"]).to eq(6)
+      expect(starter["grid_columns"]).to eq(10)
+      extended = levels.find { |l| l["key"] == "extended" }
+      expect(extended["grid_rows"]).to eq(7)
+      expect(extended["grid_columns"]).to eq(12)
+    end
+
     describe "recommended_level" do
       it "is null without a communicator_id" do
         get "/api/v1/board_builder/templates", headers: headers
