@@ -139,4 +139,35 @@ RSpec.describe BoardImage, type: :model do
       expect(SaveAudioJob.jobs).to be_empty
     end
   end
+
+  describe "#tile_image_url" do
+    let(:user)  { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+    let(:image) { FactoryBot.create(:image, user: user) }
+    let(:board_image) do
+      FactoryBot.create(:board_image, board: board, image: image, skip_create_voice_audio: true)
+    end
+
+    it "returns display_image_url when present" do
+      board_image.update_column(:display_image_url, "https://cdn.example.com/tile.webp")
+      expect(board_image.tile_image_url).to eq("https://cdn.example.com/tile.webp")
+    end
+
+    it "falls back to admin image src_url when all else is blank" do
+      admin = User.find_by(id: User::DEFAULT_ADMIN_ID) || FactoryBot.create(:admin_user, id: User::DEFAULT_ADMIN_ID)
+      admin_image = FactoryBot.create(:image, label: image.label, user: admin)
+      admin_image.update_column(:src_url, "https://cdn.example.com/admin_fallback.webp")
+
+      board_image.update_column(:display_image_url, nil)
+      image.update_columns(src_url: nil)
+
+      expect(board_image.tile_image_url(user)).to eq("https://cdn.example.com/admin_fallback.webp")
+    end
+
+    it "does not hit the admin fallback when display_image_url is present" do
+      board_image.update_column(:display_image_url, "https://cdn.example.com/user_pick.webp")
+      expect(Image).not_to receive(:find_by).with(hash_including(user_id: [nil, User::DEFAULT_ADMIN_ID]))
+      expect(board_image.tile_image_url(user)).to eq("https://cdn.example.com/user_pick.webp")
+    end
+  end
 end

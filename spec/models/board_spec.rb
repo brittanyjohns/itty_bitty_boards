@@ -98,6 +98,31 @@ RSpec.describe Board, type: :model do
       cloned = board.clone_with_images(user.id)
       expect(cloned.settings["display_follows_preview"]).to be true
     end
+
+    context "tile display_image_url fallback on clone" do
+      let(:other_user) { FactoryBot.create(:user) }
+
+      it "backfills from the original image when the resolved image has no src_url" do
+        # Source image has no user_id so the clone creates a fresh stub
+        # (no docs, no src_url). The backfill uses the original image's URL.
+        image.update_columns(src_url: "https://cdn.example.com/original.webp", user_id: nil)
+
+        cloned = board.clone_with_images(other_user.id)
+        cloned_tile = cloned.reload.board_images.first
+
+        expect(cloned_tile.display_image_url).to eq("https://cdn.example.com/original.webp")
+      end
+
+      it "picks up the source image's src_url via set_defaults" do
+        image.update_column(:src_url, "https://cdn.example.com/source.webp")
+
+        cloned = board.clone_with_images(other_user.id)
+        cloned_tile = cloned.reload.board_images.first
+
+        # Cross-user clone reuses the original image; set_defaults copies its src_url
+        expect(cloned_tile.display_image_url).to eq("https://cdn.example.com/source.webp")
+      end
+    end
   end
 
   describe "#update_grid_layout" do

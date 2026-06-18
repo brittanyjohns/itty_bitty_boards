@@ -95,7 +95,7 @@ class Image < ApplicationRecord
   before_save :ensure_defaults
 
   after_save :update_board_images_audio, if: -> { need_to_update_board_images_audio? }
-  after_save :update_board_images_display_image, if: -> { src_url_changed? }
+  after_save :update_board_images_display_image, if: -> { saved_change_to_src_url? }
   # after_save :update_board_images_next_words, if: -> { next_words_changed? }
   after_save :update_background_color, if: -> { part_of_speech_changed? }
 
@@ -128,8 +128,15 @@ class Image < ApplicationRecord
   end
 
   def update_board_images_display_image
+    old_url = src_url_before_last_save
     board_images.each do |bi|
-      bi.update!(display_image_url: src_url) if bi.display_image_url.blank?
+      if bi.display_image_url.blank?
+        bi.update!(display_image_url: src_url)
+      elsif old_url.present? && bi.display_image_url == old_url
+        # Tile was tracking the previous default — update it.
+        # User-custom tiles point to their own doc's URL and are skipped.
+        bi.update!(display_image_url: src_url)
+      end
     end
   end
 
