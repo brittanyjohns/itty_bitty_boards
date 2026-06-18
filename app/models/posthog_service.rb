@@ -1,11 +1,12 @@
 # frozen_string_literal: true
 
-# Server-side PostHog capture for subscription lifecycle events.
+# Server-side PostHog capture for events that must be reliable regardless of
+# whether the frontend JS SDK loads (ad blockers, JS errors, etc.).
 #
-# These events are only knowable server-side (Stripe webhooks), so the frontend
-# deliberately does NOT fire them (see itty-bitty-frontend#307). Capturing them
-# here with the same distinct_id the frontend uses keeps the money-path funnel
-# (pricing page -> checkout_started -> subscription_started) buildable in PostHog.
+# Covers: user signup/signin (auth events), subscription lifecycle (Stripe/
+# RevenueCat webhooks), credit exhaustion, and account deletion. The frontend
+# captures its own events too (see itty-bitty-frontend#307); overlap is fine —
+# PostHog deduplicates by distinct_id + event + timestamp.
 #
 # distinct_id contract: the frontend identifies people as `String(user.id)`
 # (src/data/analytics.ts -> posthog.identify(String(user.id))), so the backend

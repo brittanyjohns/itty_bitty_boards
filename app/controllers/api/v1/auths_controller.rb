@@ -42,6 +42,11 @@ module API
             MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "welcome" })
           end
           MailchimpEventJob.perform_async(user.id, "sign_up")
+          PosthogService.capture_for_user(user, "user_signed_up", properties: {
+            signup_method: "standard",
+            plan_type: user.plan_type,
+            platform: platform.presence || "web",
+          })
           render json: { token: user.authentication_token, user: user.api_view }
         else
           render json: { error: user.errors.full_messages.join(", ") }, status: :unprocessable_content
@@ -109,6 +114,11 @@ module API
           MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "welcome" })
         end
         MailchimpEventJob.perform_async(user.id, "sign_up")
+        PosthogService.capture_for_user(user, "user_signed_up", properties: {
+          signup_method: "email_only",
+          plan_type: user.plan_type,
+          platform: platform.presence || "web",
+        })
         render json: { token: user.authentication_token, user: user.api_view }
       end
 
@@ -158,6 +168,9 @@ module API
           user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
           user.ensure_minimum_communicator_slot!
           MailchimpEventJob.perform_async(user.id, "sign_in")
+          PosthogService.capture_for_user(user, "user_signed_in", properties: {
+            plan_type: user.plan_type,
+          })
           render json: { token: user.authentication_token, user: user.api_view }
         else
           Rails.logger.warn "Failed sign in attempt for email: #{params[:email]} at #{Time.now}"

@@ -15,9 +15,9 @@
 
 <%# ─── Today at a glance ───────────────────────────────────── %>
 <section class="mb-10">
-  <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Today</h2>
+  <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Today <span class="normal-case font-normal text-t3">(from database)</span></h2>
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-    <%= render "stat_card", label: "Signups",      value: @overview[:signups_today],     sub: "#{@overview[:signups_7d]} last 7d" %>
+    <%= render "stat_card", label: "Signups",      value: @overview[:signups_today],     sub: "#{@overview[:signups_7d]} last 7d (registered accounts)" %>
     <%= render "stat_card", label: "Boards",       value: @overview[:boards_today],      sub: "#{@overview[:boards_7d]} last 7d" %>
     <%= render "stat_card", label: "AI Boards",    value: @usage[:ai_boards_today],      sub: "#{@usage[:ai_boards_7d]} last 7d" %>
     <%= render "stat_card", label: "Word Events",  value: @overview[:word_events_today], sub: "#{@overview[:word_events_7d]} last 7d" %>
@@ -163,15 +163,39 @@
   </div>
 </div>
 
-<%# ─── AI usage ───────────────────────────────────────────── %>
+<%# ─── Board Builder ────────────────────────────────────────── %>
 <section class="mb-10">
   <div class="admin-card border rounded-xl p-6">
-    <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-5">AI Usage</h2>
+    <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-5">Board Builder</h2>
     <div class="grid grid-cols-2 md:grid-cols-3 gap-6">
       <div>
-        <p class="text-xs text-t2 mb-1">Boards generated</p>
-        <p class="text-2xl font-semibold text-t1"><%= @usage[:ai_boards_today] %><span class="text-sm text-t3 ml-1">today</span></p>
-        <p class="text-xs text-t3 mt-0.5"><%= @usage[:ai_boards_7d] %> last 7d · <%= @usage[:ai_boards_30d] %> last 30d</p>
+        <p class="text-xs text-t2 mb-1">Sets built</p>
+        <p class="text-2xl font-semibold text-t1"><%= @usage[:builder_sets_today] %><span class="text-sm text-t3 ml-1">today</span></p>
+        <p class="text-xs text-t3 mt-0.5"><%= @usage[:builder_sets_7d] %> last 7d · <%= @usage[:builder_sets_30d] %> last 30d</p>
+      </div>
+      <div>
+        <p class="text-xs text-t2 mb-1">Communicators created</p>
+        <p class="text-2xl font-semibold text-t1"><%= @usage[:communicators_created_today] %><span class="text-sm text-t3 ml-1">today</span></p>
+        <p class="text-xs text-t3 mt-0.5"><%= @usage[:communicators_created_7d] %> last 7d</p>
+      </div>
+      <div>
+        <p class="text-xs text-t2 mb-1">Active communicators</p>
+        <p class="text-2xl font-semibold text-t1"><%= @usage[:communicator_sessions_7d] %><span class="text-sm text-t3 ml-1">7d</span></p>
+        <p class="text-xs text-t3 mt-0.5"><%= @usage[:communicator_sessions_30d] %> last 30d</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<%# ─── AI & Credit usage ─────────────────────────────────────── %>
+<section class="mb-10">
+  <div class="admin-card border rounded-xl p-6">
+    <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-5">AI &amp; Credits</h2>
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-6">
+      <div>
+        <p class="text-xs text-t2 mb-1">Credits spent</p>
+        <p class="text-2xl font-semibold text-t1"><%= @usage[:credits_spent_today] %><span class="text-sm text-t3 ml-1">today</span></p>
+        <p class="text-xs text-t3 mt-0.5"><%= @usage[:credits_spent_7d] %> last 7d · <%= @usage[:credits_spent_30d] %> last 30d</p>
       </div>
       <div>
         <p class="text-xs text-t2 mb-1">AI prompts sent</p>

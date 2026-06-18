@@ -146,7 +146,7 @@ class User < ApplicationRecord
   scope :vendor, -> { where(role: "vendor") }
   scope :partner, -> { where(role: "partner") }
 
-  scope :non_admin, -> { where.not(role: "admin") }
+  scope :non_admin, -> { where("role IS NULL OR role != ?", "admin") }
   scope :demo_accounts, -> { non_admin.where("email LIKE ? OR email LIKE ?", "%bhannajohns+%", "%@speakanyway.com") }
   scope :with_artifacts, -> { includes(user_docs: { doc: { image_attachment: :blob } }, docs: { image_attachment: :blob }) }
 
