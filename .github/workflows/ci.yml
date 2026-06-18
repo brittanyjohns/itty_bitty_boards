@@ -57,10 +57,17 @@ jobs:
       # an image and touches a Doc raises LoadError: cannot open vips.so.42.
       # Package name differs across Ubuntu versions: 24.04 ships libvips42t64
       # (time_t transition), 22.04 ships libvips42. Try the newer name first.
+      # Skip apt-get update — the runner image's package cache is fresh enough
+      # and the full index refresh can stall 10-18 min on slow Azure mirrors.
       - name: Install libvips
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libvips42t64 || sudo apt-get install -y libvips42
+          if dpkg -s libvips42t64 &>/dev/null; then
+            echo "libvips42t64 already installed"
+          else
+            sudo apt-get install -y --no-install-recommends libvips42t64 2>/dev/null \
+              || (sudo apt-get update && sudo apt-get install -y --no-install-recommends libvips42t64) \
+              || sudo apt-get install -y --no-install-recommends libvips42
+          fi
 
       - uses: ruby/setup-ruby@v1
         with:
