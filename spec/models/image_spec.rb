@@ -183,11 +183,15 @@ RSpec.describe Image, type: :model do
   describe "#update_board_images_display_image" do
     let(:user)  { FactoryBot.create(:user) }
     let(:board) { FactoryBot.create(:board, user: user) }
-    let(:image) { FactoryBot.create(:image, user: user, src_url: "https://cdn.example.com/old.webp") }
+    let(:image) { FactoryBot.create(:image, user: user) }
     let!(:board_image) do
-      FactoryBot.create(:board_image, board: board, image: image, skip_create_voice_audio: true).tap do |bi|
-        bi.update_column(:display_image_url, "https://cdn.example.com/old.webp")
-      end
+      FactoryBot.create(:board_image, board: board, image: image, skip_create_voice_audio: true)
+    end
+
+    before do
+      # Set starting state via update_columns to avoid triggering callbacks
+      image.update_columns(src_url: "https://cdn.example.com/old.webp")
+      board_image.update_column(:display_image_url, "https://cdn.example.com/old.webp")
     end
 
     it "updates tiles that still show the previous default URL" do
@@ -199,6 +203,8 @@ RSpec.describe Image, type: :model do
 
     it "fills tiles with a blank display_image_url" do
       board_image.update_column(:display_image_url, nil)
+      image.board_images.reset
+
       image.update!(src_url: "https://cdn.example.com/new.webp")
 
       board_image.reload
@@ -207,6 +213,7 @@ RSpec.describe Image, type: :model do
 
     it "does not overwrite a user-custom URL that differs from the old src_url" do
       board_image.update_column(:display_image_url, "https://cdn.example.com/user_custom_doc.webp")
+
       image.update!(src_url: "https://cdn.example.com/new.webp")
 
       board_image.reload
