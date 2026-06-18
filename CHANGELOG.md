@@ -5,6 +5,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Board Builder: extra "85th tile" and dead folder tiles on built sets
+- A built robust set (e.g. Extended / Core 84) no longer overflows its authored
+  grid. The build added one folder tile per fringe page via `Board#add_image`,
+  which fills the authored grid's open cells and then spills onto a stray extra
+  row — so a 7×12 (84-cell) Core 84 came out with 85+ tiles. The build now caps
+  the top-level folder tiles it adds to the open cells on the authored grid and
+  folds the remainder into a single "My Favorites" page (nothing the child
+  selected is dropped).
+- Authored folders are no longer left **dead** (unlinked). The hybrid path used
+  to *exclude* "unplanned" seed pages from the clone while leaving their folder
+  tiles on the root, so **More / School / Time / Describe** opened nothing when
+  tapped. The build now clones the authored core set intact — every folder links
+  to a real board.
+
 ### Added — Board Builder: complexity levels, AI fringe pages, hybrid build (Phase 2)
 - **Complexity levels** replace raw template keys in the wizard: Starter (4-6
   fringe pages), Standard (8-10), Extended (10-15). Legacy `template` param

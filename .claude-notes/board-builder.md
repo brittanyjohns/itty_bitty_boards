@@ -284,15 +284,41 @@ Cost: 2 credits per page (`ai_board_page` feature key in `CreditService`).
 When the build key is a StructurePlanner level (starter/standard/extended), the
 job runs the hybrid path:
 
-1. **Plan** via `StructurePlanner` → fringe page list + exclusions
-2. **Clone seed set** via `SeededSetCloner` with `exclude_fringe:` (drops
-   unneeded seed set pages from the clone)
-3. **Clone prebuilt templates** — for each `:prebuilt` page, clone the admin
-   template, link from root, route interests into it
-4. **AI-generate** — for each `:ai_generated` page, check credits → generate →
-   build board → link from root. Falls back to My Favorites on insufficient
-   credits or generation failure
-5. **Catch-all** — remaining unmatched interests → "My Favorites"
+1. **Plan** via `StructurePlanner` → fringe page list (+ catch-all)
+2. **Clone seed set INTACT** via `SeededSetCloner` with `exclude_fringe: []`.
+   The authored core set is cloned whole — every authored folder tile
+   (People…Describe, including **More**) stays linked to a real board, and
+   seed-category interests route into the matching cloned folders.
+3. **Add prebuilt / AI fringe pages within the grid** — `add_fringe_pages_within_grid!`.
+   Each `:prebuilt`/`:ai_generated` page becomes a *new* top-level folder tile,
+   but only while open cells remain on the authored grid (see the grid-cap note
+   below). `:prebuilt` clones the admin template + routes interests; `:ai_generated`
+   checks credits → generates → builds → links (falls back when out of credits).
+4. **Catch-all** — interests with no fitted page (initial unmatched + any pages
+   that didn't fit the grid + AI pages that fell back) → a single "My Favorites".
+
+#### Grid cap: never overflow the authored core grid
+
+The authored core board fills its grid with a few intentional empty cells
+(Core 84 = 7×12 = 84 cells, 81 tiles, 3 gaps). `Board#add_image` drops a tile
+into the first open cell and only starts a **new row** once the grid is full
+(`BoardsHelper#next_available_cell`). So naively adding one folder tile per
+fringe page overflowed onto a stray extra row — the "85th tile" bug.
+
+`add_fringe_pages_within_grid!` caps the top-level folder tiles it adds to the
+number of open cells (`root_open_cells`), reserving one cell for "My Favorites"
+whenever leftovers are expected. Interest-bearing pages are placed first, so a
+nearly-full grid still gets the pages the child actually asked for; anything
+that doesn't fit folds into My Favorites — nothing typed is dropped. Net result:
+a built robust set never exceeds its authored grid and never leaves a dead
+(unlinked) folder tile behind.
+
+> The old hybrid path *excluded* "unplanned" seed pages via
+> `StructurePlanner#excluded_fringe_pages` + `SeededSetCloner(exclude_fringe:)`.
+> That stripped authored sub-boards while leaving their root folder tiles
+> behind — dead tiles (More/School/Time/Describe) that opened nothing. The job
+> no longer excludes; `excluded_fringe_pages` is still computed on the plan but
+> unused by the build.
 
 Legacy template keys (`core-60`, `home`, etc.) route to the original
 clone-only or blueprint-only paths, unchanged.
