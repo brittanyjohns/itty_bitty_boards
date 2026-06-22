@@ -9,9 +9,10 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - A communicator created while a user was on the Free plan was forced into
   no-login **sandbox** mode, and upgrading to Basic/Pro never converted it — so
   paying users could be walled off with "Sign-in disabled for Sandbox
-  Communicators". Upgrading to a paid plan now automatically promotes sandbox
-  communicators to full **active** accounts (with sign-in), up to the plan's
-  slot limit, most-recently-active first.
+  Communicators". Upgrading to **Basic** (which grants no sandbox slots) now
+  automatically promotes those leftover sandbox communicators to full **active**
+  accounts (with sign-in), up to the plan's slot limit, most-recently-active
+  first. **Pro** is left alone — it includes an intentional sandbox/demo slot.
 - Existing affected users can be fixed with the idempotent
   `rake communicators:promote_paid_sandboxes` (dry-run by default; `DRY_RUN=false`
   to apply, `USER_ID=N` to scope to one user).

@@ -1494,13 +1494,18 @@ class User < ApplicationRecord
 
   # Promote sandbox communicators to full (active) accounts up to the number of
   # free paid slots (issue #359). A Free user's self-creates are forced to
-  # sandbox; on upgrade to Basic/Pro those should become full communicators with
-  # sign-in. Promotes most-recently-active first so the user's primary
-  # communicator is converted before any extras. No-op for Free/unpaid users and
-  # admins (admins are unlimited and already sign in to any account). Idempotent.
+  # sandbox; on upgrade to a plan that grants NO sandbox slots, those leftovers
+  # should become full communicators with sign-in. Promotes most-recently-active
+  # first so the user's primary communicator is converted before any extras.
+  #
+  # Gated to plans with **zero sandbox entitlement** (Basic — see
+  # BASIC_PLAN_LIMITS["demo_communicator_limit"] == 0). Pro grants 1 sandbox
+  # slot, so a Pro user's sandbox is an intentional scratch/demo account and is
+  # left untouched. No-op for Free/unpaid users and admins. Idempotent.
   def reconcile_paid_sandbox_promotions!
     return if admin?
     return unless paid_plan?
+    return if Permissions::CommunicatorLimits.sandbox_limit_for(settings || {}) > 0
 
     slot_limit = Permissions::CommunicatorLimits.slot_limit_for(settings || {})
     available = slot_limit - Permissions::CommunicatorLimits.owned_slot_count(self)

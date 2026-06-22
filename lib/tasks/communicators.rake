@@ -47,11 +47,14 @@ namespace :communicators do
   # disabled. The forward fix (User#reconcile_paid_sandbox_promotions!) only
   # runs when plan_type changes, so existing affected users need this one-off.
   #
-  # Promotes each paid user's sandbox communicators to full `active` accounts,
-  # most-recently-active first, up to their available paid slots — exactly what
-  # the upgrade callback now does. promote_to_active! mints a passcode so
-  # sign-in works and lifts the sandbox board cap. Idempotent. Admins skipped
-  # (unlimited; already sign in to any account).
+  # Promotes each affected paid user's sandbox communicators to full `active`
+  # accounts, most-recently-active first, up to their available paid slots —
+  # exactly what the upgrade callback now does. promote_to_active! mints a
+  # passcode so sign-in works and lifts the sandbox board cap. Idempotent.
+  #
+  # Scoped to plans with ZERO sandbox entitlement (Basic). Pro grants 1 sandbox
+  # slot, so Pro users' sandboxes are intentional scratch/demo accounts and are
+  # left untouched. Admins skipped (unlimited; already sign in to any account).
   #
   # Dry-run by default. Apply with DRY_RUN=false. Optionally scope to one user:
   #   rake communicators:promote_paid_sandboxes                       # preview all
@@ -67,6 +70,8 @@ namespace :communicators do
 
     users.find_each do |user|
       next if user.admin? || !user.paid_plan?
+      # Plans that grant any sandbox slot (Pro) keep their intentional sandboxes.
+      next if Permissions::CommunicatorLimits.sandbox_limit_for(user.settings || {}) > 0
 
       slot_limit = Permissions::CommunicatorLimits.slot_limit_for(user.settings || {})
       available = slot_limit - Permissions::CommunicatorLimits.owned_slot_count(user)

@@ -59,6 +59,17 @@ RSpec.describe "communicators:promote_paid_sandboxes rake task", type: :task do
     expect(free_sandbox.reload.status).to eq("sandbox")
   end
 
+  it "leaves Pro users' sandboxes untouched (Pro is entitled to a sandbox slot)" do
+    pro_user = create(:user, plan_type: "pro")
+    pro_sandbox = create(:child_account, user: pro_user, status: ChildAccount::SANDBOX, passcode: nil)
+
+    ENV["DRY_RUN"] = "false"
+    ENV.delete("USER_ID")
+    run_task
+
+    expect(pro_sandbox.reload.status).to eq("sandbox")
+  end
+
   it "scopes to a single user via USER_ID" do
     other_paid = create(:user, plan_type: "basic")
     other_sandbox = create(:child_account, user: other_paid, status: ChildAccount::SANDBOX, passcode: nil)
