@@ -342,6 +342,29 @@ class ChildAccount < ApplicationRecord
     self
   end
 
+  # Promote a sandbox communicator to a full, owned `active` account.
+  #
+  # Used when a Free user (whose self-creates are forced to sandbox) upgrades
+  # to a paid plan — their sandbox communicators become full communicators with
+  # sign-in (see User#reconcile_paid_sandbox_promotions!, issue #359). Mints a
+  # passcode if none exists so sign-in actually works, and lifts the per-account
+  # sandbox board cap so the owner's plan board limit applies.
+  #
+  # Idempotent on an already-active account; never demotes a loaner.
+  def promote_to_active!
+    return self if active?
+    return self if loaner?
+
+    self.status = ACTIVE
+    self.passcode = SecureRandom.alphanumeric(8) if passcode.blank?
+
+    self.settings ||= {}
+    self.settings.delete("demo_board_limit")
+
+    save!
+    self
+  end
+
   # Generate (or rotate) the claim token the parent uses to take over
   # this loaner. Loaner-only. The claim URL is built by the controller.
   def generate_claim_token!
