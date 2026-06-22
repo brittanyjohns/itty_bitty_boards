@@ -98,6 +98,14 @@ RSpec.describe "Paid sandbox promotion (#359)", type: :model do
       expect(accounts.first.reload.status).to eq("sandbox")
     end
 
+    it "leaves Pro users' sandboxes alone (Pro is entitled to a sandbox slot)" do
+      owner, accounts = free_owner_with_sandboxes(1)
+
+      owner.update!(plan_type: "pro") # Pro grants 1 sandbox slot
+
+      expect(accounts.first.reload.status).to eq("sandbox")
+    end
+
     it "is a no-op for admins (unlimited; already sign in to any account)" do
       admin = create(:admin_user)
       account = create(:child_account, user: admin, status: ChildAccount::SANDBOX, passcode: nil)
