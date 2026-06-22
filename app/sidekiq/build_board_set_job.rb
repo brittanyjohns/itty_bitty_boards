@@ -49,6 +49,8 @@ class BuildBoardSetJob
 
       if complexity_level?(level_or_template)
         build_with_structure_planner(root, communicator, level_or_template, interests, explicit_categories)
+      elsif glp_template?(level_or_template)
+        build_glp(root, communicator, level_or_template, interests)
       else
         build_legacy(root, communicator, level_or_template, interests, explicit_categories)
       end
@@ -66,6 +68,25 @@ class BuildBoardSetJob
 
   def complexity_level?(value)
     Boards::StructurePlanner::LEVELS.key?(value.to_s.downcase)
+  end
+
+  def glp_template?(value)
+    Boards::GlpTemplates.template_slug?(value.to_s)
+  end
+
+  # GLP templates are flat, admin-owned whole-phrase boards (one communicative
+  # function each). Build = copy each phrase tile onto the pre-created root,
+  # preserving order and part_of_speech ("phrase"). Any interests the caregiver
+  # picked in the wizard fold into a "My Favorites" page so nothing is dropped.
+  def build_glp(root, communicator, slug, interests)
+    source = Boards::GlpTemplates.find_board(slug)
+    raise Boards::BlueprintAssembler::UnknownTemplate, "unknown glp template #{slug.inspect}" unless source
+
+    source.board_images.order(:position).each do |board_image|
+      root.add_image(board_image.image_id)
+    end
+
+    add_to_favorites!(root, communicator, interests) if interests.present?
   end
 
   # Phase 2: StructurePlanner-driven hybrid build.

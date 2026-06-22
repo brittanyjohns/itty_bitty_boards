@@ -391,6 +391,56 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       end
     end
 
+    context "with a GLP template" do
+      def seed_glp_templates!
+        Boards::GlpTemplates.seed!(admin: create(:admin_user))
+      end
+
+      it "accepts a GLP template slug (regression: used to 422 unknown_template)" do
+        seed_glp_templates!
+
+        expect {
+          post "/api/v1/board_builder",
+               params: { communicator_id: communicator.id,
+                         template: "glp-greetings-social" }.to_json,
+               headers: headers
+        }.to change { BuildBoardSetJob.jobs.size }.by(1)
+
+        expect(response).to have_http_status(:created)
+        root = Board.find(JSON.parse(response.body)["id"])
+        # Root takes the GLP template's name, and the slug rides through to the job.
+        expect(root.name).to eq("Greetings & Social")
+        expect(BuildBoardSetJob.jobs.last["args"][2]).to eq("glp-greetings-social")
+      end
+
+      it "builds the whole-phrase tiles onto the root and completes (job drained)" do
+        seed_glp_templates!
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id,
+                       template: "glp-greetings-social" }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:created)
+
+        BuildBoardSetJob.drain
+
+        root = Board.find(JSON.parse(response.body)["id"])
+        expect(root.status).to eq("complete")
+        expect(root.board_images.map(&:label)).to include("hi there!", "see you later")
+        expect(root.board_images.map { |bi| bi.image.part_of_speech }.uniq).to eq(["phrase"])
+      end
+
+      it "still 422s unknown_template for a bogus glp-looking slug" do
+        seed_glp_templates!
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id,
+                       template: "glp-does-not-exist" }.to_json,
+             headers: headers
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(JSON.parse(response.body)["error"]).to eq("unknown_template")
+      end
+    end
+
     context "with no core symbols seeded (the staging 500 regression)" do
       # Reproduces the outage: a build used to 500 with
       # RuntimeError("no Image for label \"Food\"") when the curated symbols
