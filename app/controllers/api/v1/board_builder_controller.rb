@@ -150,8 +150,11 @@ module API
         elsif params[:template].present?
           template = params[:template].to_s
           robust_root  = Boards::RobustSets.find_root(template)
-          starter_tree = robust_root ? nil : Boards::StarterBlueprints.tree_for(template)
-          if robust_root.nil? && starter_tree.nil?
+          # GLP templates are seeded DB boards keyed by slug — the catalog
+          # advertises them, so the build path must accept them too.
+          glp_template = robust_root ? false : Boards::GlpTemplates.template_slug?(template)
+          starter_tree = robust_root || glp_template ? nil : Boards::StarterBlueprints.tree_for(template)
+          if robust_root.nil? && !glp_template && starter_tree.nil?
             raise Boards::BlueprintAssembler::UnknownTemplate,
                   "unknown template #{template.inspect}"
           end
@@ -169,7 +172,10 @@ module API
           robust_root&.name || "Communication Board"
         else
           robust_root = Boards::RobustSets.find_root(build_key)
-          robust_root&.name || Boards::StarterBlueprints.tree_for(build_key)&.dig(:name) || "Communication Board"
+          robust_root&.name ||
+            Boards::GlpTemplates.find_board(build_key)&.name ||
+            Boards::StarterBlueprints.tree_for(build_key)&.dig(:name) ||
+            "Communication Board"
         end
       end
 

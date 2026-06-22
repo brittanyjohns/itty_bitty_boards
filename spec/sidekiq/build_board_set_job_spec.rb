@@ -131,6 +131,41 @@ RSpec.describe BuildBoardSetJob do
     end
   end
 
+  describe "#perform with a GLP template" do
+    def seed_glp_templates!
+      Boards::GlpTemplates.seed!(admin: create(:admin_user))
+    end
+
+    it "copies the whole-phrase tiles onto the pre-created root and completes" do
+      seed_glp_templates!
+      root = precreate_root!(name: "Greetings & Social")
+
+      described_class.new.perform(root.id, communicator.id, "glp-greetings-social", [])
+
+      root.reload
+      expect(root.status).to eq("complete")
+      labels = root.board_images.map(&:label)
+      expect(labels).to include("hi there!", "see you later", "good morning")
+      # part_of_speech carries over so tiles render as gestalt scripts, not words.
+      expect(root.board_images.map { |bi| bi.image.part_of_speech }.uniq).to eq(["phrase"])
+      # Flat board — no sub-board folder tiles.
+      expect(root.board_images.map(&:predictive_board_id).compact).to be_empty
+    end
+
+    it "folds picked interests into a My Favorites page (nothing dropped)" do
+      seed_glp_templates!
+      root = precreate_root!(name: "Greetings & Social")
+
+      described_class.new.perform(root.id, communicator.id, "glp-greetings-social", ["grandma"])
+
+      root.reload
+      favorites_tile = root.board_images.find { |bi| bi.label == "My Favorites" }
+      expect(favorites_tile&.predictive_board_id).to be_present
+      favorites = Board.find(favorites_tile.predictive_board_id)
+      expect(favorites.board_images.map(&:label)).to include("grandma")
+    end
+  end
+
   describe "#perform with a complexity level (hybrid path)" do
     before { seed_robust_set! }
 

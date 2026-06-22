@@ -82,6 +82,24 @@ module Boards
       Board.where(is_template: true, category: CATEGORY).order(:name)
     end
 
+    # The seeded GLP template board for a slug (e.g. "glp-greetings-social"),
+    # or nil. The Board Builder build path uses this to resolve and clone a
+    # GLP template — the catalog keys templates by slug, so this is what the
+    # frontend sends back as `template`.
+    def find_board(slug)
+      return nil if slug.blank?
+
+      boards.find_by(slug: slug)
+    end
+
+    # True when `slug` is a seeded GLP template board — used by the build path
+    # to branch GLP templates away from robust sets / starter blueprints.
+    def template_slug?(slug)
+      return false if slug.blank?
+
+      boards.exists?(slug: slug)
+    end
+
     # Picker catalog entries (same shape family as StarterBlueprints#catalog,
     # with `kind: "glp"` so the frontend can group/badge them).
     def catalog
