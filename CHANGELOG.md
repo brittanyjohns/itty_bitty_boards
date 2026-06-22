@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Sandbox communicators no longer advertise a sign-in
+- A **sandbox** (no-login demo) communicator owned by a paid or free-trial user
+  was returning `can_sign_in: true` and a real `startup_url`
+  (`/accounts/sign-in?username=…`) in its API payload — even though a sandbox
+  has no passcode and cannot be signed into. `ChildAccount#can_sign_in?` now
+  short-circuits to `false` for any sandbox (before the admin/plan checks), and
+  `ChildAccount#startup_url` returns `nil` for a sandbox, so the contradiction
+  no longer reaches the frontend. Active and loaner communicators are
+  unchanged. Specs added in `spec/models/child_account_spec.rb`.
+
 ### Fixed — Board Builder fringe pages now show tile artwork
 - A built board set's **main board** showed pictures on its tiles, but the
   **fringe/category pages** (Food, Feelings, Animals…) often rendered blank. The

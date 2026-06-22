@@ -87,4 +87,40 @@ RSpec.describe ChildAccount, type: :model do
       expect(account.authentication_token).not_to eq(old_token)
     end
   end
+
+  # A sandbox is a no-login demo account. It must never advertise a private
+  # sign-in — neither via can_sign_in? nor a startup_url — even though its
+  # owner may be on a paid plan or in their free trial. Regression guard for
+  # the contradiction where a sandbox shipped can_sign_in: true + a real URL.
+  describe "sandbox sign-in gating" do
+    let(:paid_user) { FactoryBot.create(:user, plan_type: "pro") }
+
+    it "denies can_sign_in? for a sandbox owned by a paid user" do
+      sandbox = FactoryBot.create(:child_account, user: paid_user,
+                                                   status: ChildAccount::SANDBOX)
+      expect(paid_user.paid_plan?).to be(true)
+      expect(sandbox.can_sign_in?).to be(false)
+    end
+
+    it "returns a nil startup_url for a sandbox" do
+      sandbox = FactoryBot.create(:child_account, user: paid_user,
+                                                   status: ChildAccount::SANDBOX)
+      expect(sandbox.startup_url).to be_nil
+    end
+
+    it "denies can_sign_in? for a sandbox even when the owner is an admin" do
+      admin   = FactoryBot.create(:admin_user)
+      sandbox = FactoryBot.create(:child_account, user: admin,
+                                                  status: ChildAccount::SANDBOX)
+      expect(sandbox.can_sign_in?).to be(false)
+    end
+
+    it "still allows sign-in and a startup_url for an active communicator" do
+      active = FactoryBot.create(:child_account, user: paid_user,
+                                                 username: "signme",
+                                                 status: ChildAccount::ACTIVE)
+      expect(active.can_sign_in?).to be(true)
+      expect(active.startup_url).to include("/accounts/sign-in?username=signme")
+    end
+  end
 end
