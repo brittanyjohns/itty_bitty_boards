@@ -99,4 +99,68 @@ RSpec.describe "Admin::Users", type: :request do
       expect(response.body).to include("board_limit")
     end
   end
+
+  describe "POST /admin/users/:id/adjust_credits" do
+    it "adds plan credits and returns the new balance" do
+      user1.update_columns(plan_credits_balance: 5, topup_credits_balance: 0)
+
+      expect {
+        post adjust_credits_admin_dashboard_user_path(user1),
+          params: { amount: 100, source: "plan", reason: "manual top-up" }
+      }.to change { CreditTransaction.where(user: user1, kind: "admin_adjust").count }.by(1)
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["success"]).to be(true)
+      expect(body["balance"]["plan"]).to eq(105)
+      expect(user1.reload.plan_credits_balance).to eq(105)
+    end
+
+    it "adjusts topup credits when source is topup" do
+      user1.update_columns(plan_credits_balance: 0, topup_credits_balance: 10)
+      post adjust_credits_admin_dashboard_user_path(user1),
+        params: { amount: -4, source: "topup" }
+
+      expect(response).to have_http_status(:ok)
+      expect(user1.reload.topup_credits_balance).to eq(6)
+    end
+
+    it "rejects a zero amount" do
+      post adjust_credits_admin_dashboard_user_path(user1), params: { amount: 0 }
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["error"]).to be_present
+    end
+
+    it "rejects an adjustment that would make the balance negative" do
+      user1.update_columns(plan_credits_balance: 5)
+      post adjust_credits_admin_dashboard_user_path(user1),
+        params: { amount: -10, source: "plan" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(user1.reload.plan_credits_balance).to eq(5)
+    end
+
+    context "when not signed in" do
+      before { sign_out admin }
+
+      it "redirects" do
+        post adjust_credits_admin_dashboard_user_path(user1), params: { amount: 100 }
+        expect(response).to redirect_to(new_user_session_path)
+      end
+    end
+
+    context "when signed in as non-admin" do
+      before do
+        sign_out admin
+        sign_in user1
+      end
+
+      it "redirects to root and does not adjust credits" do
+        expect {
+          post adjust_credits_admin_dashboard_user_path(user2), params: { amount: 100 }
+        }.not_to change { user2.reload.plan_credits_balance }
+        expect(response).to redirect_to(root_path)
+      end
+    end
+  end
 end

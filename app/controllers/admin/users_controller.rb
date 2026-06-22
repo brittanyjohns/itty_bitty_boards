@@ -28,6 +28,37 @@ module Admin
       @credit_balance = CreditService.balance(@user)
     end
 
+    def adjust_credits
+      @user = User.find(params[:id])
+
+      amount = params[:amount].to_i
+      source = params[:source].presence_in(%w[plan topup]) || "plan"
+      reason = params[:reason].presence
+
+      if amount.zero?
+        render json: { error: "Amount must not be zero" }, status: :unprocessable_content
+        return
+      end
+
+      txn = CreditService.admin_adjust!(
+        @user,
+        amount: amount,
+        source: source,
+        admin: current_user,
+        reason: reason,
+      )
+
+      render json: {
+        success: true,
+        transaction_id: txn.id,
+        balance: CreditService.balance(@user.reload),
+      }
+    rescue ActiveRecord::RecordNotFound
+      render json: { error: "User not found" }, status: :not_found
+    rescue ArgumentError => e
+      render json: { error: e.message }, status: :unprocessable_content
+    end
+
     private
 
     def apply_filter(scope)
