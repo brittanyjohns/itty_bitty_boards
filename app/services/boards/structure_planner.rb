@@ -28,16 +28,17 @@ module Boards
 
     Result = Struct.new(
       :level, :core_template, :fringe_pages, :excluded_fringe_pages,
-      :catch_all_interests, :ai_credits_needed,
+      :catch_all_interests, :ai_credits_needed, :phrases_page,
       keyword_init: true,
     )
 
-    def initialize(level:, profile: nil, interests: [], explicit_categories: {}, user: nil)
+    def initialize(level:, profile: nil, interests: [], explicit_categories: {}, user: nil, include_phrases: nil)
       @level = normalize_level(level)
       @profile = profile
       @interests = interests
       @explicit_categories = explicit_categories || {}
       @user = user
+      @include_phrases = include_phrases
       @config = LEVELS.fetch(@level)
     end
 
@@ -64,10 +65,27 @@ module Boards
         excluded_fringe_pages: excluded,
         catch_all_interests: catch_all,
         ai_credits_needed: ai_credits,
+        phrases_page: plan_phrases_page,
       )
     end
 
     private
+
+    # The gestalt "Phrases" layer (Boards::PhrasesPageBuilder) is part of every
+    # built set — it doubles as the universal phrase board (sentence-builder
+    # save target + quick-phrase source). A communicator with a glp_stage always
+    # gets it; others get it unless the caller explicitly opts out
+    # (include_phrases: false). Prominence: an early-stage gestalt processor
+    # (stage 1–2) gets a quick-phrase :strip on the home board; everyone else
+    # gets the :folder.
+    def plan_phrases_page
+      stage = @profile&.glp_stage
+      include = stage.present? || @include_phrases != false
+      return nil unless include
+
+      prominence = @profile&.gestalt_early? ? :strip : :folder
+      { include: true, prominence: prominence, stage: stage }
+    end
 
     def normalize_level(level)
       key = level.to_s.downcase

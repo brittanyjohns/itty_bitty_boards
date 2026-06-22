@@ -25,7 +25,11 @@ class BuildBoardSetJob
   include Sidekiq::Job
   sidekiq_options retry: 1, queue: :default
 
-  def perform(root_board_id, communicator_id, level_or_template, interests = [], categories = {})
+  # Max gestalt phrases promoted to the home-board quick-phrase strip for an
+  # early-stage (NLA 1–2) communicator. Capped further by open grid cells.
+  PHRASES_STRIP_SIZE = 4
+
+  def perform(root_board_id, communicator_id, level_or_template, interests = [], categories = {}, options = {})
     root = Board.find_by(id: root_board_id)
     unless root
       Rails.logger.error "BuildBoardSetJob: Board with ID #{root_board_id} not found."
@@ -46,11 +50,11 @@ class BuildBoardSetJob
 
     begin
       explicit_categories = categories.is_a?(Hash) ? categories : {}
+      opts = options.is_a?(Hash) ? options : {}
+      include_phrases = opts["include_phrases"]
 
       if complexity_level?(level_or_template)
-        build_with_structure_planner(root, communicator, level_or_template, interests, explicit_categories)
-      elsif glp_template?(level_or_template)
-        build_glp(root, communicator, level_or_template, interests)
+        build_with_structure_planner(root, communicator, level_or_template, interests, explicit_categories, include_phrases)
       else
         build_legacy(root, communicator, level_or_template, interests, explicit_categories)
       end
@@ -70,27 +74,11 @@ class BuildBoardSetJob
     Boards::StructurePlanner::LEVELS.key?(value.to_s.downcase)
   end
 
-  def glp_template?(value)
-    Boards::GlpTemplates.template_slug?(value.to_s)
-  end
-
-  # GLP templates are flat, admin-owned whole-phrase boards (one communicative
-  # function each). Build = copy each phrase tile onto the pre-created root,
-  # preserving order and part_of_speech ("phrase"). Any interests the caregiver
-  # picked in the wizard fold into a "My Favorites" page so nothing is dropped.
-  def build_glp(root, communicator, slug, interests)
-    source = Boards::GlpTemplates.find_board(slug)
-    raise Boards::BlueprintAssembler::UnknownTemplate, "unknown glp template #{slug.inspect}" unless source
-
-    source.board_images.order(:position).each do |board_image|
-      root.add_image(board_image.image_id)
-    end
-
-    add_to_favorites!(root, communicator, interests) if interests.present?
-  end
-
-  # Phase 2: StructurePlanner-driven hybrid build.
-  def build_with_structure_planner(root, communicator, level, interests, explicit_categories)
+  # Phase 2: StructurePlanner-driven hybrid build. Gestalt phrases are no longer
+  # a separate build target — every set gets the full core+fringe vocabulary
+  # PLUS an integrated "Phrases" layer (Boards::PhrasesPageBuilder), with
+  # prominence tuned to the communicator's NLA stage.
+  def build_with_structure_planner(root, communicator, level, interests, explicit_categories, include_phrases = nil)
     owner = communicator.owner || communicator.user
     profile = CommunicatorProfile.for(communicator: communicator)
 
@@ -100,6 +88,7 @@ class BuildBoardSetJob
       interests: interests,
       explicit_categories: explicit_categories,
       user: owner,
+      include_phrases: include_phrases,
     ).call
 
     robust_root = Boards::RobustSets.find_root(plan.core_template)
@@ -116,7 +105,63 @@ class BuildBoardSetJob
       ).call
     end
 
+    # Build the Phrases layer BEFORE fringe pages so its folder tile (and an
+    # early-stage quick-phrase strip) get first claim on the authored grid's
+    # open cells; fringe pages then adapt to whatever's left.
+    phrases_board = build_phrases_layer!(root, communicator, owner, plan) if plan.phrases_page&.dig(:include)
+
     add_fringe_pages_within_grid!(root, communicator, owner, profile, plan)
+
+    wire_phrase_board!(communicator, owner, phrases_board) if phrases_board
+  end
+
+  # Builds the gestalt Phrases sub-tree (Boards::PhrasesPageBuilder), links it
+  # from the home board, and — for an early-stage gestalt processor — surfaces a
+  # personalized quick-phrase strip on the home board. Returns the Phrases board
+  # (for phrase_board wiring), or nil when there's no room / no seeded templates.
+  def build_phrases_layer!(root, communicator, owner, plan)
+    root.reload
+    return nil if root_open_cells(root) < 1
+
+    phrases_board = Boards::PhrasesPageBuilder.new(communicator: communicator, owner: owner).call
+    return nil unless phrases_board
+
+    add_folder_tile!(root, owner, Boards::PhrasesPageBuilder::PHRASES_BOARD_NAME, phrases_board.id)
+
+    add_phrase_strip!(root, plan.phrases_page[:stage]) if plan.phrases_page[:prominence] == :strip
+
+    phrases_board
+  end
+
+  # Early-stage (gestalt_early?) prominence: surface the top phrases from the
+  # stage-recommended function directly on the home board, capped to the open
+  # cells left after the Phrases folder + core vocab. Degrades to folder-only
+  # when the authored grid has no room — never overflows onto a stray row.
+  def add_phrase_strip!(root, stage)
+    root.reload
+    open = root_open_cells(root)
+    return if open < 1
+
+    slug = Boards::GlpTemplates.recommended_for(stage)
+    source = slug && Boards::GlpTemplates.find_board(slug)
+    return unless source
+
+    image_ids = source.board_images.order(:position)
+      .limit([PHRASES_STRIP_SIZE, open].min).map(&:image_id)
+    image_ids.each { |image_id| root.add_image(image_id) }
+  end
+
+  # The new Phrases board doubles as the communicator's phrase board (the
+  # sentence-builder save target + quick-phrase source). Wire it on the
+  # communicator and backfill the owner — but only when blank, never clobbering
+  # a phrase board the user already picked.
+  def wire_phrase_board!(communicator, owner, phrases_board)
+    if communicator.settings["phrase_board_id"].blank?
+      communicator.update!(settings: (communicator.settings || {}).merge("phrase_board_id" => phrases_board.id))
+    end
+    if owner.settings["phrase_board_id"].blank?
+      owner.update!(settings: (owner.settings || {}).merge("phrase_board_id" => phrases_board.id))
+    end
   end
 
   def collect_seed_set_interests(plan)

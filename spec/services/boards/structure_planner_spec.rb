@@ -174,4 +174,37 @@ RSpec.describe Boards::StructurePlanner do
       expect(food_page&.dig(:interests)).not_to include("pizza") if food_page
     end
   end
+
+  describe "phrases_page planning" do
+    def profile(glp_stage: nil)
+      early = glp_stage.present? && glp_stage <= 2
+      instance_double(CommunicatorProfile, glp_stage: glp_stage, gestalt_early?: early)
+    end
+
+    it "includes a folder-prominence Phrases page by default (no stage, no opt-out)" do
+      plan = described_class.new(level: "standard", interests: []).call
+      expect(plan.phrases_page).to include(include: true, prominence: :folder)
+    end
+
+    it "promotes a strip for an early-stage gestalt processor" do
+      plan = described_class.new(level: "standard", profile: profile(glp_stage: 1), interests: []).call
+      expect(plan.phrases_page).to include(include: true, prominence: :strip, stage: 1)
+    end
+
+    it "uses the folder for a later-stage processor" do
+      plan = described_class.new(level: "standard", profile: profile(glp_stage: 5), interests: []).call
+      expect(plan.phrases_page).to include(prominence: :folder, stage: 5)
+    end
+
+    it "omits the Phrases page when explicitly opted out and no stage is set" do
+      plan = described_class.new(level: "standard", interests: [], include_phrases: false).call
+      expect(plan.phrases_page).to be_nil
+    end
+
+    it "still includes the Phrases page for a glp-stage communicator even when opted out" do
+      plan = described_class.new(level: "standard", profile: profile(glp_stage: 1),
+                                 interests: [], include_phrases: false).call
+      expect(plan.phrases_page).to include(include: true, prominence: :strip)
+    end
+  end
 end

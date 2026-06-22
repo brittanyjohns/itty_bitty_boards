@@ -307,7 +307,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(communicator.reload.details["interests"]).to eq(["dinosaurs", "grandma"])
 
         expect(BuildBoardSetJob.jobs.last["args"])
-          .to eq([root.id, communicator.id, "home", ["dinosaurs", "grandma"], {}])
+          .to eq([root.id, communicator.id, "home", ["dinosaurs", "grandma"], {}, { "include_phrases" => nil }])
       end
 
       it "builds a linked set, routes interests into category vs favorites folders, and completes (job drained)" do
@@ -396,7 +396,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         Boards::GlpTemplates.seed!(admin: create(:admin_user))
       end
 
-      it "accepts a GLP template slug (regression: used to 422 unknown_template)" do
+      it "no longer accepts a GLP slug as a build target (gestalts ride every build)" do
         seed_glp_templates!
 
         expect {
@@ -404,29 +404,21 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
                params: { communicator_id: communicator.id,
                          template: "glp-greetings-social" }.to_json,
                headers: headers
-        }.to change { BuildBoardSetJob.jobs.size }.by(1)
+        }.not_to change { BuildBoardSetJob.jobs.size }
 
-        expect(response).to have_http_status(:created)
-        root = Board.find(JSON.parse(response.body)["id"])
-        # Root takes the GLP template's name, and the slug rides through to the job.
-        expect(root.name).to eq("Greetings & Social")
-        expect(BuildBoardSetJob.jobs.last["args"][2]).to eq("glp-greetings-social")
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(JSON.parse(response.body)["error"]).to eq("unknown_template")
       end
 
-      it "builds the whole-phrase tiles onto the root and completes (job drained)" do
-        seed_glp_templates!
+      it "passes include_phrases through to the build job" do
         post "/api/v1/board_builder",
              params: { communicator_id: communicator.id,
-                       template: "glp-greetings-social" }.to_json,
+                       level: "standard", include_phrases: false }.to_json,
              headers: headers
+
         expect(response).to have_http_status(:created)
-
-        BuildBoardSetJob.drain
-
-        root = Board.find(JSON.parse(response.body)["id"])
-        expect(root.status).to eq("complete")
-        expect(root.board_images.map(&:label)).to include("hi there!", "see you later")
-        expect(root.board_images.map { |bi| bi.image.part_of_speech }.uniq).to eq(["phrase"])
+        opts = BuildBoardSetJob.jobs.last["args"][5]
+        expect(opts).to eq({ "include_phrases" => false })
       end
 
       it "still 422s unknown_template for a bogus glp-looking slug" do
@@ -691,7 +683,7 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
 
         expect(communicator.reload.details["interests"]).to eq(["pizza"])
         expect(BuildBoardSetJob.jobs.last["args"])
-          .to eq([root.id, communicator.id, "core-60", ["pizza"], {}])
+          .to eq([root.id, communicator.id, "core-60", ["pizza"], {}, { "include_phrases" => nil }])
 
         BuildBoardSetJob.drain
         root.reload

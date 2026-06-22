@@ -92,6 +92,15 @@ module Boards
       boards.find_by(slug: slug)
     end
 
+    # The seeded function boards in TEMPLATES (communicative-function) order —
+    # the clone sources for the Board Builder's gestalt "Phrases" layer
+    # (Boards::PhrasesPageBuilder). Empty when the seed hasn't run.
+    def function_boards
+      slugs = TEMPLATES.map { |t| t[:slug] }
+      by_slug = boards.where(slug: slugs).index_by(&:slug)
+      slugs.filter_map { |slug| by_slug[slug] }
+    end
+
     # True when `slug` is a seeded GLP template board — used by the build path
     # to branch GLP templates away from robust sets / starter blueprints.
     def template_slug?(slug)

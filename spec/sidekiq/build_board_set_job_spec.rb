@@ -131,38 +131,66 @@ RSpec.describe BuildBoardSetJob do
     end
   end
 
-  describe "#perform with a GLP template" do
+  describe "#perform Phrases layer (gestalt integration)" do
     def seed_glp_templates!
       Boards::GlpTemplates.seed!(admin: create(:admin_user))
     end
 
-    it "copies the whole-phrase tiles onto the pre-created root and completes" do
+    before do
+      seed_robust_set!
       seed_glp_templates!
-      root = precreate_root!(name: "Greetings & Social")
+    end
 
-      described_class.new.perform(root.id, communicator.id, "glp-greetings-social", [])
+    it "links an integrated Phrases page with the six function sub-pages" do
+      root = precreate_root!(name: "Core 60")
+
+      described_class.new.perform(root.id, communicator.id, "standard", [])
 
       root.reload
       expect(root.status).to eq("complete")
-      labels = root.board_images.map(&:label)
-      expect(labels).to include("hi there!", "see you later", "good morning")
-      # part_of_speech carries over so tiles render as gestalt scripts, not words.
-      expect(root.board_images.map { |bi| bi.image.part_of_speech }.uniq).to eq(["phrase"])
-      # Flat board — no sub-board folder tiles.
-      expect(root.board_images.map(&:predictive_board_id).compact).to be_empty
+
+      phrases_tile = root.board_images.find { |bi| bi.label == "Phrases" }
+      expect(phrases_tile&.predictive_board_id).to be_present
+
+      phrases_board = Board.find(phrases_tile.predictive_board_id)
+      function_tiles = phrases_board.board_images.select { |bi| bi.predictive_board_id.present? }
+      expect(function_tiles.size).to eq(6)
+
+      greetings = Board.find(function_tiles.find { |bi| bi.label == "Greetings & Social" }.predictive_board_id)
+      expect(greetings.board_images.map(&:label)).to include("hi there!", "good morning")
+      expect(greetings.board_images.map { |bi| bi.image.part_of_speech }.uniq).to eq(["phrase"])
     end
 
-    it "folds picked interests into a My Favorites page (nothing dropped)" do
-      seed_glp_templates!
-      root = precreate_root!(name: "Greetings & Social")
+    it "wires the new Phrases board as the communicator's and owner's phrase board" do
+      root = precreate_root!(name: "Core 60")
 
-      described_class.new.perform(root.id, communicator.id, "glp-greetings-social", ["grandma"])
+      described_class.new.perform(root.id, communicator.id, "standard", [])
+
+      phrases_tile = root.reload.board_images.find { |bi| bi.label == "Phrases" }
+      phrases_board_id = phrases_tile.predictive_board_id
+
+      expect(communicator.reload.settings["phrase_board_id"]).to eq(phrases_board_id)
+      expect(user.reload.settings["phrase_board_id"]).to eq(phrases_board_id)
+    end
+
+    it "never clobbers a phrase board the user already picked" do
+      communicator.update!(settings: (communicator.settings || {}).merge("phrase_board_id" => 4242))
+      root = precreate_root!(name: "Core 60")
+
+      described_class.new.perform(root.id, communicator.id, "standard", [])
+
+      expect(communicator.reload.settings["phrase_board_id"]).to eq(4242)
+    end
+
+    it "surfaces a quick-phrase strip on the home board for an early-stage processor" do
+      communicator.update!(details: (communicator.details || {}).merge("glp_stage" => 1))
+      root = precreate_root!(name: "Core 60")
+
+      described_class.new.perform(root.id, communicator.id, "standard", [])
 
       root.reload
-      favorites_tile = root.board_images.find { |bi| bi.label == "My Favorites" }
-      expect(favorites_tile&.predictive_board_id).to be_present
-      favorites = Board.find(favorites_tile.predictive_board_id)
-      expect(favorites.board_images.map(&:label)).to include("grandma")
+      phrase_tiles = root.board_images.select { |bi| bi.image.part_of_speech == "phrase" }
+      expect(phrase_tiles).not_to be_empty
     end
   end
 
