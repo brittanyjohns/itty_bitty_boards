@@ -116,7 +116,8 @@ module API
           communicator.update!(details: (communicator.details || {}).merge("interests" => interests))
         end
 
-        BuildBoardSetJob.perform_async(root.id, communicator.id, build_key, interests, categories)
+        BuildBoardSetJob.perform_async(root.id, communicator.id, build_key, interests, categories,
+                                       { "include_phrases" => include_phrases_param })
 
         render json: serialize_built_root(root), status: :created
       rescue Boards::BlueprintAssembler::UnknownTemplate => e
@@ -150,11 +151,11 @@ module API
         elsif params[:template].present?
           template = params[:template].to_s
           robust_root  = Boards::RobustSets.find_root(template)
-          # GLP templates are seeded DB boards keyed by slug — the catalog
-          # advertises them, so the build path must accept them too.
-          glp_template = robust_root ? false : Boards::GlpTemplates.template_slug?(template)
-          starter_tree = robust_root || glp_template ? nil : Boards::StarterBlueprints.tree_for(template)
-          if robust_root.nil? && !glp_template && starter_tree.nil?
+          # GLP slugs are NO LONGER a build target — gestalts ride every build
+          # as the integrated Phrases layer (see build_with_structure_planner).
+          # GLP templates remain in the catalog for recommendation display only.
+          starter_tree = robust_root ? nil : Boards::StarterBlueprints.tree_for(template)
+          if robust_root.nil? && starter_tree.nil?
             raise Boards::BlueprintAssembler::UnknownTemplate,
                   "unknown template #{template.inspect}"
           end
@@ -163,6 +164,15 @@ module API
           raise Boards::BlueprintAssembler::UnknownTemplate,
                 "level or template is required"
         end
+      end
+
+      # Tri-state opt-in for the gestalt Phrases layer: nil (param absent) =>
+      # default-on in the planner; true/false honors the wizard toggle. A
+      # communicator with a glp_stage always gets the layer regardless.
+      def include_phrases_param
+        return nil unless params.key?(:include_phrases)
+
+        ActiveModel::Type::Boolean.new.cast(params[:include_phrases])
       end
 
       def resolve_root_name(build_key)

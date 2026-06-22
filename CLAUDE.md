@@ -1064,15 +1064,32 @@ doesn't replace it; both can be set independently. Wiring:
   sentences at advanced). A glp-only profile is `present?`, so `.for` returns
   it. No `glp_stage` ⇒ no gestalt guidance (backward compatible).
 - **GLP board templates** (`Boards::GlpTemplates`): six predefined, admin-owned
-  whole-phrase template boards, identified by `category: "glp"` +
-  `is_template: true` (not starter blueprints or robust sets). `TEMPLATES` is the
-  single source of truth for both the idempotent seed (`bin/rails
+  whole-phrase function boards (Greetings/Requests/Protests/Comments/Feelings/
+  Transitions), identified by `category: "glp"` + `is_template: true`. `TEMPLATES`
+  is the single source of truth for the idempotent seed (`bin/rails
   glp_templates:seed`, via `.seed!`) and the stage-aware recommendation
   (`.recommended_for`). They surface in `GET /api/v1/board_builder/templates`
   (`kind: "glp"`, a `glp_templates` array, and a stage-driven
-  `recommended_template`); `?template_type=glp` returns only GLP templates. They
-  are **catalog/recommendation metadata** — the wizard `create` build path still
-  only builds starter/robust keys.
+  `recommended_template`) for **recommendation/badge display only** —
+  `?template_type=glp` still filters to them. **A GLP slug is NOT a build target**
+  (`POST /api/v1/board_builder` with `template=glp-*` → 422 `unknown_template`).
+- **Gestalts ride every build as an integrated Phrases layer** (the either/or
+  was retired). `Boards::StructurePlanner` adds a `phrases_page` to the plan
+  (folder-prominence by default; `:strip` for an early-stage `gestalt_early?`
+  communicator; `nil` only when `include_phrases: false` AND no `glp_stage`).
+  `BuildBoardSetJob#build_with_structure_planner` then builds it via
+  `Boards::PhrasesPageBuilder` (a "Phrases" board linking the six function pages,
+  cloned from `GlpTemplates.function_boards`), links it from the home board, and
+  for `gestalt_early?` surfaces a personalized quick-phrase strip on the home
+  board (capped to open grid cells — degrades to folder-only, never overflows).
+  The wizard sends an optional `include_phrases` boolean (default-on in the
+  planner). `build_glp` and the GLP-slug build branch were removed.
+- **Phrase-board wiring.** The new Phrases board doubles as the communicator's
+  **phrase board** (the sentence-builder save target + quick-phrase source,
+  `settings["phrase_board_id"]`). After a build, `wire_phrase_board!` sets it on
+  the communicator and backfills the owner **only when blank** — never clobbering
+  a phrase board the user already picked. Build-time only; existing sets aren't
+  retroactively given one.
 - **Whole-phrase tiles:** `part_of_speech: "phrase"` marks a gestalt script
   tile. `Image#ensure_defaults` preserves an explicit `"phrase"` POS instead of
   re-categorizing it as a single word (every other label is still categorized as
