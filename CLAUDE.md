@@ -594,6 +594,31 @@ nonspeaking child is never stranded mid-use.
   `api_view` / `index_api_view` / `vendor_api_view`, letting the frontend tell
   "exists but in fallback" from "doesn't exist."
 
+### Sandbox → active promotion on upgrade (issue #359)
+
+The upgrade-direction counterpart to fallback mode. A Free user's self-creates
+are **forced to `sandbox`** (`Permissions::CommunicatorLimits.self_create_status`
+hard-returns SANDBOX when `user.free?`), so a communicator created before
+upgrading was left stuck in sandbox mode — sign-in disabled, "Promote this
+sandbox" UI — even after the user became a paying Basic/Pro subscriber.
+
+- **Reconciler:** `User#reconcile_paid_sandbox_promotions!` runs on the **same**
+  `after_save … if: :saved_change_to_plan_type?` trigger as the fallback
+  reconciler. When the user is now `paid_plan?` (admins skipped — unlimited and
+  already sign in to any account), it promotes sandbox communicators →
+  `active`, **most-recently-active first**, up to the free paid slots
+  (`slot_limit_for(settings) - owned_slot_count`). Idempotent. Because the
+  subscription-upsert webhook does `plan_type=` → `setup_limits` → one `save!`,
+  the new slot limit is already in `settings` when the callback fires.
+- **`ChildAccount#promote_to_active!`** — mirror of `promote_to_loaner!`: flips
+  status to `active`, **mints a passcode if blank** (so sign-in actually works),
+  and deletes the per-account `demo_board_limit` cap. Idempotent on an active
+  account; never demotes a loaner.
+- **Backfill:** the forward fix only fires on a plan change, so existing
+  affected users need `rake communicators:promote_paid_sandboxes` (dry-run by
+  default; `DRY_RUN=false` to apply, `USER_ID=N` to scope to one user). It
+  promotes paid users' stuck sandboxes exactly like the callback.
+
 ## Team permissions — owner protection
 
 Communicators (`child_account`) have an `owner_id` (the family/parent

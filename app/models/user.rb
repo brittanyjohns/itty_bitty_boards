@@ -195,6 +195,14 @@ class User < ApplicationRecord
   # restores them as slots free up. See reconcile_communicator_fallback!.
   after_save :reconcile_communicator_fallback!, if: :saved_change_to_plan_type?
 
+  # Promote sandbox communicators to full (active) accounts when the user lands
+  # on a paid plan (issue #359). A Free user's self-creates are forced to
+  # sandbox; without this, upgrading to Basic/Pro left those communicators stuck
+  # in sandbox mode with sign-in disabled. Runs after save (new slot limits are
+  # already in `settings`) on every plan change. See
+  # reconcile_paid_sandbox_promotions!.
+  after_save :reconcile_paid_sandbox_promotions!, if: :saved_change_to_plan_type?
+
   # Grant the user's tier's monthly AI credit allowance on signup so the
   # very first AI call doesn't 402. Idempotent in CreditService — safe to
   # call again if a callback runs twice.
@@ -1482,6 +1490,27 @@ class User < ApplicationRecord
         account.enter_fallback! unless account.fallback_mode?
       end
     end
+  end
+
+  # Promote sandbox communicators to full (active) accounts up to the number of
+  # free paid slots (issue #359). A Free user's self-creates are forced to
+  # sandbox; on upgrade to Basic/Pro those should become full communicators with
+  # sign-in. Promotes most-recently-active first so the user's primary
+  # communicator is converted before any extras. No-op for Free/unpaid users and
+  # admins (admins are unlimited and already sign in to any account). Idempotent.
+  def reconcile_paid_sandbox_promotions!
+    return if admin?
+    return unless paid_plan?
+
+    slot_limit = Permissions::CommunicatorLimits.slot_limit_for(settings || {})
+    available = slot_limit - Permissions::CommunicatorLimits.owned_slot_count(self)
+    return if available <= 0
+
+    communicator_accounts
+      .where(status: ChildAccount::SANDBOX)
+      .order(Arel.sql("last_sign_in_at DESC NULLS LAST, updated_at DESC, id DESC"))
+      .limit(available)
+      .each(&:promote_to_active!)
   end
 
   # How long a user must wait between editable-board switches. Closes the
