@@ -49,7 +49,10 @@ module Boards
     # is preserved: a curated art image may be stored under different casing
     # ("animals"), and we must not rename folder tiles ("Animals").
     def upgrade_board_tiles!(board, owner:)
-      board.board_images.includes(:image).find_each do |bi|
+      # `.each` (not find_each): a board has at most ~84 tiles, so batching buys
+      # nothing — and find_each would override board_images' position ordering,
+      # logging a noisy "Scoped order is ignored" warning on every build.
+      board.board_images.includes(:image).each do |bi|
         image = bi.image
         next if art?(image)
 
