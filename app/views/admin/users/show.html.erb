@@ -102,7 +102,7 @@
       reason: form.reason.value || null
     };
 
-    fetch('/api/admin/users/<%= @user.id %>/adjust_credits', {
+    fetch('<%= adjust_credits_admin_dashboard_user_path(@user) %>', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
