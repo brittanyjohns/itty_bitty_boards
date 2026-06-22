@@ -769,6 +769,12 @@ class ChildAccount < ApplicationRecord
   end
 
   def can_sign_in?(user_context = nil)
+    # Sandboxes are no-login demo accounts — they never have a passcode, so
+    # nobody (not even an admin) can sign into one. Guard first so a sandbox
+    # owned by a paid/trial user can't fall through to the plan check below and
+    # wrongly report can_sign_in: true.
+    return false if sandbox?
+
     if user_context && user_context.admin?
       return true
     end
@@ -859,6 +865,9 @@ class ChildAccount < ApplicationRecord
   end
 
   def startup_url
+    # A sandbox has no private sign-in, so don't advertise a sign-in URL for it.
+    return nil if sandbox?
+
     base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
     "#{base_url}/accounts/sign-in?username=#{username}"
   end
