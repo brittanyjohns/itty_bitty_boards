@@ -87,19 +87,24 @@ can be generated later).
 
 All three build paths (cloner, assembler, `BuildBoardSetJob`) resolve a tile
 label to an `Image` through `Boards::ImageResolver.resolve(label, owner:)`,
-which **prefers an image that actually has artwork**:
+which **prefers the curated "default" image — the one with the most artwork**:
 
-1. the owner's own image for the label that has a `Doc`,
-2. a curated public/admin image for the label that has a `Doc`,
+1. the owner's own image for the label with the most `Doc`s,
+2. the curated public/admin "default" image for the label — the admin
+   (`DEFAULT_ADMIN_ID`) / unowned image with the **most `Doc`s attached**,
 3. else any existing image for the label, else a freshly-created blank.
 
-Two subtleties it fixes:
+Three subtleties it fixes:
 
-- **Art over blank.** A naive `find_by(label:)` returns the lowest-id match,
-  which is often a blank, art-less image the OBF seed created for that label —
-  so a folder tile (Animals, People, Feelings…) rendered empty even though a
-  curated image with art existed. `Image#display_doc` has no label fallback, so
-  once a tile points at a blank image it stays blank.
+- **Most-docs default.** Several `Image` rows can share a label. The naive
+  `find_by(label:)` (and the earlier `with_docs…first`) returned the lowest-id
+  match — often a thin or blank image. We instead order art-bearing candidates
+  by `COUNT(docs) DESC, id ASC`, so the canonical symbol the library has built
+  the most artwork for (the admin's de-facto default) wins. `best_arted` /
+  `best_arted_for` are the read-only query helpers behind this.
+- **Art over blank.** `Image#display_doc` has no label fallback, so once a tile
+  points at a blank image it stays blank. Resolution only ever returns an
+  art-bearing image when one exists (folders like Animals/People/Feelings).
 - **Case-insensitive matching.** Folder labels are capitalized ("Animals")
   while curated library art is often lowercase ("animals"); a case-sensitive
   match would miss it. Matching is case-insensitive, but a newly-created image
@@ -110,6 +115,29 @@ pointing a folder at a lowercase art image would rename the tile. So the
 curated folder name is pinned explicitly: `SeededSetCloner#copy_tiles!` restores
 the authored label/display_label post-save, and `BuildBoardSetJob#add_folder_tile!`
 sets the tile text to the category name.
+
+#### Fringe boards get the upgrade too (`upgrade_board_tiles!`)
+
+Originally only the **root** board ran the blank→art upgrade (via
+`SeededSetCloner#copy_tiles!`). The seed's **fringe sub-boards** and the
+standalone **prebuilt fringe pages** are cloned through
+`Board#clone_with_images`, which has **no** art upgrade — so "the main board had
+images but the others didn't." `Boards::ImageResolver.upgrade_board_tiles!(board,
+owner:)` extracts that per-tile upgrade (blank→art only, authored label pinned)
+and is now called on every cloned fringe board:
+
+- `SeededSetCloner#clone_all` runs it on each non-root clone (the adopted root
+  still upgrades via `copy_tiles!`).
+- `BuildBoardSetJob#clone_one_prebuilt_page!` runs it after cloning a prebuilt
+  fringe template.
+
+It uses `best_arted_for` (read-only), so it never creates a stray blank image —
+it only re-points a tile when curated art for the label actually exists.
+
+**Backfill for already-built sets:** the forward fix only affects new builds.
+`rake board_builder:upgrade_tile_images` re-runs the upgrade across every
+existing built set (`builder_root`/`builder_child` boards). Dry-run by default;
+`DRY_RUN=false` to apply, `USER_ID=N` to scope to one owner.
 
 ## Endpoint contract
 

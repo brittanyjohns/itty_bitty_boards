@@ -97,6 +97,24 @@ RSpec.describe Boards::SeededSetCloner do
       expect(cloned_feelings.board_images.where(label: "happy").count).to eq(1)
     end
 
+    it "upgrades blank tiles on cloned FRINGE pages to curated art (not just the root)" do
+      # The seed's "apple" tile points at an art-less admin image. A curated
+      # art-bearing "apple" image exists in the public library (DEFAULT_ADMIN_ID)
+      # — the cloned Food page tile should be re-pointed to it, same as root
+      # tiles already were.
+      default_admin = User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)
+      arted_apple = create(:image, label: "apple", user_id: default_admin.id, is_private: false)
+      create(:doc, documentable: arted_apple, user: default_admin)
+
+      root = described_class.new(@source[:root], communicator: communicator).call
+
+      cloned_food = owner.boards.find_by(name: "Food")
+      apple_tile  = cloned_food.board_images.find_by(label: "apple")
+
+      expect(apple_tile.image_id).to eq(arted_apple.id)
+      expect(Boards::ImageResolver.art?(apple_tile.image)).to be(true)
+    end
+
     it "adds a brand-new food interest to the cloned Food page" do
       root = described_class.new(
         @source[:root], communicator: communicator, interests: ["pizza"]
