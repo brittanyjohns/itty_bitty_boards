@@ -306,6 +306,40 @@ RSpec.describe "API::Boards", type: :request do
         expect(board.reload.large_screen_columns).to eq(8)
       end
 
+      it "persists margins when only the spacing changed (no layout move)" do
+        patch "/api/boards/#{board.id}",
+              params: { board: { name: board.name }, xMargin: 12, yMargin: 7, screen_size: "lg" },
+              headers: auth_headers(user),
+              as: :json
+
+        expect(response).to have_http_status(:ok)
+        expect(board.reload.margin_settings["lg"]).to eq("x" => 12, "y" => 7)
+      end
+
+      it "returns the updated margins in the response body without a refetch" do
+        patch "/api/boards/#{board.id}",
+              params: { board: { name: board.name }, xMargin: 5, yMargin: 9, screen_size: "md" },
+              headers: auth_headers(user),
+              as: :json
+
+        expect(response).to have_http_status(:ok)
+        expect(JSON.parse(response.body)["margin_settings"]["md"]).to eq("x" => 5, "y" => 9)
+      end
+
+      it "leaves margins for other screen sizes untouched" do
+        board.update!(margin_settings: { "sm" => { "x" => 2, "y" => 2 } })
+
+        patch "/api/boards/#{board.id}",
+              params: { board: { name: board.name }, xMargin: 10, yMargin: 10, screen_size: "lg" },
+              headers: auth_headers(user),
+              as: :json
+
+        expect(response).to have_http_status(:ok)
+        board.reload
+        expect(board.margin_settings["sm"]).to eq("x" => 2, "y" => 2)
+        expect(board.margin_settings["lg"]).to eq("x" => 10, "y" => 10)
+      end
+
       it "clears the display_image_url column when settings.display_follows_preview is true" do
         board.update_column(:display_image_url, "https://example.com/old-preview.png")
 
