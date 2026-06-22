@@ -119,9 +119,16 @@ module Boards
       source_boards.each_with_object({}) do |src, map|
         cloned =
           if adopted_root? && src.id == @source_root.id
+            # copy_tiles! already upgrades blank tiles to art for the root.
             clone_into_adopted_root(src)
           else
-            src.clone_with_images(@owner.id)
+            board = src.clone_with_images(@owner.id)
+            raise CloneError, "failed to clone source board #{src.id}" if board.nil?
+            # Board#clone_with_images has no art upgrade, so the seed's fringe
+            # sub-boards (and a dup-cloned root) would render their authored
+            # tiles blank wherever they point at an art-less library image.
+            Boards::ImageResolver.upgrade_board_tiles!(board, owner: @owner)
+            board
           end
         raise CloneError, "failed to clone source board #{src.id}" if cloned.nil?
 

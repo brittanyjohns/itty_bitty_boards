@@ -925,17 +925,30 @@ still works for backward compat.
   during the clone. Still used by callers that want a trimmed clone; the hybrid
   build now passes `[]` (clone intact). `StructurePlanner#excluded_fringe_pages`
   is still computed on the plan but no longer consumed by the build.
-- **Tile images prefer art (`Boards::ImageResolver`).** All three build paths
-  (cloner, `BlueprintAssembler`, `BuildBoardSetJob`) resolve a tile label via
-  `Boards::ImageResolver.resolve(label, owner:)`, which prefers an image that
-  has a `Doc` (artwork) over a blank same-label image and matches labels
-  **case-insensitively** (folder labels are capitalized, curated art is often
-  lowercase). Without this, category folder tiles (Animals, People, Feelings…)
-  rendered blank because resolution grabbed a label-only image the OBF seed
-  created. Because `BoardImage#set_defaults` derives the tile label from its
-  image, the curated folder name is pinned explicitly so an upgraded lowercase
-  art image doesn't rename the tile (`copy_tiles!` restores the authored label;
-  `BuildBoardSetJob#add_folder_tile!` sets the category name).
+- **Tile images prefer the curated "default" image (`Boards::ImageResolver`).**
+  All three build paths (cloner, `BlueprintAssembler`, `BuildBoardSetJob`)
+  resolve a tile label via `Boards::ImageResolver.resolve(label, owner:)`. When
+  several `Image` rows share a label, it picks the one with the **most `Doc`s
+  attached** (`COUNT(docs) DESC, id ASC`) — the admin's de-facto default symbol
+  — preferring the owner's own art, then the `DEFAULT_ADMIN_ID`/unowned public
+  library. Matching is **case-insensitive** (folder labels are capitalized,
+  curated art is often lowercase). Without this, category folder tiles (Animals,
+  People, Feelings…) rendered blank because resolution grabbed a label-only
+  image the OBF seed created. Because `BoardImage#set_defaults` derives the tile
+  label from its image, the curated folder name is pinned explicitly so an
+  upgraded lowercase art image doesn't rename the tile (`copy_tiles!` restores
+  the authored label; `BuildBoardSetJob#add_folder_tile!` sets the category name).
+- **Fringe boards get the same art upgrade as the root.** Only the root board
+  ran the blank→art upgrade originally; the seed's fringe sub-boards and
+  standalone prebuilt fringe pages clone through `Board#clone_with_images`
+  (no upgrade), so they rendered blank while the root had pictures.
+  `Boards::ImageResolver.upgrade_board_tiles!(board, owner:)` re-points every
+  blank tile to the curated default image for its label (blank→art only,
+  authored label preserved, never creates a stray image) and runs on each
+  cloned fringe board (`SeededSetCloner#clone_all`,
+  `BuildBoardSetJob#clone_one_prebuilt_page!`). Backfill existing built sets
+  with `rake board_builder:upgrade_tile_images` (dry-run by default;
+  `DRY_RUN=false` to apply, `USER_ID=N` to scope).
 - **Level recommendation heuristic:** young/emerging → Starter,
   developing/young_teen → Standard, proficient/older → Extended. Based on
   `CommunicatorProfile` helpers (`developing?`, `young_teen?`). **Not clinically

@@ -188,6 +188,11 @@ class BuildBoardSetJob
     cloned = fringe_source.clone_with_images(owner.id)
     return false unless cloned
 
+    # Board#clone_with_images has no art upgrade, so prebuilt fringe tiles that
+    # point at an art-less library image would render blank. Upgrade them to the
+    # curated default image for the same label (matches the seed-set clone path).
+    Boards::ImageResolver.upgrade_board_tiles!(cloned, owner: owner)
+
     cloned.settings = (cloned.settings || {}).merge("builder_child" => true)
     cloned.save!
 

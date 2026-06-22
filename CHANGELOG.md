@@ -5,6 +5,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Board Builder fringe pages now show tile artwork
+- A built board set's **main board** showed pictures on its tiles, but the
+  **fringe/category pages** (Food, Feelings, Animals…) often rendered blank. The
+  blank→art upgrade only ran on the root board; fringe pages cloned through a
+  path with no upgrade. Every cloned fringe page now gets the same upgrade, so
+  the whole set renders with images.
+- Image resolution now picks the **curated "default" image** — the admin library
+  image with the **most artwork attached** — when several images share a label,
+  instead of grabbing the lowest-id (often blank) one.
+- Existing built sets can be backfilled with the idempotent
+  `rake board_builder:upgrade_tile_images` (dry-run by default; `DRY_RUN=false`
+  to apply, `USER_ID=N` to scope to one owner).
+
 ### Fixed — Paid users' communicators stuck in sandbox mode (#359)
 - A communicator created while a user was on the Free plan was forced into
   no-login **sandbox** mode, and upgrading to Basic/Pro never converted it — so
