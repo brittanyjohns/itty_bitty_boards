@@ -461,6 +461,21 @@ class API::BoardsController < API::ApplicationController
 
       @board.set_current_word_list
 
+      # Persist spacing/margins here so changing only the spacing sliders is
+      # saved. Margins used to ride along inside save_layout!, which the update
+      # action only invokes when the tile layout itself changed — so a
+      # margins-only edit (no tile moved) was silently dropped and snapped back
+      # to the stored/default value on refetch.
+      if params[:xMargin].present? && params[:yMargin].present?
+        margin_screen_size = params[:screen_size] || "lg"
+        margins = @board.margin_settings || {}
+        margins[margin_screen_size] = {
+          "x" => params[:xMargin].to_i,
+          "y" => params[:yMargin].to_i,
+        }
+        @board.margin_settings = margins
+      end
+
       respond_to do |format|
         if @board.save
           if params[:layout].present?
