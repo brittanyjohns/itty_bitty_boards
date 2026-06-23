@@ -10,7 +10,7 @@ RSpec.describe "API::ChildAccounts sandbox + slot limits", type: :request do
         u
       end
 
-      it "creates the sandbox capped at one board" do
+      it "creates the sandbox capped at the free demo board limit (3)" do
         post "/api/child_accounts",
           params: { name: "My Kid", username: "my-kid-#{SecureRandom.hex(3)}", status: "sandbox", password: "abcdef", password_confirmation: "abcdef" },
           headers: auth_headers(user)
@@ -19,7 +19,7 @@ RSpec.describe "API::ChildAccounts sandbox + slot limits", type: :request do
         account = ChildAccount.find_by(owner_id: user.id, status: "sandbox")
         expect(account).to be_present
         expect(account.settings["demo_board_limit"]).to eq(ChildAccount::FREE_DEMO_BOARD_LIMIT)
-        expect(account.settings["demo_board_limit"]).to eq(1)
+        expect(account.settings["demo_board_limit"]).to eq(3)
       end
 
       it "blocks a second sandbox once the slot is used" do
