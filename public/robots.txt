@@ -1,1 +1,12 @@
 # See https://www.robotstxt.org/robotstxt.html for documentation on how to use the robots.txt file
+
+User-agent: *
+Disallow: /api/
+
+# Public profile pages — these are intentionally unlisted.
+# They should only be accessed via direct link / QR code, not search engines.
+Disallow: /my/
+Disallow: /u/
+Disallow: /v/
+Disallow: /p/
+Disallow: /c/

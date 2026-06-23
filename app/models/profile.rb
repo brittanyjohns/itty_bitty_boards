@@ -296,7 +296,10 @@ class Profile < ApplicationRecord
       public_about_html: safe_html(public_about&.body&.to_s),
       public_intro_html: safe_html(public_intro&.body&.to_s),
       public_bio_html: safe_html(public_bio&.body&.to_s),
-      communicator_account: profileable_type == "ChildAccount" ? profileable.api_view : nil
+      # NOTE: communicator_account intentionally omitted — the full
+      # ChildAccount#api_view leaks parent email, supporter/supervisor
+      # emails, passcode, and claim tokens. The frontend PublicProfile
+      # component does not use this field.
     }
   end
 
@@ -324,11 +327,14 @@ class Profile < ApplicationRecord
       public_boards: public_boards.map(&:api_view),
       user_boards: user_boards.map(&:api_view),
       general_public_boards: Board.public_boards.map(&:api_view),
-      email: email,
+      # NOTE: email intentionally omitted — use settings["show_email"]
+      # on the frontend if the user opted in to displaying contact info.
       public_about_html: safe_html(public_about&.body&.to_s),
       public_intro_html: safe_html(public_intro&.body&.to_s),
       public_bio_html: safe_html(public_bio&.body&.to_s),
-      communicator_account: profileable_type == "ChildAccount" ? profileable.api_view : nil
+      # Use a minimal public-safe view instead of the full api_view which
+      # leaks parent email, supporter/supervisor emails, and passcode.
+      communicator_account: profileable_type == "ChildAccount" ? profileable.public_api_view : nil
     }
   end
 
