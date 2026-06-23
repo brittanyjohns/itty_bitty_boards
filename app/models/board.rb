@@ -1254,6 +1254,31 @@ class Board < ApplicationRecord
     self.board_images.reset
   end
 
+  # Open cells in the authored grid before a new tile would spill onto a fresh
+  # row — mirrors BoardsHelper#next_available_cell's placement rule (fill the
+  # gaps in the existing rows first, only start a new row once the grid is full).
+  # Board Builder uses this to cap how many top-level folder/strip tiles it adds
+  # so a built set never overflows the authored grid onto a stray extra row.
+  def open_grid_cells(screen_size = "lg")
+    update_board_layout(screen_size)
+    grid = layout[screen_size] || {}
+    return 0 if grid.empty?
+
+    columns = get_number_of_columns(screen_size)
+    occupied = []
+    max_row = 0
+    grid.each_value do |cell|
+      x = cell["x"] || 0
+      y = cell["y"] || 0
+      w = cell["w"] || 1
+      h = cell["h"] || 1
+      h.times { |dy| w.times { |dx| occupied << [x + dx, y + dy] } }
+      max_row = [max_row, y + h - 1].max
+    end
+
+    [(columns * (max_row + 1)) - occupied.uniq.size, 0].max
+  end
+
   def reset_layouts
     self.layout = {}
     self.set_layouts_for_screen_sizes

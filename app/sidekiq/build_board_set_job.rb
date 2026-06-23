@@ -146,9 +146,14 @@ class BuildBoardSetJob
     source = slug && Boards::GlpTemplates.find_board(slug)
     return unless source
 
-    image_ids = source.board_images.order(:position)
-      .limit([PHRASES_STRIP_SIZE, open].min).map(&:image_id)
-    image_ids.each { |image_id| root.add_image(image_id) }
+    # Skip any phrase the home board already carries — e.g. "all done" is both an
+    # authored core word AND a Transitions gestalt, so an undeduped strip would
+    # add a second "all done" tile. Dedupe by label, then cap to the open cells.
+    existing = root.board_images.map { |bi| bi.label.to_s.downcase }
+    candidates = source.board_images.order(:position)
+      .reject { |bi| existing.include?(bi.label.to_s.downcase) }
+      .first([PHRASES_STRIP_SIZE, open].min)
+    candidates.each { |bi| root.add_image(bi.image_id) }
   end
 
   # The new Phrases board doubles as the communicator's phrase board (the
@@ -267,26 +272,9 @@ class BuildBoardSetJob
   end
 
   # Open cells on the authored core grid before a new tile would spill onto a
-  # fresh row — mirrors BoardsHelper#next_available_cell's placement rule
-  # (fill gaps in the existing rows first, only then start a new row).
+  # fresh row. Delegates to Board#open_grid_cells (shared with SeededSetCloner).
   def root_open_cells(board, screen_size = "lg")
-    board.update_board_layout(screen_size)
-    grid = board.layout[screen_size] || {}
-    return 0 if grid.empty?
-
-    columns = board.get_number_of_columns(screen_size)
-    occupied = []
-    max_row = 0
-    grid.each_value do |cell|
-      x = cell["x"] || 0
-      y = cell["y"] || 0
-      w = cell["w"] || 1
-      h = cell["h"] || 1
-      h.times { |dy| w.times { |dx| occupied << [x + dx, y + dy] } }
-      max_row = [max_row, y + h - 1].max
-    end
-
-    [(columns * (max_row + 1)) - occupied.uniq.size, 0].max
+    board.open_grid_cells(screen_size)
   end
 
   def build_fringe_from_blueprint!(root, owner, communicator, blueprint)
@@ -321,6 +309,17 @@ class BuildBoardSetJob
       .first&.then { |bi| Board.find_by(id: bi.predictive_board_id) }
 
     unless favorites
+      # A new My Favorites needs an open cell for its folder tile. If the
+      # authored grid has no slack left, adding it would spill onto a stray
+      # extra row (the 85th/86th tile). Skip rather than overflow — log so an
+      # under-slack seed is visible. (With the authored Core 84's reserved gaps
+      # this never trips; the reservation in add_fringe_pages_within_grid! keeps
+      # a cell free whenever leftovers are expected.)
+      if root.open_grid_cells < 1
+        Rails.logger.warn "[BuildBoardSetJob] root #{root.id}: no grid space for My Favorites; #{words.size} interest(s) not surfaced on the home board"
+        return
+      end
+
       favorites = Board.new(name: "My Favorites", user: owner)
       favorites.board_type = "static"
       favorites.assign_parent

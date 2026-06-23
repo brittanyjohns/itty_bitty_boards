@@ -258,14 +258,29 @@ module Boards
 
       @interests.each do |word|
         category = @explicit_categories[word] || Boards::InterestCategories.category_for(word)
-        fringe   = category && fringe_by_name[category.to_s.downcase]
+        fringe   = category && fringe_for_category(category, fringe_by_name)
         fringe ? add_interest_to_board(fringe, word) : unrouted << word
       end
 
       return if unrouted.empty?
 
       favorites = fringe_by_name[FAVORITES_NAME.downcase] || create_favorites_board!(root)
+      # create_favorites_board! returns nil when the grid has no open cell for a
+      # folder tile — never overflow the authored grid. Leftovers stay unrouted.
+      return unless favorites
+
       unrouted.each { |word| add_interest_to_board(favorites, word) }
+    end
+
+    # Match an interest's category to a cloned fringe board. Some
+    # InterestCategories names differ from the seed page they belong to
+    # ("Family & People" -> "People", "Health & Body" -> "Body"); the
+    # StructurePlanner counts those as seed-set interests, so without the alias
+    # they'd miss the cloned People/Body board and fall through to My Favorites
+    # — spawning an extra top-level folder tile the home grid didn't budget for.
+    def fringe_for_category(category, fringe_by_name)
+      fringe_by_name[category.to_s.downcase] ||
+        fringe_by_name[Boards::StructurePlanner::CATEGORY_SEED_ALIASES[category].to_s.downcase]
     end
 
     # Cloned non-root boards keyed by normalized name, freshly reloaded so their
@@ -308,6 +323,14 @@ module Boards
     # it doesn't count against the limit, and link it from the root via a folder
     # tile + predictive_board_id (mirrors the assembler/tree-builder pattern).
     def create_favorites_board!(root)
+      # Needs an open cell for its folder tile; on a grid with no slack left,
+      # adding one would spill onto a stray extra row. Skip rather than overflow
+      # (BuildBoardSetJob's catch-all still surfaces leftovers when there's room).
+      if root.open_grid_cells < 1
+        Rails.logger.warn "[SeededSetCloner] root #{root.id}: no grid space for My Favorites; leftover interests not surfaced on the home board"
+        return nil
+      end
+
       favorites = Board.new(name: FAVORITES_NAME, user: @owner)
       favorites.board_type = "static"
       favorites.assign_parent

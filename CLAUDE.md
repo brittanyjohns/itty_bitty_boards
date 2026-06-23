@@ -955,6 +955,26 @@ still works for backward compat.
   **intact** (`exclude_fringe: []`) so every authored folder — People…Describe,
   **including More** — stays linked to a real board; the prior exclusion path left
   stripped pages as dead, unlinked folder tiles.
+  - **The cap is a hard guarantee, not just a reservation (the "86 tiles"
+    fix).** The grid math is shared: `Board#open_grid_cells` is the single
+    source of truth (the job's `root_open_cells` delegates to it). **Every**
+    top-level tile-adder now checks it before placing — the Phrases folder +
+    quick-phrase strip (`build_phrases_layer!`/`add_phrase_strip!`), the job's
+    catch-all (`add_to_favorites!`), **and** `SeededSetCloner#create_favorites_board!`
+    — so the built set can never exceed the authored grid no matter how little
+    slack the seed leaves. If a grid genuinely has no open cell, the catch-all
+    tile is skipped with a `Rails.logger.warn` rather than spilled (only
+    possible on an under-slack seed; the authored Core 84's 3 gaps never trip
+    it). The earlier code only reserved a cell and called `add_to_favorites!`
+    unconditionally, so a fuller-than-repo production grid (e.g. a Core 84 with
+    a Phrases layer and fewer gaps) spilled My Favorites + a fringe page onto a
+    stray 8th row → 86 tiles.
+  - **Alias-aware interest routing in the cloner.** `SeededSetCloner` matches an
+    interest's category to a cloned fringe board via `fringe_for_category`,
+    applying `StructurePlanner::CATEGORY_SEED_ALIASES` ("Family & People" →
+    People, "Health & Body" → Body). Without it those (planner-classified
+    seed-set) interests missed the cloned People/Body page and fell through to a
+    spurious extra "My Favorites" folder tile — one of the overflow triggers.
 - **`SeededSetCloner`** accepts `exclude_fringe:` — a list of page names to skip
   during the clone. Still used by callers that want a trimmed clone; the hybrid
   build now passes `[]` (clone intact). `StructurePlanner#excluded_fringe_pages`
@@ -1116,8 +1136,11 @@ doesn't replace it; both can be set independently. Wiring:
   cloned from `GlpTemplates.function_boards`), links it from the home board, and
   for `gestalt_early?` surfaces a personalized quick-phrase strip on the home
   board (capped to open grid cells — degrades to folder-only, never overflows).
-  The wizard sends an optional `include_phrases` boolean (default-on in the
-  planner). `build_glp` and the GLP-slug build branch were removed.
+  The strip **dedupes against the home board's existing labels**, so a phrase
+  that's already an authored core word (e.g. "all done", which is also a
+  Transitions gestalt) isn't added a second time. The wizard sends an optional
+  `include_phrases` boolean (default-on in the planner). `build_glp` and the
+  GLP-slug build branch were removed.
 - **Phrase-board wiring.** The new Phrases board doubles as the communicator's
   **phrase board** (the sentence-builder save target + quick-phrase source,
   `settings["phrase_board_id"]`). After a build, `wire_phrase_board!` sets it on
