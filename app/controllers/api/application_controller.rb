@@ -52,7 +52,9 @@ module API
       return true if current_user.admin?
 
       amount ||= CreditService.cost_for(feature_key)
-      CreditService.spend!(
+      # Expose the resulting transaction so callers that kick off async work can
+      # stash its id and refund the exact source split if that work later fails.
+      @credit_spend_transaction = CreditService.spend!(
         current_user,
         feature_key: feature_key,
         amount: amount,

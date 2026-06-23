@@ -787,6 +787,40 @@ Tasks:
   finds over-entitled users. See
   `.claude-notes/beta-end-founding-rate-handoff.md`.
 
+## Make a Board From Screenshot
+
+Turns an uploaded screenshot of an existing AAC/communication board into a real
+SpeakAnyWay `Board` using OpenAI vision. Three-step flow, async in the middle:
+
+- **Upload** — `POST /api/board_screenshot_imports` (`name`, optional `columns`,
+  and either `cropped_image` base64 data URL or multipart `image`). Creates a
+  `BoardScreenshotImport` (`status: queued`), **spends 3 credits**
+  (`screenshot_import` feature key) via `check_credits!`, stashes the spend
+  transaction id on `import.metadata["credit_txn_id"]`, then enqueues
+  `BoardScreenshotImportJob`. `columns` is sanitized to a positive Integer or
+  `nil` (auto-detect) so a bad value can't fail the job after charging.
+- **Analyze (async)** — `BoardScreenshotImportJob` (queue `:ai_images`,
+  `retry: 1`): `ImagePreprocessor` resizes/deskews/contrast-boosts to a `tmp/`
+  file → `BoardScreenshotVisionService#parse_board` (OpenAI **Responses API**,
+  JSON mode, model `BOARD_SCREENSHOT_VISION_MODEL`, default `gpt-4.1-mini`)
+  returns a full `rows × cols` grid → one `BoardScreenshotCell` per cell →
+  `status: needs_review`. The preprocessed temp file is always unlinked in an
+  `ensure`. On any failure the import goes `status: failed` **and the 3 credits
+  are refunded** to their original plan/topup split (idempotent across the retry
+  via a `refund_for_txn` marker).
+- **Review + commit** — `PATCH /api/board_screenshot_imports/:id` lets the user
+  fix detected `label_norm`/`bg_color`/`row`/`col` per cell (and `cols`); then
+  `POST /api/board_screenshot_imports/:id/commit` runs `BoardFromScreenshot`,
+  which builds a static `Board` (col→`x`, row→`y` explicit grid layout),
+  resolves an `Image` per label, and links it back to the import. `commit`
+  returns **422 `import_not_ready`** unless the import is
+  `needs_review`/`committed`/`completed`.
+
+**Staging:** `BoardScreenshotVisionService#parse_board` returns a deterministic
+placeholder grid when `AppEnv.staging?` — no paid OpenAI call, no real credits
+burned — mirroring the image-generation placeholder short-circuit. (The vision
+call is **not** gated in real production.)
+
 ## OBF/OBZ import — copyright policy
 
 Imports via `POST /api/boards/import_obf` are gated to avoid silently

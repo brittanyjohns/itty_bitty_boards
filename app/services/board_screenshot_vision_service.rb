@@ -85,6 +85,11 @@ class BoardScreenshotVisionService
 
     @logger.debug "[BoardScreenshotVisionService] Parsing board from #{image_path} (forced_cols=#{forced_cols || "auto"})"
 
+    # Staging shares the prod box and uses real API keys, but we don't want to
+    # spend on paid OpenAI vision (or burn real credits) for QA. Mirror the
+    # image-generation placeholder short-circuit and return a deterministic grid.
+    return staged_stub(forced_cols) if AppEnv.staging?
+
     data_url = encode_image_as_data_url(image_path)
 
     user_prompt = if forced_cols
@@ -142,6 +147,32 @@ class BoardScreenshotVisionService
   end
 
   private
+
+  # Deterministic stand-in used on staging so the full import flow can be
+  # exercised without a paid OpenAI vision call. Returns a small filled grid.
+  STAGED_LABELS = %w[i want more help yes no stop go eat drink play].freeze
+
+  def staged_stub(forced_cols)
+    cols = forced_cols || 3
+    rows = 2
+    cells = []
+    rows.times do |r|
+      cols.times do |c|
+        label = STAGED_LABELS[(r * cols + c) % STAGED_LABELS.size]
+        cells << {
+          row: r,
+          col: c,
+          label_raw: label,
+          label_norm: label,
+          label: label,
+          confidence: 1.0,
+          bbox: [0.0, 0.0, 0.0, 0.0],
+          bg_color: "white",
+        }
+      end
+    end
+    { rows: rows, cols: cols, confidence_avg: 1.0, cells: cells }
+  end
 
   # Turn a local file into data:image/...;base64,....
   def encode_image_as_data_url(image_path)
