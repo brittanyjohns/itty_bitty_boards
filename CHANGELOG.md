@@ -20,6 +20,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `spec/services/board_from_screenshot_spec.rb` and
   `spec/sidekiq/categorize_image_job_spec.rb`.
 
+### Fixed — Board Builder "Extended" no longer produces an over-full board
+- An **Extended** Board Builder set built on a fuller Core 84 grid (e.g. one
+  carrying the new Phrases layer with fewer reserved empty cells) could exceed
+  the authored 7×12 (84-cell) grid, spilling tiles onto a stray extra row — the
+  reported **86 tiles instead of 84**. The grid cap is now a hard guarantee:
+  the grid math lives in one place (`Board#open_grid_cells`) and **every**
+  top-level tile-adder honors it — the "My Favorites" catch-all in both
+  `BuildBoardSetJob` and `SeededSetCloner`, plus the existing Phrases folder and
+  quick-phrase strip — so a built set never overflows regardless of how little
+  slack the seed leaves. Aliased interest categories ("Family & People",
+  "Health & Body") now route into the cloned People/Body pages instead of
+  spawning a spurious extra "My Favorites" folder. Regression coverage added in
+  `spec/sidekiq/build_board_set_job_grid_spec.rb`.
+
 ### Fixed — Sandbox communicators no longer advertise a sign-in
 - A **sandbox** (no-login demo) communicator owned by a paid or free-trial user
   was returning `can_sign_in: true` and a real `startup_url`

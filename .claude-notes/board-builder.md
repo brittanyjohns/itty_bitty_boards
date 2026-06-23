@@ -360,12 +360,28 @@ into the first open cell and only starts a **new row** once the grid is full
 fringe page overflowed onto a stray extra row — the "85th tile" bug.
 
 `add_fringe_pages_within_grid!` caps the top-level folder tiles it adds to the
-number of open cells (`root_open_cells`), reserving one cell for "My Favorites"
-whenever leftovers are expected. Interest-bearing pages are placed first, so a
+number of open cells (`root_open_cells`, which delegates to the shared
+`Board#open_grid_cells`), reserving one cell for "My Favorites" whenever
+leftovers are expected. Interest-bearing pages are placed first, so a
 nearly-full grid still gets the pages the child actually asked for; anything
 that doesn't fit folds into My Favorites — nothing typed is dropped. Net result:
 a built robust set never exceeds its authored grid and never leaves a dead
 (unlinked) folder tile behind.
+
+> **Hard cap (the "86 tiles instead of 84" fix).** The reservation alone wasn't
+> enough once the Phrases layer started riding every build: a fuller authored
+> grid (fewer reserved gaps than the repo's Core 84) left no cell for the
+> catch-all, yet the catch-all tile was added **unconditionally** — so it (and
+> a fringe page) spilled onto a stray 8th row → 86 tiles. The cap is now a hard
+> guarantee enforced by **every** top-level tile-adder via `open_grid_cells`:
+> the Phrases folder + quick-phrase strip (`build_phrases_layer!`/
+> `add_phrase_strip!`), `BuildBoardSetJob#add_to_favorites!`, **and**
+> `SeededSetCloner#create_favorites_board!`. When there's genuinely no open
+> cell the catch-all tile is skipped (logged), never spilled. Separately,
+> `SeededSetCloner#fringe_for_category` applies `CATEGORY_SEED_ALIASES`
+> ("Family & People" → People, "Health & Body" → Body) so those seed-set
+> interests reach the cloned page instead of spawning an extra "My Favorites"
+> folder — one of the original overflow triggers.
 
 > The old hybrid path *excluded* "unplanned" seed pages via
 > `StructurePlanner#excluded_fringe_pages` + `SeededSetCloner(exclude_fringe:)`.
