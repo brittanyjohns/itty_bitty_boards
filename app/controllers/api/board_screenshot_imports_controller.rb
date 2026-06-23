@@ -15,7 +15,7 @@ class API::BoardScreenshotImportsController < API::ApplicationController
 
   def create
     name = params[:name]
-    columns = params[:columns]
+    columns = sanitized_columns(params[:columns])
     cropped_image = params[:cropped_image]
     image = params[:image]
 
@@ -35,6 +35,13 @@ class API::BoardScreenshotImportsController < API::ApplicationController
     end
     import.save!
     return unless check_credits!(feature_key: "screenshot_import", feature_name: "AI Board Screenshot Imports")
+
+    # Record the spend transaction so the job can refund the exact source split
+    # if the AI analysis fails (the user is charged at upload, before the job runs).
+    if @credit_spend_transaction
+      import.update!(metadata: (import.metadata || {}).merge("credit_txn_id" => @credit_spend_transaction.id))
+    end
+
     BoardScreenshotImportJob.perform_async(import.id, columns)
     render json: { id: import.id, status: import.status }
   end
@@ -42,9 +49,9 @@ class API::BoardScreenshotImportsController < API::ApplicationController
   # Accept user-edited labels + (optional) rows/cols
   def update
     import = current_user.board_screenshot_imports.find(params[:id])
-    board_screenshot = params[:board_screenshot] || board_screenshot_import_update_params
+    board_screenshot = params[:board_screenshot].presence || board_screenshot_import_update_params
     cells_data = board_screenshot[:cells]
-    cols = params[:board_screenshot][:cols]
+    cols = board_screenshot[:cols]
     ActiveRecord::Base.transaction do
       import.guessed_cols = cols if cols.present?
       (cells_data || []).each do |c|
@@ -59,16 +66,21 @@ class API::BoardScreenshotImportsController < API::ApplicationController
         cand.col = col.to_i if col.present?
         cand.save!
       end
-      if import.update(status: "needs_review")
-        render json: { ok: true }
-      else
-        render json: { error: "Failed to update import" }, status: :unprocessable_content
-      end
+      import.update!(status: "needs_review")
     end
+    render json: { ok: true }
   end
+
+  COMMITTABLE_STATUSES = %w[needs_review committed completed].freeze
 
   def commit
     import = current_user.board_screenshot_imports.find(params[:id])
+    unless COMMITTABLE_STATUSES.include?(import.status)
+      render json: { error: "import_not_ready", message: "This screenshot import isn't ready to build a board yet." },
+             status: :unprocessable_content
+      return
+    end
+
     board_image_id = params[:board_image_id]
     @board = BoardFromScreenshot.commit!(import)
     board_image = BoardImage.find_by(id: board_image_id) if board_image_id.present?
@@ -89,7 +101,15 @@ class API::BoardScreenshotImportsController < API::ApplicationController
 
   private
 
+  # Coerce the client-supplied column count to a positive Integer, or nil
+  # (auto-detect). Avoids charging credits then failing the job on a bad value.
+  def sanitized_columns(value)
+    return nil if value.blank?
+    n = value.to_i
+    n.positive? ? n : nil
+  end
+
   def board_screenshot_import_update_params
-    params.permit(:guessed_rows, :guessed_cols, :name, :cols, cells: [:id, :label_norm, :bg_color])
+    params.permit(:guessed_rows, :guessed_cols, :name, :cols, cells: [:id, :label_norm, :bg_color, :row, :col])
   end
 end

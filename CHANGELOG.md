@@ -20,6 +20,22 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `spec/services/board_from_screenshot_spec.rb` and
   `spec/sidekiq/categorize_image_job_spec.rb`.
 
+### Fixed — "Make a Board From Screenshot" robustness
+- A failed screenshot import now **refunds** the 3 credits charged at upload —
+  previously a user whose AI analysis failed was out the credits with nothing to
+  show. The refund returns credits to the exact plan/topup split they came from
+  and is idempotent across Sidekiq retries.
+- Editing detected cells via `PATCH /api/board_screenshot_imports/:id` no longer
+  drops `row`/`col` changes (they weren't permitted) and no longer 500s when the
+  request omits the `board_screenshot` key.
+- Committing an import that isn't ready (still processing/failed) returns a clean
+  **422 `import_not_ready`** instead of a raw 500.
+- The preprocessed temp image is always cleaned up, even on failure (it was
+  leaking into `tmp/` on every import).
+- On **staging**, screenshot analysis now returns a deterministic placeholder
+  grid instead of calling paid OpenAI vision — mirroring the existing
+  image-generation placeholder, so QA doesn't incur API cost or burn credits.
+
 ### Fixed — Sandbox communicators no longer advertise a sign-in
 - A **sandbox** (no-login demo) communicator owned by a paid or free-trial user
   was returning `can_sign_in: true` and a real `startup_url`
