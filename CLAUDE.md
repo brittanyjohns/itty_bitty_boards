@@ -811,10 +811,15 @@ SpeakAnyWay `Board` using OpenAI vision. Three-step flow, async in the middle:
 - **Review + commit** — `PATCH /api/board_screenshot_imports/:id` lets the user
   fix detected `label_norm`/`bg_color`/`row`/`col` per cell (and `cols`); then
   `POST /api/board_screenshot_imports/:id/commit` runs `BoardFromScreenshot`,
-  which builds a static `Board` (col→`x`, row→`y` explicit grid layout),
-  resolves an `Image` per label, and links it back to the import. `commit`
-  returns **422 `import_not_ready`** unless the import is
-  `needs_review`/`committed`/`completed`.
+  which builds a static `Board` (col→`x`, row→`y` explicit grid layout) and
+  links it back to the import. `commit` returns **422 `import_not_ready`**
+  unless the import is `needs_review`/`committed`/`completed`. Each tile label
+  resolves to the curated art-bearing library image via
+  `Boards::ImageResolver.best_arted_for` (so tiles aren't blank), reusing an
+  existing image or creating one as a fallback; distinct labels resolve once.
+  A newly-created tile image gets neutral defaults at commit and is categorized
+  off-thread by `CategorizeImageJob` (see "deferred AAC categorization", #376),
+  so commit never makes a synchronous OpenAI categorization call.
 
 **Staging:** `BoardScreenshotVisionService#parse_board` returns a deterministic
 placeholder grid when `AppEnv.staging?` — no paid OpenAI call, no real credits
