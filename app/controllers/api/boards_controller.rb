@@ -200,6 +200,14 @@ class API::BoardsController < API::ApplicationController
 
     @public_boards = scope.to_a
 
+    if params["myspeak"] == "true"
+      # Surface the recommended starter board(s) first, then keep the
+      # alphabetical order for the rest. api_view already exposes tags.
+      @public_boards.sort_by! do |board|
+        [board.tags.include?("myspeak-recommended") ? 0 : 1, board.name.to_s.downcase]
+      end
+    end
+
     render json: { public_boards: @public_boards.map { |board| board.api_view(current_user) } }
   end
 
