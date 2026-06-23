@@ -6,22 +6,77 @@ on:
   pull_request:
 
 jobs:
+  # Detect whether the change touches anything other than docs (see ci.yml for
+  # the full rationale). The security jobs below always run so their required
+  # status checks are reported, but their expensive steps are skipped on
+  # docs-only changes. Fail-safe: run full checks if detection is uncertain.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect non-docs changes
+        id: filter
+        run: |
+          set -uo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            RANGE='${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}'
+          else
+            BASE='${{ github.event.before }}'
+            if ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+              echo "No usable base commit; running full checks."
+              echo "code=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            RANGE="${BASE}...${{ github.sha }}"
+          fi
+
+          FILES=$(git diff --name-only "$RANGE" 2>/dev/null)
+          if [ $? -ne 0 ] || [ -z "$FILES" ]; then
+            echo "Could not determine changed files; running full checks."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Changed files:"
+          echo "$FILES"
+
+          CODE=false
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              *.md|docs/*|LICENSE) ;;   # docs-only — ignore
+              *) CODE=true ;;
+            esac
+          done <<< "$FILES"
+
+          echo "Non-docs (code) changes present: $CODE"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+
   brakeman:
     name: Brakeman static analysis
+    needs: changes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
+      - if: needs.changes.outputs.code == 'true'
+        uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
-      - run: bundle exec brakeman --no-pager --ignore-config config/brakeman.ignore
+      - if: needs.changes.outputs.code == 'true'
+        run: bundle exec brakeman --no-pager --ignore-config config/brakeman.ignore
 
   bundler-audit:
     name: Bundler audit (known CVEs)
+    needs: changes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
+      - if: needs.changes.outputs.code == 'true'
+        uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
       # All ignored CVEs require Rails >= 7.2.3.1 / 8.0.4.1 / 8.1.2.1; no 7.1.x patch
@@ -52,7 +107,8 @@ jobs:
       # calls (no user-controlled redirects). Remove once MailchimpMarketing
       # supports excon >= 1.x.
       #   CVE-2026-54171  excon header leak on redirect
-      - run: |
+      - if: needs.changes.outputs.code == 'true'
+        run: |
           bundle exec bundler-audit check --update \
             --ignore CVE-2026-33168 CVE-2026-33169 CVE-2026-33170 \
                      CVE-2026-33173 CVE-2026-33174 CVE-2026-33176 \
