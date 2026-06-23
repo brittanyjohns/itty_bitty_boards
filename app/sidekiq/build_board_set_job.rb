@@ -146,9 +146,14 @@ class BuildBoardSetJob
     source = slug && Boards::GlpTemplates.find_board(slug)
     return unless source
 
-    image_ids = source.board_images.order(:position)
-      .limit([PHRASES_STRIP_SIZE, open].min).map(&:image_id)
-    image_ids.each { |image_id| root.add_image(image_id) }
+    # Skip any phrase the home board already carries — e.g. "all done" is both an
+    # authored core word AND a Transitions gestalt, so an undeduped strip would
+    # add a second "all done" tile. Dedupe by label, then cap to the open cells.
+    existing = root.board_images.map { |bi| bi.label.to_s.downcase }
+    candidates = source.board_images.order(:position)
+      .reject { |bi| existing.include?(bi.label.to_s.downcase) }
+      .first([PHRASES_STRIP_SIZE, open].min)
+    candidates.each { |bi| root.add_image(bi.image_id) }
   end
 
   # The new Phrases board doubles as the communicator's phrase board (the

@@ -1136,8 +1136,11 @@ doesn't replace it; both can be set independently. Wiring:
   cloned from `GlpTemplates.function_boards`), links it from the home board, and
   for `gestalt_early?` surfaces a personalized quick-phrase strip on the home
   board (capped to open grid cells — degrades to folder-only, never overflows).
-  The wizard sends an optional `include_phrases` boolean (default-on in the
-  planner). `build_glp` and the GLP-slug build branch were removed.
+  The strip **dedupes against the home board's existing labels**, so a phrase
+  that's already an authored core word (e.g. "all done", which is also a
+  Transitions gestalt) isn't added a second time. The wizard sends an optional
+  `include_phrases` boolean (default-on in the planner). `build_glp` and the
+  GLP-slug build branch were removed.
 - **Phrase-board wiring.** The new Phrases board doubles as the communicator's
   **phrase board** (the sentence-builder save target + quick-phrase source,
   `settings["phrase_board_id"]`). After a build, `wire_phrase_board!` sets it on

@@ -157,6 +157,21 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     end
   end
 
+  # The early-stage quick-phrase strip must not surface a phrase the home board
+  # already carries. "all done" is both an authored core word and a Transitions
+  # gestalt, so an undeduped strip would add a second "all done" tile.
+  it "does not duplicate an authored core word onto the home board via the phrase strip" do
+    communicator.update!(details: (communicator.details || {}).merge("glp_stage" => 1))
+    # Force the strip to pull the Transitions board (which contains "all done").
+    allow(Boards::GlpTemplates).to receive(:recommended_for).and_return("glp-transitions-routines")
+
+    root = build!([])
+
+    all_done = root.board_images.select { |bi| bi.label.to_s.downcase == "all done" }
+    expect(all_done.size).to eq(1)
+    expect(root.board_images.count).to be <= CORE_84_GRID_CELLS
+  end
+
   it "gives category folder tiles a curated image instead of a blank one" do
     admin = User.find_by(id: User::DEFAULT_ADMIN_ID)
     # Curated, art-bearing admin images for an authored folder (People, cloned)

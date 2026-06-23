@@ -31,9 +31,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   quick-phrase strip — so a built set never overflows regardless of how little
   slack the seed leaves. Aliased interest categories ("Family & People",
   "Health & Body") now route into the cloned People/Body pages instead of
-  spawning a spurious extra "My Favorites" folder. Regression coverage added in
-  `spec/sidekiq/build_board_set_job_grid_spec.rb`.
-  
+  spawning a spurious extra "My Favorites" folder. The early-stage quick-phrase
+  strip also **dedupes against the home board** so it can't surface a phrase the
+  home board already carries — e.g. "all done" is both an authored core word and
+  a Transitions gestalt, which previously produced a duplicate "all done" tile.
+  Regression coverage added in `spec/sidekiq/build_board_set_job_grid_spec.rb`.
+
 ### Fixed — "Make a Board From Screenshot" robustness
 - A failed screenshot import now **refunds** the 3 credits charged at upload —
   previously a user whose AI analysis failed was out the credits with nothing to
