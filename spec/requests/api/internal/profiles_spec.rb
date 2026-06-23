@@ -4,7 +4,15 @@ RSpec.describe "API::Internal::Profiles", type: :request do
   let(:internal_key) { "test-internal-key" }
   let(:auth_headers) { { "Authorization" => "Bearer #{internal_key}" } }
   let(:json_headers) { auth_headers.merge("Content-Type" => "application/json") }
-  let!(:admin_user) { User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
+  let!(:admin_user) do
+    user = User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)
+    # Inserting a row with an explicit primary key does not advance the
+    # `users` sequence, so the next factory-built user (e.g. via
+    # `create(:child_account)`'s `association :user`) would otherwise collide
+    # on id=1. Reset the sequence to MAX(id)+1.
+    ActiveRecord::Base.connection.reset_pk_sequence!("users")
+    user
+  end
   let(:profile_owner) { create(:child_account) }
   let!(:profile) do
     create(:profile,
