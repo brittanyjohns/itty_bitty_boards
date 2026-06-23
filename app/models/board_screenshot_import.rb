@@ -50,7 +50,8 @@ class BoardScreenshotImport < ApplicationRecord
       confidence_avg: confidence_avg,
       screenshot_url: display_url,
       cells: cells,
-      boards: boards,
+      # Slim refs only — don't leak full AR rows / trigger heavy serialization.
+      boards: boards.map { |b| { id: b.id, name: b.name, slug: b.slug } },
     }
   end
 

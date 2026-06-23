@@ -20,6 +20,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `spec/services/board_from_screenshot_spec.rb` and
   `spec/sidekiq/categorize_image_job_spec.rb`.
 
+### Improved — Screenshot-imported boards show curated tile artwork
+- A committed screenshot import now resolves each tile label to the curated,
+  art-bearing library image (the one with the most artwork) via
+  `Boards::ImageResolver`, the same way Board Builder does — so imported tiles
+  render with pictures instead of blank symbols. Falls back to reusing an
+  existing image, then creating one.
+- Commit is leaner: dropped a dead `destroy_all`/`reload` on the freshly-built
+  board, resolve each distinct label only once, and write the grid layout with
+  `update_columns` (so the second write can't re-derive/rename the tile).
+- `show_view` returns slim board references (`id`/`name`/`slug`) instead of raw
+  ActiveRecord rows.
+
 ### Fixed — "Make a Board From Screenshot" robustness
 - A failed screenshot import now **refunds** the 3 credits charged at upload —
   previously a user whose AI analysis failed was out the credits with nothing to
