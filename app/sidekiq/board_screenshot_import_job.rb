@@ -11,6 +11,8 @@ class BoardScreenshotImportJob
 
     Rails.logger.debug "[BoardScreenshotImportJob] Starting import #{import.id}"
 
+    processed_path = nil
+
     # 1) Get a local temp path for the uploaded screenshot (works with S3, etc.)
     import.image.open(tmpdir: Rails.root.join("tmp")) do |file|
       original_path = file.path
@@ -52,6 +54,47 @@ class BoardScreenshotImportJob
   rescue => e
     Rails.logger.error "[BoardScreenshotImportJob] Error: #{e.class}: #{e.message}"
     Rails.logger.error e.backtrace.join("\n")
-    import.update!(status: "failed", error_message: e.message) if import
+    if import
+      import.update!(status: "failed", error_message: e.message)
+      # The user was charged at upload; the analysis never produced a board, so
+      # make them whole. Idempotent across the one Sidekiq retry.
+      refund_credits!(import)
+    end
+  ensure
+    # ImagePreprocessor writes a standalone temp file that the image.open block
+    # does NOT clean up. Always unlink it so imports don't leak disk.
+    begin
+      File.delete(processed_path) if processed_path && File.exist?(processed_path)
+    rescue => e
+      Rails.logger.warn "[BoardScreenshotImportJob] temp cleanup failed: #{e.class}: #{e.message}"
+    end
+  end
+
+  private
+
+  # Refund the screenshot_import credits spent at upload time when the import
+  # fails. Refunds to the exact plan/topup split recorded on the spend txn, and
+  # guards against double-refund so the Sidekiq retry can't refund twice.
+  def refund_credits!(import)
+    txn_id = import.metadata&.dig("credit_txn_id")
+    return unless txn_id
+
+    spend = CreditTransaction.find_by(id: txn_id, kind: "spend")
+    return unless spend
+
+    already_refunded = CreditTransaction.where(kind: "refund")
+      .where("metadata ->> 'refund_for_txn' = ?", spend.id.to_s)
+      .exists?
+    return if already_refunded
+
+    user = import.user
+    from_plan = spend.metadata["from_plan"].to_i
+    from_topup = spend.metadata["from_topup"].to_i
+    meta = { import_id: import.id, refund_for_txn: spend.id }
+
+    CreditService.refund!(user, amount: from_plan, feature_key: "screenshot_import", source: "plan", metadata: meta) if from_plan.positive?
+    CreditService.refund!(user, amount: from_topup, feature_key: "screenshot_import", source: "topup", metadata: meta) if from_topup.positive?
+  rescue => e
+    Rails.logger.error "[BoardScreenshotImportJob] refund failed for import=#{import&.id}: #{e.class}: #{e.message}"
   end
 end
