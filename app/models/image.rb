@@ -94,6 +94,7 @@ class Image < ApplicationRecord
   before_save :set_label
   before_save :ensure_defaults
 
+  after_commit :enqueue_deferred_categorization, on: :create
   after_save :update_board_images_audio, if: -> { need_to_update_board_images_audio? }
   after_save :update_board_images_display_image, if: -> { saved_change_to_src_url? }
   # after_save :update_board_images_next_words, if: -> { next_words_changed? }
@@ -247,6 +248,17 @@ class Image < ApplicationRecord
       # single word. Only set colors if they haven't been chosen yet.
       self.bg_color = background_color_for(part_of_speech) if bg_color.blank?
       self.text_color = text_color_for(bg_color) if text_color.blank?
+    elsif do_not_categorize?
+      # Categorization is being skipped on this path (e.g. screenshot import
+      # sets skip_categorize = true). AacWordCategorizer.categorize makes a
+      # synchronous OpenAI call for any non-dictionary label, so doing it here
+      # would block a user-facing commit (one call per novel tile). Give the
+      # tile sensible neutral defaults now so colors/POS are never blank, then
+      # finish categorization off-thread (see enqueue_deferred_categorization).
+      self.part_of_speech = part_of_speech.presence || "default"
+      self.bg_color = background_color_for(part_of_speech) if bg_color.blank?
+      self.text_color = text_color_for(bg_color) if text_color.blank?
+      @defer_categorization = true if skip_categorize
     else
       pos = AacWordCategorizer.categorize(label)
       self.part_of_speech = pos
@@ -269,6 +281,17 @@ class Image < ApplicationRecord
     if image_type.blank? || image_type == "Static"
       self.image_type = "static"
     end
+  end
+
+  # Runs after a create whose categorization was deferred in ensure_defaults
+  # (skip_categorize images, e.g. screenshot imports). Pushes the synchronous
+  # OpenAI categorization to a background job so the commit transaction never
+  # blocks on it. The tile already has neutral defaults from ensure_defaults,
+  # so it renders fine until the job refines its part_of_speech/colors.
+  def enqueue_deferred_categorization
+    return unless @defer_categorization
+    @defer_categorization = false
+    CategorizeImageJob.perform_async(id)
   end
 
   def should_generate_symbol?

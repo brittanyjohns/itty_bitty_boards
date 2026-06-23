@@ -5,6 +5,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Screenshot board import commits faster (deferred AAC categorization)
+- Committing a board imported from a screenshot
+  (`POST /api/board_screenshot_imports/:id/commit`) created a new `Image` for
+  every tile label with no existing match. Each novel label triggered a
+  **synchronous OpenAI call** inside the commit transaction (via
+  `Image#ensure_defaults` → `AacWordCategorizer.categorize`), adding latency and
+  cost to a user-facing action. `ensure_defaults` now honors the existing
+  `skip_categorize` / `do_not_categorize?` flag: such images get sensible
+  neutral defaults immediately (part_of_speech `default`, gray colors) and the
+  real categorization is finished off-thread by the new `CategorizeImageJob`
+  after commit, so tiles still get correct AAC colors/POS shortly after. Normal
+  image creation (no `skip_categorize`) is unchanged. Specs added in
+  `spec/services/board_from_screenshot_spec.rb` and
+  `spec/sidekiq/categorize_image_job_spec.rb`.
+
 ### Fixed — Sandbox communicators no longer advertise a sign-in
 - A **sandbox** (no-login demo) communicator owned by a paid or free-trial user
   was returning `can_sign_in: true` and a real `startup_url`
