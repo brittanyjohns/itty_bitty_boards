@@ -46,9 +46,10 @@ class ChildAccount < ApplicationRecord
 
   DEMO_ACCOUNT_BOARD_LIMIT = 3
   # Board cap for the MySpeak demo communicator a Free user gets. Stored per
-  # account in settings["demo_board_limit"]; Pro demo accounts keep the
-  # DEMO_ACCOUNT_BOARD_LIMIT default.
-  FREE_DEMO_BOARD_LIMIT = 1
+  # account in settings["demo_board_limit"]. Held at the same floor as
+  # DEMO_ACCOUNT_BOARD_LIMIT so Free families get a usable starter set (3
+  # boards) on their demo communicator, not just one.
+  FREE_DEMO_BOARD_LIMIT = 3
   belongs_to :user, optional: true
   belongs_to :vendor, optional: true
   belongs_to :owner, class_name: "User", optional: true
