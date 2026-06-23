@@ -374,6 +374,44 @@ RSpec.describe "API::Boards", type: :request do
       end
     end
 
+    # Manually adding words must let the user put a word that's already on the
+    # board onto it again (a second tile) when they opt in — the AI-suggestion
+    # path excludes existing words upstream, so only the explicit manual add
+    # reaches here as a duplicate. Frontend sends duplicate_words: true for the
+    # "Add to board" button only (boards.ts updateBoard).
+    context "word_list duplicate handling" do
+      it "silently skips a word already on the board by default" do
+        patch "/api/boards/#{board.id}",
+              params: { board: { name: board.name }, word_list: ["apple"] },
+              headers: auth_headers(user),
+              as: :json
+        expect(response).to have_http_status(:ok)
+        expect(board.reload.board_images.where(label: "apple").count).to eq(1)
+
+        patch "/api/boards/#{board.id}",
+              params: { board: { name: board.name }, word_list: ["apple"] },
+              headers: auth_headers(user),
+              as: :json
+        expect(response).to have_http_status(:ok)
+        expect(board.reload.board_images.where(label: "apple").count).to eq(1)
+      end
+
+      it "adds a second tile for an existing word when duplicate_words is true" do
+        patch "/api/boards/#{board.id}",
+              params: { board: { name: board.name }, word_list: ["apple"] },
+              headers: auth_headers(user),
+              as: :json
+        expect(board.reload.board_images.where(label: "apple").count).to eq(1)
+
+        patch "/api/boards/#{board.id}",
+              params: { board: { name: board.name }, word_list: ["apple"], duplicate_words: true },
+              headers: auth_headers(user),
+              as: :json
+        expect(response).to have_http_status(:ok)
+        expect(board.reload.board_images.where(label: "apple").count).to eq(2)
+      end
+    end
+
     context "when authenticated as a different user" do
       it "returns 401 or 403" do
         patch "/api/boards/#{other_board.id}",
