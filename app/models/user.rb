@@ -1356,12 +1356,29 @@ class User < ApplicationRecord
   end
 
   # Single source of truth for "how many boards count against the limit."
-  # Excludes predefined boards and Board Builder sub-boards — a builder wizard
-  # run persists a whole linked tree, but the user only chose one thing, so the
-  # tree counts as ONE (its root). Memoized because board list serialization
-  # calls board_editable? once per board.
+  # Excludes predefined boards and every board that belongs to one of the user's
+  # Board Builder groups — a builder wizard run persists a whole linked tree but
+  # the user only chose one thing, so it costs exactly ONE board-set slot
+  # (countable_board_group_count) and ZERO board slots. Memoized because board
+  # list serialization calls board_editable? once per board.
+  #
+  # This replaced the older settings["builder_child"] flag exclusion: "set-ness"
+  # now lives in the builder BoardGroup, not a fragile JSONB marker (issue #407).
   def countable_board_count
-    @countable_board_count ||= boards.where(predefined: false).not_builder_child.count
+    @countable_board_count ||=
+      boards.where(predefined: false)
+            .where.not(id: builder_grouped_board_ids)
+            .count
+  end
+
+  # Board ids that belong to one of THIS user's builder board groups. A builder
+  # set's boards (root + every child) are members of a `builder: true` BoardGroup,
+  # so they're excluded from the board-limit count.
+  def builder_grouped_board_ids
+    BoardGroupBoard
+      .joins(:board_group)
+      .where(board_groups: { user_id: id, builder: true })
+      .select(:board_id)
   end
 
   # The one gate every board-creation path checks. Admins are never limited.

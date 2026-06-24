@@ -43,10 +43,11 @@ RSpec.describe Boards::SeededSetCloner do
   end
 
   describe "#call" do
-    it "clones the linked set for the owner and counts the whole set as ONE board" do
-      expect {
-        @root = described_class.new(@source[:root], communicator: communicator).call
-      }.to change { User.find(owner.id).countable_board_count }.from(0).to(1)
+    it "clones the linked set for the owner and marks builder metadata (root + fringe)" do
+      # The cloner builds + marks the set; the "counts as one Board Set" property
+      # now lives in the builder BoardGroup the controller/job attaches (#407),
+      # so this asserts the clone structure + markers, not countable_board_count.
+      @root = described_class.new(@source[:root], communicator: communicator).call
 
       expect(@root.user_id).to eq(owner.id)
       expect(@root.predefined).to be(false)
@@ -136,8 +137,6 @@ RSpec.describe Boards::SeededSetCloner do
 
       fav_tile = root.board_images.find_by(label: "My Favorites")
       expect(fav_tile.predictive_board_id).to eq(favorites.id)
-
-      expect(User.find(owner.id).countable_board_count).to eq(1)
     end
 
     it "queues AI art for a novel interest word with no existing symbol" do
@@ -235,7 +234,6 @@ RSpec.describe Boards::SeededSetCloner do
         expect(cloned_feelings.board_images.find_by(label: "home").predictive_board_id).to eq(root.id)
 
         expect(owner.boards.count).to eq(3)
-        expect(User.find(owner.id).countable_board_count).to eq(1)
       end
 
       it "preserves the adopted root's identity, does not re-attach, and never inherits the robust catalog markers" do

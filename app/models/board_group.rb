@@ -23,6 +23,7 @@
 #  margin_settings       :jsonb            not null
 #  settings              :jsonb            not null
 #  description           :text
+#  builder               :boolean          default(FALSE), not null
 #
 class BoardGroup < ApplicationRecord
   # has_many :board_group_boards, dependent: :destroy
@@ -34,6 +35,7 @@ class BoardGroup < ApplicationRecord
   belongs_to :root_board, class_name: "Board", optional: true
 
   scope :predefined, -> { where(predefined: true) }
+  scope :builder, -> { where(builder: true) }
   scope :alphabetical, -> { order(Arel.sql("LOWER(name) ASC")) }
   scope :featured, -> { where(predefined: true, featured: true) }
   scope :by_name, ->(name) { where("name ILIKE ?", "%#{name}%") }
@@ -59,7 +61,32 @@ class BoardGroup < ApplicationRecord
   # after_initialize :set_initial_layout, if: :layout_empty?
   # after_save :set_layouts_for_screen_sizes
   before_create :set_root_board
+  # prepend: true so this runs BEFORE the has_many :board_group_boards
+  # dependent: :destroy callback (declared earlier) wipes the join rows we read
+  # to find the member boards.
+  before_destroy :destroy_member_boards_if_builder, prepend: true
   after_initialize :set_number_of_columns, if: :no_colmns_set
+
+  # A builder group OWNS its member boards (the whole built tree), so destroying
+  # it destroys every member board — fixing the orphan-on-delete bug where
+  # deleting a builder root leaked its predictive_board_id children as invisible,
+  # uncounted boards (issue #407). Hand-made groups are pure collections:
+  # destroying them drops only the join rows (board_group_boards dependent:
+  # :destroy), leaving the member boards intact — that behavior is unchanged.
+  #
+  # We destroy the actual Board records (NOT `boards.destroy_all`, which on a
+  # has_many :through only deletes the join rows). Each Board's own
+  # `dependent: :destroy` cleans up its board_group_boards + child_boards rows.
+  # root_board_id is a FK back into one of these boards with no ON DELETE, and
+  # the group row still exists during before_destroy, so null it first or
+  # destroying the root trips the constraint.
+  def destroy_member_boards_if_builder
+    return unless builder?
+
+    update_columns(root_board_id: nil) if root_board_id.present?
+    member_board_ids = board_group_boards.pluck(:board_id).uniq
+    Board.where(id: member_board_ids).destroy_all
+  end
 
   def set_slug
     return unless name.present? && slug.blank?
