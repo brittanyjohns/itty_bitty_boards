@@ -1156,11 +1156,22 @@ still works for backward compat.
   Profile-aware prompts. Credit-gated: costs 2 credits (`ai_board_page` feature
   key). Falls back to "My Favorites" catch-all when user lacks credits or
   generation fails.
+- **AI pages need ≥ `MIN_AI_PAGE_INTERESTS` interests
+  (`BOARD_BUILDER_MIN_AI_PAGE_INTERESTS`, default 2).** `StructurePlanner#drop_sparse_ai_pages`
+  removes any `:ai_generated` page whose category has fewer interests, so a lone
+  interest (e.g. "backpack" → School, which is neither a seed nor prebuilt page in
+  core-60) doesn't spawn — and pay for — a whole AI board named after that one
+  word. Its words fall to `catch_all_interests` instead. **Seed/prebuilt pages are
+  not gated** (they're curated/default content; gating them would drop a
+  zero-interest default like the prebuilt "Social" in Extended).
 - **`BuildBoardSetJob`** routes between the hybrid path (when `level` is a
   `StructurePlanner::LEVELS` key) and the legacy path (direct template keys like
   `core-60`, `home`). The hybrid path: plan → clone seed set **intact** →
-  add prebuilt/AI fringe pages **within the authored grid** → route catch-all to
-  "My Favorites".
+  add prebuilt/AI fringe pages **within the authored grid** →
+  `route_catch_all_to_existing_boards!` (place each leftover interest on an
+  **existing matching board** in the set — e.g. a capped seed page, since the seed
+  set always clones intact — matched by category with the seed aliases) → route the
+  rest to **"My Favorites"**.
 - **Grid cap (no overflow / no dead tiles).** The authored core board fills its
   grid with a few intentional empty cells (Core 84 = 7×12 = 84 cells, 81 tiles,
   3 gaps). `Board#add_image` fills the next open cell and only starts a new row

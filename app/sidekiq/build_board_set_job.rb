@@ -111,7 +111,7 @@ class BuildBoardSetJob
     # open cells; fringe pages then adapt to whatever's left.
     phrases_board = build_phrases_layer!(root, communicator, owner, plan) if plan.phrases_page&.dig(:include)
 
-    add_fringe_pages_within_grid!(root, communicator, owner, profile, plan)
+    add_fringe_pages_within_grid!(root, communicator, owner, profile, plan, explicit_categories)
 
     wire_phrase_board!(communicator, owner, phrases_board) if phrases_board
   end
@@ -227,7 +227,7 @@ class BuildBoardSetJob
   # can't fit fold their interests into the single "My Favorites" catch-all
   # (one tile, deduped) so nothing the child asked for is dropped — it just
   # lands in Favorites instead of its own page.
-  def add_fringe_pages_within_grid!(root, communicator, owner, profile, plan)
+  def add_fringe_pages_within_grid!(root, communicator, owner, profile, plan, explicit_categories = {})
     root.reload
     open_cells = root_open_cells(root)
 
@@ -258,7 +258,55 @@ class BuildBoardSetJob
       end
     end
 
+    # Place leftover interests on an existing matching board where one exists,
+    # then drop the rest into My Favorites.
+    catch_all = route_catch_all_to_existing_boards!(root, owner, catch_all, explicit_categories)
     add_to_favorites!(root, communicator, catch_all) if catch_all.any?
+  end
+
+  # Before dumping leftover interests into My Favorites, drop each word onto an
+  # existing board in the set whose category matches — e.g. a capped seed page
+  # (the seed set always clones intact, so the board exists even when the planner
+  # didn't budget the word into it) or a sparse AI category whose words were
+  # demoted to catch_all. Returns the still-unrouted words.
+  def route_catch_all_to_existing_boards!(root, owner, words, explicit_categories)
+    return words if words.blank?
+
+    root.reload
+    boards_by_name = set_top_level_boards_by_name(root)
+    explicit = explicit_categories || {}
+    unrouted = []
+
+    words.each do |word|
+      category = explicit[word].presence || Boards::InterestCategories.category_for(word)
+      board = category && existing_board_for_category(category, boards_by_name)
+      if board
+        add_interest_to_board(owner, board, word)
+      else
+        unrouted << word
+      end
+    end
+
+    unrouted
+  end
+
+  # name(downcased) => Board for every board the root's folder tiles open.
+  def set_top_level_boards_by_name(root)
+    ids = root.board_images.where.not(predictive_board_id: nil).pluck(:predictive_board_id).uniq
+    Board.where(id: ids).each_with_object({}) do |board, map|
+      map[board.name.to_s.strip.downcase] = board
+    end
+  end
+
+  # Resolve an InterestCategories name to an existing set board, honoring the
+  # seed-page aliases ("Family & People" -> People). Never returns My Favorites —
+  # that's the explicit fallback, not a category home.
+  def existing_board_for_category(category, boards_by_name)
+    name = Boards::StructurePlanner::CATEGORY_SEED_ALIASES[category] || category
+    board = boards_by_name[name.to_s.strip.downcase]
+    return nil if board.nil? || board.name.to_s.strip.casecmp?("my favorites")
+
+    board
   end
 
   # Adds one fringe page as a top-level folder tile. Returns true only when a
