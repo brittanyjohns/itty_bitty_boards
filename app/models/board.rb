@@ -260,7 +260,9 @@ class Board < ApplicationRecord
     if preset_display_image.attached? && (custom_cover = display_preset_image_url).present?
       return custom_cover
     end
-    return preview_image_url if preview_image.attached?
+    if preview_image.attached? && (live_preview = preview_image_url).present?
+      return live_preview
+    end
     read_attribute(:display_image_url)
   end
 
@@ -280,6 +282,12 @@ class Board < ApplicationRecord
     else
       preview_image.url
     end
+  rescue => e
+    # `.url` on the Disk service raises when ActiveStorage::Current.url_options
+    # isn't set (e.g. reading outside a request). A thumbnail URL must never
+    # break the caller — fall back to the seed column via #display_image_url.
+    Rails.logger.warn("Board#preview_image_url failed for board #{id}: #{e.class}: #{e.message}")
+    nil
   end
 
   def pdf_url
