@@ -3,7 +3,7 @@
 All notable user-facing changes to this project will be documented here.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.2.1] — 2026-06-23
 
 ### Added — AppSignal APM (per-request + host visibility)
 - Added the `appsignal` gem and `config/appsignal.yml` to capture per-request
@@ -90,8 +90,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Added `rake settings:cleanup` (dry-run by default; `DRY_RUN=false` to apply,
   `USER_ID=N` to scope) to scrub the leaked junk keys and the dead
   `ai_monthly_limit` key from existing users' settings.
-
-## [1.2.1] — 2026-06-23
 
 ### Added — Random, unguessable slugs for safety profiles
 - A communicator's public safety page (`/my/<slug>`) now uses an unguessable
