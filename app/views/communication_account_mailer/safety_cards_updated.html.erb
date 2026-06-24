@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title><%= @child_name %>'s safety cards have been updated</title>
+    <style>
+        body {
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background-color: #ffffff;
+            margin: auto;
+            max-width: 600px;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #333333;
+        }
+        .content {
+            font-size: 16px;
+            color: #666666;
+            line-height: 1.6;
+        }
+        .button {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: rgb(21, 58, 98);
+            text-decoration: none;
+            border-radius: 5px;
+            color: white;
+        }
+        .footer {
+            font-size: 13px;
+            color: #999999;
+            margin-top: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">Updated safety cards for <%= @child_name %></div>
+        <div class="content">
+            <p>We've given <%= @child_name %>'s safety profile a new secure link.
+            This keeps the page harder to guess and your child's emergency
+            information more private.</p>
+
+            <p>Because the link changed, we've refreshed the safety ID card and
+            device tag with a new QR code. Please download and reprint the
+            updated cards so they point to the right page.</p>
+
+            <a class="button" href="<%= @download_url %>">Download updated cards</a>
+
+            <p class="footer">If you have any printed cards with the old code,
+            you can keep using them for now — old links automatically redirect
+            to the new one — but we recommend reprinting when you can.</p>
+        </div>
+    </div>
+</body>
+</html>

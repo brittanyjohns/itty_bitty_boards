@@ -105,4 +105,16 @@ RSpec.describe CommunicationAccountMailer, type: :mailer do
       end
     end
   end
+
+  describe "#safety_cards_updated" do
+    it "addresses the owner and links to the communicator's safety page" do
+      mail = described_class.safety_cards_updated(owner, account).deliver_now
+
+      expect(mail.to).to eq([owner.email])
+      expect(mail.subject).to eq("Sam Carter's safety cards have been updated")
+      body = mail.html_part&.body&.decoded || mail.body.decoded
+      expect(body).to include("Sam Carter")
+      expect(body).to include("/communicators/#{account.id}/safety")
+    end
+  end
 end

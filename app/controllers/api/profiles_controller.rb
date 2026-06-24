@@ -30,6 +30,18 @@ class API::ProfilesController < API::ApplicationController
   def public
     @profile = Profile.find_by(slug: params[:slug])
 
+    # Legacy-slug fallback — a safety profile migrated to a random slug keeps
+    # its old name-based slug in `legacy_slug`. Printed cards, bookmarks, and
+    # search results that still point at the old URL get a permanent redirect
+    # to the current slug so they keep working.
+    if @profile.nil?
+      legacy_match = Profile.find_by(legacy_slug: params[:slug])
+      if legacy_match
+        redirect_to "/api/profiles/public/#{legacy_match.slug}", status: :moved_permanently
+        return
+      end
+    end
+
     if @profile.nil?
       render json: { error: "Profile not found" }, status: :not_found
       return

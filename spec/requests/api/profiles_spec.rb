@@ -232,4 +232,44 @@ RSpec.describe "API::Profiles", type: :request do
       expect(response.body).not_to include(owner.email)
     end
   end
+
+  describe "GET /api/profiles/public/:slug (legacy slug fallback)" do
+    let(:owner) { FactoryBot.create(:user) }
+    let(:child) { FactoryBot.create(:child_account, user: owner, owner: owner, name: "Emma") }
+    let!(:profile) do
+      p = Profile.new(profileable: child, username: "emma-jones", slug: "emma-jones")
+      p.save!
+      # Simulate the random-slug migration.
+      p.update_columns(legacy_slug: "emma-jones", slug: "s-k8x2mf", slug_type: "random")
+      p
+    end
+
+    it "301-redirects an old legacy slug to the current random slug" do
+      get "/api/profiles/public/emma-jones"
+      expect(response).to have_http_status(:moved_permanently)
+      expect(response.headers["Location"]).to end_with("/api/profiles/public/s-k8x2mf")
+    end
+
+    it "serves the profile directly on its current random slug" do
+      get "/api/profiles/public/s-k8x2mf"
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "404s a slug that matches neither slug nor legacy_slug" do
+      get "/api/profiles/public/does-not-exist"
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "GET /api/profiles/check_slug (legacy slug collisions)" do
+    it "reports a slug taken when it matches an existing legacy_slug" do
+      user = FactoryBot.create(:user)
+      child = FactoryBot.create(:child_account, user: user, owner: user)
+      profile = Profile.new(profileable: child, username: "emma-jones", slug: "emma-jones").tap(&:save!)
+      profile.update_columns(legacy_slug: "emma-jones", slug: "s-k8x2mf", slug_type: "random")
+
+      get "/api/profiles/check_slug", params: { slug: "emma-jones" }
+      expect(JSON.parse(response.body)["reason"]).to eq("taken")
+    end
+  end
 end
