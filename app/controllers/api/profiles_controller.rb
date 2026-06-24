@@ -1,5 +1,5 @@
 class API::ProfilesController < API::ApplicationController
-  skip_before_action :authenticate_token!, only: %i[public check_placeholder generate claim_placeholder next_placeholder check_slug]
+  skip_before_action :authenticate_token!, only: %i[public safety_view check_placeholder generate claim_placeholder next_placeholder check_slug]
 
   def index
     @profile = current_user&.profile
@@ -52,11 +52,11 @@ class API::ProfilesController < API::ApplicationController
       return
     end
 
-    # Log the view + (throttled) alert the parent (issue #384). Safety profiles
-    # only, and enqueued *before* the stale?/render below so it still counts on
-    # a 304. Fully fire-and-forget: a Redis/enqueue hiccup must never slow or
-    # break this public emergency page.
-    log_safety_profile_view(@profile)
+    # NOTE: page-open no longer logs a view or alerts the parent. The MySpeak
+    # page is the everyday "social" surface and carries no sensitive data
+    # (see Profile#safety_view). The view log + throttled parent alert now fire
+    # only when someone deliberately opens the emergency info — see #safety_view
+    # below (issue #384).
 
     response.headers["Cache-Control"] = "no-cache, private, must-revalidate"
     response.headers["Pragma"] = "no-cache"
@@ -69,6 +69,38 @@ class API::ProfilesController < API::ApplicationController
       payload = @profile.public_page? ? @profile.public_page_view : @profile.safety_view
       render json: payload
     end
+  end
+
+  # Gated safety-details endpoint (issue #384). The open MySpeak page withholds
+  # medical info + emergency contacts; this returns them — but only as the
+  # deliberate "Emergency Info" action. This is also the single place that
+  # records the access and (throttled) alerts the parent, so page-open is
+  # zero-friction and notification-free while the actual emergency reveal is
+  # both logged and visible to the family.
+  def safety_view
+    profile = Profile.find_by(slug: params[:slug]) ||
+              Profile.find_by(legacy_slug: params[:slug])
+
+    if profile.nil?
+      render json: { error: "Profile not found" }, status: :not_found
+      return
+    end
+
+    unless profile.safety?
+      render json: { error: "Not a safety profile" }, status: :not_found
+      return
+    end
+
+    # An unclaimed placeholder has no owner or real safety data — reveal nothing
+    # and don't bother recording.
+    if profile.placeholder? && profile.claimed_at.nil?
+      render json: { id: profile.id, settings: {} }
+      return
+    end
+
+    log_safety_profile_view(profile)
+
+    render json: profile.safety_details_view
   end
 
   def create

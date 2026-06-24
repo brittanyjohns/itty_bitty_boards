@@ -349,6 +349,7 @@ Rails.application.routes.draw do
         get "placeholders"
         get "next_placeholder"
         get "public/:slug", to: "profiles#public"
+        post "public/:slug/safety_view", to: "profiles#safety_view"
         get "check_slug", to: "profiles#check_slug"
         post "generate"
       end
