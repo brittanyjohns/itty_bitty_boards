@@ -327,9 +327,13 @@ class Profile < ApplicationRecord
       intro_audio_url: intro_audio_url,
       bio_audio_url: bio_audio_url,
 
-      # Only allow ICE-safe settings keys
+      # Only page-safe settings. Medical info + emergency contacts + emergency
+      # notes are deliberately withheld here and fetched separately via the
+      # gated safety-details endpoint, which records the access + alerts the
+      # parent. `has_safety_info` lets the frontend show the "Emergency Info"
+      # button without leaking the underlying data.
       settings: public_settings(kind: :safety),
-
+      has_safety_info: has_safety_info?,
 
       # Boards shown publicly should be safe/public
       public_boards: public_boards.map(&:api_view),
@@ -432,15 +436,27 @@ class Profile < ApplicationRecord
 
 
   # --- Public settings whitelist ---
-  SAFETY_PUBLIC_KEYS = %w[
+  # Page-safe settings shown on the open MySpeak social page (GET public).
+  # Nothing medical or contact-related lives here — the open page is the
+  # everyday "social" surface. Sensitive fields are in SAFETY_SENSITIVE_KEYS.
+  SAFETY_PAGE_KEYS = %w[
     pronouns
+    device_notes
+  ].freeze
+
+  # Sensitive safety settings — medical details + emergency contacts +
+  # emergency notes. These are NEVER sent on page-open; they're returned only
+  # by the gated safety-details endpoint (POST public/:slug/safety_view), which
+  # records the access and (throttled) alerts the parent (issue #384). Keeping
+  # them off the open page puts the data behind the notification wall, not just
+  # behind the UI modal.
+  SAFETY_SENSITIVE_KEYS = %w[
     allergies
     medical_conditions
     medications
     other_conditions
     other_conditions_notes
     emergency_notes
-    device_notes
     emergency_contacts
     ice_contact_1
     ice_contact_2
@@ -448,6 +464,10 @@ class Profile < ApplicationRecord
     ice_contact_4
     ice_contact_5
   ].freeze
+
+  # Kept for any external reference; the full set of keys the safety page can
+  # surface across the open page + the gated reveal.
+  SAFETY_PUBLIC_KEYS = (SAFETY_PAGE_KEYS + SAFETY_SENSITIVE_KEYS).freeze
 
   PUBLIC_PAGE_KEYS = %w[
     public_page
@@ -465,7 +485,7 @@ class Profile < ApplicationRecord
 
     keys =
       case kind
-      when :safety then SAFETY_PUBLIC_KEYS
+      when :safety then SAFETY_PAGE_KEYS
       when :public_page then PUBLIC_PAGE_KEYS
       else []
       end
@@ -485,6 +505,32 @@ class Profile < ApplicationRecord
     else
       attachment.url
     end
+  end
+
+  # True when the profile has any sensitive safety data (medical or emergency
+  # contacts) worth revealing behind the wall. Drives the frontend's
+  # "Emergency Info" button without exposing the data itself.
+  def has_safety_info?
+    raw = settings.is_a?(Hash) ? settings : {}
+    SAFETY_SENSITIVE_KEYS.any? { |k| raw[k].present? }
+  end
+
+  # The sensitive safety settings withheld from the open page. Returned only by
+  # the gated safety-details endpoint, after the access is recorded + the parent
+  # alerted (issue #384).
+  def safety_sensitive_settings
+    raw = settings.is_a?(Hash) ? settings : {}
+    raw.slice(*SAFETY_SENSITIVE_KEYS)
+  end
+
+  # Payload for the gated safety-details endpoint. Carries only the sensitive
+  # fields the open page omits; the frontend merges these into the profile it
+  # already loaded via #safety_view.
+  def safety_details_view
+    {
+      id: id,
+      settings: safety_sensitive_settings,
+    }
   end
 
   def safety_contacts
