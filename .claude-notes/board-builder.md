@@ -191,6 +191,29 @@ Label-only picker catalog. No `Image` resolution.
   (limit 1) can build one tree, and the tree's own sub-boards never trip the
   read-only lock; a second build is blocked.
 
+**Counting now lives in a builder `BoardGroup` (#407).** New builds write a real
+`BoardGroup(builder: true, root_board_id: root)` whose members are the root +
+every predictive child (`board_group_boards`). The set then counts as **one
+Board Set** (`User#countable_board_group_count` / `board_group_limit`) and
+**zero board slots** (`User#countable_board_count` excludes
+`builder_grouped_board_ids`), and deleting the group cascade-deletes the whole
+tree. "Set-ness" lives in the BoardGroup, not the fragile `builder_child`
+JSONB marker. The `builder_root` marker on the root board is still the detection
+key for re-runs and the backfill.
+
+**Backfill for pre-#407 sets (#409):** existing builder sets predate the
+BoardGroup, so `rake board_groups:backfill_builder_sets`
+(`lib/tasks/board_groups.rake`) wraps each `builder_root` tree lacking a builder
+BoardGroup into one — root + predictive descendants (BFS to `MAX_DEPTH` 2,
+owner-scoped), mirroring the controller/job construction. Idempotent (a root
+already wrapped by `root_board_id` is skipped, so re-runs add no duplicate
+groups/join rows). **Applies by default; preview with `DRY_RUN=1`**, scope with
+`USER_ID=N`. Logs each user's board-set count before/after and prints a report
+of any user left over `board_group_limit` (e.g. a Free user with a hand-made set
++ a builder set reads 2/1) — those are left as-is per #409 since limits are
+enforced only on create, so existing sets stay accessible. Deploy order:
+deploy #407 → run `DRY_RUN=1` → review the over-limit report → run for real.
+
 ## Decisions & future work
 
 - **Interests persisted** to `child_account.details` (not a new column) so the
