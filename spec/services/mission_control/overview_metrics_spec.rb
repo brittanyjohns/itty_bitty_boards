@@ -2,6 +2,13 @@ require "rails_helper"
 
 RSpec.describe MissionControl::OverviewMetrics do
   describe ".call" do
+    # Freeze to midday UTC so "today" rows seeded with `1.hour.ago` can't slip
+    # into yesterday's calendar-day bucket when the suite happens to run in the
+    # hour after midnight — the daily breakdown and the day-window counts both
+    # bucket by Time.zone calendar day. DB-only spec, so the Redis/`travel_to`
+    # TTL caveat doesn't apply.
+    around { |example| travel_to(Time.utc(2026, 6, 23, 12, 0, 0)) { example.run } }
+
     let!(:admin) { create(:user, role: "admin", created_at: 1.hour.ago) }
     let!(:user_today) { create(:user, created_at: 1.hour.ago, last_sign_in_at: 1.hour.ago) }
     let!(:user_3d) { create(:user, created_at: 3.days.ago, last_sign_in_at: 3.days.ago) }
