@@ -388,41 +388,33 @@ RSpec.describe Board, type: :model do
     end
   end
 
-  describe "#display_image_url with display_follows_preview flag" do
+  describe "#display_image_url precedence" do
     let(:user) { FactoryBot.create(:user) }
     let(:board) { FactoryBot.create(:board, user: user) }
 
-    before do
-      board.update_column(:display_image_url, "https://example.com/user-cover.png")
+    def attach_preview(bytes = "png-bytes")
+      board.preview_image.attach(
+        io: StringIO.new(bytes),
+        filename: "preview.png",
+        content_type: "image/png",
+      )
     end
 
-    context "when the flag is off" do
-      it "returns the stored column value" do
-        expect(board.display_image_url).to eq("https://example.com/user-cover.png")
+    context "with neither a custom cover nor a preview" do
+      it "returns the stored column value (seed thumbnail)" do
+        board.update_column(:display_image_url, "https://example.com/seed.png")
+        expect(board.display_image_url).to eq("https://example.com/seed.png")
       end
     end
 
-    context "when the flag is on but no preview is attached" do
-      it "still returns the stored column value (no preview to resolve to)" do
-        board.update!(settings: board.settings.merge("display_follows_preview" => true))
-        expect(board.display_image_url).to eq("https://example.com/user-cover.png")
-      end
-    end
-
-    context "when the flag is on and a preview is attached" do
-      before do
-        board.preview_image.attach(
-          io: StringIO.new("png-bytes"),
-          filename: "preview.png",
-          content_type: "image/png",
-        )
-        board.update!(settings: board.settings.merge("display_follows_preview" => true))
-      end
+    context "with a preview attached" do
+      before { attach_preview }
 
       # Active Storage signed URLs embed an `expires_at` derived from
       # `Time.current`, so two `.url` calls a millisecond apart produce
       # different strings. Freeze time so both calls share an expiry.
-      it "returns the live preview URL" do
+      it "the live preview wins over the seed column even without the follow flag" do
+        board.update_column(:display_image_url, "https://example.com/seed.png")
         freeze_time do
           expect(board.display_image_url).to eq(board.preview_image_url)
         end
@@ -431,17 +423,55 @@ RSpec.describe Board, type: :model do
       it "resolves to the new URL after the preview regenerates" do
         original_url = freeze_time { board.display_image_url }
         board.preview_image.purge
-        board.preview_image.attach(
-          io: StringIO.new("new-png-bytes"),
-          filename: "preview.png",
-          content_type: "image/png",
-        )
+        attach_preview("new-png-bytes")
 
         freeze_time do
           expect(board.display_image_url).to eq(board.preview_image_url)
           expect(board.display_image_url).not_to eq(original_url) if board.preview_image_url != original_url
         end
       end
+    end
+
+    context "with an explicit custom cover (preset_display_image attached)" do
+      before do
+        attach_preview
+        board.preset_display_image.attach(
+          io: StringIO.new("cover-bytes"),
+          filename: "preset_display_image.png",
+          content_type: "image/png",
+        )
+      end
+
+      it "the custom cover wins over the auto preview" do
+        expect(board.display_image_url).to eq(board.display_preset_image_url)
+        expect(board.display_image_url).not_to eq(board.preview_image_url)
+      end
+    end
+  end
+
+  describe "#preset_display_image_url" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+
+    it "tracks the live preview rather than a frozen settings snapshot" do
+      board.update!(settings: board.settings.merge("preset_display_image_url" => "https://example.com/stale.png"))
+      board.preview_image.attach(
+        io: StringIO.new("png-bytes"),
+        filename: "preview.png",
+        content_type: "image/png",
+      )
+
+      freeze_time do
+        expect(board.preset_display_image_url).to eq(board.preview_image_url)
+        expect(board.preset_display_image_url).not_to eq("https://example.com/stale.png")
+      end
+    end
+
+    it "falls back to the legacy settings snapshot only when nothing else resolves" do
+      board.update_column(:display_image_url, nil)
+      board.update!(settings: board.settings.merge("preset_display_image_url" => "https://example.com/legacy.png"))
+
+      expect(board.preset_display_image_url).to eq("https://example.com/legacy.png")
     end
   end
 

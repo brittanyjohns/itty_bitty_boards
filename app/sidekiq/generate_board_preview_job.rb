@@ -11,6 +11,9 @@ class GenerateBoardPreviewJob
 
     board = Board.find(board_id)
 
+    # GeneratePreviewAssets attaches the PNG and refreshes the preset display
+    # image URL atomically, so there's no post-attach reload/write race here.
+    # Any Grover/upload failure propagates and the job retries (retry: 3).
     Boards::GeneratePreviewAssets.new(
       board: board,
       screen_size: screen_size,
@@ -18,8 +21,5 @@ class GenerateBoardPreviewJob
       hide_header: hide_header,
       routes: Rails.application.routes.url_helpers,
     ).call(generate_png: generate_png, generate_pdf: generate_pdf)
-
-    board.reload
-    board.update_preset_display_image_url(board.preview_image_url) if board.preview_image.attached?
   end
 end

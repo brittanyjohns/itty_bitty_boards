@@ -5,6 +5,24 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — board preview thumbnails (wrong/stale + missing)
+- Board grid thumbnails now reliably reflect the board's **current** contents.
+  `Board#display_image_url` (what the grid reads first) resolves with a clear
+  precedence: an explicit user-uploaded cover wins, otherwise the **live**
+  auto-generated preview wins, and the denormalized `display_image_url` column
+  is only a seed thumbnail used before the first preview exists. Previously the
+  live preview was used only when an opt-in `display_follows_preview` flag was
+  set, so most boards showed a frozen snapshot that never refreshed after edits.
+- `Board#preset_display_image_url` now tracks the live preview instead of a
+  frozen `settings` snapshot string, so it can't go stale while a preview
+  exists (the snapshot is kept only as a legacy backstop and is refreshed to the
+  current preview URL on every generation).
+- Preview generation writes the refreshed display URL **atomically** inside
+  `Boards::GeneratePreviewAssets`, removing the post-job reload/write race that
+  could briefly serve a stale URL, and ensuring synchronous generation paths
+  keep the snapshot fresh too. Genuine Grover render failures now propagate so
+  the job actually retries instead of silently "succeeding" with no thumbnail.
+- Removed the unused 2-minute-delayed `Board#run_generate_preview_job_later`.
 ### Fixed — Board Builder no longer makes a whole board for a single interest
 - A lone interest word (e.g. "backpack") whose category isn't a seed or prebuilt
   page for the chosen level used to spin up an entire AI-generated board named
