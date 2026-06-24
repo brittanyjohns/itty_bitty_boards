@@ -3,7 +3,7 @@
 All notable user-facing changes to this project will be documented here.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.2.1] — 2026-06-23
 
 ### Added — Random, unguessable slugs for safety profiles
 - A communicator's public safety page (`/my/<slug>`) now uses an unguessable
