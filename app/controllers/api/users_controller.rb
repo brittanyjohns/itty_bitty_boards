@@ -145,20 +145,44 @@ class API::UsersController < API::ApplicationController
     end
   end
 
+  # User-settable keys via PATCH/PUT update_settings. Anything outside this
+  # list (including Rails' controller/action/id/format params, plan/limit keys,
+  # and internal flags) is ignored, so the endpoint can't pollute or escalate
+  # the settings blob. Plan limits are owned by the webhook/admin paths, not here.
+  USER_SETTABLE_SETTINGS_KEYS = %w[
+    wait_to_speak disable_audit_logging enable_image_display enable_text_display
+    show_labels show_tutorial disable_scroll is_caregiver disable_notifications
+    snap_to_screen display_follows_preview timezone language
+    phrase_board_id opening_board_id startup_board_group_id predictive_board_id
+  ].freeze
+  USER_SETTABLE_VOICE_KEYS = %w[name speed pitch rate volume language].freeze
+
   # PATCH/PUT /users/1 or /users/1.json
   def update_settings
-    @user = User.find(params[:id])
-    user_settings = @user.settings || {}
+    unless current_user&.admin? || current_user == @user
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return
+    end
 
-    voice_settings = params[:voice] || {}
-    @user.settings = user_settings.merge(voice: voice_settings)
-    params.each do |key, value|
-      @user.settings[key] = value
+    @user.settings ||= {}
+
+    # Partial update: merge only whitelisted keys, leaving the rest of the
+    # settings blob intact (the frontend relies on this deep-merge — e.g. the
+    # language switcher sends just `{ voice: { language } }`).
+    USER_SETTABLE_SETTINGS_KEYS.each do |key|
+      @user.settings[key] = params[key] unless params[key].nil?
+    end
+
+    if params[:voice].present?
+      voice = (@user.settings["voice"] || {}).merge(
+        params.require(:voice).permit(*USER_SETTABLE_VOICE_KEYS).to_h
+      )
+      @user.settings["voice"] = voice
     end
 
     respond_to do |format|
       if @user.save
-        format.json { render json: @user, status: :ok }
+        format.json { render json: @user.api_view, status: :ok }
       else
         format.json { render json: @user.errors, status: :unprocessable_content }
       end

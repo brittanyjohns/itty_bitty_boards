@@ -4,7 +4,7 @@
 # Stripe-driven paying users get their monthly plan credits refreshed by
 # the `invoice.payment_succeeded` webhook. This job covers everyone else:
 #
-#   - Free-tier users (5 credits/month).
+#   - Free-tier users (25 credits/month).
 #   - Soft-trial users (`basic_trial`, 400 credits for 14 days).
 #   - Paying users without a Stripe subscription — App Store / RevenueCat
 #     subscribers, admin/demo accounts on paid tiers, etc. They get their

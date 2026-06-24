@@ -41,7 +41,6 @@ RSpec.describe "beta:audit_entitlements", type: :task do
     user.update_columns(settings: user.settings.merge(
       "board_limit" => User::PRO_PLAN_LIMITS["board_limit"],
       "paid_communicator_limit" => User::PRO_PLAN_LIMITS["paid_communicator_limit"],
-      "ai_monthly_limit" => User::PRO_PLAN_LIMITS["ai_monthly_limit"],
     ))
     user
   end

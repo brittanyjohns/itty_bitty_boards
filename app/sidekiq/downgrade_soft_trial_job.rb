@@ -13,7 +13,7 @@ class DowngradeSoftTrialJob
       user.update!(plan_type: "free")
 
       # The user just transitioned from basic_trial (400 credits, expiring
-      # ~now) to free (10 credits/month). grant_plan! expires whatever's
+      # ~now) to free (25 credits/month). grant_plan! expires whatever's
       # left of the trial allowance and grants a fresh free-tier amount,
       # so the user doesn't see balance=0 the moment they're downgraded.
       CreditService.grant_plan!(

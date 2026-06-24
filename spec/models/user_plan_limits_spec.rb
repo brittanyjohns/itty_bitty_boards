@@ -37,7 +37,8 @@ RSpec.describe User, "plan limits", type: :model do
       expect(user.settings["demo_communicator_limit"]).to eq(1)
       expect(user.settings["board_limit"]).to eq(1)
       expect(user.settings["paid_communicator_limit"]).to eq(1)
-      expect(user.settings["ai_monthly_limit"]).to eq(5)
+      # ai_monthly_limit is no longer written — AI is credit-gated.
+      expect(user.settings).not_to have_key("ai_monthly_limit")
     end
   end
 
