@@ -3,6 +3,17 @@
 All notable user-facing changes to this project will be documented here.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed — Board Builder no longer makes a whole board for a single interest
+- A lone interest word (e.g. "backpack") whose category isn't a seed or prebuilt
+  page for the chosen level used to spin up an entire AI-generated board named
+  after that one word. Now an AI page is only created when its category has at
+  least `BOARD_BUILDER_MIN_AI_PAGE_INTERESTS` interests (default 2). A sparse
+  interest is placed on an existing matching board in the set when one exists
+  (e.g. a category folder already present), and otherwise lands in My Favorites
+  — never its own board. Cuts spurious single-word boards and saves AI credits.
+
 ## [1.2.1] — 2026-06-23
 
 ### Changed — Board Builder mutes folder/dynamic tile names

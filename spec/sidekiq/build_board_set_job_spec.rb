@@ -240,6 +240,28 @@ RSpec.describe BuildBoardSetJob do
       expect(root.status).to eq("complete")
     end
 
+    # "backpack" -> School, which is not a seed page or prebuilt template in
+    # core-60, so it used to spawn a whole AI-generated board named after the one
+    # word. It should not: no AI call, and the word lands in My Favorites.
+    it "does not spawn a dedicated AI board for a lone niche interest" do
+      root = precreate_root!(name: "Core 60")
+
+      expect(Boards::AiPageGenerator).not_to receive(:new)
+      described_class.new.perform(root.id, communicator.id, "standard", ["backpack"])
+
+      root.reload
+      expect(root.status).to eq("complete")
+
+      folder_names = root.board_images.select(&:is_dynamic?).map do |bi|
+        Board.find(bi.predictive_board_id).name.to_s.downcase
+      end
+      expect(folder_names).not_to include("backpack")
+
+      favorites = user.boards.find_by(name: "My Favorites")
+      expect(favorites).to be_present
+      expect(favorites.board_images.map { |bi| bi.label.to_s.downcase }).to include("backpack")
+    end
+
     it "normalizes legacy template keys — core-60 routes to standard path" do
       root = precreate_root!(name: "Core 60")
 
@@ -368,6 +390,63 @@ RSpec.describe BuildBoardSetJob do
       expect {
         described_class.new.perform(-1, communicator.id, "home", [])
       }.not_to raise_error
+    end
+  end
+
+  # Part 2: a leftover interest goes onto an existing matching board where one
+  # exists in the set, and only falls through to My Favorites when none does.
+  describe "#route_catch_all_to_existing_boards!" do
+    let(:job) { described_class.new }
+
+    def link_board!(root, target, label)
+      root.board_images.create!(
+        image: create(:image, label: label, user_id: root.user_id),
+        predictive_board_id: target.id,
+      )
+    end
+
+    it "drops a leftover word onto the existing board for its category" do
+      root = create(:board, user: user, name: "Root")
+      food = create(:board, user: user, name: "Food")
+      link_board!(root, food, "Food")
+
+      leftover = job.send(:route_catch_all_to_existing_boards!, root, user, ["pizza"], {})
+
+      expect(leftover).to eq([])
+      expect(food.reload.board_images.map { |bi| bi.label.to_s.downcase }).to include("pizza")
+    end
+
+    it "honors a seed-page alias (Health & Body -> Body)" do
+      root = create(:board, user: user, name: "Root")
+      body = create(:board, user: user, name: "Body")
+      link_board!(root, body, "Body")
+
+      leftover = job.send(:route_catch_all_to_existing_boards!, root, user, ["wibble"],
+                          { "wibble" => "Health & Body" })
+
+      expect(leftover).to eq([])
+      expect(body.reload.board_images.map { |bi| bi.label.to_s.downcase }).to include("wibble")
+    end
+
+    it "returns words with no matching board for the My Favorites fallback" do
+      root = create(:board, user: user, name: "Root")
+      link_board!(root, create(:board, user: user, name: "Food"), "Food")
+
+      # backpack -> School; no School board in the set
+      leftover = job.send(:route_catch_all_to_existing_boards!, root, user, ["backpack"], {})
+
+      expect(leftover).to eq(["backpack"])
+    end
+
+    it "never routes into My Favorites (that is the explicit fallback)" do
+      root = create(:board, user: user, name: "Root")
+      favorites = create(:board, user: user, name: "My Favorites")
+      link_board!(root, favorites, "My Favorites")
+
+      leftover = job.send(:route_catch_all_to_existing_boards!, root, user, ["backpack"], {})
+
+      expect(leftover).to eq(["backpack"])
+      expect(favorites.reload.board_images.map { |bi| bi.label.to_s.downcase }).not_to include("backpack")
     end
   end
 end
