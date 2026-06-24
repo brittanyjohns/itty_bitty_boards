@@ -411,9 +411,16 @@ class ChildAccount < ApplicationRecord
       save!
 
       if previous_owner && previous_owner != user
+        # Act on the communicator's OWN team, not whichever team happens
+        # to sort first — a communicator may be on several teams.
         team = primary_team || ensure_team!(creator: user)
+        pin_primary_team!(team)
         team.upsert_member!(previous_owner, "supervisor")
         team.upsert_member!(user, "admin")
+        # Hand the team over to the new owner so they get full management
+        # rights — `created_by_id` drives `is_owner` / `can_invite` in the
+        # team api_view, so without this the new owner couldn't manage it.
+        team.update!(created_by: user) unless team.created_by_id == user.id
       end
     end
 
@@ -492,9 +499,42 @@ class ChildAccount < ApplicationRecord
     anchor + LoanerReclaimJob::RECLAIM_AFTER
   end
 
+  # The communicator's "own" team — the one created *for* it, whose
+  # membership the handoff and owner checks act on. A communicator can
+  # belong to multiple teams (its own, plus shared/board teams it's been
+  # added to), so `teams.first` is unreliable (issue: handoff updated
+  # the wrong team). Resolve deterministically:
+  #   1. the team id pinned in settings (set by `ensure_team!` / claim),
+  #   2. the namesake team auto-created at creation ("<name>'s Communication Team"),
+  #   3. fall back to the oldest team (legacy single-team accounts).
   def primary_team
-    # For now, assume 1 team per communicator
-    teams.first
+    pinned_id = settings&.dig("primary_team_id")
+    if pinned_id
+      pinned = teams.find_by(id: pinned_id)
+      return pinned if pinned
+    end
+    namesake_team || teams.order(:id).first
+  end
+
+  # The team auto-created for this communicator, matched by the naming
+  # convention used on creation (`child_accounts_controller#create` and
+  # the MySpeak onboarding controller both use "<name>'s Communication
+  # Team"). Best-effort: a renamed communicator won't match, which is why
+  # `ensure_team!`/`claim_by!` pin the id in settings going forward.
+  def namesake_team
+    return nil if name.blank?
+    teams.find_by(name: "#{name}'s Communication Team")
+  end
+
+  # Record which team is this communicator's primary/own team so
+  # `primary_team` resolves it unambiguously regardless of join order or
+  # later renames. Idempotent.
+  def pin_primary_team!(team)
+    return if team.nil?
+    self.settings ||= {}
+    return if settings["primary_team_id"] == team.id
+    settings["primary_team_id"] = team.id
+    save!
   end
 
   # Ensure this communicator has a team. If it already does, return
@@ -506,12 +546,17 @@ class ChildAccount < ApplicationRecord
   # (e.g. the API controllers use "<communicator>'s Communication
   # Team"). Passing nil falls back to the default.
   def ensure_team!(creator:, name: nil)
-    return primary_team if primary_team.present?
+    existing = primary_team
+    if existing.present?
+      pin_primary_team!(existing)
+      return existing
+    end
 
     team_name = name.presence || "#{self.name || "Communicator"}'s Team"
     team = Team.create!(name: team_name, created_by: creator)
     TeamAccount.create!(team: team, account: self)
     team.upsert_member!(creator, "admin") if creator
+    pin_primary_team!(team)
     team
   end
 

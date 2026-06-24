@@ -45,6 +45,8 @@ class API::ChildAccountsController < API::ApplicationController
       return
     end
 
+    return unless require_pro_for_lending!
+
     unless @child_account.sandbox?
       render json: account_error_payload("Only sandbox communicators can be promoted to loaner"), status: :unprocessable_content
       return
@@ -91,6 +93,8 @@ class API::ChildAccountsController < API::ApplicationController
       end
       return
     end
+
+    return unless require_pro_for_lending!
 
     # Slot check — only meaningful when the account isn't already in
     # the slot pool (sandbox). Loaners already count; active → loaner
@@ -533,6 +537,27 @@ class API::ChildAccountsController < API::ApplicationController
     render json: account_error_payload("not_owner").merge(
       message: "Only the owner can edit this communicator.",
     ), status: :forbidden
+  end
+
+  # Lending / hand-off is a Pro-only feature. The frontend already hides
+  # the LoanerControls for non-Pro users, but the gate must also hold on
+  # the server: without it a Basic user (or any direct API caller) could
+  # promote a sandbox to a loaner, or lend a self-created active — the
+  # active→loaner path in `lend` skips the slot check, so nothing else
+  # would stop them. System admins bypass for support.
+  #
+  # Called *after* the per-action ownership check so a non-owner still
+  # gets the generic Unauthorized response and we don't leak the gate.
+  # Returns true when allowed; otherwise renders 403 and returns false so
+  # the caller can `return unless require_pro_for_lending!`.
+  def require_pro_for_lending!
+    return true if current_user.admin? || current_user.pro?
+
+    render json: account_error_payload("pro_required").merge(
+      message: "Lending a communicator to a family is a Pro feature.",
+      upgrade_url: "/account/billing/upgrade",
+    ), status: :forbidden
+    false
   end
 
   # Mutation endpoints (lend, end_loan, etc.) return the current account
