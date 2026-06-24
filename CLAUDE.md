@@ -27,7 +27,7 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - **Serializers:** jsonapi-serializer gem
 - **Hosting:** Hatchbox / EC2
   - Production: `main` branch → `speakanyway.com` (Hatchbox app `670kd.hatchboxapp.com`)
-  - Staging: `staging` branch → `https://ypk9e.hatchboxapp.com`. **Deploy branch, not a development branch** — it mirrors `main`. Promote by force-pushing `origin/main` onto `staging` and then running the `Deploy staging (manual)` workflow via `workflow_dispatch` (see `.github/workflows/staging-deploy.yml`) — pushing to `staging` alone does NOT trigger a deploy; the workflow is what fires the Hatchbox deploy. (Brittany's `deploy-staging` skill does both steps.) Any commits on `staging` that aren't on `main` are treated as drift and will be wiped by the next promotion's force-push — don't push experimental work there expecting it to survive. Staging-specific behavior is gated on `ENV["STAGING"] == "true"` — both envs run with `RAILS_ENV=production`. Use the `AppEnv.staging?` helper (`app/models/app_env.rb`) for this check in app code.
+  - Staging: `staging` branch → its own Hatchbox app on a **separate, dedicated EC2 instance** (issue #393 — staging no longer shares the production box, so a staging test can't starve prod of CPU/RAM). **Deploy branch, not a development branch** — it mirrors `main`. Promote by force-pushing `origin/main` onto `staging` and then running the `Deploy staging (manual)` workflow via `workflow_dispatch` (see `.github/workflows/staging-deploy.yml`) — pushing to `staging` alone does NOT trigger a deploy; the workflow is what fires the Hatchbox deploy (via the Hatchbox API + `HATCHBOX_STAGING_APP_ID`/deploy-hook secrets — **box-independent**, so moving staging to a new server only requires updating those secrets, not the workflow). (Brittany's `deploy-staging` skill does both steps.) Any commits on `staging` that aren't on `main` are treated as drift and will be wiped by the next promotion's force-push — don't push experimental work there expecting it to survive. Staging-specific behavior is gated on `ENV["STAGING"] == "true"` — both envs run with `RAILS_ENV=production`. Use the `AppEnv.staging?` helper (`app/models/app_env.rb`) for this check in app code. The staging **host** is ENV-driven via `STAGING_HOST` (defaults to the legacy `ypk9e.hatchboxapp.com`; read by `config/environments/production.rb` + `config/initializers/cors.rb`), so a new Hatchbox app/subdomain needs only an env-var change (set `STAGING_HOST` + the URL literals in `.github/workflows/staging-sync-env.yml` and re-run the env sync), not a code change.
   - **Staging skips paid OpenAI image calls.** When `AppEnv.staging?`, `OpenAiClient#create_image` / `#create_image_variation`, `ImageVariationService`, and `ImageEditService` return the bundled `public/placeholder.jpeg` instead of calling OpenAI. The rest of the image pipeline runs normally.
 
 ## Frontend
@@ -83,7 +83,10 @@ backlog size (default 200).
 - `DiskSpaceAlertJob` (`app/sidekiq/`) runs hourly via sidekiq-cron and
   emails an admin (`ADMIN_EMAIL`) when the root disk crosses 80% (warn) or
   90% (critical). Alerts are debounced in Redis to once per severity per 6h.
-  Skipped on staging, since staging shares the production EC2 box. Added
+  Runs on **both** prod and staging — since #393 staging is its own EC2 box,
+  so it monitors its own disk (its debounce keys live in its own Redis, no
+  cross-env collision). It was skipped on staging before, when staging shared
+  the prod box and the job would have duplicated every prod alert. Added
   after a disk-full outage wedged the box during a deploy.
 - **External `/up` monitor (BetterStack):** HTTP monitor hits
   `https://670kd.hatchboxapp.com/up` (prod) every 3 min. Pages on failure
@@ -92,9 +95,12 @@ backlog size (default 200).
   `config/routes.rb`. Catches failure modes the in-app jobs can't: wedged
   puma (the 2026-05-30 outage), nginx/DNS/network, full-box down.
   Configured in BetterStack's UI; nothing in this repo to change when
-  tuning the monitor. Staging is intentionally not monitored — it shares
-  the prod box, so a prod alert covers both. Added after the 2026-05-30
-  outage where puma was alive per systemd but all threads were wedged.
+  tuning the monitor. Staging is **not** currently externally monitored. This
+  was fine when staging shared the prod box (a prod page covered both), but
+  since #393 staging is its own box — adding a separate BetterStack monitor
+  on the staging `/up` is a reasonable follow-up (external UI config, no repo
+  change). Added after the 2026-05-30 outage where puma was alive per systemd
+  but all threads were wedged.
 
 ## Safety-profile view alerts (issue #384)
 

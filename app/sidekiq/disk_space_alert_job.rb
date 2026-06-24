@@ -5,8 +5,9 @@
 # where the production disk filled silently and wedged the box during a deploy.
 #
 # Alerts are debounced through Redis so a sustained high-disk condition emails
-# at most once per severity per DEBOUNCE_WINDOW. Staging is skipped — it shares
-# the same EC2 box as production and would otherwise duplicate every alert.
+# at most once per severity per DEBOUNCE_WINDOW. Runs on both production and
+# staging — since #393 staging is its own EC2 box (no longer the prod box), so
+# it monitors its own disk and its debounce keys live in its own Redis.
 class DiskSpaceAlertJob
   include Sidekiq::Job
   sidekiq_options queue: :default, retry: 2
@@ -16,8 +17,6 @@ class DiskSpaceAlertJob
   DEBOUNCE_WINDOW = 6.hours.to_i
 
   def perform
-    return if AppEnv.staging?
-
     usage = root_disk_usage_percent
     return if usage.nil?
 

@@ -40,9 +40,12 @@ RSpec.describe DiskSpaceAlertJob, type: :sidekiq do
     end
 
     context "on staging" do
-      it "sends no email even when the disk is critical" do
+      # Since #393 staging is its own EC2 box, so it monitors its own disk
+      # (no longer skipped — it shared the prod box before).
+      it "still alerts when the disk is critical" do
         allow(AppEnv).to receive(:staging?).and_return(true)
-        expect { perform_with_usage(95) }.not_to change { ActionMailer::Base.deliveries.size }
+        allow(job).to receive(:claim_alert_slot).and_return(true)
+        expect { perform_with_usage(95) }.to change { ActionMailer::Base.deliveries.size }.by(1)
       end
     end
 

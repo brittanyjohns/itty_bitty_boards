@@ -85,9 +85,9 @@ class BoardScreenshotVisionService
 
     @logger.debug "[BoardScreenshotVisionService] Parsing board from #{image_path} (forced_cols=#{forced_cols || "auto"})"
 
-    # Staging shares the prod box and uses real API keys, but we don't want to
-    # spend on paid OpenAI vision (or burn real credits) for QA. Mirror the
-    # image-generation placeholder short-circuit and return a deterministic grid.
+    # Staging uses real API keys, but we don't want to spend on paid OpenAI
+    # vision (or burn real credits) for QA. Mirror the image-generation
+    # placeholder short-circuit and return a deterministic grid.
     return staged_stub(forced_cols) if AppEnv.staging?
 
     data_url = encode_image_as_data_url(image_path)
