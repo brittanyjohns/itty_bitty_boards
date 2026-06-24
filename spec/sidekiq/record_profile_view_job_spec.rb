@@ -1,10 +1,16 @@
 require "rails_helper"
 
 RSpec.describe RecordProfileViewJob, type: :sidekiq do
+  include ActiveJob::TestHelper
+
   let(:job) { described_class.new }
   let(:owner) { FactoryBot.create(:user, email: "parent@example.com") }
   let(:child) { FactoryBot.create(:child_account, user: owner, owner: owner, name: "Sky") }
   let(:profile) { Profile.create!(profileable: child, username: "sky-job", slug: "sky-job") }
+
+  # The notifier uses deliver_later; perform enqueued mailer jobs inline so the
+  # ActionMailer::Base.deliveries assertions below reflect actual sends.
+  around { |example| perform_enqueued_jobs { example.run } }
 
   before do
     # Coarse geo is mocked so the suite never makes a network call.

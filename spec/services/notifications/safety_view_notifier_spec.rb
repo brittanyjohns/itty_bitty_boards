@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe Notifications::SafetyViewNotifier do
+  include ActiveJob::TestHelper
+
   let(:owner) { FactoryBot.create(:user, email: "parent@example.com") }
   let(:child) { FactoryBot.create(:child_account, user: owner, owner: owner, name: "Sky") }
   let(:profile) { Profile.create!(profileable: child, username: "sky-notify", slug: "sky-notify") }
@@ -8,9 +10,11 @@ RSpec.describe Notifications::SafetyViewNotifier do
 
   describe ".deliver" do
     it "sends the parent the viewed-alert email" do
-      expect {
-        described_class.deliver(profile: profile, profile_view: profile_view, owner: owner)
-      }.to change { ActionMailer::Base.deliveries.size }.by(1)
+      perform_enqueued_jobs do
+        expect {
+          described_class.deliver(profile: profile, profile_view: profile_view, owner: owner)
+        }.to change { ActionMailer::Base.deliveries.size }.by(1)
+      end
 
       expect(ActionMailer::Base.deliveries.last.to).to eq([owner.email])
     end
@@ -19,7 +23,7 @@ RSpec.describe Notifications::SafetyViewNotifier do
       allow(owner).to receive(:email).and_return(nil)
       expect {
         described_class.deliver(profile: profile, profile_view: profile_view, owner: owner)
-      }.not_to change { ActionMailer::Base.deliveries.size }
+      }.not_to have_enqueued_mail(SafetyProfileMailer, :viewed_alert)
     end
 
     it "the push channel is a no-op stub today" do

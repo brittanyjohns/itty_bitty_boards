@@ -34,7 +34,10 @@ module Notifications
     def deliver_email
       return if owner&.email.blank?
 
-      SafetyProfileMailer.viewed_alert(profile, profile_view).deliver_now
+      # deliver_later (not deliver_now) so a stalled SMTP session can't wedge the
+      # worker thread — the app standardized on this after the #207 outage, and
+      # the no-inline-mailer guard spec enforces it outside app/sidekiq/.
+      SafetyProfileMailer.viewed_alert(profile, profile_view).deliver_later
     end
 
     # Push notifications are not wired up yet — there is no device-token
