@@ -5,6 +5,22 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Safety info (and its parent alert) is now behind the Emergency Info action
+- The public MySpeak page (`GET /api/profiles/public/:slug`) is the everyday
+  social surface and **no longer ships medical info or emergency contacts** —
+  those keys (`allergies`, `medical_conditions`, `medications`,
+  `other_conditions`, `other_conditions_notes`, `emergency_notes`,
+  `emergency_contacts`, `ice_contact_*`) are withheld from the page payload.
+  Only page-safe settings (`pronouns`, `device_notes`) plus a `has_safety_info`
+  boolean come down on load.
+- The sensitive data is revealed only by the new gated endpoint
+  `POST /api/profiles/public/:slug/safety_view`, which is also the **single
+  place that records the access and (throttled, ≤1 email/hour) alerts the
+  parent**. Opening the page no longer logs a view or notifies anyone — only a
+  deliberate "Emergency Info" open does. Every reveal is still recorded in
+  `profile_views` for the audit trail; only the email is throttled. Parent-alert
+  email copy updated from "safety page was viewed" to "emergency info was
+  opened" (en + es). Issue #384 follow-up.
 ### Fixed — Communicator hand-off now updates the right team
 - When a family claimed a loaned communicator, the new owner was sometimes added
   to the wrong team (the communicator's *own* team was left with only the

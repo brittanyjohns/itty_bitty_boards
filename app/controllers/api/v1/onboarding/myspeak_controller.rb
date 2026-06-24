@@ -109,7 +109,14 @@ module API
           end
 
           profile.generate_attachments! if profile.safety?
-          render json: profile.safety_view, status: :created
+          # The owner is creating their OWN profile here, so echo the full
+          # settings back (page-safe + sensitive). The public #safety_view
+          # withholds the sensitive keys; this authenticated create response
+          # doesn't need to — the owner just typed this data in.
+          render json: profile.safety_view.merge(
+            settings: profile.public_settings(kind: :safety)
+                             .merge(profile.safety_sensitive_settings),
+          ), status: :created
         rescue ActiveRecord::RecordInvalid => e
           Rails.logger.warn "[Onboarding::Myspeak#create] #{e.record.class}: #{e.record.errors.full_messages.join(", ")}"
           render json: {

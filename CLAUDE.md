@@ -98,16 +98,31 @@ backlog size (default 200).
 
 ## Safety-profile view alerts (issue #384)
 
-Public safety (MySpeak) pages (`GET /api/profiles/public/:slug`) are designed to
-be opened with zero friction in an emergency. This subsystem gives parents
-visibility into when that happens.
+Public safety (MySpeak) pages have two surfaces. The **open page**
+(`GET /api/profiles/public/:slug`) is the everyday "social" surface — name,
+avatar, intro, bio, public boards, QR, plus the page-safe settings
+(`Profile::SAFETY_PAGE_KEYS` = `pronouns`, `device_notes`). The **emergency
+info** — medical details + emergency contacts + emergency notes
+(`Profile::SAFETY_SENSITIVE_KEYS`) — is sensitive and lives behind a wall.
 
-- **Capture is fire-and-forget.** `API::ProfilesController#public` enqueues
-  `RecordProfileViewJob.perform_async(profile.id, request.remote_ip,
-  request.user_agent)` **only for safety profiles** (`profile.safety?` — not
-  pro `public_page` profiles, not unclaimed placeholders), wrapped in a rescue
-  so a Redis/enqueue hiccup can never slow or 500 the emergency page. It's placed
-  before the `stale?`/ETag block so a 304 still counts as a view.
+- **Sensitive data is withheld from page-open.** `Profile#safety_view` only
+  serializes `SAFETY_PAGE_KEYS` and adds a boolean `has_safety_info` so the
+  frontend can show the "Emergency Info" button without shipping the data.
+  `GET public` therefore carries **no** medical info or contacts — the wall is
+  real, not just a UI modal.
+- **The gated reveal records + alerts.** `POST /api/profiles/public/:slug/safety_view`
+  (`API::ProfilesController#safety_view`, unauthenticated) is the deliberate
+  "open emergency info" action. It (a) returns the sensitive payload
+  (`Profile#safety_details_view` = `{ id, settings: <SAFETY_SENSITIVE_KEYS> }`)
+  and (b) enqueues the view-log / parent-alert job. **Page-open no longer
+  enqueues anything** — `#public` just serves the social page. Safety profiles
+  only (`profile.safety?`); 404 for non-safety/unknown slugs; an unclaimed
+  placeholder reveals nothing and records nothing. The enqueue is wrapped in a
+  rescue so a Redis hiccup can't 500 the reveal — the sensitive data still
+  renders.
+- **Capture is fire-and-forget.** `#safety_view` calls `log_safety_profile_view`,
+  which enqueues `RecordProfileViewJob.perform_async(profile.id,
+  request.remote_ip, request.user_agent)`, rescuing broadly.
 - **`RecordProfileViewJob`** (`app/sidekiq/`) does all the heavy/failable work
   off-request:
   1. Always logs the raw view (IP + user agent + timestamp) to the
