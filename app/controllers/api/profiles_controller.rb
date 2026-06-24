@@ -52,6 +52,12 @@ class API::ProfilesController < API::ApplicationController
       return
     end
 
+    # Log the view + (throttled) alert the parent (issue #384). Safety profiles
+    # only, and enqueued *before* the stale?/render below so it still counts on
+    # a 304. Fully fire-and-forget: a Redis/enqueue hiccup must never slow or
+    # break this public emergency page.
+    log_safety_profile_view(@profile)
+
     response.headers["Cache-Control"] = "no-cache, private, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
@@ -317,6 +323,18 @@ class API::ProfilesController < API::ApplicationController
     else
       { error: "slug_invalid", message: "That link can't be used." }
     end
+  end
+
+  # Enqueue async view-logging + parent alert for a safety profile. All heavy
+  # lifting (geolocation, throttle, email) happens in RecordProfileViewJob; here
+  # we only capture the request IP + user agent and hand off. Rescues broadly so
+  # a Redis outage can't 500 the public page.
+  def log_safety_profile_view(profile)
+    return unless profile.safety?
+
+    RecordProfileViewJob.perform_async(profile.id, request.remote_ip, request.user_agent)
+  rescue => e
+    Rails.logger.warn("[Profiles#public] failed to enqueue view log: #{e.class}: #{e.message}")
   end
 
   def set_placeholders

@@ -96,6 +96,53 @@ backlog size (default 200).
   the prod box, so a prod alert covers both. Added after the 2026-05-30
   outage where puma was alive per systemd but all threads were wedged.
 
+## Safety-profile view alerts (issue #384)
+
+Public safety (MySpeak) pages (`GET /api/profiles/public/:slug`) are designed to
+be opened with zero friction in an emergency. This subsystem gives parents
+visibility into when that happens.
+
+- **Capture is fire-and-forget.** `API::ProfilesController#public` enqueues
+  `RecordProfileViewJob.perform_async(profile.id, request.remote_ip,
+  request.user_agent)` **only for safety profiles** (`profile.safety?` — not
+  pro `public_page` profiles, not unclaimed placeholders), wrapped in a rescue
+  so a Redis/enqueue hiccup can never slow or 500 the emergency page. It's placed
+  before the `stale?`/ETag block so a 304 still counts as a view.
+- **`RecordProfileViewJob`** (`app/sidekiq/`) does all the heavy/failable work
+  off-request:
+  1. Always logs the raw view (IP + user agent + timestamp) to the
+     **`profile_views`** table (`ProfileView` model) — the audit history that
+     makes unexpected access patterns visible.
+  2. Sends the parent alert only when: the communicator has an owner
+     (`Profile#alert_recipient` → `child_account.owner`), the per-profile
+     opt-out is off (`Profile#view_alerts_enabled?`, default **true**), the
+     owner hasn't set the global `settings["disable_notifications"]`, and the
+     **per-profile hourly throttle** is claimed (atomic Redis `SET NX EX`, key
+     `safety_view_notify:<profile_id>`, mirroring `DiskSpaceAlertJob`). Window is
+     ENV-tunable via `SAFETY_VIEW_THROTTLE_SECONDS` (default 3600).
+  3. **Geolocation runs only after the throttle is claimed** — so the external
+     IP lookup happens at most once per profile per hour, not on every bot/scan.
+     Only the notified view row gets `approx_location`/`geo`; throttled views are
+     logged without location.
+- **Channels:** `Notifications::SafetyViewNotifier` is the channel-dispatch
+  seam. v1 = email (`SafetyProfileMailer#viewed_alert`, i18n under
+  `safety_profile_mailer.viewed_alert` in `config/locales/mailer.{en,es}.yml`).
+  A **push channel is stubbed** (`deliver_push` / `push_enabled? == false`) so it
+  drops in once device-token registration + FCM/APNS exist — there is **no push
+  infrastructure today**.
+- **Coarse IP→location** is `IpGeolocation.coarse(ip)` (`app/services/`), a total
+  wrapper over the **`geocoder`** gem that returns a city-level
+  `{ city, region, country, label }` or **nil** on any error / private IP /
+  missing result (the email just omits location). Provider is ENV-tunable in
+  `config/initializers/geocoder.rb`: `GEOCODER_IP_LOOKUP` (default `ipinfo_io`),
+  `IPINFO_API_KEY`, `GEOCODER_TIMEOUT`.
+- **Opt-out is frontend-free:** `view_alerts_enabled` rides the existing
+  `settings: {}` param on `PATCH /api/profiles/:id` and is exposed on the
+  authenticated `Profile#api_view`, so a toggle needs no new endpoint.
+- **Note on `should_receive_notifications?`:** intentionally **not** reused here
+  — it bundles an unrelated cross-feature 2-hour throttle that would wrongly
+  swallow a safety alert. The per-profile hourly throttle is the only timing gate.
+
 ## Mailchimp integration
 
 We use the Mailchimp **Marketing API** (`MailchimpMarketing` gem, official
