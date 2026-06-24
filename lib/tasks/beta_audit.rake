@@ -55,15 +55,13 @@ namespace :beta do
       # Effective persisted slot limit, exactly as enforcement reads it
       # (communicator_slot_limit overrides paid_communicator_limit).
       communicator_limit_setting = Permissions::CommunicatorLimits.slot_limit_for(settings)
-      ai_limit_setting = settings["ai_monthly_limit"]
 
       board_count = board_counts[user.id].to_i
       communicator_count = slot_counts[user.id].to_i
 
       over_settings =
         (board_limit_setting.present? && board_limit_setting.to_i > entitled["board_limit"]) ||
-        communicator_limit_setting > entitled["paid_communicator_limit"] ||
-        (ai_limit_setting.present? && ai_limit_setting.to_i > entitled["ai_monthly_limit"])
+        communicator_limit_setting > entitled["paid_communicator_limit"]
       over_usage =
         board_count > entitled["board_limit"] ||
         communicator_count > entitled["paid_communicator_limit"]
@@ -90,7 +88,6 @@ namespace :beta do
         user.id, user.email, plan, exempt, entitlement_plan,
         board_limit_setting, entitled["board_limit"],
         communicator_limit_setting, entitled["paid_communicator_limit"],
-        ai_limit_setting, entitled["ai_monthly_limit"],
         board_count, communicator_count,
         over_settings, over_usage,
       ]
@@ -102,7 +99,6 @@ namespace :beta do
         user_id email plan_type exempt entitlement_plan
         board_limit_setting board_limit_entitled
         communicator_limit_setting communicator_limit_entitled
-        ai_monthly_limit_setting ai_monthly_limit_entitled
         board_count communicator_count
         over_settings over_usage
       ]

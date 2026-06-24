@@ -88,10 +88,6 @@ class API::Admin::UsersController < API::Admin::ApplicationController
     @user.settings["demo_communicator_limit"] = user_setting_params[:demo_communicator_limit] || @user.settings["demo_communicator_limit"] || 0
     @user.skip_plan_setup = true # prevent resetting limits based on plan_type since we're directly setting them here
 
-    if params[:update_ai_limits]
-      @user.reset_ai_limits!
-    end
-
     if @user.save
       render json: @user.admin_api_view, status: :ok
     else

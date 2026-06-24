@@ -90,7 +90,8 @@ RSpec.describe User, type: :model do
       expect(user.settings["board_limit"]).to eq(User::FREE_PLAN_LIMITS["board_limit"])
       expect(user.settings["paid_communicator_limit"]).to eq(User::FREE_PLAN_LIMITS["paid_communicator_limit"])
       expect(user.settings["demo_communicator_limit"]).to eq(User::FREE_PLAN_LIMITS["demo_communicator_limit"])
-      expect(user.settings["ai_monthly_limit"]).to eq(User::FREE_PLAN_LIMITS["ai_monthly_limit"])
+      # ai_monthly_limit was removed — AI is gated by the credit ledger now.
+      expect(user.settings).not_to have_key("ai_monthly_limit")
     end
 
     it "does not override an explicitly set plan_type on create" do
@@ -165,7 +166,7 @@ RSpec.describe User, type: :model do
 
       expect(user.plan_type).to eq("free")
       expect(user.settings["board_limit"]).to eq(User::FREE_PLAN_LIMITS["board_limit"])
-      expect(user.settings["ai_monthly_limit"]).to eq(User::FREE_PLAN_LIMITS["ai_monthly_limit"])
+      expect(user.settings).not_to have_key("ai_monthly_limit")
       # At least the Free-tier communicator slot so the MySpeak wizard doesn't 403.
       expect(user.settings["paid_communicator_limit"])
         .to eq(User::FREE_PLAN_LIMITS["paid_communicator_limit"])
@@ -173,30 +174,6 @@ RSpec.describe User, type: :model do
 
       expect(user.plan_credits_balance).to eq(25)
       expect(user.credit_transactions.where(kind: "plan_grant").count).to eq(1)
-    end
-  end
-
-  context "monthly_limit_for" do
-    it "returns a high limit for admin users" do
-      admin = FactoryBot.create(:user)
-      admin.update_column(:role, "admin")
-      expect(admin.monthly_limit_for("image_generation")).to eq(10000)
-    end
-
-    it "returns a lower limit for free users" do
-      user = FactoryBot.create(:user)
-      user.update_column(:plan_type, "free")
-      limit = user.monthly_limit_for("image_generation")
-      expect(limit).to be <= 5
-    end
-
-    it "returns a higher limit for pro users than free users" do
-      free_user = FactoryBot.create(:user)
-      free_user.update_column(:plan_type, "free")
-      pro_user = FactoryBot.create(:user)
-      pro_user.update_column(:plan_type, "pro")
-      expect(pro_user.monthly_limit_for("image_generation")).to be >
-        free_user.monthly_limit_for("image_generation")
     end
   end
 

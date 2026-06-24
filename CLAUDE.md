@@ -790,9 +790,12 @@ topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
   image library. Charging only applies when they're replacing/customizing an existing
   image. `regenerate_images`, `create_image_edit`, and `create_image_variation` act on
   images that already have a picture, so they keep charging unconditionally.
-- `MonthlyFeatureLimiter` is no longer in the AI hot path. It remains in the
-  codebase as a generic Redis-counter helper for any future non-AI rate
-  limits, but no controller currently calls it.
+- **`MonthlyFeatureLimiter` was removed** (along with `User#ai_limit_reached?`,
+  `#reset_ai_limits!`, and the dead `ai_monthly_limit` plan-limit key). AI is
+  gated solely by the credit ledger now; the old monthly action-counter was
+  never on the enforcement path. `User#can_use_ai?` now means simply `!locked?`
+  (the api_view flag the frontend reads to enable/disable AI buttons); the
+  `ai_limit_reached` api_view field was dropped (unconsumed).
 
 Plan-credit lifecycle:
 
@@ -810,7 +813,7 @@ Plan-credit lifecycle:
   `trialing` grants credits with `period_end = subscription.trial_end`.
 - **Cancel / pause:** `apply_free_plan` flips the user to `free` and
   calls `CreditService.grant_plan!` with the free-tier allowance, so
-  canceled/paused subscribers land on free with 5 credits (not 0). The
+  canceled/paused subscribers land on free with 25 credits (not 0). The
   prior plan balance is expired in the ledger by `grant_plan!` itself.
   Top-up credits are preserved.
 - **Soft-trial → free downgrade:** `DowngradeSoftTrialJob` (daily at 2am UTC)
@@ -844,7 +847,8 @@ Plan-credit lifecycle:
   earlier than `Time.current + MIN_GRANT_WINDOW` (1 day) forward, and
   logs a `Rails.logger.warn` when it does. Prevents the
   "granted and expired same day" failure mode regardless of caller.
-- **Free tier allowance:** 5 credits/month (was 10). Applied on signup,
+- **Free tier allowance:** 25 credits/month
+  (`CreditService::PLAN_MONTHLY_CREDITS["free"]`). Applied on signup,
   refresh, and post-cancellation.
 
 Tasks:

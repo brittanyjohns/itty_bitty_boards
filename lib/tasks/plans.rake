@@ -3,7 +3,7 @@ namespace :plans do
   # inside the task body. Rakefiles get loaded during asset precompile
   # before Rails boots — a top-level `User::FREE_PLAN_LIMITS` raises
   # `NameError: uninitialized constant User` during deploy.
-  BACKFILL_LIMIT_KEYS = %w[paid_communicator_limit demo_communicator_limit board_limit ai_monthly_limit].freeze
+  BACKFILL_LIMIT_KEYS = %w[paid_communicator_limit demo_communicator_limit board_limit].freeze
 
   desc "Backfill per-tier limits onto user.settings, filling missing/zero values without clobbering admin-tuned higher values"
   task backfill_communicator_limits: :environment do
@@ -65,7 +65,7 @@ namespace :plans do
         user.settings.merge!(changes)
         # update_columns to skip callbacks — the plan_type isn't
         # changing, and we don't want before_save :setup_limits to
-        # also run and overwrite ai_monthly_limit etc.
+        # also run and overwrite the limit keys we just set.
         user.update_columns(settings: user.settings, updated_at: Time.current)
         updated += 1
         print "." if updated % 100 == 0

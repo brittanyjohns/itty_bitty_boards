@@ -301,13 +301,17 @@ class User < ApplicationRecord
   # `Permissions::CommunicatorLimits.self_create_allowed?` returns true
   # whenever the user has any non-zero slot limit (i.e. has at least one
   # slot to spend).
+  # NOTE: AI usage is gated by the weighted credit ledger (CreditService), not
+  # by a per-plan monthly action count. The old "ai_monthly_limit" key was dead
+  # (never read on the enforcement path) and was removed — do not re-add it here.
+  # Board limits match the canonical pricing table (marketing/pricing-structure.md):
+  # Free 1 / Basic 100 / Pro 300.
   FREE_PLAN_LIMITS = {
     "plan_type" => "free",
     "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 1).to_i,
     "board_group_limit" => ENV.fetch("FREE_BOARD_GROUP_LIMIT", 1).to_i,
     "paid_communicator_limit" => ENV.fetch("FREE_PAID_COMMUNICATOR_LIMIT", 1).to_i,
     "demo_communicator_limit" => ENV.fetch("FREE_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
-    "ai_monthly_limit" => ENV.fetch("FREE_AI_MONTHLY_LIMIT", 5).to_i,
   }.freeze
   BASIC_PLAN_LIMITS = {
     "plan_type" => "basic",
@@ -315,7 +319,6 @@ class User < ApplicationRecord
     "board_group_limit" => ENV.fetch("BASIC_BOARD_GROUP_LIMIT", 25).to_i,
     "paid_communicator_limit" => ENV.fetch("BASIC_PAID_COMMUNICATOR_LIMIT", 2).to_i,
     "demo_communicator_limit" => ENV.fetch("BASIC_DEMO_COMMUNICATOR_LIMIT", 0).to_i,
-    "ai_monthly_limit" => ENV.fetch("BASIC_AI_MONTHLY_LIMIT", 100).to_i,
   }.freeze
   PRO_PLAN_LIMITS = {
     "plan_type" => "pro",
@@ -323,7 +326,6 @@ class User < ApplicationRecord
     "board_group_limit" => ENV.fetch("PRO_BOARD_GROUP_LIMIT", 50).to_i,
     "paid_communicator_limit" => ENV.fetch("PRO_PAID_COMMUNICATOR_LIMIT", 5).to_i,
     "demo_communicator_limit" => ENV.fetch("PRO_DEMO_COMMUNICATOR_LIMIT", 1).to_i,
-    "ai_monthly_limit" => ENV.fetch("PRO_AI_MONTHLY_LIMIT", 300).to_i,
   }.freeze
 
   def setup_partner_pro_plan
@@ -331,7 +333,6 @@ class User < ApplicationRecord
     self.settings["paid_communicator_limit"] = PRO_PLAN_LIMITS["paid_communicator_limit"]
     self.settings["demo_communicator_limit"] = PRO_PLAN_LIMITS["demo_communicator_limit"]
     self.settings["board_limit"] = PRO_PLAN_LIMITS["board_limit"]
-    self.settings["ai_monthly_limit"] = PRO_PLAN_LIMITS["ai_monthly_limit"]
   end
 
   def setup_pro_limits
@@ -339,7 +340,6 @@ class User < ApplicationRecord
     self.settings["paid_communicator_limit"] = PRO_PLAN_LIMITS["paid_communicator_limit"]
     self.settings["demo_communicator_limit"] = PRO_PLAN_LIMITS["demo_communicator_limit"]
     self.settings["board_limit"] = PRO_PLAN_LIMITS["board_limit"]
-    self.settings["ai_monthly_limit"] = PRO_PLAN_LIMITS["ai_monthly_limit"]
   end
 
   def setup_basic_limits
@@ -347,7 +347,6 @@ class User < ApplicationRecord
     self.settings["paid_communicator_limit"] = BASIC_PLAN_LIMITS["paid_communicator_limit"]
     self.settings["demo_communicator_limit"] = BASIC_PLAN_LIMITS["demo_communicator_limit"]
     self.settings["board_limit"] = BASIC_PLAN_LIMITS["board_limit"]
-    self.settings["ai_monthly_limit"] = BASIC_PLAN_LIMITS["ai_monthly_limit"]
   end
 
   def setup_free_limits
@@ -355,7 +354,6 @@ class User < ApplicationRecord
     self.settings["paid_communicator_limit"] = FREE_PLAN_LIMITS["paid_communicator_limit"]
     self.settings["demo_communicator_limit"] = FREE_PLAN_LIMITS["demo_communicator_limit"]
     self.settings["board_limit"] = FREE_PLAN_LIMITS["board_limit"]
-    self.settings["ai_monthly_limit"] = FREE_PLAN_LIMITS["ai_monthly_limit"]
   end
 
   def communicator_limit=(value)
@@ -1141,31 +1139,6 @@ class User < ApplicationRecord
     display_name
   end
 
-  def monthly_limit_for(feature_key)
-    if admin?
-      return 10000
-    end
-    if pro? || plus? || premium? || vendor?
-      return PRO_PLAN_LIMITS[feature_key] || 300
-    elsif basic?
-      return BASIC_PLAN_LIMITS[feature_key] || 100
-    else
-      return FREE_PLAN_LIMITS[feature_key] || 5
-    end
-  end
-
-  def ai_limit_reached?
-    feature_key = "ai_action"
-    current_user = self
-    limiter = MonthlyFeatureLimiter.new(
-      user_id: current_user.id,
-      feature_key: feature_key,
-      limit: current_user.monthly_limit_for(feature_key),
-      tz: current_user.timezone || "America/New_York",
-    )
-    limiter.limit_reached?
-  end
-
   def should_send_welcome_email?
     return false if admin?
     if settings["welcome_email_sent"] == true
@@ -1310,7 +1283,6 @@ class User < ApplicationRecord
     view["board_limit"] = board_limit
     view["comm_account_limit_reached"] = comm_account_limit_reached
     view["board_limit_reached"] = board_limit_reached
-    view["ai_limit_reached"] = ai_limit_reached?
     view["can_create_boards"] = can_create_boards
     view["settings"] = settings
     view["settings"]["plan_type"] = plan_type
@@ -1349,10 +1321,11 @@ class User < ApplicationRecord
     vendor_account&.profile
   end
 
+  # AI access is gated by the credit ledger at the controller layer
+  # (`check_credits!` → HTTP 402). This flag only answers "is the account
+  # allowed to touch AI at all", which is purely a function of the lock state.
   def can_use_ai?
-    return false if locked?
-    return false if ai_limit_reached?
-    true
+    !locked?
   end
 
   def handle_myspeak_setup(myspeak_name: nil, myspeak_slug: nil)
@@ -1380,18 +1353,6 @@ class User < ApplicationRecord
       Rails.logger.error "Failed to save child account for MySpeak setup: #{@child_account.errors.full_messages.join(", ")}"
     end
     @child_account
-  end
-
-  def reset_ai_limits!
-    current_user = self
-    feature_key = "ai_action"
-    limiter = MonthlyFeatureLimiter.new(
-      user_id: current_user.id,
-      feature_key: feature_key,
-      limit: current_user.monthly_limit_for(feature_key),
-      tz: current_user.timezone || "America/New_York",
-    )
-    limiter.reset_limit!
   end
 
   # Single source of truth for "how many boards count against the limit."

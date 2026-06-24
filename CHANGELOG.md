@@ -3,6 +3,22 @@
 All notable user-facing changes to this project will be documented here.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed — User settings hardening & cleanup
+- The `PUT /api/users/:id/update_settings` endpoint now only persists a
+  whitelist of real preference keys (voice, display toggles, board pointers,
+  etc.) and requires the caller to be the account owner or an admin. Previously
+  it wrote **every** request parameter into the settings blob (leaking Rails'
+  `controller`/`action`/`id`/`format`) and performed no ownership check.
+- Removed the dead `ai_monthly_limit` plan-limit setting and the unused
+  monthly AI action-counter (`MonthlyFeatureLimiter`, `ai_limit_reached?`).
+  AI has been gated by the credit ledger for a while; this setting was written
+  but never read on the enforcement path.
+- Added `rake settings:cleanup` (dry-run by default; `DRY_RUN=false` to apply,
+  `USER_ID=N` to scope) to scrub the leaked junk keys and the dead
+  `ai_monthly_limit` key from existing users' settings.
+
 ## [1.2.1] — 2026-06-23
 
 ### Added — Random, unguessable slugs for safety profiles

@@ -64,7 +64,6 @@ RSpec.describe "plans rake task", type: :task do
         "paid_communicator_limit" => 0,
         "demo_communicator_limit" => 0,
         "board_limit" => 0,
-        "ai_monthly_limit" => 0,
         "plan_nickname" => plan,
       }
     end
@@ -80,7 +79,6 @@ RSpec.describe "plans rake task", type: :task do
       expect(settings["paid_communicator_limit"]).to eq(10) # preserved
       expect(settings["demo_communicator_limit"]).to eq(User::PRO_PLAN_LIMITS["demo_communicator_limit"])
       expect(settings["board_limit"]).to eq(User::PRO_PLAN_LIMITS["board_limit"])
-      expect(settings["ai_monthly_limit"]).to eq(User::PRO_PLAN_LIMITS["ai_monthly_limit"])
     end
 
     it "fills the new Free paid_communicator_limit=1 onto legacy Free users" do
