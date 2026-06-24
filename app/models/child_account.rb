@@ -421,6 +421,9 @@ class ChildAccount < ApplicationRecord
         # rights — `created_by_id` drives `is_owner` / `can_invite` in the
         # team api_view, so without this the new owner couldn't manage it.
         team.update!(created_by: user) unless team.created_by_id == user.id
+        # Preserve the inherited dashboard boards as team boards so the new
+        # owner can clear/curate the dashboard without losing them.
+        register_dashboard_boards_on_team!(team)
       end
     end
 
@@ -535,6 +538,21 @@ class ChildAccount < ApplicationRecord
     return if settings["primary_team_id"] == team.id
     settings["primary_team_id"] = team.id
     save!
+  end
+
+  # Register the communicator's current dashboard boards as team boards on
+  # `team`. This is the safety net behind non-destructive board removal: once
+  # a board is also a team board, `ChildBoardsController#destroy` detaches it
+  # from the dashboard instead of deleting it, and it stays available via the
+  # team for re-adding. Idempotent — `Team#add_board!` skips boards already on
+  # the team. Attributed to each board's owner (the original sharer).
+  def register_dashboard_boards_on_team!(team)
+    return unless team
+    child_boards.includes(:board).find_each do |cb|
+      board = cb.board
+      next unless board
+      team.add_board!(board, board.user_id || cb.created_by_id)
+    end
   end
 
   # Ensure this communicator has a team. If it already does, return
@@ -726,6 +744,11 @@ class ChildAccount < ApplicationRecord
           board_owner_name: b.user&.display_name,
           most_used: cb.board_id == cached_most_used_board&.id,
           can_edit: viewing_user&.id == b.user_id,
+          # Removing a board from the dashboard is a curation action gated on
+          # *communicator* ownership, not board ownership — so a hand-off owner
+          # can clear inherited boards they don't own. (Removal is
+          # non-destructive: see ChildBoardsController#destroy.)
+          can_remove: viewing_user.present? && (viewing_user.id == owner_id || viewing_user.admin?),
         }
       end,
       can_sign_in: can_sign_in?,
@@ -1104,6 +1127,11 @@ class ChildAccount < ApplicationRecord
           board_owner_name: b.user&.display_name,
           most_used: cb.board_id == cached_most_used_board&.id,
           can_edit: viewing_user&.id == b.user_id,
+          # Removing a board from the dashboard is a curation action gated on
+          # *communicator* ownership, not board ownership — so a hand-off owner
+          # can clear inherited boards they don't own. (Removal is
+          # non-destructive: see ChildBoardsController#destroy.)
+          can_remove: viewing_user.present? && (viewing_user.id == owner_id || viewing_user.admin?),
         }
       end,
       can_sign_in: can_sign_in?,

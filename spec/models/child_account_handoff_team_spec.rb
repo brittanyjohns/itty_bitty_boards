@@ -97,6 +97,19 @@ RSpec.describe ChildAccount, "hand-off team membership", type: :model do
       end
     end
 
+    it "registers the communicator's dashboard boards as team boards (preservation safety net)" do
+      loaner, _shared, namesake = loaner_on_two_teams
+      parent = make_parent("pro")
+      b1 = create(:board, user: slp, name: "Board One")
+      b2 = create(:board, user: slp, name: "Board Two")
+      create(:child_board, board: b1, child_account: loaner)
+      create(:child_board, board: b2, child_account: loaner)
+
+      loaner.claim_by!(user: parent)
+
+      expect(namesake.reload.boards).to include(b1, b2)
+    end
+
     it "creates and uses an own team when the communicator has none" do
       loaner = create(:child_account, user: slp, owner: slp, status: "loaner", passcode: "x")
       parent = make_parent("pro")

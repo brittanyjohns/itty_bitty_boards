@@ -98,6 +98,17 @@ RSpec.describe "communicators:repair_handoff_teams", type: :task do
     expect(ca.reload.settings["primary_team_id"]).to be_nil
   end
 
+  it "registers the communicator's dashboard boards as team boards" do
+    ca, namesake = broken_handoff
+    board = create(:board, user: old_owner, name: "Inherited")
+    create(:child_board, board: board, child_account: ca)
+    ENV["DRY_RUN"] = "false"
+
+    silent { task.invoke }
+
+    expect(namesake.reload.boards).to include(board)
+  end
+
   it "is idempotent — a second run makes no further changes" do
     ca, namesake = broken_handoff
     ENV["DRY_RUN"] = "false"

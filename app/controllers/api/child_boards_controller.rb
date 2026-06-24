@@ -50,20 +50,38 @@ class API::ChildBoardsController < API::ApplicationController
   def destroy
     Rails.logger.info "Deleting child board with ID: #{params[:id]}"
     @board = @child_board.board
+    @child_board.destroy
 
-    if @board.is_template
-      Rails.logger.info "Deleting associated board ID: #{@board.id}"
-      @child_board.destroy
+    # Removal is non-destructive by default: detach the board from this
+    # dashboard but keep the board record. We only delete the underlying
+    # board when it's a throwaway per-communicator template that nothing
+    # else references — never one that's a team board or still on another
+    # communicator. This lets a hand-off owner clear inherited boards
+    # without destroying content the team (or the original SLP) relies on,
+    # while preserving the old cleanup for a self-created template clone.
+    if @board && @board.is_template && orphan_template?(@board)
+      Rails.logger.info "Deleting orphaned template board ID: #{@board.id}"
       @board.destroy
     else
-      Rails.logger.info "Deleting child board ID: #{@child_board.id} without deleting associated board ID: #{@board.id}"
-      @child_board.destroy
+      Rails.logger.info "Detached child_board #{params[:id]}; preserved board ID: #{@board&.id}"
     end
 
     render json: { message: "child_board deleted" }
   end
 
   private
+
+  # A per-communicator template clone is safe to hard-delete only when
+  # nothing else references it: it's not shared as a team board, it's not on
+  # any other communicator's dashboard (the just-removed ChildBoard is
+  # already destroyed by the time we check), and the remover owns it. In any
+  # other case we detach only, so removing a board from one dashboard can
+  # never destroy content another surface still depends on.
+  def orphan_template?(board)
+    return false if board.team_boards.exists?
+    return false if board.child_boards.exists?
+    board.user_id == current_user&.id
+  end
 
   def load_child_board
     @child_board = ChildBoard.find(params[:id])

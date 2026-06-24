@@ -166,6 +166,13 @@ namespace :communicators do
         actions << "prev owner #{demote_id} #{demote_tu&.role || 'none'}->supervisor" if demote_tu&.role != "supervisor"
       end
 
+      # Preserve inherited dashboard boards as team boards (the safety net for
+      # non-destructive removal) — same as claim_by! now does on transfer.
+      on_team_ids = team.board_ids
+      dashboard_ids = ca.child_boards.includes(:board).filter_map { |cb| cb.board&.id }.uniq
+      to_register = (dashboard_ids - on_team_ids).size
+      actions << "register #{to_register} dashboard board(s) on team" if to_register > 0
+
       if actions.empty?
         puts "#{dry_run ? '[DRY RUN] ' : ''}communicator ##{ca.id} #{ca.name.inspect} (team ##{team.id}) — already correct"
         next
@@ -179,6 +186,7 @@ namespace :communicators do
           team.upsert_member!(owner, "admin")
           team.upsert_member!(User.find_by(id: demote_id), "supervisor") if demote_id
           team.update!(created_by_id: owner.id) if previous_creator_id != owner.id
+          ca.register_dashboard_boards_on_team!(team)
         end
         repaired += 1
       end
