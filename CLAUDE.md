@@ -840,6 +840,35 @@ out of scope for #166.
 known backend-enforcement gaps — lives in
 `marketing/.claude-notes/handoff-workflow.md`. Keep that doc and this
 section in sync when the rules change.
+
+### Board removal after hand-off (non-destructive)
+
+Boards put on a communicator via `assign_boards` are **cloned** (a new
+`Board` marked `is_template: true`, owned by the user who added them — the
+SLP), referenced by a `ChildBoard` join. After a hand-off the new owner
+should be able to clear/curate the dashboard **without losing boards**.
+
+- **On claim, `claim_by!` registers the communicator's current dashboard
+  boards as team boards** (`register_dashboard_boards_on_team!`) on its own
+  team. While a board is on the dashboard it's excluded from
+  `available_teams_boards` (no duplicate); once removed it reappears there,
+  re-addable. The `repair_handoff_teams` rake task backfills this for
+  already-claimed communicators.
+- **Removal is non-destructive.** `DELETE /api/child_boards/:id`
+  (`ChildBoardsController#destroy`) always detaches the `ChildBoard`, and
+  only hard-deletes the underlying `Board` when it's an **orphan template**
+  (`is_template` AND no `team_boards` AND not on another communicator AND
+  owned by the remover — `orphan_template?`). So a hand-off owner removing
+  an inherited board (a team board / SLP-owned clone) detaches it but keeps
+  it; the old "delete the board whenever `is_template`" behavior only still
+  applies to a true throwaway clone on your own communicator.
+- **Detach stays owner-gated; the api_view exposes `can_remove`.** Detach
+  authorization is communicator-ownership (`editable_by?`), not board
+  ownership, so the new owner is allowed. The dashboard board entries now
+  carry **`can_remove`** (keyed to communicator ownership) alongside
+  `can_edit` (board ownership, gates clone-to-edit), so the frontend can
+  show the remove control to a hand-off owner who doesn't own the board.
+  (Frontend wiring to consume `can_remove` is a companion change.)
 ### Editing the communicator object itself
 
 `ChildAccount#editable_by?(user)` returns true iff the user is the

@@ -32,6 +32,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `profile_views` for the audit trail; only the email is throttled. Parent-alert
   email copy updated from "safety page was viewed" to "emergency info was
   opened" (en + es). Issue #384 follow-up.
+### Fixed — Removing a hand-off board no longer deletes it
+- After a communicator is transferred, the new owner can clear/curate the
+  dashboard without losing boards. On hand-off, the communicator's boards are
+  registered as **team boards**, and "remove from dashboard" (`DELETE
+  /api/child_boards/:id`) now **detaches** the board instead of deleting it —
+  it stays available via the team to re-add. The board is only hard-deleted when
+  it's a throwaway template clone that nothing else references. Dashboard board
+  entries also expose a `can_remove` flag (keyed to communicator ownership) so
+  the new owner sees the remove control. `rake communicators:repair_handoff_teams`
+  backfills the team-board safety net for already-claimed communicators.
+
 ### Fixed — Communicator hand-off now updates the right team
 - When a family claimed a loaned communicator, the new owner was sometimes added
   to the wrong team (the communicator's *own* team was left with only the
