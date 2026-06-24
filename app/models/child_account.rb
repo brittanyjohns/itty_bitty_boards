@@ -1091,6 +1091,29 @@ class ChildAccount < ApplicationRecord
     }
   end
 
+  # Minimal public-safe view for unauthenticated profile endpoints.
+  # The full api_view leaks parent_email, supporter/supervisor emails,
+  # passcode, claim tokens, and internal settings. This view exposes
+  # only what the public page UI actually needs.
+  def public_api_view
+    cached_profile = profile
+    {
+      id: id,
+      name: name,
+      avatar_url: cached_profile&.avatar_url,
+      voice: voice,
+      boards: child_boards.includes(:board).where(favorite: true).map do |cb|
+        b = cb.board
+        {
+          id: cb.id,
+          name: b.name,
+          board_type: b.board_type,
+          display_image_url: b.display_image_url,
+        }
+      end,
+    }
+  end
+
   def index_api_view
     @boards = boards.all.alphabetical
     @child_boards = child_boards.includes(:board)

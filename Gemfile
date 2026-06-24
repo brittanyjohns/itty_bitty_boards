@@ -110,6 +110,9 @@ gem "aws-sdk-s3", require: false
 # CORS
 gem "rack-cors"
 
+# Rate limiting
+gem "rack-attack"
+
 # Pagination
 gem "kaminari"
 

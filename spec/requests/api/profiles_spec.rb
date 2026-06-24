@@ -198,4 +198,38 @@ RSpec.describe "API::Profiles", type: :request do
       expect(response).to have_http_status(:ok)
     end
   end
+
+  describe "GET /api/profiles/public/:slug (no leak of sensitive fields)" do
+    let(:owner) { FactoryBot.create(:user, email: "parent-leak@example.com") }
+    let(:child) { FactoryBot.create(:child_account, user: owner, owner: owner, name: "Sky") }
+
+    it "returns a public_page communicator_account without parent email, passcode, or claim tokens" do
+      profile = Profile.new(profileable: child, username: "sky-page", slug: "sky-page")
+      profile.profile_kind = "public_page"
+      profile.save!
+
+      get "/api/profiles/public/#{profile.slug}"
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      account = body["communicator_account"]
+      expect(account.keys).to contain_exactly("id", "name", "avatar_url", "voice", "boards")
+      expect(response.body).not_to include(owner.email)
+      expect(response.body).not_to include(child.passcode.to_s) if child.passcode.present?
+      expect(account).not_to have_key("parent_email")
+    end
+
+    it "returns a safety_view without communicator_account or email for a safety profile" do
+      profile = Profile.new(profileable: child, username: "sky-safe", slug: "sky-safe")
+      profile.save! # default profile_kind is "safety"
+
+      get "/api/profiles/public/#{profile.slug}"
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body).not_to have_key("communicator_account")
+      expect(body).not_to have_key("email")
+      expect(response.body).not_to include(owner.email)
+    end
+  end
 end

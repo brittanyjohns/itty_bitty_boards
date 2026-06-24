@@ -390,6 +390,8 @@ GEM
     raabro (1.4.0)
     racc (1.8.1)
     rack (3.2.6)
+    rack-attack (6.8.0)
+      rack (>= 1.0, < 4)
     rack-cors (2.0.2)
       rack (>= 2.0.0)
     rack-session (2.1.2)
@@ -615,6 +617,7 @@ DEPENDENCIES
   posthog-ruby (~> 2.0)
   puma (>= 5.0)
   pundit (~> 2.3)
+  rack-attack
   rack-cors
   rails (~> 7.1.2)
   rails_performance

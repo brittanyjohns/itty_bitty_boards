@@ -205,4 +205,42 @@ RSpec.describe Profile, type: :model do
       expect(Profile.slug_unavailable_reason("river-stone")).to be_nil
     end
   end
+
+  # The public views back unauthenticated profile pages. They must not leak
+  # the communicator's full api_view (parent email, passcode, claim tokens)
+  # nor a raw email field.
+  describe "#safety_view" do
+    let(:profile) { build_profile(slug: "safe-page").tap(&:save!) }
+
+    it "omits communicator_account and email" do
+      view = profile.safety_view
+      expect(view).not_to have_key(:communicator_account)
+      expect(view).not_to have_key(:email)
+    end
+  end
+
+  describe "#public_page_view" do
+    let(:profile) do
+      build_profile(slug: "pro-page").tap do |p|
+        p.profile_kind = "public_page"
+        p.save!
+      end
+    end
+
+    it "omits the raw email field" do
+      expect(profile.public_page_view).not_to have_key(:email)
+    end
+
+    it "exposes a ChildAccount communicator_account via the sanitized public_api_view" do
+      view = profile.public_page_view
+      expect(view[:communicator_account]).to eq(child.public_api_view)
+      expect(view[:communicator_account].keys).to contain_exactly(:id, :name, :avatar_url, :voice, :boards)
+    end
+
+    it "does not leak the communicator's parent email or passcode" do
+      account = profile.public_page_view[:communicator_account]
+      expect(account).not_to have_key(:parent_email)
+      expect(account).not_to have_key(:passcode)
+    end
+  end
 end

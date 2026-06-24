@@ -123,4 +123,35 @@ RSpec.describe ChildAccount, type: :model do
       expect(active.startup_url).to include("/accounts/sign-in?username=signme")
     end
   end
+
+  # public_api_view backs unauthenticated public profile pages. Unlike the full
+  # api_view, it must never leak parent email, passcode, claim tokens, or other
+  # internal fields — only safe display data.
+  describe "#public_api_view" do
+    let(:account) { FactoryBot.create(:child_account, user: user, name: "Sunny") }
+
+    it "exposes only the safe display keys" do
+      expect(account.public_api_view.keys).to contain_exactly(:id, :name, :avatar_url, :voice, :boards)
+    end
+
+    it "does not leak any sensitive or internal fields" do
+      view = account.public_api_view
+      %i[parent_email passcode claim_token claim_url supporters supervisors
+         settings details user_id authentication_token].each do |leaked|
+        expect(view).not_to have_key(leaked)
+      end
+    end
+
+    it "includes only favorited boards, with display-safe attributes" do
+      fav_board = FactoryBot.create(:board, user: user, name: "Faves")
+      favorited = FactoryBot.create(:child_board, child_account: account, board: fav_board, favorite: true)
+      FactoryBot.create(:child_board, child_account: account,
+                                      board: FactoryBot.create(:board, user: user),
+                                      favorite: false)
+
+      boards = account.public_api_view[:boards]
+      expect(boards.map { |b| b[:id] }).to contain_exactly(favorited.id)
+      expect(boards.first.keys).to contain_exactly(:id, :name, :board_type, :display_image_url)
+    end
+  end
 end
