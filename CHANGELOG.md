@@ -5,6 +5,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — New MySpeak communicators get an unguessable safety slug
+- MySpeak onboarding (`POST /api/v1/onboarding/myspeak`) no longer creates a
+  name-derived public slug. The safety profile now gets a random `s-xxxxxx`
+  slug (via `Profile#ensure_slug`), so a child's public emergency page can't be
+  found by guessing their name. The account's **username** stays readable. Any
+  client-supplied `slug` is ignored — random is enforced server-side. Completes
+  the random-slug work from the prior release for *new* signups (the "Pick your
+  link" wizard step is being removed in the frontend).
+
 ### Fixed — Mailchimp journey triggers can't flood the Sidekiq dead set
 - `MailchimpService#trigger_journey` resolves the gem's Customer Journeys
   accessor defensively (camelCase `customerJourneys`, falling back to snake_case

@@ -48,24 +48,18 @@ module API
           photo_data_url = params[:photo_data_url].to_s
           contacts       = Array(params[:contacts])
 
-          # Slug picking — the wizard's "Pick your link" step lets the user
-          # customize the slug before submit. If they accept the default we
-          # still derive from the name; if blank we fall back to a generated
-          # placeholder. User-supplied slugs go through the same format /
-          # reserved / availability checks the edit endpoint enforces.
-          requested_slug = params[:slug].to_s.strip.downcase.presence
-
-          if requested_slug
-            reason = Profile.slug_unavailable_reason(requested_slug)
-            if reason
-              render json: slug_error_payload(reason), status: :unprocessable_content
-              return
-            end
-            unique = requested_slug
-          else
-            base_slug = name.parameterize.presence || "communicator-#{SecureRandom.hex(3)}"
-            unique = unique_slug_for(base_slug)
-          end
+          # Safety profiles get an unguessable random slug, assigned by
+          # Profile#ensure_slug when the slug is left blank, so a child's public
+          # emergency page (`/my/<slug>`) can't be found by guessing their name.
+          # We deliberately ignore any client-supplied slug (the wizard no longer
+          # collects one) — random is non-negotiable for safety pages.
+          #
+          # We still derive a readable, unique *username* from the name: it's the
+          # account handle shown on the page a responder already scanned, not the
+          # public URL, so keeping it human-readable doesn't weaken discovery
+          # protection.
+          base_slug = name.parameterize.presence || "communicator-#{SecureRandom.hex(3)}"
+          unique = unique_slug_for(base_slug)
 
           profile = nil
           child = nil
@@ -86,11 +80,12 @@ module API
               status: status,
             )
 
+            # No `slug:` — left blank so Profile#ensure_slug assigns the random
+            # `s-xxxxxx` safety slug (slug_type "random", not user-editable).
             profile = Profile.new(
               profileable: child,
               profile_kind: "safety",
               username: unique,
-              slug: unique,
               bio: care_notes,
               settings: build_settings(pronouns: pronouns, contacts: contacts),
             )
@@ -124,22 +119,6 @@ module API
         end
 
         private
-
-        # Mirrors API::ProfilesController#slug_error_for. Kept inline to
-        # avoid a controller-to-controller call, but using the same error
-        # codes so the React SlugField only has to know one vocabulary.
-        def slug_error_payload(reason)
-          case reason
-          when :format
-            { error: "slug_invalid", message: "Links must be 3–40 characters: lowercase letters, numbers, and hyphens." }
-          when :reserved
-            { error: "slug_reserved", message: "That link is reserved. Please pick another." }
-          when :taken
-            { error: "slug_taken", message: "That link is already in use." }
-          else
-            { error: "slug_invalid", message: "That link can't be used." }
-          end
-        end
 
         def build_settings(pronouns:, contacts:)
           settings = {}

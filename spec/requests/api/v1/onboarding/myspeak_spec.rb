@@ -74,7 +74,10 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
 
         profile = child.profile
         expect(profile.profile_kind).to eq("safety")
-        expect(profile.slug).to eq("river-stone")
+        # Safety profiles get an unguessable random slug, not a name-derived one.
+        expect(profile.slug).to match(/\As-[a-z0-9]{6}\z/)
+        expect(profile.slug_type).to eq("random")
+        # ...but the username stays readable (it's the handle, not the public URL).
         expect(profile.username).to eq("river-stone")
         expect(profile.bio).to include("Loves big hugs")
         expect(profile.avatar).to be_attached
@@ -86,7 +89,7 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         expect(profile.settings["ice_contact_3"]["name"]).to eq("Jo Stone")
 
         body = JSON.parse(response.body)
-        expect(body["slug"]).to eq("river-stone")
+        expect(body["slug"]).to match(/\As-[a-z0-9]{6}\z/)
         expect(body["profile_kind"]).to eq("safety")
         expect(body["settings"]["pronouns"]).to eq("they/them")
         expect(body["settings"]["ice_contact_1"]["phone"]).to eq("555-0101")
@@ -118,8 +121,8 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
       end
     end
 
-    context "slug collision" do
-      it "appends -2 to the slug" do
+    context "username collision" do
+      it "appends -2 to the username while the slug stays random" do
         Profile.create!(
           username: "river-stone",
           slug: "river-stone",
@@ -131,55 +134,40 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
 
         expect(response).to have_http_status(:created)
         new_profile = user.communicator_accounts.last.profile
-        expect(new_profile.slug).to eq("river-stone-2")
         expect(new_profile.username).to eq("river-stone-2")
+        expect(new_profile.slug).to match(/\As-[a-z0-9]{6}\z/)
       end
     end
 
-    context "user-picked slug from the 'Pick your link' wizard step" do
-      it "uses the picked slug when it's available and well-formed" do
+    context "random safety slug (the wizard no longer collects a link)" do
+      it "assigns a random slug and ignores any client-supplied slug" do
         post "/api/v1/onboarding/myspeak",
              params: base_payload.merge(slug: "my-custom-link").to_json, headers: headers
 
         expect(response).to have_http_status(:created)
         profile = user.communicator_accounts.last.profile
-        expect(profile.slug).to eq("my-custom-link")
-        expect(profile.username).to eq("my-custom-link")
+        expect(profile.slug).to match(/\As-[a-z0-9]{6}\z/)
+        expect(profile.slug).not_to eq("my-custom-link")
+        expect(profile.username).to eq("river-stone")
       end
 
-      it "rejects a picked slug with bad format (422 slug_invalid)" do
+      it "assigns a random slug even when no slug param is sent" do
         post "/api/v1/onboarding/myspeak",
-             params: base_payload.merge(slug: "Bad_Slug!").to_json, headers: headers
-
-        expect(response).to have_http_status(:unprocessable_content)
-        expect(JSON.parse(response.body)["error"]).to eq("slug_invalid")
-      end
-
-      it "rejects a reserved slug (422 slug_reserved)" do
-        post "/api/v1/onboarding/myspeak",
-             params: base_payload.merge(slug: "admin").to_json, headers: headers
-
-        expect(response).to have_http_status(:unprocessable_content)
-        expect(JSON.parse(response.body)["error"]).to eq("slug_reserved")
-      end
-
-      it "rejects a taken slug (422 slug_taken)" do
-        Profile.create!(username: "river-stone", slug: "river-stone", bio: "x", intro: "y")
-
-        post "/api/v1/onboarding/myspeak",
-             params: base_payload.merge(slug: "river-stone").to_json, headers: headers
-
-        expect(response).to have_http_status(:unprocessable_content)
-        expect(JSON.parse(response.body)["error"]).to eq("slug_taken")
-      end
-
-      it "falls back to auto-generated slug when slug param is blank" do
-        post "/api/v1/onboarding/myspeak",
-             params: base_payload.merge(slug: "").to_json, headers: headers
+             params: base_payload.to_json, headers: headers
 
         expect(response).to have_http_status(:created)
         profile = user.communicator_accounts.last.profile
-        expect(profile.slug).to eq("river-stone")
+        expect(profile.slug).to match(/\As-[a-z0-9]{6}\z/)
+        expect(profile.slug_type).to eq("random")
+      end
+
+      it "does not 422 on a client slug that would otherwise be reserved/taken" do
+        # The slug is ignored entirely now, so a 'reserved' value can't error.
+        post "/api/v1/onboarding/myspeak",
+             params: base_payload.merge(slug: "admin").to_json, headers: headers
+
+        expect(response).to have_http_status(:created)
+        expect(user.communicator_accounts.last.profile.slug).to match(/\As-[a-z0-9]{6}\z/)
       end
     end
 
