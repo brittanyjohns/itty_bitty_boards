@@ -11,8 +11,9 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   name-derived one, so a child's emergency page can't be found by guessing
   their name. Only safety profiles are affected — vendor/SLP/user pages keep
   readable slugs.
-- Existing safety profiles migrate via `rake profiles:migrate_to_random_slugs`,
-  which preserves the old slug as `legacy_slug`. The public endpoint
+- Existing safety profiles migrate via `rake profiles:migrate_to_random_slugs`
+  (dry-run by default; `DRY_RUN=false` to apply, `USER_ID=N` to scope), which
+  preserves the old slug as `legacy_slug`. The public endpoint
   (`GET /api/profiles/public/:slug`) 301-redirects an old legacy slug to the
   current random slug, so printed cards, bookmarks, and shared links keep
   working.

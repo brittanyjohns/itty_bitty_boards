@@ -531,9 +531,13 @@ be found by guessing their name. Vendor/SLP/user pages keep readable slugs.
   **301-redirects** to the current slug, so printed cards / bookmarks keep
   working. `Profile.slug_available?` also checks `legacy_slug` so a freed-up old
   slug can't be re-squatted.
-- **Backfill + cards:** `rake profiles:migrate_to_random_slugs` migrates every
-  `slug_type = "legacy"` safety profile (via `update_columns`, skipping
-  validations/callbacks) and enqueues `RegenerateSafetyCardsJob` per profile.
+- **Backfill + cards:** `rake profiles:migrate_to_random_slugs` is **dry-run by
+  default** (reports what would change, enqueues nothing); apply with
+  `DRY_RUN=false`, scope with `USER_ID=N`. When applied it migrates every
+  matching `slug_type = "legacy"` safety profile (via `update_columns`, skipping
+  validations/callbacks) and enqueues `RegenerateSafetyCardsJob` for **only the
+  profiles migrated in that run** (so a re-run / scoped run doesn't re-email
+  parents whose cards are current).
   That job re-renders the safety ID card + device tag with the new QR target
   (`Communicators::GenerateSafetyIdCard`/`GenerateDeviceTag` with
   `regenerate: true`) and emails the parent via
