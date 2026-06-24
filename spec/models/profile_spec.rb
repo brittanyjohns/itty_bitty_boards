@@ -243,4 +243,67 @@ RSpec.describe Profile, type: :model do
       expect(account).not_to have_key(:passcode)
     end
   end
+
+  describe ".generate_random_slug" do
+    it "returns an 's-' prefix plus 6 unambiguous alphanumeric chars" do
+      slug = Profile.generate_random_slug
+      expect(slug).to match(/\As-[a-z0-9]{6}\z/)
+    end
+
+    it "never includes ambiguous characters (0, o, 1, l, i)" do
+      200.times do
+        body = Profile.generate_random_slug.delete_prefix("s-")
+        expect(body).not_to match(/[0o1li]/)
+      end
+    end
+
+    it "retries until it finds a slug not already used as slug or legacy_slug" do
+      # Force the first candidate to collide, the second to be free.
+      allow(Profile).to receive(:exists?).and_return(true, true, false, false)
+      expect(Profile.generate_random_slug).to match(/\As-[a-z0-9]{6}\z/)
+    end
+  end
+
+  describe "#ensure_slug (random safety slugs)" do
+    it "assigns a random slug + slug_type 'random' to a safety profile with no slug" do
+      profile = Profile.new(profileable: child, username: "emma-jones")
+      profile.save!
+      expect(profile.slug).to match(/\As-[a-z0-9]{6}\z/)
+      expect(profile.slug_type).to eq("random")
+    end
+
+    it "does not overwrite an explicitly provided slug" do
+      profile = build_profile(slug: "emma-jones").tap(&:save!)
+      expect(profile.slug).to eq("emma-jones")
+      expect(profile.slug_type).to eq("legacy")
+    end
+
+    it "derives a readable slug from the username for a non-safety profile" do
+      profile = Profile.new(
+        profileable: user,
+        profile_kind: "public_page",
+        username: "Pat Smith",
+      )
+      profile.save!
+      expect(profile.slug).to eq("pat-smith")
+      expect(profile.slug_type).to eq("legacy")
+    end
+  end
+
+  describe "#slug_editable? with a random slug" do
+    it "is false even when slug_changed_at is blank" do
+      profile = Profile.new(profileable: child, username: "emma").tap(&:save!)
+      expect(profile.slug_type).to eq("random")
+      expect(profile.slug_changed_at).to be_nil
+      expect(profile.slug_editable?).to be(false)
+    end
+  end
+
+  describe ".slug_available? with legacy_slug" do
+    it "is false when the value matches an existing legacy_slug" do
+      profile = Profile.new(profileable: child, username: "emma").tap(&:save!)
+      profile.update_columns(legacy_slug: "emma-jones")
+      expect(Profile.slug_available?("emma-jones")).to be(false)
+    end
+  end
 end

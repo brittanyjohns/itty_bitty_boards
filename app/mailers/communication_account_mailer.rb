@@ -10,6 +10,24 @@ class CommunicationAccountMailer < BaseMailer
     end
   end
 
+  # Sent after a communicator's safety profile gets a new secure link (the
+  # random-slug migration), so the printed safety ID card + device tag QR codes
+  # are regenerated. Tells the parent to download the refreshed cards.
+  def safety_cards_updated(user, child_account)
+    @user = user
+    @child_account = child_account
+    @profile = child_account.profile
+    @child_name = child_account.display_name
+    @download_url = "#{frontend_url}/communicators/#{child_account.id}/safety"
+
+    with_user_locale(user) do
+      mail(
+        to: user.email,
+        subject: "#{@child_name}'s safety cards have been updated",
+      )
+    end
+  end
+
   # B4: SLP → family hand-off invite. Sends the parent the claim URL.
   def claim_link_email(account, recipient_email, sending_user = nil)
     @account = account

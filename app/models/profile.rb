@@ -85,6 +85,28 @@ class Profile < ApplicationRecord
     profile_kind == "safety"
   end
 
+  # A communicator safety profile — checks both the stored kind and the
+  # polymorphic owner, since some older rows may not have `profile_kind` set.
+  # Drives random-slug generation and safety-card regeneration.
+  def safety_profile?
+    profile_kind == "safety" || profileable_type == "ChildAccount"
+  end
+
+  # --- Random slugs (safety profiles only) ---
+  # Safety profiles get an unguessable slug instead of a name-derived one so a
+  # child's public emergency page can't be found by guessing their name.
+  # Excludes ambiguous characters (0/o, 1/l/i) so a slug read off a printed
+  # card or device tag can't be mistyped. Example: "s-k8x2mf".
+  RANDOM_SLUG_CHARS = (("a".."z").to_a + ("0".."9").to_a - %w[0 o 1 l i]).freeze
+  RANDOM_SLUG_LENGTH = 6
+
+  def self.generate_random_slug
+    loop do
+      candidate = "s-" + Array.new(RANDOM_SLUG_LENGTH) { RANDOM_SLUG_CHARS.sample(random: SecureRandom) }.join
+      break candidate unless exists?(slug: candidate) || exists?(legacy_slug: candidate)
+    end
+  end
+
   def public_page?
     profile_kind == "public_page"
   end
@@ -228,6 +250,8 @@ class Profile < ApplicationRecord
       id: id,
       username: username,
       slug: slug,
+      slug_type: slug_type,
+      slug_editable: slug_editable?,
       slug_changed_at: slug_changed_at,
       slug_editable_at: slug_editable_at,
       bio: bio,
@@ -660,7 +684,14 @@ class Profile < ApplicationRecord
   end
 
   def ensure_slug
-    self.slug = username.to_s.parameterize if slug.blank? && username.present?
+    return if slug.present?
+
+    if safety_profile?
+      self.slug = self.class.generate_random_slug
+      self.slug_type = "random"
+    elsif username.present?
+      self.slug = username.to_s.parameterize
+    end
   end
 
   # --- Slug edit window ---
@@ -668,6 +699,9 @@ class Profile < ApplicationRecord
   # been edited (post-create) or the SLUG_EDIT_WINDOW has elapsed since the
   # last edit. Admins bypass this at the controller layer.
   def slug_editable?
+    # Random safety slugs are never user-editable — the whole point is that
+    # they stay unguessable and stable for printed cards / device tags.
+    return false if slug_type == "random"
     return true if slug_changed_at.blank?
     slug_changed_at < SLUG_EDIT_WINDOW.ago
   end
@@ -685,7 +719,9 @@ class Profile < ApplicationRecord
     value = value.to_s.strip.downcase
     return false if value.blank?
 
-    profile_scope = Profile.where(slug: value).or(Profile.where(username: value))
+    profile_scope = Profile.where(slug: value)
+                           .or(Profile.where(username: value))
+                           .or(Profile.where(legacy_slug: value))
     profile_scope = profile_scope.where.not(id: except_id) if except_id
     return false if profile_scope.exists?
 

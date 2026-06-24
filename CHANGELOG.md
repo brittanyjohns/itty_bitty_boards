@@ -5,6 +5,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Random, unguessable slugs for safety profiles
+- A communicator's public safety page (`/my/<slug>`) now uses an unguessable
+  random slug (`s-` + 6 unambiguous characters, e.g. `s-k8x2mf`) instead of a
+  name-derived one, so a child's emergency page can't be found by guessing
+  their name. Only safety profiles are affected — vendor/SLP/user pages keep
+  readable slugs.
+- Existing safety profiles migrate via `rake profiles:migrate_to_random_slugs`,
+  which preserves the old slug as `legacy_slug`. The public endpoint
+  (`GET /api/profiles/public/:slug`) 301-redirects an old legacy slug to the
+  current random slug, so printed cards, bookmarks, and shared links keep
+  working.
+- The migration enqueues `RegenerateSafetyCardsJob` per profile to rebuild the
+  safety ID card + device tag (new QR code) and email the parent that fresh
+  cards are ready to download. Random slugs are not user-editable.
+
 ### Changed — Screenshot board import commits faster (deferred AAC categorization)
 - Committing a board imported from a screenshot
   (`POST /api/board_screenshot_imports/:id/commit`) created a new `Image` for
