@@ -78,6 +78,31 @@ RSpec.describe Boards::StructurePlanner do
     end
   end
 
+  describe "sparse AI page gating" do
+    # "backpack" -> School (InterestCategories). In a core-60 build School is
+    # neither a seed page nor a prebuilt fringe template, so the category would
+    # otherwise become an :ai_generated page named after the one word.
+    it "does NOT spawn an AI page for a single niche interest; routes it to catch_all" do
+      plan = described_class.new(level: "standard", interests: ["backpack"]).call
+
+      school = plan.fringe_pages.find { |p| p[:name] == "School" }
+      expect(school).to be_nil
+      expect(plan.fringe_pages.select { |p| p[:source] == :ai_generated }).to be_empty
+      expect(plan.catch_all_interests).to include("backpack")
+      expect(plan.ai_credits_needed).to eq(0)
+    end
+
+    it "DOES spawn an AI page once the niche category clears the threshold" do
+      plan = described_class.new(level: "standard", interests: %w[backpack homework]).call
+
+      school = plan.fringe_pages.find { |p| p[:name] == "School" }
+      expect(school).to be_present
+      expect(school[:source]).to eq(:ai_generated)
+      expect(school[:interests]).to contain_exactly("backpack", "homework")
+      expect(plan.catch_all_interests).not_to include("backpack", "homework")
+    end
+  end
+
   describe "page count capping" do
     it "caps starter at 6 pages" do
       many_interests = %w[dog pizza happy toilet shirt bed sing tree hi run tablet car]

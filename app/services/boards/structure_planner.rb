@@ -26,6 +26,13 @@ module Boards
 
     AI_CREDITS_PER_PAGE = CreditService.cost_for("ai_board_page")
 
+    # A category needs at least this many interest words to justify its own
+    # AI-generated page. Below it, a lone stray interest (e.g. "backpack") would
+    # otherwise spawn — and pay for — a whole page named after that one word;
+    # instead the words fall through to catch_all and get placed on an existing
+    # matching board or My Favorites at build time. ENV-tunable.
+    MIN_AI_PAGE_INTERESTS = Integer(ENV.fetch("BOARD_BUILDER_MIN_AI_PAGE_INTERESTS", "2"))
+
     Result = Struct.new(
       :level, :core_template, :fringe_pages, :excluded_fringe_pages,
       :catch_all_interests, :ai_credits_needed, :phrases_page,
@@ -47,6 +54,7 @@ module Boards
       needed_categories = collect_needed_categories(categorized)
       fringe_pages = plan_fringe_pages(needed_categories, categorized)
       fringe_pages = cap_pages(fringe_pages)
+      fringe_pages = drop_sparse_ai_pages(fringe_pages)
 
       excluded = compute_excluded(fringe_pages)
       catch_all = collect_catch_all(categorized, fringe_pages)
@@ -151,6 +159,19 @@ module Boards
       remaining_slots = max - kept.size
       kept += without.first(remaining_slots) if remaining_slots > 0
       kept
+    end
+
+    # Drop AI pages that don't clear MIN_AI_PAGE_INTERESTS. Their category is no
+    # longer planned, so collect_catch_all folds the words into catch_all (then
+    # routed to an existing board or My Favorites at build time). Seed/prebuilt
+    # pages are intentionally left alone — they're curated/default content, and
+    # gating them would drop legitimate zero-interest defaults (e.g. prebuilt
+    # "Social" in Extended).
+    def drop_sparse_ai_pages(fringe_pages)
+      fringe_pages.reject do |page|
+        page[:source] == :ai_generated &&
+          Array(page[:interests]).size < MIN_AI_PAGE_INTERESTS
+      end
     end
 
     def compute_excluded(planned_fringe)
