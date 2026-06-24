@@ -45,14 +45,21 @@ RSpec.describe Boards::GeneratePreviewAssets, type: :service do
     end
 
     it "refreshes the preset display image URL to the freshly generated preview" do
-      described_class.new(
-        board: board,
-        routes: Rails.application.routes.url_helpers,
-      ).call(generate_png: true)
+      # Wrap both the generation (which stores the URL) and the assertion's
+      # re-read in one frozen instant: on the Disk backend (CI) preview_image_url
+      # is a signed URL whose token embeds Time.current, so two reads a
+      # millisecond apart differ. An S3/CDN backend yields a stable URL either
+      # way; freezing keeps the test backend-agnostic.
+      freeze_time do
+        described_class.new(
+          board: board,
+          routes: Rails.application.routes.url_helpers,
+        ).call(generate_png: true)
 
-      board.reload
-      expect(board.settings["preset_display_image_url"]).to be_present
-      expect(board.settings["preset_display_image_url"]).to eq(board.preview_image_url)
+        board.reload
+        expect(board.settings["preset_display_image_url"]).to be_present
+        expect(board.settings["preset_display_image_url"]).to eq(board.preview_image_url)
+      end
     end
 
     it "creates a fresh blob row each regeneration so created_at advances" do
