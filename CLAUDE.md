@@ -15,7 +15,19 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 
 - **Framework:** Rails 7
 - **Language:** Ruby
-- **Database:** PostgreSQL
+- **Database:** PostgreSQL on **managed AWS RDS** (Multi-AZ, automated backups +
+  PITR), migrated off the shared EC2 box in Phase 2a of the scaling roadmap
+  (#392). The `production:` block in `config/database.yml` reads **all**
+  connection params from ENV — `DATABASE_HOST`, `DATABASE_NAME`,
+  `DATABASE_USERNAME`, `ITTY_BITTY_BOARDS_DATABASE_PASSWORD`, `DATABASE_PORT`,
+  `DATABASE_SSLMODE` — so the app is repointed by changing Hatchbox ENV, not
+  code. **When `DATABASE_HOST` is unset the block falls back to the old on-box
+  local-socket defaults** (`itty_bitty_boards_production` / role
+  `itty_bitty_boards` / socket), so the config is backward-compatible and the
+  rollback is "unset `DATABASE_HOST`". Cutover procedure (dump+restore, downtime
+  steps, verify, rollback): `docs/rds-migration-runbook.md`. Staging shares the
+  prod EC2 box and continues to point at the same managed DB unless its own
+  `DATABASE_*` ENV is set.
 - **Auth:** Devise + devise-jwt
 - **Authorization:** Pundit
 - **Background jobs:** Sidekiq (v7) + Redis

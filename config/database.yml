@@ -79,8 +79,16 @@ test:
 #
 production:
   <<: *default
-  database: itty_bitty_boards_production
-  username: itty_bitty_boards
+  # All connection params come from ENV so the app can be repointed at a
+  # managed database (AWS RDS, issue #392) without a code change. When
+  # DATABASE_HOST is unset, host is nil and the client falls back to the
+  # local Unix socket + defaults below — i.e. identical to the pre-RDS
+  # on-box setup, so deploying this block ahead of the cutover is a no-op.
+  database: <%= ENV["DATABASE_NAME"] || "itty_bitty_boards_production" %>
+  username: <%= ENV["DATABASE_USERNAME"] || "itty_bitty_boards" %>
   password: <%= ENV["ITTY_BITTY_BOARDS_DATABASE_PASSWORD"] %>
+  host: <%= ENV["DATABASE_HOST"] %>
+  port: <%= ENV.fetch("DATABASE_PORT", 5432) %>
+  sslmode: <%= ENV.fetch("DATABASE_SSLMODE", "prefer") %>
   pool: <%= ENV.fetch("DB_POOL", 20) %>
   timeout: 5000
