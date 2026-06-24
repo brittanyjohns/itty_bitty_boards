@@ -21,6 +21,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `profile_views` for the audit trail; only the email is throttled. Parent-alert
   email copy updated from "safety page was viewed" to "emergency info was
   opened" (en + es). Issue #384 follow-up.
+### Fixed — Communicator hand-off now updates the right team
+- When a family claimed a loaned communicator, the new owner was sometimes added
+  to the wrong team (the communicator's *own* team was left with only the
+  previous owner). `ChildAccount#claim_by!` now resolves the communicator's own
+  team deterministically instead of using `teams.first`, adds the new owner as
+  **admin**, keeps the previous owner as **supervisor**, and **transfers team
+  ownership** to the new owner so they can manage the team. Existing accounts can
+  be repaired with `rake communicators:repair_handoff_teams` (dry-run by
+  default).
+
+### Changed — Lending a communicator is enforced as Pro-only
+- The `lend` and `promote_to_loaner` endpoints now return **HTTP 403
+  `pro_required`** for non-Pro callers (admins bypass), matching the frontend's
+  existing Pro-only "Lend to a family" controls. Closes a gap where a Basic user
+  — or a direct API call — could lend a communicator.
 
 ### Changed — New MySpeak communicators get an unguessable safety slug
 - MySpeak onboarding (`POST /api/v1/onboarding/myspeak`) no longer creates a
