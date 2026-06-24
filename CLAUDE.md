@@ -96,6 +96,40 @@ backlog size (default 200).
   the prod box, so a prod alert covers both. Added after the 2026-05-30
   outage where puma was alive per systemd but all threads were wedged.
 
+### APM — AppSignal (issue #391)
+
+Per-request performance visibility (p95/p99 latency, slow queries/N+1, host
+CPU/memory/disk, Sidekiq queue latency) on the shared t3.medium. Added as
+Phase 1 of the scaling roadmap (#390) so the later sizing decisions are
+data-driven. Complements — does not replace — PostHog (product analytics) and
+BetterStack (uptime). This is the first true APM in the app.
+
+- **Gem:** `appsignal` (~> 4.8). Config in `config/appsignal.yml` (ERB, all
+  values from ENV — nothing hardcoded). **Active only in production/staging**
+  (`active: true` there, `false` in dev/test), so it's a no-op locally and in
+  CI and makes no outbound calls there.
+- **Covers both processes automatically.** Sidekiq boots the full Rails app
+  here, so the AppSignal Railtie starts the agent in **both** the Puma web
+  process and the Sidekiq worker process — no `puma.rb`/`sidekiq.rb` edits.
+  Rack middleware instruments web requests; the Sidekiq integration instruments
+  jobs; `enable_minutely_probes` reports Sidekiq **queue latency** and Puma
+  worker/thread stats; `enable_host_metrics` reports box-level CPU/memory/disk.
+- **Prod vs staging share one box and both run `RAILS_ENV=production`**, so they
+  are split by **`APPSIGNAL_APP_ENV`**, not Rails env. Prod leaves it unset
+  (falls through to the `production` block); **staging must set
+  `APPSIGNAL_APP_ENV=staging`** to report as a distinct environment under the
+  same AppSignal app. (Mirrors the `STAGING`/`AppEnv.staging?` split used
+  elsewhere, but AppSignal reads its own var.)
+- **ENV vars (set in Hatchbox):**
+  - Both apps: `APPSIGNAL_PUSH_API_KEY` (org Push API key — same value for both).
+  - Staging only: `APPSIGNAL_APP_ENV=staging`.
+  - Optional: `APPSIGNAL_APP_NAME` (defaults to `SpeakAnyWay`).
+  - Local dev (optional, normally unneeded since inactive): set in
+    `config/application.yml` (figaro) if you ever flip `active: true` to debug.
+- **`/up` is excluded** (`ignore_actions`) so the 3-min BetterStack health
+  pings don't skew throughput/latency percentiles. Params/session filtering
+  drops `password`/`token`/`secret`/`jwt` so no PII/secrets reach AppSignal.
+
 ## Safety-profile view alerts (issue #384)
 
 Public safety (MySpeak) pages (`GET /api/profiles/public/:slug`) are designed to

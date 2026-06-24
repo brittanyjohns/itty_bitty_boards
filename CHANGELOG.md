@@ -5,6 +5,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — AppSignal APM (per-request + host visibility)
+- Added the `appsignal` gem and `config/appsignal.yml` to capture per-request
+  latency (p95/p99), slow queries/N+1, host CPU/memory/disk, and Sidekiq queue
+  latency — Phase 1 of the scaling roadmap (#391 / #390), so later sizing
+  decisions are data-driven. Instruments both the Puma web process and the
+  Sidekiq worker process automatically; **active in production/staging only**
+  (no-op in dev/test). Requires `APPSIGNAL_PUSH_API_KEY` in Hatchbox for both
+  apps, plus `APPSIGNAL_APP_ENV=staging` on staging so it reports as a distinct
+  environment (both run `RAILS_ENV=production` on the shared box). `/up` health
+  pings are excluded from metrics; secrets/PII are filtered from traces.
+
 ### Fixed — Communicator hand-off now updates the right team
 - When a family claimed a loaned communicator, the new owner was sometimes added
   to the wrong team (the communicator's *own* team was left with only the

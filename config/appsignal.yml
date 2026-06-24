@@ -1,0 +1,60 @@
+# AppSignal APM configuration — issue #391 (scaling roadmap #390).
+#
+# Nothing environment-specific is hardcoded; all values come from ENV.
+#
+# IMPORTANT — prod vs staging on one box:
+# Production and staging both run with RAILS_ENV=production on the shared
+# EC2 instance, so they CANNOT be told apart by Rails env. AppSignal separates
+# them by APPSIGNAL_APP_ENV instead:
+#   * production: leave APPSIGNAL_APP_ENV unset -> falls through to RAILS_ENV
+#     (production) and reports into the "production" block below.
+#   * staging:    set APPSIGNAL_APP_ENV=staging so it reports into the
+#     "staging" block as a distinct environment in the same AppSignal app.
+#
+# Required ENV (set in Hatchbox for BOTH apps):
+#   APPSIGNAL_PUSH_API_KEY  - the org Push API key (same value for both)
+# Staging only:
+#   APPSIGNAL_APP_ENV=staging
+# Optional:
+#   APPSIGNAL_APP_NAME      - defaults to "SpeakAnyWay"
+default: &defaults
+  name: <%= ENV.fetch("APPSIGNAL_APP_NAME", "SpeakAnyWay") %>
+  push_api_key: <%= ENV["APPSIGNAL_PUSH_API_KEY"] %>
+
+  # Host-level CPU / memory / disk / load on the shared t3.medium. This is the
+  # core signal #391 exists to capture before the Phase 2 sizing decision.
+  enable_host_metrics: true
+
+  # Minutely probes (Sidekiq queue latency, Puma worker/thread stats, etc.).
+  enable_minutely_probes: true
+
+  # Never ship secrets/PII to AppSignal.
+  filter_parameters:
+    - password
+    - password_confirmation
+    - token
+    - secret
+    - access_token
+  filter_session_data:
+    - jwt
+
+  # /up is hit by the BetterStack uptime monitor every 3 min — exclude it so it
+  # doesn't pollute throughput/latency percentiles.
+  ignore_actions:
+    - "Rails::HealthController#show"
+
+production:
+  <<: *defaults
+  active: true
+
+staging:
+  <<: *defaults
+  active: true
+
+development:
+  <<: *defaults
+  active: false
+
+test:
+  <<: *defaults
+  active: false
