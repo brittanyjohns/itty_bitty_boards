@@ -153,11 +153,16 @@ GitHub build). Two distinct uses:
   events. Fired async via `MailchimpEventJob` (event types `sign_up` /
   `sign_in`) from `API::V1::AuthsController` and the Stripe checkout controller.
 - **Customer Journey triggers (email):** `MailchimpService#trigger_journey`
-  enrols a contact into a journey's **API-trigger step**
-  (`@client.customerJourneys.trigger` — the gem accessor is camelCase; there is
-  **no** snake_case `customer_journeys` alias, so it raises NoMethodError), so
-  Mailchimp sends the email designed in that journey. The contact is
-  upserted-and-retried-once if Mailchimp 404s.
+  enrols a contact into a journey's **API-trigger step** so Mailchimp sends the
+  email designed in that journey. The accessor is resolved via
+  `MailchimpService#customer_journeys_api`: the gem exposes it as camelCase
+  `customerJourneys` (there is **no** snake_case `customer_journeys` alias
+  today), so the helper prefers camelCase and falls back to snake_case only if a
+  future gem adds it — never calling a method the client lacks. A `NoMethodError`
+  from the trigger (the historical snake_case bug that flooded the Sidekiq dead
+  set) is **caught, logged, and swallowed** so `MailchimpEventJob` doesn't
+  exhaust its retries into Dead. The contact is upserted-and-retried-once if
+  Mailchimp 404s.
   Wired through the `MailchimpEventJob` `"journey"` event type, which takes a
   `journey_key`.
 
