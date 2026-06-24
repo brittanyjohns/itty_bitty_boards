@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_24_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_24_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -142,6 +142,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_24_120000) do
     t.jsonb "margin_settings", default: {}, null: false
     t.jsonb "settings", default: {}, null: false
     t.text "description"
+    t.boolean "builder", default: false, null: false
+    t.index ["builder"], name: "index_board_groups_on_builder"
     t.index ["description"], name: "index_board_groups_on_description"
     t.index ["featured"], name: "index_board_groups_on_featured"
     t.index ["original_obf_root_id"], name: "index_board_groups_on_original_obf_root_id"

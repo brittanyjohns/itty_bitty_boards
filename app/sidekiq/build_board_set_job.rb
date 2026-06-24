@@ -36,7 +36,14 @@ class BuildBoardSetJob
       return
     end
 
+    opts = options.is_a?(Hash) ? options : {}
+    board_group_id = opts["board_group_id"]
+
     if root.status == "complete" || root.board_images.exists?
+      # Already built (a retry after a partial run, or a stale duplicate enqueue).
+      # Still backfill the group membership so a set built before the attach ran
+      # — or one whose attach was interrupted — ends up fully grouped. Idempotent.
+      attach_set_to_group!(root, board_group_id)
       root.update_column(:status, "complete")
       return
     end
@@ -50,7 +57,6 @@ class BuildBoardSetJob
 
     begin
       explicit_categories = categories.is_a?(Hash) ? categories : {}
-      opts = options.is_a?(Hash) ? options : {}
       include_phrases = opts["include_phrases"]
 
       if complexity_level?(level_or_template)
@@ -59,6 +65,11 @@ class BuildBoardSetJob
         build_legacy(root, communicator, level_or_template, interests, explicit_categories)
       end
 
+      # Attach the whole built set (root + every child the build produced —
+      # fringe/phrases/favorites/AI pages included) to its builder BoardGroup.
+      # This is the single chokepoint after the full set exists, so it catches
+      # boards the build services add outside SeededSetCloner/BoardTreeBuilder.
+      attach_set_to_group!(root, board_group_id)
       mute_dynamic_tile_names!(root)
       generate_preview!(root)
       root.update_column(:status, "complete")
@@ -173,6 +184,24 @@ class BuildBoardSetJob
 
         bi.update_column(:data, data.merge("mute_name" => true))
       end
+  end
+
+  # Attach every board in the built set to its builder BoardGroup, so the set is
+  # counted as one Board Set (0 board slots) and cascade-deletes as a unit. The
+  # controller already added the root at position 0; this adds the children. The
+  # board_group_boards rows are created only when missing, so re-running the job
+  # never duplicates them.
+  def attach_set_to_group!(root, board_group_id)
+    return unless board_group_id
+
+    group = BoardGroup.find_by(id: board_group_id)
+    return unless group
+
+    ids = set_board_ids(root)
+    existing = group.board_group_boards.where(board_id: ids).pluck(:board_id).to_set
+    (ids - existing.to_a).each do |bid|
+      group.board_group_boards.create!(board_id: bid)
+    end
   end
 
   # Every board in the just-built set: BFS the predictive_board_id links from the

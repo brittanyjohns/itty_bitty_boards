@@ -23,6 +23,7 @@
 #  margin_settings       :jsonb            not null
 #  settings              :jsonb            not null
 #  description           :text
+#  builder               :boolean          default(FALSE), not null
 #
 require "rails_helper"
 
@@ -63,6 +64,60 @@ RSpec.describe BoardGroup, type: :model do
       expect(board_group.boards).to include(board_1, board_2)
       expect(board_1.board_groups).to include(board_group)
       expect(board_2.board_groups).to include(board_group)
+    end
+  end
+
+  # Issue #407: a builder group OWNS its member boards, so destroying it
+  # destroys every member board (fixing the orphan-on-delete bug). Hand-made
+  # groups are pure collections — destroying them keeps the member boards.
+  describe "cascade delete (builder vs hand-made)" do
+    def builder_group_with_members(owner)
+      root  = Board.create!(name: "Built Root", user: owner, parent: owner, slug: "root-#{SecureRandom.hex(4)}")
+      child = Board.create!(name: "Built Child", user: owner, parent: owner, slug: "child-#{SecureRandom.hex(4)}")
+      group = owner.board_groups.create!(name: "Built Set", builder: true)
+      group.board_group_boards.create!(board: root)
+      group.board_group_boards.create!(board: child)
+      group.update!(root_board_id: root.id)
+      [group, root, child]
+    end
+
+    it "destroys all member boards and join rows when a builder group is destroyed" do
+      group, root, child = builder_group_with_members(user)
+
+      expect { group.destroy! }
+        .to change { Board.where(id: [root.id, child.id]).count }.from(2).to(0)
+        .and change { BoardGroupBoard.where(board_group_id: group.id).count }.to(0)
+
+      expect(BoardGroup.exists?(group.id)).to be(false)
+    end
+
+    it "destroys the builder root even though root_board_id FKs back to it" do
+      group, root, _child = builder_group_with_members(user)
+      # root_board_id is a no-ON-DELETE FK into a member board; the cascade must
+      # null it before destroying the board or the delete would raise.
+      expect(group.root_board_id).to eq(root.id)
+      expect { group.destroy! }.not_to raise_error
+      expect(Board.exists?(root.id)).to be(false)
+    end
+
+    it "also destroys the root's communicator ChildBoard join" do
+      communicator = create(:child_account, user: user)
+      group, root, _child = builder_group_with_members(user)
+      cb = communicator.child_boards.create!(board: root, created_by_id: user.id)
+
+      group.destroy!
+
+      expect(ChildBoard.exists?(cb.id)).to be(false)
+    end
+
+    it "leaves member boards intact when a hand-made (non-builder) group is destroyed" do
+      board = Board.create!(name: "Kept", user: user, parent: user, slug: "kept-#{SecureRandom.hex(4)}")
+      group = user.board_groups.create!(name: "Manual Set") # builder defaults to false
+      group.board_group_boards.create!(board: board)
+
+      expect { group.destroy! }.not_to change { Board.exists?(board.id) }
+      expect(Board.exists?(board.id)).to be(true)
+      expect(BoardGroupBoard.where(board_group_id: group.id).count).to eq(0)
     end
   end
 

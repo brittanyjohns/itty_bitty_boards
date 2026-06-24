@@ -75,8 +75,10 @@ RSpec.describe BuildBoardSetJob do
       expect(communicator.child_boards.where(board_id: root.id).count).to eq(1)
       expect(communicator.child_boards.count).to eq(1)
 
-      # The whole tree counts as ONE board.
-      expect(User.find(user.id).countable_board_count).to eq(1)
+      # Builder markers persist as transition metadata; the "counts as one"
+      # property now lives in the builder BoardGroup (see the #407 attachment
+      # specs) — this job invocation passes no group, so it asserts the markers.
+      expect(children.pluck("settings").map { |s| s["builder_child"] }).to all(be(true))
     end
 
     it "preserves the root identity the 201 payload exposed (name, slug, user)" do
@@ -117,7 +119,8 @@ RSpec.describe BuildBoardSetJob do
       expect(Boards::RobustSets.all_roots.pluck(:id)).to contain_exactly(source_root.id)
 
       expect(communicator.child_boards.count).to eq(1)
-      expect(User.find(user.id).countable_board_count).to eq(1)
+      # Builder markers persist; "counts as one" lives in the group (#407).
+      expect(cloned_food.reload.settings["builder_child"]).to be(true)
     end
 
     it "queues AI art for a novel interest word with no existing symbol" do
@@ -382,6 +385,64 @@ RSpec.describe BuildBoardSetJob do
 
       expect(Board.count).to eq(boards_before)
       expect(root.reload.status).to eq("complete")
+    end
+  end
+
+  # Issue #407: the builder set's boards (root + everything the job builds)
+  # become members of a `builder: true` BoardGroup so the set counts as one
+  # Board Set (0 board slots) and cascade-deletes as a unit.
+  describe "board group attachment (#407)" do
+    # Mirrors the controller: pre-create the root, its builder group, add the
+    # root at position 0, and hand the group id to the job via options.
+    def precreate_root_and_group!(name:)
+      root  = precreate_root!(name: name)
+      group = user.board_groups.create!(name: name, builder: true)
+      group.board_group_boards.create!(board: root, position: 0)
+      group.update!(root_board_id: root.id)
+      [root, group]
+    end
+
+    it "attaches every built board (root + children) to the builder group" do
+      root, group = precreate_root_and_group!(name: "Home")
+
+      described_class.new.perform(root.id, communicator.id, "home", ["dinosaurs", "grandma"],
+                                  {}, { "board_group_id" => group.id })
+
+      group.reload
+      member_ids = group.boards.pluck(:id)
+      built_ids  = user.boards.where(predefined: false).pluck(:id)
+      # Root + every sub-board the build produced are all group members.
+      expect(member_ids).to match_array(built_ids)
+      expect(member_ids).to include(root.id)
+      expect(built_ids.size).to be > 1
+
+      # The whole set costs zero board slots and one board-set slot.
+      fresh = User.find(user.id)
+      expect(fresh.countable_board_count).to eq(0)
+      expect(fresh.countable_board_group_count).to eq(1)
+    end
+
+    it "is idempotent — a retry does not duplicate board_group_boards rows" do
+      root, group = precreate_root_and_group!(name: "Home")
+      described_class.new.perform(root.id, communicator.id, "home", [], {}, { "board_group_id" => group.id })
+      members_after_first = group.reload.board_group_boards.count
+
+      described_class.new.perform(root.id, communicator.id, "home", [], {}, { "board_group_id" => group.id })
+
+      expect(group.reload.board_group_boards.count).to eq(members_after_first)
+    end
+
+    it "backfills membership when an already-built set is re-run with the group id" do
+      root, group = precreate_root_and_group!(name: "Home")
+      # Build with NO group id (simulates a set built before the attach existed).
+      described_class.new.perform(root.id, communicator.id, "home", [])
+      expect(group.reload.board_group_boards.count).to eq(1) # only the controller's root
+
+      # Re-run (root is complete) WITH the group id — the early-return path still
+      # attaches the rest.
+      described_class.new.perform(root.id, communicator.id, "home", [], {}, { "board_group_id" => group.id })
+
+      expect(group.reload.boards.pluck(:id)).to match_array(user.boards.where(predefined: false).pluck(:id))
     end
   end
 

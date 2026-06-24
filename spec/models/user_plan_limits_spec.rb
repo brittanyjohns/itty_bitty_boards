@@ -57,14 +57,6 @@ RSpec.describe User, "plan limits", type: :model do
       expect(user.at_board_limit?).to be(false)
     end
 
-    it "counts a Board Builder tree as ONE (excludes builder_child sub-boards)" do
-      create(:board, user: user, name: "root")
-      create(:board, user: user, name: "Food",  settings: { "builder_child" => true })
-      create(:board, user: user, name: "Play",  settings: { "builder_child" => true })
-      expect(user.countable_board_count).to eq(1)
-      expect(user.at_board_limit?).to be(true)
-    end
-
     it "never limits admins" do
       admin = create(:admin_user)
       create(:board, user: admin)
@@ -76,6 +68,74 @@ RSpec.describe User, "plan limits", type: :model do
       create(:board, user: user)
       # Fresh instance — countable_board_count memoizes, matching the controller.
       expect(User.find(user.id).can_create_boards).to be(false)
+    end
+  end
+
+  # Issue #407: a Board Builder set is a real `builder: true` BoardGroup. It
+  # costs EXACTLY one board-set slot and ZERO board slots — its member boards
+  # (root + children) are excluded from countable_board_count, and the group
+  # itself counts as one in countable_board_group_count. Hand-made groups are
+  # unchanged in this phase: their member boards still count against board_limit.
+  describe "builder-set vs standalone vs hand-made counting matrix" do
+    let(:user) { create(:free_user) }
+
+    # A builder set: root + N children, all members of a `builder: true` group.
+    def make_builder_set(owner, children: 3, name: "Built Set")
+      root  = create(:board, user: owner, name: "#{name} Root")
+      group = owner.board_groups.create!(name: name, builder: true)
+      group.board_group_boards.create!(board: root)
+      group.update!(root_board_id: root.id)
+      children.times do |i|
+        child = create(:board, user: owner, name: "#{name} Child #{i}")
+        group.board_group_boards.create!(board: child)
+      end
+      group
+    end
+
+    # A hand-made set: a non-builder group whose member boards still count.
+    def make_manual_group(owner, boards: 2, name: "Manual Set")
+      group = owner.board_groups.create!(name: name) # builder defaults to false
+      boards.times { |i| group.board_group_boards.create!(board: create(:board, user: owner, name: "#{name} #{i}")) }
+      group
+    end
+
+    it "new user, nothing => 0 boards / 0 sets" do
+      expect(user.countable_board_count).to eq(0)
+      expect(user.countable_board_group_count).to eq(0)
+    end
+
+    it "1 standalone board => 1 board / 0 sets" do
+      create(:board, user: user)
+      expect(user.countable_board_count).to eq(1)
+      expect(user.countable_board_group_count).to eq(0)
+    end
+
+    it "1 builder set (root + 3 children) => 0 boards / 1 set" do
+      make_builder_set(user, children: 3)
+      expect(user.countable_board_count).to eq(0)
+      expect(user.countable_board_group_count).to eq(1)
+    end
+
+    it "1 builder set + 2 standalone boards => 2 boards / 1 set" do
+      make_builder_set(user, children: 3)
+      2.times { |i| create(:board, user: user, name: "Standalone #{i}") }
+      expect(user.countable_board_count).to eq(2)
+      expect(user.countable_board_group_count).to eq(1)
+    end
+
+    it "1 builder set + 1 hand-made group (2 boards) => 2 boards / 2 sets" do
+      make_builder_set(user, children: 3)
+      make_manual_group(user, boards: 2)
+      # Hand-made members still count against board_limit in this phase.
+      expect(user.countable_board_count).to eq(2)
+      expect(user.countable_board_group_count).to eq(2)
+    end
+
+    it "2 builder sets => 0 boards / 2 sets" do
+      make_builder_set(user, children: 3, name: "Set A")
+      make_builder_set(user, children: 2, name: "Set B")
+      expect(user.countable_board_count).to eq(0)
+      expect(user.countable_board_group_count).to eq(2)
     end
   end
 

@@ -71,8 +71,13 @@ module API
           return
         end
 
-        if current_user.at_board_limit?
-          render json: { error: "Maximum number of boards reached (#{current_user.countable_board_count}/#{current_user.board_limit}). Please upgrade to add more." },
+        # A builder set is a Board Set (BoardGroup), so it counts against the
+        # board-SET cap, not the per-board cap. Exactly one group slot, zero
+        # board slots (see User#countable_board_count / #countable_board_group_count).
+        if current_user.at_board_group_limit?
+          render json: { error: "You've reached your plan's board set limit (#{current_user.countable_board_group_count}/#{current_user.board_group_limit}). Upgrade to add more.",
+                         limit: current_user.board_group_limit,
+                         count: current_user.countable_board_group_count },
                  status: :unprocessable_content
           return
         end
@@ -100,6 +105,7 @@ module API
         categories = Boards::InterestWords.extract_categories(raw_interests)
 
         root = nil
+        board_group = nil
         ActiveRecord::Base.transaction do
           root = Board.new(name: root_name, user: owner)
           root.board_type = "dynamic"
@@ -113,11 +119,22 @@ module API
           child_board = communicator.child_boards.create!(board: root, created_by_id: owner.id)
           child_board.update!(favorite: true)
 
+          # The builder set's canonical container. Member boards (root + every
+          # child the job builds) attach here; this is what the user's board-set
+          # limit counts and what cascade-deletes the whole tree. Add the root
+          # now; the job attaches the rest. (BoardGroup#set_root_board nulls
+          # root_board_id on create when the group has no boards yet, so pin it
+          # after the join exists.)
+          board_group = owner.board_groups.create!(name: root_name, builder: true)
+          board_group.board_group_boards.create!(board: root, position: 0)
+          board_group.update!(root_board_id: root.id)
+
           communicator.update!(details: (communicator.details || {}).merge("interests" => interests))
         end
 
         BuildBoardSetJob.perform_async(root.id, communicator.id, build_key, interests, categories,
-                                       { "include_phrases" => include_phrases_param })
+                                       { "include_phrases" => include_phrases_param,
+                                         "board_group_id" => board_group.id })
 
         render json: serialize_built_root(root), status: :created
       rescue Boards::BlueprintAssembler::UnknownTemplate => e
