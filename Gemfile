@@ -170,3 +170,8 @@ gem "obf", "~> 0.9.9"
 gem "active_storage_base64", "~> 3.0"
 
 gem "groupdate", "~> 6.5"
+
+# APM — per-request latency (p95/p99), slow queries, host CPU/memory, and
+# Sidekiq queue latency. Active only in production/staging (see
+# config/appsignal.yml); a no-op in dev/test. Issue #391 (scaling roadmap #390).
+gem "appsignal", "~> 4.8"
