@@ -218,11 +218,6 @@ class Board < ApplicationRecord
     # GenerateBoardPreviewJob.perform_async(id, { "generate_pdf" => true }) # PDF with header for sharing
   end
 
-  def run_generate_preview_job_later
-    GenerateBoardPreviewJob.perform_in(2.minutes, id, { "generate_png" => true, "hide_header" => true }) # Generate PNG preview without header
-    # GenerateBoardPreviewJob.perform_in(2.minutes, id, { "generate_pdf" => true }) # PDF with header for sharing
-  end
-
   def generate_preview(generate_png: false, generate_pdf: false, hide_header: true, screen_size: "lg")
     Boards::GeneratePreviewAssets.new(
       board: self,
@@ -246,13 +241,26 @@ class Board < ApplicationRecord
     ActiveModel::Type::Boolean.new.cast(settings["display_follows_preview"]) == true
   end
 
-  # Override the AR-generated getter so reads (including serializers) see
-  # the live preview URL when the user has opted into "follow preview".
+  # Override the AR-generated getter so reads (including serializers, grid
+  # thumbnails) resolve the right image with this precedence:
+  #
+  #   1. An explicit custom cover the user uploaded (the `preset_display_image`
+  #      attachment, set via API::BoardsController#update_preset_display_image)
+  #      always wins — it's a deliberate choice, not an auto snapshot.
+  #   2. Otherwise the live, deterministically-keyed auto preview wins, so the
+  #      thumbnail tracks the board's *current* contents. The URL is stable
+  #      (board_previews/<id>/preview.png) and self-cache-busts on regeneration
+  #      via `?v=<blob.created_at>`, so an edited board never shows stale art.
+  #   3. The denormalized `display_image_url` column is only a seed thumbnail
+  #      (e.g. the originating tile's image) used before the first preview
+  #      exists; it's the last resort.
+  #
   # The setter is untouched — writes still go straight to the column.
   def display_image_url
-    if display_follows_preview? && preview_image.attached?
-      return preview_image_url
+    if preset_display_image.attached? && (custom_cover = display_preset_image_url).present?
+      return custom_cover
     end
+    return preview_image_url if preview_image.attached?
     read_attribute(:display_image_url)
   end
 
@@ -1567,9 +1575,14 @@ class Board < ApplicationRecord
     self
   end
 
+  # Tracks the live display image (custom cover → live preview → seed column;
+  # see #display_image_url) rather than a frozen snapshot string. The
+  # `settings["preset_display_image_url"]` copy is kept only as a legacy
+  # backstop for boards that have no preview, no column, and an old snapshot —
+  # and it's refreshed to the current preview URL on every generation so it
+  # can't go stale while a preview exists.
   def preset_display_image_url
-    return settings["preset_display_image_url"] if settings && !settings["preset_display_image_url"].blank?
-    display_image_url
+    display_image_url.presence || (settings && settings["preset_display_image_url"].presence)
   end
 
   def update_preset_display_image_url(url = nil)

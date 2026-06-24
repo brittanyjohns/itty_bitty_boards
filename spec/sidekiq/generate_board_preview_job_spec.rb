@@ -32,12 +32,14 @@ RSpec.describe GenerateBoardPreviewJob, type: :job do
     )
   end
 
-  it "does not modify the board's display_image_url" do
+  it "does not rewrite the board's display_image_url column" do
     board.update_column(:display_image_url, "https://example.com/user-cover.png")
 
     described_class.new.perform(board.id, "generate_png" => true)
 
-    expect(board.reload.display_image_url).to eq("https://example.com/user-cover.png")
+    # The denormalized column is untouched; the live preview wins only at read
+    # time (see Board#display_image_url), so the persisted seed value remains.
+    expect(board.reload.read_attribute(:display_image_url)).to eq("https://example.com/user-cover.png")
   end
 
   it "does not rewrite display_image_url on unrelated boards that share a value" do
@@ -48,7 +50,7 @@ RSpec.describe GenerateBoardPreviewJob, type: :job do
 
     described_class.new.perform(board.id, "generate_png" => true)
 
-    expect(other_board.reload.display_image_url).to eq(shared_url)
+    expect(other_board.reload.read_attribute(:display_image_url)).to eq(shared_url)
   end
 
   describe "sidekiq options" do
