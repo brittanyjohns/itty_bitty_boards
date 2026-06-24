@@ -42,6 +42,20 @@ class API::BoardGroupsController < API::ApplicationController
     end
   end
 
+  # Bird's-eye map of a board set: every member board + tiles + folder→child
+  # edges, with depth / reachability / duplicate-word stats precomputed
+  # server-side (Boards::SetGraphBuilder). Owner-or-admin read.
+  def graph
+    board_group = BoardGroup.find_by(id: params[:id])
+    unless board_group
+      render json: { error: "Board Group not found" }, status: :not_found
+      return
+    end
+    return unless authorize_board_group_read!(board_group)
+
+    render json: Boards::SetGraphBuilder.new(board_group, viewing_user: current_user).call
+  end
+
   def create
     if current_user.at_board_group_limit?
       render json: {
@@ -237,6 +251,18 @@ class API::BoardGroupsController < API::ApplicationController
       return false
     end
     true
+  end
+
+  # Owner-or-admin gate for *reading* a set's graph. Unlike the public
+  # show/index reads, the map exposes the whole structure of a user's set, so
+  # it's restricted to the owner (and admins). Renders 403 and returns false
+  # when disallowed.
+  def authorize_board_group_read!(board_group)
+    return true if current_user&.admin?
+    return true if board_group.user_id == current_user&.id
+
+    render json: { error: "You don't have permission to view this board set." }, status: :forbidden
+    false
   end
 
   def board_group_params

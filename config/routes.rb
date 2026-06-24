@@ -209,6 +209,7 @@ Rails.application.routes.draw do
         get "preset"
       end
       member do
+        get "graph"
         post "rearrange_boards"
         post "save_layout"
         post "add_board/:board_id", to: "board_groups#add_board"
