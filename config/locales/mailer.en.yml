@@ -468,3 +468,16 @@ en:
       fallback_link: "If the button doesn't work, paste this link into your browser:"
       signoff: "Happy Communicating,"
       signature: "The SpeakAnyWay Team"
+  safety_profile_mailer:
+    viewed_alert:
+      subject: "%{child_name}'s safety page was just viewed"
+      title: "Safety page viewed"
+      heading: "Someone viewed %{child_name}'s safety page"
+      intro: "We're letting you know that %{child_name}'s public safety profile was opened. If this was you or someone you trust, no action is needed."
+      when_label: "When:"
+      location_label: "Approximate location:"
+      location_note: "Based on the viewer's network location — approximate and may not be exact."
+      reassurance: "This page is meant to be opened in an emergency by someone helping your child. These alerts simply give you visibility into when that happens."
+      cta: "Manage your safety pages"
+      optout_note: "You're receiving this because safety-view alerts are on for this profile. You can turn them off anytime from your MySpeak settings."
+      signature: "The SpeakAnyWay Team"

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_23_130000) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_24_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -481,6 +481,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_23_130000) do
     t.jsonb "language_settings", default: {}
     t.string "language", default: "en"
     t.index ["category"], name: "index_images_on_category"
+    t.index ["language_settings"], name: "index_images_on_language_settings_gin", using: :gin
     t.index ["obf_id"], name: "index_images_on_obf_id"
     t.index ["use_custom_audio"], name: "index_images_on_use_custom_audio"
     t.index ["voice"], name: "index_images_on_voice"
@@ -756,6 +757,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_23_130000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["product_category_id"], name: "index_products_on_product_category_id"
+  end
+
+  create_table "profile_views", force: :cascade do |t|
+    t.bigint "profile_id", null: false
+    t.string "ip_address"
+    t.string "user_agent"
+    t.string "approx_location"
+    t.jsonb "geo", default: {}, null: false
+    t.boolean "notified", default: false, null: false
+    t.datetime "viewed_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["profile_id", "viewed_at"], name: "index_profile_views_on_profile_id_and_viewed_at"
+    t.index ["profile_id"], name: "index_profile_views_on_profile_id"
   end
 
   create_table "profiles", force: :cascade do |t|
@@ -1044,6 +1059,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_23_130000) do
   add_foreign_key "pay_payment_methods", "pay_customers", column: "customer_id"
   add_foreign_key "pay_subscriptions", "pay_customers", column: "customer_id"
   add_foreign_key "products", "product_categories"
+  add_foreign_key "profile_views", "profiles"
   add_foreign_key "scenarios", "users"
   add_foreign_key "subscriptions", "users"
   add_foreign_key "team_accounts", "child_accounts"

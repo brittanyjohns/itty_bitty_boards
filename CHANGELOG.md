@@ -21,6 +21,27 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   safety ID card + device tag (new QR code) and email the parent that fresh
   cards are ready to download. Random slugs are not user-editable.
 
+### Added — Parents are alerted when their child's safety page is viewed (#384)
+- When someone opens a public safety (MySpeak) profile page
+  (`GET /api/profiles/public/:slug`), the parent now gets an email letting them
+  know their child's emergency info was accessed, with the timestamp and an
+  approximate (city-level) location of the viewer. Zero friction for the
+  viewer — no login, no gate.
+- Every public safety-page view is logged to a new `profile_views` table
+  (IP + user agent + timestamp) so unexpected access patterns are visible.
+- Alerts are **on by default** and throttled to **at most one per profile per
+  hour** so a parent checking their own page isn't spammed. A parent can turn
+  them off per-profile via `settings["view_alerts_enabled"] = false`
+  (surfaced as `view_alerts_enabled` on the profile `api_view`), and the global
+  `settings["disable_notifications"]` flag is also respected.
+- Backend-only; no frontend changes required. All work (geolocation, throttle,
+  email) runs in `RecordProfileViewJob` so the public emergency page is never
+  slowed or broken by it. Email is the v1 channel; a push channel is stubbed in
+  `Notifications::SafetyViewNotifier` for when device-token infra lands.
+- Coarse IP→location uses the new `geocoder` gem (provider/key ENV-tunable:
+  `GEOCODER_IP_LOOKUP`, `IPINFO_API_KEY`); location is simply omitted if the
+  lookup is unconfigured or fails.
+
 ### Changed — Screenshot board import commits faster (deferred AAC categorization)
 - Committing a board imported from a screenshot
   (`POST /api/board_screenshot_imports/:id/commit`) created a new `Image` for

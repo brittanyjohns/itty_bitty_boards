@@ -26,6 +26,8 @@ class Profile < ApplicationRecord
   has_many :page_follows, foreign_key: :followed_page_id, dependent: :destroy
   has_many :followers, through: :page_follows, source: :follower_user
 
+  has_many :profile_views, dependent: :destroy
+
   has_one_attached :avatar
   has_one_attached :intro_audio
   has_one_attached :bio_audio
@@ -136,6 +138,26 @@ class Profile < ApplicationRecord
     elsif profileable.respond_to?(:user_id)
       profileable&.user_id
     end
+  end
+
+  # The User who should receive safety-page view alerts (issue #384): the
+  # communicator's owner (family/parent post-claim). Nil for non-communicator
+  # profiles or unclaimed accounts.
+  def alert_recipient
+    return nil unless profileable_type == "ChildAccount"
+
+    profileable&.owner
+  end
+
+  # Parents are notified by default when their child's safety page is viewed.
+  # They can opt out per-profile by setting settings["view_alerts_enabled"]
+  # to false (the existing settings: {} param on the profile-update endpoint
+  # already accepts this). Stored as a string or boolean by the frontend.
+  def view_alerts_enabled?
+    raw = (settings || {})["view_alerts_enabled"]
+    return true if raw.nil? # default ON (opt-out)
+
+    ![false, "false", "0", 0].include?(raw)
   end
 
   def email
@@ -260,6 +282,7 @@ class Profile < ApplicationRecord
       public_url: public_url,
       startup_url: startup_url,
       allow_discovery: allow_discovery,
+      view_alerts_enabled: view_alerts_enabled?,
       name: name,
 
       # Keep full settings ONLY for authenticated/edit contexts

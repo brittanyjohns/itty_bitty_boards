@@ -456,3 +456,16 @@ es:
       fallback_link: "Si el botón no funciona, pega este enlace en tu navegador:"
       signoff: "Feliz comunicación,"
       signature: "El equipo de SpeakAnyWay"
+  safety_profile_mailer:
+    viewed_alert:
+      subject: "Se acaba de ver la página de seguridad de %{child_name}"
+      title: "Página de seguridad vista"
+      heading: "Alguien vio la página de seguridad de %{child_name}"
+      intro: "Te avisamos que se abrió el perfil de seguridad público de %{child_name}. Si fuiste tú o alguien de tu confianza, no necesitas hacer nada."
+      when_label: "Cuándo:"
+      location_label: "Ubicación aproximada:"
+      location_note: "Basada en la ubicación de red del visitante — aproximada y puede no ser exacta."
+      reassurance: "Esta página está pensada para abrirse en una emergencia por alguien que ayuda a tu hijo/a. Estas alertas solo te dan visibilidad de cuándo ocurre."
+      cta: "Administrar tus páginas de seguridad"
+      optout_note: "Recibes esto porque las alertas de visualización están activadas para este perfil. Puedes desactivarlas cuando quieras desde la configuración de MySpeak."
+      signature: "El equipo de SpeakAnyWay"

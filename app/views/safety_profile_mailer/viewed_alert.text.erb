@@ -1,0 +1,17 @@
+<%= t("safety_profile_mailer.viewed_alert.heading", child_name: @child_name) %>
+
+<%= t("safety_profile_mailer.viewed_alert.intro", child_name: @child_name) %>
+
+<%= t("safety_profile_mailer.viewed_alert.when_label") %> <%= @viewed_at_display %>
+<% if @approx_location -%>
+<%= t("safety_profile_mailer.viewed_alert.location_label") %> <%= @approx_location %>
+<%= t("safety_profile_mailer.viewed_alert.location_note") %>
+<% end -%>
+
+<%= t("safety_profile_mailer.viewed_alert.reassurance") %>
+
+<%= t("safety_profile_mailer.viewed_alert.cta") %>: <%= @manage_url %>
+
+--
+<%= t("safety_profile_mailer.viewed_alert.optout_note") %>
+<%= t("safety_profile_mailer.viewed_alert.signature") %>
