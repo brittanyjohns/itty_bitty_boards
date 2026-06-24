@@ -5,6 +5,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Board Builder mutes folder/dynamic tile names
+- Tiles in a built board set that open another board (folder / dynamic tiles,
+  `predictive_board_id` set) now default to `mute_name: true`, so tapping a
+  folder navigates without speaking the folder's own label. Word tiles are
+  unchanged. Applied across the whole built set (root + sub-boards) by
+  `BuildBoardSetJob`.
+
+### Fixed — Board Builder "extra all done" duplicate tile
+- Built board sets (Core 60/84) no longer show a duplicate `all done` tile (and
+  any other duplicated word tile). Root cause: `Board.from_obf` keyed its tile
+  upsert on the resolved `image_id`, so a re-seed that resolved the same
+  authored button to a different `Image` appended a second tile instead of
+  updating the existing one; `SeededSetCloner` then copied it into every set
+  built since the bad re-seed. The upsert is now keyed on the stable OBF button
+  id, and the `vocab_sets:seed` sync pass collapses any duplicate it finds
+  (`Boards::TileDeduper`).
+- `rake board_builder:dedupe_seed_tiles` (dry-run by default; `DRY_RUN=false` to
+  apply, `USER_ID=N` to scope) removes the duplicate from the seed sources and
+  from already-built user sets.
+
 ### Added — AppSignal APM (per-request + host visibility)
 - Added the `appsignal` gem and `config/appsignal.yml` to capture per-request
   latency (p95/p99), slow queries/N+1, host CPU/memory/disk, and Sidekiq queue

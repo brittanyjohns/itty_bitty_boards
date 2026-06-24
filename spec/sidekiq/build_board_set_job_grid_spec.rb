@@ -116,6 +116,23 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     expect(dead_folder_tiles(root)).to be_empty
   end
 
+  it "mutes the name on dynamic folder tiles, leaving word tiles unmuted" do
+    root = build!([{ "word" => "dog", "category" => "Animals" }])
+
+    folder_tiles = root.board_images.select(&:is_dynamic?)
+    word_tiles = root.board_images.reject(&:is_dynamic?)
+
+    expect(folder_tiles).not_to be_empty
+    expect(folder_tiles).to all(satisfy { |bi| bi.data["mute_name"] == true })
+    expect(word_tiles).to all(satisfy { |bi| bi.data.to_h["mute_name"] != true })
+
+    # The default applies across the whole built set, not just the home board.
+    animals = Board.find(root.board_images.find { |bi| bi.label == "Animals" }.predictive_board_id)
+    animals.board_images.select(&:is_dynamic?).each do |bi|
+      expect(bi.data["mute_name"]).to be(true)
+    end
+  end
+
   # Regression for the "86 tiles instead of 84" report: when the authored grid
   # has no slack left (a fuller Core 84 than the repo seed), the catch-all
   # "My Favorites" tile and an early-stage quick-phrase strip used to spill onto

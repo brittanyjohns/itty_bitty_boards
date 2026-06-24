@@ -133,6 +133,24 @@ RSpec.describe VocabSets do
       VocabSets.seed_slug!("core-60")
       expect(Board.exists?(theirs.id)).to be(true)
     end
+
+    # The "extra all done" bug: a prior buggy re-seed appended a second tile for
+    # a still-authored label (prune_removed_tiles! keeps both). A re-seed now
+    # collapses the duplicate, keeping the authored tile.
+    it "collapses a duplicate authored tile appended by a prior buggy re-seed" do
+      authored = @c60_root.board_images.find_by(label: "all done")
+      expect(authored).to be_present
+
+      dup = create(:board_image, board: @c60_root, label: "all done", position: 999,
+                                 image: create(:image, label: "all done", user_id: @admin.id))
+      expect(@c60_root.board_images.where(label: "all done").count).to eq(2)
+
+      VocabSets.seed_slug!("core-60")
+
+      expect(@c60_root.reload.board_images.where(label: "all done").count).to eq(1)
+      expect(@c60_root.board_images.exists?(authored.id)).to be(true)
+      expect(@c60_root.board_images.exists?(dup.id)).to be(false)
+    end
   end
 
   describe "tile colors from authored part_of_speech (#279)" do

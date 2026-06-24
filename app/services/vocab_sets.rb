@@ -103,8 +103,19 @@ module VocabSets
 
     prune_removed_tiles!(slug, boards_by_obf_id)
     prune_removed_boards!(slug, boards_by_obf_id)
+    dedupe_tiles!(boards_by_obf_id)
 
     root
+  end
+
+  # Collapse duplicate tiles a prior buggy re-seed may have appended. The label
+  # is still authored, so prune_removed_tiles! keeps BOTH copies — this removes
+  # the extra. Admin-owned set boards only; user clones are separate rows healed
+  # by rake board_builder:dedupe_seed_tiles. Idempotent: a no-op once clean.
+  def dedupe_tiles!(boards_by_obf_id)
+    boards_by_obf_id.each_value do |board|
+      Boards::TileDeduper.collapse_duplicates!(board)
+    end
   end
 
   # Map of obf_id => [button labels] parsed straight from the authored source
