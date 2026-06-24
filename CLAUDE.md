@@ -1302,7 +1302,9 @@ layout + `part_of_speech` colors survive). Reuses `ObzImporter` (seed) and
   on its **root board** (`settings["board_builder_robust_slug"]`), queried via
   `Boards::RobustSets`. Idempotent (`Board.from_obf` upserts by
   `(user_id, obf_id)`). Format spec: `db/seeds/board_builder_sets/README.md`.
-  Slugs `core-60` (ships a placeholder), `core-84` (TBD).
+  Slugs `core-60` (authored as a full 60-tile home: 50 core words + 8 category
+  folders — People, Feelings, Food, Drinks, Play, Places, Body, More — wired in
+  the bottom row, flanked by `this`/`that`), `core-84` (TBD).
   - **Tile upserts are keyed on the authored OBF button id, not the resolved
     `image_id`.** `Board.upsert_board_image` matches an existing tile by the
     button id stamped on `board_image.data["obf_button_id"]` (falling back to
