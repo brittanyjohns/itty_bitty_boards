@@ -34,7 +34,7 @@ Sidekiq.configure_server do |config|
       "cron" => "0 * * * *",
       "class" => "DiskSpaceAlertJob",
       "queue" => "default",
-      "description" => "Hourly root-disk check; emails an admin at 80% (warn) / 90% (critical). Skipped on staging.",
+      "description" => "Hourly root-disk check; emails an admin at 80% (warn) / 90% (critical). Runs on prod and staging (since #393 staging is its own box).",
     },
     "loaner_reclaim" => {
       "cron" => "30 2 * * *",

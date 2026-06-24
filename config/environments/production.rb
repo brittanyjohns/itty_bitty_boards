@@ -1,7 +1,11 @@
 require "active_support/core_ext/integer/time"
 
+# Staging runs with RAILS_ENV=production + STAGING=true on its own EC2 box
+# (issue #393). The staging host is ENV-driven so a future Hatchbox app/subdomain
+# change needs no code change; defaults to the legacy subdomain for safety.
 staging = ENV["STAGING"] == "true"
-primary_host = staging ? "ypk9e.hatchboxapp.com" : "speakanyway.com"
+staging_host = ENV.fetch("STAGING_HOST", "ypk9e.hatchboxapp.com")
+primary_host = staging ? staging_host : "speakanyway.com"
 
 Rails.application.routes.default_url_options[:host] = primary_host
 Rails.application.routes.default_url_options[:protocol] = "https"
@@ -60,12 +64,12 @@ Rails.application.configure do
 
   # Mount Action Cable outside main process or domain.
   # config.action_cable.mount_path = nil
-  config.action_cable.url = staging ? "wss://ypk9e.hatchboxapp.com/cable" : "wss://670kd.hatchboxapp.com/cable"
+  config.action_cable.url = staging ? "wss://#{staging_host}/cable" : "wss://670kd.hatchboxapp.com/cable"
   config.action_cable.allowed_request_origins = [
     "https://app.speakanyway.com",  # SPA/PWA
     "https://www.speakanyway.com",
     "https://speakanyway.com",
-    "https://ypk9e.hatchboxapp.com", # staging
+    "https://#{staging_host}", # staging
     /https:\/\/.*\.speakanyway\.com/,
     "capacitor://localhost",         # Capacitor iOS/Android WebView
     %r{\Ahttps://([a-z0-9-]+--)?speakanyway\.netlify\.app\z}, # Netlify previews + branch deploys
@@ -105,7 +109,7 @@ Rails.application.configure do
   config.action_mailer.raise_delivery_errors = true
 
   config.action_mailer.default_url_options = {
-    host: staging ? "ypk9e.hatchboxapp.com" : "670kd.hatchboxapp.com",
+    host: staging ? staging_host : "670kd.hatchboxapp.com",
     protocol: "https",
   }
 

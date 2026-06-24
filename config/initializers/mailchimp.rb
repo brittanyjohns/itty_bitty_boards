@@ -28,9 +28,9 @@ module MailchimpClient
   end
 
   # Journeys send real email to real contacts, so they only fire where intended.
-  # Production fires automatically; staging (shares the prod box) and dev/test
-  # stay off unless MAILCHIMP_JOURNEYS_ENABLED is explicitly set (used for
-  # end-to-end verification against the test audience).
+  # Production fires automatically; staging (a separate non-prod environment) and
+  # dev/test stay off unless MAILCHIMP_JOURNEYS_ENABLED is explicitly set (used
+  # for end-to-end verification against the test audience).
   def self.journeys_enabled?
     return true if ENV["MAILCHIMP_JOURNEYS_ENABLED"] == "true"
 

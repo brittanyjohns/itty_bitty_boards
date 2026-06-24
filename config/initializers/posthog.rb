@@ -31,8 +31,9 @@ module PosthogClient
   end
 
   # Server-side capture only fires where intended. Production fires
-  # automatically; staging (shares the prod box) and dev/test stay off unless
-  # POSTHOG_CAPTURE_ENABLED is explicitly set (used for end-to-end verification).
+  # automatically; staging (a separate non-prod environment) and dev/test stay
+  # off unless POSTHOG_CAPTURE_ENABLED is explicitly set (used for end-to-end
+  # verification).
   # Also requires an API key to be present.
   def self.enabled?
     return false if ENV["POSTHOG_API_KEY"].blank?
