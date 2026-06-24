@@ -105,12 +105,18 @@ class MailchimpService
   # already be an audience member; if Mailchimp 404s we upsert them and retry
   # once (guarded so a misconfigured journey_id can't loop forever).
   def trigger_journey(user, journey_id:, step_id:)
+    journeys = customer_journeys_api
+    if journeys.nil?
+      Rails.logger.error(
+        "[Mailchimp] Customer Journeys API unavailable on the client; " \
+        "skipping journey #{journey_id}/#{step_id} for #{user.email}"
+      )
+      return nil
+    end
+
     attempted_subscribe = false
     begin
-      # NOTE: the MailchimpMarketing gem exposes this API as `customerJourneys`
-      # (camelCase) — there is no snake_case `customer_journeys` accessor, so
-      # using it raises NoMethodError at runtime.
-      @client.customerJourneys.trigger(
+      journeys.trigger(
         journey_id,
         step_id,
         { email_address: user.email }
@@ -122,7 +128,27 @@ class MailchimpService
       end
       Rails.logger.error "[Mailchimp] Failed to trigger journey #{journey_id}/#{step_id}: #{e.message}"
       nil
+    rescue NoMethodError => e
+      # A NoMethodError here means the gem's journeys accessor/shape changed
+      # (the historical `customer_journeys` snake_case bug, which raised on
+      # every trigger and piled hundreds of jobs into the Sidekiq dead set).
+      # Retrying can't fix a missing method, so swallow it: log loudly and
+      # return nil so MailchimpEventJob succeeds instead of exhausting its
+      # retries into Dead.
+      Rails.logger.error "[Mailchimp] Customer Journeys accessor unavailable for journey #{journey_id}/#{step_id}: #{e.message}"
+      nil
     end
+  end
+
+  # Resolve the gem's Customer Journeys API regardless of accessor casing. The
+  # MailchimpMarketing gem exposes it as camelCase `customerJourneys` (no
+  # snake_case alias today); resolving defensively means a future casing change
+  # can't silently break, and we never call a method the client doesn't have.
+  def customer_journeys_api
+    return @client.customerJourneys if @client.respond_to?(:customerJourneys)
+    return @client.customer_journeys if @client.respond_to?(:customer_journeys)
+
+    nil
   end
 
   # Upsert merge fields on a contact (e.g. trial-wrap personalization:

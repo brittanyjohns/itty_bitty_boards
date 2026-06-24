@@ -93,6 +93,39 @@ RSpec.describe MailchimpService do
       expect(bare_client).to respond_to(:customerJourneys)
       expect(bare_client).not_to respond_to(:customer_journeys)
     end
+
+    context "when the journeys accessor is missing or shape-changed" do
+      it "returns nil without raising when the client exposes no journeys accessor" do
+        allow(client).to receive(:respond_to?).with(:customerJourneys).and_return(false)
+        allow(client).to receive(:respond_to?).with(:customer_journeys).and_return(false)
+
+        service = described_class.new
+        expect(Rails.logger).to receive(:error).with(/Customer Journeys API unavailable/)
+        expect {
+          expect(service.trigger_journey(user, journey_id: 10, step_id: 20)).to be_nil
+        }.not_to raise_error
+      end
+
+      it "swallows a NoMethodError from the trigger call instead of crashing the job" do
+        allow(journeys).to receive(:trigger).and_raise(NoMethodError.new("undefined method `trigger'"))
+
+        service = described_class.new
+        expect(Rails.logger).to receive(:error).with(/Customer Journeys accessor unavailable/)
+        expect {
+          expect(service.trigger_journey(user, journey_id: 10, step_id: 20)).to be_nil
+        }.not_to raise_error
+      end
+
+      it "falls back to a snake_case accessor if a future gem only exposes that" do
+        snake_journeys = double("customer_journeys")
+        allow(client).to receive(:respond_to?).with(:customerJourneys).and_return(false)
+        allow(client).to receive(:respond_to?).with(:customer_journeys).and_return(true)
+        allow(client).to receive(:customer_journeys).and_return(snake_journeys)
+        expect(snake_journeys).to receive(:trigger).with(10, 20, { email_address: "parent@example.com" })
+
+        described_class.new.trigger_journey(user, journey_id: 10, step_id: 20)
+      end
+    end
   end
 
   describe "#archive_subscriber" do

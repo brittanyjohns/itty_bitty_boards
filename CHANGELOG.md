@@ -5,6 +5,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Mailchimp journey triggers can't flood the Sidekiq dead set
+- `MailchimpService#trigger_journey` resolves the gem's Customer Journeys
+  accessor defensively (camelCase `customerJourneys`, falling back to snake_case
+  only if a future gem adds it) and now **catches/​logs/​swallows a
+  `NoMethodError`** instead of letting it crash `MailchimpEventJob`. Previously a
+  gem-shape mismatch raised on every trigger, exhausted the job's retries, and
+  piled hundreds of jobs into the Sidekiq dead set. `ApiError` 404-retry
+  behavior is unchanged.
+
 ### Fixed — User settings hardening & cleanup
 - The `PUT /api/users/:id/update_settings` endpoint now only persists a
   whitelist of real preference keys (voice, display toggles, board pointers,
