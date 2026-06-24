@@ -1196,6 +1196,15 @@ still works for backward compat.
   during the clone. Still used by callers that want a trimmed clone; the hybrid
   build now passes `[]` (clone intact). `StructurePlanner#excluded_fringe_pages`
   is still computed on the plan but no longer consumed by the build.
+- **Folder/dynamic tiles default to muted names.**
+  `BuildBoardSetJob#mute_dynamic_tile_names!` runs at the end of every build
+  (the single chokepoint before `generate_preview!`) and sets
+  `board_image.data["mute_name"] = true` on every dynamic tile
+  (`is_dynamic?` → `predictive_board_id` present and not a self-link) across the
+  whole set — root + linked sub-boards, walked via `set_board_ids` (BFS over
+  predictive links, scoped to the owner's boards). So tapping a folder navigates
+  without speaking the folder's own label; word tiles are untouched.
+  `update_column` skips the audio hook/validations. Idempotent.
 - **Tile images prefer the curated "default" image (`Boards::ImageResolver`).**
   All three build paths (cloner, `BlueprintAssembler`, `BuildBoardSetJob`)
   resolve a tile label via `Boards::ImageResolver.resolve(label, owner:)`. When
@@ -1283,6 +1292,28 @@ layout + `part_of_speech` colors survive). Reuses `ObzImporter` (seed) and
   `Boards::RobustSets`. Idempotent (`Board.from_obf` upserts by
   `(user_id, obf_id)`). Format spec: `db/seeds/board_builder_sets/README.md`.
   Slugs `core-60` (ships a placeholder), `core-84` (TBD).
+  - **Tile upserts are keyed on the authored OBF button id, not the resolved
+    `image_id`.** `Board.upsert_board_image` matches an existing tile by the
+    button id stamped on `board_image.data["obf_button_id"]` (falling back to
+    `image_id` for tiles seeded before stamping existed). Before this, the upsert
+    keyed on `image_id` alone, so when `find_or_create_image_for_button` resolved
+    the **same** authored button to a **different** `Image` across re-seeds (the
+    OBF button's `image_id` drifted, so the `obf_id` branch missed and the
+    label-only fallback picked a different match), it **appended a duplicate
+    tile** instead of updating the existing one. That's how the Core 60 source
+    grew a second `all done` word tile (2026-06-17 re-seed), which
+    `SeededSetCloner` then copied into every built set (the "extra all done"
+    bug). As a backstop, `VocabSets#dedupe_tiles!` (via
+    `Boards::TileDeduper.collapse_duplicates!`) runs in the seed sync pass and
+    collapses any surviving same-label/same-kind duplicate on each seeded board
+    — a word tile and its same-named category folder (`play` vs `Play`) are
+    **not** merged. Re-seeding is now self-healing for this case.
+  - **Remediation:** `rake board_builder:dedupe_seed_tiles` (dry-run by default,
+    `DRY_RUN=false` to apply, `USER_ID=N` to scope) collapses the duplicate on
+    the robust seed sources **and** every already-built user set
+    (`settings["builder_root"]/["builder_child"]`) — re-seeding only heals the
+    admin sources, not the user clones, so run this for the live sets built
+    between the bad re-seed and the fix.
 - **Build:** `#create` branches on `Boards::RobustSets.find_root(template)`.
   A match runs `Boards::SeededSetCloner` (walks the linked set to depth 2,
   clones each board, **rewires** `predictive_board_id` to the clones, marks

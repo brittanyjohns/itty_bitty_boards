@@ -59,6 +59,7 @@ class BuildBoardSetJob
         build_legacy(root, communicator, level_or_template, interests, explicit_categories)
       end
 
+      mute_dynamic_tile_names!(root)
       generate_preview!(root)
       root.update_column(:status, "complete")
     rescue => e
@@ -154,6 +155,47 @@ class BuildBoardSetJob
       .reject { |bi| existing.include?(bi.label.to_s.downcase) }
       .first([PHRASES_STRIP_SIZE, open].min)
     candidates.each { |bi| root.add_image(bi.image_id) }
+  end
+
+  # Folder / dynamic tiles (those that open another board when tapped) shouldn't
+  # speak their own label — only word tiles should. Default the BoardImage
+  # "mute_name" flag to true on every dynamic tile across the freshly built set
+  # (root + linked sub-boards). Display-only flag; update_column skips the audio
+  # hook + validations. Idempotent — a no-op once already muted.
+  def mute_dynamic_tile_names!(root)
+    BoardImage
+      .where(board_id: set_board_ids(root))
+      .where.not(predictive_board_id: nil)
+      .where("predictive_board_id <> board_id")
+      .find_each do |bi|
+        data = bi.data || {}
+        next if data["mute_name"] == true
+
+        bi.update_column(:data, data.merge("mute_name" => true))
+      end
+  end
+
+  # Every board in the just-built set: BFS the predictive_board_id links from the
+  # root, bounded in depth and scoped to the owner's boards so a tile pointing at
+  # a shared/admin board can't pull it into the sweep.
+  def set_board_ids(root, max_depth = 3)
+    owner_id = root.user_id
+    seen = [root.id]
+    frontier = [root.id]
+    depth = 0
+
+    while frontier.any? && depth < max_depth
+      child_ids = BoardImage.where(board_id: frontier).where.not(predictive_board_id: nil)
+        .pluck(:predictive_board_id).uniq
+      children = Board.where(id: child_ids, user_id: owner_id).where.not(id: seen).pluck(:id)
+      break if children.empty?
+
+      seen.concat(children)
+      frontier = children
+      depth += 1
+    end
+
+    seen
   end
 
   # The new Phrases board doubles as the communicator's phrase board (the

@@ -2662,11 +2662,21 @@ class Board < ApplicationRecord
   private_class_method :attach_image_doc
 
   def self.upsert_board_image(board, image, item, coords, display_url, apply_button_attributes: false)
-    board_image = board.board_images.find_by(image_id: image.id)
+    obf_button_id = item["id"].presence&.to_s
+
+    # Idempotency key is the AUTHORED OBF button id, NOT the resolved image_id.
+    # find_or_create_image_for_button can resolve the same button to a DIFFERENT
+    # Image across re-imports/re-seeds (label+obf_id drift), so keying the upsert
+    # on image_id appended a brand-new tile every time resolution drifted — that's
+    # how a re-seed grew a second "all done" tile on the Core 60 builder source.
+    # Match the button first so a re-import updates the same tile; fall back to
+    # image_id for tiles seeded before button ids were stamped.
+    board_image = find_board_image_for_button(board, image, obf_button_id)
     unless board_image
       board_image = board.board_images.new(image_id: image.id, voice: board.voice,
                                            position: board.board_images_count,
                                            display_image_url: display_url)
+      stamp_obf_button_id(board_image, obf_button_id)
       # Let BoardImage's after_create :create_voice_audio_after_create
       # fire — that's the canonical hook for enqueuing SaveAudioJob, and
       # an existing pre-rendered Polly file (same image+voice+language)
@@ -2675,6 +2685,12 @@ class Board < ApplicationRecord
       # at all because nothing else compensated.
       board_image.save!
     end
+
+    # Heal resolution drift on an existing tile: re-point it at the freshly
+    # resolved image and (back)stamp the button id so future re-imports converge
+    # onto this same tile instead of forking a duplicate.
+    board_image.image_id = image.id if board_image.image_id != image.id
+    stamp_obf_button_id(board_image, obf_button_id)
 
     apply_obf_part_of_speech(board_image, image, item) if apply_button_attributes
 
@@ -2700,6 +2716,28 @@ class Board < ApplicationRecord
     board_image
   end
   private_class_method :upsert_board_image
+
+  # Resolve the existing tile for an authored OBF button. Prefer the stable
+  # button id (stamped on board_image.data); fall back to image_id for tiles
+  # seeded before stamping existed. nil → caller creates a fresh tile.
+  def self.find_board_image_for_button(board, image, obf_button_id)
+    if obf_button_id.present?
+      existing = board.board_images.where("data ->> 'obf_button_id' = ?", obf_button_id).first
+      return existing if existing
+    end
+    board.board_images.find_by(image_id: image.id)
+  end
+  private_class_method :find_board_image_for_button
+
+  # Persist the authored OBF button id on the tile so a later re-import matches
+  # this same tile even if button→image resolution drifts. Only writes when the
+  # value actually changes, to avoid marking the record dirty needlessly.
+  def self.stamp_obf_button_id(board_image, obf_button_id)
+    return if obf_button_id.blank?
+    board_image.data ||= {}
+    board_image.data["obf_button_id"] = obf_button_id if board_image.data["obf_button_id"] != obf_button_id
+  end
+  private_class_method :stamp_obf_button_id
 
   # #279: honor the OBF button's authored part_of_speech so the tile gets its
   # Fitzgerald-key color (ColorHelper::PRESET_DATA) instead of inheriting
