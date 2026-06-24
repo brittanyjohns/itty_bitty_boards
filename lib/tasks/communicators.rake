@@ -100,4 +100,110 @@ namespace :communicators do
       puts "Promoted #{promoted} communicator(s) across #{affected_users} user(s)."
     end
   end
+
+  # Repair for the handoff team-membership bug: `ChildAccount#claim_by!`
+  # used to act on `teams.first`, which is unreliable when a communicator
+  # belongs to more than one team. The hand-off could update the wrong
+  # team, leaving the communicator's OWN team (the "<name>'s Communication
+  # Team" auto-created at creation) with stale membership — the new owner
+  # missing, the previous owner still admin, and team ownership unchanged.
+  #
+  # For each already-claimed (active) communicator this:
+  #   - pins settings["primary_team_id"] to the own team,
+  #   - adds the current owner as `admin`,
+  #   - transfers team ownership (created_by) to the current owner so they
+  #     get is_owner / can_invite,
+  #   - demotes the team's previous creator (the lending SLP) to
+  #     `supervisor` — matching what claim_by! now does going forward.
+  #
+  # Conservative: only acts when the communicator's OWN team is
+  # identifiable (pinned id, namesake name, or the team where this
+  # communicator is the only account). A communicator that only appears on
+  # a shared team is skipped and logged, so we never hijack someone else's
+  # team. Idempotent.
+  #
+  # Dry-run by default. Apply with DRY_RUN=false. Optionally scope to one
+  # owner with USER_ID=N:
+  #   rake communicators:repair_handoff_teams                    # preview all
+  #   DRY_RUN=false rake communicators:repair_handoff_teams      # apply all
+  #   DRY_RUN=false USER_ID=740 rake communicators:repair_handoff_teams
+  desc "Repair stale handoff team membership/ownership on claimed communicators (DRY_RUN=false to apply; USER_ID=N to scope)"
+  task repair_handoff_teams: :environment do
+    dry_run = ENV["DRY_RUN"] != "false"
+
+    scope = ChildAccount
+      .where(status: ChildAccount::ACTIVE)
+      .where.not(claimed_at: nil)
+      .where.not(owner_id: nil)
+    scope = scope.where(owner_id: ENV["USER_ID"]) if ENV["USER_ID"].present?
+
+    repaired = 0
+    skipped = 0
+
+    scope.find_each do |ca|
+      owner = ca.owner
+      next if owner.nil?
+
+      team = handoff_repair_own_team(ca)
+      if team.nil?
+        skipped += 1
+        puts "#{dry_run ? '[DRY RUN] ' : ''}communicator ##{ca.id} #{ca.name.inspect} (owner #{owner.id}) — SKIP: no own team identifiable"
+        next
+      end
+
+      previous_creator_id = team.created_by_id
+      actions = []
+      actions << "pin primary_team=#{team.id}" if ca.settings&.dig("primary_team_id") != team.id
+
+      owner_tu = team.team_users.find_by(user_id: owner.id)
+      actions << (owner_tu ? "owner #{owner.id} #{owner_tu.role}->admin" : "add owner #{owner.id} as admin") if owner_tu&.role != "admin"
+
+      actions << "transfer team owner #{previous_creator_id}->#{owner.id}" if previous_creator_id != owner.id
+
+      demote_id = (previous_creator_id != owner.id) ? previous_creator_id : nil
+      if demote_id
+        demote_tu = team.team_users.find_by(user_id: demote_id)
+        actions << "prev owner #{demote_id} #{demote_tu&.role || 'none'}->supervisor" if demote_tu&.role != "supervisor"
+      end
+
+      if actions.empty?
+        puts "#{dry_run ? '[DRY RUN] ' : ''}communicator ##{ca.id} #{ca.name.inspect} (team ##{team.id}) — already correct"
+        next
+      end
+
+      puts "#{dry_run ? '[DRY RUN] ' : ''}communicator ##{ca.id} #{ca.name.inspect} (team ##{team.id} #{team.name.inspect}): #{actions.join('; ')}"
+
+      unless dry_run
+        ActiveRecord::Base.transaction do
+          ca.pin_primary_team!(team)
+          team.upsert_member!(owner, "admin")
+          team.upsert_member!(User.find_by(id: demote_id), "supervisor") if demote_id
+          team.update!(created_by_id: owner.id) if previous_creator_id != owner.id
+        end
+        repaired += 1
+      end
+    end
+
+    if dry_run
+      puts "Dry run only (#{skipped} skipped) — re-run with DRY_RUN=false to apply."
+    else
+      puts "Repaired #{repaired} communicator(s); skipped #{skipped}."
+    end
+  end
+end
+
+# Resolve a communicator's OWN team for the handoff repair, conservatively.
+# Returns the pinned team, else the namesake team, else the single team
+# where this communicator is the only account, else nil (do not guess).
+def handoff_repair_own_team(child_account)
+  pinned_id = child_account.settings&.dig("primary_team_id")
+  if pinned_id
+    pinned = child_account.teams.find_by(id: pinned_id)
+    return pinned if pinned
+  end
+
+  namesake = child_account.namesake_team
+  return namesake if namesake
+
+  child_account.teams.find { |team| team.account_ids == [child_account.id] }
 end

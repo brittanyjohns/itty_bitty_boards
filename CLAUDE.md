@@ -731,7 +731,29 @@ post-claim, or the SLP pre-claim). That user is "**owner-pinned**" on the
 communicator's team: they cannot be removed or have their role changed by
 any non-owner. Full matrix in issue #166. Server-side rules:
 
-- `ChildAccount#claim_by!` auto-adds the new owner to the team.
+- `ChildAccount#claim_by!` (the SLP→family hand-off) updates the
+  communicator's **own** team: new owner → `admin`, previous owner →
+  `supervisor`, and **team ownership (`created_by_id`) transfers to the new
+  owner** so they get `is_owner` / `can_invite` (the "Manage team" controls).
+- **"Own team" is resolved deterministically, not `teams.first`.** A
+  communicator can belong to several teams (its own + shared/board teams it's
+  added to), so `ChildAccount#primary_team` resolves: (1) the team pinned in
+  `settings["primary_team_id"]`, (2) the namesake team
+  (`"<name>'s Communication Team"`, the creation convention), (3) the oldest
+  team as a legacy fallback. `ensure_team!` and `claim_by!` pin
+  `primary_team_id` so resolution stays stable across renames and join order.
+  Before this, `claim_by!` acted on `teams.first` and could update the wrong
+  team — leaving the communicator's own team without the new owner.
+  Existing stale data is repaired by `rake communicators:repair_handoff_teams`
+  (dry-run by default; `DRY_RUN=false` to apply, `USER_ID=N` to scope). It only
+  touches a communicator's identifiable own team — never a shared one.
+- **Lending / hand-off is Pro-only, enforced server-side.**
+  `API::ChildAccountsController#require_pro_for_lending!` gates `lend` and
+  `promote_to_loaner` (after the ownership check, so a non-owner still gets the
+  generic Unauthorized) and returns **HTTP 403 `pro_required`** for non-Pro
+  non-admin callers. Covers the `active→loaner` lend path too, which skips the
+  slot check. The frontend `LoanerControls` Pro gate is now defense-in-depth,
+  not the only guard.
 - `DELETE /api/teams/:id/remove_member` returns **HTTP 403
   `cannot_remove_owner`** if the target is owner-pinned and the caller is
   neither that user nor a system admin. The owner can remove themselves.
@@ -746,9 +768,11 @@ any non-owner. Full matrix in issue #166. Server-side rules:
   `account_owner_ids` and per-member `is_account_owner` so the frontend
   can hide destructive controls.
 
-A real **transfer ownership** flow doesn't exist yet — it's out of scope
-for #166 and will get its own endpoint (touches `child_account.owner_id`,
-not just team membership).
+The SLP→family **hand-off** (loaner → claim) is the supported ownership
+transfer: `claim_by!` moves both `child_account.owner_id` and the own team's
+`created_by_id` to the new owner. A standalone **transfer ownership** endpoint
+(active → another user directly, outside the loaner flow) still doesn't exist —
+out of scope for #166.
 
 **Full SLP→parent handoff contract** — including the permissions matrix
 (who can do what to a claimed communicator), the lifecycle states, and
