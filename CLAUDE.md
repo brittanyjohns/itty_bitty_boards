@@ -569,11 +569,17 @@ be found by guessing their name. Vendor/SLP/user pages keep readable slugs.
 - **When it's applied:** `Profile#ensure_slug` (a `before_validation … on:
   :create`) only fills a **blank** slug. For a safety profile it generates a
   random slug and sets `slug_type = "random"`; otherwise it falls back to
-  `username.parameterize` (`slug_type` stays `"legacy"`). Creation paths that
-  pass an explicit slug (the onboarding wizard's "Pick your link" step,
-  `ChildAccount#create_profile!`) are unchanged — they keep that slug. The
-  frontend dropping the explicit slug is what flips new communicators onto
-  random slugs (counterpart: `itty-bitty-frontend`).
+  `username.parameterize` (`slug_type` stays `"legacy"`).
+- **MySpeak onboarding always gets a random slug.**
+  `API::V1::Onboarding::MyspeakController#create` derives a readable, unique
+  **username** from the name (`unique_slug_for`) but leaves the profile **slug
+  blank** so `ensure_slug` assigns the random one — and **ignores any
+  client-supplied `slug`** (random is non-negotiable for safety pages; the
+  wizard no longer collects a link). The username stays human-readable because
+  it's the handle shown on the page a responder already scanned, not the public
+  URL. `ChildAccount#create_profile!` (programmatic communicator creation, not
+  the wizard) still passes a name-derived slug — its new profiles are caught by
+  the backfill task but it does **not** yet auto-randomize on create (follow-up).
 - **Not user-editable:** `Profile#slug_editable?` returns `false` when
   `slug_type == "random"`, regardless of the 7-day edit window. `slug_type` and
   `slug_editable` are exposed on `Profile#api_view`.
