@@ -71,6 +71,7 @@ class BuildBoardSetJob
       # boards the build services add outside SeededSetCloner/BoardTreeBuilder.
       attach_set_to_group!(root, board_group_id)
       mute_dynamic_tile_names!(root)
+      finalize_sub_boards!(root)
       generate_preview!(root)
       root.update_column(:status, "complete")
     rescue => e
@@ -184,6 +185,30 @@ class BuildBoardSetJob
 
         bi.update_column(:data, data.merge("mute_name" => true))
       end
+  end
+
+  # Every sub-board of a builder set (the builder_child pages — everything in
+  # the set EXCEPT the root) is finalized as a real "page":
+  #
+  #   - settings["freeze_board"] = true so navigating into it doesn't auto-return
+  #     to home on the next tap; the frontend's return-home affordance keys off
+  #     the freeze_parent_board/board_frozen flags the api_view then exposes.
+  #   - re-saved so Board#check_is_sub_board recomputes against the now-wired
+  #     predictive_board_id links and sets the sub_board column true. Without this
+  #     the children leaked into the `main_boards` scope (their last save happened
+  #     before the parent linked them, so sub_board stayed false).
+  #
+  # The root is intentionally left unfrozen and sub_board=false so it stays a
+  # main board. A no-op once already frozen + classified (idempotent on retry).
+  def finalize_sub_boards!(root)
+    child_ids = set_board_ids(root) - [root.id]
+    Board.where(id: child_ids).find_each do |board|
+      settings = board.settings || {}
+      next if settings["freeze_board"] == true && board.sub_board == true
+
+      board.settings = settings.merge("freeze_board" => true)
+      board.save! # save recomputes check_is_sub_board => sub_board: true
+    end
   end
 
   # Attach every board in the built set to its builder BoardGroup, so the set is

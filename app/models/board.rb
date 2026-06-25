@@ -613,13 +613,16 @@ class Board < ApplicationRecord
     self.tags = tags.reject { |t| t == normalized_tag }
   end
 
+  # A board is "in use" when it's on a communicator. Two ways that happens:
+  #   1. It's the SOURCE of a clone put on a communicator (assign_boards /
+  #      assign_accounts), recorded as ChildBoard#original_board_id.
+  #   2. It's attached DIRECTLY (no clone) via ChildBoard#board_id — the Board
+  #      Builder path, where the built root lives straight on the communicator.
+  # Without case 2, builder roots stayed in_use=false and never surfaced under
+  # the "in use" scope even though they're literally assigned to a communicator.
   def check_in_use
-    child_board_templates = ChildBoard.where(original_board_id: id)
-    if child_board_templates.any?
-      self.in_use = true
-    elsif !child_board_templates.any?
-      self.in_use = false
-    end
+    self.in_use = ChildBoard.where(original_board_id: id).exists? ||
+      ChildBoard.where(board_id: id).exists?
   end
 
   IS_SUB_BOARD_TAG = "sub-board".freeze

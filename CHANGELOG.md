@@ -15,6 +15,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `rake board_builder:repair_grid` (dry-run by default; `DRY_RUN=false` to apply)
   to clean existing seed sources and built sets.
 
+### Fixed — Board Builder sets now classify correctly on the boards list
+- A built board set's **home board** now shows up under **"In use"** and
+  **"Main boards"** like any other assigned board. Previously the builder
+  attached the home board to the communicator in a way nothing else did, so it
+  never registered as "in use" and got lost on the boards list.
+- The set's **sub-pages** (Food, Feelings, category folders, etc.) are now
+  correctly classified as **sub-boards** instead of leaking into the main
+  boards list, so the list shows the set's home board rather than every page.
+- Built sub-pages are now **frozen** by default: tapping a word on a sub-page no
+  longer auto-returns to the home board, so a child can keep making selections
+  on the page. (Still adjustable per board in the editor.)
+- Existing built sets can be brought in line with
+  `rake board_builder:reclassify_builder_sets` (dry-run by default).
+
 ### Fixed — board preview thumbnails (wrong/stale + missing)
 - Board grid thumbnails now reliably reflect the board's **current** contents.
   `Board#display_image_url` (what the grid reads first) resolves with a clear

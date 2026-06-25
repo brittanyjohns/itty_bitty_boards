@@ -125,6 +125,33 @@ RSpec.describe Board, type: :model do
     end
   end
 
+  describe "#check_in_use (before_save)" do
+    let(:user)  { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user, name: "Home") }
+
+    it "is not in_use with no ChildBoard" do
+      board.save!
+      expect(board.reload.in_use).to be(false)
+    end
+
+    it "is in_use when directly attached to a communicator (Board Builder path)" do
+      communicator = FactoryBot.create(:child_account, user: user)
+      communicator.child_boards.create!(board: board, created_by_id: user.id)
+
+      board.save!
+      expect(board.reload.in_use).to be(true)
+    end
+
+    it "is in_use when it is the source of a clone on a communicator (assign path)" do
+      communicator = FactoryBot.create(:child_account, user: user)
+      clone = FactoryBot.create(:board, user: user, name: "Home copy", is_template: true)
+      communicator.child_boards.create!(board: clone, original_board: board, created_by_id: user.id)
+
+      board.save!
+      expect(board.reload.in_use).to be(true)
+    end
+  end
+
   describe "#update_grid_layout" do
     let(:user)  { FactoryBot.create(:user) }
     let(:board) { FactoryBot.create(:board, user: user, layout: { "lg" => [] }) }

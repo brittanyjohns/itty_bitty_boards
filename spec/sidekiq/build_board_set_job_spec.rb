@@ -94,6 +94,47 @@ RSpec.describe BuildBoardSetJob do
     end
   end
 
+  describe "#perform scope classification + sub-board freeze" do
+    it "registers the root as in_use and a main board, not a sub-board" do
+      root = precreate_root!(name: "Home")
+
+      described_class.new.perform(root.id, communicator.id, "home", ["dinosaurs"])
+
+      root.reload
+      expect(root.in_use).to be(true)
+      expect(root.sub_board).to be_falsey
+      expect(Board.main_boards).to include(root)
+      expect(Board.in_use).to include(root)
+      expect(Board.sub_boards).not_to include(root)
+    end
+
+    it "marks every child page as a sub-board and freezes it (kept out of main_boards)" do
+      root = precreate_root!(name: "Home")
+
+      described_class.new.perform(root.id, communicator.id, "home", ["dinosaurs", "grandma"])
+
+      children = user.boards.where("COALESCE((settings->>'builder_child')::boolean, false)")
+      expect(children).to be_present
+
+      children.each do |child|
+        expect(child.sub_board).to be(true), "expected child ##{child.id} #{child.name.inspect} to be a sub_board"
+        expect(child.settings["freeze_board"]).to be(true), "expected child ##{child.id} #{child.name.inspect} to be frozen"
+        expect(child.is_frozen?).to be(true)
+      end
+
+      expect(Board.main_boards).not_to include(*children)
+      expect(Board.sub_boards).to include(*children)
+    end
+
+    it "exposes the freeze on the api_view so the frontend can drop auto-return" do
+      root = precreate_root!(name: "Home")
+      described_class.new.perform(root.id, communicator.id, "home", ["dinosaurs"])
+
+      child = user.boards.where("COALESCE((settings->>'builder_child')::boolean, false)").first
+      expect(child.user_api_view[:frozen]).to be(true)
+    end
+  end
+
   describe "#perform with a robust seeded set" do
     it "clones the set into the pre-created root, rewires links, routes interests, and completes" do
       source_root = seed_robust_set!
