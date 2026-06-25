@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — builder boards rendered differently in Speak vs. the editor
+- Board Builder sets (e.g. Core 84) could carry duplicate tiles and folder tiles
+  pushed **past** the grid edge (x=13 on a 12-column board). The editor clamped
+  to the configured columns, but the Speak/dynamic view widened the grid to fit
+  them — so the same board looked different in Speak. `Boards::TileDeduper` now
+  keeps the **in-grid** copy of a duplicate, and a new `Boards::LayoutRepacker`
+  pulls any remaining out-of-grid tiles back inside the grid. Run
+  `rake board_builder:repair_grid` (dry-run by default; `DRY_RUN=false` to apply)
+  to clean existing seed sources and built sets.
+
 ### Fixed — board preview thumbnails (wrong/stale + missing)
 - Board grid thumbnails now reliably reflect the board's **current** contents.
   `Board#display_image_url` (what the grid reads first) resolves with a clear

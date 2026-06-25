@@ -93,6 +93,52 @@ namespace :board_builder do
     end
   end
 
+  # Full grid repair for the "Speak view looks different" bug: collapse duplicate
+  # tiles (keeping the IN-GRID copy) AND repack any remaining out-of-grid tiles
+  # back inside the configured columns, across the robust seed sources and every
+  # built user set. This is the complete fix — dedupe_seed_tiles alone leaves the
+  # off-grid folder duplicates in place when their lower-position copy is the
+  # off-grid one. Regenerates the board preview for any board it changes.
+  #
+  # Read-only by default. Apply with DRY_RUN=false; scope with USER_ID=N:
+  #   rake board_builder:repair_grid                  # preview all
+  #   DRY_RUN=false rake board_builder:repair_grid    # apply all
+  #   DRY_RUN=false USER_ID=740 rake board_builder:repair_grid
+  desc "Dedupe + repack out-of-grid Board Builder tiles (DRY_RUN=false to apply; USER_ID=N to scope)"
+  task repair_grid: :environment do
+    dry_run = ENV["DRY_RUN"] != "false"
+
+    boards = dedupe_target_boards(ENV["USER_ID"])
+    boards_touched = 0
+    tiles_removed = 0
+    tiles_moved = 0
+
+    boards.each do |board|
+      # In a dry run nothing is destroyed, so tell the repacker which off-grid
+      # duplicates the dedupe pass WOULD remove first — otherwise they'd be
+      # double-counted as overflow tiles needing a repack.
+      removable = dry_run ? Boards::TileDeduper.removable_tile_ids(board) : []
+      removed = Boards::TileDeduper.collapse_duplicates!(board, dry_run: dry_run)
+      board.board_images.reset unless dry_run
+      moved = Boards::LayoutRepacker.repack!(board, dry_run: dry_run, ignore_ids: removable)
+      next if removed.zero? && moved.zero?
+
+      boards_touched += 1
+      tiles_removed += removed
+      tiles_moved += moved
+      kind = board.settings&.dig("board_builder_robust_slug") ? "seed" : (board.settings&.dig("builder_root") ? "root" : "child")
+      puts "#{dry_run ? '[DRY RUN] ' : ''}board ##{board.id} #{board.name.inspect} (#{kind}, owner #{board.user_id}): #{removed} duplicate(s) removed, #{moved} tile(s) repacked"
+
+      board.run_generate_preview_job unless dry_run
+    end
+
+    if dry_run
+      puts "Dry run only — #{boards_touched} board(s): #{tiles_removed} duplicate(s) to remove, #{tiles_moved} tile(s) to repack. Re-run with DRY_RUN=false to apply."
+    else
+      puts "Repaired #{boards_touched} board(s): removed #{tiles_removed} duplicate(s), repacked #{tiles_moved} tile(s)."
+    end
+  end
+
   # Boards to scan: robust seed SOURCE boards (root + linked descendants, the
   # template clones copy from) plus every built user set. USER_ID scopes to one
   # owner (seed sources are admin-owned, so a non-admin USER_ID yields built
