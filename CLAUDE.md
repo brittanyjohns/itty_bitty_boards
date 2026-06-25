@@ -1172,31 +1172,34 @@ still works for backward compat.
   **existing matching board** in the set — e.g. a capped seed page, since the seed
   set always clones intact — matched by category with the seed aliases) → route the
   rest to **"My Favorites"**.
-- **Grid cap (no overflow / no dead tiles).** The authored core board fills its
-  grid with a few intentional empty cells (Core 84 = 7×12 = 84 cells, 81 tiles,
-  3 gaps). `Board#add_image` fills the next open cell and only starts a new row
-  once the grid is full, so adding one folder tile per fringe page used to spill
-  onto a stray extra row (the "85th tile"). `BuildBoardSetJob#add_fringe_pages_within_grid!`
-  caps the top-level folder tiles it adds to `root_open_cells`, reserving a cell
-  for "My Favorites" when leftovers are expected; interest-bearing pages go first,
-  the rest fold into My Favorites (nothing dropped). The job clones the seed set
-  **intact** (`exclude_fringe: []`) so every authored folder — People…Describe,
-  **including More** — stays linked to a real board; the prior exclusion path left
-  stripped pages as dead, unlinked folder tiles.
-  - **The cap is a hard guarantee, not just a reservation (the "86 tiles"
-    fix).** The grid math is shared: `Board#open_grid_cells` is the single
-    source of truth (the job's `root_open_cells` delegates to it). **Every**
-    top-level tile-adder now checks it before placing — the Phrases folder +
-    quick-phrase strip (`build_phrases_layer!`/`add_phrase_strip!`), the job's
-    catch-all (`add_to_favorites!`), **and** `SeededSetCloner#create_favorites_board!`
-    — so the built set can never exceed the authored grid no matter how little
-    slack the seed leaves. If a grid genuinely has no open cell, the catch-all
-    tile is skipped with a `Rails.logger.warn` rather than spilled (only
-    possible on an under-slack seed; the authored Core 84's 3 gaps never trip
-    it). The earlier code only reserved a cell and called `add_to_favorites!`
-    unconditionally, so a fuller-than-repo production grid (e.g. a Core 84 with
-    a Phrases layer and fewer gaps) spilled My Favorites + a fringe page onto a
-    stray 8th row → 86 tiles.
+- **Grid growth (interests grow; defaults don't) + no dead tiles.** The authored
+  core boards are now **full** (Core 60 = 6×10 = 60 tiles; Core 84 = 7×12 = 84
+  tiles — no reserved gaps). `Board#add_image` fills the next open cell and only
+  starts a new row once the grid is full. `BuildBoardSetJob#add_fringe_pages!`
+  uses that deliberately: **interest-driven content is allowed to GROW the grid
+  onto new rows** so a child never loses a page — or a word — they asked for.
+  - **What grows vs. what doesn't.** Interest-bearing fringe pages and a
+    non-empty "My Favorites" catch-all grow the grid (added as real, working
+    folder tiles). **Default (no-interest) fringe pages, the Phrases folder, and
+    the early-stage quick-phrase strip do NOT grow the grid** — they fill only
+    genuine open cells (`root_open_cells` / `Board#open_grid_cells`), so a
+    no-interest build stays one clean page (Core 84 = 84 tiles). Trade-off: on a
+    full authored grid those default/gestalt extras are simply omitted (no room
+    without growth, and we don't grow for empty default content).
+  - **Grown sets may scroll.** A cloned root inherits the seed's one-page
+    `disable_scroll`. When the build grows past the authored rows,
+    `allow_scroll_if_grown!(root, authored_rows)` clears `disable_scroll` so the
+    new rows aren't clipped by the native one-page layout.
+  - **No dead tiles, controlled growth.** Every added tile links a real board;
+    growth is bounded by the number of interest categories (a couple of extra
+    rows at most), never a runaway stack. The job clones the seed set **intact**
+    (`exclude_fringe: []`) so every authored folder — People…Describe, **including
+    More** — stays linked to a real board.
+  - **History:** the authored grids previously shipped with 3 empty cells
+    reserved for the builder, and `add_fringe_pages_within_grid!` capped tile
+    placement to those cells (the "85th/86th tile" hard cap). #416/#424 filled
+    the grids to a true 60/84 (the cells read as "missing tiles" to users), so
+    the reserved-cell reservation was replaced with this controlled-growth model.
   - **Alias-aware interest routing in the cloner.** `SeededSetCloner` matches an
     interest's category to a cloned fringe board via `fringe_for_category`,
     applying `StructurePlanner::CATEGORY_SEED_ALIASES` ("Family & People" →
