@@ -678,13 +678,15 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
   (`app/models/board.rb`). The board's `api_view` exposes `can_edit`,
   `locked`, and `lock_reason` for the frontend.
 - "Over their board limit" is computed by `User#countable_board_count` (own,
-  non-predefined, non-`builder_child` boards) vs `User#board_limit`. This is the
-  **single source of truth** for board counting — `User#at_board_limit?` wraps
-  it (admins never limited), and every creation gate (create, clone,
-  `create_from_template`, `import_obf`, menus, generated-board claim,
-  Board Builder) plus the `can_create_boards` api_view flag and this read-only
-  rule all route through it. Board Builder sub-boards are excluded so a built
-  tree counts as one (see the Board Builder section).
+  non-predefined boards that **don't belong to a `builder: true` BoardGroup**)
+  vs `User#board_limit`. This is the **single source of truth** for board
+  counting — `User#at_board_limit?` wraps it (admins never limited), and every
+  creation gate (create, clone, `create_from_template`, `import_obf`, menus,
+  generated-board claim) plus the `can_create_boards` api_view flag and this
+  read-only rule all route through it. A Board Builder run's boards are members
+  of a builder BoardGroup, so they're excluded here and the whole built tree
+  costs **zero** board slots — it counts as **one Board Set** against
+  `board_group_limit` instead (see the Board Sets and Board Builder sections).
 - The user picks which single board keeps full edit access via
   `PATCH /api/boards/:id/make_editable`. The selection is persisted on
   `users.editable_board_id`. If none is set, `effective_editable_board_id`
@@ -1268,24 +1270,29 @@ Endpoints (`API::V1::BoardBuilderController`, all auth-gated):
   favorited root board's `api_view` (**201**). **422 `unknown_template`** /
   **422 `build_failed`** (the build is transactional — failure rolls back, no
   orphans). The frontend page ships separately in `itty-bitty-frontend`.
-  - **Board-limit gated, but a tree counts as ONE board.** `create` returns
-    **422 "Maximum number of boards reached"** when `current_user.at_board_limit?`
-    (see the board-limit section below). Because one wizard run persists a whole
-    linked tree, `BoardTreeBuilder` marks every sub-board (depth > 0)
-    `settings["builder_child"] = true`, and `User#countable_board_count` excludes
-    them — so the tree counts as its single root, not ~5. This also keeps the
-    whole built set editable (the read-only lock keys off the same count).
+  - **A built set is a Board Set, counted via `board_group_limit` (issue #407).**
+    A wizard run persists a whole linked tree *and* a `builder: true` BoardGroup
+    wrapping it, so it costs exactly **one Board Set slot and zero board slots**.
+    `create` gates on **`current_user.at_board_group_limit?`** (not the per-board
+    limit) and returns **422** with the same "board set limit" copy as
+    `BoardGroupsController` (`"You've reached your plan's board set limit
+    (N/M). Upgrade to add more."`). `User#countable_board_count` excludes every
+    board that belongs to a builder BoardGroup (`builder_grouped_board_ids`), so
+    the tree never counts against `board_limit` and the whole set stays editable
+    (the read-only lock keys off the same count). `BoardTreeBuilder` /
+    `SeededSetCloner` still stamp `settings["builder_root"]` /
+    `["builder_child"]` on the boards, but those JSONB flags are **no longer the
+    counting mechanism** — `builder_root` now only marks the root for re-run
+    detection; the BoardGroup is what makes a set a set.
   - **Re-run guard (issue #269): detect + warn, never silently dupe.** If the
     communicator already has a builder set, `create` returns **409
     `board_builder_set_exists`** (`{ existing_root_id, existing_root_name,
     built_at }`) instead of stacking a second favorited root; the client
     re-sends with **`confirm=true`** to build another. Detection is
     `ChildAccount#board_builder_root` — each root is marked
-    `settings["builder_root"] = true` by `BoardTreeBuilder` (counterpart to
-    `builder_child`; does **not** affect the board-limit count). It's
-    deletion-safe: delete the set and a re-run is a fresh build. The 409 check
-    runs *after* the board-limit gate, so a Free user at their limit gets the
-    422 first.
+    `settings["builder_root"] = true` by `BoardTreeBuilder`. It's deletion-safe:
+    delete the set and a re-run is a fresh build. The 409 check runs *after* the
+    board-set-limit gate, so a user at their set limit gets the 422 first.
 
 ### Robust vocabulary sets (Core 60 / Core 84)
 

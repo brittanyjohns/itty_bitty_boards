@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Board Builder output counts as one Board Set, not a dozen boards
+- A Board Builder run now counts as **one Board Set** (`board_group_limit`)
+  instead of one board against your board limit. The whole linked tree it builds
+  costs a single set slot and zero board slots, so "build a full communicator in
+  one tap" no longer eats your board allowance. Standalone boards you make
+  outside the builder still count individually. Per-plan set caps: Free 1,
+  Basic 25, Pro 50 (ENV-overridable via `FREE/BASIC/PRO_BOARD_GROUP_LIMIT`). At
+  the cap, the builder returns a "board set limit" message (422), matching the
+  Board Sets API.
+
 ### Fixed — board preview thumbnails (wrong/stale + missing)
 - Board grid thumbnails now reliably reflect the board's **current** contents.
   `Board#display_image_url` (what the grid reads first) resolves with a clear

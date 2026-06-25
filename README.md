@@ -797,6 +797,39 @@ curl -X GET https://<host>/api/boards/<board_id>/download_obf \
 - Specs: `spec/requests/api/boards/import_export_spec.rb`,
   `spec/models/obz_importer_spec.rb`
 
+## Plans & limits: boards vs. Board Sets
+
+The app counts two different things against two separate per-plan caps:
+
+- **Boards** — individual standalone boards a user creates/clones/imports.
+  Counted by `User#countable_board_count` (own, non-predefined boards) against
+  `User#board_limit`.
+- **Board Sets** (`BoardGroup`, user-facing name "Board Sets") — collections of
+  boards, including the linked tree a **Board Builder** run produces. Counted by
+  `User#countable_board_group_count` (own, non-predefined sets) against
+  `User#board_group_limit`.
+
+A **Board Builder** run persists a whole linked tree wrapped in a `builder: true`
+BoardGroup. It costs **one Board Set slot and zero board slots** — the tree's
+boards are excluded from the board count — so "build a full communicator in one
+tap" counts as a single set, not a dozen boards. Standalone boards you create
+outside the builder still count individually against `board_limit`.
+
+Both caps are plan-derived and ENV-overridable (a per-user
+`settings["board_limit"]` / `settings["board_group_limit"]` override wins over
+the plan default; admins are never limited):
+
+| Plan  | Boards (`board_limit`)    | Board Sets (`board_group_limit`) |
+| ----- | ------------------------- | -------------------------------- |
+| Free  | `FREE_BOARD_LIMIT` (1)    | `FREE_BOARD_GROUP_LIMIT` (1)     |
+| Basic | `BASIC_BOARD_LIMIT` (100) | `BASIC_BOARD_GROUP_LIMIT` (25)   |
+| Pro   | `PRO_BOARD_LIMIT` (300)   | `PRO_BOARD_GROUP_LIMIT` (50)     |
+
+When a user is at either cap, the relevant creation path returns **422** with a
+limit message (e.g. Board Builder and `BoardGroupsController` both render
+"You've reached your plan's board set limit…"). **422 is the limit signal; 402
+is reserved for AI-credit exhaustion.**
+
 ## Board Builder wizard
 
 Builds a real, linked board set for a communicator from two wizard inputs — a
