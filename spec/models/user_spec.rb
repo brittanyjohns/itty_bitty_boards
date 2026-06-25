@@ -317,6 +317,30 @@ RSpec.describe User, type: :model do
     end
   end
 
+  describe "#api_view board set (BoardGroup) usage" do
+    it "exposes board_group_limit and board_group_count" do
+      user = FactoryBot.create(:free_user)
+      view = user.api_view
+      expect(view).to have_key(:board_group_limit)
+      expect(view).to have_key(:board_group_count)
+      expect(view[:board_group_limit]).to eq(user.board_group_limit)
+      expect(view[:board_group_count]).to eq(0)
+    end
+
+    it "counts a builder board set as one group" do
+      user = FactoryBot.create(:free_user)
+      BoardGroup.create!(name: "Built set", user: user, builder: true)
+      expect(user.api_view[:board_group_count]).to eq(1)
+    end
+
+    it "excludes predefined (admin-curated) sets from the count" do
+      user = FactoryBot.create(:free_user)
+      BoardGroup.create!(name: "Mine", user: user)
+      BoardGroup.create!(name: "Curated", user: user, predefined: true)
+      expect(user.api_view[:board_group_count]).to eq(1)
+    end
+  end
+
   describe "#ensure_minimum_communicator_slot!" do
     it "bumps a 0 limit up to the free-plan default" do
       user = FactoryBot.create(:free_user)
