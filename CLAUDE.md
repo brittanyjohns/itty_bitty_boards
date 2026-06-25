@@ -1332,7 +1332,9 @@ layout + `part_of_speech` colors survive). Reuses `ObzImporter` (seed) and
   `(user_id, obf_id)`). Format spec: `db/seeds/board_builder_sets/README.md`.
   Slugs `core-60` (authored as a full 60-tile home: 50 core words + 8 category
   folders — People, Feelings, Food, Drinks, Play, Places, Body, More — wired in
-  the bottom row, flanked by `this`/`that`), `core-84` (TBD).
+  the bottom row, flanked by `this`/`that`), `core-84` (a full 84-tile home:
+  73 core words + 11 category folders — the Core 60 eight plus School, Time,
+  Describe — with `this`/`that` filling the folder row to a true 84).
   - **Tile upserts are keyed on the authored OBF button id, not the resolved
     `image_id`.** `Board.upsert_board_image` matches an existing tile by the
     button id stamped on `board_image.data["obf_button_id"]` (falling back to
