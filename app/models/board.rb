@@ -1826,7 +1826,12 @@ class Board < ApplicationRecord
       is_template: is_template,
       parent_boards: @parent_boards&.map { |pb| { id: pb.id, name: pb.name, slug: pb.slug, board_type: pb.board_type, display_image_url: pb.display_image_url || pb.preview_image_url, preview_image_url: pb.preview_image_url } },
       public_url: public_url,
-      # board_groups: board_groups,
+      # Slim membership so the frontend can offer a board → set-map link (and the
+      # builder completion CTA). `builder` flags the predictive-tree sets the map
+      # is built for; full board_group api_view would be heavy/circular here.
+      board_groups: board_groups.map { |bg|
+        { id: bg.id, name: bg.name, slug: bg.slug, predefined: bg.predefined, builder: bg.builder, root_board_id: bg.root_board_id }
+      },
       slug: slug,
       bg_color: bg_color,
       text_color: text_color,
