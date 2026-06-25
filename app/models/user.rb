@@ -1612,6 +1612,11 @@ class User < ApplicationRecord
       board_count: board_count,
       has_boards: board_count > 0,
       board_limit_reached: board_count >= board_limit,
+      # Board Set (BoardGroup) usage — mirrors the board_limit/board_count
+      # pair so a future "Board Sets: X of Y" surface can read it off the
+      # current-user payload (the model methods already exist).
+      board_group_limit: board_group_limit,
+      board_group_count: countable_board_group_count,
       can_create_boards: can_create_boards,
       editable_board_id: effective_editable_board_id,
       editable_board_switch_available_at: editable_board_switch_available_at,
