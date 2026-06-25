@@ -1327,6 +1327,25 @@ layout + `part_of_speech` colors survive). Reuses `ObzImporter` (seed) and
     (`settings["builder_root"]/["builder_child"]`) — re-seeding only heals the
     admin sources, not the user clones, so run this for the live sets built
     between the bad re-seed and the fix.
+  - **Off-grid tiles + the Speak-view divergence — `rake board_builder:repair_grid`.**
+    A duplicate folder tile could be parked PAST the grid edge (e.g. a Core 84
+    `More` folder at `x=13` on a 12-column board). The editor renders through
+    react-grid-layout, which clamps to the configured `cols`, but the native
+    **Speak** view sized the grid by the tile extent and silently widened to 14
+    columns — so the same board looked different in Speak than in every editor
+    view. Two layers fix it: **(1)** `Boards::TileDeduper` now keeps the
+    **in-grid** copy of a duplicate (not blindly the lowest-position one), so it
+    no longer preserves the off-grid twin and delete the authored in-grid tile;
+    **(2)** `Boards::LayoutRepacker` is the safety net for a genuine
+    *non-duplicate* overflow tile — it moves only the overflowing tiles into the
+    first empty rows below the fitting tiles (per screen size, then resyncs
+    `board.layout`), a Ruby port of the frontend `repackLayout`. The combined
+    `rake board_builder:repair_grid` (dry-run by default; `DRY_RUN=false`,
+    `USER_ID=N`) runs dedupe + repack across the seed sources and every built
+    set and regenerates the preview for any board it changes. The companion
+    frontend fix (itty-bitty-frontend `NativeLayoutGrid` repacks to the
+    configured columns) means Speak matches the editor even before this data
+    cleanup runs.
 - **Build:** `#create` branches on `Boards::RobustSets.find_root(template)`.
   A match runs `Boards::SeededSetCloner` (walks the linked set to depth 2,
   clones each board, **rewires** `predictive_board_id` to the clones, marks

@@ -54,6 +54,24 @@ RSpec.describe Boards::TileDeduper do
         .to change { board.board_images.count }.by(-2)
     end
 
+    it "keeps the IN-GRID copy even when the off-grid duplicate has a lower position" do
+      board.update_column(:large_screen_columns, 12)
+      folder_target = create(:board, user: user)
+      # The off-grid copy (x=13 on a 12-col board) was inserted first (low
+      # position) — the exact Core 84 builder bug. The authored in-grid copy
+      # (bottom row) came later. We must keep the in-grid one.
+      off_grid = tile("More", position: 5, predictive_board_id: folder_target.id)
+      off_grid.update_column(:layout, { "lg" => { "i" => off_grid.id.to_s, "x" => 13, "y" => 1, "w" => 1, "h" => 1 } })
+      in_grid = tile("More", position: 40, predictive_board_id: folder_target.id)
+      in_grid.update_column(:layout, { "lg" => { "i" => in_grid.id.to_s, "x" => 7, "y" => 6, "w" => 1, "h" => 1 } })
+
+      expect { described_class.collapse_duplicates!(board) }
+        .to change { board.board_images.count }.by(-1)
+
+      expect(board.board_images.exists?(in_grid.id)).to be(true)
+      expect(board.board_images.exists?(off_grid.id)).to be(false)
+    end
+
     it "is a no-op on a clean board and returns 0" do
       tile("want", position: 1)
       tile("more", position: 2)
