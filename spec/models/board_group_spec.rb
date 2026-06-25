@@ -145,4 +145,14 @@ RSpec.describe BoardGroup, type: :model do
       expect(group.reload.display_image_url).to eq("https://example.com/group-fallback.png")
     end
   end
+
+  describe "#api_view" do
+    it "exposes the builder flag so the frontend can target builder sets" do
+      builder = BoardGroup.create!(name: "Built", user: user, builder: true)
+      manual = BoardGroup.create!(name: "Manual", user: user)
+
+      expect(builder.api_view[:builder]).to be(true)
+      expect(manual.api_view[:builder]).to be(false)
+    end
+  end
 end
