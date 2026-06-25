@@ -216,6 +216,11 @@ Rails.application.routes.draw do
         post "remove_board/:board_id", to: "board_groups#remove_board"
       end
     end
+    # Back-compat alias: the board-set map handoff documented the graph endpoint
+    # under /api/v1/, but board_groups lives in the plain /api namespace like
+    # every other board_group route. This alias keeps the /api/v1/ path working
+    # so callers that followed the doc don't 404; both paths hit the same action.
+    get "v1/board_groups/:id/graph", to: "board_groups#graph"
     get "sample_voices", to: "images#sample_voices"
 
     resources :generated_boards, param: :token, only: %i[create show] do

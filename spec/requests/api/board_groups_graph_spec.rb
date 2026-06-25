@@ -68,6 +68,16 @@ RSpec.describe "API::BoardGroups graph", type: :request do
       expect(folder["is_folder"]).to be(true)
       expect(folder["links_to_board_id"]).to eq(set[:food].id)
     end
+
+    it "is also reachable via the /api/v1/ back-compat alias" do
+      set = build_group_for(user)
+      get "/api/v1/board_groups/#{set[:group].id}/graph", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["root_board_id"]).to eq(set[:home].id)
+      expect(body["stats"]["boards"]).to eq(2)
+    end
   end
 
   describe "GET /api/boards/:id tile ids (?focus deep-link support)" do
