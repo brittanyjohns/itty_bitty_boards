@@ -139,6 +139,65 @@ namespace :board_builder do
     end
   end
 
+  # Backfill for the Board Builder scope/classification fix. Sets built before
+  # that change have:
+  #   - roots that never registered as in_use (the ChildBoard attaches the root
+  #     directly, and the old Board#check_in_use only counted clone sources), so
+  #     they never surfaced under the "in use" scope, AND
+  #   - sub-boards (builder_child) that leaked into the `main_boards` scope
+  #     (their sub_board column was never set true) and weren't frozen.
+  #
+  # This re-saves each built set so Board#check_in_use / #check_is_sub_board
+  # recompute against the now-complete relations, and freezes every child page
+  # (settings["freeze_board"] = true) so navigating in doesn't auto-return home —
+  # exactly what BuildBoardSetJob#finalize_sub_boards! now does at build time.
+  #
+  # Read-only by default. Apply with DRY_RUN=false; scope with USER_ID=N:
+  #   rake board_builder:reclassify_builder_sets               # preview all
+  #   DRY_RUN=false rake board_builder:reclassify_builder_sets  # apply all
+  #   DRY_RUN=false USER_ID=740 rake board_builder:reclassify_builder_sets
+  desc "Reclassify built Board Builder sets: root in_use, children sub_board+frozen (DRY_RUN=false to apply; USER_ID=N to scope)"
+  task reclassify_builder_sets: :environment do
+    dry_run = ENV["DRY_RUN"] != "false"
+
+    roots = Board.where("(settings ->> 'builder_root') = 'true'")
+    roots = roots.where(user_id: ENV["USER_ID"]) if ENV["USER_ID"].present?
+
+    sets_touched = 0
+    children_frozen = 0
+
+    roots.find_each do |root|
+      child_ids = builder_set_child_ids(root)
+      sets_touched += 1
+      puts "#{dry_run ? '[DRY RUN] ' : ''}set ##{root.id} #{root.name.inspect} (owner #{root.user_id}): root in_use, #{child_ids.size} child page(s) frozen + sub_board"
+
+      next if dry_run
+
+      # Re-save the root so check_in_use picks up its direct ChildBoard.
+      root.save!
+      Board.where(id: child_ids).find_each do |child|
+        child.settings = (child.settings || {}).merge("freeze_board" => true)
+        child.save! # recomputes check_is_sub_board => sub_board: true
+        children_frozen += 1
+      end
+    end
+
+    if dry_run
+      puts "Dry run only — #{sets_touched} built set(s) to reclassify. Re-run with DRY_RUN=false to apply."
+    else
+      puts "Reclassified #{sets_touched} set(s); froze #{children_frozen} child page(s)."
+    end
+  end
+
+  # The builder_child boards under a built root: BFS predictive_board_id links
+  # (bounded to the cloner's MAX_DEPTH), scoped to the owner so a tile pointing at
+  # a shared/admin board can't pull it in. Excludes the root itself.
+  def builder_set_child_ids(root)
+    acc = Set.new
+    collect_set_descendant_ids(root, acc)
+    Board.where(id: acc.to_a, user_id: root.user_id).pluck(:id)
+  end
+
   # Boards to scan: robust seed SOURCE boards (root + linked descendants, the
   # template clones copy from) plus every built user set. USER_ID scopes to one
   # owner (seed sources are admin-owned, so a non-admin USER_ID yields built
