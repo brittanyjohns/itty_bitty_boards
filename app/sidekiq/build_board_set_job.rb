@@ -123,7 +123,7 @@ class BuildBoardSetJob
     # open cells; fringe pages then adapt to whatever's left.
     phrases_board = build_phrases_layer!(root, communicator, owner, plan) if plan.phrases_page&.dig(:include)
 
-    add_fringe_pages_within_grid!(root, communicator, owner, profile, plan, explicit_categories)
+    add_fringe_pages!(root, communicator, owner, profile, plan, explicit_categories)
 
     wire_phrase_board!(communicator, owner, phrases_board) if phrases_board
   end
@@ -271,51 +271,65 @@ class BuildBoardSetJob
       .flat_map { |p| p[:interests] || [] }
   end
 
-  # The authored core board fills its grid, with a few intentional empty cells.
-  # Board#add_image drops a new tile into the first open cell and only starts a
-  # NEW row once the grid is full (see BoardsHelper#next_available_cell). So
-  # adding one folder tile per fringe page overflows the authored grid onto a
-  # stray extra row — the "85th tile" on a 7x12 (84-cell) Core 84 board.
+  # Adds the interest-driven fringe pages + a "My Favorites" catch-all to the
+  # built home board.
   #
-  # Cap the top-level folder tiles we add to the number of open cells. Pages we
-  # can't fit fold their interests into the single "My Favorites" catch-all
-  # (one tile, deduped) so nothing the child asked for is dropped — it just
-  # lands in Favorites instead of its own page.
-  def add_fringe_pages_within_grid!(root, communicator, owner, profile, plan, explicit_categories = {})
+  # The authored core board (Core 60/84) fills its grid completely — there are
+  # no reserved cells. Interest-bearing pages and a non-empty My Favorites are
+  # therefore allowed to GROW the grid (Board#add_image starts a new row once
+  # the grid is full), because a child must never lose a page — or a word — they
+  # asked for. Default pages with no interests are NOT grown for: they fill only
+  # genuine open cells, so a no-interest build stays one clean page.
+  #
+  # When the grid grows past the authored rows, the built home board is allowed
+  # to scroll (the seed's one-page `disable_scroll` would otherwise clip the
+  # grown rows).
+  def add_fringe_pages!(root, communicator, owner, profile, plan, explicit_categories = {})
     root.reload
-    open_cells = root_open_cells(root)
+    authored_rows = root.large_screen_rows
 
     # Seed-set pages already live in the clone; they need no new tile. Only
     # prebuilt/AI pages add a top-level folder. Interest-bearing pages first so
-    # a nearly-full grid still gets the pages the child actually asked for.
+    # they're placed before space-filling default pages.
     new_pages = plan.fringe_pages
       .reject { |p| p[:source] == :seed_set }
       .sort_by { |p| (p[:interests] || []).any? ? 0 : 1 }
 
     catch_all = Array(plan.catch_all_interests).dup
 
-    # The total tiles we add (standalone pages + a possible My Favorites) must
-    # fit the open cells. We need a My Favorites cell whenever something will
-    # be left over — an initial catch-all, OR more pages than will fit. Reserve
-    # that cell up front so a page can't claim it and push Favorites onto a
-    # stray new row.
-    needs_favorites = catch_all.any? || new_pages.size > open_cells
-    max_pages = open_cells - (needs_favorites ? 1 : 0)
-    max_pages = 0 if max_pages.negative?
-
-    placed = 0
     new_pages.each do |page_plan|
-      if placed < max_pages && add_single_fringe_page!(root, communicator, owner, profile, page_plan)
-        placed += 1
-      else
+      has_interests = Array(page_plan[:interests]).any?
+
+      # Default (no-interest) pages only fill real open cells — never grow the
+      # grid just to surface empty default content.
+      unless has_interests || root_open_cells(root) >= 1
         catch_all.concat(Array(page_plan[:interests]))
+        next
       end
+
+      next if add_single_fringe_page!(root, communicator, owner, profile, page_plan)
+
+      catch_all.concat(Array(page_plan[:interests]))
     end
 
     # Place leftover interests on an existing matching board where one exists,
-    # then drop the rest into My Favorites.
+    # then drop the rest into My Favorites (which grows the grid if it's full).
     catch_all = route_catch_all_to_existing_boards!(root, owner, catch_all, explicit_categories)
     add_to_favorites!(root, communicator, catch_all) if catch_all.any?
+
+    allow_scroll_if_grown!(root, authored_rows)
+  end
+
+  # A built set that grew past its authored grid (interest pages / My Favorites
+  # on new rows) must scroll, or the native one-page layout clips them. Cloned
+  # roots inherit the seed's `disable_scroll`; clear it only when grown.
+  def allow_scroll_if_grown!(root, authored_rows)
+    root.reload
+    return unless root.large_screen_rows > authored_rows
+    return unless root.settings&.dig("disable_scroll")
+
+    root.settings["disable_scroll"] = false
+    root.save!
   end
 
   # Before dumping leftover interests into My Favorites, drop each word onto an
@@ -453,17 +467,11 @@ class BuildBoardSetJob
       .first&.then { |bi| Board.find_by(id: bi.predictive_board_id) }
 
     unless favorites
-      # A new My Favorites needs an open cell for its folder tile. If the
-      # authored grid has no slack left, adding it would spill onto a stray
-      # extra row (the 85th/86th tile). Skip rather than overflow — log so an
-      # under-slack seed is visible. (With the authored Core 84's reserved gaps
-      # this never trips; the reservation in add_fringe_pages_within_grid! keeps
-      # a cell free whenever leftovers are expected.)
-      if root.open_grid_cells < 1
-        Rails.logger.warn "[BuildBoardSetJob] root #{root.id}: no grid space for My Favorites; #{words.size} interest(s) not surfaced on the home board"
-        return
-      end
-
+      # My Favorites only ever holds interests the child asked for, so it's
+      # always surfaced — growing the grid onto a new row when the authored grid
+      # is full (the authored Core 60/84 leaves no reserved cells).
+      # add_fringe_pages! clears the home board's one-page `disable_scroll` when
+      # growth happens, so the new row isn't clipped.
       favorites = Board.new(name: "My Favorites", user: owner)
       favorites.board_type = "static"
       favorites.assign_parent

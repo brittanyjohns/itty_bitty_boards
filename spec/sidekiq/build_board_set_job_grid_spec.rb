@@ -69,9 +69,10 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     end
   end
 
-  it "keeps every authored folder working and stays within the grid" do
-    # More non-seed interest categories than the grid has open cells, to force
-    # the overflow/cap path.
+  it "keeps every authored folder working and grows the grid to surface all interests" do
+    # The authored Core 84 grid is full (84 tiles, no reserved cells), so these
+    # non-seed interest categories must GROW the grid onto new rows rather than
+    # being dropped.
     root = build!([
       { "word" => "dog", "category" => "Animals" },
       { "word" => "guitar", "category" => "Music" },
@@ -82,10 +83,13 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
 
     expect(root.status).to eq("complete")
 
-    # No overflow: the build never spills onto a stray extra row.
-    expect(root.board_images.count).to be <= CORE_84_GRID_CELLS
+    # The full authored grid grows to fit the interest pages.
+    expect(root.board_images.count).to be > CORE_84_GRID_CELLS
+    # Growth is controlled, not runaway — at most a couple of extra rows.
+    expect(root.board_images.count).to be <= CORE_84_GRID_CELLS + (3 * 12)
 
-    # No dead tiles: the authored folders the planner used to strip are intact.
+    # No dead tiles: every added folder tile links a real board, and the
+    # authored folders the planner used to strip are intact.
     expect(dead_folder_tiles(root)).to be_empty
 
     labels = root.board_images.map(&:label)
@@ -95,11 +99,12 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
       expect(tile.predictive_board_id).to be_present, "#{name} folder tile has no linked board"
     end
 
-    # Nothing the child asked for is dropped: overflow interests land in a
-    # working "My Favorites" rather than disappearing.
-    favorites_tile = root.board_images.find { |bi| bi.label == "My Favorites" }
-    expect(favorites_tile&.predictive_board_id).to be_present
-    favorites = Board.find(favorites_tile.predictive_board_id)
+    # Grown past the authored grid → the home board may scroll, so the new rows
+    # aren't clipped by the seed's one-page (disable_scroll) layout.
+    expect(root.settings["disable_scroll"]).not_to eq(true)
+
+    # Nothing the child asked for is dropped: every interest lands on a working
+    # linked board (its own fringe page, an existing folder, or My Favorites).
     routed = root.board_images
       .select(&:predictive_board_id)
       .flat_map { |bi| Board.find(bi.predictive_board_id).board_images.map { |t| t.label.to_s.downcase } }
@@ -133,11 +138,11 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     end
   end
 
-  # Regression for the "86 tiles instead of 84" report: when the authored grid
-  # has no slack left (a fuller Core 84 than the repo seed), the catch-all
-  # "My Favorites" tile and an early-stage quick-phrase strip used to spill onto
-  # a stray extra row. The build must stay within the grid regardless of slack.
-  it "never overflows the grid even when the seed has no open cells" do
+  # The "86 tiles instead of 84" report (uncontrolled spill of dead/duplicate
+  # tiles) is now a *controlled growth* guarantee: when the authored grid has no
+  # open cells, interest pages grow onto new rows as real, working folders —
+  # never dropped, never dead/duplicate, never runaway.
+  it "grows in a controlled way when the seed has no open cells" do
     shrink_seed_grid!(remaining: 0)
     # Early-stage gestalt -> quick-phrase strip, the most aggressive cell user.
     communicator.update!(details: (communicator.details || {}).merge("glp_stage" => 1))
@@ -149,8 +154,18 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     ])
 
     expect(root.status).to eq("complete")
-    expect(root.board_images.count).to be <= CORE_84_GRID_CELLS
     expect(dead_folder_tiles(root)).to be_empty
+    # Bounded growth, not a runaway stack of rows.
+    expect(root.board_images.count).to be <= CORE_84_GRID_CELLS + (3 * 12)
+
+    # Nothing dropped: the seed-alias interest lands in its cloned seed page and
+    # the fringe interests are surfaced on their linked boards.
+    routed = root.board_images
+      .select(&:predictive_board_id)
+      .flat_map { |bi| Board.find(bi.predictive_board_id).board_images.map { |t| t.label.to_s.downcase } }
+    %w[grandma toilet dog].each do |word|
+      expect(routed).to include(word), "interest '#{word}' was dropped"
+    end
   end
 
   # Aliased InterestCategories ("Family & People" -> People, "Health & Body" ->
