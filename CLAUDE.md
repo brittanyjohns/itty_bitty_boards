@@ -1099,6 +1099,37 @@ collections of boards. CRUD is open to any signed-in user;
   (`BoardGroup#add_board` does the join + layout init). Beyond the owner-or-admin
   set check, the *board* must belong to the caller or be predefined/public.
 
+## Responsive board layouts (sm/md derived from lg)
+
+A board stores a per-tile `layout` for each screen size (`lg`/`md`/`sm`, plus
+`xs`/`xxs` mirrors of `sm`). `lg` is the **authored** layout; md/sm are
+**derived** from it so a board reads well on tablets and phones without ever
+losing a tile.
+
+- **Column counts — `Boards::ScreenColumns.derive(large_columns, screen)`** is
+  the single source of truth: `md ≈ ⅔·lg`, `sm ≈ ⅓·lg`, rounded and clamped so
+  `sm ≤ md ≤ lg` with a 2-column floor for phones. `Board#set_screen_sizes`
+  (before_create) and `get_number_of_columns` (BoardsHelper) both derive md/sm
+  from lg when not explicitly set; `Boards::LayoutRepacker` uses the same rule.
+  The frontend mirrors it (`deriveColumns`/`resolveColumns` in
+  `nativeLayoutMath`) so viewer, editor, and backend agree.
+- **Tile reflow — `Boards::ScreenReflow.reflow!(board, screens:)`** rebuilds the
+  md/sm (and xs/xxs) per-tile layouts from the **lg reading order** (sorted by lg
+  y,x), width-aware row-major packed into each screen's column count, then
+  resyncs `board.layout` via `LayoutRepacker.resync_board_layout!`. lg is never
+  modified; every tile is placed (nothing dropped). This is distinct from
+  `LayoutRepacker` (which only nudges overflow tiles back inside an existing
+  grid — a data-repair net); reflow is the intentional responsive layout.
+- **When it runs.** `Board#apply_layout!` calls `sync_derived_screen_layouts!`:
+  editing **lg** reflows the non-customized md/sm; editing **md/sm** records that
+  screen in `settings["custom_screen_layouts"]` so a later lg edit leaves the
+  hand-arranged screen alone. `BuildBoardSetJob` reflows every board in a built
+  set at the finalize chokepoint (before `generate_preview!`).
+- **Backfill:** `rake board_layouts:reflow_sm_md` (dry-run by default;
+  `DRY_RUN=false` to apply, `USER_ID=N` to scope, `KEEP_COLUMNS=true` to reflow
+  without recomputing column counts) recomputes proportional md/sm columns and
+  reflows existing boards, skipping fully-customized screens.
+
 ## Board Builder wizard
 
 Turns wizard input — a starter **template** + a few **interest words** — into

@@ -95,15 +95,16 @@ module Boards
         else board.large_screen_columns
         end
       cols = explicit.to_i
-      cols = board.number_of_columns.to_i if cols < 1
-      cols < 1 ? default_columns(screen) : cols
+      return cols if cols >= 1
+
+      # No explicit count: derive md/sm from the authored lg count so the grid
+      # we repack into matches what the viewer/editor size to (ScreenColumns).
+      lg = board.large_screen_columns.to_i
+      lg = board.number_of_columns.to_i if lg < 1
+      lg = 12 if lg < 1
+      Boards::ScreenColumns.derive(lg, screen)
     end
     private_class_method :column_count
-
-    def default_columns(screen)
-      { "sm" => 4, "md" => 8, "lg" => 12 }.fetch(screen, 12)
-    end
-    private_class_method :default_columns
 
     def tile_w(cell)
       [cell["w"].to_i, 1].max

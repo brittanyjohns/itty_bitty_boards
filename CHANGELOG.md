@@ -5,6 +5,22 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — boards now lay out well on phones and tablets, not just large screens
+- Medium/small column counts are now **derived proportionally** from a board's
+  authored large-screen count (`Boards::ScreenColumns`: md ≈ ⅔ of lg, sm ≈ ⅓ of
+  lg, with a 2-column floor for phones) instead of fixed defaults that ignored
+  how dense the board was. New boards get these automatically.
+- The medium/small **tile layouts** are now reflowed from the large layout with
+  a width-aware packer (`Boards::ScreenReflow`) so multi-width tiles never
+  overflow the narrower grids — every tile stays on the board (nothing dropped),
+  read in the authored large-screen order. Editing the large layout regenerates
+  md/sm to match; a screen the user hand-arranges is marked in
+  `settings["custom_screen_layouts"]` and left untouched. Board Builder sets
+  reflow the whole tree at build time.
+- Backfill existing boards with `rake board_layouts:reflow_sm_md` (dry-run by
+  default; `DRY_RUN=false` to apply, `USER_ID=N` to scope, `KEEP_COLUMNS=true`
+  to reflow without changing column counts). The large layout is never touched.
+
 ### Fixed — builder boards rendered differently in Speak vs. the editor
 - Board Builder sets (e.g. Core 84) could carry duplicate tiles and folder tiles
   pushed **past** the grid edge (x=13 on a 12-column board). The editor clamped

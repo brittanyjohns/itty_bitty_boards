@@ -72,6 +72,7 @@ class BuildBoardSetJob
       attach_set_to_group!(root, board_group_id)
       mute_dynamic_tile_names!(root)
       finalize_sub_boards!(root)
+      reflow_screen_layouts!(root)
       set_sub_board_previews_from_tiles!(root)
       generate_preview!(root)
       root.update_column(:status, "complete")
@@ -201,6 +202,18 @@ class BuildBoardSetJob
   #
   # The root is intentionally left unfrozen and sub_board=false so it stays a
   # main board. A no-op once already frozen + classified (idempotent on retry).
+  # Derive each board's medium/small layout from its authored large layout so
+  # the whole set reads well on tablets and phones — the build grows the grid
+  # with interest tiles, which can overflow the narrower sm/md grids unless we
+  # reflow them width-aware (Boards::ScreenReflow). Runs across root + children.
+  def reflow_screen_layouts!(root)
+    Board.where(id: set_board_ids(root)).find_each do |board|
+      Boards::ScreenReflow.reflow!(board)
+    rescue => e
+      Rails.logger.error "BuildBoardSetJob #{root.id}: screen reflow failed for board #{board.id}: #{e.message}"
+    end
+  end
+
   def finalize_sub_boards!(root)
     child_ids = set_board_ids(root) - [root.id]
     Board.where(id: child_ids).find_each do |board|
