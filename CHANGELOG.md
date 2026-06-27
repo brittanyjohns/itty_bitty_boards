@@ -44,6 +44,25 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   on the page. (Still adjustable per board in the editor.)
 - Existing built sets can be brought in line with
   `rake board_builder:reclassify_builder_sets` (dry-run by default).
+- The home board now **stays** a main board even though its sub-pages each carry
+  a "Home" tile that links back to it. Previously those back-links re-classified
+  the home board as a sub-board on a later save, dropping it off the boards list
+  again; `Board#check_is_sub_board` now pins any builder home board as a main
+  board regardless.
+
+### Fixed — Core 84 / Core 60 missing tiles ("84 only shows 82")
+- A built core set could render with fewer tiles than authored because two tiles
+  ended up stacked on the **same grid cell** (one hidden behind the other) while
+  another cell sat empty — a leftover from an earlier seeding bug. A clean
+  first-time seed was always correct; this only affected sources mangled by past
+  re-seeds.
+- `bin/rails vocab_sets:seed` is now **self-healing**: it re-pins every tile to
+  its authored grid position from the source, so one re-seed restores a clean
+  84/60 with no overlapping tiles.
+- For sets already built from a corrupted source, `Boards::LayoutRepacker` (and
+  thus `rake board_builder:repair_grid`) now also un-stacks **overlapping**
+  tiles, not just off-grid ones — no tile is lost; the displaced one moves to a
+  free cell.
 
 ### Fixed — board preview thumbnails (wrong/stale + missing)
 - Board grid thumbnails now reliably reflect the board's **current** contents.

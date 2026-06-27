@@ -87,5 +87,40 @@ RSpec.describe Boards::LayoutRepacker do
       stored = board.layout["lg"][over.id.to_s]
       expect(stored["x"] + stored["w"]).to be <= 12
     end
+
+    context "in-grid overlaps (two tiles on one cell)" do
+      it "moves the later overlapping tile off the shared cell, keeping the earlier one put" do
+        keep = tile("again", x: 10, y: 5, position: 0)
+        dup  = tile("wait", x: 10, y: 5, position: 1) # parked on again's cell
+
+        moved = described_class.repack!(board)
+
+        expect(moved).to eq(1)
+        expect(lg(keep)).to include("x" => 10, "y" => 5) # earlier tile untouched
+        expect([lg(dup)["x"], lg(dup)["y"]]).not_to eq([10, 5])
+      end
+
+      it "leaves no two tiles sharing a cell and loses no tiles" do
+        tile("a", x: 0, y: 0, position: 0)
+        tile("b", x: 0, y: 0, position: 1)
+        tile("c", x: 1, y: 0, position: 2)
+        tile("d", x: 1, y: 0, position: 3)
+
+        described_class.repack!(board)
+
+        cells = board.board_images.map { |bi| lg(bi).values_at("x", "y") }
+        expect(cells.uniq.size).to eq(4)
+        expect(board.board_images.count).to eq(4)
+      end
+
+      it "shelf-packs the displaced tile below the fitting tiles (matches frontend repackLayout)" do
+        tile("a", x: 0, y: 0, position: 0)
+        dup = tile("b", x: 0, y: 0, position: 1) # collides at [0,0]
+
+        described_class.repack!(board)
+
+        expect(lg(dup)["y"]).to be > 0
+      end
+    end
   end
 end

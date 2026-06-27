@@ -254,6 +254,17 @@ lose.
   `Boards::RobustSets` (`find_root` / `all_roots` / `slug_for` / `mark_root!`)
   is the single place that query lives. Idempotent: `Board.from_obf` upserts by
   `(user_id, obf_id)`.
+- **Layout self-heal on re-seed (`VocabSets#repair_layout!`).** A clean
+  first-time import is always correct (84/60 tiles, no overlaps). But the
+  historical duplicate-tile bug could leave the surviving tile on the wrong cell
+  — two tiles stacked on one cell (e.g. `wait` on `again` at `[10,5]`) while
+  another sat empty, so the home board rendered with a tile hidden ("84 looks
+  like 82"). `repair_layout!` runs LAST in `seed_slug!` and re-pins every tile to
+  its authored `[x,y]` from the source OBF grid (matched by `obf_button_id`), so
+  a single `bin/rails vocab_sets:seed` converges a corrupted source to clean.
+  Existing **user clones** of a corrupted source are healed by
+  `rake board_builder:repair_grid` — `Boards::LayoutRepacker` now un-stacks
+  in-grid **overlapping** tiles in addition to off-grid ones.
 
 **Per-user build (reuses `clone_with_images`):**
 - `Boards::StarterBlueprints.catalog` merges the static trees (`kind:

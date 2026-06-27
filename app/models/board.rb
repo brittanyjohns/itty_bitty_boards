@@ -630,11 +630,22 @@ class Board < ApplicationRecord
   IS_SUB_BOARD_TAG = "sub-board".freeze
 
   def check_is_sub_board
-    parent_boards = parent_boards(user_id)
-    if parent_boards.any?
+    # A Board Builder ROOT is a MAIN board that lives directly on the
+    # communicator, even though each of its child pages carries a "Home" tile
+    # whose predictive_board_id points back at the root. Those back-links would
+    # otherwise make the root look like a sub-board (it has "parent" boards) and
+    # drop it out of the main_boards scope / the communicator's dashboard. Pin it
+    # as a main board regardless of who links to it.
+    if settings.is_a?(Hash) && settings["builder_root"]
+      self.sub_board = false
+      remove_tag(IS_SUB_BOARD_TAG)
+      return
+    end
+
+    if parent_boards(user_id).any?
       self.sub_board = true
       add_tag(IS_SUB_BOARD_TAG)
-    elsif !parent_boards.any?
+    else
       self.sub_board = false
       remove_tag(IS_SUB_BOARD_TAG)
     end

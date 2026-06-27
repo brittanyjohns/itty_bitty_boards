@@ -153,6 +153,56 @@ RSpec.describe VocabSets do
     end
   end
 
+  describe "layout self-heal on re-seed (repair_layout!)" do
+    # Count tiles whose lg cell collides with an earlier tile's lg cell.
+    def lg_overlaps(board)
+      seen = {}
+      count = 0
+      board.reload.board_images.each do |bi|
+        cell = bi.layout.is_a?(Hash) ? bi.layout["lg"] : nil
+        next if cell.nil? || cell["x"].nil?
+
+        key = [cell["x"].to_i, cell["y"].to_i]
+        count += 1 if seen[key]
+        seen[key] = true
+      end
+      count
+    end
+
+    # The historical re-seed bug could leave two tiles parked on one cell while
+    # another cell sat empty (core-84 "wait" on "again"), so the board rendered
+    # with a tile hidden behind another. Re-seeding must restore each surviving
+    # tile to its authored cell — no two tiles sharing a cell afterward.
+    it "re-pins overlapping tiles to their authored cells on re-seed" do
+      authored_count = @c84_root.board_images.count
+      again = @c84_root.board_images.find_by(label: "again")
+      wait  = @c84_root.board_images.find_by(label: "wait")
+      expect(again).to be_present
+      expect(wait).to be_present
+
+      # Simulate the corruption: drop "wait" onto "again"'s cell.
+      again_cell = again.reload.layout["lg"]
+      wait.update_column(:layout, wait.layout.merge(
+        "lg" => again_cell.merge("i" => wait.id.to_s),
+        "md" => again_cell.merge("i" => wait.id.to_s),
+        "sm" => again_cell.merge("i" => wait.id.to_s),
+      ))
+      @c84_root.update_board_layout("lg")
+      expect(lg_overlaps(@c84_root)).to be >= 1
+
+      VocabSets.seed_slug!("core-84")
+
+      expect(lg_overlaps(@c84_root)).to eq(0)
+      expect(@c84_root.reload.board_images.count).to eq(authored_count)
+    end
+
+    it "is a no-op on an already-clean set (no overlaps introduced)" do
+      expect(lg_overlaps(@c84_root)).to eq(0)
+      VocabSets.seed_slug!("core-84")
+      expect(lg_overlaps(@c84_root)).to eq(0)
+    end
+  end
+
   describe "tile colors from authored part_of_speech (#279)" do
     EXPECTED_TILES = {
       "I" => { pos: "pronoun", hex: "#FFEA75" },
