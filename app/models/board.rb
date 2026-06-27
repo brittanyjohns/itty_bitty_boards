@@ -541,9 +541,11 @@ class Board < ApplicationRecord
   end
 
   def set_screen_sizes
-    self.small_screen_columns = 4 if small_screen_columns.nil?
-    self.medium_screen_columns = 6 if medium_screen_columns.nil?
     self.large_screen_columns = 8 if large_screen_columns.nil?
+    # md/sm are derived from the authored lg count so density scales down
+    # proportionally for tablets and phones (Boards::ScreenColumns).
+    self.medium_screen_columns = Boards::ScreenColumns.derive(large_screen_columns, "md") if medium_screen_columns.nil?
+    self.small_screen_columns = Boards::ScreenColumns.derive(large_screen_columns, "sm") if small_screen_columns.nil?
   end
 
   def parent_type_menu?
@@ -1362,11 +1364,30 @@ class Board < ApplicationRecord
 
     begin
       update_grid_layout(sorted_layout, screen_size)
+      sync_derived_screen_layouts!(screen_size)
       run_generate_preview_job
     rescue => e
       Rails.logger.error "Error updating grid layout: #{e.message}\n#{e.backtrace.join("\n")}"
     end
     reload
+  end
+
+  # Keep the medium/small layouts in lockstep with the authored large layout,
+  # without ever clobbering a screen the user hand-arranged:
+  #   - editing "lg" reflows md/sm from it (Boards::ScreenReflow), skipping any
+  #     screen the user has explicitly customized;
+  #   - editing "md"/"sm" records that screen as customized so a later lg edit
+  #     leaves it alone.
+  def sync_derived_screen_layouts!(screen_size)
+    self.settings ||= {}
+    customized = Array(settings["custom_screen_layouts"])
+
+    if screen_size == "lg"
+      Boards::ScreenReflow.reflow!(self, screens: Boards::ScreenReflow::DERIVED_SCREENS - customized)
+    elsif Boards::ScreenReflow::DERIVED_SCREENS.include?(screen_size) && !customized.include?(screen_size)
+      settings["custom_screen_layouts"] = (customized + [screen_size]).uniq
+      save!
+    end
   end
 
   def grid_layout(screen_size = "lg")

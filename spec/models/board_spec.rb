@@ -177,6 +177,50 @@ RSpec.describe Board, type: :model do
     end
   end
 
+  describe "#apply_layout! derived screen sync" do
+    let(:user)  { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+
+    before { board.update_columns(large_screen_columns: 12, medium_screen_columns: 8, small_screen_columns: 4) }
+
+    def tile(label, position)
+      FactoryBot.create(:board_image, board: board, position: position,
+                                      image: FactoryBot.create(:image, label: label, user: user))
+    end
+
+    def lg_layout(tiles)
+      tiles.each_with_index.map { |bi, i| { "i" => bi.id.to_s, "x" => i % 12, "y" => i / 12, "w" => 1, "h" => 1 } }
+    end
+
+    it "reflows md/sm from an edited lg layout so nothing overflows the narrower grids" do
+      tiles = Array.new(14) { |i| tile("w#{i}", i) }
+
+      board.apply_layout!(layout: lg_layout(tiles), screen_size: "lg")
+
+      tiles.each do |bi|
+        bi.reload
+        expect(bi.layout["md"]["x"] + bi.layout["md"]["w"]).to be <= 8
+        expect(bi.layout["sm"]["x"] + bi.layout["sm"]["w"]).to be <= 4
+      end
+    end
+
+    it "marks a hand-edited sm screen as customized and leaves it alone on a later lg edit" do
+      tiles = Array.new(3) { |i| tile("w#{i}", i) }
+
+      # User hand-arranges sm: reverse order in a single column.
+      sm_layout = tiles.reverse.each_with_index.map { |bi, i| { "i" => bi.id.to_s, "x" => 0, "y" => i, "w" => 1, "h" => 1 } }
+      board.apply_layout!(layout: sm_layout, screen_size: "sm")
+      expect(board.reload.settings["custom_screen_layouts"]).to include("sm")
+
+      custom_sm = tiles.map { |bi| bi.reload.layout["sm"] }
+
+      # Now edit lg — sm must be preserved (customized), md must be regenerated.
+      board.apply_layout!(layout: lg_layout(tiles), screen_size: "lg")
+
+      expect(tiles.map { |bi| bi.reload.layout["sm"] }).to eq(custom_sm)
+    end
+  end
+
   describe ".find_or_create_images_from_word_list" do
     let(:user) { FactoryBot.create(:user) }
     let(:board) { FactoryBot.create(:board, user: user) }

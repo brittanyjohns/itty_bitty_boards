@@ -21,15 +21,17 @@ module BoardsHelper
   end
 
   def get_number_of_columns(screen_size = "lg")
+    # Use the explicit per-screen count when set; otherwise derive md/sm from
+    # the authored lg count (Boards::ScreenColumns) so the fallback scales with
+    # the board instead of being a fixed value.
+    lg = large_screen_columns.to_i > 0 ? large_screen_columns.to_i : 8
     case screen_size
     when "sm"
-      num_of_columns = self.small_screen_columns > 0 ? self.small_screen_columns : 4
+      small_screen_columns.to_i > 0 ? small_screen_columns : Boards::ScreenColumns.derive(lg, "sm")
     when "md"
-      num_of_columns = self.medium_screen_columns > 0 ? self.medium_screen_columns : 6
-    when "lg"
-      num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 8
+      medium_screen_columns.to_i > 0 ? medium_screen_columns : Boards::ScreenColumns.derive(lg, "md")
     else
-      num_of_columns = self.large_screen_columns > 0 ? self.large_screen_columns : 12
+      lg
     end
   end
 
