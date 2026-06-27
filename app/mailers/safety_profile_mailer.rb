@@ -12,7 +12,7 @@ class SafetyProfileMailer < BaseMailer
     # timezone isn't known here.
     @viewed_at_display = profile_view.viewed_at.utc.strftime("%B %-d, %Y at %-l:%M %p UTC")
     @approx_location = profile_view.approx_location.presence
-    @manage_url = "#{frontend_url}/dashboard/myspeak"
+    @manage_url = "#{frontend_url}/dashboard"
 
     with_user_locale(@owner) do
       mail(

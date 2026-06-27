@@ -33,6 +33,14 @@ RSpec.describe SafetyProfileMailer, type: :mailer do
       expect(body).to include("Austin, Texas, US")
     end
 
+    it "links the CTA to the dashboard, not a nonexistent myspeak route" do
+      view = profile.profile_views.create!(viewed_at: Time.utc(2026, 6, 24, 15, 5))
+      body = described_class.viewed_alert(profile, view).body.encoded
+
+      expect(body).to include("/dashboard")
+      expect(body).not_to include("/dashboard/myspeak")
+    end
+
     it "does not deliver when the profile has no owner" do
       orphan = Profile.create!(username: "orphan-1", slug: "orphan-1")
       view = ProfileView.create!(profile: orphan)
