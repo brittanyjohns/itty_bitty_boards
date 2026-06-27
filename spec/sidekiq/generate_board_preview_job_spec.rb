@@ -53,6 +53,26 @@ RSpec.describe GenerateBoardPreviewJob, type: :job do
     expect(other_board.reload.read_attribute(:display_image_url)).to eq(shared_url)
   end
 
+  context "with a Board Builder sub-board" do
+    it "skips PNG generation for a builder_child board" do
+      board.update_column(:settings, board.settings.merge("builder_child" => true))
+
+      described_class.new.perform(board.id, "generate_png" => true)
+
+      board.reload
+      expect(board.preview_image).not_to be_attached
+      expect(board.settings).not_to have_key("preset_display_image_url")
+    end
+
+    it "still generates for the builder_root board" do
+      board.update_column(:settings, board.settings.merge("builder_root" => true))
+
+      described_class.new.perform(board.id, "generate_png" => true)
+
+      expect(board.reload.preview_image).to be_attached
+    end
+  end
+
   describe "sidekiq options" do
     it "retries on failure" do
       expect(described_class.sidekiq_options["retry"]).to eq(3)
