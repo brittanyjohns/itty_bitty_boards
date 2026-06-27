@@ -104,8 +104,89 @@ module VocabSets
     prune_removed_tiles!(slug, boards_by_obf_id)
     prune_removed_boards!(slug, boards_by_obf_id)
     dedupe_tiles!(boards_by_obf_id)
+    repair_layout!(slug, boards_by_obf_id)
 
     root
+  end
+
+  # Re-pin every surviving tile to its AUTHORED grid cell, read straight from the
+  # source OBF and matched by the stable obf_button_id stamped on the tile. Runs
+  # LAST in the seed pass — after prune + dedupe — so it heals the layout
+  # corruption a prior buggy re-seed could leave: when find_or_create_image_for_button
+  # forked a duplicate tile, the upsert set the matched tile's coords but a
+  # leftover copy kept stale coords, and dedupe could keep the wrong one — leaving
+  # two tiles sharing one cell (e.g. core-84 "wait" on "again" at [10,5]) while
+  # another cell sat empty. The board then renders with one tile hidden behind
+  # another ("84 looks like 82"). Neither dedupe (different labels, not duplicates)
+  # nor LayoutRepacker (the cell is in-grid, not overflow) catches that. Authored
+  # buttons are all 1×1 grid cells, so we pin w/h to 1 — matching the upsert.
+  # Admin-owned set boards only; user clones are healed by board_builder:repair_grid.
+  def repair_layout!(slug, boards_by_obf_id)
+    coords_by_obf_id = source_coords_by_obf_id(slug)
+
+    boards_by_obf_id.each do |obf_id, board|
+      coords = coords_by_obf_id[obf_id]
+      next if coords.blank?
+
+      changed = false
+      board.board_images.find_each do |bi|
+        button_id = bi.data.is_a?(Hash) ? bi.data["obf_button_id"] : nil
+        next if button_id.blank?
+
+        cell = coords[button_id.to_s]
+        next if cell.nil?
+
+        x, y = cell
+        next if already_at?(bi, x, y)
+
+        layout = { "x" => x, "y" => y, "w" => 1, "h" => 1, "i" => bi.id.to_s }
+        bi.layout ||= {}
+        %w[lg md sm xs xxs].each { |screen| bi.layout[screen] = layout }
+        bi.save!
+        changed = true
+      end
+
+      board.update_board_layout("lg") if changed
+    end
+  end
+
+  # True when the tile already sits at [x, y] across the persisted screens, so a
+  # re-seed of a clean set is a no-op (no needless writes / preview churn).
+  def already_at?(board_image, x, y)
+    layout = board_image.layout
+    return false unless layout.is_a?(Hash)
+
+    %w[lg md sm].all? do |screen|
+      cell = layout[screen]
+      cell.is_a?(Hash) && cell["x"] == x && cell["y"] == y
+    end
+  end
+
+  # { obf_id => { button_id => [x, y] } } parsed straight from each authored OBF
+  # in the slug's manifest — the canonical grid placement repair_layout! pins to.
+  def source_coords_by_obf_id(slug)
+    dir = SETS_DIR.join(slug)
+    manifest = JSON.parse(File.read(dir.join("manifest.json")))
+    paths = (manifest.dig("paths", "boards") || {}).values.uniq
+
+    paths.each_with_object({}) do |rel, acc|
+      file = dir.join(rel)
+      next unless File.file?(file)
+
+      obf = JSON.parse(File.read(file))
+      order = obf.dig("grid", "order")
+      next unless order.is_a?(Array)
+
+      coords = {}
+      order.each_with_index do |row, y|
+        Array(row).each_with_index do |button_id, x|
+          next if button_id.to_s.strip.empty?
+
+          coords[button_id.to_s] = [x, y]
+        end
+      end
+      acc[obf["id"].to_s] = coords
+    end
   end
 
   # Collapse duplicate tiles a prior buggy re-seed may have appended. The label

@@ -152,6 +152,35 @@ RSpec.describe Board, type: :model do
     end
   end
 
+  describe "#check_is_sub_board (before_save)" do
+    let(:user) { FactoryBot.create(:user) }
+
+    it "marks a board with a parent (predictive link) as a sub_board" do
+      child  = FactoryBot.create(:board, user: user, name: "Food")
+      parent = FactoryBot.create(:board, user: user, name: "Home")
+      FactoryBot.create(:board_image, board: parent, predictive_board_id: child.id)
+
+      child.save!
+      expect(child.reload.sub_board).to be(true)
+    end
+
+    it "keeps a builder_root a main board even when a child page links back to it" do
+      # The controller assign_parents the root before saving (so it isn't a Menu);
+      # mirror that so the main_boards scope (non_menus) can include it.
+      root = FactoryBot.build(:board, user: user, name: "Communication Board",
+                                      settings: { "builder_root" => true })
+      root.assign_parent
+      root.save!
+      child = FactoryBot.create(:board, user: user, name: "Food")
+      # The child's authored "Home" tile points back at the root, like the seed.
+      FactoryBot.create(:board_image, board: child, predictive_board_id: root.id)
+
+      root.save!
+      expect(root.reload.sub_board).to be(false)
+      expect(Board.main_boards.where(id: root.id)).to exist
+    end
+  end
+
   describe "#update_grid_layout" do
     let(:user)  { FactoryBot.create(:user) }
     let(:board) { FactoryBot.create(:board, user: user, layout: { "lg" => [] }) }

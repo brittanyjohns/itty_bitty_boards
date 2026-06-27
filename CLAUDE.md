@@ -1265,6 +1265,16 @@ still works for backward compat.
   flags the api_view exposes are what the frontend's return-home affordance keys
   off. The **root is intentionally left unfrozen and `sub_board: false`** so it
   stays a main board. Default-on but user-overridable in the editor. Idempotent.
+  - **The root is pinned as a main board in the model, not just by being skipped
+    here.** The seed's child pages each carry an authored **"Home" tile** whose
+    `predictive_board_id` points back at the root, so once those links are wired
+    the root *has* parent boards — and any later `root.save!` (e.g.
+    `allow_scroll_if_grown!`) would flip it to `sub_board: true` and drop it out
+    of the `main_boards` scope / the communicator dashboard. `Board#check_is_sub_board`
+    now **short-circuits to `sub_board: false` for any `settings["builder_root"]`
+    board**, regardless of inbound links, so the Home tiles keep working as
+    navigation while the root stays a main board. `rake board_builder:reclassify_builder_sets`
+    re-saves existing roots, so the guard heals already-built sets too.
 - **Built roots register as `in_use`.** The set's root lives **directly** on the
   communicator (the `ChildBoard` has `board_id = root.id`, `original_board_id =
   nil` — unlike the clone-source `assign_boards`/`assign_accounts` path). So
@@ -1385,6 +1395,20 @@ layout + `part_of_speech` colors survive). Reuses `ObzImporter` (seed) and
     collapses any surviving same-label/same-kind duplicate on each seeded board
     — a word tile and its same-named category folder (`play` vs `Play`) are
     **not** merged. Re-seeding is now self-healing for this case.
+  - **Layout self-heal on re-seed (`VocabSets#repair_layout!`).** The same
+    duplicate bug could also leave the surviving tile on the **wrong cell**: the
+    upsert set the matched tile's coords but a leftover copy kept stale ones, and
+    dedupe could keep the wrong copy — so two tiles ended up on **one cell** (e.g.
+    Core 84 `wait` parked on `again` at `[10,5]`) while another cell sat empty,
+    rendering one tile hidden behind another ("84 looks like 82"). Neither dedupe
+    (different labels, not duplicates) nor `LayoutRepacker` (the cell is in-grid,
+    not off-grid) catches that. `repair_layout!` runs **last** in `seed_slug!`
+    and re-pins every surviving tile to its **authored** `[x,y]` read straight
+    from the source OBF grid (matched by `data["obf_button_id"]`), so a single
+    `bin/rails vocab_sets:seed` now converges a corrupted source back to a clean
+    84/60 with zero overlaps. A clean re-seed is a no-op. A clean **first-time**
+    import was always correct; this only heals sources mangled by the historical
+    re-seed bug.
   - **Remediation:** `rake board_builder:dedupe_seed_tiles` (dry-run by default,
     `DRY_RUN=false` to apply, `USER_ID=N` to scope) collapses the duplicate on
     the robust seed sources **and** every already-built user set
@@ -1401,9 +1425,13 @@ layout + `part_of_speech` colors survive). Reuses `ObzImporter` (seed) and
     **in-grid** copy of a duplicate (not blindly the lowest-position one), so it
     no longer preserves the off-grid twin and delete the authored in-grid tile;
     **(2)** `Boards::LayoutRepacker` is the safety net for a genuine
-    *non-duplicate* overflow tile — it moves only the overflowing tiles into the
-    first empty rows below the fitting tiles (per screen size, then resyncs
-    `board.layout`), a Ruby port of the frontend `repackLayout`. The combined
+    *non-duplicate* **displaced** tile — one that's either **off-grid** (`x+w >
+    cols`) **or overlapping** a cell an earlier (reading-order) tile already
+    claims. It moves only the displaced tiles into the first empty rows below the
+    fitting tiles (per screen size, then resyncs `board.layout`), a Ruby port of
+    the frontend `repackLayout`. The overlap case is what heals **user clones**
+    built from a corrupted source — `repair_layout!` fixes the admin seed, but
+    existing user sets need this. The combined
     `rake board_builder:repair_grid` (dry-run by default; `DRY_RUN=false`,
     `USER_ID=N`) runs dedupe + repack across the seed sources and every built
     set and regenerates the preview for any board it changes. The companion

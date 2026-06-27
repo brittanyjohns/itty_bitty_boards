@@ -1,16 +1,20 @@
 module Boards
-  # Pulls tiles that are stored PAST the configured column count back inside the
-  # grid, for each screen size. Mirrors the frontend `repackLayout`
-  # (itty-bitty-frontend src/components/images/native/nativeLayoutMath.ts): only
-  # the overflowing tiles move — authored in-grid tiles keep their exact x/y —
-  # and the overflow is shelf-packed into the first empty rows below them.
+  # Pulls DISPLACED tiles back into a clean grid, for each screen size: tiles
+  # stored PAST the configured column count (off-grid), and tiles that OVERLAP a
+  # cell an earlier tile already claims. Only the displaced tiles move —
+  # authored/earlier in-grid tiles keep their exact x/y — and each is placed into
+  # the first free cell (filling in-grid gaps before growing a new row). Mirrors
+  # the frontend `repackLayout` (itty-bitty-frontend
+  # src/components/images/native/nativeLayoutMath.ts).
   #
   # Why this exists: a builder/seed bug can leave a tile at e.g. x=13 on a
-  # 12-column board. The editor renders through react-grid-layout, which keeps
-  # the grid at the configured `cols`, but the native Speak view sized the grid
-  # by the tile extent and so silently widened to 14 columns — making Speak look
-  # different from every other view. TileDeduper removes off-grid DUPLICATES;
-  # this is the safety net for a genuine non-duplicate overflow tile.
+  # 12-column board (off-grid) — the editor renders through react-grid-layout,
+  # which keeps the grid at the configured `cols`, but the native Speak view sized
+  # the grid by the tile extent and so silently widened to 14 columns, making
+  # Speak look different from every other view. The same class of bug can park two
+  # tiles on the SAME cell (core-84 "wait" on "again"), rendering one hidden
+  # behind the other ("84 looks like 82"). TileDeduper removes off-grid/overlapping
+  # DUPLICATES; this is the safety net for genuine non-duplicate displaced tiles.
   module LayoutRepacker
     module_function
 
@@ -29,29 +33,47 @@ module Boards
       moved
     end
 
-    # Returns the number of overflow tiles moved for one screen size.
+    # Returns the number of displaced tiles moved for one screen size. A tile is
+    # "displaced" when it sits OFF-GRID (x + w past the column count) OR OVERLAPS
+    # a cell an earlier (reading-order) tile already claims — e.g. a builder/seed
+    # bug that parked two tiles on the same cell (core-84 "wait" on "again"),
+    # leaving one rendered hidden behind the other. Earlier tiles keep their exact
+    # authored cell; only the displaced ones move, into the first free cells.
     def repack_screen!(board, screen, dry_run: false, ignore: Set.new)
       columns = column_count(board, screen)
       return 0 if columns < 1
 
-      items = board.board_images.to_a.filter_map do |bi|
+      # Reading order so the authored/earlier tile wins a contested cell.
+      items = board.board_images.order(:position).to_a.filter_map do |bi|
         next if ignore.include?(bi.id)
 
         cell = bi.layout.is_a?(Hash) ? bi.layout[screen] : nil
         cell.nil? ? nil : [bi, cell]
       end
 
-      overflow = items.select { |_bi, c| (c["x"].to_i + tile_w(c)) > columns }
-      return overflow.size if overflow.empty? || dry_run
+      occupied = Set.new
+      displaced = []
+      fits = []
+      items.each do |bi, c|
+        cells = cell_coords(c, columns)
+        if off_grid?(c, columns) || cells.any? { |xy| occupied.include?(xy) }
+          displaced << [bi, c]
+        else
+          cells.each { |xy| occupied << xy }
+          fits << [bi, c]
+        end
+      end
 
-      fits = items - overflow
+      return displaced.size if displaced.empty? || dry_run
+
       base_y = fits.map { |_bi, c| c["y"].to_i + tile_h(c) }.max || 0
 
       cx = 0
       cy = base_y
       row_h = 0
-      # Shelf-pack overflow tiles in reading order, just like the frontend.
-      overflow.sort_by { |_bi, c| [c["y"].to_i, c["x"].to_i] }.each do |bi, cell|
+      # Shelf-pack displaced tiles in reading order below the fitting tiles, just
+      # like the frontend repackLayout — so editor and Speak agree on the result.
+      displaced.sort_by { |_bi, c| [c["y"].to_i, c["x"].to_i] }.each do |bi, cell|
         w = [tile_w(cell), columns].min
         h = tile_h(cell)
         if cx + w > columns
@@ -65,8 +87,23 @@ module Boards
         row_h = [row_h, h].max
       end
 
-      overflow.size
+      displaced.size
     end
+
+    # The grid cells a tile occupies at its current x/y, width clamped to columns.
+    def cell_coords(cell, columns)
+      x = cell["x"].to_i
+      y = cell["y"].to_i
+      w = [tile_w(cell), columns].min
+      h = tile_h(cell)
+      h.times.flat_map { |dy| w.times.map { |dx| [x + dx, y + dy] } }
+    end
+    private_class_method :cell_coords
+
+    def off_grid?(cell, columns)
+      (cell["x"].to_i + tile_w(cell)) > columns
+    end
+    private_class_method :off_grid?
 
     # Rebuild board.layout from the (now corrected) per-tile layouts, for every
     # screen, keyed by board_image id — matching Board#update_board_layout's
