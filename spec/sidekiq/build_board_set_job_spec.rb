@@ -94,6 +94,48 @@ RSpec.describe BuildBoardSetJob do
     end
   end
 
+  describe "#perform sub-board previews from folder tiles" do
+    it "uses the linking folder tile's image as each sub-board's thumbnail instead of a generated preview" do
+      root = precreate_root!(name: "Home")
+
+      # Give the home template's folder labels art-bearing owner images so their
+      # folder tiles resolve to a real URL (the resolver prefers art-bearing
+      # images), exercising the positive path rather than vacuously skipping.
+      ["Food", "Play", "Feelings", "My Favorites"].each do |label|
+        img = create(:image, label: label, user_id: user.id, src_url: "https://example.com/#{label.parameterize}.png")
+        create(:doc, documentable: img, user: user)
+      end
+
+      described_class.new.perform(root.id, communicator.id, "home", ["dinosaurs", "grandma"])
+
+      children = user.boards.where("COALESCE((settings->>'builder_child')::boolean, false)").to_a
+      expect(children).to be_present
+
+      set_ids = (children.map(&:id) + [root.id])
+
+      matched = 0
+      children.each do |child|
+        # No PNG preview is rendered for a sub-board.
+        expect(child.preview_image).not_to be_attached,
+          "expected child ##{child.id} #{child.name.inspect} to have no generated preview"
+
+        tile = BoardImage.where(board_id: set_ids, predictive_board_id: child.id).first
+        next unless tile
+
+        expected = tile.tile_image_url(user)
+        next if expected.blank?
+
+        expect(child.read_attribute(:display_image_url)).to eq(expected),
+          "expected child ##{child.id} #{child.name.inspect} thumbnail to match its folder tile"
+        matched += 1
+      end
+
+      # The home template's folder tiles resolve to real art, so at least one
+      # sub-board thumbnail is sourced from its tile (not vacuously skipped).
+      expect(matched).to be > 0
+    end
+  end
+
   describe "#perform scope classification + sub-board freeze" do
     it "registers the root as in_use and a main board, not a sub-board" do
       root = precreate_root!(name: "Home")
