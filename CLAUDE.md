@@ -270,6 +270,18 @@ GitHub build). Two distinct uses:
       14–30) days ago. The `user.settings["win_back_nudge_sent"]` flag makes it
       once-only. Requiring ≥1 board keeps it distinct from `legacy_signup_nudge`
       (never made a board).
+    - `subscription_started` — enqueued from
+      `API::WebhooksController#handle_subscription_upsert` on the non-active→active
+      transition (the same Stripe seam as the `subscription_started`
+      AnalyticsEvent/PostHog events). The paid-tier onboarding nurture — the
+      **marketing counterpart** to the transactional plan welcome
+      (`send_plan_welcome_email_once!`), mirroring the Free dual-welcome (#293).
+      The transition guard (`previous_status != "active"`) makes it fire **once
+      per conversion** (renewals don't re-fire), so no dedupe is needed.
+      **Apple/IAP parity:** `RevenueCat::WebhookProcessor#fire_subscription_started`
+      (the single conversion seam — paid start or trial→paid) enqueues the same
+      journey, so mobile subscribers get it too. The webhook's event-idempotency
+      gate prevents double-sends.
   - **Env-gated to avoid emailing real users from non-prod.**
     `MailchimpClient.journeys_enabled?` returns true in production (and only
     production — staging is excluded via `AppEnv.staging?`); dev/staging fire

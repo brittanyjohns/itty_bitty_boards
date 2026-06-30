@@ -5,6 +5,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — new-subscriber onboarding email when a paid plan starts
+- New Mailchimp `subscription_started` Customer Journey fires when a user
+  converts to an active paid plan (the non-active→active transition in the
+  Stripe subscription webhook) — the marketing counterpart to the transactional
+  plan welcome, so paid subscribers get a warm "get the most out of your plan"
+  nurture (the existing `welcome` journey is Free-flavored). Fires once per
+  conversion; renewals don't re-trigger.
+- Inert until configured: no-ops until `MAILCHIMP_JOURNEY_SUBSCRIPTION_STARTED_ID`
+  / `_STEP` are set, and journeys stay prod-only by default
+  (`MAILCHIMP_JOURNEYS_ENABLED=true` to override in staging/dev). Fires for both
+  **web (Stripe)** and **mobile (RevenueCat/Apple IAP)** conversions, so paid
+  subscribers on either platform get the email. All 6 prior journey keys plus
+  this one are now mirrored into the staging env-sync templates.
+
 ### Added — boards now lay out well on phones and tablets, not just large screens
 - Medium/small column counts are now **derived proportionally** from a board's
   authored large-screen count (`Boards::ScreenColumns`: md ≈ ⅔ of lg, sm ≈ ⅓ of
