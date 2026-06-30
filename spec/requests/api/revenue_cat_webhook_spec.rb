@@ -89,6 +89,38 @@ RSpec.describe "POST /api/billing/webhooks (RevenueCat)", type: :request do
     end
   end
 
+  describe "subscription_started Mailchimp journey (Apple/IAP parity)" do
+    before { MailchimpEventJob.clear }
+
+    it "enqueues the subscription_started journey on a paid INITIAL_PURCHASE" do
+      expect {
+        post_rc_webhook(rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id,
+                                 entitlement_ids: ["pro"], product_id: "pro_monthly"))
+      }.to change(MailchimpEventJob.jobs, :size).by(1)
+
+      expect(MailchimpEventJob.jobs.last["args"])
+        .to eq([user.id, "journey", { "journey_key" => "subscription_started" }])
+    end
+
+    it "enqueues it on a trial→paid conversion (normal RENEWAL of a trialing user)" do
+      user.update!(plan_type: "pro", plan_status: "trialing",
+                   settings: { "trial_ends_at" => 2.days.from_now.iso8601 })
+
+      expect {
+        post_rc_webhook(rc_event(type: "RENEWAL", app_user_id: user.id, entitlement_ids: ["pro"]))
+      }.to change(MailchimpEventJob.jobs, :size).by(1)
+
+      expect(MailchimpEventJob.jobs.last["args"][2]).to eq("journey_key" => "subscription_started")
+    end
+
+    it "does NOT enqueue on a trial start (period_type=TRIAL)" do
+      expect {
+        post_rc_webhook(rc_event(type: "INITIAL_PURCHASE", app_user_id: user.id,
+                                 entitlement_ids: ["pro"], period_type: "TRIAL"))
+      }.not_to change(MailchimpEventJob.jobs, :size)
+    end
+  end
+
   describe "RENEWAL" do
     it "replaces leftover plan credits with a fresh grant (full reset, not additive)" do
       user.update!(plan_type: "pro", plan_status: "active")
