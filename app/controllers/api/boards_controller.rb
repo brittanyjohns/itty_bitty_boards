@@ -195,6 +195,8 @@ class API::BoardsController < API::ApplicationController
                  name: board.name,
                  description: board.description,
                  image_url: board.display_image_url,
+                 slug: board.slug,
+                 public_url: board.public_url,
                }
              end,
            }
