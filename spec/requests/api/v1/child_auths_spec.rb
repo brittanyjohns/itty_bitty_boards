@@ -58,5 +58,26 @@ RSpec.describe "API::V1::ChildAuths", type: :request do
       post login_path, params: { username: "nope", password: "wrong" }
       expect(response).to have_http_status(:unauthorized)
     end
+
+    # Regression: the admin bypass path (reached when can_sign_in? is false but
+    # the owner is an admin — e.g. a passcode-bearing sandbox, whose sandbox
+    # guard short-circuits can_sign_in? before the admin check) must serialize
+    # the communicator through api_view, like every other success path, rather
+    # than dumping the raw ActiveRecord model (wrong shape for the frontend +
+    # leaks internal columns).
+    it "renders the api_view shape (not the raw model) on the admin bypass path" do
+      admin = FactoryBot.create(:admin_user)
+      account = FactoryBot.create(:child_account, user: admin, status: ChildAccount::SANDBOX,
+                                                  passcode: "secret123")
+
+      body = login(account)
+
+      expect(response).to have_http_status(:ok)
+      expect(body["token"]).to be_present
+      # parent_name is an api_view-only key (computed, not a column); updated_at
+      # is a raw column api_view never emits.
+      expect(body["account"]).to include("parent_name")
+      expect(body["account"]).not_to have_key("updated_at")
+    end
   end
 end

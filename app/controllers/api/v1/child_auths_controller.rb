@@ -27,7 +27,7 @@ class API::V1::ChildAuthsController < API::ApplicationController
       unless child.can_sign_in?(user_context)
         if user_context&.admin?
           child.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip, sign_in_count: child.sign_in_count + 1)
-          return render json: { token: auth_token, account: child }
+          return render json: { token: auth_token, account: child.api_view(user_context) }
         end
         # Temporarily disable this check
         # return render json: { error: "Account not active. Please upgrade to a pro account to continue.", token: "" }, status: :unauthorized
