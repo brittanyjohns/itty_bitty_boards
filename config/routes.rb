@@ -108,6 +108,10 @@ Rails.application.routes.draw do
 
     get "public_boards", to: "boards#public_boards"
     get "public_menu_boards", to: "boards#public_menu_boards"
+
+    # Anonymous free-board-download lead capture (both public / no-auth).
+    get "free_download_boards", to: "boards#free_download_boards"
+    post "download_leads", to: "download_leads#create"
     post "google_images", to: "google_search_results#image_search"
 
     resources :board_screenshot_imports

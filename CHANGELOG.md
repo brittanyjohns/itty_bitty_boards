@@ -5,6 +5,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — free board PDF downloads for anonymous visitors (lead capture)
+- `GET /api/free_download_boards` (public, no auth) lists the curated public
+  board gallery (`Board.public_boards` — admin-owned, predefined + published)
+  with `id`, `name`, `description`, and `image_url` for an anonymous
+  lead-capture page. No new board flag — the existing public gallery is the
+  offered set.
+- `POST /api/download_leads` (public, no auth) captures a visitor's email (with
+  optional name, board_id, source, and data) as a `DownloadLead`, returns
+  `201 { success: true }`, and enqueues `MailchimpUpsertLeadJob` to sync the
+  email to Mailchimp as a `BoardDownloadLead`. Invalid/missing emails return
+  `422 { success: false, errors: [...] }`. The existing
+  `GET /api/boards/:id/pdf` continues to serve the file unchanged.
+- Admin **Mission Control** now has a **Download Leads** panel: leads captured
+  today / 7d / 30d, unique emails (7d), all-time total, and Mailchimp sync
+  health (synced / pending / failed, with the failed count flagged red) plus a
+  by-source breakdown — so a stalled Mailchimp sync is visible at a glance.
+
 ### Fixed — clearer plan-change errors when there's no payment method
 - `POST /api/subscriptions/change_plan` now returns a distinct, actionable
   **402 `payment_method_required`** (with a message pointing to the billing

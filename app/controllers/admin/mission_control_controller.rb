@@ -5,6 +5,7 @@ module Admin
       @revenue  = MissionControl::RevenueMetrics.call
       @usage    = MissionControl::UsageMetrics.call
       @health   = MissionControl::SystemHealthMetrics.call
+      @download_leads = MissionControl::DownloadLeadMetrics.call
       @recent_events = AnalyticsEvent.recent.limit(25).includes(:user)
 
       @demo_user_count = User.demo_accounts.count

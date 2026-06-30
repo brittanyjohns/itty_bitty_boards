@@ -220,6 +220,51 @@
   </div>
 </section>
 
+<%# ─── Download Leads (lead-gen) ───────────────────────────── %>
+<section class="mb-10">
+  <div class="admin-card border rounded-xl p-6">
+    <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-5">Download Leads</h2>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+      <div>
+        <p class="text-xs text-t2 mb-1">Captured</p>
+        <p class="text-2xl font-semibold text-t1"><%= @download_leads[:leads_today] %><span class="text-sm text-t3 ml-1">today</span></p>
+        <p class="text-xs text-t3 mt-0.5"><%= @download_leads[:leads_7d] %> last 7d · <%= @download_leads[:leads_30d] %> last 30d</p>
+      </div>
+      <div>
+        <p class="text-xs text-t2 mb-1">Unique emails</p>
+        <p class="text-2xl font-semibold text-t1"><%= @download_leads[:unique_emails_7d] %><span class="text-sm text-t3 ml-1">7d</span></p>
+        <p class="text-xs text-t3 mt-0.5"><%= number_with_delimiter(@download_leads[:total_leads]) %> all-time</p>
+      </div>
+      <div>
+        <p class="text-xs text-t2 mb-1">Mailchimp synced</p>
+        <p class="text-2xl font-semibold text-t1"><%= @download_leads[:mailchimp_synced] %></p>
+        <p class="text-xs text-t3 mt-0.5"><%= @download_leads[:mailchimp_pending] %> pending</p>
+      </div>
+      <div>
+        <p class="text-xs text-t2 mb-1">Mailchimp failed</p>
+        <p class="text-2xl font-semibold <%= @download_leads[:mailchimp_failed].to_i > 0 ? "text-red-500" : "text-t1" %>">
+          <%= @download_leads[:mailchimp_failed] %>
+        </p>
+        <p class="text-xs text-t3 mt-0.5"><%= @download_leads[:mailchimp_failed].to_i > 0 ? "not reaching Mailchimp" : "all synced" %></p>
+      </div>
+    </div>
+
+    <% if @download_leads[:leads_by_source].present? %>
+      <div class="mt-6 pt-4" style="border-top: 1px solid var(--border);">
+        <p class="text-xs text-t2 mb-3">By source</p>
+        <div class="flex flex-wrap gap-2">
+          <% @download_leads[:leads_by_source].each do |source, count| %>
+            <span class="inline-flex items-center gap-1.5 text-xs admin-badge rounded px-2.5 py-1">
+              <span class="text-t2"><%= source.presence || "unknown" %></span>
+              <span class="text-accent font-medium"><%= count %></span>
+            </span>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</section>
+
 <%# ─── Totals ─────────────────────────────────────────────── %>
 <section class="mb-10">
   <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">All-Time Totals</h2>
