@@ -5,6 +5,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — owner picks which communicators stay signable on downgrade (#439)
+- When a user is over their plan's communicator slot limit after a downgrade,
+  the over-limit accounts enter fallback mode (private sign-in paused; public
+  MySpeak page + boards stay open). Previously the system auto-kept whichever
+  communicators signed in most recently. Now the **owner chooses** which ones
+  stay full, mirroring the board "make this one editable" pick.
+- New `POST /api/child_accounts/keep_signable` `{ communicator_ids: [...] }`
+  persists the owner's pick (owner-owned ids only, capped at the slot limit) and
+  re-reconciles immediately; the chosen ids keep private sign-in, the rest fall
+  back. `User#reconcile_communicator_fallback!` now orders **owner-pinned first,
+  then most-recently-active**. `communicator_slot_limit` and
+  `kept_communicator_ids` are exposed on the user `api_view` for the picker UI.
+  No access or boards are ever removed — only which accounts can sign in
+  privately changes.
+
 ### Added — free board PDF downloads for anonymous visitors (lead capture)
 - `GET /api/free_download_boards` (public, no auth) lists the curated public
   board gallery (`Board.public_boards` — admin-owned, predefined + published)

@@ -19,6 +19,23 @@ class API::ChildAccountsController < API::ApplicationController
     render json: @child_accounts.map(&:index_api_view)
   end
 
+  # POST /child_accounts/keep_signable
+  #
+  # Owner picks which communicators stay signable when over the plan's slot
+  # limit (issue #439) — the mirror of the board "make_editable" pick. The
+  # chosen ids keep private sign-in; the rest enter fallback mode (public
+  # MySpeak page stays open and read-only). Owner-scoped: ids the caller
+  # doesn't own are ignored, and the set is capped at the plan slot limit.
+  def keep_signable
+    kept = current_user.set_kept_communicator_ids!(params[:communicator_ids])
+    accounts = current_user.slotted_communicator_accounts.order(name: :asc)
+    render json: {
+      kept_communicator_ids: kept,
+      communicator_slot_limit: Permissions::CommunicatorLimits.slot_limit_for(current_user.settings || {}),
+      communicators: accounts.map(&:index_api_view),
+    }
+  end
+
   # GET /child_accounts/1
   # GET /child_accounts/1.json
   def show
