@@ -229,6 +229,25 @@ RSpec.describe "POST /api/subscriptions/change_plan", type: :request do
     end
   end
 
+  context "when the customer has no payment method" do
+    before do
+      stub_subscription_list([active_sub])
+      allow(Stripe::Subscription).to receive(:update)
+        .and_raise(Stripe::InvalidRequestError.new(
+          "This customer has no attached payment source or default payment method.", nil,
+        ))
+    end
+
+    it "returns 402 with payment_method_required so the frontend can prompt the billing portal" do
+      do_post
+
+      expect(response).to have_http_status(:payment_required)
+      body = JSON.parse(response.body)
+      expect(body["error"]).to eq("payment_method_required")
+      expect(body["message"]).to include("billing portal")
+    end
+  end
+
   context "when Stripe raises a generic error" do
     before do
       stub_subscription_list([active_sub])

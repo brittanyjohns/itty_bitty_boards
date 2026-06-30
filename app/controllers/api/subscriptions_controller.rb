@@ -146,6 +146,13 @@ class API::SubscriptionsController < API::ApplicationController
     upcoming = Stripe::Invoice.upcoming(invoice_params)
     new_price = Stripe::Price.retrieve(price_id)
 
+    # Warn up-front when this switch bills the customer today but they have no
+    # payment method on file — so the modal prompts them to the billing portal
+    # before they hit a Confirm that would only fail. Credit-only downgrades
+    # (amount_due <= 0) don't need a card, so they aren't flagged.
+    payment_method_required =
+      upcoming.amount_due.to_i > 0 && !customer_has_payment_method?(customer_id, subscription)
+
     render json: {
       current_plan: current_user.plan_type,
       new_plan: new_price.metadata["plan_type"] || plan_key.sub(/_yearly$/, ""),
@@ -155,6 +162,7 @@ class API::SubscriptionsController < API::ApplicationController
       next_billing_date: Time.at(subscription.current_period_end).iso8601,
       discount: promo.present? ? { code: params[:promo_code].to_s.strip, percent_off: promo.coupon&.percent_off, amount_off: promo.coupon&.amount_off } : nil,
       currency: upcoming.currency,
+      payment_method_required: payment_method_required,
     }, status: :ok
   rescue Stripe::StripeError => e
     Rails.logger.error "preview_plan_change: #{e.class} - #{e.message} (user #{current_user.id})"
@@ -217,6 +225,18 @@ class API::SubscriptionsController < API::ApplicationController
   rescue Stripe::CardError => e
     Rails.logger.error "change_plan card error: #{e.class} - #{e.message} (user #{current_user.id})"
     render json: { error: "payment_failed", message: "Your payment method was declined. Please update it and try again." }, status: :payment_required
+  rescue Stripe::InvalidRequestError => e
+    # An upgrade (or interval switch) that bills immediately fails when the
+    # customer has no payment method on file — a common case for no-card
+    # reverse-trial users. Surface a distinct, actionable code so the frontend
+    # can route them to the billing portal instead of showing a dead-end error.
+    if missing_payment_method_error?(e)
+      Rails.logger.warn "change_plan no payment method: #{e.message} (user #{current_user.id})"
+      render json: { error: "payment_method_required", message: "You don't have a payment method on file. Add one in the billing portal, then try changing your plan again." }, status: :payment_required
+    else
+      Rails.logger.error "change_plan: #{e.class} - #{e.message} (user #{current_user.id})"
+      render json: { error: "Failed to change plan" }, status: :bad_request
+    end
   rescue Stripe::StripeError => e
     Rails.logger.error "change_plan: #{e.class} - #{e.message} (user #{current_user.id})"
     render json: { error: "Failed to change plan" }, status: :bad_request
@@ -301,5 +321,32 @@ class API::SubscriptionsController < API::ApplicationController
     return nil if code.blank?
 
     Stripe::PromotionCode.list(code: code, active: true, limit: 1).data.first
+  end
+
+  # Does the customer have a usable payment method for an immediate charge?
+  # Checks the subscription's own default first, then the customer's default
+  # payment method / legacy default source. On any Stripe error we assume "yes"
+  # so we never block a plan change on an inconclusive lookup — the actual
+  # change attempt surfaces the real error reactively.
+  def customer_has_payment_method?(customer_id, subscription = nil)
+    return true if subscription.respond_to?(:default_payment_method) && subscription.default_payment_method.present?
+
+    customer = Stripe::Customer.retrieve(customer_id)
+    customer.invoice_settings&.default_payment_method.present? || customer.default_source.present?
+  rescue Stripe::StripeError => e
+    Rails.logger.warn "customer_has_payment_method? lookup failed: #{e.message} (user #{current_user.id})"
+    true
+  end
+
+  # A Stripe::InvalidRequestError raised because the customer has no payment
+  # method on file (e.g. updating a no-card subscription to a plan that bills
+  # immediately). Stripe doesn't expose a stable code for this, so match the
+  # message — the only signal it gives.
+  def missing_payment_method_error?(error)
+    message = error.message.to_s.downcase
+    message.include?("no attached payment") ||
+      message.include?("payment source") ||
+      message.include?("default payment method") ||
+      message.include?("no payment method")
   end
 end
