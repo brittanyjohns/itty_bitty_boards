@@ -547,6 +547,37 @@ RSpec.describe Board, type: :model do
         expect(board.display_image_url).not_to eq(board.preview_image_url)
       end
     end
+
+    context "with a deliberate tile pick (display_image_is_custom)" do
+      before do
+        attach_preview
+        board.update_column(:display_image_url, "https://example.com/picked-tile.png")
+        board.update!(settings: board.settings.merge("display_image_is_custom" => true))
+      end
+
+      it "the picked column value wins over the auto preview" do
+        freeze_time do
+          expect(board.display_image_url).to eq("https://example.com/picked-tile.png")
+          expect(board.display_image_url).not_to eq(board.preview_image_url)
+        end
+      end
+
+      it "an uploaded custom cover still outranks the tile pick" do
+        board.preset_display_image.attach(
+          io: StringIO.new("cover-bytes"),
+          filename: "preset_display_image.png",
+          content_type: "image/png",
+        )
+        expect(board.display_image_url).to eq(board.display_preset_image_url)
+      end
+
+      it "falls back to the preview when the flag is set but the column is blank" do
+        board.update_column(:display_image_url, nil)
+        freeze_time do
+          expect(board.display_image_url).to eq(board.preview_image_url)
+        end
+      end
+    end
   end
 
   describe "#preset_display_image_url" do

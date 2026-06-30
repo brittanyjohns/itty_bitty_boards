@@ -241,17 +241,32 @@ class Board < ApplicationRecord
     ActiveModel::Type::Boolean.new.cast(settings["display_follows_preview"]) == true
   end
 
+  # When `settings["display_image_is_custom"]` is true the user has deliberately
+  # picked a specific tile's picture as the board thumbnail (the "Use as
+  # thumbnail" action, which writes the URL into the `display_image_url` column).
+  # That choice should outrank the auto preview, mirroring how an uploaded cover
+  # does — see the precedence note on #display_image_url.
+  def display_image_is_custom?
+    return false unless settings.is_a?(Hash)
+    ActiveModel::Type::Boolean.new.cast(settings["display_image_is_custom"]) == true
+  end
+
   # Override the AR-generated getter so reads (including serializers, grid
   # thumbnails) resolve the right image with this precedence:
   #
   #   1. An explicit custom cover the user uploaded (the `preset_display_image`
   #      attachment, set via API::BoardsController#update_preset_display_image)
   #      always wins — it's a deliberate choice, not an auto snapshot.
-  #   2. Otherwise the live, deterministically-keyed auto preview wins, so the
+  #   2. A deliberate tile pick (`display_image_is_custom` + the
+  #      `display_image_url` column) — the "Use as thumbnail" action. Also a
+  #      deliberate choice, so it outranks the auto preview; without this the
+  #      live preview (#3) silently swallows the user's pick on any board that
+  #      already has a generated preview.
+  #   3. Otherwise the live, deterministically-keyed auto preview wins, so the
   #      thumbnail tracks the board's *current* contents. The URL is stable
   #      (board_previews/<id>/preview.png) and self-cache-busts on regeneration
   #      via `?v=<blob.created_at>`, so an edited board never shows stale art.
-  #   3. The denormalized `display_image_url` column is only a seed thumbnail
+  #   4. The denormalized `display_image_url` column is only a seed thumbnail
   #      (e.g. the originating tile's image) used before the first preview
   #      exists; it's the last resort.
   #
@@ -259,6 +274,9 @@ class Board < ApplicationRecord
   def display_image_url
     if preset_display_image.attached? && (custom_cover = display_preset_image_url).present?
       return custom_cover
+    end
+    if display_image_is_custom? && (custom_pick = read_attribute(:display_image_url)).present?
+      return custom_pick
     end
     if preview_image.attached? && (live_preview = preview_image_url).present?
       return live_preview
