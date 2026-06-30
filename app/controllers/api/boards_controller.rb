@@ -1,5 +1,5 @@
 class API::BoardsController < API::ApplicationController
-  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board show public_boards public_menu_boards common_boards pdf ]
+  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board show public_boards public_menu_boards common_boards pdf free_download_boards ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts show make_editable ]
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
@@ -179,6 +179,23 @@ class API::BoardsController < API::ApplicationController
                total_pages: user_boards_scope.total_pages,
                total_count: user_boards_scope.total_count,
              },
+           }
+  end
+
+  # Public (no-auth) list of boards offered for free PDF download to anonymous
+  # lead-capture visitors. Returns only boards flagged free_download_enabled in
+  # the lean contract shape the frontend lead-capture page consumes.
+  def free_download_boards
+    boards = Board.where(free_download_enabled: true).order(:name)
+    render json: {
+             boards: boards.map do |board|
+               {
+                 id: board.id,
+                 name: board.name,
+                 description: board.description,
+                 image_url: board.display_image_url,
+               }
+             end,
            }
   end
 

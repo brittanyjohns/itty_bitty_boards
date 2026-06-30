@@ -100,6 +100,36 @@ class MailchimpService
     nil
   end
 
+  # Lightweight sibling of record_new_subscriber for raw email leads (no User
+  # object). Upserts a bare email to the audience as "subscribed" with the given
+  # tags and minimal merge fields (FNAME from name when present). Used for the
+  # anonymous free-board-download lead capture. Reuses the same client / audience
+  # id / subscriber_hash patterns as the rest of this service.
+  def record_lead(email:, name: nil, tags: [])
+    list_id = ENV.fetch("MAILCHIMP_AUDIENCE_ID")
+    subscriber_hash_email = subscriber_hash(email)
+
+    merge_fields = {}
+    merge_fields[:FNAME] = name if name.present?
+
+    body = {
+      email_address: email,
+      status_if_new: "subscribed",
+      merge_fields: merge_fields,
+    }
+    response = @client.lists.set_list_member(list_id, subscriber_hash_email, body)
+
+    unless tags.blank?
+      @client.lists.update_list_member_tags(
+        list_id,
+        subscriber_hash_email,
+        { tags: tags.map { |t| { name: t, status: "active" } } }
+      )
+    end
+
+    response
+  end
+
   # Enrol a contact into a Mailchimp Customer Journey via its API-trigger step.
   # Mailchimp then sends the email designed in that journey. The contact must
   # already be an audience member; if Mailchimp 404s we upsert them and retry

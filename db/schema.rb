@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_24_130000) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_25_120100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -257,11 +257,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_24_130000) do
     t.datetime "generated_token_expires_at"
     t.jsonb "metadata", default: {}
     t.string "tags", default: [], null: false, array: true
+    t.boolean "free_download_enabled", default: false, null: false
     t.index ["board_screenshot_import_id"], name: "index_boards_on_board_screenshot_import_id"
     t.index ["board_type"], name: "index_boards_on_board_type"
     t.index ["category"], name: "index_boards_on_category"
     t.index ["data"], name: "index_boards_on_data", using: :gin
     t.index ["favorite"], name: "index_boards_on_favorite"
+    t.index ["free_download_enabled"], name: "index_boards_on_free_download_enabled"
     t.index ["generated_token"], name: "index_boards_on_generated_token", unique: true
     t.index ["generated_token_expires_at"], name: "index_boards_on_generated_token_expires_at"
     t.index ["image_parent_id"], name: "index_boards_on_image_parent_id"
@@ -418,6 +420,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_24_130000) do
     t.index ["documentable_id", "documentable_type", "deleted_at"], name: "idx_on_documentable_id_documentable_type_deleted_at_a6715ad541"
     t.index ["documentable_type", "documentable_id"], name: "index_docs_on_documentable"
     t.index ["user_id"], name: "index_docs_on_user_id"
+  end
+
+  create_table "download_leads", force: :cascade do |t|
+    t.string "email", null: false
+    t.string "name"
+    t.bigint "board_id"
+    t.string "source"
+    t.string "mailchimp_status", default: "pending"
+    t.jsonb "data", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["board_id"], name: "index_download_leads_on_board_id"
+    t.index ["email"], name: "index_download_leads_on_email"
   end
 
   create_table "events", force: :cascade do |t|

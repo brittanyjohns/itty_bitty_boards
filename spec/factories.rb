@@ -21,6 +21,12 @@ FactoryBot.define do
     data { "{}" }
   end
 
+  factory :download_lead do
+    sequence(:email) { |n| "lead#{n}@example.com" }
+    name { FFaker::Name.name }
+    source { "free_download" }
+  end
+
   factory :event do
     name { FFaker::Name.name }
     slug { FFaker::Internet.slug }
