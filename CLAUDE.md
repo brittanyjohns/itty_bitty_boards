@@ -571,6 +571,20 @@ demo/myspeak signups keep using `sign_up`. Key invariants:
   The Stripe portal config must permit subscription updates for the relevant
   products for the flow to render. Frontend CTA wiring is a separate PR
   (itty-bitty-frontend#369 keeps the portal fallback until it lands).
+- **In-app plan switch error contract (`change_plan` / `preview_plan_change`):**
+  the direct in-app switch (`Stripe::Subscription.update`, no portal redirect)
+  maps Stripe failures to actionable codes so the modal can respond, not just
+  show a dead end. `change_plan` returns **402 `payment_failed`** on a
+  `Stripe::CardError` (declined card), **402 `payment_method_required`** on a
+  `Stripe::InvalidRequestError` whose message indicates the customer has **no
+  payment method on file** (detected via `missing_payment_method_error?` — Stripe
+  exposes no stable code, so we match the message), and the generic **400
+  "Failed to change plan"** for any other Stripe error. `preview_plan_change`
+  returns a **`payment_method_required`** boolean — true only when the switch
+  bills today (`upcoming.amount_due > 0`) **and** `customer_has_payment_method?`
+  is false — so the frontend can prompt for a card before the user confirms.
+  Credit-only downgrades (nothing due today) are never flagged. A no-payment-
+  method user is steered to the billing portal (`billing_portal`).
 
 ### `paid_plan?` semantics
 

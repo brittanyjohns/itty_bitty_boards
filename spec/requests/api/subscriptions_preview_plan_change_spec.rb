@@ -22,6 +22,13 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
     OpenStruct.new(amount_due: 500, currency: "usd")
   end
 
+  let(:customer_with_pm) do
+    OpenStruct.new(invoice_settings: OpenStruct.new(default_payment_method: "pm_123"), default_source: nil)
+  end
+  let(:customer_without_pm) do
+    OpenStruct.new(invoice_settings: OpenStruct.new(default_payment_method: nil), default_source: nil)
+  end
+
   def stub_price_ids
     stub_const(
       "API::Stripe::CheckoutSessionsController::PLAN_PRICE_IDS",
@@ -39,7 +46,12 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
     post "/api/subscriptions/preview_plan_change", params: params, headers: auth_headers(user)
   end
 
-  before { stub_price_ids }
+  before do
+    stub_price_ids
+    # Default: the customer has a payment method on file. The no-payment-method
+    # contexts below override this.
+    allow(Stripe::Customer).to receive(:retrieve).and_return(customer_with_pm)
+  end
 
   context "with a valid plan switch" do
     before do
@@ -60,6 +72,7 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
       expect(body["billing_interval"]).to eq("monthly")
       expect(body["currency"]).to eq("usd")
       expect(body["discount"]).to be_nil
+      expect(body["payment_method_required"]).to eq(false)
     end
 
     it "calls Invoice.upcoming with subscription_details params" do
@@ -192,6 +205,40 @@ RSpec.describe "POST /api/subscriptions/preview_plan_change", type: :request do
       do_post
 
       expect(response).to have_http_status(:ok)
+    end
+  end
+
+  context "customer has no payment method and a charge is due" do
+    before do
+      stub_subscription_list([active_sub])
+      allow(Stripe::Invoice).to receive(:upcoming).and_return(upcoming_invoice)
+      allow(Stripe::Price).to receive(:retrieve).with("price_pro").and_return(new_price)
+      allow(Stripe::Customer).to receive(:retrieve).and_return(customer_without_pm)
+    end
+
+    it "flags payment_method_required" do
+      do_post
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["payment_method_required"]).to eq(true)
+    end
+  end
+
+  context "credit-only downgrade (nothing due today) with no payment method" do
+    let(:no_charge_invoice) { OpenStruct.new(amount_due: 0, currency: "usd") }
+
+    before do
+      stub_subscription_list([active_sub])
+      allow(Stripe::Invoice).to receive(:upcoming).and_return(no_charge_invoice)
+      allow(Stripe::Price).to receive(:retrieve).with("price_pro").and_return(new_price)
+      allow(Stripe::Customer).to receive(:retrieve).and_return(customer_without_pm)
+    end
+
+    it "does not require a payment method (no immediate charge)" do
+      do_post
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["payment_method_required"]).to eq(false)
     end
   end
 

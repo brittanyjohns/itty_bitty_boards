@@ -5,6 +5,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — clearer plan-change errors when there's no payment method
+- `POST /api/subscriptions/change_plan` now returns a distinct, actionable
+  **402 `payment_method_required`** (with a message pointing to the billing
+  portal) when a switch fails because the customer has no payment method on
+  file — instead of the generic `400 "Failed to change plan"` that gave the
+  frontend nothing to act on. Card declines still return `402 payment_failed`;
+  other Stripe errors still return the generic 400.
+- `POST /api/subscriptions/preview_plan_change` now returns a
+  `payment_method_required` boolean — true only when the switch bills the
+  customer today (`amount_due > 0`) **and** there's no payment method on file —
+  so the confirm modal can prompt for a card up front instead of letting the
+  user hit a Confirm that can only fail. Credit-only downgrades aren't flagged.
+
 ### Added — boards now lay out well on phones and tablets, not just large screens
 - Medium/small column counts are now **derived proportionally** from a board's
   authored large-screen count (`Boards::ScreenColumns`: md ≈ ⅔ of lg, sm ≈ ⅓ of
