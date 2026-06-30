@@ -17,6 +17,10 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   email to Mailchimp as a `BoardDownloadLead`. Invalid/missing emails return
   `422 { success: false, errors: [...] }`. The existing
   `GET /api/boards/:id/pdf` continues to serve the file unchanged.
+- Admin **Mission Control** now has a **Download Leads** panel: leads captured
+  today / 7d / 30d, unique emails (7d), all-time total, and Mailchimp sync
+  health (synced / pending / failed, with the failed count flagged red) plus a
+  by-source breakdown — so a stalled Mailchimp sync is visible at a glance.
 
 ### Fixed — clearer plan-change errors when there's no payment method
 - `POST /api/subscriptions/change_plan` now returns a distinct, actionable
