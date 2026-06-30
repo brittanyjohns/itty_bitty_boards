@@ -372,6 +372,46 @@ RSpec.describe "API::Boards", type: :request do
         expect(board.reload.read_attribute(:display_image_url))
           .to eq("https://example.com/user-cover.png")
       end
+
+      it "persists a deliberate tile pick (display_image_is_custom) and resolves to it" do
+        patch "/api/boards/#{board.id}",
+              params: {
+                board: {
+                  display_image_url: "https://example.com/picked-tile.png",
+                  settings: { display_image_is_custom: true },
+                },
+              },
+              headers: auth_headers(user),
+              as: :json
+
+        expect(response).to have_http_status(:ok)
+        board.reload
+        expect(board.read_attribute(:display_image_url))
+          .to eq("https://example.com/picked-tile.png")
+        expect(board.settings["display_image_is_custom"]).to be true
+        expect(JSON.parse(response.body)["display_image_url"])
+          .to eq("https://example.com/picked-tile.png")
+      end
+
+      it "forces display_follows_preview off when a tile is picked, so the pick isn't nilled" do
+        board.update!(settings: board.settings.merge("display_follows_preview" => true))
+
+        patch "/api/boards/#{board.id}",
+              params: {
+                board: {
+                  display_image_url: "https://example.com/picked-tile.png",
+                  settings: { display_image_is_custom: true },
+                },
+              },
+              headers: auth_headers(user),
+              as: :json
+
+        expect(response).to have_http_status(:ok)
+        board.reload
+        expect(board.settings["display_follows_preview"]).to be false
+        expect(board.read_attribute(:display_image_url))
+          .to eq("https://example.com/picked-tile.png")
+      end
     end
 
     # Manually adding words must let the user put a word that's already on the

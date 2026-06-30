@@ -441,6 +441,14 @@ class API::BoardsController < API::ApplicationController
       new_board_settings = @board.settings.merge(settings)
       @board.settings = new_board_settings
 
+      # A deliberate tile pick ("Use as thumbnail") sets
+      # `display_image_is_custom` alongside the chosen `display_image_url`. It's
+      # mutually exclusive with "display follows preview": force the latter off
+      # so the column isn't nilled below and the pick can win in the getter.
+      if @board.display_image_is_custom?
+        @board.settings["display_follows_preview"] = false
+      end
+
       # When the user opts into "display follows preview" we nil out the
       # denormalized column so the override getter resolves to the live
       # preview URL. Any incoming `display_image_url` param is ignored in
