@@ -183,10 +183,11 @@ class API::BoardsController < API::ApplicationController
   end
 
   # Public (no-auth) list of boards offered for free PDF download to anonymous
-  # lead-capture visitors. Returns only boards flagged free_download_enabled in
-  # the lean contract shape the frontend lead-capture page consumes.
+  # lead-capture visitors. Reuses the curated public board gallery
+  # (`Board.public_boards` — admin-owned, predefined + published) rather than a
+  # separate flag, returned in the lean contract shape the frontend consumes.
   def free_download_boards
-    boards = Board.where(free_download_enabled: true).order(:name)
+    boards = Board.public_boards.order(:name)
     render json: {
              boards: boards.map do |board|
                {

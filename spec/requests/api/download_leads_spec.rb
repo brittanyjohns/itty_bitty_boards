@@ -7,7 +7,7 @@ RSpec.describe "API download_leads", type: :request do
 
   describe "POST /api/download_leads" do
     context "with a valid email" do
-      let(:board) { create(:board, free_download_enabled: true) }
+      let(:board) { create(:board) }
 
       let(:params) do
         {

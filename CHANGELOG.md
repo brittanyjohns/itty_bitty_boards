@@ -6,9 +6,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ## [Unreleased]
 
 ### Added — free board PDF downloads for anonymous visitors (lead capture)
-- Boards can now be flagged for free download (`boards.free_download_enabled`).
-  `GET /api/free_download_boards` (public, no auth) lists those boards with
-  `id`, `name`, `description`, and `image_url` for an anonymous lead-capture page.
+- `GET /api/free_download_boards` (public, no auth) lists the curated public
+  board gallery (`Board.public_boards` — admin-owned, predefined + published)
+  with `id`, `name`, `description`, and `image_url` for an anonymous
+  lead-capture page. No new board flag — the existing public gallery is the
+  offered set.
 - `POST /api/download_leads` (public, no auth) captures a visitor's email (with
   optional name, board_id, source, and data) as a `DownloadLead`, returns
   `201 { success: true }`, and enqueues `MailchimpUpsertLeadJob` to sync the
