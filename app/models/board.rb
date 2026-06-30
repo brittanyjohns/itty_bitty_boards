@@ -1644,6 +1644,18 @@ class Board < ApplicationRecord
     save
   end
 
+  # Reverse of attaching a custom cover (BoardsController#update_preset_display_image):
+  # purge the uploaded image, drop its legacy settings copy, and clear the
+  # denormalized `display_image_url` column so #display_image_url falls back to
+  # the live preview snapshot (or nil) instead of the now-removed cover URL.
+  def remove_preset_display_image!
+    preset_display_image.purge if preset_display_image.attached?
+    # Reassign (rather than mutate in place) so AR reliably tracks the change.
+    self.settings = (settings || {}).except("preset_display_image_url")
+    self.display_image_url = nil
+    save!
+  end
+
   def is_frozen?
     return false unless settings
     settings["freeze_board"] == true

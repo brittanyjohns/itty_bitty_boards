@@ -549,6 +549,58 @@ RSpec.describe Board, type: :model do
     end
   end
 
+  describe "#remove_preset_display_image!" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:board) { FactoryBot.create(:board, user: user) }
+
+    def attach_preview(bytes = "png-bytes")
+      board.preview_image.attach(
+        io: StringIO.new(bytes),
+        filename: "preview.png",
+        content_type: "image/png",
+      )
+    end
+
+    def attach_cover
+      board.preset_display_image.attach(
+        io: StringIO.new("cover-bytes"),
+        filename: "preset_display_image.png",
+        content_type: "image/png",
+      )
+      board.update_preset_display_image_url(board.display_preset_image_url)
+      board.update_column(:display_image_url, board.display_preset_image_url)
+    end
+
+    it "purges the cover and clears its denormalized copies" do
+      attach_cover
+      expect(board.preset_display_image).to be_attached
+
+      board.remove_preset_display_image!
+
+      expect(board.reload.preset_display_image).not_to be_attached
+      expect(board.settings["preset_display_image_url"]).to be_nil
+      expect(board.read_attribute(:display_image_url)).to be_nil
+    end
+
+    it "falls back to the live preview after the custom cover is removed" do
+      attach_preview
+      attach_cover
+      # Custom cover wins while attached.
+      expect(board.display_image_url).to eq(board.display_preset_image_url)
+
+      board.remove_preset_display_image!
+
+      freeze_time do
+        expect(board.display_image_url).to eq(board.preview_image_url)
+      end
+    end
+
+    it "is a no-op-safe when no cover is attached" do
+      expect { board.remove_preset_display_image! }.not_to raise_error
+      expect(board.reload.preset_display_image).not_to be_attached
+    end
+  end
+
   describe "#preset_display_image_url" do
     let(:user) { FactoryBot.create(:user) }
     let(:board) { FactoryBot.create(:board, user: user) }

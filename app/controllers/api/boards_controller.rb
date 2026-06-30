@@ -4,7 +4,7 @@ class API::BoardsController < API::ApplicationController
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts show make_editable ]
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
   before_action :check_board_create_permissions, only: %i[ create clone create_from_template import_obf ]
-  before_action :check_board_editable!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image format_with_ai add_image associate_image associate_images remove_image generate_preview_image ]
+  before_action :check_board_editable!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image remove_preset_display_image format_with_ai add_image associate_image associate_images remove_image generate_preview_image ]
 
   def index
     limit_param = params[:limit].presence&.to_i
@@ -584,6 +584,14 @@ class API::BoardsController < API::ApplicationController
     file_extension = board_params[:preset_display_image]
     file_extension = file_extension.content_type.split("/").last if file_extension
     attach_image_to_board(image_data, file_extension)
+    render json: @board.api_view_with_images(current_user)
+  end
+
+  # Drop a user-uploaded custom cover so the board's cover falls back to the
+  # auto preview snapshot (or nothing). Mirror image of update_preset_display_image.
+  def remove_preset_display_image
+    set_board
+    @board.remove_preset_display_image!
     render json: @board.api_view_with_images(current_user)
   end
 

@@ -765,4 +765,43 @@ RSpec.describe "API::Boards", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
   end
+
+  describe "DELETE /api/boards/:id/remove_preset_display_image" do
+    let!(:cover_board) { create(:board, user: user, name: "Has Cover") }
+
+    before do
+      cover_board.preset_display_image.attach(
+        io: StringIO.new("cover-bytes"),
+        filename: "preset_display_image.png",
+        content_type: "image/png",
+      )
+      cover_board.update_preset_display_image_url(cover_board.display_preset_image_url)
+      cover_board.update_column(:display_image_url, cover_board.display_preset_image_url)
+    end
+
+    it "removes the custom cover and returns the updated board" do
+      delete "/api/boards/#{cover_board.id}/remove_preset_display_image",
+             headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      expect(cover_board.reload.preset_display_image).not_to be_attached
+      expect(cover_board.settings["preset_display_image_url"]).to be_nil
+
+      body = JSON.parse(response.body)
+      expect(body["settings"]["preset_display_image_url"]).to be_nil
+    end
+
+    it "401s for an unauthenticated request" do
+      delete "/api/boards/#{cover_board.id}/remove_preset_display_image"
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "does not let a non-owner remove another user's cover" do
+      delete "/api/boards/#{cover_board.id}/remove_preset_display_image",
+             headers: auth_headers(other_user)
+
+      expect(response).not_to have_http_status(:ok)
+      expect(cover_board.reload.preset_display_image).to be_attached
+    end
+  end
 end
