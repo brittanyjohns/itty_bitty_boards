@@ -34,4 +34,25 @@ RSpec.describe PartnerMailer, type: :mailer do
       expect(mail.subject).to eq("Welcome to the SpeakAnyWay Partner Program!")
     end
   end
+
+  describe "#pilot_ending_email" do
+    let(:user) { FactoryBot.create(:user, name: "Pat", plan_type: "partner_pro") }
+
+    before { user.update_columns(plan_expires_at: 10.days.from_now) }
+
+    it "renders the English subject and body with the CTA" do
+      use_locale(user, "en-US")
+      mail = described_class.pilot_ending_email(user).deliver_now
+      expect(mail.subject).to eq("Your SpeakAnyWay Partner pilot is wrapping up soon")
+      expect(mail.html_part.body.decoded).to include("Hi <strong>Pat</strong>")
+      expect(mail.html_part.body.decoded).to include("See plans &amp; continue")
+    end
+
+    it "renders the Spanish subject and body" do
+      use_locale(user, "es-US")
+      mail = described_class.pilot_ending_email(user).deliver_now
+      expect(mail.subject).to eq("Tu piloto de Socio de SpeakAnyWay está por terminar")
+      expect(mail.html_part.body.decoded).to include("Hola <strong>Pat</strong>")
+    end
+  end
 end

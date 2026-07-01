@@ -415,6 +415,21 @@ en:
       voice_html: "Your voice will directly shape the future of the <strong>SpeakAnyWay Partner Program</strong>. 💜"
       thanks: "Thank you for joining the journey!"
       signature: "Brittany"
+    pilot_ending_email:
+      subject: "Your SpeakAnyWay Partner pilot is wrapping up soon"
+      title: "Your Partner pilot is wrapping up"
+      greeting_html: "Hi <strong>%{name}</strong>,"
+      intro: "Your 3-month SpeakAnyWay Partner Pilot is coming to an end soon. We've loved having you build, test, and share boards with real students during the pilot."
+      end_date_label: "Your pilot runs through:"
+      days_left:
+        one: "1 day left"
+        other: "%{count} days left"
+      keep_going: "Want to keep your Pro-level access — all your boards, communicators, MySpeak IDs, and AI credits — without interruption? You can continue on a paid plan anytime."
+      cta: "See plans & continue"
+      no_pressure: "No pressure, and nothing disappears the moment the pilot ends — your boards stay put. This is just a heads-up so you can decide what's next for you and your students."
+      signin_link: "Sign in to your account"
+      feedback_note_html: "Have thoughts on the pilot? We'd love to hear them in the <a href=\"%{url}\">Partner Portal</a> — your feedback shapes what we build next. 💜"
+      signoff: "Thank you for being part of the journey, — Brittany"
 
   base_mailer:
     team_invitation_email:

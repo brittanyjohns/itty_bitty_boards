@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Partner pilots need review</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f7f7fb; font-family: Arial, Helvetica, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7f7fb; padding:20px;">
+      <tr>
+        <td align="center">
+          <table width="640" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:8px; padding:24px;">
+            <tr>
+              <td style="color:#333333; font-size:15px; line-height:1.5;">
+                <h2 style="margin-top:0;">Partner pilot review</h2>
+                <p>These Partner Pro pilots need a decision — convert, extend, or downgrade. Nobody was auto-downgraded.</p>
+
+                <h3 style="margin-bottom:6px;">⏳ Ending soon (<%= @expiring.size %>)</h3>
+                <% if @expiring.any? %>
+                  <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
+                    <tr style="background:#f4f2ff; text-align:left;">
+                      <th style="padding:6px;">Name</th>
+                      <th style="padding:6px;">Email</th>
+                      <th style="padding:6px;">Ends</th>
+                    </tr>
+                    <% @expiring.each do |user| %>
+                      <tr style="border-bottom:1px solid #eeeeee;">
+                        <td style="padding:6px;"><%= user.name.presence || "—" %></td>
+                        <td style="padding:6px;"><%= user.email %></td>
+                        <td style="padding:6px;"><%= user.plan_expires_at&.strftime("%b %d, %Y") %></td>
+                      </tr>
+                    <% end %>
+                  </table>
+                <% else %>
+                  <p style="color:#666666;">None.</p>
+                <% end %>
+
+                <h3 style="margin-bottom:6px;">🔔 Newly ended (<%= @expired.size %>)</h3>
+                <% if @expired.any? %>
+                  <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
+                    <tr style="background:#fff3f0; text-align:left;">
+                      <th style="padding:6px;">Name</th>
+                      <th style="padding:6px;">Email</th>
+                      <th style="padding:6px;">Ended</th>
+                    </tr>
+                    <% @expired.each do |user| %>
+                      <tr style="border-bottom:1px solid #eeeeee;">
+                        <td style="padding:6px;"><%= user.name.presence || "—" %></td>
+                        <td style="padding:6px;"><%= user.email %></td>
+                        <td style="padding:6px;"><%= user.plan_expires_at&.strftime("%b %d, %Y") %></td>
+                      </tr>
+                    <% end %>
+                  </table>
+                <% else %>
+                  <p style="color:#666666;">None.</p>
+                <% end %>
+
+                <hr style="border:none; border-top:1px solid #eeeeee; margin:24px 0;" />
+                <p style="color:#666666; font-size:13px;">Run <code>rake partners:pilot_status</code> any time for the full list. Ending-soon partners also got a heads-up email; they still keep Pro access until you act.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

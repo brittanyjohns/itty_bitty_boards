@@ -505,6 +505,48 @@ the non-active→active transition in the upsert; guarded so renewals don't
 double-count). Primary A/B metric is **net paid users per 100 signups**, not
 trial→paid rate.
 
+### Partner Program (`partner_pro`)
+
+The `/sign-up/partner` flow (frontend `viewType="partner"`) posts to the normal
+`POST /api/v1/users` with `plan_type=partner_pro`. `API::V1::AuthsController#sign_up`
+then sets `plan_type=partner_pro`, `plan_status=active`, `role=partner`, and calls
+`User.handle_new_partner_pro_subscription`, which sets
+`plan_expires_at = Time.now + 3.months` (only if nil), tags Mailchimp, and sends
+`PartnerMailer.welcome_email` (the free welcome + welcome journey are skipped).
+Entitlements equal Pro (`setup_partner_pro_plan` → 300 boards / 5 communicators /
+1500 credits). **No Stripe subscription, no card, no promo code** — the grant is
+local DB fields, which is why partners get Pro free for the pilot. `partner_pro`
+is in `RefreshFreeTierCreditsJob`'s refreshable set, so credits re-grant monthly.
+
+**The 3-month window is surfaced but NOT enforced (Phase 1, deliberate).**
+`plan_expires_at` was previously set and never read — partners kept Pro forever
+with no signal. `PartnerPilotEndingJob` (daily 5:30am UTC, sidekiq-cron) closes
+that without auto-downgrading (partners are high-value B2B leads managed by hand):
+
+- **Reminder pass** — partners within `PARTNER_PILOT_REMINDER_LEAD_DAYS` (default
+  14) of `plan_expires_at`, not yet reminded, get `PartnerMailer.pilot_ending_email`
+  (a heads-up, not a shutoff — copy in `partner_mailer.pilot_ending_email`,
+  en + es). Flags `settings["partner_pilot_ending_notified"]` so it fires once.
+- **Expired pass** — partners past `plan_expires_at`, still `partner_pro`, get
+  flagged `settings["partner_pilot_expired"]` + `partner_pilot_expired_at`. **No
+  plan change.** Once-only via the flag.
+- Both feed a single `AdminMailer.partner_pilot_review` digest to `ADMIN_EMAIL`
+  (only sent when there's something) so Brittany can convert/extend/downgrade.
+- `rake partners:pilot_status` — read-only list of pilots by status (ended /
+  ending-soon / active / no-date), respects the lead-days ENV.
+- **Admin dashboard surface.** `Admin::MissionControlHelper#partner_pilot_status`
+  computes the same status (never mutates). The server-rendered admin
+  (`/admin/users`) has a **Partner** filter and chips non-active pilots
+  (`Pilot ended` / `Ending soon`) on the row; the user detail page
+  (`/admin/users/:id`) shows a **Partner Pilot** card (end date, days left,
+  reminder-sent, expired-flagged) so you can action a partner in one place —
+  extend by bumping `plan_expires_at`, or adjust plan by hand.
+
+**Phase 2 (not built):** if partner volume outgrows hand-management, move the
+pilot onto a real Stripe no-card trial (reuses the reverse-trial machinery
+above — auto-expiry, `trial_will_end` reminder, clean cancel→Free, one-click
+conversion) and retire this job + the bespoke `partner_pro` grant.
+
 ### Email-only (passwordless) signup — paid-intent path
 
 `POST /api/v1/users/email_signup` (itty-bitty-frontend#367): a paid-intent

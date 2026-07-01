@@ -25,6 +25,18 @@ class AdminMailer < BaseMailer
     mail(to: to_email, subject: subject, from: "noreply@speakanyway.com")
   end
 
+  # Partner-pilot review digest, sent by PartnerPilotEndingJob when there are
+  # partners ending soon and/or newly past their 3-month window. Gives Brittany
+  # a single actionable list — nobody is auto-downgraded, so this is the signal
+  # to convert / extend / downgrade each partner by hand.
+  def partner_pilot_review(expiring:, expired:)
+    to_email = ENV["ADMIN_EMAIL"] || "brittany@speakanyway.com"
+    @expiring = expiring || []
+    @expired = expired || []
+    subject = "Partner pilots: #{@expired.size} ended, #{@expiring.size} ending soon"
+    mail(to: to_email, subject: subject, from: "noreply@speakanyway.com")
+  end
+
   # Server disk-space alert, sent by DiskSpaceAlertJob.
   def disk_space_alert(usage:, severity:)
     to_email = ENV["ADMIN_EMAIL"] || "brittany@speakanyway.com"

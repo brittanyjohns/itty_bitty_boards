@@ -51,6 +51,42 @@
   </div>
 </div>
 
+<%# ─── Partner pilot (partner_pro only) ───────────────────── %>
+<% if (pilot = partner_pilot_status(@user)) %>
+  <div class="admin-card border rounded-xl p-6 mb-8">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xs font-semibold uppercase tracking-widest text-t2">Partner Pilot</h2>
+      <span class="<%= pilot[:badge_class] %> inline-block text-xs rounded px-2.5 py-1"><%= pilot[:label] %></span>
+    </div>
+    <dl class="space-y-2.5 text-xs">
+      <div class="flex justify-between">
+        <dt class="text-t2">Pilot ends</dt>
+        <dd class="text-t1 font-mono text-right"><%= pilot[:end_date]&.strftime("%b %-d, %Y") || "— (no end date set)" %></dd>
+      </div>
+      <% if pilot[:days_left] %>
+        <div class="flex justify-between">
+          <dt class="text-t2">Days left</dt>
+          <dd class="text-t1 font-mono text-right"><%= pilot[:days_left] %></dd>
+        </div>
+      <% end %>
+      <div class="flex justify-between">
+        <dt class="text-t2">Ending-soon reminder sent</dt>
+        <dd class="text-t1 font-mono text-right"><%= pilot[:reminded] ? "Yes" : "No" %></dd>
+      </div>
+      <div class="flex justify-between">
+        <dt class="text-t2">Flagged expired (for review)</dt>
+        <dd class="text-t1 font-mono text-right">
+          <%= pilot[:expired_flagged] ? "Yes" : "No" %><%= " · #{pilot[:expired_at]}" if pilot[:expired_at].present? %>
+        </dd>
+      </div>
+    </dl>
+    <p class="text-[10px] text-t3 mt-3">
+      Partners are never auto-downgraded. Convert, extend (bump <span class="font-mono">plan_expires_at</span>), or downgrade by hand.
+      <span class="font-mono">rake partners:pilot_status</span> lists all pilots.
+    </p>
+  </div>
+<% end %>
+
 <%# ─── Credit adjustment ──────────────────────────────────── %>
 <div class="admin-card border rounded-xl p-6 mb-8">
   <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Adjust Credits</h2>

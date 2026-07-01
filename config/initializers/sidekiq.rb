@@ -66,5 +66,11 @@ Sidekiq.configure_server do |config|
       "queue" => "default",
       "description" => "Daily (5am UTC) trial-ending reminder for RevenueCat (iOS/Apple) trialists ~REVENUECAT_TRIAL_REMINDER_LEAD_DAYS (default 3) before settings[\"trial_ends_at\"]. Apple/RevenueCat send no trial_will_end webhook (unlike Stripe), so this computes it and enqueues the shared MailchimpTrialWrapJob. Flags user.settings[\"rc_trial_wrap_sent\"] so each trial is nudged once.",
     },
+    "partner_pilot_ending" => {
+      "cron" => "30 5 * * *",
+      "class" => "PartnerPilotEndingJob",
+      "queue" => "default",
+      "description" => "Daily (5:30am UTC) Partner Pro pilot sweep. Emails partners a heads-up ~PARTNER_PILOT_REMINDER_LEAD_DAYS (default 14) before plan_expires_at (flags settings[\"partner_pilot_ending_notified\"]), and flags partners past plan_expires_at with settings[\"partner_pilot_expired\"] — NO auto-downgrade. Sends Brittany an AdminMailer digest of both so she can convert/extend/downgrade by hand.",
+    },
   })
 end
