@@ -94,9 +94,10 @@ RSpec.describe Board, type: :model do
       expect(cloned.read_attribute(:display_image_url)).to be_nil
     end
 
-    it "defaults the clone to follow its own preview" do
+    it "defaults the clone to its own auto preview" do
       cloned = board.clone_with_images(user.id)
-      expect(cloned.settings["display_follows_preview"]).to be true
+      expect(cloned.settings["display_image_source"]).to eq("preview")
+      expect(cloned.display_image_source).to eq("preview")
     end
 
     context "tile display_image_url fallback on clone" do
@@ -548,7 +549,7 @@ RSpec.describe Board, type: :model do
       end
     end
 
-    context "with a deliberate tile pick (display_image_is_custom)" do
+    context "with a legacy tile pick (display_image_is_custom flag, backward compat)" do
       before do
         attach_preview
         board.update_column(:display_image_url, "https://example.com/picked-tile.png")
@@ -576,6 +577,53 @@ RSpec.describe Board, type: :model do
         freeze_time do
           expect(board.display_image_url).to eq(board.preview_image_url)
         end
+      end
+    end
+
+    context "with the explicit switch settings[display_image_source]" do
+      before { attach_preview }
+
+      it "source=custom serves the picked column value over the auto preview" do
+        board.update_column(:display_image_url, "https://example.com/picked-tile.png")
+        board.update!(settings: board.settings.merge("display_image_source" => "custom"))
+        freeze_time do
+          expect(board.display_image_url).to eq("https://example.com/picked-tile.png")
+          expect(board.display_image_url).not_to eq(board.preview_image_url)
+        end
+      end
+
+      # The switch-back path, and the reason the echo-back clobber is harmless:
+      # in preview mode the column is ignored, so a stale URL stamped into it by
+      # a generic save can never freeze the thumbnail.
+      it "source=preview serves the live auto preview, ignoring a stale column value" do
+        board.update_column(:display_image_url, "https://example.com/old-pick.png")
+        board.update!(settings: board.settings.merge("display_image_source" => "preview"))
+        freeze_time do
+          expect(board.display_image_url).to eq(board.preview_image_url)
+          expect(board.display_image_url).not_to eq("https://example.com/old-pick.png")
+        end
+      end
+    end
+
+    describe "#display_image_source" do
+      it "defaults to preview" do
+        expect(board.display_image_source).to eq("preview")
+      end
+
+      it "infers custom when a cover is uploaded (backward compat)" do
+        board.preset_display_image.attach(io: StringIO.new("c"), filename: "c.png", content_type: "image/png")
+        expect(board.display_image_source).to eq("custom")
+      end
+
+      it "infers custom from the legacy display_image_is_custom flag (backward compat)" do
+        board.update!(settings: board.settings.merge("display_image_is_custom" => true))
+        expect(board.display_image_source).to eq("custom")
+      end
+
+      it "an explicit stored source always wins over inference" do
+        board.preset_display_image.attach(io: StringIO.new("c"), filename: "c.png", content_type: "image/png")
+        board.update!(settings: board.settings.merge("display_image_source" => "preview"))
+        expect(board.display_image_source).to eq("preview")
       end
     end
   end
