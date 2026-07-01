@@ -331,6 +331,11 @@ Rails.application.routes.draw do
     end
 
     resources :child_accounts do
+      collection do
+        # #439: owner picks which communicators stay signable when over the
+        # plan's slot limit (the rest fall back to the public MySpeak page).
+        post "keep_signable"
+      end
       member do
         post "assign_boards"
         post "send_setup_email"

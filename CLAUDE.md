@@ -746,11 +746,23 @@ nonspeaking child is never stranded mid-use.
   Free signup (capped at 1) is never flagged — fallback is *only ever a
   consequence of downgrade*. Use `enter_fallback!` / `exit_fallback!`.
 - **One reconciler, both directions.** `User#reconcile_communicator_fallback!`
-  orders slotted (loaner+active) communicators **most-recently-active first**
-  (`last_sign_in_at` desc, nulls last), keeps the top `slot_limit` signable,
-  and flags the overflow. A downgrade flags the overflow; a re-upgrade restores
-  them as slots free up (no manual re-claim); any still over the new limit stay
-  in fallback. Idempotent; admins are never limited.
+  orders slotted (loaner+active) communicators **owner-pinned first, then
+  most-recently-active** (`last_sign_in_at` desc, nulls last), keeps the top
+  `slot_limit` signable, and flags the overflow. A downgrade flags the overflow;
+  a re-upgrade restores them as slots free up (no manual re-claim); any still
+  over the new limit stay in fallback. Idempotent; admins are never limited.
+- **Owner picks which stay signable (#439).** The mirror of the board
+  `make_editable` pick. `User#kept_communicator_ids` (stored on
+  `settings["kept_communicator_ids"]`) is the owner's explicit "keep these
+  signable" set; reconcile moves those to the front (in the order chosen) before
+  the recency rule, so the owner — not just last-sign-in — decides which N stay
+  full when over the limit. Empty ⇒ recency only (unchanged behavior).
+  `User#set_kept_communicator_ids!(ids)` persists the set (owner-owned ids only,
+  capped at `slot_limit`) and re-runs reconcile immediately. Endpoint:
+  **`POST /api/child_accounts/keep_signable`** `{ communicator_ids: [...] }` →
+  `{ kept_communicator_ids, communicator_slot_limit, communicators: [...] }`.
+  `communicator_slot_limit` + `kept_communicator_ids` are also on the user
+  `api_view` so the over-limit picker can pre-check the right toggles.
 - **Trigger:** `after_save :reconcile_communicator_fallback!, if:
   :saved_change_to_plan_type?` on `User`. Every plan transition (Stripe
   cancel/pause via `apply_free_plan`, `DowngradeSoftTrialJob`, and upgrades via

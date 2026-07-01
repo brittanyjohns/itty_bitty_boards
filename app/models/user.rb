@@ -1460,6 +1460,18 @@ class User < ApplicationRecord
                  .order(Arel.sql("last_sign_in_at DESC NULLS LAST, updated_at DESC, id DESC"))
                  .to_a
 
+    # Owner-chosen priority (issue #439): communicators the owner explicitly
+    # pinned to keep signable move to the front, in the order they picked them;
+    # everything unpinned keeps the most-recently-active ordering. So which
+    # communicators stay full vs. fall back is the owner's call, not just
+    # whichever signed in last. No pick ⇒ the historical recency rule.
+    kept = kept_communicator_ids
+    unless kept.empty?
+      pinned, rest = accounts.partition { |account| kept.include?(account.id) }
+      pinned.sort_by! { |account| kept.index(account.id) }
+      accounts = pinned + rest
+    end
+
     accounts.each_with_index do |account, index|
       keep = limit.nil? || index < limit
       if keep
@@ -1468,6 +1480,32 @@ class User < ApplicationRecord
         account.enter_fallback! unless account.fallback_mode?
       end
     end
+  end
+
+  # The communicators the owner has explicitly pinned to keep signable when over
+  # the slot limit (issue #439). Stored on settings as an array of ids; read back
+  # sanitized to integers. Empty ⇒ no explicit pick, so reconcile falls back to
+  # the most-recently-active rule.
+  KEPT_COMMUNICATOR_IDS_KEY = "kept_communicator_ids".freeze
+
+  def kept_communicator_ids
+    Array(settings && settings[KEPT_COMMUNICATOR_IDS_KEY]).map(&:to_i)
+  end
+
+  # Persist the owner's pinned set and re-run reconcile so the choice takes
+  # effect immediately. Only ids the user actually owns as slotted (loaner/active)
+  # communicators are honored; the set is capped at the current slot limit (extra
+  # pins are dropped, keeping the order the owner sent). Returns the stored ids.
+  def set_kept_communicator_ids!(ids)
+    owned = slotted_communicator_accounts.pluck(:id)
+    requested = Array(ids).map(&:to_i).uniq.select { |id| owned.include?(id) }
+    limit = Permissions::CommunicatorLimits.slot_limit_for(settings || {})
+    requested = requested.first(limit) if limit
+    self.settings ||= {}
+    self.settings[KEPT_COMMUNICATOR_IDS_KEY] = requested
+    save!
+    reconcile_communicator_fallback!
+    requested
   end
 
   # Promote sandbox communicators to full (active) accounts up to the number of
@@ -1656,6 +1694,11 @@ class User < ApplicationRecord
       comm_account_limit: paid_comm_limit_total,
       paid_communicator_count: paid_comm_count,
       paid_comm_account_limit_reached: paid_comm_account_limit_reached,
+
+      # Owner's pinned "keep signable" set + the plan slot limit, so the
+      # over-limit picker (issue #439) can pre-check the right toggles.
+      communicator_slot_limit: Permissions::CommunicatorLimits.slot_limit_for(settings || {}),
+      kept_communicator_ids: kept_communicator_ids,
 
       # Communicators (DEMO)
       demo_comm_account_limit: demo_limit,
