@@ -36,10 +36,10 @@ class MailchimpService
     if e.status == 404
       result = record_new_subscriber(user)
       if result
-        puts "Successfully added subscriber for email #{email}. Retrying sign-in event."
+        Rails.logger.info("[Mailchimp] Added subscriber for #{email}. Retrying sign-in event.")
         retry
       else
-        puts "Failed to add subscriber for email #{email}. Cannot record sign-in event."
+        Rails.logger.error("[Mailchimp] Failed to add subscriber for #{email}. Cannot record sign-in event.")
       end
     end
     nil
@@ -96,7 +96,12 @@ class MailchimpService
     end
     response
   rescue MailchimpMarketing::ApiError => e
-    puts "Error recording new subscriber: #{e.message}"
+    # Swallowed so a Mailchimp blip can't break signup, but logged at error
+    # level with status + detail so a *permanent* config problem (e.g. an
+    # audience "required merge field" like ADDRESS rejecting every new-contact
+    # upsert with a 400) is visible instead of silently failing every signup
+    # sync. Was a bare `puts` that never reached the structured log / tracker.
+    Rails.logger.error("[Mailchimp] record_new_subscriber failed for #{email}: #{e.status} #{e.detail || e.message}")
     nil
   end
 
