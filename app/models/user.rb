@@ -286,7 +286,7 @@ class User < ApplicationRecord
   end
 
   def supporter_limit
-    plan_type == "pro" ? 5 : 2
+    pro? ? 5 : 2
   end
 
   # Communicator slot math:
@@ -511,6 +511,24 @@ class User < ApplicationRecord
     partner_group = user.get_partner_group
     user.settings["partner_group"] = partner_group
     user.save
+
+    # Grant the Partner Pro (Pro-equivalent) credit allowance IMMEDIATELY.
+    # The after_create :grant_initial_plan_credits hook already ran while the
+    # account was still `free` (granting the free allowance), and
+    # ensure_initial_grant! is a no-op once any plan_grant exists — so without
+    # this a partner would sit on the free allowance until a cron re-grant.
+    # grant_plan! resets the plan balance to the partner_pro monthly amount now.
+    begin
+      CreditService.grant_plan!(
+        user,
+        amount: CreditService.monthly_credits_for("partner_pro"),
+        period_end: CreditService.initial_period_end_for("partner_pro"),
+        metadata: { source: "partner_pro_signup", plan_type: "partner_pro" },
+      )
+    rescue => e
+      Rails.logger.error "Partner Pro credit grant failed for #{user&.email}: #{e.message}"
+    end
+
     begin
       # MailchimpService.new.update_subscriber_tags(user.email, [partner_group], [])
       Rails.logger.info "Recording new subscriber for Mailchimp: #{user.email} with tags: #{[partner_group]}"
@@ -1059,8 +1077,14 @@ class User < ApplicationRecord
     "User"
   end
 
+  # Partner Pro is a Pro-equivalent tier: partners get the same permissions and
+  # limits as paying Pro users (setup_partner_pro_plan mirrors PRO_PLAN_LIMITS),
+  # so pro? must treat it as Pro. This single predicate feeds paid_plan?,
+  # partner_pro?, supporter_limit, the lending gate, and the api_view `pro`
+  # flag — so a partner is Pro everywhere those are checked. pro_yearly is
+  # included for parity with the setup_limits / board_group_limit case bodies.
   def pro?
-    plan_type == "pro"
+    %w[pro pro_yearly partner_pro].include?(plan_type)
   end
 
   def pro_vendor?

@@ -5,6 +5,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Partner Pro accounts now get full Pro credits + permissions immediately
+- Partner Pro signups were landing with the Free credit allowance (e.g. 25 AI
+  credits) instead of the Pro allowance (1,500), because credits were granted
+  while the account was still Free (before it was flipped to `partner_pro`) and
+  never re-granted. Partner signups now receive the Pro credit allowance
+  **immediately at signup** — no waiting on a background job.
+- Partner Pro is now treated as a Pro-equivalent tier everywhere: `pro?` returns
+  true for it, so partners get Pro permissions (paid-plan gates, 5 supporter
+  seats, communicator lending/hand-off, unlimited MySpeak IDs) to match their
+  already-Pro board/communicator limits. Previously partners were silently
+  treated as Free on those permission checks.
+- Backfill for existing partners stuck on the Free allowance:
+  `rake partners:grant_pro_credits` (dry-run by default; `DRY_RUN=false` to apply).
+
 ### Added — Partner Pro pilot expiry reminders (no auto-downgrade)
 - The 3-month Partner Pro pilot's end date (`plan_expires_at`) was previously
   set but never acted on, so partners kept Pro-level access indefinitely with no

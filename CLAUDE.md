@@ -518,6 +518,26 @@ Entitlements equal Pro (`setup_partner_pro_plan` → 300 boards / 5 communicator
 local DB fields, which is why partners get Pro free for the pilot. `partner_pro`
 is in `RefreshFreeTierCreditsJob`'s refreshable set, so credits re-grant monthly.
 
+**Partner Pro is Pro-equivalent everywhere — `User#pro?` returns true for it.**
+`pro?` is `%w[pro pro_yearly partner_pro].include?(plan_type)`, so a partner is
+treated as Pro by `paid_plan?`, `partner_pro?` (`pro? && role == "partner"`),
+`supporter_limit` (5), the lending gate (`require_pro_for_lending!`), and the
+api_view `pro` flag. Before this, `pro?` was the exact string `"pro"`, so
+partners silently fell through to Free-level treatment on those checks (and
+`partner_pro?` was always false). Limits already came from `setup_partner_pro_plan`
+/ `board_group_limit` (both mirror `PRO_PLAN_LIMITS`); this fixes the boolean
+permission gates to match.
+
+**Credits are granted at signup, synchronously — not by cron.** The
+`after_create :grant_initial_plan_credits` hook runs while the account is still
+`free` (it's created before the controller flips it to `partner_pro`), granting
+the *free* allowance; `ensure_initial_grant!` then no-ops because a `plan_grant`
+already exists. So `handle_new_partner_pro_subscription` calls
+`CreditService.grant_plan!` with the `partner_pro` amount (1500) right after
+`user.save`, resetting the balance immediately. Backfill the pre-fix cohort
+(partners stuck on the free allowance) with `rake partners:grant_pro_credits`
+(dry-run by default; `DRY_RUN=false` to apply, `USER_ID=N` to scope).
+
 **The 3-month window is surfaced but NOT enforced (Phase 1, deliberate).**
 `plan_expires_at` was previously set and never read — partners kept Pro forever
 with no signal. `PartnerPilotEndingJob` (daily 5:30am UTC, sidekiq-cron) closes
