@@ -155,11 +155,12 @@ module Boards
       # Source settings minus the robust-set catalog markers — a user's copy
       # must never surface as a pickable template (the dup-based clone path
       # predates this concern). The controller's own settings (builder_root)
-      # win on conflict; display_follows_preview mirrors clone_with_images.
+      # win on conflict; display_image_source mirrors clone_with_images so the
+      # adopted root tracks its own freshly-generated preview.
       root.settings = (src.settings || {})
         .except(Boards::RobustSets::ROOT_MARKER, Boards::RobustSets::SLUG_MARKER)
         .merge(root.settings || {})
-        .merge("display_follows_preview" => true)
+        .merge("display_image_source" => "preview")
       root.save!
 
       copy_tiles!(src, root)
