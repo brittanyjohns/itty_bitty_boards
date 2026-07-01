@@ -530,9 +530,13 @@ class User < ApplicationRecord
     end
 
     begin
-      # MailchimpService.new.update_subscriber_tags(user.email, [partner_group], [])
-      Rails.logger.info "Recording new subscriber for Mailchimp: #{user.email} with tags: #{[partner_group]}"
-      MailchimpService.new.record_new_subscriber(user.email, [partner_group])
+      # "Partner Program" is the stable trigger tag the Partner Mailchimp
+      # Customer Journey fires on; the monthly PartnerPro_<Month> cohort tag
+      # stays for per-cohort reporting. Pass the User object + tags: keyword —
+      # record_new_subscriber reads user.email/first_name/etc, not a String.
+      partner_tags = ["Partner Program", partner_group]
+      Rails.logger.info "Recording new subscriber for Mailchimp: #{user.email} with tags: #{partner_tags}"
+      MailchimpService.new.record_new_subscriber(user, tags: partner_tags)
     rescue => e
       Rails.logger.error "Mailchimp tag update failed for pilot_partner: #{e.message}"
     end

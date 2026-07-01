@@ -85,6 +85,29 @@ RSpec.describe User, type: :model do
     end
   end
 
+  describe ".handle_new_partner_pro_subscription" do
+    let(:user) { FactoryBot.create(:user) }
+
+    it "records the subscriber with the stable 'Partner Program' tag and the monthly cohort tag" do
+      mailchimp = instance_double(MailchimpService)
+      allow(MailchimpService).to receive(:new).and_return(mailchimp)
+
+      expect(mailchimp).to receive(:record_new_subscriber)
+        .with(user, tags: ["Partner Program", user.get_partner_group])
+
+      User.handle_new_partner_pro_subscription(user)
+    end
+
+    it "does not raise if the Mailchimp call fails (rescued)" do
+      mailchimp = instance_double(MailchimpService)
+      allow(MailchimpService).to receive(:new).and_return(mailchimp)
+      allow(mailchimp).to receive(:record_new_subscriber).and_raise(StandardError, "boom")
+
+      expect { User.handle_new_partner_pro_subscription(user) }.not_to raise_error
+      expect(user.reload.role).to eq("partner")
+    end
+  end
+
   after(:all) do
     Team.destroy_all
     User.destroy_all

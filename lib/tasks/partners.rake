@@ -82,4 +82,43 @@ namespace :partners do
     puts "\n#{dry_run ? 'Would grant' : 'Granted'} #{dry_run ? shorted.count : granted} user(s)."
     puts "Re-run with DRY_RUN=false to apply.\n\n" if dry_run
   end
+
+  # One-off: (re)record existing partners in Mailchimp with the stable
+  # "Partner Program" trigger tag plus their monthly PartnerPro_<Month> cohort
+  # tag. Needed because the signup-time tagging call was broken (passed a String
+  # where a User was expected), so partners created before that fix likely have
+  # no Mailchimp record — and thus can't enter the Partner Customer Journey.
+  # Dry-run by default (reports only); apply with DRY_RUN=false. Scope to one
+  # user with USER_ID=N.
+  #
+  # NOTE: if the journey is already live, backfilled partners enter at step 1 —
+  # fine for a relaunch, but they'll get the sequence fresh.
+  #
+  #   bin/rails partners:backfill_mailchimp_tags              # dry run
+  #   DRY_RUN=false bin/rails partners:backfill_mailchimp_tags
+  desc "Tag existing partners in Mailchimp with the stable 'Partner Program' trigger tag"
+  task backfill_mailchimp_tags: :environment do
+    dry_run = ENV["DRY_RUN"] != "false"
+
+    scope = User.where(role: "partner")
+    scope = scope.where(id: ENV["USER_ID"]) if ENV["USER_ID"].present?
+
+    puts "\n=== partners:backfill_mailchimp_tags (#{dry_run ? 'DRY RUN' : 'APPLYING'}) ==="
+    puts "Partners (role: partner): #{scope.count}\n\n"
+
+    tagged = 0
+    scope.find_each do |user|
+      tags = ["Partner Program", user.get_partner_group]
+      puts "  ##{user.id}  #{user.email.ljust(34)}  tags #{tags}"
+      next if dry_run
+
+      MailchimpService.new.record_new_subscriber(user, tags: tags)
+      tagged += 1
+    rescue => e
+      puts "    !! failed for ##{user.id}: #{e.message}"
+    end
+
+    puts "\n#{dry_run ? 'Would tag' : 'Tagged'} #{dry_run ? scope.count : tagged} partner(s)."
+    puts "Re-run with DRY_RUN=false to apply.\n\n" if dry_run
+  end
 end
