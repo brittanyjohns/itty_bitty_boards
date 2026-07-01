@@ -16,8 +16,6 @@
 
                 <p><%= t("partner_mailer.welcome_email.intro_html").html_safe %></p>
 
-                <p><%= t("partner_mailer.welcome_email.pilot_note") %></p>
-
                 <p><%= t("partner_mailer.welcome_email.signin_intro") %></p>
                 <p>
                   <a href="<%= @sign_in_url %>" style="color:#6c63ff; text-decoration:none;"><%= t("partner_mailer.welcome_email.signin_link") %></a>
@@ -25,108 +23,35 @@
 
                 <p><strong><%= t("partner_mailer.welcome_email.youre_in") %></strong></p>
 
-
                 <hr style="border:none; border-top:1px solid #eeeeee; margin:24px 0;" />
 
                 <h3><%= t("partner_mailer.welcome_email.step1_heading") %></h3>
-
-                <p><%= t("partner_mailer.welcome_email.step1_intro") %></p>
-
-                <table width="100%" cellpadding="0" cellspacing="0" style="margin:14px 0;">
-                <tr>
-                    <td style="vertical-align:top; padding:14px; border:1px solid #eaeaea; border-radius:8px; background:#fafafa;">
-                    <div style="font-weight:bold; font-size:16px;"><%= t("partner_mailer.welcome_email.sponsored_heading") %></div>
-                    <p style="margin:10px 0 0 0;"><%= t("partner_mailer.welcome_email.sponsored_intro") %></p>
-                    <ul style="margin:10px 0 0 18px; padding:0;">
-                        <li><%= t("partner_mailer.welcome_email.sponsored_item_1_html").html_safe %></li>
-                        <li><%= t("partner_mailer.welcome_email.sponsored_item_2_html").html_safe %></li>
-                        <li><%= t("partner_mailer.welcome_email.sponsored_item_3_html").html_safe %></li>
-                        <li><%= t("partner_mailer.welcome_email.sponsored_item_4_html").html_safe %></li>
-                    </ul>
-                    </td>
-                </tr>
-                </table>
-
-                <table width="100%" cellpadding="0" cellspacing="0" style="margin:14px 0;">
-                <tr>
-                    <td style="vertical-align:top; padding:14px; border:1px solid #eaeaea; border-radius:8px; background:#fafafa;">
-                    <div style="font-weight:bold; font-size:16px;"><%= t("partner_mailer.welcome_email.demo_heading") %></div>
-                    <p style="margin:10px 0 0 0;"><%= t("partner_mailer.welcome_email.demo_intro") %></p>
-                    <p style="margin:10px 0 0 0;"><strong><%= t("partner_mailer.welcome_email.demo_can_label") %></strong></p>
-                    <ul style="margin:10px 0 0 18px; padding:0;">
-                        <li><%= t("partner_mailer.welcome_email.demo_can_item_1_html").html_safe %></li>
-                        <li><%= t("partner_mailer.welcome_email.demo_can_item_2_html").html_safe %></li>
-                    </ul>
-
-                    <p style="margin:12px 0 0 0;"><strong><%= t("partner_mailer.welcome_email.demo_not_label") %></strong></p>
-                    <ul style="margin:10px 0 0 18px; padding:0;">
-                        <li><%= t("partner_mailer.welcome_email.demo_not_item_1") %></li>
-                        <li><%= t("partner_mailer.welcome_email.demo_not_item_2") %></li>
-                        <li><%= t("partner_mailer.welcome_email.demo_not_item_3") %></li>
-                    </ul>
-                    </td>
-                </tr>
-                </table>
-
-                <p style="margin-top:14px;"><%= t("partner_mailer.welcome_email.rule_of_thumb_html").html_safe %></p>
+                <p><%= t("partner_mailer.welcome_email.step1_body") %></p>
 
                 <hr style="border:none; border-top:1px solid #eeeeee; margin:24px 0;" />
 
-                <h3><%= t("partner_mailer.welcome_email.step2_heading") %></h3>
-
-                <p><%= t("partner_mailer.welcome_email.step2_intro_html").html_safe %></p>
-
-                <p><%= t("partner_mailer.welcome_email.step2_combo_html").html_safe %></p>
-
-                <p><%= t("partner_mailer.welcome_email.step2_seats_html").html_safe %></p>
-
-                <p><%= t("partner_mailer.welcome_email.step2_outreach") %></p>
-
-                <p><%= t("partner_mailer.welcome_email.step2_etsy") %></p>
-
-                <hr style="border:none; border-top:1px solid #eeeeee; margin:24px 0;" />
-
-                <h3><%= t("partner_mailer.welcome_email.step3_heading") %></h3>
-
-                <p><%= t("partner_mailer.welcome_email.step3_intro") %></p>
-
+                <h3><%= t("partner_mailer.welcome_email.portal_heading") %></h3>
+                <p><%= t("partner_mailer.welcome_email.portal_body") %></p>
                 <p style="text-align:center; margin:24px 0;">
                 <a href="<%= @partner_portal_url %>" style="background-color:#2abed1; color:#ffffff; text-decoration:none; padding:14px 22px; border-radius:6px; display:inline-block; font-weight:bold;" target="_blank" rel="noopener">
-                    <%= t("partner_mailer.welcome_email.step3_cta") %>
+                    <%= t("partner_mailer.welcome_email.portal_cta") %>
                 </a>
                 </p>
 
-                <p><strong><%= t("partner_mailer.welcome_email.first_things_heading") %></strong></p>
+                <hr style="border:none; border-top:1px solid #eeeeee; margin:24px 0;" />
+
+                <h3><%= t("partner_mailer.welcome_email.expect_heading") %></h3>
+                <p><%= t("partner_mailer.welcome_email.expect_intro_html", start_date: @start_date.strftime("%B %d, %Y"), end_date: @end_date.strftime("%B %d, %Y")).html_safe %></p>
                 <ul>
-                <li><%= t("partner_mailer.welcome_email.first_things_item_1") %></li>
-                <li><%= t("partner_mailer.welcome_email.first_things_item_2") %></li>
-                <li><%= t("partner_mailer.welcome_email.first_things_item_3") %></li>
+                <li><%= t("partner_mailer.welcome_email.expect_item_1") %></li>
+                <li><%= t("partner_mailer.welcome_email.expect_item_2") %></li>
+                <li><%= t("partner_mailer.welcome_email.expect_item_3") %></li>
                 </ul>
+                <p><%= t("partner_mailer.welcome_email.expect_outro") %></p>
 
                 <hr style="border:none; border-top:1px solid #eeeeee; margin:24px 0;" />
 
-                <h3><%= t("partner_mailer.welcome_email.feedback_heading") %></h3>
-
-                <ul>
-                <li><%= t("partner_mailer.welcome_email.feedback_item_1") %></li>
-                <li><%= t("partner_mailer.welcome_email.feedback_item_2") %></li>
-                <li><%= t("partner_mailer.welcome_email.feedback_item_3") %></li>
-                </ul>
-
-                <p><%= t("partner_mailer.welcome_email.feedback_outro") %></p>
-
-                <h3><%= t("partner_mailer.welcome_email.dates_heading") %></h3>
-
-                <p>
-                <strong><%= t("partner_mailer.welcome_email.dates_label") %></strong>
-                <%= t("partner_mailer.welcome_email.dates_value", start_date: @start_date.strftime("%B %d, %Y"), end_date: @end_date.strftime("%B %d, %Y")) %>
-                </p>
-
-                <p><%= t("partner_mailer.welcome_email.dates_followup") %></p>
-
-                <p><%= t("partner_mailer.welcome_email.help_html").html_safe %></p>
-
-                <p><%= t("partner_mailer.welcome_email.quick_note_html").html_safe %></p>
+                <p><%= t("partner_mailer.welcome_email.note_html").html_safe %></p>
 
                 <p><%= t("partner_mailer.welcome_email.voice_html").html_safe %></p>
 
