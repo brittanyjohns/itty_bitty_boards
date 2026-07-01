@@ -50,6 +50,18 @@ RSpec.describe "Admin::Users", type: :request do
       expect(response.body).not_to include("alice@example.com")
     end
 
+    it "filters Partner Pro accounts and chips their pilot status" do
+      partner = create(:user, email: "slp@example.com", plan_type: "partner_pro")
+      partner.update_columns(plan_expires_at: 2.days.ago)
+
+      get admin_dashboard_users_path(filter: "partner")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("slp@example.com")
+      expect(response.body).not_to include("alice@example.com")
+      expect(response.body).to include("Pilot ended")
+    end
+
     context "when not signed in" do
       before { sign_out admin }
 
@@ -97,6 +109,21 @@ RSpec.describe "Admin::Users", type: :request do
       user1.update(settings: { "board_limit" => 10 })
       get admin_dashboard_user_path(user1)
       expect(response.body).to include("board_limit")
+    end
+
+    it "shows a Partner Pilot card for partner_pro users" do
+      partner = create(:user, email: "pilot@example.com", plan_type: "partner_pro")
+      partner.update_columns(plan_expires_at: 10.days.from_now)
+
+      get admin_dashboard_user_path(partner)
+
+      expect(response.body).to include("Partner Pilot")
+      expect(response.body).to include("Pilot ends")
+    end
+
+    it "does not show the Partner Pilot card for non-partner users" do
+      get admin_dashboard_user_path(user2) # pro
+      expect(response.body).not_to include("Partner Pilot")
     end
   end
 

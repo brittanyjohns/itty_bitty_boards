@@ -403,6 +403,21 @@ es:
       voice_html: "Tu voz dará forma directa al futuro del <strong>Programa de Socios de SpeakAnyWay</strong>. 💜"
       thanks: "¡Gracias por unirte al camino!"
       signature: "Brittany"
+    pilot_ending_email:
+      subject: "Tu piloto de Socio de SpeakAnyWay está por terminar"
+      title: "Tu piloto de Socio está por terminar"
+      greeting_html: "Hola <strong>%{name}</strong>,"
+      intro: "Tu Piloto de Socio de SpeakAnyWay de 3 meses está por terminar pronto. Nos ha encantado tenerte creando, probando y compartiendo tableros con estudiantes reales durante el piloto."
+      end_date_label: "Tu piloto está disponible hasta:"
+      days_left:
+        one: "Queda 1 día"
+        other: "Quedan %{count} días"
+      keep_going: "¿Quieres mantener tu acceso de nivel Pro — todos tus tableros, comunicadores, IDs de MySpeak y créditos de IA — sin interrupción? Puedes continuar con un plan de pago en cualquier momento."
+      cta: "Ver planes y continuar"
+      no_pressure: "Sin presión, y nada desaparece en el momento en que termina el piloto — tus tableros se quedan. Esto es solo un aviso para que decidas qué sigue para ti y tus estudiantes."
+      signin_link: "Inicia sesión en tu cuenta"
+      feedback_note_html: "¿Tienes ideas sobre el piloto? Nos encantaría escucharlas en el <a href=\"%{url}\">Portal de Socios</a> — tus comentarios dan forma a lo que construimos. 💜"
+      signoff: "Gracias por ser parte del camino, — Brittany"
 
   base_mailer:
     team_invitation_email:

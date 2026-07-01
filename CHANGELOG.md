@@ -5,6 +5,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Partner Pro pilot expiry reminders (no auto-downgrade)
+- The 3-month Partner Pro pilot's end date (`plan_expires_at`) was previously
+  set but never acted on, so partners kept Pro-level access indefinitely with no
+  reminder. New `PartnerPilotEndingJob` (daily) now emails partners a friendly
+  "your pilot is wrapping up" heads-up ~14 days before their end date and emails
+  the SpeakAnyWay admin a digest of partners ending soon / newly ended.
+- **Nothing is auto-downgraded** — partners keep their boards and access; the
+  digest is a prompt to convert, extend, or downgrade each partner by hand.
+  `rake partners:pilot_status` lists pilots by status on demand. Lead time is
+  tunable via `PARTNER_PILOT_REMINDER_LEAD_DAYS` (default 14).
+
 ### Added — owner picks which communicators stay signable on downgrade (#439)
 - When a user is over their plan's communicator slot limit after a downgrade,
   the over-limit accounts enter fallback mode (private sign-in paused; public

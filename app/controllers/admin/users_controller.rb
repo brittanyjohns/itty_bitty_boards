@@ -63,8 +63,9 @@ module Admin
 
     def apply_filter(scope)
       case @filter
-      when "admin"  then scope.where(role: "admin")
-      when "pro"    then scope.where(plan_type: "pro")
+      when "admin"   then scope.where(role: "admin")
+      when "pro"     then scope.where(plan_type: "pro")
+      when "partner" then scope.where(plan_type: "partner_pro")
       when "basic"  then scope.where(plan_type: "basic")
       when "free"   then scope.where(plan_type: "free")
       when "trial"  then scope.where(plan_type: "basic_trial")
