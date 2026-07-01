@@ -1263,6 +1263,20 @@ still works for backward compat.
   extended→core-84/10-15), `SEED_SET_PAGES`, `CATEGORY_SEED_ALIASES` (maps
   InterestCategories names like "Family & People" to seed set page names like
   "People").
+  - **No-interest defaults must be a subset of the level's seed pages.**
+    `STARTER_/STANDARD_/EXTENDED_DEFAULTS` are the categories seeded when the
+    child gives no interests. They **must** all be `SEED_SET_PAGES` of that
+    level's core template — a default that isn't a seed page resolves to
+    `:prebuilt`/`:ai_generated` and `add_fringe_pages!` adds it as an **extra
+    top-level folder**, which on the full authored Core 84 grid (84 tiles, no
+    open cells) spills onto a stray extra row. That was the "Core 84 builds an
+    unrequested `Social` folder + orphans a tile onto row 8" bug: `Social` sat
+    in `EXTENDED_DEFAULTS` but isn't a core-84 seed page, so a no-interest
+    Extended build injected it whenever the seed root reported a phantom open
+    cell (a latent tile overlap inflating `open_grid_cells`). Core 60 was
+    unaffected because its defaults are all seed pages. Invariant enforced by a
+    `structure_planner_spec` test; if you add a level or default, keep defaults
+    ⊆ seed pages.
 - **`Boards::FringeTemplates`** — module for standalone fringe page templates.
   Seeded from `db/seeds/board_builder_sets/fringe-pages/*.obf` via
   `bin/rails fringe_templates:seed` (also auto-runs after `vocab_sets:seed`).

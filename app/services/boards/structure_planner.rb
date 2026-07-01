@@ -8,9 +8,15 @@ module Boards
 
     LEVEL_KEYS = LEVELS.keys.freeze
 
+    # Default categories seeded per level when the child gives no interests.
+    # These MUST stay a subset of the level's SEED_SET_PAGES so a no-interest
+    # build is exactly the authored core grid (a clean single page). A default
+    # that isn't a seed page resolves to :prebuilt/:ai_generated and gets added
+    # as an extra top-level folder — which, on the full authored Core 84 grid,
+    # spills onto a stray extra row (the "Social folder + orphaned tile" bug).
     STARTER_DEFAULTS  = %w[Food Feelings].freeze
     STANDARD_DEFAULTS = %w[Food Feelings Play People].freeze
-    EXTENDED_DEFAULTS = %w[Food Feelings Play People Places Body Social].freeze
+    EXTENDED_DEFAULTS = %w[Food Feelings Play People Places Body].freeze
 
     # Fringe pages that ship with each seed set (authored content, stable).
     SEED_SET_PAGES = {
@@ -164,9 +170,9 @@ module Boards
     # Drop AI pages that don't clear MIN_AI_PAGE_INTERESTS. Their category is no
     # longer planned, so collect_catch_all folds the words into catch_all (then
     # routed to an existing board or My Favorites at build time). Seed/prebuilt
-    # pages are intentionally left alone — they're curated/default content, and
-    # gating them would drop legitimate zero-interest defaults (e.g. prebuilt
-    # "Social" in Extended).
+    # pages are intentionally left alone — they're curated content and can carry
+    # interest words routed in later; only AI pages (paid, generated per word)
+    # are gated here.
     def drop_sparse_ai_pages(fringe_pages)
       fringe_pages.reject do |page|
         page[:source] == :ai_generated &&
