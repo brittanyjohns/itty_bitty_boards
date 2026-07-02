@@ -203,6 +203,70 @@ RSpec.describe VocabSets do
     end
   end
 
+  # The authored Core 84 grid follows AAC layout convention (Fitzgerald key):
+  # a full 84-tile page with question words down the right column, so a
+  # no-interest build lands on a clean, well-organized page — and, critically,
+  # never reports a phantom open cell that would orphan a tile onto a stray row.
+  describe "authored Core 84 layout (AAC convention)" do
+    def lg_cell(bi)
+      cell = bi.layout.is_a?(Hash) ? bi.layout["lg"] : nil
+      cell && [cell["x"].to_i, cell["y"].to_i]
+    end
+
+    it "fills a clean 7x12 grid — 84 distinct cells, no gaps, no overflow" do
+      cells = @c84_root.board_images.map { |bi| lg_cell(bi) }.compact
+      expect(cells.size).to eq(84)
+      expect(cells.uniq.size).to eq(84) # no two tiles share a cell
+      expect(cells.map(&:first).max).to eq(11) # 12 columns (0..11)
+      expect(cells.map(&:last).max).to eq(6)  # 7 rows (0..6), nothing on row 8
+      # every cell of the 7x12 grid is occupied — no holes to inflate open_grid_cells
+      expected = (0..6).flat_map { |y| (0..11).map { |x| [x, y] } }
+      expect(cells.sort).to eq(expected.sort)
+      expect(@c84_root.open_grid_cells("lg")).to eq(0)
+    end
+
+    it "places the six question words down the far-right column, top to bottom" do
+      right_col = @c84_root.board_images
+        .select { |bi| lg_cell(bi)&.first == 11 }
+        .sort_by { |bi| lg_cell(bi).last }
+        .map(&:label)
+      # who/what/where/when/why/how stacked in rows 0..5; deixis "that" in the corner.
+      expect(right_col.first(6)).to eq(%w[who what where when why how])
+    end
+  end
+
+  # Every Core 84 fringe page matches the root's column count (12, not 10) so
+  # tiles are sized consistently across the set, and each carries its own
+  # category word as a REGULAR speaking tile (no board link) where the nav row
+  # previously left a blank self-slot — e.g. "people" on the People page.
+  describe "Core 84 sub-board layout" do
+    def sub_boards
+      @c84_root.board_images.where.not(predictive_board_id: nil).filter_map do |bi|
+        Board.find_by(id: bi.predictive_board_id)
+      end
+    end
+
+    it "gives every fringe page the same 12 columns as the root" do
+      expect(@c84_root.large_screen_columns).to eq(12)
+      sub_boards.each do |b|
+        expect(b.large_screen_columns).to eq(12), "#{b.name} has #{b.large_screen_columns} columns"
+      end
+    end
+
+    it "puts each category's own word on its page as a speaking (non-folder) tile" do
+      @c84_root.board_images.where.not(predictive_board_id: nil).each do |folder_tile|
+        page = Board.find_by(id: folder_tile.predictive_board_id)
+        next unless page
+
+        self_tile = page.board_images.find { |bi| bi.label.to_s.casecmp?(folder_tile.label) }
+        expect(self_tile).to be_present, "#{folder_tile.label} page has no self word tile"
+        # regular word tile: speaks its label, does not navigate to another board
+        expect(self_tile.predictive_board_id).to be_nil
+        expect(self_tile.image).to be_present
+      end
+    end
+  end
+
   describe "tile colors from authored part_of_speech (#279)" do
     EXPECTED_TILES = {
       "I" => { pos: "pronoun", hex: "#FFEA75" },

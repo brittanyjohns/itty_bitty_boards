@@ -5,7 +5,7 @@
   "name": "Places",
   "grid": {
     "rows": 6,
-    "columns": 10,
+    "columns": 12,
     "order": [
       [
         1,
@@ -17,11 +17,11 @@
         7,
         8,
         9,
-        10
+        10,
+        11,
+        12
       ],
       [
-        11,
-        12,
         13,
         14,
         15,
@@ -29,9 +29,15 @@
         17,
         18,
         19,
-        20
+        20,
+        null,
+        null,
+        null,
+        null
       ],
       [
+        null,
+        null,
         null,
         null,
         null,
@@ -53,9 +59,13 @@
         null,
         null,
         null,
+        null,
+        null,
         null
       ],
       [
+        null,
+        null,
         null,
         null,
         null,
@@ -73,9 +83,11 @@
         23,
         24,
         25,
-        null,
+        29,
         27,
         28,
+        null,
+        null,
         null,
         null
       ]
@@ -237,6 +249,11 @@
       "load_board": {
         "path": "boards/more.obf"
       }
+    },
+    {
+      "id": 29,
+      "label": "places",
+      "part_of_speech": "noun"
     }
   ],
   "images": [],
