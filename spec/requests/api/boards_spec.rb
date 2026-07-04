@@ -340,14 +340,17 @@ RSpec.describe "API::Boards", type: :request do
         expect(board.margin_settings["lg"]).to eq("x" => 10, "y" => 10)
       end
 
-      it "clears the display_image_url column when settings.display_follows_preview is true" do
-        board.update_column(:display_image_url, "https://example.com/old-preview.png")
+      it "does not touch the board cover on a generic save (name/colors)" do
+        board.update_column(:display_image_url, "https://example.com/picked-tile.png")
+        board.update!(settings: board.settings.merge("display_image_source" => "custom"))
 
+        # A form save echoes the whole board back, including the resolved cover
+        # URL — it must never clobber the chosen cover.
         patch "/api/boards/#{board.id}",
               params: {
                 board: {
-                  display_image_url: "https://example.com/old-preview.png",
-                  settings: { display_follows_preview: true },
+                  name: "Renamed board",
+                  display_image_url: "https://example.com/echoed-resolved.png",
                 },
               },
               headers: auth_headers(user),
@@ -355,22 +358,59 @@ RSpec.describe "API::Boards", type: :request do
 
         expect(response).to have_http_status(:ok)
         board.reload
-        expect(board.read_attribute(:display_image_url)).to be_nil
-        expect(board.settings["display_follows_preview"]).to be true
+        expect(board.name).to eq("Renamed board")
+        expect(board.read_attribute(:display_image_url))
+          .to eq("https://example.com/picked-tile.png")
+        expect(board.display_image_source).to eq("custom")
       end
+    end
 
-      it "keeps the display_image_url column when the flag is not set" do
-        patch "/api/boards/#{board.id}",
-              params: {
-                board: {
-                  display_image_url: "https://example.com/user-cover.png",
-                },
-              },
-              headers: auth_headers(user)
+    describe "PUT /api/boards/:id/set_display_image" do
+      it "source=custom persists the tile pick and resolves to it" do
+        put "/api/boards/#{board.id}/set_display_image",
+            params: { source: "custom", display_image_url: "https://example.com/picked-tile.png" },
+            headers: auth_headers(user),
+            as: :json
 
         expect(response).to have_http_status(:ok)
-        expect(board.reload.read_attribute(:display_image_url))
-          .to eq("https://example.com/user-cover.png")
+        board.reload
+        expect(board.read_attribute(:display_image_url))
+          .to eq("https://example.com/picked-tile.png")
+        expect(board.display_image_source).to eq("custom")
+        body = JSON.parse(response.body)
+        expect(body["display_image_url"]).to eq("https://example.com/picked-tile.png")
+        expect(body["display_image_source"]).to eq("custom")
+      end
+
+      it "source=preview switches back to the auto preview" do
+        board.update_column(:display_image_url, "https://example.com/picked-tile.png")
+        board.update!(settings: board.settings.merge("display_image_source" => "custom"))
+
+        put "/api/boards/#{board.id}/set_display_image",
+            params: { source: "preview" },
+            headers: auth_headers(user),
+            as: :json
+
+        expect(response).to have_http_status(:ok)
+        expect(board.reload.display_image_source).to eq("preview")
+      end
+
+      it "returns 422 when source=custom without a url" do
+        put "/api/boards/#{board.id}/set_display_image",
+            params: { source: "custom" },
+            headers: auth_headers(user),
+            as: :json
+
+        expect(response).to have_http_status(:unprocessable_content)
+      end
+
+      it "returns 422 for an unknown source" do
+        put "/api/boards/#{board.id}/set_display_image",
+            params: { source: "bogus" },
+            headers: auth_headers(user),
+            as: :json
+
+        expect(response).to have_http_status(:unprocessable_content)
       end
     end
 

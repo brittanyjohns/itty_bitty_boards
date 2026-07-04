@@ -110,6 +110,64 @@ RSpec.describe "Communicator fallback mode (#255)", type: :model do
     end
   end
 
+  describe "owner-chosen keep set (#439)" do
+    it "keeps the owner's pinned communicator signable over a more-recently-active one" do
+      owner, (a0, a1, a2) = pro_owner_with_active(3)
+      owner.update!(plan_type: "basic") # limit 2: default keeps a0, a1; a2 falls back
+      expect(a2.reload.fallback_mode?).to be(true)
+
+      # Owner overrides: keep a2 (and a0). a1 now falls back instead.
+      owner.set_kept_communicator_ids!([a2.id, a0.id])
+
+      expect(a2.reload.fallback_mode?).to be(false)
+      expect(a0.reload.fallback_mode?).to be(false)
+      expect(a1.reload.fallback_mode?).to be(true)
+    end
+
+    it "caps the pinned set at the plan slot limit, keeping the order sent" do
+      owner, (a0, a1, a2) = pro_owner_with_active(3)
+      owner.update!(plan_type: "basic") # limit 2
+
+      kept = owner.set_kept_communicator_ids!([a2.id, a1.id, a0.id])
+
+      expect(kept).to eq([a2.id, a1.id])      # third pick dropped (over limit)
+      expect(a0.reload.fallback_mode?).to be(true)
+    end
+
+    it "ignores ids the caller does not own" do
+      owner, (a0, _a1, _a2) = pro_owner_with_active(3)
+      owner.update!(plan_type: "basic")
+      stranger = FactoryBot.create(:child_account, status: ChildAccount::ACTIVE)
+
+      kept = owner.set_kept_communicator_ids!([a0.id, stranger.id])
+
+      expect(kept).to eq([a0.id])
+    end
+
+    it "reverts to the most-recently-active rule when the pick is cleared" do
+      owner, (a0, a1, a2) = pro_owner_with_active(3)
+      owner.update!(plan_type: "basic")
+      owner.set_kept_communicator_ids!([a2.id])   # pin the least-recent
+      expect(a2.reload.fallback_mode?).to be(false)
+
+      owner.set_kept_communicator_ids!([])         # clear the pick
+
+      expect(a0.reload.fallback_mode?).to be(false) # recency again
+      expect(a1.reload.fallback_mode?).to be(false)
+      expect(a2.reload.fallback_mode?).to be(true)
+    end
+
+    it "surfaces the slot limit and kept ids on the user api_view" do
+      owner, (a0, _a1, _a2) = pro_owner_with_active(3)
+      owner.update!(plan_type: "basic")
+      owner.set_kept_communicator_ids!([a0.id])
+
+      view = owner.api_view
+      expect(view[:communicator_slot_limit]).to eq(2)
+      expect(view[:kept_communicator_ids]).to eq([a0.id])
+    end
+  end
+
   describe "new Free signup" do
     it "is capped at 1 communicator and is never flagged into fallback" do
       free_user = FactoryBot.create(:free_user)

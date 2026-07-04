@@ -62,6 +62,52 @@ require "rails_helper"
 RSpec.describe User, type: :model do
   include ActiveJob::TestHelper
 
+  describe "Partner Pro is Pro-equivalent" do
+    let(:partner) { FactoryBot.create(:user, plan_type: "partner_pro", role: "partner") }
+
+    it "counts as pro? and paid_plan?" do
+      expect(partner.pro?).to be(true)
+      expect(partner.paid_plan?).to be(true)
+    end
+
+    it "reports partner_pro? true (pro? && role partner)" do
+      expect(partner.partner_pro?).to be(true)
+    end
+
+    it "gets the Pro supporter limit (5, not 2)" do
+      expect(partner.supporter_limit).to eq(5)
+    end
+
+    it "gets Pro board/communicator/board-set limits" do
+      expect(partner.board_limit).to eq(User::PRO_PLAN_LIMITS["board_limit"])
+      expect(partner.board_group_limit).to eq(User::PRO_PLAN_LIMITS["board_group_limit"])
+      expect(partner.settings["paid_communicator_limit"]).to eq(User::PRO_PLAN_LIMITS["paid_communicator_limit"])
+    end
+  end
+
+  describe ".handle_new_partner_pro_subscription" do
+    let(:user) { FactoryBot.create(:user) }
+
+    it "records the subscriber with the stable 'Partner Program' tag and the monthly cohort tag" do
+      mailchimp = instance_double(MailchimpService)
+      allow(MailchimpService).to receive(:new).and_return(mailchimp)
+
+      expect(mailchimp).to receive(:record_new_subscriber)
+        .with(user, tags: ["Partner Program", user.get_partner_group])
+
+      User.handle_new_partner_pro_subscription(user)
+    end
+
+    it "does not raise if the Mailchimp call fails (rescued)" do
+      mailchimp = instance_double(MailchimpService)
+      allow(MailchimpService).to receive(:new).and_return(mailchimp)
+      allow(mailchimp).to receive(:record_new_subscriber).and_raise(StandardError, "boom")
+
+      expect { User.handle_new_partner_pro_subscription(user) }.not_to raise_error
+      expect(user.reload.role).to eq("partner")
+    end
+  end
+
   after(:all) do
     Team.destroy_all
     User.destroy_all

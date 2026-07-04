@@ -43,6 +43,29 @@ RSpec.describe Boards::StructurePlanner do
       expect(names).to include("Food", "Feelings")
     end
 
+    # Invariant: a no-interest build must be exactly the authored core grid (a
+    # clean single page). That only holds if every default category is already a
+    # seed page of the level's core template — a non-seed default resolves to
+    # :prebuilt/:ai_generated and gets added as an extra folder that spills the
+    # grid (the Core 84 "Social folder + orphaned tile" regression).
+    it "keeps every level's no-interest defaults inside the core template's seed pages" do
+      {
+        "starter"  => "core-60",
+        "standard" => "core-60",
+        "extended" => "core-84",
+      }.each do |level, template|
+        plan = described_class.new(level: level, interests: [], include_phrases: false).call
+        expect(plan.fringe_pages).to all(satisfy { |p| p[:source] == :seed_set }),
+          "#{level}: no-interest defaults must all be seed pages, got " \
+          "#{plan.fringe_pages.reject { |p| p[:source] == :seed_set }.map { |p| [p[:name], p[:source]] }.inspect}"
+
+        seed_pages = described_class::SEED_SET_PAGES[template].map(&:downcase)
+        default_consts = described_class.const_get("#{level.upcase}_DEFAULTS")
+        expect(default_consts.map(&:downcase)).to all(be_in(seed_pages)),
+          "#{level}_DEFAULTS must be a subset of #{template} seed pages"
+      end
+    end
+
     it "includes categories from interests" do
       plan = described_class.new(level: "starter", interests: ["dog", "cat"]).call
       names = plan.fringe_pages.map { |p| p[:name] }

@@ -5,7 +5,7 @@
   "name": "Play",
   "grid": {
     "rows": 6,
-    "columns": 10,
+    "columns": 12,
     "order": [
       [
         1,
@@ -17,21 +17,27 @@
         7,
         8,
         9,
-        10
+        10,
+        11,
+        12
       ],
       [
-        11,
-        12,
         13,
         14,
         15,
         16,
-        null,
         18,
+        20,
+        17,
+        19,
         null,
-        20
+        null,
+        null,
+        null
       ],
       [
+        null,
+        null,
         null,
         null,
         null,
@@ -52,10 +58,14 @@
         null,
         null,
         null,
-        17,
-        19
+        null,
+        null,
+        null,
+        null
       ],
       [
+        null,
+        null,
         null,
         null,
         null,
@@ -72,10 +82,12 @@
         22,
         23,
         24,
-        null,
+        29,
         26,
         27,
         28,
+        null,
+        null,
         null,
         null
       ]
@@ -237,6 +249,11 @@
       "load_board": {
         "path": "boards/more.obf"
       }
+    },
+    {
+      "id": 29,
+      "label": "play",
+      "part_of_speech": "noun"
     }
   ],
   "images": [],

@@ -172,6 +172,22 @@ RSpec.describe "API::V1::Auth", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
+    it "grants partner_pro signups the Pro credit allowance immediately" do
+      allow(MailchimpService).to receive(:new).and_return(instance_double(MailchimpService, record_new_subscriber: true))
+      allow_any_instance_of(User).to receive(:send_partner_welcome_email)
+
+      post "/api/v1/users", params: valid_params.merge(plan_type: "partner_pro")
+
+      expect(response).to have_http_status(:ok)
+      user = User.find_by(email: "new-free@example.com")
+      expect(user.plan_type).to eq("partner_pro")
+      # Not the free-tier allowance the after_create hook granted first.
+      expect(user.plan_credits_balance).to eq(CreditService.monthly_credits_for("partner_pro"))
+      expect(user.pro?).to be(true)
+      expect(user.paid_plan?).to be(true)
+      expect(user.supporter_limit).to eq(5)
+    end
+
     it "skips the welcome email when should_send_welcome_email? is false" do
       allow_any_instance_of(User).to receive(:should_send_welcome_email?).and_return(false)
       expect_any_instance_of(User).not_to receive(:send_welcome_email)

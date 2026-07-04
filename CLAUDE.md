@@ -517,6 +517,68 @@ the non-active→active transition in the upsert; guarded so renewals don't
 double-count). Primary A/B metric is **net paid users per 100 signups**, not
 trial→paid rate.
 
+### Partner Program (`partner_pro`)
+
+The `/sign-up/partner` flow (frontend `viewType="partner"`) posts to the normal
+`POST /api/v1/users` with `plan_type=partner_pro`. `API::V1::AuthsController#sign_up`
+then sets `plan_type=partner_pro`, `plan_status=active`, `role=partner`, and calls
+`User.handle_new_partner_pro_subscription`, which sets
+`plan_expires_at = Time.now + 3.months` (only if nil), tags Mailchimp, and sends
+`PartnerMailer.welcome_email` (the free welcome + welcome journey are skipped).
+Entitlements equal Pro (`setup_partner_pro_plan` → 300 boards / 5 communicators /
+1500 credits). **No Stripe subscription, no card, no promo code** — the grant is
+local DB fields, which is why partners get Pro free for the pilot. `partner_pro`
+is in `RefreshFreeTierCreditsJob`'s refreshable set, so credits re-grant monthly.
+
+**Partner Pro is Pro-equivalent everywhere — `User#pro?` returns true for it.**
+`pro?` is `%w[pro pro_yearly partner_pro].include?(plan_type)`, so a partner is
+treated as Pro by `paid_plan?`, `partner_pro?` (`pro? && role == "partner"`),
+`supporter_limit` (5), the lending gate (`require_pro_for_lending!`), and the
+api_view `pro` flag. Before this, `pro?` was the exact string `"pro"`, so
+partners silently fell through to Free-level treatment on those checks (and
+`partner_pro?` was always false). Limits already came from `setup_partner_pro_plan`
+/ `board_group_limit` (both mirror `PRO_PLAN_LIMITS`); this fixes the boolean
+permission gates to match.
+
+**Credits are granted at signup, synchronously — not by cron.** The
+`after_create :grant_initial_plan_credits` hook runs while the account is still
+`free` (it's created before the controller flips it to `partner_pro`), granting
+the *free* allowance; `ensure_initial_grant!` then no-ops because a `plan_grant`
+already exists. So `handle_new_partner_pro_subscription` calls
+`CreditService.grant_plan!` with the `partner_pro` amount (1500) right after
+`user.save`, resetting the balance immediately. Backfill the pre-fix cohort
+(partners stuck on the free allowance) with `rake partners:grant_pro_credits`
+(dry-run by default; `DRY_RUN=false` to apply, `USER_ID=N` to scope).
+
+**The 3-month window is surfaced but NOT enforced (Phase 1, deliberate).**
+`plan_expires_at` was previously set and never read — partners kept Pro forever
+with no signal. `PartnerPilotEndingJob` (daily 5:30am UTC, sidekiq-cron) closes
+that without auto-downgrading (partners are high-value B2B leads managed by hand):
+
+- **Reminder pass** — partners within `PARTNER_PILOT_REMINDER_LEAD_DAYS` (default
+  14) of `plan_expires_at`, not yet reminded, get `PartnerMailer.pilot_ending_email`
+  (a heads-up, not a shutoff — copy in `partner_mailer.pilot_ending_email`,
+  en + es). Flags `settings["partner_pilot_ending_notified"]` so it fires once.
+- **Expired pass** — partners past `plan_expires_at`, still `partner_pro`, get
+  flagged `settings["partner_pilot_expired"]` + `partner_pilot_expired_at`. **No
+  plan change.** Once-only via the flag.
+- Both feed a single `AdminMailer.partner_pilot_review` digest to `ADMIN_EMAIL`
+  (only sent when there's something) so Brittany can convert/extend/downgrade.
+- `rake partners:pilot_status` — read-only list of pilots by status (ended /
+  ending-soon / active / no-date), respects the lead-days ENV.
+- **Admin dashboard surface.** `Admin::MissionControlHelper#partner_pilot_status`
+  computes the same status (never mutates). The server-rendered admin
+  (`/admin/users`) has a **Partner** filter and chips non-active pilots
+  (`Pilot ended` / `Ending soon`) on the row; the user detail page
+  (`/admin/users/:id`) shows a **Partner Pilot** card (end date, days left,
+  reminder-sent, expired-flagged) so you can action a partner in one place —
+  extend by bumping `plan_expires_at`, or adjust plan by hand.
+
+**Phase 2 (not built):** if partner volume outgrows hand-management, move the
+pilot onto a real Stripe no-card trial (reuses the reverse-trial machinery
+above — auto-expiry, `trial_will_end` reminder, clean cancel→Free, one-click
+conversion) and retire this job + the bespoke `partner_pro` grant.
+
 ### Email-only (passwordless) signup — paid-intent path
 
 `POST /api/v1/users/email_signup` (itty-bitty-frontend#367): a paid-intent
@@ -583,6 +645,20 @@ demo/myspeak signups keep using `sign_up`. Key invariants:
   The Stripe portal config must permit subscription updates for the relevant
   products for the flow to render. Frontend CTA wiring is a separate PR
   (itty-bitty-frontend#369 keeps the portal fallback until it lands).
+- **In-app plan switch error contract (`change_plan` / `preview_plan_change`):**
+  the direct in-app switch (`Stripe::Subscription.update`, no portal redirect)
+  maps Stripe failures to actionable codes so the modal can respond, not just
+  show a dead end. `change_plan` returns **402 `payment_failed`** on a
+  `Stripe::CardError` (declined card), **402 `payment_method_required`** on a
+  `Stripe::InvalidRequestError` whose message indicates the customer has **no
+  payment method on file** (detected via `missing_payment_method_error?` — Stripe
+  exposes no stable code, so we match the message), and the generic **400
+  "Failed to change plan"** for any other Stripe error. `preview_plan_change`
+  returns a **`payment_method_required`** boolean — true only when the switch
+  bills today (`upcoming.amount_due > 0`) **and** `customer_has_payment_method?`
+  is false — so the frontend can prompt for a card before the user confirms.
+  Credit-only downgrades (nothing due today) are never flagged. A no-payment-
+  method user is steered to the billing portal (`billing_portal`).
 
 ### `paid_plan?` semantics
 
@@ -744,11 +820,23 @@ nonspeaking child is never stranded mid-use.
   Free signup (capped at 1) is never flagged — fallback is *only ever a
   consequence of downgrade*. Use `enter_fallback!` / `exit_fallback!`.
 - **One reconciler, both directions.** `User#reconcile_communicator_fallback!`
-  orders slotted (loaner+active) communicators **most-recently-active first**
-  (`last_sign_in_at` desc, nulls last), keeps the top `slot_limit` signable,
-  and flags the overflow. A downgrade flags the overflow; a re-upgrade restores
-  them as slots free up (no manual re-claim); any still over the new limit stay
-  in fallback. Idempotent; admins are never limited.
+  orders slotted (loaner+active) communicators **owner-pinned first, then
+  most-recently-active** (`last_sign_in_at` desc, nulls last), keeps the top
+  `slot_limit` signable, and flags the overflow. A downgrade flags the overflow;
+  a re-upgrade restores them as slots free up (no manual re-claim); any still
+  over the new limit stay in fallback. Idempotent; admins are never limited.
+- **Owner picks which stay signable (#439).** The mirror of the board
+  `make_editable` pick. `User#kept_communicator_ids` (stored on
+  `settings["kept_communicator_ids"]`) is the owner's explicit "keep these
+  signable" set; reconcile moves those to the front (in the order chosen) before
+  the recency rule, so the owner — not just last-sign-in — decides which N stay
+  full when over the limit. Empty ⇒ recency only (unchanged behavior).
+  `User#set_kept_communicator_ids!(ids)` persists the set (owner-owned ids only,
+  capped at `slot_limit`) and re-runs reconcile immediately. Endpoint:
+  **`POST /api/child_accounts/keep_signable`** `{ communicator_ids: [...] }` →
+  `{ kept_communicator_ids, communicator_slot_limit, communicators: [...] }`.
+  `communicator_slot_limit` + `kept_communicator_ids` are also on the user
+  `api_view` so the over-limit picker can pre-check the right toggles.
 - **Trigger:** `after_save :reconcile_communicator_fallback!, if:
   :saved_change_to_plan_type?` on `User`. Every plan transition (Stripe
   cancel/pause via `apply_free_plan`, `DowngradeSoftTrialJob`, and upgrades via
@@ -1187,6 +1275,20 @@ still works for backward compat.
   extended→core-84/10-15), `SEED_SET_PAGES`, `CATEGORY_SEED_ALIASES` (maps
   InterestCategories names like "Family & People" to seed set page names like
   "People").
+  - **No-interest defaults must be a subset of the level's seed pages.**
+    `STARTER_/STANDARD_/EXTENDED_DEFAULTS` are the categories seeded when the
+    child gives no interests. They **must** all be `SEED_SET_PAGES` of that
+    level's core template — a default that isn't a seed page resolves to
+    `:prebuilt`/`:ai_generated` and `add_fringe_pages!` adds it as an **extra
+    top-level folder**, which on the full authored Core 84 grid (84 tiles, no
+    open cells) spills onto a stray extra row. That was the "Core 84 builds an
+    unrequested `Social` folder + orphans a tile onto row 8" bug: `Social` sat
+    in `EXTENDED_DEFAULTS` but isn't a core-84 seed page, so a no-interest
+    Extended build injected it whenever the seed root reported a phantom open
+    cell (a latent tile overlap inflating `open_grid_cells`). Core 60 was
+    unaffected because its defaults are all seed pages. Invariant enforced by a
+    `structure_planner_spec` test; if you add a level or default, keep defaults
+    ⊆ seed pages.
 - **`Boards::FringeTemplates`** — module for standalone fringe page templates.
   Seeded from `db/seeds/board_builder_sets/fringe-pages/*.obf` via
   `bin/rails fringe_templates:seed` (also auto-runs after `vocab_sets:seed`).

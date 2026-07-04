@@ -1,10 +1,10 @@
 class API::BoardsController < API::ApplicationController
-  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board show public_boards public_menu_boards common_boards pdf ]
+  skip_before_action :authenticate_token!, only: %i[ index predictive_image_board show public_boards public_menu_boards common_boards pdf free_download_boards ]
 
   before_action :set_board, only: %i[ associate_image remove_image destroy associate_images print pdf assign_accounts show make_editable ]
   before_action :check_board_view_edit_permissions, only: %i[update destroy]
   before_action :check_board_create_permissions, only: %i[ create clone create_from_template import_obf ]
-  before_action :check_board_editable!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image format_with_ai add_image associate_image associate_images remove_image generate_preview_image ]
+  before_action :check_board_editable!, only: %i[ save_layout rearrange_images update regenerate_images recategorize_images update_to_default_docs set_colors update_preset_display_image set_display_image format_with_ai add_image associate_image associate_images remove_image generate_preview_image ]
 
   def index
     limit_param = params[:limit].presence&.to_i
@@ -179,6 +179,26 @@ class API::BoardsController < API::ApplicationController
                total_pages: user_boards_scope.total_pages,
                total_count: user_boards_scope.total_count,
              },
+           }
+  end
+
+  # Public (no-auth) list of boards offered for free PDF download to anonymous
+  # lead-capture visitors. Reuses the curated public board gallery
+  # (`Board.public_boards` — admin-owned, predefined + published) rather than a
+  # separate flag, returned in the lean contract shape the frontend consumes.
+  def free_download_boards
+    boards = Board.public_boards.order(:name)
+    render json: {
+             boards: boards.map do |board|
+               {
+                 id: board.id,
+                 name: board.name,
+                 description: board.description,
+                 image_url: board.display_image_url,
+                 slug: board.slug,
+                 public_url: board.public_url,
+               }
+             end,
            }
   end
 
@@ -416,9 +436,10 @@ class API::BoardsController < API::ApplicationController
       @board.voice = voice
       @board.name = board_params["name"] unless board_params["name"].blank?
       @board.description = board_params["description"]
-      @board.display_image_url = board_params["display_image_url"]
+      # The board cover (display image) is deliberately NOT set here. It's owned
+      # by the dedicated endpoints (#set_display_image / #update_preset_display_image),
+      # so a generic save (name/colors/tiles) can never clobber the chosen cover.
       @board.bg_color = board_params["bg_color"] if board_params["bg_color"].present?
-      # @board.update_preset_display_image_url(board_params["display_image_url"]) if board_params["display_image_url"].present?
       @board.predefined = board_params["predefined"]
       @board.category = board_params["category"]
       @board.tags = board_params["tags"] if board_params["tags"].present?
@@ -441,13 +462,6 @@ class API::BoardsController < API::ApplicationController
       new_board_settings = @board.settings.merge(settings)
       @board.settings = new_board_settings
 
-      # When the user opts into "display follows preview" we nil out the
-      # denormalized column so the override getter resolves to the live
-      # preview URL. Any incoming `display_image_url` param is ignored in
-      # this mode — the form may echo back the previous resolved value.
-      if @board.display_follows_preview?
-        @board.display_image_url = nil
-      end
       @board.set_text_color(board_params["text_color"]) if board_params["text_color"].present?
 
       word_list = params["word_list"] || []
@@ -571,6 +585,37 @@ class API::BoardsController < API::ApplicationController
       Rails.logger.error "Setting colors failed for some images: #{results.inspect}"
       render json: { error: "Setting colors failed for some images" }, status: :unprocessable_content
     end
+  end
+
+  # Switch which image represents the board (its cover / thumbnail):
+  #   source=preview                        → the auto-generated grid snapshot
+  #   source=custom, display_image_url=<url> → a specific tile's picture
+  # A custom cover the user *uploads* goes through #update_preset_display_image
+  # instead (also source=custom). This is the ONLY place a generic caller flips
+  # the switch, so a normal board save can't disturb the cover.
+  def set_display_image
+    set_board
+    source = params[:source].to_s
+
+    case source
+    when "preview"
+      @board.settings = (@board.settings || {}).merge("display_image_source" => "preview")
+      @board.save!
+    when "custom"
+      src = params[:display_image_url].presence
+      if src.blank?
+        render json: { error: "display_image_url is required when source is custom" }, status: :unprocessable_content
+        return
+      end
+      @board.write_attribute(:display_image_url, src)
+      @board.settings = (@board.settings || {}).merge("display_image_source" => "custom")
+      @board.save!
+    else
+      render json: { error: "source must be 'preview' or 'custom'" }, status: :unprocessable_content
+      return
+    end
+
+    render json: @board.api_view_with_images(current_user)
   end
 
   def update_preset_display_image
@@ -1372,7 +1417,10 @@ class API::BoardsController < API::ApplicationController
 
     preset_display_image_url = @board.display_preset_image_url
     @board.update_preset_display_image_url(preset_display_image_url)
-    @board.display_image_url = preset_display_image_url
+    @board.write_attribute(:display_image_url, preset_display_image_url)
+    # An uploaded cover is a deliberate pick — flip the switch to custom so the
+    # getter serves it instead of the auto preview.
+    @board.settings = (@board.settings || {}).merge("display_image_source" => "custom")
     @board.save!
   end
 

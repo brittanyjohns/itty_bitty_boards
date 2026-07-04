@@ -18,6 +18,7 @@
       <option value="" <%= "selected" if @filter.blank? %>>All users</option>
       <option value="admin" <%= "selected" if @filter == "admin" %>>Admins</option>
       <option value="pro" <%= "selected" if @filter == "pro" %>>Pro</option>
+      <option value="partner" <%= "selected" if @filter == "partner" %>>Partner Pro</option>
       <option value="basic" <%= "selected" if @filter == "basic" %>>Basic</option>
       <option value="free" <%= "selected" if @filter == "free" %>>Free</option>
       <option value="trial" <%= "selected" if @filter == "trial" %>>Trial</option>
@@ -84,6 +85,11 @@
             <% end %>
             <% if user.locked? %>
               <span class="bg-red-900/60 text-red-300 inline-block text-xs rounded px-2 py-0.5 ml-1">locked</span>
+            <% end %>
+            <% if (pilot = partner_pilot_status(user)) && pilot[:state] != :active %>
+              <span class="<%= pilot[:badge_class] %> inline-block text-xs rounded px-2 py-0.5 ml-1" title="Pilot ends <%= pilot[:end_date]&.strftime('%b %-d, %Y') || '—' %>">
+                <%= pilot[:label] %>
+              </span>
             <% end %>
           </td>
           <td class="px-5 py-3 text-xs text-t2 text-center">

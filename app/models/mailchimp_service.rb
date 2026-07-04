@@ -36,10 +36,10 @@ class MailchimpService
     if e.status == 404
       result = record_new_subscriber(user)
       if result
-        puts "Successfully added subscriber for email #{email}. Retrying sign-in event."
+        Rails.logger.info("[Mailchimp] Added subscriber for #{email}. Retrying sign-in event.")
         retry
       else
-        puts "Failed to add subscriber for email #{email}. Cannot record sign-in event."
+        Rails.logger.error("[Mailchimp] Failed to add subscriber for #{email}. Cannot record sign-in event.")
       end
     end
     nil
@@ -96,8 +96,43 @@ class MailchimpService
     end
     response
   rescue MailchimpMarketing::ApiError => e
-    puts "Error recording new subscriber: #{e.message}"
+    # Swallowed so a Mailchimp blip can't break signup, but logged at error
+    # level with status + detail so a *permanent* config problem (e.g. an
+    # audience "required merge field" like ADDRESS rejecting every new-contact
+    # upsert with a 400) is visible instead of silently failing every signup
+    # sync. Was a bare `puts` that never reached the structured log / tracker.
+    Rails.logger.error("[Mailchimp] record_new_subscriber failed for #{email}: #{e.status} #{e.detail || e.message}")
     nil
+  end
+
+  # Lightweight sibling of record_new_subscriber for raw email leads (no User
+  # object). Upserts a bare email to the audience as "subscribed" with the given
+  # tags and minimal merge fields (FNAME from name when present). Used for the
+  # anonymous free-board-download lead capture. Reuses the same client / audience
+  # id / subscriber_hash patterns as the rest of this service.
+  def record_lead(email:, name: nil, tags: [])
+    list_id = ENV.fetch("MAILCHIMP_AUDIENCE_ID")
+    subscriber_hash_email = subscriber_hash(email)
+
+    merge_fields = {}
+    merge_fields[:FNAME] = name if name.present?
+
+    body = {
+      email_address: email,
+      status_if_new: "subscribed",
+      merge_fields: merge_fields,
+    }
+    response = @client.lists.set_list_member(list_id, subscriber_hash_email, body)
+
+    unless tags.blank?
+      @client.lists.update_list_member_tags(
+        list_id,
+        subscriber_hash_email,
+        { tags: tags.map { |t| { name: t, status: "active" } } }
+      )
+    end
+
+    response
   end
 
   # Enrol a contact into a Mailchimp Customer Journey via its API-trigger step.

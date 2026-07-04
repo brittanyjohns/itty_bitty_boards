@@ -18,6 +18,75 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   **web (Stripe)** and **mobile (RevenueCat/Apple IAP)** conversions, so paid
   subscribers on either platform get the email. All 6 prior journey keys plus
   this one are now mirrored into the staging env-sync templates.
+### Fixed — Partner Pro accounts now get full Pro credits + permissions immediately
+- Partner Pro signups were landing with the Free credit allowance (e.g. 25 AI
+  credits) instead of the Pro allowance (1,500), because credits were granted
+  while the account was still Free (before it was flipped to `partner_pro`) and
+  never re-granted. Partner signups now receive the Pro credit allowance
+  **immediately at signup** — no waiting on a background job.
+- Partner Pro is now treated as a Pro-equivalent tier everywhere: `pro?` returns
+  true for it, so partners get Pro permissions (paid-plan gates, 5 supporter
+  seats, communicator lending/hand-off, unlimited MySpeak IDs) to match their
+  already-Pro board/communicator limits. Previously partners were silently
+  treated as Free on those permission checks.
+- Backfill for existing partners stuck on the Free allowance:
+  `rake partners:grant_pro_credits` (dry-run by default; `DRY_RUN=false` to apply).
+
+### Added — Partner Pro pilot expiry reminders (no auto-downgrade)
+- The 3-month Partner Pro pilot's end date (`plan_expires_at`) was previously
+  set but never acted on, so partners kept Pro-level access indefinitely with no
+  reminder. New `PartnerPilotEndingJob` (daily) now emails partners a friendly
+  "your pilot is wrapping up" heads-up ~14 days before their end date and emails
+  the SpeakAnyWay admin a digest of partners ending soon / newly ended.
+- **Nothing is auto-downgraded** — partners keep their boards and access; the
+  digest is a prompt to convert, extend, or downgrade each partner by hand.
+  `rake partners:pilot_status` lists pilots by status on demand. Lead time is
+  tunable via `PARTNER_PILOT_REMINDER_LEAD_DAYS` (default 14).
+
+### Added — owner picks which communicators stay signable on downgrade (#439)
+- When a user is over their plan's communicator slot limit after a downgrade,
+  the over-limit accounts enter fallback mode (private sign-in paused; public
+  MySpeak page + boards stay open). Previously the system auto-kept whichever
+  communicators signed in most recently. Now the **owner chooses** which ones
+  stay full, mirroring the board "make this one editable" pick.
+- New `POST /api/child_accounts/keep_signable` `{ communicator_ids: [...] }`
+  persists the owner's pick (owner-owned ids only, capped at the slot limit) and
+  re-reconciles immediately; the chosen ids keep private sign-in, the rest fall
+  back. `User#reconcile_communicator_fallback!` now orders **owner-pinned first,
+  then most-recently-active**. `communicator_slot_limit` and
+  `kept_communicator_ids` are exposed on the user `api_view` for the picker UI.
+  No access or boards are ever removed — only which accounts can sign in
+  privately changes.
+
+### Added — free board PDF downloads for anonymous visitors (lead capture)
+- `GET /api/free_download_boards` (public, no auth) lists the curated public
+  board gallery (`Board.public_boards` — admin-owned, predefined + published)
+  with `id`, `name`, `description`, and `image_url` for an anonymous
+  lead-capture page. No new board flag — the existing public gallery is the
+  offered set.
+- `POST /api/download_leads` (public, no auth) captures a visitor's email (with
+  optional name, board_id, source, and data) as a `DownloadLead`, returns
+  `201 { success: true }`, and enqueues `MailchimpUpsertLeadJob` to sync the
+  email to Mailchimp as a `BoardDownloadLead`. Invalid/missing emails return
+  `422 { success: false, errors: [...] }`. The existing
+  `GET /api/boards/:id/pdf` continues to serve the file unchanged.
+- Admin **Mission Control** now has a **Download Leads** panel: leads captured
+  today / 7d / 30d, unique emails (7d), all-time total, and Mailchimp sync
+  health (synced / pending / failed, with the failed count flagged red) plus a
+  by-source breakdown — so a stalled Mailchimp sync is visible at a glance.
+
+### Fixed — clearer plan-change errors when there's no payment method
+- `POST /api/subscriptions/change_plan` now returns a distinct, actionable
+  **402 `payment_method_required`** (with a message pointing to the billing
+  portal) when a switch fails because the customer has no payment method on
+  file — instead of the generic `400 "Failed to change plan"` that gave the
+  frontend nothing to act on. Card declines still return `402 payment_failed`;
+  other Stripe errors still return the generic 400.
+- `POST /api/subscriptions/preview_plan_change` now returns a
+  `payment_method_required` boolean — true only when the switch bills the
+  customer today (`amount_due > 0`) **and** there's no payment method on file —
+  so the confirm modal can prompt for a card up front instead of letting the
+  user hit a Confirm that can only fail. Credit-only downgrades aren't flagged.
 
 ### Added — boards now lay out well on phones and tablets, not just large screens
 - Medium/small column counts are now **derived proportionally** from a board's

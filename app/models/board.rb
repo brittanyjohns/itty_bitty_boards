@@ -232,33 +232,59 @@ class Board < ApplicationRecord
     # generate_preview(generate_pdf: true) # PDF with header for sharing
   end
 
-  # When `settings["display_follows_preview"]` is true, the board's
-  # display image should track the live preview rather than a frozen
-  # snapshot URL. Persisting *intent* sidesteps the stale `?v=` problem
-  # that arises when callers store a previous `preview_image_url` string.
-  def display_follows_preview?
-    return false unless settings.is_a?(Hash)
-    ActiveModel::Type::Boolean.new.cast(settings["display_follows_preview"]) == true
+  # The board's display image (thumbnail) has ONE switch:
+  # `settings["display_image_source"]`, either "preview" (default) or "custom".
+  #
+  #   - "preview" → the auto-generated grid snapshot (the `preview_image`
+  #     attachment). Tracks the board's *current* contents; the
+  #     `display_image_url` column is ignored (kept only as a pre-preview seed).
+  #     Storing intent — rather than a frozen `preview_image_url` string —
+  #     sidesteps the stale `?v=` cache-bust problem.
+  #   - "custom" → a deliberate pick: an uploaded cover (`preset_display_image`
+  #     attachment) if present, else the URL the user chose in the
+  #     `display_image_url` column (the "Use as thumbnail" action).
+  #
+  # The switch is only ever flipped through the dedicated endpoints
+  # (BoardsController#set_display_image / #update_preset_display_image), never as
+  # a side effect of a generic board save — so editing name/colors/tiles can't
+  # clobber the cover.
+  DISPLAY_IMAGE_SOURCES = %w[preview custom].freeze
+
+  def display_image_source
+    stored = settings.is_a?(Hash) ? settings["display_image_source"] : nil
+    return stored if DISPLAY_IMAGE_SOURCES.include?(stored)
+    # Backward-compat inference for boards saved before this field existed,
+    # so they resolve correctly until `board_covers:backfill_source` runs.
+    return "custom" if preset_display_image.attached?
+    return "custom" if legacy_display_image_is_custom?
+    "preview"
   end
 
-  # Override the AR-generated getter so reads (including serializers, grid
-  # thumbnails) resolve the right image with this precedence:
+  def display_image_custom?
+    display_image_source == "custom"
+  end
+
+  # Legacy flag reader, kept ONLY so pre-existing boards infer the right source
+  # above. Nothing writes `display_image_is_custom` anymore.
+  def legacy_display_image_is_custom?
+    return false unless settings.is_a?(Hash)
+    ActiveModel::Type::Boolean.new.cast(settings["display_image_is_custom"]) == true
+  end
+
+  # Override the AR-generated getter so reads (serializers, grid thumbnails)
+  # resolve the cover from the single `display_image_source` switch:
   #
-  #   1. An explicit custom cover the user uploaded (the `preset_display_image`
-  #      attachment, set via API::BoardsController#update_preset_display_image)
-  #      always wins — it's a deliberate choice, not an auto snapshot.
-  #   2. Otherwise the live, deterministically-keyed auto preview wins, so the
-  #      thumbnail tracks the board's *current* contents. The URL is stable
-  #      (board_previews/<id>/preview.png) and self-cache-busts on regeneration
-  #      via `?v=<blob.created_at>`, so an edited board never shows stale art.
-  #   3. The denormalized `display_image_url` column is only a seed thumbnail
-  #      (e.g. the originating tile's image) used before the first preview
-  #      exists; it's the last resort.
+  #   custom  → uploaded cover, else the chosen `display_image_url` column value
+  #   preview → live auto preview, else the seed column as a last resort
   #
   # The setter is untouched — writes still go straight to the column.
   def display_image_url
-    if preset_display_image.attached? && (custom_cover = display_preset_image_url).present?
-      return custom_cover
+    if display_image_custom?
+      if preset_display_image.attached? && (custom_cover = display_preset_image_url).present?
+        return custom_cover
+      end
+      picked = read_attribute(:display_image_url)
+      return picked if picked.present?
     end
     if preview_image.attached? && (live_preview = preview_image_url).present?
       return live_preview
@@ -1039,13 +1065,13 @@ class Board < ApplicationRecord
     @cloned_board = @source.dup
     # A clone gets its own freshly-generated preview (enqueued below via
     # run_generate_preview_job). `dup` copies the source's
-    # display_image_url column verbatim — for boards that follow their
-    # preview that string points at the *source's* image, so the clone
-    # would render the wrong board. Default every clone to "follow my
-    # own preview" and drop the inherited snapshot.
+    # display_image_url column verbatim — for a "preview" board that string
+    # points at the *source's* image, so the clone would render the wrong
+    # board. Default every clone to its own auto preview and drop the
+    # inherited snapshot.
     @cloned_board.write_attribute(:display_image_url, nil)
     @cloned_board.settings = (@cloned_board.settings || {}).merge(
-      "display_follows_preview" => true,
+      "display_image_source" => "preview",
     )
     @cloned_board.user_id = cloned_user_id
     @cloned_board.name = new_name
@@ -1915,6 +1941,7 @@ class Board < ApplicationRecord
       cost: cost,
       audio_url: audio_url,
       display_image_url: display_image_url || preview_image_url,
+      display_image_source: display_image_source,
       # floating_words: words,
       common_words: Board.common_words,
       user_id: user_id,
@@ -2245,6 +2272,7 @@ class Board < ApplicationRecord
       cost: cost,
       display_image_url: @display_image_url || @preview_image_url,
       preview_image_url: @preview_image_url,
+      display_image_source: display_image_source,
       board_type: board_type,
       user_id: user_id,
       voice: voice,
@@ -2279,6 +2307,7 @@ class Board < ApplicationRecord
       lock_reason: locked_for?(viewing_user) ? "free_plan_board_limit" : nil,
       display_image_url: display_image_url,
       preview_image_url: preview_image_url,
+      display_image_source: display_image_source,
       word_sample: word_sample,
       frozen: is_frozen?,
       word_list: data["current_word_list"],

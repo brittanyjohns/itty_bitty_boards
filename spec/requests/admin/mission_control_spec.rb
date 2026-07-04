@@ -29,6 +29,16 @@ RSpec.describe "Admin::MissionControl", type: :request do
       expect(response.body).to include("demo accounts")
     end
 
+    it "renders the Download Leads panel with sync status" do
+      create(:download_lead, source: "free_board_landing",
+                             mailchimp_status: DownloadLead::MAILCHIMP_FAILED)
+
+      get admin_mission_control_path
+      expect(response.body).to include("Download Leads")
+      expect(response.body).to include("Mailchimp failed")
+      expect(response.body).to include("free_board_landing")
+    end
+
     context "when not signed in" do
       before { sign_out admin }
 

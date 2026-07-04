@@ -40,12 +40,26 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     root
   end
 
-  def build!(interests)
+  def build!(interests, include_phrases: nil)
     root = precreate_root!
     norm = Boards::InterestWords.normalize_list(interests)
     cats = Boards::InterestWords.extract_categories(interests)
-    described_class.new.perform(root.id, communicator.id, "extended", norm, cats)
+    opts = include_phrases.nil? ? {} : { "include_phrases" => include_phrases }
+    described_class.new.perform(root.id, communicator.id, "extended", norm, cats, opts)
     root.reload
+  end
+
+  # Force a latent overlap in the admin-owned seed root so two authored tiles
+  # share one cell — open_grid_cells then reports a phantom free cell (84 tiles
+  # occupying 83 unique cells). This is the real prod condition that let a
+  # no-interest default "Social" folder slip onto the full Core 84 grid.
+  def overlap_seed_grid!
+    seed_root = Boards::RobustSets.find_root("core-84")
+    bi = seed_root.board_images.order(:position).last
+    bi.layout["lg"] = { "x" => 0, "y" => 0, "w" => 1, "h" => 1, "i" => bi.id.to_s }
+    bi.save!
+    seed_root.update_board_layout("lg")
+    seed_root.reload
   end
 
   # Pad the admin-owned seed root so the per-user clone starts with `remaining`
@@ -119,6 +133,30 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     expect(root.status).to eq("complete")
     expect(root.board_images.count).to be <= CORE_84_GRID_CELLS
     expect(dead_folder_tiles(root)).to be_empty
+  end
+
+  # Regression: Core 84, GLP unchecked (include_phrases: false) + no interests
+  # must be exactly the authored 84 — no injected "Social" folder, no orphaned
+  # 8th-row tile. Reproduces the reported bug both on a clean seed AND when the
+  # seed carries a latent overlap (the prod condition that inflated
+  # open_grid_cells and let a no-interest default folder slip in).
+  [false, true].each do |with_overlap|
+    it "stays a clean 84 with no GLP and no interests#{' even when the seed has an overlap' if with_overlap}" do
+      overlap_seed_grid! if with_overlap
+
+      root = build!([], include_phrases: false)
+
+      expect(root.status).to eq("complete")
+      expect(root.board_images.count).to eq(CORE_84_GRID_CELLS)
+      # No non-authored default folder was injected.
+      expect(root.board_images.map(&:label)).not_to include("Social")
+      # The authored question word stays in-grid (row index 4), never orphaned
+      # onto a stray 8th row.
+      who = root.board_images.find { |bi| bi.label == "who" }
+      expect(who).to be_present
+      expect(root.large_screen_rows).to eq(7)
+      expect(dead_folder_tiles(root)).to be_empty
+    end
   end
 
   it "mutes the name on dynamic folder tiles, leaving word tiles unmuted" do

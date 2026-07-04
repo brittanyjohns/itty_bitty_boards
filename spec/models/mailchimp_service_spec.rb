@@ -11,6 +11,53 @@ RSpec.describe MailchimpService do
     allow(client).to receive(:customerJourneys).and_return(journeys)
   end
 
+  describe "#record_lead" do
+    let(:lists) { double("lists") }
+
+    before do
+      allow(client).to receive(:lists).and_return(lists)
+      stub_const("ENV", ENV.to_h.merge("MAILCHIMP_AUDIENCE_ID" => "aud_123"))
+    end
+
+    it "upserts the raw email as subscribed with FNAME and applies tags" do
+      hash = Digest::MD5.hexdigest("lead@example.com")
+
+      expect(lists).to receive(:set_list_member).with(
+        "aud_123",
+        hash,
+        {
+          email_address: "lead@example.com",
+          status_if_new: "subscribed",
+          merge_fields: { FNAME: "Jamie" },
+        },
+      )
+      expect(lists).to receive(:update_list_member_tags).with(
+        "aud_123",
+        hash,
+        { tags: [{ name: "BoardDownloadLead", status: "active" }] },
+      )
+
+      described_class.new.record_lead(email: "lead@example.com", name: "Jamie", tags: ["BoardDownloadLead"])
+    end
+
+    it "omits FNAME and the tags call when name and tags are blank" do
+      hash = Digest::MD5.hexdigest("lead@example.com")
+
+      expect(lists).to receive(:set_list_member).with(
+        "aud_123",
+        hash,
+        {
+          email_address: "lead@example.com",
+          status_if_new: "subscribed",
+          merge_fields: {},
+        },
+      )
+      expect(lists).not_to receive(:update_list_member_tags)
+
+      described_class.new.record_lead(email: "lead@example.com")
+    end
+  end
+
   describe "#update_merge_fields" do
     let(:lists) { double("lists") }
 
