@@ -1156,6 +1156,28 @@ which already depends on `pdf-lib`.
   regenerations**. `MarketingAsset.upsert_pdf!(slug:, bytes:, title:, kind:)` is
   idempotent — re-running the kit build overwrites in place, so the
   `KIT_DOWNLOAD_URL` is safe to hardcode on the frontend.
+- **Stable slugs for kit boards (`replace_existing_slug`).** The internal
+  boards endpoints (`POST /api/internal/boards`, `POST /api/internal/boards/
+  from_vocab_set`) accept an opt-in `replace_existing_slug` boolean: the
+  controller destroys the previous board holding the requested slug and gives
+  the new board the **exact** slug — scoped so only a board owned by the
+  internal admin AND tagged `marketing` is ever destroyed (anything else is
+  left alone and the new board gets a suffixed slug, logged). On
+  `from_vocab_set` the new-board slug rides **`board_slug`** (`slug` is the
+  vocab-set key), claimed only after the clone persists so a failed clone
+  never destroys the live QR target. This keeps the printed kit's
+  `/pb/<slug>` QR targets stable across regenerations and stops `MKT —`
+  scratch boards accumulating. Brief 404 window on the slug while a
+  regeneration is in flight — acceptable for a lead magnet.
+- **Marketing print style (`style=marketing`) on board PDF export.**
+  `GET /api/internal/boards/:id/export.pdf?style=marketing` renders the
+  marketing-branded pair `app/views/api/boards/print_marketing.html.erb` +
+  `app/views/layouts/pdf_marketing.html.erb` (gradient header band, white QR
+  chip, footer CTA; tile rendering identical since AAC colors are meaningful).
+  The pair is a deliberate **copy**, not a refactor — the shared
+  `print`/`pdf` pair backs real users' exports and stays byte-identical when
+  the param is absent (spec-guarded in `board_pdf_export_spec.rb`). Any
+  unknown `style` value falls back to the shared pair.
 - **Endpoints (behind `INTERNAL_API_KEY`, `namespace :internal`):**
   - `POST /api/internal/marketing_assets` `{ slug, file(multipart PDF), title?, kind? }`
     → upsert + host → `{ slug, title, kind, url }` (`201`). The printables

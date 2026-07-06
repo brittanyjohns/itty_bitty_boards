@@ -45,6 +45,62 @@ RSpec.describe "API::Internal::Boards#export_pdf", type: :request do
       expect(response.body).to start_with("%PDF")
     end
 
+    it "renders the shared print template and pdf layout by default" do
+      expect_any_instance_of(API::Internal::BoardsController)
+        .to receive(:render_to_string)
+        .with(hash_including(template: "api/boards/print", layout: "pdf"))
+        .and_return("<html></html>")
+
+      get "/api/internal/boards/#{board.id}/export.pdf", headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "renders the marketing template and layout when style=marketing" do
+      expect_any_instance_of(API::Internal::BoardsController)
+        .to receive(:render_to_string)
+        .with(hash_including(template: "api/boards/print_marketing", layout: "pdf_marketing"))
+        .and_return("<html></html>")
+
+      get "/api/internal/boards/#{board.id}/export.pdf",
+          params: { style: "marketing" },
+          headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "ignores unknown style values and falls back to the shared template" do
+      expect_any_instance_of(API::Internal::BoardsController)
+        .to receive(:render_to_string)
+        .with(hash_including(template: "api/boards/print", layout: "pdf"))
+        .and_return("<html></html>")
+
+      get "/api/internal/boards/#{board.id}/export.pdf",
+          params: { style: "fancy" },
+          headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    context "with real template rendering (ERB smoke test, Grover still stubbed)" do
+      before do
+        allow_any_instance_of(API::Internal::BoardsController)
+          .to receive(:render_to_string).and_call_original
+      end
+
+      it "renders the shared print template without error" do
+        get "/api/internal/boards/#{board.id}/export.pdf", headers: auth_headers
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "renders the marketing template without error" do
+        get "/api/internal/boards/#{board.id}/export.pdf",
+            params: { style: "marketing", qr_code: "true", qr_target_url: "https://app.speakanyway.com/pb/test" },
+            headers: auth_headers
+        expect(response).to have_http_status(:ok)
+      end
+    end
+
     it "omits the QR code when qr_code is not true" do
       expect(Boards::RenderAssetData).to receive(:new).with(
         hash_including(include_qr: false),

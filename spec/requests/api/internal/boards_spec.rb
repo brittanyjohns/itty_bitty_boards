@@ -166,6 +166,69 @@ RSpec.describe "API::Internal::Boards", type: :request do
         expect(job["args"][1]).to eq("ai_generated")
         expect(job["args"][2]).to eq({ "word_count" => 24 })
       end
+
+      describe "replace_existing_slug (stable marketing slugs)" do
+        let(:create_params) do
+          {
+            board: { name: "MKT — Story Time", slug: "mkt-storytime-board", tags: ["marketing", "aac-kit"] },
+            replace_existing_slug: true,
+          }
+        end
+
+        it "destroys the previous admin-owned marketing board and takes its exact slug" do
+          previous = create(:board, name: "MKT — Old Story Time", slug: "mkt-storytime-board",
+                                    user: admin_user, tags: ["marketing", "aac-kit"])
+
+          post "/api/internal/boards",
+               params: create_params.to_json,
+               headers: auth_headers.merge("Content-Type" => "application/json")
+
+          expect(response).to have_http_status(:created)
+          expect(Board.exists?(previous.id)).to be false
+          expect(Board.last.slug).to eq("mkt-storytime-board")
+        end
+
+        it "leaves a non-marketing board with that slug alone and suffixes the new slug" do
+          bystander = create(:board, name: "User Board", slug: "mkt-storytime-board",
+                                     user: create(:user), tags: [])
+
+          post "/api/internal/boards",
+               params: create_params.to_json,
+               headers: auth_headers.merge("Content-Type" => "application/json")
+
+          expect(response).to have_http_status(:created)
+          expect(Board.exists?(bystander.id)).to be true
+          new_board = Board.last
+          expect(new_board.slug).not_to eq("mkt-storytime-board")
+          expect(new_board.slug).to start_with("mkt-storytime-board-")
+        end
+
+        it "leaves an admin-owned but untagged board with that slug alone" do
+          untagged = create(:board, name: "Admin Board", slug: "mkt-storytime-board",
+                                    user: admin_user, tags: [])
+
+          post "/api/internal/boards",
+               params: create_params.to_json,
+               headers: auth_headers.merge("Content-Type" => "application/json")
+
+          expect(response).to have_http_status(:created)
+          expect(Board.exists?(untagged.id)).to be true
+          expect(Board.last.slug).to start_with("mkt-storytime-board-")
+        end
+
+        it "does not destroy anything when the flag is absent" do
+          previous = create(:board, name: "MKT — Old Story Time", slug: "mkt-storytime-board",
+                                    user: admin_user, tags: ["marketing", "aac-kit"])
+
+          post "/api/internal/boards",
+               params: create_params.except(:replace_existing_slug).to_json,
+               headers: auth_headers.merge("Content-Type" => "application/json")
+
+          expect(response).to have_http_status(:created)
+          expect(Board.exists?(previous.id)).to be true
+          expect(Board.last.slug).to start_with("mkt-storytime-board-")
+        end
+      end
     end
   end
 

@@ -1,0 +1,113 @@
+<%# Marketing-only variant of api/boards/print.html.erb, rendered inside the
+    pdf_marketing layout when the internal export_pdf endpoint gets
+    `style=marketing` (AAC Classroom Kit posters). Deliberately a COPY of the
+    shared template — see the note in layouts/pdf_marketing.html.erb. Tile
+    rendering is identical (AAC colors are meaningful); the skin is the page
+    furniture: gradient header band, white QR chip, footer CTA strip. %>
+<% unless @hide_header %>
+  <div class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <% if @logo.present? %>
+          <img alt="SpeakAnyWay Logo" src="data:image/png;base64,<%= @logo %>">
+        <% end %>
+      </div>
+
+      <div class="header-copy">
+        <p class="board-title">
+          <strong><%= @board_title %></strong>
+        </p>
+
+        <p class="board-subtitle">
+          Free AAC resource &middot; SpeakAnyWay
+        </p>
+
+        <% if @qr_data_url.present? %>
+          <div class="board-link">
+            Scan the code or visit
+            <a href="<%= @qr_target_url %>" target="_blank" rel="noopener noreferrer"><%= @qr_target_url %></a>
+            — every word is free to tap in the app.
+          </div>
+        <% end %>
+      </div>
+
+      <% if @qr_data_url.present? %>
+        <div class="qr-chip">
+          <img src="<%= @qr_data_url %>" alt="QR code">
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>
+
+<div class="board-wrap">
+  <div
+    class="board-sizer"
+    style="width:<%= @board_render_width_mm %>mm; height:<%= @board_render_height_mm %>mm;"
+  >
+    <div
+      class="board-grid"
+      style="
+        grid-template-columns: repeat(<%= @columns %>, 1fr);
+        grid-template-rows: repeat(<%= @rows %>, 1fr);
+      "
+    >
+      <% @tiles.each do |t| %>
+        <% bg_color = @hide_colors ? "" : (t["bg_color"] || "black") %>
+        <% border_color = @hide_colors ? "" : (t["border_color"] || "black") %>
+        <% border_width = t["border_width"] || 0 %>
+        <% border_radius = t["border_radius"] || 0 %>
+        <% if t["hide_label"] %>
+          <% label_hidden = true %>
+        <% else %>
+          <% label_hidden = false %>
+        <% end %>
+        <% col_start = t["x"].to_i + 1 %>
+        <% row_start = t["y"].to_i + 1 %>
+        <% col_span = t["w"].to_i %>
+        <% row_span = t["h"].to_i %>
+
+        <div
+          class="tile"
+          style="
+            background-color:<%= bg_color.presence || "#ffffff" %>;
+            grid-column:<%= col_start %> / span <%= col_span %>;
+            grid-row:<%= row_start %> / span <%= row_span %>;
+            border-color:<%= border_color.presence || "#e2e8f0" %>;
+            border-width:<%= border_width %>px;
+            border-radius:<%= border_radius %>px;
+          "
+
+        >
+          <div class="tile-media">
+            <% if t["image_url"].present? %>
+              <img src="<%= t["image_url"] %>" alt="<%= t["label"] %>">
+            <% else %>
+              <img
+                src="<%= generate_placeholder_image(t["label"]) %>"
+                alt="<%= t["label"] %>"
+                class="tile-placeholder-image"
+              >
+            <% end %>
+          </div>
+
+          <% unless label_hidden %>
+            <div
+            class="label <%= bg_color %>"
+            style="
+              font-weight:<%= @hide_colors ? "normal" : "bold" %>;
+              background-color:<%= bg_color.presence || "#f7f7f7" %>;
+            ">
+            <%= t["label"] %>
+          </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<div class="marketing-footer">
+  <span>Powered by SpeakAnyWay</span>
+  <span class="cta">Make boards like this free at speakanyway.com/classroom</span>
+</div>

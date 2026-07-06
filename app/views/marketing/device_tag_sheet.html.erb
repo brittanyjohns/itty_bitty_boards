@@ -22,6 +22,15 @@
         gap: 0.35in;
       }
 
+      .cut-hint {
+        text-align: center;
+        font-size: 8pt;
+        font-weight: 700;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+        color: #94a3b8;
+      }
+
       .tag {
         box-sizing: border-box;
         width: 4.6in; height: 2.5in;
@@ -50,6 +59,7 @@
   </head>
   <body>
     <div class="sheet">
+      <div class="cut-hint">&#9986; Print at 100% (actual size) &middot; cut along the dashed lines</div>
       <% @card_count.times do %>
         <div class="tag">
           <div class="inner">

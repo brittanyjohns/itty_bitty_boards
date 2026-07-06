@@ -24,8 +24,21 @@
         padding: 10mm;
         display: grid;
         grid-template-columns: 1fr 1fr;
+        /* First (explicit) row is the slim cut-hint strip; the card rows
+           stay equal-height 1fr via grid-auto-rows. */
+        grid-template-rows: auto;
         grid-auto-rows: 1fr;
         gap: 6mm;
+      }
+
+      .cut-hint {
+        grid-column: 1 / -1;
+        text-align: center;
+        font-size: 8pt;
+        font-weight: 700;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+        color: #94a3b8;
       }
 
       .card {
@@ -42,7 +55,7 @@
       .brand-rule {
         height: 6px;
         border-radius: 6px;
-        background: linear-gradient(90deg, #8b5cf6, #6366f1, #3b82f6);
+        background: linear-gradient(90deg, #7c3aed, #6366f1, #3b82f6);
         margin: -1mm -1mm 3mm;
       }
 

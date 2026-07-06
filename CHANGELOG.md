@@ -5,6 +5,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — stable slugs + marketing print style for the AAC Classroom Kit
+- The internal boards API (`POST /api/internal/boards` and
+  `POST /api/internal/boards/from_vocab_set`) gains opt-in
+  **`replace_existing_slug`** semantics: when set, a previous board holding the
+  requested slug is destroyed and the new board takes the exact slug — but only
+  when the previous board is owned by the internal admin **and** tagged
+  `marketing`. Anything else is left alone (the new board gets a suffixed slug
+  instead). `from_vocab_set` accepts the new-board slug as **`board_slug`**
+  (`slug` there is the vocab-set key). This keeps the printed kit's QR targets
+  (`/pb/<slug>`) stable across kit regenerations and stops `MKT —` scratch
+  boards accumulating.
+- The internal board PDF export (`GET /api/internal/boards/:id/export.pdf`)
+  gains an opt-in **`style=marketing`** param that renders a marketing-branded
+  template/layout pair (`api/boards/print_marketing` + `pdf_marketing`):
+  gradient header band, white QR chip, footer CTA. **The default (no param) is
+  byte-identical to before** — the shared `print`/`pdf` pair used for real
+  users' board exports is untouched (spec-guarded).
+- The marketing tag/name-tag sheets get a slim "print at 100% · cut along the
+  dashed lines" hint strip and a unified brand gradient.
+
 ### Added — compact backpack safety + device tags for the AAC Classroom Kit
 - New `GET /api/internal/marketing_artifacts/safety_tag.pdf` and
   `.../device_tag.pdf` render generic, print-and-cut **backpack ID tags**
