@@ -70,6 +70,7 @@ RSpec.describe "API::Internal::MarketingAssets", type: :request do
 
   describe "GET /api/internal/marketing_assets/:slug" do
     it "returns the hosted asset URL" do
+      allow(ENV).to receive(:[]).with("CDN_HOST").and_return("https://cdn.example.com")
       MarketingAsset.upsert_pdf!(slug: "classroom-kit", bytes: "%PDF x", title: "Kit")
 
       get "/api/internal/marketing_assets/classroom-kit", headers: auth_headers
@@ -77,7 +78,7 @@ RSpec.describe "API::Internal::MarketingAssets", type: :request do
       expect(response).to have_http_status(:ok)
       body = JSON.parse(response.body)
       expect(body["slug"]).to eq("classroom-kit")
-      expect(body["url"]).to be_present
+      expect(body["url"]).to eq("https://cdn.example.com/marketing_assets/classroom-kit.pdf")
     end
 
     it "404s for an unknown slug" do
