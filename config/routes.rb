@@ -394,6 +394,9 @@ Rails.application.routes.draw do
 
     namespace :internal do
       resources :boards, only: [:create, :update, :show] do
+        collection do
+          post :from_vocab_set
+        end
         member do
           get :export, action: :export_pdf, defaults: { format: :pdf }
         end

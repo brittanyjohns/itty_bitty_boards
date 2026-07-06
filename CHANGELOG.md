@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — internal API endpoint to create a board from a curated vocab set
+- New `POST /api/internal/boards/from_vocab_set` (behind `INTERNAL_API_KEY`)
+  clones the ROOT grid of a curated Board Builder vocab set (`core-60` /
+  `core-84`) into a fresh admin-owned board and returns it as JSON (`201`), so an
+  internal caller (the printables marketing generator) can source a poster from
+  vetted core vocabulary and immediately export it to PDF. v1 clones only the
+  root grid, not the linked fringe tree. Returns `404 vocab_set_not_seeded` when
+  the requested set isn't seeded in the environment (no `500`). Additive — no
+  migration, no new ENV var, and `create`/`update`/`show`/`export` are unchanged.
+
 ### Added — new-subscriber onboarding email when a paid plan starts
 - New Mailchimp `subscription_started` Customer Journey fires when a user
   converts to an active paid plan (the non-active→active transition in the
