@@ -21,6 +21,20 @@ RSpec.describe MailchimpUpsertLeadJob, type: :job do
       expect(lead.reload.mailchimp_status).to eq("synced")
     end
 
+    it "uses the ClassroomKitLead tag for a classroom_kit source lead" do
+      classroom_lead = create(:download_lead, email: "teacher@example.com", name: "Sam", source: "classroom_kit")
+
+      expect(mailchimp).to receive(:record_lead).with(
+        email: "teacher@example.com",
+        name: "Sam",
+        tags: ["ClassroomKitLead"],
+      )
+
+      job.perform(classroom_lead.id)
+
+      expect(classroom_lead.reload.mailchimp_status).to eq("synced")
+    end
+
     it "marks the lead failed and re-raises on a transient (5xx) Mailchimp API error" do
       allow(mailchimp).to receive(:record_lead)
         .and_raise(MailchimpMarketing::ApiError.new(status: 500, message: "boom"))
