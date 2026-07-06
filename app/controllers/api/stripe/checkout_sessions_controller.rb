@@ -47,6 +47,10 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     plan_key = params[:plan_key].to_s
     price_id = PLAN_PRICE_IDS[plan_key]
     promo_code = params[:promo_code].to_s.strip
+    # Which CTA/page initiated checkout (itty-bitty-frontend#505). Threaded
+    # from the frontend so the server-side `checkout_started` carries the same
+    # `source` the (best-effort) client event does; defaulted so it's never nil.
+    source = params[:source].to_s.strip.presence || "web_checkout"
 
     if plan_key == "free" || price_id.blank?
       current_user.update!(plan_type: "free", plan_status: "active")
@@ -100,10 +104,14 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     session_params = {
       mode: "subscription",
       customer: current_user.stripe_customer_id,
+      # PostHog distinct_id is String(user.id); threading it through Checkout
+      # lets Stripe-originated events attribute to the same person and helps
+      # close the identity-stitching gap (itty_bitty_boards#452).
+      client_reference_id: current_user.id.to_s,
       line_items: [{ price: price_id, quantity: 1 }],
       success_url: "#{frontend_base_url}/billing/success?session_id={CHECKOUT_SESSION_ID}",
       cancel_url: cancel_url,
-      metadata: { user_id: current_user.id, plan_key: plan_key },
+      metadata: { user_id: current_user.id, plan_key: plan_key, source: source },
       payment_method_collection: payment_method_collection,
     }
 
@@ -129,6 +137,22 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
 
     session = Stripe::Checkout::Session.create(session_params)
     current_user.update!(paid_plan_type: plan_key)
+    # Server-side `checkout_started` (itty_bitty_boards#452 / frontend #505).
+    # The frontend fires this too but it's routinely dropped when the page
+    # unloads to Stripe before PostHog's batch flushes, so the reliable capture
+    # is here at session-create. `plan`/`billing_interval` mirror the frontend +
+    # `subscription_started` shape so the CTA → checkout_started →
+    # checkout_completed funnel lines up.
+    PosthogService.capture_for_user(
+      current_user,
+      "checkout_started",
+      properties: {
+        plan: plan_base(plan_key),
+        billing_interval: billing_interval_for(plan_key),
+        kind: "subscription",
+        source: source,
+      },
+    )
     # Measure trial starts so trial→paid conversion is computable against the
     # later `subscription_started` event (issue #264 A/B instrumentation).
     AnalyticsEvent.track(
@@ -158,6 +182,7 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     env_key = TOPUP_PRICE_ENV_KEYS[pack_key]
     price_id = env_key.present? ? ENV[env_key].presence : nil
     quantity = [params[:quantity].to_i, 1].max
+    source = params[:source].to_s.strip.presence || "web_checkout"
 
     if price_id.blank?
       render json: { error: "Unknown or unconfigured pack_key" }, status: :bad_request
@@ -176,6 +201,8 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     session = Stripe::Checkout::Session.create(
       mode: "payment",
       customer: current_user.stripe_customer_id,
+      # Same distinct_id threading as subscription checkout (#452).
+      client_reference_id: current_user.id.to_s,
       line_items: [{ price: price_id, quantity: quantity }],
       # Match the frontend's existing /billing/success route, which reads
       # ?type=topup&credits=N to render the "credits added" screen
@@ -189,6 +216,20 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
         user_id: current_user.id,
         pack_key: pack_key,
         credit_amount: credit_amount * quantity,
+        source: source,
+      },
+    )
+    # Server-side `checkout_started` for top-ups, mirroring the subscription
+    # path and the `checkout_completed` topup event (kind: "topup"). `plan` is
+    # the user's current tier — a topup doesn't pick one.
+    PosthogService.capture_for_user(
+      current_user,
+      "checkout_started",
+      properties: {
+        plan: current_user.plan_type,
+        kind: "topup",
+        pack_key: pack_key,
+        source: source,
       },
     )
     render json: { url: session.url }
@@ -261,6 +302,20 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
 
   def ensure_customer!
     current_user.ensure_stripe_customer!
+  end
+
+  # Base plan tier without the billing-cadence suffix ("pro_yearly" → "pro"),
+  # so the `checkout_started` `plan` property matches the frontend + the
+  # webhook's `subscription_started` shape (plan + separate billing_interval).
+  def plan_base(plan_key)
+    plan_key.to_s.sub(/_yearly\z/, "")
+  end
+
+  # "yearly" for the `_yearly` price keys, "monthly" otherwise. Mirrors
+  # `billing_interval_from_price` in the webhook, but derived from the plan_key
+  # we already have at session-create time (no Stripe round-trip).
+  def billing_interval_for(plan_key)
+    plan_key.to_s.end_with?("_yearly") ? "yearly" : "monthly"
   end
 
   # Prefer the request's Origin (then Referer) when it points at a trusted

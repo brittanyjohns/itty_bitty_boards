@@ -180,6 +180,42 @@ RSpec.describe "POST /api/stripe/checkout_sessions/topup", type: :request do
     end
   end
 
+  describe "server-side checkout_started analytics (itty_bitty_boards#452)" do
+    before do
+      user.update!(stripe_customer_id: "cus_topup_analytics", plan_type: "pro", plan_status: "active")
+      allow(Stripe::Checkout::Session).to receive(:create).and_return(OpenStruct.new(url: "https://example/cs"))
+    end
+
+    it "captures checkout_started with kind=topup, the current plan, pack_key, and source" do
+      expect(PosthogService).to receive(:capture_for_user).with(
+        an_object_having_attributes(id: user.id),
+        "checkout_started",
+        properties: { plan: "pro", kind: "topup", pack_key: "small", source: "billing_page" },
+      )
+
+      post "/api/stripe/checkout_sessions/topup",
+           params: { pack_key: "small", source: "billing_page" },
+           headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "threads distinct_id + source into the Checkout Session" do
+      captured = nil
+      allow(Stripe::Checkout::Session).to receive(:create) do |params|
+        captured = params
+        OpenStruct.new(url: "https://example/cs")
+      end
+
+      post "/api/stripe/checkout_sessions/topup",
+           params: { pack_key: "small", source: "billing_page" },
+           headers: auth_headers(user)
+
+      expect(captured[:client_reference_id]).to eq(user.id.to_s)
+      expect(captured[:metadata][:source]).to eq("billing_page")
+    end
+  end
+
   describe "success_url query string" do
     before { user.update!(stripe_customer_id: "cus_qs") }
 
