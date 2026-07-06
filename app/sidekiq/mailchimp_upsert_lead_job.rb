@@ -7,7 +7,10 @@ class MailchimpUpsertLeadJob
   include Sidekiq::Job
   sidekiq_options queue: :default, retry: 3, backtrace: true
 
-  LEAD_TAG = "BoardDownloadLead".freeze
+  DEFAULT_LEAD_TAG = "BoardDownloadLead".freeze
+  # Source-specific Mailchimp tags so distinct lead funnels can be segmented.
+  # Anything not listed here falls back to DEFAULT_LEAD_TAG (existing behavior).
+  SOURCE_TAGS = { "classroom_kit" => "ClassroomKitLead" }.freeze
 
   def perform(download_lead_id)
     lead = DownloadLead.find_by(id: download_lead_id)
@@ -16,7 +19,7 @@ class MailchimpUpsertLeadJob
     MailchimpService.new.record_lead(
       email: lead.email,
       name: lead.name,
-      tags: [LEAD_TAG],
+      tags: [tag_for(lead)],
     )
 
     lead.update(mailchimp_status: "synced")
@@ -32,6 +35,12 @@ class MailchimpUpsertLeadJob
   end
 
   private
+
+  # Derive the Mailchimp tag from the lead's source so different capture funnels
+  # (e.g. the /classroom kit) land under their own segmentable tag.
+  def tag_for(lead)
+    SOURCE_TAGS.fetch(lead.source, DEFAULT_LEAD_TAG)
+  end
 
   # A nil status means we never got an HTTP response (network/timeout), which is
   # worth retrying. Otherwise only 429 (rate limited) and 5xx are transient.
