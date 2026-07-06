@@ -413,6 +413,14 @@ Rails.application.routes.draw do
         end
       end
       resources :profiles, only: [:show, :update]
+
+      # Hosted marketing PDFs (AAC Classroom Kit) addressed by a stable slug.
+      resources :marketing_assets, only: [:create, :show], param: :slug
+
+      # Generic (data-less) marketing printables rendered on demand.
+      get "marketing_artifacts/name_tag",
+          to: "marketing_artifacts#name_tag",
+          defaults: { format: :pdf }
     end
 
     namespace :v1 do

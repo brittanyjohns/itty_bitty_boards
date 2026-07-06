@@ -91,6 +91,20 @@ RSpec.describe "API::Internal::Profiles", type: :request do
       expect(Communicators::GenerateDeviceTag).to have_received(:call).with(profile)
     end
 
+    it "regenerates the tags pointed at qr_target_url when provided (AAC Classroom Kit)" do
+      kit_url = "https://speakanyway.com/classroom?utm_content=safety_tag"
+
+      patch "/api/internal/profiles/#{profile.id}",
+            params: { qr_target_url: kit_url, profile: {} }.to_json,
+            headers: json_headers
+
+      expect(response).to have_http_status(:ok)
+      expect(Communicators::GenerateSafetyIdCard)
+        .to have_received(:call).with(profile, regenerate: true, qr_target_url: kit_url)
+      expect(Communicators::GenerateDeviceTag)
+        .to have_received(:call).with(profile, regenerate: true, qr_target_url: kit_url)
+    end
+
     it "accepts an empty profile patch and regenerates safety attachments" do
       patch "/api/internal/profiles/#{profile.id}",
             params: { profile: {} }.to_json,

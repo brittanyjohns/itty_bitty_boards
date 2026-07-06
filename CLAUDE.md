@@ -1138,6 +1138,51 @@ placeholder grid when `AppEnv.staging?` — no paid OpenAI call, no real credits
 burned — mirroring the image-generation placeholder short-circuit. (The vision
 call is **not** gated in real production.)
 
+## Marketing assets — AAC Classroom Kit hosting
+
+The AAC Classroom Kit is a **free marketing lead magnet** (a bundled print-ready
+PDF for the `/classroom` landing page) — **not** a sellable product and never
+published to any marketplace. The backend's job is to *host* the assembled kit
+PDF at a stable public URL and to render/source the individual artifacts;
+assembly (merging the per-artifact PDFs) happens in the **printables** repo,
+which already depends on `pdf-lib`.
+
+- **`MarketingAsset` (`app/models/marketing_asset.rb`) hosts a PDF at a stable
+  slug.** `has_one_attached :file` written at a **deterministic** S3 key
+  (`marketing_assets/<slug>.pdf`) via purge-then-reupload — the same
+  stable-key pattern as `Boards::GeneratePreviewAssets#stable_preview_key`.
+  Production S3 is `public: true`, so `#file_url` (CDN_HOST + key, `file.url`
+  fallback) is a permanent, unsigned CDN URL that **never changes across
+  regenerations**. `MarketingAsset.upsert_pdf!(slug:, bytes:, title:, kind:)` is
+  idempotent — re-running the kit build overwrites in place, so the
+  `KIT_DOWNLOAD_URL` is safe to hardcode on the frontend.
+- **Endpoints (behind `INTERNAL_API_KEY`, `namespace :internal`):**
+  - `POST /api/internal/marketing_assets` `{ slug, file(multipart PDF), title?, kind? }`
+    → upsert + host → `{ slug, title, kind, url }` (`201`). The printables
+    marketing-kit script POSTs the merged kit here to get the public URL.
+  - `GET /api/internal/marketing_assets/:slug` → `{ ..., url }` or `404`.
+  - `GET /api/internal/marketing_artifacts/name_tag.pdf?qr_target_url=&per_page=`
+    → streams the generic classroom name-tag sheet (`Marketing::NameTagSheet`,
+    Grover HTML→PDF, template `app/views/marketing/name_tag_sheet.html.erb`).
+    Variant A from `.claude-notes/name-tag-asset-sketch.md` — fillable, no
+    per-child data, N-up on Letter.
+- **Generic safety/device tags reuse a dedicated sample Profile.**
+  `bin/rails marketing:seed_kit_sample_profile` seeds one admin-owned,
+  clearly-generic safety `Profile` ("SpeakAnyWay Sample"). The kit renders its
+  tags through the existing `Communicators::GenerateSafetyIdCard` /
+  `GenerateDeviceTag`, which now take an optional **`qr_target_url:`** (threaded
+  through `BaseAssetGenerator`, folded into the freshness signature) so the kit
+  tags' QR points at the `/classroom` funnel instead of the sample MySpeak page.
+  The default (QR → `profile.public_url`) is unchanged for every real
+  communicator. The internal profiles `PATCH` forwards a `qr_target_url` to drive
+  this regeneration.
+- **Every kit QR** points at
+  `speakanyway.com/classroom?utm_source=aac_kit&utm_medium=print&utm_campaign=classroom_kit&utm_content=<artifact>`
+  (bare `speakanyway.com`, per brand rules).
+- Reference: `.claude-notes/artifact-generation-services.md` (the reusable
+  engines) and `.claude-notes/classroom-kit-hosting-handoff.md` (end-to-end
+  pipeline + the printables side + the `KIT_DOWNLOAD_URL` swap).
+
 ## OBF/OBZ import — copyright policy
 
 Imports via `POST /api/boards/import_obf` are gated to avoid silently
