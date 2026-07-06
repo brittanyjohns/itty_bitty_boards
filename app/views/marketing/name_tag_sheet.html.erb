@@ -1,0 +1,137 @@
+<%# Generic AAC Classroom name-tag sheet — variant A (fillable, no per-child data).
+    N cards laid out 2-up across a Letter page. Mirrors the card in
+    .claude-notes/name-tag-asset-sketch.md. QR (shared) points at the /classroom
+    funnel; @qr_data_url is nil-safe (blank slot when no QR requested). %>
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html, body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        margin: 0;
+        padding: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: #1e293b;
+      }
+      @page { margin: 0; size: letter; }
+
+      .sheet {
+        box-sizing: border-box;
+        width: 100vw;
+        min-height: 100vh;
+        padding: 10mm;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-auto-rows: 1fr;
+        gap: 6mm;
+      }
+
+      .card {
+        box-sizing: border-box;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 14px;
+        background: #fff;
+        padding: 5mm 6mm;
+        display: flex;
+        flex-direction: column;
+        min-height: 40mm;
+      }
+
+      .brand-rule {
+        height: 6px;
+        border-radius: 6px;
+        background: linear-gradient(90deg, #8b5cf6, #6366f1, #3b82f6);
+        margin: -1mm -1mm 3mm;
+      }
+
+      .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .logo img { height: 8mm; display: block; }
+      .eyebrow {
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: #7c3aed;
+        font-size: 10pt;
+      }
+
+      .body {
+        flex: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 1.7fr) auto;
+        gap: 5mm;
+        align-items: center;
+      }
+      .name-line {
+        border-bottom: 2px solid #cbd5e1;
+        height: 12mm;
+      }
+      .tagline {
+        font-size: 10pt;
+        color: #475569;
+        margin-top: 3mm;
+      }
+      .qr { text-align: center; }
+      .qr img { width: 20mm; height: 20mm; display: block; }
+      .qr-blank {
+        width: 20mm; height: 20mm;
+        border: 1.5px dashed #cbd5e1; border-radius: 6px;
+      }
+      .qr-caption {
+        font-size: 8pt; font-weight: 800; color: #64748b;
+        text-transform: uppercase; letter-spacing: .06em; margin-top: 1.5mm;
+      }
+
+      .footer {
+        display: flex;
+        justify-content: space-between;
+        font-size: 8pt;
+        color: #94a3b8;
+        font-weight: 700;
+        margin-top: 3mm;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sheet">
+      <% @card_count.times do %>
+        <div class="card">
+          <div class="brand-rule"></div>
+          <div class="top">
+            <span class="logo">
+              <% if @logo.present? %>
+                <img src="data:image/png;base64,<%= @logo %>" alt="SpeakAnyWay" />
+              <% end %>
+            </span>
+            <span class="eyebrow">Hi! My name is</span>
+          </div>
+
+          <div class="body">
+            <div>
+              <div class="name-line"></div>
+              <div class="tagline">Here's how I communicate.</div>
+            </div>
+            <div class="qr">
+              <% if @qr_data_url.present? %>
+                <img src="<%= @qr_data_url %>" alt="Scan to learn more" />
+              <% else %>
+                <div class="qr-blank"></div>
+              <% end %>
+              <div class="qr-caption">Scan to meet me</div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <span>Powered by SpeakAnyWay</span>
+            <span>speakanyway.com</span>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </body>
+</html>

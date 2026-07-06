@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_25_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_06_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_trgm"
@@ -500,6 +500,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_25_120000) do
     t.index ["obf_id"], name: "index_images_on_obf_id"
     t.index ["use_custom_audio"], name: "index_images_on_use_custom_audio"
     t.index ["voice"], name: "index_images_on_voice"
+  end
+
+  create_table "marketing_assets", force: :cascade do |t|
+    t.string "slug", null: false
+    t.string "title"
+    t.string "kind", default: "kit", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["slug"], name: "index_marketing_assets_on_slug", unique: true
   end
 
   create_table "menus", force: :cascade do |t|

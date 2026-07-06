@@ -6,13 +6,30 @@ require "rqrcode"
 
 module Communicators
   class BaseAssetGenerator
-    attr_reader :profile
+    attr_reader :profile, :qr_target_url
 
-    def initialize(profile)
+    # qr_target_url overrides where the asset's QR code points. Default (nil)
+    # keeps the per-communicator behavior (QR -> profile.public_url). The AAC
+    # Classroom Kit passes the /classroom marketing URL so its sample tags drive
+    # leads instead of linking the sample MySpeak page.
+    def initialize(profile, qr_target_url: nil)
       @profile = profile
+      @qr_target_url = qr_target_url.presence
     end
 
     private
+
+    # Where the QR should point: the override when given, else the supplied
+    # fallback (normally profile.public_url).
+    def effective_qr_url(fallback)
+      qr_target_url || fallback
+    end
+
+    # Fold the QR override into the freshness signature so a differing QR target
+    # busts the attached-and-fresh cache and forces a re-render.
+    def asset_signature(base)
+      qr_target_url.present? ? "#{base}::qr=#{qr_target_url}" : base
+    end
 
     def rendered_html(template:, locals: {})
       ApplicationController.render(

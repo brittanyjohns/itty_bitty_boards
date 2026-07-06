@@ -5,6 +5,28 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — host the AAC Classroom Kit (free marketing lead magnet)
+- New `MarketingAsset` model + `POST /api/internal/marketing_assets` and
+  `GET /api/internal/marketing_assets/:slug` (behind `INTERNAL_API_KEY`) host a
+  print-ready marketing PDF (the assembled AAC Classroom Kit) at a stable public
+  slug. The file is attached at a deterministic S3 key
+  (`marketing_assets/<slug>.pdf`) with purge-then-reupload, so the public CDN
+  URL never changes across regenerations — the kit build is idempotent and the
+  URL is safe to drop into the `/classroom` page's `KIT_DOWNLOAD_URL`. Not a
+  sellable product; never published to any marketplace.
+- New `GET /api/internal/marketing_artifacts/name_tag.pdf` renders a generic,
+  fillable classroom name-tag sheet (variant A — no per-child data) N-up on a
+  Letter page via Grover, with a shared QR pointed at `qr_target_url`.
+- The per-communicator asset generators (`Communicators::GenerateSafetyIdCard` /
+  `GenerateDeviceTag`) now accept an optional `qr_target_url:` so the kit's
+  sample safety + device tags point their QR at the `/classroom` funnel instead
+  of the sample MySpeak page. Default behavior (QR → the profile's public page)
+  is unchanged. The internal profiles `PATCH` accepts a `qr_target_url` to drive
+  this regeneration.
+- New `bin/rails marketing:seed_kit_sample_profile` seeds one admin-owned,
+  clearly-generic sample safety profile so the kit renders realistic sample tags
+  without touching any real child's data (idempotent).
+
 ### Added — internal API endpoint to create a board from a curated vocab set
 - New `POST /api/internal/boards/from_vocab_set` (behind `INTERNAL_API_KEY`)
   clones the ROOT grid of a curated Board Builder vocab set (`core-60` /
