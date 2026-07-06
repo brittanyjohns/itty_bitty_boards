@@ -131,6 +131,58 @@ RSpec.describe "POST /api/stripe/checkout_sessions (subscription)", type: :reque
     end
   end
 
+  describe "server-side checkout_started analytics (itty_bitty_boards#452 / frontend #505)" do
+    before do
+      user.update!(stripe_customer_id: "cus_existing")
+      allow(Stripe::Checkout::Session).to receive(:create).and_return(OpenStruct.new(url: "https://stripe.test/x"))
+    end
+
+    it "captures checkout_started with plan/billing_interval/source/kind, using the base plan for a yearly key" do
+      expect(PosthogService).to receive(:capture_for_user).with(
+        an_object_having_attributes(id: user.id),
+        "checkout_started",
+        properties: {
+          plan: "pro",              # base plan, _yearly suffix stripped
+          billing_interval: "yearly",
+          kind: "subscription",
+          source: "pricing_page",
+        },
+      )
+
+      do_post.call({ plan_key: "pro_yearly", source: "pricing_page" })
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "defaults billing_interval to monthly and source to web_checkout when not provided" do
+      expect(PosthogService).to receive(:capture_for_user).with(
+        an_object_having_attributes(id: user.id),
+        "checkout_started",
+        properties: hash_including(plan: "basic", billing_interval: "monthly", source: "web_checkout"),
+      )
+
+      do_post.call({ plan_key: "basic" })
+    end
+
+    it "threads source + distinct_id into the Checkout Session (metadata + client_reference_id)" do
+      captured = nil
+      allow(Stripe::Checkout::Session).to receive(:create) do |params|
+        captured = params
+        OpenStruct.new(url: "https://stripe.test/x")
+      end
+
+      do_post.call({ plan_key: "basic", source: "onboarding" })
+
+      expect(captured[:client_reference_id]).to eq(user.id.to_s)
+      expect(captured[:metadata][:source]).to eq("onboarding")
+    end
+
+    it "does not fire checkout_started for the free-plan short-circuit" do
+      expect(PosthogService).not_to receive(:capture_for_user)
+      do_post.call({ plan_key: "free" })
+    end
+  end
+
   describe "payment_method_collection (no-card reverse trial / A-B arm)" do
     let(:captured) { {} }
 
