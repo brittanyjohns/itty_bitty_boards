@@ -236,6 +236,11 @@ module RevenueCat
           billing_interval: RevenueCat::PlanMapping.billing_interval_for_product(@event["product_id"]),
         }
       )
+      # Apple/IAP parity with the Stripe subscription-upsert path: enrol the new
+      # paid subscriber into the Mailchimp `subscription_started` Customer Journey.
+      # Fires from the single conversion seam (paid start or trial→paid), and the
+      # whole webhook is event-idempotency gated, so it can't double-send.
+      MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "subscription_started" })
     end
 
     # Free/intro trial began. Mirrors the Stripe trial_started analytics, but

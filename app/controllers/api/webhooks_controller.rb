@@ -427,6 +427,15 @@ class API::WebhooksController < API::ApplicationController
           source: "stripe_webhook",
         },
       )
+
+      # Marketing counterpart to the transactional plan welcome above: enrol the
+      # new subscriber into the Mailchimp `subscription_started` Customer Journey
+      # (the paid-tier "get the most out of your plan" nurture). Mirrors the Free
+      # dual-welcome (#293) — send_plan_welcome_email_once! is the receipt, this
+      # is the warm onboarding story. The transition guard already makes this
+      # fire once per conversion, so no extra dedupe is needed. No-ops until
+      # MAILCHIMP_JOURNEY_SUBSCRIPTION_STARTED_ID / _STEP are configured.
+      MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "subscription_started" })
     end
 
     # Optional: team seats logic if this is a team plan
