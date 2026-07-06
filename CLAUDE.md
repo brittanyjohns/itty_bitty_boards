@@ -1161,21 +1161,29 @@ which already depends on `pdf-lib`.
     → upsert + host → `{ slug, title, kind, url }` (`201`). The printables
     marketing-kit script POSTs the merged kit here to get the public URL.
   - `GET /api/internal/marketing_assets/:slug` → `{ ..., url }` or `404`.
-  - `GET /api/internal/marketing_artifacts/name_tag.pdf?qr_target_url=&per_page=`
-    → streams the generic classroom name-tag sheet (`Marketing::NameTagSheet`,
-    Grover HTML→PDF, template `app/views/marketing/name_tag_sheet.html.erb`).
-    Variant A from `.claude-notes/name-tag-asset-sketch.md` — fillable, no
-    per-child data, N-up on Letter.
-- **Generic safety/device tags reuse a dedicated sample Profile.**
-  `bin/rails marketing:seed_kit_sample_profile` seeds one admin-owned,
-  clearly-generic safety `Profile` ("SpeakAnyWay Sample"). The kit renders its
-  tags through the existing `Communicators::GenerateSafetyIdCard` /
-  `GenerateDeviceTag`, which now take an optional **`qr_target_url:`** (threaded
-  through `BaseAssetGenerator`, folded into the freshness signature) so the kit
-  tags' QR points at the `/classroom` funnel instead of the sample MySpeak page.
-  The default (QR → `profile.public_url`) is unchanged for every real
-  communicator. The internal profiles `PATCH` forwards a `qr_target_url` to drive
-  this regeneration.
+  - `GET /api/internal/marketing_artifacts/{name_tag,safety_tag,device_tag}.pdf?qr_target_url=&per_page=`
+    → stream the generic classroom sheets (`Marketing::NameTagSheet` /
+    `SafetyTagSheet` / `DeviceTagSheet`, Grover HTML→PDF, templates under
+    `app/views/marketing/`, shared helpers in `Marketing::SheetRendering`). All
+    are fillable, no per-child data, laid N-up on a single **Letter** page with
+    cut lines.
+- **The kit's safety + device tags are compact, print-and-cut backpack tags.**
+  `SafetyTagSheet` (a "Communication ID" tag: photo circle, fillable name,
+  "I use a device to communicate", QR) and `DeviceTagSheet` ("This device is my
+  voice", QR) render generic, fixed-physical-size tags **2-up on Letter** — not
+  the app's detailed Profile safety card. This was a deliberate change: the app's
+  `Communicators::GenerateSafetyIdCard` renders a full-page 1200×1800 card that
+  **overflowed onto a 2nd page** when exported (taller than A4) and is too big
+  for a backpack tag. The kit tags no longer depend on a sample Profile.
+  - **The app's Profile-driven safety/device cards are unchanged**, including the
+    optional `qr_target_url:` override on `GenerateSafetyIdCard`/`GenerateDeviceTag`
+    (still available; just no longer used by the kit). The
+    `marketing:seed_kit_sample_profile` rake also remains but is no longer needed
+    for the kit.
+  - **Known follow-up:** `Communicators::BaseAssetGenerator#generate_pdf_from_html`
+    still uses `format: "A4"`, so a real user's downloaded safety-card PDF can
+    overflow to 2 pages. Not fixed here (out of scope for the kit change) — a
+    separate fix would size the page to the card.
 - **Every kit QR** points at
   `speakanyway.com/classroom?utm_source=aac_kit&utm_medium=print&utm_campaign=classroom_kit&utm_content=<artifact>`
   (bare `speakanyway.com`, per brand rules).

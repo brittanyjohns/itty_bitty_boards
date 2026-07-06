@@ -421,6 +421,12 @@ Rails.application.routes.draw do
       get "marketing_artifacts/name_tag",
           to: "marketing_artifacts#name_tag",
           defaults: { format: :pdf }
+      get "marketing_artifacts/safety_tag",
+          to: "marketing_artifacts#safety_tag",
+          defaults: { format: :pdf }
+      get "marketing_artifacts/device_tag",
+          to: "marketing_artifacts#device_tag",
+          defaults: { format: :pdf }
     end
 
     namespace :v1 do
