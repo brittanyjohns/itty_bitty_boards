@@ -25,6 +25,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - The marketing tag/name-tag sheets get a slim "print at 100% · cut along the
   dashed lines" hint strip and a unified brand gradient.
 
+### Fixed — kit tag QR codes were too dense to scan
+- The Communication ID (safety), device, and name-tag sheet QRs **didn't
+  register as QR codes on phones at all**: rqrcode's default ECC level (`:h`)
+  turned the ~119-char `/classroom` UTM URL into a 57-module QR, which at the
+  tags' printed sizes was ~0.31–0.45mm per module — below the ~0.5mm
+  phone-camera detection floor. (The board poster QR scanned fine because its
+  `/pb/<slug>` payload is much shorter.) Fixed by encoding at ECC `:l`
+  (41 modules — a clean printed lead magnet doesn't need 30% damage
+  redundancy), rendering a 480px print-resolution source PNG, and enlarging
+  the printed QR boxes (safety 0.92→1.15in, device 1.15→1.3in, name tag
+  20→26mm), putting every tag at ~0.53–0.67mm per module. Verified by
+  rasterizing the rendered sheets and machine-decoding: before, no QR decoded
+  below 150dpi; after, all three decode at 72dpi. Regression spec pins the
+  ECC level + source size.
+
 ### Added — compact backpack safety + device tags for the AAC Classroom Kit
 - New `GET /api/internal/marketing_artifacts/safety_tag.pdf` and
   `.../device_tag.pdf` render generic, print-and-cut **backpack ID tags**

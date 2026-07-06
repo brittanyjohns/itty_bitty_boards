@@ -20,7 +20,11 @@
       .sheet {
         box-sizing: border-box;
         width: 100vw;
-        min-height: 100vh;
+        /* Definite one-page height so the 1fr card rows divide the REMAINING
+           space after the hint row — with min-height the fr rows size to
+           content and the sheet spills onto a second page. */
+        height: 100vh;
+        overflow: hidden;
         padding: 10mm;
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -90,9 +94,11 @@
         margin-top: 3mm;
       }
       .qr { text-align: center; }
-      .qr img { width: 20mm; height: 20mm; display: block; }
+      /* 26mm keeps the 41-module (ECC :l) QR at ~0.53mm per printed module —
+         above the ~0.5mm phone-camera detection floor. Don't shrink this. */
+      .qr img { width: 26mm; height: 26mm; display: block; }
       .qr-blank {
-        width: 20mm; height: 20mm;
+        width: 26mm; height: 26mm;
         border: 1.5px dashed #cbd5e1; border-radius: 6px;
       }
       .qr-caption {
@@ -112,6 +118,7 @@
   </head>
   <body>
     <div class="sheet">
+      <div class="cut-hint">&#9986; Print at 100% (actual size) &middot; cut along the card outlines</div>
       <% @card_count.times do %>
         <div class="card">
           <div class="brand-rule"></div>
