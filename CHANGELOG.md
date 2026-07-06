@@ -5,6 +5,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — compact backpack safety + device tags for the AAC Classroom Kit
+- New `GET /api/internal/marketing_artifacts/safety_tag.pdf` and
+  `.../device_tag.pdf` render generic, print-and-cut **backpack ID tags**
+  (`Marketing::SafetyTagSheet` / `Marketing::DeviceTagSheet`) — compact,
+  fixed physical size, laid 2-up on a single Letter page with cut lines, QR to
+  the `/classroom` funnel. These replace the kit's previous use of the app's
+  detailed Profile safety card, which is a full page and overflowed onto a
+  second page when exported (the card canvas is taller than A4). The kit's tags
+  no longer depend on a sample Profile. The app's Profile-driven safety card
+  (`Communicators::GenerateSafetyIdCard`) is unchanged.
+
 ### Added — host the AAC Classroom Kit (free marketing lead magnet)
 - New `MarketingAsset` model + `POST /api/internal/marketing_assets` and
   `GET /api/internal/marketing_assets/:slug` (behind `INTERNAL_API_KEY`) host a

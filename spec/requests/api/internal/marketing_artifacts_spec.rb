@@ -35,4 +35,47 @@ RSpec.describe "API::Internal::MarketingArtifacts", type: :request do
       expect(response.body).to start_with("%PDF")
     end
   end
+
+  describe "GET /api/internal/marketing_artifacts/safety_tag.pdf" do
+    it "returns 401 without a valid bearer token" do
+      get "/api/internal/marketing_artifacts/safety_tag.pdf"
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "streams a compact safety-tag sheet PDF pointing the QR at the given target" do
+      expect(Marketing::SafetyTagSheet).to receive(:new).with(
+        hash_including(qr_target_url: "https://speakanyway.com/classroom?utm_content=safety_tag"),
+      ).and_call_original
+
+      get "/api/internal/marketing_artifacts/safety_tag.pdf",
+          params: { qr_target_url: "https://speakanyway.com/classroom?utm_content=safety_tag" },
+          headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      expect(response.content_type).to start_with("application/pdf")
+      expect(response.headers["Content-Disposition"]).to include("attachment")
+      expect(response.body).to start_with("%PDF")
+    end
+  end
+
+  describe "GET /api/internal/marketing_artifacts/device_tag.pdf" do
+    it "returns 401 without a valid bearer token" do
+      get "/api/internal/marketing_artifacts/device_tag.pdf"
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "streams a compact device-tag sheet PDF pointing the QR at the given target" do
+      expect(Marketing::DeviceTagSheet).to receive(:new).with(
+        hash_including(qr_target_url: "https://speakanyway.com/classroom?utm_content=device_tag"),
+      ).and_call_original
+
+      get "/api/internal/marketing_artifacts/device_tag.pdf",
+          params: { qr_target_url: "https://speakanyway.com/classroom?utm_content=device_tag" },
+          headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      expect(response.content_type).to start_with("application/pdf")
+      expect(response.body).to start_with("%PDF")
+    end
+  end
 end
