@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — reliable server-side `checkout_started` analytics
+- Fire a server-side PostHog `checkout_started` when a Stripe Checkout Session
+  is created (subscription + top-up), keyed to the user's distinct_id
+  (itty_bitty_boards#452 / frontend #505). The browser event was routinely
+  dropped when the page unloads to Stripe before PostHog flushes, so the
+  `CTA → checkout_started → checkout_completed` funnel read zero; the reliable
+  capture is now on the backend. Carries `plan` / `billing_interval` / `source`
+  / `kind`, and threads `client_reference_id = user.id` + `source` into the
+  Checkout Session so Stripe-originated events attribute to the same person.
+  Instrumentation only — no user-facing behavior change.
 ### Added — compact backpack safety + device tags for the AAC Classroom Kit
 - New `GET /api/internal/marketing_artifacts/safety_tag.pdf` and
   `.../device_tag.pdf` render generic, print-and-cut **backpack ID tags**

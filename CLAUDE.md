@@ -356,8 +356,22 @@ PostHog events; the backend ensures the full funnel is always captured
 - **`user_signed_in`** `{ plan_type }` — on successful password login
   (`#create`). Same ad-blocker-resilience rationale.
 
-**Subscription lifecycle events** — fired from `API::WebhooksController`:
+**Subscription lifecycle events** — fired from `API::WebhooksController`
+(unless noted):
 
+- **`checkout_started`** `{ plan, billing_interval, kind, source }` (subscription)
+  / `{ plan, kind, pack_key, source }` (topup) — fired from
+  `API::Stripe::CheckoutSessionsController#create` / `#topup` when a Stripe
+  Checkout Session is **created** (itty_bitty_boards#452 / frontend #505). The
+  frontend fires this too, but it's routinely dropped when the page unloads to
+  Stripe before PostHog's batch flushes — so this server-side capture is the
+  reliable one; the client event stays a best-effort earlier signal. `plan` is
+  the base tier (`pro_yearly` → `pro`) with a separate `billing_interval` to
+  match the frontend + `subscription_started` shape; `kind` is `"subscription"`
+  or `"topup"` (mirroring `checkout_completed`); `source` is the CTA/page the
+  frontend threads through (`params[:source]`, default `"web_checkout"`). Both
+  checkout paths also set the Session's `client_reference_id = user.id` and add
+  `source` to metadata so Stripe-originated events attribute to the same person.
 - **`checkout_completed`** `{ plan, kind, amount_total, currency, source }` —
   on `checkout.session.completed`, the **authoritative** purchase-completion
   event (fires even if the user never returns to the success page; the frontend
