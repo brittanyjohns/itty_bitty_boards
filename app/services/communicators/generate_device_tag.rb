@@ -4,12 +4,12 @@ module Communicators
     PNG_WIDTH = 1200
     PNG_HEIGHT = 700
 
-    def self.call(profile, regenerate: false)
-      new(profile).call(regenerate: regenerate)
+    def self.call(profile, regenerate: false, qr_target_url: nil)
+      new(profile, qr_target_url: qr_target_url).call(regenerate: regenerate)
     end
 
     def call(regenerate: false)
-      signature = profile.safety_info_signature
+      signature = asset_signature(profile.safety_info_signature)
 
       unless regenerate
         if attached_and_fresh?(:device_tag_png, signature: signature) &&
@@ -57,7 +57,7 @@ module Communicators
         profile: profile,
         avatar_data_url: avatar_data_url,
         logo: logo_base64,
-        qr_data_url: qr_data_url_for(profile.public_url),
+        qr_data_url: qr_data_url_for(effective_qr_url(profile.public_url)),
         display_name: profile.device_tag_display_name,
         device_notes: settings["device_notes"].presence || "This device is my voice. Please use it to help me communicate and access important information in any situation.",
         primary_contact_name: primary_contact["name"].presence || "Emergency Contact",

@@ -40,6 +40,32 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
     end
   end
 
+  # POST /api/internal/boards/from_vocab_set
+  #
+  # Clone the ROOT board of a curated Board Builder vocab set (core-60 /
+  # core-84) into a fresh admin-owned board the caller can immediately export
+  # to PDF. v1 clones only the root grid (the poster surface), not the linked
+  # fringe tree. 404s (not 500s) when the requested set isn't seeded here.
+  def from_vocab_set
+    root = Boards::RobustSets.find_root(params[:slug])
+
+    if root.nil?
+      render json: { error: "vocab_set_not_seeded", slug: params[:slug] }, status: :not_found
+      return
+    end
+
+    board = root.clone_with_images(current_user.id, params[:name].presence || root.name)
+
+    unless board&.persisted?
+      render json: { error: "clone_failed", slug: params[:slug] }, status: :unprocessable_content
+      return
+    end
+
+    finalize_cloned_vocab_board!(board)
+
+    render json: board.api_view_with_images(current_user), status: :created
+  end
+
   def show
     @board = Board.find(params[:id])
     render json: @board.api_view_with_images(current_user)
@@ -114,6 +140,25 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
   end
 
   private
+
+  # The clone inherits the seed root's settings via `dup`, which would carry
+  # the robust-set markers and make it look like a *second* seeded root for the
+  # slug (polluting Boards::RobustSets.find_root / the wizard catalog). Strip
+  # them, then apply any caller-supplied tags/settings. Always saves — removing
+  # the markers is itself a change.
+  def finalize_cloned_vocab_board!(board)
+    settings = board.settings || {}
+    settings.delete(Boards::RobustSets::ROOT_MARKER)
+    settings.delete(Boards::RobustSets::SLUG_MARKER)
+    settings = settings.merge(params[:settings].to_unsafe_h) if params[:settings].present?
+    board.settings = settings
+
+    if params[:tags].present?
+      board.tags = Array(params[:tags]).select { |t| t.is_a?(String) && t.present? }
+    end
+
+    board.save
+  end
 
   def enqueue_generation_job!(creation_type)
     word_count = (params[:wordCount].presence || params[:word_count].presence || 12).to_i

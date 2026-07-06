@@ -10,7 +10,7 @@ class API::Internal::ProfilesController < API::Internal::ApplicationController
 
     if @profile.update(profile_params)
       @profile.enqueue_audio_job_if_needed
-      @profile.generate_attachments! if @profile.safety?
+      regenerate_safety_assets! if @profile.safety?
       render json: response_payload
     else
       Rails.logger.debug("[Internal::Profiles#update] errors=#{@profile.errors.full_messages}")
@@ -28,6 +28,21 @@ class API::Internal::ProfilesController < API::Internal::ApplicationController
     @profile ||= Profile.find_by(slug: params[:id])
 
     render json: { error: "Profile not found" }, status: :not_found unless @profile
+  end
+
+  # Regenerate the safety/device assets. When the caller passes qr_target_url
+  # (the AAC Classroom Kit points the sample tags at /classroom), render both
+  # assets with that QR override and force a re-render; otherwise keep the
+  # default per-communicator behavior (QR -> the profile's public page).
+  def regenerate_safety_assets!
+    qr_target_url = params.dig(:profile, :qr_target_url).presence || params[:qr_target_url].presence
+
+    if qr_target_url
+      Communicators::GenerateSafetyIdCard.call(@profile, regenerate: true, qr_target_url: qr_target_url)
+      Communicators::GenerateDeviceTag.call(@profile, regenerate: true, qr_target_url: qr_target_url)
+    else
+      @profile.generate_attachments!
+    end
   end
 
   def apply_rich_text_fields

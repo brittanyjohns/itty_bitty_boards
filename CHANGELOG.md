@@ -15,6 +15,48 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   / `kind`, and threads `client_reference_id = user.id` + `source` into the
   Checkout Session so Stripe-originated events attribute to the same person.
   Instrumentation only — no user-facing behavior change.
+### Added — compact backpack safety + device tags for the AAC Classroom Kit
+- New `GET /api/internal/marketing_artifacts/safety_tag.pdf` and
+  `.../device_tag.pdf` render generic, print-and-cut **backpack ID tags**
+  (`Marketing::SafetyTagSheet` / `Marketing::DeviceTagSheet`) — compact,
+  fixed physical size, laid 2-up on a single Letter page with cut lines, QR to
+  the `/classroom` funnel. These replace the kit's previous use of the app's
+  detailed Profile safety card, which is a full page and overflowed onto a
+  second page when exported (the card canvas is taller than A4). The kit's tags
+  no longer depend on a sample Profile. The app's Profile-driven safety card
+  (`Communicators::GenerateSafetyIdCard`) is unchanged.
+
+### Added — host the AAC Classroom Kit (free marketing lead magnet)
+- New `MarketingAsset` model + `POST /api/internal/marketing_assets` and
+  `GET /api/internal/marketing_assets/:slug` (behind `INTERNAL_API_KEY`) host a
+  print-ready marketing PDF (the assembled AAC Classroom Kit) at a stable public
+  slug. The file is attached at a deterministic S3 key
+  (`marketing_assets/<slug>.pdf`) with purge-then-reupload, so the public CDN
+  URL never changes across regenerations — the kit build is idempotent and the
+  URL is safe to drop into the `/classroom` page's `KIT_DOWNLOAD_URL`. Not a
+  sellable product; never published to any marketplace.
+- New `GET /api/internal/marketing_artifacts/name_tag.pdf` renders a generic,
+  fillable classroom name-tag sheet (variant A — no per-child data) N-up on a
+  Letter page via Grover, with a shared QR pointed at `qr_target_url`.
+- The per-communicator asset generators (`Communicators::GenerateSafetyIdCard` /
+  `GenerateDeviceTag`) now accept an optional `qr_target_url:` so the kit's
+  sample safety + device tags point their QR at the `/classroom` funnel instead
+  of the sample MySpeak page. Default behavior (QR → the profile's public page)
+  is unchanged. The internal profiles `PATCH` accepts a `qr_target_url` to drive
+  this regeneration.
+- New `bin/rails marketing:seed_kit_sample_profile` seeds one admin-owned,
+  clearly-generic sample safety profile so the kit renders realistic sample tags
+  without touching any real child's data (idempotent).
+
+### Added — internal API endpoint to create a board from a curated vocab set
+- New `POST /api/internal/boards/from_vocab_set` (behind `INTERNAL_API_KEY`)
+  clones the ROOT grid of a curated Board Builder vocab set (`core-60` /
+  `core-84`) into a fresh admin-owned board and returns it as JSON (`201`), so an
+  internal caller (the printables marketing generator) can source a poster from
+  vetted core vocabulary and immediately export it to PDF. v1 clones only the
+  root grid, not the linked fringe tree. Returns `404 vocab_set_not_seeded` when
+  the requested set isn't seeded in the environment (no `500`). Additive — no
+  migration, no new ENV var, and `create`/`update`/`show`/`export` are unchanged.
 
 ### Added — new-subscriber onboarding email when a paid plan starts
 - New Mailchimp `subscription_started` Customer Journey fires when a user

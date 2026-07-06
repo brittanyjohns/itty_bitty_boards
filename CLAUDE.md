@@ -1152,6 +1152,59 @@ placeholder grid when `AppEnv.staging?` — no paid OpenAI call, no real credits
 burned — mirroring the image-generation placeholder short-circuit. (The vision
 call is **not** gated in real production.)
 
+## Marketing assets — AAC Classroom Kit hosting
+
+The AAC Classroom Kit is a **free marketing lead magnet** (a bundled print-ready
+PDF for the `/classroom` landing page) — **not** a sellable product and never
+published to any marketplace. The backend's job is to *host* the assembled kit
+PDF at a stable public URL and to render/source the individual artifacts;
+assembly (merging the per-artifact PDFs) happens in the **printables** repo,
+which already depends on `pdf-lib`.
+
+- **`MarketingAsset` (`app/models/marketing_asset.rb`) hosts a PDF at a stable
+  slug.** `has_one_attached :file` written at a **deterministic** S3 key
+  (`marketing_assets/<slug>.pdf`) via purge-then-reupload — the same
+  stable-key pattern as `Boards::GeneratePreviewAssets#stable_preview_key`.
+  Production S3 is `public: true`, so `#file_url` (CDN_HOST + key, `file.url`
+  fallback) is a permanent, unsigned CDN URL that **never changes across
+  regenerations**. `MarketingAsset.upsert_pdf!(slug:, bytes:, title:, kind:)` is
+  idempotent — re-running the kit build overwrites in place, so the
+  `KIT_DOWNLOAD_URL` is safe to hardcode on the frontend.
+- **Endpoints (behind `INTERNAL_API_KEY`, `namespace :internal`):**
+  - `POST /api/internal/marketing_assets` `{ slug, file(multipart PDF), title?, kind? }`
+    → upsert + host → `{ slug, title, kind, url }` (`201`). The printables
+    marketing-kit script POSTs the merged kit here to get the public URL.
+  - `GET /api/internal/marketing_assets/:slug` → `{ ..., url }` or `404`.
+  - `GET /api/internal/marketing_artifacts/{name_tag,safety_tag,device_tag}.pdf?qr_target_url=&per_page=`
+    → stream the generic classroom sheets (`Marketing::NameTagSheet` /
+    `SafetyTagSheet` / `DeviceTagSheet`, Grover HTML→PDF, templates under
+    `app/views/marketing/`, shared helpers in `Marketing::SheetRendering`). All
+    are fillable, no per-child data, laid N-up on a single **Letter** page with
+    cut lines.
+- **The kit's safety + device tags are compact, print-and-cut backpack tags.**
+  `SafetyTagSheet` (a "Communication ID" tag: photo circle, fillable name,
+  "I use a device to communicate", QR) and `DeviceTagSheet` ("This device is my
+  voice", QR) render generic, fixed-physical-size tags **2-up on Letter** — not
+  the app's detailed Profile safety card. This was a deliberate change: the app's
+  `Communicators::GenerateSafetyIdCard` renders a full-page 1200×1800 card that
+  **overflowed onto a 2nd page** when exported (taller than A4) and is too big
+  for a backpack tag. The kit tags no longer depend on a sample Profile.
+  - **The app's Profile-driven safety/device cards are unchanged**, including the
+    optional `qr_target_url:` override on `GenerateSafetyIdCard`/`GenerateDeviceTag`
+    (still available; just no longer used by the kit). The
+    `marketing:seed_kit_sample_profile` rake also remains but is no longer needed
+    for the kit.
+  - **Known follow-up:** `Communicators::BaseAssetGenerator#generate_pdf_from_html`
+    still uses `format: "A4"`, so a real user's downloaded safety-card PDF can
+    overflow to 2 pages. Not fixed here (out of scope for the kit change) — a
+    separate fix would size the page to the card.
+- **Every kit QR** points at
+  `speakanyway.com/classroom?utm_source=aac_kit&utm_medium=print&utm_campaign=classroom_kit&utm_content=<artifact>`
+  (bare `speakanyway.com`, per brand rules).
+- Reference: `.claude-notes/artifact-generation-services.md` (the reusable
+  engines) and `.claude-notes/classroom-kit-hosting-handoff.md` (end-to-end
+  pipeline + the printables side + the `KIT_DOWNLOAD_URL` swap).
+
 ## OBF/OBZ import — copyright policy
 
 Imports via `POST /api/boards/import_obf` are gated to avoid silently

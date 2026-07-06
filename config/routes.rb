@@ -394,6 +394,9 @@ Rails.application.routes.draw do
 
     namespace :internal do
       resources :boards, only: [:create, :update, :show] do
+        collection do
+          post :from_vocab_set
+        end
         member do
           get :export, action: :export_pdf, defaults: { format: :pdf }
         end
@@ -410,6 +413,20 @@ Rails.application.routes.draw do
         end
       end
       resources :profiles, only: [:show, :update]
+
+      # Hosted marketing PDFs (AAC Classroom Kit) addressed by a stable slug.
+      resources :marketing_assets, only: [:create, :show], param: :slug
+
+      # Generic (data-less) marketing printables rendered on demand.
+      get "marketing_artifacts/name_tag",
+          to: "marketing_artifacts#name_tag",
+          defaults: { format: :pdf }
+      get "marketing_artifacts/safety_tag",
+          to: "marketing_artifacts#safety_tag",
+          defaults: { format: :pdf }
+      get "marketing_artifacts/device_tag",
+          to: "marketing_artifacts#device_tag",
+          defaults: { format: :pdf }
     end
 
     namespace :v1 do
