@@ -1,0 +1,254 @@
+<%# Marketing-only variant of layouts/pdf.html.erb, selected by the internal
+    export_pdf endpoint's opt-in `style=marketing` param (AAC Classroom Kit).
+    Deliberately a COPY, not a refactor: the shared `pdf` layout backs real
+    users' board exports and must stay byte-identical, so the marketing skin
+    lives entirely in this separate pair (see print_marketing.html.erb).
+    Brand palette mirrors the marketing tag sheets (app/views/marketing/*). %>
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Board PDF</title>
+
+    <style>
+      html, body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        color: #1e293b;
+      }
+
+      @page {
+        margin: 0;
+        size: <%= @landscape ? "letter landscape" : "letter" %>;
+      }
+
+      .page {
+        box-sizing: border-box;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        padding: 3mm;
+
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 2mm;
+      }
+
+      /* ── Branded header band ─────────────────────────────────────────── */
+      .header {
+        min-height: 0;
+        background: linear-gradient(90deg, #7c3aed, #6366f1, #3b82f6);
+        border-radius: 2.5mm;
+        color: #fff;
+      }
+
+      .header-inner {
+        display: grid;
+        grid-template-columns: 12mm minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 6mm;
+        width: 100%;
+        padding: 2mm 3mm;
+        box-sizing: border-box;
+      }
+
+      .logo {
+        width: 12mm;
+      }
+
+      .logo img {
+        display: block;
+        max-width: 12mm;
+        height: auto;
+        object-fit: contain;
+        filter: brightness(0) invert(1);
+      }
+
+      .header-copy {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .board-title {
+        font-size: 18pt;
+        color: #fff;
+        margin: 0;
+        font-weight: 800;
+        line-height: 1.1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+      }
+
+      .board-subtitle {
+        font-size: 8pt;
+        color: rgba(255, 255, 255, 0.85);
+        margin: 1mm 0 0;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .board-link {
+        font-size: 8pt;
+        color: rgba(255, 255, 255, 0.9);
+        padding-top: 1mm;
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .board-link a {
+        color: #fff;
+        font-weight: bold;
+        text-decoration: none;
+        word-break: break-all;
+        overflow-wrap: anywhere;
+      }
+
+      .qr-chip {
+        background: #fff;
+        border-radius: 1.5mm;
+        padding: 1mm;
+      }
+
+      .qr-chip img {
+        width: 0.72in;
+        height: 0.72in;
+        display: block;
+      }
+
+      /* ── Board grid (kept in lockstep with the shared layout) ────────── */
+      .board-wrap {
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+      }
+
+      .board-sizer {
+        flex: 0 0 auto;
+        max-width: 100%;
+        max-height: 100%;
+      }
+
+      .board-grid {
+        display: grid;
+        width: 100%;
+        height: 100%;
+        gap: 2pt;
+      }
+
+      .tile {
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+
+        position: relative;
+        border: 2pt solid #e2e8f0;
+        border-radius: 6pt;
+        background: #fff;
+
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+        box-sizing: border-box;
+      }
+
+      .tile-media {
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .tile img {
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        object-fit: contain;
+        display: block;
+      }
+
+      .tile-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        padding: 2pt;
+        text-align: center;
+        color: #aaa;
+        font-size: 9pt;
+        line-height: 1.1;
+        box-sizing: border-box;
+      }
+
+      .label {
+        font-size: 9pt;
+        text-align: center;
+        padding: 1pt 2pt;
+        line-height: 1.1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        background: #f7f7f7;
+        box-sizing: border-box;
+      }
+
+      .green  { background-color: #b7f399; }
+      .yellow { background-color: #fdec00; }
+      .red    { background-color: #ff6464; }
+      .blue   { background-color: #81d9ff; }
+      .purple { background-color: #cb91eb; }
+      .orange { background-color: #ffc463; }
+      .black  { background-color: #000000d9; color: white; }
+      .white  { background-color: #ffffffd9; }
+      .gray   { background-color: #808080d9; }
+      .pink   { background-color: #ffc0e4; }
+      .teal   { background-color: #18ddda; }
+
+      /* ── Footer strip ────────────────────────────────────────────────── */
+      .marketing-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1mm 2mm;
+        border-top: 1px solid #e8eef6;
+        font-size: 7.5pt;
+        color: #94a3b8;
+        font-weight: 700;
+      }
+
+      .marketing-footer .cta {
+        color: #7c3aed;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="page">
+      <%= yield %>
+    </div>
+  </body>
+</html>

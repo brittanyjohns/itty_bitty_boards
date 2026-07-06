@@ -1,5 +1,16 @@
 class API::Internal::BoardsController < API::Internal::ApplicationController
+  # Tag that marks a board as an internal marketing artifact (set by the
+  # printables marketing-kit script). Only boards carrying it are eligible
+  # for replace-by-slug below.
+  MARKETING_TAG = "marketing".freeze
+
   def create
+    # Opt-in stable-slug semantics for marketing artifacts: free up the exact
+    # requested slug by destroying the previous kit board that held it, so the
+    # printed QR target (/pb/<slug>) survives kit regenerations and scratch
+    # boards don't accumulate.
+    claim_marketing_slug!(board_params[:slug]) if replace_existing_slug?
+
     @board = Board.new(board_params)
     @board.user = current_user
 
@@ -61,6 +72,11 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
       return
     end
 
+    # `params[:slug]` is the VOCAB SET slug; the new board's slug rides
+    # `params[:board_slug]`. Claim it only after the clone persisted, so a
+    # failed clone never destroys the live QR target.
+    claim_marketing_slug!(params[:board_slug]) if replace_existing_slug? && params[:board_slug].present?
+
     finalize_cloned_vocab_board!(board)
 
     render json: board.api_view_with_images(current_user), status: :created
@@ -90,9 +106,15 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
 
     render_data.each { |k, v| instance_variable_set("@#{k}", v) }
 
+    # Opt-in marketing skin for the AAC Classroom Kit. The default template +
+    # layout are shared with real users' board exports and must stay
+    # byte-identical when the param is absent — the marketing variant is a
+    # separate template/layout pair, never a conditional inside the shared one.
+    marketing_style = params[:style] == "marketing"
+
     html = render_to_string(
-      template: "api/boards/print",
-      layout: "pdf",
+      template: marketing_style ? "api/boards/print_marketing" : "api/boards/print",
+      layout: marketing_style ? "pdf_marketing" : "pdf",
       formats: [:html],
     )
 
@@ -157,7 +179,33 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
       board.tags = Array(params[:tags]).select { |t| t.is_a?(String) && t.present? }
     end
 
+    if params[:board_slug].present?
+      board.slug = board.generate_unique_slug(params[:board_slug])
+    end
+
     board.save
+  end
+
+  def replace_existing_slug?
+    ActiveModel::Type::Boolean.new.cast(params[:replace_existing_slug])
+  end
+
+  # Destroy the previous board occupying `slug` so the fresh build can take the
+  # exact same one. Tightly scoped: only a board owned by the internal-API
+  # admin AND tagged "marketing" is eligible. Anything else stays untouched —
+  # generate_unique_slug then suffixes the new board's slug instead of
+  # clobbering, and we log so the kit script's slug mismatch is explainable.
+  def claim_marketing_slug!(requested_slug)
+    slug = Board.create_slug(requested_slug.to_s)
+    return if slug.blank?
+
+    existing = Board.where(user_id: current_user.id, slug: slug).with_all_tags([MARKETING_TAG]).first
+    if existing
+      Rails.logger.info "[internal boards] replace_existing_slug: destroying marketing board #{existing.id} (#{existing.slug})"
+      existing.destroy
+    elsif Board.exists?(slug: slug)
+      Rails.logger.warn "[internal boards] replace_existing_slug: slug #{slug.inspect} is held by a non-marketing board — leaving it; the new board will get a suffixed slug"
+    end
   end
 
   def enqueue_generation_job!(creation_type)

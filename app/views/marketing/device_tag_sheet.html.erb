@@ -22,6 +22,15 @@
         gap: 0.35in;
       }
 
+      .cut-hint {
+        text-align: center;
+        font-size: 8pt;
+        font-weight: 700;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+        color: #94a3b8;
+      }
+
       .tag {
         box-sizing: border-box;
         width: 4.6in; height: 2.5in;
@@ -41,8 +50,10 @@
       .headline { font-size: 15pt; font-weight: 900; color: #0f172a; line-height: 1.05; margin: 0.03in 0; }
       .sub { font-size: 9pt; color: #475569; line-height: 1.25; }
       .qr { text-align: center; }
-      .qr img { width: 1.15in; height: 1.15in; display: block; }
-      .qr-blank { width: 1.15in; height: 1.15in; border: 1.5px dashed #cbd5e1; border-radius: 0.06in; }
+      /* 1.3in keeps the 41-module (ECC :l) QR at ~0.67mm per printed module —
+         comfortably above the ~0.5mm phone-camera detection floor. */
+      .qr img { width: 1.3in; height: 1.3in; display: block; }
+      .qr-blank { width: 1.3in; height: 1.3in; border: 1.5px dashed #cbd5e1; border-radius: 0.06in; }
       .qr .cap { font-size: 6.5pt; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .05em; margin-top: 0.02in; }
       .footer { display: flex; align-items: center; justify-content: space-between; padding: 0.05in 0.16in; background: #f8fafc; border-top: 1px solid #e8eef6; font-size: 7pt; font-weight: 700; color: #94a3b8; }
       .footer .logo img { height: 0.16in; display: block; }
@@ -50,6 +61,7 @@
   </head>
   <body>
     <div class="sheet">
+      <div class="cut-hint">&#9986; Print at 100% (actual size) &middot; cut along the dashed lines</div>
       <% @card_count.times do %>
         <div class="tag">
           <div class="inner">

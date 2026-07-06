@@ -5,6 +5,41 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — stable slugs + marketing print style for the AAC Classroom Kit
+- The internal boards API (`POST /api/internal/boards` and
+  `POST /api/internal/boards/from_vocab_set`) gains opt-in
+  **`replace_existing_slug`** semantics: when set, a previous board holding the
+  requested slug is destroyed and the new board takes the exact slug — but only
+  when the previous board is owned by the internal admin **and** tagged
+  `marketing`. Anything else is left alone (the new board gets a suffixed slug
+  instead). `from_vocab_set` accepts the new-board slug as **`board_slug`**
+  (`slug` there is the vocab-set key). This keeps the printed kit's QR targets
+  (`/pb/<slug>`) stable across kit regenerations and stops `MKT —` scratch
+  boards accumulating.
+- The internal board PDF export (`GET /api/internal/boards/:id/export.pdf`)
+  gains an opt-in **`style=marketing`** param that renders a marketing-branded
+  template/layout pair (`api/boards/print_marketing` + `pdf_marketing`):
+  gradient header band, white QR chip, footer CTA. **The default (no param) is
+  byte-identical to before** — the shared `print`/`pdf` pair used for real
+  users' board exports is untouched (spec-guarded).
+- The marketing tag/name-tag sheets get a slim "print at 100% · cut along the
+  dashed lines" hint strip and a unified brand gradient.
+
+### Fixed — kit tag QR codes were too dense to scan
+- The Communication ID (safety), device, and name-tag sheet QRs **didn't
+  register as QR codes on phones at all**: rqrcode's default ECC level (`:h`)
+  turned the ~119-char `/classroom` UTM URL into a 57-module QR, which at the
+  tags' printed sizes was ~0.31–0.45mm per module — below the ~0.5mm
+  phone-camera detection floor. (The board poster QR scanned fine because its
+  `/pb/<slug>` payload is much shorter.) Fixed by encoding at ECC `:l`
+  (41 modules — a clean printed lead magnet doesn't need 30% damage
+  redundancy), rendering a 480px print-resolution source PNG, and enlarging
+  the printed QR boxes (safety 0.92→1.15in, device 1.15→1.3in, name tag
+  20→26mm), putting every tag at ~0.53–0.67mm per module. Verified by
+  rasterizing the rendered sheets and machine-decoding: before, no QR decoded
+  below 150dpi; after, all three decode at 72dpi. Regression spec pins the
+  ECC level + source size.
+
 ### Added — reliable server-side `checkout_started` analytics
 - Fire a server-side PostHog `checkout_started` when a Stripe Checkout Session
   is created (subscription + top-up), keyed to the user's distinct_id
@@ -15,6 +50,7 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   / `kind`, and threads `client_reference_id = user.id` + `source` into the
   Checkout Session so Stripe-originated events attribute to the same person.
   Instrumentation only — no user-facing behavior change.
+
 ### Added — compact backpack safety + device tags for the AAC Classroom Kit
 - New `GET /api/internal/marketing_artifacts/safety_tag.pdf` and
   `.../device_tag.pdf` render generic, print-and-cut **backpack ID tags**

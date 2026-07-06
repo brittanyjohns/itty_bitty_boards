@@ -20,12 +20,29 @@
       .sheet {
         box-sizing: border-box;
         width: 100vw;
-        min-height: 100vh;
+        /* Definite one-page height so the 1fr card rows divide the REMAINING
+           space after the hint row — with min-height the fr rows size to
+           content and the sheet spills onto a second page. */
+        height: 100vh;
+        overflow: hidden;
         padding: 10mm;
         display: grid;
         grid-template-columns: 1fr 1fr;
+        /* First (explicit) row is the slim cut-hint strip; the card rows
+           stay equal-height 1fr via grid-auto-rows. */
+        grid-template-rows: auto;
         grid-auto-rows: 1fr;
         gap: 6mm;
+      }
+
+      .cut-hint {
+        grid-column: 1 / -1;
+        text-align: center;
+        font-size: 8pt;
+        font-weight: 700;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+        color: #94a3b8;
       }
 
       .card {
@@ -42,7 +59,7 @@
       .brand-rule {
         height: 6px;
         border-radius: 6px;
-        background: linear-gradient(90deg, #8b5cf6, #6366f1, #3b82f6);
+        background: linear-gradient(90deg, #7c3aed, #6366f1, #3b82f6);
         margin: -1mm -1mm 3mm;
       }
 
@@ -77,9 +94,11 @@
         margin-top: 3mm;
       }
       .qr { text-align: center; }
-      .qr img { width: 20mm; height: 20mm; display: block; }
+      /* 26mm keeps the 41-module (ECC :l) QR at ~0.53mm per printed module —
+         above the ~0.5mm phone-camera detection floor. Don't shrink this. */
+      .qr img { width: 26mm; height: 26mm; display: block; }
       .qr-blank {
-        width: 20mm; height: 20mm;
+        width: 26mm; height: 26mm;
         border: 1.5px dashed #cbd5e1; border-radius: 6px;
       }
       .qr-caption {
@@ -99,6 +118,7 @@
   </head>
   <body>
     <div class="sheet">
+      <div class="cut-hint">&#9986; Print at 100% (actual size) &middot; cut along the card outlines</div>
       <% @card_count.times do %>
         <div class="card">
           <div class="brand-rule"></div>

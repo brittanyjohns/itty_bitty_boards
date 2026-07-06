@@ -28,10 +28,16 @@ module Marketing
       Grover.new(html, **LETTER_GROVER_OPTIONS).to_pdf
     end
 
-    def qr_data_url(url, size: 300)
+    # ECC level :l is deliberate. rqrcode defaults to :h, which turns the
+    # ~119-char /classroom UTM URL into a 57-module QR — at the tags' small
+    # printed size that's ~0.35mm per module, below what phone cameras detect
+    # (the "QR won't even scan" kit bug). :l needs only 41 modules, and a
+    # clean high-contrast print doesn't need :h's 30% damage redundancy.
+    # size: 480 keeps the source ≥300dpi at the printed sizes below.
+    def qr_data_url(url, size: 480)
       return nil if url.blank?
 
-      png = RQRCode::QRCode.new(url).as_png(
+      png = RQRCode::QRCode.new(url, level: :l).as_png(
         size: size,
         border_modules: 4,
         module_px_size: 6,

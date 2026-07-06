@@ -49,11 +49,14 @@ module Marketing
       }
     end
 
+    # Keep in lockstep with Marketing::SheetRendering#qr_data_url — same
+    # deliberate ECC :l (rqrcode's default :h makes the long UTM URL too
+    # dense to phone-scan at the small printed size; see the note there).
     def qr_data_url
       return nil if qr_target_url.blank?
 
-      png = RQRCode::QRCode.new(qr_target_url).as_png(
-        size: 300,
+      png = RQRCode::QRCode.new(qr_target_url, level: :l).as_png(
+        size: 480,
         border_modules: 4,
         module_px_size: 6,
       )
