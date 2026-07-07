@@ -1,6 +1,7 @@
 class API::BoardImagesController < API::ApplicationController
   respond_to :json
-  before_action :set_board_image, only: %i[ show update destroy create_image_variation create_image_edit set_current_audio ]
+  before_action :set_board_image, only: %i[ show ]
+  before_action :set_owned_board_image, only: %i[ update destroy create_image_variation create_image_edit set_current_audio ]
   before_action :check_board_image_editable!, only: %i[ save_layout set_current_audio update update_multiple remove_multiple create_image_edit create_image_variation upload_audio reset_audio move destroy ]
 
   # GET /board_images or /board_images.json
@@ -14,7 +15,7 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   def save_layout
-    @board_image = BoardImage.find(params[:id])
+    @board_image = owned_board_image
     layout = params[:layout]
     screen_size = params[:screen_size]
     @board_image.update_layout(layout, screen_size)
@@ -22,7 +23,7 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   def set_current_audio
-    @board_image = BoardImage.find(params[:id])
+    # @board_image is loaded owner-scoped by set_owned_board_image.
     if @board_image.update(audio_url: board_image_params[:audio_url], voice: board_image_params[:voice])
       render json: @board_image.api_view(current_user)
     else
@@ -200,11 +201,7 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   def create_image_edit
-    @board_image = BoardImage.find(params[:id])
-    if @board_image.nil?
-      render json: { error: "Board image not found" }, status: :unprocessable_content
-      return
-    end
+    # @board_image is loaded owner-scoped by set_owned_board_image.
     begin
       return unless check_credits!(feature_key: "image_edit", feature_name: "AI Image Edits")
       prompt = params[:prompt] || ""
@@ -225,11 +222,7 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   def create_image_variation
-    @board_image = BoardImage.find(params[:id])
-    if @board_image.nil?
-      render json: { error: "Board image not found" }, status: :unprocessable_content
-      return
-    end
+    # @board_image is loaded owner-scoped by set_owned_board_image.
     return unless check_credits!(feature_key: "image_variation", feature_name: "AI Image Variations")
 
     @image_variation = @board_image.create_image_variation!
@@ -243,11 +236,7 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   def upload_audio
-    @board_image = BoardImage.find(params[:id])
-    unless @board_image.user_id == current_user.id || current_user.admin?
-      render json: { status: "error", message: "You are not authorized to upload audio for this board image." }
-      return
-    end
+    @board_image = owned_board_image
     default_file_name = @board_image.label.downcase.gsub(" ", "-").gsub("_", "-")
     default_file_name = !default_file_name.blank? ? default_file_name : "board-image-audio"
     random_number = Time.now.strftime("%m%d%y%H%M%S")
@@ -273,11 +262,7 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   def reset_audio
-    @board_image = BoardImage.find(params[:id])
-    unless @board_image.user_id == current_user.id || current_user.admin?
-      render json: { status: "error", message: "You are not authorized to reset audio for this board image." }
-      return
-    end
+    @board_image = owned_board_image
 
     default_audio_url = @board_image.default_audio_url
     @board_image.data ||= {}
@@ -378,6 +363,23 @@ class API::BoardImagesController < API::ApplicationController
       render json: { error: "Board image not found" }, status: :unprocessable_content
       return
     end
+  end
+
+  # Issue #26 (IDOR): load a board image the current user is allowed to mutate,
+  # scoped to boards they own so a non-owner gets a 404 instead of being able to
+  # edit/delete another user's tile. Admins may act cross-user.
+  def set_owned_board_image
+    @board_image = owned_board_image
+  rescue ActiveRecord::RecordNotFound
+    render json: { error: "Board image not found" }, status: :not_found
+  end
+
+  # A board image owned by the current user (its board's user_id matches).
+  # Raises ActiveRecord::RecordNotFound (=> 404) for a non-owner. Admins bypass.
+  def owned_board_image(id = params[:id])
+    return BoardImage.find(id) if current_user.admin?
+
+    BoardImage.joins(:board).where(boards: { user_id: current_user.id }).find(id)
   end
 
   # Only allow a list of trusted parameters through.
