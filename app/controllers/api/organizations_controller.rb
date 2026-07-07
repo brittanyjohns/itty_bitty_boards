@@ -18,6 +18,10 @@ class API::OrganizationsController < API::ApplicationController
   private
 
   def organization_params
-    params.require(:organization).permit(:name, :admin_user_id, :settings, :stripe_customer_id, :plan_type)
+    # :admin_user_id (ownership), :plan_type (billing tier) and :stripe_customer_id
+    # are intentionally NOT permitted on this (non-admin) controller — they must
+    # not be client-settable via mass-assignment. Org billing/ownership is curated
+    # only through the admin-gated API::Admin::OrganizationsController (#27).
+    params.require(:organization).permit(:name, :settings)
   end
 end

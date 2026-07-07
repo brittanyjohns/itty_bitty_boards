@@ -1355,7 +1355,10 @@ class API::BoardsController < API::ApplicationController
   end
 
   def image_params
-    params.require(:image).permit(:label, :image_prompt, :display_image, :part_of_speech, audio_files: [], docs: [:id, :user_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
+    # :user_id is intentionally NOT permitted on the nested docs — the doc owner
+    # is assigned server-side (new_doc.user = current_user in #add_image), so a
+    # client can't set or reassign ownership via mass-assignment (#27).
+    params.require(:image).permit(:label, :image_prompt, :display_image, :part_of_speech, audio_files: [], docs: [:id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
   end
 
   # Optional gestalt tile metadata for add_image (Script Collector). Free-form

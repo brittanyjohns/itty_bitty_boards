@@ -71,6 +71,9 @@ class API::OpenaiPromptsController < API::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def openai_prompt_params
-    params.require(:openai_prompt).permit(:user_id, :prompt_text, :revised_prompt, :send_now, :deleted_at, :sent_at, :private, :response_type, :age_range, :number_of_images, :token_limit)
+    # :user_id is intentionally NOT permitted — the owner comes from the
+    # current_user.openai_prompts association in #create, so a client can't set
+    # or reassign ownership via create/update mass-assignment (#27).
+    params.require(:openai_prompt).permit(:prompt_text, :revised_prompt, :send_now, :deleted_at, :sent_at, :private, :response_type, :age_range, :number_of_images, :token_limit)
   end
 end

@@ -250,7 +250,12 @@ class API::UsersController < API::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def user_params
-    params.require(:user).permit(:name, :email, :base_words, :plan_type,
+    # :plan_type is intentionally NOT permitted here — a user must not be able to
+    # set their own paid tier via mass-assignment (payment bypass). Plan state is
+    # owned by the Stripe/RevenueCat webhook and admin paths. #update only reads
+    # :name today; dropping :plan_type also closes the latent hole if a future
+    # edit switches to `@user.update(user_params)` (#27).
+    params.require(:user).permit(:name, :email, :base_words,
                                  voice: [:name, :speed, :pitch, :rate, :volume, :language])
   end
 end

@@ -39,18 +39,17 @@ class API::MessagesController < API::ApplicationController
 
   # POST /messages or /messages.json
   def create
-    # sender_id = params[:sender_id]
-    # current_user_id = current_user&.id
-    # unless sender_id == current_user_id
-    #   puts "Sender ID: #{sender_id}, Current User ID: #{current_user_id} - Unauthorized access"
-    #   render json: { error: "Unauthorized" }, status: :unauthorized
-    #   return
-    # end
     @message = Message.new(message_params)
+    # Ownership is server-decided: the sender is always the authenticated user
+    # (a client must not be able to forge a message "from" someone else), and
+    # the recipient is taken explicitly from the request rather than
+    # mass-assigned. Neither rides the permit list — see #message_params.
+    @message.sender_id = current_user.id
+    @message.recipient_id = params.dig(:message, :recipient_id)
 
     if @message.save
       @message.notify_recipient
-      render json: @message.show_api_view(current_user), status: :created, location: @message
+      render json: @message.show_api_view(current_user), status: :created
     else
       render json: @message.errors, status: :unprocessable_content
     end
@@ -59,7 +58,7 @@ class API::MessagesController < API::ApplicationController
   # PATCH/PUT /messages/1 or /messages/1.json
   def update
     if @message.update(message_params)
-      render json: @message, status: :ok, location: @message
+      render json: @message, status: :ok
     else
       render json: @message.errors, status: :unprocessable_content
     end
@@ -104,7 +103,10 @@ class API::MessagesController < API::ApplicationController
   end
 
   def message_params
-    params.require(:message).permit(:subject, :body, :sender_id, :recipient_id, :sent_at, :sender_deleted_at, :recipient_deleted_at, :read_at,
+    # :sender_id / :recipient_id are intentionally NOT permitted — ownership is
+    # assigned server-side in #create (sender = current_user, recipient taken
+    # explicitly) so a client can't forge or reassign them (mass-assignment, #27).
+    params.require(:message).permit(:subject, :body, :sent_at, :sender_deleted_at, :recipient_deleted_at, :read_at,
                                     attachments: [])
   end
 end
