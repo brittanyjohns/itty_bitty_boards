@@ -625,6 +625,14 @@ class API::WebhooksController < API::ApplicationController
     apply_free_plan(user)
     Rails.logger.info "[StripeWebhook] subscription deleted: downgraded user=#{user.id} to free"
 
+    # Confirm the cancellation to the user (#196). Skip admins — an admin's
+    # plan_type isn't a real paid subscription and they shouldn't get billing
+    # mail. deliver_later so a mailer hiccup can't fail the webhook.
+    unless user.admin?
+      UserMailer.subscription_canceled_email(user).deliver_later
+      Rails.logger.info "[StripeWebhook] subscription deleted: queued subscription_canceled_email user=#{user.id}"
+    end
+
     # Internal + PostHog analytics for the cancellation (itty-bitty-frontend#307).
     # Cancellation happens entirely inside Stripe's billing portal, so the
     # frontend never sees it — capture it server-side. $set plan -> "free"

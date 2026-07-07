@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title><%= t("user_mailer.subscription_canceled_email.title") %></title>
+  <meta name="color-scheme" content="light only">
+  <style>
+    body { background-color: #f7f9fc; font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+    .container { background-color: #ffffff; margin: auto; max-width: 620px; padding: 30px; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
+    .logo img { max-width: 120px; display: block; margin: 0 auto 20px auto; }
+    h1 { font-size: 26px; color: #2a2a2a; text-align: center; margin: 10px 0 6px 0; }
+    .intro { font-size: 16px; color: #444444; line-height: 1.6; text-align: center; margin: 8px 0 22px 0; }
+    .button { display: inline-block; margin: 14px auto 0 auto; padding: 14px 28px; background-color: #7645ef; text-decoration: none; border-radius: 8px; color: #ffffff !important; font-weight: bold; font-size: 16px; }
+    .subtext { font-size: 12px; color: #6b6b6b; text-align: center; margin-top: 8px; }
+    .section { margin: 28px 0; }
+    .note { font-size: 14px; color: #444; line-height: 1.6; margin: 0; }
+    .footer { margin-top: 28px; font-size: 13px; text-align: center; color: #777777; }
+    .footer a { color: #7645ef; text-decoration: none; }
+    @media (max-width: 480px) { .container { padding: 22px; } h1 { font-size: 24px; } }
+  </style>
+</head>
+<body>
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+    <%= t("user_mailer.subscription_canceled_email.preheader") %>
+  </div>
+
+  <div class="container">
+    <div class="logo">
+      <a href="https://www.speakanyway.com" target="_blank" rel="noopener">
+        <%= image_tag @logo.url, alt: "SpeakAnyWay Logo" %>
+      </a>
+    </div>
+
+    <h1><%= t("user_mailer.subscription_canceled_email.title") %></h1>
+
+    <p class="intro">
+      <%= @user.name.blank? ? t("user_mailer.subscription_canceled_email.greeting_no_name") : t("user_mailer.subscription_canceled_email.greeting_with_name", name: @user.name) %>
+      <br>
+      <%= t("user_mailer.subscription_canceled_email.intro") %>
+    </p>
+
+    <div class="section">
+      <p class="note"><%= t("user_mailer.subscription_canceled_email.access_note") %></p>
+      <p class="note" style="margin-top:12px;"><%= t("user_mailer.subscription_canceled_email.readonly_note") %></p>
+    </div>
+
+    <p style="text-align:center;">
+      <a href="<%= @plans_link %>" class="button"><%= t("user_mailer.subscription_canceled_email.cta") %></a>
+    </p>
+    <p class="subtext"><%= t("user_mailer.subscription_canceled_email.cta_fallback") %><br><span style="word-break:break-all;color:#6b6b6b;"><%= @plans_link %></span></p>
+
+    <div class="footer">
+      <p><%= t("user_mailer.subscription_canceled_email.questions_html").html_safe %></p>
+      <p><%= t("user_mailer.subscription_canceled_email.footer_thanks") %><br><%= t("user_mailer.subscription_canceled_email.footer_signature") %></p>
+      <p><a href="https://www.speakanyway.com" target="_blank"><%= t("user_mailer.subscription_canceled_email.footer_visit") %></a></p>
+    </div>
+  </div>
+</body>
+</html>
