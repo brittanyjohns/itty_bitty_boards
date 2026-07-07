@@ -131,6 +131,63 @@ RSpec.describe "POST /api/stripe/checkout_sessions (subscription)", type: :reque
     end
   end
 
+  # Regression: the FOUNDING coupon's $50 minimum-amount restriction (the gate
+  # that keeps it to yearly plans) was being validated against the no-card
+  # trial's $0 checkout amount, so every promo'd checkout 400'd with
+  # "does not meet the minimum amount requirement" (prod, 2026-07-07). Fix:
+  # a promo checkout drops the trial so it carries the plan's real price.
+  describe "promo code + no-card trial interaction (founding-family fix)" do
+    let(:captured) { {} }
+    let(:promo) { OpenStruct.new(id: "promo_founding_id") }
+
+    before do
+      user.update!(stripe_customer_id: "cus_existing")
+      allow(Stripe::PromotionCode).to receive(:list)
+        .with(hash_including(code: "FOUNDING", active: true))
+        .and_return(OpenStruct.new(data: [promo]))
+      allow(Stripe::Checkout::Session).to receive(:create) do |params|
+        captured.replace(params)
+        OpenStruct.new(url: "https://stripe.test/x")
+      end
+    end
+
+    it "applies the promo as a discount and omits the trial so the coupon minimum is met" do
+      do_post.call({ plan_key: "basic_yearly", promo_code: "FOUNDING" })
+
+      expect(response).to have_http_status(:ok)
+      expect(captured[:discounts]).to eq([{ promotion_code: "promo_founding_id" }])
+      expect(captured).not_to have_key(:allow_promotion_codes)
+      # No trial → the checkout carries the plan's real price ($80/$200 ≥ $50),
+      # so a minimum-amount promotion code isn't redeemed against a $0 invoice.
+      expect(captured).not_to have_key(:subscription_data)
+    end
+
+    it "does not record a trial_started event for a promo checkout (no trial began)" do
+      expect {
+        do_post.call({ plan_key: "basic_yearly", promo_code: "FOUNDING" })
+      }.not_to change { AnalyticsEvent.for_event("trial_started").count }
+    end
+
+    it "still fires checkout_started for a promo checkout" do
+      expect(PosthogService).to receive(:capture_for_user).with(
+        an_object_having_attributes(id: user.id),
+        "checkout_started",
+        properties: hash_including(plan: "basic", billing_interval: "yearly"),
+      )
+      do_post.call({ plan_key: "basic_yearly", promo_code: "FOUNDING" })
+    end
+
+    it "keeps the 14-day no-card trial when no promo is applied" do
+      do_post.call({ plan_key: "basic_yearly" })
+
+      expect(captured[:subscription_data][:trial_period_days]).to eq(14)
+      expect(captured[:subscription_data][:trial_settings]).to eq(
+        end_behavior: { missing_payment_method: "cancel" },
+      )
+      expect(captured[:allow_promotion_codes]).to eq(true)
+    end
+  end
+
   describe "server-side checkout_started analytics (itty_bitty_boards#452 / frontend #505)" do
     before do
       user.update!(stripe_customer_id: "cus_existing")
