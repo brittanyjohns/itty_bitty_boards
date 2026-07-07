@@ -73,7 +73,7 @@ class API::ImagesController < API::ApplicationController
 
     label = image_params[:label]
     image_id = params["image"]["id"]
-    @image = Image.find(image_id) if image_id.present?
+    @image = accessible_image(image_id) if image_id.present?
     @image = Image.find_by(label: label, user_id: @current_user.id) unless @image
     @image = Image.create(label: label, user_id: @current_user.id) unless @image
     @doc = attach_doc_to_image(@image, @current_user, params[:cropped_image], params[:file_extension])
@@ -95,7 +95,7 @@ class API::ImagesController < API::ApplicationController
   def save_temp_doc
     @current_user = current_user
     if params[:imageId].present?
-      @existing_image = Image.find(params[:imageId])
+      @existing_image = accessible_image(params[:imageId])
     end
 
     label = params[:query]
@@ -133,6 +133,8 @@ class API::ImagesController < API::ApplicationController
       render json: { status: "error", message: "You are not authorized to merge images." }, status: :forbidden
       return
     end
+    # Admin-only (gated above): merging is a cross-user library operation, so the
+    # lookup is intentionally unscoped. Non-admins never reach here (issue #26).
     @image = Image.find(params[:id])
     @images_to_merge = Image.where(id: params[:merge_image_ids])
     if @images_to_merge.empty?
@@ -291,6 +293,9 @@ class API::ImagesController < API::ApplicationController
   end
 
   def public_audio
+    # Intentionally public + unscoped (skip_before_action :authenticate_token!):
+    # this is an AAC audio-playback path that must work for unauthenticated
+    # viewers of a shared page, so it is left unscoped by design (issue #26).
     @image = Image.find(params[:id])
     # voice = params[:voice] || @image.voice || "alloy"
     voice = @image.voice || "alloy"
@@ -351,7 +356,7 @@ class API::ImagesController < API::ApplicationController
   end
 
   def add_doc
-    @image = Image.find(params[:id])
+    @image = accessible_image
     @doc = @image.docs.new(image_params[:docs])
     @doc.user = current_user
     @doc.processed = true
@@ -388,7 +393,7 @@ class API::ImagesController < API::ApplicationController
   end
 
   def create_predictive_board
-    @image = Image.find(params[:id])
+    @image = accessible_image
     board_id = params[:board_id]
     @board = Board.with_artifacts.find_by(id: board_id) if board_id.present?
     unless @board.nil?
@@ -430,7 +435,7 @@ class API::ImagesController < API::ApplicationController
   ADMIN_SYMBOL_LIMIT = ENV["ADMIN_SYMBOL_LIMIT"] || 10
 
   def create_symbol
-    @image = Image.find(params[:id])
+    @image = accessible_image
     if @image.open_symbol_status == "disabled"
       render json: { status: "error", message: "Symbol generation is disabled for this image." }, status: :unprocessable_content
       return
@@ -463,7 +468,7 @@ class API::ImagesController < API::ApplicationController
     stripped_prompt = image_prompt.gsub("[[REPLACE_LABEL]]", "").strip
 
     if !params[:id].blank?
-      @image = Image.find(params[:id])
+      @image = accessible_image
     else
       @image = Image.find_or_create_by(label: label, user_id: @current_user.id, private: false, image_prompt: stripped_prompt, image_type: "Generated")
     end
@@ -534,7 +539,7 @@ class API::ImagesController < API::ApplicationController
 
   def prompt_suggestion
     @current_user = current_user
-    @image = Image.find(params[:id])
+    @image = accessible_image
     prompt = @image.get_image_prompt_suggestion
     scrubbed_prompt = prompt.gsub('"', "")
     render json: { prompt: scrubbed_prompt }
@@ -609,7 +614,7 @@ class API::ImagesController < API::ApplicationController
   end
 
   def clear_current
-    @image = Image.find(params[:id])
+    @image = accessible_image
     if @image.nil?
       render json: { status: "error", message: "Image not found." }
     else
@@ -677,7 +682,7 @@ class API::ImagesController < API::ApplicationController
   end
 
   def hide_doc
-    @image = Image.find(params[:id])
+    @image = accessible_image
     @doc = @image.docs.find(params[:doc_id])
     unless (@doc.user_id == current_user.id) || current_user.admin?
       render json: { status: "error", message: "You are not authorized to delete this document." }
@@ -722,7 +727,9 @@ class API::ImagesController < API::ApplicationController
   end
 
   def destroy_audio
-    @image = Image.find(params[:id])
+    # Owner-only: purging audio is destructive, so scope to the caller's own
+    # images (matches upload_audio / set_current_audio). Issue #26 (IDOR).
+    @image = current_user.images.find(params[:id])
     unless params[:audio_file_id].present?
       render json: { status: "error", message: "No audio file id provided." }
       return
@@ -756,6 +763,19 @@ class API::ImagesController < API::ApplicationController
   end
 
   private
+
+  # Issue #26 (IDOR): images are a shared library. A row is either PUBLIC
+  # (is_private false/nil — e.g. the admin-owned symbol library, mirrors the
+  # `public_img` scope) or a user's PRIVATE image. This replaces bare
+  # `Image.find`, so a caller can load their own image or any public library
+  # image, but a non-owner asking for someone else's PRIVATE image gets a 404
+  # (ActiveRecord::RecordNotFound => 404). The public AAC library stays usable.
+  # Admins may act cross-user.
+  def accessible_image(id = params[:id], relation = Image)
+    return relation.find(id) if current_user.admin?
+
+    relation.where("images.is_private IS NOT TRUE OR images.user_id = ?", current_user.id).find(id)
+  end
 
   def needs_replacement?(label, image_prompt)
     normalized_label = label.to_s.strip.downcase
