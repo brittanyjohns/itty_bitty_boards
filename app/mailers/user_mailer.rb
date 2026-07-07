@@ -220,6 +220,21 @@ class UserMailer < BaseMailer
     end
   end
 
+  # Sent once when a renewal charge fails and the subscription moves
+  # active -> past_due. Stripe redelivers invoice.payment_failed on every
+  # dunning retry, so the webhook gates this on the status transition — this
+  # method only composes the message. Access continues while Stripe retries;
+  # if the retries exhaust, the subscription cancels and the user drops to Free.
+  def payment_failed_email(user)
+    @user = user
+    @user_name = @user.name
+    @billing_link = "#{ENV["FRONT_END_URL"] || "http://localhost:8100"}/billing"
+    Rails.logger.info "Sending payment failed email to #{@user.email}"
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.payment_failed_email.subject"))
+    end
+  end
+
   def message_notification_email(message)
     @message = message
     @sender = message.sender

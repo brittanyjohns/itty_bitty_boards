@@ -290,6 +290,21 @@ en:
       footer_signature: "— The SpeakAnyWay Team"
       footer_visit: "Visit our website"
 
+    payment_failed_email:
+      subject: "We couldn't process your SpeakAnyWay payment"
+      preheader: "Your last payment didn't go through — update your payment method to keep your plan."
+      title: "We couldn't charge your card"
+      greeting_with_name: "Hi %{name},"
+      greeting_no_name: "Hi there,"
+      intro: "We tried to process the payment for your SpeakAnyWay subscription, but it didn't go through."
+      cta: "Update Payment Method"
+      cta_fallback: "If the button doesn't work, copy and paste this link:"
+      retry_note: "No need to worry just yet — your access continues for a few days while we automatically retry the charge. Updating your payment method now is the quickest way to keep everything running."
+      cancel_note: "If the retries don't succeed, your subscription will be canceled automatically and your account will move to the Free plan."
+      questions_html: "Questions? Just reply to this email or contact us at <a href=\"mailto:help@speakanyway.com\">help@speakanyway.com</a>."
+      footer_signature: "— The SpeakAnyWay Team"
+      footer_visit: "Visit our website"
+
   setup_mailer:
     myspeak_setup_email:
       subject: "MySpeak Setup Instructions"
