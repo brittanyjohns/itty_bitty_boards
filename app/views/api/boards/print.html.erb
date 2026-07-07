@@ -65,6 +65,7 @@
         <% else %>
           <% label_hidden = false %>
         <% end %>
+        <% has_image = t["image_url"].present? %>
         <% col_start = t["x"].to_i + 1 %>
         <% row_start = t["y"].to_i + 1 %>
         <% col_span = t["w"].to_i %>
@@ -83,7 +84,7 @@
 
         >
           <div class="tile-media">
-            <% if t["image_url"].present? %>
+            <% if has_image %>
               <img src="<%= t["image_url"] %>" alt="<%= t["label"] %>">
             <% else %>
               <img
@@ -94,7 +95,9 @@
             <% end %>
           </div>
 
-          <% unless label_hidden %>
+          <%# Label-only tiles (no picture) already render the label as the
+              placeholder image, so skip the redundant caption underneath. %>
+          <% if has_image && !label_hidden %>
             <div
             class="label <%= bg_color %>"
             style="
