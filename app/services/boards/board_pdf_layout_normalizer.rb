@@ -41,7 +41,7 @@ module Boards
             "w" => layout["w"] || 1,
             "h" => layout["h"] || 1,
             "label" => bi.display_label || bi.label || "",
-            "image_url" => bi.tile_image_url(@current_user),
+            "image_url" => tile_display_src(bi),
             "bg_color" => bi.bg_color || "#FFFFFF",
             "border_color" => bi.border_color || "#000000",
             "border_width" => bi.border_width || 0,
@@ -56,6 +56,20 @@ module Boards
     end
 
     private
+
+    # Resolve the tile picture the SAME way the live board JSON does
+    # (Board#api_view_with_predictive_images:
+    #   board_image.display_image_url || image.display_image_url || image.src_url).
+    # We deliberately do NOT use BoardImage#tile_image_url here: its final
+    # fallback borrows any same-label admin/public image's src_url, which
+    # fabricated a picture on label-only tiles (e.g. an "I feel" header) that
+    # the app renders as text. A blank result lets the print template draw the
+    # label via generate_placeholder_image, matching what the user sees on screen.
+    def tile_display_src(board_image)
+      board_image.display_image_url.presence ||
+        board_image.image&.display_image_url(@current_user).presence ||
+        board_image.image&.src_url.presence
+    end
 
     attr_reader :board, :screen_size
   end

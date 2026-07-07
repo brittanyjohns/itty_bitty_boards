@@ -5,6 +5,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — label-only tiles now render as text in PDF export and board previews
+- Board PDF exports and the board cover/preview image showed a **picture** on
+  label-only tiles (e.g. an "I feel" header) even though the app renders them as
+  plain text. The print/preview pipeline resolved each tile's image via
+  `BoardImage#tile_image_url`, whose final fallback **borrows any same-label
+  public/admin image's art**, fabricating a picture the tile doesn't have.
+  `Boards::BoardPdfLayoutNormalizer` now resolves the picture the same way the
+  live board JSON does (`display_image_url → image.display_image_url →
+  image.src_url`, no label borrowing), so label-only tiles come through blank
+  and render as the label text — matching what users see on screen. The shared
+  `print` and marketing `print_marketing` templates also drop the now-redundant
+  caption beneath a label-only tile (the placeholder already shows the label).
+  `BoardImage#tile_image_url` itself is unchanged — its label-match fallback is
+  still used by Board Builder folder covers and OBF export.
+
 ### Added — stable slugs + marketing print style for the AAC Classroom Kit
 - The internal boards API (`POST /api/internal/boards` and
   `POST /api/internal/boards/from_vocab_set`) gains opt-in
