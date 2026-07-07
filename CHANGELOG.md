@@ -5,6 +5,28 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — rate limiting on auth, token-lookup, and AI-generation routes (#30)
+- Rack::Attack now throttles the abuse-prone surfaces that previously had no
+  per-IP / per-user limits: **sign-in** (`POST /users/sign_in`,
+  `/api/v1/users/sign_in`, `/api/v1/child_accounts/login` — per IP and per
+  email), **password reset** (`forgot_password`/`reset_password*` — per IP),
+  **access-granting token lookups** (`/api/temp-login/:token`,
+  `/api/communicator_claims/:token` — per IP), and the **AI / audio generation**
+  routes (`/api/*/generate*`, `generate_audio`, `regenerate_images`,
+  `generate_preview_image`, board generation — per user, on top of the existing
+  credit-balance gate). Throttled requests get a clean **429** with a
+  `Retry-After` header and a generic `{ "error": "rate_limited" }` body (no
+  internals leaked).
+- Scoped to WRITE/auth/AI-generation abuse only — the AAC read, board-load, and
+  **audio-playback** paths a nonspeaking user relies on are never throttled. The
+  `/up` health check is safelisted so BetterStack monitoring isn't rate-limited.
+- All limits are ENV-tunable (`RACK_ATTACK_LOGIN_LIMIT`,
+  `RACK_ATTACK_LOGIN_EMAIL_LIMIT`, `RACK_ATTACK_AI_LIMIT`,
+  `RACK_ATTACK_TOKEN_LIMIT`, `RACK_ATTACK_PASSWORD_RESET_LIMIT`, and matching
+  `_PERIOD` vars) with sensible defaults. Rack::Attack counts against Redis
+  directly (not `Rails.cache`), so throttling works regardless of the cache
+  store. **Adds the `rack-attack` gem.**
+
 ### Fixed — label-only tiles now render as text in PDF export and board previews
 - Board PDF exports and the board cover/preview image showed a **picture** on
   label-only tiles (e.g. an "I feel" header) even though the app renders them as

@@ -38,6 +38,7 @@
   - `POSTHOG_API_KEY` - PostHog project API key for server-side capture of subscription lifecycle events (use the same project the frontend reports to). When blank, server-side capture no-ops.
   - `POSTHOG_HOST` - PostHog ingestion host (optional; defaults to `https://us.i.posthog.com`)
   - `POSTHOG_CAPTURE_ENABLED` - Set to `true` to fire server-side PostHog events outside production (dev/staging opt-in). Production fires automatically; staging stays off unless this is set.
+  - `RACK_ATTACK_*` - Optional rate-limit tuning (all have sensible defaults). Limits/windows for auth, password-reset, token-lookup, and AI-generation throttles — e.g. `RACK_ATTACK_LOGIN_LIMIT`, `RACK_ATTACK_LOGIN_EMAIL_LIMIT`, `RACK_ATTACK_AI_LIMIT`, `RACK_ATTACK_TOKEN_LIMIT`, `RACK_ATTACK_PASSWORD_RESET_LIMIT` (+ matching `_PERIOD`). `RACK_ATTACK_REDIS_URL` overrides the Redis used for counters (defaults to `REDIS_URL`). See the "Rate limiting" section in `CLAUDE.md`.
 
 - Database creation:
 
