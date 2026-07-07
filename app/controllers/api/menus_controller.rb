@@ -184,8 +184,12 @@ class API::MenusController < API::ApplicationController
     # — ownership is assigned server-side (@menu.user / doc.user = current_user
     # in #create), so a client can't set or reassign ownership via create/update
     # mass-assignment (#27).
-    params.require(:menu).permit(:name, :description, :token_limit, :predefined,
-                                 docs: [:id, :raw, :image, :_destroy, :source_type])
+    permitted = params.require(:menu).permit(:name, :description, :token_limit, :predefined,
+                                             docs: [:id, :raw, :image, :_destroy, :source_type])
+    # `predefined` promotes a menu into the curated/admin pool — admin-only.
+    # Strip it for everyone else so a regular user can't self-promote (#27).
+    permitted.delete(:predefined) unless current_user&.admin?
+    permitted
   end
 
   def check_board_create_permissions

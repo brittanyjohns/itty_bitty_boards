@@ -440,7 +440,10 @@ class API::BoardsController < API::ApplicationController
       # by the dedicated endpoints (#set_display_image / #update_preset_display_image),
       # so a generic save (name/colors/tiles) can never clobber the chosen cover.
       @board.bg_color = board_params["bg_color"] if board_params["bg_color"].present?
-      @board.predefined = board_params["predefined"]
+      # Only assign when present. `predefined` is admin-only and stripped from
+      # board_params for non-admins (#27), so a missing key must leave the saved
+      # value untouched rather than null it out.
+      @board.predefined = board_params["predefined"] if board_params.key?("predefined")
       @board.category = board_params["category"]
       @board.tags = board_params["tags"] if board_params["tags"].present?
       @board.language = board_params["language"] if board_params["language"].present?
@@ -1393,7 +1396,7 @@ class API::BoardsController < API::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def board_params
-    params.require(:board).permit(:name,
+    permitted = params.require(:board).permit(:name,
                                   :slug,
                                   :text_color,
                                   :bg_color,
@@ -1418,6 +1421,15 @@ class API::BoardsController < API::ApplicationController
                                   :query,
                                   :page,
                                   :display_image_url, :category, :image_ids_to_remove, :board_type, settings: {}, margin_settings: {}, tags: [])
+    # Only admins may curate `predefined`/`published` boards — those flags decide
+    # whether a board enters the public/curated gallery. Strip them for everyone
+    # else so a regular user can't self-promote their own board (#27, mirrors the
+    # board_groups_controller pattern).
+    unless current_user&.admin?
+      permitted.delete(:predefined)
+      permitted.delete(:published)
+    end
+    permitted
   end
 
   def attach_image_to_board(image_data, file_extension)
