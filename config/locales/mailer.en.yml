@@ -274,6 +274,22 @@ en:
       sign_off: "Happy chatting!"
       copyright_html: "&copy; %{year} SpeakAnyWay. All rights reserved."
 
+    subscription_canceled_email:
+      subject: "Your SpeakAnyWay subscription was canceled"
+      preheader: "Your subscription was canceled — your account has moved to the Free plan."
+      title: "Your subscription was canceled"
+      greeting_with_name: "Hi %{name},"
+      greeting_no_name: "Hi there,"
+      intro: "This confirms that your SpeakAnyWay subscription has been canceled. Your account is now on the Free plan."
+      access_note: "Nothing was deleted. You keep your account, your communicators, and all of your boards — and communication itself keeps working."
+      readonly_note: "On the Free plan you can actively edit one board; any additional boards become read-only (you can still open them and use them, you just can't edit them). We've automatically kept one board editable for you, and you can change which one any time from your dashboard."
+      cta: "Resubscribe"
+      cta_fallback: "If the button doesn't work, copy and paste this link:"
+      questions_html: "Changed your mind or think this was a mistake? Just reply to this email or contact us at <a href=\"mailto:help@speakanyway.com\">help@speakanyway.com</a>."
+      footer_thanks: "Thank you for being part of SpeakAnyWay 💜"
+      footer_signature: "— The SpeakAnyWay Team"
+      footer_visit: "Visit our website"
+
   setup_mailer:
     myspeak_setup_email:
       subject: "MySpeak Setup Instructions"

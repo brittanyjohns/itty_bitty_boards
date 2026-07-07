@@ -204,6 +204,22 @@ class UserMailer < BaseMailer
     end
   end
 
+  # Confirmation that a paid subscription was canceled (Stripe fired
+  # customer.subscription.deleted and the user was downgraded to Free).
+  # Explains that boards over the Free limit are now read-only (one board
+  # stays editable, auto-pinned by pin_default_editable_board!) and offers a
+  # re-subscribe CTA. Not sent to admins.
+  def subscription_canceled_email(user)
+    @user = user
+    @user_name = @user.name
+    @plans_link = "#{ENV["FRONT_END_URL"] || "http://localhost:8100"}/pricing"
+    @dashboard_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    Rails.logger.info "Sending subscription canceled email to #{@user.email}"
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.subscription_canceled_email.subject"))
+    end
+  end
+
   def message_notification_email(message)
     @message = message
     @sender = message.sender

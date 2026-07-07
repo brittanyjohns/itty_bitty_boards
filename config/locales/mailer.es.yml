@@ -262,6 +262,22 @@ es:
       sign_off: "¡Feliz conversación!"
       copyright_html: "&copy; %{year} SpeakAnyWay. Todos los derechos reservados."
 
+    subscription_canceled_email:
+      subject: "Tu suscripción de SpeakAnyWay fue cancelada"
+      preheader: "Tu suscripción fue cancelada — tu cuenta pasó al plan Gratis."
+      title: "Tu suscripción fue cancelada"
+      greeting_with_name: "Hola %{name}:"
+      greeting_no_name: "Hola:"
+      intro: "Esto confirma que tu suscripción de SpeakAnyWay ha sido cancelada. Tu cuenta ahora está en el plan Gratis."
+      access_note: "No se eliminó nada. Conservas tu cuenta, tus comunicadores y todos tus tableros — y la comunicación sigue funcionando."
+      readonly_note: "En el plan Gratis puedes editar un tablero activamente; los tableros adicionales pasan a ser de solo lectura (puedes abrirlos y usarlos, pero no editarlos). Mantuvimos un tablero editable para ti automáticamente, y puedes cambiar cuál en cualquier momento desde tu panel."
+      cta: "Volver a suscribirte"
+      cta_fallback: "Si el botón no funciona, copia y pega este enlace:"
+      questions_html: "¿Cambiaste de opinión o crees que fue un error? Responde a este correo o escríbenos a <a href=\"mailto:help@speakanyway.com\">help@speakanyway.com</a>."
+      footer_thanks: "Gracias por ser parte de SpeakAnyWay 💜"
+      footer_signature: "— El equipo de SpeakAnyWay"
+      footer_visit: "Visita nuestro sitio web"
+
   setup_mailer:
     myspeak_setup_email:
       subject: "Instrucciones para configurar MySpeak"
