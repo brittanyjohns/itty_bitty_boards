@@ -531,6 +531,22 @@ the non-active→active transition in the upsert; guarded so renewals don't
 double-count). Primary A/B metric is **net paid users per 100 signups**, not
 trial→paid rate.
 
+**Promo checkouts skip the trial (`apply_trial = promo.blank?`).** When a
+promotion code is applied (`params[:promo_code]`, or the auto-applied
+`partner_pro` pilot code), `#create` omits `subscription_data` entirely — the
+user subscribes at the discounted rate now (a card is collected if there's an
+amount due). This is required for correctness: a promotion code with a
+minimum-amount restriction — e.g. the **FOUNDING** coupon's `$50` floor, the
+mechanism gating it to the yearly plans — is validated against the Checkout
+Session's amount, and the 14-day trial zeroes that to `$0`, so Stripe rejects
+the code with *"This promotion code cannot be redeemed because the associated
+purchase does not meet the minimum amount requirement"* (prod 400s on the beta-
+end Founding Family launch, 2026-07-07). Without the trial the checkout carries
+the plan's real price (yearly `$80`/`$200` ≥ `$50`) and the discount applies.
+The `trial_started` AnalyticsEvent is likewise gated on `apply_trial`, so promo
+conversions don't pollute the trial→paid metric. Non-promo checkouts are
+unchanged (full no-card reverse trial).
+
 ### Partner Program (`partner_pro`)
 
 The `/sign-up/partner` flow (frontend `viewType="partner"`) posts to the normal

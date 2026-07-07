@@ -122,18 +122,36 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     else
       session_params[:allow_promotion_codes] = true
     end
-    session_params[:subscription_data] = {
-      trial_period_days: trial_days,
-      # When a no-card trial ends with no payment method on file, cancel the
-      # subscription instead of generating an unpayable invoice. The resulting
-      # `customer.subscription.deleted` webhook downgrades the user to Free in
-      # fallback mode (issue #264 + #255) — never an unexpected charge, never
-      # stuck `past_due`. Harmless on the card-required arm: a payment method
-      # is present, so this end_behavior never triggers and the card is charged.
-      trial_settings: {
-        end_behavior: { missing_payment_method: "cancel" },
-      },
-    }
+
+    # Only layer the no-card reverse trial (#264) onto non-promo checkouts. A
+    # promo means the user is committing to a discounted plan now, so we
+    # subscribe at the discounted rate immediately (a card is collected when
+    # there's an amount due today).
+    #
+    # This is also required for correctness: a promotion code with a
+    # minimum-amount restriction — e.g. the FOUNDING coupon's $50 floor, the
+    # mechanism that gates it to the yearly plans — is validated against the
+    # Checkout Session's amount, and a 14-day trial zeroes that amount to $0. So
+    # Stripe rejects the code with "This promotion code cannot be redeemed
+    # because the associated purchase does not meet the minimum amount
+    # requirement" (prod 400s, 2026-07-07). Without the trial the checkout
+    # carries the plan's real price (yearly $80/$200 ≥ $50), the minimum is
+    # satisfied, and the discount applies to the subscription.
+    apply_trial = promo.blank?
+    if apply_trial
+      session_params[:subscription_data] = {
+        trial_period_days: trial_days,
+        # When a no-card trial ends with no payment method on file, cancel the
+        # subscription instead of generating an unpayable invoice. The resulting
+        # `customer.subscription.deleted` webhook downgrades the user to Free in
+        # fallback mode (issue #264 + #255) — never an unexpected charge, never
+        # stuck `past_due`. Harmless on the card-required arm: a payment method
+        # is present, so this end_behavior never triggers and the card is charged.
+        trial_settings: {
+          end_behavior: { missing_payment_method: "cancel" },
+        },
+      }
+    end
 
     session = Stripe::Checkout::Session.create(session_params)
     current_user.update!(paid_plan_type: plan_key)
@@ -154,16 +172,20 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
       },
     )
     # Measure trial starts so trial→paid conversion is computable against the
-    # later `subscription_started` event (issue #264 A/B instrumentation).
-    AnalyticsEvent.track(
-      "trial_started",
-      user_id: current_user.id,
-      metadata: {
-        plan_key: plan_key,
-        require_card: require_card,
-        payment_method_collection: payment_method_collection,
-      },
-    )
+    # later `subscription_started` event (issue #264 A/B instrumentation). Only
+    # fires when a trial was actually created — promo checkouts subscribe
+    # immediately (no trial), so they don't pollute the trial→paid metric.
+    if apply_trial
+      AnalyticsEvent.track(
+        "trial_started",
+        user_id: current_user.id,
+        metadata: {
+          plan_key: plan_key,
+          require_card: require_card,
+          payment_method_collection: payment_method_collection,
+        },
+      )
+    end
     Rails.logger.info "session: #{session.inspect}"
     render json: { url: session.url }
   rescue StandardError => e
