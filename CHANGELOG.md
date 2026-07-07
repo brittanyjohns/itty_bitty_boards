@@ -5,6 +5,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Security — scope API resource lookups to the caller (IDOR, issue #26)
+- Several `API::Images`, `API::BoardImages`, and `API::Boards` endpoints loaded
+  a record with a bare `Image.find` / `BoardImage.find(params[:id])` before any
+  ownership check, so an authenticated user could act on **another user's**
+  private image or board tile by guessing its id. Lookups are now scoped:
+  image endpoints resolve **the caller's own image or a public library image**
+  (a non-owner asking for someone else's *private* image gets a 404), while
+  destructive/owner-only endpoints (`destroy_audio`, board-image
+  edit/variation/audio/update/delete) resolve **only the caller's own** record.
+  Admins keep cross-user access; the public/unauthenticated AAC audio path and
+  the admin-only merge stay intentionally unscoped. The shared image library
+  remains fully usable — only cross-user access to *private* records is closed.
+
 ### Fixed — label-only tiles now render as text in PDF export and board previews
 - Board PDF exports and the board cover/preview image showed a **picture** on
   label-only tiles (e.g. an "I feel" header) even though the app renders them as

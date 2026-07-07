@@ -896,7 +896,14 @@ class API::BoardsController < API::ApplicationController
   end
 
   def associate_image
-    @image = Image.find(params[:image_id])
+    # Issue #26 (IDOR): a user may add their own image or any public library
+    # image to a board, but not reference another user's PRIVATE image. A
+    # non-owner asking for someone else's private image gets a 404. Admins bypass.
+    @image = if current_user.admin?
+      Image.find(params[:image_id])
+    else
+      Image.where("images.is_private IS NOT TRUE OR images.user_id = ?", current_user.id).find(params[:image_id])
+    end
     screen_size = params[:screen_size] || "lg"
     if @board.images.include?(@image)
       render json: { error: "Image already associated with board" }, status: :unprocessable_content
