@@ -142,6 +142,52 @@ BetterStack (uptime). This is the first true APM in the app.
   pings don't skew throughput/latency percentiles. Params/session filtering
   drops `password`/`token`/`secret`/`jwt` so no PII/secrets reach AppSignal.
 
+## Rate limiting (Rack::Attack, issue #30)
+
+`config/initializers/rack_attack.rb` throttles the abuse-prone surfaces. The
+middleware is inserted automatically by the gem's Railtie — there is **no**
+`config.middleware.use Rack::Attack` (a manual insert would double-count).
+Scope is deliberately narrow: only **WRITE / auth / AI-generation** paths are
+throttled. **The AAC read / board-load / audio-PLAYBACK paths are never
+throttled** (`GET /api/audio/play`, board reads) so speech output can't break —
+"usage must never break." When unsure whether a route is read-critical, it's
+left unthrottled.
+
+- **Throttles (all ENV-tunable):**
+  - **Auth** — sign-in (`POST /users/sign_in`, `/api/v1/users/sign_in`,
+    `/api/v1/child_accounts/login`) per **IP** (`RACK_ATTACK_LOGIN_LIMIT`, 20)
+    and per **email** (`RACK_ATTACK_LOGIN_EMAIL_LIMIT`, 10), window
+    `RACK_ATTACK_LOGIN_PERIOD` (60s). Email is read from form-encoded (`user[email]`)
+    or JSON body (rewound, rescued).
+  - **Password reset** — `forgot_password`/`reset_password`/`reset_password_invite`
+    per IP (`RACK_ATTACK_PASSWORD_RESET_LIMIT`, 5 per
+    `RACK_ATTACK_PASSWORD_RESET_PERIOD`, 3600s).
+  - **Token-access lookups** — `/api/temp-login/:token`,
+    `/api/communicator_claims/:token` per IP (`RACK_ATTACK_TOKEN_LIMIT`, 20 per
+    `RACK_ATTACK_TOKEN_PERIOD`, 60s). **`GET /api/generated_boards/:token` is
+    intentionally NOT throttled** — the frontend polls it while a board renders.
+  - **AI / audio generation** — `POST /api/*/generate*`, `generate_audio`,
+    `regenerate_images`, `generate_preview_image`, and `POST /api/generated_boards`,
+    per **user** (`RACK_ATTACK_AI_LIMIT`, 30 per `RACK_ATTACK_AI_PERIOD`, 60s).
+    These gate on credit balance only; this adds a request-frequency ceiling.
+    `/api/internal/*` is excluded (server-to-server, `INTERNAL_API_KEY`-gated).
+  - **Public profile enumeration** (pre-existing) — `public_profile/ip` and
+    `check_slug/ip`, now ENV-tunable via `RACK_ATTACK_PROFILE_*`.
+- **Per-user discriminator** = SHA256 of the `Authorization` header token
+  (the stable `authentication_token` the API auths on — see
+  `API::ApplicationController#token`), hashed so no secret hits a Redis key/log;
+  falls back to `ip:<addr>` when unauthenticated.
+- **Safelist:** `/up` (BetterStack health check every 3 min) is never throttled.
+- **429 response** is generic: `{ "error": "rate_limited", "retry_after": N }`
+  with a `Retry-After` header, no rule name / internals leaked.
+- **Counter store is Redis, set explicitly** — `Rack::Attack.cache.store` is a
+  `RedisCacheStore` (`RACK_ATTACK_REDIS_URL` → `REDIS_URL`), **not** `Rails.cache`,
+  which is `:null_store` in test and would silently disable every throttle. The
+  store's `error_handler` fails open (a Redis blip can't 500 a request).
+- **Disabled in the test env by default** (`Rack::Attack.enabled = !Rails.env.test?`)
+  so it doesn't perturb other request specs; `spec/requests/rack_attack_spec.rb`
+  opts in and swaps a `MemoryStore` per example.
+
 ## Safety-profile view alerts (issue #384)
 
 Public safety (MySpeak) pages have two surfaces. The **open page**
