@@ -581,8 +581,19 @@ class API::WebhooksController < API::ApplicationController
     end
     return if user.admin?
 
+    # Only email on the active -> past_due transition. Stripe redelivers
+    # invoice.payment_failed on every dunning retry (and can redeliver the
+    # same event), so gating on the prior status keeps us from emailing on
+    # each retry within the same past_due window (#220).
+    already_past_due = user.plan_status == "past_due"
+
     user.update!(plan_status: "past_due")
     Rails.logger.info "[StripeWebhook][invoice_failed] marked user=#{user.id} plan_status=past_due sub=#{sub_id}"
+
+    unless already_past_due
+      UserMailer.payment_failed_email(user).deliver_later
+      Rails.logger.info "[StripeWebhook][invoice_failed] queued payment_failed_email user=#{user.id}"
+    end
   rescue => e
     Rails.logger.error "[StripeWebhook] handle_invoice_payment_failed error: #{e.class} - #{e.message}"
   end

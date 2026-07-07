@@ -278,6 +278,21 @@ es:
       footer_signature: "— El equipo de SpeakAnyWay"
       footer_visit: "Visita nuestro sitio web"
 
+    payment_failed_email:
+      subject: "No pudimos procesar tu pago de SpeakAnyWay"
+      preheader: "Tu último pago no se completó — actualiza tu método de pago para conservar tu plan."
+      title: "No pudimos cobrar tu tarjeta"
+      greeting_with_name: "Hola %{name}:"
+      greeting_no_name: "Hola:"
+      intro: "Intentamos procesar el pago de tu suscripción de SpeakAnyWay, pero no se completó."
+      cta: "Actualizar método de pago"
+      cta_fallback: "Si el botón no funciona, copia y pega este enlace:"
+      retry_note: "No te preocupes todavía: tu acceso continúa durante unos días mientras reintentamos el cobro automáticamente. Actualizar tu método de pago ahora es la forma más rápida de mantener todo funcionando."
+      cancel_note: "Si los reintentos no tienen éxito, tu suscripción se cancelará automáticamente y tu cuenta pasará al plan Gratis."
+      questions_html: "¿Preguntas? Responde a este correo o escríbenos a <a href=\"mailto:help@speakanyway.com\">help@speakanyway.com</a>."
+      footer_signature: "— El equipo de SpeakAnyWay"
+      footer_visit: "Visita nuestro sitio web"
+
   setup_mailer:
     myspeak_setup_email:
       subject: "Instrucciones para configurar MySpeak"
