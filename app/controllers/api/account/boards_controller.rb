@@ -180,13 +180,16 @@ class API::Account::BoardsController < API::Account::ApplicationController
   end
 
   def image_params
-    params.require(:image).permit(:label, :image_prompt, :display_image, audio_files: [], docs: [:id, :user_id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
+    # :user_id dropped from the nested docs — ownership is server-decided, never
+    # client-supplied via mass-assignment (#27).
+    params.require(:image).permit(:label, :image_prompt, :display_image, audio_files: [], docs: [:id, :image, :documentable_id, :documentable_type, :processed, :_destroy])
   end
 
   # Only allow a list of trusted parameters through.
   def board_params
-    params.require(:board).permit(:user_id,
-                                  :name,
+    # :user_id dropped — a board's owner is server-decided (current_user), never
+    # client-supplied via mass-assignment (#27).
+    params.require(:board).permit(:name,
                                   :parent_id,
                                   :parent_type,
                                   :description,

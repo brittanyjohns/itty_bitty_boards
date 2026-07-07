@@ -535,7 +535,10 @@ class API::ChildAccountsController < API::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def child_account_params
-    params.require(:child_account).permit(:user_id, :username, :name)
+    # :user_id is intentionally NOT permitted — ownership is assigned server-side
+    # (@child_account.owner = current_user in #create), so a client can't set or
+    # reassign ownership via mass-assignment (#27).
+    params.require(:child_account).permit(:username, :name)
   end
 
   # Issues #210 / #211 — content-mutating endpoints on the communicator

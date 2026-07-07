@@ -200,6 +200,9 @@ class API::DocsController < API::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def doc_params
-    params.require(:doc).permit(:documentable_id, :documentable_type, :image, :raw, :current, :board_id, :user_id, :source_type)
+    # :user_id is intentionally NOT permitted — the owner is assigned server-side
+    # (@doc.user = current_user in #create), so a client can't set or reassign
+    # ownership via create/update mass-assignment (#27).
+    params.require(:doc).permit(:documentable_id, :documentable_type, :image, :raw, :current, :board_id, :source_type)
   end
 end

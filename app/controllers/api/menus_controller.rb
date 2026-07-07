@@ -180,8 +180,12 @@ class API::MenusController < API::ApplicationController
 
   # Only allow a list of trusted parameters through.
   def menu_params
-    params.require(:menu).permit(:user_id, :name, :description, :token_limit, :predefined,
-                                 docs: [:id, :raw, :image, :_destroy, :user_id, :source_type])
+    # :user_id is intentionally NOT permitted (top-level or on the nested docs)
+    # — ownership is assigned server-side (@menu.user / doc.user = current_user
+    # in #create), so a client can't set or reassign ownership via create/update
+    # mass-assignment (#27).
+    params.require(:menu).permit(:name, :description, :token_limit, :predefined,
+                                 docs: [:id, :raw, :image, :_destroy, :source_type])
   end
 
   def check_board_create_permissions
