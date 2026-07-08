@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Performance — Redis-backed production cache store (#474)
+- Production `Rails.cache` now uses a **Redis cache store** instead of Rails'
+  default `:file_store` (which was per-box and grew unbounded under `tmp/cache`
+  — a real risk on the single EC2 box). Uses the Redis that already backs
+  Sidekiq / Rack::Attack, namespaced `ibb_cache` so keys can't collide, with a
+  fail-open error handler (a Redis blip logs and returns nil rather than 500ing
+  a request). `CACHE_REDIS_URL` optionally points the cache at a separate
+  Redis/db (defaults to `REDIS_URL`). No user-facing behavior change; caching
+  is simply faster and shared across the puma + sidekiq processes.
+
 ### Fixed — AAC Classroom Kit QR codes wouldn't scan
 - The kit's name/safety/device backpack tags encoded the ~119-char
   `/classroom?utm_...` funnel URL, which forced a dense 41-module (version-6) QR;

@@ -35,6 +35,14 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 - **Auth:** Devise + devise-jwt
 - **Authorization:** Pundit
 - **Background jobs:** Sidekiq (v7) + Redis
+- **Cache:** `Rails.cache` is a **Redis cache store** in production
+  (`config/environments/production.rb`, issue #474) — namespaced `ibb_cache` so
+  keys can't collide with Sidekiq / Rack::Attack on the shared Redis, with a
+  fail-open `error_handler` (a Redis blip logs + returns nil, never 500s a
+  request). `CACHE_REDIS_URL` overrides the instance/db (defaults to
+  `REDIS_URL`). Replaced the prior unconfigured `:file_store` default, which
+  grew unbounded under `tmp/cache`. Dev = `:memory_store`/`:null_store`,
+  test = `:null_store` (unchanged — stub `Rails.cache` in specs that need it).
 - **Payments:** Stripe and RevenueCat (via webhook). Admin revenue metrics combine both via `MissionControl::RevenueMetrics` (see "Mission Control revenue metrics" under the RevenueCat / Apple IAP section).
 - **File storage:** S3 (Active Storage)
 - **Email:** Action Mailer over Gmail SMTP. Both environments authenticate against `smtp.gmail.com` when `SMTP_USERNAME`/`SMTP_PASSWORD` are set (a Google Workspace account + App Password); production falls back to the `smtp-relay.gmail.com` IP-allowlisted relay when no credentials are present. `SMTP_ADDRESS` overrides the SMTP host. The `mailgun-ruby` gem is in the Gemfile but is not the active delivery transport. Diagnose delivery with `bin/rails 'mail:test[you@example.com]'`.
