@@ -5,6 +5,10 @@
 
 # # Read more: https://github.com/cyu/rack-cors
 
+# Staging host is ENV-driven (issue #393) so a Hatchbox app/subdomain change
+# needs no code change; defaults to the legacy subdomain for safety.
+staging_host = ENV.fetch("STAGING_HOST", "ypk9e.hatchboxapp.com")
+
 Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do
     origins("http://localhost:8100",
@@ -12,7 +16,7 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
             "https://www.speakanyway.com",
             "https://app.speakanyway.com",
             "http://app.speakanyway.com",
-            "https://ypk9e.hatchboxapp.com",
+            "https://#{staging_host}",
             "capacitor://localhost",
             "https://localhost",
             "http://localhost",

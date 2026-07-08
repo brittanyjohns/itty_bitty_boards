@@ -24,7 +24,15 @@ jobs:
           HATCHBOX_STAGING_APP_ID: ${{ secrets.HATCHBOX_STAGING_APP_ID }}
 
           # ---- Literals (staging-specific or shared with prod) ----
+          # CUTOVER (issue #393): when the new staging box's Hatchbox app is
+          # created, it gets a NEW <subdomain>.hatchboxapp.com. Update the host
+          # in STAGING_HOST + the 5 URL literals below to that subdomain, set the
+          # HATCHBOX_STAGING_APP_ID secret to the new app id, then re-run this
+          # workflow. STAGING_HOST is what the Rails app reads (config/environments/
+          # production.rb + cors.rb); leaving it at the legacy value is safe until
+          # cutover.
           STAGING: "true"
+          STAGING_HOST: ypk9e.hatchboxapp.com
           API_URL: https://ypk9e.hatchboxapp.com
           DOMAIN: https://ypk9e.hatchboxapp.com
           FRONT_END_URL: https://ypk9e.hatchboxapp.com

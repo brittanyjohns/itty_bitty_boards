@@ -24,6 +24,7 @@ vars:
   - WEB_CONCURRENCY
 
   # ---- App URLs ----
+  - STAGING_HOST               # ypk9e.hatchboxapp.com (host only; read by production.rb + cors.rb)
   - API_URL                    # https://ypk9e.hatchboxapp.com
   - DOMAIN                     # https://ypk9e.hatchboxapp.com
   - FRONT_END_URL              # https://ypk9e.hatchboxapp.com
