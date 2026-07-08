@@ -5,6 +5,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — MySpeak page themes (backend) (#476)
+- Communicator MySpeak safety pages (`/my/<slug>`) can now carry an owner-picked
+  visual theme, stored on `profile.settings["theme"]`. `"theme"` is whitelisted
+  into `Profile::SAFETY_PAGE_KEYS`, so it flows through `#safety_view` onto the
+  public payload (`GET /api/profiles/public/:slug`). A `before_save`
+  sanitizer validates it server-side — hex fields (`accent`, `bg_color`,
+  `border_color`, `text_color`) must be `#RRGGBB`, `preset`/`bg_style` must be
+  simple slugs, and everything else is dropped — because the values render into
+  inline CSS on an unauthenticated page (CSS-injection defense). No migration, no
+  new endpoints; the theme round-trips through the existing owner-gated
+  `PATCH /api/profiles/:id`. Ships silently until the frontend picker lands.
+
 ### Fixed — AAC Classroom Kit QR codes wouldn't scan
 - The kit's name/safety/device backpack tags encoded the ~119-char
   `/classroom?utm_...` funnel URL, which forced a dense 41-module (version-6) QR;
