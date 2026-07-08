@@ -1286,9 +1286,23 @@ which already depends on `pdf-lib`.
     still uses `format: "A4"`, so a real user's downloaded safety-card PDF can
     overflow to 2 pages. Not fixed here (out of scope for the kit change) — a
     separate fix would size the page to the card.
-- **Every kit QR** points at
-  `speakanyway.com/classroom?utm_source=aac_kit&utm_medium=print&utm_campaign=classroom_kit&utm_content=<artifact>`
-  (bare `speakanyway.com`, per brand rules).
+- **Kit QR targets (short, so they actually scan).** Two families:
+  - **Board posters** (Core Words, Storytime) → `app.speakanyway.com/pb/<slug>`
+    (`mkt-core-words-poster`, `mkt-storytime-board`) — deep-links to the live
+    tappable board. These carry no UTM.
+  - **Tags** (name / safety / device) → **`speakanyway.com/myspeak`** (bare
+    domain per brand rule, **no UTM**). They previously pointed at the
+    ~119-char `/classroom?utm_...` URL, which forced a 41-module (version-6) QR;
+    at the tags' small printed size that fell at/below the phone-camera scan
+    floor and **wouldn't scan** (2026-07-08). The short `/myspeak` URL is a
+    ~25-module (version-2) code — roughly double the printed module size — and
+    lets `Marketing::SheetRendering#qr_data_url` run ECC **`:m`** (restored from
+    the `:l` hack that only existed to cram the long URL in). **Do not re-add a
+    long UTM to the tag URLs** — it re-inflates the module count and re-breaks
+    scanning (guarded by `spec/services/marketing/qr_scannability_spec.rb`).
+  - The kit is assembled by the printables `npm run build-kit` script, which is
+    the single source of truth for these per-artifact `qr_target_url`s — the
+    backend endpoints just render whatever URL they're handed.
 - Reference: `.claude-notes/artifact-generation-services.md` (the reusable
   engines) and `.claude-notes/classroom-kit-hosting-handoff.md` (end-to-end
   pipeline + the printables side + the `KIT_DOWNLOAD_URL` swap).
