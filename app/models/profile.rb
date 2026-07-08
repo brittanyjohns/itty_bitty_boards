@@ -72,6 +72,7 @@ class Profile < ApplicationRecord
 
   before_save :set_kind
   before_save :touch_slug_changed_at
+  before_save :sanitize_theme_settings
 
   has_rich_text :public_about
   has_rich_text :public_intro
@@ -442,6 +443,7 @@ class Profile < ApplicationRecord
   SAFETY_PAGE_KEYS = %w[
     pronouns
     device_notes
+    theme
   ].freeze
 
   # Sensitive safety settings — medical details + emergency contacts +
@@ -468,6 +470,17 @@ class Profile < ApplicationRecord
   # Kept for any external reference; the full set of keys the safety page can
   # surface across the open page + the gated reveal.
   SAFETY_PUBLIC_KEYS = (SAFETY_PAGE_KEYS + SAFETY_SENSITIVE_KEYS).freeze
+
+  # --- MySpeak page theme (issue #476) ---
+  # Owner-picked visual theme stored on settings["theme"]. Values render into
+  # inline CSS on an unauthenticated public page, so the sanitizer below is the
+  # server-side CSS-injection defense. Presets/palettes live frontend-only; the
+  # backend only stores + validates. Whitelist, not blocklist — unknown keys
+  # are dropped.
+  THEME_HEX_KEYS = %w[accent bg_color border_color text_color].freeze
+  THEME_SLUG_KEYS = %w[preset bg_style].freeze
+  THEME_HEX_FORMAT = /\A#[0-9a-fA-F]{6}\z/.freeze
+  THEME_SLUG_FORMAT = /\A[a-z0-9_-]{1,40}\z/.freeze
 
   PUBLIC_PAGE_KEYS = %w[
     public_page
@@ -830,6 +843,38 @@ class Profile < ApplicationRecord
     return unless slug_changed?
     return if new_record?
     self.slug_changed_at = Time.current
+  end
+
+  # Whitelist + format-validate settings["theme"] on every save. Theme values
+  # render into inline CSS on an unauthenticated public page, so this is the
+  # CSS-injection defense. Hex fields must be #RRGGBB; preset/bg_style must be
+  # simple slugs; everything else is dropped. A non-hash or empty theme clears
+  # the key entirely (issue #476).
+  def sanitize_theme_settings
+    return unless settings.is_a?(Hash)
+    return unless settings.key?("theme")
+
+    raw = settings["theme"]
+    unless raw.is_a?(Hash)
+      settings.delete("theme")
+      return
+    end
+
+    clean = {}
+    THEME_HEX_KEYS.each do |k|
+      v = raw[k].to_s.strip
+      clean[k] = v if v.match?(THEME_HEX_FORMAT)
+    end
+    THEME_SLUG_KEYS.each do |k|
+      v = raw[k].to_s.strip
+      clean[k] = v if v.match?(THEME_SLUG_FORMAT)
+    end
+
+    if clean.empty?
+      settings.delete("theme")
+    else
+      settings["theme"] = clean
+    end
   end
 
   public

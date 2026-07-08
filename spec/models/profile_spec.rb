@@ -217,6 +217,81 @@ RSpec.describe Profile, type: :model do
       expect(view).not_to have_key(:communicator_account)
       expect(view).not_to have_key(:email)
     end
+
+    it "exposes a sanitized theme in the page-safe settings" do
+      profile.update!(settings: { "theme" => { "preset" => "ocean", "accent" => "#0EA5E9" } })
+      expect(profile.safety_view[:settings]["theme"]).to eq("preset" => "ocean", "accent" => "#0EA5E9")
+    end
+
+    it "never exposes sensitive safety keys in the page-safe settings" do
+      profile.update!(settings: { "allergies" => "peanuts", "ice_contact_1" => "Mom" })
+      expect(profile.safety_view[:settings]).not_to have_key("allergies")
+      expect(profile.safety_view[:settings]).not_to have_key("ice_contact_1")
+    end
+  end
+
+  describe "sanitize_theme_settings callback" do
+    let(:profile) { build_profile(slug: "theme-page").tap(&:save!) }
+
+    it "keeps valid hex and slug values" do
+      profile.update!(settings: {
+        "theme" => {
+          "preset" => "sunset",
+          "bg_style" => "gradient",
+          "accent" => "#0EA5E9",
+          "bg_color" => "#F0F9FF",
+          "border_color" => "#BAE6FD",
+          "text_color" => "#0C4A6E",
+        },
+      })
+      expect(profile.reload.settings["theme"]).to eq(
+        "accent" => "#0EA5E9",
+        "bg_color" => "#F0F9FF",
+        "border_color" => "#BAE6FD",
+        "text_color" => "#0C4A6E",
+        "preset" => "sunset",
+        "bg_style" => "gradient",
+      )
+    end
+
+    it "drops invalid hex values (named color, short hex)" do
+      profile.update!(settings: { "theme" => { "accent" => "red", "bg_color" => "#fff" } })
+      expect(profile.reload.settings).not_to have_key("theme")
+    end
+
+    it "drops a CSS-injection attempt in a hex field" do
+      profile.update!(settings: { "theme" => { "accent" => "#fff; background:url(javascript:alert(1))" } })
+      expect(profile.reload.settings).not_to have_key("theme")
+    end
+
+    it "drops slug values that aren't simple slugs" do
+      profile.update!(settings: { "theme" => { "preset" => "Ocean Blue!", "accent" => "#0EA5E9" } })
+      theme = profile.reload.settings["theme"]
+      expect(theme).to eq("accent" => "#0EA5E9")
+      expect(theme).not_to have_key("preset")
+    end
+
+    it "strips unknown keys (whitelist, not blocklist)" do
+      profile.update!(settings: { "theme" => { "accent" => "#0EA5E9", "evil" => "boom", "font" => "Comic Sans" } })
+      expect(profile.reload.settings["theme"]).to eq("accent" => "#0EA5E9")
+    end
+
+    it "deletes the key when theme is not a hash" do
+      profile.update!(settings: { "theme" => "hacker" })
+      expect(profile.reload.settings).not_to have_key("theme")
+    end
+
+    it "deletes the key when every theme value is invalid" do
+      profile.update!(settings: { "theme" => { "accent" => "nope", "preset" => "" } })
+      expect(profile.reload.settings).not_to have_key("theme")
+    end
+
+    it "leaves non-theme settings untouched" do
+      profile.update!(settings: { "pronouns" => "she/her", "theme" => { "accent" => "#0EA5E9" } })
+      settings = profile.reload.settings
+      expect(settings["pronouns"]).to eq("she/her")
+      expect(settings["theme"]).to eq("accent" => "#0EA5E9")
+    end
   end
 
   describe "#public_page_view" do

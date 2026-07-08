@@ -272,4 +272,77 @@ RSpec.describe "API::Profiles", type: :request do
       expect(JSON.parse(response.body)["reason"]).to eq("taken")
     end
   end
+
+  # MySpeak page theme (issue #476): owner-picked theme round-trips through
+  # PATCH /api/profiles/:id and surfaces on the public safety_view payload.
+  describe "MySpeak page theme (settings.theme)" do
+    let(:owner) { FactoryBot.create(:user) }
+    let(:other_user) { FactoryBot.create(:user) }
+    let(:child) { FactoryBot.create(:child_account, user: owner, owner: owner, name: "Sky") }
+    let!(:profile) do
+      Profile.new(profileable: child, username: "sky-theme", slug: "sky-theme").tap(&:save!)
+    end
+
+    before do
+      # generate_attachments! shells out to Grover/puppeteer; not what these
+      # specs exercise and unavailable on CI.
+      allow_any_instance_of(Profile).to receive(:generate_attachments!).and_return(true)
+    end
+
+    it "persists a valid theme and returns it on api_view" do
+      put "/api/profiles/#{profile.id}",
+          params: { profile: { settings: { theme: { preset: "ocean", accent: "#0EA5E9", bg_color: "#F0F9FF" } } } },
+          headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      theme = JSON.parse(response.body).dig("settings", "theme")
+      expect(theme).to eq("preset" => "ocean", "accent" => "#0EA5E9", "bg_color" => "#F0F9FF")
+      expect(profile.reload.settings["theme"]).to eq(theme)
+    end
+
+    it "drops invalid theme values on write" do
+      put "/api/profiles/#{profile.id}",
+          params: { profile: { settings: { theme: { accent: "red", preset: "javascript:alert(1)", bg_color: "#0EA5E9" } } } },
+          headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      expect(profile.reload.settings["theme"]).to eq("bg_color" => "#0EA5E9")
+    end
+
+    it "surfaces the theme on the public safety_view payload" do
+      profile.update!(settings: { "theme" => { "preset" => "ocean", "accent" => "#0EA5E9" } })
+
+      get "/api/profiles/public/#{profile.slug}"
+
+      expect(response).to have_http_status(:ok)
+      theme = JSON.parse(response.body).dig("settings", "theme")
+      expect(theme).to eq("preset" => "ocean", "accent" => "#0EA5E9")
+    end
+
+    it "still withholds sensitive safety keys from the public payload" do
+      profile.update!(settings: {
+        "theme" => { "accent" => "#0EA5E9" },
+        "allergies" => "peanuts",
+        "ice_contact_1" => "Mom 555-1234",
+      })
+
+      get "/api/profiles/public/#{profile.slug}"
+
+      body = JSON.parse(response.body)
+      expect(body.dig("settings", "theme")).to eq("accent" => "#0EA5E9")
+      expect(body["settings"]).not_to have_key("allergies")
+      expect(body["settings"]).not_to have_key("ice_contact_1")
+      expect(response.body).not_to include("peanuts")
+    end
+
+    it "forbids a non-owner from changing the theme" do
+      put "/api/profiles/#{profile.id}",
+          params: { profile: { settings: { theme: { accent: "#0EA5E9" } } } },
+          headers: auth_headers(other_user)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(JSON.parse(response.body)["error"]).to eq("not_owner")
+      expect(profile.reload.settings["theme"]).to be_nil
+    end
+  end
 end
