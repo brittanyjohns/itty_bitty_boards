@@ -1,6 +1,6 @@
 # SpeakAnyWay — Backend
 
-Ruby on Rails 7 app (hybrid: API + HTML views). Deployed on EC2 via Hatchbox.
+Ruby on Rails 8 app (hybrid: API + HTML views). Deployed on EC2 via Hatchbox.
 
 ## Documentation Accuracy Rules
 
@@ -13,7 +13,11 @@ When writing or updating backend CLAUDE.md, ALWAYS verify claims against the act
 
 ## Stack
 
-- **Framework:** Rails 7
+- **Framework:** Rails 8 (`~> 8.0`; `config.load_defaults 8.0`). Upgraded from
+  7.1 (EOL) in #56 — see `config/initializers/new_framework_defaults_7_2.rb` /
+  `_8_0.rb` for the documented framework-default overrides. Schema annotations
+  use `annotaterb` (the Rails 8-compatible successor to the retired `annotate`
+  gem).
 - **Language:** Ruby
 - **Database:** PostgreSQL on **managed AWS RDS** (Multi-AZ, automated backups +
   PITR), migrated off the shared EC2 box in Phase 2a of the scaling roadmap
