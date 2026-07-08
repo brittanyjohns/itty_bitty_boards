@@ -83,12 +83,17 @@
           "
 
         >
+          <% placeholder_src = generate_placeholder_image(t["label"]) %>
           <div class="tile-media">
             <% if has_image %>
-              <img src="<%= t["image_url"] %>" alt="<%= t["label"] %>">
+              <img
+                src="<%= t["image_url"] %>"
+                alt="<%= t["label"] %>"
+                onerror="this.onerror=null; this.src='<%= placeholder_src %>'; this.classList.add('tile-placeholder-image'); var lbl=this.closest('.tile').querySelector('.label'); if(lbl) lbl.style.display='none';"
+              >
             <% else %>
               <img
-                src="<%= generate_placeholder_image(t["label"]) %>"
+                src="<%= placeholder_src %>"
                 alt="<%= t["label"] %>"
                 class="tile-placeholder-image"
               >
