@@ -22,23 +22,6 @@
       "user_note": "False positive: sort_order is validated against an explicit allowlist (%w[asc desc]) before being used in Arel.sql. No user input reaches this interpolation unchecked."
     },
     {
-      "warning_type": "Unmaintained Dependency",
-      "warning_code": 120,
-      "fingerprint": "d84924377155b41e094acae7404ec2e521629d86f97b0ff628e3d1b263f8101c",
-      "check_name": "EOLRails",
-      "message": "Support for Rails 7.1.6 ended on 2025-10-01",
-      "file": "Gemfile.lock",
-      "line": 387,
-      "link": "https://brakemanscanner.org/docs/warning_types/unmaintained_dependency/",
-      "code": null,
-      "render_path": null,
-      "location": null,
-      "user_input": null,
-      "confidence": "High",
-      "cwe_id": [1104],
-      "user_note": "Acknowledged: Rails 7.1 is EOL. Tracked in https://github.com/brittanyjohns/itty_bitty_boards/issues/56. Remove this ignore once the Rails 7.2+ upgrade is merged."
-    },
-    {
       "warning_type": "File Access",
       "warning_code": 16,
       "fingerprint": "ff37772bbdbba056212484d42519d9eddb1538ddb450caccd99ad2a83bd15a5a",

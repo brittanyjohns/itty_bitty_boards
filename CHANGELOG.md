@@ -17,6 +17,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   the single `SheetRendering` QR renderer instead of a drift-prone copy.
   `spec/services/marketing/qr_scannability_spec.rb` guards both the ECC level and
   the resulting module density so a long UTM URL can't silently re-break scanning.
+### Security — upgrade Rails 7.1 (EOL) → 8.0 (#56)
+- Bumped Rails from `~> 7.1.2` (EOL 2025-10-01, no security backports) to
+  `~> 8.0.0` (locked 8.0.5). Resolves **CVE-2026-33658** (ActiveStorage DoS via
+  proxy-mode multi-range requests, fixed in ≥ 7.2.3.1) and clears Brakeman's
+  high-confidence `EOLRails` unmaintained-dependency warning.
+- Moved framework defaults to `config.load_defaults 8.0`; the new defaults are
+  documented (with revert escape hatches) in
+  `config/initializers/new_framework_defaults_7_2.rb` and `_8_0.rb`.
+- Replaced the retired, Rails-8-incompatible `annotate` gem with `annotaterb`
+  (dev/test tooling only — no runtime/production impact).
+- Removed the now-obsolete `EOLRails` entry from `config/brakeman.ignore`.
+- No user-facing behavior change; full RSpec suite passes on 8.0.
 
 ### Added — rate limiting on auth, token-lookup, and AI-generation routes (#30)
 - Rack::Attack now throttles the abuse-prone surfaces that previously had no

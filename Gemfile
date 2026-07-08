@@ -3,7 +3,7 @@ source "https://rubygems.org"
 ruby "3.3.0"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
-gem "rails", "~> 7.1.2"
+gem "rails", "~> 8.0.0"
 
 # The original asset pipeline for Rails [https://github.com/rails/sprockets-rails]
 gem "sprockets-rails"
@@ -143,7 +143,7 @@ gem "matrix", "~> 0.4.2"
 gem "http"
 gem "browser", "~> 5.3"
 gem "geocoder", "~> 1.8" # Coarse IP→location lookup for safety-profile view alerts
-gem "annotate", "~> 3.2"
+gem "annotaterb", "~> 4.13" # Rails 8-compatible successor to the annotate gem
 
 gem "grover"     # HTML → PDF via headless Chrome
 gem "rqrcode"    # Generate QR code PNGs
