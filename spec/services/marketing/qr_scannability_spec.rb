@@ -1,21 +1,34 @@
 require "rails_helper"
 
-# Regression guard for the "kit tag QRs won't scan" bug: rqrcode's default
-# ECC level (:h) turned the ~119-char /classroom UTM URL into a 57-module QR,
-# which at the tags' small printed size fell below the ~0.5mm-per-module
-# phone-camera detection floor. The sheets must encode at :l (41 modules) and
-# render a print-resolution source PNG. If these expectations start failing,
-# re-check the physical QR sizes in app/views/marketing/*_sheet.html.erb —
-# module density is a joint property of ECC level AND printed size.
+# Regression guard for the "kit tag QRs won't scan" bug. The tags used to
+# encode the ~119-char /classroom UTM URL, which forced a 41-module (version-6)
+# QR even after ECC was dropped to :l to fit it — and at the tags' small printed
+# size that fell at/below the ~0.5mm-per-module phone-camera detection floor, so
+# the codes wouldn't scan at all. The fix is a SHORT target URL
+# (speakanyway.com/myspeak, no UTM), which keeps the code a low-density
+# version-2/3 and lets us run proper ECC :m damage redundancy again.
+#
+# These expectations pin BOTH levers the renderer controls: ECC level AND the
+# resulting module density (QR version). Printed physical size is the third
+# lever and lives in app/views/marketing/*_sheet.html.erb — if these start
+# failing, re-check that a caller isn't passing a long (UTM-laden) URL, which
+# is what re-inflates the version.
 RSpec.describe "Marketing sheet QR scannability" do
-  let(:long_url) do
-    "https://speakanyway.com/classroom?utm_source=aac_kit&utm_medium=print&utm_campaign=classroom_kit&utm_content=safety_tag"
-  end
+  # The real kit target: short, no UTM, bare domain (brand print rule).
+  let(:target_url) { "https://speakanyway.com/myspeak" }
 
   shared_examples "a scannable marketing QR" do
-    it "encodes at ECC level :l (not rqrcode's dense :h default)" do
-      expect(RQRCode::QRCode).to receive(:new).with(long_url, level: :l).and_call_original
+    it "encodes at ECC level :m (restored now that the URL is short)" do
+      expect(RQRCode::QRCode).to receive(:new).with(target_url, level: :m).and_call_original
       data_url
+    end
+
+    it "stays a low-density (<= version 3 / 29-module) QR at the short URL" do
+      # Density is what broke scanning. Version 3 at the tags' printed sizes is
+      # ~0.9mm/module; a regression to a long URL would push this to v6 (41
+      # modules, ~0.6mm) and this guard would trip.
+      version = RQRCode::QRCode.new(target_url, level: :m).qrcode.version
+      expect(version).to be <= 3
     end
 
     it "renders a 480px print-resolution PNG data URL" do
@@ -31,19 +44,28 @@ RSpec.describe "Marketing sheet QR scannability" do
   end
 
   describe Marketing::SafetyTagSheet do
-    subject(:sheet) { described_class.new(qr_target_url: long_url) }
+    subject(:sheet) { described_class.new(qr_target_url: target_url) }
 
-    let(:data_url) { sheet.send(:qr_data_url, long_url) }
+    let(:data_url) { sheet.send(:qr_data_url, target_url) }
+    let(:blank_data_url) { sheet.send(:qr_data_url, nil) }
+
+    it_behaves_like "a scannable marketing QR"
+  end
+
+  describe Marketing::DeviceTagSheet do
+    subject(:sheet) { described_class.new(qr_target_url: target_url) }
+
+    let(:data_url) { sheet.send(:qr_data_url, target_url) }
     let(:blank_data_url) { sheet.send(:qr_data_url, nil) }
 
     it_behaves_like "a scannable marketing QR"
   end
 
   describe Marketing::NameTagSheet do
-    subject(:sheet) { described_class.new(qr_target_url: long_url) }
+    subject(:sheet) { described_class.new(qr_target_url: target_url) }
 
-    let(:data_url) { sheet.send(:qr_data_url) }
-    let(:blank_data_url) { described_class.new(qr_target_url: nil).send(:qr_data_url) }
+    let(:data_url) { sheet.send(:qr_data_url, target_url) }
+    let(:blank_data_url) { sheet.send(:qr_data_url, nil) }
 
     it_behaves_like "a scannable marketing QR"
   end

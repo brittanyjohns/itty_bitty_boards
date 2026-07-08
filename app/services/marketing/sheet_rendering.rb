@@ -28,16 +28,24 @@ module Marketing
       Grover.new(html, **LETTER_GROVER_OPTIONS).to_pdf
     end
 
-    # ECC level :l is deliberate. rqrcode defaults to :h, which turns the
-    # ~119-char /classroom UTM URL into a 57-module QR — at the tags' small
-    # printed size that's ~0.35mm per module, below what phone cameras detect
-    # (the "QR won't even scan" kit bug). :l needs only 41 modules, and a
-    # clean high-contrast print doesn't need :h's 30% damage redundancy.
-    # size: 480 keeps the source ≥300dpi at the printed sizes below.
+    # ECC level :m is deliberate. The kit QR target is the SHORT
+    # `speakanyway.com/myspeak` funnel URL (no UTM) — ~31 chars, a version-2
+    # (25-module) QR. That leaves room to run :m's 15% damage redundancy and
+    # still stay a low-density version-3 (29-module) code, which at the tags'
+    # printed sizes is ~0.9mm per module — comfortably above the ~0.5mm
+    # phone-camera detection floor.
+    #
+    # History: the tags used to encode the ~119-char /classroom UTM URL, which
+    # forced a 41-module (version-6) QR even after ECC was dropped to :l just
+    # to fit it — and it still barely scanned at the small printed size (the
+    # "QR won't even scan" kit bug). Shortening the URL to /myspeak removed the
+    # reason for :l, so we restored damage tolerance. Keep the caller's
+    # qr_target_url short; a long URL re-inflates the module count and
+    # re-breaks scanning. size: 480 keeps the source ≥300dpi.
     def qr_data_url(url, size: 480)
       return nil if url.blank?
 
-      png = RQRCode::QRCode.new(url, level: :l).as_png(
+      png = RQRCode::QRCode.new(url, level: :m).as_png(
         size: size,
         border_modules: 4,
         module_px_size: 6,

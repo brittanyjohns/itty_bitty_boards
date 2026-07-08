@@ -5,6 +5,19 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — AAC Classroom Kit QR codes wouldn't scan
+- The kit's name/safety/device backpack tags encoded the ~119-char
+  `/classroom?utm_...` funnel URL, which forced a dense 41-module (version-6) QR;
+  at the tags' small printed size the modules fell at/below the phone-camera
+  detection floor, so the codes **wouldn't scan at all**. The tag QRs now target
+  the short `speakanyway.com/myspeak` funnel URL (no UTM) — a ~25-module
+  (version-2) code, roughly double the printed module size — and
+  `Marketing::SheetRendering#qr_data_url` now runs ECC level `:m` (restored from
+  the `:l` hack that only existed to fit the long URL). `NameTagSheet` now shares
+  the single `SheetRendering` QR renderer instead of a drift-prone copy.
+  `spec/services/marketing/qr_scannability_spec.rb` guards both the ECC level and
+  the resulting module density so a long UTM URL can't silently re-break scanning.
+
 ### Added — rate limiting on auth, token-lookup, and AI-generation routes (#30)
 - Rack::Attack now throttles the abuse-prone surfaces that previously had no
   per-IP / per-user limits: **sign-in** (`POST /users/sign_in`,
