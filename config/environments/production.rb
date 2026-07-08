@@ -91,8 +91,27 @@ Rails.application.configure do
   # want to log everything, set the level to "debug".
   config.log_level = ENV.fetch("RAILS_LOG_LEVEL", "info")
 
-  # Use a different cache store in production.
-  # config.cache_store = :mem_cache_store
+  # Use Redis as the shared cache store in production (issue #474). Redis
+  # already backs Sidekiq and Rack::Attack, so this adds no new infrastructure
+  # — it just replaces Rails' default `:file_store`, which is per-box and grows
+  # unbounded under `tmp/cache` (a real risk on the single EC2 box; see the
+  # disk-full outage that prompted DiskSpaceAlertJob), with a fast cache shared
+  # across the puma and sidekiq processes.
+  #
+  # Namespaced so cache keys can't collide with Sidekiq / Rack::Attack keys on
+  # the shared instance (and `Rails.cache.clear` only clears namespaced keys,
+  # never FLUSHDBs the queue). `error_handler` fails open — a Redis blip logs
+  # and returns nil rather than 500ing a request (mirrors rack_attack).
+  # `CACHE_REDIS_URL` lets ops point the cache at a separate Redis/db without a
+  # code change; it falls back to the shared `REDIS_URL`.
+  config.cache_store = :redis_cache_store, {
+    url: ENV.fetch("CACHE_REDIS_URL", ENV.fetch("REDIS_URL", "redis://localhost:6379/0")),
+    namespace: "ibb_cache",
+    reconnect_attempts: 1,
+    error_handler: lambda do |method:, returning:, exception:|
+      Rails.logger.warn("[cache] Redis #{method} failed: #{exception.class}: #{exception.message}")
+    end
+  }
 
   # Use a real queuing backend for Active Job (and separate queues per environment).
   config.active_job.queue_adapter = :sidekiq

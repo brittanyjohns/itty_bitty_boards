@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Performance — Redis-backed production cache store (#474)
+- Production `Rails.cache` now uses a **Redis cache store** instead of Rails'
+  default `:file_store` (which was per-box and grew unbounded under `tmp/cache`
+  — a real risk on the single EC2 box). Uses the Redis that already backs
+  Sidekiq / Rack::Attack, namespaced `ibb_cache` so keys can't collide, with a
+  fail-open error handler (a Redis blip logs and returns nil rather than 500ing
+  a request). `CACHE_REDIS_URL` optionally points the cache at a separate
+  Redis/db (defaults to `REDIS_URL`). No user-facing behavior change; caching
+  is simply faster and shared across the puma + sidekiq processes.
+
 ### Security — upgrade Rails 7.1 (EOL) → 8.0 (#56)
 - Bumped Rails from `~> 7.1.2` (EOL 2025-10-01, no security backports) to
   `~> 8.0.0` (locked 8.0.5). Resolves **CVE-2026-33658** (ActiveStorage DoS via
