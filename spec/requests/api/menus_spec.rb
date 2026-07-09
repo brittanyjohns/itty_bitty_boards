@@ -10,8 +10,8 @@ RSpec.describe "API::Menus", type: :request do
       )
     end
 
-    # Menu creation is credit-gated (menu_create = 10 credits). Free signups
-    # only grant 5, so give the user enough to clear check_credits! — these
+    # Menu creation is credit-gated: flat menu_create fee + the per-image
+    # budget (default 10 images x 1 credit). Give the user plenty so these
     # specs exercise menu creation, not the credit gate itself.
     before do
       CreditService.grant_plan!(user, amount: 100, period_end: 30.days.from_now)
@@ -52,6 +52,89 @@ RSpec.describe "API::Menus", type: :request do
              params: { menu: { name: "Joe's Diner", docs: { image: image } } },
              headers: auth_headers(user)
       }.to change(EnhanceImageDescriptionJob.jobs, :size).by(1)
+    end
+
+    describe "image budget (token_limit)" do
+      def create_menu(token_limit)
+        post "/api/menus",
+             params: { menu: { name: "Joe's Diner", token_limit: token_limit, docs: { image: image } } },
+             headers: auth_headers(user)
+      end
+
+      it "charges the flat fee plus the picked budget and stashes the reservation" do
+        expect { create_menu(4) }
+          .to change { user.reload.plan_credits_balance }.by(-9) # 5 flat + 4 x 1
+
+        expect(response).to have_http_status(:created)
+        menu = Menu.last
+        expect(menu.token_limit).to eq(4)
+        reservation = menu.boards.last.settings["menu_credit"]
+        expect(reservation["reserved"]).to eq(4)
+        expect(reservation["per_image"]).to eq(1)
+        expect(CreditTransaction.find(reservation["txn_id"]).amount).to eq(-9)
+      end
+
+      it "clamps the budget to MENU_MAX_IMAGES" do
+        expect { create_menu(999) }
+          .to change { user.reload.plan_credits_balance }.by(-35) # 5 + 30 x 1
+        expect(Menu.last.token_limit).to eq(30)
+      end
+
+      it "falls back to the default budget on a garbage value" do
+        expect { create_menu("nonsense") }
+          .to change { user.reload.plan_credits_balance }.by(-15) # 5 + 10 x 1
+        expect(Menu.last.token_limit).to eq(10)
+      end
+
+      it "returns 402 when the balance cannot cover the budget" do
+        user.update!(plan_credits_balance: 8, topup_credits_balance: 0)
+
+        expect { create_menu(30) }.not_to change(Menu, :count)
+
+        expect(response).to have_http_status(:payment_required)
+        expect(JSON.parse(response.body)["error"]).to eq("insufficient_credits")
+      end
+    end
+  end
+
+  describe "POST /api/menus/:id/rerun" do
+    let(:menu) { FactoryBot.create(:menu, user: user, token_limit: 10) }
+    let!(:board) do
+      FactoryBot.create(:board, user: user, board_type: "menu",
+                                parent_type: "Menu", parent_id: menu.id)
+    end
+
+    before do
+      CreditService.grant_plan!(user, amount: 100, period_end: 30.days.from_now)
+      allow_any_instance_of(Menu).to receive(:enhance_image_description)
+        .and_return({ "menu_items" => [{ "name" => "cheeseburger" }] })
+    end
+
+    it "rejects a user who does not own the menu" do
+      stranger = FactoryBot.create(:user)
+      CreditService.grant_plan!(stranger, amount: 100, period_end: 30.days.from_now)
+
+      post "/api/menus/#{menu.id}/rerun", headers: auth_headers(stranger)
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    it "charges a fresh build cost and stashes the reservation on the board" do
+      expect {
+        post "/api/menus/#{menu.id}/rerun", params: { token_limit: 3 }, headers: auth_headers(user)
+      }.to change { user.reload.plan_credits_balance }.by(-8) # 5 + 3 x 1
+
+      expect(response).to have_http_status(:ok)
+      expect(menu.reload.token_limit).to eq(3)
+      expect(board.reload.settings["menu_credit"]["reserved"]).to eq(3)
+    end
+
+    it "refunds the whole spend when extraction produces nothing" do
+      allow_any_instance_of(Menu).to receive(:enhance_image_description).and_return(nil)
+
+      expect {
+        post "/api/menus/#{menu.id}/rerun", params: { token_limit: 3 }, headers: auth_headers(user)
+      }.not_to change { user.reload.plan_credits_balance }
     end
   end
 end

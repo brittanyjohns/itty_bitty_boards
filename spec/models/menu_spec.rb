@@ -56,4 +56,52 @@ RSpec.describe Menu, type: :model do
       expect(menu.enhance_image_description(board.id)).to be_nil
     end
   end
+
+  describe "#create_images_from_description image budget" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:menu) { FactoryBot.create(:menu, user: user, token_limit: 10) }
+    let(:board) do
+      FactoryBot.create(:board, user: user, board_type: "menu", token_limit: 10,
+                                parent_type: "Menu", parent_id: menu.id)
+    end
+
+    before do
+      CreditService.grant_plan!(user, amount: 100, period_end: 30.days.from_now)
+      txn = CreditService.spend!(user, feature_key: "menu_create", amount: 15)
+      board.update!(settings: (board.settings || {}).merge(
+        "menu_credit" => { "txn_id" => txn.id, "per_image" => 1, "reserved" => 10 },
+      ))
+      menu.update!(description: {
+        "menu_items" => [
+          { "name" => "cheeseburger", "image_description" => "A cheeseburger." },
+          { "name" => "milkshake", "image_description" => "A milkshake." },
+        ],
+      }.to_json)
+    end
+
+    it "refunds the budget it did not use" do
+      # 2 novel items get queued out of a 10-image budget: 8 credits back.
+      expect {
+        menu.create_images_from_description(board)
+      }.to change { user.reload.plan_credits_balance }.by(8)
+    end
+
+    it "caps generation at the board's token_limit" do
+      board.update!(token_limit: 1)
+
+      expect {
+        menu.create_images_from_description(board)
+      }.to change { user.reload.plan_credits_balance }.by(9)
+
+      expect(board.board_images.where(status: "skipped").count).to eq(1)
+    end
+
+    it "refunds the whole image budget when the build raises" do
+      allow(board).to receive(:find_or_create_images_from_word_list).and_raise("boom")
+
+      expect {
+        menu.create_images_from_description(board)
+      }.to change { user.reload.plan_credits_balance }.by(10)
+    end
+  end
 end

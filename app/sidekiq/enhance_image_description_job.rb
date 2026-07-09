@@ -19,6 +19,9 @@ class EnhanceImageDescriptionJob
       if result.nil?
         Rails.logger.error "An error occurred while enhancing the image description."
         board.update_column(:status, "error")
+        # The vision extraction produced nothing — the user paid for a build
+        # they never got, so refund the whole spend (flat fee + image budget).
+        Menus::CreditRefunds.refund_all!(board)
         return
       end
       result_str = result.is_a?(String) ? result : result.to_json

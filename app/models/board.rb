@@ -923,12 +923,18 @@ class Board < ApplicationRecord
     image_docs.select { |doc| doc.user_id == user.id }
   end
 
-  def find_or_create_images_from_word_list(word_list)
+  # Adds a tile for every word, reusing existing art when the user/admin
+  # library already has it, and queues AI generation only for words with no
+  # art. `max_generate` caps how many images are sent for (paid) generation —
+  # tiles beyond the cap still land on the board, marked "skipped", with no
+  # OpenAI call. nil = no cap (non-menu callers are unchanged).
+  # Returns the number of images queued for generation.
+  def find_or_create_images_from_word_list(word_list, max_generate: nil)
     if id.blank?
       self.save!
     end
     unless word_list && word_list.any?
-      return
+      return 0
     end
     if word_list.is_a?(String)
       word_list = word_list.split(" ")
@@ -937,6 +943,7 @@ class Board < ApplicationRecord
       word_list = word_list[0..99]
     end
     image_ids_to_generate = []
+    queued_count = 0
 
     word_list.each do |word|
       og_word = word
@@ -956,14 +963,21 @@ class Board < ApplicationRecord
       new_image = Image.create(label: word) unless image
       image ||= new_image
       display_doc = image.display_tile_url(user)
+      skip_generation = false
       if display_doc.blank?
-        # image_prompt = "Create an image of #{word}"
-        # image_prompt = image.default_image_prompt
         admin_image_present = image.docs.any? { |doc| doc.user_id == User::DEFAULT_ADMIN_ID }
         user_image_present = image.docs.any? { |doc| doc.user_id == user_id }
-        image_ids_to_generate << image.id unless admin_image_present || user_image_present
+        if !admin_image_present && !user_image_present
+          if max_generate.nil? || queued_count < max_generate
+            image_ids_to_generate << image.id
+            queued_count += 1
+          else
+            skip_generation = true
+          end
+        end
       end
-      self.add_image(image.id) if image
+      new_board_image = self.add_image(image.id) if image
+      new_board_image.update_column(:status, "skipped") if skip_generation && new_board_image&.persisted?
       if image_ids_to_generate.count > 2
         image_ids_to_generate.each_slice(3) do |batch|
           GenerateImagesJob.perform_async(batch, id)
@@ -978,6 +992,7 @@ class Board < ApplicationRecord
         GenerateImagesJob.perform_async(batch, id)
       end
     end
+    queued_count
   end
 
   def remove_image(image_id)

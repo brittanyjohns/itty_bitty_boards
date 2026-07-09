@@ -265,6 +265,53 @@ RSpec.describe Board, type: :model do
       end
     end
 
+    context "with a max_generate budget" do
+      let(:words) { ["apple", "banana", "cherry", "durian", "elderberry"] }
+
+      before { GenerateImagesJob.clear }
+
+      it "queues at most max_generate images and returns the queued count" do
+        queued = board.find_or_create_images_from_word_list(words, max_generate: 2)
+
+        expect(queued).to eq(2)
+        queued_ids = GenerateImagesJob.jobs.flat_map { |j| j["args"][0] }
+        expect(queued_ids.size).to eq(2)
+      end
+
+      it "still adds every word as a tile, marking over-budget tiles skipped" do
+        board.find_or_create_images_from_word_list(words, max_generate: 2)
+
+        expect(board.images.pluck(:label)).to match_array(words)
+        expect(board.board_images.where(status: "skipped").count).to eq(3)
+      end
+
+      it "does not count words with existing art against the budget" do
+        admin_user = User.find_by(id: User::DEFAULT_ADMIN_ID) || FactoryBot.create(:admin_user, id: User::DEFAULT_ADMIN_ID)
+        apple = FactoryBot.create(:image, label: "apple", user: admin_user)
+        FactoryBot.create(:doc, documentable: apple, user: admin_user, processed: "img")
+
+        queued = board.find_or_create_images_from_word_list(words, max_generate: 4)
+
+        expect(queued).to eq(4)
+        expect(board.board_images.where(status: "skipped").count).to eq(0)
+      end
+
+      it "queues everything when max_generate is nil" do
+        queued = board.find_or_create_images_from_word_list(words)
+
+        expect(queued).to eq(5)
+        expect(board.board_images.where(status: "skipped").count).to eq(0)
+      end
+
+      it "queues nothing when max_generate is zero" do
+        queued = board.find_or_create_images_from_word_list(words, max_generate: 0)
+
+        expect(queued).to eq(0)
+        expect(GenerateImagesJob.jobs).to be_empty
+        expect(board.board_images.where(status: "skipped").count).to eq(5)
+      end
+    end
+
     context "when some words already exist" do
       context "by the admin user" do
         let(:admin_user) { FactoryBot.create(:user, role: "admin", id: User::DEFAULT_ADMIN_ID) }
