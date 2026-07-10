@@ -27,6 +27,9 @@ class CreditService
     "screenshot_import" => 3,
     "scenario_create" => 5,
     "menu_create" => 5,
+    # Per AI-generated image on a menu board, on top of the flat menu_create
+    # extraction fee. Priced to match standalone image_generation.
+    "menu_image" => 3,
     # Legacy single-bucket key (during shadow mode / migration)
     "ai_action" => 1,
     "ai_board_page" => 2,

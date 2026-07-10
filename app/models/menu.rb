@@ -123,39 +123,6 @@ class Menu < ApplicationRecord
     end
   end
 
-  def rerun_image_description_job
-    @user = self.user
-    board = self.boards.last
-    tokens_used = 0
-    total_cost = board.cost || 0
-
-    minutes_to_wait = 0
-    images_generated = 0
-    board_images.each_slice(8) do |board_image_slice|
-      board_image_slice.each do |board_image|
-        image = board_image.image
-        if should_generate_image(image, self.user, tokens_used, total_cost, true)
-          board_image.update!(status: "generating")
-          img_prompt = image.image_prompt.present? ? image.image_prompt : nil
-          Rails.logger.debug "Rerunning image generation for #{image.label} with prompt: #{img_prompt}"
-          image.start_generate_image_job(minutes_to_wait, self.user_id, img_prompt, board.id)
-          tokens_used += 1
-          total_cost += 1
-          images_generated += 1
-        else
-          puts "Not generating image for #{image.label}"
-          board_image.update!(status: "skipped")
-        end
-      end
-      minutes_to_wait += 1
-    end
-    #  Disabling token usage for now
-
-    # @user.remove_tokens(tokens_used)
-    # puts "USED #{tokens_used} tokens for #{images_generated} images"
-    # board.add_to_cost(tokens_used) if board
-  end
-
   def public_url
     board_id = main_board&.id || boards.first&.id
     base_url = ENV["FRONT_END_URL"] || "http://localhost:8100"
@@ -165,9 +132,6 @@ class Menu < ApplicationRecord
   def create_images_from_description(board)
     Rails.logger.debug "Creating images from description for Menu #{id} - #{name}"
     json_description = JSON.parse(description)
-    images = []
-    new_board_images = []
-    tokens_used = 0
     menu_item_list = []
 
     if json_description && json_description["menu_items"].blank?
@@ -185,44 +149,25 @@ class Menu < ApplicationRecord
       end
       item_name = menu_item_name(food["name"])
       menu_item_list << item_name
-      # image = Image.find_by(label: item_name, user_id: self.user_id)
-      # image = Image.find_by(label: item_name, private: false) unless image
-      # image = Image.find_by(label: item_name, private: nil) unless image
-      # new_image = Image.create(label: item_name, image_type: self.class.name) unless image
-      # image = new_image if new_image
-
-      # unless food["image_description"].blank? || food["image_description"] == item_name
-      #   image.image_prompt = food["image_description"]
-      #   image.image_prompt += " #{food["description"]}" if food["description"]
-      # else
-      #   image.image_prompt = "Create a high-resolution image of #{item_name}"
-      #   image.image_prompt += " with #{food["description"]}" if food["description"]
-      # end
-      # image.private = false
-      # image.image_type = "Menu"
-      # image.display_description = image.image_prompt
-      # image.save!
-      # image.image_prompt += PROMPT_ADDITION
-      # new_board_image = board.add_image(image.id)
-      # new_board_image&.save_initial_layout if new_board_image
-      # images << image
-      # new_board_images << new_board_image if new_board_image
     end
 
-    # total_cost = board.cost || 0
-    # minutes_to_wait = 0
-    # images_generated = 0
     begin
       self.update(item_list: menu_item_list)
       words = json_description["menu_items"].map { |food| food["name"] }.compact
       Rails.logger.debug "Extracted words for image generation: #{words.inspect}"
       board.update_column(:status, "finding_images")
-      board.find_or_create_images_from_word_list(words)
+      # token_limit is the user's image budget: at most this many tiles get a
+      # paid AI generation; every item still lands on the board.
+      queued = board.find_or_create_images_from_word_list(words, max_generate: board.token_limit) || 0
       board.update_column(:status, "complete")
+      # Budget that wasn't needed (items reused existing art, or fewer novel
+      # items than the budget) goes back to the user.
+      Menus::CreditRefunds.refund_unused!(board, queued)
     rescue => e
       Rails.logger.error "**** ERROR **** \n#{e.message}\n#{e.backtrace}\n"
-      # board.update(status: "error") if board
       board.update(status: "error - #{e.message}\n#{e.backtrace}\n") if board
+      # Nothing was queued for generation — return the whole image budget.
+      Menus::CreditRefunds.refund_unused!(board, 0)
     end
   end
 

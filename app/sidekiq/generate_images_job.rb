@@ -37,6 +37,7 @@ class GenerateImagesJob
             failed_image_ids << image.id
             image.update_column(:status, "failed") if image.has_attribute?(:status)
             board_image&.update_column(:status, "failed")
+            refund_menu_image_credit(board, image.id)
             next
           end
 
@@ -66,6 +67,7 @@ class GenerateImagesJob
 
           image.update_column(:status, "failed") if image.has_attribute?(:status)
           board_image&.update_column(:status, "failed")
+          refund_menu_image_credit(board, image.id)
 
           next
         end
@@ -97,5 +99,16 @@ class GenerateImagesJob
       board.update_column(:status, "failed") if board
       raise e
     end
+  end
+
+  private
+
+  # Menu boards pre-pay per generated image (board.settings["menu_credit"]);
+  # give one image's cost back when its generation failed. Idempotent inside
+  # the refund service, so the Sidekiq retry can't double-refund. No-op for
+  # non-menu boards and admin builds (no reservation stashed).
+  def refund_menu_image_credit(board, image_id)
+    return unless board&.board_type == "menu"
+    Menus::CreditRefunds.refund_failed_image!(board, image_id)
   end
 end

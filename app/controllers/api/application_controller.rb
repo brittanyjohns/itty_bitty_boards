@@ -44,7 +44,7 @@ module API
     #
     # Returns true when the request should continue, false (and renders) when
     # the caller must `return` before doing the AI work.
-    def check_credits!(feature_key:, feature_name: nil, amount: nil)
+    def check_credits!(feature_key:, feature_name: nil, amount: nil, metadata: {})
       unless current_user
         Rails.logger.warn "Credit check missing user. feature_key=#{feature_key}"
         return true
@@ -54,11 +54,13 @@ module API
       amount ||= CreditService.cost_for(feature_key)
       # Expose the resulting transaction so callers that kick off async work can
       # stash its id and refund the exact source split if that work later fails.
+      # `metadata` lands on the spend txn (and therefore in the billing-page
+      # activity feed) — e.g. the menu build's flat+per-image breakdown.
       @credit_spend_transaction = CreditService.spend!(
         current_user,
         feature_key: feature_key,
         amount: amount,
-        metadata: { path: request.path },
+        metadata: metadata.merge(path: request.path),
       )
       true
     rescue CreditService::InsufficientCredits => e

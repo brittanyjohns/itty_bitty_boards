@@ -1094,6 +1094,23 @@ Full permissions matrix and the rationale for the split lives in
 topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
 - Reserve **HTTP 429** for true rate limiting (rapid-fire abuse), not credit
   exhaustion.
+- **Menu boards have a user-picked image budget.** `POST /api/menus` (and
+  `POST /api/menus/:id/rerun`, which is owner-gated: 403 for non-owners) spends
+  **one** up-front transaction: the flat `menu_create` fee (5) + `token_limit` ×
+  `menu_image` (3, matching standalone image_generation) — `token_limit` now means "max AI images to generate for this
+  build" (default 10, clamped to `MENU_MAX_IMAGES`, default 30; 0 = reuse
+  existing art only). The reservation (`txn_id`/`per_image`/`reserved`) is
+  stashed on `board.settings["menu_credit"]`;
+  `Board#find_or_create_images_from_word_list` takes `max_generate:` and marks
+  over-budget tiles `status: "skipped"` (every menu item still becomes a tile —
+  the cap only limits paid OpenAI generation). `Menus::CreditRefunds` refunds
+  idempotently against that txn: the unused budget after the build
+  (`Menu#create_images_from_description`), the per-image cost per failed generation
+  (`GenerateImagesJob`), and the full spend — flat fee included — when the
+  vision extraction produces nothing (`EnhanceImageDescriptionJob`, or inline
+  in `menus#rerun`). Admin builds spend nothing (`check_credits!` bypasses, so
+  no reservation is stashed) but the budget still caps generation via
+  `board.token_limit`.
 - **`image_generation` is free for first-time fills.** `API::ImagesController#generate`
   (`POST /api/images/generate`) only calls `check_credits!` when the image **already
   has a displayable picture** for the user (`Image#display_image_url(user).present?` —

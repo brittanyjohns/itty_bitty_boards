@@ -2,6 +2,9 @@ class API::MenusController < API::ApplicationController
   before_action :set_menu, only: %i[ show edit update destroy ]
   before_action :check_board_create_permissions, only: %i[ create ]
 
+  # Default image budget when the client sends no/garbage token_limit.
+  IMAGE_BUDGET_DEFAULT = 10
+
   # GET /menus or /menus.json
   def index
     @current_user = current_user
@@ -54,9 +57,23 @@ class API::MenusController < API::ApplicationController
 
   def rerun
     @menu = Menu.find(params[:id])
-    screen_size = params[:screen_size] || "lg"
+    unless current_user.admin? || current_user.id == @menu.user_id
+      render json: { error: "You do not have permission to rerun this menu." }, status: :forbidden
+      return
+    end
+
+    # A rerun re-extracts (vision call) and regenerates images, so it costs
+    # the same as a fresh create: flat fee + the image budget.
+    image_budget = sanitize_image_budget(params[:token_limit].presence || @menu.token_limit)
+    return unless check_credits!(feature_key: "menu_create", feature_name: "AI Menu Re-run",
+                                 amount: menu_build_cost(image_budget),
+                                 metadata: menu_spend_metadata(image_budget))
+
+    @menu.update(token_limit: image_budget) if @menu.token_limit != image_budget
     @board = @menu.boards.last
-    @board = @menu.boards.new(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: false, display_image_url: @menu.docs.last.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent: @menu) if @board.nil?
+    @board = @menu.boards.new(user: current_user, name: @menu.name, predefined: false, display_image_url: @menu.docs.last.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent: @menu) if @board.nil?
+    @board.token_limit = image_budget
+    stash_menu_credit_reservation(@board, image_budget)
     @board.generate_unique_slug
     @board.status = "pending"
     unless @board.save
@@ -66,35 +83,19 @@ class API::MenusController < API::ApplicationController
     end
 
     @board.update(board_type: "menu")
-    message = "Re-running image description job."
-    unless @board
-      message = "No board found for this menu."
-      render json: { message: message }, status: :unprocessable_content
-      # redirect_to menu_url(@menu), notice: "No board found for this menu."
-      return
-    end
-    # if current_user.tokens < 1 && !current_user.admin?
-    #   message = "Not enough tokens to re-run image description job."
-    #   render json: { error: message }, status: :unprocessable_content
-    #   # redirect_to menu_url(@menu), notice: "Not enough tokens to re-run image description job."
-    #   return
-    # end
-    # if @board.cost >= @menu.token_limit && !current_user.admin?
-    #   Rails.logger.info "Board cost: #{@board.cost} >= Menu token limit: #{@menu.token_limit}"
-    #   message = "This menu has already used all of its tokens. Menu token limit: #{@menu.token_limit}"
-    #   render json: { error: message }, status: :unprocessable_content
-    #   # redirect_to menu_url(@menu), notice: "This menu has already used all of its tokens."
-    #   return
-    # end
-    # @menu.rerun_image_description_job
-    @menu.enhance_image_description(@board.id)
+    result = @menu.enhance_image_description(@board.id)
+    # Extraction ran inline and produced nothing — the user gets the whole
+    # spend back (create's async path does the same in EnhanceImageDescriptionJob).
+    Menus::CreditRefunds.refund_all!(@board) if result.nil?
     render json: @menu.api_view(current_user), status: 200
-    # redirect_to menu_url(@menu), notice: "Re-running image description job."
   end
 
   # POST /menus or /menus.json
   def create
-    return unless check_credits!(feature_key: "menu_create", feature_name: "AI Menu Creation")
+    image_budget = sanitize_image_budget(menu_params[:token_limit])
+    return unless check_credits!(feature_key: "menu_create", feature_name: "AI Menu Creation",
+                                 amount: menu_build_cost(image_budget),
+                                 metadata: menu_spend_metadata(image_budget))
     @current_user = current_user
     @menu = @current_user.menus.new
     @menu.user = current_user
@@ -102,7 +103,7 @@ class API::MenusController < API::ApplicationController
     screen_size = params[:screen_size] || "lg"
     @menu.name = menu_name
     @menu.predefined = menu_params[:predefined] || false
-    @menu.token_limit = menu_params[:token_limit] || 10
+    @menu.token_limit = image_budget
     @menu.user = @current_user
     @menu.menu_image.attach(menu_params[:docs][:image]) if menu_params[:docs] && menu_params[:docs][:image]
     unless @menu.save
@@ -113,6 +114,7 @@ class API::MenusController < API::ApplicationController
     doc.user = @current_user
     if doc.save
       @board = @menu.boards.new(user: current_user, name: @menu.name, token_limit: @menu.token_limit, predefined: @menu.predefined, display_image_url: doc.display_url, large_screen_columns: 8, medium_screen_columns: 6, small_screen_columns: 4, board_type: "menu", parent: @menu, voice: "polly:kevin", language: "en")
+      stash_menu_credit_reservation(@board, image_budget)
       @board.generate_unique_slug
       @board.status = "pending"
       @board.preview_image.attach(menu_params[:docs][:image]) if menu_params[:docs] && menu_params[:docs][:image]
@@ -176,6 +178,54 @@ class API::MenusController < API::ApplicationController
   # Use callbacks to share common setup or constraints between actions.
   def set_menu
     @menu = Menu.includes(:boards, :docs).find(params[:id])
+  end
+
+  # `token_limit` on a menu means "max AI images to generate for this build".
+  # Clamp to [0, MENU_MAX_IMAGES]; 0 is a legitimate pick (tiles reuse
+  # existing art only, nothing is sent to OpenAI).
+  def sanitize_image_budget(raw)
+    budget = begin
+      Integer(raw)
+    rescue ArgumentError, TypeError
+      IMAGE_BUDGET_DEFAULT
+    end
+    budget.clamp(0, max_image_budget)
+  end
+
+  def max_image_budget
+    (ENV["MENU_MAX_IMAGES"] || 30).to_i
+  end
+
+  # Total up-front spend: flat extraction fee + the picked image budget.
+  def menu_build_cost(image_budget)
+    CreditService.cost_for("menu_create") + image_budget * CreditService.cost_for("menu_image")
+  end
+
+  # Rides the spend txn's metadata so the billing-page activity feed can show
+  # the flat + per-image breakdown instead of one opaque number.
+  def menu_spend_metadata(image_budget)
+    {
+      breakdown: {
+        flat: CreditService.cost_for("menu_create"),
+        images: image_budget,
+        per_image: CreditService.cost_for("menu_image"),
+      },
+    }
+  end
+
+  # Record the spend txn + budget on the board so the async build can cap
+  # generation and refund whatever it doesn't deliver (Menus::CreditRefunds).
+  # Admins aren't charged (check_credits! bypasses), so no reservation —
+  # the budget still caps generation via board.token_limit.
+  def stash_menu_credit_reservation(board, image_budget)
+    return unless @credit_spend_transaction
+    board.settings = (board.settings || {}).merge(
+      "menu_credit" => {
+        "txn_id" => @credit_spend_transaction.id,
+        "per_image" => CreditService.cost_for("menu_image"),
+        "reserved" => image_budget,
+      },
+    )
   end
 
   # Only allow a list of trusted parameters through.

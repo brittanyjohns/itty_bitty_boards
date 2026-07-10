@@ -5,6 +5,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — user-picked image budget for menu boards
+- Building a board from a menu photo now has a real cost model: the flat
+  `menu_create` fee (5 credits) covers the vision extraction, plus **3 credits
+  per AI-generated image** (matching standalone image generation) up to an image budget the user picks (`token_limit`,
+  default 10, clamped to `MENU_MAX_IMAGES`, default 30). Previously the number
+  of generated images was unbounded — every novel item on the menu triggered a
+  paid OpenAI call for a flat 5 credits.
+- Every menu item still lands on the board: tiles beyond the budget reuse
+  existing art or stay blank (`status: "skipped"`), they just aren't sent for
+  paid generation.
+- Unused budget is refunded automatically (items that reused library art, menus
+  with fewer novel items than the budget, per-image generation failures, and a
+  full refund — flat fee included — when extraction fails entirely).
+- `POST /api/menus/:id/rerun` is now owner-gated (403 for non-owners) and
+  credit-gated like a fresh create; it was previously free and open to any
+  signed-in user.
+
 ### Added — MySpeak page themes (backend) (#476)
 - Communicator MySpeak safety pages (`/my/<slug>`) can now carry an owner-picked
   visual theme, stored on `profile.settings["theme"]`. `"theme"` is whitelisted
