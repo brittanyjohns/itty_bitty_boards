@@ -50,6 +50,20 @@ class ChildAccount < ApplicationRecord
   # DEMO_ACCOUNT_BOARD_LIMIT so Free families get a usable starter set (3
   # boards) on their demo communicator, not just one.
   FREE_DEMO_BOARD_LIMIT = 3
+
+  # Sanity ceiling on dashboard boards per communicator. Assigned clones are
+  # deliberately excluded from the owner's board-limit count (the original
+  # already counted), so without a per-communicator cap the assign endpoints
+  # could mint unlimited board rows. 80 matches ChildBoard#toggle_favorite's
+  # favorites cap — a dashboard can't meaningfully hold more.
+  def self.max_assigned_boards
+    ENV.fetch("MAX_ASSIGNED_BOARDS_PER_COMMUNICATOR", 80).to_i
+  end
+
+  def at_assigned_board_limit?(adding = 1)
+    child_boards.count + adding > self.class.max_assigned_boards
+  end
+
   belongs_to :user, optional: true
   belongs_to :vendor, optional: true
   belongs_to :owner, class_name: "User", optional: true

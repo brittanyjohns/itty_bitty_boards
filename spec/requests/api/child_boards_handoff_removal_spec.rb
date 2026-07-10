@@ -83,6 +83,43 @@ RSpec.describe "API::ChildBoards non-destructive removal", type: :request do
     expect(response).to have_http_status(:ok)
   end
 
+  describe "orphan sweep of deep-cloned sub-templates" do
+    # Shape Boards::AssignmentCloner leaves behind: a root template on the
+    # dashboard whose folder tile opens a sub-template marked with the root id.
+    def build_assigned_set!(assigner)
+      root = create(:board, user: assigner, name: "Assigned Home", is_template: true)
+      sub  = create(:board, user: assigner, name: "Assigned Food", is_template: true,
+                            settings: { "assignment_child" => true, "assignment_root_id" => root.id })
+      tile = create(:board_image, board: root, image: create(:image, label: "Food"))
+      tile.update!(predictive_board_id: sub.id)
+      cb = create(:child_board, board: root, child_account: child_account)
+      [root, sub, cb]
+    end
+
+    it "sweeps the sub-templates when the root template is removed and deleted" do
+      root, sub, cb = build_assigned_set!(parent)
+
+      delete "/api/child_boards/#{cb.id}", headers: auth_headers(parent)
+
+      expect(response).to have_http_status(:ok)
+      expect(Board.exists?(root.id)).to be(false)
+      expect(Board.exists?(sub.id)).to be(false)
+    end
+
+    it "spares a sub-template that another surface still references" do
+      root, sub, cb = build_assigned_set!(parent)
+      elsewhere = create(:board, user: parent, name: "Elsewhere")
+      external_tile = create(:board_image, board: elsewhere, image: create(:image, label: "link"))
+      external_tile.update!(predictive_board_id: sub.id)
+
+      delete "/api/child_boards/#{cb.id}", headers: auth_headers(parent)
+
+      expect(response).to have_http_status(:ok)
+      expect(Board.exists?(root.id)).to be(false)
+      expect(Board.exists?(sub.id)).to be(true)
+    end
+  end
+
   it "exposes can_remove on the dashboard boards for the communicator owner" do
     board = create(:board, user: slp, name: "Inherited", is_template: true)
     create(:child_board, board: board, child_account: child_account)
