@@ -65,7 +65,9 @@ class API::MenusController < API::ApplicationController
     # A rerun re-extracts (vision call) and regenerates images, so it costs
     # the same as a fresh create: flat fee + the image budget.
     image_budget = sanitize_image_budget(params[:token_limit].presence || @menu.token_limit)
-    return unless check_credits!(feature_key: "menu_create", feature_name: "AI Menu Re-run", amount: menu_build_cost(image_budget))
+    return unless check_credits!(feature_key: "menu_create", feature_name: "AI Menu Re-run",
+                                 amount: menu_build_cost(image_budget),
+                                 metadata: menu_spend_metadata(image_budget))
 
     @menu.update(token_limit: image_budget) if @menu.token_limit != image_budget
     @board = @menu.boards.last
@@ -91,7 +93,9 @@ class API::MenusController < API::ApplicationController
   # POST /menus or /menus.json
   def create
     image_budget = sanitize_image_budget(menu_params[:token_limit])
-    return unless check_credits!(feature_key: "menu_create", feature_name: "AI Menu Creation", amount: menu_build_cost(image_budget))
+    return unless check_credits!(feature_key: "menu_create", feature_name: "AI Menu Creation",
+                                 amount: menu_build_cost(image_budget),
+                                 metadata: menu_spend_metadata(image_budget))
     @current_user = current_user
     @menu = @current_user.menus.new
     @menu.user = current_user
@@ -195,6 +199,18 @@ class API::MenusController < API::ApplicationController
   # Total up-front spend: flat extraction fee + the picked image budget.
   def menu_build_cost(image_budget)
     CreditService.cost_for("menu_create") + image_budget * CreditService.cost_for("menu_image")
+  end
+
+  # Rides the spend txn's metadata so the billing-page activity feed can show
+  # the flat + per-image breakdown instead of one opaque number.
+  def menu_spend_metadata(image_budget)
+    {
+      breakdown: {
+        flat: CreditService.cost_for("menu_create"),
+        images: image_budget,
+        per_image: CreditService.cost_for("menu_image"),
+      },
+    }
   end
 
   # Record the spend txn + budget on the board so the async build can cap

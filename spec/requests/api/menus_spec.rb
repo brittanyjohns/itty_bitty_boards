@@ -71,7 +71,12 @@ RSpec.describe "API::Menus", type: :request do
         reservation = menu.boards.last.settings["menu_credit"]
         expect(reservation["reserved"]).to eq(4)
         expect(reservation["per_image"]).to eq(3)
-        expect(CreditTransaction.find(reservation["txn_id"]).amount).to eq(-17)
+        txn = CreditTransaction.find(reservation["txn_id"])
+        expect(txn.amount).to eq(-17)
+        # The billing-page activity feed renders this breakdown ("5 + 4 × 3").
+        expect(txn.metadata["breakdown"]).to eq(
+          "flat" => 5, "images" => 4, "per_image" => 3,
+        )
       end
 
       it "clamps the budget to MENU_MAX_IMAGES" do
