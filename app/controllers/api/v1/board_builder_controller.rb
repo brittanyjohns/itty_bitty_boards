@@ -71,25 +71,43 @@ module API
           return
         end
 
+        # Existing-set handling runs BEFORE the group-limit check so a user at
+        # their board-set cap can still REPLACE (destroying frees the slot the
+        # rebuild consumes). Three paths on an existing set:
+        #   replace=true — destroy every builder set on this communicator
+        #                  (cascade via the builder BoardGroup), then build
+        #   confirm=true — stack another set (legacy behavior, kept for
+        #                  backward compat: old clients send it and silently
+        #                  repurposing it to "replace" would destroy data)
+        #   neither      — 409 so the client can offer both options
+        existing_roots = communicator.builder_roots.to_a
+        if existing_roots.any?
+          if params[:replace].to_s == "true"
+            destroy_existing_builder_sets!(existing_roots)
+          elsif params[:confirm].to_s != "true"
+            existing = existing_roots.first
+            render json: { error: "board_builder_set_exists",
+                           message: "You already built a board set for this communicator. Replace it or build another?",
+                           existing_root_id: existing.id,
+                           existing_root_name: existing.name,
+                           built_at: existing.created_at,
+                           can_replace: true,
+                           existing_sets: existing_roots.map { |r|
+                             { root_id: r.id, name: r.name, built_at: r.created_at }
+                           } },
+                   status: :conflict
+            return
+          end
+        end
+
         # A builder set is a Board Set (BoardGroup), so it counts against the
         # board-SET cap, not the per-board cap. Exactly one group slot, zero
         # board slots (see User#countable_board_count / #countable_board_group_count).
-        if current_user.at_board_group_limit?
+        if current_user.reload.at_board_group_limit?
           render json: { error: "You've reached your plan's board set limit (#{current_user.countable_board_group_count}/#{current_user.board_group_limit}). Upgrade to add more.",
                          limit: current_user.board_group_limit,
                          count: current_user.countable_board_group_count },
                  status: :unprocessable_content
-          return
-        end
-
-        existing = communicator.board_builder_root
-        if existing && params[:confirm].to_s != "true"
-          render json: { error: "board_builder_set_exists",
-                         message: "You already built a board set for this communicator. Build another?",
-                         existing_root_id: existing.id,
-                         existing_root_name: existing.name,
-                         built_at: existing.created_at },
-                 status: :conflict
           return
         end
 
@@ -156,6 +174,27 @@ module API
       end
 
       private
+
+      # Destroy every existing builder set on the communicator ahead of a
+      # replace=true rebuild. Routes through the builder BoardGroup so the
+      # #407 cascade takes the whole tree (members + ChildBoards + joins); a
+      # group-less root (legacy/corrupt data) is destroyed directly. Runs in
+      # its own transaction, deliberately NOT the one that creates the new
+      # root — the build finishes async in BuildBoardSetJob, so a combined
+      # transaction wouldn't protect against a failed build anyway, and
+      # holding one across a ~15-board cascade risks lock contention. If the
+      # rebuild fails, a re-run finds no existing set and builds fresh.
+      def destroy_existing_builder_sets!(roots)
+        ActiveRecord::Base.transaction do
+          roots.each do |root|
+            if (group = root.builder_board_group)
+              group.destroy!
+            else
+              root.destroy!
+            end
+          end
+        end
+      end
 
       def resolve_build_key
         if params[:level].present?
