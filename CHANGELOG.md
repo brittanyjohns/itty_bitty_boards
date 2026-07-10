@@ -7,8 +7,8 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### Added — user-picked image budget for menu boards
 - Building a board from a menu photo now has a real cost model: the flat
-  `menu_create` fee (5 credits) covers the vision extraction, plus **1 credit
-  per AI-generated image** up to an image budget the user picks (`token_limit`,
+  `menu_create` fee (5 credits) covers the vision extraction, plus **3 credits
+  per AI-generated image** (matching standalone image generation) up to an image budget the user picks (`token_limit`,
   default 10, clamped to `MENU_MAX_IMAGES`, default 30). Previously the number
   of generated images was unbounded — every novel item on the menu triggered a
   paid OpenAI call for a flat 5 credits.

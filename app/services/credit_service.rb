@@ -28,9 +28,8 @@ class CreditService
     "scenario_create" => 5,
     "menu_create" => 5,
     # Per AI-generated image on a menu board, on top of the flat menu_create
-    # extraction fee. Cheaper than standalone image_generation (3) so a Free
-    # user's 25-credit allowance still covers one modest menu build.
-    "menu_image" => 1,
+    # extraction fee. Priced to match standalone image_generation.
+    "menu_image" => 3,
     # Legacy single-bucket key (during shadow mode / migration)
     "ai_action" => 1,
     "ai_board_page" => 2,

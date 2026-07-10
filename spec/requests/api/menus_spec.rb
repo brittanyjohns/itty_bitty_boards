@@ -11,7 +11,7 @@ RSpec.describe "API::Menus", type: :request do
     end
 
     # Menu creation is credit-gated: flat menu_create fee + the per-image
-    # budget (default 10 images x 1 credit). Give the user plenty so these
+    # budget (default 10 images x 3 credits). Give the user plenty so these
     # specs exercise menu creation, not the credit gate itself.
     before do
       CreditService.grant_plan!(user, amount: 100, period_end: 30.days.from_now)
@@ -63,26 +63,26 @@ RSpec.describe "API::Menus", type: :request do
 
       it "charges the flat fee plus the picked budget and stashes the reservation" do
         expect { create_menu(4) }
-          .to change { user.reload.plan_credits_balance }.by(-9) # 5 flat + 4 x 1
+          .to change { user.reload.plan_credits_balance }.by(-17) # 5 flat + 4 x 3
 
         expect(response).to have_http_status(:created)
         menu = Menu.last
         expect(menu.token_limit).to eq(4)
         reservation = menu.boards.last.settings["menu_credit"]
         expect(reservation["reserved"]).to eq(4)
-        expect(reservation["per_image"]).to eq(1)
-        expect(CreditTransaction.find(reservation["txn_id"]).amount).to eq(-9)
+        expect(reservation["per_image"]).to eq(3)
+        expect(CreditTransaction.find(reservation["txn_id"]).amount).to eq(-17)
       end
 
       it "clamps the budget to MENU_MAX_IMAGES" do
         expect { create_menu(999) }
-          .to change { user.reload.plan_credits_balance }.by(-35) # 5 + 30 x 1
+          .to change { user.reload.plan_credits_balance }.by(-95) # 5 + 30 x 3
         expect(Menu.last.token_limit).to eq(30)
       end
 
       it "falls back to the default budget on a garbage value" do
         expect { create_menu("nonsense") }
-          .to change { user.reload.plan_credits_balance }.by(-15) # 5 + 10 x 1
+          .to change { user.reload.plan_credits_balance }.by(-35) # 5 + 10 x 3
         expect(Menu.last.token_limit).to eq(10)
       end
 
@@ -122,7 +122,7 @@ RSpec.describe "API::Menus", type: :request do
     it "charges a fresh build cost and stashes the reservation on the board" do
       expect {
         post "/api/menus/#{menu.id}/rerun", params: { token_limit: 3 }, headers: auth_headers(user)
-      }.to change { user.reload.plan_credits_balance }.by(-8) # 5 + 3 x 1
+      }.to change { user.reload.plan_credits_balance }.by(-14) # 5 + 3 x 3
 
       expect(response).to have_http_status(:ok)
       expect(menu.reload.token_limit).to eq(3)

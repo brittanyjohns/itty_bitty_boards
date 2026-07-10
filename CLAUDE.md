@@ -1097,7 +1097,7 @@ topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
 - **Menu boards have a user-picked image budget.** `POST /api/menus` (and
   `POST /api/menus/:id/rerun`, which is owner-gated: 403 for non-owners) spends
   **one** up-front transaction: the flat `menu_create` fee (5) + `token_limit` ×
-  `menu_image` (1) — `token_limit` now means "max AI images to generate for this
+  `menu_image` (3, matching standalone image_generation) — `token_limit` now means "max AI images to generate for this
   build" (default 10, clamped to `MENU_MAX_IMAGES`, default 30; 0 = reuse
   existing art only). The reservation (`txn_id`/`per_image`/`reserved`) is
   stashed on `board.settings["menu_credit"]`;
@@ -1105,7 +1105,7 @@ topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
   over-budget tiles `status: "skipped"` (every menu item still becomes a tile —
   the cap only limits paid OpenAI generation). `Menus::CreditRefunds` refunds
   idempotently against that txn: the unused budget after the build
-  (`Menu#create_images_from_description`), 1 credit per failed generation
+  (`Menu#create_images_from_description`), the per-image cost per failed generation
   (`GenerateImagesJob`), and the full spend — flat fee included — when the
   vision extraction produces nothing (`EnhanceImageDescriptionJob`, or inline
   in `menus#rerun`). Admin builds spend nothing (`check_credits!` bypasses, so
