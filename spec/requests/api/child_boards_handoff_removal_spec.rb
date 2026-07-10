@@ -59,6 +59,19 @@ RSpec.describe "API::ChildBoards non-destructive removal", type: :request do
     expect(Board.exists?(board.id)).to be(true)
   end
 
+  it "detaches but preserves a template board another board's folder tile still opens" do
+    board = create(:board, user: parent, name: "Linked sub-board", is_template: true)
+    cb = create(:child_board, board: board, child_account: child_account)
+    home = create(:board, user: parent, name: "Home")
+    create(:board_image, board: home, predictive_board_id: board.id)
+
+    delete "/api/child_boards/#{cb.id}", headers: auth_headers(parent)
+
+    expect(response).to have_http_status(:ok)
+    expect(ChildBoard.exists?(cb.id)).to be(false)
+    expect(Board.exists?(board.id)).to be(true)
+  end
+
   it "still deletes a throwaway template clone nothing else references (cleanup preserved)" do
     board = create(:board, user: parent, name: "Throwaway", is_template: true)
     cb = create(:child_board, board: board, child_account: child_account)

@@ -80,6 +80,9 @@ class API::ChildBoardsController < API::ApplicationController
   def orphan_template?(board)
     return false if board.team_boards.exists?
     return false if board.child_boards.exists?
+    # A folder tile on another board still opens this one — deleting it would
+    # nullify that tile into a dead button. Detach only.
+    return false if BoardImage.where(predictive_board_id: board.id).where.not(board_id: board.id).exists?
     board.user_id == current_user&.id
   end
 

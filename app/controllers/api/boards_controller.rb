@@ -1036,13 +1036,36 @@ class API::BoardsController < API::ApplicationController
   end
 
   # # DELETE /boards/1 or /boards/1.json
+  #
+  # Warn+confirm: deleting a board that's still in use (a folder tile on
+  # another board points at it, it's on a communicator dashboard, shared with
+  # a team, or it's a Board Builder root) returns 409 with a usage summary
+  # unless the client re-sends with confirm=true. Boards nothing references
+  # delete in one step, as before. Folder tiles pointing at the deleted board
+  # are nullified by the predictive_board_images dependent: :nullify
+  # association (all board types — the old manual loop here only covered
+  # board_type "predictive" and was redundant).
   def destroy
-    if @board.board_type == "predictive"
-      BoardImage.where(predictive_board_id: @board.id).all.each do |board_image|
-        board_image.update(predictive_board_id: nil)
-      end
+    usage = Boards::UsageCheck.new(@board)
+    if usage.in_use? && params[:confirm].to_s != "true"
+      render json: {
+               error: "board_in_use",
+               message: "\"#{@board.name}\" is still in use — deleting it will remove it from the boards, communicators, or teams that reference it.",
+               board: { id: @board.id, name: @board.name },
+               usage: usage.summary,
+             }, status: :conflict
+      return
     end
-    @board.destroy!
+
+    # A builder root's tree is owned by its builder BoardGroup (issue #407);
+    # destroying the group cascades every member board. Routing lives HERE,
+    # not in a Board callback — a before_destroy on Board that destroyed the
+    # group would recurse with the group's destroy_all of its members.
+    if (group = usage.builder_group)
+      group.destroy!
+    else
+      @board.destroy!
+    end
 
     respond_to do |format|
       format.json { head :no_content }
