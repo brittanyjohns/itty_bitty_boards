@@ -21,6 +21,29 @@ RSpec.describe GenerateImagesJob, type: :job do
     ))
   end
 
+  describe "menu prompt selection" do
+    before do
+      allow_any_instance_of(Image).to receive(:create_image_doc).and_return(nil)
+    end
+
+    it "keeps the description-driven prompt on fresh menu images" do
+      prompt = "A burger topped with apple butter and bacon. Menu photo."
+      menu_image = FactoryBot.create(:image, user: user, image_type: "menu",
+                                             image_prompt: prompt)
+      board.add_image(menu_image.id)
+
+      described_class.new.perform([menu_image.id], board.id)
+
+      expect(menu_image.reload.image_prompt).to eq(prompt)
+    end
+
+    it "falls back to the label-based menu prompt for reused images" do
+      described_class.new.perform([image.id], board.id)
+
+      expect(image.reload.image_prompt).to eq(image.default_menu_image_prompt(board.name))
+    end
+  end
+
   describe "menu image failure refunds" do
     before do
       allow_any_instance_of(Image).to receive(:create_image_doc).and_return(nil)

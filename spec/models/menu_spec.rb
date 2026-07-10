@@ -96,6 +96,17 @@ RSpec.describe Menu, type: :model do
       expect(board.board_images.where(status: "skipped").count).to eq(1)
     end
 
+    it "generates fresh menu images with description-driven prompts" do
+      menu.create_images_from_description(board)
+
+      img = board.images.find_by(label: "cheeseburger")
+      expect(img.image_type).to eq("menu")
+      expect(img.is_private).to be(true)
+      expect(img.user_id).to eq(user.id)
+      expect(img.image_prompt).to include("A cheeseburger.")
+      expect(img.image_prompt).to include(Menu::PROMPT_ADDITION)
+    end
+
     it "refunds the whole image budget when the build raises" do
       allow(board).to receive(:find_or_create_images_from_word_list).and_raise("boom")
 

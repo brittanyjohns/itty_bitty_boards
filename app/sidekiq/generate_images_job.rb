@@ -23,7 +23,12 @@ class GenerateImagesJob
 
           user_id = image.user_id
           if board.board_type == "menu"
-            image.image_prompt = image.default_menu_image_prompt(board.name)
+            # Fresh menu-item images carry a description-driven prompt set at
+            # creation (Menu#create_images_from_description) — keep it. Reused
+            # or legacy images fall back to the label-based default.
+            unless image.menu? && image.image_prompt.present?
+              image.image_prompt = image.default_menu_image_prompt(board.name)
+            end
           else
             image.image_prompt = image.default_image_prompt
           end

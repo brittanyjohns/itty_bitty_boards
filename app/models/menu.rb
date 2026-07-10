@@ -138,6 +138,7 @@ class Menu < ApplicationRecord
       Rails.logger.error "No menu items found in description for Menu #{id}"
       return nil
     end
+    menu_prompts = {}
     json_description["menu_items"].each do |food|
       if food["name"].blank? || food["image_description"].blank?
         Rails.logger.info "Blank name or image description for #{food.inspect}"
@@ -149,6 +150,7 @@ class Menu < ApplicationRecord
       end
       item_name = menu_item_name(food["name"])
       menu_item_list << item_name
+      menu_prompts[food["name"].to_s.downcase.strip] = menu_item_image_prompt(food)
     end
 
     begin
@@ -158,7 +160,7 @@ class Menu < ApplicationRecord
       board.update_column(:status, "finding_images")
       # token_limit is the user's image budget: at most this many tiles get a
       # paid AI generation; every item still lands on the board.
-      queued = board.find_or_create_images_from_word_list(words, max_generate: board.token_limit) || 0
+      queued = board.find_or_create_images_from_word_list(words, max_generate: board.token_limit, menu_prompts: menu_prompts) || 0
       board.update_column(:status, "complete")
       # Budget that wasn't needed (items reused existing art, or fewer novel
       # items than the budget) goes back to the user.
@@ -199,6 +201,14 @@ class Menu < ApplicationRecord
 
   def pending_images
     main_board&.pending_images
+  end
+
+  # Generation prompt for one parsed menu item — leads with the vision
+  # model's description of the dish so the art matches the actual food, not
+  # just the item's (often state-named) label.
+  def menu_item_image_prompt(food)
+    details = food["image_description"].to_s.strip
+    "#{details} #{Menu::PROMPT_ADDITION} Without any text or prices, with a transparent background."
   end
 
   def menu_item_name(item_name)

@@ -312,6 +312,71 @@ RSpec.describe Board, type: :model do
       end
     end
 
+    context "with menu_prompts (menu board items)" do
+      let(:words) { ["single", "virginia"] }
+      let(:prompts) do
+        {
+          "single" => "A single classic burger with fry sauce. Menu photo.",
+          "virginia" => "A burger topped with pimento cheese and ham. Menu photo.",
+        }
+      end
+      let(:admin_user) { User.find_by(id: User::DEFAULT_ADMIN_ID) || FactoryBot.create(:admin_user, id: User::DEFAULT_ADMIN_ID) }
+
+      before { GenerateImagesJob.clear }
+
+      it "creates a fresh private menu image with the description prompt even when the label exists in the library" do
+        existing = FactoryBot.create(:image, label: "single", user: admin_user)
+        FactoryBot.create(:doc, documentable: existing, user: admin_user, processed: "img")
+
+        queued = board.find_or_create_images_from_word_list(words, menu_prompts: prompts)
+
+        expect(queued).to eq(2)
+        fresh = board.images.find_by(label: "single")
+        expect(fresh.id).not_to eq(existing.id)
+        expect(fresh.is_private).to be(true)
+        expect(fresh.image_type).to eq("menu")
+        expect(fresh.user_id).to eq(user.id)
+        expect(fresh.image_prompt).to eq(prompts["single"])
+      end
+
+      it "matches prompts case-insensitively" do
+        queued = board.find_or_create_images_from_word_list(["Single"], menu_prompts: prompts)
+
+        expect(queued).to eq(1)
+        expect(board.images.find_by(label: "Single").image_type).to eq("menu")
+      end
+
+      it "falls back to library reuse for menu items over the budget" do
+        existing = FactoryBot.create(:image, label: "virginia", user: admin_user)
+        FactoryBot.create(:doc, documentable: existing, user: admin_user, processed: "img")
+
+        queued = board.find_or_create_images_from_word_list(words, max_generate: 1, menu_prompts: prompts)
+
+        expect(queued).to eq(1)
+        expect(board.images.find_by(label: "single").image_type).to eq("menu")
+        expect(board.images.find_by(label: "virginia").id).to eq(existing.id)
+        expect(board.board_images.where(status: "skipped").count).to eq(0)
+      end
+
+      it "marks over-budget menu items with no library art as skipped" do
+        queued = board.find_or_create_images_from_word_list(words, max_generate: 1, menu_prompts: prompts)
+
+        expect(queued).to eq(1)
+        expect(board.board_images.where(status: "skipped").count).to eq(1)
+      end
+
+      it "reuses library art without generating when max_generate is zero" do
+        existing = FactoryBot.create(:image, label: "single", user: admin_user)
+        FactoryBot.create(:doc, documentable: existing, user: admin_user, processed: "img")
+
+        queued = board.find_or_create_images_from_word_list(words, max_generate: 0, menu_prompts: prompts)
+
+        expect(queued).to eq(0)
+        expect(board.images.find_by(label: "single").id).to eq(existing.id)
+        expect(GenerateImagesJob.jobs).to be_empty
+      end
+    end
+
     context "when some words already exist" do
       context "by the admin user" do
         let(:admin_user) { FactoryBot.create(:user, role: "admin", id: User::DEFAULT_ADMIN_ID) }
@@ -740,6 +805,34 @@ RSpec.describe Board, type: :model do
         expect(entry[:preview_image_url]).to eq(parent.preview_image_url)
         expect(entry[:display_image_url]).to eq(parent.preview_image_url)
       end
+    end
+  end
+
+  describe "#api_view_with_predictive_images original_menu_image_url" do
+    let(:user) { FactoryBot.create(:user) }
+    let(:menu) { FactoryBot.create(:menu, user: user, name: "Joe's Diner") }
+    let(:board) do
+      FactoryBot.create(:board, user: user, board_type: "menu",
+                                parent_type: "Menu", parent_id: menu.id)
+    end
+
+    it "exposes the original uploaded menu image URL for menu boards" do
+      allow_any_instance_of(Menu).to receive(:menu_image_url)
+        .and_return("https://cdn.example.com/menu.jpg")
+
+      view = board.api_view_with_predictive_images(user)
+
+      expect(view[:original_menu_image_url]).to eq("https://cdn.example.com/menu.jpg")
+    end
+
+    it "is nil when the menu has no image attached" do
+      expect(board.api_view_with_predictive_images(user)[:original_menu_image_url]).to be_nil
+    end
+
+    it "is nil for non-menu boards" do
+      plain = FactoryBot.create(:board, user: user)
+
+      expect(plain.api_view_with_predictive_images(user)[:original_menu_image_url]).to be_nil
     end
   end
 
