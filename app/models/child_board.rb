@@ -29,6 +29,13 @@ class ChildBoard < ApplicationRecord
   # unique (board_id, child_account_id) index.
   validates :board_id, uniqueness: { scope: :child_account_id }
 
+  # Board#in_use is derived from these rows, but Board's own before_save can't
+  # see an attach/detach that happens outside a board save — the builder
+  # creates this row AFTER the root's last save, and detach never saves the
+  # board at all. Refresh the flag on both referenced boards here.
+  after_create :recalculate_boards_in_use
+  after_destroy :recalculate_boards_in_use
+
   # scope :with_artifacts, -> { includes(board: :images) }
   scope :with_artifacts, -> { includes({ board: [{ images: [:docs, :audio_files_attachments, :audio_files_blobs] }] }, :image_parent) }
 
@@ -129,6 +136,10 @@ class ChildBoard < ApplicationRecord
       bg_color: board.bg_color,
       text_color: board.text_color,
     }
+  end
+
+  def recalculate_boards_in_use
+    [board, original_board].compact.uniq.each(&:recalculate_in_use!)
   end
 
   def api_view_with_images

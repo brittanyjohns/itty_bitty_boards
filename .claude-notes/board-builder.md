@@ -665,10 +665,29 @@ still works for backward compat.
   this the builder root never surfaced under the `in_use` scope even though it's
   literally assigned. The clone-source path is unaffected (clones are
   `is_template: true`, excluded from the index anyway).
+  - `in_use` is refreshed by **`ChildBoard` `after_create`/`after_destroy`**
+    (`recalculate_boards_in_use` → `Board#recalculate_in_use!`), not just by
+    Board's own `before_save` — the builder attaches the root **after** its
+    last save and detach never saves the board, so the save-time hook alone
+    left builder roots stuck at `false`.
+  - `Board#assigned_to_communicator?` guards against a **nil id** (unsaved
+    record): without it, `where(original_board_id: nil)` matched every
+    direct-attach row and flagged every brand-new board `in_use = true`.
+  - Communicator lists in the API views (`communicator_accounts`,
+    `communicator_account_data`, `child_boards` on the show payload;
+    `in_use_by` on the index; `ChildAccount#index_api_view`'s
+    `communicator_board_ids`) all read **both join paths** via
+    `Board#communicator_child_boards` — never only `original_child_boards`,
+    or builder boards vanish from "assigned to" UI (the Assign-to-communicator
+    popup pre-check matches the viewed board id against
+    `communicator_board_ids`).
 - **Backfill for pre-fix sets:** `rake board_builder:reclassify_builder_sets`
   (dry-run by default; `DRY_RUN=false` to apply, `USER_ID=N` to scope) re-saves
   each existing built set so the root recomputes `in_use` and every child page
-  gets `freeze_board` + `sub_board`.
+  gets `freeze_board` + `sub_board`. For the `in_use` flag alone (both
+  directions, including boards wrongly stuck at `true` from the nil-id bug),
+  `rake boards:recalculate_in_use` (dry-run by default; `DRY_RUN=false` to
+  apply) recomputes the flag straight from the `child_boards` rows.
 - **Tile images prefer the curated "default" image (`Boards::ImageResolver`).**
   All three build paths (cloner, `BlueprintAssembler`, `BuildBoardSetJob`)
   resolve a tile label via `Boards::ImageResolver.resolve(label, owner:)`. When

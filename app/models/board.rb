@@ -676,8 +676,23 @@ class Board < ApplicationRecord
   # Without case 2, builder roots stayed in_use=false and never surfaced under
   # the "in use" scope even though they're literally assigned to a communicator.
   def check_in_use
-    self.in_use = ChildBoard.where(original_board_id: id).exists? ||
-      ChildBoard.where(board_id: id).exists?
+    self.in_use = assigned_to_communicator?
+  end
+
+  # Both join paths, guarded against unsaved records: with a nil id,
+  # `where(original_board_id: nil)` matches every direct-attach row and would
+  # mark every brand-new board in_use.
+  def assigned_to_communicator?
+    return false if id.nil?
+    ChildBoard.where(original_board_id: id).or(ChildBoard.where(board_id: id)).exists?
+  end
+
+  # ChildBoard create/destroy happens outside this board's save cycle (the
+  # builder attaches the root AFTER its last save; detach never saves the
+  # board), so the stored flag is refreshed directly. update_column: the flag
+  # is derived state — re-running the full callback chain here is unwanted.
+  def recalculate_in_use!
+    update_column(:in_use, assigned_to_communicator?)
   end
 
   IS_SUB_BOARD_TAG = "sub-board".freeze
@@ -1900,11 +1915,9 @@ class Board < ApplicationRecord
       @board_images = visible_board_images.includes({ image: [:docs, :audio_files_attachments, :audio_files_blobs, :predictive_boards] }, :predictive_board).distinct
     end
     current_colors = @board_images.map { |bi| bi.bg_color }.flatten.compact.uniq
-    if in_use
-      @original_child_boards = original_child_boards.includes(child_account: :profile)
-    end
+    # Not gated on the stored in_use flag — it can lag the join rows.
     @parent_boards = parent_boards(viewing_user&.id)
-    @child_accounts = @original_child_boards&.map(&:child_account).compact.uniq if @original_child_boards
+    @child_accounts = communicator_child_boards.map(&:child_account).compact.uniq
 
     @root_board = root_board
     same_user = viewing_user && user_id == viewing_user.id
@@ -1922,11 +1935,11 @@ class Board < ApplicationRecord
       board_id: id,
       word_sample: word_sample,
       user_name: user&.display_name,
-      communicator_account_data: @original_child_boards&.map { |cb| { acct_id: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url } },
-      communicator_accounts: @child_accounts&.map { |ca| { id: ca.id, name: ca.name } },
+      communicator_account_data: communicator_child_boards.map { |cb| { acct_id: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url } },
+      communicator_accounts: @child_accounts.map { |ca| { id: ca.id, name: ca.name } },
       communicator_account: communicator_account ? { id: communicator_account.id, name: communicator_account.name } : nil,
       communicator_board: communicator_board ? { id: communicator_board.id, name: communicator_board.name, board_id: communicator_board.board_id, original_board_id: communicator_board.original_board_id } : nil,
-      child_boards: @original_child_boards&.map { |cb| { board_id: cb.board_id, name: cb.name, child_account_id: cb.child_account_id, username: cb.child_account&.username } },
+      child_boards: communicator_child_boards.map { |cb| { board_id: cb.board_id, name: cb.name, child_account_id: cb.child_account_id, username: cb.child_account&.username } },
       in_use: in_use,
       is_template: is_template,
       parent_boards: @parent_boards&.map { |pb| { id: pb.id, name: pb.name, slug: pb.slug, board_type: pb.board_type, display_image_url: pb.display_image_url || pb.preview_image_url, preview_image_url: pb.preview_image_url } },
@@ -2232,10 +2245,18 @@ class Board < ApplicationRecord
 
   def in_use_by
     if in_use
-      @original_child_boards = original_child_boards.includes(child_account: :profile)
-      @communicator_accounts = @original_child_boards&.map(&:child_account).compact.uniq
+      @communicator_accounts = communicator_child_boards.map(&:child_account).compact.uniq
       @communicator_accounts&.map(&:name)&.join(", ")
     end
+  end
+
+  # ChildBoard rows tying this board to communicators, across both join paths:
+  # clone-source (original_board_id) and direct-attach (board_id — Board
+  # Builder roots, and the assignment clones themselves).
+  def communicator_child_boards
+    @communicator_child_boards ||=
+      (original_child_boards.includes(child_account: :profile).to_a +
+       child_boards.includes(child_account: :profile).to_a).uniq
   end
 
   # Whether viewing_user may edit this board's content. Owner/admin gate plus
@@ -2289,7 +2310,7 @@ class Board < ApplicationRecord
       published: published,
       in_use: in_use,
       in_use_by: in_use_by,
-      communicator_account_data: in_use ? @original_child_boards&.map { |cb| { acct_id: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url } } : nil,
+      communicator_account_data: in_use ? communicator_child_boards.map { |cb| { acct_id: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url } } : nil,
       can_edit: can_edit,
       locked: locked,
       lock_reason: locked ? "free_plan_board_limit" : nil,

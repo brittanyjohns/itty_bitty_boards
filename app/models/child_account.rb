@@ -1220,7 +1220,12 @@ class ChildAccount < ApplicationRecord
       parent_name: user.display_name,
       board_count: @child_boards.size,
       board_list_sample: current_board_list,
-      communicator_board_ids: @child_boards.pluck(:original_board_id).compact,
+      # Every board id this communicator "has", across both join paths: the
+      # clone source (original_board_id — assign_boards/assign_accounts) AND
+      # the board actually on the dashboard (board_id — Board Builder roots
+      # have no original). The assign-to-communicator popup matches the viewed
+      # board's id against this list.
+      communicator_board_ids: @child_boards.pluck(:original_board_id, :board_id).flatten.compact.uniq,
       user_id: user_id,
       last_sign_in_at_str: last_sign_in_at&.strftime("%a, %b %e at %l:%M %p"),
       last_sign_in_at: last_sign_in_at,

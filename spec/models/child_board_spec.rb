@@ -44,4 +44,39 @@ RSpec.describe ChildBoard, type: :model do
       expect(build(:child_board, board: board, child_account: other)).to be_valid
     end
   end
+
+  describe "in_use recalculation on attach/detach" do
+    it "flags a directly-attached board in_use on create (Board Builder path)" do
+      expect(board.reload.in_use).to be(false)
+
+      child_board = create(:child_board, board: board, child_account: communicator)
+
+      expect(board.reload.in_use).to be(true)
+
+      child_board.destroy!
+      expect(board.reload.in_use).to be(false)
+    end
+
+    it "flags the clone source in_use via original_board (assign path)" do
+      clone = create(:board, user: user, is_template: true)
+
+      child_board = create(:child_board, board: clone, original_board: board, child_account: communicator)
+
+      expect(board.reload.in_use).to be(true)
+      expect(clone.reload.in_use).to be(true)
+
+      child_board.destroy!
+      expect(board.reload.in_use).to be(false)
+      expect(clone.reload.in_use).to be(false)
+    end
+
+    it "keeps in_use true while another communicator still has the board" do
+      other = create(:child_account, user: user)
+      keeper = create(:child_board, board: board, child_account: communicator)
+      create(:child_board, board: board, child_account: other)
+
+      keeper.destroy!
+      expect(board.reload.in_use).to be(true)
+    end
+  end
 end
