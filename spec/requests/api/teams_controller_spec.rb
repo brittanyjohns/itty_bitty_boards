@@ -36,6 +36,14 @@ RSpec.describe "API::Teams permissions", type: :request do
 
   let(:board) { create(:board, user: team_creator) }
 
+  # Inviting a NEW user routes through User.invite_new_user_to_team! ->
+  # create_stripe_customer -> Stripe::Customer.create. Stub it so specs never
+  # make a live Stripe/network call (CI has no creds). Returns a hash-like the
+  # caller indexes with ["id"].
+  before do
+    allow(Stripe::Customer).to receive(:create).and_return({ "id" => "cus_test_stub" })
+  end
+
   describe "GET /api/teams/:id (show)" do
     it "lets every member (incl. restricted) and managers view the team" do
       [restricted, member, supervisor, team_creator, account_owner, sysadmin].each do |u|
@@ -233,29 +241,69 @@ RSpec.describe "API::Teams permissions", type: :request do
     end
   end
 
+  describe "GET /api/teams/:id/accept_invite (public preview)" do
+    it "returns the team/inviter/role payload for a valid token (no auth required)" do
+      get "/api/teams/#{team.id}/accept_invite", params: { token: supervisor.uuid }
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["team_name"]).to eq(team.name)
+      expect(body["invited_by_name"]).to eq(team_creator.display_name)
+      expect(body["role"]).to eq("supervisor")
+      # Email is masked, not leaked in full.
+      expect(body["email"]).to end_with("@#{supervisor.email.split('@').last}")
+      expect(body["email"]).not_to eq(supervisor.email)
+    end
+
+    it "returns 404 with a structured error for a wrong/unknown token" do
+      get "/api/teams/#{team.id}/accept_invite", params: { token: SecureRandom.uuid }
+      expect(response).to have_http_status(:not_found)
+      expect(JSON.parse(response.body)["error"]).to eq("invite_not_found")
+    end
+
+    it "returns 404 when the token belongs to a user with no membership on this team" do
+      get "/api/teams/#{team.id}/accept_invite", params: { token: stranger.uuid }
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe "PATCH /api/teams/:id/accept_invite_patch" do
+    it "accepts the invitation for the invitee with a valid token" do
+      patch "/api/teams/#{team.id}/accept_invite_patch",
+            params: { token: supervisor.uuid },
+            headers: auth_headers(supervisor)
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["id"]).to eq(team.id)
+      expect(TeamUser.find_by(team: team, user: supervisor).invitation_accepted_at).to be_present
+    end
+
+    it "ignores a spoofed email param — identity comes from current_user only" do
+      patch "/api/teams/#{team.id}/accept_invite_patch",
+            params: { token: supervisor.uuid, email: member.email,
+                      team_user: { email: member.email } },
+            headers: auth_headers(supervisor)
+      expect(response).to have_http_status(:ok)
+      # Supervisor's own membership was accepted; the member's was untouched.
+      expect(TeamUser.find_by(team: team, user: supervisor).invitation_accepted_at).to be_present
+      expect(TeamUser.find_by(team: team, user: member).invitation_accepted_at).to be_nil
+    end
+
+    it "returns 403 when signed in as a DIFFERENT user than the invitee" do
+      # member is on the team but follows the supervisor's invite link.
+      patch "/api/teams/#{team.id}/accept_invite_patch",
+            params: { token: supervisor.uuid },
+            headers: auth_headers(member)
+      expect(response).to have_http_status(:forbidden)
+      expect(JSON.parse(response.body)["error"]).to eq("invite_token_mismatch")
+      expect(TeamUser.find_by(team: team, user: member).invitation_accepted_at).to be_nil
+    end
+
     it "returns 404 (not 500) when the caller has no membership on the team" do
       no_membership = create(:user, created_at: 2.months.ago)
       patch "/api/teams/#{team.id}/accept_invite_patch",
-            params: { team_user: { email: no_membership.email } },
+            params: { token: no_membership.uuid },
             headers: auth_headers(no_membership)
       expect(response).to have_http_status(:not_found)
       expect(JSON.parse(response.body)["error"]).to eq("not_a_team_member")
-    end
-
-    it "returns 404 when the email matches no user at all" do
-      patch "/api/teams/#{team.id}/accept_invite_patch",
-            params: { team_user: { email: "ghost@example.com" } },
-            headers: auth_headers(member)
-      expect(response).to have_http_status(:not_found)
-    end
-
-    it "accepts the invitation for a real pending member" do
-      patch "/api/teams/#{team.id}/accept_invite_patch",
-            params: { team_user: { email: supervisor.email } },
-            headers: auth_headers(supervisor)
-      expect(response).to have_http_status(:ok)
-      expect(TeamUser.find_by(team: team, user: supervisor).invitation_accepted_at).to be_present
     end
   end
 

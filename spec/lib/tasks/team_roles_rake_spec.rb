@@ -55,10 +55,10 @@ RSpec.describe "team_roles rake tasks", type: :task do
       expect(tu.reload.role).to eq("member")
     end
 
-    it "rewrites restricted -> member" do
+    it "leaves restricted untouched (canonical since the 4-tier overhaul)" do
       tu = insert_team_user_with_role("restricted")
       silent { normalize.invoke }
-      expect(tu.reload.role).to eq("member")
+      expect(tu.reload.role).to eq("restricted")
     end
 
     it "rewrites unknown values -> member (defensive)" do

@@ -8,7 +8,6 @@ namespace :team_roles do
   ROLE_FOLD = {
     "professional" => "admin",     # creator-add path; always the account owner
     "supporter"    => "member",    # never landed in prod (default arg for add_member!)
-    "restricted"   => "member",    # read access preserved; curate access dropped
   }.freeze
 
   desc "Print every team_users row that would be rewritten by team_roles:normalize"
@@ -30,7 +29,7 @@ namespace :team_roles do
     puts "By source role: #{summary.inspect}"
   end
 
-  desc "Rewrite stale team_users.role values to the canonical set (admin/supervisor/member)"
+  desc "Rewrite stale team_users.role values to the canonical set (admin/supervisor/member/restricted)"
   task normalize: :environment do
     updated = 0
     skipped = 0

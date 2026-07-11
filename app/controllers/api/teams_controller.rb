@@ -1,4 +1,7 @@
 class API::TeamsController < API::ApplicationController
+  # `accept_invite` is the pre-sign-in invite preview landing page — it must
+  # work without a token, validated instead by the invite uuid in the URL.
+  skip_before_action :authenticate_token!, only: %i[ accept_invite ]
   before_action :set_team, only: %i[ show edit update destroy remove_board invite ]
   before_action :authorize_team_read!, only: %i[ show ]
   before_action :authorize_team_manage!, only: %i[ update destroy invite remove_member ]
@@ -145,24 +148,56 @@ class API::TeamsController < API::ApplicationController
     end
   end
 
+  # GET /api/teams/:id/accept_invite?token=<uuid>
+  #
+  # Public invite-preview for the pre-sign-in landing page. Identity is
+  # established SOLELY by matching the `token` against the invited user's
+  # `uuid` — never by an email param. Returns a masked-email preview so the
+  # landing page can say "you were invited to <team> as <role>". 404 (with a
+  # structured error) if the team/token/membership don't line up, so we never
+  # leak whether a given team or email exists.
   def accept_invite
-    @team = Team.find(params[:id])
-    @user = User.find_by(email: params[:email])
-    @team_user = TeamUser.find_by(user_id: @user.id, team_id: @team.id)
-  end
+    team = Team.find_by(id: params[:id])
+    invited_user = User.find_by(uuid: params[:token].to_s) if params[:token].present?
+    membership = TeamUser.find_by(user_id: invited_user.id, team_id: team.id) if team && invited_user
 
-  def accept_invite_patch
-    @team = Team.find(params[:id])
-    @user = User.find_by(email: team_user_params[:email])
-    @team_user = TeamUser.find_by(user_id: @user&.id, team_id: @team.id)
-    unless @team_user
+    unless membership
       return render json: {
-        error: "not_a_team_member",
-        message: "No pending invitation was found for this account on this team.",
+        error: "invite_not_found",
+        message: "This invitation link is invalid or has expired.",
       }, status: :not_found
     end
-    @team_user.accept_invitation!
-    render json: @team.show_api_view(@user), status: :ok
+
+    render json: {
+      team_name: team.name,
+      invited_by_name: team.created_by&.display_name,
+      role: membership.role,
+      email: masked_email(invited_user.email),
+    }, status: :ok
+  end
+
+  # PATCH /api/teams/:id/accept_invite_patch?token=<uuid>
+  #
+  # Authenticated acceptance. Identity is `current_user` (never the email
+  # param — a spoofed email is ignored). The URL `token` must match
+  # `current_user.uuid`, so following someone else's invite link while signed
+  # in as a different account is rejected. Structured errors only, never 500.
+  def accept_invite_patch
+    team = Team.find_by(id: params[:id])
+    return render_invite_not_found unless team
+
+    membership = TeamUser.find_by(user_id: current_user.id, team_id: team.id)
+    return render_invite_not_found unless membership
+
+    if params[:token].to_s != current_user.uuid.to_s
+      return render json: {
+        error: "invite_token_mismatch",
+        message: "This invitation was issued to a different account. Sign in as the invited user to accept it.",
+      }, status: :forbidden
+    end
+
+    membership.accept_invitation!
+    render json: team.show_api_view(current_user), status: :ok
   end
 
   def create_board
@@ -208,6 +243,24 @@ class API::TeamsController < API::ApplicationController
 
   def render_team_permission_error(error_key, message, status = :forbidden)
     render json: { error: error_key, message: message }, status: status
+  end
+
+  def render_invite_not_found
+    render json: {
+      error: "not_a_team_member",
+      message: "No pending invitation was found for your account on this team.",
+    }, status: :not_found
+  end
+
+  # "brittany@example.com" -> "b*******@example.com". Keeps the domain (so the
+  # invitee recognizes their own address) while not exposing the full local
+  # part on the public preview endpoint.
+  def masked_email(email)
+    return nil if email.blank?
+    local, domain = email.split("@", 2)
+    return email if domain.blank?
+    masked_local = local.length <= 1 ? "#{local}*" : "#{local[0]}#{'*' * (local.length - 1)}"
+    "#{masked_local}@#{domain}"
   end
 
   # Use callbacks to share common setup or constraints between actions.
