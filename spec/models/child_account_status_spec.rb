@@ -101,5 +101,21 @@ RSpec.describe ChildAccount, "status lifecycle", type: :model do
       expect(account.index_api_view[:public_url]).to eq(account.api_view(user)[:public_url])
       expect(account.index_api_view[:public_url]).to end_with("/my/s-8bdsv4")
     end
+
+    it "emits communicator_board_ids across both join paths (clone source AND direct attach)" do
+      account = FactoryBot.create(:child_account, user: user)
+
+      builder_root = FactoryBot.create(:board, user: user, name: "Built set")
+      account.child_boards.create!(board: builder_root, created_by_id: user.id)
+
+      source = FactoryBot.create(:board, user: user, name: "Assigned source")
+      clone = FactoryBot.create(:board, user: user, name: "Assigned copy", is_template: true)
+      account.child_boards.create!(board: clone, original_board: source, created_by_id: user.id)
+
+      ids = account.index_api_view[:communicator_board_ids]
+      expect(ids).to include(builder_root.id) # direct attach (Board Builder)
+      expect(ids).to include(source.id)       # clone source (assign)
+      expect(ids).to include(clone.id)        # the board actually on the dashboard
+    end
   end
 end

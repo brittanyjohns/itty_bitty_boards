@@ -151,6 +151,61 @@ RSpec.describe Board, type: :model do
       board.save!
       expect(board.reload.in_use).to be(true)
     end
+
+    it "does not mark a brand-new board in_use because unrelated direct-attach rows exist (nil-id guard)" do
+      communicator = FactoryBot.create(:child_account, user: user)
+      communicator.child_boards.create!(board: board, created_by_id: user.id)
+
+      # With a nil id at first save, the unguarded query matched the row above
+      # via `original_board_id: nil` and flagged every new board in_use.
+      fresh = FactoryBot.create(:board, user: user, name: "Fresh")
+      expect(fresh.reload.in_use).to be(false)
+    end
+  end
+
+  describe "communicator assignment in api views" do
+    let(:user)         { FactoryBot.create(:user) }
+    let(:communicator) { FactoryBot.create(:child_account, user: user, name: "Mason") }
+    let(:board)        { FactoryBot.create(:board, user: user, name: "Core 60") }
+
+    context "when attached directly (Board Builder path — no original_board_id)" do
+      before { communicator.child_boards.create!(board: board, created_by_id: user.id) }
+
+      it "lists the communicator in the show payload" do
+        view = board.reload.api_view_with_predictive_images(user)
+
+        expect(view[:communicator_accounts]).to eq([{ id: communicator.id, name: "Mason" }])
+        expect(view[:communicator_account_data].map { |d| d[:acct_id] }).to eq([communicator.id])
+        expect(view[:child_boards].map { |cb| cb[:child_account_id] }).to eq([communicator.id])
+        expect(view[:in_use]).to be(true)
+      end
+
+      it "names the communicator in in_use_by" do
+        expect(board.reload.in_use_by).to eq("Mason")
+      end
+    end
+
+    context "when it is the source of an assigned clone (original_board_id path)" do
+      before do
+        clone = FactoryBot.create(:board, user: user, name: "Core 60 copy", is_template: true)
+        communicator.child_boards.create!(board: clone, original_board: board, created_by_id: user.id)
+      end
+
+      it "lists the communicator in the show payload" do
+        view = board.reload.api_view_with_predictive_images(user)
+
+        expect(view[:communicator_accounts]).to eq([{ id: communicator.id, name: "Mason" }])
+        expect(view[:in_use]).to be(true)
+      end
+    end
+
+    it "returns empty communicator lists for an unassigned board" do
+      view = board.reload.api_view_with_predictive_images(user)
+
+      expect(view[:communicator_accounts]).to eq([])
+      expect(view[:communicator_account_data]).to eq([])
+      expect(view[:child_boards]).to eq([])
+    end
   end
 
   describe "#check_is_sub_board (before_save)" do

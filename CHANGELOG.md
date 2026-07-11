@@ -5,6 +5,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — boards assigned to communicators now show it everywhere
+- Board Builder boards live directly on the communicator (`ChildBoard` with
+  no `original_board_id`), but every "who has this board" surface only read
+  the clone-source path — so the Board View page's In-use info, the
+  Assign-to-communicator popup's "Already has this board" state, and the
+  boards-list `in_use_by` label were all empty for built sets. All of them
+  (including `ChildAccount#index_api_view`'s `communicator_board_ids`) now
+  read both join paths.
+- `Board.in_use` stays accurate: `ChildBoard` create/destroy now refreshes
+  the flag on the attached board and the clone source (the builder attaches
+  the root after the board's last save, so the save-time hook never saw it),
+  and a nil-id guard stops brand-new boards from being marked in-use by
+  unrelated direct-attach rows. Backfill for existing data:
+  `rake boards:recalculate_in_use` (dry-run by default; `DRY_RUN=false`).
+
 ### Added — `public_url` on the communicator index payload
 - `ChildAccount#index_api_view` now includes `public_url` (the canonical
   slug-based MySpeak URL, e.g. `/my/s-8bdsv4`). The user payload's
