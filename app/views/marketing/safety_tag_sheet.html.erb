@@ -31,6 +31,14 @@
         text-transform: uppercase;
         color: #94a3b8;
       }
+      .personalize {
+        display: block;
+        margin-top: 3px;
+        text-transform: none;
+        letter-spacing: 0;
+        font-weight: 600;
+        color: #7c3aed;
+      }
 
       .tag {
         box-sizing: border-box;
@@ -79,7 +87,9 @@
   </head>
   <body>
     <div class="sheet">
-      <div class="cut-hint">&#9986; Print at 100% (actual size) &middot; cut along the dashed lines</div>
+      <div class="cut-hint">&#9986; Print at 100% (actual size) &middot; cut along the dashed lines
+        <span class="personalize">Make these personal &mdash; add a name, photo, and a live MySpeak QR with a free account at speakanyway.com</span>
+      </div>
       <% @card_count.times do %>
         <div class="tag">
           <div class="inner">
