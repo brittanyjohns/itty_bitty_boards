@@ -72,6 +72,48 @@ RSpec.describe "API::Teams owner protection", type: :request do
     end
   end
 
+  describe "DELETE /api/teams/:id/leave" do
+    # A plain support member who joined the team but neither created it
+    # nor owns a communicator on it — the common "let me off this team" case.
+    let(:aide) { create(:user) }
+    before { team.upsert_member!(aide, "member") }
+
+    it "lets a member leave the team on their own" do
+      expect {
+        delete "/api/teams/#{team.id}/leave", headers: auth_headers(aide)
+      }.to change { TeamUser.where(team: team, user: aide).count }.from(1).to(0)
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["status"]).to eq("ok")
+    end
+
+    it "blocks the team creator from leaving (403)" do
+      # slp created this team via ensure_team! and is a member, so the
+      # block — not a missing TeamUser — is what must stop them.
+      expect {
+        delete "/api/teams/#{team.id}/leave", headers: auth_headers(slp)
+      }.not_to change { TeamUser.where(team: team).count }
+
+      expect(response).to have_http_status(:forbidden)
+      expect(JSON.parse(response.body)["error"]).to eq("creator_cannot_leave")
+    end
+
+    it "returns 404 when the caller is not a member" do
+      stranger = create(:user)
+      delete "/api/teams/#{team.id}/leave", headers: auth_headers(stranger)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "lets the parent owner leave via their own action (owner-pin does not block self-leave)" do
+      expect {
+        delete "/api/teams/#{team.id}/leave", headers: auth_headers(parent)
+      }.to change { TeamUser.where(team: team, user: parent).count }.from(1).to(0)
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
   describe "POST /api/teams/:id/invite (role change path)" do
     it "blocks an SLP supervisor from demoting the parent owner (403)" do
       post "/api/teams/#{team.id}/invite",

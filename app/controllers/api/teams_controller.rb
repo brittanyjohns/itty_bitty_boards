@@ -116,6 +116,27 @@ class API::TeamsController < API::ApplicationController
     render json: @team.show_api_view(current_user)
   end
 
+  # DELETE /api/teams/:id/leave — the signed-in user removes their own
+  # membership. Self-scoped (uses current_user, never an email param), so
+  # it can't be used to remove anyone else. Destroying the TeamUser fires
+  # the before_destroy board-snapshot safety net (issue #162), so the
+  # departing member's shared boards stay with the family.
+  def leave
+    @team = Team.find(params[:id])
+    @team_user = TeamUser.find_by(user_id: current_user.id, team_id: @team.id)
+    return render json: { error: "Not a team member" }, status: :not_found unless @team_user
+
+    # The team creator can't leave — that would orphan the team. They use
+    # "Delete Team" (or hand the team off) instead.
+    if @team.created_by_id == current_user.id
+      return render_team_permission_error("creator_cannot_leave",
+                                          "As the team creator, you can't leave. Delete the team instead.")
+    end
+
+    @team_user.destroy!
+    render json: { status: "ok" }
+  end
+
   # POST /teams or /teams.json
   def create
     # Hosting a team is a Pro (owner-side) feature — decision 3: the owner's

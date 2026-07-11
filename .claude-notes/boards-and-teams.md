@@ -37,6 +37,13 @@ any non-owner. Full matrix in issue #166. Server-side rules:
 - `DELETE /api/teams/:id/remove_member` returns **HTTP 403
   `cannot_remove_owner`** if the target is owner-pinned and the caller is
   neither that user nor a system admin. The owner can remove themselves.
+- `DELETE /api/teams/:id/leave` — self-scoped: a member removes their own
+  membership (uses `current_user`, never an email param, so it can't remove
+  anyone else). Returns **HTTP 403 `creator_cannot_leave`** for the team
+  creator (`created_by_id`) — they use "Delete team" instead, since leaving
+  would orphan the team. Destroying the `TeamUser` fires the same
+  `before_destroy` board-snapshot safety net as `remove_member`, so the
+  departing member's shared boards stay with the family.
 - `POST /api/teams/:id/invite`, when it would change an *existing*
   membership's role, returns **HTTP 403 `cannot_change_owner_role`** if
   the target is owner-pinned (and the caller isn't that user). It also
