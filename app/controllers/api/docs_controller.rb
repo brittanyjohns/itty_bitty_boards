@@ -84,10 +84,20 @@ class API::DocsController < API::ApplicationController
 
   # PATCH/PUT /docs/1 or /docs/1.json
   def update
+    # Broken-access-control gate (#469): set_doc uses Doc.unscoped.find, so
+    # without this check any authenticated user could mutate any doc's content.
+    unless current_user&.can_edit?(@doc)
+      respond_to do |format|
+        format.html { redirect_back_or_to root_url, notice: "You do not have permission to edit this doc." }
+        format.json { render json: { error: "Unauthorized" }, status: :forbidden }
+      end
+      return
+    end
+
     respond_to do |format|
       if @doc.update(doc_params)
         format.html { redirect_to doc_url(@doc), notice: "Doc was successfully updated." }
-        format.json { render :show, status: :ok, location: @doc }
+        format.json { render json: @doc.api_view(current_user), status: :ok }
       else
         format.html { render :edit, status: :unprocessable_content }
         format.json { render json: @doc.errors, status: :unprocessable_content }
