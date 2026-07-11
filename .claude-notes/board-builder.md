@@ -488,3 +488,433 @@ thresholds. Revisit when real usage data or SLP feedback is available.
   recommended_level, level param in create).
 
 Run: `RAILS_ENV=test bundle exec rspec spec/services/boards spec/services/vocab_sets_spec.rb spec/services/communicator_profile_spec.rb spec/services/credit_service_spec.rb spec/sidekiq/build_board_set_job_spec.rb spec/requests/api/v1/board_builder_spec.rb`
+
+---
+
+# Consolidated current-state summary (moved from CLAUDE.md, 2026-07-11)
+
+> This section was CLAUDE.md's Board Builder documentation, moved here in the
+> hub-and-spoke restructure. It is the NEWEST description of the system — where
+> it conflicts with the older sections above, this section wins.
+
+## Board Builder wizard
+
+Turns wizard input — a starter **template** + a few **interest words** — into
+a real linked `Board` set attached to a communicator. **Standalone** feature,
+*not* part of MySpeak onboarding. Full subsystem doc:
+`.claude-notes/board-builder.md`.
+
+Three seams (input contract tightens left→right):
+
+- `Boards::StarterBlueprints` — `TEMPLATES` registry of label-only starter
+  trees (`"home"`, `"daily_routine"`). Add a tree to the hash → instantly in
+  the picker (`#catalog`) and buildable (`#for`). Core labels resolve
+  **create-if-missing** (blank art, same path as interest words), so a template
+  builds even when its curated symbols — including the capitalized folder labels
+  (`Food`, `Feelings`, `Play`, `Bathroom`) — aren't seeded in this environment.
+- `Boards::BlueprintAssembler` — the resolution + routing seam. Resolves every
+  label to an `image_id` (create-if-missing for new interest words, blank art
+  for v1), then **routes interests into category folders** via
+  `Boards::InterestCategories` (apple→Food, trains→Play). Routing is dynamic
+  by template (only into a folder the chosen template has); anything unmatched
+  falls through to one appended **"My Favorites"** folder, deduped, nothing
+  dropped. Interests are normalized + capped at 20. When the frontend sends
+  `[{ word, category }]` entries, the explicit category overrides the dictionary
+  lookup — so the categorized picker's selections route deterministically.
+- `Boards::BoardTreeBuilder` (#259) — persists the tree from a blueprint of
+  **already-resolved `image_id`s only**. Keep it dumb; all resolution lives in
+  the assembler.
+
+### Complexity levels (Phase 2)
+
+Phase 2 replaces raw template keys with **complexity levels** — Starter,
+Standard, Extended — that control how many fringe pages a built set includes and
+where they come from. The `level` param is the intended path forward; `template`
+still works for backward compat.
+
+- **`Boards::StructurePlanner`** — the planning service. Takes a level + profile
+  + interests → decides which fringe pages to include, resolving each to one of
+  three source types:
+  - `:seed_set` — already in the core template clone (Food, Feelings, etc.)
+  - `:prebuilt` — standalone OBF fringe template, cloned per user
+  - `:ai_generated` — built on the fly via `Boards::AiPageGenerator` (OpenAI)
+  Constants: `LEVELS` (starter→core-60/4-6 pages, standard→core-60/8-10,
+  extended→core-84/10-15), `SEED_SET_PAGES`, `CATEGORY_SEED_ALIASES` (maps
+  InterestCategories names like "Family & People" to seed set page names like
+  "People").
+  - **No-interest defaults must be a subset of the level's seed pages.**
+    `STARTER_/STANDARD_/EXTENDED_DEFAULTS` are the categories seeded when the
+    child gives no interests. They **must** all be `SEED_SET_PAGES` of that
+    level's core template — a default that isn't a seed page resolves to
+    `:prebuilt`/`:ai_generated` and `add_fringe_pages!` adds it as an **extra
+    top-level folder**, which on the full authored Core 84 grid (84 tiles, no
+    open cells) spills onto a stray extra row. That was the "Core 84 builds an
+    unrequested `Social` folder + orphans a tile onto row 8" bug: `Social` sat
+    in `EXTENDED_DEFAULTS` but isn't a core-84 seed page, so a no-interest
+    Extended build injected it whenever the seed root reported a phantom open
+    cell (a latent tile overlap inflating `open_grid_cells`). Core 60 was
+    unaffected because its defaults are all seed pages. Invariant enforced by a
+    `structure_planner_spec` test; if you add a level or default, keep defaults
+    ⊆ seed pages.
+- **`Boards::FringeTemplates`** — module for standalone fringe page templates.
+  Seeded from `db/seeds/board_builder_sets/fringe-pages/*.obf` via
+  `bin/rails fringe_templates:seed` (also auto-runs after `vocab_sets:seed`).
+  11 categories: Animals, Art & Craft, Bathroom, Clothing, Home, Music,
+  Nature & Outdoors, Social, Sports, Technology, Transportation. Boards are
+  marked with `settings["fringe_template_category"]` and owned by
+  `DEFAULT_ADMIN_ID`.
+- **`Boards::AiPageGenerator`** — OpenAI-powered page generation for niche
+  interests with no pre-built source. Returns a `{ name, tiles }` blueprint.
+  Profile-aware prompts. Credit-gated: costs 2 credits (`ai_board_page` feature
+  key). Falls back to "My Favorites" catch-all when user lacks credits or
+  generation fails.
+- **AI pages need ≥ `MIN_AI_PAGE_INTERESTS` interests
+  (`BOARD_BUILDER_MIN_AI_PAGE_INTERESTS`, default 2).** `StructurePlanner#drop_sparse_ai_pages`
+  removes any `:ai_generated` page whose category has fewer interests, so a lone
+  interest (e.g. "backpack" → School, which is neither a seed nor prebuilt page in
+  core-60) doesn't spawn — and pay for — a whole AI board named after that one
+  word. Its words fall to `catch_all_interests` instead. **Seed/prebuilt pages are
+  not gated** (they're curated/default content; gating them would drop a
+  zero-interest default like the prebuilt "Social" in Extended).
+- **`BuildBoardSetJob`** routes between the hybrid path (when `level` is a
+  `StructurePlanner::LEVELS` key) and the legacy path (direct template keys like
+  `core-60`, `home`). The hybrid path: plan → clone seed set **intact** →
+  add prebuilt/AI fringe pages **within the authored grid** →
+  `route_catch_all_to_existing_boards!` (place each leftover interest on an
+  **existing matching board** in the set — e.g. a capped seed page, since the seed
+  set always clones intact — matched by category with the seed aliases) → route the
+  rest to **"My Favorites"**.
+- **Grid growth (interests grow; defaults don't) + no dead tiles.** The authored
+  core boards are now **full** (Core 60 = 6×10 = 60 tiles; Core 84 = 7×12 = 84
+  tiles — no reserved gaps). `Board#add_image` fills the next open cell and only
+  starts a new row once the grid is full. `BuildBoardSetJob#add_fringe_pages!`
+  uses that deliberately: **interest-driven content is allowed to GROW the grid
+  onto new rows** so a child never loses a page — or a word — they asked for.
+  - **What grows vs. what doesn't.** Interest-bearing fringe pages and a
+    non-empty "My Favorites" catch-all grow the grid (added as real, working
+    folder tiles). **Default (no-interest) fringe pages, the Phrases folder, and
+    the early-stage quick-phrase strip do NOT grow the grid** — they fill only
+    genuine open cells (`root_open_cells` / `Board#open_grid_cells`), so a
+    no-interest build stays one clean page (Core 84 = 84 tiles). Trade-off: on a
+    full authored grid those default/gestalt extras are simply omitted (no room
+    without growth, and we don't grow for empty default content).
+  - **Grown sets may scroll.** A cloned root inherits the seed's one-page
+    `disable_scroll`. When the build grows past the authored rows,
+    `allow_scroll_if_grown!(root, authored_rows)` clears `disable_scroll` so the
+    new rows aren't clipped by the native one-page layout.
+  - **No dead tiles, controlled growth.** Every added tile links a real board;
+    growth is bounded by the number of interest categories (a couple of extra
+    rows at most), never a runaway stack. The job clones the seed set **intact**
+    (`exclude_fringe: []`) so every authored folder — People…Describe, **including
+    More** — stays linked to a real board.
+  - **History:** the authored grids previously shipped with 3 empty cells
+    reserved for the builder, and `add_fringe_pages_within_grid!` capped tile
+    placement to those cells (the "85th/86th tile" hard cap). #416/#424 filled
+    the grids to a true 60/84 (the cells read as "missing tiles" to users), so
+    the reserved-cell reservation was replaced with this controlled-growth model.
+  - **Alias-aware interest routing in the cloner.** `SeededSetCloner` matches an
+    interest's category to a cloned fringe board via `fringe_for_category`,
+    applying `StructurePlanner::CATEGORY_SEED_ALIASES` ("Family & People" →
+    People, "Health & Body" → Body). Without it those (planner-classified
+    seed-set) interests missed the cloned People/Body page and fell through to a
+    spurious extra "My Favorites" folder tile — one of the overflow triggers.
+- **`SeededSetCloner`** accepts `exclude_fringe:` — a list of page names to skip
+  during the clone. Still used by callers that want a trimmed clone; the hybrid
+  build now passes `[]` (clone intact). `StructurePlanner#excluded_fringe_pages`
+  is still computed on the plan but no longer consumed by the build.
+- **Folder/dynamic tiles default to muted names.**
+  `BuildBoardSetJob#mute_dynamic_tile_names!` runs at the end of every build
+  (the single chokepoint before `generate_preview!`) and sets
+  `board_image.data["mute_name"] = true` on every dynamic tile
+  (`is_dynamic?` → `predictive_board_id` present and not a self-link) across the
+  whole set — root + linked sub-boards, walked via `set_board_ids` (BFS over
+  predictive links, scoped to the owner's boards). So tapping a folder navigates
+  without speaking the folder's own label; word tiles are untouched.
+  `update_column` skips the audio hook/validations. Idempotent.
+- **Scope classification + sub-board freeze.**
+  `BuildBoardSetJob#finalize_sub_boards!` runs at the same end-of-build chokepoint
+  (beside `mute_dynamic_tile_names!`) and, for every `builder_child` board in the
+  set (everything but the root, walked via `set_board_ids`): sets
+  `settings["freeze_board"] = true` and re-saves it so `Board#check_is_sub_board`
+  recomputes against the now-wired `predictive_board_id` links and sets the
+  `sub_board` column **true**. Two problems this fixes: (1) child pages used to
+  leak into the **`main_boards`** scope (`sub_board: [false, nil]`) because their
+  last save happened before the parent linked them, so `sub_board` stayed false;
+  (2) navigating into a child page auto-returned home on the next tap. Freezing is
+  the lever — there is **no separate `return_home` setting**; `freeze_board: true`
+  is what stops auto-return, and the `frozen`/`freeze_parent_board`/`board_frozen`
+  flags the api_view exposes are what the frontend's return-home affordance keys
+  off. The **root is intentionally left unfrozen and `sub_board: false`** so it
+  stays a main board. Default-on but user-overridable in the editor. Idempotent.
+  - **The root is pinned as a main board in the model, not just by being skipped
+    here.** The seed's child pages each carry an authored **"Home" tile** whose
+    `predictive_board_id` points back at the root, so once those links are wired
+    the root *has* parent boards — and any later `root.save!` (e.g.
+    `allow_scroll_if_grown!`) would flip it to `sub_board: true` and drop it out
+    of the `main_boards` scope / the communicator dashboard. `Board#check_is_sub_board`
+    now **short-circuits to `sub_board: false` for any `settings["builder_root"]`
+    board**, regardless of inbound links, so the Home tiles keep working as
+    navigation while the root stays a main board. `rake board_builder:reclassify_builder_sets`
+    re-saves existing roots, so the guard heals already-built sets too.
+- **Built roots register as `in_use`.** The set's root lives **directly** on the
+  communicator (the `ChildBoard` has `board_id = root.id`, `original_board_id =
+  nil` — unlike the clone-source `assign_boards`/`assign_accounts` path). So
+  `Board#check_in_use` was broadened to mark a board `in_use` when **either** a
+  `ChildBoard` points at it via `original_board_id` (clone source) **or** via
+  `board_id` (direct attach) — i.e. "the board is on a communicator." Without
+  this the builder root never surfaced under the `in_use` scope even though it's
+  literally assigned. The clone-source path is unaffected (clones are
+  `is_template: true`, excluded from the index anyway).
+- **Backfill for pre-fix sets:** `rake board_builder:reclassify_builder_sets`
+  (dry-run by default; `DRY_RUN=false` to apply, `USER_ID=N` to scope) re-saves
+  each existing built set so the root recomputes `in_use` and every child page
+  gets `freeze_board` + `sub_board`.
+- **Tile images prefer the curated "default" image (`Boards::ImageResolver`).**
+  All three build paths (cloner, `BlueprintAssembler`, `BuildBoardSetJob`)
+  resolve a tile label via `Boards::ImageResolver.resolve(label, owner:)`. When
+  several `Image` rows share a label, it picks the one with the **most `Doc`s
+  attached** (`COUNT(docs) DESC, id ASC`) — the admin's de-facto default symbol
+  — preferring the owner's own art, then the `DEFAULT_ADMIN_ID`/unowned public
+  library. Matching is **case-insensitive** (folder labels are capitalized,
+  curated art is often lowercase). Without this, category folder tiles (Animals,
+  People, Feelings…) rendered blank because resolution grabbed a label-only
+  image the OBF seed created. Because `BoardImage#set_defaults` derives the tile
+  label from its image, the curated folder name is pinned explicitly so an
+  upgraded lowercase art image doesn't rename the tile (`copy_tiles!` restores
+  the authored label; `BuildBoardSetJob#add_folder_tile!` sets the category name).
+- **Fringe boards get the same art upgrade as the root.** Only the root board
+  ran the blank→art upgrade originally; the seed's fringe sub-boards and
+  standalone prebuilt fringe pages clone through `Board#clone_with_images`
+  (no upgrade), so they rendered blank while the root had pictures.
+  `Boards::ImageResolver.upgrade_board_tiles!(board, owner:)` re-points every
+  blank tile to the curated default image for its label (blank→art only,
+  authored label preserved, never creates a stray image) and runs on each
+  cloned fringe board (`SeededSetCloner#clone_all`,
+  `BuildBoardSetJob#clone_one_prebuilt_page!`). Backfill existing built sets
+  with `rake board_builder:upgrade_tile_images` (dry-run by default;
+  `DRY_RUN=false` to apply, `USER_ID=N` to scope).
+- **Level recommendation heuristic:** young/emerging → Starter,
+  developing/young_teen → Standard, proficient/older → Extended. Based on
+  `CommunicatorProfile` helpers (`developing?`, `young_teen?`). **Not clinically
+  validated** — reasonable defaults that should be revisited with AAC research or
+  user data.
+
+Endpoints (`API::V1::BoardBuilderController`, all auth-gated):
+
+- `GET /api/v1/board_builder/templates` — label-only picker catalog. Returns
+  `levels` (array of `{ key, name, description, fringe_page_range }`),
+  `recommended_level` (profile-based, null without a communicator), and
+  `recommendation_reason`. Also returns legacy `templates` array and
+  `recommended_template` for backward compat. Accepts an optional
+  `communicator_id` (scoped to `current_user.communicator_accounts`).
+- `GET /api/v1/board_builder/interest_categories` — returns the full category
+  dictionary (`{ categories: [{ name, words }], max_interests }`) for the
+  frontend's categorized interest picker. 18 categories, ~504 words.
+- `POST /api/v1/board_builder` `{ communicator_id, level, interests }` or
+  `{ communicator_id, template, interests }` — `level` is preferred; `template`
+  is the legacy path. `level` takes precedence when both are sent.
+  `interests` accepts plain strings or `[{ word, category }]` hashes; explicit
+  categories override the dictionary lookup. Ownership check (**404
+  `communicator_not_found`** for a communicator not in
+  `current_user.communicator_accounts`), plan → build → persist normalized
+  interests to `child_account.details["interests"]` (jsonb merge), return the
+  favorited root board's `api_view` (**201**). **422 `unknown_template`** /
+  **422 `build_failed`** (the build is transactional — failure rolls back, no
+  orphans). The frontend page ships separately in `itty-bitty-frontend`.
+  - **Board-limit gated, but a tree counts as ONE board.** `create` returns
+    **422 "Maximum number of boards reached"** when `current_user.at_board_limit?`
+    (see the board read-only rule in `.claude-notes/billing-and-plans.md`). Because one wizard run persists a whole
+    linked tree, `BoardTreeBuilder` marks every sub-board (depth > 0)
+    `settings["builder_child"] = true`, and `User#countable_board_count` excludes
+    them — so the tree counts as its single root, not ~5. This also keeps the
+    whole built set editable (the read-only lock keys off the same count).
+  - **Re-run guard (issue #269) + replace flow: detect + warn, never silently
+    dupe.** If the communicator already has a builder set, `create` returns
+    **409 `board_builder_set_exists`** (`{ existing_root_id,
+    existing_root_name, built_at, can_replace: true, existing_sets: [{
+    root_id, name, built_at }] }` — the legacy top-level keys are kept for
+    the shipped frontend) instead of stacking a second favorited root. Two
+    ways past it: **`replace=true`** (preferred; takes precedence) destroys
+    **every** existing builder set on the communicator first — each root's
+    builder BoardGroup cascades via #407 (`destroy_existing_builder_sets!`;
+    a group-less legacy root is destroyed directly) — then builds fresh;
+    **`confirm=true`** keeps its legacy "stack another set" meaning
+    (repurposing it would destroy data on old clients). Detection is
+    `ChildAccount#builder_roots` (plural; `board_builder_root` = newest) —
+    each root is marked `settings["builder_root"] = true` (does **not**
+    affect the board-limit count). Deletion-safe: delete the set and a
+    re-run is a fresh build. **Ordering:** the existing-set handling runs
+    *before* the board-set-limit gate, so a user at their set cap can still
+    REPLACE (the destroy frees the slot); a plain re-run 409s first, and a
+    confirmed STACK at the cap still gets the 422.
+  - **ChildBoard is unique per (board, communicator)** — model validation +
+    unique index (`index_child_boards_on_board_and_child_account`); the
+    ad-hoc `.exists?` guards at call sites remain as fast paths.
+
+### Robust vocabulary sets (Core 60 / Core 84)
+
+A second template **kind** beside the label-only starter trees: pre-authored
+core vocabulary sets, **authored as OBF/OBZ** and seeded as admin-owned
+predefined boards, then **deep-cloned per user** on build (so authored grid
+layout + `part_of_speech` colors survive). Reuses `ObzImporter` (seed) and
+`Board#clone_with_images` (build). SpeakAnyWay content only.
+
+- **Seed:** `bin/rails vocab_sets:seed` (logic in the `VocabSets` service)
+  zips the editable OBF-JSON under `db/seeds/board_builder_sets/<slug>/` and
+  imports it via `ObzImporter` as `User::DEFAULT_ADMIN_ID` with
+  **`board_group: nil`**. **No `BoardGroup`** — a set is identified by a marker
+  on its **root board** (`settings["board_builder_robust_slug"]`), queried via
+  `Boards::RobustSets`. Idempotent (`Board.from_obf` upserts by
+  `(user_id, obf_id)`). Format spec: `db/seeds/board_builder_sets/README.md`.
+  Slugs `core-60` (authored as a full 60-tile home: 50 core words + 8 category
+  folders — People, Feelings, Food, Drinks, Play, Places, Body, More — wired in
+  the bottom row, flanked by `this`/`that`), `core-84` (a full 84-tile home:
+  73 core words + 11 category folders — the Core 60 eight plus School, Time,
+  Describe — with `this`/`that` filling the folder row to a true 84).
+  - **Tile upserts are keyed on the authored OBF button id, not the resolved
+    `image_id`.** `Board.upsert_board_image` matches an existing tile by the
+    button id stamped on `board_image.data["obf_button_id"]` (falling back to
+    `image_id` for tiles seeded before stamping existed). Before this, the upsert
+    keyed on `image_id` alone, so when `find_or_create_image_for_button` resolved
+    the **same** authored button to a **different** `Image` across re-seeds (the
+    OBF button's `image_id` drifted, so the `obf_id` branch missed and the
+    label-only fallback picked a different match), it **appended a duplicate
+    tile** instead of updating the existing one. That's how the Core 60 source
+    grew a second `all done` word tile (2026-06-17 re-seed), which
+    `SeededSetCloner` then copied into every built set (the "extra all done"
+    bug). As a backstop, `VocabSets#dedupe_tiles!` (via
+    `Boards::TileDeduper.collapse_duplicates!`) runs in the seed sync pass and
+    collapses any surviving same-label/same-kind duplicate on each seeded board
+    — a word tile and its same-named category folder (`play` vs `Play`) are
+    **not** merged. Re-seeding is now self-healing for this case.
+  - **Layout self-heal on re-seed (`VocabSets#repair_layout!`).** The same
+    duplicate bug could also leave the surviving tile on the **wrong cell**: the
+    upsert set the matched tile's coords but a leftover copy kept stale ones, and
+    dedupe could keep the wrong copy — so two tiles ended up on **one cell** (e.g.
+    Core 84 `wait` parked on `again` at `[10,5]`) while another cell sat empty,
+    rendering one tile hidden behind another ("84 looks like 82"). Neither dedupe
+    (different labels, not duplicates) nor `LayoutRepacker` (the cell is in-grid,
+    not off-grid) catches that. `repair_layout!` runs **last** in `seed_slug!`
+    and re-pins every surviving tile to its **authored** `[x,y]` read straight
+    from the source OBF grid (matched by `data["obf_button_id"]`), so a single
+    `bin/rails vocab_sets:seed` now converges a corrupted source back to a clean
+    84/60 with zero overlaps. A clean re-seed is a no-op. A clean **first-time**
+    import was always correct; this only heals sources mangled by the historical
+    re-seed bug.
+  - **Remediation:** `rake board_builder:dedupe_seed_tiles` (dry-run by default,
+    `DRY_RUN=false` to apply, `USER_ID=N` to scope) collapses the duplicate on
+    the robust seed sources **and** every already-built user set
+    (`settings["builder_root"]/["builder_child"]`) — re-seeding only heals the
+    admin sources, not the user clones, so run this for the live sets built
+    between the bad re-seed and the fix.
+  - **Off-grid tiles + the Speak-view divergence — `rake board_builder:repair_grid`.**
+    A duplicate folder tile could be parked PAST the grid edge (e.g. a Core 84
+    `More` folder at `x=13` on a 12-column board). The editor renders through
+    react-grid-layout, which clamps to the configured `cols`, but the native
+    **Speak** view sized the grid by the tile extent and silently widened to 14
+    columns — so the same board looked different in Speak than in every editor
+    view. Two layers fix it: **(1)** `Boards::TileDeduper` now keeps the
+    **in-grid** copy of a duplicate (not blindly the lowest-position one), so it
+    no longer preserves the off-grid twin and delete the authored in-grid tile;
+    **(2)** `Boards::LayoutRepacker` is the safety net for a genuine
+    *non-duplicate* **displaced** tile — one that's either **off-grid** (`x+w >
+    cols`) **or overlapping** a cell an earlier (reading-order) tile already
+    claims. It moves only the displaced tiles into the first empty rows below the
+    fitting tiles (per screen size, then resyncs `board.layout`), a Ruby port of
+    the frontend `repackLayout`. The overlap case is what heals **user clones**
+    built from a corrupted source — `repair_layout!` fixes the admin seed, but
+    existing user sets need this. The combined
+    `rake board_builder:repair_grid` (dry-run by default; `DRY_RUN=false`,
+    `USER_ID=N`) runs dedupe + repack across the seed sources and every built
+    set and regenerates the preview for any board it changes. The companion
+    frontend fix (itty-bitty-frontend `NativeLayoutGrid` repacks to the
+    configured columns) means Speak matches the editor even before this data
+    cleanup runs.
+- **Build:** `#create` branches on `Boards::RobustSets.find_root(template)`.
+  A match runs `Boards::SeededSetCloner` (walks the linked set to depth 2,
+  clones each board, **rewires** `predictive_board_id` to the clones, marks
+  root `builder_root` / rest `builder_child`, favorites the root ChildBoard,
+  routes interests into the cloned fringe pages / "My Favorites"). Same
+  synchronous **201** response and the **same** limit (422) and re-run (409)
+  guards as the starter path — counts as ONE board.
+- `GET /board_builder/templates` entries now carry `kind: "starter" | "robust"`.
+- v1 is **synchronous** (DB-bound work; previews/audio/AI art already async).
+  If a finalized set is materially larger than the placeholder, move the clone
+  to a background job + "building" state — see `.claude-notes/board-builder.md`.
+
+### Stored communicator profile (AAC personalization)
+
+`aac_level` / `vocab_type` / `age_band` live in **`child_accounts.details`**
+(jsonb, same pattern as `details["interests"]` — no columns). `ChildAccount`
+defines typed accessors over them, normalizes (downcase/strip, blank clears the
+key), and validates against `CommunicatorProfile::AAC_LEVELS / VOCAB_TYPES /
+AGE_BANDS` on every save — including the wholesale `details=` assignment in the
+communicator update controller. Exposed top-level (next to `details`) in the
+ChildAccount `api_view` / `vendor_api_view`.
+
+`CommunicatorProfile.for(params:, communicator:)` is the merge constructor:
+explicit request params override stored fields **field by field**; returns nil
+when both sources are empty (no profile = unchanged behavior). Consumers:
+`boards#words`, `boards#additional_words`, and `GenerateBoardJob` all accept an
+optional `communicator_id` — always resolved via
+`current_user.communicator_accounts` (controller-side for the job; the id in
+job options is pre-validated), never a bare `ChildAccount.find`. An id the
+caller doesn't own is silently ignored. Personalization reaches **AI
+word-suggestion prompts and the template recommendation only** — the Board
+Builder's deterministic build path is unchanged.
+
+### Gestalt language support (GLP)
+
+A communicator may also carry an optional **NLA stage** for gestalt language
+processors: `glp_stage` (integer 1–6), stored in `child_accounts.details` next
+to the AAC fields. It **measures something different from `aac_level`** — it
+doesn't replace it; both can be set independently. Wiring:
+
+- `glp_stage` is in `ChildAccount::AAC_PROFILE_FIELDS` (so it rides the same
+  typed accessor + wholesale-`details=` validation), but listed in
+  `INTEGER_PROFILE_FIELDS` so normalization coerces it to an **integer** instead
+  of downcasing it to a string (which would fail the `GLP_STAGES` inclusion
+  check). Validated against `CommunicatorProfile::GLP_STAGES` (`(1..6)`). Exposed
+  on the ChildAccount `api_view` / `vendor_api_view`.
+- `CommunicatorProfile` gains `glp_stage`, the predicates `gestalt_early?`
+  (1–2) / `gestalt_emerging?` (3–4) / `gestalt_advanced?` (5–6), and appends
+  stage-specific `prompt_guidance` (whole phrases at early stages → full
+  sentences at advanced). A glp-only profile is `present?`, so `.for` returns
+  it. No `glp_stage` ⇒ no gestalt guidance (backward compatible).
+- **GLP board templates** (`Boards::GlpTemplates`): six predefined, admin-owned
+  whole-phrase function boards (Greetings/Requests/Protests/Comments/Feelings/
+  Transitions), identified by `category: "glp"` + `is_template: true`. `TEMPLATES`
+  is the single source of truth for the idempotent seed (`bin/rails
+  glp_templates:seed`, via `.seed!`) and the stage-aware recommendation
+  (`.recommended_for`). They surface in `GET /api/v1/board_builder/templates`
+  (`kind: "glp"`, a `glp_templates` array, and a stage-driven
+  `recommended_template`) for **recommendation/badge display only** —
+  `?template_type=glp` still filters to them. **A GLP slug is NOT a build target**
+  (`POST /api/v1/board_builder` with `template=glp-*` → 422 `unknown_template`).
+- **Gestalts ride every build as an integrated Phrases layer** (the either/or
+  was retired). `Boards::StructurePlanner` adds a `phrases_page` to the plan
+  (folder-prominence by default; `:strip` for an early-stage `gestalt_early?`
+  communicator; `nil` only when `include_phrases: false` AND no `glp_stage`).
+  `BuildBoardSetJob#build_with_structure_planner` then builds it via
+  `Boards::PhrasesPageBuilder` (a "Phrases" board linking the six function pages,
+  cloned from `GlpTemplates.function_boards`), links it from the home board, and
+  for `gestalt_early?` surfaces a personalized quick-phrase strip on the home
+  board (capped to open grid cells — degrades to folder-only, never overflows).
+  The strip **dedupes against the home board's existing labels**, so a phrase
+  that's already an authored core word (e.g. "all done", which is also a
+  Transitions gestalt) isn't added a second time. The wizard sends an optional
+  `include_phrases` boolean (default-on in the planner). `build_glp` and the
+  GLP-slug build branch were removed.
+- **Phrase-board wiring.** The new Phrases board doubles as the communicator's
+  **phrase board** (the sentence-builder save target + quick-phrase source,
+  `settings["phrase_board_id"]`). After a build, `wire_phrase_board!` sets it on
+  the communicator and backfills the owner **only when blank** — never clobbering
+  a phrase board the user already picked. Build-time only; existing sets aren't
+  retroactively given one.
+- **Whole-phrase tiles:** `part_of_speech: "phrase"` marks a gestalt script
+  tile. `Image#ensure_defaults` preserves an explicit `"phrase"` POS instead of
+  re-categorizing it as a single word (every other label is still categorized as
+  before). Script Collector adds tiles via `POST /api/boards/:id/add_image` with
+  `image[part_of_speech]=phrase` and optional free-form `data[gestalt_source]` /
+  `data[utterance_function]`, stored on `board_images.data`.
+

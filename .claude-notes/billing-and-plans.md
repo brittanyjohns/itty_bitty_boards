@@ -1,0 +1,462 @@
+# Billing, plans, and entitlements
+
+> Extracted from CLAUDE.md on 2026-07-11 (hub-and-spoke restructure).
+> This file is the authoritative doc for this subsystem — update it (not CLAUDE.md)
+> when behavior changes. CLAUDE.md keeps only the cross-cutting invariants.
+
+## Subscription model
+
+- Most features are free
+- Premium features (Menu Board Creator, AI image generation) require active subscription
+- Subscription managed via Stripe/RevenueCat — check status before allowing access to premium endpoints
+
+### RevenueCat / Apple IAP path (parity with Stripe)
+
+Native iOS/Android purchases go through RevenueCat, not Stripe. The path mirrors
+the Stripe webhook semantics in `API::WebhooksController`. **RevenueCat's
+`app_user_id` IS the Rails `user.id`** (the app configures Purchases with
+`String(user.id)`), so webhook user lookup is `User.find_by(id:)`.
+
+- **`update_subscription` is not client-trusted.** `POST /api/billing/update_subscription`
+  verifies the entitlement against RevenueCat's REST API (`RevenueCat::Client#verified_plan_for`)
+  before flipping `plan_type`; returns **403 `Subscription could not be verified`**
+  on mismatch or when the REST key is unset. It sets `plan_type`/`plan_status`
+  only — the webhook is the sole credit-grant authority (matches Stripe).
+- **`POST /api/billing/webhooks`** (`RevenueCat::WebhookProcessor`): verifies a
+  shared-secret `Authorization` header (`ENV["REVENUECAT_WEBHOOK_AUTH_HEADER"]`,
+  401 on mismatch — RevenueCat uses a shared secret, not HMAC). Event map:
+  `INITIAL_PURCHASE`/`NON_RENEWING_PURCHASE`/`RENEWAL`/`PRODUCT_CHANGE` →
+  `CreditService.grant_plan!`; `EXPIRATION`/`SUBSCRIPTION_PAUSED` →
+  `Billing::PlanTransitions.apply_free_plan`; `CANCELLATION` → analytics only,
+  **no downgrade** (still entitled until expiry); `BILLING_ISSUE` →
+  `plan_status="past_due"`, access kept; `UNCANCELLATION` → back to active;
+  `TRANSFER` → downgrade losing ids, REST-re-verify gaining ids.
+- **Trials (period_type).** A 14-day App Store free trial arrives as
+  `INITIAL_PURCHASE` with `period_type=TRIAL` (`TRIAL_PERIOD_TYPES = TRIAL/INTRO`).
+  `handle_purchase` then sets `plan_status="trialing"` (not `active`; `paid_plan?`
+  treats both as paid, so gating is unaffected), persists `settings["trial_ends_at"]`
+  (ISO8601, from `expiration_at_ms`), and fires **`trial_started`** analytics
+  (internal `AnalyticsEvent` + PostHog — both, since IAP has no checkout to
+  originate the internal one) **instead of** `subscription_started`.
+  `subscription_started` fires on **conversion**: a normal-period `RENEWAL`/
+  `PRODUCT_CHANGE` when the user was `trialing` (status → `active`,
+  `trial_ends_at` cleared). An unconverted `EXPIRATION` of a `trialing` user tags
+  its `subscription_canceled` analytics `reason: "trial_expired"` (vs
+  `"expiration"` for paid churn). The client `update_subscription` call preserves
+  an in-progress `trialing` status for the same plan so it can't clobber the
+  trial the webhook recorded. **Trial-ending reminder:** Apple/RevenueCat send no
+  `trial_will_end` webhook (unlike Stripe), so `RevenueCatTrialEndingJob` (daily,
+  5am UTC) computes it from `settings["trial_ends_at"]` and enqueues the shared
+  `MailchimpTrialWrapJob` ~`REVENUECAT_TRIAL_REMINDER_LEAD_DAYS` (default 3) out.
+  Flags `settings["rc_trial_wrap_sent"]` (once per trial; re-armed when a new
+  trial starts). Keying on `trial_ends_at` scopes it to RC trials — Stripe
+  trialists never have it set, so they can't be double-nudged.
+- **Idempotency + audit:** `processed_webhook_events` (unique `provider`+`event_id`)
+  gates the whole handler (covers non-credit events); the credit grant also
+  reuses `credit_transactions.stripe_event_id` with an `rc_<event_id>` token.
+- **Sandbox gating:** SANDBOX events are ignored only in real production
+  (`Rails.env.production? && !AppEnv.staging?`); honored in dev/test/staging.
+- **Mapping:** `RevenueCat::PlanMapping` (entitlement/product → normalized
+  `basic`/`pro`). Entitlement ids (`basic`/`pro`) are the primary signal; the
+  store product id is a fallback (and the only source of `billing_interval`).
+  `PRODUCT_TO_PLAN` keys are the **real reverse-DNS App Store ids** confirmed
+  against the RevenueCat catalog (`com.speakanyway.{basic,pro}.{monthly,yearly}`),
+  plus the legacy bare package names (`basic_monthly`, …) kept as a defensive
+  fallback and a `com.test.basic.monthly` QA product. MySpeak products
+  (`com.speakanyway.myspeak.*`) are intentionally **unmapped** (separate feature,
+  not a plan tier). Confirm Google Play ids when that store goes live.
+- **Timestamps differ by surface:** webhooks send epoch **ms**
+  (`expiration_at_ms`); the v1 REST API sends ISO8601 strings.
+- `Billing::PlanTransitions.apply_free_plan` is the shared downgrade path for
+  both Stripe (`WebhooksController#apply_free_plan` delegates to it) and RevenueCat.
+
+### Mission Control revenue metrics (Stripe + RevenueCat)
+
+Admin Mission Control revenue is computed by `MissionControl::RevenueMetrics`
+(`app/services/mission_control/`), which combines two sources and **no longer
+reads the local `subscriptions` table** (that table is sparsely populated — the
+webhooks write plan state onto the `User` row, not into `subscriptions`). Added
+in PR #333 / issue #331.
+
+- **`MissionControl::StripeRevenueSource`** — live `Stripe::Subscription.list`
+  for **active + trialing** subs (paginated). Computes active-sub count, MRR
+  (yearly normalized to monthly), and a plan breakdown from price metadata.
+  Cached 10 min via `Rails.cache` (key `mission_control/stripe_revenue`).
+  Rescues `Stripe::StripeError` gracefully (nil values + error message).
+- **`MissionControl::RevenuecatRevenueSource`** — estimates App Store /
+  RevenueCat subscriber revenue **from the local DB, not the RevenueCat API**:
+  paid users (`basic`/`pro`, active/trialing, non-admin) with **no**
+  `stripe_subscription_id`. MRR is estimated from `plan_type` +
+  `settings["billing_interval"]` using ENV-tunable price fallbacks:
+  `RC_ESTIMATED_BASIC_MONTHLY_CENTS` (499), `RC_ESTIMATED_PRO_MONTHLY_CENTS`
+  (999), `RC_ESTIMATED_BASIC_YEARLY_CENTS` (4999), and
+  `RC_ESTIMATED_PRO_YEARLY_CENTS` (9999). Excludes admins.
+- **`MissionControl::RevenueMetrics`** — combines both: top-level
+  `:active_subscriptions`, `:estimated_mrr_cents`, `:mrr_usd`, with per-source
+  breakdowns nested under `:stripe` and `:revenuecat`; `revenue_source` is
+  `"stripe+revenuecat"`. The admin Mission Control view shows the Stripe/App
+  Store sub split, per-source plan breakdowns, and an error state.
+
+### No-card reverse trial (Basic/Pro)
+
+Basic/Pro trials default to **no credit card** (issue #264). In
+`API::Stripe::CheckoutSessionsController#create`, `payment_method_collection`
+is `"if_required"` by default; the card-required A/B arm is forced via
+`params[:require_card] == "true"` (PostHog-driven from the frontend) or the
+`STRIPE_PAYMENT_METHOD_COLLECTION=always` env override. The legacy `NOCC` /
+`bypass_payment_required` no-card path still wins over both.
+
+The trial subscription is created with
+`subscription_data.trial_settings.end_behavior.missing_payment_method =
+"cancel"`, so a no-card trial that lapses **cancels cleanly** →
+`customer.subscription.deleted` → `apply_free_plan` (Free + fallback mode,
+#255). As a safety net, `API::WebhooksController#handle_subscription_upsert`
+also routes terminal statuses (`unpaid`, `incomplete_expired` —
+`TRIAL_LAPSED_STATUSES`) to `apply_free_plan`. **`past_due` is excluded** —
+that's a real payer's failed renewal, left in Stripe dunning
+(`handle_invoice_payment_failed`).
+
+Trial→paid is measured via `AnalyticsEvent`: `trial_started` (checkout),
+`trial_will_end` (Stripe pre-end webhook), `subscription_started` (fired on
+the non-active→active transition in the upsert; guarded so renewals don't
+double-count). Primary A/B metric is **net paid users per 100 signups**, not
+trial→paid rate.
+
+**Promo checkouts skip the trial (`apply_trial = promo.blank?`).** When a
+promotion code is applied (`params[:promo_code]`, or the auto-applied
+`partner_pro` pilot code), `#create` omits `subscription_data` entirely — the
+user subscribes at the discounted rate now (a card is collected if there's an
+amount due). This is required for correctness: a promotion code with a
+minimum-amount restriction — e.g. the **FOUNDING** coupon's `$50` floor, the
+mechanism gating it to the yearly plans — is validated against the Checkout
+Session's amount, and the 14-day trial zeroes that to `$0`, so Stripe rejects
+the code with *"This promotion code cannot be redeemed because the associated
+purchase does not meet the minimum amount requirement"* (prod 400s on the beta-
+end Founding Family launch, 2026-07-07). Without the trial the checkout carries
+the plan's real price (yearly `$80`/`$200` ≥ `$50`) and the discount applies.
+The `trial_started` AnalyticsEvent is likewise gated on `apply_trial`, so promo
+conversions don't pollute the trial→paid metric. Non-promo checkouts are
+unchanged (full no-card reverse trial).
+
+### Partner Program (`partner_pro`)
+
+The `/sign-up/partner` flow (frontend `viewType="partner"`) posts to the normal
+`POST /api/v1/users` with `plan_type=partner_pro`. `API::V1::AuthsController#sign_up`
+then sets `plan_type=partner_pro`, `plan_status=active`, `role=partner`, and calls
+`User.handle_new_partner_pro_subscription`, which sets
+`plan_expires_at = Time.now + 3.months` (only if nil), tags Mailchimp, and sends
+`PartnerMailer.welcome_email` (the free welcome + welcome journey are skipped).
+Entitlements equal Pro (`setup_partner_pro_plan` → 300 boards / 5 communicators /
+1500 credits). **No Stripe subscription, no card, no promo code** — the grant is
+local DB fields, which is why partners get Pro free for the pilot. `partner_pro`
+is in `RefreshFreeTierCreditsJob`'s refreshable set, so credits re-grant monthly.
+
+**Partner Pro is Pro-equivalent everywhere — `User#pro?` returns true for it.**
+`pro?` is `%w[pro pro_yearly partner_pro].include?(plan_type)`, so a partner is
+treated as Pro by `paid_plan?`, `partner_pro?` (`pro? && role == "partner"`),
+`supporter_limit` (5), the lending gate (`require_pro_for_lending!`), and the
+api_view `pro` flag. Before this, `pro?` was the exact string `"pro"`, so
+partners silently fell through to Free-level treatment on those checks (and
+`partner_pro?` was always false). Limits already came from `setup_partner_pro_plan`
+/ `board_group_limit` (both mirror `PRO_PLAN_LIMITS`); this fixes the boolean
+permission gates to match.
+
+**Credits are granted at signup, synchronously — not by cron.** The
+`after_create :grant_initial_plan_credits` hook runs while the account is still
+`free` (it's created before the controller flips it to `partner_pro`), granting
+the *free* allowance; `ensure_initial_grant!` then no-ops because a `plan_grant`
+already exists. So `handle_new_partner_pro_subscription` calls
+`CreditService.grant_plan!` with the `partner_pro` amount (1500) right after
+`user.save`, resetting the balance immediately. Backfill the pre-fix cohort
+(partners stuck on the free allowance) with `rake partners:grant_pro_credits`
+(dry-run by default; `DRY_RUN=false` to apply, `USER_ID=N` to scope).
+
+**The 3-month window is surfaced but NOT enforced (Phase 1, deliberate).**
+`plan_expires_at` was previously set and never read — partners kept Pro forever
+with no signal. `PartnerPilotEndingJob` (daily 5:30am UTC, sidekiq-cron) closes
+that without auto-downgrading (partners are high-value B2B leads managed by hand):
+
+- **Reminder pass** — partners within `PARTNER_PILOT_REMINDER_LEAD_DAYS` (default
+  14) of `plan_expires_at`, not yet reminded, get `PartnerMailer.pilot_ending_email`
+  (a heads-up, not a shutoff — copy in `partner_mailer.pilot_ending_email`,
+  en + es). Flags `settings["partner_pilot_ending_notified"]` so it fires once.
+- **Expired pass** — partners past `plan_expires_at`, still `partner_pro`, get
+  flagged `settings["partner_pilot_expired"]` + `partner_pilot_expired_at`. **No
+  plan change.** Once-only via the flag.
+- Both feed a single `AdminMailer.partner_pilot_review` digest to `ADMIN_EMAIL`
+  (only sent when there's something) so Brittany can convert/extend/downgrade.
+- `rake partners:pilot_status` — read-only list of pilots by status (ended /
+  ending-soon / active / no-date), respects the lead-days ENV.
+- **Admin dashboard surface.** `Admin::MissionControlHelper#partner_pilot_status`
+  computes the same status (never mutates). The server-rendered admin
+  (`/admin/users`) has a **Partner** filter and chips non-active pilots
+  (`Pilot ended` / `Ending soon`) on the row; the user detail page
+  (`/admin/users/:id`) shows a **Partner Pilot** card (end date, days left,
+  reminder-sent, expired-flagged) so you can action a partner in one place —
+  extend by bumping `plan_expires_at`, or adjust plan by hand.
+
+**Phase 2 (not built):** if partner volume outgrows hand-management, move the
+pilot onto a real Stripe no-card trial (reuses the reverse-trial machinery
+above — auto-expiry, `trial_will_end` reminder, clean cancel→Free, one-click
+conversion) and retire this job + the bespoke `partner_pro` grant.
+
+### Email-only (passwordless) signup — paid-intent path
+
+`POST /api/v1/users/email_signup` (itty-bitty-frontend#367): a paid-intent
+visitor types just an email → passwordless account via
+`User.invite!(skip_invitation: true)` → signed in (same `{ token, user }`
+envelope as `sign_up`) → frontend proceeds to Stripe Checkout. Free/partner/
+demo/myspeak signups keep using `sign_up`. Key invariants:
+
+- **"Passwordless" = pending invitation, NOT blank `encrypted_password`.**
+  devise_invitable assigns a random password inside `invite!`; what makes the
+  account passwordless is that `valid_password?` returns nil while
+  `invitation_token` is present. `user.api_view`'s `needs_password` flag is
+  `invited_to_sign_up?` for this reason.
+- **Setting the initial password must go through `accept_invitation!`** — a
+  naive `update(password:)` on an invited user stores a password that can
+  never sign in. Both `POST /api/v1/users/set_password` (new, 422
+  `password_already_set` for non-invited users) and the legacy
+  `POST /api/set-password` honor this.
+- **Welcome-email magic link:** the raw invitation token must be passed as an
+  explicit String argument down the
+  `send_welcome_email(raw_invitation_token:)` → `UserMailer.welcome_*_email`
+  chain — the virtual attr on User is nil after `deliver_later`'s GlobalID
+  round-trip (this bug made the `/welcome/token/` link never render).
+- **`customer.created` webhook** matches existing users by email before
+  inviting, so it can't rotate a just-issued invitation token when the
+  webhook races email_signup's `stripe_customer_id` save. It then **links**
+  the customer (`update_columns(stripe_customer_id:)` when blank — never
+  repoints an existing id; `update_columns` avoids touching the token), so the
+  link is self-healing rather than depending on email_signup's separate save.
+  The invite! fallback is race-safe: a unique-violation re-finds by email
+  instead of duplicating.
+- **`POST /api/stripe/update_user_from_session`** is a best-effort fast-path the
+  frontend hits on the Stripe success redirect; the webhook stays the source of
+  truth for plan + credits. It **only reflects a plan when the session actually
+  completed** (`session.status == "complete"`) — an abandoned/expired session
+  can't grant a paid tier without payment — and only the authenticated **owner**
+  of the session may call it (403 otherwise). It reads the real subscription
+  status (`trialing`/`active`) so a no-card trial isn't recorded as `active`
+  (and can't clobber the webhook's `trialing`); it grants **no credits** (webhook
+  authority).
+- `email_signup` never sets `paid_plan_type` (checkout owns it) and skips
+  Stripe-customer creation for `platform=ios/android`, like `sign_up`.
+- **Billing portal for everyone:** `POST /api/subscriptions/billing_portal`
+  lazily creates the Stripe customer via `User#ensure_stripe_customer!`
+  (shared with checkout's `ensure_customer!`) and rescues `Stripe::StripeError`
+  → 400 generic message. Requires a saved Customer-portal default config in
+  the Stripe dashboard (test + live) — see `docs/stripe-setup.md` §4b.
+  Optional `STRIPE_PORTAL_CONFIG_ID` pins a dedicated config.
+- **Promo-aware plan switch for existing subscribers (#308):**
+  `POST /api/subscriptions/change_plan_portal_session` (`plan_key` required,
+  `promo_code` optional) lets a current subscriber switch plans with a promo
+  pre-applied — the path free users get via a fresh Checkout session, which
+  existing subscribers can't use (a new checkout on an active sub double-bills).
+  It resolves `plan_key` via the shared `API::Stripe::CheckoutSessionsController::PLAN_PRICE_IDS`,
+  looks up the active promotion code the same graceful way checkout does, finds
+  the user's own active/trialing/past_due subscription, and opens a portal
+  **deep link** (`flow_data.subscription_update_confirm`) pre-selecting the new
+  price + discount. Stripe renders its own confirm page (price change +
+  proration) — we never call `Stripe::Subscription.update` directly — and the
+  resulting `customer.subscription.updated` webhook applies entitlements exactly
+  like a manual portal switch (`Price.metadata["plan_type"]` → `handle_subscription_upsert`).
+  422 when there's no active subscription (those users belong in checkout) or an
+  unknown/`free` plan; 400 generic on Stripe error; honors `STRIPE_PORTAL_CONFIG_ID`.
+  The Stripe portal config must permit subscription updates for the relevant
+  products for the flow to render. Frontend CTA wiring is a separate PR
+  (itty-bitty-frontend#369 keeps the portal fallback until it lands).
+- **In-app plan switch error contract (`change_plan` / `preview_plan_change`):**
+  the direct in-app switch (`Stripe::Subscription.update`, no portal redirect)
+  maps Stripe failures to actionable codes so the modal can respond, not just
+  show a dead end. `change_plan` returns **402 `payment_failed`** on a
+  `Stripe::CardError` (declined card), **402 `payment_method_required`** on a
+  `Stripe::InvalidRequestError` whose message indicates the customer has **no
+  payment method on file** (detected via `missing_payment_method_error?` — Stripe
+  exposes no stable code, so we match the message), and the generic **400
+  "Failed to change plan"** for any other Stripe error. `preview_plan_change`
+  returns a **`payment_method_required`** boolean — true only when the switch
+  bills today (`upcoming.amount_due > 0`) **and** `customer_has_payment_method?`
+  is false — so the frontend can prompt for a card before the user confirms.
+  Credit-only downgrades (nothing due today) are never flagged. A no-payment-
+  method user is steered to the billing portal (`billing_portal`).
+
+### `paid_plan?` semantics
+
+`User#paid_plan?` is the single gate for paid-tier checks. It considers
+**both** `plan_type` and `plan_status`:
+
+- Returns `false` when `plan_type` is `nil` or `free`.
+- Returns `false` when `plan_status` is `canceled`, `paused`,
+  `incomplete_expired`, or `unpaid` — even if `plan_type` is a paid tier.
+  This protects against a missed `subscription.deleted` webhook leaving
+  a user as `plan_type=basic` + `plan_status=canceled` and silently
+  passing paid gates.
+- `basic_trial` (soft trial) and Stripe `trialing` count as paid while
+  active — same rule as the MySpeak ID and credit gates.
+
+If you're adding a new paid-feature gate, call `current_user.paid_plan?`
+rather than reading `plan_type` directly.
+
+### Soft-trial assignment (`set_soft_trial_plan`)
+
+Soft-trial users start as `plan_type=basic_trial` for 14 days post-signup.
+Assignment runs as a **`before_create`** callback (not `before_save`), with
+an early-return guard: if the user already has a `paid_plan_type` set
+(i.e. they picked Basic/Pro at signup), the trial assignment is skipped.
+
+The earlier `before_save` version bounced users back to `basic_trial`
+on every save within the 14-day window — even after a deliberate
+downgrade (Stripe cancel, "Free" pick at checkout). If you touch this
+callback, preserve both invariants: trial only on initial create, and
+never overwrite an explicit paid_plan_type pick.
+
+### MySpeak ID limit (Free = 1)
+
+Free users are capped at **one MySpeak ID** (Profile). Basic/Pro/admin
+are unlimited. A "MySpeak ID" counts a Profile attached to the user
+directly *or* to one of their `communicator_accounts`. Implemented in
+`User#myspeak_id_limit` / `#myspeak_id_count` / `#can_create_myspeak_id?`,
+with limit env-tunable via `FREE_MYSPEAK_ID_LIMIT` (default `1`).
+
+`POST /api/profiles` is gated up front and returns **HTTP 403** with
+`{ error: "myspeak_id_limit_reached", message, limit, count }` when a
+Free user is already at the cap. Trial users (`basic_trial`, Stripe
+`trialing`) are treated as paid by `paid_plan?` and the gate doesn't
+trigger — consistent with how credit gates work.
+
+
+### Board access on downgrade (read-only rule)
+
+When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
+`free` and `settings["board_limit"]` to 1. Boards beyond that limit become
+**read-only**, never deleted: still openable, tappable, and audio still plays
+(SpeakAnyWay is an AAC app — usage must never break), but
+**content-mutating endpoints return HTTP 403 `board_locked`**.
+
+- Locked state is **computed**, not stored. A board is locked for its owner
+  when the user is not admin, not on a paid plan, is over their board limit,
+  and the board is not their designated editable board. See
+  `User#board_editable?` (`app/models/user.rb`) and `Board#can_edit_for`
+  (`app/models/board.rb`). The board's `api_view` exposes `can_edit`,
+  `locked`, and `lock_reason` for the frontend.
+- "Over their board limit" is computed by `User#countable_board_count` (own,
+  non-predefined, non-`builder_child` boards) vs `User#board_limit`. This is the
+  **single source of truth** for board counting — `User#at_board_limit?` wraps
+  it (admins never limited), and every creation gate (create, clone,
+  `create_from_template`, `import_obf`, menus, generated-board claim,
+  Board Builder) plus the `can_create_boards` api_view flag and this read-only
+  rule all route through it. Board Builder sub-boards are excluded so a built
+  tree counts as one (see `.claude-notes/board-builder.md`).
+- The user picks which single board keeps full edit access via
+  `PATCH /api/boards/:id/make_editable`. The selection is persisted on
+  `users.editable_board_id`. If none is set, `effective_editable_board_id`
+  falls back to a favorite or most-recently-updated board so a freshly-
+  downgraded user is never fully locked out.
+- **Switch cooldown:** `make_editable` enforces a cooldown
+  (`User::EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS`, default 14, ENV-tunable via
+  `EDITABLE_BOARD_SWITCH_COOLDOWN_DAYS`) between explicit picks. Without it,
+  a free user could rotate the slot to edit every board one at a time and
+  defeat the gate. Admins bypass. The initial auto-pin from
+  `pin_default_editable_board!` does **not** start the clock — the user's
+  first real `make_editable` call does. Returns HTTP 403
+  `editable_board_cooldown` with `available_at` and `cooldown_days` when
+  blocked. A no-op re-pick of the already-designated board doesn't start
+  the clock either.
+- On downgrade, both paths call `User#pin_default_editable_board!` so the
+  frontend has a deterministic answer: `apply_free_plan` (Stripe
+  cancel/pause) and `DowngradeSoftTrialJob` (soft-trial expiry). Trial users
+  (`basic_trial` and Stripe `trialing`) are treated as paid by
+  `User#paid_plan?` while the trial is active, so the gate doesn't trigger.
+- The gate runs as a `check_board_editable!` `before_action` on the
+  content-mutating actions in `API::BoardsController` and the matching set
+  in `API::BoardImagesController`. Reads (`show`, `index`, `pdf`, audio
+  playback) and `destroy` (let the user free up the slot) are never gated.
+  `create`/`clone`/`create_from_template` stay on the existing
+  `check_board_create_permissions`.
+- Returns **HTTP 403** with `{ error: "board_locked", message, board_limit,
+  editable_board_id }`. **Not 402** — 402 is reserved for credit exhaustion.
+- **Assumes `FREE_BOARD_LIMIT == 1`.** The single `editable_board_id` only
+  frees one board. If the ENV is ever raised above 1, revisit this to a
+  per-board flag or join table.
+
+### Communicator sign-in on downgrade (fallback mode)
+
+Mirror of the board read-only rule, for communicators (issue #255). When a
+paid account drops to Free, communicators **beyond the Free slot limit are
+retained, never deleted/archived** — boards, MySpeak/profile, and `public_url`
+all stay intact. The over-limit ones enter **fallback mode**: private passcode
+sign-in is blocked, but the public MySpeak page stays open and read-only, so a
+nonspeaking child is never stranded mid-use.
+
+- **Marker is stored, not derived.** `ChildAccount#fallback_mode?` reads
+  `settings["fallback_mode"]` (with `fallback_since` / `fallback_reason`). Set
+  and cleared **only** by `User#reconcile_communicator_fallback!`, so a fresh
+  Free signup (capped at 1) is never flagged — fallback is *only ever a
+  consequence of downgrade*. Use `enter_fallback!` / `exit_fallback!`.
+- **One reconciler, both directions.** `User#reconcile_communicator_fallback!`
+  orders slotted (loaner+active) communicators **owner-pinned first, then
+  most-recently-active** (`last_sign_in_at` desc, nulls last), keeps the top
+  `slot_limit` signable, and flags the overflow. A downgrade flags the overflow;
+  a re-upgrade restores them as slots free up (no manual re-claim); any still
+  over the new limit stay in fallback. Idempotent; admins are never limited.
+- **Owner picks which stay signable (#439).** The mirror of the board
+  `make_editable` pick. `User#kept_communicator_ids` (stored on
+  `settings["kept_communicator_ids"]`) is the owner's explicit "keep these
+  signable" set; reconcile moves those to the front (in the order chosen) before
+  the recency rule, so the owner — not just last-sign-in — decides which N stay
+  full when over the limit. Empty ⇒ recency only (unchanged behavior).
+  `User#set_kept_communicator_ids!(ids)` persists the set (owner-owned ids only,
+  capped at `slot_limit`) and re-runs reconcile immediately. Endpoint:
+  **`POST /api/child_accounts/keep_signable`** `{ communicator_ids: [...] }` →
+  `{ kept_communicator_ids, communicator_slot_limit, communicators: [...] }`.
+  `communicator_slot_limit` + `kept_communicator_ids` are also on the user
+  `api_view` so the over-limit picker can pre-check the right toggles.
+- **Trigger:** `after_save :reconcile_communicator_fallback!, if:
+  :saved_change_to_plan_type?` on `User`. Every plan transition (Stripe
+  cancel/pause via `apply_free_plan`, `DowngradeSoftTrialJob`, and upgrades via
+  the subscription-upsert webhook) routes plan changes through `plan_type=` +
+  `save`, so this one callback covers all of them.
+- **Gate:** `ChildAccount#can_sign_in?` returns `false` for fallback
+  communicators (a system-admin `user_context` still bypasses for support).
+  `API::V1::ChildAuthsController#create` enforces it specifically for fallback:
+  returns **HTTP 403** `{ error: "communicator_in_fallback", message,
+  redirect_url, public_url }` so the frontend redirects to the public page
+  (companion frontend issue itty-bitty-frontend#275). The older broad
+  `can_sign_in?` controller check stays disabled — only fallback is enforced,
+  so non-fallback Free communicators keep working (AAC "usage must never break").
+- **API exposure:** `fallback_mode` + `fallback_since` on ChildAccount
+  `api_view` / `index_api_view` / `vendor_api_view`, letting the frontend tell
+  "exists but in fallback" from "doesn't exist."
+
+### Sandbox → active promotion on upgrade (issue #359)
+
+The upgrade-direction counterpart to fallback mode. A Free user's self-creates
+are **forced to `sandbox`** (`Permissions::CommunicatorLimits.self_create_status`
+hard-returns SANDBOX when `user.free?`), so a communicator created before
+upgrading was left stuck in sandbox mode — sign-in disabled, "Promote this
+sandbox" UI — even after the user became a paying Basic/Pro subscriber.
+
+- **Reconciler:** `User#reconcile_paid_sandbox_promotions!` runs on the **same**
+  `after_save … if: :saved_change_to_plan_type?` trigger as the fallback
+  reconciler. When the user is now `paid_plan?` **and their plan grants zero
+  sandbox slots** (admins skipped), it promotes sandbox communicators →
+  `active`, **most-recently-active first**, up to the free paid slots
+  (`slot_limit_for(settings) - owned_slot_count`). Idempotent. Because the
+  subscription-upsert webhook does `plan_type=` → `setup_limits` → one `save!`,
+  the new slot limit is already in `settings` when the callback fires.
+- **Basic-only by design.** `BASIC_PLAN_LIMITS["demo_communicator_limit"] == 0`
+  (no sandbox entitlement), so a Basic user's sandbox is always a stuck Free-era
+  leftover and is promoted. **Pro grants 1 sandbox slot**
+  (`PRO_PLAN_LIMITS["demo_communicator_limit"] == 1`), so a Pro user's sandbox
+  is an intentional scratch/demo account and is left untouched — the guard is
+  `sandbox_limit_for(settings) > 0 → skip`.
+- **`ChildAccount#promote_to_active!`** — mirror of `promote_to_loaner!`: flips
+  status to `active`, **mints a passcode if blank** (so sign-in actually works),
+  and deletes the per-account `demo_board_limit` cap. Idempotent on an active
+  account; never demotes a loaner.
+- **Backfill:** the forward fix only fires on a plan change, so existing
+  affected users need `rake communicators:promote_paid_sandboxes` (dry-run by
+  default; `DRY_RUN=false` to apply, `USER_ID=N` to scope to one user). It
+  promotes paid users' stuck sandboxes exactly like the callback.
+
