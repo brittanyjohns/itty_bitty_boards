@@ -955,8 +955,12 @@ class Board < ApplicationRecord
   # art. `max_generate` caps how many images are sent for (paid) generation —
   # tiles beyond the cap still land on the board, marked "skipped", with no
   # OpenAI call. nil = no cap (non-menu callers are unchanged).
+  # `menu_prompts` (normalized word => generation prompt) marks words as menu
+  # items: within budget they always get a fresh, private, description-driven
+  # image rather than a label match from the shared library; over budget they
+  # fall back to library reuse so the tile isn't left blank.
   # Returns the number of images queued for generation.
-  def find_or_create_images_from_word_list(word_list, max_generate: nil)
+  def find_or_create_images_from_word_list(word_list, max_generate: nil, menu_prompts: nil)
     if id.blank?
       self.save!
     end
@@ -984,22 +988,34 @@ class Board < ApplicationRecord
         end
       end
       Rails.logger.debug "Change detected: #{og_word} -> #{word}" unless og_word == word
-      image = user.images.find_by(label: word) if user_id
-
-      image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
-      new_image = Image.create(label: word) unless image
-      image ||= new_image
-      display_doc = image.display_tile_url(user)
+      menu_prompt = menu_prompts && menu_prompts[word.to_s.downcase.strip]
       skip_generation = false
-      if display_doc.blank?
-        admin_image_present = image.docs.any? { |doc| doc.user_id == User::DEFAULT_ADMIN_ID }
-        user_image_present = image.docs.any? { |doc| doc.user_id == user_id }
-        if !admin_image_present && !user_image_present
-          if max_generate.nil? || queued_count < max_generate
-            image_ids_to_generate << image.id
-            queued_count += 1
-          else
-            skip_generation = true
+      if menu_prompt && (max_generate.nil? || queued_count < max_generate)
+        # Menu labels ("single", "virginia") collide with unrelated library
+        # art, so menu items get a fresh image generated from the parsed dish
+        # description — private and user-owned so restaurant-specific art
+        # never enters the public library.
+        image = Image.create(label: word, user_id: user_id, is_private: true,
+                             image_type: "menu", image_prompt: menu_prompt)
+        image_ids_to_generate << image.id
+        queued_count += 1
+      else
+        image = user.images.find_by(label: word) if user_id
+
+        image = Image.public_img.find_by(label: word, user_id: [User::DEFAULT_ADMIN_ID, nil]) unless image
+        new_image = Image.create(label: word) unless image
+        image ||= new_image
+        display_doc = image.display_tile_url(user)
+        if display_doc.blank?
+          admin_image_present = image.docs.any? { |doc| doc.user_id == User::DEFAULT_ADMIN_ID }
+          user_image_present = image.docs.any? { |doc| doc.user_id == user_id }
+          if !admin_image_present && !user_image_present
+            if max_generate.nil? || queued_count < max_generate
+              image_ids_to_generate << image.id
+              queued_count += 1
+            else
+              skip_generation = true
+            end
           end
         end
       end
@@ -1953,6 +1969,7 @@ class Board < ApplicationRecord
       image_parent_id: image_parent_id,
       parent_description: parent_type === "User" ? "User" : parent&.to_s,
       menu_description: parent_type === "Menu" ? parent&.description : nil,
+      original_menu_image_url: parent_type === "Menu" ? parent&.menu_image_url : nil,
       parent_prompt: parent_type === "OpenaiPrompt" ? parent.prompt_text : nil,
       predefined: predefined,
       favorite: favorite,
