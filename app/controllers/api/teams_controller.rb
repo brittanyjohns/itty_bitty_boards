@@ -1,6 +1,9 @@
 class API::TeamsController < API::ApplicationController
   before_action :set_team, only: %i[ show edit update destroy remove_board invite ]
-  before_action :authorize_team_member!, only: %i[ create_board ]
+  before_action :authorize_team_read!, only: %i[ show ]
+  before_action :authorize_team_manage!, only: %i[ update destroy invite remove_member ]
+  before_action :authorize_remove_board!, only: %i[ remove_board ]
+  before_action :authorize_team_library_writer!, only: %i[ create_board ]
   # after_action :verify_policy_scoped, only: :index
 
   # GET /teams or /teams.json
@@ -42,25 +45,40 @@ class API::TeamsController < API::ApplicationController
 
   def invite
     user_email = team_user_params[:email]
-    user_role = invite_role
-    @team = Team.find(params[:id])
+    # Raw requested role — the owner-pin / self-promote guards below inspect
+    # the requested value (including "admin") so they can return their
+    # specific errors before the invite-role validation rejects it.
+    requested_role = params.dig(:team_user, :role).to_s
 
     # Block role-change of an existing owner-pinned member, and block
-    # self-promotion to admin by non-owners. See issue #166.
+    # self-promotion to admin by non-owners. See issue #166. These run
+    # before role validation so the specific 403 wins over a generic 422.
     existing_user = User.find_by(email: user_email)
     if existing_user
       existing_membership = TeamUser.find_by(user_id: existing_user.id, team_id: @team.id)
-      if existing_membership && existing_membership.role != user_role
+      if existing_membership && existing_membership.role != requested_role
         if @team.account_owner?(existing_user) && existing_user != current_user
           return render_team_permission_error("cannot_change_owner_role",
                                               "You cannot change the role of the communicator's owner.")
         end
-        if existing_user == current_user && user_role == "admin" &&
+        if existing_user == current_user && requested_role == "admin" &&
            !current_user.admin? && !@team.account_owner?(current_user)
           return render_team_permission_error("cannot_self_promote",
                                               "You cannot promote yourself to admin.")
         end
       end
+    end
+
+    # Validate the invite role: only supervisor / member / restricted may be
+    # granted via invite. "admin" is the owner's role (never invited) and any
+    # junk value is rejected — no silent coercion (Phase 2).
+    user_role = invite_role(requested_role)
+    unless user_role
+      return render_team_permission_error(
+        "invalid_role",
+        "Role must be one of supervisor, member, or restricted.",
+        :unprocessable_content,
+      )
     end
 
     @user = User.invite_new_user_to_team!(user_email, current_user, @team, user_role)
@@ -97,6 +115,16 @@ class API::TeamsController < API::ApplicationController
 
   # POST /teams or /teams.json
   def create
+    # Hosting a team is a Pro (owner-side) feature — decision 3: the owner's
+    # plan hosts the team, members participate per role regardless of plan.
+    # Free-trial owners pass, consistent with the rest of the app.
+    unless current_user.paid_plan? || current_user.free_trial?
+      return render_team_permission_error(
+        "pro_required",
+        "Creating a team is a Pro feature. Upgrade to build a care team.",
+      )
+    end
+
     @team = Team.new
     # @team.name = team_params[:name]&.upcase
     @team.name = team_params[:name]
@@ -126,8 +154,15 @@ class API::TeamsController < API::ApplicationController
   def accept_invite_patch
     @team = Team.find(params[:id])
     @user = User.find_by(email: team_user_params[:email])
-    @team_user = TeamUser.find_by(user_id: @user.id, team_id: @team.id)
+    @team_user = TeamUser.find_by(user_id: @user&.id, team_id: @team.id)
+    unless @team_user
+      return render json: {
+        error: "not_a_team_member",
+        message: "No pending invitation was found for this account on this team.",
+      }, status: :not_found
+    end
     @team_user.accept_invitation!
+    render json: @team.show_api_view(@user), status: :ok
   end
 
   def create_board
@@ -152,7 +187,7 @@ class API::TeamsController < API::ApplicationController
     respond_to do |format|
       if @team.update(team_params)
         format.html { redirect_to team_url(@team), notice: "Team was successfully updated." }
-        format.json { render :show, status: :ok, location: @team }
+        format.json { render json: @team.show_api_view(current_user), status: :ok }
       else
         format.html { render :edit, status: :unprocessable_content }
         format.json { render json: @team.errors, status: :unprocessable_content }
@@ -171,8 +206,8 @@ class API::TeamsController < API::ApplicationController
 
   private
 
-  def render_team_permission_error(error_key, message)
-    render json: { error: error_key, message: message }, status: :forbidden
+  def render_team_permission_error(error_key, message, status = :forbidden)
+    render json: { error: error_key, message: message }, status: status
   end
 
   # Use callbacks to share common setup or constraints between actions.
@@ -181,14 +216,52 @@ class API::TeamsController < API::ApplicationController
     @team = Team.with_artifacts.find(params[:id])
   end
 
-  # Any team member (admin, supervisor, member) — or a system admin —
-  # may add boards to the team's library. Non-members get 403. Issue
-  # #216 — closes the gap where any signed-in user could write to any
-  # team's `team_boards`.
-  def authorize_team_member!
+  # True when the caller can MANAGE the team: rename, delete, invite, or
+  # remove members. That's the team owner (creator), any communicator
+  # account owner on the team, or a system admin. Phase 0 lockdown.
+  def can_manage_team?
+    current_user.admin? ||
+      @team.created_by_id == current_user.id ||
+      @team.account_owner?(current_user)
+  end
+
+  # READ access to the team (show): members only — don't leak other teams.
+  # Any membership role (including restricted) can view; owners/admins too.
+  def authorize_team_read!
+    @team ||= Team.with_artifacts.find(params[:id])
+    return if can_manage_team?
+    return if @team.team_users.where(user_id: current_user.id).exists?
+    render_team_permission_error("not_a_team_member",
+                                 "You must be on this team to view it.")
+  end
+
+  # MANAGE gate for update/destroy/invite/remove_member. Phase 0 closed the
+  # hole where any authenticated user could mutate any team.
+  def authorize_team_manage!
+    @team ||= Team.with_artifacts.find(params[:id])
+    return if can_manage_team?
+    render_team_permission_error("not_authorized",
+                                 "Only the account owner or team owner can manage this team.")
+  end
+
+  # remove_board: curate roles (admin/supervisor) or the team owner /
+  # account owner / sysadmin.
+  def authorize_remove_board!
+    @team ||= Team.with_artifacts.find(params[:id])
+    return if can_manage_team?
+    return if @team.team_users.where(user_id: current_user.id, role: User::CURATE_ROLES).exists?
+    render_team_permission_error("not_authorized",
+                                 "Only a supervisor or the team owner can remove boards from this team.")
+  end
+
+  # Any team member allowed to WRITE the team library (admin, supervisor,
+  # member) — or a system admin — may add boards to the team's library.
+  # `restricted` (read-only) and non-members get 403. Issue #216 — closes
+  # the gap where any signed-in user could write to any team's `team_boards`.
+  def authorize_team_library_writer!
     @team = Team.with_artifacts.find(params[:id])
     return if current_user.admin?
-    return if @team.team_users.where(user_id: current_user.id, role: TeamUser::ROLES).exists?
+    return if @team.team_users.where(user_id: current_user.id, role: TeamUser::LIBRARY_ROLES).exists?
     render_team_permission_error("not_a_team_member",
                                  "You must be on this team to add boards to it.")
   end
@@ -197,9 +270,14 @@ class API::TeamsController < API::ApplicationController
     params.require(:team_user).permit(:email)
   end
 
-  def invite_role
-    role = params.dig(:team_user, :role).to_s
-    TeamUser::ROLES.include?(role) ? role : "member"
+  # Invitable roles only — "admin" is the owner's role (never invited). Any
+  # value outside supervisor|member|restricted returns nil so the caller can
+  # render a 422 instead of silently coercing to member (Phase 2).
+  INVITABLE_ROLES = %w[supervisor member restricted].freeze
+
+  def invite_role(raw_role = nil)
+    role = (raw_role || params.dig(:team_user, :role)).to_s
+    INVITABLE_ROLES.include?(role) ? role : nil
   end
 
   # Only allow a list of trusted parameters through.

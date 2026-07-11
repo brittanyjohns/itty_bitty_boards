@@ -1,6 +1,11 @@
 class API::ChildAccountsController < API::ApplicationController
   before_action :set_child_account, only: %i[ show update destroy promote_to_loaner lend claim_link send_claim_link end_loan archive unarchive assign_boards send_setup_email ]
-  before_action :authorize_communicator_edit!, only: %i[ update assign_boards send_setup_email ]
+  # Editing the communicator object (name/username/voice/settings) and the
+  # setup email stay owner-only. Assigning boards to the dashboard is a
+  # curation action, so it uses the looser curate gate below (supervisors
+  # and admins can assign, matching `can_edit` in the serializer).
+  before_action :authorize_communicator_edit!, only: %i[ update send_setup_email ]
+  before_action :authorize_communicator_curate!, only: %i[ assign_boards ]
   # Claim preview is the parent's "this is what you're about to claim"
   # page — they may not be signed in yet, so it runs token-only.
   skip_before_action :authenticate_token!, only: %i[ claim_preview ]
@@ -572,9 +577,24 @@ class API::ChildAccountsController < API::ApplicationController
   def authorize_communicator_edit!
     return if @child_account.editable_by?(current_user)
 
-    render json: account_error_payload("not_owner").merge(
+    render json: account_error_payload("not_authorized").merge(
       message: "Only the owner can edit this communicator.",
     ), status: :forbidden
+  end
+
+  # Curation gate for board assignment: the account owner, a team
+  # supervisor, or a system admin may add boards to the communicator's
+  # dashboard (`can_add_boards_to_account?`). This matches the `can_edit`
+  # flag in the serializer and the ChildBoard curate path — owner-only here
+  # would contradict the UI. Plan is intentionally NOT checked: a
+  # free/cancelled supervisor still curates per decision 3.
+  def authorize_communicator_curate!
+    return if current_user.can_add_boards_to_account?([@child_account.id])
+
+    render json: {
+      error: "not_authorized",
+      message: "Only the account owner or a team supervisor can add boards to this dashboard.",
+    }, status: :forbidden
   end
 
   # Lending / hand-off is a Pro-only feature. The frontend already hides
