@@ -73,12 +73,15 @@ module Communicators
     end
 
     def generate_pdf_from_html(html, width:, height:, scale: 2)
+      # The page must match the card's fixed pixel size — a paper format like
+      # A4 is narrower than the 1200px-wide art and shorter than the safety
+      # card, which spills the card onto a second page.
       grover = Grover.new(
         html,
-        format: "A4",
         viewport: { width: width, height: height },
+        width: "#{width}px",
+        height: "#{height}px",
         print_background: true,
-        prefer_css_page_size: true,
         scale: 1,
       )
       grover.to_pdf
