@@ -195,22 +195,15 @@ module API
             return
           end
 
-          # Deep clone: a starter board with folder tiles gets its linked
-          # sub-boards cloned + rewired too (usually a no-op — starters are
-          # flat today).
-          begin
-            cloned = Boards::AssignmentCloner.new(board, owner: current_user,
-                                                         communicator: child,
-                                                         voice: child.voice,
-                                                         name: board.name).call
-          rescue Boards::AssignmentCloner::CloneError => e
-            Rails.logger.warn "[Onboarding::Myspeak] clone failed for board #{board.id}: #{e.message}"
+          cloned = board.clone_with_images(current_user.id, board.name, child.voice, child)
+          unless cloned&.persisted?
+            Rails.logger.warn "[Onboarding::Myspeak] clone failed for board #{board.id}"
             return
           end
 
-          # The root clone gets a ChildBoard join row (inside
-          # clone_with_images). Mark it the communicator's favorite to match
-          # the old behavior (the wizard's pick is the home board).
+          # clone_with_images creates the ChildBoard join row. Mark it the
+          # communicator's favorite to match the old behavior (the wizard's
+          # pick is the home board).
           child_board = ChildBoard.find_by(child_account: child, board: cloned)
           child_board&.update(favorite: true)
         end

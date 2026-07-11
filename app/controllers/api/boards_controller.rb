@@ -1008,23 +1008,8 @@ class API::BoardsController < API::ApplicationController
             next
           end
         end
-        # Per-communicator cap — assigned clones are uncounted toward the
-        # owner's board limit, so this is the bound on assignment minting.
-        if communicator_account.at_assigned_board_limit?
-          record_errors << "Board limit reached for #{communicator_account.name} - limit: #{ChildAccount.max_assigned_boards}"
-          next
-        end
         voice = communicator_account.voice
-        begin
-          # Deep clone: linked sub-boards are cloned + rewired too, so the
-          # communicator's set is self-contained (not shared with the source).
-          Boards::AssignmentCloner.new(@board, owner: current_user,
-                                               communicator: communicator_account,
-                                               voice: voice, name: @board.name).call
-        rescue Boards::AssignmentCloner::CloneError => e
-          Rails.logger.error "[assign_accounts] #{e.message}"
-          record_errors << "Could not assign board to #{communicator_account.name}"
-        end
+        communicator_board_copy = @board.clone_with_images(current_user&.id, @board.name, voice, communicator_account)
       end
       if record_errors.empty?
         @board.in_use = true

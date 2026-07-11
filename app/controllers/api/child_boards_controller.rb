@@ -61,12 +61,7 @@ class API::ChildBoardsController < API::ApplicationController
     # while preserving the old cleanup for a self-created template clone.
     if @board && @board.is_template && orphan_template?(@board)
       Rails.logger.info "Deleting orphaned template board ID: #{@board.id}"
-      # Deep-cloned sub-boards (Boards::AssignmentCloner) are marked with the
-      # root clone's id; collect them before the root goes so they can be
-      # swept once the root's folder tiles no longer reference them.
-      sweepable = assignment_sub_templates(@board)
       @board.destroy
-      sweep_orphaned_sub_templates!(sweepable)
     else
       Rails.logger.info "Detached child_board #{params[:id]}; preserved board ID: #{@board&.id}"
     end
@@ -89,31 +84,6 @@ class API::ChildBoardsController < API::ApplicationController
     # nullify that tile into a dead button. Detach only.
     return false if BoardImage.where(predictive_board_id: board.id).where.not(board_id: board.id).exists?
     board.user_id == current_user&.id
-  end
-
-  # Sub-board clones minted by Boards::AssignmentCloner for this root clone.
-  def assignment_sub_templates(root_board)
-    Board.where(user_id: current_user&.id, is_template: true)
-         .where("settings->>'assignment_root_id' = ?", root_board.id.to_s)
-         .to_a
-  end
-
-  # Destroy the set's sub-templates that are now orphans, applying the same
-  # never-delete-something-referenced guards. Nested folders reference each
-  # other, so destroying a parent frees its children — iterate until a pass
-  # deletes nothing. (A reference cycle between two sub-boards leaves both in
-  # place; acceptable, they're invisible template rows.)
-  def sweep_orphaned_sub_templates!(sweepable)
-    until sweepable.empty?
-      deletable = sweepable.select { |b| orphan_template?(b) }
-      break if deletable.empty?
-
-      deletable.each do |board|
-        Rails.logger.info "Sweeping orphaned assignment sub-template board ID: #{board.id}"
-        board.destroy
-      end
-      sweepable -= deletable
-    end
   end
 
   def load_child_board

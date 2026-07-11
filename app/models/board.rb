@@ -1086,11 +1086,7 @@ class Board < ApplicationRecord
     new_board_image
   end
 
-  # force_template: mark the clone is_template even without a communicator —
-  # used by Boards::AssignmentCloner for the sub-boards of an assigned set,
-  # which get no ChildBoard of their own but must stay out of the owner's
-  # normal board scopes (and the board-limit count) like the root clone does.
-  def clone_with_images(cloned_user_id, new_name = nil, updated_voice = nil, communicator_account = nil, force_template: false)
+  def clone_with_images(cloned_user_id, new_name = nil, updated_voice = nil, communicator_account = nil)
     if new_name.blank?
       new_name = name
     end
@@ -1130,7 +1126,7 @@ class Board < ApplicationRecord
     @cloned_board.board_images_count = 0
     @cloned_board.generate_unique_slug
     @cloned_board.voice = updated_voice || voice
-    @cloned_board.is_template = communicator_account.present? || force_template
+    @cloned_board.is_template = communicator_account.present?
     @cloned_board.save
 
     unless @cloned_board.persisted?
@@ -1192,6 +1188,24 @@ class Board < ApplicationRecord
     else
       Rails.logger.error "Error cloning board: #{@cloned_board}"
     end
+  end
+
+  def clone_and_update_predictive_board(original_board_image, new_board_image, updated_voice, cloned_user_id)
+    return unless original_board_image.predictive_board_id
+    predictive_board = Board.find_by(id: original_board_image.predictive_board_id)
+    return unless predictive_board
+    if predictive_board.user_id == cloned_user_id
+      new_board_image.predictive_board_id = predictive_board.id
+      new_board_image.save
+      return
+    end
+    if predictive_board.public_board?
+      new_board_image.predictive_board_id = predictive_board.id
+      new_board_image.save
+      return
+    end
+
+    CloneBoardJob.perform_async(predictive_board.id, new_board_image.id)
   end
 
   def update_user_boards_after_cloning(source_board, cloned_user_id)

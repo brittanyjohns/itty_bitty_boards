@@ -1029,41 +1029,6 @@ known backend-enforcement gaps — lives in
 `marketing/.claude-notes/handoff-workflow.md`. Keep that doc and this
 section in sync when the rules change.
 
-### Board assignment is a DEEP clone (`Boards::AssignmentCloner`)
-
-Putting a board on a communicator (`assign_boards`, `assign_accounts`, the
-MySpeak starter attach) goes through **`Boards::AssignmentCloner`**
-(`app/services/boards/`), not a bare `clone_with_images`. The old shallow
-clone copied `predictive_board_id` verbatim, so an assigned board's folder
-tiles kept opening the **source owner's live sub-boards** — shared state that
-changed/broke when the source owner edited or deleted them.
-
-- The cloner BFS-collects the linked set (**`Boards::PredictiveLinkSet`**,
-  extracted from `SeededSetCloner` and shared with it), depth-capped by
-  `BOARD_ASSIGN_CLONE_DEPTH` (default 3), clones each sub-board for the same
-  owner, and rewires the folder tiles to the clones. Pointers past the depth
-  cap are **kept verbatim** (assignment sets are arbitrary user boards —
-  nulling would break deep sets), unlike the builder's `:null` policy.
-- Root clone contract unchanged: `is_template: true` + ChildBoard on the
-  communicator (created inside `clone_with_images`). Sub-clones are also
-  `is_template` (via the new `force_template:` kwarg on `clone_with_images`),
-  get **no ChildBoard rows**, and carry `settings["assignment_child"]` +
-  `["assignment_root_id"]` so `ChildBoardsController#destroy`'s **orphan
-  sweep** can delete them when the root clone is removed and hard-deleted
-  (same `orphan_template?` guards per sub-board; iterates until a pass
-  deletes nothing so nested folders unwind).
-- **Per-communicator assigned-board cap** (`ChildAccount.max_assigned_boards`,
-  ENV `MAX_ASSIGNED_BOARDS_PER_COMMUNICATOR`, default 80 — matches the
-  favorites cap): assigned clones are deliberately uncounted toward the
-  owner's board limit (the original already counted), so this cap is what
-  stops assignment minting unlimited board rows. `assign_boards` returns
-  **422 `assigned_board_limit`** `{ error, message, limit, count }`;
-  `assign_accounts` appends a per-communicator message to its existing
-  `record_errors` 422 array.
-- Legacy shallow clones (no `assignment_root_id` marker) behave as before —
-  nothing migrates them; the delete-safety 409 now correctly warns source
-  owners that their sub-boards are still referenced.
-
 ### Board removal after hand-off (non-destructive)
 
 Boards put on a communicator via `assign_boards` are **cloned** (a new

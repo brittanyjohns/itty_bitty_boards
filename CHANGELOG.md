@@ -5,17 +5,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
-### Changed — boards assigned to a communicator are now fully independent copies
-- Assigning a board to a communicator now copies its linked sub-boards too
-  and points the folder buttons at the copies. Previously only the top
-  board was copied, so folder buttons kept opening the original owner's
-  live sub-boards — edits or deletions by the original owner would change
-  or break the communicator's board.
-- Removing such a board from the dashboard cleans up its now-unused
-  sub-board copies (unless something else still references them).
-- Each communicator's dashboard now has a sanity cap on assigned boards
-  (default 80, matching the favorites cap).
-
 ### Changed — deleting a board now warns when it's still in use
 - Deleting a board that other boards' folder buttons open, that sits on a
   communicator's dashboard, that's shared with a team, or that is a Board
