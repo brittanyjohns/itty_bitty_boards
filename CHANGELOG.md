@@ -5,6 +5,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — `public_url` on the communicator index payload
+- `ChildAccount#index_api_view` now includes `public_url` (the canonical
+  slug-based MySpeak URL, e.g. `/my/s-8bdsv4`). The user payload's
+  `communicator_accounts` use this lighter serializer, so the frontend
+  dashboards previously had no `public_url` and fell back to a
+  `/my/<username>` link that doesn't resolve. Now they show the same link as
+  the full `api_view` / ViewCommunicator screen. Frontend pairs with
+  itty-bitty-frontend (drops the username fallback).
+
 ### Added — Board Builder "replace existing set" option
 - Re-running the Board Builder for a communicator that already has a built
   set can now **replace** it (`replace=true`): the old set — root and all
