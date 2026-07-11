@@ -68,7 +68,10 @@ class Board < ApplicationRecord
   has_many :board_images, dependent: :destroy
   has_many :visible_board_images, -> { where(hidden: false) }, class_name: "BoardImage"
   has_many :images, through: :board_images
-  has_many :docs
+  # Docs are user content owned via the polymorphic documentable; they must
+  # survive board deletion, so the back-pointer is nullified (Doc#board is
+  # belongs_to optional).
+  has_many :docs, dependent: :nullify
   has_many :team_boards, dependent: :destroy
   has_many :teams, through: :team_boards
   has_many :team_users, through: :teams
@@ -207,6 +210,34 @@ class Board < ApplicationRecord
   before_create :set_screen_sizes, :set_number_of_columns
   after_initialize :set_initial_layout, if: :layout_empty?
   after_update_commit :retranslate_on_language_change
+  # Scrub the pointers destroy's dependent: options can't reach — integer/JSONB
+  # references on users and child_accounts (editable_board_id,
+  # dynamic_board_id/phrase_board_id) and scenarios. Off-request because the
+  # JSONB scans aren't indexed.
+  after_destroy :enqueue_destroy_cleanup
+
+  def enqueue_destroy_cleanup
+    BoardDestroyCleanupJob.perform_async(id)
+  rescue => e
+    # A Redis blip must never fail the destroy itself; the stale pointers
+    # self-heal on read (effective_editable_board_id, predictive_default).
+    Rails.logger.error("[Board] destroy cleanup enqueue failed board=#{id}: #{e.class} - #{e.message}")
+  end
+
+  # A Board Builder ROOT — the board the wizard attaches to the communicator
+  # and marks settings["builder_root"] (see BoardTreeBuilder/SeededSetCloner).
+  def builder_root?
+    settings.is_a?(Hash) && !!settings["builder_root"]
+  end
+
+  # The builder BoardGroup that owns this root's built tree (issue #407).
+  # Destroying that group cascades every member board; deleting the root row
+  # directly would orphan the ~dozen hidden builder_child sub-boards.
+  def builder_board_group
+    return nil unless builder_root?
+    BoardGroup.where(builder: true, root_board_id: id).first ||
+      board_groups.where(builder: true).first
+  end
 
   def retranslate_on_language_change
     return unless saved_change_to_language?
@@ -496,10 +527,6 @@ class Board < ApplicationRecord
 
   validates :name, presence: true
 
-  def clean_up_scenarios
-    Scenario.where(board_id: id).destroy_all
-  end
-
   def validate_data
     self.data ||= {}
     self.data["personable_explanation"] = data["personable_explanation"].gsub("Personable Explanation: ", "") if data["personable_explanation"]
@@ -662,7 +689,7 @@ class Board < ApplicationRecord
     # otherwise make the root look like a sub-board (it has "parent" boards) and
     # drop it out of the main_boards scope / the communicator's dashboard. Pin it
     # as a main board regardless of who links to it.
-    if settings.is_a?(Hash) && settings["builder_root"]
+    if builder_root?
       self.sub_board = false
       remove_tag(IS_SUB_BOARD_TAG)
       return

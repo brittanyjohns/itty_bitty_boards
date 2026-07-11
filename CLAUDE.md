@@ -1363,6 +1363,42 @@ image pool:
   Signature: `from_obf(data, current_user, board_group = nil, board_id = nil,
   import_options: {})` — don't swap `current_user` and `board_group`.
 
+## Board deletion safety (warn + confirm)
+
+`DELETE /api/boards/:id` is a **warn+confirm** flow. `Boards::UsageCheck`
+(`app/services/boards/`) reports what still references the board: folder tiles
+on other boards (`board_images.predictive_board_id`, self-links excluded),
+communicator dashboards (`child_boards`), team shares (`team_boards`), and
+whether it's a Board Builder root. When anything matches and the request lacks
+`confirm=true`, destroy returns **409** `{ error: "board_in_use", message,
+board: { id, name }, usage: { referencing_boards, communicators, teams,
+builder_set } }` (counts exact, name lists capped at 10). Unreferenced boards
+delete in one step as before.
+
+- **Builder roots cascade the whole set.** A confirmed delete of a
+  `builder_root` board routes through its builder BoardGroup
+  (`Board#builder_board_group` → `group.destroy!`), so the #407 cascade
+  destroys every member board instead of orphaning the hidden children. This
+  routing lives **only in the controller** — a Board `before_destroy` that
+  destroyed the group would recurse with the group's `destroy_all` of members.
+  A root whose group is gone (legacy data) falls back to a plain destroy.
+- **Cleanup on destroy.** Folder tiles pointing at the deleted board are
+  nullified by the `predictive_board_images dependent: :nullify` association
+  (the old manual loop in `#destroy` was redundant and only covered
+  `board_type == "predictive"`). `docs.board_id` is nullified
+  (`dependent: :nullify`; docs are user content owned via `documentable`).
+  `BoardDestroyCleanupJob` (`app/sidekiq/`, enqueued `after_destroy`, rescue-
+  wrapped so a Redis blip can't fail the destroy) scrubs the pointers
+  `dependent:` can't reach: `users.editable_board_id`, the
+  `dynamic_board_id`/`phrase_board_id` keys in users' and child_accounts'
+  settings JSONB, and `Scenario` rows for the board. `word_events` keep their
+  `board_id` deliberately (analytics history).
+- **`orphan_template?`** (`ChildBoardsController`) also refuses to hard-delete
+  a detached template that another board's folder tile still opens
+  (`predictive_board_id` reference check) — detach-only in that case.
+- Frontend companion: handle the 409 with a confirm dialog and re-send with
+  `confirm=true` (special copy for builder roots — it deletes the whole set).
+
 ## Board Sets (BoardGroup) — user CRUD + limits
 
 Board Sets (`BoardGroup`, user-facing name "Board Sets") are user-owned

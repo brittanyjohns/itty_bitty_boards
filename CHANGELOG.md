@@ -5,6 +5,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — deleting a board now warns when it's still in use
+- Deleting a board that other boards' folder buttons open, that sits on a
+  communicator's dashboard, that's shared with a team, or that is a Board
+  Builder set root now returns a **409 `board_in_use`** with a summary of
+  what references it; re-send with `confirm=true` to delete anyway. Boards
+  nothing references delete in one step, unchanged.
+- Confirmed deletion of a Board Builder **root** now removes the whole built
+  set (root + hidden sub-boards) instead of orphaning the sub-boards.
+- Deleting a board now also cleans up references it used to leave behind:
+  the free-plan editable-board pick, saved phrase/dynamic board pointers on
+  users and communicators, and scenarios generated from the board.
+- Removing a board from a communicator dashboard no longer hard-deletes a
+  template clone that another board's folder button still opens — it
+  detaches only.
+
 ### Added — user-picked image budget for menu boards
 - Building a board from a menu photo now has a real cost model: the flat
   `menu_create` fee (5 credits) covers the vision extraction, plus **3 credits
