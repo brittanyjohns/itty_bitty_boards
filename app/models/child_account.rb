@@ -1235,6 +1235,12 @@ class ChildAccount < ApplicationRecord
       # profile: profile&.api_view,
       week_chart: week_chart,
       avatar_url: profile&.avatar_url,
+      # Canonical MySpeak URL (profile-slug based, e.g. /my/s-8bdsv4). The
+      # dashboards read this off the user payload's communicator_accounts and
+      # must show the same link as the full api_view / ViewCommunicator screen.
+      # Without it the frontend used to fall back to /my/<username>, a slug that
+      # doesn't resolve for randomized safety slugs.
+      public_url: public_url,
       device_tag_url: device_tag_url,
       safety_id_url: safety_id_url,
       is_demo: is_demo?,
