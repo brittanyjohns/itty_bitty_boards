@@ -157,6 +157,7 @@ Rails.application.routes.draw do
       member do
         post "invite"
         delete "remove_member"
+        delete "leave"
         get "accept_invite"
         patch "accept_invite_patch"
         post "add_board"
