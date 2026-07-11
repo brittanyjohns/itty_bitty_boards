@@ -271,9 +271,15 @@ class ChildAccount < ApplicationRecord
   # deletes the set, the join row goes with it, so this returns nil and a
   # re-run is treated as a fresh build.
   def board_builder_root
+    builder_roots.first
+  end
+
+  # ALL builder roots still attached (the confirm=true stacking path can put
+  # several on one communicator), newest first. The replace flow destroys
+  # every one of these sets before rebuilding.
+  def builder_roots
     boards.where("COALESCE((boards.settings->>'builder_root')::boolean, false)")
           .order("boards.created_at DESC")
-          .first
   end
 
   # `is_demo` is derived from status now. The DB column is retained until the

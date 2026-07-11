@@ -533,8 +533,16 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
         expect(fresh.countable_board_count).to eq(0)
         expect(fresh.countable_board_group_count).to eq(1)
 
+        # A plain re-run for the SAME communicator now hits the existing-set
+        # 409 first (it offers replace, which works even at the set cap); the
+        # 422 set-limit gate still blocks a confirmed STACK at the cap.
         post "/api/v1/board_builder",
              params: { communicator_id: communicator.id, template: "home" }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:conflict)
+
+        post "/api/v1/board_builder",
+             params: { communicator_id: communicator.id, template: "home", confirm: true }.to_json,
              headers: headers
         expect(response).to have_http_status(:unprocessable_content)
       end

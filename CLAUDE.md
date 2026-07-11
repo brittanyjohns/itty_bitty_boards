@@ -1726,17 +1726,28 @@ Endpoints (`API::V1::BoardBuilderController`, all auth-gated):
     `settings["builder_child"] = true`, and `User#countable_board_count` excludes
     them — so the tree counts as its single root, not ~5. This also keeps the
     whole built set editable (the read-only lock keys off the same count).
-  - **Re-run guard (issue #269): detect + warn, never silently dupe.** If the
-    communicator already has a builder set, `create` returns **409
-    `board_builder_set_exists`** (`{ existing_root_id, existing_root_name,
-    built_at }`) instead of stacking a second favorited root; the client
-    re-sends with **`confirm=true`** to build another. Detection is
-    `ChildAccount#board_builder_root` — each root is marked
-    `settings["builder_root"] = true` by `BoardTreeBuilder` (counterpart to
-    `builder_child`; does **not** affect the board-limit count). It's
-    deletion-safe: delete the set and a re-run is a fresh build. The 409 check
-    runs *after* the board-limit gate, so a Free user at their limit gets the
-    422 first.
+  - **Re-run guard (issue #269) + replace flow: detect + warn, never silently
+    dupe.** If the communicator already has a builder set, `create` returns
+    **409 `board_builder_set_exists`** (`{ existing_root_id,
+    existing_root_name, built_at, can_replace: true, existing_sets: [{
+    root_id, name, built_at }] }` — the legacy top-level keys are kept for
+    the shipped frontend) instead of stacking a second favorited root. Two
+    ways past it: **`replace=true`** (preferred; takes precedence) destroys
+    **every** existing builder set on the communicator first — each root's
+    builder BoardGroup cascades via #407 (`destroy_existing_builder_sets!`;
+    a group-less legacy root is destroyed directly) — then builds fresh;
+    **`confirm=true`** keeps its legacy "stack another set" meaning
+    (repurposing it would destroy data on old clients). Detection is
+    `ChildAccount#builder_roots` (plural; `board_builder_root` = newest) —
+    each root is marked `settings["builder_root"] = true` (does **not**
+    affect the board-limit count). Deletion-safe: delete the set and a
+    re-run is a fresh build. **Ordering:** the existing-set handling runs
+    *before* the board-set-limit gate, so a user at their set cap can still
+    REPLACE (the destroy frees the slot); a plain re-run 409s first, and a
+    confirmed STACK at the cap still gets the 422.
+  - **ChildBoard is unique per (board, communicator)** — model validation +
+    unique index (`index_child_boards_on_board_and_child_account`); the
+    ad-hoc `.exists?` guards at call sites remain as fast paths.
 
 ### Robust vocabulary sets (Core 60 / Core 84)
 

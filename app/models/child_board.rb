@@ -24,6 +24,11 @@ class ChildBoard < ApplicationRecord
   has_one :image_parent, through: :board
   belongs_to :created_by, class_name: "User", foreign_key: "created_by_id", optional: true
 
+  # A board sits on a communicator dashboard at most once. Backstop for the
+  # ad-hoc .exists? guards at the call sites; enforced structurally by the
+  # unique (board_id, child_account_id) index.
+  validates :board_id, uniqueness: { scope: :child_account_id }
+
   # scope :with_artifacts, -> { includes(board: :images) }
   scope :with_artifacts, -> { includes({ board: [{ images: [:docs, :audio_files_attachments, :audio_files_blobs] }] }, :image_parent) }
 

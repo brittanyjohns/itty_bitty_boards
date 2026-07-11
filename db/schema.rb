@@ -10,12 +10,12 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_06_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_07_10_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
+  enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
   enable_extension "pgcrypto"
-  enable_extension "plpgsql"
   enable_extension "unaccent"
 
   create_table "action_text_rich_texts", force: :cascade do |t|
@@ -331,6 +331,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_06_120000) do
     t.bigint "original_board_id"
     t.jsonb "layout", default: {}
     t.integer "position"
+    t.index ["board_id", "child_account_id"], name: "index_child_boards_on_board_and_child_account", unique: true
     t.index ["board_id"], name: "index_child_boards_on_board_id"
     t.index ["child_account_id"], name: "index_child_boards_on_child_account_id"
     t.index ["favorite"], name: "index_child_boards_on_favorite"

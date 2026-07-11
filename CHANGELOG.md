@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Board Builder "replace existing set" option
+- Re-running the Board Builder for a communicator that already has a built
+  set can now **replace** it (`replace=true`): the old set — root and all
+  its hidden sub-boards — is removed before the new one builds, instead of
+  silently stacking a second full set. "Build another" (`confirm=true`)
+  still works as before. Replacing also works for users at their board-set
+  limit, since removing the old set frees the slot.
+- A board can no longer appear twice on the same communicator dashboard
+  (duplicate entries cleaned up and blocked going forward).
+
 ### Changed — boards assigned to a communicator are now fully independent copies
 - Assigning a board to a communicator now copies its linked sub-boards too
   and points the folder buttons at the copies. Previously only the top
