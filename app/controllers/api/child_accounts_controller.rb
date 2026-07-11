@@ -505,10 +505,28 @@ class API::ChildAccountsController < API::ApplicationController
       end
     end
 
+    # Assigned clones don't count toward the owner's board limit, so this
+    # per-communicator cap is what keeps assignment from minting unlimited
+    # board rows.
+    if @child_account.at_assigned_board_limit?(board_ids.size)
+      render json: { error: "assigned_board_limit",
+                     message: "This communicator can hold up to #{ChildAccount.max_assigned_boards} boards.",
+                     limit: ChildAccount.max_assigned_boards,
+                     count: @child_account.child_boards.count },
+             status: :unprocessable_content
+      return
+    end
+
     board_ids.each do |board_id|
       board = Board.find(board_id)
       voice = @child_account.voice || "polly:kevin"
-      board.clone_with_images(current_user&.id, board.name, voice, @child_account)
+      # Deep clone: linked sub-boards are cloned + rewired too, so the
+      # communicator's set is self-contained (not shared with the source).
+      Boards::AssignmentCloner.new(board, owner: current_user,
+                                          communicator: @child_account,
+                                          voice: voice, name: board.name).call
+    rescue Boards::AssignmentCloner::CloneError => e
+      Rails.logger.error "[assign_boards] #{e.message}"
     end
     render json: @child_account.api_view(current_user), status: :ok
   end
