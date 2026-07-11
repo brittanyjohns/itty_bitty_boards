@@ -15,19 +15,26 @@
 class TeamUser < ApplicationRecord
   # Canonical role set (issue #216). Permissions matrix lives in
   # marketing/.claude-notes/handoff-workflow.md:
-  #   admin      — account owner; full curation + member management.
+  #   admin      — team owner; full curation + member management.
   #   supervisor — power collaborator (SLP). Can curate boards on the
-  #                communicator but cannot edit the communicator object
-  #                or delete the account.
-  #   member     — read-only on the communicator; can add boards to the
-  #                team library but cannot assign them.
-  ROLES = %w[admin supervisor member].freeze
+  #                communicator (assign to the dashboard) but cannot edit
+  #                the communicator object or delete the account.
+  #   member     — "Support": can add boards to the team library but cannot
+  #                assign them to a communicator.
+  #   restricted — "Read-Only": view the team only. No library writes, no
+  #                curation.
+  ROLES = %w[admin supervisor member restricted].freeze
+
+  # Roles allowed to WRITE to the team's board library (`create_board`).
+  # `restricted` is read-only and excluded. `admin` is the team owner's
+  # role and is only ever set server-side (never via invite).
+  LIBRARY_ROLES = %w[admin supervisor member].freeze
 
   belongs_to :user
   belongs_to :team
 
   before_validation :set_defaults, on: :create
-  validates :role, inclusion: { in: ROLES, message: "must be admin, supervisor, or member" }
+  validates :role, inclusion: { in: ROLES, message: "must be admin, supervisor, member, or restricted" }
   before_destroy :snapshot_shared_boards_to_family
 
   # Safety net for the SLP→family hand-off (B6 — issue #162). When this
@@ -60,7 +67,7 @@ class TeamUser < ApplicationRecord
   end
 
   def self.roles
-    { "admin" => "Admin", "supervisor" => "Supervisor", "member" => "Member" }
+    { "admin" => "Admin", "supervisor" => "Supervisor", "member" => "Support", "restricted" => "Read-Only" }
   end
 
   # True if this user is the owner of any child_account on the team. Used

@@ -89,6 +89,14 @@ class Team < ApplicationRecord
     account_owner_ids.include?(user.id)
   end
 
+  # The viewing user's team-membership role (admin/supervisor/member/
+  # restricted), or nil if they aren't a member. Exposed so the frontend
+  # doesn't have to derive role by email-matching the members array.
+  def role_for(user)
+    return nil unless user
+    team_users.detect { |tu| tu.user_id == user.id }&.role
+  end
+
   def index_api_view(viewing_user = nil)
     owner_ids = account_owner_ids
     {
@@ -97,6 +105,7 @@ class Team < ApplicationRecord
       created_by_id: created_by_id,
       created_by_name: created_by&.name,
       created_by_email: created_by&.email,
+      current_user_role: role_for(viewing_user),
       account_owner_ids: owner_ids,
       members: team_users.includes(:user).map { |tu|
         { id: tu.id, user_id: tu.user_id, name: tu.user.name, email: tu.user.email,
@@ -118,6 +127,7 @@ class Team < ApplicationRecord
       can_edit: viewing_user&.can_add_boards_to_account?(account_ids),
       can_invite: viewing_user && viewing_user.id == created_by_id,
       is_owner: viewing_user && viewing_user.id == created_by_id,
+      current_user_role: role_for(viewing_user),
       created_by_id: created_by_id,
       created_by_name: created_by&.name,
       created_by_email: created_by&.email,

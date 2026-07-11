@@ -41,13 +41,13 @@ RSpec.describe "API::ChildAccounts owner protection", type: :request do
       expect(account.reload.name).to eq("New Name")
     end
 
-    it "blocks an SLP supervisor (403 not_owner)" do
+    it "blocks an SLP supervisor (403 not_authorized)" do
       patch "/api/child_accounts/#{account.id}",
             params: rename_params,
             headers: auth_headers(slp)
 
       expect(response).to have_http_status(:forbidden)
-      expect(JSON.parse(response.body)["error"]).to eq("not_owner")
+      expect(JSON.parse(response.body)["error"]).to eq("not_authorized")
       expect(account.reload.name).not_to eq("New Name")
     end
 
@@ -74,15 +74,18 @@ RSpec.describe "API::ChildAccounts owner protection", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    it "blocks an SLP supervisor (403 not_owner)" do
+    # Phase 1 (team permissions overhaul): assigning boards to the dashboard
+    # is a curation action, so a team supervisor may now do it — this used to
+    # be owner-only. Editing the communicator object itself stays owner-only
+    # (covered above and in send_setup_email below).
+    it "lets an SLP supervisor assign a board" do
       expect {
         post "/api/child_accounts/#{account.id}/assign_boards",
              params: { board_ids: [board.id] },
              headers: auth_headers(slp)
-      }.not_to change { account.reload.child_boards.count }
+      }.to change { account.reload.child_boards.count }.by(1)
 
-      expect(response).to have_http_status(:forbidden)
-      expect(JSON.parse(response.body)["error"]).to eq("not_owner")
+      expect(response).to have_http_status(:ok)
     end
 
     it "lets a system admin through (escape hatch)" do
@@ -159,12 +162,12 @@ RSpec.describe "API::ChildAccounts owner protection", type: :request do
       expect(CommunicationAccountMailer).to have_received(:setup_email).with(account, parent)
     end
 
-    it "blocks an SLP supervisor (403 not_owner)" do
+    it "blocks an SLP supervisor (403 not_authorized)" do
       post "/api/child_accounts/#{account.id}/send_setup_email",
            headers: auth_headers(slp)
 
       expect(response).to have_http_status(:forbidden)
-      expect(JSON.parse(response.body)["error"]).to eq("not_owner")
+      expect(JSON.parse(response.body)["error"]).to eq("not_authorized")
       expect(CommunicationAccountMailer).not_to have_received(:setup_email)
     end
 
