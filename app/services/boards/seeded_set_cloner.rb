@@ -78,30 +78,11 @@ module Boards
       @root.present?
     end
 
-    # BFS over predictive_board_id links from the root, bounded to MAX_DEPTH and
-    # cycle-safe (visited set). A board reachable twice is collected once. Root
-    # is first in the returned list.
+    # BFS over predictive_board_id links from the root (shared with
+    # Boards::AssignmentCloner via PredictiveLinkSet).
     def collect_source_boards(root)
-      visited = {}
-      ordered = []
-      queue   = [[root, 0]]
-
-      until queue.empty?
-        board, depth = queue.shift
-        next if board.nil? || visited[board.id]
-        next if board.id != root.id && excluded_fringe?(board)
-
-        visited[board.id] = true
-        ordered << board
-        next if depth >= MAX_DEPTH
-
-        board.board_images.where.not(predictive_board_id: nil).each do |bi|
-          sub = Board.find_by(id: bi.predictive_board_id)
-          queue << [sub, depth + 1] if sub
-        end
-      end
-
-      ordered
+      Boards::PredictiveLinkSet.collect(root, max_depth: MAX_DEPTH,
+                                              exclude: method(:excluded_fringe?))
     end
 
     def excluded_fringe?(board)
@@ -214,18 +195,12 @@ module Boards
       end
     end
 
-    # clone_with_images copies predictive_board_id verbatim, so a cloned folder
-    # tile points at the SOURCE sub-board. Translate every pointer to the cloned
-    # counterpart via the map. A pointer that leaves the set (out of depth, or a
-    # cycle target we didn't collect) is nulled — never leave a user tile opening
-    # an admin-owned board.
+    # Translate every cloned folder tile's pointer to its cloned counterpart.
+    # A pointer that leaves the set (out of depth, or a cycle target we didn't
+    # collect) is nulled — never leave a user tile opening an admin-owned board.
+    # (Shared with Boards::AssignmentCloner via PredictiveLinkSet.)
     def rewire_predictive_links!
-      @map.each_value do |cloned|
-        cloned.board_images.where.not(predictive_board_id: nil).find_each do |bi|
-          target = @map[bi.predictive_board_id]
-          bi.update!(predictive_board_id: target&.id)
-        end
-      end
+      Boards::PredictiveLinkSet.rewire!(@map, out_of_set: :null)
     end
 
     # Root counts as one board; every other board in the set is excluded from
