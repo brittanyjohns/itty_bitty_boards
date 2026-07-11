@@ -1223,8 +1223,16 @@ class User < ApplicationRecord
 
   TRAIL_PERIOD = 14.days
 
+  # True only while the user is within the 14-day free signup window AND has
+  # NOT converted to a paid plan. Measures trial *state*, not raw account age:
+  # a user who paid within their first 14 days is no longer "on a free trial"
+  # (see #433). This matches how the frontend already treats the flag
+  # (`free_trial && !paid_plan` in useTrialStatus) and prevents a bogus trial
+  # countdown / free-dashboard misroute for new paying customers. `basic_trial`
+  # and Stripe `trialing` count as paid_plan?, so they're excluded here too.
   def free_trial?
     return true unless created_at
+    return false if paid_plan?
     created_at > TRAIL_PERIOD.ago
   end
 

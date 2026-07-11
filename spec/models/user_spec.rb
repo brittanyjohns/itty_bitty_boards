@@ -479,4 +479,36 @@ RSpec.describe User, type: :model do
       expect(user.reconcile_stranded_plan!).to be(false)
     end
   end
+
+  # #433 — free_trial? measures trial *state*, not raw account age. A user who
+  # converted to a paid plan within their first 14 days is no longer on a free
+  # trial.
+  describe "#free_trial?" do
+    it "is true for a free user within the 14-day signup window" do
+      user = FactoryBot.build(:user, plan_type: "free", created_at: 5.days.ago)
+      expect(user.free_trial?).to be(true)
+    end
+
+    it "is false for a free user past the 14-day window" do
+      user = FactoryBot.build(:user, plan_type: "free", created_at: 20.days.ago)
+      expect(user.free_trial?).to be(false)
+    end
+
+    it "is false for a paid (pro) user within the window — age is not trial state" do
+      user = FactoryBot.build(:user, plan_type: "pro", created_at: 5.days.ago)
+      expect(user.paid_plan?).to be(true)
+      expect(user.free_trial?).to be(false)
+    end
+
+    it "is false for a paid (basic) user within the window" do
+      user = FactoryBot.build(:user, plan_type: "basic", created_at: 5.days.ago)
+      expect(user.free_trial?).to be(false)
+    end
+
+    it "is false for a basic_trial user (paid_plan? treats the soft trial as paid)" do
+      user = FactoryBot.build(:user, plan_type: "basic_trial", created_at: 5.days.ago)
+      expect(user.paid_plan?).to be(true)
+      expect(user.free_trial?).to be(false)
+    end
+  end
 end
