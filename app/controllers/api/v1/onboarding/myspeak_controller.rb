@@ -43,7 +43,18 @@ module API
           end
 
           pronouns       = params[:pronouns].to_s.strip
+          # About Me is the PUBLIC bio shown on the open MySpeak page.
+          # Emergency notes are PRIVATE — they live behind the gated
+          # safety_view reveal (Profile::SAFETY_SENSITIVE_KEYS) and print on
+          # the Safety ID card. The wizard now collects the two separately.
+          about_me       = params[:about_me].to_s
+          emergency_notes = params[:emergency_notes].to_s
+          # Legacy fallback: an old frontend sends only `care_notes`. It was
+          # framed as safety info, so route it to the PRIVATE emergency notes
+          # (never the public bio) — privacy wins during the deploy gap.
           care_notes     = params[:care_notes].to_s
+          resolved_emergency_notes =
+            emergency_notes.presence || (about_me.blank? ? care_notes.presence : nil)
           board_id       = params[:board_id]
           photo_data_url = params[:photo_data_url].to_s
           contacts       = Array(params[:contacts])
@@ -82,12 +93,19 @@ module API
 
             # No `slug:` — left blank so Profile#ensure_slug assigns the random
             # `s-xxxxxx` safety slug (slug_type "random", not user-editable).
+            # bio = About Me (public). Left blank when a legacy client sends
+            # only care_notes, so Profile#set_defaults fills the placeholder
+            # bio rather than leaking safety text onto the public page.
             profile = Profile.new(
               profileable: child,
               profile_kind: "safety",
               username: unique,
-              bio: care_notes,
-              settings: build_settings(pronouns: pronouns, contacts: contacts),
+              bio: about_me,
+              settings: build_settings(
+                pronouns: pronouns,
+                contacts: contacts,
+                emergency_notes: resolved_emergency_notes,
+              ),
             )
 
             attach_photo(profile, photo_data_url, unique) if photo_data_url.present?
@@ -127,9 +145,12 @@ module API
 
         private
 
-        def build_settings(pronouns:, contacts:)
+        def build_settings(pronouns:, contacts:, emergency_notes: nil)
           settings = {}
           settings["pronouns"] = pronouns if pronouns.present?
+          # Sensitive: withheld from page-open, revealed only by the gated
+          # safety_view POST (Profile::SAFETY_SENSITIVE_KEYS).
+          settings["emergency_notes"] = emergency_notes if emergency_notes.present?
 
           slot = 1
           contacts.each do |c|

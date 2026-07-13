@@ -5,6 +5,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — MySpeak onboarding no longer publishes emergency notes as public About Me
+- The MySpeak onboarding wizard used to save its care/emergency notes into the
+  profile `bio`, which renders publicly as "About Me" on the open page. The
+  onboarding endpoint now accepts two separate fields: `about_me` → the public
+  bio, and `emergency_notes` → the private, gated `settings["emergency_notes"]`
+  (revealed only behind the emergency-info wall and printed on the Safety ID
+  card). Legacy clients that still send only `care_notes` now route that text to
+  the private emergency notes, not the public bio.
+- One-time cleanup for existing data:
+  `rake profiles:copy_onboarding_bio_to_emergency_notes` (dry-run by default;
+  `DRY_RUN=false` to apply, `USER_ID=N` to scope) copies onboarding bios into
+  blank emergency notes while keeping the bio. Frontend pairs with
+  itty-bitty-frontend (splits the onboarding step and adds an About Me editor).
+
 ### Fixed — boards assigned to communicators now show it everywhere
 - Board Builder boards live directly on the communicator (`ChildBoard` with
   no `original_board_id`), but every "who has this board" surface only read

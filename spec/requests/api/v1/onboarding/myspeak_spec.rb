@@ -27,7 +27,8 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
       pronouns: "they/them",
       photo_data_url: PNG_DATA_URL,
       board_id: "later",
-      care_notes: "Loves big hugs. Use a calm voice when overwhelmed.",
+      about_me: "Loves big hugs and dinosaurs. Ask me about my rock collection.",
+      emergency_notes: "Has seizures. Use a calm voice when overwhelmed.",
       contacts: [
         { name: "Sam Stone", relationship: "Parent", phone: "555-0101" },
         { name: "Kit Stone", relationship: "Aunt",   phone: "555-0102" },
@@ -79,7 +80,9 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         expect(profile.slug_type).to eq("random")
         # ...but the username stays readable (it's the handle, not the public URL).
         expect(profile.username).to eq("river-stone")
+        # About Me → public bio; emergency notes → private (gated) settings.
         expect(profile.bio).to include("Loves big hugs")
+        expect(profile.settings["emergency_notes"]).to include("Has seizures")
         expect(profile.avatar).to be_attached
         expect(profile.settings["pronouns"]).to eq("they/them")
         expect(profile.settings["ice_contact_1"]).to eq(
@@ -93,6 +96,59 @@ RSpec.describe "API::V1::Onboarding::Myspeak", type: :request do
         expect(body["profile_kind"]).to eq("safety")
         expect(body["settings"]["pronouns"]).to eq("they/them")
         expect(body["settings"]["ice_contact_1"]["phone"]).to eq("555-0101")
+      end
+    end
+
+    context "About Me vs emergency notes split" do
+      it "routes about_me to the public bio and emergency_notes to the gated settings" do
+        post "/api/v1/onboarding/myspeak", params: base_payload.to_json, headers: headers
+
+        expect(response).to have_http_status(:created)
+        profile = user.communicator_accounts.last.profile
+        # Public About Me = bio; withheld from the open page's settings.
+        expect(profile.bio).to include("dinosaurs")
+        expect(profile.public_settings(kind: :safety)).not_to include("emergency_notes")
+        # Private emergency notes live behind the gated reveal.
+        expect(profile.settings["emergency_notes"]).to include("Has seizures")
+        expect(profile.has_safety_info?).to be(true)
+        expect(profile.safety_sensitive_settings["emergency_notes"]).to include("Has seizures")
+      end
+
+      it "keeps the default placeholder bio when only emergency_notes is provided" do
+        payload = base_payload.except(:about_me)
+        post "/api/v1/onboarding/myspeak", params: payload.to_json, headers: headers
+
+        expect(response).to have_http_status(:created)
+        profile = user.communicator_accounts.last.profile
+        # No About Me typed → bio falls back to the generated placeholder, so no
+        # safety text leaks onto the public page.
+        expect(profile.bio).to include("Write a short bio")
+        expect(profile.settings["emergency_notes"]).to include("Has seizures")
+      end
+
+      it "does not populate emergency_notes when only about_me is provided" do
+        payload = base_payload.except(:emergency_notes)
+        post "/api/v1/onboarding/myspeak", params: payload.to_json, headers: headers
+
+        expect(response).to have_http_status(:created)
+        profile = user.communicator_accounts.last.profile
+        expect(profile.bio).to include("dinosaurs")
+        expect(profile.settings["emergency_notes"]).to be_nil
+      end
+
+      context "legacy client (care_notes only)" do
+        it "routes care_notes to the PRIVATE emergency notes, never the public bio" do
+          payload = base_payload.except(:about_me, :emergency_notes)
+                                .merge(care_notes: "Allergic to peanuts. Calming phrase: 'you are safe.'")
+          post "/api/v1/onboarding/myspeak", params: payload.to_json, headers: headers
+
+          expect(response).to have_http_status(:created)
+          profile = user.communicator_accounts.last.profile
+          # Old framing was safety info — privacy wins: it must NOT be public bio.
+          expect(profile.bio).not_to include("peanuts")
+          expect(profile.bio).to include("Write a short bio")
+          expect(profile.settings["emergency_notes"]).to include("peanuts")
+        end
       end
     end
 
