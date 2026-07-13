@@ -140,7 +140,8 @@ class Board < ApplicationRecord
   scope :preset, -> { where(predefined: true) }
   scope :welcome, -> { where(category: "welcome", predefined: true) }
   scope :published, -> { where(published: true) }
-  POSSIBLE_BOARD_TYPES = %w[board category user image menu].freeze
+  scope :keyboards, -> { where(board_type: "keyboard") }
+  POSSIBLE_BOARD_TYPES = %w[board category user image menu keyboard].freeze
 
   scope :dynamic_defaults, -> { where(name: "Dynamic Default", parent_type: "PredefinedResource") }
 
@@ -789,6 +790,13 @@ class Board < ApplicationRecord
 
   def category?
     resource_type == "category"
+  end
+
+  # Unlike dynamic?/predictive?/static? above (resource_type-based), keyboard
+  # is a board_type: the seeded letter/action-tile template boards
+  # (db/seeds/keyboard_boards.rb) and their clones.
+  def keyboard?
+    board_type == "keyboard"
   end
 
   def self.create_dynamic_default_for_user(new_user)
