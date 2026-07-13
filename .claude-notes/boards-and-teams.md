@@ -313,3 +313,29 @@ losing a tile.
   without recomputing column counts) recomputes proportional md/sm columns and
   reflows existing boards, skipping fully-customized screens.
 
+
+## Keyboard boards & action tiles
+
+Predefined keyboard template boards ("ABC Keyboard" / "QWERTY Keyboard",
+slugs `keyboard-abc` / `keyboard-qwerty`) are seeded by
+`db/seeds/keyboard_boards.rb` (`rake keyboard_boards:seed`, idempotent):
+`board_type: "keyboard"` (also `Board.keyboards` / `#keyboard?`), 26 letter
+tiles + Space/Delete.
+
+- **Tile behavior contract (frontend keys off this, not board_type):** letter
+  tiles carry `board_images.data["tile_type"] == "letter"`; action tiles carry
+  `data["tile_type"] == "action"` and `data["tile_action"] == "space" |
+  "backspace"`. Future action tiles (e.g. play-a-video) add new `tile_action`
+  string values plus an optional `data["action_params"]` object — keep
+  `tile_action` a bare string. `data` already flows through
+  `api_view_for_native_grid`, `BoardImage#api_view`, and `clone_with_images`
+  (tiles are `dup`ed), so no serializer/clone changes are needed for new flags.
+- **Publish gate:** the seeds create the boards `published: false` because
+  frontends without keyboard support render Space/Delete as ordinary speakable
+  word tiles. Flip `published: true` only after the frontend keyboard support
+  deploys; re-running the seed never unpublishes.
+- **Layouts:** authored identically for all screen sizes with equal column
+  counts (6 ABC / 10 QWERTY), and `settings["custom_screen_layouts"] = ["md",
+  "sm"]` so an lg edit doesn't reflow away the QWERTY stagger or wide space bar.
+- Word-as-written playback needs no backend work: the frontend composes the
+  string and uses the existing `POST /api/images/generate_audio`.
