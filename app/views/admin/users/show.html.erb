@@ -15,15 +15,26 @@
       <% end %>
     </p>
   </div>
-  <div class="flex items-center gap-2">
-    <span class="<%= plan_badge_class(@user) %> inline-block text-xs rounded px-2.5 py-1">
-      <%= @user.plan_type || "none" %>
-    </span>
-    <% if @user.admin? %>
-      <span class="bg-yellow-900/60 text-yellow-300 inline-block text-xs rounded px-2.5 py-1">admin</span>
-    <% end %>
-    <% if @user.locked? %>
-      <span class="bg-red-900/60 text-red-300 inline-block text-xs rounded px-2.5 py-1">locked</span>
+  <div class="flex flex-col items-end gap-2">
+    <div class="flex items-center gap-2">
+      <span class="<%= plan_badge_class(@user) %> inline-block text-xs rounded px-2.5 py-1">
+        <%= @user.plan_type || "none" %>
+      </span>
+      <% if @user.admin? %>
+        <span class="bg-yellow-900/60 text-yellow-300 inline-block text-xs rounded px-2.5 py-1">admin</span>
+      <% end %>
+      <% if @user.demo_user? && !@user.admin? %>
+        <span class="bg-yellow-900/60 text-yellow-300 inline-block text-xs rounded px-2.5 py-1">demo</span>
+      <% end %>
+      <% if @user.locked? %>
+        <span class="bg-red-900/60 text-red-300 inline-block text-xs rounded px-2.5 py-1">locked</span>
+      <% end %>
+    </div>
+    <% if @user.demo_user? && !@user.admin? %>
+      <%= button_to "Delete demo account", admin_dashboard_user_path(@user),
+            method: :delete,
+            class: "text-xs font-medium px-3 py-1.5 rounded cursor-pointer bg-red-900/60 text-red-300 hover:bg-red-900/80 transition-colors",
+            form: { data: { turbo_confirm: "Delete demo account #{@user.email}? All boards, communicators, and content are destroyed and the account is anonymized. This cannot be undone." } } %>
     <% end %>
   </div>
 </div>
@@ -172,6 +183,127 @@
   });
 </script>
 
+<%# ─── Edit account ───────────────────────────────────────── %>
+<div class="admin-card border rounded-xl p-6 mb-8">
+  <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Edit Account</h2>
+
+  <%= form_with url: admin_dashboard_user_path(@user), method: :patch, scope: :user, local: true do |f| %>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <div>
+        <label class="block text-[10px] text-t3 mb-1">Name</label>
+        <%= f.text_field :name, value: @user.name,
+              class: "admin-input w-full text-sm px-2.5 py-1.5 rounded border bg-transparent text-t1" %>
+      </div>
+      <div>
+        <label class="block text-[10px] text-t3 mb-1">Email</label>
+        <%= f.email_field :email, value: @user.email, required: true,
+              class: "admin-input w-full text-sm px-2.5 py-1.5 rounded border bg-transparent text-t1" %>
+      </div>
+      <div>
+        <label class="block text-[10px] text-t3 mb-1">Role</label>
+        <%= f.select :role, options_for_select(Admin::UsersController::EDITABLE_ROLES, @user.role),
+              {}, class: "admin-input w-full text-sm px-2.5 py-1.5 rounded border bg-transparent text-t1" %>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <div>
+        <label class="block text-[10px] text-t3 mb-1">Board limit</label>
+        <%= f.number_field :board_limit, value: @user.board_limit, min: 0,
+              class: "admin-input w-full text-sm px-2.5 py-1.5 rounded border bg-transparent text-t1" %>
+      </div>
+      <div>
+        <label class="block text-[10px] text-t3 mb-1">Paid communicator limit</label>
+        <%= f.number_field :paid_communicator_limit, value: @user.comm_account_limit, min: 0,
+              class: "admin-input w-full text-sm px-2.5 py-1.5 rounded border bg-transparent text-t1" %>
+      </div>
+      <div>
+        <label class="block text-[10px] text-t3 mb-1">Demo communicator limit</label>
+        <%= f.number_field :demo_communicator_limit, value: @user.settings["demo_communicator_limit"] || 0, min: 0,
+              class: "admin-input w-full text-sm px-2.5 py-1.5 rounded border bg-transparent text-t1" %>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-6 mb-4">
+      <label class="flex items-center gap-2 text-xs text-t1">
+        <%= f.check_box :locked, checked: @user.locked? %>
+        Locked
+      </label>
+      <label class="flex items-center gap-2 text-xs text-t1">
+        <%= f.check_box :play_demo, checked: @user.play_demo %>
+        Play demo
+      </label>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <%= f.submit "Save changes",
+            class: "text-sm font-medium px-4 py-1.5 rounded transition-colors cursor-pointer",
+            style: "background: var(--text-accent); color: #fff;" %>
+      <p class="text-[10px] text-t3">
+        Limits override the plan defaults. Changing the plan re-applies plan defaults and replaces these.
+      </p>
+    </div>
+  <% end %>
+</div>
+
+<%# ─── Change plan + Email actions ───────────────────────── %>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+
+  <div class="admin-card border rounded-xl p-6">
+    <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Change Plan</h2>
+
+    <%= form_with url: change_plan_admin_dashboard_user_path(@user), method: :post, local: true do |f| %>
+      <div class="flex flex-wrap items-end gap-3 mb-3">
+        <div>
+          <label class="block text-[10px] text-t3 mb-1">Plan</label>
+          <%= select_tag :plan_type,
+                options_for_select(Admin::UsersController::CHANGEABLE_PLAN_TYPES, @user.plan_type),
+                class: "admin-input text-sm px-2.5 py-1.5 rounded border bg-transparent text-t1" %>
+        </div>
+        <%= f.submit "Change plan",
+              class: "text-sm font-medium px-4 py-1.5 rounded transition-colors cursor-pointer",
+              style: "background: var(--text-accent); color: #fff;",
+              data: { turbo_confirm: "Change plan for #{@user.email}? This is local-only — it does not modify Stripe, and an active Stripe subscription's webhooks may overwrite it." } %>
+      </div>
+    <% end %>
+
+    <p class="text-[10px] text-t3">
+      Local-only: never creates or cancels a Stripe subscription.
+      Free = full cancellation semantics (limits reset, free credits granted, subscription id cleared).
+      partner_pro runs full partner onboarding (role, 3-month pilot, credits, Mailchimp).
+      plus/premium don't auto-apply limits — set manual limits above.
+    </p>
+  </div>
+
+  <div class="admin-card border rounded-xl p-6">
+    <h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Email Actions</h2>
+
+    <div class="space-y-3">
+      <div class="flex items-center gap-3">
+        <%= button_to "Send welcome email", send_welcome_email_admin_dashboard_user_path(@user),
+              method: :post,
+              class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+              form: { data: { turbo_confirm: "Send welcome email to #{@user.email}?" } } %>
+        <span class="text-[10px] text-t3">Plan-appropriate welcome. Marks welcome_email_sent, notifies admin, syncs Mailchimp.</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <%= button_to "Send setup email", send_setup_email_admin_dashboard_user_path(@user),
+              method: :post,
+              class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+              form: { data: { turbo_confirm: "Send setup email to #{@user.email}?" } } %>
+        <span class="text-[10px] text-t3">Vendor/Pro/Free setup email. Basic-plan users receive nothing.</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <%= button_to "Send temp login email", send_temp_login_email_admin_dashboard_user_path(@user),
+              method: :post,
+              class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+              form: { data: { turbo_confirm: "Send a temporary login link to #{@user.email}?" } } %>
+        <span class="text-[10px] text-t3">Issues a fresh <%= User::TEMP_LOGIN_TOKEN_EXPIRY_HOURS %>-hour login link.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <%# ─── Two-column: Account + Activity ────────────────────── %>
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
 
@@ -184,8 +316,12 @@
         ["Plan type",        @user.plan_type],
         ["Plan status",      @user.plan_status],
         ["Paid plan type",   @user.paid_plan_type.presence || "—"],
-        ["Stripe customer",  @user.stripe_customer_id.presence || "—"],
-        ["Stripe sub",       @user.stripe_subscription_id.presence || "—"],
+        ["Stripe customer",  @user.stripe_customer_id.present? ?
+          link_to(@user.stripe_customer_id, "https://dashboard.stripe.com/customers/#{@user.stripe_customer_id}",
+                  target: "_blank", rel: "noopener", class: "text-accent hover:underline") : "—"],
+        ["Stripe sub",       @user.stripe_subscription_id.present? ?
+          link_to(@user.stripe_subscription_id, "https://dashboard.stripe.com/subscriptions/#{@user.stripe_subscription_id}",
+                  target: "_blank", rel: "noopener", class: "text-accent hover:underline") : "—"],
         ["Created",          @user.created_at.strftime("%b %-d, %Y %H:%M %Z")],
         ["Last sign-in",     @user.last_sign_in_at&.strftime("%b %-d, %Y %H:%M %Z") || "Never"],
         ["Last sign-in IP",  @user.last_sign_in_ip.presence || "—"],

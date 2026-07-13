@@ -11,6 +11,61 @@ RSpec.describe MailchimpService do
     allow(client).to receive(:customerJourneys).and_return(journeys)
   end
 
+  describe "#record_new_subscriber" do
+    let(:lists) { double("lists") }
+    let(:hash) { Digest::MD5.hexdigest("parent@example.com") }
+
+    before do
+      allow(client).to receive(:lists).and_return(lists)
+      stub_const("ENV", ENV.to_h.merge("MAILCHIMP_AUDIENCE_ID" => "aud_123"))
+    end
+
+    it "still applies tags when the contact already exists in the audience" do
+      allow(lists).to receive(:get_list_member).with("aud_123", hash).and_return({ "id" => hash })
+
+      expect(lists).not_to receive(:set_list_member)
+      expect(lists).to receive(:update_list_member_tags).with(
+        "aud_123",
+        hash,
+        { tags: [
+          { name: "Partner Program", status: "active" },
+          { name: "PartnerPro_Jul", status: "active" },
+          { name: "FreePlan", status: "active" },
+        ] },
+      )
+
+      described_class.new.record_new_subscriber(user, tags: ["Partner Program", "PartnerPro_Jul"])
+    end
+
+    it "creates the contact and applies tags when it doesn't exist yet" do
+      not_found = MailchimpMarketing::ApiError.new(status: 404)
+      allow(lists).to receive(:get_list_member).with("aud_123", hash).and_raise(not_found)
+
+      expect(lists).to receive(:set_list_member).with(
+        "aud_123",
+        hash,
+        hash_including(email_address: "parent@example.com", status: "subscribed"),
+      ).and_return({ "id" => hash })
+      expect(lists).to receive(:update_list_member_tags).with(
+        "aud_123",
+        hash,
+        { tags: [
+          { name: "Partner Program", status: "active" },
+          { name: "FreePlan", status: "active" },
+        ] },
+      )
+
+      described_class.new.record_new_subscriber(user, tags: ["Partner Program"])
+    end
+
+    it "swallows Mailchimp API errors and returns nil" do
+      allow(lists).to receive(:get_list_member)
+        .and_raise(MailchimpMarketing::ApiError.new(status: 500))
+
+      expect(described_class.new.record_new_subscriber(user, tags: ["Partner Program"])).to be_nil
+    end
+  end
+
   describe "#record_lead" do
     let(:lists) { double("lists") }
 

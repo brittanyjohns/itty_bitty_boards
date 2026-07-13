@@ -194,6 +194,19 @@ that without auto-downgrading (partners are high-value B2B leads managed by hand
   (`/admin/users/:id`) shows a **Partner Pilot** card (end date, days left,
   reminder-sent, expired-flagged) so you can action a partner in one place —
   extend by bumping `plan_expires_at`, or adjust plan by hand.
+- **Admin plan changes.** The user detail page can change plans directly
+  (`Admin::UsersController#change_plan`). All changes are **local-only —
+  Stripe is never touched**, so an active Stripe subscription's webhooks can
+  later overwrite them. Semantics: `free` runs
+  `Billing::PlanTransitions.apply_free_plan` (full cancellation);
+  `partner_pro` runs `User.handle_new_partner_pro_subscription` (full partner
+  onboarding); other paid plans set `plan_type` **and `plan_status: "active"`**
+  (without the status reset, a previously-canceled user would be
+  `plan_stranded?` and auto-reverted to free). `basic_trial` is not
+  admin-assignable — trials belong to the soft-trial flow. The page also
+  edits identity/flags and the manual `settings` limit overrides
+  (board/paid-communicator/demo-communicator), and has queue-only email
+  actions (welcome / setup / temp-login).
 
 **Phase 2 (not built):** if partner volume outgrows hand-management, move the
 pilot onto a real Stripe no-card trial (reuses the reverse-trial machinery

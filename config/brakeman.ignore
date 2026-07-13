@@ -18,7 +18,9 @@
       },
       "user_input": "(:BRAKEMAN_SAFE_LITERAL or \"desc\").upcase",
       "confidence": "Medium",
-      "cwe_id": [89],
+      "cwe_id": [
+        89
+      ],
       "user_note": "False positive: sort_order is validated against an explicit allowlist (%w[asc desc]) before being used in Arel.sql. No user input reaches this interpolation unchecked."
     },
     {
@@ -39,8 +41,33 @@
       },
       "user_input": "Doc.find_by(:id => doc_id)",
       "confidence": "Weak",
-      "cwe_id": [22],
-      "user_note": "False positive: the path is a Tempfile created by the job itself. The model attribute (doc.id, an integer PK) is used only as part of a temp filename prefix — no user-supplied path traversal is possible."
+      "cwe_id": [
+        22
+      ],
+      "user_note": "False positive: the path is a Tempfile created by the job itself. The model attribute (doc.id, an integer PK) is used only as part of a temp filename prefix \u2014 no user-supplied path traversal is possible."
+    },
+    {
+      "warning_type": "Mass Assignment",
+      "warning_code": 105,
+      "fingerprint": "31f4c5d3cb5e430076abb74adbde989089663fcf39d7b4bc559abcbef32ad283",
+      "check_name": "PermitAttributes",
+      "message": "Potentially dangerous key allowed for mass assignment",
+      "file": "app/controllers/admin/users_controller.rb",
+      "line": 176,
+      "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
+      "code": "params.require(:user).permit(:name, :email, :role, :locked, :play_demo, :board_limit, :paid_communicator_limit, :demo_communicator_limit)",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "Admin::UsersController",
+        "method": "user_params"
+      },
+      "user_input": ":role",
+      "confidence": "Medium",
+      "cwe_id": [
+        915
+      ],
+      "user_note": "False positive: Admin::UsersController is gated by require_admin! (admins only), and :role is validated against the EDITABLE_ROLES allowlist (%w[user admin partner vendor]) before assignment \u2014 a non-listed role is ignored."
     }
   ]
 }

@@ -56,5 +56,30 @@ RSpec.describe MissionControl::OverviewMetrics do
       expect(result).to have_key(:communicator_accounts)
       expect(result).to have_key(:myspeak_profiles)
     end
+
+    context "with demo accounts" do
+      let!(:demo_user) do
+        create(:user, email: "bhannajohns+metrics@gmail.com",
+                      created_at: 1.hour.ago, last_sign_in_at: 1.hour.ago)
+      end
+      let!(:demo_board) { create(:board, user: demo_user, created_at: 1.hour.ago) }
+      let!(:demo_word_event) { create(:word_event, user: demo_user, created_at: 1.hour.ago) }
+      let!(:demo_communicator) { create(:child_account, user: demo_user) }
+      let!(:real_board) { create(:board, user: user_today, created_at: 1.hour.ago) }
+
+      it "excludes demo users from signup and activity counts" do
+        expect(result[:signups_today]).to eq(1)
+        expect(result[:total_users]).to eq(5)
+        expect(result[:active_users_7d]).to eq(2)
+        expect(result[:signups_daily_7d][Time.zone.today.to_s]).to eq(1)
+      end
+
+      it "excludes demo-owned boards, word events, and communicators" do
+        expect(result[:total_boards]).to eq(1)
+        expect(result[:boards_today]).to eq(1)
+        expect(result[:word_events_today]).to eq(0)
+        expect(result[:communicator_accounts]).to eq(0)
+      end
+    end
   end
 end
