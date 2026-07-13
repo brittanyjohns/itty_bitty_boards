@@ -5,6 +5,28 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — admin user page: plan changes, editing, Stripe links, email actions
+- The admin dashboard user page (`/admin/users/:id`) can now **change a
+  user's plan** (local-only — Stripe is never modified; downgrading to free
+  applies full cancellation semantics, `partner_pro` runs full partner
+  onboarding, other paid plans also reset `plan_status` to active so
+  previously-canceled users aren't auto-reverted).
+- New **Edit Account** form: name, email, role, locked, play-demo, and
+  manual limit overrides (boards / paid communicators / demo communicators).
+- Stripe customer and subscription IDs now **link to the Stripe dashboard**
+  in a new tab.
+- **Email action buttons**: queue the plan-appropriate welcome email, the
+  setup email, or a temporary login link.
+- **Demo accounts excluded from admin metrics**: the admin dashboard counts
+  and all Mission Control overview/usage metrics now exclude demo/test
+  accounts and their activity (boards, word events, communicators, credits,
+  AI prompts). The dashboard shows a separate Demo Accounts card linking to
+  the demo-filtered user list.
+- **Per-user demo cleanup**: demo accounts get a "demo" badge and a Delete
+  button on the admin user page — same tombstone path as the Mission Control
+  batch cleanup (destroys all content, anonymizes PII, keeps the credit
+  ledger). Non-demo and admin accounts can't be deleted from here.
+
 ### Fixed — MySpeak onboarding no longer publishes emergency notes as public About Me
 - The MySpeak onboarding wizard used to save its care/emergency notes into the
   profile `bio`, which renders publicly as "About Me" on the open page. The
@@ -18,7 +40,6 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `DRY_RUN=false` to apply, `USER_ID=N` to scope) copies onboarding bios into
   blank emergency notes while keeping the bio. Frontend pairs with
   itty-bitty-frontend (splits the onboarding step and adds an About Me editor).
-
 ### Fixed — boards assigned to communicators now show it everywhere
 - Board Builder boards live directly on the communicator (`ChildBoard` with
   no `original_board_id`), but every "who has this board" surface only read

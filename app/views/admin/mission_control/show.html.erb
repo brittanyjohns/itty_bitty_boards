@@ -4,7 +4,10 @@
 <div class="flex items-center justify-between mb-8">
   <div>
     <h1 class="text-2xl font-semibold text-t1 tracking-tight">Overview</h1>
-    <p class="text-sm text-t3 mt-0.5"><%= Time.zone.now.strftime("%A, %B %-d %Y · %H:%M %Z") %></p>
+    <p class="text-sm text-t3 mt-0.5">
+      <%= Time.zone.now.strftime("%A, %B %-d %Y · %H:%M %Z") %>
+      · All metrics exclude admin and demo accounts
+    </p>
   </div>
   <a href="<%= admin_mission_control_path %>"
      class="text-xs text-t2 hover:text-t1 border rounded px-3 py-1.5 transition-colors"

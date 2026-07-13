@@ -59,8 +59,14 @@ Rails.application.routes.draw do
     resource :mission_control, only: [:show], controller: 'mission_control' do
       post :cleanup_demo
     end
-    resources :users, only: [:index, :show], as: :dashboard_users do
-      post :adjust_credits, on: :member
+    resources :users, only: [:index, :show, :update, :destroy], as: :dashboard_users do
+      member do
+        post :adjust_credits
+        post :change_plan
+        post :send_welcome_email
+        post :send_setup_email
+        post :send_temp_login_email
+      end
     end
   end
 

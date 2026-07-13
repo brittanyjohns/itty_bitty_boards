@@ -148,6 +148,9 @@ class User < ApplicationRecord
 
   scope :non_admin, -> { where("role IS NULL OR role != ?", "admin") }
   scope :demo_accounts, -> { non_admin.where("email LIKE ? OR email LIKE ?", "%bhannajohns+%", "%@speakanyway.com") }
+  # Exact complement of demo_accounts (admins are never demo). Growth/usage
+  # metrics use this so internal/test activity doesn't inflate the numbers.
+  scope :non_demo, -> { where.not(id: demo_accounts.select(:id)) }
   # SQL counterpart of #paid_plan?: a paid tier whose status isn't a
   # non-paying one. basic_trial / trialing count as paid while active, same
   # as the instance method. Excludes UNPAID_STATUSES (canceled/paused/etc.)
