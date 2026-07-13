@@ -17,6 +17,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   in a new tab.
 - **Email action buttons**: queue the plan-appropriate welcome email, the
   setup email, or a temporary login link.
+
+### Fixed — Mailchimp tags now land on existing contacts
+- `MailchimpService#record_new_subscriber` used to return early when the
+  contact already existed in the audience — before applying tags. Since most
+  users are synced to Mailchimp at signup, promoting an existing user (e.g.
+  to Partner Pro) never applied the "Partner Program" journey trigger tag,
+  so they silently never entered the Partner Customer Journey. Tags are now
+  applied for existing contacts too, fixing the admin/API partner flows and
+  the `partners:backfill_mailchimp_tags` rake task in one place.
 - **Demo accounts excluded from admin metrics**: the admin dashboard counts
   and all Mission Control overview/usage metrics now exclude demo/test
   accounts and their activity (boards, word events, communicators, credits,

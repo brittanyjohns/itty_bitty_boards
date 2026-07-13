@@ -13,6 +13,11 @@ GitHub build). Two distinct uses:
   (`record_new_subscriber`), tags by plan tier, and records sign-in/sign-up
   events. Fired async via `MailchimpEventJob` (event types `sign_up` /
   `sign_in`) from `API::V1::AuthsController` and the Stripe checkout controller.
+  **Tags apply to existing contacts too:** `record_new_subscriber` early-returns
+  when the contact is already in the audience, but it applies the passed tags
+  first — this is what lets a tag-triggered journey (e.g. the Partner journey's
+  "Partner Program" trigger tag) fire for users who were synced at signup and
+  promoted later. Don't reintroduce a pre-tag early return.
 - **Customer Journey triggers (email):** `MailchimpService#trigger_journey`
   enrols a contact into a journey's **API-trigger step** so Mailchimp sends the
   email designed in that journey. The accessor is resolved via

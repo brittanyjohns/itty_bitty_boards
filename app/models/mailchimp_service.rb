@@ -7,6 +7,16 @@ class MailchimpService
     Digest::MD5.hexdigest(email.downcase)
   end
 
+  def apply_member_tags(list_id, subscriber_hash_email, tags)
+    return if tags.blank?
+
+    @client.lists.update_list_member_tags(
+      list_id,
+      subscriber_hash_email,
+      { tags: tags.map { |t| { name: t, status: "active" } } }
+    )
+  end
+
   def record_signin_event(user, opts = {})
     props = opts[:properties] || {}
     props[:current_sign_in_ip] = user.current_sign_in_ip&.to_s if user.current_sign_in_ip
@@ -70,6 +80,10 @@ class MailchimpService
       result = @client.lists.get_list_member(list_id, subscriber_hash_email)
       if result
         Rails.logger.info("[Mailchimp] Subscriber already exists for email #{email} in audience #{list_id}")
+        # Tags must still land on existing contacts — "Partner Program" is the
+        # trigger tag the Partner Customer Journey fires on, and most users are
+        # already in the audience by the time they're promoted.
+        apply_member_tags(list_id, subscriber_hash_email, tags)
         return result
       end
     rescue MailchimpMarketing::ApiError => e
@@ -86,14 +100,7 @@ class MailchimpService
       merge_fields: merge_fields,
     }
     response = @client.lists.set_list_member(list_id, subscriber_hash_email, body)
-    # Add tags if provided
-    unless tags.blank?
-      @client.lists.update_list_member_tags(
-        list_id,
-        subscriber_hash_email,
-        { tags: tags.map { |t| { name: t, status: "active" } } }
-      )
-    end
+    apply_member_tags(list_id, subscriber_hash_email, tags)
     response
   rescue MailchimpMarketing::ApiError => e
     # Swallowed so a Mailchimp blip can't break signup, but logged at error
