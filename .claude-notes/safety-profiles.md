@@ -67,6 +67,33 @@ info** — medical details + emergency contacts + emergency notes
   swallow a safety alert. The per-profile hourly throttle is the only timing gate.
 
 
+## About Me (public bio) vs emergency notes (private)
+
+The MySpeak page has two distinct free-text fields that were historically
+conflated:
+
+- **About Me = `profiles.bio`** (a text column) — the PUBLIC blurb shown on the
+  open page. Editable via `PATCH /api/profiles/:id` (`profile_params` already
+  permits `:bio`).
+- **Emergency notes = `settings["emergency_notes"]`** — one of the
+  `SAFETY_SENSITIVE_KEYS`, withheld from page-open and revealed only by the
+  gated `safety_view` POST. Also printed on the Safety ID card.
+
+**Onboarding writes them separately** (`API::V1::Onboarding::MyspeakController`):
+`about_me` → `bio`, `emergency_notes` → `settings["emergency_notes"]`.
+Previously the wizard sent a single `care_notes` field that was written into
+`bio`, publishing safety text on the open page. **Legacy compatibility:** a
+request that sends only `care_notes` (an old frontend still deployed) routes
+that text to the PRIVATE `emergency_notes`, never the public bio — privacy wins
+during the deploy gap. When no `about_me` is sent, `bio` is left blank so
+`Profile#set_defaults` fills the placeholder rather than leaking notes.
+
+**One-time cleanup:** `rake profiles:copy_onboarding_bio_to_emergency_notes`
+(dry-run by default, `DRY_RUN=false` to apply, `USER_ID=N` to scope) copies
+existing onboarding bios into blank `emergency_notes` for child-account safety
+profiles, keeping the bio (no public page goes blank). Skips generated
+placeholder bios and profiles that already have emergency notes; idempotent.
+
 ## Random slugs for safety profiles
 
 Safety profiles (`profile_kind = "safety"`, i.e. a `Profile` whose
