@@ -206,6 +206,42 @@ RSpec.describe Board, type: :model do
       expect(view[:communicator_account_data]).to eq([])
       expect(view[:child_boards]).to eq([])
     end
+
+    context "when a ChildBoard is orphaned (its child_account was deleted)" do
+      # original_child_boards is dependent: :nullify, and older DBs lack an
+      # enforced child_account_id FK, so account teardown can leave a ChildBoard
+      # pointing at a gone child_account. api_view reads cb.child_account.id
+      # directly — an orphan used to 500 /api/boards. The test DB enforces the
+      # FK, so the dangling row can't be inserted; simulate it in memory.
+      let(:orphan) { ChildBoard.new(board: board, original_board: board, status: "active") }
+
+      before do
+        board.update_column(:in_use, true)
+        allow(orphan).to receive(:child_account).and_return(nil)
+        allow(orphan).to receive(:child_account_id).and_return(999_999)
+        stub_rel = ->(rows) { double(includes: rows) }
+        allow(board).to receive(:original_child_boards).and_return(stub_rel.call([orphan]))
+        allow(board).to receive(:child_boards).and_return(stub_rel.call([]))
+      end
+
+      it "filters the orphan out of communicator_child_boards" do
+        expect(board.communicator_child_boards).to eq([])
+      end
+
+      it "does not raise in the index api_view and skips the orphan" do
+        view = nil
+        expect { view = board.api_view(user) }.not_to raise_error
+        expect(view[:communicator_account_data]).to eq([])
+      end
+
+      it "does not raise in the show api_view and skips the orphan" do
+        view = nil
+        expect { view = board.api_view_with_predictive_images(user) }.not_to raise_error
+        expect(view[:communicator_account_data]).to eq([])
+        expect(view[:communicator_accounts]).to eq([])
+        expect(view[:child_boards]).to eq([])
+      end
+    end
   end
 
   describe "#check_is_sub_board (before_save)" do

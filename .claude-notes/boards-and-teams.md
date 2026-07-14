@@ -130,6 +130,14 @@ should be able to clear/curate the dashboard **without losing boards**.
   `can_edit` (board ownership, gates clone-to-edit), so the frontend can
   show the remove control to a hand-off owner who doesn't own the board.
   (Frontend wiring to consume `can_remove` is a companion change.)
+- **`Board#communicator_child_boards` filters orphaned join rows.** It unions
+  `original_child_boards` (FK `original_board_id`, `dependent: :nullify`) with
+  `child_boards`, then `.select(&:child_account)` — a `ChildBoard` whose
+  `child_account` was deleted (account teardown, or older DBs lacking an
+  enforced `child_account_id` FK) is dropped. The `api_view` /
+  `api_view_with_predictive_images` serializers read `cb.child_account.id`
+  directly, so a single orphan otherwise 500s the whole `/api/boards` index.
+  Filter at this one chokepoint, not per call site.
 ### Editing the communicator object itself
 
 `ChildAccount#editable_by?(user)` returns true iff the user is the

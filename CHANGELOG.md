@@ -5,6 +5,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — /api/boards no longer 500s on an orphaned communicator join row
+- `Board#api_view` read `child_account.id` on every `ChildBoard` returned by
+  `communicator_child_boards`. If a `ChildBoard`'s `child_account` had been
+  deleted (account teardown leaves an orphan; `original_child_boards` is
+  `dependent: :nullify`), a single orphaned row raised `NoMethodError` and
+  500'd the entire boards index for that owner. `communicator_child_boards`
+  now filters out orphaned rows at the source, protecting every serializer.
+
 ### Added — admin user page: plan changes, editing, Stripe links, email actions
 - The admin dashboard user page (`/admin/users/:id`) can now **change a
   user's plan** (local-only — Stripe is never modified; downgrading to free
