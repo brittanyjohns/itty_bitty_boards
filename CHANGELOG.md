@@ -35,6 +35,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   button on the admin user page — same tombstone path as the Mission Control
   batch cleanup (destroys all content, anonymizes PII, keeps the credit
   ledger). Non-demo and admin accounts can't be deleted from here.
+### Added — Keyboard template boards (ABC + QWERTY), unpublished until frontend support ships
+- New predefined "ABC Keyboard" and "QWERTY Keyboard" boards
+  (`rake keyboard_boards:seed`): 26 letter tiles plus new Space/Delete
+  **action tiles** (`board_images.data["tile_type"]`/`["tile_action"]`), the
+  first tiles whose behavior is an action instead of a spoken word. Seeded
+  `published: false` on purpose — flip to published after the frontend
+  keyboard support (letter composition + read-words-as-written play) deploys.
 
 ### Fixed — MySpeak onboarding no longer publishes emergency notes as public About Me
 - The MySpeak onboarding wizard used to save its care/emergency notes into the
