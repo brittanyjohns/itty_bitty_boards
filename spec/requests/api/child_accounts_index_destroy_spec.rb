@@ -39,6 +39,55 @@ RSpec.describe "API::ChildAccounts index + destroy", type: :request do
     end
   end
 
+  describe "GET /api/child_accounts?handed_off=true" do
+    # Simulate the post-hand-off state: a family now owns the communicator and
+    # the original SLP (the caller) remains on its team as a supervisor.
+    let(:family) { create(:user, plan_type: "pro", created_at: 2.months.ago) }
+
+    def handed_off_communicator(supervisor:, claimed: true)
+      account = create(:child_account, owner: family, user: family, status: "active",
+                                       claimed_at: (claimed ? Time.current : nil),
+                                       username: "ho-#{SecureRandom.hex(3)}")
+      team = create(:team, created_by: family)
+      TeamAccount.create!(team: team, account: account)
+      TeamUser.create!(team: team, user: family, role: "admin")
+      TeamUser.create!(team: team, user: supervisor, role: "supervisor")
+      account
+    end
+
+    it "lists claimed communicators the caller supervises but no longer owns" do
+      handed = handed_off_communicator(supervisor: owner)
+      # A communicator the caller still owns must not appear in this view.
+      create(:child_account, owner: owner, user: owner, status: "active",
+                             username: "own-#{SecureRandom.hex(2)}")
+
+      get "/api/child_accounts?handed_off=true", headers: auth_headers(owner)
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body.map { |a| a["id"] }).to eq([handed.id])
+      expect(body.first["parent_name"]).to eq(family.display_name)
+      expect(body.first["claimed_at"]).to be_present
+    end
+
+    it "excludes a supervised communicator that was never claimed" do
+      handed_off_communicator(supervisor: owner, claimed: false)
+
+      get "/api/child_accounts?handed_off=true", headers: auth_headers(owner)
+
+      expect(JSON.parse(response.body)).to be_empty
+    end
+
+    it "does not leak communicators the caller doesn't supervise" do
+      stranger = create(:user, plan_type: "pro", created_at: 2.months.ago)
+      handed_off_communicator(supervisor: stranger)
+
+      get "/api/child_accounts?handed_off=true", headers: auth_headers(owner)
+
+      expect(JSON.parse(response.body)).to be_empty
+    end
+  end
+
   describe "DELETE /api/child_accounts/:id" do
     it "lets the owner delete a sandbox communicator" do
       sandbox = create(:child_account, owner: owner, user: owner, status: "sandbox",
