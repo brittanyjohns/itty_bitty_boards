@@ -132,9 +132,10 @@ namespace :plans do
     puts "(dry run — no rows were written)" if dry_run
   end
 
-  desc "One-off (2026-07): bump existing Pro users from 1 → 2 sandbox communicator slots. " \
-       "Skips anyone an admin has tuned above 2 so we never lower a deliberate value."
-  task bump_pro_sandbox_to_two: :environment do
+  desc "One-off (2026-07): bump existing Pro users up to 10 sandbox communicator slots. " \
+       "Skips anyone at/above 10 (incl. admin-tuned) so we never lower a deliberate value."
+  task bump_pro_sandbox_to_ten: :environment do
+    target = 10
     dry_run = ENV["DRY_RUN"] == "true"
     bumped = 0
     skipped_higher = 0
@@ -142,30 +143,31 @@ namespace :plans do
 
     scope = User.where(plan_type: %w[pro pro_yearly partner_pro])
 
-    puts "[bump_pro_sandbox_to_two] starting (dry_run=#{dry_run}) — scope=#{scope.count} users"
+    puts "[bump_pro_sandbox_to_ten] starting (dry_run=#{dry_run}) — scope=#{scope.count} users"
 
     scope.find_each(batch_size: 200) do |user|
       user.settings ||= {}
       current = user.settings["demo_communicator_limit"].to_i
 
-      if current >= 2
+      if current >= target
         # Already at the new target or an admin has tuned it higher. Leave it.
         skipped_higher += 1
         next
       end
 
-      if current != 1 && current != 0
-        # Anything other than 1 (or the missing-value sentinel 0) is unexpected
-        # for a Pro user — log it and skip rather than silently overwrite.
+      # Expected pre-bump values are 0 (unset), 1 (the original Pro default),
+      # or 2 (the interim default). Anything else (3..9) is an unexpected
+      # deliberate value — log it and skip rather than silently overwrite.
+      unless [0, 1, 2].include?(current)
         skipped_other += 1
-        warn "[bump_pro_sandbox_to_two] user #{user.id} has unexpected demo_communicator_limit=#{current.inspect} — skipping"
+        warn "[bump_pro_sandbox_to_ten] user #{user.id} has unexpected demo_communicator_limit=#{current.inspect} — skipping"
         next
       end
 
       if dry_run
-        puts "  would bump user=#{user.id} plan=#{user.plan_type} #{current} → 2"
+        puts "  would bump user=#{user.id} plan=#{user.plan_type} #{current} → #{target}"
       else
-        user.settings["demo_communicator_limit"] = 2
+        user.settings["demo_communicator_limit"] = target
         # update_columns to skip callbacks — plan_type isn't changing,
         # so before_save :setup_limits should not re-run.
         user.update_columns(settings: user.settings, updated_at: Time.current)
@@ -174,11 +176,11 @@ namespace :plans do
       print "." if !dry_run && bumped % 100 == 0
     rescue => e
       skipped_other += 1
-      warn "[bump_pro_sandbox_to_two] user #{user.id} failed: #{e.message}"
+      warn "[bump_pro_sandbox_to_ten] user #{user.id} failed: #{e.message}"
     end
 
     puts
-    puts "[bump_pro_sandbox_to_two] done. bumped=#{bumped} " \
+    puts "[bump_pro_sandbox_to_ten] done. bumped=#{bumped} " \
          "skipped_higher=#{skipped_higher} skipped_other=#{skipped_other}"
     puts "(dry run — no rows were written)" if dry_run
   end
