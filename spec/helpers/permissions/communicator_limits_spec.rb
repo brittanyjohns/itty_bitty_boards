@@ -104,6 +104,14 @@ RSpec.describe Permissions::CommunicatorLimits do
         expect(allowed).to be(false)
         expect(http_status).to eq(:unprocessable_content)
       end
+
+      it "allows two sandbox communicators, blocks the third" do
+        2.times { create(:child_account, user: user, owner: user, status: ChildAccount::SANDBOX) }
+
+        allowed, http_status, _error = described_class.can_create?(user: user, status: ChildAccount::SANDBOX)
+        expect(allowed).to be(false)
+        expect(http_status).to eq(:unprocessable_content)
+      end
     end
   end
 
