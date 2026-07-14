@@ -132,6 +132,57 @@ namespace :plans do
     puts "(dry run — no rows were written)" if dry_run
   end
 
+  desc "One-off (2026-07): bump existing Pro users from 1 → 2 sandbox communicator slots. " \
+       "Skips anyone an admin has tuned above 2 so we never lower a deliberate value."
+  task bump_pro_sandbox_to_two: :environment do
+    dry_run = ENV["DRY_RUN"] == "true"
+    bumped = 0
+    skipped_higher = 0
+    skipped_other = 0
+
+    scope = User.where(plan_type: %w[pro pro_yearly partner_pro])
+
+    puts "[bump_pro_sandbox_to_two] starting (dry_run=#{dry_run}) — scope=#{scope.count} users"
+
+    scope.find_each(batch_size: 200) do |user|
+      user.settings ||= {}
+      current = user.settings["demo_communicator_limit"].to_i
+
+      if current >= 2
+        # Already at the new target or an admin has tuned it higher. Leave it.
+        skipped_higher += 1
+        next
+      end
+
+      if current != 1 && current != 0
+        # Anything other than 1 (or the missing-value sentinel 0) is unexpected
+        # for a Pro user — log it and skip rather than silently overwrite.
+        skipped_other += 1
+        warn "[bump_pro_sandbox_to_two] user #{user.id} has unexpected demo_communicator_limit=#{current.inspect} — skipping"
+        next
+      end
+
+      if dry_run
+        puts "  would bump user=#{user.id} plan=#{user.plan_type} #{current} → 2"
+      else
+        user.settings["demo_communicator_limit"] = 2
+        # update_columns to skip callbacks — plan_type isn't changing,
+        # so before_save :setup_limits should not re-run.
+        user.update_columns(settings: user.settings, updated_at: Time.current)
+      end
+      bumped += 1
+      print "." if !dry_run && bumped % 100 == 0
+    rescue => e
+      skipped_other += 1
+      warn "[bump_pro_sandbox_to_two] user #{user.id} failed: #{e.message}"
+    end
+
+    puts
+    puts "[bump_pro_sandbox_to_two] done. bumped=#{bumped} " \
+         "skipped_higher=#{skipped_higher} skipped_other=#{skipped_other}"
+    puts "(dry run — no rows were written)" if dry_run
+  end
+
   desc "Migrate users on the retired MySpeak plan tier to the free plan"
   task migrate_myspeak_to_free: :environment do
     migrated = 0

@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Pro plan now includes 2 sandbox communicators (was 1)
+- `PRO_PLAN_LIMITS["demo_communicator_limit"]` default raised 1 → 2 (ENV
+  `PRO_DEMO_COMMUNICATOR_LIMIT`). Pro users can now keep two no-sign-in sandbox
+  communicators for trialing setups; sandboxes still don't count against
+  sign-in slots.
+- Existing Pro users are backfilled by the one-off task
+  `plans:bump_pro_sandbox_to_two` (dry-run with `DRY_RUN=true`; skips anyone an
+  admin tuned above 2). Production also requires the Hatchbox
+  `PRO_DEMO_COMMUNICATOR_LIMIT` env var set to `2`.
+
 ### Fixed — /api/boards no longer 500s on an orphaned communicator join row
 - `Board#api_view` read `child_account.id` on every `ChildBoard` returned by
   `communicator_child_boards`. If a `ChildBoard`'s `child_account` had been

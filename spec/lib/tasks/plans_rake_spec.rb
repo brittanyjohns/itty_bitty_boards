@@ -131,6 +131,76 @@ RSpec.describe "plans rake task", type: :task do
     end
   end
 
+  describe "plans:bump_pro_sandbox_to_two" do
+    let(:task) { Rake::Task["plans:bump_pro_sandbox_to_two"] }
+
+    it "bumps an existing Pro user from 1 → 2 sandbox slots" do
+      pro = create(:user, plan_type: "pro", created_at: 2.months.ago)
+      pro.update!(settings: pro.settings.merge("demo_communicator_limit" => 1))
+
+      run_task
+
+      expect(pro.reload.settings["demo_communicator_limit"]).to eq(2)
+    end
+
+    it "applies to partner_pro and pro_yearly users" do
+      partner = create(:user, plan_type: "partner_pro", created_at: 2.months.ago)
+      partner.update!(settings: partner.settings.merge("demo_communicator_limit" => 1))
+      yearly = create(:user, plan_type: "pro_yearly", created_at: 2.months.ago)
+      yearly.update!(settings: yearly.settings.merge("demo_communicator_limit" => 1))
+
+      run_task
+
+      expect(partner.reload.settings["demo_communicator_limit"]).to eq(2)
+      expect(yearly.reload.settings["demo_communicator_limit"]).to eq(2)
+    end
+
+    it "preserves an admin-tuned value above the target" do
+      pro = create(:user, plan_type: "pro", created_at: 2.months.ago)
+      pro.update!(settings: pro.settings.merge("demo_communicator_limit" => 5))
+
+      run_task
+
+      expect(pro.reload.settings["demo_communicator_limit"]).to eq(5)
+    end
+
+    it "leaves Basic and Free users untouched" do
+      basic = create(:user, plan_type: "basic", created_at: 2.months.ago)
+      basic.update!(settings: basic.settings.merge("demo_communicator_limit" => 0))
+      free = create(:user, plan_type: "free", created_at: 2.months.ago)
+      free.update!(settings: free.settings.merge("demo_communicator_limit" => 1))
+
+      run_task
+
+      expect(basic.reload.settings["demo_communicator_limit"]).to eq(0)
+      expect(free.reload.settings["demo_communicator_limit"]).to eq(1)
+    end
+
+    it "is idempotent — a second run makes no further changes" do
+      pro = create(:user, plan_type: "pro", created_at: 2.months.ago)
+      pro.update!(settings: pro.settings.merge("demo_communicator_limit" => 1))
+
+      run_task
+      first = pro.reload.settings.dup
+
+      task.reenable
+      task.invoke
+      expect(pro.reload.settings).to eq(first)
+    end
+
+    it "honors DRY_RUN by reporting but not writing" do
+      pro = create(:user, plan_type: "pro", created_at: 2.months.ago)
+      pro.update!(settings: pro.settings.merge("demo_communicator_limit" => 1))
+
+      ENV["DRY_RUN"] = "true"
+      begin
+        expect { run_task }.not_to(change { pro.reload.settings["demo_communicator_limit"] })
+      ensure
+        ENV.delete("DRY_RUN")
+      end
+    end
+  end
+
   describe "plans:reconcile_stranded_paid" do
     let(:task) { Rake::Task["plans:reconcile_stranded_paid"] }
 
