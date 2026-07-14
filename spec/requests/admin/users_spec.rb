@@ -42,6 +42,17 @@ RSpec.describe "Admin::Users", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
+    it "renders and sorts by last login" do
+      user1.update_columns(current_sign_in_at: 1.day.ago)
+      user2.update_columns(current_sign_in_at: 1.hour.ago)
+
+      get admin_dashboard_users_path(sort: "current_sign_in_at", dir: "desc")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Last login")
+      expect(response.body.index("bob@example.com")).to be < response.body.index("alice@example.com")
+    end
+
     it "filters demo accounts" do
       demo = create(:user, email: "bhannajohns+test@gmail.com")
       get admin_dashboard_users_path(filter: "demo")

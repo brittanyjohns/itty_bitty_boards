@@ -6,7 +6,7 @@ module Admin
     CHANGEABLE_PLAN_TYPES = %w[free basic basic_yearly pro pro_yearly plus premium partner_pro].freeze
 
     def index
-      @sort = params[:sort].presence_in(%w[created_at email name plan_type sign_in_count boards]) || "created_at"
+      @sort = params[:sort].presence_in(%w[created_at email name plan_type sign_in_count current_sign_in_at boards]) || "created_at"
       @dir = params[:dir].presence_in(%w[asc desc]) || "desc"
       @filter = params[:filter]
       @search = params[:search]
