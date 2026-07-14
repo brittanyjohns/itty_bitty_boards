@@ -18,8 +18,27 @@ class API::ChildAccountsController < API::ApplicationController
   # unscopes `archived_at` and filters to non-null. Without the param,
   # behavior is unchanged.
   def index
-    scope = ChildAccount.with_boards.where(user_id: current_user.id)
-    scope = scope.archived if ActiveModel::Type::Boolean.new.cast(params[:archived])
+    if ActiveModel::Type::Boolean.new.cast(params[:handed_off])
+      # Communicators this user handed off to a family: they were claimed
+      # (claimed_at set) and the user stayed on the team as a supervisor, but
+      # no longer owns them. There's no previous_owner_id column — supervisor +
+      # claimed + not-owner is the canonical hand-off fingerprint (claim_by!
+      # demotes the previous owner to supervisor). distinct because a user may
+      # sit on more than one of the communicator's teams.
+      scope = ChildAccount.with_boards
+        .joins(:team_users)
+        .where(team_users: { user_id: current_user.id, role: "supervisor" })
+        .where.not(owner_id: current_user.id)
+        .where.not(claimed_at: nil)
+        .distinct
+    else
+      # Scope on owner_id — the canonical ownership column that slot counts,
+      # serializers, and every other action use. (user_id is the legacy parent
+      # mirror; scoping on it could diverge from the "X of Y" counts.) A loaner
+      # keeps owner_id = the lender, so it stays listed until a family claims it.
+      scope = ChildAccount.with_boards.where(owner_id: current_user.id)
+      scope = scope.archived if ActiveModel::Type::Boolean.new.cast(params[:archived])
+    end
     @child_accounts = scope.order(name: :asc)
     render json: @child_accounts.map(&:index_api_view)
   end
@@ -539,10 +558,19 @@ class API::ChildAccountsController < API::ApplicationController
   # DELETE /child_accounts/1
   # DELETE /child_accounts/1.json
   def destroy
-    unless @child_account.user == current_user || current_user.admin?
+    unless @child_account.owner_id == current_user.id || current_user.admin?
       render json: { error: "Unauthorized" }, status: :unauthorized
       return
     end
+
+    # A lent-out communicator has a live claim link a family may be about to
+    # use — deleting it would orphan that link mid-hand-off. Mirror the archive
+    # guard: end the loan first. (reclaim! frees the slot and clears the token.)
+    if @child_account.loaner?
+      render json: account_error_payload("End the loan first via end_loan."), status: :unprocessable_content
+      return
+    end
+
     @child_account.destroy!
   end
 

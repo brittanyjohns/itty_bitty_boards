@@ -1218,6 +1218,7 @@ class ChildAccount < ApplicationRecord
       username: username,
       name: name,
       parent_name: user.display_name,
+      claimed_at: claimed_at,
       board_count: @child_boards.size,
       board_list_sample: current_board_list,
       # Every board id this communicator "has", across both join paths: the

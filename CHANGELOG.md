@@ -5,6 +5,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — communicator roster + delete hardening around the SLP hand-off
+- `GET /api/child_accounts` now scopes on `owner_id` (the column slot counts and
+  serializers use) instead of the legacy `user_id` mirror, so the listed
+  communicators can't diverge from the "X of Y" slot numbers.
+- `DELETE /api/child_accounts/:id` authorizes on `owner_id` and refuses a
+  lent-out `loaner` (HTTP 422, "End the loan first") — mirroring the archive
+  guard so a family's live claim link is never orphaned mid-hand-off.
+
 ### Changed — Pro plan now includes 2 sandbox communicators (was 1)
 - `PRO_PLAN_LIMITS["demo_communicator_limit"]` default raised 1 → 2 (ENV
   `PRO_DEMO_COMMUNICATOR_LIMIT`). Pro users can now keep two no-sign-in sandbox
