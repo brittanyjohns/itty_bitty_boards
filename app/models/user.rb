@@ -328,7 +328,7 @@ class User < ApplicationRecord
     "board_limit" => ENV.fetch("PRO_BOARD_LIMIT", 300).to_i,
     "board_group_limit" => ENV.fetch("PRO_BOARD_GROUP_LIMIT", 50).to_i,
     "paid_communicator_limit" => ENV.fetch("PRO_PAID_COMMUNICATOR_LIMIT", 5).to_i,
-    "demo_communicator_limit" => ENV.fetch("PRO_DEMO_COMMUNICATOR_LIMIT", 2).to_i,
+    "demo_communicator_limit" => ENV.fetch("PRO_DEMO_COMMUNICATOR_LIMIT", 10).to_i,
   }.freeze
 
   def setup_partner_pro_plan

@@ -131,16 +131,25 @@ RSpec.describe "plans rake task", type: :task do
     end
   end
 
-  describe "plans:bump_pro_sandbox_to_two" do
-    let(:task) { Rake::Task["plans:bump_pro_sandbox_to_two"] }
+  describe "plans:bump_pro_sandbox_to_ten" do
+    let(:task) { Rake::Task["plans:bump_pro_sandbox_to_ten"] }
 
-    it "bumps an existing Pro user from 1 → 2 sandbox slots" do
+    it "bumps an existing Pro user from 1 → 10 sandbox slots" do
       pro = create(:user, plan_type: "pro", created_at: 2.months.ago)
       pro.update!(settings: pro.settings.merge("demo_communicator_limit" => 1))
 
       run_task
 
-      expect(pro.reload.settings["demo_communicator_limit"]).to eq(2)
+      expect(pro.reload.settings["demo_communicator_limit"]).to eq(10)
+    end
+
+    it "also bumps a user left at the interim value of 2" do
+      pro = create(:user, plan_type: "pro", created_at: 2.months.ago)
+      pro.update!(settings: pro.settings.merge("demo_communicator_limit" => 2))
+
+      run_task
+
+      expect(pro.reload.settings["demo_communicator_limit"]).to eq(10)
     end
 
     it "applies to partner_pro and pro_yearly users" do
@@ -151,11 +160,20 @@ RSpec.describe "plans rake task", type: :task do
 
       run_task
 
-      expect(partner.reload.settings["demo_communicator_limit"]).to eq(2)
-      expect(yearly.reload.settings["demo_communicator_limit"]).to eq(2)
+      expect(partner.reload.settings["demo_communicator_limit"]).to eq(10)
+      expect(yearly.reload.settings["demo_communicator_limit"]).to eq(10)
     end
 
-    it "preserves an admin-tuned value above the target" do
+    it "preserves an admin-tuned value at or above the target" do
+      pro = create(:user, plan_type: "pro", created_at: 2.months.ago)
+      pro.update!(settings: pro.settings.merge("demo_communicator_limit" => 15))
+
+      run_task
+
+      expect(pro.reload.settings["demo_communicator_limit"]).to eq(15)
+    end
+
+    it "skips an unexpected mid-range value rather than overwriting it" do
       pro = create(:user, plan_type: "pro", created_at: 2.months.ago)
       pro.update!(settings: pro.settings.merge("demo_communicator_limit" => 5))
 

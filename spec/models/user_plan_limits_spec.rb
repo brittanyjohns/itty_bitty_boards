@@ -5,11 +5,11 @@ require "rails_helper"
 RSpec.describe User, "plan limits", type: :model do
   describe "sandbox (legacy demo) communicator limits" do
     # Every Free user gets one sandbox communicator (the MySpeak ID).
-    # Pro gets two; Basic has none.
-    it "grants one sandbox communicator to Free, two to Pro, none to Basic" do
+    # Pro gets ten; Basic has none.
+    it "grants one sandbox communicator to Free, ten to Pro, none to Basic" do
       expect(User::FREE_PLAN_LIMITS["demo_communicator_limit"]).to eq(1)
       expect(User::BASIC_PLAN_LIMITS["demo_communicator_limit"]).to eq(0)
-      expect(User::PRO_PLAN_LIMITS["demo_communicator_limit"]).to eq(2)
+      expect(User::PRO_PLAN_LIMITS["demo_communicator_limit"]).to eq(10)
     end
 
     it "no longer defines a MySpeak plan tier" do

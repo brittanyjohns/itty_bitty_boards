@@ -13,15 +13,14 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   lent-out `loaner` (HTTP 422, "End the loan first") — mirroring the archive
   guard so a family's live claim link is never orphaned mid-hand-off.
 
-### Changed — Pro plan now includes 2 sandbox communicators (was 1)
-- `PRO_PLAN_LIMITS["demo_communicator_limit"]` default raised 1 → 2 (ENV
-  `PRO_DEMO_COMMUNICATOR_LIMIT`). Pro users can now keep two no-sign-in sandbox
-  communicators for trialing setups; sandboxes still don't count against
-  sign-in slots.
+### Changed — Pro plan now includes 10 sandbox communicators (was 1)
+- `PRO_PLAN_LIMITS["demo_communicator_limit"]` default raised 1 → 10 (ENV
+  `PRO_DEMO_COMMUNICATOR_LIMIT`, already `10` in production). Pro users can keep
+  up to ten no-sign-in sandbox communicators for trialing setups; sandboxes
+  still don't count against sign-in slots.
 - Existing Pro users are backfilled by the one-off task
-  `plans:bump_pro_sandbox_to_two` (dry-run with `DRY_RUN=true`; skips anyone an
-  admin tuned above 2). Production also requires the Hatchbox
-  `PRO_DEMO_COMMUNICATOR_LIMIT` env var set to `2`.
+  `plans:bump_pro_sandbox_to_ten` (dry-run with `DRY_RUN=true`; skips anyone at
+  or above 10, incl. admin-tuned).
 
 ### Fixed — /api/boards no longer 500s on an orphaned communicator join row
 - `Board#api_view` read `child_account.id` on every `ChildBoard` returned by

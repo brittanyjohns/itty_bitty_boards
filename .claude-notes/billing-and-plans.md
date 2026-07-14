@@ -460,10 +460,10 @@ sandbox" UI — even after the user became a paying Basic/Pro subscriber.
   the new slot limit is already in `settings` when the callback fires.
 - **Basic-only by design.** `BASIC_PLAN_LIMITS["demo_communicator_limit"] == 0`
   (no sandbox entitlement), so a Basic user's sandbox is always a stuck Free-era
-  leftover and is promoted. **Pro grants 2 sandbox slots**
-  (`PRO_PLAN_LIMITS["demo_communicator_limit"] == 2`, ENV
+  leftover and is promoted. **Pro grants 10 sandbox slots**
+  (`PRO_PLAN_LIMITS["demo_communicator_limit"] == 10`, ENV
   `PRO_DEMO_COMMUNICATOR_LIMIT`; raised from 1 in 2026-07, backfilled onto
-  existing Pro users by `plans:bump_pro_sandbox_to_two`), so a Pro user's
+  existing Pro users by `plans:bump_pro_sandbox_to_ten`), so a Pro user's
   sandboxes are intentional scratch/demo accounts and are left untouched — the
   guard is `sandbox_limit_for(settings) > 0 → skip`.
 - **`ChildAccount#promote_to_active!`** — mirror of `promote_to_loaner!`: flips
