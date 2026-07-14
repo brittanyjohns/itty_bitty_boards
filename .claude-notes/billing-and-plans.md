@@ -144,12 +144,32 @@ The `/sign-up/partner` flow (frontend `viewType="partner"`) posts to the normal
 `POST /api/v1/users` with `plan_type=partner_pro`. `API::V1::AuthsController#sign_up`
 then sets `plan_type=partner_pro`, `plan_status=active`, `role=partner`, and calls
 `User.handle_new_partner_pro_subscription`, which sets
-`plan_expires_at = Time.now + 3.months` (only if nil), tags Mailchimp, and sends
-`PartnerMailer.welcome_email` (the free welcome + welcome journey are skipped).
-Entitlements equal Pro (`setup_partner_pro_plan` → 300 boards / 5 communicators /
-1500 credits). **No Stripe subscription, no card, no promo code** — the grant is
-local DB fields, which is why partners get Pro free for the pilot. `partner_pro`
-is in `RefreshFreeTierCreditsJob`'s refreshable set, so credits re-grant monthly.
+`plan_expires_at = now + PARTNER_PILOT_TRIAL_MONTHS.months` (3, ENV-overridable;
+only if nil), tags Mailchimp, and sends `PartnerMailer.welcome_email` (the free
+welcome + welcome journey are skipped). Entitlements equal Pro
+(`setup_partner_pro_plan` → 300 boards / 5 communicators / 1500 credits).
+
+**A real no-card Stripe trial backs the pilot (Phase 2, built).**
+`handle_new_partner_pro_subscription` calls
+`user.ensure_partner_pro_trial_subscription!(trial_end:)`, which creates a
+`Stripe::Subscription` on the **Partner Pro price** (`STRIPE_PRICE_PARTNER_PRO`,
+$10/mo, `metadata.plan_type=partner_pro`) with `trial_end = plan_expires_at`,
+`trial_settings.end_behavior.missing_payment_method: "cancel"`, and no card
+collected. This reuses the #264 reverse-trial machinery: the subscription rides
+`trialing` for 3 months, fires `trial_will_end` ~3 days out, and — if no card is
+ever added — cancels cleanly at the end → `customer.subscription.deleted` →
+`apply_free_plan` → **Free (content retained via fallback mode)**. Because the
+price metadata is `partner_pro`, the `handle_subscription_upsert` webhook keeps
+the user on `partner_pro` (not plain `pro`) and grants the 1500 allowance.
+Creation is **fail-soft**: a Stripe error is logged and swallowed so signup
+never 500s — the synchronous local grant (below) still provisions the partner,
+and the subscription can be backfilled later. `partner_pro` is in
+`RefreshFreeTierCreditsJob`'s refreshable set, so credits re-grant monthly.
+
+To avoid a double welcome, onboarding pre-seeds
+`settings["plan_welcome_sent_for"] = ["partner_pro"]` so the subscription
+webhook's `send_plan_welcome_email_once!` is a no-op (partners get
+`PartnerMailer.welcome_email`, not the generic Pro welcome).
 
 **Partner Pro is Pro-equivalent everywhere — `User#pro?` returns true for it.**
 `pro?` is `%w[pro pro_yearly partner_pro].include?(plan_type)`, so a partner is
@@ -171,36 +191,43 @@ already exists. So `handle_new_partner_pro_subscription` calls
 (partners stuck on the free allowance) with `rake partners:grant_pro_credits`
 (dry-run by default; `DRY_RUN=false` to apply, `USER_ID=N` to scope).
 
-**The 3-month window is surfaced but NOT enforced (Phase 1, deliberate).**
-`plan_expires_at` was previously set and never read — partners kept Pro forever
-with no signal. `PartnerPilotEndingJob` (daily 5:30am UTC, sidekiq-cron) closes
-that without auto-downgrading (partners are high-value B2B leads managed by hand):
+**Expiry is enforced by Stripe now; `PartnerPilotEndingJob` is digest-only.**
+The trial subscription auto-downgrades at the end (above), so the daily job
+(5:30am UTC, sidekiq-cron) no longer needs to police `plan_expires_at`. It stays
+as an **admin heads-up** so Brittany can convert/extend before the auto-drop:
 
 - **Reminder pass** — partners within `PARTNER_PILOT_REMINDER_LEAD_DAYS` (default
-  14) of `plan_expires_at`, not yet reminded, get `PartnerMailer.pilot_ending_email`
-  (a heads-up, not a shutoff — copy in `partner_mailer.pilot_ending_email`,
-  en + es). Flags `settings["partner_pilot_ending_notified"]` so it fires once.
-- **Expired pass** — partners past `plan_expires_at`, still `partner_pro`, get
-  flagged `settings["partner_pilot_expired"]` + `partner_pilot_expired_at`. **No
-  plan change.** Once-only via the flag.
+  14) of `plan_expires_at` are added to the admin digest once (flagged
+  `settings["partner_pilot_ending_notified"]`). The **partner-facing** nudge is
+  now owned by Stripe's `trial_will_end` webhook + the Mailchimp trial-wrap
+  journey, so the job no longer emails the partner unless
+  `PARTNER_PILOT_LEGACY_REMINDER=true` (kept as an escape hatch).
+- **Expired pass** — partners past `plan_expires_at`, still `partner_pro` (i.e.
+  Stripe's cancel webhook hasn't landed yet), get flagged
+  `settings["partner_pilot_expired"]` + `partner_pilot_expired_at`. Once-only.
 - Both feed a single `AdminMailer.partner_pilot_review` digest to `ADMIN_EMAIL`
   (only sent when there's something) so Brittany can convert/extend/downgrade.
 - `rake partners:pilot_status` — read-only list of pilots by status (ended /
   ending-soon / active / no-date), respects the lead-days ENV.
+- `rake partners:extend USER_ID=N [MONTHS=3] [DRY_RUN=false]` — Stripe-aware
+  extension: moves **both** `plan_expires_at` and the subscription's `trial_end`
+  (via `User#extend_partner_pro_trial!`) so Stripe re-arms the reminder +
+  auto-cancel, and clears the once-flags. Dry-run by default.
 - **Admin dashboard surface.** `Admin::MissionControlHelper#partner_pilot_status`
   computes the same status (never mutates). The server-rendered admin
   (`/admin/users`) has a **Partner** filter and chips non-active pilots
   (`Pilot ended` / `Ending soon`) on the row; the user detail page
   (`/admin/users/:id`) shows a **Partner Pilot** card (end date, days left,
   reminder-sent, expired-flagged) so you can action a partner in one place —
-  extend by bumping `plan_expires_at`, or adjust plan by hand.
+  extend with `rake partners:extend` (Stripe-aware), or adjust plan by hand.
 - **Admin plan changes.** The user detail page can change plans directly
-  (`Admin::UsersController#change_plan`). All changes are **local-only —
-  Stripe is never touched**, so an active Stripe subscription's webhooks can
-  later overwrite them. Semantics: `free` runs
-  `Billing::PlanTransitions.apply_free_plan` (full cancellation);
-  `partner_pro` runs `User.handle_new_partner_pro_subscription` (full partner
-  onboarding); other paid plans set `plan_type` **and `plan_status: "active"`**
+  (`Admin::UsersController#change_plan`). Most changes are **local-only** (Stripe
+  untouched), so an active Stripe subscription's webhooks can later overwrite
+  them. Semantics: `free` runs `Billing::PlanTransitions.apply_free_plan` (full
+  cancellation); `partner_pro` runs `User.handle_new_partner_pro_subscription`
+  (full partner onboarding — this **does** create a Stripe trial subscription,
+  the one exception to local-only); other paid plans set `plan_type` **and
+  `plan_status: "active"`**
   (without the status reset, a previously-canceled user would be
   `plan_stranded?` and auto-reverted to free). `basic_trial` is not
   admin-assignable — trials belong to the soft-trial flow. The page also
@@ -208,10 +235,20 @@ that without auto-downgrading (partners are high-value B2B leads managed by hand
   (board/paid-communicator/demo-communicator), and has queue-only email
   actions (welcome / setup / temp-login).
 
-**Phase 2 (not built):** if partner volume outgrows hand-management, move the
-pilot onto a real Stripe no-card trial (reuses the reverse-trial machinery
-above — auto-expiry, `trial_will_end` reminder, clean cancel→Free, one-click
-conversion) and retire this job + the bespoke `partner_pro` grant.
+**Phase 2 (built):** the pilot now runs on a real Stripe no-card trial (see the
+signup section above) — auto-expiry to Free, `trial_will_end` reminder, clean
+cancel, one-click conversion (add a card → $10/mo Partner Pro). Two pieces are
+deliberately retained for the transition rather than retired: the synchronous
+local credit grant (instant credits + fail-soft when Stripe is down) and
+`PartnerPilotEndingJob` (now digest-only). A follow-up will **backfill** existing
+`partner_pro` users (no `stripe_subscription_id`) onto trial subscriptions using
+their current `plan_expires_at` as `trial_end`.
+
+**Requires `STRIPE_PRICE_PARTNER_PRO` to point at a $10/mo price with
+`metadata.plan_type=partner_pro`.** The old value was a **$0** price
+(`metadata.plan_type=pro`) — a $0 subscription never lapses and would never
+downgrade, so it must be repointed to the paid Partner Pro price for the trial to
+expire correctly.
 
 ### Email-only (passwordless) signup — paid-intent path
 

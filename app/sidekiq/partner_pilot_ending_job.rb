@@ -9,9 +9,12 @@
 # job:
 #
 #   1. REMINDER pass — partners whose `plan_expires_at` is within the lead
-#      window (PARTNER_PILOT_REMINDER_LEAD_DAYS, default 14) and not yet
-#      reminded get a "your pilot is wrapping up" email. Flags
-#      settings["partner_pilot_ending_notified"] so it fires once per pilot.
+#      window (PARTNER_PILOT_REMINDER_LEAD_DAYS, default 14) are added to the
+#      admin digest once (flagged settings["partner_pilot_ending_notified"]).
+#      The partner-facing nudge itself is now owned by Stripe's `trial_will_end`
+#      webhook + the Mailchimp trial-wrap journey (Phase 2 made the pilot a real
+#      no-card Stripe trial), so this pass no longer emails the partner unless
+#      PARTNER_PILOT_LEGACY_REMINDER=true.
 #   2. EXPIRED pass — partners whose `plan_expires_at` has passed and who are
 #      still `partner_pro` get flagged settings["partner_pilot_expired"] (with
 #      partner_pilot_expired_at) so they're findable and counted once. NO plan
@@ -22,10 +25,11 @@
 # flags make the job idempotent: a partner is reminded once and included in the
 # digest once, no matter how many days the cron runs before she deals with them.
 #
-# Deliberately NOT enforcing a downgrade here is Phase 1 of the partner-expiry
-# work (see backend CLAUDE.md "Partner Program"). If partner volume ever
-# outgrows hand-management, Phase 2 moves the pilot onto a real Stripe no-card
-# trial and this job is retired.
+# Downgrade is no longer this job's concern: Phase 2 put the pilot on a real
+# Stripe no-card trial, so expiry now flows through the reverse-trial webhooks
+# (trial lapses → cancel → `customer.subscription.deleted` → Free). This job is
+# now digest-only — an admin heads-up so Brittany can convert/extend before the
+# auto-downgrade lands. It can be retired once that flow is trusted in prod.
 class PartnerPilotEndingJob
   include Sidekiq::Job
 
@@ -49,10 +53,18 @@ class PartnerPilotEndingJob
         flag_expired!(user)
         expired << user
       elsif ends_at <= reminder_cutoff
-        # Ending soon and not yet reminded.
+        # Ending soon and not yet counted for the admin digest.
         next if flagged?(user, REMINDER_FLAG)
 
-        PartnerMailer.pilot_ending_email(user).deliver_now
+        # The partner-facing "your pilot is wrapping up" nudge is now owned by
+        # Stripe's `trial_will_end` webhook + the Mailchimp trial-wrap journey
+        # (the pilot is a real no-card Stripe trial as of Phase 2). This job no
+        # longer emails the partner directly — it only feeds the admin digest so
+        # Brittany still gets a heads-up to convert/extend. Set
+        # PARTNER_PILOT_LEGACY_REMINDER=true to re-enable the bespoke email.
+        if ENV["PARTNER_PILOT_LEGACY_REMINDER"] == "true"
+          PartnerMailer.pilot_ending_email(user).deliver_now
+        end
         flag!(user, REMINDER_FLAG)
         expiring << user
       end

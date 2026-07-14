@@ -83,6 +83,51 @@ namespace :partners do
     puts "Re-run with DRY_RUN=false to apply.\n\n" if dry_run
   end
 
+  # Extend a partner pilot by N months (default 3). Moves BOTH the local
+  # plan_expires_at and the Stripe subscription's trial_end so Stripe re-arms
+  # the trial_will_end reminder and the auto-cancel. Extends from the later of
+  # "now" and the current plan_expires_at, so an already-expired pilot gets a
+  # fresh full window and an active one is pushed further out. Dry-run by
+  # default; apply with DRY_RUN=false. Requires USER_ID=N.
+  #
+  #   USER_ID=42 bin/rails partners:extend                 # dry run, +3 months
+  #   USER_ID=42 MONTHS=6 DRY_RUN=false bin/rails partners:extend
+  desc "Extend a Partner Pro pilot (local plan_expires_at + Stripe trial_end)"
+  task extend: :environment do
+    dry_run = ENV["DRY_RUN"] != "false"
+    months = (ENV["MONTHS"] || 3).to_i
+
+    user_id = ENV["USER_ID"]
+    abort "USER_ID is required (e.g. USER_ID=42 bin/rails partners:extend)" if user_id.blank?
+
+    user = User.find_by(id: user_id)
+    abort "No user with id=#{user_id}" if user.nil?
+    unless user.plan_type == "partner_pro"
+      abort "User ##{user.id} (#{user.email}) is not on partner_pro (plan_type=#{user.plan_type})"
+    end
+
+    base = [Time.current, user.plan_expires_at].compact.max
+    new_end = base + months.months
+
+    puts "\n=== partners:extend (#{dry_run ? 'DRY RUN' : 'APPLYING'}) ==="
+    puts "  User:        ##{user.id}  #{user.email}"
+    puts "  Current end: #{user.plan_expires_at&.strftime('%Y-%m-%d') || '—'}"
+    puts "  New end:     #{new_end.strftime('%Y-%m-%d')} (+#{months} month(s))"
+    puts "  Stripe sub:  #{user.stripe_subscription_id.presence || '(none — local plan_expires_at only)'}"
+
+    if dry_run
+      puts "\nRe-run with DRY_RUN=false to apply.\n\n"
+    else
+      user.extend_partner_pro_trial!(new_end: new_end)
+      # Clear the once-flags so a re-extended pilot can be reminded/flagged again.
+      user.settings.delete("partner_pilot_ending_notified")
+      user.settings.delete("partner_pilot_expired")
+      user.settings.delete("partner_pilot_expired_at")
+      user.save!
+      puts "\nExtended. plan_expires_at is now #{user.reload.plan_expires_at.strftime('%Y-%m-%d')}.\n\n"
+    end
+  end
+
   # One-off: (re)record existing partners in Mailchimp with the stable
   # "Partner Program" trigger tag plus their monthly PartnerPro_<Month> cohort
   # tag. Needed because the signup-time tagging call was broken (passed a String

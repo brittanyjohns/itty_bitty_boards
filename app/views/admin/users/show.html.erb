@@ -92,7 +92,8 @@
       </div>
     </dl>
     <p class="text-[10px] text-t3 mt-3">
-      Partners are never auto-downgraded. Convert, extend (bump <span class="font-mono">plan_expires_at</span>), or downgrade by hand.
+      The pilot is a no-card Stripe trial that auto-downgrades to Free at the end. Extend with
+      <span class="font-mono">rake partners:extend USER_ID=<%= @user.id %></span> (moves the Stripe trial too), or convert/downgrade by hand.
       <span class="font-mono">rake partners:pilot_status</span> lists all pilots.
     </p>
   </div>

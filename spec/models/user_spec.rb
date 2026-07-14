@@ -108,6 +108,104 @@ RSpec.describe User, type: :model do
     end
   end
 
+  describe "Partner Pro trial subscription (Stripe)" do
+    let(:user) { FactoryBot.create(:user, stripe_customer_id: "cus_test") }
+
+    around do |example|
+      original = ENV["STRIPE_PRICE_PARTNER_PRO"]
+      ENV["STRIPE_PRICE_PARTNER_PRO"] = "price_partner_test"
+      example.run
+    ensure
+      ENV["STRIPE_PRICE_PARTNER_PRO"] = original
+    end
+
+    describe "#ensure_partner_pro_trial_subscription!" do
+      it "creates a no-card trial subscription on the partner price and stores the id" do
+        trial_end = 3.months.from_now
+        expect(Stripe::Subscription).to receive(:create).with(
+          hash_including(
+            customer: "cus_test",
+            items: [{ price: "price_partner_test" }],
+            trial_end: trial_end.to_i,
+            trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+          ),
+        ).and_return(double(id: "sub_123"))
+
+        user.ensure_partner_pro_trial_subscription!(trial_end: trial_end)
+        expect(user.reload.stripe_subscription_id).to eq("sub_123")
+      end
+
+      it "is a no-op when a subscription already exists" do
+        user.update_columns(stripe_subscription_id: "sub_existing")
+        expect(Stripe::Subscription).not_to receive(:create)
+
+        expect(user.ensure_partner_pro_trial_subscription!(trial_end: 3.months.from_now))
+          .to eq("sub_existing")
+      end
+
+      it "returns nil and skips Stripe when the price env is unset" do
+        ENV["STRIPE_PRICE_PARTNER_PRO"] = ""
+        expect(Stripe::Subscription).not_to receive(:create)
+
+        expect(user.ensure_partner_pro_trial_subscription!(trial_end: 3.months.from_now)).to be_nil
+      end
+
+      it "fails soft on a Stripe error (never raises, leaves the id nil)" do
+        allow(Stripe::Subscription).to receive(:create).and_raise(Stripe::StripeError.new("boom"))
+
+        expect { user.ensure_partner_pro_trial_subscription!(trial_end: 3.months.from_now) }
+          .not_to raise_error
+        expect(user.reload.stripe_subscription_id).to be_nil
+      end
+    end
+
+    describe "#extend_partner_pro_trial!" do
+      it "moves both plan_expires_at and the Stripe trial_end" do
+        user.update_columns(stripe_subscription_id: "sub_123", plan_expires_at: 1.month.from_now)
+        new_end = 4.months.from_now
+        expect(Stripe::Subscription).to receive(:update).with(
+          "sub_123", hash_including(trial_end: new_end.to_i),
+        ).and_return(double(id: "sub_123"))
+
+        user.extend_partner_pro_trial!(new_end: new_end)
+        expect(user.reload.plan_expires_at).to be_within(1.second).of(new_end)
+      end
+
+      it "updates plan_expires_at only when there is no Stripe subscription" do
+        new_end = 4.months.from_now
+        expect(Stripe::Subscription).not_to receive(:update)
+
+        expect(user.extend_partner_pro_trial!(new_end: new_end)).to be_nil
+        expect(user.reload.plan_expires_at).to be_within(1.second).of(new_end)
+      end
+    end
+
+    describe ".handle_new_partner_pro_subscription with Stripe" do
+      before do
+        allow(MailchimpService).to receive(:new)
+          .and_return(instance_double(MailchimpService, record_new_subscriber: true))
+      end
+
+      it "creates the trial subscription and pre-seeds the plan welcome as sent" do
+        allow(Stripe::Subscription).to receive(:create).and_return(double(id: "sub_abc"))
+
+        User.handle_new_partner_pro_subscription(user)
+
+        expect(user.reload.stripe_subscription_id).to eq("sub_abc")
+        expect(Array(user.settings["plan_welcome_sent_for"])).to include("partner_pro")
+        expect(user.plan_expires_at).to be_present
+      end
+
+      it "still provisions the partner (role + credits) when Stripe creation fails" do
+        allow(Stripe::Subscription).to receive(:create).and_raise(Stripe::StripeError.new("down"))
+
+        expect { User.handle_new_partner_pro_subscription(user) }.not_to raise_error
+        expect(user.reload.role).to eq("partner")
+        expect(user.plan_credits_balance).to eq(CreditService.monthly_credits_for("partner_pro"))
+      end
+    end
+  end
+
   after(:all) do
     Team.destroy_all
     User.destroy_all

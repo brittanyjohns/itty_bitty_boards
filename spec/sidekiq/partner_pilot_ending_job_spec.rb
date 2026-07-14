@@ -22,21 +22,34 @@ RSpec.describe PartnerPilotEndingJob, type: :job do
 
   describe "#perform" do
     context "a partner ending within the lead window" do
-      it "emails the partner and flags them reminded" do
+      it "flags them for the digest without emailing the partner (Stripe/Mailchimp own the nudge)" do
         user = create_partner(plan_expires_at: 5.days.from_now)
 
         expect { job.perform }
           .to change { user.reload.settings["partner_pilot_ending_notified"] }.to(true)
+        expect(partner_reminder_mails).to be_empty
+      end
+
+      it "emails the partner when the legacy reminder is explicitly re-enabled" do
+        create_partner(plan_expires_at: 5.days.from_now)
+
+        climate = ENV["PARTNER_PILOT_LEGACY_REMINDER"]
+        ENV["PARTNER_PILOT_LEGACY_REMINDER"] = "true"
+        begin
+          job.perform
+        ensure
+          ENV["PARTNER_PILOT_LEGACY_REMINDER"] = climate
+        end
+
         expect(partner_reminder_mails).not_to be_empty
       end
 
-      it "does not re-email an already-reminded partner" do
-        create_partner(plan_expires_at: 5.days.from_now,
-                       settings: { "partner_pilot_ending_notified" => true })
+      it "does not re-flag an already-flagged partner" do
+        user = create_partner(plan_expires_at: 5.days.from_now,
+                              settings: { "partner_pilot_ending_notified" => true })
 
-        job.perform
-
-        expect(partner_reminder_mails).to be_empty
+        expect { job.perform }
+          .not_to change { user.reload.settings["partner_pilot_ending_notified"] }
       end
 
       it "does not change plan_type (no downgrade)" do
