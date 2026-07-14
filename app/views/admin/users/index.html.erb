@@ -51,6 +51,7 @@
           ["Plan",       "plan_type"],
           ["Boards",     "boards"],
           ["Sign-ins",   "sign_in_count"],
+          ["Last login", "current_sign_in_at"],
           ["Created",    "created_at"],
         ].each do |label, col| %>
           <th class="text-left text-xs font-medium text-t2 px-5 py-3">
@@ -97,6 +98,9 @@
           </td>
           <td class="px-5 py-3 text-xs text-t3 text-center">
             <%= user.sign_in_count %>
+          </td>
+          <td class="px-5 py-3 text-xs text-t3 whitespace-nowrap">
+            <%= user.current_sign_in_at&.strftime("%b %-d, %Y") || "—" %>
           </td>
           <td class="px-5 py-3 text-xs text-t3 whitespace-nowrap">
             <%= user.created_at.strftime("%b %-d, %Y") %>
