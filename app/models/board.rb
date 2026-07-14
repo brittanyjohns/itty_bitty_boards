@@ -2262,9 +2262,17 @@ class Board < ApplicationRecord
   # clone-source (original_board_id) and direct-attach (board_id — Board
   # Builder roots, and the assignment clones themselves).
   def communicator_child_boards
+    # Reject orphaned join rows whose child_account has been deleted:
+    # original_child_boards is dependent: :nullify (not :destroy), and account
+    # teardown can leave a ChildBoard pointing at a gone child_account. The
+    # api_view serializers below read cb.child_account.id directly, so an
+    # orphan would 500 the whole /api/boards index. Filtering here protects
+    # every call site at once.
     @communicator_child_boards ||=
       (original_child_boards.includes(child_account: :profile).to_a +
-       child_boards.includes(child_account: :profile).to_a).uniq
+       child_boards.includes(child_account: :profile).to_a)
+      .uniq
+      .select(&:child_account)
   end
 
   # Whether viewing_user may edit this board's content. Owner/admin gate plus
