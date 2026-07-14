@@ -199,8 +199,10 @@ as an **admin heads-up** so Brittany can convert/extend before the auto-drop:
 - **Reminder pass** — partners within `PARTNER_PILOT_REMINDER_LEAD_DAYS` (default
   14) of `plan_expires_at` are added to the admin digest once (flagged
   `settings["partner_pilot_ending_notified"]`). The **partner-facing** nudge is
-  now owned by Stripe's `trial_will_end` webhook + the Mailchimp trial-wrap
-  journey, so the job no longer emails the partner unless
+  now owned by Stripe's `trial_will_end` webhook → `MailchimpTrialWrapJob`, which
+  fires the **`partner_pilot_wrap`** journey for partners (names the $10/mo rate,
+  offers "add a card to continue" or "reply to re-up") instead of the generic
+  `trial_wrap`. So the job no longer emails the partner unless
   `PARTNER_PILOT_LEGACY_REMINDER=true` (kept as an escape hatch).
 - **Expired pass** — partners past `plan_expires_at`, still `partner_pro` (i.e.
   Stripe's cancel webhook hasn't landed yet), get flagged

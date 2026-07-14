@@ -50,6 +50,24 @@ RSpec.describe MailchimpTrialWrapJob, type: :job do
       job.perform(user.id, nil)
     end
 
+    context "for a partner pilot" do
+      let(:user) { create(:user, plan_type: "partner_pro", role: "partner") }
+
+      it "triggers the partner_pilot_wrap journey instead of the generic one" do
+        allow(MailchimpClient).to receive(:journeys_enabled?).and_return(true)
+        allow(MailchimpClient).to receive(:journey).with("partner_pilot_wrap")
+          .and_return(journey_id: 70, step_id: 80)
+        allow(mailchimp).to receive(:update_merge_fields)
+
+        expect(MailchimpClient).not_to receive(:journey).with("trial_wrap")
+        expect(mailchimp).to receive(:trigger_journey).with(
+          user, journey_id: 70, step_id: 80
+        )
+
+        job.perform(user.id, nil)
+      end
+    end
+
     it "skips when the trial_wrap journey isn't configured" do
       allow(MailchimpClient).to receive(:journeys_enabled?).and_return(true)
       allow(MailchimpClient).to receive(:journey).with("trial_wrap").and_return(nil)

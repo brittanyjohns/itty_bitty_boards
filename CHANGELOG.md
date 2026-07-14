@@ -15,7 +15,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   both `plan_expires_at` and the Stripe trial end so reminders/auto-cancel
   re-arm. Subscription creation is fail-soft (a Stripe outage never blocks
   signup). Partner-facing "pilot wrapping up" nudges are now owned by Stripe's
-  `trial_will_end` + the Mailchimp trial-wrap journey.
+  `trial_will_end` webhook, which fires a dedicated **`partner_pilot_wrap`**
+  Mailchimp journey for partners (names the $10/mo rate; "add a card to continue"
+  or "reply to re-up your partner program"). Requires
+  `MAILCHIMP_JOURNEY_PARTNER_PILOT_WRAP_ID` / `_STEP` to be set and the journey
+  built in Mailchimp.
 - **Deploy note:** repoint `STRIPE_PRICE_PARTNER_PRO` from the old $0 price to
   the new $10/mo Partner Pro price `price_1TtA0nGfsUBE8bl3knjA2WOD`
   (metadata `plan_type=partner_pro`) — a $0 subscription never lapses and would

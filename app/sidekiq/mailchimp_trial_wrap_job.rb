@@ -11,6 +11,12 @@
 # Merge-field tags (create these in the Mailchimp audience, ≤10 chars each):
 #   TRIAL_END · BOARDS · COMMS
 #
+# Partner pilots ride the same Stripe reverse trial, so this same webhook path
+# covers them — but they get a DIFFERENT journey (`partner_pilot_wrap`): copy
+# that names the $10/mo Partner Pro rate and offers "reply to re-up your partner
+# program" instead of the generic "add a card to keep your plan" nudge. Which
+# journey fires is chosen by `partner_pro?`; both use the same merge fields.
+#
 # Self-contained gating (mirrors MailchimpEventJob's journey path) so it
 # no-ops cleanly when journeys are disabled or the key isn't configured.
 class MailchimpTrialWrapJob
@@ -19,19 +25,22 @@ class MailchimpTrialWrapJob
   sidekiq_options queue: :default, retry: 3
 
   JOURNEY_KEY = "trial_wrap".freeze
+  PARTNER_JOURNEY_KEY = "partner_pilot_wrap".freeze
 
   def perform(user_id, trial_end_epoch = nil)
     user = User.find_by(id: user_id)
     return unless user
 
+    journey_key = user.partner_pro? ? PARTNER_JOURNEY_KEY : JOURNEY_KEY
+
     unless MailchimpClient.journeys_enabled?
-      Rails.logger.info("[Mailchimp] Journeys disabled; skipping #{JOURNEY_KEY} for user #{user_id}")
+      Rails.logger.info("[Mailchimp] Journeys disabled; skipping #{journey_key} for user #{user_id}")
       return
     end
 
-    journey = MailchimpClient.journey(JOURNEY_KEY)
+    journey = MailchimpClient.journey(journey_key)
     unless journey
-      Rails.logger.warn("[Mailchimp] No journey configured for '#{JOURNEY_KEY}'; skipping")
+      Rails.logger.warn("[Mailchimp] No journey configured for '#{journey_key}'; skipping")
       return
     end
 

@@ -69,6 +69,14 @@ GitHub build). Two distinct uses:
       then triggers — so the copy can say "you made N boards, M communicators;
       keep them by continuing." Requires those 3 merge fields to exist in the
       Mailchimp audience (tag names ≤10 chars: `TRIAL_END`, `BOARDS`, `COMMS`).
+    - `partner_pilot_wrap` — the **partner** variant of `trial_wrap`. Same
+      `MailchimpTrialWrapJob`, same `trial_will_end` seam, same merge fields —
+      but when `user.partner_pro?` the job triggers this key instead, so
+      partners get pilot-specific copy (names the $10/mo Partner Pro rate, offers
+      "reply to re-up your partner program" alongside "add a card to continue")
+      rather than the generic reverse-trial nudge. Wire
+      `MAILCHIMP_JOURNEY_PARTNER_PILOT_WRAP_ID` / `_STEP`; unset = no-op (partners
+      simply get no wrap email until the journey is built).
     - `win_back` — enqueued by `MailchimpWinBackJob` (daily, 4:30am UTC)
       re-engaging recently-dormant active users: non-admin, **≥1 board**, last
       sign-in `WIN_BACK_DORMANT_MIN_DAYS`–`WIN_BACK_DORMANT_MAX_DAYS` (default
