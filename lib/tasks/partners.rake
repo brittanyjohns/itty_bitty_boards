@@ -1,4 +1,79 @@
 namespace :partners do
+  # One-time "restart everyone brand new": put an explicit set of partners onto
+  # a fresh no-card Stripe trial (Phase 2), regardless of their current state
+  # (free / pro / partner_pro, with or without a stale subscription). For each
+  # id in IDS:
+  #   1. Cancel + clear any existing Stripe subscription (e.g. the leftover $0
+  #      "free" subs some downgraded partners still carry) so the fresh trial
+  #      isn't skipped by ensure_partner_pro_trial_subscription!'s guard.
+  #   2. Set a staggered trial_end (now + MONTHS + index*STAGGER_DAYS) so the
+  #      partner_pilot_wrap nudges ~3 months out don't all fire the same day.
+  #   3. Run the standard partner onboarding (handle_new_partner_pro_subscription):
+  #      resets plan_type=partner_pro + limits + 1500 credits, creates the fresh
+  #      trial subscription, pre-seeds the welcome guard, and re-tags Mailchimp
+  #      "Partner Program" + the monthly cohort so the journey can fire.
+  #
+  # IDS is REQUIRED and explicit (comma-separated) — no role-based default, so a
+  # stray run can't touch test/demo accounts. Dry-run by default.
+  #
+  #   IDS=244,258,419 bin/rails partners:restart                 # dry run
+  #   IDS=244,258,419 MONTHS=3 STAGGER_DAYS=1 DRY_RUN=false bin/rails partners:restart
+  desc "Restart specific partners on a fresh no-card Stripe trial (IDS=required, dry-run default)"
+  task restart: :environment do
+    dry_run = ENV["DRY_RUN"] != "false"
+    months = (ENV["MONTHS"] || 3).to_i
+    stagger = (ENV["STAGGER_DAYS"] || 1).to_i
+
+    ids = ENV["IDS"].to_s.split(",").map { |s| s.strip.to_i }.reject(&:zero?)
+    abort "IDS is required (e.g. IDS=244,258 bin/rails partners:restart)" if ids.empty?
+
+    users = User.where(id: ids).order(:id).to_a
+    missing = ids - users.map(&:id)
+    puts "\n=== partners:restart (#{dry_run ? 'DRY RUN' : 'APPLYING'}) ==="
+    puts "Requested: #{ids.size}  Found: #{users.size}#{missing.any? ? "  Missing: #{missing.join(', ')}" : ''}"
+    puts "Trial length: #{months} months, staggered +#{stagger} day(s) per partner\n\n"
+
+    base = Time.current
+    done = 0
+    users.each_with_index do |user, i|
+      trial_end = base + months.months + (i * stagger).days
+      label = "##{user.id}  #{user.email.to_s.ljust(36)}"
+      old = "#{user.plan_type}/#{user.plan_status}"
+      sub_note = user.stripe_subscription_id.present? ? "cancel #{user.stripe_subscription_id}" : "no existing sub"
+      puts "#{label}  #{old} -> partner_pro/trialing  ends #{trial_end.strftime('%Y-%m-%d')}  (#{sub_note})"
+      next if dry_run
+
+      begin
+        # 1. Cancel + clear any existing subscription so the fresh trial is created.
+        if user.stripe_subscription_id.present?
+          begin
+            Stripe::Subscription.cancel(user.stripe_subscription_id)
+          rescue Stripe::InvalidRequestError => e
+            Rails.logger.warn "[PartnerRestart] cancel #{user.stripe_subscription_id} for ##{user.id}: #{e.message}"
+          end
+          user.update_columns(stripe_subscription_id: nil)
+        end
+
+        # 2. Clear pilot flags + prior welcome guard so this is a clean slate,
+        #    and set the staggered end date (handle_new_... keeps a non-nil one).
+        %w[partner_pilot_ending_notified partner_pilot_expired partner_pilot_expired_at
+           plan_welcome_sent_for].each { |k| user.settings.delete(k) }
+        user.plan_type = "partner_pro"
+        user.plan_expires_at = trial_end
+        user.save!
+
+        # 3. Standard partner onboarding: fresh trial sub + credits + Mailchimp tags.
+        User.handle_new_partner_pro_subscription(user, "partner_pro")
+        done += 1
+      rescue => e
+        puts "   !! failed for ##{user.id}: #{e.class} - #{e.message}"
+      end
+    end
+
+    puts "\n#{dry_run ? 'Would restart' : 'Restarted'} #{dry_run ? users.size : done} partner(s)."
+    puts "Re-run with DRY_RUN=false to apply.\n\n" if dry_run
+  end
+
   # Read-only snapshot of where every Partner Pro pilot sits relative to its
   # 3-month window. Mirrors the categories PartnerPilotEndingJob acts on so you
   # can see who's ending soon / already ended without waiting for the daily
