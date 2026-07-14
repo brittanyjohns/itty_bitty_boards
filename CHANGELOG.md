@@ -5,6 +5,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Partner Program pilots now run on a real Stripe no-card trial
+- Partner sign-up (`plan_type=partner_pro`) now creates a Stripe subscription on
+  the Partner Pro price ($10/mo, `metadata.plan_type=partner_pro`) with a 3-month
+  no-card trial. When the pilot ends with no card on file, Stripe cancels it
+  cleanly and the user auto-downgrades to Free (content retained) — no more
+  partners sitting on Pro forever. Adding a card converts them at $10/mo.
+- Extend a pilot with `rake partners:extend USER_ID=N [MONTHS=3]`, which moves
+  both `plan_expires_at` and the Stripe trial end so reminders/auto-cancel
+  re-arm. Subscription creation is fail-soft (a Stripe outage never blocks
+  signup). Partner-facing "pilot wrapping up" nudges are now owned by Stripe's
+  `trial_will_end` webhook, which fires a dedicated **`partner_pilot_wrap`**
+  Mailchimp journey for partners (names the $10/mo rate; "add a card to continue"
+  or "reply to re-up your partner program"). Requires
+  `MAILCHIMP_JOURNEY_PARTNER_PILOT_WRAP_ID` / `_STEP` to be set and the journey
+  built in Mailchimp.
+- **Deploy note:** repoint `STRIPE_PRICE_PARTNER_PRO` from the old $0 price to
+  the new $10/mo Partner Pro price `price_1TtA0nGfsUBE8bl3knjA2WOD`
+  (metadata `plan_type=partner_pro`) — a $0 subscription never lapses and would
+  not downgrade.
+
 ### Fixed — communicator roster + delete hardening around the SLP hand-off
 - `GET /api/child_accounts` now scopes on `owner_id` (the column slot counts and
   serializers use) instead of the legacy `user_id` mirror, so the listed

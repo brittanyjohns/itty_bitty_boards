@@ -331,6 +331,11 @@ class User < ApplicationRecord
     "demo_communicator_limit" => ENV.fetch("PRO_DEMO_COMMUNICATOR_LIMIT", 2).to_i,
   }.freeze
 
+  # Length of the Partner Program pilot. Signup creates a real Stripe no-card
+  # trial of this length; extend a pilot by moving the subscription's
+  # `trial_end` (rake partners:extend), which the reverse-trial webhooks honor.
+  PARTNER_PILOT_TRIAL_MONTHS = ENV.fetch("PARTNER_PILOT_TRIAL_MONTHS", 3).to_i
+
   def setup_partner_pro_plan
     self.settings ||= {}
     self.settings["paid_communicator_limit"] = PRO_PLAN_LIMITS["paid_communicator_limit"]
@@ -510,10 +515,24 @@ class User < ApplicationRecord
     Rails.logger.info "Handling Partner Pro subscription for user: #{user.email} with plan_nickname: #{plan_nickname}"
     user.role = "partner"
     user.plan_status = "active"
-    user.plan_expires_at = Time.now + 3.months if user.plan_expires_at.nil?
+    trial_end = user.plan_expires_at || (Time.now + PARTNER_PILOT_TRIAL_MONTHS.months)
+    user.plan_expires_at = trial_end
     partner_group = user.get_partner_group
     user.settings["partner_group"] = partner_group
+    # Partners get PartnerMailer.welcome_email at signup, so mark the generic
+    # plan welcome as already sent — otherwise the Stripe subscription webhook
+    # (send_plan_welcome_email_once!) would send a second, Pro-branded welcome
+    # when the trial subscription lands as `trialing`.
+    already_welcomed = Array(user.settings["plan_welcome_sent_for"])
+    user.settings["plan_welcome_sent_for"] = (already_welcomed + ["partner_pro"]).uniq
     user.save
+
+    # Phase 2: create a real no-card Stripe trial subscription so the pilot
+    # rides the reverse-trial machinery (#264) — auto-expiry to Free at trial
+    # end, the `trial_will_end` reminder, and one-click conversion. Fail-soft:
+    # if Stripe is unreachable the partner is still fully provisioned by the
+    # local grant below, and the subscription can be backfilled later.
+    user.ensure_partner_pro_trial_subscription!(trial_end: trial_end)
 
     # Grant the Partner Pro (Pro-equivalent) credit allowance IMMEDIATELY.
     # The after_create :grant_initial_plan_credits hook already ran while the
@@ -604,6 +623,67 @@ class User < ApplicationRecord
     return stripe_customer_id if stripe_customer_id.present?
     update!(stripe_customer_id: User.create_stripe_customer(email))
     stripe_customer_id
+  end
+
+  # Create a no-card Stripe trial subscription on the Partner Pro price so the
+  # pilot rides the reverse-trial machinery (#264): `trialing` now, a
+  # `trial_will_end` reminder ~3 days out, and — if no card is ever added — a
+  # clean cancel → `customer.subscription.deleted` → downgrade to Free at trial
+  # end (content retained via fallback mode). The Partner Pro price carries
+  # `metadata.plan_type=partner_pro`, so the webhook keeps the user on
+  # `partner_pro` and grants the 1500-credit allowance. No-op if a subscription
+  # already exists. Fail-soft: any Stripe error is logged and swallowed so a
+  # partner signup never 500s — the caller's local grant still provisions them.
+  def ensure_partner_pro_trial_subscription!(trial_end:)
+    return stripe_subscription_id if stripe_subscription_id.present?
+
+    price_id = ENV.fetch("STRIPE_PRICE_PARTNER_PRO", nil).presence
+    if price_id.blank?
+      Rails.logger.error "[PartnerPilot] STRIPE_PRICE_PARTNER_PRO unset; skipping Stripe subscription for user=#{id}"
+      return nil
+    end
+
+    ensure_stripe_customer!
+
+    subscription = Stripe::Subscription.create(
+      customer: stripe_customer_id,
+      items: [{ price: price_id }],
+      trial_end: trial_end.to_i,
+      # No card up front; if the trial ends with none on file, cancel cleanly
+      # instead of cutting an unpayable invoice (mirrors the #264 reverse trial).
+      trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+      metadata: { user_id: id, plan_key: "partner_pro", source: "partner_pilot_signup" },
+    )
+    update_columns(stripe_subscription_id: subscription.id) if subscription.id.present?
+    Rails.logger.info "[PartnerPilot] created trial subscription #{subscription.id} for user=#{id} trial_end=#{trial_end}"
+    subscription
+  rescue => e
+    Rails.logger.error "[PartnerPilot] failed to create trial subscription for user=#{id}: #{e.class} - #{e.message}"
+    nil
+  end
+
+  # Extend a partner pilot: push both the local `plan_expires_at` and the Stripe
+  # subscription's `trial_end` out to `new_end` so Stripe re-arms the
+  # `trial_will_end` reminder and the auto-cancel. Keeps the two in sync (the
+  # reverse-trial webhooks are driven by the Stripe date). Returns the updated
+  # subscription, or nil if there's no Stripe subscription to move.
+  def extend_partner_pro_trial!(new_end:)
+    update!(plan_expires_at: new_end)
+
+    if stripe_subscription_id.blank?
+      Rails.logger.warn "[PartnerPilot] extend: user=#{id} has no stripe_subscription_id; updated plan_expires_at only"
+      return nil
+    end
+
+    subscription = Stripe::Subscription.update(
+      stripe_subscription_id,
+      { trial_end: new_end.to_i, proration_behavior: "none" },
+    )
+    Rails.logger.info "[PartnerPilot] extended trial for user=#{id} sub=#{stripe_subscription_id} to #{new_end}"
+    subscription
+  rescue => e
+    Rails.logger.error "[PartnerPilot] failed to extend trial for user=#{id}: #{e.class} - #{e.message}"
+    nil
   end
 
   def all_required_settings
