@@ -34,6 +34,13 @@ any non-owner. Full matrix in issue #166. Server-side rules:
   non-admin callers. Covers the `active→loaner` lend path too, which skips the
   slot check. The frontend `LoanerControls` Pro gate is now defense-in-depth,
   not the only guard.
+- **Roster + delete are owner-scoped.** `ChildAccountsController#index` scopes
+  on `owner_id` (the canonical ownership column that slot counts and serializers
+  use), not the legacy `user_id` mirror — so the listed communicators can't
+  diverge from the "X of Y" slot numbers, and a loaner stays listed under its
+  lender until claimed. `#destroy` authorizes on `owner_id` and, like `#archive`,
+  **refuses a `loaner`** (HTTP 422, "End the loan first via end_loan.") so a live
+  claim link is never orphaned mid-hand-off.
 - `DELETE /api/teams/:id/remove_member` returns **HTTP 403
   `cannot_remove_owner`** if the target is owner-pinned and the caller is
   neither that user nor a system admin. The owner can remove themselves.
