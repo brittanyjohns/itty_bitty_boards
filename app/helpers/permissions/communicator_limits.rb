@@ -67,7 +67,16 @@ module Permissions
     end
 
     def slot_limit_for(settings)
-      (settings["communicator_slot_limit"] || settings["paid_communicator_limit"] || 0).to_i
+      base = (settings["communicator_slot_limit"] || settings["paid_communicator_limit"] || 0).to_i
+      base + extra_communicator_slots_for(settings)
+    end
+
+    # Pro-only add-on slots purchased on top of the plan's base limit. Kept as a
+    # literal key (not the Billing::ExtraCommunicators constant) so this
+    # low-level permission helper carries no service dependency. See
+    # Billing::ExtraCommunicators for the purchase paths that write it.
+    def extra_communicator_slots_for(settings)
+      (settings["extra_communicator_slots"] || 0).to_i
     end
 
     def sandbox_limit_for(settings)

@@ -304,6 +304,13 @@ class API::WebhooksController < API::ApplicationController
     user.settings.delete("renewal_notice_sent_at")
     user.save!
 
+    # Pro-only extra communicator slots bundled with a pro_5yr license. They live
+    # for the license term and are cleared when it expires (apply_free_plan).
+    extra_communicators = metadata["extra_communicators"].to_i
+    if plan_type == "pro_5yr" && extra_communicators.positive?
+      user.apply_extra_communicator_slots!(extra_communicators)
+    end
+
     # First month's credit allowance. Idempotent on the event id — webhooks are
     # the sole credit-grant authority. A monthly bucket (grant_plan! caps the
     # window at ~35 days); RefreshFreeTierCreditsJob re-grants monthly thereafter
@@ -491,6 +498,13 @@ class API::WebhooksController < API::ApplicationController
     user.setup_limits
 
     user.save!
+
+    # Re-derive Pro-only extra-communicator add-on slots from the LIVE
+    # subscription items, so adding, removing, or cancelling the add-on
+    # self-heals on the next customer.subscription.updated. Non-Pro plans get 0
+    # (a downgrade drops the entitlement even if the Stripe item lingers).
+    extra_qty = user.pro? ? Billing::ExtraCommunicators.quantity_from_subscription(subscription) : 0
+    user.apply_extra_communicator_slots!(extra_qty)
 
     # Send the plan-correct welcome once we know what plan they're on. This is
     # the only path that delivers welcome_basic_email / welcome_pro_email to
@@ -876,9 +890,18 @@ class API::WebhooksController < API::ApplicationController
   end
 
   def first_price_from_subscription(subscription)
-    item = subscription.items&.data&.first
-    return nil unless item
-    item.price
+    items = subscription.items&.data || []
+    return nil if items.empty?
+
+    # Never let the extra-communicator add-on item be read as the plan price.
+    # Prefer the item whose Price carries plan_type metadata (the real plan),
+    # then any non-add-on item, then fall back to the first item.
+    plan_item = items.find do |item|
+      meta = item.price&.metadata || {}
+      meta["plan_type"].present? && !Billing::ExtraCommunicators.extra_comm_item?(item)
+    end
+    plan_item ||= items.find { |item| !Billing::ExtraCommunicators.extra_comm_item?(item) }
+    (plan_item || items.first).price
   end
 
   # Map a Stripe Price's recurring interval to the frontend's billing_interval

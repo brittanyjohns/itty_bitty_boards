@@ -59,6 +59,35 @@ STRIPE_PRICE_TOPUP_LARGE=price_...
 > Final dollar prices and credit amounts are a marketing call —
 > see `docs/credits-handoff.md` §3. The table above is the working proposal.
 
+## 2b. Extra communicator add-on Prices (Pro-only)
+
+Pro users can buy communicator slots on top of the base 5. Create one Product
+("Extra Communicator") with three Prices — tag each with
+`metadata.kind = extra_communicator` so the app can identify the charge even if
+a Price id rotates:
+
+| Price | Type | Metadata |
+|---|---|---|
+| $5.00 USD / month | recurring (monthly) | `kind: extra_communicator` |
+| $50.00 USD / year | recurring (yearly) | `kind: extra_communicator` |
+| $125.00 USD one-time | one_time (bundled with a `pro_5yr` license) | `kind: extra_communicator` |
+
+Then set env vars to the resulting Price IDs:
+
+```
+STRIPE_PRICE_PRO_EXTRA_COMM_MONTHLY=price_...
+STRIPE_PRICE_PRO_EXTRA_COMM_YEARLY=price_...
+STRIPE_PRICE_PRO_EXTRA_COMM_5YR=price_...
+# optional: cap per-account extras (default 20)
+MAX_EXTRA_COMMUNICATORS=20
+```
+
+The recurring prices back `POST /api/subscriptions/communicator_addon`; the
+one-time price is added as a second line item by
+`POST /api/stripe/checkout_sessions/license` when `extra_communicators > 0` on a
+`pro_5yr` license. See `.claude-notes/billing-and-plans.md` → "Extra communicator
+add-on slots".
+
 ## 3. Webhook endpoint
 
 There's already a Stripe webhook configured at `/api/webhooks` that uses

@@ -5,6 +5,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Extra communicator add-on slots (Pro-only)
+- Pro users can buy communicator slots on top of the base 5: **$5/mo or $50/yr**
+  recurring, or **$125 one-time** bundled with a `pro_5yr` 5-Year license.
+- Recurring: `POST /api/subscriptions/communicator_addon { quantity }` sets a
+  recurring add-on subscription item; the subscription webhook re-derives the
+  entitlement from the live subscription so add/remove/cancel self-heals.
+- One-time: `POST /api/stripe/checkout_sessions/license` now accepts
+  `extra_communicators` (Pro license only); the license webhook grants them and
+  they expire with the license.
+- Fixes the long-standing gap where the communicator-limit gate read a
+  `communicator_slot_limit` override that nothing ever wrote — purchased slots
+  are now actually creatable. New ENV: `STRIPE_PRICE_PRO_EXTRA_COMM_MONTHLY`,
+  `STRIPE_PRICE_PRO_EXTRA_COMM_YEARLY`, `STRIPE_PRICE_PRO_EXTRA_COMM_5YR`,
+  `MAX_EXTRA_COMMUNICATORS` (default 20).
+
 ### Added — 5-Year licenses, SpeakAnyWay for Clinicians, and a plan-expiry enforcer
 - **5-Year licenses** (`basic_5yr` $199 / `pro_5yr` $499): a one-time Stripe
   payment (`POST /api/stripe/checkout_sessions/license`, `mode: "payment"`, promo
