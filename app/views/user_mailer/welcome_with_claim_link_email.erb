@@ -51,9 +51,9 @@
   </div>
 
   <div class="container">
-    <!-- MySpeak Logo -->
-    <a href="https://www.speakanyway.com/myspeak-info" target="_blank" rel="noopener" class="logo">
-      <%= image_tag @myspeak_logo.url, alt: "MySpeak Logo" %>
+    <!-- SpeakAnyWay Logo -->
+    <a href="https://app.speakanyway.com" target="_blank" rel="noopener" class="logo">
+      <%= image_tag @logo.url, alt: "SpeakAnyWay Logo" %>
     </a>
 
     <div style="text-align:center;">
@@ -184,11 +184,6 @@
     <p style="font-size:14px; line-height:1.6; text-align:center;">
       <%= t("user_mailer.welcome_with_claim_link_email.questions_html").html_safe %>
     </p>
-
-    <!-- Brand footer -->
-    <a href="https://app.speakanyway.com" target="_blank" rel="noopener" class="logo" style="margin-top:16px;">
-      <%= image_tag @logo.url, alt: "SpeakAnyWay Logo" %>
-    </a>
 
     <div class="footer">
       <%= t("user_mailer.welcome_with_claim_link_email.footer_received") %><br>

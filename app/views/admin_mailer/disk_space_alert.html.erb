@@ -1,4 +1,5 @@
 <div class="container">
+  <%= render "layouts/email_logo" %>
     <div class="header">
         <p>Server disk space <%= @severity == :critical ? "CRITICAL" : "warning" %></p>
     </div>
