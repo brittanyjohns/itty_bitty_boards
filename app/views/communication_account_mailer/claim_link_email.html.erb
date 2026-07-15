@@ -14,6 +14,7 @@
 </head>
 <body>
   <div class="container">
+  <%= render "layouts/email_logo" %>
     <%
       owner = @owner_name.presence || t("communication_account_mailer.claim_link_email.default_owner_name")
       child = @child_name.presence || t("communication_account_mailer.claim_link_email.default_child_name")
