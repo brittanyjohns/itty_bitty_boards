@@ -592,14 +592,21 @@ stay Pro-only. The ladder: free Clinician (100/2/400) → Partner Pro $10/mo
   application per user, enforced by a partial unique index + model validation).
   `GET /api/clinician_applications/mine` returns the latest. Fields: `full_name`,
   `credential_type` (slp/ot/at_specialist/other), `license_id`, `workplace`.
-- **Admin review:** `API::Admin::ClinicianApplicationsController` (built on
-  `API::ApplicationController` + a `require_admin!` that renders **403** for a
-  signed-in non-admin, **401** unauthenticated — 403 = permission per the repo
-  invariant). `approve` flips `plan_type="clinician"` (callbacks set limits +
-  reconcile) and **synchronously grants** the 400-credit allowance (clinician is
-  free / no Stripe invoice, same pattern as the partner_pro comp grant). `deny`
-  records a note. Both send `ClinicianMailer` emails — never the word
-  "Professional".
+- **Admin review — two entry points, one code path.** Approve/deny logic lives in
+  `ClinicianApplications::Reviewer` (`app/services/`): `approve!` flips
+  `plan_type="clinician"` (callbacks set limits + reconcile) and **synchronously
+  grants** the 400-credit allowance (clinician is free / no Stripe invoice, same
+  pattern as the partner_pro comp grant); `deny!` records a note; both send
+  `ClinicianMailer` emails (never "Professional"). Two controllers call it:
+  - **Server-rendered dashboard** — `Admin::ClinicianApplicationsController` at
+    `/admin/clinician_applications` (nav "Clinicians" with a pending-count badge).
+    Pending list + Approve / Deny buttons, admin-authenticated via
+    `Admin::ApplicationController` (non-admins redirected). This is the click-to-
+    approve UI; no frontend deploy needed.
+  - **JSON API** — `API::Admin::ClinicianApplicationsController`
+    (`/api/admin/clinician_applications`), built on `API::ApplicationController` +
+    a `require_admin!` that renders **403** for a signed-in non-admin, **401**
+    unauthenticated. For the React admin / programmatic use.
 
 ### Partner Pro trial landing path (`partner_pro` → `clinician` at trial end)
 

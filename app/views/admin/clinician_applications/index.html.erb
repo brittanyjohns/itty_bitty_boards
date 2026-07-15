@@ -1,0 +1,96 @@
+<% content_for :page_title, "Clinician Applications" %>
+
+<%
+  credential_label = ->(c) do
+    { "slp" => "SLP", "ot" => "OT", "at_specialist" => "AT Specialist", "other" => "Other" }[c.to_s] || (c.presence || "—")
+  end
+  status_badge = ->(s) do
+    case s
+    when "pending"  then "bg-amber-900/60 text-amber-300"
+    when "approved" then "bg-green-900/60 text-green-300"
+    when "denied"   then "bg-red-900/60 text-red-300"
+    else "admin-card-alt text-t2"
+    end
+  end
+%>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">Clinician Applications</h1>
+    <p class="text-sm text-t3 mt-0.5"><%= @pending_count %> pending review</p>
+  </div>
+</div>
+
+<%# ─── Status filter ───────────────────────────────────────── %>
+<div class="flex flex-wrap items-center gap-2 mb-6">
+  <% [["pending", "Pending"], ["approved", "Approved"], ["denied", "Denied"], ["all", "All"]].each do |value, label| %>
+    <%= link_to label, admin_dashboard_clinician_applications_path(status: value),
+          class: "text-xs px-3 py-1.5 rounded border admin-input transition-colors #{@status == value ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"}" %>
+  <% end %>
+</div>
+
+<%# ─── Applications table ──────────────────────────────────── %>
+<div class="admin-card border rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <% ["Applicant", "Name", "Credential", "License ID", "Workplace", "Status", "Submitted", "Reviewed", "Actions"].each do |label| %>
+          <th class="text-left text-xs font-medium text-t2 px-5 py-3 whitespace-nowrap"><%= label %></th>
+        <% end %>
+      </tr>
+    </thead>
+    <tbody>
+      <% @applications.each do |application| %>
+        <tr class="admin-hover-row transition-colors align-top" style="border-bottom: 1px solid var(--border-light);">
+          <td class="px-5 py-3 text-xs text-t1 font-mono whitespace-nowrap">
+            <% if application.user %>
+              <%= link_to application.user.email, admin_dashboard_user_path(application.user), class: "hover:text-accent transition-colors" %>
+            <% else %>
+              <span class="text-t3">(deleted user)</span>
+            <% end %>
+          </td>
+          <td class="px-5 py-3 text-xs text-t2"><%= application.full_name.presence || "—" %></td>
+          <td class="px-5 py-3 text-xs text-t2 whitespace-nowrap"><%= credential_label.call(application.credential_type) %></td>
+          <td class="px-5 py-3 text-xs text-t2"><%= application.license_id.presence || "—" %></td>
+          <td class="px-5 py-3 text-xs text-t2"><%= application.workplace.presence || "—" %></td>
+          <td class="px-5 py-3 whitespace-nowrap">
+            <span class="<%= status_badge.call(application.status) %> inline-block text-xs rounded px-2 py-0.5"><%= application.status %></span>
+          </td>
+          <td class="px-5 py-3 text-xs text-t3 whitespace-nowrap"><%= application.created_at.strftime("%b %-d, %Y") %></td>
+          <td class="px-5 py-3 text-xs text-t3 whitespace-nowrap">
+            <% if application.reviewed_at %>
+              <%= application.reviewed_at.strftime("%b %-d, %Y") %>
+              <% if application.reviewed_by %><div class="text-[10px] text-t3"><%= application.reviewed_by.email %></div><% end %>
+              <% if application.notes.present? %><div class="text-[10px] text-t3 italic max-w-[200px] truncate" title="<%= application.notes %>">“<%= application.notes %>”</div><% end %>
+            <% else %>
+              —
+            <% end %>
+          </td>
+          <td class="px-5 py-3 whitespace-nowrap">
+            <% if application.pending? %>
+              <div class="flex flex-col gap-2">
+                <%= button_to "Approve", approve_admin_dashboard_clinician_application_path(application, status: @status),
+                      method: :post,
+                      class: "text-xs font-medium px-3 py-1.5 rounded bg-green-600 hover:bg-green-500 text-white cursor-pointer",
+                      form: { data: { turbo_confirm: "Approve #{application.user&.email} as a Clinician? This grants the free Clinician plan + 400 credits and emails them." } } %>
+                <%= form_tag deny_admin_dashboard_clinician_application_path(application, status: @status), method: :post, class: "flex items-center gap-1", data: { turbo_confirm: "Deny #{application.user&.email}'s Clinician application?" } do %>
+                  <input type="text" name="notes" placeholder="Reason (optional)"
+                         class="admin-input border rounded px-2 py-1 text-xs w-36 focus:border-indigo-500 focus:outline-none">
+                  <button type="submit" class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1">Deny</button>
+                <% end %>
+              </div>
+            <% else %>
+              <span class="text-xs text-t3">—</span>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <% if @applications.empty? %>
+    <div class="px-5 py-10 text-center text-sm text-t3">
+      No <%= @status == "all" ? "" : @status %> applications.
+    </div>
+  <% end %>
+</div>

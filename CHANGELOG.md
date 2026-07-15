@@ -22,9 +22,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - **SpeakAnyWay for Clinicians** (`clinician`): a free, manually-approved plan for
   verified SLPs/OTs/AT specialists — **Basic-shaped limits (100 boards / 25
   groups)**, a 2-slot loaner cap (protects school pricing), 400 credits/mo.
-  Applicants apply via `POST /api/clinician_applications`; admins review via
-  `GET/POST /api/admin/clinician_applications` (approve flips the plan + grants
-  credits + emails; non-admins get 403). Approval/denial/received emails avoid the
+  Applicants apply via `POST /api/clinician_applications`; admins review from the
+  **`/admin/clinician_applications` dashboard page** (nav "Clinicians" with a
+  pending badge, Approve/Deny buttons) or the JSON API
+  `GET/POST /api/admin/clinician_applications` — both share
+  `ClinicianApplications::Reviewer` (approve flips the plan + grants credits +
+  emails; API non-admins get 403). Approval/denial/received emails avoid the
   word "Professional" (collides with the Pro tier). The board read-only lock now
   applies to clinicians: over their 100-board limit, the most-recently-updated
   100 stay editable and the rest go read-only (retained, never deleted) — the

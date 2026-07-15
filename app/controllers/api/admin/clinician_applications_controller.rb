@@ -20,58 +20,26 @@ class API::Admin::ClinicianApplicationsController < API::ApplicationController
   def approve
     application = ClinicianApplication.find_by(id: params[:id])
     return render_not_found unless application
-    unless application.pending?
-      return render json: { error: "not_pending", message: "This application has already been reviewed." }, status: :unprocessable_content
+
+    result = ClinicianApplications::Reviewer.approve!(application, admin: current_user, notes: params[:notes])
+    if result.ok
+      render json: { application: application_json(application.reload) }
+    else
+      render json: { error: result.error, message: review_error_message(result.error) }, status: :unprocessable_content
     end
-
-    user = application.user
-    ActiveRecord::Base.transaction do
-      # Flip the plan. setup_limits + reconcile callbacks fire on save.
-      user.plan_type = "clinician"
-      user.plan_status = "active"
-      user.save!
-
-      application.update!(
-        status: ClinicianApplication::APPROVED,
-        reviewed_by_id: current_user.id,
-        reviewed_at: Time.current,
-        notes: params[:notes].presence || application.notes,
-      )
-    end
-
-    # Grant the clinician credit allowance immediately. Clinician is a free,
-    # non-Stripe plan, so no webhook/invoice ever fires — this is the same
-    # synchronous-grant pattern used for the partner_pro comp plan. Idempotent
-    # full reset; safe outside the txn.
-    grant_clinician_credits!(user)
-
-    ClinicianMailer.approved_email(application).deliver_later
-    render json: { application: application_json(application.reload) }
-  rescue => e
-    Rails.logger.error "[Admin][ClinicianApplications] approve failed for ##{params[:id]}: #{e.class} - #{e.message}"
-    render json: { error: "approve_failed", message: "Could not approve this application." }, status: :unprocessable_content
   end
 
   # POST /api/admin/clinician_applications/:id/deny
   def deny
     application = ClinicianApplication.find_by(id: params[:id])
     return render_not_found unless application
-    unless application.pending?
-      return render json: { error: "not_pending", message: "This application has already been reviewed." }, status: :unprocessable_content
+
+    result = ClinicianApplications::Reviewer.deny!(application, admin: current_user, notes: params[:notes])
+    if result.ok
+      render json: { application: application_json(application.reload) }
+    else
+      render json: { error: result.error, message: review_error_message(result.error) }, status: :unprocessable_content
     end
-
-    application.update!(
-      status: ClinicianApplication::DENIED,
-      reviewed_by_id: current_user.id,
-      reviewed_at: Time.current,
-      notes: params[:notes].presence,
-    )
-
-    ClinicianMailer.denied_email(application).deliver_later
-    render json: { application: application_json(application) }
-  rescue => e
-    Rails.logger.error "[Admin][ClinicianApplications] deny failed for ##{params[:id]}: #{e.class} - #{e.message}"
-    render json: { error: "deny_failed", message: "Could not deny this application." }, status: :unprocessable_content
   end
 
   private
@@ -85,18 +53,11 @@ class API::Admin::ClinicianApplicationsController < API::ApplicationController
     render json: { error: "not_found", message: "Application not found." }, status: :not_found
   end
 
-  def grant_clinician_credits!(user)
-    amount = CreditService.monthly_credits_for("clinician")
-    return if amount <= 0 || user.admin?
-
-    CreditService.grant_plan!(
-      user,
-      amount: amount,
-      period_end: CreditService.initial_period_end_for("clinician"),
-      metadata: { source: "clinician_approval", plan_type: "clinician" },
-    )
-  rescue => e
-    Rails.logger.error "[Admin][ClinicianApplications] credit grant failed for user=#{user.id}: #{e.class} - #{e.message}"
+  def review_error_message(error)
+    case error
+    when "not_pending" then "This application has already been reviewed."
+    else "Could not update this application."
+    end
   end
 
   def application_json(application)

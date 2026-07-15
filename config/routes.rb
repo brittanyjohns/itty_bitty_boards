@@ -68,6 +68,12 @@ Rails.application.routes.draw do
         post :send_temp_login_email
       end
     end
+    resources :clinician_applications, only: [:index], as: :dashboard_clinician_applications do
+      member do
+        post :approve
+        post :deny
+      end
+    end
   end
 
   get "main/index", as: :home
