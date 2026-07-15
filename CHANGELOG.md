@@ -25,7 +25,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   Applicants apply via `POST /api/clinician_applications`; admins review via
   `GET/POST /api/admin/clinician_applications` (approve flips the plan + grants
   credits + emails; non-admins get 403). Approval/denial/received emails avoid the
-  word "Professional" (collides with the Pro tier).
+  word "Professional" (collides with the Pro tier). The board read-only lock now
+  applies to clinicians: over their 100-board limit, the most-recently-updated
+  100 stay editable and the rest go read-only (retained, never deleted) — the
+  lock generalized from Free's single-editable-board model to the top-N by
+  board limit, with `lock_reason` `plan_board_limit` (vs `free_plan_board_limit`).
 - **Partner Pro trial landing** — Partner Pro **stays as-is** (no fold). When a
   partner_pro no-card trial lapses, `handle_subscription_deleted` now lands the
   user on a free, auto-approved `clinician` account (content retained) instead of

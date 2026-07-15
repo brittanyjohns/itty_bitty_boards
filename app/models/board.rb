@@ -1979,7 +1979,7 @@ class Board < ApplicationRecord
       featured: featured,
       can_edit: can_edit,
       locked: locked_for?(viewing_user),
-      lock_reason: locked_for?(viewing_user) ? "free_plan_board_limit" : nil,
+      lock_reason: lock_reason_for(viewing_user),
       category: category,
       parent_type: parent_type,
       parent_id: parent_id,
@@ -2243,7 +2243,7 @@ class Board < ApplicationRecord
       word_list: current_word_list,
       can_edit: can_edit_for(viewing_user),
       locked: locked_for?(viewing_user),
-      lock_reason: locked_for?(viewing_user) ? "free_plan_board_limit" : nil,
+      lock_reason: lock_reason_for(viewing_user),
       is_template: is_template,
       display_image_url: display_image_url,
       preview_image_url: preview_image_url,
@@ -2300,6 +2300,16 @@ class Board < ApplicationRecord
     !viewing_user.board_editable?(self)
   end
 
+  # The lock_reason string the frontend reads to render its read-only banner.
+  # nil when the board isn't locked. Free users can free a board via
+  # make_editable (single slot) → "free_plan_board_limit"; a limited paid plan
+  # (Clinician) is simply over its plan's board limit → "plan_board_limit".
+  def lock_reason_for(viewing_user)
+    return nil unless locked_for?(viewing_user)
+
+    viewing_user.paid_plan? ? "plan_board_limit" : "free_plan_board_limit"
+  end
+
   def api_view(viewing_user = nil)
     can_edit = can_edit_for(viewing_user)
     locked = locked_for?(viewing_user)
@@ -2329,7 +2339,7 @@ class Board < ApplicationRecord
       communicator_account_data: in_use ? communicator_child_boards.map { |cb| { acct_id: cb.child_account.id, board_id: cb.board_id, original_board_id: cb.original_board_id, acct_name: cb.child_account.name, board_name: cb.board.name, acct_avatar_url: cb.child_account.profile&.avatar_url } } : nil,
       can_edit: can_edit,
       locked: locked,
-      lock_reason: locked ? "free_plan_board_limit" : nil,
+      lock_reason: lock_reason_for(viewing_user),
       layout: layout,
       audio_url: audio_url,
       group_layout: group_layout,
@@ -2386,7 +2396,7 @@ class Board < ApplicationRecord
       # image_count: board_images_count,
       can_edit: can_edit_for(viewing_user),
       locked: locked_for?(viewing_user),
-      lock_reason: locked_for?(viewing_user) ? "free_plan_board_limit" : nil,
+      lock_reason: lock_reason_for(viewing_user),
       display_image_url: display_image_url,
       preview_image_url: preview_image_url,
       display_image_source: display_image_source,

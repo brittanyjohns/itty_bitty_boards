@@ -1731,18 +1731,52 @@ class User < ApplicationRecord
     editable_board_switch_available_at.present?
   end
 
-  # Whether this user may edit the given board's content. Free users over
-  # their board limit can edit only their one designated board; everything
-  # else they own becomes read-only (still fully usable — view/tap/audio).
-  # Assumes FREE_BOARD_LIMIT == 1; if that ENV is raised this under-grants
-  # and the single editable_board_id needs to become a per-board flag.
+  # Whether this user may edit the given board's content. Board-limited plans
+  # over their board limit can edit only a subset of their boards; everything
+  # else they own becomes read-only (still fully usable — view/tap/audio, AAC
+  # usage never breaks). Full paid plans (Basic/Pro/licenses/Partner Pro) are
+  # never board-locked — their limit only gates creation. See editable_board_ids
+  # for how the editable subset is chosen (Free keeps its single designated board
+  # via make_editable + cooldown; Clinician keeps its board_limit most-recently-
+  # updated boards).
   def board_editable?(board)
     return true if admin?
     return true if board.nil? || board.user_id != id
-    return true if paid_plan?
+    return true unless board_limit_locks?
     return true if countable_board_count <= board_limit
 
-    board.id == effective_editable_board_id
+    editable_board_ids.include?(board.id)
+  end
+
+  # True when this user's plan enforces the over-limit read-only board lock: any
+  # non-paid plan (Free / stranded), plus the free **Clinician** plan (paid for
+  # gating, but its Basic-shaped board limit is the product, so over-limit boards
+  # go view-only just like Free). Full paid plans are exempt.
+  def board_limit_locks?
+    return true unless paid_plan?
+    clinician?
+  end
+
+  # The set of this user's board ids that stay editable when over the board
+  # limit. Free (limit 1) keeps the single designated board so the existing
+  # make_editable pick + cooldown flow is unchanged; a higher-limit locked plan
+  # (Clinician, 100) keeps its board_limit most-recently-updated owned boards
+  # (favorites first) — the active work stays editable, stale boards lock.
+  def editable_board_ids
+    if board_limit.to_i <= 1
+      [effective_editable_board_id].compact
+    else
+      top_editable_board_ids
+    end
+  end
+
+  def top_editable_board_ids
+    @top_editable_board_ids ||=
+      boards.where(predefined: false)
+            .where.not(id: builder_grouped_board_ids)
+            .order(favorite: :desc, updated_at: :desc)
+            .limit(board_limit.to_i)
+            .pluck(:id)
   end
 
   def public_page_url

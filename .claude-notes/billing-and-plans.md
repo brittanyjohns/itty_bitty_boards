@@ -387,11 +387,21 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
 **content-mutating endpoints return HTTP 403 `board_locked`**.
 
 - Locked state is **computed**, not stored. A board is locked for its owner
-  when the user is not admin, not on a paid plan, is over their board limit,
-  and the board is not their designated editable board. See
-  `User#board_editable?` (`app/models/user.rb`) and `Board#can_edit_for`
-  (`app/models/board.rb`). The board's `api_view` exposes `can_edit`,
-  `locked`, and `lock_reason` for the frontend.
+  when the user is not admin, is on a **board-limited plan**
+  (`User#board_limit_locks?` — any non-paid plan, **plus the free Clinician
+  plan**), is over their board limit, and the board is not in their **editable
+  set** (`User#editable_board_ids`). See `User#board_editable?`
+  (`app/models/user.rb`) and `Board#can_edit_for` (`app/models/board.rb`). The
+  board's `api_view` exposes `can_edit`, `locked`, and `lock_reason`
+  (`Board#lock_reason_for` — `free_plan_board_limit` for Free, `plan_board_limit`
+  for a limited paid plan like Clinician) for the frontend.
+- **The editable set generalizes to the board limit.** Free (limit 1) keeps the
+  single board the user designates (`editable_board_id`, the make_editable pick +
+  cooldown below); a higher-limit locked plan (**Clinician**, 100) keeps its
+  `board_limit` most-recently-updated owned boards (favorites first,
+  `User#top_editable_board_ids`) — active work stays editable, stale boards lock.
+  Full paid plans (Basic/Pro/licenses/Partner Pro) are never board-locked; their
+  limit only gates creation.
 - "Over their board limit" is computed by `User#countable_board_count` (own,
   non-predefined, non-`builder_child` boards) vs `User#board_limit`. This is the
   **single source of truth** for board counting — `User#at_board_limit?` wraps
@@ -428,9 +438,12 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
   `check_board_create_permissions`.
 - Returns **HTTP 403** with `{ error: "board_locked", message, board_limit,
   editable_board_id }`. **Not 402** — 402 is reserved for credit exhaustion.
-- **Assumes `FREE_BOARD_LIMIT == 1`.** The single `editable_board_id` only
-  frees one board. If the ENV is ever raised above 1, revisit this to a
-  per-board flag or join table.
+- **Free's editable slot assumes `FREE_BOARD_LIMIT == 1`.** The single
+  `editable_board_id` + make_editable pick only frees one board, so it's used
+  only for the limit≤1 case. Higher-limit locked plans (Clinician) don't use a
+  user pick at all — `editable_board_ids` computes the top-`board_limit` set by
+  recency (see above), so there's nothing to pin or rotate. The `make_editable`
+  cooldown machinery is therefore Free-only in practice.
 
 ### Communicator sign-in on downgrade (fallback mode)
 
@@ -570,6 +583,11 @@ stay Pro-only. The ladder: free Clinician (100/2/400) → Partner Pro $10/mo
   Pro-level features must not break) but deliberately **not** into `pro?` — the
   2-slot cap is the product, and widening `pro?` would hand clinicians Pro's 5
   slots. `professional?` stays false too.
+- **Board-limited despite being paid.** Clinician is the one paid plan the
+  read-only board lock applies to (`User#board_limit_locks?`): a clinician over
+  their 100-board limit (e.g. a partner who landed here with 300 boards) keeps
+  the 100 most-recently-updated boards editable and the rest go **read-only**
+  (retained, never deleted). See "Board access on downgrade (read-only rule)".
 - **Application:** `POST /api/clinician_applications` (authenticated; one *pending*
   application per user, enforced by a partial unique index + model validation).
   `GET /api/clinician_applications/mine` returns the latest. Fields: `full_name`,
