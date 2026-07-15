@@ -6,7 +6,7 @@
 #   bundle exec rake demo:myspeak_communicators              # dedicated demo owner
 #   bundle exec rake demo:myspeak_communicators USER_ID=740  # attach to a specific user
 namespace :demo do
-  DEMO_OWNER_EMAIL = "demo-myspeak@speakanyway.dev".freeze
+  DEMO_OWNER_EMAIL = "hello+demo@speakanyway.com".freeze
 
   DEMO_COMMUNICATORS = [
     {

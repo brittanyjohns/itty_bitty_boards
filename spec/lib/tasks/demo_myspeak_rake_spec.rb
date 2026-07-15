@@ -23,7 +23,7 @@ RSpec.describe "demo:myspeak_communicators rake task", type: :task do
     it "seeds 3 active communicators owned by a pro demo user" do
       run_task
 
-      owner = User.find_by(email: "demo-myspeak@speakanyway.dev")
+      owner = User.find_by(email: "hello+demo@speakanyway.com")
       expect(owner).to be_present
       expect(owner.plan_type).to eq("pro")
       expect(owner.plan_status).to eq("active")
@@ -75,7 +75,7 @@ RSpec.describe "demo:myspeak_communicators rake task", type: :task do
       run_task
 
       expect(ChildAccount.where(username: usernames).count).to eq(3)
-      expect(User.where(email: "demo-myspeak@speakanyway.dev").count).to eq(1)
+      expect(User.where(email: "hello+demo@speakanyway.com").count).to eq(1)
       expect(ChildAccount.where(username: usernames).order(:username).pluck(:id)).to eq(first_ids)
       second_slugs = Profile.where(profileable_type: "ChildAccount", profileable_id: first_ids).pluck(:slug).sort
       expect(second_slugs).to eq(first_slugs)
@@ -91,7 +91,7 @@ RSpec.describe "demo:myspeak_communicators rake task", type: :task do
       run_task
 
       expect(ChildAccount.where(username: usernames).pluck(:owner_id).uniq).to eq([existing_owner.id])
-      expect(User.where(email: "demo-myspeak@speakanyway.dev")).to be_empty
+      expect(User.where(email: "hello+demo@speakanyway.com")).to be_empty
     end
   end
 end
