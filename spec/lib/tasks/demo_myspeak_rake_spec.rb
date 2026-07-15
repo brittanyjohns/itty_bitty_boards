@@ -55,7 +55,6 @@ RSpec.describe "demo:myspeak_communicators rake task", type: :task do
       mateo = ChildAccount.find_by(username: "mateo-rivera")
       profile = mateo.profile
       expect(profile).to be_present
-      expect(profile.slug).to eq("mateo-rivera")
       expect(profile.has_safety_info?).to be(true)
       expect(profile.settings["ice_contact_1"]).to include(
         "name" => "Daniela Rivera",
@@ -63,6 +62,29 @@ RSpec.describe "demo:myspeak_communicators rake task", type: :task do
         "relationship" => "Mother",
       )
       expect(profile.settings["emergency_notes"]).to be_present
+    end
+
+    it "gives each communicator a public intro headline + About Me bio (not placeholders)" do
+      run_task
+
+      profile = ChildAccount.find_by(username: "mateo-rivera").profile
+      expect(profile.intro).to eq("Just getting started — and already unstoppable. 🦖")
+      expect(profile.bio).to start_with("Hi, I'm Mateo!")
+      # set_defaults placeholder copy must have been overwritten.
+      expect(profile.intro).not_to include("Personalize your page")
+      expect(profile.bio).not_to include("Write a short bio")
+      # Public headline setting stays in sync with the on-page intro.
+      expect(profile.settings["headline"]).to eq(profile.intro)
+    end
+
+    it "gives each safety profile an unguessable random slug, not the username" do
+      run_task
+
+      ChildAccount.where(username: usernames).each do |ca|
+        expect(ca.profile.slug_type).to eq("random")
+        expect(ca.profile.slug).to match(/\As-[a-z0-9]{6}\z/)
+        expect(ca.profile.slug).not_to eq(ca.username)
+      end
     end
 
     it "is idempotent — a second run adds no rows and keeps slugs stable" do
@@ -79,6 +101,23 @@ RSpec.describe "demo:myspeak_communicators rake task", type: :task do
       expect(ChildAccount.where(username: usernames).order(:username).pluck(:id)).to eq(first_ids)
       second_slugs = Profile.where(profileable_type: "ChildAccount", profileable_id: first_ids).pluck(:slug).sort
       expect(second_slugs).to eq(first_slugs)
+    end
+
+    it "migrates a pre-existing legacy (username-derived) slug to a random one, then keeps it stable" do
+      # Mirror an already-seeded communicator whose profile still has the old
+      # name-derived slug (slug_type "legacy"), as created before this change.
+      ca = create(:child_account, username: "mateo-rivera")
+      legacy = Profile.create!(profileable: ca, profile_kind: "safety",
+                               username: "mateo-rivera", slug: "mateo-rivera", slug_type: "legacy")
+      expect(legacy.slug_type).to eq("legacy")
+
+      run_task
+      migrated_slug = legacy.reload.slug
+      expect(legacy.slug_type).to eq("random")
+      expect(migrated_slug).to match(/\As-[a-z0-9]{6}\z/)
+
+      run_task
+      expect(legacy.reload.slug).to eq(migrated_slug)
     end
   end
 
