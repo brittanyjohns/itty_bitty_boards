@@ -20,18 +20,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   read-only, over-limit communicators in fallback) plus a "license ended" email.
   `partner_pro`/`clinician` are intentionally excluded.
 - **SpeakAnyWay for Clinicians** (`clinician`): a free, manually-approved plan for
-  verified SLPs/OTs/AT specialists — Pro-level board/group limits, a 2-slot
-  loaner cap (protects school pricing), 400 credits/mo. Applicants apply via
-  `POST /api/clinician_applications`; admins review via
+  verified SLPs/OTs/AT specialists — **Basic-shaped limits (100 boards / 25
+  groups)**, a 2-slot loaner cap (protects school pricing), 400 credits/mo.
+  Applicants apply via `POST /api/clinician_applications`; admins review via
   `GET/POST /api/admin/clinician_applications` (approve flips the plan + grants
   credits + emails; non-admins get 403). Approval/denial/received emails avoid the
   word "Professional" (collides with the Pro tier).
-- **Partner fold** — `rake partners:fold_into_clinicians` (dry-run default)
-  converts every `partner_pro` user to `clinician` (role `partner` keeps 5 loaner
-  slots), granting clinician credits and cancelling the old no-card Stripe trial.
-  A guard in `handle_subscription_deleted` no-ops for already-`clinician` users so
-  the cancel can't dump a folded partner onto Free. Run manually after merge,
-  before Oct 14, 2026.
+- **Partner Pro trial landing** — Partner Pro **stays as-is** (no fold). When a
+  partner_pro no-card trial lapses, `handle_subscription_deleted` now lands the
+  user on a free, auto-approved `clinician` account (content retained) instead of
+  Free. Idempotent (no-op for already-clinician users). `PartnerMailer`
+  trial-end copy updated to present the "add a card vs. continue on Clinician"
+  choice. Must be live in prod before Oct 14, 2026 (first trials end Oct 14–20).
 - **Deploy note:** set `STRIPE_PRICE_BASIC_5YR` / `STRIPE_PRICE_PRO_5YR` (live
   prices `price_1TtVOWGfsUBE8bl32zKryqV4` / `price_1TtVOgGfsUBE8bl3a0wSUIcr`);
   staging needs test-mode twins. Register `PlanExpiryJob` in sidekiq-cron (done in

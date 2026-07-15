@@ -11,7 +11,8 @@
 #
 # Intentionally NOT enforced here (scoped out of ENFORCED_PLAN_TYPES):
 #   - partner_pro — expiry is owned by the Stripe no-card reverse-trial cancel
-#     flow (trial lapses -> customer.subscription.deleted -> apply_free_plan).
+#     flow (trial lapses -> customer.subscription.deleted -> lands on a free
+#     clinician account; see API::WebhooksController#land_partner_on_clinician!).
 #   - clinician  — a granted plan that never expires.
 # The query scopes to ENFORCED_PLAN_TYPES so those are untouched; the structure
 # leaves room for other plan types to opt in later.

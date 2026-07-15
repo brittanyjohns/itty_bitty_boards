@@ -335,15 +335,17 @@ class User < ApplicationRecord
   }.freeze
 
   # SpeakAnyWay for Clinicians — a free, manually-approved plan for verified
-  # SLPs/OTs/AT specialists. Pro-level board/group limits, but a deliberately
-  # small paid_communicator_limit (the "loaner cap") that protects school
-  # pricing: clinicians can trial the loaner hand-off with a couple of families,
-  # not run a whole caseload for free. Clinician is NOT Pro — never fold it into
-  # pro? (the 2-slot cap is the product). ENV-overridable like the other tiers.
+  # SLPs/OTs/AT specialists. **Basic-shaped limits** (100 boards / 25 groups, not
+  # Pro's 300/50), with premium features unlocked and a small loaner cap. The free
+  # Clinician account is for evaluating the product and seeding 2 families; a
+  # working caseload is what Pro ($20) and the school license sell — so Pro-only
+  # tools (caseload dashboard, bulk export) stay Pro-only. Clinician is NOT Pro —
+  # never fold it into pro?; these limits are the product. ENV-overridable like
+  # the other tiers. (Limits revised 2026-07-15.)
   CLINICIAN_PLAN_LIMITS = {
     "plan_type" => "clinician",
-    "board_limit" => ENV.fetch("CLINICIAN_BOARD_LIMIT", 300).to_i,
-    "board_group_limit" => ENV.fetch("CLINICIAN_BOARD_GROUP_LIMIT", 50).to_i,
+    "board_limit" => ENV.fetch("CLINICIAN_BOARD_LIMIT", 100).to_i,
+    "board_group_limit" => ENV.fetch("CLINICIAN_BOARD_GROUP_LIMIT", 25).to_i,
     "paid_communicator_limit" => ENV.fetch("CLINICIAN_PAID_COMMUNICATOR_LIMIT", 2).to_i,
     "demo_communicator_limit" => ENV.fetch("CLINICIAN_DEMO_COMMUNICATOR_LIMIT", 2).to_i,
   }.freeze

@@ -728,15 +728,23 @@ class API::WebhooksController < API::ApplicationController
       return
     end
 
-    # Partner fold guard (Part 3): partners:fold_into_clinicians sets the user to
-    # `clinician` and then cancels their old partner_pro no-card Stripe trial.
-    # That cancellation fires this webhook — without this guard, apply_free_plan
-    # would dump a freshly-folded clinician onto Free, wiping their granted plan.
-    # A clinician is a deliberate granted state, never the result of a cancel, so
-    # no-op here. (Idempotent: a real re-delivery for an already-clinician user
-    # is also correctly ignored.)
+    # Idempotent re-delivery / already landed: never dump a clinician to Free.
+    # (The whole handler is also event-id gated, but this guards a partner who
+    # already landed on clinician from a prior delivery.)
     if user.clinician?
-      Rails.logger.info "[StripeWebhook] subscription deleted: user=#{user.id} is clinician; skipping downgrade (partner fold)"
+      Rails.logger.info "[StripeWebhook] subscription deleted: user=#{user.id} already clinician; no-op"
+      return
+    end
+
+    # Partner Pro trial landing (Part 3): a partner_pro no-card trial that lapses
+    # lands the user on a free Clinician account (auto-approved — partners were
+    # vetted at invite time), NOT on Free. Content is retained: the plan_type
+    # callbacks apply Clinician limits and reconcile moves over-limit
+    # communicators into fallback (never deleted). Partner Pro itself is
+    # unchanged — this is only the end-of-trial destination. A partner who added a
+    # card converts to paying and never reaches this missing-payment-method cancel.
+    if user.plan_type == "partner_pro"
+      land_partner_on_clinician!(user, subscription)
       return
     end
 
@@ -775,6 +783,59 @@ class API::WebhooksController < API::ApplicationController
     )
   rescue => e
     Rails.logger.error "[StripeWebhook] handle_subscription_deleted error: #{e.class} - #{e.message}"
+  end
+
+  # Partner Pro no-card trial lapsed → free Clinician account. Sets the plan
+  # (callbacks apply Clinician limits + reconcile communicators), clears the
+  # dead subscription so RefreshFreeTierCreditsJob resumes monthly credit grants,
+  # grants the Clinician allowance (webhook = credit authority; handler is
+  # event-id idempotent), and records an auto-approved ClinicianApplication so
+  # admin tooling stays consistent. Content is retained, never deleted.
+  def land_partner_on_clinician!(user, subscription)
+    previous_plan = user.plan_type
+    user.plan_type = "clinician"
+    user.plan_status = "active"
+    user.stripe_subscription_id = nil
+    user.settings.delete("trial_ends_at")
+    user.save!
+
+    amount = CreditService.monthly_credits_for("clinician")
+    if amount.positive? && !user.admin?
+      CreditService.grant_plan!(
+        user,
+        amount: amount,
+        period_end: CreditService.initial_period_end_for("clinician"),
+        metadata: { source: "partner_trial_to_clinician", previous_plan_type: previous_plan },
+      )
+    end
+
+    ensure_approved_clinician_application!(user)
+
+    Rails.logger.info "[StripeWebhook] subscription deleted: user=#{user.id} #{previous_plan} -> clinician (partner trial landed), content retained"
+
+    AnalyticsEvent.track(
+      "partner_trial_landed_clinician",
+      user_id: user.id,
+      metadata: { previous_plan_type: previous_plan, subscription_id: subscription.id },
+    )
+  rescue => e
+    Rails.logger.error "[StripeWebhook] land_partner_on_clinician! error: #{e.class} - #{e.message}"
+  end
+
+  # Record an approved ClinicianApplication for an auto-converted partner (vetted
+  # at invite time). Idempotent — skips if the user already has an approved one.
+  def ensure_approved_clinician_application!(user)
+    return if user.clinician_applications.approved.exists?
+
+    user.clinician_applications.create!(
+      full_name: user.name.presence || user.email,
+      credential_type: "other",
+      status: ClinicianApplication::APPROVED,
+      reviewed_at: Time.current,
+      notes: "Auto-approved: converted from Partner Pro pilot at trial end.",
+    )
+  rescue => e
+    Rails.logger.error "[StripeWebhook] ensure_approved_clinician_application! error: #{e.class} - #{e.message}"
   end
 
   def handle_subscription_paused(subscription)

@@ -53,11 +53,11 @@ RSpec.describe User, "5-Year license + clinician plan types", type: :model do
       expect(user.professional?).to be(false)
     end
 
-    it "gets clinician limits (300 boards / 50 groups / 2 loaner / 2 sandbox)" do
-      expect(user.settings["board_limit"]).to eq(300)
+    it "gets Basic-shaped clinician limits (100 boards / 25 groups / 2 loaner / 2 sandbox)" do
+      expect(user.settings["board_limit"]).to eq(100)
       expect(user.settings["paid_communicator_limit"]).to eq(2)
       expect(user.settings["demo_communicator_limit"]).to eq(2)
-      expect(user.board_group_limit).to eq(50)
+      expect(user.board_group_limit).to eq(25)
     end
 
     it "has 400 monthly credits" do

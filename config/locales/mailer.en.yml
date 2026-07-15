@@ -486,9 +486,9 @@ en:
       days_left:
         one: "1 day left"
         other: "%{count} days left"
-      keep_going: "Want to keep your Pro-level access — all your boards, communicators, MySpeak IDs, and AI credits — without interruption? You can continue on a paid plan anytime."
-      cta: "See plans & continue"
-      no_pressure: "No pressure, and nothing disappears the moment the pilot ends — your boards stay put. This is just a heads-up so you can decide what's next for you and your students."
+      keep_going: "When your pilot ends you've got two easy options: add a card to keep full Partner Pro at $10/mo (all your Pro-level access, uninterrupted), or do nothing and continue free on a Clinician account. Either way, your boards, communicators, and MySpeak IDs stay — you're never locked out."
+      cta: "Add a card to keep Partner Pro"
+      no_pressure: "No pressure, and nothing disappears the moment the pilot ends. On the free Clinician account anything over the Clinician limits simply becomes view-only — never deleted — so you can pick back up any time. This is just a heads-up so you can decide what's next for you and your students."
       signin_link: "Sign in to your account"
       feedback_note_html: "Have thoughts on the pilot? We'd love to hear them in the <a href=\"%{url}\">Partner Portal</a> — your feedback shapes what we build next. 💜"
       signoff: "Thank you for being part of the journey, — Brittany"

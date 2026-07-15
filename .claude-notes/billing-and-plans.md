@@ -556,10 +556,15 @@ years via `plan_expires_at`. Not a subscription — there is **no**
 
 ### SpeakAnyWay for Clinicians (`clinician`)
 
-A **free**, manually-approved plan for verified SLPs/OTs/AT specialists. Pro-level
-board/group limits (300/50) but a small **`paid_communicator_limit: 2`** loaner
-cap (protects school pricing) and `demo_communicator_limit: 2`; 400 credits/mo.
-All ENV-overridable via `CLINICIAN_*` (`CLINICIAN_PLAN_LIMITS`).
+A **free**, manually-approved plan for verified SLPs/OTs/AT specialists.
+**Basic-shaped limits** (`board_limit: 100`, `board_group_limit: 25`, revised
+2026-07-15 — NOT Pro's 300/50) with premium features unlocked, plus a small
+**`paid_communicator_limit: 2`** loaner cap (protects school pricing) and
+`demo_communicator_limit: 2`; 400 credits/mo. All ENV-overridable via
+`CLINICIAN_*` (`CLINICIAN_PLAN_LIMITS`). The free account is for evaluating the
+product and seeding 2 families — Pro-only tools (caseload dashboard, bulk export)
+stay Pro-only. The ladder: free Clinician (100/2/400) → Partner Pro $10/mo
+(300/5/1500, invite-only) → Pro $20 (families) → school $180/clinician/yr.
 
 - **Not Pro.** `clinician?` is folded into `paid_plan?` (a granted plan — usage +
   Pro-level features must not break) but deliberately **not** into `pro?` — the
@@ -578,26 +583,35 @@ All ENV-overridable via `CLINICIAN_*` (`CLINICIAN_PLAN_LIMITS`).
   records a note. Both send `ClinicianMailer` emails — never the word
   "Professional".
 
-### Partner fold (`partner_pro` → `clinician`)
+### Partner Pro trial landing path (`partner_pro` → `clinician` at trial end)
 
-Hard deadline **Oct 14, 2026**: all `partner_pro` users convert to `clinician`.
-Run **manually** after this PR merges via
-`rake partners:fold_into_clinicians` (dry-run default; `DRY_RUN=false` to apply,
-`USER_ID=N` to scope, `PARTNER_LOANER_SLOTS` default 5).
+**Partner Pro STAYS** as launched (decided 2026-07-15 — supersedes the earlier
+"fold everyone" idea): the $10/mo invite-only plan continues (3 free months, full
+Pro limits). The **only** change (must be live in prod before **Oct 14, 2026** —
+the first live partner trials end Oct 14–20) is the *destination* when a no-card
+trial lapses.
 
-- Per user: flip to `clinician` **first** (local save), so the guard below applies
-  before the Stripe cancel; `role == "partner"` keeps 5 loaner slots (settings
-  override of the clinician 2-slot cap, then re-reconcile); grant the 400-credit
-  clinician allowance; finally cancel + clear the old partner_pro no-card Stripe
-  trial. Idempotent by construction (scope is `plan_type=partner_pro`).
-- **Webhook guard:** `handle_subscription_deleted` **no-ops for already-clinician
-  users**. Cancelling the old trial fires `customer.subscription.deleted`; without
-  the guard `apply_free_plan` would dump a freshly-folded clinician onto Free.
-- **Deferred (flag to Brittany):** the handoff's item 14 "retire the partner
-  checkout path" (remove `partner_pro` from `PLAN_PRICE_IDS` / the partner branch
-  of `#create`, no-op `PartnerPilotEndingJob`, rewrite `PartnerMailer` copy) is
-  **intentionally not done here** — retiring the live partner path *before* the
-  fold actually runs would break active partner signups (they still exist until
-  the fold). Do it in a follow-up once the fold has run and no `partner_pro` rows
-  remain.
+- **Landing guard:** `handle_subscription_deleted` — when the cancelled sub
+  belongs to a `partner_pro` user, `land_partner_on_clinician!` transitions them
+  to a free **`clinician`** account instead of calling `apply_free_plan`. It sets
+  `plan_type="clinician"` + `plan_status="active"`, clears `stripe_subscription_id`
+  (so `RefreshFreeTierCreditsJob` resumes monthly grants), grants the 400-credit
+  clinician allowance, and records an **auto-approved `ClinicianApplication`**
+  (partners were vetted at invite time). Plan-change callbacks apply the Clinician
+  limits and reconcile moves over-limit communicators into fallback — content
+  retained, never deleted. A partner who added a card converts to paying and never
+  reaches this missing-payment-method cancel.
+- **Idempotency:** an early `return if user.clinician?` guards webhook
+  re-delivery (and the whole handler is event-id gated), so a re-fired
+  `subscription.deleted` never re-runs the landing or dumps a clinician to Free.
+  `ensure_approved_clinician_application!` also skips if an approved application
+  already exists.
+- **No fold rake task** — the earlier `partners:fold_into_clinicians` idea was
+  dropped; partners are converted individually, at their own trial end, by this
+  webhook path.
+- **Trial-end messaging:** `PartnerMailer.pilot_ending_email` (and the Mailchimp
+  `partner_pilot_wrap` journey, edited in Mailchimp) present the choice plainly —
+  "add a card to keep Partner Pro at $10/mo, or continue free on a Clinician
+  account; your boards stay either way (over-limit content becomes view-only,
+  never deleted)."
 
