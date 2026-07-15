@@ -88,6 +88,7 @@ Rails.application.routes.draw do
       resources :checkout_sessions, only: :create do
         collection do
           post "topup"
+          post "license"
         end
       end
       post "update_user_from_session", to: "checkout_sessions#update_user_from_session"
@@ -98,6 +99,12 @@ Rails.application.routes.draw do
     end
     post "billing/update_subscription", to: "billing#update_subscription"
     post "billing/webhooks", to: "billing#webhooks"
+    # SpeakAnyWay for Clinicians — applicant-facing endpoints.
+    resources :clinician_applications, only: [:create] do
+      collection do
+        get "mine"
+      end
+    end
     post "open_symbols/search", to: "open_symbols#search_api"
     get "temp-login/:token", to: "temp_logins#show"
     post "set-password", to: "users#set_password"
@@ -523,6 +530,12 @@ Rails.application.routes.draw do
       resources :boards do
         collection do
           get "generated_boards"
+        end
+      end
+      resources :clinician_applications, only: [:index] do
+        member do
+          post "approve"
+          post "deny"
         end
       end
     end

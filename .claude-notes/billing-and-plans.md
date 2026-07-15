@@ -514,3 +514,90 @@ sandbox" UI — even after the user became a paying Basic/Pro subscriber.
   default; `DRY_RUN=false` to apply, `USER_ID=N` to scope to one user). It
   promotes paid users' stuck sandboxes exactly like the callback.
 
+### 5-Year licenses (`basic_5yr` / `pro_5yr`)
+
+One-time-payment entitlements (Basic $199 / Pro $499, web only) that last 5
+years via `plan_expires_at`. Not a subscription — there is **no**
+`stripe_subscription_id`.
+
+- **Plan plumbing:** `basic_5yr` maps to Basic limits/credits, `pro_5yr` to Pro
+  (`setup_limits`, `board_group_limit`, `PLAN_MONTHLY_CREDITS`). `basic?` already
+  matches `basic_5yr` (substring); `pro?` was extended to include `pro_5yr`
+  (exact-list). `paid_plan?` passes both.
+- **Checkout:** `POST /api/stripe/checkout_sessions/license` (`#license`, modeled
+  on `#topup`): `mode: "payment"`, `allow_promotion_codes: true`, metadata
+  `{ kind: "license", plan_type, license_years: 5, monthly_credits, user_id }`.
+  **No `payment_method_collection`** — Stripe rejects it on `mode: payment`.
+  Prices from `LICENSE_PRICE_ENV_KEYS` (`STRIPE_PRICE_BASIC_5YR` /
+  `STRIPE_PRICE_PRO_5YR`), resolved at request time.
+- **Grant:** a one-time payment only fires `checkout.session.completed` (no
+  subscription upsert), so `handle_license_completed` (`kind == "license"`) is the
+  **sole** grant path — without it a license would silently do nothing. It
+  whitelists `plan_type` (`LICENSE_PLAN_TYPES`), sets `plan_status="active"` +
+  `plan_expires_at = license_years.years.from_now`, clears any stale
+  `renewal_notice_sent_at`, and grants the first month's credits
+  (`CreditService.grant_plan!`, idempotent on the Stripe event id). The
+  `update_user_from_session` fast-path mirrors the plan/expiry (no credits) with
+  the same `status=="complete"` + owner checks.
+- **Monthly credits:** licensees have no subscription, so
+  `RefreshFreeTierCreditsJob` re-grants their allowance monthly (both plan types
+  are in `REFRESHABLE_PLAN_TYPES`).
+- **Expiry:** enforced by **`PlanExpiryJob`** (daily, 6am UTC) — the enforcer for
+  `plan_expires_at`, which nothing previously read. Scoped to
+  `ENFORCED_PLAN_TYPES = [basic_5yr, pro_5yr]`. Renewal pass: sends
+  `UserMailer.license_renewal_offer_email` once ~`LICENSE_RENEWAL_NOTICE_LEAD_DAYS`
+  (default 60) before expiry, flagged `settings["renewal_notice_sent_at"]`. Expiry
+  pass: past `plan_expires_at`, routes through
+  `Billing::PlanTransitions.apply_free_plan` (data retained, over-limit boards
+  read-only, over-limit communicators in fallback, free credits granted, editable
+  board pinned) + `license_ended_email`. Idempotent — `apply_free_plan` resets
+  `plan_type` to `free`, so the user leaves the scope. `partner_pro`/`clinician`
+  are deliberately excluded.
+
+### SpeakAnyWay for Clinicians (`clinician`)
+
+A **free**, manually-approved plan for verified SLPs/OTs/AT specialists. Pro-level
+board/group limits (300/50) but a small **`paid_communicator_limit: 2`** loaner
+cap (protects school pricing) and `demo_communicator_limit: 2`; 400 credits/mo.
+All ENV-overridable via `CLINICIAN_*` (`CLINICIAN_PLAN_LIMITS`).
+
+- **Not Pro.** `clinician?` is folded into `paid_plan?` (a granted plan — usage +
+  Pro-level features must not break) but deliberately **not** into `pro?` — the
+  2-slot cap is the product, and widening `pro?` would hand clinicians Pro's 5
+  slots. `professional?` stays false too.
+- **Application:** `POST /api/clinician_applications` (authenticated; one *pending*
+  application per user, enforced by a partial unique index + model validation).
+  `GET /api/clinician_applications/mine` returns the latest. Fields: `full_name`,
+  `credential_type` (slp/ot/at_specialist/other), `license_id`, `workplace`.
+- **Admin review:** `API::Admin::ClinicianApplicationsController` (built on
+  `API::ApplicationController` + a `require_admin!` that renders **403** for a
+  signed-in non-admin, **401** unauthenticated — 403 = permission per the repo
+  invariant). `approve` flips `plan_type="clinician"` (callbacks set limits +
+  reconcile) and **synchronously grants** the 400-credit allowance (clinician is
+  free / no Stripe invoice, same pattern as the partner_pro comp grant). `deny`
+  records a note. Both send `ClinicianMailer` emails — never the word
+  "Professional".
+
+### Partner fold (`partner_pro` → `clinician`)
+
+Hard deadline **Oct 14, 2026**: all `partner_pro` users convert to `clinician`.
+Run **manually** after this PR merges via
+`rake partners:fold_into_clinicians` (dry-run default; `DRY_RUN=false` to apply,
+`USER_ID=N` to scope, `PARTNER_LOANER_SLOTS` default 5).
+
+- Per user: flip to `clinician` **first** (local save), so the guard below applies
+  before the Stripe cancel; `role == "partner"` keeps 5 loaner slots (settings
+  override of the clinician 2-slot cap, then re-reconcile); grant the 400-credit
+  clinician allowance; finally cancel + clear the old partner_pro no-card Stripe
+  trial. Idempotent by construction (scope is `plan_type=partner_pro`).
+- **Webhook guard:** `handle_subscription_deleted` **no-ops for already-clinician
+  users**. Cancelling the old trial fires `customer.subscription.deleted`; without
+  the guard `apply_free_plan` would dump a freshly-folded clinician onto Free.
+- **Deferred (flag to Brittany):** the handoff's item 14 "retire the partner
+  checkout path" (remove `partner_pro` from `PLAN_PRICE_IDS` / the partner branch
+  of `#create`, no-op `PartnerPilotEndingJob`, rewrite `PartnerMailer` copy) is
+  **intentionally not done here** — retiring the live partner path *before* the
+  fold actually runs would break active partner signups (they still exist until
+  the fold). Do it in a follow-up once the fold has run and no `partner_pro` rows
+  remain.
+

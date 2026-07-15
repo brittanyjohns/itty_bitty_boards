@@ -34,7 +34,10 @@ class RefreshFreeTierCreditsJob
     free
     basic_trial
     basic
+    basic_5yr
     pro
+    pro_5yr
+    clinician
     partner_pro
     vendor
     premium

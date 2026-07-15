@@ -86,6 +86,7 @@ class User < ApplicationRecord
   has_many :word_events, dependent: :destroy
   has_many :subscriptions, dependent: :destroy
   has_many :credit_transactions, dependent: :destroy
+  has_many :clinician_applications, dependent: :destroy
   has_secure_token :authentication_token
   # has_many :communicator_accounts, dependent: :destroy
   has_many :scenarios, dependent: :destroy
@@ -264,12 +265,14 @@ class User < ApplicationRecord
     case plan_type
     when "free"
       setup_free_limits
-    when "basic", "basic_yearly", "basic_trial"
+    when "basic", "basic_yearly", "basic_trial", "basic_5yr"
       setup_basic_limits
-    when "pro", "pro_yearly"
+    when "pro", "pro_yearly", "pro_5yr"
       setup_pro_limits
     when "partner_pro"
       setup_partner_pro_plan
+    when "clinician"
+      setup_clinician_limits
     else
       Rails.logger.warn "Unknown plan_type #{plan_type} for user #{id}"
     end
@@ -331,6 +334,20 @@ class User < ApplicationRecord
     "demo_communicator_limit" => ENV.fetch("PRO_DEMO_COMMUNICATOR_LIMIT", 10).to_i,
   }.freeze
 
+  # SpeakAnyWay for Clinicians — a free, manually-approved plan for verified
+  # SLPs/OTs/AT specialists. Pro-level board/group limits, but a deliberately
+  # small paid_communicator_limit (the "loaner cap") that protects school
+  # pricing: clinicians can trial the loaner hand-off with a couple of families,
+  # not run a whole caseload for free. Clinician is NOT Pro — never fold it into
+  # pro? (the 2-slot cap is the product). ENV-overridable like the other tiers.
+  CLINICIAN_PLAN_LIMITS = {
+    "plan_type" => "clinician",
+    "board_limit" => ENV.fetch("CLINICIAN_BOARD_LIMIT", 300).to_i,
+    "board_group_limit" => ENV.fetch("CLINICIAN_BOARD_GROUP_LIMIT", 50).to_i,
+    "paid_communicator_limit" => ENV.fetch("CLINICIAN_PAID_COMMUNICATOR_LIMIT", 2).to_i,
+    "demo_communicator_limit" => ENV.fetch("CLINICIAN_DEMO_COMMUNICATOR_LIMIT", 2).to_i,
+  }.freeze
+
   # Length of the Partner Program pilot. Signup creates a real Stripe no-card
   # trial of this length; extend a pilot by moving the subscription's
   # `trial_end` (rake partners:extend), which the reverse-trial webhooks honor.
@@ -348,6 +365,13 @@ class User < ApplicationRecord
     self.settings["paid_communicator_limit"] = PRO_PLAN_LIMITS["paid_communicator_limit"]
     self.settings["demo_communicator_limit"] = PRO_PLAN_LIMITS["demo_communicator_limit"]
     self.settings["board_limit"] = PRO_PLAN_LIMITS["board_limit"]
+  end
+
+  def setup_clinician_limits
+    self.settings ||= {}
+    self.settings["paid_communicator_limit"] = CLINICIAN_PLAN_LIMITS["paid_communicator_limit"]
+    self.settings["demo_communicator_limit"] = CLINICIAN_PLAN_LIMITS["demo_communicator_limit"]
+    self.settings["board_limit"] = CLINICIAN_PLAN_LIMITS["board_limit"]
   end
 
   def setup_basic_limits
@@ -469,10 +493,12 @@ class User < ApplicationRecord
     return settings["board_group_limit"].to_i if settings["board_group_limit"].present?
 
     case plan_type
-    when "basic", "basic_yearly", "basic_trial"
+    when "basic", "basic_yearly", "basic_trial", "basic_5yr"
       BASIC_PLAN_LIMITS["board_group_limit"]
-    when "pro", "pro_yearly", "partner_pro"
+    when "pro", "pro_yearly", "partner_pro", "pro_5yr"
       PRO_PLAN_LIMITS["board_group_limit"]
+    when "clinician"
+      CLINICIAN_PLAN_LIMITS["board_group_limit"]
     else
       FREE_PLAN_LIMITS["board_group_limit"]
     end
@@ -1171,7 +1197,17 @@ class User < ApplicationRecord
   # flag — so a partner is Pro everywhere those are checked. pro_yearly is
   # included for parity with the setup_limits / board_group_limit case bodies.
   def pro?
-    %w[pro pro_yearly partner_pro].include?(plan_type)
+    %w[pro pro_yearly partner_pro pro_5yr].include?(plan_type)
+  end
+
+  # SpeakAnyWay for Clinicians. A free, granted plan for verified clinicians
+  # with Pro-level features but a small loaner cap (CLINICIAN_PLAN_LIMITS).
+  # Deliberately NOT part of pro? — the reduced paid_communicator_limit is the
+  # product, and widening pro? would hand clinicians Pro's 5 slots. It is a paid
+  # (granted) plan for gating purposes: paid_plan? returns true so AAC usage and
+  # Pro-level features never break for an approved clinician.
+  def clinician?
+    plan_type == "clinician"
   end
 
   def pro_vendor?
@@ -1206,7 +1242,7 @@ class User < ApplicationRecord
     return true if admin?
     return false if plan_type.blank?
     return false if UNPAID_STATUSES.include?(plan_status.to_s)
-    basic? || pro? || plus? || premium? || pro_vendor?
+    basic? || pro? || plus? || premium? || pro_vendor? || clinician?
   end
 
   # True when the user is in the "stranded" limbo state: a non-paying

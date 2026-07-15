@@ -42,9 +42,13 @@ class API::WebhooksController < API::ApplicationController
       handle_customer_created(event.data.object)
     when "checkout.session.completed"
       session_obj = event.data.object
-      if (session_obj.metadata || {})["kind"] == "topup"
+      kind = (session_obj.metadata || {})["kind"]
+      if kind == "topup"
         handled = handle_topup_completed(session_obj, event.id)
         result = { error: "topup_not_credited" } unless handled
+      elsif kind == "license"
+        handled = handle_license_completed(session_obj, event.id)
+        result = { error: "license_not_granted" } unless handled
       else
         user = handle_checkout_completed(session_obj)
         unless user
@@ -84,6 +88,11 @@ class API::WebhooksController < API::ApplicationController
   private
 
   STRIPE_PROVIDER = "stripe"
+
+  # Plan types issued by a one-time 5-Year license purchase (metadata.plan_type
+  # on a kind=license checkout session). Whitelist so a malformed/tampered
+  # session can't grant an arbitrary plan.
+  LICENSE_PLAN_TYPES = %w[basic_5yr pro_5yr].freeze
 
   # Record a fully-processed event for idempotency + audit. Called only after the
   # handler runs without raising. Swallows the unique-index race from a
@@ -242,6 +251,96 @@ class API::WebhooksController < API::ApplicationController
     true
   rescue => e
     Rails.logger.error "[StripeWebhook][topup] error: #{e.class} - #{e.message}"
+    false
+  end
+
+  # checkout.session.completed where metadata.kind == "license" — a one-time
+  # 5-Year license purchase (basic_5yr / pro_5yr). Sets the plan, a 5-year
+  # plan_expires_at (enforced by PlanExpiryJob), and grants the first month's
+  # credits. The credit grant is idempotent on the Stripe event id, so a webhook
+  # retry never double-grants. Returns truthy when the license was applied.
+  #
+  # This is the SOLE authority for granting a license — checkout.session.completed
+  # is the only Stripe event a one-time payment fires (no subscription upsert),
+  # so without this branch a license would silently do nothing.
+  def handle_license_completed(session, event_id)
+    metadata = session.metadata || {}
+
+    # A one-time payment only grants on genuine completion — never on an
+    # abandoned/expired session. Stripe only fires checkout.session.completed for
+    # completed sessions, but guard defensively.
+    status = session.respond_to?(:status) ? session.status : nil
+    if status.present? && status != "complete"
+      Rails.logger.info "[StripeWebhook][license] session #{session.id} status=#{status}; not granting"
+      return false
+    end
+
+    user = User.find_by(id: metadata["user_id"]) if metadata["user_id"].present?
+    user ||= User.find_by(stripe_customer_id: session.customer) if session.customer.present?
+    user ||= User.find_by(email: session.customer_details&.email) if session.customer_details&.email.present?
+
+    unless user
+      Rails.logger.error "[StripeWebhook][license] no user for session #{session.id}"
+      return false
+    end
+
+    plan_type = LICENSE_PLAN_TYPES.include?(metadata["plan_type"].to_s) ? metadata["plan_type"].to_s : nil
+    unless plan_type
+      Rails.logger.error "[StripeWebhook][license] session #{session.id} has unknown plan_type=#{metadata["plan_type"].inspect}"
+      return false
+    end
+
+    license_years = metadata["license_years"].to_i
+    license_years = 5 if license_years <= 0
+
+    # Set the plan + expiry. setup_limits fires via the plan_type_changed?
+    # callback on save. Clear any stale renewal-notice flag so a renewed license
+    # gets a fresh T-60 notice from PlanExpiryJob.
+    user.plan_type = plan_type
+    user.plan_status = "active"
+    user.plan_expires_at = license_years.years.from_now
+    user.stripe_customer_id ||= session.customer
+    user.settings ||= {}
+    user.settings.delete("renewal_notice_sent_at")
+    user.save!
+
+    # First month's credit allowance. Idempotent on the event id — webhooks are
+    # the sole credit-grant authority. A monthly bucket (grant_plan! caps the
+    # window at ~35 days); RefreshFreeTierCreditsJob re-grants monthly thereafter
+    # since licensees have no stripe_subscription_id.
+    amount = (metadata["monthly_credits"].presence || CreditService.monthly_credits_for(plan_type)).to_i
+    if amount.positive? && !user.admin?
+      CreditService.grant_plan!(
+        user,
+        amount: amount,
+        period_end: CreditService.initial_period_end_for(plan_type),
+        stripe_event_id: event_id,
+        metadata: {
+          checkout_session_id: session.id,
+          plan_type: plan_type,
+          license_years: license_years,
+          source: "checkout.session.completed:license",
+        },
+      )
+    end
+
+    Rails.logger.info "[StripeWebhook][license] granted user=#{user.id} plan=#{plan_type} expires=#{user.plan_expires_at} session=#{session.id}"
+
+    PosthogService.capture_for_user(
+      user,
+      "checkout_completed",
+      properties: {
+        plan: plan_type,
+        kind: "license",
+        amount_total: session.amount_total,
+        currency: session.currency,
+        source: "stripe_webhook",
+      },
+    )
+
+    true
+  rescue => e
+    Rails.logger.error "[StripeWebhook][license] error: #{e.class} - #{e.message}"
     false
   end
 
@@ -626,6 +725,18 @@ class API::WebhooksController < API::ApplicationController
     user = find_user_for_subscription(subscription)
     unless user
       Rails.logger.error "[StripeWebhook] subscription deleted: no user for customer #{subscription.customer}"
+      return
+    end
+
+    # Partner fold guard (Part 3): partners:fold_into_clinicians sets the user to
+    # `clinician` and then cancels their old partner_pro no-card Stripe trial.
+    # That cancellation fires this webhook — without this guard, apply_free_plan
+    # would dump a freshly-folded clinician onto Free, wiping their granted plan.
+    # A clinician is a deliberate granted state, never the result of a cancel, so
+    # no-op here. (Idempotent: a real re-delivery for an already-clinician user
+    # is also correctly ignored.)
+    if user.clinician?
+      Rails.logger.info "[StripeWebhook] subscription deleted: user=#{user.id} is clinician; skipping downgrade (partner fold)"
       return
     end
 

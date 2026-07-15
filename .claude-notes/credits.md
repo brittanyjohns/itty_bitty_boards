@@ -108,6 +108,15 @@ Plan-credit lifecycle:
 - **Free tier allowance:** 25 credits/month
   (`CreditService::PLAN_MONTHLY_CREDITS["free"]`). Applied on signup,
   refresh, and post-cancellation.
+- **No-subscription paid plans ride the refresh job.** 5-Year licenses
+  (`basic_5yr` 400 / `pro_5yr` 1500) and `clinician` (400) have no Stripe
+  subscription, so their monthly re-grant comes from `RefreshFreeTierCreditsJob`
+  (all three are in `PLAN_MONTHLY_CREDITS` + `REFRESHABLE_PLAN_TYPES`). Their
+  **first** grant is synchronous, not from a webhook invoice: licenses grant in
+  `handle_license_completed` (idempotent on the Stripe event id), clinician
+  grants at admin approval, and the partner fold grants at conversion — the same
+  "comp plan, granted outside webhooks" pattern as `partner_pro`. See
+  `.claude-notes/billing-and-plans.md` for the plan mechanics.
 
 Tasks:
 

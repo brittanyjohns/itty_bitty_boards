@@ -27,6 +27,19 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     "partner_pro" => ENV.fetch("STRIPE_PRICE_PARTNER_PRO", nil),
   }.freeze
 
+  # 5-Year licenses are a ONE-TIME Stripe payment (mode: "payment"), not a
+  # subscription — Basic $199 / Pro $499, web only. Entitlement lasts
+  # LICENSE_YEARS via plan_expires_at, enforced by PlanExpiryJob. Resolved from
+  # ENV at request time so deploy/test env changes take effect without a
+  # class-cache reset. The webhook grants the plan (handle_license_completed);
+  # the checkout session only carries the metadata it reads.
+  LICENSE_PRICE_ENV_KEYS = {
+    "basic_5yr" => "STRIPE_PRICE_BASIC_5YR",
+    "pro_5yr" => "STRIPE_PRICE_PRO_5YR",
+  }.freeze
+
+  LICENSE_YEARS = 5
+
   # Resolved at request time (not class load) so changes to ENV in deploy
   # configs or in test setup take effect without a class-cache reset.
   TOPUP_PRICE_ENV_KEYS = {
@@ -263,6 +276,77 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     render json: { error: "Failed to create top-up session" }, status: :bad_request
   end
 
+  # POST /api/stripe/checkout_sessions/license
+  # Body: { plan_key: "basic_5yr"|"pro_5yr", promo_code: "...", source: "..." }
+  # Creates a ONE-TIME payment Checkout Session for a 5-Year license. On payment
+  # success the Stripe webhook (checkout.session.completed with
+  # metadata.kind=license) calls handle_license_completed, which sets the plan,
+  # a 5-year plan_expires_at, and grants the first month's credits — see
+  # API::WebhooksController. Modeled on #topup (mode: "payment").
+  def license
+    plan_key = params[:plan_key].to_s
+    env_key = LICENSE_PRICE_ENV_KEYS[plan_key]
+    price_id = env_key.present? ? ENV[env_key].presence : nil
+    source = params[:source].to_s.strip.presence || "web_checkout"
+
+    if price_id.blank?
+      render json: { error: "Unknown or unconfigured plan_key" }, status: :bad_request
+      return
+    end
+
+    ensure_customer!
+
+    monthly_credits = CreditService.monthly_credits_for(plan_key)
+
+    # NOTE: `payment_method_collection` is only valid on subscription-mode
+    # Checkout Sessions — Stripe rejects it on mode=payment ("You can only set
+    # `payment_method_collection` if there are recurring prices"). Leaving it
+    # off; mode=payment collects a payment method by default.
+    #
+    # allow_promotion_codes lets the October tranche promo (FOUNDING5, 20% off)
+    # apply at checkout — the promo itself is created in the Stripe dashboard, no
+    # code needed here.
+    session = Stripe::Checkout::Session.create(
+      mode: "payment",
+      customer: current_user.stripe_customer_id,
+      client_reference_id: current_user.id.to_s,
+      line_items: [{ price: price_id, quantity: 1 }],
+      success_url: "#{frontend_base_url}/billing/success?session_id={CHECKOUT_SESSION_ID}&type=license",
+      cancel_url: "#{frontend_base_url}/pricing",
+      allow_promotion_codes: true,
+      metadata: {
+        kind: "license",
+        user_id: current_user.id,
+        plan_type: plan_key,
+        license_years: LICENSE_YEARS,
+        monthly_credits: monthly_credits,
+        source: source,
+      },
+    )
+    # Record the picked plan so the checkout_completed analytics can name it,
+    # mirroring the subscription path. Does NOT grant anything — the webhook is
+    # the sole authority for plan + credits.
+    current_user.update!(paid_plan_type: plan_key)
+
+    PosthogService.capture_for_user(
+      current_user,
+      "checkout_started",
+      properties: {
+        plan: plan_key,
+        kind: "license",
+        license_years: LICENSE_YEARS,
+        source: source,
+      },
+    )
+    render json: { url: session.url }
+  rescue Stripe::StripeError => e
+    Rails.logger.error "[License] Stripe error creating license session: #{e.class} - #{e.message}"
+    render json: { error: "Failed to create license session" }, status: :bad_request
+  rescue StandardError => e
+    Rails.logger.error "[License] Unexpected error creating license session: #{e.class} - #{e.message}"
+    render json: { error: "Failed to create license session" }, status: :bad_request
+  end
+
   # Best-effort fast-path the frontend calls on the Stripe success redirect to
   # reflect the new plan without waiting for the webhook. The Stripe webhook
   # remains the source of truth for plan + credits — this only mirrors what it
@@ -283,6 +367,24 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     # retry while the webhook catches up.
     unless session.status == "complete"
       render json: { success: true, status: session.status }
+      return
+    end
+
+    # 5-Year license fast-path (metadata.kind == "license"). Licenses are a
+    # one-time payment with no subscription, so plan_and_status_from_session
+    # (which reads session.subscription) doesn't apply. Reflect the plan +
+    # expiry the webhook will set; grant NO credits (webhook authority).
+    if (session.metadata&.kind).to_s == "license"
+      license_plan = normalize_license_plan_key(session.metadata&.plan_type)
+      if license_plan.present?
+        current_user.plan_type = license_plan
+        current_user.plan_status = "active"
+        current_user.plan_expires_at ||= license_years_from_metadata(session.metadata).years.from_now
+        current_user.setup_limits
+        current_user.save!
+        MailchimpEventJob.perform_async(current_user.id, "sign_up")
+      end
+      render json: { success: true }
       return
     end
 
@@ -320,6 +422,18 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     end
 
     [normalize_plan_key(plan_key).presence, status]
+  end
+
+  # Only accept license plan_types we actually issue, so a tampered/misconfigured
+  # session metadata can't reflect an arbitrary plan onto the user.
+  def normalize_license_plan_key(plan_type)
+    key = plan_type.to_s
+    LICENSE_PRICE_ENV_KEYS.key?(key) ? key : nil
+  end
+
+  def license_years_from_metadata(metadata)
+    years = metadata&.license_years.to_i
+    years.positive? ? years : LICENSE_YEARS
   end
 
   def ensure_customer!

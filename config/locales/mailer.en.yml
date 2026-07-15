@@ -290,6 +290,38 @@ en:
       footer_signature: "— The SpeakAnyWay Team"
       footer_visit: "Visit our website"
 
+    license_renewal_offer_email:
+      subject: "Your SpeakAnyWay license renews soon"
+      preheader: "Your 5-year SpeakAnyWay license is wrapping up soon — here's how to renew."
+      title: "Your license renews soon"
+      greeting_with_name: "Hi %{name},"
+      greeting_no_name: "Hi there,"
+      intro: "Your 5-year SpeakAnyWay license is coming up on its renewal date."
+      intro_with_date: "Your 5-year SpeakAnyWay license is set to end on %{date}."
+      body_note: "Nothing changes today, and there's no card on file to charge — this is just a friendly heads-up so nothing sneaks up on you. When you're ready, you can renew any time and keep everything exactly as it is."
+      cta: "Renew your license"
+      cta_fallback: "If the button doesn't work, copy and paste this link:"
+      questions_html: "Questions about renewing? Just reply to this email or reach us at <a href=\"mailto:help@speakanyway.com\">help@speakanyway.com</a>."
+      footer_thanks: "Thank you for being part of SpeakAnyWay 💜"
+      footer_signature: "— The SpeakAnyWay Team"
+      footer_visit: "Visit our website"
+
+    license_ended_email:
+      subject: "Your SpeakAnyWay license has ended"
+      preheader: "Your license ended — your account has moved to the Free plan. Nothing was deleted."
+      title: "Your license has ended"
+      greeting_with_name: "Hi %{name},"
+      greeting_no_name: "Hi there,"
+      intro: "Your 5-year SpeakAnyWay license has reached its end date, and your account is now on the Free plan."
+      access_note: "Nothing was deleted. You keep your account, your communicators, and all of your boards — and communication itself keeps working."
+      readonly_note: "On the Free plan you can actively edit one board; any additional boards become read-only (you can still open them and use them, you just can't edit them). We've automatically kept one board editable for you, and you can change which one any time from your dashboard."
+      cta: "Renew your license"
+      cta_fallback: "If the button doesn't work, copy and paste this link:"
+      questions_html: "Want to renew or think this was a mistake? Just reply to this email or contact us at <a href=\"mailto:help@speakanyway.com\">help@speakanyway.com</a>."
+      footer_thanks: "Thank you for being part of SpeakAnyWay 💜"
+      footer_signature: "— The SpeakAnyWay Team"
+      footer_visit: "Visit our website"
+
     payment_failed_email:
       subject: "We couldn't process your SpeakAnyWay payment"
       preheader: "Your last payment didn't go through — update your payment method to keep your plan."
@@ -304,6 +336,36 @@ en:
       questions_html: "Questions? Just reply to this email or contact us at <a href=\"mailto:help@speakanyway.com\">help@speakanyway.com</a>."
       footer_signature: "— The SpeakAnyWay Team"
       footer_visit: "Visit our website"
+
+  clinician_mailer:
+    shared:
+      footer_thanks: "Thank you for the work you do 💜"
+      footer_signature: "— The SpeakAnyWay Team"
+    application_received_email:
+      subject: "We got your SpeakAnyWay for Clinicians application"
+      preheader: "Thanks for applying — we review each clinician application by hand."
+      title: "Application received"
+      greeting: "Hi %{name},"
+      intro: "Thanks for applying to SpeakAnyWay for Clinicians."
+      body_note: "We review every clinician application by hand to keep the program for verified clinicians, so it may take us a few days to get back to you. We'll email you the moment your Clinician account is ready — nothing more to do for now."
+      questions_html: "Questions in the meantime? Just reply to this email or reach us at <a href=\"mailto:help@speakanyway.com\">help@speakanyway.com</a>."
+    approved_email:
+      subject: "Your SpeakAnyWay Clinician account is ready"
+      preheader: "You're approved — your Clinician account is live."
+      title: "You're approved 🎉"
+      greeting: "Hi %{name},"
+      intro: "Your SpeakAnyWay for Clinicians application has been approved — your Clinician account is live."
+      body_note: "You now have Pro-level features plus a couple of loaner slots so you can set up families and hand a communicator off when they're ready. Sign in to get started."
+      cta: "Sign in to SpeakAnyWay"
+      questions_html: "Questions about your Clinician account? Just reply to this email or reach us at <a href=\"mailto:help@speakanyway.com\">help@speakanyway.com</a>."
+    denied_email:
+      subject: "About your SpeakAnyWay for Clinicians application"
+      preheader: "An update on your clinician application."
+      title: "About your application"
+      greeting: "Hi %{name},"
+      intro: "Thank you for your interest in SpeakAnyWay for Clinicians."
+      body_note: "We weren't able to approve your Clinician account this time. If anything's changed or you'd like us to take another look, you're welcome to reply with more detail or apply again."
+      questions_html: "Have a question or want us to reconsider? Just reply to this email or reach us at <a href=\"mailto:help@speakanyway.com\">help@speakanyway.com</a>."
 
   setup_mailer:
     myspeak_setup_email:

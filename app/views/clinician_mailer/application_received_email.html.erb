@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title><%= t("clinician_mailer.application_received_email.title") %></title>
+  <meta name="color-scheme" content="light only">
+  <style>
+    body { background-color: #f7f9fc; font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+    .container { background-color: #ffffff; margin: auto; max-width: 620px; padding: 30px; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
+    .logo img { max-width: 120px; display: block; margin: 0 auto 20px auto; }
+    h1 { font-size: 26px; color: #2a2a2a; text-align: center; margin: 10px 0 6px 0; }
+    .intro { font-size: 16px; color: #444444; line-height: 1.6; text-align: center; margin: 8px 0 22px 0; }
+    .section { margin: 28px 0; }
+    .note { font-size: 14px; color: #444; line-height: 1.6; margin: 0; }
+    .footer { margin-top: 28px; font-size: 13px; text-align: center; color: #777777; }
+    .footer a { color: #7645ef; text-decoration: none; }
+    @media (max-width: 480px) { .container { padding: 22px; } h1 { font-size: 24px; } }
+  </style>
+</head>
+<body>
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+    <%= t("clinician_mailer.application_received_email.preheader") %>
+  </div>
+  <div class="container">
+    <div class="logo">
+      <a href="https://www.speakanyway.com" target="_blank" rel="noopener">
+        <%= image_tag @logo.url, alt: "SpeakAnyWay Logo" %>
+      </a>
+    </div>
+    <h1><%= t("clinician_mailer.application_received_email.title") %></h1>
+    <p class="intro">
+      <%= t("clinician_mailer.application_received_email.greeting", name: @user_name) %>
+      <br>
+      <%= t("clinician_mailer.application_received_email.intro") %>
+    </p>
+    <div class="section">
+      <p class="note"><%= t("clinician_mailer.application_received_email.body_note") %></p>
+    </div>
+    <div class="footer">
+      <p><%= t("clinician_mailer.application_received_email.questions_html").html_safe %></p>
+      <p><%= t("clinician_mailer.shared.footer_thanks") %><br><%= t("clinician_mailer.shared.footer_signature") %></p>
+    </div>
+  </div>
+</body>
+</html>
