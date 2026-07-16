@@ -146,6 +146,7 @@ Rails.application.routes.draw do
         post "preview_plan_change"
         post "change_plan"
         post "add_item"
+        post "communicator_addon"
         post "create_customer_session"
         get "list"
       end

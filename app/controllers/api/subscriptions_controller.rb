@@ -301,7 +301,66 @@ class API::SubscriptionsController < API::ApplicationController
     render json: { error: "Failed to update subscription" }, status: :bad_request
   end
 
+  # POST /api/subscriptions/communicator_addon  { quantity: N }
+  #
+  # Set the Pro extra-communicator add-on to EXACTLY N recurring slots on the
+  # user's active subscription (0 removes it). Pro-only; the billing interval
+  # (monthly/yearly) matches the user's current plan price. Stripe's own
+  # proration applies. The resulting customer.subscription.updated webhook
+  # re-derives entitlements; we also sync immediately so this response reflects
+  # the new slot limit without waiting for the webhook. See
+  # Billing::ExtraCommunicators.
+  def communicator_addon
+    quantity = Billing::ExtraCommunicators.clamp(params[:quantity])
+
+    unless current_user.pro?
+      render json: { error: "Extra communicators are available on the Pro plan" }, status: :forbidden
+      return
+    end
+
+    customer_id = current_user.ensure_stripe_customer!
+    subscription = active_subscription_for(customer_id)
+    if subscription.nil?
+      render json: { error: "No active subscription to modify" }, status: :unprocessable_content
+      return
+    end
+
+    interval = billing_interval_for_subscription(subscription)
+    price_id = Billing::ExtraCommunicators.recurring_price_id(interval)
+    if price_id.blank?
+      render json: { error: "Extra communicators are not available" }, status: :unprocessable_content
+      return
+    end
+
+    existing = subscription.items.data.find { |item| Billing::ExtraCommunicators.extra_comm_item?(item) }
+
+    if quantity.zero?
+      Stripe::SubscriptionItem.delete(existing.id) if existing
+    elsif existing
+      Stripe::SubscriptionItem.update(existing.id, { quantity: quantity })
+    else
+      Stripe::Subscription.update(subscription.id, { items: [{ price: price_id, quantity: quantity }] })
+    end
+
+    current_user.apply_extra_communicator_slots!(quantity)
+
+    render json: {
+      quantity: quantity,
+      communicator_slot_limit: Permissions::CommunicatorLimits.slot_limit_for(current_user.settings || {}),
+    }, status: 200
+  rescue Stripe::StripeError => e
+    Rails.logger.error "subscriptions#communicator_addon: #{e.class} - #{e.message} (user #{current_user.id})"
+    render json: { error: "Failed to update subscription" }, status: :bad_request
+  end
+
   private
+
+  # "yearly" when the plan (non-add-on) item bills annually, else "monthly".
+  def billing_interval_for_subscription(subscription)
+    plan_item = subscription.items.data.find { |item| !Billing::ExtraCommunicators.extra_comm_item?(item) }
+    interval = plan_item&.price&.recurring&.interval
+    interval == "year" ? "yearly" : "monthly"
+  end
 
   # The subscription a plan-change should act on: the customer's current
   # active/trialing/past_due subscription. Trialing is included so a no-card

@@ -507,7 +507,29 @@ class User < ApplicationRecord
   end
 
   def comm_account_limit
-    settings["paid_communicator_limit"] || FREE_PLAN_LIMITS["paid_communicator_limit"]
+    base = (settings["paid_communicator_limit"] || FREE_PLAN_LIMITS["paid_communicator_limit"]).to_i
+    base + extra_communicator_slots
+  end
+
+  # Pro-only add-on slots purchased on top of the plan's base communicator limit,
+  # stored in settings["extra_communicator_slots"]. See Billing::ExtraCommunicators.
+  def extra_communicator_slots
+    ((settings || {})["extra_communicator_slots"] || 0).to_i
+  end
+
+  # Set the purchased extra-communicator count (clamped to the allowed range),
+  # then reconcile fallback so newly-affordable slots restore any communicators
+  # that had dropped into fallback mode. No-op when the count is unchanged, so
+  # it's cheap to call on every subscription webhook. Pro-gating is the caller's
+  # job (the webhook / endpoint pass 0 for non-Pro plans).
+  def apply_extra_communicator_slots!(count)
+    clamped = Billing::ExtraCommunicators.clamp(count)
+    self.settings ||= {}
+    return if settings["extra_communicator_slots"].to_i == clamped
+
+    settings["extra_communicator_slots"] = clamped
+    save!
+    reconcile_communicator_fallback!
   end
 
   # Every signed-in user needs at least one communicator slot — otherwise
@@ -1399,7 +1421,7 @@ class User < ApplicationRecord
   end
 
   def comm_account_limit_reached
-    settings["paid_communicator_limit"].to_i + settings["demo_communicator_limit"].to_i <= communicator_accounts.count
+    settings["paid_communicator_limit"].to_i + extra_communicator_slots + settings["demo_communicator_limit"].to_i <= communicator_accounts.count
   end
 
   def admin_api_view
@@ -1787,7 +1809,7 @@ class User < ApplicationRecord
     plan_exp = plan_expires_at&.strftime("%x")
 
     # ---- Limits from Stripe/user settings ----
-    comm_limit = (settings["paid_communicator_limit"] || 0).to_i          # REAL communicators included
+    comm_limit = (settings["paid_communicator_limit"] || 0).to_i + extra_communicator_slots # REAL communicators included (base + Pro add-on slots)
     demo_limit = (settings["demo_communicator_limit"] || 0).to_i     # DEMO communicators allowed
     board_limit = (settings["board_limit"] || 1).to_i
 

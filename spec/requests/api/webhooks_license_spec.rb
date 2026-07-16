@@ -80,6 +80,28 @@ RSpec.describe "POST /api/webhooks (5-Year license)", type: :request do
     }.not_to change { user.reload.plan_type }
   end
 
+  it "applies bundled extra communicator slots for a pro_5yr license" do
+    session = build_license_session(metadata: { "extra_communicators" => "3" })
+    stub_event(session)
+
+    post_webhook("{}", header_with_signature)
+
+    user.reload
+    expect(user.plan_type).to eq("pro_5yr")
+    expect(user.extra_communicator_slots).to eq(3)
+    # Base Pro limit (5) + 3 add-on slots.
+    expect(Permissions::CommunicatorLimits.slot_limit_for(user.settings)).to eq(8)
+  end
+
+  it "ignores extra communicators on a basic_5yr license (Pro-only add-on)" do
+    session = build_license_session(metadata: { "plan_type" => "basic_5yr", "extra_communicators" => "2" })
+    stub_event(session)
+
+    post_webhook("{}", header_with_signature)
+
+    expect(user.reload.extra_communicator_slots).to eq(0)
+  end
+
   it "does not grant when no matching user can be resolved" do
     session = build_license_session(
       customer: nil,

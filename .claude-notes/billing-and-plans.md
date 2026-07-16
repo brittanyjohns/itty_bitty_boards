@@ -567,6 +567,50 @@ years via `plan_expires_at`. Not a subscription — there is **no**
   `plan_type` to `free`, so the user leaves the scope. `partner_pro`/`clinician`
   are deliberately excluded.
 
+### Extra communicator add-on slots (Pro-only)
+
+Pro users can buy communicator slots **on top of** their plan's base 5 —
+$5/mo or $50/yr recurring, or $125 one-time bundled with a `pro_5yr` license.
+`Billing::ExtraCommunicators` is the single home for the add-on (price ENV keys,
+`clamp`, item-matching). The whole feature funnels into **one settings key**,
+`settings["extra_communicator_slots"]`, which
+`Permissions::CommunicatorLimits.slot_limit_for` **adds to the base limit** —
+so a purchased slot is finally creatable through the one creation gate. Before
+this, the gate read a `communicator_slot_limit` override that no code ever
+wrote, so the half-built `basic_extra_comm` path granted nothing.
+
+- **Additive everywhere.** `slot_limit_for` = base + `extra_communicator_slots`.
+  `User#comm_account_limit`, `#comm_account_limit_reached`, and the api_view
+  `comm_limit`/`communicator_slot_limit` all include the extras so the client
+  sees consistent numbers. `User#apply_extra_communicator_slots!(n)` clamps
+  (`MAX_EXTRA_COMMUNICATORS`, default 20), persists, and re-runs
+  `reconcile_communicator_fallback!` so buying slots restores over-limit
+  communicators out of fallback. It's a no-op when unchanged.
+- **Pro-only.** Every writer gates on `User#pro?` (which already covers
+  `pro`/`pro_yearly`/`pro_5yr`/`partner_pro`). A non-Pro plan always resolves to
+  0 extras.
+- **Monthly / yearly (subscription).** `POST /api/subscriptions/communicator_addon`
+  `{ quantity: N }` upserts a recurring add-on **subscription item** on the
+  user's active Pro subscription to exactly N (0 removes it), interval matched to
+  the plan price. Prices: `STRIPE_PRICE_PRO_EXTRA_COMM_MONTHLY` /
+  `STRIPE_PRICE_PRO_EXTRA_COMM_YEARLY`. Entitlement is then **re-derived from the
+  live subscription** in `handle_subscription_upsert` (via
+  `ExtraCommunicators.quantity_from_subscription`), so add / remove / cancel /
+  downgrade self-heals on the next `customer.subscription.updated`.
+  `first_price_from_subscription` skips the add-on item so it can never be read
+  as the plan price.
+- **One-time (license bundle).** `POST /api/stripe/checkout_sessions/license`
+  accepts `extra_communicators: N` **only** for `pro_5yr` (400 otherwise, or if
+  `STRIPE_PRICE_PRO_EXTRA_COMM_5YR` is unset). The count rides the checkout
+  metadata; `handle_license_completed` applies it. It expires with the license.
+- **Cleared on downgrade.** `Billing::PlanTransitions.apply_free_plan` deletes
+  `extra_communicator_slots`, so a cancelled subscription or an expired license
+  takes its extras with it (over-limit communicators retained in fallback, per
+  the downgrade invariant). **Known gap:** a Stripe *plan* downgrade (Pro→Basic
+  via portal/`change_plan`) drops the entitlement to 0 but does **not** auto-
+  remove a lingering add-on subscription item — the item should be cleaned up in
+  that flow (follow-up; noted on the frontend issue).
+
 ### SpeakAnyWay for Clinicians (`clinician`)
 
 A **free**, manually-approved plan for verified SLPs/OTs/AT specialists.

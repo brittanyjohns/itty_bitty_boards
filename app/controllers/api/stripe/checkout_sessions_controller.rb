@@ -294,9 +294,28 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
       return
     end
 
+    # Optional Pro-only extra communicator slots bundled with the license
+    # (one-time, expiring with the license). Basic licenses don't offer extras.
+    extra_communicators = Billing::ExtraCommunicators.clamp(params[:extra_communicators])
+    extra_price_id = nil
+    if extra_communicators.positive?
+      if plan_key != "pro_5yr"
+        render json: { error: "Extra communicators are only available on the Pro license" }, status: :bad_request
+        return
+      end
+      extra_price_id = Billing::ExtraCommunicators.price_id("license")
+      if extra_price_id.blank?
+        render json: { error: "Extra communicators are not available" }, status: :bad_request
+        return
+      end
+    end
+
     ensure_customer!
 
     monthly_credits = CreditService.monthly_credits_for(plan_key)
+
+    line_items = [{ price: price_id, quantity: 1 }]
+    line_items << { price: extra_price_id, quantity: extra_communicators } if extra_price_id
 
     # NOTE: `payment_method_collection` is only valid on subscription-mode
     # Checkout Sessions — Stripe rejects it on mode=payment ("You can only set
@@ -310,7 +329,7 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
       mode: "payment",
       customer: current_user.stripe_customer_id,
       client_reference_id: current_user.id.to_s,
-      line_items: [{ price: price_id, quantity: 1 }],
+      line_items: line_items,
       success_url: "#{frontend_base_url}/billing/success?session_id={CHECKOUT_SESSION_ID}&type=license",
       cancel_url: "#{frontend_base_url}/pricing",
       allow_promotion_codes: true,
@@ -320,6 +339,7 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
         plan_type: plan_key,
         license_years: LICENSE_YEARS,
         monthly_credits: monthly_credits,
+        extra_communicators: extra_communicators,
         source: source,
       },
     )
@@ -382,6 +402,10 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
         current_user.plan_expires_at ||= license_years_from_metadata(session.metadata).years.from_now
         current_user.setup_limits
         current_user.save!
+        # Mirror any Pro-only extra-communicator slots the license bundled (the
+        # webhook is still the authority; this only reflects it faster).
+        extra = session.metadata&.extra_communicators.to_i
+        current_user.apply_extra_communicator_slots!(extra) if license_plan == "pro_5yr" && extra.positive?
         MailchimpEventJob.perform_async(current_user.id, "sign_up")
       end
       render json: { success: true }
