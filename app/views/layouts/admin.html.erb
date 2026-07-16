@@ -102,6 +102,14 @@
                 class: "text-xs px-3 py-1.5 rounded #{current_page?(admin_root_path) ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Mission Control", admin_mission_control_path,
                 class: "text-xs px-3 py-1.5 rounded #{current_page?(admin_mission_control_path) ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
+          <%= link_to admin_dashboard_clinician_applications_path,
+                class: "text-xs px-3 py-1.5 rounded inline-flex items-center gap-1.5 #{request.path.start_with?("/admin/clinician_applications") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" do %>
+            Clinicians
+            <% pending = ClinicianApplication.pending.count %>
+            <% if pending.positive? %>
+              <span class="bg-indigo-600 text-white text-[10px] leading-none rounded-full px-1.5 py-0.5"><%= pending %></span>
+            <% end %>
+          <% end %>
           <%= link_to "Users", admin_dashboard_users_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/users") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Sidekiq", "/sidekiq",

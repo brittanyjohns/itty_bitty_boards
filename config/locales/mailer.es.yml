@@ -412,9 +412,9 @@ es:
       days_left:
         one: "Queda 1 día"
         other: "Quedan %{count} días"
-      keep_going: "¿Quieres mantener tu acceso de nivel Pro — todos tus tableros, comunicadores, IDs de MySpeak y créditos de IA — sin interrupción? Puedes continuar con un plan de pago en cualquier momento."
-      cta: "Ver planes y continuar"
-      no_pressure: "Sin presión, y nada desaparece en el momento en que termina el piloto — tus tableros se quedan. Esto es solo un aviso para que decidas qué sigue para ti y tus estudiantes."
+      keep_going: "Cuando termine tu piloto tienes dos opciones sencillas: agrega una tarjeta para mantener Partner Pro completo por $10/mes (todo tu acceso de nivel Pro, sin interrupción), o no hagas nada y continúa gratis en una cuenta de Clínico. En cualquier caso, tus tableros, comunicadores e IDs de MySpeak se quedan — nunca pierdes el acceso."
+      cta: "Agrega una tarjeta para mantener Partner Pro"
+      no_pressure: "Sin presión, y nada desaparece en el momento en que termina el piloto. En la cuenta gratuita de Clínico, todo lo que exceda los límites de Clínico simplemente pasa a solo lectura — nunca se elimina — para que puedas retomarlo en cualquier momento. Esto es solo un aviso para que decidas qué sigue para ti y tus estudiantes."
       signin_link: "Inicia sesión en tu cuenta"
       feedback_note_html: "¿Tienes ideas sobre el piloto? Nos encantaría escucharlas en el <a href=\"%{url}\">Portal de Socios</a> — tus comentarios dan forma a lo que construimos. 💜"
       signoff: "Gracias por ser parte del camino, — Brittany"

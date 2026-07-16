@@ -59,7 +59,8 @@ RSpec.describe PartnerMailer, type: :mailer do
       mail = described_class.pilot_ending_email(user).deliver_now
       expect(mail.subject).to eq("Your SpeakAnyWay Partner pilot is wrapping up soon")
       expect(mail.html_part.body.decoded).to include("Hi <strong>Pat</strong>")
-      expect(mail.html_part.body.decoded).to include("See plans &amp; continue")
+      # Trial-end copy now presents the add-a-card vs. free-Clinician choice.
+      expect(mail.html_part.body.decoded).to include("Add a card to keep Partner Pro")
     end
 
     it "renders the Spanish subject and body" do

@@ -42,9 +42,13 @@ class API::WebhooksController < API::ApplicationController
       handle_customer_created(event.data.object)
     when "checkout.session.completed"
       session_obj = event.data.object
-      if (session_obj.metadata || {})["kind"] == "topup"
+      kind = (session_obj.metadata || {})["kind"]
+      if kind == "topup"
         handled = handle_topup_completed(session_obj, event.id)
         result = { error: "topup_not_credited" } unless handled
+      elsif kind == "license"
+        handled = handle_license_completed(session_obj, event.id)
+        result = { error: "license_not_granted" } unless handled
       else
         user = handle_checkout_completed(session_obj)
         unless user
@@ -84,6 +88,11 @@ class API::WebhooksController < API::ApplicationController
   private
 
   STRIPE_PROVIDER = "stripe"
+
+  # Plan types issued by a one-time 5-Year license purchase (metadata.plan_type
+  # on a kind=license checkout session). Whitelist so a malformed/tampered
+  # session can't grant an arbitrary plan.
+  LICENSE_PLAN_TYPES = %w[basic_5yr pro_5yr].freeze
 
   # Record a fully-processed event for idempotency + audit. Called only after the
   # handler runs without raising. Swallows the unique-index race from a
@@ -242,6 +251,96 @@ class API::WebhooksController < API::ApplicationController
     true
   rescue => e
     Rails.logger.error "[StripeWebhook][topup] error: #{e.class} - #{e.message}"
+    false
+  end
+
+  # checkout.session.completed where metadata.kind == "license" — a one-time
+  # 5-Year license purchase (basic_5yr / pro_5yr). Sets the plan, a 5-year
+  # plan_expires_at (enforced by PlanExpiryJob), and grants the first month's
+  # credits. The credit grant is idempotent on the Stripe event id, so a webhook
+  # retry never double-grants. Returns truthy when the license was applied.
+  #
+  # This is the SOLE authority for granting a license — checkout.session.completed
+  # is the only Stripe event a one-time payment fires (no subscription upsert),
+  # so without this branch a license would silently do nothing.
+  def handle_license_completed(session, event_id)
+    metadata = session.metadata || {}
+
+    # A one-time payment only grants on genuine completion — never on an
+    # abandoned/expired session. Stripe only fires checkout.session.completed for
+    # completed sessions, but guard defensively.
+    status = session.respond_to?(:status) ? session.status : nil
+    if status.present? && status != "complete"
+      Rails.logger.info "[StripeWebhook][license] session #{session.id} status=#{status}; not granting"
+      return false
+    end
+
+    user = User.find_by(id: metadata["user_id"]) if metadata["user_id"].present?
+    user ||= User.find_by(stripe_customer_id: session.customer) if session.customer.present?
+    user ||= User.find_by(email: session.customer_details&.email) if session.customer_details&.email.present?
+
+    unless user
+      Rails.logger.error "[StripeWebhook][license] no user for session #{session.id}"
+      return false
+    end
+
+    plan_type = LICENSE_PLAN_TYPES.include?(metadata["plan_type"].to_s) ? metadata["plan_type"].to_s : nil
+    unless plan_type
+      Rails.logger.error "[StripeWebhook][license] session #{session.id} has unknown plan_type=#{metadata["plan_type"].inspect}"
+      return false
+    end
+
+    license_years = metadata["license_years"].to_i
+    license_years = 5 if license_years <= 0
+
+    # Set the plan + expiry. setup_limits fires via the plan_type_changed?
+    # callback on save. Clear any stale renewal-notice flag so a renewed license
+    # gets a fresh T-60 notice from PlanExpiryJob.
+    user.plan_type = plan_type
+    user.plan_status = "active"
+    user.plan_expires_at = license_years.years.from_now
+    user.stripe_customer_id ||= session.customer
+    user.settings ||= {}
+    user.settings.delete("renewal_notice_sent_at")
+    user.save!
+
+    # First month's credit allowance. Idempotent on the event id — webhooks are
+    # the sole credit-grant authority. A monthly bucket (grant_plan! caps the
+    # window at ~35 days); RefreshFreeTierCreditsJob re-grants monthly thereafter
+    # since licensees have no stripe_subscription_id.
+    amount = (metadata["monthly_credits"].presence || CreditService.monthly_credits_for(plan_type)).to_i
+    if amount.positive? && !user.admin?
+      CreditService.grant_plan!(
+        user,
+        amount: amount,
+        period_end: CreditService.initial_period_end_for(plan_type),
+        stripe_event_id: event_id,
+        metadata: {
+          checkout_session_id: session.id,
+          plan_type: plan_type,
+          license_years: license_years,
+          source: "checkout.session.completed:license",
+        },
+      )
+    end
+
+    Rails.logger.info "[StripeWebhook][license] granted user=#{user.id} plan=#{plan_type} expires=#{user.plan_expires_at} session=#{session.id}"
+
+    PosthogService.capture_for_user(
+      user,
+      "checkout_completed",
+      properties: {
+        plan: plan_type,
+        kind: "license",
+        amount_total: session.amount_total,
+        currency: session.currency,
+        source: "stripe_webhook",
+      },
+    )
+
+    true
+  rescue => e
+    Rails.logger.error "[StripeWebhook][license] error: #{e.class} - #{e.message}"
     false
   end
 
@@ -629,6 +728,26 @@ class API::WebhooksController < API::ApplicationController
       return
     end
 
+    # Idempotent re-delivery / already landed: never dump a clinician to Free.
+    # (The whole handler is also event-id gated, but this guards a partner who
+    # already landed on clinician from a prior delivery.)
+    if user.clinician?
+      Rails.logger.info "[StripeWebhook] subscription deleted: user=#{user.id} already clinician; no-op"
+      return
+    end
+
+    # Partner Pro trial landing (Part 3): a partner_pro no-card trial that lapses
+    # lands the user on a free Clinician account (auto-approved — partners were
+    # vetted at invite time), NOT on Free. Content is retained: the plan_type
+    # callbacks apply Clinician limits and reconcile moves over-limit
+    # communicators into fallback (never deleted). Partner Pro itself is
+    # unchanged — this is only the end-of-trial destination. A partner who added a
+    # card converts to paying and never reaches this missing-payment-method cancel.
+    if user.plan_type == "partner_pro"
+      land_partner_on_clinician!(user, subscription)
+      return
+    end
+
     # Capture the plan we're leaving BEFORE apply_free_plan resets it to "free".
     cancelled_plan = user.plan_type
     reason = cancellation_reason_from_subscription(subscription)
@@ -664,6 +783,59 @@ class API::WebhooksController < API::ApplicationController
     )
   rescue => e
     Rails.logger.error "[StripeWebhook] handle_subscription_deleted error: #{e.class} - #{e.message}"
+  end
+
+  # Partner Pro no-card trial lapsed → free Clinician account. Sets the plan
+  # (callbacks apply Clinician limits + reconcile communicators), clears the
+  # dead subscription so RefreshFreeTierCreditsJob resumes monthly credit grants,
+  # grants the Clinician allowance (webhook = credit authority; handler is
+  # event-id idempotent), and records an auto-approved ClinicianApplication so
+  # admin tooling stays consistent. Content is retained, never deleted.
+  def land_partner_on_clinician!(user, subscription)
+    previous_plan = user.plan_type
+    user.plan_type = "clinician"
+    user.plan_status = "active"
+    user.stripe_subscription_id = nil
+    user.settings.delete("trial_ends_at")
+    user.save!
+
+    amount = CreditService.monthly_credits_for("clinician")
+    if amount.positive? && !user.admin?
+      CreditService.grant_plan!(
+        user,
+        amount: amount,
+        period_end: CreditService.initial_period_end_for("clinician"),
+        metadata: { source: "partner_trial_to_clinician", previous_plan_type: previous_plan },
+      )
+    end
+
+    ensure_approved_clinician_application!(user)
+
+    Rails.logger.info "[StripeWebhook] subscription deleted: user=#{user.id} #{previous_plan} -> clinician (partner trial landed), content retained"
+
+    AnalyticsEvent.track(
+      "partner_trial_landed_clinician",
+      user_id: user.id,
+      metadata: { previous_plan_type: previous_plan, subscription_id: subscription.id },
+    )
+  rescue => e
+    Rails.logger.error "[StripeWebhook] land_partner_on_clinician! error: #{e.class} - #{e.message}"
+  end
+
+  # Record an approved ClinicianApplication for an auto-converted partner (vetted
+  # at invite time). Idempotent — skips if the user already has an approved one.
+  def ensure_approved_clinician_application!(user)
+    return if user.clinician_applications.approved.exists?
+
+    user.clinician_applications.create!(
+      full_name: user.name.presence || user.email,
+      credential_type: "other",
+      status: ClinicianApplication::APPROVED,
+      reviewed_at: Time.current,
+      notes: "Auto-approved: converted from Partner Pro pilot at trial end.",
+    )
+  rescue => e
+    Rails.logger.error "[StripeWebhook] ensure_approved_clinician_application! error: #{e.class} - #{e.message}"
   end
 
   def handle_subscription_paused(subscription)

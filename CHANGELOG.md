@@ -5,6 +5,45 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — 5-Year licenses, SpeakAnyWay for Clinicians, and a plan-expiry enforcer
+- **5-Year licenses** (`basic_5yr` $199 / `pro_5yr` $499): a one-time Stripe
+  payment (`POST /api/stripe/checkout_sessions/license`, `mode: "payment"`, promo
+  codes allowed) that grants Basic/Pro-equivalent entitlements for 5 years via
+  `plan_expires_at`. The `checkout.session.completed` webhook (`kind=license`)
+  sets the plan, a 5-year expiry, and the first month's credits (idempotent on
+  the Stripe event id). Licensees have no Stripe subscription, so
+  `RefreshFreeTierCreditsJob` re-grants their monthly credits.
+- **PlanExpiryJob** (daily, 6am UTC) — the missing enforcer for `plan_expires_at`.
+  Scoped to the 5-Year licenses: sends a renewal-offer email ~60 days out
+  (`LICENSE_RENEWAL_NOTICE_LEAD_DAYS`), and at expiry drops the user to Free via
+  `Billing::PlanTransitions.apply_free_plan` (data retained, over-limit boards
+  read-only, over-limit communicators in fallback) plus a "license ended" email.
+  `partner_pro`/`clinician` are intentionally excluded.
+- **SpeakAnyWay for Clinicians** (`clinician`): a free, manually-approved plan for
+  verified SLPs/OTs/AT specialists — **Basic-shaped limits (100 boards / 25
+  groups)**, a 2-slot loaner cap (protects school pricing), 400 credits/mo.
+  Applicants apply via `POST /api/clinician_applications`; admins review from the
+  **`/admin/clinician_applications` dashboard page** (nav "Clinicians" with a
+  pending badge, Approve/Deny buttons) or the JSON API
+  `GET/POST /api/admin/clinician_applications` — both share
+  `ClinicianApplications::Reviewer` (approve flips the plan + grants credits +
+  emails; API non-admins get 403). Approval/denial/received emails avoid the
+  word "Professional" (collides with the Pro tier). The board read-only lock now
+  applies to clinicians: over their 100-board limit, the most-recently-updated
+  100 stay editable and the rest go read-only (retained, never deleted) — the
+  lock generalized from Free's single-editable-board model to the top-N by
+  board limit, with `lock_reason` `plan_board_limit` (vs `free_plan_board_limit`).
+- **Partner Pro trial landing** — Partner Pro **stays as-is** (no fold). When a
+  partner_pro no-card trial lapses, `handle_subscription_deleted` now lands the
+  user on a free, auto-approved `clinician` account (content retained) instead of
+  Free. Idempotent (no-op for already-clinician users). `PartnerMailer`
+  trial-end copy updated to present the "add a card vs. continue on Clinician"
+  choice. Must be live in prod before Oct 14, 2026 (first trials end Oct 14–20).
+- **Deploy note:** set `STRIPE_PRICE_BASIC_5YR` / `STRIPE_PRICE_PRO_5YR` (live
+  prices `price_1TtVOWGfsUBE8bl32zKryqV4` / `price_1TtVOgGfsUBE8bl3a0wSUIcr`);
+  staging needs test-mode twins. Register `PlanExpiryJob` in sidekiq-cron (done in
+  `config/initializers/sidekiq.rb`). Migration: `clinician_applications` only.
+
 ### Changed — Partner Program pilots now run on a real Stripe no-card trial
 - Partner sign-up (`plan_type=partner_pro`) now creates a Stripe subscription on
   the Partner Pro price ($10/mo, `metadata.plan_type=partner_pro`) with a 3-month

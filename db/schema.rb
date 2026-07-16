@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_07_11_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_07_15_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -338,6 +338,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_11_120000) do
     t.index ["original_board_id"], name: "index_child_boards_on_original_board_id"
     t.index ["position"], name: "index_child_boards_on_position"
     t.index ["published"], name: "index_child_boards_on_published"
+  end
+
+  create_table "clinician_applications", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "full_name"
+    t.string "credential_type"
+    t.string "license_id"
+    t.string "workplace"
+    t.string "status", default: "pending", null: false
+    t.bigint "reviewed_by_id"
+    t.datetime "reviewed_at"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["reviewed_by_id"], name: "index_clinician_applications_on_reviewed_by_id"
+    t.index ["status"], name: "index_clinician_applications_on_status"
+    t.index ["user_id"], name: "index_clinician_applications_on_user_id"
+    t.index ["user_id"], name: "index_clinician_applications_on_user_id_pending", unique: true, where: "((status)::text = 'pending'::text)"
   end
 
   create_table "coaching_phrase_audios", force: :cascade do |t|
@@ -1068,6 +1086,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_11_120000) do
   add_foreign_key "child_boards", "boards", column: "original_board_id"
   add_foreign_key "child_boards", "child_accounts"
   add_foreign_key "child_boards", "users", column: "created_by_id"
+  add_foreign_key "clinician_applications", "users"
   add_foreign_key "contest_entries", "events"
   add_foreign_key "credit_transactions", "users"
   add_foreign_key "feedback_items", "users"

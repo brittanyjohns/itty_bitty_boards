@@ -40,7 +40,10 @@ class CreditService
     "free" => 25,
     "basic_trial" => 400, # Soft 14-day Basic trial set by User#set_soft_trial_plan
     "basic" => 400,
+    "basic_5yr" => 400,   # 5-Year Basic license — Basic-equivalent monthly credits
     "pro" => 1500,
+    "pro_5yr" => 1500,    # 5-Year Pro license — Pro-equivalent monthly credits
+    "clinician" => 400,   # SpeakAnyWay for Clinicians (free, manually approved)
     "premium" => 1500,
     "partner_pro" => 1500,
     "vendor" => 1500,

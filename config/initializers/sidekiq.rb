@@ -72,5 +72,11 @@ Sidekiq.configure_server do |config|
       "queue" => "default",
       "description" => "Daily (5:30am UTC) Partner Pro pilot sweep. Emails partners a heads-up ~PARTNER_PILOT_REMINDER_LEAD_DAYS (default 14) before plan_expires_at (flags settings[\"partner_pilot_ending_notified\"]), and flags partners past plan_expires_at with settings[\"partner_pilot_expired\"] — NO auto-downgrade. Sends Brittany an AdminMailer digest of both so she can convert/extend/downgrade by hand.",
     },
+    "plan_expiry" => {
+      "cron" => "0 6 * * *",
+      "class" => "PlanExpiryJob",
+      "queue" => "default",
+      "description" => "Daily (6am UTC) enforcer for time-boxed entitlements keyed on plan_expires_at. Scoped to 5-Year licenses (basic_5yr/pro_5yr): sends a renewal offer ~LICENSE_RENEWAL_NOTICE_LEAD_DAYS (default 60) before expiry (flags settings[\"renewal_notice_sent_at\"]), and past expiry drops the user to Free via Billing::PlanTransitions.apply_free_plan (data retained, over-limit boards read-only, over-limit communicators in fallback) + a license-ended email. partner_pro/clinician are intentionally excluded.",
+    },
   })
 end

@@ -86,6 +86,7 @@ class User < ApplicationRecord
   has_many :word_events, dependent: :destroy
   has_many :subscriptions, dependent: :destroy
   has_many :credit_transactions, dependent: :destroy
+  has_many :clinician_applications, dependent: :destroy
   has_secure_token :authentication_token
   # has_many :communicator_accounts, dependent: :destroy
   has_many :scenarios, dependent: :destroy
@@ -264,12 +265,14 @@ class User < ApplicationRecord
     case plan_type
     when "free"
       setup_free_limits
-    when "basic", "basic_yearly", "basic_trial"
+    when "basic", "basic_yearly", "basic_trial", "basic_5yr"
       setup_basic_limits
-    when "pro", "pro_yearly"
+    when "pro", "pro_yearly", "pro_5yr"
       setup_pro_limits
     when "partner_pro"
       setup_partner_pro_plan
+    when "clinician"
+      setup_clinician_limits
     else
       Rails.logger.warn "Unknown plan_type #{plan_type} for user #{id}"
     end
@@ -331,6 +334,22 @@ class User < ApplicationRecord
     "demo_communicator_limit" => ENV.fetch("PRO_DEMO_COMMUNICATOR_LIMIT", 10).to_i,
   }.freeze
 
+  # SpeakAnyWay for Clinicians — a free, manually-approved plan for verified
+  # SLPs/OTs/AT specialists. **Basic-shaped limits** (100 boards / 25 groups, not
+  # Pro's 300/50), with premium features unlocked and a small loaner cap. The free
+  # Clinician account is for evaluating the product and seeding 2 families; a
+  # working caseload is what Pro ($20) and the school license sell — so Pro-only
+  # tools (caseload dashboard, bulk export) stay Pro-only. Clinician is NOT Pro —
+  # never fold it into pro?; these limits are the product. ENV-overridable like
+  # the other tiers. (Limits revised 2026-07-15.)
+  CLINICIAN_PLAN_LIMITS = {
+    "plan_type" => "clinician",
+    "board_limit" => ENV.fetch("CLINICIAN_BOARD_LIMIT", 100).to_i,
+    "board_group_limit" => ENV.fetch("CLINICIAN_BOARD_GROUP_LIMIT", 25).to_i,
+    "paid_communicator_limit" => ENV.fetch("CLINICIAN_PAID_COMMUNICATOR_LIMIT", 2).to_i,
+    "demo_communicator_limit" => ENV.fetch("CLINICIAN_DEMO_COMMUNICATOR_LIMIT", 2).to_i,
+  }.freeze
+
   # Length of the Partner Program pilot. Signup creates a real Stripe no-card
   # trial of this length; extend a pilot by moving the subscription's
   # `trial_end` (rake partners:extend), which the reverse-trial webhooks honor.
@@ -348,6 +367,13 @@ class User < ApplicationRecord
     self.settings["paid_communicator_limit"] = PRO_PLAN_LIMITS["paid_communicator_limit"]
     self.settings["demo_communicator_limit"] = PRO_PLAN_LIMITS["demo_communicator_limit"]
     self.settings["board_limit"] = PRO_PLAN_LIMITS["board_limit"]
+  end
+
+  def setup_clinician_limits
+    self.settings ||= {}
+    self.settings["paid_communicator_limit"] = CLINICIAN_PLAN_LIMITS["paid_communicator_limit"]
+    self.settings["demo_communicator_limit"] = CLINICIAN_PLAN_LIMITS["demo_communicator_limit"]
+    self.settings["board_limit"] = CLINICIAN_PLAN_LIMITS["board_limit"]
   end
 
   def setup_basic_limits
@@ -469,10 +495,12 @@ class User < ApplicationRecord
     return settings["board_group_limit"].to_i if settings["board_group_limit"].present?
 
     case plan_type
-    when "basic", "basic_yearly", "basic_trial"
+    when "basic", "basic_yearly", "basic_trial", "basic_5yr"
       BASIC_PLAN_LIMITS["board_group_limit"]
-    when "pro", "pro_yearly", "partner_pro"
+    when "pro", "pro_yearly", "partner_pro", "pro_5yr"
       PRO_PLAN_LIMITS["board_group_limit"]
+    when "clinician"
+      CLINICIAN_PLAN_LIMITS["board_group_limit"]
     else
       FREE_PLAN_LIMITS["board_group_limit"]
     end
@@ -1171,7 +1199,17 @@ class User < ApplicationRecord
   # flag — so a partner is Pro everywhere those are checked. pro_yearly is
   # included for parity with the setup_limits / board_group_limit case bodies.
   def pro?
-    %w[pro pro_yearly partner_pro].include?(plan_type)
+    %w[pro pro_yearly partner_pro pro_5yr].include?(plan_type)
+  end
+
+  # SpeakAnyWay for Clinicians. A free, granted plan for verified clinicians
+  # with Pro-level features but a small loaner cap (CLINICIAN_PLAN_LIMITS).
+  # Deliberately NOT part of pro? — the reduced paid_communicator_limit is the
+  # product, and widening pro? would hand clinicians Pro's 5 slots. It is a paid
+  # (granted) plan for gating purposes: paid_plan? returns true so AAC usage and
+  # Pro-level features never break for an approved clinician.
+  def clinician?
+    plan_type == "clinician"
   end
 
   def pro_vendor?
@@ -1206,7 +1244,7 @@ class User < ApplicationRecord
     return true if admin?
     return false if plan_type.blank?
     return false if UNPAID_STATUSES.include?(plan_status.to_s)
-    basic? || pro? || plus? || premium? || pro_vendor?
+    basic? || pro? || plus? || premium? || pro_vendor? || clinician?
   end
 
   # True when the user is in the "stranded" limbo state: a non-paying
@@ -1693,18 +1731,52 @@ class User < ApplicationRecord
     editable_board_switch_available_at.present?
   end
 
-  # Whether this user may edit the given board's content. Free users over
-  # their board limit can edit only their one designated board; everything
-  # else they own becomes read-only (still fully usable — view/tap/audio).
-  # Assumes FREE_BOARD_LIMIT == 1; if that ENV is raised this under-grants
-  # and the single editable_board_id needs to become a per-board flag.
+  # Whether this user may edit the given board's content. Board-limited plans
+  # over their board limit can edit only a subset of their boards; everything
+  # else they own becomes read-only (still fully usable — view/tap/audio, AAC
+  # usage never breaks). Full paid plans (Basic/Pro/licenses/Partner Pro) are
+  # never board-locked — their limit only gates creation. See editable_board_ids
+  # for how the editable subset is chosen (Free keeps its single designated board
+  # via make_editable + cooldown; Clinician keeps its board_limit most-recently-
+  # updated boards).
   def board_editable?(board)
     return true if admin?
     return true if board.nil? || board.user_id != id
-    return true if paid_plan?
+    return true unless board_limit_locks?
     return true if countable_board_count <= board_limit
 
-    board.id == effective_editable_board_id
+    editable_board_ids.include?(board.id)
+  end
+
+  # True when this user's plan enforces the over-limit read-only board lock: any
+  # non-paid plan (Free / stranded), plus the free **Clinician** plan (paid for
+  # gating, but its Basic-shaped board limit is the product, so over-limit boards
+  # go view-only just like Free). Full paid plans are exempt.
+  def board_limit_locks?
+    return true unless paid_plan?
+    clinician?
+  end
+
+  # The set of this user's board ids that stay editable when over the board
+  # limit. Free (limit 1) keeps the single designated board so the existing
+  # make_editable pick + cooldown flow is unchanged; a higher-limit locked plan
+  # (Clinician, 100) keeps its board_limit most-recently-updated owned boards
+  # (favorites first) — the active work stays editable, stale boards lock.
+  def editable_board_ids
+    if board_limit.to_i <= 1
+      [effective_editable_board_id].compact
+    else
+      top_editable_board_ids
+    end
+  end
+
+  def top_editable_board_ids
+    @top_editable_board_ids ||=
+      boards.where(predefined: false)
+            .where.not(id: builder_grouped_board_ids)
+            .order(favorite: :desc, updated_at: :desc)
+            .limit(board_limit.to_i)
+            .pluck(:id)
   end
 
   def public_page_url

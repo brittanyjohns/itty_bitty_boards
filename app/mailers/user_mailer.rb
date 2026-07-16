@@ -235,6 +235,38 @@ class UserMailer < BaseMailer
     end
   end
 
+  # Sent ~60 days before a 5-Year license (basic_5yr / pro_5yr) expires
+  # (PlanExpiryJob). Warm heads-up that the license is wrapping up soon, with a
+  # renew CTA — nothing changes yet, and no card is on file, so the tone is a
+  # gentle reminder, not a shutoff notice. Fired once per license window
+  # (flagged settings["renewal_notice_sent_at"]).
+  def license_renewal_offer_email(user)
+    @user = user
+    @user_name = @user.name
+    @expires_on = user.plan_expires_at
+    @plans_link = "#{ENV["FRONT_END_URL"] || "http://localhost:8100"}/pricing"
+    @dashboard_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    Rails.logger.info "Sending license renewal offer email to #{@user.email}"
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.license_renewal_offer_email.subject"))
+    end
+  end
+
+  # Sent when a 5-Year license reaches its expiry and the account is dropped to
+  # Free (PlanExpiryJob → Billing::PlanTransitions.apply_free_plan). Mirrors
+  # subscription_canceled_email: nothing is deleted, boards over the Free limit
+  # become read-only (one stays editable), and there's a renew CTA.
+  def license_ended_email(user)
+    @user = user
+    @user_name = @user.name
+    @plans_link = "#{ENV["FRONT_END_URL"] || "http://localhost:8100"}/pricing"
+    @dashboard_link = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    Rails.logger.info "Sending license ended email to #{@user.email}"
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.license_ended_email.subject"))
+    end
+  end
+
   def message_notification_email(message)
     @message = message
     @sender = message.sender

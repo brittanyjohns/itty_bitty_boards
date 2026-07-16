@@ -31,10 +31,50 @@ RSpec.describe "Board read-only on downgrade", type: :model do
       end
     end
 
-    it "never locks boards for a paid user" do
+    it "never locks boards for a full paid user (Pro)" do
       paid = create(:user, plan_type: "pro")
       expect(paid.board_editable?(create(:board, user: paid))).to be true
       expect(paid.board_editable?(create(:board, user: paid))).to be true
+    end
+
+    context "when a clinician (paid but board-limited) is over their board limit" do
+      # Clinician is paid_plan? true but board-limited (Basic-shaped). Use a low
+      # board_limit override so the test doesn't have to create 100+ boards.
+      let(:clinician) do
+        create(:user, plan_type: "clinician").tap do |u|
+          u.update!(settings: u.settings.merge("board_limit" => 2))
+        end
+      end
+
+      it "keeps the board_limit most-recently-updated boards editable and locks the rest" do
+        oldest = create(:board, user: clinician)
+        mid = create(:board, user: clinician)
+        newest = create(:board, user: clinician)
+        oldest.update_column(:updated_at, 3.days.ago)
+        mid.update_column(:updated_at, 2.days.ago)
+        newest.update_column(:updated_at, 1.hour.ago)
+
+        fresh = User.find(clinician.id)
+        expect(fresh.board_editable?(newest)).to be true
+        expect(fresh.board_editable?(mid)).to be true
+        expect(fresh.board_editable?(oldest)).to be false
+      end
+
+      it "does not lock anything while under the limit" do
+        board = create(:board, user: clinician)
+        expect(User.find(clinician.id).board_editable?(board)).to be true
+      end
+
+      it "reports lock_reason plan_board_limit (not free_plan_board_limit) on a locked board" do
+        oldest = create(:board, user: clinician)
+        create(:board, user: clinician)
+        create(:board, user: clinician)
+        oldest.update_column(:updated_at, 5.days.ago)
+
+        view = oldest.api_view(User.find(clinician.id))
+        expect(view[:locked]).to be true
+        expect(view[:lock_reason]).to eq("plan_board_limit")
+      end
     end
 
     it "never locks boards for an admin" do

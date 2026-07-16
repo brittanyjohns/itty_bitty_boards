@@ -387,11 +387,21 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
 **content-mutating endpoints return HTTP 403 `board_locked`**.
 
 - Locked state is **computed**, not stored. A board is locked for its owner
-  when the user is not admin, not on a paid plan, is over their board limit,
-  and the board is not their designated editable board. See
-  `User#board_editable?` (`app/models/user.rb`) and `Board#can_edit_for`
-  (`app/models/board.rb`). The board's `api_view` exposes `can_edit`,
-  `locked`, and `lock_reason` for the frontend.
+  when the user is not admin, is on a **board-limited plan**
+  (`User#board_limit_locks?` — any non-paid plan, **plus the free Clinician
+  plan**), is over their board limit, and the board is not in their **editable
+  set** (`User#editable_board_ids`). See `User#board_editable?`
+  (`app/models/user.rb`) and `Board#can_edit_for` (`app/models/board.rb`). The
+  board's `api_view` exposes `can_edit`, `locked`, and `lock_reason`
+  (`Board#lock_reason_for` — `free_plan_board_limit` for Free, `plan_board_limit`
+  for a limited paid plan like Clinician) for the frontend.
+- **The editable set generalizes to the board limit.** Free (limit 1) keeps the
+  single board the user designates (`editable_board_id`, the make_editable pick +
+  cooldown below); a higher-limit locked plan (**Clinician**, 100) keeps its
+  `board_limit` most-recently-updated owned boards (favorites first,
+  `User#top_editable_board_ids`) — active work stays editable, stale boards lock.
+  Full paid plans (Basic/Pro/licenses/Partner Pro) are never board-locked; their
+  limit only gates creation.
 - "Over their board limit" is computed by `User#countable_board_count` (own,
   non-predefined, non-`builder_child` boards) vs `User#board_limit`. This is the
   **single source of truth** for board counting — `User#at_board_limit?` wraps
@@ -428,9 +438,12 @@ When a paid user (Basic/Pro) cancels, `apply_free_plan` resets `plan_type` to
   `check_board_create_permissions`.
 - Returns **HTTP 403** with `{ error: "board_locked", message, board_limit,
   editable_board_id }`. **Not 402** — 402 is reserved for credit exhaustion.
-- **Assumes `FREE_BOARD_LIMIT == 1`.** The single `editable_board_id` only
-  frees one board. If the ENV is ever raised above 1, revisit this to a
-  per-board flag or join table.
+- **Free's editable slot assumes `FREE_BOARD_LIMIT == 1`.** The single
+  `editable_board_id` + make_editable pick only frees one board, so it's used
+  only for the limit≤1 case. Higher-limit locked plans (Clinician) don't use a
+  user pick at all — `editable_board_ids` computes the top-`board_limit` set by
+  recency (see above), so there's nothing to pin or rotate. The `make_editable`
+  cooldown machinery is therefore Free-only in practice.
 
 ### Communicator sign-in on downgrade (fallback mode)
 
@@ -513,4 +526,117 @@ sandbox" UI — even after the user became a paying Basic/Pro subscriber.
   affected users need `rake communicators:promote_paid_sandboxes` (dry-run by
   default; `DRY_RUN=false` to apply, `USER_ID=N` to scope to one user). It
   promotes paid users' stuck sandboxes exactly like the callback.
+
+### 5-Year licenses (`basic_5yr` / `pro_5yr`)
+
+One-time-payment entitlements (Basic $199 / Pro $499, web only) that last 5
+years via `plan_expires_at`. Not a subscription — there is **no**
+`stripe_subscription_id`.
+
+- **Plan plumbing:** `basic_5yr` maps to Basic limits/credits, `pro_5yr` to Pro
+  (`setup_limits`, `board_group_limit`, `PLAN_MONTHLY_CREDITS`). `basic?` already
+  matches `basic_5yr` (substring); `pro?` was extended to include `pro_5yr`
+  (exact-list). `paid_plan?` passes both.
+- **Checkout:** `POST /api/stripe/checkout_sessions/license` (`#license`, modeled
+  on `#topup`): `mode: "payment"`, `allow_promotion_codes: true`, metadata
+  `{ kind: "license", plan_type, license_years: 5, monthly_credits, user_id }`.
+  **No `payment_method_collection`** — Stripe rejects it on `mode: payment`.
+  Prices from `LICENSE_PRICE_ENV_KEYS` (`STRIPE_PRICE_BASIC_5YR` /
+  `STRIPE_PRICE_PRO_5YR`), resolved at request time.
+- **Grant:** a one-time payment only fires `checkout.session.completed` (no
+  subscription upsert), so `handle_license_completed` (`kind == "license"`) is the
+  **sole** grant path — without it a license would silently do nothing. It
+  whitelists `plan_type` (`LICENSE_PLAN_TYPES`), sets `plan_status="active"` +
+  `plan_expires_at = license_years.years.from_now`, clears any stale
+  `renewal_notice_sent_at`, and grants the first month's credits
+  (`CreditService.grant_plan!`, idempotent on the Stripe event id). The
+  `update_user_from_session` fast-path mirrors the plan/expiry (no credits) with
+  the same `status=="complete"` + owner checks.
+- **Monthly credits:** licensees have no subscription, so
+  `RefreshFreeTierCreditsJob` re-grants their allowance monthly (both plan types
+  are in `REFRESHABLE_PLAN_TYPES`).
+- **Expiry:** enforced by **`PlanExpiryJob`** (daily, 6am UTC) — the enforcer for
+  `plan_expires_at`, which nothing previously read. Scoped to
+  `ENFORCED_PLAN_TYPES = [basic_5yr, pro_5yr]`. Renewal pass: sends
+  `UserMailer.license_renewal_offer_email` once ~`LICENSE_RENEWAL_NOTICE_LEAD_DAYS`
+  (default 60) before expiry, flagged `settings["renewal_notice_sent_at"]`. Expiry
+  pass: past `plan_expires_at`, routes through
+  `Billing::PlanTransitions.apply_free_plan` (data retained, over-limit boards
+  read-only, over-limit communicators in fallback, free credits granted, editable
+  board pinned) + `license_ended_email`. Idempotent — `apply_free_plan` resets
+  `plan_type` to `free`, so the user leaves the scope. `partner_pro`/`clinician`
+  are deliberately excluded.
+
+### SpeakAnyWay for Clinicians (`clinician`)
+
+A **free**, manually-approved plan for verified SLPs/OTs/AT specialists.
+**Basic-shaped limits** (`board_limit: 100`, `board_group_limit: 25`, revised
+2026-07-15 — NOT Pro's 300/50) with premium features unlocked, plus a small
+**`paid_communicator_limit: 2`** loaner cap (protects school pricing) and
+`demo_communicator_limit: 2`; 400 credits/mo. All ENV-overridable via
+`CLINICIAN_*` (`CLINICIAN_PLAN_LIMITS`). The free account is for evaluating the
+product and seeding 2 families — Pro-only tools (caseload dashboard, bulk export)
+stay Pro-only. The ladder: free Clinician (100/2/400) → Partner Pro $10/mo
+(300/5/1500, invite-only) → Pro $20 (families) → school $180/clinician/yr.
+
+- **Not Pro.** `clinician?` is folded into `paid_plan?` (a granted plan — usage +
+  Pro-level features must not break) but deliberately **not** into `pro?` — the
+  2-slot cap is the product, and widening `pro?` would hand clinicians Pro's 5
+  slots. `professional?` stays false too.
+- **Board-limited despite being paid.** Clinician is the one paid plan the
+  read-only board lock applies to (`User#board_limit_locks?`): a clinician over
+  their 100-board limit (e.g. a partner who landed here with 300 boards) keeps
+  the 100 most-recently-updated boards editable and the rest go **read-only**
+  (retained, never deleted). See "Board access on downgrade (read-only rule)".
+- **Application:** `POST /api/clinician_applications` (authenticated; one *pending*
+  application per user, enforced by a partial unique index + model validation).
+  `GET /api/clinician_applications/mine` returns the latest. Fields: `full_name`,
+  `credential_type` (slp/ot/at_specialist/other), `license_id`, `workplace`.
+- **Admin review — two entry points, one code path.** Approve/deny logic lives in
+  `ClinicianApplications::Reviewer` (`app/services/`): `approve!` flips
+  `plan_type="clinician"` (callbacks set limits + reconcile) and **synchronously
+  grants** the 400-credit allowance (clinician is free / no Stripe invoice, same
+  pattern as the partner_pro comp grant); `deny!` records a note; both send
+  `ClinicianMailer` emails (never "Professional"). Two controllers call it:
+  - **Server-rendered dashboard** — `Admin::ClinicianApplicationsController` at
+    `/admin/clinician_applications` (nav "Clinicians" with a pending-count badge).
+    Pending list + Approve / Deny buttons, admin-authenticated via
+    `Admin::ApplicationController` (non-admins redirected). This is the click-to-
+    approve UI; no frontend deploy needed.
+  - **JSON API** — `API::Admin::ClinicianApplicationsController`
+    (`/api/admin/clinician_applications`), built on `API::ApplicationController` +
+    a `require_admin!` that renders **403** for a signed-in non-admin, **401**
+    unauthenticated. For the React admin / programmatic use.
+
+### Partner Pro trial landing path (`partner_pro` → `clinician` at trial end)
+
+**Partner Pro STAYS** as launched (decided 2026-07-15 — supersedes the earlier
+"fold everyone" idea): the $10/mo invite-only plan continues (3 free months, full
+Pro limits). The **only** change (must be live in prod before **Oct 14, 2026** —
+the first live partner trials end Oct 14–20) is the *destination* when a no-card
+trial lapses.
+
+- **Landing guard:** `handle_subscription_deleted` — when the cancelled sub
+  belongs to a `partner_pro` user, `land_partner_on_clinician!` transitions them
+  to a free **`clinician`** account instead of calling `apply_free_plan`. It sets
+  `plan_type="clinician"` + `plan_status="active"`, clears `stripe_subscription_id`
+  (so `RefreshFreeTierCreditsJob` resumes monthly grants), grants the 400-credit
+  clinician allowance, and records an **auto-approved `ClinicianApplication`**
+  (partners were vetted at invite time). Plan-change callbacks apply the Clinician
+  limits and reconcile moves over-limit communicators into fallback — content
+  retained, never deleted. A partner who added a card converts to paying and never
+  reaches this missing-payment-method cancel.
+- **Idempotency:** an early `return if user.clinician?` guards webhook
+  re-delivery (and the whole handler is event-id gated), so a re-fired
+  `subscription.deleted` never re-runs the landing or dumps a clinician to Free.
+  `ensure_approved_clinician_application!` also skips if an approved application
+  already exists.
+- **No fold rake task** — the earlier `partners:fold_into_clinicians` idea was
+  dropped; partners are converted individually, at their own trial end, by this
+  webhook path.
+- **Trial-end messaging:** `PartnerMailer.pilot_ending_email` (and the Mailchimp
+  `partner_pilot_wrap` journey, edited in Mailchimp) present the choice plainly —
+  "add a card to keep Partner Pro at $10/mo, or continue free on a Clinician
+  account; your boards stay either way (over-limit content becomes view-only,
+  never deleted)."
 
