@@ -68,16 +68,16 @@
         null
       ],
       [
-        21,
+        29,
         22,
         23,
         24,
+        30,
         25,
-        null,
+        31,
         27,
         28,
-        null,
-        null
+        32
       ]
     ]
   },
@@ -183,14 +183,6 @@
       "part_of_speech": "preposition"
     },
     {
-      "id": 21,
-      "label": "Home",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/core-60.obf"
-      }
-    },
-    {
       "id": 22,
       "label": "People",
       "part_of_speech": "noun",
@@ -237,6 +229,32 @@
       "load_board": {
         "path": "boards/more.obf"
       }
+    },
+    {
+      "id": 29,
+      "label": "this",
+      "part_of_speech": "determiner"
+    },
+    {
+      "id": 30,
+      "label": "Drinks",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/drinks.obf"
+      }
+    },
+    {
+      "id": 31,
+      "label": "Places",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/core-60.obf"
+      }
+    },
+    {
+      "id": 32,
+      "label": "that",
+      "part_of_speech": "determiner"
     }
   ],
   "images": [],

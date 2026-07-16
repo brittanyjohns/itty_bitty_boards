@@ -5,6 +5,29 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — Board Builder pages are no longer frozen
+- Pages inside a built board set now behave like any other board: tapping a word
+  returns to the home board. Previously every page of a built set was created
+  **frozen**, which kept you on that page after a tap.
+- Freezing is unchanged as a per-board option — builder sets simply don't turn it
+  on by default.
+- Existing built sets are unfrozen by
+  `DRY_RUN=false rake board_builder:reclassify_builder_sets` (dry-run by default,
+  `USER_ID=N` to scope to one user).
+
+### Fixed — Board Builder nav row now lines up across a whole set
+- The category strip along the bottom of a built set (People, Feelings, Food, …)
+  now sits in the **exact same grid cell on every page**, so a word is the same
+  reach no matter where you are — what AAC motor planning depends on. Previously
+  the strip drifted: `Drinks` was missing from every sub-page, which shifted
+  every tile after it one cell left, and Core 84's sub-pages were a row shorter
+  than the home board and dropped `Time`, `Describe` and `School` entirely.
+- The tile for the page you're on is now **present rather than a blank gap** — on
+  the People page, `People` sits exactly where you tapped it, speaks its label,
+  and takes you back home. It replaces the old `Home` tile.
+- Applies to **newly built sets**. Sets are copied from the template when built,
+  so already-built sets keep their existing layout.
+
 ### Added — Board Builder no longer requires a communicator
 - `POST /api/v1/board_builder` now accepts an **omitted `communicator_id`** and
   builds an **unattached** board set owned by the user, which they can assign to

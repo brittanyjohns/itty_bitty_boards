@@ -145,18 +145,21 @@ namespace :board_builder do
   #     directly, and the old Board#check_in_use only counted clone sources), so
   #     they never surfaced under the "in use" scope, AND
   #   - sub-boards (builder_child) that leaked into the `main_boards` scope
-  #     (their sub_board column was never set true) and weren't frozen.
+  #     (their sub_board column was never set true), AND
+  #   - sub-boards left FROZEN (settings["freeze_board"] = true), so a word tap
+  #     never returned to home. Builder pages behave like any other board now.
   #
   # This re-saves each built set so Board#check_in_use / #check_is_sub_board
-  # recompute against the now-complete relations, and freezes every child page
-  # (settings["freeze_board"] = true) so navigating in doesn't auto-return home —
-  # exactly what BuildBoardSetJob#finalize_sub_boards! now does at build time.
+  # recompute against the now-complete relations, and clears freeze_board from
+  # every child page — matching what BuildBoardSetJob#classify_sub_boards! does
+  # at build time. Only ever unfreezes builder_child pages, so a board the user
+  # froze themselves elsewhere is untouched.
   #
   # Read-only by default. Apply with DRY_RUN=false; scope with USER_ID=N:
   #   rake board_builder:reclassify_builder_sets               # preview all
   #   DRY_RUN=false rake board_builder:reclassify_builder_sets  # apply all
   #   DRY_RUN=false USER_ID=740 rake board_builder:reclassify_builder_sets
-  desc "Reclassify built Board Builder sets: root in_use, children sub_board+frozen (DRY_RUN=false to apply; USER_ID=N to scope)"
+  desc "Reclassify built Board Builder sets: root in_use, children sub_board + unfrozen (DRY_RUN=false to apply; USER_ID=N to scope)"
   task reclassify_builder_sets: :environment do
     dry_run = ENV["DRY_RUN"] != "false"
 
@@ -164,28 +167,29 @@ namespace :board_builder do
     roots = roots.where(user_id: ENV["USER_ID"]) if ENV["USER_ID"].present?
 
     sets_touched = 0
-    children_frozen = 0
+    children_unfrozen = 0
 
     roots.find_each do |root|
       child_ids = builder_set_child_ids(root)
       sets_touched += 1
-      puts "#{dry_run ? '[DRY RUN] ' : ''}set ##{root.id} #{root.name.inspect} (owner #{root.user_id}): root in_use, #{child_ids.size} child page(s) frozen + sub_board"
+      puts "#{dry_run ? '[DRY RUN] ' : ''}set ##{root.id} #{root.name.inspect} (owner #{root.user_id}): root in_use, #{child_ids.size} child page(s) sub_board + unfrozen"
 
       next if dry_run
 
       # Re-save the root so check_in_use picks up its direct ChildBoard.
       root.save!
       Board.where(id: child_ids).find_each do |child|
-        child.settings = (child.settings || {}).merge("freeze_board" => true)
+        was_frozen = child.settings&.dig("freeze_board") == true
+        child.settings = (child.settings || {}).except("freeze_board")
         child.save! # recomputes check_is_sub_board => sub_board: true
-        children_frozen += 1
+        children_unfrozen += 1 if was_frozen
       end
     end
 
     if dry_run
       puts "Dry run only — #{sets_touched} built set(s) to reclassify. Re-run with DRY_RUN=false to apply."
     else
-      puts "Reclassified #{sets_touched} set(s); froze #{children_frozen} child page(s)."
+      puts "Reclassified #{sets_touched} set(s); unfroze #{children_unfrozen} child page(s)."
     end
   end
 

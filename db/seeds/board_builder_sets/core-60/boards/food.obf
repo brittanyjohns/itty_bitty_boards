@@ -32,7 +32,7 @@
         null
       ],
       [
-        21,
+        null,
         null,
         null,
         null,
@@ -68,16 +68,16 @@
         null
       ],
       [
-        22,
+        32,
         23,
         24,
-        null,
+        33,
+        21,
         26,
         27,
         28,
         29,
-        null,
-        null
+        34
       ]
     ]
   },
@@ -191,14 +191,6 @@
       }
     },
     {
-      "id": 22,
-      "label": "Home",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/core-60.obf"
-      }
-    },
-    {
       "id": 23,
       "label": "People",
       "part_of_speech": "noun",
@@ -250,6 +242,24 @@
       "id": 31,
       "label": "more",
       "part_of_speech": "social"
+    },
+    {
+      "id": 32,
+      "label": "this",
+      "part_of_speech": "determiner"
+    },
+    {
+      "id": 33,
+      "label": "Food",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/core-60.obf"
+      }
+    },
+    {
+      "id": 34,
+      "label": "that",
+      "part_of_speech": "determiner"
     }
   ],
   "images": [],

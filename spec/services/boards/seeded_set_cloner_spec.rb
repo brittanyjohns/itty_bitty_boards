@@ -339,8 +339,11 @@ RSpec.describe Boards::SeededSetCloner do
       VocabSets.seed_slug!("core-84")
     end
 
+    # Each fringe page's way home is its SELF tile — the "People" tile on the
+    # People page (see db/seeds/board_builder_sets/README.md). It must point at
+    # the CLONED root, never the admin source it was cloned from.
     %w[core-60 core-84].each do |slug|
-      it "gives #{slug} clones a working Home tile on every fringe page" do
+      it "gives #{slug} clones a working self tile home from every fringe page" do
         source_root = Boards::RobustSets.find_root(slug)
         cloned_root = described_class.new(source_root, communicator: communicator).call
 
@@ -348,9 +351,20 @@ RSpec.describe Boards::SeededSetCloner do
         expect(fringe.count).to be > 0
 
         fringe.each do |board|
-          home = board.board_images.find_by(label: "Home")
-          expect(home).to be_present, "expected fringe '#{board.name}' to have a Home tile"
-          expect(home.predictive_board_id).to eq(cloned_root.id)
+          self_tile = board.board_images.find_by(label: board.name)
+          expect(self_tile).to be_present, "expected fringe '#{board.name}' to have a '#{board.name}' self tile"
+          expect(self_tile.predictive_board_id).to eq(cloned_root.id),
+            "expected '#{board.name}' self tile to link home to the cloned root"
+        end
+      end
+
+      it "leaves no #{slug} fringe page linking at itself" do
+        source_root = Boards::RobustSets.find_root(slug)
+        described_class.new(source_root, communicator: communicator).call
+
+        owner.boards.where("COALESCE((settings->>'builder_child')::boolean, false)").each do |board|
+          selfies = board.board_images.where(predictive_board_id: board.id)
+          expect(selfies).to be_empty, "'#{board.name}' has a tile that opens itself"
         end
       end
     end

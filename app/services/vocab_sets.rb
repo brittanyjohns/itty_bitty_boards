@@ -215,22 +215,56 @@ module VocabSets
     end
   end
 
-  # Destroy board_images on each seeded board whose label is no longer present in
-  # the source OBF's buttons (e.g. #276 removed please/thank you/and from the
-  # homes, "more" from fringe pages, and the self-link folder tiles). Matching is
-  # by image label, case-insensitively — the same value Board.from_obf resolves a
-  # button to. Admin-owned set boards only; user clones are separate rows.
+  # Destroy board_images on each seeded board whose authored button is gone from
+  # the source OBF (e.g. #276 removed please/thank you/and from the homes, "more"
+  # from fringe pages, and the self-link folder tiles).
+  #
+  # A tile stamped with an obf_button_id is matched by THAT id — the same stable
+  # key repair_layout! pins coordinates with, and the only one that can tell two
+  # buttons sharing a label apart. Label matching alone is case-insensitive, so a
+  # removed folder tile survived whenever the board also authored a word of the
+  # same name: dropping the "Home" folder from places.obf left the tile in place
+  # (the page still authors the WORD "home"), and repair_layout! then couldn't
+  # move it — its button id is gone from the source — so it kept its old cell and
+  # collided with whatever now sits there. Tiles seeded before button ids were
+  # stamped carry none, and still fall back to the label check.
+  #
+  # Admin-owned set boards only; user clones are separate rows.
   def prune_removed_tiles!(slug, boards_by_obf_id)
     labels_by_id = source_labels_by_obf_id(slug)
+    button_ids_by_id = source_button_ids_by_obf_id(slug)
 
     boards_by_obf_id.each do |obf_id, board|
       next unless labels_by_id.key?(obf_id) # never blank-prune a board we can't source
 
       keep = labels_by_id[obf_id].map { |l| l.to_s.strip.downcase }
+      keep_button_ids = button_ids_by_id[obf_id] || []
       board.board_images.includes(:image).find_each do |bi|
+        button_id = bi.data.is_a?(Hash) ? bi.data["obf_button_id"].presence : nil
+        if button_id
+          bi.destroy unless keep_button_ids.include?(button_id.to_s)
+          next
+        end
+
         label = (bi.image&.label || bi.label).to_s.strip.downcase
         bi.destroy unless keep.include?(label)
       end
+    end
+  end
+
+  # { obf_id => [button ids] } parsed straight from the authored source for a
+  # slug — the stable ids prune_removed_tiles! / repair_layout! match tiles on.
+  def source_button_ids_by_obf_id(slug)
+    dir = SETS_DIR.join(slug)
+    manifest = JSON.parse(File.read(dir.join("manifest.json")))
+    paths = (manifest.dig("paths", "boards") || {}).values.uniq
+
+    paths.each_with_object({}) do |rel, acc|
+      file = dir.join(rel)
+      next unless File.file?(file)
+
+      obf = JSON.parse(File.read(file))
+      acc[obf["id"].to_s] = Array(obf["buttons"]).filter_map { |b| b["id"].presence&.to_s }
     end
   end
 

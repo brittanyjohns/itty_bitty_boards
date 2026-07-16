@@ -73,7 +73,9 @@ RSpec.describe VocabSets do
   end
 
   describe "cross-set isolation (#278)" do
-    it "seeds disjoint fringe boards per set, each fringe Home resolving to its own root" do
+    # Each People page's way home is its own "People" self tile; it must resolve
+    # to ITS set's root, never the other set's (the pre-namespacing bug).
+    it "seeds disjoint fringe boards per set, each fringe's self tile resolving to its own root" do
       c60_people = Board.find(@c60_root.board_images.find_by(label: "People").predictive_board_id)
       c84_people = Board.find(@c84_root.board_images.find_by(label: "People").predictive_board_id)
 
@@ -81,8 +83,8 @@ RSpec.describe VocabSets do
       expect(c60_people.obf_id).to eq("core-60:people")
       expect(c84_people.obf_id).to eq("core-84:people")
 
-      expect(c60_people.board_images.find_by(label: "Home").predictive_board_id).to eq(@c60_root.id)
-      expect(c84_people.board_images.find_by(label: "Home").predictive_board_id).to eq(@c84_root.id)
+      expect(c60_people.board_images.find_by(label: "People").predictive_board_id).to eq(@c60_root.id)
+      expect(c84_people.board_images.find_by(label: "People").predictive_board_id).to eq(@c84_root.id)
     end
 
     it "shares no fringe boards between the two seeded sets" do
@@ -235,10 +237,10 @@ RSpec.describe VocabSets do
     end
   end
 
-  # Every Core 84 fringe page matches the root's column count (12, not 10) so
-  # tiles are sized consistently across the set, and each carries its own
-  # category word as a REGULAR speaking tile (no board link) where the nav row
-  # previously left a blank self-slot — e.g. "people" on the People page.
+  # Every Core 84 fringe page matches the root's grid, and reproduces the root's
+  # nav row cell-for-cell, so a category is the same reach from any page. Each
+  # page's own tile ("People" on the People page) sits in the root's cell for it
+  # and links back home. See db/seeds/board_builder_sets/README.md.
   describe "Core 84 sub-board layout" do
     def sub_boards
       @c84_root.board_images.where.not(predictive_board_id: nil).filter_map do |bi|
@@ -253,16 +255,48 @@ RSpec.describe VocabSets do
       end
     end
 
-    it "puts each category's own word on its page as a speaking (non-folder) tile" do
+    # The nav-row rule, asserted on the SEEDED boards rather than the authored
+    # JSON (spec/db/seeds/board_builder_sets_spec.rb covers the source): each
+    # category's page carries its own tile in the SAME lg cell the root puts it
+    # in, so the reach never moves. See db/seeds/board_builder_sets/README.md.
+    it "puts each category's own tile on its page, in the root's cell, linking home" do
+      checked = 0
+
       @c84_root.board_images.where.not(predictive_board_id: nil).each do |folder_tile|
         page = Board.find_by(id: folder_tile.predictive_board_id)
         next unless page
 
-        self_tile = page.board_images.find { |bi| bi.label.to_s.casecmp?(folder_tile.label) }
-        expect(self_tile).to be_present, "#{folder_tile.label} page has no self word tile"
-        # regular word tile: speaks its label, does not navigate to another board
-        expect(self_tile.predictive_board_id).to be_nil
+        # Match the FOLDER tile, not a word of the same name — the Play page
+        # legitimately carries both a "play" word tile and its "Play" self tile.
+        self_tile = page.board_images.find do |bi|
+          bi.label.to_s.casecmp?(folder_tile.label) && bi.predictive_board_id.present?
+        end
+        expect(self_tile).to be_present, "#{folder_tile.label} page has no self tile"
         expect(self_tile.image).to be_present
+        # It's the page's way back — never a link at itself.
+        expect(self_tile.predictive_board_id).to eq(@c84_root.id),
+          "expected the '#{folder_tile.label}' self tile to link home"
+        expect(self_tile.layout["lg"].slice("x", "y")).to eq(folder_tile.layout["lg"].slice("x", "y")),
+          "expected '#{folder_tile.label}' to sit in the same cell on its own page as on the root"
+        checked += 1
+      end
+
+      expect(checked).to be > 1
+    end
+
+    it "gives each page the root's nav row, cell-for-cell" do
+      nav_y = @c84_root.large_screen_rows - 1
+      root_nav = nav_row_spec(@c84_root, nav_y)
+      expect(root_nav.compact.size).to be > 1
+
+      sub_boards.each do |page|
+        expected = root_nav.map do |tile|
+          # The tile pointing at THIS page instead links back to the root.
+          next tile if tile.nil? || tile[:predictive_board_id] != page.id
+
+          tile.merge(predictive_board_id: @c84_root.id)
+        end
+        expect(nav_row_spec(page, nav_y)).to eq(expected), "#{page.name}'s nav row does not match the root's"
       end
     end
   end
@@ -403,6 +437,19 @@ RSpec.describe VocabSets do
         "School", "Time", "Describe"
       )
     end
+  end
+
+  # [{label:, predictive_board_id:}] for the tiles in one grid row of a seeded
+  # board, indexed by lg column — nil for an empty cell.
+  def nav_row_spec(board, y)
+    row = Array.new(board.large_screen_columns)
+    board.board_images.each do |bi|
+      cell = bi.layout.is_a?(Hash) ? bi.layout["lg"] : nil
+      next unless cell && cell["y"].to_i == y
+
+      row[cell["x"].to_i] = { label: bi.label, predictive_board_id: bi.predictive_board_id }
+    end
+    row
   end
 
   def collect_set_board_ids(root)
