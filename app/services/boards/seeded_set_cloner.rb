@@ -39,10 +39,15 @@ module Boards
     # When a root is adopted, the source root's CONTENT (tiles, layout columns)
     # is cloned INTO it instead of dup-ing a fresh board, and the caller owns
     # the ChildBoard attach/favorite.
-    def initialize(source_root, communicator:, interests: [], favorite_root: true, root: nil, explicit_categories: {}, exclude_fringe: [])
+    #
+    # `communicator:` is OPTIONAL — a set can be cloned for a user with no
+    # communicator at all and assigned later. Without one there's no ChildBoard
+    # attach and the voice falls back to the owner's default. Pass `owner:`
+    # explicitly in that case; with a communicator it's derived as before.
+    def initialize(source_root, communicator: nil, owner: nil, interests: [], favorite_root: true, root: nil, explicit_categories: {}, exclude_fringe: [])
       @source_root          = source_root
       @communicator         = communicator
-      @owner                = communicator.owner || communicator.user
+      @owner                = owner || communicator&.owner || communicator&.user
       @interests            = normalize_interests(interests)
       @favorite_root        = favorite_root
       @root                 = root
@@ -55,7 +60,7 @@ module Boards
     # adopted root, the rollback strips every fringe board/tile and leaves the
     # bare root for the caller to mark "failed"). Returns the cloned root Board.
     def call
-      raise CloneError, "communicator has no owning user" unless @owner
+      raise CloneError, "no owning user" unless @owner
       raise CloneError, "no source root board" if @source_root.nil?
 
       ActiveRecord::Base.transaction do
@@ -64,7 +69,7 @@ module Boards
         mark_builder_settings!
 
         root = @map.fetch(@source_root.id)
-        attach_root_to_communicator(root) unless adopted_root?
+        attach_root_to_communicator(root) if @communicator && !adopted_root?
         route_interests!(root)
         # clone_with_images leaves the in-memory clones with a stale
         # board_images_count / association cache; hand back a fresh root.
@@ -310,7 +315,7 @@ module Boards
       favorites = Board.new(name: FAVORITES_NAME, user: @owner)
       favorites.board_type = "static"
       favorites.assign_parent
-      favorites.voice = VoiceService.normalize_voice(@communicator.voice)
+      favorites.voice = VoiceService.normalize_voice(@communicator&.voice || @owner.voice)
       favorites.generate_unique_slug
       favorites.settings = (favorites.settings || {}).merge("builder_child" => true)
       favorites.save!

@@ -537,6 +537,68 @@ RSpec.describe BuildBoardSetJob do
     end
   end
 
+  # A nil communicator_id is the UNATTACHED path (built for the user alone);
+  # a present-but-unresolvable one is a real dangling reference.
+  describe "without a communicator" do
+    def precreate_unattached_root!(name:, owner: user)
+      root = Board.new(name: name, user: owner)
+      root.board_type = "dynamic"
+      root.assign_parent
+      root.voice = VoiceService.normalize_voice(owner.voice)
+      root.generate_unique_slug
+      root.settings = (root.settings || {}).merge("builder_root" => true)
+      root.status = "building_board"
+      root.save!
+      root
+    end
+
+    it "builds the whole tree and completes, creating no ChildBoard" do
+      root = precreate_unattached_root!(name: "Home")
+
+      expect {
+        described_class.new.perform(root.id, nil, "home", ["dinosaurs"])
+      }.not_to change { ChildBoard.count }
+
+      root.reload
+      expect(root.status).to eq("complete")
+      expect(root.board_images.count).to be > 0
+
+      play_tile = root.board_images.find { |bi| bi.label == "Play" }
+      play_board = Board.find(play_tile.predictive_board_id)
+      expect(play_board.board_images.map(&:label)).to include("dinosaurs")
+    end
+
+    it "builds a robust seeded set unattached" do
+      seed_robust_set!
+      root = precreate_unattached_root!(name: "Core 60")
+
+      described_class.new.perform(root.id, nil, "core-60", [])
+
+      root.reload
+      expect(root.status).to eq("complete")
+      expect(root.board_images.map(&:label)).to include("I", "Food")
+      expect(ChildBoard.count).to eq(0)
+    end
+
+    it "uses the owner's voice for boards it creates" do
+      user.update!(settings: { "voice" => { "name" => "openai:nova" } })
+      root = precreate_unattached_root!(name: "Home")
+
+      described_class.new.perform(root.id, nil, "home", ["grandma"])
+
+      favorites = Board.find_by(name: "My Favorites", user_id: user.id)
+      expect(favorites.voice).to eq("openai:nova")
+    end
+
+    it "still fails the root when a communicator_id is given but missing" do
+      root = precreate_unattached_root!(name: "Home")
+
+      described_class.new.perform(root.id, -1, "home", [])
+
+      expect(root.reload.status).to eq("failed")
+    end
+  end
+
   # Part 2: a leftover interest goes onto an existing matching board where one
   # exists in the set, and only falls through to My Favorites when none does.
   describe "#route_catch_all_to_existing_boards!" do

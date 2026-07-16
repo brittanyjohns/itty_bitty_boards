@@ -2,8 +2,9 @@
 #
 # Deterministic backend for the Board Builder. Takes a nested "blueprint"
 # (a root board + linked sub-boards) and persists it as real, linked Board
-# records, then attaches the root to a communicator (child_account) via a
-# ChildBoard join.
+# records, then — when a communicator is given — attaches the root to it
+# (child_account) via a ChildBoard join. The communicator is optional: a set
+# can be built for a user alone and assigned to a communicator later.
 #
 # A tile is a BoardImage. A tile becomes a *folder* when its
 # predictive_board_id points at another board, so "build a set" = create
@@ -37,10 +38,15 @@ module Boards
     # under the root the controller returned with status "building_board".
     # When a root is adopted, the caller owns the ChildBoard attach/favorite;
     # this builder only adds tiles and sub-boards under it.
-    def initialize(blueprint, communicator:, favorite_root: false, root: nil)
+    #
+    # `communicator:` is OPTIONAL — a set can be built for a user with no
+    # communicator at all and assigned later. Without one there's no ChildBoard
+    # attach and the voice falls back to the owner's default. Pass `owner:`
+    # explicitly in that case; with a communicator it's derived as before.
+    def initialize(blueprint, communicator: nil, owner: nil, favorite_root: false, root: nil)
       @blueprint     = blueprint.deep_symbolize_keys
       @communicator  = communicator
-      @owner         = communicator.owner || communicator.user
+      @owner         = owner || communicator&.owner || communicator&.user
       @favorite_root = favorite_root
       @root          = root
     end
@@ -50,11 +56,11 @@ module Boards
     # the rollback strips every child/tile and leaves the bare root for the
     # caller to mark "failed"). Returns the root Board.
     def call
-      raise BuildError, "communicator has no owning user" unless @owner
+      raise BuildError, "no owning user" unless @owner
 
       ActiveRecord::Base.transaction do
         root = build_board(@blueprint, depth: 0)
-        attach_root_to_communicator(root) unless adopted_root?
+        attach_root_to_communicator(root) if @communicator && !adopted_root?
         root
       end
     end
@@ -102,7 +108,7 @@ module Boards
       board = Board.new(name: node[:name], user: @owner)
       board.board_type = board_type_for(node, depth) # "dynamic" or "static"
       board.assign_parent                            # => parent is the owning User
-      board.voice = VoiceService.normalize_voice(@communicator.voice)
+      board.voice = VoiceService.normalize_voice(@communicator&.voice || @owner.voice)
       board.generate_unique_slug
       # Sub-boards (folders) don't count against the user's board limit — the
       # whole tree counts as one via its root. See User#countable_board_count.

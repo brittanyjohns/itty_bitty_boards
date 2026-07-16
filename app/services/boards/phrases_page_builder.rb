@@ -14,7 +14,9 @@ module Boards
   class PhrasesPageBuilder
     PHRASES_BOARD_NAME = "Phrases".freeze
 
-    def initialize(communicator:, owner:)
+    # `communicator:` is optional — an unattached set still gets the Phrases
+    # layer, just with the owner's default voice.
+    def initialize(owner:, communicator: nil)
       @communicator = communicator
       @owner = owner
     end
@@ -44,7 +46,7 @@ module Boards
       board = Board.new(name: name, user: @owner)
       board.board_type = "static"
       board.assign_parent
-      board.voice = VoiceService.normalize_voice(@communicator.voice)
+      board.voice = VoiceService.normalize_voice(@communicator&.voice || @owner.voice)
       board.generate_unique_slug
       board.settings = (board.settings || {}).merge("builder_child" => true)
       board.save!
