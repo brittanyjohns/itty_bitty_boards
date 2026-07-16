@@ -4,7 +4,7 @@
   "locale": "en",
   "name": "Time",
   "grid": {
-    "rows": 6,
+    "rows": 7,
     "columns": 12,
     "order": [
       [
@@ -78,18 +78,32 @@
         null
       ],
       [
-        17,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        24,
+        null
+      ],
+      [
+        26,
         18,
         19,
         20,
+        27,
         21,
         22,
         23,
-        24,
-        25,
-        null,
-        null,
-        null
+        28,
+        29,
+        30,
+        31
       ]
     ]
   },
@@ -175,14 +189,6 @@
       "part_of_speech": "social"
     },
     {
-      "id": 17,
-      "label": "Home",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/core-84.obf"
-      }
-    },
-    {
       "id": 18,
       "label": "People",
       "part_of_speech": "noun",
@@ -239,9 +245,46 @@
       }
     },
     {
-      "id": 25,
-      "label": "time",
-      "part_of_speech": "noun"
+      "id": 26,
+      "label": "this",
+      "part_of_speech": "determiner"
+    },
+    {
+      "id": 27,
+      "label": "Drinks",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/drinks.obf"
+      }
+    },
+    {
+      "id": 28,
+      "label": "Time",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/core-84.obf"
+      }
+    },
+    {
+      "id": 29,
+      "label": "Describe",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/describe.obf"
+      }
+    },
+    {
+      "id": 30,
+      "label": "School",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/school.obf"
+      }
+    },
+    {
+      "id": 31,
+      "label": "that",
+      "part_of_speech": "determiner"
     }
   ],
   "images": [],

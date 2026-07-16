@@ -116,8 +116,8 @@ same namespaced ids.
 Why: `Board.from_obf` resolves the target board by `(user_id, obf_id)`, and both
 sets seed as the same admin user. Before namespacing, Core 60 and Core 84 shared
 the bare ids (`people`, `food`, …), so both roots ended up linked to **one**
-shared fringe board and the last set seeded won the in-set Home pointer — leaving
-the other set's cloned pages with dead Home tiles (#278).
+shared fringe board and the last set seeded won that page's back-link to its root
+— leaving the other set's cloned pages with a dead way home (#278).
 
 What is NOT namespaced:
 
@@ -129,6 +129,39 @@ What is NOT namespaced:
 Adding a board to a set = give its `.obf` a `"<slug>:<name>"` id and add the same
 key to the manifest. The seeder's destructive sync (below) cleans up any board or
 tile you remove.
+
+## The nav row must be identical on every board in a set
+
+The root's **bottom row** is the set's **nav row** — the strip of folder tiles
+that reaches every page. It is authored under one rule, enforced by
+`spec/db/seeds/board_builder_sets_spec.rb`:
+
+> Every child board has the **same grid dimensions as the root** and reproduces
+> the root's nav row **cell-for-cell**. On the page you are currently on, that
+> page's own tile links back to the **root** instead of at itself. Any folder
+> tile the root places **outside** the nav row (Core 84's `More`) sits at that
+> same cell on every child.
+
+Why: motor planning. An AAC user learns *where* a word is, not what it looks
+like — `Food` must be the same cell on every page of the set, so the reach is
+the same everywhere. The tile you just tapped stays put under your finger and
+becomes the way back.
+
+This is why there is no `Home` tile: the self-tile is home. On the People page,
+`People` is both the you-are-here anchor and the way back to the root. It is the
+one nav tile that speaks its label (`BuildBoardSetJob#mute_dynamic_tile_names!`
+mutes folder tiles, but exempts a tile whose label matches its own board's name).
+
+Two traps when editing a nav row:
+
+- **Don't renumber existing buttons.** The seeder upserts tiles on the authored
+  button `id` (`obf_button_id`) and re-pins their cells by it, so *moving* a
+  button = keep its id, change only `grid.order`. A new id forks a new tile.
+- **Don't author the same label twice with the same kind** (word vs folder) on
+  one board — `Boards::TileDeduper` collapses those on seed, keeping the
+  lowest-position copy, which silently deletes the nav-row one. That's why
+  `more.obf` carries `this`/`that` only in the nav row, and why `food.obf`'s
+  `Drinks` link lives in the nav row rather than in the content grid.
 
 ## Fringe board names are load-bearing
 

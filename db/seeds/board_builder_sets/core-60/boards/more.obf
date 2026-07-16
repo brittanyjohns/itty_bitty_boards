@@ -15,8 +15,8 @@
         5,
         6,
         7,
-        8,
-        9,
+        null,
+        null,
         10
       ],
       [
@@ -68,16 +68,16 @@
         null
       ],
       [
-        21,
+        8,
         22,
         23,
         24,
+        34,
         25,
         26,
         27,
-        null,
-        null,
-        null
+        35,
+        9
       ]
     ]
   },
@@ -183,14 +183,6 @@
       "part_of_speech": "adverb"
     },
     {
-      "id": 21,
-      "label": "Home",
-      "part_of_speech": "noun",
-      "load_board": {
-        "path": "boards/core-60.obf"
-      }
-    },
-    {
       "id": 22,
       "label": "People",
       "part_of_speech": "noun",
@@ -252,6 +244,22 @@
       "id": 33,
       "label": "and",
       "part_of_speech": "conjunction"
+    },
+    {
+      "id": 34,
+      "label": "Drinks",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/drinks.obf"
+      }
+    },
+    {
+      "id": 35,
+      "label": "More",
+      "part_of_speech": "noun",
+      "load_board": {
+        "path": "boards/core-60.obf"
+      }
     }
   ],
   "images": [],

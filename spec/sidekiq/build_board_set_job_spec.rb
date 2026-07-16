@@ -24,18 +24,22 @@ RSpec.describe BuildBoardSetJob do
   end
 
   # Seeds a tiny admin-owned robust set (root + Food fringe), same shape the
-  # request spec uses, marked so Boards::RobustSets finds it.
+  # request spec uses, marked so Boards::RobustSets finds it. The Food page
+  # carries its own "Food" SELF tile linking back to the root, mirroring the
+  # authored templates (see db/seeds/board_builder_sets/README.md).
   def seed_robust_set!(slug: "core-60")
     admin = create(:admin_user)
     source_root = create(:board, user: admin, name: "Core 60", predefined: true, published: true)
     food = create(:board, user: admin, name: "Food", predefined: true, published: true)
     create(:board_image, board: source_root, label: "I",
                          image: create(:image, label: "I", user_id: admin.id))
-    food_tile = create(:board_image, board: source_root, label: "Food",
-                                     image: create(:image, label: "Food", user_id: admin.id))
+    food_image = create(:image, label: "Food", user_id: admin.id)
+    food_tile = create(:board_image, board: source_root, label: "Food", image: food_image)
     food_tile.update!(predictive_board_id: food.id)
     create(:board_image, board: food, label: "apple",
                          image: create(:image, label: "apple", user_id: admin.id))
+    self_tile = create(:board_image, board: food, label: "Food", image: food_image)
+    self_tile.update!(predictive_board_id: source_root.id)
     Boards::RobustSets.mark_root!(source_root, slug)
     source_root
   end
@@ -136,7 +140,7 @@ RSpec.describe BuildBoardSetJob do
     end
   end
 
-  describe "#perform scope classification + sub-board freeze" do
+  describe "#perform scope classification" do
     it "registers the root as in_use and a main board, not a sub-board" do
       root = precreate_root!(name: "Home")
 
@@ -150,7 +154,7 @@ RSpec.describe BuildBoardSetJob do
       expect(Board.sub_boards).not_to include(root)
     end
 
-    it "marks every child page as a sub-board and freezes it (kept out of main_boards)" do
+    it "marks every child page as a sub-board (kept out of main_boards)" do
       root = precreate_root!(name: "Home")
 
       described_class.new.perform(root.id, communicator.id, "home", ["dinosaurs", "grandma"])
@@ -160,20 +164,63 @@ RSpec.describe BuildBoardSetJob do
 
       children.each do |child|
         expect(child.sub_board).to be(true), "expected child ##{child.id} #{child.name.inspect} to be a sub_board"
-        expect(child.settings["freeze_board"]).to be(true), "expected child ##{child.id} #{child.name.inspect} to be frozen"
-        expect(child.is_frozen?).to be(true)
       end
 
       expect(Board.main_boards).not_to include(*children)
       expect(Board.sub_boards).to include(*children)
     end
 
-    it "exposes the freeze on the api_view so the frontend can drop auto-return" do
+    it "leaves every child page unfrozen so it behaves like any other board" do
+      root = precreate_root!(name: "Home")
+
+      described_class.new.perform(root.id, communicator.id, "home", ["dinosaurs", "grandma"])
+
+      children = user.boards.where("COALESCE((settings->>'builder_child')::boolean, false)")
+      expect(children).to be_present
+
+      children.each do |child|
+        expect(child.is_frozen?).to be(false), "expected child ##{child.id} #{child.name.inspect} to be unfrozen"
+      end
+    end
+
+    it "reports the children as unfrozen on the api_view" do
       root = precreate_root!(name: "Home")
       described_class.new.perform(root.id, communicator.id, "home", ["dinosaurs"])
 
       child = user.boards.where("COALESCE((settings->>'builder_child')::boolean, false)").first
-      expect(child.user_api_view[:frozen]).to be(true)
+      expect(child.user_api_view[:frozen]).to be(false)
+    end
+  end
+
+  # A page's SELF tile (the "Food" tile on the Food page, which links home) is
+  # the one folder tile that speaks — it's the you-are-here anchor. Everything
+  # else that opens a board stays muted.
+  describe "#perform self-tile muting" do
+    it "leaves the self tile unmuted while muting the other folder tiles" do
+      seed_robust_set!
+      root = precreate_root!(name: "Core 60")
+
+      described_class.new.perform(root.id, communicator.id, "core-60", [])
+
+      food = user.boards.find_by(name: "Food")
+      self_tile = food.board_images.find { |bi| bi.label == "Food" }
+      expect(self_tile).to be_present
+      expect(self_tile.predictive_board_id).to eq(root.id)
+      expect(self_tile.data.to_h["mute_name"]).not_to be(true)
+
+      food_folder = root.board_images.find { |bi| bi.label == "Food" }
+      expect(food_folder.data["mute_name"]).to be(true)
+    end
+
+    it "keeps word tiles unmuted" do
+      seed_robust_set!
+      root = precreate_root!(name: "Core 60")
+
+      described_class.new.perform(root.id, communicator.id, "core-60", [])
+
+      food = user.boards.find_by(name: "Food")
+      apple = food.board_images.find { |bi| bi.label == "apple" }
+      expect(apple.data.to_h["mute_name"]).not_to be(true)
     end
   end
 

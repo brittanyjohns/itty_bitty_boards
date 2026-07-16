@@ -77,7 +77,7 @@ class BuildBoardSetJob
       # boards the build services add outside SeededSetCloner/BoardTreeBuilder.
       attach_set_to_group!(root, board_group_id)
       mute_dynamic_tile_names!(root)
-      finalize_sub_boards!(root)
+      classify_sub_boards!(root)
       reflow_screen_layouts!(root)
       set_sub_board_previews_from_tiles!(root)
       generate_preview!(root)
@@ -197,32 +197,34 @@ class BuildBoardSetJob
   # "mute_name" flag to true on every dynamic tile across the freshly built set
   # (root + linked sub-boards). Display-only flag; update_column skips the audio
   # hook + validations. Idempotent — a no-op once already muted.
+  #
+  # The SELF tile is the exception. Each seeded page carries the nav-row tile for
+  # its own category (the "People" tile on the People page), positioned to match
+  # the root's cell and linked back to the root. It's the page's you-are-here
+  # anchor and its way home, so it speaks its label like any word tile.
+  # Identified by label == its own board's name.
   def mute_dynamic_tile_names!(root)
+    names_by_board_id = Board.where(id: set_board_ids(root)).pluck(:id, :name).to_h
+
     BoardImage
-      .where(board_id: set_board_ids(root))
+      .where(board_id: names_by_board_id.keys)
       .where.not(predictive_board_id: nil)
       .where("predictive_board_id <> board_id")
       .find_each do |bi|
         data = bi.data || {}
         next if data["mute_name"] == true
+        next if self_tile?(bi, names_by_board_id[bi.board_id])
 
         bi.update_column(:data, data.merge("mute_name" => true))
       end
   end
 
-  # Every sub-board of a builder set (the builder_child pages — everything in
-  # the set EXCEPT the root) is finalized as a real "page":
-  #
-  #   - settings["freeze_board"] = true so navigating into it doesn't auto-return
-  #     to home on the next tap; the frontend's return-home affordance keys off
-  #     the freeze_parent_board/board_frozen flags the api_view then exposes.
-  #   - re-saved so Board#check_is_sub_board recomputes against the now-wired
-  #     predictive_board_id links and sets the sub_board column true. Without this
-  #     the children leaked into the `main_boards` scope (their last save happened
-  #     before the parent linked them, so sub_board stayed false).
-  #
-  # The root is intentionally left unfrozen and sub_board=false so it stays a
-  # main board. A no-op once already frozen + classified (idempotent on retry).
+  def self_tile?(board_image, board_name)
+    return false if board_name.blank?
+
+    board_image.label.to_s.strip.casecmp?(board_name.to_s.strip)
+  end
+
   # Derive each board's medium/small layout from its authored large layout so
   # the whole set reads well on tablets and phones — the build grows the grid
   # with interest tiles, which can overflow the narrower sm/md grids unless we
@@ -235,13 +237,23 @@ class BuildBoardSetJob
     end
   end
 
-  def finalize_sub_boards!(root)
+  # Every page of a builder set (the builder_child boards — everything in the set
+  # EXCEPT the root) is re-saved so Board#check_is_sub_board recomputes against
+  # the now-wired predictive_board_id links and sets the sub_board column true.
+  # Without this the children leak into the `main_boards` scope: their last save
+  # happened before the parent linked them, so sub_board stayed false.
+  #
+  # The root keeps sub_board=false so it stays a main board — check_is_sub_board
+  # pins a builder_root? explicitly, because every child links back to it.
+  #
+  # Builder pages are deliberately NOT frozen: they behave like any other board,
+  # so a word tap returns to home. (lib/tasks/board_builder.rake unfreezes sets
+  # built before that was true.) Idempotent on retry.
+  def classify_sub_boards!(root)
     child_ids = set_board_ids(root) - [root.id]
     Board.where(id: child_ids).find_each do |board|
-      settings = board.settings || {}
-      next if settings["freeze_board"] == true && board.sub_board == true
+      next if board.sub_board == true
 
-      board.settings = settings.merge("freeze_board" => true)
       board.save! # save recomputes check_is_sub_board => sub_board: true
     end
   end

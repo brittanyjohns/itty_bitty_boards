@@ -631,31 +631,49 @@ still works for backward compat.
   predictive links, scoped to the owner's boards). So tapping a folder navigates
   without speaking the folder's own label; word tiles are untouched.
   `update_column` skips the audio hook/validations. Idempotent.
-- **Scope classification + sub-board freeze.**
-  `BuildBoardSetJob#finalize_sub_boards!` runs at the same end-of-build chokepoint
-  (beside `mute_dynamic_tile_names!`) and, for every `builder_child` board in the
-  set (everything but the root, walked via `set_board_ids`): sets
-  `settings["freeze_board"] = true` and re-saves it so `Board#check_is_sub_board`
-  recomputes against the now-wired `predictive_board_id` links and sets the
-  `sub_board` column **true**. Two problems this fixes: (1) child pages used to
-  leak into the **`main_boards`** scope (`sub_board: [false, nil]`) because their
-  last save happened before the parent linked them, so `sub_board` stayed false;
-  (2) navigating into a child page auto-returned home on the next tap. Freezing is
-  the lever — there is **no separate `return_home` setting**; `freeze_board: true`
-  is what stops auto-return, and the `frozen`/`freeze_parent_board`/`board_frozen`
-  flags the api_view exposes are what the frontend's return-home affordance keys
-  off. The **root is intentionally left unfrozen and `sub_board: false`** so it
-  stays a main board. Default-on but user-overridable in the editor. Idempotent.
+- **Scope classification.** `BuildBoardSetJob#classify_sub_boards!` runs at the
+  same end-of-build chokepoint (beside `mute_dynamic_tile_names!`) and re-saves
+  every `builder_child` board in the set (everything but the root, walked via
+  `set_board_ids`) so `Board#check_is_sub_board` recomputes against the now-wired
+  `predictive_board_id` links and sets the `sub_board` column **true**. Without
+  it child pages leak into the **`main_boards`** scope (`sub_board: [false, nil]`)
+  because their last save happened before the parent linked them. The **root
+  keeps `sub_board: false`** so it stays a main board. Idempotent.
+  - **Builder pages are NOT frozen.** They behave like any other board — a word
+    tap returns to home. (Freezing is still available per-board; builder sets
+    just don't opt into it. There is no separate `return_home` setting:
+    `freeze_board: true` is what stops auto-return, and the
+    `frozen`/`freeze_parent_board`/`board_frozen` flags the api_view exposes are
+    what the frontend's return-home affordance keys off.) Sets built before this
+    was true are unfrozen by `rake board_builder:reclassify_builder_sets`.
   - **The root is pinned as a main board in the model, not just by being skipped
-    here.** The seed's child pages each carry an authored **"Home" tile** whose
-    `predictive_board_id` points back at the root, so once those links are wired
-    the root *has* parent boards — and any later `root.save!` (e.g.
-    `allow_scroll_if_grown!`) would flip it to `sub_board: true` and drop it out
-    of the `main_boards` scope / the communicator dashboard. `Board#check_is_sub_board`
-    now **short-circuits to `sub_board: false` for any `settings["builder_root"]`
-    board**, regardless of inbound links, so the Home tiles keep working as
-    navigation while the root stays a main board. `rake board_builder:reclassify_builder_sets`
-    re-saves existing roots, so the guard heals already-built sets too.
+    here.** Every child page carries an authored tile whose `predictive_board_id`
+    points back at the root (the **self tile** — see the nav-row rule below), so
+    once those links are wired the root *has* parent boards, and any later
+    `root.save!` (e.g. `allow_scroll_if_grown!`) would flip it to
+    `sub_board: true` and drop it out of the `main_boards` scope / the
+    communicator dashboard. `Board#check_is_sub_board` **short-circuits to
+    `sub_board: false` for any `settings["builder_root"]` board**, regardless of
+    inbound links, so the back-links keep working as navigation while the root
+    stays a main board. `rake board_builder:reclassify_builder_sets` re-saves
+    existing roots, so the guard heals already-built sets too.
+- **The nav row is identical on every board in a set (motor planning).** The
+  seeded set's root authors a bottom **nav row** of folder tiles; every child
+  reproduces it **cell-for-cell** at the root's grid dimensions, so a category is
+  the same reach from any page. The tile for the page you're on links back to the
+  **root** rather than at itself — it's both the you-are-here anchor and the way
+  home, which is why there's no separate `Home` tile. The rule, its two authoring
+  traps (button-id stability, `TileDeduper` label collisions), and the enforcing
+  spec (`spec/db/seeds/board_builder_sets_spec.rb`) are documented in
+  `db/seeds/board_builder_sets/README.md`.
+  - The **self tile is the one folder tile that speaks** — `mute_dynamic_tile_names!`
+    exempts a dynamic tile whose label matches its own board's name.
+  - Alignment holds on the **lg** layout only. `Boards::ScreenReflow` repacks
+    md/sm from the lg reading order and compacts gaps, so the nav row does not
+    stay pinned to the bottom row on phones/tablets.
+  - Built sets are **clones taken at build time**, so reseeding an aligned
+    template only affects **new** builds; already-built sets keep the layout they
+    were cloned with.
 - **Built roots register as `in_use`.** The set's root lives **directly** on the
   communicator (the `ChildBoard` has `board_id = root.id`, `original_board_id =
   nil` — unlike the clone-source `assign_boards`/`assign_accounts` path). So
@@ -684,7 +702,7 @@ still works for backward compat.
 - **Backfill for pre-fix sets:** `rake board_builder:reclassify_builder_sets`
   (dry-run by default; `DRY_RUN=false` to apply, `USER_ID=N` to scope) re-saves
   each existing built set so the root recomputes `in_use` and every child page
-  gets `freeze_board` + `sub_board`. For the `in_use` flag alone (both
+  gets `sub_board` and has `freeze_board` **cleared**. For the `in_use` flag alone (both
   directions, including boards wrongly stuck at `true` from the nil-id bug),
   `rake boards:recalculate_in_use` (dry-run by default; `DRY_RUN=false` to
   apply) recomputes the flag straight from the `child_boards` rows.

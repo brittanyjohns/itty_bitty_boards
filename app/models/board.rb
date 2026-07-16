@@ -700,11 +700,12 @@ class Board < ApplicationRecord
 
   def check_is_sub_board
     # A Board Builder ROOT is a MAIN board that lives directly on the
-    # communicator, even though each of its child pages carries a "Home" tile
-    # whose predictive_board_id points back at the root. Those back-links would
-    # otherwise make the root look like a sub-board (it has "parent" boards) and
-    # drop it out of the main_boards scope / the communicator's dashboard. Pin it
-    # as a main board regardless of who links to it.
+    # communicator, even though each of its child pages carries a self tile (the
+    # "People" tile on the People page) whose predictive_board_id points back at
+    # the root. Those back-links would otherwise make the root look like a
+    # sub-board (it has "parent" boards) and drop it out of the main_boards scope
+    # / the communicator's dashboard. Pin it as a main board regardless of who
+    # links to it.
     if builder_root?
       self.sub_board = false
       remove_tag(IS_SUB_BOARD_TAG)
