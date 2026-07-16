@@ -63,12 +63,18 @@ module API
       end
 
       def create
-        communicator = current_user.communicator_accounts.find_by(id: params[:communicator_id])
-        unless communicator
-          render json: { error: "communicator_not_found",
-                         message: "We couldn't find that communicator on your account." },
-                 status: :not_found
-          return
+        # `communicator_id` is OPTIONAL: omit it to build an UNATTACHED set the
+        # user can assign to a communicator later. An id that's present but
+        # doesn't resolve is still a 404 — only an absent id takes the new path.
+        communicator = nil
+        if params[:communicator_id].present?
+          communicator = current_user.communicator_accounts.find_by(id: params[:communicator_id])
+          unless communicator
+            render json: { error: "communicator_not_found",
+                           message: "We couldn't find that communicator on your account." },
+                   status: :not_found
+            return
+          end
         end
 
         # Existing-set handling runs BEFORE the group-limit check so a user at
@@ -80,7 +86,11 @@ module API
         #                  backward compat: old clients send it and silently
         #                  repurposing it to "replace" would destroy data)
         #   neither      — 409 so the client can offer both options
-        existing_roots = communicator.builder_roots.to_a
+        #
+        # Detection is inherently per-communicator (ChildAccount#builder_roots),
+        # so an UNATTACHED build has nothing to collide with: each one is just
+        # another Board Set, capped by the board-set limit below.
+        existing_roots = communicator ? communicator.builder_roots.to_a : []
         if existing_roots.any?
           if params[:replace].to_s == "true"
             destroy_existing_builder_sets!(existing_roots)
@@ -115,8 +125,8 @@ module API
         build_key = resolve_build_key
         root_name = resolve_root_name(build_key)
 
-        owner = communicator.owner || communicator.user
-        raise Boards::BoardTreeBuilder::BuildError, "communicator has no owning user" unless owner
+        owner = communicator ? (communicator.owner || communicator.user) : current_user
+        raise Boards::BoardTreeBuilder::BuildError, "no owning user" unless owner
 
         raw_interests = params[:interests]
         interests  = Boards::InterestWords.normalize_list(raw_interests)
@@ -128,14 +138,18 @@ module API
           root = Board.new(name: root_name, user: owner)
           root.board_type = "dynamic"
           root.assign_parent
-          root.voice = VoiceService.normalize_voice(communicator.voice)
+          root.voice = VoiceService.normalize_voice(communicator&.voice || owner.voice)
           root.generate_unique_slug
           root.settings = (root.settings || {}).merge("builder_root" => true)
           root.status = "building_board"
           root.save!
 
-          child_board = communicator.child_boards.create!(board: root, created_by_id: owner.id)
-          child_board.update!(favorite: true)
+          # Unattached sets have no communicator to favorite the root onto; the
+          # set still lives in the user's Board Sets via the BoardGroup below.
+          if communicator
+            child_board = communicator.child_boards.create!(board: root, created_by_id: owner.id)
+            child_board.update!(favorite: true)
+          end
 
           # The builder set's canonical container. Member boards (root + every
           # child the job builds) attach here; this is what the user's board-set
@@ -147,10 +161,17 @@ module API
           board_group.board_group_boards.create!(board: root, position: 0)
           board_group.update!(root_board_id: root.id)
 
-          communicator.update!(details: (communicator.details || {}).merge("interests" => interests))
+          # Persist the normalized interests so the wizard is re-runnable /
+          # pre-fillable. They belong to the communicator when there is one;
+          # an unattached set keeps them on its own group instead.
+          if communicator
+            communicator.update!(details: (communicator.details || {}).merge("interests" => interests))
+          else
+            board_group.update!(settings: (board_group.settings || {}).merge("interests" => interests))
+          end
         end
 
-        BuildBoardSetJob.perform_async(root.id, communicator.id, build_key, interests, categories,
+        BuildBoardSetJob.perform_async(root.id, communicator&.id, build_key, interests, categories,
                                        { "include_phrases" => include_phrases_param,
                                          "board_group_id" => board_group.id })
 

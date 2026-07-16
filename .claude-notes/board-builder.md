@@ -740,6 +740,33 @@ Endpoints (`API::V1::BoardBuilderController`, all auth-gated):
   favorited root board's `api_view` (**201**). **422 `unknown_template`** /
   **422 `build_failed`** (the build is transactional — failure rolls back, no
   orphans). The frontend page ships separately in `itty-bitty-frontend`.
+  - **`communicator_id` is OPTIONAL — omit it to build an UNATTACHED set.**
+    A **present but unresolvable** id is still a 404; only an **absent** one
+    takes the unattached path, so every existing client is unaffected. The
+    requirement was never structural: `BoardGroup` (the set — what the plan
+    limit counts and what cascade-deletes the tree) is user-owned and has no
+    `child_account` at all. The single hard dependency is the `ChildBoard` join
+    (`child_accounts.child_account_id` is NOT NULL), so an unattached build
+    simply **doesn't create one** — no migration, no schema change. What
+    differs without a communicator:
+    - No `ChildBoard`, so no favorited root and the set isn't on anyone's
+      dashboard; it still lives in the user's Board Sets via its BoardGroup.
+    - `owner` is `current_user` instead of `communicator.owner || .user`.
+    - Voice falls back to the **owner's** default (`User#voice`);
+      `VoiceService.normalize_voice(nil)` would otherwise force `polly:kevin`.
+    - **No 409 re-run guard** — detection is inherently per-communicator
+      (`ChildAccount#builder_roots`), so each unattached build is just another
+      Board Set, capped by `at_board_group_limit?` (422). That 422 still
+      applies to both paths.
+    - Interests persist to `board_group.settings["interests"]` (the existing
+      jsonb) instead of `child_account.details["interests"]`.
+    - `CommunicatorProfile.for(communicator: nil)` returns nil, and every
+      consumer already treats "no profile" as "no personalization" — so an
+      unattached build gets no level recommendation, no GLP stage, and no
+      profile-guided AI prompts. `GET .../templates` needed no change: it
+      already returns nil recommendations when `communicator_id` is blank.
+    - `BuildBoardSetJob` receives a **nil** `communicator_id`; it fails the root
+      only when an id is **present and unresolvable** (a real dangling ref).
   - **Board-limit gated, but a tree counts as ONE board.** `create` returns
     **422 "Maximum number of boards reached"** when `current_user.at_board_limit?`
     (see the board read-only rule in `.claude-notes/billing-and-plans.md`). Because one wizard run persists a whole

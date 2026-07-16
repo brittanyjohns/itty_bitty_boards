@@ -3,8 +3,10 @@
 # Async half of the Board Builder (POST /api/v1/board_builder). The controller
 # does every synchronous pre-check (404 / 422 board-limit / 409 duplicate-set),
 # creates the ROOT board with status "building_board", attaches it to the
-# communicator (ChildBoard + favorite), and enqueues this job. This job builds
-# everything else under that pre-created root:
+# communicator (ChildBoard + favorite) WHEN there is one, and enqueues this job.
+# `communicator_id` is nil for an UNATTACHED set — one built for the user alone,
+# to be assigned to a communicator later. This job builds everything else under
+# that pre-created root:
 #
 #   - fringe/sub boards + their tiles
 #   - predictive_board_id folder links
@@ -48,8 +50,12 @@ class BuildBoardSetJob
       return
     end
 
-    communicator = ChildAccount.find_by(id: communicator_id)
-    unless communicator
+    # A nil communicator_id is the UNATTACHED path: the user built a set without
+    # a communicator (they can assign it later), so there's nothing to look up.
+    # An id that's present but unresolvable is a real dangling reference — still
+    # a failure.
+    communicator = communicator_id ? ChildAccount.find_by(id: communicator_id) : nil
+    if communicator_id && communicator.nil?
       Rails.logger.error "BuildBoardSetJob: ChildAccount with ID #{communicator_id} not found for Board ID #{root_board_id}."
       root.update_column(:status, "failed")
       return
@@ -89,12 +95,27 @@ class BuildBoardSetJob
     Boards::StructurePlanner::LEVELS.key?(value.to_s.downcase)
   end
 
+  # The user who owns the built set. With a communicator this is its owning user
+  # (unchanged); without one it's the root's own user — which the controller set
+  # to the same owner in both cases, so this is equivalent either way.
+  def owner_for(root, communicator)
+    communicator&.owner || communicator&.user || root.user
+  end
+
+  # The voice a newly created board in this set defaults to: the communicator's
+  # when there is one, else the owner's own default.
+  def voice_for(communicator, owner)
+    VoiceService.normalize_voice(communicator&.voice || owner.voice)
+  end
+
   # Phase 2: StructurePlanner-driven hybrid build. Gestalt phrases are no longer
   # a separate build target — every set gets the full core+fringe vocabulary
   # PLUS an integrated "Phrases" layer (Boards::PhrasesPageBuilder), with
   # prominence tuned to the communicator's NLA stage.
   def build_with_structure_planner(root, communicator, level, interests, explicit_categories, include_phrases = nil)
-    owner = communicator.owner || communicator.user
+    owner = owner_for(root, communicator)
+    # Nil without a communicator — CommunicatorProfile treats "no profile" as
+    # "no personalization", which StructurePlanner already handles.
     profile = CommunicatorProfile.for(communicator: communicator)
 
     plan = Boards::StructurePlanner.new(
@@ -110,7 +131,7 @@ class BuildBoardSetJob
     if robust_root
       seed_set_interests = collect_seed_set_interests(plan)
       Boards::SeededSetCloner.new(
-        robust_root, communicator: communicator,
+        robust_root, communicator: communicator, owner: owner,
         interests: seed_set_interests, root: root,
         explicit_categories: explicit_categories,
         # Clone the authored core set INTACT. Excluding "unplanned" seed pages
@@ -138,7 +159,7 @@ class BuildBoardSetJob
     root.reload
     return nil if root_open_cells(root) < 1
 
-    phrases_board = Boards::PhrasesPageBuilder.new(communicator: communicator, owner: owner).call
+    phrases_board = Boards::PhrasesPageBuilder.new(owner: owner, communicator: communicator).call
     return nil unless phrases_board
 
     add_folder_tile!(root, owner, Boards::PhrasesPageBuilder::PHRASES_BOARD_NAME, phrases_board.id)
@@ -302,9 +323,10 @@ class BuildBoardSetJob
   # The new Phrases board doubles as the communicator's phrase board (the
   # sentence-builder save target + quick-phrase source). Wire it on the
   # communicator and backfill the owner — but only when blank, never clobbering
-  # a phrase board the user already picked.
+  # a phrase board the user already picked. An unattached set has no
+  # communicator to wire, so it only backfills the owner.
   def wire_phrase_board!(communicator, owner, phrases_board)
-    if communicator.settings["phrase_board_id"].blank?
+    if communicator && communicator.settings["phrase_board_id"].blank?
       communicator.update!(settings: (communicator.settings || {}).merge("phrase_board_id" => phrases_board.id))
     end
     if owner.settings["phrase_board_id"].blank?
@@ -486,7 +508,7 @@ class BuildBoardSetJob
     fringe = Board.new(name: blueprint[:name], user: owner)
     fringe.board_type = "static"
     fringe.assign_parent
-    fringe.voice = VoiceService.normalize_voice(communicator.voice)
+    fringe.voice = voice_for(communicator, owner)
     fringe.generate_unique_slug
     fringe.settings = (fringe.settings || {}).merge("builder_child" => true)
     fringe.save!
@@ -505,7 +527,7 @@ class BuildBoardSetJob
   def add_to_favorites!(root, communicator, words)
     return if words.blank?
 
-    owner = communicator.owner || communicator.user
+    owner = owner_for(root, communicator)
     root.reload
 
     favorites = root.board_images
@@ -522,7 +544,7 @@ class BuildBoardSetJob
       favorites = Board.new(name: "My Favorites", user: owner)
       favorites.board_type = "static"
       favorites.assign_parent
-      favorites.voice = VoiceService.normalize_voice(communicator.voice)
+      favorites.voice = voice_for(communicator, owner)
       favorites.generate_unique_slug
       favorites.settings = (favorites.settings || {}).merge("builder_child" => true)
       favorites.save!
@@ -585,15 +607,15 @@ class BuildBoardSetJob
   # Legacy path: backward-compatible with direct template keys (core-60, core-84, home, etc.)
   def build_legacy(root, communicator, template, interests, explicit_categories)
     robust_root = Boards::RobustSets.find_root(template)
+    owner = owner_for(root, communicator)
 
     if robust_root
       Boards::SeededSetCloner.new(
-        robust_root, communicator: communicator,
+        robust_root, communicator: communicator, owner: owner,
         interests: interests, root: root,
         explicit_categories: explicit_categories,
       ).call
     else
-      owner = communicator.owner || communicator.user
       assembler = Boards::BlueprintAssembler.new(
         template:  template,
         interests: interests,
@@ -603,7 +625,7 @@ class BuildBoardSetJob
       blueprint = assembler.call
 
       Boards::BoardTreeBuilder.new(
-        blueprint, communicator: communicator, root: root,
+        blueprint, communicator: communicator, owner: owner, root: root,
       ).call
     end
   end

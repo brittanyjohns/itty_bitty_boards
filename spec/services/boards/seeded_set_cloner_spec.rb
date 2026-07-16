@@ -287,6 +287,49 @@ RSpec.describe Boards::SeededSetCloner do
   end
 
   # Regression for #278: seed BOTH real sets, then clone each.
+  # A set cloned for a user with no communicator — assignable to one later.
+  describe "#call without a communicator" do
+    it "clones the whole set for the owner and creates no ChildBoard" do
+      root = nil
+      expect {
+        root = described_class.new(@source[:root], owner: owner).call
+      }.not_to change { ChildBoard.count }
+
+      expect(root.user_id).to eq(owner.id)
+      expect(root.settings["builder_root"]).to be(true)
+      expect(owner.boards.count).to eq(3)
+
+      cloned_food = owner.boards.find_by(name: "Food")
+      expect(root.board_images.find_by(label: "Food").predictive_board_id).to eq(cloned_food.id)
+    end
+
+    it "routes interests into the cloned fringe pages and My Favorites" do
+      root = described_class.new(@source[:root], owner: owner,
+                                                 interests: ["apple", "grandma"]).call
+
+      cloned_food = owner.boards.find_by(name: "Food")
+      expect(cloned_food.board_images.map(&:label)).to include("apple")
+
+      favorites = owner.boards.find_by(name: "My Favorites")
+      expect(favorites.board_images.map(&:label)).to contain_exactly("grandma")
+      expect(root.board_images.find_by(label: "My Favorites")).to be_present
+    end
+
+    it "falls back to the owner's voice for boards it creates" do
+      owner.update!(settings: { "voice" => { "name" => "openai:nova" } })
+
+      described_class.new(@source[:root], owner: owner, interests: ["grandma"]).call
+
+      expect(owner.boards.find_by(name: "My Favorites").voice).to eq("openai:nova")
+    end
+
+    it "raises without an owner or a communicator to derive one from" do
+      expect {
+        described_class.new(@source[:root]).call
+      }.to raise_error(described_class::CloneError, /no owning user/)
+    end
+  end
+
   describe "cloning a real seeded robust set" do
     before_all do
       register_openai_webmock_stub!

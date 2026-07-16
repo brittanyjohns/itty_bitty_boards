@@ -5,6 +5,21 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Board Builder no longer requires a communicator
+- `POST /api/v1/board_builder` now accepts an **omitted `communicator_id`** and
+  builds an **unattached** board set owned by the user, which they can assign to
+  a communicator later. Previously a user with no communicator couldn't build a
+  set at all — and since the manual Board Set form redirects non-admins to the
+  Board Builder, that meant they couldn't create a board set by any route.
+- Backward compatible: a `communicator_id` that's present but doesn't resolve
+  still returns **404 `communicator_not_found`**. Only an absent id is the new
+  path, so existing clients are unaffected.
+- Without a communicator there's no `ChildBoard` (so the set isn't on a
+  dashboard, but does appear in Board Sets), the board voice falls back to the
+  user's own default, interests persist on the set's `BoardGroup`, and there's
+  no 409 re-run guard — each build is just another Board Set, still capped by
+  the board-set limit. No migration.
+
 ### Added — Extra communicator add-on slots (Pro-only)
 - Pro users can buy communicator slots on top of the base 5: **$5/mo or $50/yr**
   recurring, or **$125 one-time** bundled with a `pro_5yr` 5-Year license.

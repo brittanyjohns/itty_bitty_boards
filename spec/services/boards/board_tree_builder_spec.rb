@@ -267,5 +267,47 @@ RSpec.describe Boards::BoardTreeBuilder, type: :service do
         expect(Board.where(user_id: owner.id).where.not(id: root.id).count).to eq(0)
       end
     end
+
+    # A set built for a user with no communicator — assignable to one later.
+    context "without a communicator" do
+      let(:blueprint) do
+        { name: "Home",
+          tiles: [
+            { label: "I", image_id: image_id_for("I") },
+            { label: "Food", image_id: image_id_for("Food"), children: {
+              name: "Food", tiles: [{ label: "apple", image_id: image_id_for("apple") }],
+            } },
+          ] }
+      end
+
+      it "builds the tree for the owner and creates no ChildBoard" do
+        root = nil
+        expect {
+          root = described_class.new(blueprint, owner: owner, favorite_root: true).call
+        }.not_to change { ChildBoard.count }
+
+        expect(root.user_id).to eq(owner.id)
+        expect(root.settings["builder_root"]).to be(true)
+
+        food_tile = root.board_images.find { |bi| bi.label == "Food" }
+        food_board = Board.find(food_tile.predictive_board_id)
+        expect(food_board.board_images.map(&:label)).to eq(["apple"])
+        expect(food_board.settings["builder_child"]).to be(true)
+      end
+
+      it "falls back to the owner's voice" do
+        owner.update!(settings: { "voice" => { "name" => "openai:nova" } })
+
+        root = described_class.new(blueprint, owner: owner).call
+
+        expect(root.voice).to eq("openai:nova")
+      end
+
+      it "raises without an owner or a communicator to derive one from" do
+        expect {
+          described_class.new(blueprint).call
+        }.to raise_error(described_class::BuildError, /no owning user/)
+      end
+    end
   end
 end

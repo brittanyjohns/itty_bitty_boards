@@ -396,6 +396,106 @@ RSpec.describe "API::V1::BoardBuilder", type: :request do
       end
     end
 
+    # An UNATTACHED build: no communicator_id at all. The set is the user's own
+    # Board Set, assignable to a communicator later.
+    context "without a communicator" do
+      it "returns 201 and builds the set for the user, with no ChildBoard" do
+        expect {
+          post "/api/v1/board_builder",
+               params: { template: "home", interests: ["dinosaurs"] }.to_json,
+               headers: headers
+        }.to change { BuildBoardSetJob.jobs.size }.by(1)
+          .and change { ChildBoard.count }.by(0)
+
+        expect(response).to have_http_status(:created)
+        root = Board.find(JSON.parse(response.body)["id"])
+        expect(root.user_id).to eq(user.id)
+        expect(root.settings["builder_root"]).to be(true)
+        expect(root.status).to eq("building_board")
+
+        # The set still lives in the user's Board Sets via its builder group —
+        # that's what the plan limit counts and what cascade-deletes the tree.
+        group = user.board_groups.find_by(builder: true, root_board_id: root.id)
+        expect(group).to be_present
+        # Interests have no communicator to live on, so the group holds them.
+        expect(group.settings["interests"]).to eq(["dinosaurs"])
+
+        # The job gets a nil communicator_id — the unattached signal.
+        expect(BuildBoardSetJob.jobs.last["args"])
+          .to eq([root.id, nil, "home", ["dinosaurs"], {},
+                  { "include_phrases" => nil, "board_group_id" => group.id }])
+      end
+
+      it "builds the full tree and completes (job drained)" do
+        post "/api/v1/board_builder",
+             params: { template: "home", interests: ["dinosaurs", "grandma"] }.to_json,
+             headers: headers
+        expect(response).to have_http_status(:created)
+
+        BuildBoardSetJob.drain
+
+        root = Board.find(JSON.parse(response.body)["id"])
+        expect(root.status).to eq("complete")
+        expect(ChildBoard.count).to eq(0)
+
+        # Interests route exactly as they do for an attached build.
+        play_tile = root.board_images.find { |bi| bi.label == "Play" }
+        play_board = Board.find(play_tile.predictive_board_id)
+        expect(play_board.board_images.map(&:label)).to include("dinosaurs")
+
+        favorites_tile = root.board_images.find { |bi| bi.label == "My Favorites" }
+        favorites_board = Board.find(favorites_tile.predictive_board_id)
+        expect(favorites_board.board_images.map(&:label)).to contain_exactly("grandma")
+      end
+
+      it "falls back to the owner's voice" do
+        user.update!(settings: { "voice" => { "name" => "openai:nova" } })
+
+        post "/api/v1/board_builder",
+             params: { template: "home" }.to_json, headers: headers
+
+        root = Board.find(JSON.parse(response.body)["id"])
+        expect(root.voice).to eq("openai:nova")
+      end
+
+      # The 409 re-run guard is keyed on the communicator, so an unattached
+      # build has nothing to collide with. Room in the set limit is raised here
+      # so this isolates the absence of a 409 from the 422 cap below.
+      it "does not 409 on a second build — each is just another Board Set" do
+        user.update!(settings: (user.settings || {}).merge("board_group_limit" => 5))
+
+        2.times do
+          post "/api/v1/board_builder",
+               params: { template: "home" }.to_json, headers: headers
+          expect(response).to have_http_status(:created)
+        end
+
+        expect(user.board_groups.where(builder: true).count).to eq(2)
+      end
+
+      it "still enforces the board-set limit" do
+        allow_any_instance_of(User).to receive(:at_board_group_limit?).and_return(true)
+
+        expect {
+          post "/api/v1/board_builder",
+               params: { template: "home" }.to_json, headers: headers
+        }.not_to change { Board.count }
+
+        expect(response).to have_http_status(:unprocessable_content)
+      end
+
+      # Only an ABSENT id is the unattached path — a present-but-bad one is
+      # still a client error.
+      it "still 404s when a communicator_id is given but doesn't resolve" do
+        post "/api/v1/board_builder",
+             params: { communicator_id: -1, template: "home" }.to_json,
+             headers: headers
+
+        expect(response).to have_http_status(:not_found)
+        expect(JSON.parse(response.body)["error"]).to eq("communicator_not_found")
+      end
+    end
+
     context "with a GLP template" do
       def seed_glp_templates!
         Boards::GlpTemplates.seed!(admin: create(:admin_user))
