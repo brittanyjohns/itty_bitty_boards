@@ -35,7 +35,11 @@ class BoardImage < ApplicationRecord
   belongs_to :image
   belongs_to :predictive_board, class_name: "Board", optional: true
   has_many_attached :audio_files
+  has_one_attached :video_clip
   attr_accessor :skip_create_voice_audio, :skip_initial_layout, :src
+
+  ALLOWED_VIDEO_CONTENT_TYPES = %w[video/mp4 video/webm].freeze
+  MAX_VIDEO_BYTES = 25.megabytes
 
   before_create :set_defaults
   # before_save :save_display_image_url, if: -> { display_image_url.blank? }
@@ -329,6 +333,11 @@ class BoardImage < ApplicationRecord
       ext_saw_board_id: board_id.to_s,
     }
     btn[:sound_id] = id.to_s if audio_url.present?
+    if (video = video_config)
+      btn[:ext_saw_video_source] = video["source"]
+      btn[:ext_saw_video_youtube_id] = video["youtube_id"] if video["youtube_id"].present?
+      btn[:ext_saw_video_url] = video["url"] if video["url"].present?
+    end
     if predictive_board_id
       target = Board.find_by(id: predictive_board_id)
       if target
@@ -496,6 +505,51 @@ class BoardImage < ApplicationRecord
 
   def description
     image.image_prompt || board.description
+  end
+
+  # --- Tile video (data["video"]) -------------------------------------------
+  # Video config lives inside the `data` jsonb under a single "video" key:
+  #   { "source" => "youtube", "youtube_id" => "..." }
+  #   { "source" => "upload",  "url" => "<cdn url>", "content_type" => "video/mp4" }
+  # It is only ever written by the dedicated controller actions
+  # (attach_youtube_video / upload_video / clear_video) — the generic update
+  # path strips the key so unvalidated client input can't reach it.
+
+  def video_config
+    data&.dig("video").presence
+  end
+
+  def video?
+    video_config.present?
+  end
+
+  def set_youtube_video!(youtube_id)
+    video_clip.purge_later if video_clip.attached?
+    self.data = (data || {}).merge("video" => { "source" => "youtube", "youtube_id" => youtube_id })
+    save!
+  end
+
+  def set_uploaded_video!(url, content_type)
+    self.data = (data || {}).merge("video" => { "source" => "upload", "url" => url, "content_type" => content_type })
+    save!
+  end
+
+  def clear_video!
+    video_clip.purge_later if video_clip.attached?
+    self.data = (data || {}).except("video")
+    save!
+  end
+
+  # CDN-aware URL for the attached clip — same resolution scheme as
+  # AudioHelper#default_audio_url so playback URLs are stable and cacheable.
+  def video_clip_url
+    blob = video_clip.attached? ? video_clip.blob : nil
+    return nil unless blob
+    if ENV["ACTIVE_STORAGE_SERVICE"] == "amazon" || Rails.env.production?
+      "#{ENV["CDN_HOST"]}/#{blob.key}"
+    else
+      video_clip.url
+    end
   end
 
   def has_custom_audio?
