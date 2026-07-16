@@ -41,10 +41,4 @@ RSpec.describe YoutubeUrlParser do
     end
   end
 
-  describe ".embed_url" do
-    it "builds the privacy-enhanced nocookie embed URL" do
-      expect(described_class.embed_url("dQw4w9WgXcQ"))
-        .to eq("https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ")
-    end
-  end
 end

@@ -44,9 +44,4 @@ class YoutubeUrlParser
 
     candidate.presence&.match?(VIDEO_ID_RE) ? candidate : nil
   end
-
-  # Canonical privacy-enhanced embed URL for a validated id.
-  def self.embed_url(video_id)
-    "https://www.youtube-nocookie.com/embed/#{video_id}"
-  end
 end
