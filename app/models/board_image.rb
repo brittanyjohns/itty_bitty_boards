@@ -550,9 +550,9 @@ class BoardImage < ApplicationRecord
     parsed = {}
     { "start_seconds" => start_raw, "end_seconds" => end_raw }.each do |key, raw|
       next if raw.blank?
-      seconds = Integer(raw.to_s, exception: false)
-      return nil if seconds.nil? || seconds.negative?
-      parsed[key] = seconds
+      digits = raw.to_s.strip
+      return nil unless digits.match?(/\A\d+\z/)
+      parsed[key] = digits.to_i
     end
     if parsed.key?("start_seconds") && parsed.key?("end_seconds")
       return nil unless parsed["end_seconds"] > parsed["start_seconds"]

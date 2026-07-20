@@ -41,4 +41,15 @@ RSpec.describe BoardImage, ".parse_video_range" do
     expect(described_class.parse_video_range("72", "45")).to be_nil
     expect(described_class.parse_video_range("45", "45")).to be_nil
   end
+
+  it "rejects leading-zero octal notation" do
+    expect(described_class.parse_video_range("08", nil)).to eq({ "start_seconds" => 8 })
+    expect(described_class.parse_video_range("017", nil)).to eq({ "start_seconds" => 17 })
+    expect(described_class.parse_video_range("00", "10"))
+      .to eq({ "start_seconds" => 0, "end_seconds" => 10 })
+  end
+
+  it "rejects numeric underscores" do
+    expect(described_class.parse_video_range("5_0", nil)).to be_nil
+  end
 end
