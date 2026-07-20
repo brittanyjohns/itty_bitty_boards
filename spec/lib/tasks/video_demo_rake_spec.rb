@@ -19,101 +19,141 @@ RSpec.describe "video_demo rake tasks", type: :task do
   end
 
   after do
-    ENV.delete("DRY_RUN")
+    %w[BOARD DRY_RUN].each { |k| ENV.delete(k) }
     %w[seed publish unpublish].each { |t| Rake::Task["video_demo:#{t}"].reenable }
   end
 
-  let(:board) { Board.find_by(name: VideoDemoSeeder::BOARD_NAME) }
+  def board_for(key)
+    Board.find_by(name: VideoDemoSeeder.config_for(key)[:name])
+  end
 
   describe "seed" do
-    before { run(:seed) }
-
-    # published is what makes a predefined admin board public, so seeding it
-    # false is what keeps the board reviewable-but-private.
-    it "creates the board unpublished so it is not yet public" do
-      expect(board).to be_present
-      expect(board.published).to be(false)
-      expect(board.predefined).to be(true)
-      expect(board.user_id).to eq(User::DEFAULT_ADMIN_ID)
-      expect(Board.public_boards).not_to include(board)
-    end
-
-    it "is viewable by the admin owner but not by a logged-out visitor" do
-      admin = User.find(User::DEFAULT_ADMIN_ID)
-      expect(board.viewable_by?(admin)).to be(true)
-      expect(board.viewable_by?(nil)).to be(false)
-    end
-
-    it "adds a tile per curated video, each carrying its youtube config" do
-      expect(board.board_images.count).to eq(VideoDemoSeeder::CURATED_VIDEOS.size)
-      video = board.board_images.first.data["video"]
-      expect(video["source"]).to eq("youtube")
-      expect(video["youtube_id"]).to match(/\A[A-Za-z0-9_-]{11}\z/)
-    end
-
-    it "does not duplicate the board or its tiles on a second run" do
+    it "seeds every configured board when BOARD is not given" do
       run(:seed)
 
-      expect(Board.where(name: VideoDemoSeeder::BOARD_NAME).count).to eq(1)
-      expect(board.board_images.count).to eq(VideoDemoSeeder::CURATED_VIDEOS.size)
+      VideoDemoSeeder.board_keys.each do |key|
+        cfg = VideoDemoSeeder.config_for(key)
+        board = board_for(key)
+        expect(board).to be_present, "expected the #{key} board to exist"
+        expect(board.board_images.count).to eq(cfg[:videos].size)
+      end
+    end
+
+    it "seeds only the named board when BOARD is given" do
+      ENV["BOARD"] = "asl"
+      run(:seed)
+
+      expect(board_for("asl")).to be_present
+      expect(board_for("songs")).to be_nil
+    end
+
+    it "raises on an unknown BOARD rather than silently seeding nothing" do
+      ENV["BOARD"] = "nope"
+
+      expect { run(:seed) }.to raise_error(/unknown BOARD/)
+      expect(Board.count).to eq(0)
+    end
+
+    # published is what makes a predefined admin board public, so seeding it
+    # false is what keeps these boards reviewable-but-private.
+    it "creates every board unpublished and out of public view" do
+      run(:seed)
+
+      VideoDemoSeeder.board_keys.each do |key|
+        board = board_for(key)
+        expect(board.published).to be(false)
+        expect(Board.public_boards).not_to include(board)
+        expect(board.viewable_by?(nil)).to be(false)
+        expect(board.viewable_by?(User.find(User::DEFAULT_ADMIN_ID))).to be(true)
+      end
+    end
+
+    it "gives every tile a valid youtube video config" do
+      run(:seed)
+
+      VideoDemoSeeder.board_keys.each do |key|
+        board_for(key).board_images.each do |bi|
+          video = bi.data["video"]
+          expect(video["source"]).to eq("youtube")
+          expect(video["youtube_id"]).to match(/\A[A-Za-z0-9_-]{11}\z/)
+        end
+      end
+    end
+
+    it "does not duplicate boards or tiles on a second run" do
+      run(:seed)
+      run(:seed)
+
+      VideoDemoSeeder.board_keys.each do |key|
+        cfg = VideoDemoSeeder.config_for(key)
+        expect(Board.where(name: cfg[:name]).count).to eq(1)
+        expect(board_for(key).board_images.count).to eq(cfg[:videos].size)
+      end
     end
 
     it "leaves an already-published board published when re-seeded" do
-      board.update!(published: true)
+      run(:seed)
+      board_for("asl").update!(published: true)
       run(:seed)
 
-      expect(board.reload.published).to be(true)
+      expect(board_for("asl").reload.published).to be(true)
+    end
+
+    it "writes nothing under DRY_RUN" do
+      ENV["DRY_RUN"] = "1"
+      run(:seed)
+
+      expect(Board.count).to eq(0)
     end
   end
 
   describe "publish" do
-    it "makes a seeded board public" do
-      run(:seed)
-      expect(board.published).to be(false)
+    before { run(:seed) }
 
+    it "makes the named board public and leaves the others alone" do
+      ENV["BOARD"] = "asl"
       run(:publish)
 
-      expect(board.reload.published).to be(true)
-      expect(Board.public_boards).to include(board)
+      expect(board_for("asl").reload.published).to be(true)
+      expect(Board.public_boards).to include(board_for("asl"))
+      expect(board_for("songs").reload.published).to be(false)
+    end
+
+    # Publishing is public-facing, so it must never happen to an unnamed board.
+    it "refuses to publish anything when BOARD is omitted" do
+      run(:publish)
+
+      VideoDemoSeeder.board_keys.each do |key|
+        expect(board_for(key).reload.published).to be(false)
+      end
     end
 
     it "refuses to publish a board with no tiles" do
-      Board.create!(
-        name: VideoDemoSeeder::BOARD_NAME,
-        user_id: User::DEFAULT_ADMIN_ID,
-        predefined: true,
-        published: false,
-      )
-
+      board_for("asl").board_images.destroy_all
+      ENV["BOARD"] = "asl"
       run(:publish)
 
-      expect(board.reload.published).to be(false)
-    end
-
-    it "does nothing when no board has been seeded" do
-      expect { run(:publish) }.not_to raise_error
-      expect(board).to be_nil
+      expect(board_for("asl").reload.published).to be(false)
     end
   end
 
   describe "unpublish" do
     it "takes a published board back out of public view" do
       run(:seed)
+      ENV["BOARD"] = "asl"
       run(:publish)
-
       run(:unpublish)
 
-      expect(board.reload.published).to be(false)
-      expect(Board.public_boards).not_to include(board)
+      expect(board_for("asl").reload.published).to be(false)
+      expect(Board.public_boards).not_to include(board_for("asl"))
     end
-  end
 
-  describe "DRY_RUN" do
-    it "writes nothing to the database" do
-      ENV["DRY_RUN"] = "1"
+    it "refuses to act when BOARD is omitted" do
       run(:seed)
+      board_for("asl").update!(published: true)
+      run(:unpublish)
 
-      expect(Board.where(name: VideoDemoSeeder::BOARD_NAME)).to be_empty
+      expect(board_for("asl").reload.published).to be(true)
     end
   end
 end
