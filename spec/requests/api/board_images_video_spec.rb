@@ -259,6 +259,36 @@ RSpec.describe "API::BoardImages video", type: :request do
     end
   end
 
+  # The generic update path strips data["video"] so an unvalidated payload can
+  # never reach an iframe src. This guard is load-bearing security — if a
+  # refactor of the params method drops it, this spec is what catches it.
+  describe "PATCH /api/board_images/:id (generic update)" do
+    it "silently drops a video key rather than persisting it" do
+      patch "/api/board_images/#{board_image.id}",
+            params: { board_image: { data: { video: { source: "youtube", youtube_id: "dQw4w9WgXcQ" } } } },
+            headers: auth_headers(user)
+
+      expect(board_image.reload.data&.dig("video")).to be_nil
+    end
+
+    it "does not let a hostile url be injected through the data blob" do
+      patch "/api/board_images/#{board_image.id}",
+            params: { board_image: { data: { video: { source: "upload", url: "https://evil.example/x.mp4" } } } },
+            headers: auth_headers(user)
+
+      expect(board_image.reload.data&.dig("video")).to be_nil
+    end
+
+    it "still persists unrelated data keys through the same path" do
+      patch "/api/board_images/#{board_image.id}",
+            params: { board_image: { data: { hide_label: true } } },
+            headers: auth_headers(user),
+            as: :json
+
+      expect(board_image.reload.data["hide_label"]).to eq(true)
+    end
+  end
+
   describe "board payload passthrough" do
     it "includes the video config in the bulk board serialization via data" do
       board_image.set_youtube_video!("dQw4w9WgXcQ")
