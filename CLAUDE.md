@@ -33,6 +33,14 @@ one-off handoff/scratch files stay untracked and local.
 - **Auth:** Devise + devise-jwt
 - **Authorization:** Pundit
 - **Background jobs:** Sidekiq (v7) + Redis
+- **Video (tile clips):** `VideoTranscoder` shells out to `ffmpeg`/`ffprobe`
+  (no gem). `ProcessTileVideoJob` runs after `upload_video` to enforce the 30s
+  cap (trims, doesn't reject) and transcode .mov/HEVC → H.264 mp4, then
+  rebroadcasts the board so the editor picks up the swapped URL. **Everything
+  is gated on `VideoTranscoder.available?`** — when the binaries are missing
+  the controller narrows what it accepts (mp4/webm, 25 MB) and the job leaves
+  the original clip attached rather than destroying it. Keep that contract:
+  never accept an upload format we can't guarantee we can make web-safe.
 - **Cache:** `Rails.cache` is a **Redis cache store** in production
   (`config/environments/production.rb`, issue #474) — namespaced `ibb_cache` so
   keys can't collide with Sidekiq / Rack::Attack on the shared Redis, with a
