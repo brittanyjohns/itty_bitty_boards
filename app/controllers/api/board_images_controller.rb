@@ -1,8 +1,8 @@
 class API::BoardImagesController < API::ApplicationController
   respond_to :json
   before_action :set_board_image, only: %i[ show ]
-  before_action :set_owned_board_image, only: %i[ update destroy create_image_variation create_image_edit set_current_audio ]
-  before_action :check_board_image_editable!, only: %i[ save_layout set_current_audio update update_multiple remove_multiple create_image_edit create_image_variation upload_audio reset_audio move destroy ]
+  before_action :set_owned_board_image, only: %i[ update destroy create_image_variation create_image_edit set_current_audio attach_youtube_video upload_video clear_video ]
+  before_action :check_board_image_editable!, only: %i[ save_layout set_current_audio update update_multiple remove_multiple create_image_edit create_image_variation upload_audio reset_audio move destroy attach_youtube_video upload_video clear_video ]
 
   # GET /board_images or /board_images.json
   def index
@@ -35,6 +35,11 @@ class API::BoardImagesController < API::ApplicationController
   # PATCH/PUT /board_images/1 or /board_images/1.json
   def update
     data = params[:board_image][:data]
+    # The "video" key is only writable through the dedicated, validated
+    # actions below (attach_youtube_video / upload_video / clear_video).
+    # Stripping it here means a generic update can neither inject an
+    # unvalidated video config nor clobber an existing one.
+    data = data.except(:video) if data.respond_to?(:except)
     updatedData = @board_image.data.merge(data.to_unsafe_h) if data
 
     @board_image.data = updatedData if updatedData
@@ -259,6 +264,55 @@ class API::BoardImagesController < API::ApplicationController
     else
       render json: @board_image.errors, status: :unprocessable_content
     end
+  end
+
+  # POST /api/board_images/:id/attach_youtube_video
+  # Persists only the parsed 11-char video id — the raw URL is discarded, so
+  # client input can never reach an iframe src.
+  def attach_youtube_video
+    youtube_id = YoutubeUrlParser.video_id(params[:url])
+    unless youtube_id
+      render json: { error: "invalid_youtube_url" }, status: :unprocessable_content
+      return
+    end
+    @board_image.set_youtube_video!(youtube_id)
+    @board_image.board.broadcast_board_update!
+    render json: @board_image.api_view(current_user)
+  end
+
+  # POST /api/board_images/:id/upload_video (multipart: video_file)
+  # mp4/webm only, 25 MB cap — both enforced here regardless of client checks.
+  # The 30s duration cap is client-side only (no ffmpeg server-side in v1).
+  def upload_video
+    file = params[:video_file]
+    unless file.respond_to?(:content_type) && file.respond_to?(:size)
+      render json: { error: "video_required" }, status: :unprocessable_content
+      return
+    end
+    unless BoardImage::ALLOWED_VIDEO_CONTENT_TYPES.include?(file.content_type)
+      render json: { error: "invalid_video_type" }, status: :unprocessable_content
+      return
+    end
+    if file.size > BoardImage::MAX_VIDEO_BYTES
+      render json: { error: "video_too_large" }, status: :unprocessable_content
+      return
+    end
+
+    extension = file.content_type == "video/webm" ? "webm" : "mp4"
+    filename = "board-image-#{@board_image.id}-video-#{Time.now.strftime("%m%d%y%H%M%S")}.#{extension}"
+    @board_image.video_clip.purge_later if @board_image.video_clip.attached?
+    @board_image.video_clip.attach(io: file, filename: filename, content_type: file.content_type)
+    @board_image.reload
+    @board_image.set_uploaded_video!(@board_image.video_clip_url, file.content_type)
+    @board_image.board.broadcast_board_update!
+    render json: @board_image.api_view(current_user)
+  end
+
+  # POST /api/board_images/:id/clear_video
+  def clear_video
+    @board_image.clear_video!
+    @board_image.board.broadcast_board_update!
+    render json: @board_image.api_view(current_user)
   end
 
   def reset_audio

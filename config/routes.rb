@@ -305,6 +305,9 @@ Rails.application.routes.draw do
         post "upload_audio", to: "board_images#upload_audio"
         post "reset_audio", to: "board_images#reset_audio"
         post "set_current_audio", to: "board_images#set_current_audio"
+        post "attach_youtube_video", to: "board_images#attach_youtube_video"
+        post "upload_video", to: "board_images#upload_video"
+        post "clear_video", to: "board_images#clear_video"
       end
       collection do
         put "update", to: "board_images#update_multiple"

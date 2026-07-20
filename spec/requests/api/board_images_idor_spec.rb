@@ -61,6 +61,25 @@ RSpec.describe "API::BoardImages IDOR", type: :request do
            headers: auth_headers(user)
       expect(response).to have_http_status(:not_found)
     end
+
+    it "POST /api/board_images/:id/attach_youtube_video" do
+      post "/api/board_images/#{other_board_image.id}/attach_youtube_video",
+           params: { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+           headers: auth_headers(user)
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "POST /api/board_images/:id/upload_video" do
+      post "/api/board_images/#{other_board_image.id}/upload_video",
+           headers: auth_headers(user)
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "POST /api/board_images/:id/clear_video" do
+      post "/api/board_images/#{other_board_image.id}/clear_video",
+           headers: auth_headers(user)
+      expect(response).to have_http_status(:not_found)
+    end
   end
 
   describe "the owner and admins are not blocked (no regression)" do
