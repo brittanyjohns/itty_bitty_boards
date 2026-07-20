@@ -671,9 +671,11 @@ In `public/youtube-embed.html`, replace the contents of the IIFE inside `<script
         }
 
         let notified = false;
+        let pollTimer = null;
         const notifyEnded = () => {
           if (notified) return;
           notified = true;
+          if (pollTimer !== null) clearInterval(pollTimer);
           // The payload carries nothing sensitive, and the parent origin
           // varies (capacitor://localhost on native, https on web), so "*"
           // is the only workable target. The parent verifies OUR origin.
@@ -729,8 +731,9 @@ In `public/youtube-embed.html`, replace the contents of the IIFE inside `<script
           });
 
           // `end` pauses rather than reporting ENDED in some clients, so poll
-          // the position as a backstop. notifyEnded is idempotent.
-          setInterval(() => {
+          // the position as a backstop. notifyEnded is idempotent and stops
+          // this timer, so the poll never outlives the clip.
+          pollTimer = setInterval(() => {
             if (typeof player.getCurrentTime !== "function") return;
             if (player.getCurrentTime() >= end) notifyEnded();
           }, 250);
