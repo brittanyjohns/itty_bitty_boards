@@ -38,12 +38,17 @@ module VideoDemoSeeder
       end
   end
 
+  # Seeds unpublished on purpose: `published` is what makes a predefined admin
+  # board public (Board.public_boards, Board#viewable_by?), so leaving it false
+  # keeps the board reviewable by the admin owner while invisible to everyone
+  # else. Publish with `video_demo:publish` once the videos have been watched.
+  # Only set on create, so re-running the seed never un-publishes a reviewed
+  # board.
   def configure_board!(board, admin)
     board.assign_attributes(
       description: "A demo board of sing-along videos — tap a tile to hear the " \
                    "word and watch the video.",
       predefined: true,
-      published: true,
       board_type: "default",
       number_of_columns: COLUMNS,
       small_screen_columns: COLUMNS,
@@ -51,6 +56,7 @@ module VideoDemoSeeder
       large_screen_columns: COLUMNS,
       tags: ["videos", "songs", "demo"],
     )
+    board.published = false if board.new_record?
     board.parent = admin
     board.layout ||= {}
     board.generate_unique_slug if board.slug.blank?
@@ -109,5 +115,49 @@ namespace :video_demo do
     board.save!
 
     puts "  Done: board id=#{board.id}, slug=#{board.slug}, #{board.board_images.count} tiles."
+    puts ""
+    puts "  UNPUBLISHED — visible to you as the admin owner, not to anyone else."
+    puts "  Review it, then publish with:"
+    puts "    bin/rails video_demo:publish"
+  end
+
+  desc "Publish the 'Video Demo' board after review — this makes it public. " \
+       "Usage: bin/rails video_demo:publish"
+  task publish: :environment do
+    admin = User.find(User::DEFAULT_ADMIN_ID)
+    board = Board.find_by(
+      name: VideoDemoSeeder::BOARD_NAME, user_id: admin.id, predefined: true,
+    )
+    if board.nil?
+      puts "No '#{VideoDemoSeeder::BOARD_NAME}' board found — run video_demo:seed first."
+      next
+    end
+    if board.published?
+      puts "'#{board.name}' (id=#{board.id}) is already published."
+      next
+    end
+    if board.board_images.empty?
+      puts "'#{board.name}' (id=#{board.id}) has no tiles — refusing to publish an empty board."
+      next
+    end
+
+    board.update!(published: true)
+    puts "Published '#{board.name}' (id=#{board.id}, slug=#{board.slug}) — it is now public."
+  end
+
+  desc "Unpublish the 'Video Demo' board (reverses video_demo:publish). " \
+       "Usage: bin/rails video_demo:unpublish"
+  task unpublish: :environment do
+    admin = User.find(User::DEFAULT_ADMIN_ID)
+    board = Board.find_by(
+      name: VideoDemoSeeder::BOARD_NAME, user_id: admin.id, predefined: true,
+    )
+    if board.nil?
+      puts "No '#{VideoDemoSeeder::BOARD_NAME}' board found."
+      next
+    end
+
+    board.update!(published: false)
+    puts "Unpublished '#{board.name}' (id=#{board.id}) — no longer public."
   end
 end
