@@ -534,7 +534,8 @@ class BoardImage < ApplicationRecord
 
   # --- Tile video (data["video"]) -------------------------------------------
   # Video config lives inside the `data` jsonb under a single "video" key:
-  #   { "source" => "youtube", "youtube_id" => "..." }
+  #   { "source" => "youtube", "youtube_id" => "...",
+  #     "start_seconds" => 45, "end_seconds" => 72 }   # trim points optional
   #   { "source" => "upload",  "url" => "<cdn url>", "content_type" => "video/mp4" }
   # It is only ever written by the dedicated controller actions
   # (attach_youtube_video / upload_video / clear_video) — the generic update
@@ -568,9 +569,10 @@ class BoardImage < ApplicationRecord
     video_config.present?
   end
 
-  def set_youtube_video!(youtube_id)
+  def set_youtube_video!(youtube_id, range = {})
     video_clip.purge_later if video_clip.attached?
-    self.data = (data || {}).merge("video" => { "source" => "youtube", "youtube_id" => youtube_id })
+    config = { "source" => "youtube", "youtube_id" => youtube_id }.merge(range)
+    self.data = (data || {}).merge("video" => config)
     save!
   end
 

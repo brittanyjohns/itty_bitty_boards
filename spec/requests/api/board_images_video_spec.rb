@@ -48,6 +48,62 @@ RSpec.describe "API::BoardImages video", type: :request do
       expect(board_image.reload.data["hide_label"]).to eq(true)
       expect(board_image.data["video"]["youtube_id"]).to eq("dQw4w9WgXcQ")
     end
+
+    it "persists an optional trim range alongside the video id" do
+      post "/api/board_images/#{board_image.id}/attach_youtube_video",
+           params: { url: valid_youtube_url, start_seconds: 45, end_seconds: 72 },
+           headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      expect(board_image.reload.data["video"]).to eq({
+        "source" => "youtube",
+        "youtube_id" => "dQw4w9WgXcQ",
+        "start_seconds" => 45,
+        "end_seconds" => 72,
+      })
+    end
+
+    it "stores no range keys when neither bound is supplied" do
+      post "/api/board_images/#{board_image.id}/attach_youtube_video",
+           params: { url: valid_youtube_url },
+           headers: auth_headers(user)
+
+      expect(board_image.reload.data["video"].keys)
+        .to contain_exactly("source", "youtube_id")
+    end
+
+    it "accepts a start with no end" do
+      post "/api/board_images/#{board_image.id}/attach_youtube_video",
+           params: { url: valid_youtube_url, start_seconds: 45 },
+           headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      video = board_image.reload.data["video"]
+      expect(video["start_seconds"]).to eq(45)
+      expect(video).not_to have_key("end_seconds")
+    end
+
+    it "rejects an unusable range with 422 and writes nothing" do
+      post "/api/board_images/#{board_image.id}/attach_youtube_video",
+           params: { url: valid_youtube_url, start_seconds: 72, end_seconds: 45 },
+           headers: auth_headers(user)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(JSON.parse(response.body)["error"]).to eq("invalid_video_range")
+      expect(board_image.reload.data&.dig("video")).to be_nil
+    end
+
+    it "replaces a previous range when re-attached without one" do
+      post "/api/board_images/#{board_image.id}/attach_youtube_video",
+           params: { url: valid_youtube_url, start_seconds: 45, end_seconds: 72 },
+           headers: auth_headers(user)
+      post "/api/board_images/#{board_image.id}/attach_youtube_video",
+           params: { url: valid_youtube_url },
+           headers: auth_headers(user)
+
+      expect(board_image.reload.data["video"].keys)
+        .to contain_exactly("source", "youtube_id")
+    end
   end
 
   describe "POST /api/board_images/:id/upload_video" do
