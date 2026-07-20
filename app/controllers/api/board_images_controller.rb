@@ -4,6 +4,15 @@ class API::BoardImagesController < API::ApplicationController
   before_action :set_owned_board_image, only: %i[ update destroy create_image_variation create_image_edit set_current_audio attach_youtube_video upload_video clear_video ]
   before_action :check_board_image_editable!, only: %i[ save_layout set_current_audio update update_multiple remove_multiple create_image_edit create_image_variation upload_audio reset_audio move destroy attach_youtube_video upload_video clear_video ]
 
+  # Extension used for the stored blob, keyed by the uploaded content type.
+  # Only covers types in BoardImage.accepted_video_content_types — anything
+  # else is rejected before this is consulted.
+  VIDEO_UPLOAD_EXTENSIONS = {
+    "video/mp4" => "mp4",
+    "video/webm" => "webm",
+    "video/quicktime" => "mov",
+  }.freeze
+
   # GET /board_images or /board_images.json
   def index
     @board_images = BoardImage.all
@@ -281,30 +290,40 @@ class API::BoardImagesController < API::ApplicationController
   end
 
   # POST /api/board_images/:id/upload_video (multipart: video_file)
-  # mp4/webm only, 25 MB cap — both enforced here regardless of client checks.
-  # The 30s duration cap is client-side only (no ffmpeg server-side in v1).
+  #
+  # Accepted types and the size cap both depend on whether ffmpeg is present
+  # (see BoardImage.accepted_video_content_types): with it we take .mov/HEVC
+  # at up to 100 MB and hand it to ProcessTileVideoJob to convert; without it
+  # we stay on mp4/webm at 25 MB, since we'd have no way to make anything else
+  # playable. Enforced here regardless of client checks.
+  #
+  # The 30s duration cap is enforced server-side by the job, not here — the
+  # response goes out before ffmpeg runs so the editor isn't blocked on it.
   def upload_video
     file = params[:video_file]
     unless file.respond_to?(:content_type) && file.respond_to?(:size)
       render json: { error: "video_required" }, status: :unprocessable_content
       return
     end
-    unless BoardImage::ALLOWED_VIDEO_CONTENT_TYPES.include?(file.content_type)
+    unless BoardImage.accepted_video_content_types.include?(file.content_type)
       render json: { error: "invalid_video_type" }, status: :unprocessable_content
       return
     end
-    if file.size > BoardImage::MAX_VIDEO_BYTES
+    if file.size > BoardImage.max_video_upload_bytes
       render json: { error: "video_too_large" }, status: :unprocessable_content
       return
     end
 
-    extension = file.content_type == "video/webm" ? "webm" : "mp4"
+    extension = VIDEO_UPLOAD_EXTENSIONS.fetch(file.content_type, "mp4")
     filename = "board-image-#{@board_image.id}-video-#{Time.now.strftime("%m%d%y%H%M%S")}.#{extension}"
     @board_image.video_clip.purge_later if @board_image.video_clip.attached?
     @board_image.video_clip.attach(io: file, filename: filename, content_type: file.content_type)
     @board_image.reload
     @board_image.set_uploaded_video!(@board_image.video_clip_url, file.content_type)
     @board_image.board.broadcast_board_update!
+    # Enforces the duration cap and converts to web-safe mp4, then rebroadcasts
+    # the board with the processed URL.
+    ProcessTileVideoJob.perform_async(@board_image.id)
     render json: @board_image.api_view(current_user)
   end
 

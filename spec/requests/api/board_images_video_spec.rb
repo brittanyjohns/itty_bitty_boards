@@ -65,9 +65,18 @@ RSpec.describe "API::BoardImages video", type: :request do
       expect(video["url"]).to be_present
     end
 
-    it "rejects a disallowed content type with 422 and attaches nothing" do
+    it "enqueues the post-process job to enforce duration and transcode" do
       post "/api/board_images/#{board_image.id}/upload_video",
-           params: { video_file: upload_file(content_type: "video/quicktime") },
+           params: { video_file: upload_file },
+           headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      expect(ProcessTileVideoJob.jobs.last["args"]).to eq([board_image.id])
+    end
+
+    it "rejects a content type we can never play with 422 and attaches nothing" do
+      post "/api/board_images/#{board_image.id}/upload_video",
+           params: { video_file: upload_file(content_type: "video/x-msvideo") },
            headers: auth_headers(user)
 
       expect(response).to have_http_status(:unprocessable_content)
@@ -75,7 +84,53 @@ RSpec.describe "API::BoardImages video", type: :request do
       expect(board_image.reload.video_clip).not_to be_attached
     end
 
+    # The .mov accept path is gated on the binaries: we only take a format we
+    # can guarantee we're able to convert into something browsers will play.
+    context "quicktime/.mov uploads" do
+      it "accepts them when ffmpeg is available" do
+        allow(VideoTranscoder).to receive(:available?).and_return(true)
+
+        post "/api/board_images/#{board_image.id}/upload_video",
+             params: { video_file: upload_file(content_type: "video/quicktime") },
+             headers: auth_headers(user)
+
+        expect(response).to have_http_status(:ok)
+        board_image.reload
+        expect(board_image.video_clip).to be_attached
+        expect(board_image.video_clip.blob.filename.to_s).to end_with(".mov")
+        # Not yet web-safe — the job flips this once it has converted.
+        expect(board_image.video_processed?).to be(false)
+      end
+
+      it "rejects them when ffmpeg is unavailable" do
+        allow(VideoTranscoder).to receive(:available?).and_return(false)
+
+        post "/api/board_images/#{board_image.id}/upload_video",
+             params: { video_file: upload_file(content_type: "video/quicktime") },
+             headers: auth_headers(user)
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(JSON.parse(response.body)["error"]).to eq("invalid_video_type")
+        expect(board_image.reload.video_clip).not_to be_attached
+      end
+    end
+
+    describe "size cap" do
+      it "allows the larger source cap when ffmpeg can shrink the file" do
+        allow(VideoTranscoder).to receive(:available?).and_return(true)
+
+        expect(BoardImage.max_video_upload_bytes).to eq(BoardImage::MAX_VIDEO_SOURCE_BYTES)
+      end
+
+      it "falls back to the stored-file cap without ffmpeg" do
+        allow(VideoTranscoder).to receive(:available?).and_return(false)
+
+        expect(BoardImage.max_video_upload_bytes).to eq(BoardImage::MAX_VIDEO_BYTES)
+      end
+    end
+
     it "rejects an oversized file with 422" do
+      allow(VideoTranscoder).to receive(:available?).and_return(false)
       stub_const("BoardImage::MAX_VIDEO_BYTES", 10)
       post "/api/board_images/#{board_image.id}/upload_video",
            params: { video_file: upload_file },

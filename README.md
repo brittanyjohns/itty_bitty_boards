@@ -9,7 +9,11 @@
   - postgresql
   - redis
   - imagemagick
-  - ffmpeg
+  - ffmpeg (`ffmpeg` + `ffprobe`) — required for tile video uploads:
+    `ProcessTileVideoJob` uses them to enforce the 30s cap and transcode
+    .mov/HEVC to web-safe mp4. If the binaries are absent the app degrades
+    gracefully (mp4/webm only, 25 MB cap, no duration enforcement) rather than
+    erroring.
 
 - Environment Variables:
 

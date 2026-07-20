@@ -38,8 +38,33 @@ class BoardImage < ApplicationRecord
   has_one_attached :video_clip
   attr_accessor :skip_create_voice_audio, :skip_initial_layout, :src
 
+  # Formats the web player handles as-is, so they can be stored untouched if
+  # ffmpeg isn't around to transcode.
   ALLOWED_VIDEO_CONTENT_TYPES = %w[video/mp4 video/webm].freeze
+  # Formats we only accept because ffmpeg can convert them — iPhone recordings
+  # arrive as HEVC-in-.mov, which Chrome and Firefox won't play.
+  TRANSCODABLE_VIDEO_CONTENT_TYPES = %w[video/quicktime].freeze
+
+  # Cap on what's stored and served when there's no transcode step.
   MAX_VIDEO_BYTES = 25.megabytes
+  # Cap on what's accepted for transcoding. Higher because it applies to the
+  # raw upload: a 30s iPhone .mov runs 40-80 MB and shrinks to a few MB once
+  # it's been through ffmpeg.
+  MAX_VIDEO_SOURCE_BYTES = 100.megabytes
+
+  MAX_VIDEO_DURATION_SECONDS = 30
+
+  # Content types accepted by upload_video right now. Depends on whether the
+  # binaries are present: never accept a format we can't guarantee we can make
+  # web-safe.
+  def self.accepted_video_content_types
+    return ALLOWED_VIDEO_CONTENT_TYPES unless VideoTranscoder.available?
+    ALLOWED_VIDEO_CONTENT_TYPES + TRANSCODABLE_VIDEO_CONTENT_TYPES
+  end
+
+  def self.max_video_upload_bytes
+    VideoTranscoder.available? ? MAX_VIDEO_SOURCE_BYTES : MAX_VIDEO_BYTES
+  end
 
   before_create :set_defaults
   # before_save :save_display_image_url, if: -> { display_image_url.blank? }
@@ -529,9 +554,19 @@ class BoardImage < ApplicationRecord
     save!
   end
 
-  def set_uploaded_video!(url, content_type)
-    self.data = (data || {}).merge("video" => { "source" => "upload", "url" => url, "content_type" => content_type })
+  # `processed` tracks whether ProcessTileVideoJob has run: false right after
+  # upload (the URL still points at the raw file), true once the clip is known
+  # to be within the duration cap and in a web-safe container. It also makes
+  # the job idempotent, so a Sidekiq retry can't transcode twice.
+  def set_uploaded_video!(url, content_type, duration: nil, processed: false)
+    config = { "source" => "upload", "url" => url, "content_type" => content_type, "processed" => processed }
+    config["duration"] = duration.round(2) if duration
+    self.data = (data || {}).merge("video" => config)
     save!
+  end
+
+  def video_processed?
+    video_config&.dig("processed") == true
   end
 
   def clear_video!

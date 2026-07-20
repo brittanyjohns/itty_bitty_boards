@@ -5,6 +5,20 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Video tiles accept iPhone recordings, and the 30s limit is now enforced
+- Tile video uploads now accept **.mov / HEVC** files, so a clip recorded on an
+  iPhone can be attached directly instead of being rejected. It's converted to
+  a web-safe mp4 in the background, which is what makes it play in Chrome and
+  Firefox too.
+- The upload limit for these source files is **100 MB** (raw phone recordings
+  are large); the converted clip that gets stored and played is much smaller.
+- The **30-second limit is now enforced on the server**. Longer clips are
+  trimmed to the first 30 seconds rather than silently failing.
+- Processing happens after the upload finishes, so the editor isn't blocked —
+  the tile updates on its own once the clip is ready.
+- Requires `ffmpeg` on the server. Without it, uploads behave exactly as before
+  (mp4/webm only, 25 MB) rather than breaking.
+
 ### Changed — Board Builder pages are no longer frozen
 - Pages inside a built board set now behave like any other board: tapping a word
   returns to the home board. Previously every page of a built set was created
