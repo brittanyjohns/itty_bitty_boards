@@ -132,6 +132,7 @@ Rails.application.routes.draw do
     get "free_download_boards", to: "boards#free_download_boards"
     post "download_leads", to: "download_leads#create"
     post "google_images", to: "google_search_results#image_search"
+    post "youtube_search", to: "youtube_search#search"
 
     resources :board_screenshot_imports
     post "board_screenshot_imports/:id/commit", to: "board_screenshot_imports#commit"
