@@ -284,7 +284,12 @@ class API::BoardImagesController < API::ApplicationController
       render json: { error: "invalid_youtube_url" }, status: :unprocessable_content
       return
     end
-    @board_image.set_youtube_video!(youtube_id)
+    range = BoardImage.parse_video_range(params[:start_seconds], params[:end_seconds])
+    unless range
+      render json: { error: "invalid_video_range" }, status: :unprocessable_content
+      return
+    end
+    @board_image.set_youtube_video!(youtube_id, range)
     @board_image.board.broadcast_board_update!
     render json: @board_image.api_view(current_user)
   end

@@ -41,6 +41,10 @@ one-off handoff/scratch files stay untracked and local.
   the controller narrows what it accepts (mp4/webm, 25 MB) and the job leaves
   the original clip attached rather than destroying it. Keep that contract:
   never accept an upload format we can't guarantee we can make web-safe.
+  YouTube tiles may also carry optional `start_seconds`/`end_seconds` trim
+  points in `data["video"]`, validated by `BoardImage.parse_video_range` and
+  written only via `attach_youtube_video` (422 `invalid_video_range`). Details:
+  `.claude-notes/video-tile-trim-range.md`.
 - **Cache:** `Rails.cache` is a **Redis cache store** in production
   (`config/environments/production.rb`, issue #474) — namespaced `ibb_cache` so
   keys can't collide with Sidekiq / Rack::Attack on the shared Redis, with a

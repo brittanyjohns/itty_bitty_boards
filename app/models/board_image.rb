@@ -534,11 +534,32 @@ class BoardImage < ApplicationRecord
 
   # --- Tile video (data["video"]) -------------------------------------------
   # Video config lives inside the `data` jsonb under a single "video" key:
-  #   { "source" => "youtube", "youtube_id" => "..." }
+  #   { "source" => "youtube", "youtube_id" => "...",
+  #     "start_seconds" => 45, "end_seconds" => 72 }   # trim points optional
   #   { "source" => "upload",  "url" => "<cdn url>", "content_type" => "video/mp4" }
   # It is only ever written by the dedicated controller actions
   # (attach_youtube_video / upload_video / clear_video) — the generic update
   # path strips the key so unvalidated client input can't reach it.
+
+  # Optional trim points for a tile video, in whole seconds (the YouTube embed
+  # API takes no fractional values). Both bounds are independently optional.
+  #
+  # Returns a hash containing whichever bounds were supplied — {} when neither
+  # was — or nil when the supplied values don't describe a usable range. The
+  # caller must distinguish those: {} means "no trim", nil means "reject".
+  def self.parse_video_range(start_raw, end_raw)
+    parsed = {}
+    { "start_seconds" => start_raw, "end_seconds" => end_raw }.each do |key, raw|
+      next if raw.blank?
+      digits = raw.to_s.strip
+      return nil unless digits.match?(/\A\d+\z/)
+      parsed[key] = digits.to_i
+    end
+    if parsed.key?("start_seconds") && parsed.key?("end_seconds")
+      return nil unless parsed["end_seconds"] > parsed["start_seconds"]
+    end
+    parsed
+  end
 
   def video_config
     data&.dig("video").presence
@@ -548,9 +569,10 @@ class BoardImage < ApplicationRecord
     video_config.present?
   end
 
-  def set_youtube_video!(youtube_id)
+  def set_youtube_video!(youtube_id, range = {})
     video_clip.purge_later if video_clip.attached?
-    self.data = (data || {}).merge("video" => { "source" => "youtube", "youtube_id" => youtube_id })
+    config = { "source" => "youtube", "youtube_id" => youtube_id }.merge(range)
+    self.data = (data || {}).merge("video" => config)
     save!
   end
 
