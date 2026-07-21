@@ -43,6 +43,12 @@
       <p class="text-xs text-t2 mt-1">Metrics, revenue, system health, and recent events</p>
     <% end %>
 
+    <%= link_to admin_dashboard_video_boards_path,
+          class: "group admin-card border hover:border-indigo-500 rounded-xl p-5 transition-colors" do %>
+      <p class="text-sm font-medium text-t1 group-hover:text-accent transition-colors">Video Boards</p>
+      <p class="text-xs text-t2 mt-1">Build video demo boards from YouTube clips, review, and publish</p>
+    <% end %>
+
     <%= link_to "/sidekiq",
           class: "group admin-card border hover:border-indigo-500 rounded-xl p-5 transition-colors" do %>
       <p class="text-sm font-medium text-t1 group-hover:text-accent transition-colors">Sidekiq</p>

@@ -45,6 +45,16 @@ one-off handoff/scratch files stay untracked and local.
   points in `data["video"]`, validated by `BoardImage.parse_video_range` and
   written only via `attach_youtube_video` (422 `invalid_video_range`). Details:
   `.claude-notes/video-tile-trim-range.md`.
+- **Video demo boards** are built by `VideoBoards::BoardSeeder`, shared by
+  `lib/tasks/video_demo.rake` (curated `songs`/`asl` configs) and
+  `Admin::VideoBoardsController` (`/admin/video_boards`, a form). Two rails are
+  load-bearing: **creating never publishes** (`published: false` on new records
+  only, so a re-seed can't un-publish a reviewed board) and **an empty board
+  can't be published**. The service only ever takes an already-parsed
+  `youtube_id` + range — callers validate with `YoutubeUrlParser.video_id` and
+  `BoardImage.parse_video_range` (`{}` = no trim, `nil` = reject) *before* any
+  write. Admin-created boards carry `settings["video_seeder"] = true`, which is
+  what the admin list/publish/destroy actions scope to.
 - **Cache:** `Rails.cache` is a **Redis cache store** in production
   (`config/environments/production.rb`, issue #474) — namespaced `ibb_cache` so
   keys can't collide with Sidekiq / Rack::Attack on the shared Redis, with a

@@ -1,0 +1,127 @@
+<% content_for :page_title, "New Video Board" %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">New Video Board</h1>
+    <p class="text-sm text-t3 mt-0.5">One tile per video. The board is created unpublished — you publish it after reviewing every clip.</p>
+  </div>
+  <%= link_to "← All video boards", admin_dashboard_video_boards_path, class: "text-xs text-t2 hover:text-t1 transition-colors" %>
+</div>
+
+<% if @error.present? %>
+  <div class="admin-flash-err border rounded-lg px-4 py-3 mb-6 text-sm"><%= @error %></div>
+<% end %>
+
+<%= form_tag admin_dashboard_video_boards_path, method: :post, id: "video-board-form" do %>
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="name">Board name</label>
+        <%= text_field_tag :name, @form[:name], id: "name", required: true,
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="tags">Tags <span class="text-t3">(comma separated)</span></label>
+        <%= text_field_tag :tags, @form[:tags], id: "tags", placeholder: "videos, songs, demo",
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-t2 mb-1" for="description">Description</label>
+        <%= text_area_tag :description, @form[:description], id: "description", rows: 2,
+              class: "admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none" %>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-t2 mb-1" for="columns">Columns</label>
+        <%= number_field_tag :columns, @form[:columns], id: "columns", min: 1, max: 12,
+              class: "admin-input border rounded px-3 py-2 text-sm w-32 focus:border-indigo-500 focus:outline-none" %>
+        <p class="text-[11px] text-t3 mt-1">Suggested from the number of videos — override if you like.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-card border rounded-xl p-5 mb-6">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-sm font-medium text-t1">Videos</h2>
+        <p class="text-[11px] text-t3 mt-0.5">Paste a YouTube URL per row. Start/end are whole seconds — leave blank for the full video.</p>
+      </div>
+      <button type="button" id="add-row" class="text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1">Add another</button>
+    </div>
+
+    <div id="video-rows" class="flex flex-col gap-3">
+      <% @form[:rows].each_with_index do |row, index| %>
+        <div class="video-row grid grid-cols-12 gap-2 items-start">
+          <div class="col-span-3">
+            <input type="text" name="videos[<%= index %>][label]" value="<%= row[:label] %>" placeholder="Label (e.g. more)"
+                   class="admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none">
+          </div>
+          <div class="col-span-5">
+            <input type="text" name="videos[<%= index %>][url]" value="<%= row[:url] %>" placeholder="https://www.youtube.com/watch?v=..."
+                   class="admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none">
+          </div>
+          <div class="col-span-2">
+            <input type="text" inputmode="numeric" name="videos[<%= index %>][start_seconds]" value="<%= row[:start_seconds] %>" placeholder="start (s)"
+                   class="admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none">
+          </div>
+          <div class="col-span-2 flex items-center gap-2">
+            <input type="text" inputmode="numeric" name="videos[<%= index %>][end_seconds]" value="<%= row[:end_seconds] %>" placeholder="end (s)"
+                   class="admin-input border rounded px-3 py-2 text-sm w-full focus:border-indigo-500 focus:outline-none">
+            <button type="button" class="remove-row text-t3 hover:text-t1 text-sm leading-none px-1 cursor-pointer" title="Remove row">&times;</button>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-3">
+    <%= submit_tag "Create unpublished board",
+          class: "text-xs font-medium px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer border-0" %>
+    <span class="text-[11px] text-t3">Nothing goes public until you press Publish on the next screen.</span>
+  </div>
+<% end %>
+
+<script>
+  (function () {
+    var rows = document.getElementById("video-rows");
+    var columnsInput = document.getElementById("columns");
+    var columnsTouched = columnsInput.value !== "";
+
+    columnsInput.addEventListener("input", function () { columnsTouched = true; });
+
+    function suggestedColumns(n) {
+      if (n <= 4) return 2;
+      if (n <= 9) return 3;
+      if (n <= 16) return 4;
+      if (n <= 25) return 5;
+      return 6;
+    }
+
+    // Names are indexed, so every add/remove has to renumber the whole list or
+    // Rails will collapse rows that share an index.
+    function reindex() {
+      var all = rows.querySelectorAll(".video-row");
+      all.forEach(function (row, i) {
+        row.querySelectorAll("input").forEach(function (input) {
+          input.name = input.name.replace(/videos\[\d*\]/, "videos[" + i + "]");
+        });
+      });
+      if (!columnsTouched) columnsInput.value = suggestedColumns(all.length);
+    }
+
+    document.getElementById("add-row").addEventListener("click", function () {
+      var clone = rows.querySelector(".video-row").cloneNode(true);
+      clone.querySelectorAll("input").forEach(function (input) { input.value = ""; });
+      rows.appendChild(clone);
+      reindex();
+    });
+
+    rows.addEventListener("click", function (event) {
+      if (!event.target.classList.contains("remove-row")) return;
+      if (rows.querySelectorAll(".video-row").length === 1) return;
+      event.target.closest(".video-row").remove();
+      reindex();
+    });
+
+    reindex();
+  })();
+</script>

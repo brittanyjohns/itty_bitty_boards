@@ -110,6 +110,8 @@
               <span class="bg-indigo-600 text-white text-[10px] leading-none rounded-full px-1.5 py-0.5"><%= pending %></span>
             <% end %>
           <% end %>
+          <%= link_to "Video Boards", admin_dashboard_video_boards_path,
+                class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/video_boards") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Users", admin_dashboard_users_path,
                 class: "text-xs px-3 py-1.5 rounded #{request.path.start_with?("/admin/users") ? "admin-card-alt text-t1 font-medium" : "text-t2 hover:text-t1"} transition-colors" %>
           <%= link_to "Sidekiq", "/sidekiq",

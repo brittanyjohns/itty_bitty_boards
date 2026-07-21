@@ -73,47 +73,10 @@ module VideoDemoSeeder
     BOARDS.fetch(key)
   end
 
+  # The board-building logic lives in VideoBoards::BoardSeeder so the admin
+  # controller can reuse it; this module is just the curated config + CLI shell.
   def board_for(key, admin)
-    Board.find_or_initialize_by(
-      name: config_for(key)[:name], user_id: admin.id, predefined: true,
-    )
-  end
-
-  # Same reuse-don't-generate policy as core_boards: prefer an existing public
-  # image with artwork, else create one without queuing generation.
-  def find_or_build_image(label)
-    matches = Image.default_public.where(label: label).order(:created_at)
-    matches.find { |img| img.docs.any? } || matches.last ||
-      Image.default_public.new(label: label) do |img|
-        img.image_prompt = label
-        unless img.save
-          Rails.logger.warn "video_demo: failed to save image #{label.inspect}: #{img.errors.full_messages.join(", ")}"
-        end
-      end
-  end
-
-  # Seeds unpublished on purpose: `published` is what makes a predefined admin
-  # board public (Board.public_boards, Board#viewable_by?), so leaving it false
-  # keeps the board reviewable by the admin owner while invisible to everyone
-  # else. Only set on create, so re-running never un-publishes a reviewed board.
-  def configure_board!(board, admin, cfg)
-    columns = cfg[:columns]
-    board.assign_attributes(
-      description: cfg[:description],
-      predefined: true,
-      board_type: "default",
-      number_of_columns: columns,
-      small_screen_columns: columns,
-      medium_screen_columns: columns,
-      large_screen_columns: columns,
-      tags: cfg[:tags],
-    )
-    board.published = false if board.new_record?
-    board.parent = admin
-    board.layout ||= {}
-    board.generate_unique_slug if board.slug.blank?
-    board.save!
-    board
+    VideoBoards::BoardSeeder.board_for(config_for(key)[:name], admin)
   end
 
   # Parses every curated URL up front so a typo fails before any writes.
@@ -158,22 +121,16 @@ namespace :video_demo do
       end
       next if dry_run
 
-      VideoDemoSeeder.configure_board!(board, admin, cfg)
+      VideoBoards::BoardSeeder.configure_board!(board, admin, cfg)
       parsed.each do |entry|
-        image = VideoDemoSeeder.find_or_build_image(entry[:label])
-        board_image = board.add_image(image.id)
-        unless board_image
+        if VideoBoards::BoardSeeder.add_video_tile!(board, entry)
+          puts "    + #{entry[:label]} (#{entry[:youtube_id]})"
+        else
           puts "    ! could not add tile for #{entry[:label].inspect} — skipped"
-          next
         end
-        board_image.set_youtube_video!(entry[:youtube_id])
-        puts "    + #{entry[:label]} (#{entry[:youtube_id]})"
       end
 
-      board.update_column(:layout, {}) if board.layout.nil?
-      %w[lg md sm].each { |screen| board.calculate_grid_layout_for_screen_size(screen, true) }
-      board.set_current_word_list
-      board.save!
+      VideoBoards::BoardSeeder.finalize!(board)
       seeded << key
       puts "    Done: board id=#{board.id}, slug=#{board.slug}, #{board.board_images.count} tiles."
     end
