@@ -1,0 +1,85 @@
+<% content_for :page_title, @board.name %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight"><%= @board.name %></h1>
+    <p class="text-sm text-t3 mt-0.5">
+      <%= @tiles.size %> <%= "tile".pluralize(@tiles.size) %> · <%= @board.number_of_columns %> columns · <span class="font-mono text-xs"><%= @board.slug %></span>
+    </p>
+  </div>
+  <%= link_to "← All video boards", admin_dashboard_video_boards_path, class: "text-xs text-t2 hover:text-t1 transition-colors" %>
+</div>
+
+<div class="admin-card border rounded-xl p-5 mb-6">
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <% if @board.published? %>
+        <span class="bg-green-900/60 text-green-300 inline-block text-xs rounded px-2 py-0.5">published</span>
+        <p class="text-xs text-t2 mt-2">This board is public — anyone can see it.</p>
+      <% else %>
+        <span class="admin-card-alt text-t2 inline-block text-xs rounded px-2 py-0.5">unpublished</span>
+        <p class="text-xs text-t2 mt-2">Only you can see this board. Watch every clip below, then publish.</p>
+      <% end %>
+      <% if @board.description.present? %>
+        <p class="text-xs text-t3 mt-2 max-w-xl"><%= @board.description %></p>
+      <% end %>
+      <% if @board.tags.present? %>
+        <p class="text-[11px] text-t3 mt-2">Tags: <%= Array(@board.tags).join(", ") %></p>
+      <% end %>
+    </div>
+    <div class="flex items-center gap-2">
+      <% if @board.published? %>
+        <%= button_to "Unpublish", unpublish_admin_dashboard_video_board_path(@board), method: :post,
+              class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1",
+              form: { data: { turbo_confirm: "Unpublish “#{@board.name}”? It will no longer be public." } } %>
+      <% else %>
+        <%= button_to "Publish", publish_admin_dashboard_video_board_path(@board), method: :post,
+              class: "text-xs font-medium px-3 py-2 rounded bg-green-600 hover:bg-green-500 text-white cursor-pointer",
+              form: { data: { turbo_confirm: "Publish “#{@board.name}”? This makes it public to everyone. Have you watched every video?" } } %>
+        <%= button_to "Delete", admin_dashboard_video_board_path(@board), method: :delete,
+              class: "text-xs font-medium px-3 py-2 rounded border admin-input cursor-pointer text-t1",
+              form: { data: { turbo_confirm: "Delete “#{@board.name}” and all its tiles? This can't be undone." } } %>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<h2 class="text-xs font-semibold uppercase tracking-widest text-t2 mb-4">Tiles — watch each one before publishing</h2>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  <% @tiles.each do |tile| %>
+    <% video = tile.video_config || {} %>
+    <% youtube_id = video["youtube_id"] %>
+    <div class="admin-card border rounded-xl overflow-hidden">
+      <% if youtube_id.present? %>
+        <%= link_to "https://www.youtube.com/watch?v=#{youtube_id}", target: "_blank", rel: "noopener noreferrer" do %>
+          <img src="https://img.youtube.com/vi/<%= youtube_id %>/hqdefault.jpg" alt="" class="w-full aspect-video object-cover">
+        <% end %>
+      <% else %>
+        <div class="w-full aspect-video admin-card-alt flex items-center justify-center text-xs text-t3">no video</div>
+      <% end %>
+      <div class="p-4">
+        <p class="text-sm font-medium text-t1"><%= tile.label %></p>
+        <% if youtube_id.present? %>
+          <p class="text-[11px] text-t3 font-mono mt-1"><%= youtube_id %></p>
+          <p class="text-[11px] text-t3 mt-1">
+            <% if video["start_seconds"] || video["end_seconds"] %>
+              Trim: <%= video["start_seconds"] || 0 %>s → <%= video["end_seconds"] || "end" %>
+            <% else %>
+              Full video
+            <% end %>
+          </p>
+          <%= link_to "Watch on YouTube ↗", "https://www.youtube.com/watch?v=#{youtube_id}",
+                target: "_blank", rel: "noopener noreferrer",
+                class: "text-xs text-accent hover:underline mt-2 inline-block" %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<% if @tiles.empty? %>
+  <div class="admin-card border rounded-xl px-5 py-10 text-center text-sm text-t3">
+    This board has no tiles — it can't be published.
+  </div>
+<% end %>

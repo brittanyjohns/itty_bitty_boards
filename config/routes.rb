@@ -74,6 +74,12 @@ Rails.application.routes.draw do
         post :deny
       end
     end
+    resources :video_boards, only: [:index, :new, :create, :show, :destroy], as: :dashboard_video_boards do
+      member do
+        post :publish
+        post :unpublish
+      end
+    end
   end
 
   get "main/index", as: :home

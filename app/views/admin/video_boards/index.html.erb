@@ -1,0 +1,66 @@
+<% content_for :page_title, "Video Boards" %>
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-t1 tracking-tight">Video Boards</h1>
+    <p class="text-sm text-t3 mt-0.5">Boards built from YouTube video tiles. New boards start unpublished.</p>
+  </div>
+  <%= link_to "New video board", new_admin_dashboard_video_board_path,
+        class: "text-xs font-medium px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white transition-colors" %>
+</div>
+
+<div class="admin-card border rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <% ["Board", "Tiles", "Columns", "Status", "Created", "Actions"].each do |label| %>
+          <th class="text-left text-xs font-medium text-t2 px-5 py-3 whitespace-nowrap"><%= label %></th>
+        <% end %>
+      </tr>
+    </thead>
+    <tbody>
+      <% @boards.each do |board| %>
+        <tr class="admin-hover-row transition-colors align-top" style="border-bottom: 1px solid var(--border-light);">
+          <td class="px-5 py-3">
+            <%= link_to board.name, admin_dashboard_video_board_path(board), class: "text-xs text-t1 hover:text-accent transition-colors font-medium" %>
+            <div class="text-[10px] text-t3 font-mono"><%= board.slug %></div>
+          </td>
+          <td class="px-5 py-3 text-xs text-t2"><%= board.board_images.size %></td>
+          <td class="px-5 py-3 text-xs text-t2"><%= board.number_of_columns %></td>
+          <td class="px-5 py-3 whitespace-nowrap">
+            <% if board.published? %>
+              <span class="bg-green-900/60 text-green-300 inline-block text-xs rounded px-2 py-0.5">published</span>
+            <% else %>
+              <span class="admin-card-alt text-t2 inline-block text-xs rounded px-2 py-0.5">unpublished</span>
+            <% end %>
+          </td>
+          <td class="px-5 py-3 text-xs text-t3 whitespace-nowrap"><%= board.created_at.strftime("%b %-d, %Y") %></td>
+          <td class="px-5 py-3 whitespace-nowrap">
+            <div class="flex items-center gap-2">
+              <%= link_to "Preview", admin_dashboard_video_board_path(board),
+                    class: "text-xs font-medium px-3 py-1.5 rounded border admin-input text-t1" %>
+              <% if board.published? %>
+                <%= button_to "Unpublish", unpublish_admin_dashboard_video_board_path(board), method: :post,
+                      class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+                      form: { data: { turbo_confirm: "Unpublish “#{board.name}”? It will no longer be public." } } %>
+              <% else %>
+                <%= button_to "Publish", publish_admin_dashboard_video_board_path(board), method: :post,
+                      class: "text-xs font-medium px-3 py-1.5 rounded bg-green-600 hover:bg-green-500 text-white cursor-pointer",
+                      form: { data: { turbo_confirm: "Publish “#{board.name}”? This makes it public to everyone. Have you watched every video?" } } %>
+                <%= button_to "Delete", admin_dashboard_video_board_path(board), method: :delete,
+                      class: "text-xs font-medium px-3 py-1.5 rounded border admin-input cursor-pointer text-t1",
+                      form: { data: { turbo_confirm: "Delete “#{board.name}” and all its tiles? This can't be undone." } } %>
+              <% end %>
+            </div>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <% if @boards.empty? %>
+    <div class="px-5 py-10 text-center text-sm text-t3">
+      No video boards yet. <%= link_to "Create one", new_admin_dashboard_video_board_path, class: "text-accent hover:underline" %>.
+    </div>
+  <% end %>
+</div>
