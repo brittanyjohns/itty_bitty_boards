@@ -1,4 +1,7 @@
 class API::Internal::ImagesController < API::Internal::ApplicationController
+  # Bulk search is a per-label query loop; the cap keeps it off a table scan.
+  MAX_BULK_LABELS = 100
+
   def create
     label = image_params[:label]
 
@@ -61,6 +64,40 @@ class API::Internal::ImagesController < API::Internal::ApplicationController
     render json: image_status_payload(@image)
   end
 
+  # GET /api/internal/images/search?q=apple
+  def search
+    label = params[:q].to_s.strip
+
+    if label.blank?
+      render json: { error: "q is required" }, status: :unprocessable_content
+      return
+    end
+
+    render json: { query: label, results: label_search.call(label) }
+  end
+
+  # POST /api/internal/images/search { labels: [...] }
+  #
+  # Every requested label gets a key in the response — including misses, as an
+  # empty array — so the caller can spot gaps without diffing its request.
+  def bulk_search
+    labels = Array(params[:labels]).map(&:to_s)
+
+    if labels.empty?
+      render json: { error: "labels is required" }, status: :unprocessable_content
+      return
+    end
+
+    if labels.size > MAX_BULK_LABELS
+      render json: { error: "labels exceeds the maximum of #{MAX_BULK_LABELS}" },
+             status: :unprocessable_content
+      return
+    end
+
+    search = label_search(limit: params[:limit_per_label], default_limit: 3)
+    render json: { results: labels.index_with { |label| search.call(label) } }
+  end
+
   private
 
   def image_status_payload(image)
@@ -82,5 +119,18 @@ class API::Internal::ImagesController < API::Internal::ApplicationController
       :private,
       :board_id,
     )
+  end
+
+  def label_search(limit: nil, default_limit: nil)
+    Images::LabelSearch.new(
+      match: params[:match],
+      limit: limit || params[:limit] || default_limit || Images::LabelSearch::DEFAULT_LIMIT,
+      commercial_safe: truthy_param?(params[:commercial_safe]),
+      include_share_alike: truthy_param?(params[:include_share_alike]),
+    )
+  end
+
+  def truthy_param?(value)
+    ["true", "1", true].include?(value.is_a?(String) ? value.downcase : value)
   end
 end

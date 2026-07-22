@@ -441,6 +441,8 @@ Rails.application.routes.draw do
       resources :images, only: [:create, :show] do
         collection do
           post :generate
+          get :search
+          post :search, action: :bulk_search
         end
       end
       resources :profiles, only: [:show, :update]
