@@ -65,6 +65,7 @@ Single-label lookup.
 | `match` | `exact` \| `prefix` | `exact` | See matching below. |
 | `limit` | integer | `10` | Clamped to 1..50. |
 | `commercial_safe` | boolean | `false` | See licensing below. |
+| `include_share_alike` | boolean | `false` | Only meaningful with `commercial_safe=true`. |
 
 Response `200`: `{ "query": "apple", "results": [ <image>, ... ] }`
 
@@ -85,6 +86,7 @@ Bulk lookup — one round trip for a whole sheet.
 | `limit_per_label` | integer | `3` | Clamped to 1..25. |
 | `match` | `exact` \| `prefix` | `exact` | Same semantics as GET. |
 | `commercial_safe` | boolean | `false` | Same semantics as GET. |
+| `include_share_alike` | boolean | `false` | Same semantics as GET. |
 
 Response `200`:
 
@@ -148,8 +150,15 @@ them, so returning them with a null URL is noise.
   "width": 1024,
   "height": 1024,
   "source_type": "OpenAI",
-  "license": { "license": "public domain", "license_url": "..." },
-  "commercial_safe": true
+  "license": {
+    "type": "CC BY",
+    "author_name": "Sergio Palao",
+    "author_url": "https://...",
+    "copyright_notice_url": "https://..."
+  },
+  "commercial_safe": true,
+  "attribution_required": true,
+  "share_alike": false
 }
 ```
 
@@ -159,36 +168,95 @@ them, so returning them with a null URL is noise.
 - `width`/`height`/`content_type` — from the eager-loaded blob metadata, so the
   layout code can reject too-small images before building a sheet. Null when the
   blob has no metadata; callers must handle null rather than assume dimensions.
-- `license` — the `Doc#license` jsonb, or null.
-- `commercial_safe` — the computed boolean (below), always present regardless of
-  whether the request filtered on it, so callers can make their own call.
+- `license` — the `Doc#license` jsonb verbatim, or null. **Note the key is
+  `type`, not `license`.**
+- `commercial_safe` / `attribution_required` / `share_alike` — computed flags
+  (below), always present regardless of request filters, so the caller can make
+  its own call and build a credits page.
 
-### Licensing — `commercial_safe`
+### Licensing
 
-A single predicate, computed per doc, used both as a returned field and as an
-optional filter.
+**This section is grounded in the actual library, not assumption.** Measured
+2026-07-22 (dev DB, 10,101 docs):
 
-An image is **commercial-safe** when either:
+| Bucket | Count | Sellable |
+|---|---|---|
+| `source_type: "OpenAI"` (generated) | 3,116 | yes, no obligation |
+| `CC BY` / `CC By` / `CC By 3.0` | 364 | yes, **attribution required** |
+| `CC BY-SA` / `CC By-SA 3.0` | 953 | share-alike — opt-in only |
+| `public domain` | 48 | yes, no obligation |
+| `CC BY-NC-SA` / `CC BY-NC` | 2,270 | **no — non-commercial** |
+| `private` | 152 | no |
+| `GoogleSearch` (scraped, unlicensed) | 809 | no |
+| `ObfImport` with no license data | 1,562 | no (unknown) |
+| `OpenSymbol`-sourced | 657 | mixed — license on the `OpenSymbol` row |
+| unknown `source_type` | 170 | no |
 
-1. `source_type == "OpenAI"` — we generated it; it's ours; or
-2. its license is in an explicit allowlist of commercially-usable licenses:
-   public domain, CC0, CC BY, CC BY-SA (matched case-insensitively against the
-   license string).
+Facts that constrain the implementation:
 
-It is **not** commercial-safe when any of:
+- **`Doc#license` is the only populated license field.** `Image#license` has
+  **zero** populated rows — never read it.
+- **The jsonb key is `type`**, e.g.
+  `{"type": "CC BY-NC-SA", "author_name": "Sergio Palao", "author_url": ...,
+  "copyright_notice_url": ...}`.
+- **`Doc#license` is populated only on `ObfImport` docs.** `OpenSymbol`-sourced
+  docs carry license data on the `OpenSymbol` row instead, reached via
+  `Doc#matching_open_symbols` (`OpenSymbol.where(search_string: doc.raw)`).
+- **`protected_symbol` is `false` on all 1,467 `OpenSymbol` rows.** It is checked
+  as belt-and-braces but carries no real signal today — do not rely on it.
+- **ARASAAC (author "Sergio Palao", 2,218 docs) is CC BY-NC-SA.** It is the
+  single largest licensed source and it is *not* sellable. Free lead magnets
+  (the Classroom Kit) are fine; paid products are not.
 
-- the originating OpenSymbol is flagged `protected_symbol`
-- the license string is blank, missing, or unrecognized
-- the license mentions non-commercial (`nc`, `non-commercial`, `noncommercial`)
+#### The three flags
 
-**The predicate fails closed:** anything unrecognized is treated as unsafe. For
-a product being sold, a false negative costs one missing picture; a false
-positive costs a license violation.
+Computed per doc by `Images::CommercialLicense`:
 
-`commercial_safe=true` on a request filters results to safe images only. It is
-**not** the default — internal/preview work legitimately wants the whole library,
-and defaulting to a filtered library would silently hide images during
-exploration. The printables sellable-product path opts in explicitly.
+- **`commercial_safe`** — may this appear in a product we *sell*?
+- **`attribution_required`** — must the product visibly credit the author?
+- **`share_alike`** — does the license carry a copyleft/SA obligation?
+
+`commercial_safe` is true when either:
+
+1. `source_type == "OpenAI"` — we generated it, it's ours; or
+2. the resolved license type matches the commercial allowlist: `public domain`,
+   `CC0`, or a `CC BY` variant **without** `NC` and **without** `SA`
+   (case-insensitive, tolerant of version suffixes like `3.0`).
+
+It is false when any of:
+
+- the license type contains `NC` / `non-commercial` / `noncommercial`
+- the license type is `private`
+- the license is blank, missing, or unrecognized
+- `source_type` is `GoogleSearch` or nil (scraped/unknown provenance)
+- the originating `OpenSymbol` is flagged `protected_symbol`
+
+**The predicate fails closed:** anything unrecognized is unsafe. A false
+negative costs one missing picture; a false positive costs a license violation
+in a product being sold.
+
+`attribution_required` is true for any `CC BY*` variant (including NC and SA
+forms — the obligation exists regardless of whether we can sell it).
+`share_alike` is true for any `*-SA` variant.
+
+#### Share-alike is opt-in
+
+`CC BY-SA` (953 docs) is **excluded from `commercial_safe` by default.**
+Share-alike is plausibly viral onto the derivative work, which conflicts with
+selling a closed-license printable. This is a legal judgement call, not a
+settled fact, so the code takes the conservative position and offers an
+override: `include_share_alike=true` flips SA licenses to commercial-safe for
+callers who have decided a given product can carry the obligation.
+
+#### Request filters
+
+`commercial_safe=true` filters results to safe images only. It is **not** the
+default — internal/preview work legitimately wants the whole library, and a
+filtered default would silently hide images during exploration. The printables
+sellable-product path opts in explicitly.
+
+`include_share_alike=true` is only meaningful alongside `commercial_safe=true`;
+it is ignored otherwise (unfiltered requests already return everything).
 
 This lives in a `Images::CommercialLicense` service object (single public method
 `safe?(doc)`, plus the allowlist constant) rather than inline in the controller,
@@ -353,12 +421,25 @@ Cases:
 - images with no attached doc are excluded
 - `limit` / `limit_per_label` clamping
 - bulk returns a key for every requested label, including empty results
-- `commercial_safe` computation: OpenAI → true; allowlisted license → true;
-  protected symbol → false; blank license → false; non-commercial → false
 - `commercial_safe=true` filters; omitted does not
+- `include_share_alike=true` admits SA images that are otherwise filtered out
 
-Plus a unit spec for `Images::CommercialLicense` covering the allowlist and the
-fail-closed default.
+Plus a unit spec for `Images::CommercialLicense` driven by the **real license
+strings measured in the library**, not invented ones:
+
+| Input | `commercial_safe` | `attribution_required` | `share_alike` |
+|---|---|---|---|
+| `source_type: "OpenAI"`, no license | true | false | false |
+| `{"type": "public domain"}` | true | false | false |
+| `{"type": "CC BY"}` / `"CC By"` / `"CC By 3.0"` | true | true | false |
+| `{"type": "CC BY-SA"}` / `"CC By-SA 3.0"` | false | true | true |
+| `{"type": "CC BY-SA"}` + `include_share_alike` | true | true | true |
+| `{"type": "CC BY-NC-SA"}` | false | true | true |
+| `{"type": "CC BY-NC"}` | false | true | false |
+| `{"type": "private"}` | false | false | false |
+| `source_type: "GoogleSearch"`, no license | false | false | false |
+| license nil / `{}` / unrecognized type | false | false | false |
+| `source_type: "OpenSymbol"` → license via `matching_open_symbols` | per symbol | per symbol | per symbol |
 
 ### Board search
 
@@ -397,6 +478,18 @@ fail-closed default.
   endpoints are planned.
 - **`CLAUDE.md`** — one row in the subsystem map pointing at the new spoke.
 - **`CHANGELOG.md`** — user-facing entry.
+
+## Licensing audit rake task
+
+`lib/tasks/image_licenses.rake` → `rake images:license_audit`
+
+Prints the library-wide breakdown (the table in § Licensing) on demand:
+count by resolved license type, by `source_type`, and totals for
+commercial-safe / attribution-required / share-alike. Runnable against
+production so the numbers can be refreshed as the library grows — the
+2026-07-22 figures will drift.
+
+Read-only. No writes, no S3 access.
 
 ## Open questions
 
