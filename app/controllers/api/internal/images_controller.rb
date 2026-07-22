@@ -136,7 +136,11 @@ class API::Internal::ImagesController < API::Internal::ApplicationController
   def label_search(limit: nil, default_limit: nil)
     Images::LabelSearch.new(
       match: params[:match],
-      limit: limit || params[:limit] || default_limit || Images::LabelSearch::DEFAULT_LIMIT,
+      # params[:limit] is "" (truthy in Ruby, but blank) for a present-but-
+      # empty `?limit=` — .presence turns that into nil so it falls through
+      # to default_limit/DEFAULT_LIMIT instead of reaching LabelSearch as a
+      # literal empty string.
+      limit: limit || params[:limit].presence || default_limit || Images::LabelSearch::DEFAULT_LIMIT,
       commercial_safe: truthy_param?(params[:commercial_safe]),
       include_share_alike: truthy_param?(params[:include_share_alike]),
     )

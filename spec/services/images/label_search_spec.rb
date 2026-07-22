@@ -101,6 +101,11 @@ RSpec.describe Images::LabelSearch do
     it "clamps a zero or negative limit up to 1" do
       expect(described_class.new(limit: 0).limit).to eq(1)
     end
+
+    it "treats a blank limit as absent and falls back to the default" do
+      expect(described_class.new(limit: "").limit).to eq(described_class::DEFAULT_LIMIT)
+      expect(described_class.new(limit: nil).limit).to eq(described_class::DEFAULT_LIMIT)
+    end
   end
 
   describe "result shape" do
@@ -157,6 +162,20 @@ RSpec.describe Images::LabelSearch do
 
       expect(described_class.new(commercial_safe: true).call("sa")).to eq([])
       expect(described_class.new(commercial_safe: true, include_share_alike: true).call("sa").size).to eq(1)
+    end
+
+    it "does not under-report when safe results exist beyond the SQL LIMIT before filtering" do
+      # Three non-safe images ordered ahead of one safe image. With limit: 1,
+      # a naive `.limit(1)` in SQL followed by Ruby-side filtering would only
+      # ever see the first (unsafe) row and return [] — even though a safe
+      # image exists for this label.
+      3.times { |i| image_with_doc(label: "ranked", source_type: "ObfImport", license: { "type" => "CC BY-NC" }) }
+      safe_image = image_with_doc(label: "ranked", source_type: "OpenAI")
+
+      results = described_class.new(limit: 1, commercial_safe: true).call("ranked")
+
+      expect(results.size).to eq(1)
+      expect(results.first[:id]).to eq(safe_image.id)
     end
   end
 end

@@ -13,6 +13,16 @@ module Images
     MAX_LIMIT = 50
     DEFAULT_LIMIT = 10
 
+    # Only ~36% of the library is commercial-safe. `.limit(limit)` in SQL
+    # followed by Ruby-side commercial_safe filtering can drop rows that
+    # would have passed if we'd fetched further down the ranking — a real
+    # gap gets misreported as "no safe image for this label". When
+    # commercial_safe filtering is active, over-fetch before filtering, then
+    # truncate to `limit` after. Capped so a MAX_LIMIT request can't balloon
+    # into an unbounded scan.
+    COMMERCIAL_SAFE_OVERFETCH_MULTIPLIER = 4
+    COMMERCIAL_SAFE_FETCH_CEILING = 200
+
     attr_reader :match, :limit, :commercial_safe, :include_share_alike
 
     def initialize(match: "exact", limit: DEFAULT_LIMIT, commercial_safe: false, include_share_alike: false)
@@ -40,13 +50,20 @@ module Images
     # enough that exact-only would produce spurious empty results.
     def fetch(label)
       if match == "prefix"
-        [base_scope.search_by_label(label).limit(limit), "prefix"]
+        [base_scope.search_by_label(label).limit(fetch_limit), "prefix"]
       else
-        exact = base_scope.search_by_exact_label(label).limit(limit).to_a
+        exact = base_scope.search_by_exact_label(label).limit(fetch_limit).to_a
         return [exact, "exact"] if exact.any?
 
-        [base_scope.search_by_label(label).limit(limit), "prefix"]
+        [base_scope.search_by_label(label).limit(fetch_limit), "prefix"]
       end
+    end
+
+    # Behaviour is unchanged when commercial_safe filtering is off.
+    def fetch_limit
+      return limit unless commercial_safe
+
+      (limit * COMMERCIAL_SAFE_OVERFETCH_MULTIPLIER).clamp(limit, COMMERCIAL_SAFE_FETCH_CEILING)
     end
 
     def serialize(image, kind)
@@ -98,10 +115,14 @@ module Images
       image.docs.where(user_id: [nil, User::DEFAULT_ADMIN_ID]).order(:id).last
     end
 
-    # Only DEFAULT_LIMIT's absence (an omitted keyword arg) should fall back
-    # to the default; an explicit 0 or negative limit is a caller error and
-    # gets clamped up to 1, not silently replaced with the default.
+    # A blank value (omitted keyword arg, nil, or an empty string — the
+    # shape `params[:limit]` takes for a present-but-empty `?limit=`, which
+    # is truthy in Ruby) means "use the default". An explicit out-of-range
+    # number (0, negative, or above MAX_LIMIT) is a caller error and gets
+    # clamped into range instead of silently replaced with the default.
     def clamp(value)
+      return DEFAULT_LIMIT if value.blank?
+
       value.to_i.clamp(1, MAX_LIMIT)
     end
   end

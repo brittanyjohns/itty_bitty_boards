@@ -48,6 +48,16 @@ RSpec.describe Boards::AdminSearch do
       expect(described_class.new.call).not_to include(board)
     end
 
+    it "excludes menus identified by parent_type: Menu even when board_type is null" do
+      # The exact NULL-semantics interaction the IS DISTINCT FROM fix exists
+      # for: board_type IS DISTINCT FROM 'menu' now lets a null-board_type
+      # board through, but parent_type is NOT NULL in the schema so
+      # where.not(parent_type: "Menu") must still catch this combination on
+      # its own — a menu whose board_type happens to be null.
+      board = admin_board(name: "Menu child, null type", parent_type: "Menu", board_type: nil)
+      expect(described_class.new.call).not_to include(board)
+    end
+
     it "excludes builder children" do
       board = admin_board(name: "Builder child", settings: { "builder_child" => true })
       expect(described_class.new.call).not_to include(board)
@@ -80,6 +90,27 @@ RSpec.describe Boards::AdminSearch do
     it "returns nothing when neither field matches" do
       admin_board(name: "Animals")
       expect(described_class.new(q: "spaceship").call).to be_empty
+    end
+
+    it "scopes the name/description id lookups to admin-owned boards instead of scanning the whole table" do
+      admin_board(name: "Bounded")
+      other = create(:user)
+      create(:board, user: other, name: "Bounded decoy", description: "bounded decoy text", sub_board: false)
+
+      queries = []
+      callback = lambda do |*, payload|
+        queries << payload if payload[:sql] =~ /ts_rank|ILIKE/
+      end
+
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        described_class.new(q: "bounded").call.to_a
+      end
+
+      expect(queries).not_to be_empty
+      queries.each do |payload|
+        user_id_bind = payload[:binds]&.find { |bind| bind.name == "user_id" }
+        expect(user_id_bind&.value).to eq(admin.id)
+      end
     end
   end
 
@@ -139,6 +170,15 @@ RSpec.describe Boards::AdminSearch do
   describe "limit" do
     it "clamps to MAX_LIMIT" do
       expect(described_class.new(limit: 9_999).limit).to eq(described_class::MAX_LIMIT)
+    end
+
+    it "treats a blank limit as absent and falls back to the default" do
+      expect(described_class.new(limit: "").limit).to eq(described_class::DEFAULT_LIMIT)
+      expect(described_class.new(limit: nil).limit).to eq(described_class::DEFAULT_LIMIT)
+    end
+
+    it "clamps an explicit zero up into range, same as Images::LabelSearch" do
+      expect(described_class.new(limit: 0).limit).to eq(1)
     end
   end
 

@@ -8,7 +8,7 @@
 namespace :images do
   desc "Report the license breakdown of the image library (read-only)"
   task license_audit: :environment do
-    docs = Doc.includes(:image_attachment).where(deleted_at: nil)
+    docs = Doc.where(deleted_at: nil)
     total = docs.count
 
     by_source = Hash.new(0)

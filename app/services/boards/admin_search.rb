@@ -89,11 +89,17 @@ module Boards
     end
 
     # pg_search relations don't compose with .or, so resolve each side to ids.
+    # Chain both onto base_scope (not a bare Board.*) before plucking — a
+    # common term unscoped can pluck thousands of ids across the whole
+    # boards table, almost all of them user-owned boards the outer scope
+    # would then discard. pg_search scopes compose onto a relation cleanly
+    # (verified), so this only changes how many ids get plucked, not what
+    # the final result set contains — it's already ANDed with `scope`.
     def apply_query(scope)
       return scope if q.blank?
 
-      name_ids = Board.search_by_name(q).pluck(:id)
-      desc_ids = Board.where("boards.description ILIKE ?", "%#{sanitize_like(q)}%").pluck(:id)
+      name_ids = self.class.base_scope.search_by_name(q).pluck(:id)
+      desc_ids = self.class.base_scope.where("boards.description ILIKE ?", "%#{sanitize_like(q)}%").pluck(:id)
 
       scope.where(id: (name_ids + desc_ids).uniq)
     end
@@ -102,11 +108,13 @@ module Boards
       ActiveRecord::Base.sanitize_sql_like(value)
     end
 
+    # Consistent with Images::LabelSearch#clamp: a blank value (omitted
+    # keyword arg, nil, or an empty string) means "use the default"; an
+    # explicit out-of-range number clamps into range instead.
     def clamp(value)
-      value = value.to_i
-      return DEFAULT_LIMIT if value.zero?
+      return DEFAULT_LIMIT if value.blank?
 
-      value.clamp(1, MAX_LIMIT)
+      value.to_i.clamp(1, MAX_LIMIT)
     end
   end
 end

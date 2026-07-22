@@ -63,6 +63,15 @@ RSpec.describe "API::Internal::Images search", type: :request do
 
       expect(body["results"].size).to eq(1)
     end
+
+    it "treats a present-but-empty limit param as absent (the default), not zero" do
+      11.times { |i| image_with_doc(label: "widget") }
+      get "/api/internal/images/search",
+          params: { q: "widget", limit: "" }, headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      expect(body["results"].size).to eq(Images::LabelSearch::DEFAULT_LIMIT)
+    end
   end
 
   describe "POST /api/internal/images/search" do
