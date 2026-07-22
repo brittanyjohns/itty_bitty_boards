@@ -34,10 +34,31 @@ module Boards
       scope.with_artifacts.order(updated_at: :desc).page(page).per(limit)
     end
 
-    # Top-level admin boards a human would recognize. main_boards already
-    # covers non_menus + not a sub_board.
+    # Top-level admin boards a human would recognize.
+    #
+    # Deliberately NOT Board.main_boards here. main_boards composes
+    # non_menus, which is `where.not(board_type: "menu").where.not(parent_type:
+    # "Menu")`. In SQL, `NULL != 'menu'` evaluates to NULL (not TRUE), so
+    # where.not(board_type: "menu") silently excludes every board with a
+    # NULL board_type — even though NULL isn't "menu" and those boards
+    # should be searchable. Verified against production data: 11 admin-owned,
+    # top-level, published/tagged boards have board_type: nil and were
+    # invisible to this endpoint before this fix.
+    #
+    # Reimplement the same "not a menu, not a sub-board" filter here using
+    # IS DISTINCT FROM, which treats NULL as simply "not equal to 'menu'"
+    # (the behavior a human reading `.where.not` would expect). Do NOT swap
+    # this back for `Board.main_boards`/`Board.non_menus` — those scopes are
+    # used elsewhere in the app and changing their NULL semantics there
+    # could have effects far outside this feature. This fix is intentionally
+    # local to AdminSearch. (parent_type is NOT NULL in the schema, so
+    # where.not(parent_type: "Menu") is safe as-is.)
     def self.base_scope
-      Board.where(user_id: User::DEFAULT_ADMIN_ID).main_boards.not_builder_child
+      Board.where(user_id: User::DEFAULT_ADMIN_ID)
+           .where("boards.board_type IS DISTINCT FROM 'menu'")
+           .where.not(parent_type: "Menu")
+           .where(sub_board: [false, nil])
+           .not_builder_child
     end
 
     def self.tag_counts(published: nil)

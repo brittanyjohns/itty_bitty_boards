@@ -10,9 +10,11 @@ RSpec.describe Boards::AdminSearch do
   # semantics: a NULL board_type is excluded, not treated as "not menu".
   # Default it to a real non-menu type here so these boards land in
   # main_boards like a real created board would; tests that need "menu"
-  # still override it via **attrs.
+  # (or a real nil, to exercise the NULL-board_type bug) still override it
+  # via **attrs. Use `key?` rather than `||=` so an explicitly-passed
+  # `board_type: nil` sticks instead of being overwritten by the default.
   def admin_board(name:, description: nil, tags: [], published: false, **attrs)
-    attrs[:board_type] ||= "board"
+    attrs[:board_type] = "board" unless attrs.key?(:board_type)
     create(:board, user: admin, name: name, description: description,
                    tags: tags, published: published, sub_board: false, **attrs)
   end
@@ -49,6 +51,18 @@ RSpec.describe Boards::AdminSearch do
     it "excludes builder children" do
       board = admin_board(name: "Builder child", settings: { "builder_child" => true })
       expect(described_class.new.call).not_to include(board)
+    end
+
+    it "includes top-level boards with a null board_type" do
+      # Real data: 22 admin-owned boards have board_type: nil, 11 of them
+      # top-level. Board.main_boards composes non_menus
+      # (where.not(board_type: "menu")), and in SQL NULL != 'menu' is NULL,
+      # not TRUE — so main_boards silently drops these. Exercise the real
+      # case explicitly rather than relying on admin_board's board_type
+      # default (which exists specifically to dodge this bug).
+      board = admin_board(name: "Null type board", tags: ["school"], board_type: nil)
+      expect(described_class.new.call).to include(board)
+      expect(described_class.tag_counts.map { |c| c[:tag] }).to include("school")
     end
   end
 
