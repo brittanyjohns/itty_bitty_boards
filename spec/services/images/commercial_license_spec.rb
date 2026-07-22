@@ -125,34 +125,65 @@ RSpec.describe Images::CommercialLicense do
       expect(described_class.for(doc).commercial_safe?).to be false
     end
 
-    it "deterministically resolves the license when duplicates share a search_string but differ in license and none are protected" do
+    it "treats a doc as having no usable license when matching OpenSymbols disagree on license" do
+      # search_string is a label match, not provenance — real data has rows
+      # like "family - family, ,": one CC BY-SA, one public domain. We cannot
+      # know which symbol this doc actually came from, so fail closed rather
+      # than attribute (and trust) whichever license the lowest id happens
+      # to carry.
+      OpenSymbol.create!(search_string: "ambiguous", label: "ambiguous a",
+                         image_url: "https://example.com/e1.png",
+                         license: "CC BY", protected_symbol: "false")
+      OpenSymbol.create!(search_string: "ambiguous", label: "ambiguous b",
+                         image_url: "https://example.com/e2.png",
+                         license: "CC BY-NC", protected_symbol: "false")
+
+      doc = Doc.new(raw: "ambiguous", source_type: "OpenSymbol", license: nil)
+
+      result = described_class.for(doc)
+      expect(result.commercial_safe?).to be false
+      expect(result.type).to be_nil
+    end
+
+    it "resolves normally when duplicates share a search_string but agree on license (after normalization)" do
+      OpenSymbol.create!(search_string: "agree", label: "agree a",
+                         image_url: "https://example.com/f1.png",
+                         license: "CC BY", protected_symbol: "false")
+      # Differs only by casing — proves the comparison normalizes before
+      # checking agreement, not that the strings are byte-identical.
+      OpenSymbol.create!(search_string: "agree", label: "agree b",
+                         image_url: "https://example.com/f2.png",
+                         license: "CC By", protected_symbol: "false")
+
+      doc = Doc.new(raw: "agree", source_type: "OpenSymbol", license: nil)
+
+      result = described_class.for(doc)
+      expect(result.commercial_safe?).to be true
+      expect(result.attribution_required?).to be true
+    end
+
+    it "fails closed on disagreeing licenses regardless of row scan order, and none are protected" do
+      # Real data: search_string "family - family, ,", one row CC BY-SA, one
+      # public domain. Picking "whichever row comes first" (the old behavior)
+      # is not just nondeterministic, it also silently drops the CC BY-SA
+      # attribution requirement when public domain happens to win. Prove the
+      # new fail-closed check doesn't depend on scan order either, using the
+      # same MVCC trick as the OpenSymbol-order test above: an UPDATE on the
+      # lower-id row pushes its tuple to the end of the heap, so an unordered
+      # sequential scan would return the higher-id row first.
       lower = OpenSymbol.create!(search_string: "date", label: "date first",
                                   image_url: "https://example.com/d1.png",
                                   license: "CC BY", protected_symbol: "false")
-      higher = OpenSymbol.create!(search_string: "date", label: "date second",
-                                   image_url: "https://example.com/d2.png",
-                                   license: "public domain", protected_symbol: "false")
-
-      # A freshly inserted table scans in insertion order, which happens to
-      # match id order — so without this UPDATE the test would pass even if
-      # `.order(:id)` were deleted from resolve_license. Force the point: an
-      # UPDATE on the lower-id row makes Postgres MVCC write the new tuple
-      # version to the end of the heap, so an unordered sequential scan
-      # would return the higher-id row first. Only an explicit `.order(:id)`
-      # still returns the lower-id row here.
+      OpenSymbol.create!(search_string: "date", label: "date second",
+                         image_url: "https://example.com/d2.png",
+                         license: "public domain", protected_symbol: "false")
       lower.update!(label: "date first (updated)")
 
       doc = Doc.new(raw: "date", source_type: "OpenSymbol", license: nil)
 
       result = described_class.for(doc)
-      # Both licenses are commercial-safe, so this isolates *which row won*
-      # rather than accidentally testing safety: only the lower-id row (CC BY)
-      # requires attribution, so a false pass here would mean the higher-id
-      # row (public domain, no attribution) was picked instead.
-      expect(result.type).to eq(lower.license.downcase)
-      expect(result.attribution_required?).to be true
-      expect(result.commercial_safe?).to be true
-      expect(higher.license).to eq("public domain")
+      expect(result.commercial_safe?).to be false
+      expect(result.type).to be_nil
     end
   end
 
