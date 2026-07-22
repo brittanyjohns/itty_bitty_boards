@@ -176,21 +176,41 @@ them, so returning them with a null URL is noise.
 
 ### Licensing
 
-**This section is grounded in the actual library, not assumption.** Measured
-2026-07-22 (dev DB, 10,101 docs):
+**This section is grounded in the actual library, not assumption.** Figures
+below are the output of `rake images:license_audit` (dev DB, 2026-07-22,
+10,101 docs) — regenerate rather than trusting them as they age.
 
-| Bucket | Count | Sellable |
+By resolved license type (this is post-resolution, so it includes the
+`OpenSymbol`-sourced docs whose license lives on the symbol row):
+
+| License type | Count | Sellable |
 |---|---|---|
-| `source_type: "OpenAI"` (generated) | 3,116 | yes, no obligation |
-| `CC BY` / `CC By` / `CC By 3.0` | 364 | yes, **attribution required** |
-| `CC BY-SA` / `CC By-SA 3.0` | 953 | share-alike — opt-in only |
-| `public domain` | 48 | yes, no obligation |
-| `CC BY-NC-SA` / `CC BY-NC` | 2,270 | **no — non-commercial** |
+| *(no license)* | 5,657 | no — unknown provenance |
+| `cc by-nc-sa` | 2,464 | **no — non-commercial** |
+| `cc by-sa` | 1,046 | share-alike — opt-in only |
+| `cc by` | 400 | yes, **attribution required** |
+| `cc by-nc` | 224 | **no — non-commercial** |
 | `private` | 152 | no |
-| `GoogleSearch` (scraped, unlicensed) | 809 | no |
-| `ObfImport` with no license data | 1,562 | no (unknown) |
-| `OpenSymbol`-sourced | 657 | mixed — license on the `OpenSymbol` row |
-| unknown `source_type` | 170 | no |
+| `public domain` | 58 | yes, no obligation |
+| `cc by 3.0` | 52 | yes, **attribution required** |
+| `cc by-sa 3.0` | 47 | share-alike — opt-in only |
+| `gpl` | 1 | no |
+
+By `source_type`: `ObfImport` 5,349 · `OpenAI` 3,116 · `GoogleSearch` 809 ·
+`OpenSymbol` 657 · *(none)* 170.
+
+Resulting totals:
+
+| | Count | Share |
+|---|---|---|
+| **commercial-safe** | **3,626** | **35.9%** |
+| attribution-required | 4,233 | 41.9% |
+| share-alike | 3,557 | 35.2% |
+
+Commercial-safe decomposes exactly as `OpenAI` 3,116 + `cc by` 400 +
+`public domain` 58 + `cc by 3.0` 52. **Roughly two-thirds of the library
+cannot go into a product that is sold**, and of what remains, 452 images
+carry an attribution obligation.
 
 Facts that constrain the implementation:
 
@@ -207,6 +227,14 @@ Facts that constrain the implementation:
 - **ARASAAC (author "Sergio Palao", 2,218 docs) is CC BY-NC-SA.** It is the
   single largest licensed source and it is *not* sellable. Free lead magnets
   (the Classroom Kit) are fine; paid products are not.
+- **`src` is null until the tile variant is warm.** `Doc#tile_url` performs
+  *synchronous* variant materialization, so a 50-result search on cold
+  variants would run 50 inline image transcodes. `Images::LabelSearch` guards
+  on `Doc#tile_variant_processed?` and returns `src: null` when cold, never
+  falling back to the original (a caller must be able to tell "no thumbnail"
+  from "here is a thumbnail"). `original_url` is always present.
+  `Doc#display_url` enqueues `PreprocessDocTileVariantJob` per cold doc — an
+  accepted, self-healing side effect, documented rather than suppressed.
 
 #### The three flags
 
