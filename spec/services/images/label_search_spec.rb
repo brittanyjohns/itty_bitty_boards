@@ -61,6 +61,36 @@ RSpec.describe Images::LabelSearch do
       Image.create!(label: "docless", user_id: admin.id)
       expect(described_class.new.call("docless")).to eq([])
     end
+
+    it "never serves a non-admin user's Doc attached to a shared public Image" do
+      # Real-world path: a non-admin user attaches their own Doc to a public,
+      # admin-owned Image via API::ImagesController#crop / attach_doc_to_image
+      # (which permits any image where is_private IS NOT TRUE). Image#display_doc(nil)
+      # would resolve to docs.last with no user_id filter, so it can surface
+      # that user's private photo here. Verified against production: 2,313
+      # such Docs exist across 69 non-admin users.
+      image = Image.create!(label: "shared", user_id: admin.id, is_private: false)
+
+      admin_doc = image.docs.create!(user_id: admin.id, source_type: "OpenAI", raw: "shared")
+      admin_doc.image.attach(
+        io: StringIO.new(file_fixture("sample.png").read),
+        filename: "admin.png",
+        content_type: "image/png",
+      )
+
+      other = create(:user)
+      other_doc = image.docs.create!(user_id: other.id, source_type: "OpenAI", raw: "shared")
+      other_doc.image.attach(
+        io: StringIO.new(file_fixture("sample.png").read),
+        filename: "other.png",
+        content_type: "image/png",
+      )
+
+      result = described_class.new.call("shared").first
+
+      expect(result[:original_url]).to eq(admin_doc.display_url)
+      expect(result[:original_url]).not_to eq(other_doc.display_url)
+    end
   end
 
   describe "limit" do

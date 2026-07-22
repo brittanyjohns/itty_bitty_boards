@@ -50,7 +50,7 @@ module Images
     end
 
     def serialize(image, kind)
-      doc = image.display_doc(nil)
+      doc = library_doc(image)
       return nil unless doc&.image&.attached?
 
       license = Images::CommercialLicense.for(doc, include_share_alike: include_share_alike)
@@ -81,6 +81,21 @@ module Images
         attribution_required: license.attribution_required?,
         share_alike: license.share_alike?,
       }
+    end
+
+    # image.display_doc(nil) is NOT safe here: for an admin-owned image it
+    # resolves to `docs.last` with no filter on doc.user_id at all. Non-admin
+    # users can attach their own Docs to shared public admin-owned Images
+    # (via API::ImagesController#crop / attach_doc_to_image, which permits
+    # any image where is_private IS NOT TRUE), so display_doc(nil) can return
+    # a real user's private upload here — served on an unsigned, permanent
+    # CloudFront URL to an internal pipeline that prints it into a product.
+    # Restrict to library-owned docs (nil or the default admin) instead, and
+    # keep the same "most recent" preference display_doc uses. Do not change
+    # Image#display_doc itself — it drives legitimate per-user doc resolution
+    # everywhere else in the app.
+    def library_doc(image)
+      image.docs.where(user_id: [nil, User::DEFAULT_ADMIN_ID]).order(:id).last
     end
 
     # Only DEFAULT_LIMIT's absence (an omitted keyword arg) should fall back
