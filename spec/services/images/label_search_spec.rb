@@ -86,10 +86,16 @@ RSpec.describe Images::LabelSearch do
         content_type: "image/png",
       )
 
-      result = described_class.new.call("shared").first
+      # Frozen so the two URLs are comparable. Under the Disk service (CI, where
+      # ACTIVE_STORAGE_SERVICE is unset) display_url returns a *signed* URL whose
+      # payload embeds a millisecond-resolution timestamp, so generating the same
+      # doc's URL twice a tick apart yields two different strings.
+      freeze_time do
+        result = described_class.new.call("shared").first
 
-      expect(result[:original_url]).to eq(admin_doc.display_url)
-      expect(result[:original_url]).not_to eq(other_doc.display_url)
+        expect(result[:original_url]).to eq(admin_doc.display_url)
+        expect(result[:original_url]).not_to eq(other_doc.display_url)
+      end
     end
   end
 

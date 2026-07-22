@@ -41,8 +41,24 @@ RSpec.configure do |config|
   config.infer_spec_type_from_file_location!
   config.filter_rails_from_backtrace!
 
-  # Active Storage URL helpers need this set per-request in production; tests
-  # never run a real request cycle so we set it once globally.
+  # Active Storage URL helpers need this set per-request in production.
+  #
+  # Setting it in a before(:each) alone is NOT enough: ActiveStorage::Current is
+  # an ActiveSupport::CurrentAttributes, which the Rails executor resets at the
+  # start of every execution. Request specs DO run the executor, so anything set
+  # here is wiped before the controller runs, and Disk-service URL generation
+  # then raises "Cannot generate URL ... please set ActiveStorage::Current.url_options".
+  # The Executor hook below re-sets it inside every execution, which covers
+  # request specs; the before(:each) covers plain service/model specs that never
+  # enter the executor at all.
+  #
+  # This only bites when Active Storage falls through to the Disk service — i.e.
+  # when ACTIVE_STORAGE_SERVICE is unset, as it is in CI. Locally it is usually
+  # "amazon", so Doc#display_url takes the CDN branch and never calls image.url.
+  ActiveSupport::Executor.to_run do
+    ActiveStorage::Current.url_options = { host: "localhost", port: 4000, protocol: "http" }
+  end
+
   config.before(:each) do
     ActiveStorage::Current.url_options = { host: "localhost", port: 4000, protocol: "http" }
 
