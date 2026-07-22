@@ -126,21 +126,33 @@ RSpec.describe Images::CommercialLicense do
     end
 
     it "deterministically resolves the license when duplicates share a search_string but differ in license and none are protected" do
-      # Lower id ("date first", license GPL) must win under an explicit
-      # ORDER BY id — regardless of whatever order Postgres would otherwise
-      # return matching rows in.
-      first = OpenSymbol.create!(search_string: "date", label: "date first",
+      lower = OpenSymbol.create!(search_string: "date", label: "date first",
                                   image_url: "https://example.com/d1.png",
-                                  license: "GPL", protected_symbol: "false")
-      OpenSymbol.create!(search_string: "date", label: "date second",
-                         image_url: "https://example.com/d2.png",
-                         license: "CC BY", protected_symbol: "false")
+                                  license: "CC BY", protected_symbol: "false")
+      higher = OpenSymbol.create!(search_string: "date", label: "date second",
+                                   image_url: "https://example.com/d2.png",
+                                   license: "public domain", protected_symbol: "false")
+
+      # A freshly inserted table scans in insertion order, which happens to
+      # match id order — so without this UPDATE the test would pass even if
+      # `.order(:id)` were deleted from resolve_license. Force the point: an
+      # UPDATE on the lower-id row makes Postgres MVCC write the new tuple
+      # version to the end of the heap, so an unordered sequential scan
+      # would return the higher-id row first. Only an explicit `.order(:id)`
+      # still returns the lower-id row here.
+      lower.update!(label: "date first (updated)")
 
       doc = Doc.new(raw: "date", source_type: "OpenSymbol", license: nil)
 
       result = described_class.for(doc)
-      expect(result.type).to eq(first.license.downcase)
-      expect(result.commercial_safe?).to be false
+      # Both licenses are commercial-safe, so this isolates *which row won*
+      # rather than accidentally testing safety: only the lower-id row (CC BY)
+      # requires attribution, so a false pass here would mean the higher-id
+      # row (public domain, no attribution) was picked instead.
+      expect(result.type).to eq(lower.license.downcase)
+      expect(result.attribution_required?).to be true
+      expect(result.commercial_safe?).to be true
+      expect(higher.license).to eq("public domain")
     end
   end
 
