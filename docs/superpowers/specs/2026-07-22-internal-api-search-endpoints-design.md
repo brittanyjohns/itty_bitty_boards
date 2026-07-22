@@ -1,18 +1,30 @@
-# Internal API — image search by label
+# Internal API — search endpoints (images + boards)
 
 **Date:** 2026-07-22
 **Status:** Design approved in conversation; spec pending review
-**Motivation:** Build printable products from the existing SpeakAnyWay image
-library. The printables pipeline needs to look up images by word, get a
-print-quality URL, and download the bytes directly from S3/CloudFront.
+**Motivation:** Build printable products from existing SpeakAnyWay content. The
+printables pipeline needs to look up images by word, find admin boards by tag or
+name, and download print-quality bytes directly from S3/CloudFront.
 
 ## Problem
 
-The internal API (`/api/internal/`) can create and generate images, but has no
-way to *find* one. The printables repo currently has no path from "I need a
-picture of an apple" to a downloadable file.
+The internal API (`/api/internal/`) can create, generate and fetch content
+**by id**, but has no way to *find* anything. The printables repo has no path
+from "I need a picture of an apple" or "which boards are tagged `printable`?" to
+a usable result.
 
-Two constraints shape the design:
+This spec adds two search surfaces:
+
+- **Image search by label** — the primary need (§ Image search)
+- **Board search by tag / name / description** — admin-owned boards, published
+  and unpublished (§ Board search)
+
+They share auth, scoping philosophy (admin-owned content only) and pagination
+conventions, but are otherwise independent.
+
+### Constraints specific to images
+
+Two constraints shape the image design:
 
 1. **The URL the app normally hands out is not print-grade.** `Doc#tile_url`
    returns the tile variant — `resize_to_limit: [288, 288]`, WebP, quality 65
@@ -33,12 +45,14 @@ Two constraints shape the design:
   latency for zero benefit.
 - No presigned URLs, for the same reason.
 - No new image *generation* paths. Search only.
-- No changes to the public/user-facing image API.
+- No changes to the public/user-facing image or board APIs.
+- No board *content* in search results — board search returns metadata only.
+  Fetching a board's tiles stays `GET /api/internal/boards/:id`.
 
-## Endpoints
+## Image search
 
-Both mount under the existing `namespace :internal`, inheriting
-`API::Internal::ApplicationController` (bearer `INTERNAL_API_KEY`,
+All endpoints in this spec mount under the existing `namespace :internal`,
+inheriting `API::Internal::ApplicationController` (bearer `INTERNAL_API_KEY`,
 `current_user` is always `User::DEFAULT_ADMIN_ID`).
 
 ### `GET /api/internal/images/search`
@@ -88,7 +102,7 @@ Every requested label appears as a key, **including ones with no match** (empty
 array). Callers must be able to detect gaps without diffing against their
 request. Keys are the caller's labels verbatim, not the normalized form.
 
-## Matching
+### Matching
 
 `match=exact` (default): try `Image.search_by_exact_label`. If that returns
 nothing, fall back to `Image.search_by_label` (prefix tsearch). The response's
@@ -101,7 +115,7 @@ Rationale: for a printable you usually know the word and want *that* picture,
 but labels are stored inconsistently enough that a hard exact-only match would
 produce spurious empty results.
 
-## Scope
+### Scope
 
 All queries run against:
 
@@ -121,7 +135,7 @@ endpoint feeds a sellable product and the safe scope should not be bypassable.
 **Images with no attached doc are excluded from results.** A printable can't use
 them, so returning them with a null URL is noise.
 
-## Result shape
+### Result shape
 
 ```json
 {
@@ -149,7 +163,7 @@ them, so returning them with a null URL is noise.
 - `commercial_safe` — the computed boolean (below), always present regardless of
   whether the request filtered on it, so callers can make their own call.
 
-## Licensing — `commercial_safe`
+### Licensing — `commercial_safe`
 
 A single predicate, computed per doc, used both as a returned field and as an
 optional filter.
@@ -181,6 +195,121 @@ This lives in a `Images::CommercialLicense` service object (single public method
 so the OBF importer or a future product path can reuse the same rule instead of
 reimplementing it.
 
+## Board search
+
+Find admin-owned boards by tag, name, or description — published **and**
+unpublished. Feeds printable production ("which boards are tagged `printable`?")
+and general internal tooling.
+
+### `GET /api/internal/boards/search`
+
+| Param | Type | Default | Notes |
+|---|---|---|---|
+| `q` | string | — | Matches `name` (prefix tsearch) **OR** `description` (ILIKE contains) |
+| `tags` | string | — | Comma-separated; each normalized via `Board.normalize_tag_value` |
+| `tag_match` | `all` \| `any` | `all` | `with_all_tags` / `with_any_tags` |
+| `published` | boolean | *(unset — both)* | `true` or `false` to filter |
+| `limit` | integer | `25` | Clamped to 1..100 |
+| `page` | integer | `1` | Kaminari |
+
+Every param is independently optional. No params returns the full admin board
+list, paginated — a legitimate "show me everything" call.
+
+Response `200`:
+
+```json
+{
+  "results": [ <board>, ... ],
+  "page": 1,
+  "total_pages": 3,
+  "total_count": 61
+}
+```
+
+### `GET /api/internal/boards/tags`
+
+Tag discovery — you cannot filter by tag without knowing which tags exist.
+
+Accepts `published` (same semantics as search). Response `200`:
+
+```json
+{ "tags": [ { "tag": "printable", "count": 12 }, { "tag": "marketing", "count": 4 } ] }
+```
+
+Ordered by count descending, then tag ascending. Implemented with the same
+`unnest(tags)` approach as the existing `Board.public_boards_tags`, generalized
+to the admin scope (which includes unpublished boards).
+
+### Scope
+
+```ruby
+Board.where(user_id: User::DEFAULT_ADMIN_ID).main_boards.not_builder_child
+```
+
+- `main_boards` — already means `non_menus` **and** `sub_board` false/nil, so
+  menus and sub-boards are excluded without new scopes
+- `not_builder_child` — excludes Board Builder sub-boards, consistent with how
+  `countable_board_count` treats a built tree as one board
+
+The result is "top-level boards a human would recognize" — what you'd actually
+turn into a printable. Admin-owned scratch boards created via the internal API
+(`predefined: false`) **are** included, since that's where marketing/kit boards
+live.
+
+`predefined: true`-only was considered and rejected: it would exclude the
+marketing and kit boards this endpoint most needs to find.
+
+### Matching
+
+`q` matches when **either** condition holds:
+
+- `Board.search_by_name` (pg_search prefix tsearch on `name`)
+- `description ILIKE '%q%'`
+
+These are deliberately different match styles: name gets prefix matching
+("anim" finds "Animals"), description only substring. Because the two aren't
+comparably ranked, results are ordered by **`updated_at desc`**, not by
+relevance — an honest ordering rather than a fake combined rank.
+
+`description` is **not** added to the `search_by_name` pg_search scope. That
+scope is used elsewhere in the app and widening it would silently change
+existing results.
+
+Tag filtering ANDs with `q` when both are present.
+
+### Result shape
+
+A lean, purpose-built payload — **not** `Board#api_view` or `#list_api_view`,
+both of which pull `pdf_url`, `word_list` and communicator data and would N+1
+badly across a page of results.
+
+```json
+{
+  "id": 5394,
+  "slug": "core-words",
+  "name": "Core Words",
+  "description": "Starter core vocabulary board",
+  "tags": ["printable", "core"],
+  "published": true,
+  "predefined": false,
+  "board_type": "static",
+  "image_count": 60,
+  "preview_image_url": "https://cdn.../preview.webp",
+  "created_at": "2026-05-01T12:00:00Z",
+  "updated_at": "2026-07-01T09:30:00Z"
+}
+```
+
+- `image_count` — the `board_images_count` counter cache, so it's free
+- `preview_image_url` — eager-loaded via `with_artifacts`
+  (`preview_image_attachment` / `_blob`), null when no preview is attached
+
+**Unpublished boards are returned by default.** A caller building a sellable
+product is responsible for passing `published=true`; the endpoint will not
+assume it. Documented explicitly in the README, since a draft board silently
+becoming a product is the same class of mistake as using `src` where
+`original_url` was meant.
+
 ## Implementation notes
 
 - New controller actions on `API::Internal::ImagesController`: `search`
@@ -192,8 +321,21 @@ reimplementing it.
 - Bulk executes per-label queries in a single pass; with the 100-label cap and
   `with_artifacts` eager loading this is acceptable. If it becomes a
   bottleneck, the fix is one grouped query — noted, not built (YAGNI).
+- New actions on `API::Internal::BoardsController`: `search` and `tags`, routed
+  on the existing `boards` collection block. Query logic in a
+  `Boards::AdminSearch` query object, mirroring `Images::LabelSearch`.
+- The lean board payload is a private serializer method on the controller (or a
+  small `Boards::SearchResultSerializer`), deliberately **not** a new
+  `Board#*_api_view` — the model already carries five view methods and does not
+  need a sixth.
+- `q` combines a pg_search relation with an ILIKE condition. Implement as two
+  `id` subqueries UNIONed, or `where(id: name_matches).or(where(id: desc_matches))`
+  — pg_search relations don't compose cleanly with `.or`, so resolve to ids
+  first rather than fighting the gem.
 
 ## Testing
+
+### Image search
 
 `spec/requests/api/internal/images_search_spec.rb`, following the existing
 `spec/requests/api/internal/images_spec.rb` pattern (`admin_user` created at
@@ -218,13 +360,36 @@ Cases:
 Plus a unit spec for `Images::CommercialLicense` covering the allowlist and the
 fail-closed default.
 
+### Board search
+
+`spec/requests/api/internal/boards_search_spec.rb`, same harness. Cases:
+
+- 401 without a valid bearer token (both endpoints)
+- no params returns the full admin scope, paginated
+- `q` matches on name (prefix: "anim" finds "Animals")
+- `q` matches on description substring
+- `q` matches neither → empty results, not an error
+- non-admin-owned boards excluded
+- menus, sub-boards and builder children excluded
+- `published=true` / `published=false` filter; omitted returns **both**
+  (explicitly asserts an unpublished board appears)
+- `tags=a,b` defaults to ALL (a board with only `a` is excluded)
+- `tag_match=any` returns the board with only `a`
+- tag values are normalized (`?tags=Printable` matches stored `printable`)
+- `tags` ANDs with `q`
+- `limit` clamping and pagination metadata correctness
+- `/boards/tags` returns counts, respects `published`, and includes tags that
+  appear only on unpublished boards
+
 ## Documentation
 
-- **`README.md`** — add both endpoints to the existing `## Internal API`
+- **`README.md`** — add all four endpoints to the existing `## Internal API`
   section, matching its curl-example style. Also add an **endpoint index** at
   the top of that section (currently the reader has to scroll ~400 lines to
-  learn what exists), and document the `src` vs `original_url` distinction
-  explicitly — it's the single most likely thing for a consumer to get wrong.
+  learn what exists). Two things get called out explicitly because they are the
+  most likely consumer mistakes:
+  - `src` vs `original_url` on image results (tile vs print-resolution)
+  - board search returning **unpublished boards by default**
 - **`.claude-notes/internal-api.md`** — new spoke (`git add -f`; the directory
   is gitignored) covering the internal API surface, the auth model, the
   public-bucket/CDN download path, and the licensing rule. The surface is
