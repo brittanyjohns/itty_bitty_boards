@@ -317,16 +317,19 @@ For Hatchbox, set `INTERNAL_API_KEY` in the app's environment variables panel.
 | `PATCH` | `/api/internal/boards/:id` | Update a board |
 | `GET` | `/api/internal/boards/:id/export.pdf` | Render a board as a PDF |
 | `POST` | `/api/internal/boards/:id/board_images` | Add a tile to a board |
+| `POST` | `/api/internal/boards/:id/board_images/bulk` | Add multiple tiles to a board |
 | `POST` | `/api/internal/generated_boards` | Create a generated board |
 | `GET` | `/api/internal/images/search` | Find images by label (single) |
 | `POST` | `/api/internal/images/search` | Find images by label (bulk, ≤100) |
 | `POST` | `/api/internal/images` | Create an image record |
 | `POST` | `/api/internal/images/generate` | Generate an image via OpenAI (async) |
 | `GET` | `/api/internal/images/:id` | Poll image generation status |
-| `GET`/`POST` | `/api/internal/profiles/:id` | Read / update a communicator profile |
+| `GET`/`PATCH` | `/api/internal/profiles/:id` | Read / update a communicator profile |
 | `POST` | `/api/internal/marketing_assets` | Host a marketing PDF at a stable slug |
 | `GET` | `/api/internal/marketing_assets/:slug` | Fetch a hosted marketing PDF URL |
-| `GET` | `/api/internal/marketing_artifacts/*.pdf` | Render generic classroom sheets |
+| `GET` | `/api/internal/marketing_artifacts/name_tag` | Render a name tag classroom sheet |
+| `GET` | `/api/internal/marketing_artifacts/safety_tag` | Render a safety tag classroom sheet |
+| `GET` | `/api/internal/marketing_artifacts/device_tag` | Render a device tag classroom sheet |
 
 **Two things to get right before building anything printable:**
 

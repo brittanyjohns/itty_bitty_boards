@@ -2,6 +2,12 @@ class API::Internal::ImagesController < API::Internal::ApplicationController
   # Bulk search is a per-label query loop; the cap keeps it off a table scan.
   MAX_BULK_LABELS = 100
 
+  # limit_per_label multiplies across every label in a bulk request, so it
+  # gets a tighter cap than the single-label GET endpoint's
+  # Images::LabelSearch::MAX_LIMIT (50): 100 labels * 25 = 2,500 results is
+  # generous; 100 * 50 = 5,000 is not intended.
+  MAX_BULK_LIMIT_PER_LABEL = 25
+
   def create
     label = image_params[:label]
 
@@ -94,11 +100,17 @@ class API::Internal::ImagesController < API::Internal::ApplicationController
       return
     end
 
-    search = label_search(limit: params[:limit_per_label], default_limit: 3)
+    search = label_search(limit: bulk_limit_per_label, default_limit: 3)
     render json: { results: labels.index_with { |label| search.call(label) } }
   end
 
   private
+
+  def bulk_limit_per_label
+    return nil if params[:limit_per_label].blank?
+
+    params[:limit_per_label].to_i.clamp(1, MAX_BULK_LIMIT_PER_LABEL)
+  end
 
   def image_status_payload(image)
     {

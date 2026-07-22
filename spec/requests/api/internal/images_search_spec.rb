@@ -107,5 +107,17 @@ RSpec.describe "API::Internal::Images search", type: :request do
 
       expect(body["results"].keys).to eq(["  Apple  "])
     end
+
+    it "caps limit_per_label at 25 even when a higher value is requested and more matches exist" do
+      # 30 images all labeled "widget" so there are more than 25 possible
+      # matches to return.
+      30.times { image_with_doc(label: "widget") }
+
+      post "/api/internal/images/search",
+           params: { labels: ["widget"], limit_per_label: 30 }.to_json, headers: json_headers
+
+      expect(response).to have_http_status(:ok)
+      expect(body["results"]["widget"].size).to eq(25)
+    end
   end
 end
