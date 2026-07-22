@@ -87,6 +87,33 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
     render json: @board.api_view_with_images(current_user)
   end
 
+  # GET /api/internal/boards/search
+  #
+  # Returns unpublished boards by DEFAULT. A caller building a sellable
+  # product must pass published=true — this endpoint will not assume it.
+  def search
+    boards = Boards::AdminSearch.new(
+      q: params[:q],
+      tags: params[:tags],
+      tag_match: params[:tag_match],
+      published: published_filter,
+      limit: params[:limit],
+      page: params[:page],
+    ).call
+
+    render json: {
+      results: boards.map { |board| search_result_view(board) },
+      page: boards.current_page,
+      total_pages: boards.total_pages,
+      total_count: boards.total_count,
+    }
+  end
+
+  # GET /api/internal/boards/tags
+  def tags
+    render json: { tags: Boards::AdminSearch.tag_counts(published: published_filter) }
+  end
+
   def export_pdf
     @board = Board.find(params[:id])
 
@@ -162,6 +189,33 @@ class API::Internal::BoardsController < API::Internal::ApplicationController
   end
 
   private
+
+  # Deliberately NOT a Board#*_api_view — the model already carries five, and
+  # the existing ones pull pdf_url / word_list / communicator data that would
+  # N+1 across a page of search results.
+  def search_result_view(board)
+    {
+      id: board.id,
+      slug: board.slug,
+      name: board.name,
+      description: board.description,
+      tags: board.tags,
+      published: board.published,
+      predefined: board.predefined,
+      board_type: board.board_type,
+      image_count: board.board_images_count,
+      preview_image_url: board.preview_image_url,
+      created_at: board.created_at,
+      updated_at: board.updated_at,
+    }
+  end
+
+  # nil (absent) means "both" — not false.
+  def published_filter
+    return nil if params[:published].blank?
+
+    ["true", "1"].include?(params[:published].to_s.downcase)
+  end
 
   # The clone inherits the seed root's settings via `dup`, which would carry
   # the robust-set markers and make it look like a *second* seeded root for the

@@ -427,6 +427,8 @@ Rails.application.routes.draw do
       resources :boards, only: [:create, :update, :show] do
         collection do
           post :from_vocab_set
+          get :search
+          get :tags
         end
         member do
           get :export, action: :export_pdf, defaults: { format: :pdf }
@@ -441,6 +443,8 @@ Rails.application.routes.draw do
       resources :images, only: [:create, :show] do
         collection do
           post :generate
+          get :search
+          post :search, action: :bulk_search
         end
       end
       resources :profiles, only: [:show, :update]

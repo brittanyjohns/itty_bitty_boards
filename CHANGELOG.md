@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Internal API image and board search
+- `GET`/`POST /api/internal/images/search` — find library images by label
+  (single or bulk, up to 100 labels per request) and get print-resolution
+  originals, with `commercial_safe` / `attribution_required` / `share_alike`
+  flags so sellable printables can exclude non-commercial artwork.
+- `GET /api/internal/boards/search` and `GET /api/internal/boards/tags` —
+  filter admin boards by tag, name or description, published or not.
+- `rake images:license_audit` — read-only report of the image library's
+  license breakdown.
+
 ### Added — Video tiles accept iPhone recordings, and the 30s limit is now enforced
 - Tile video uploads now accept **.mov / HEVC** files, so a clip recorded on an
   iPhone can be attached directly instead of being rejected. It's converted to

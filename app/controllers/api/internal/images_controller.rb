@@ -1,4 +1,13 @@
 class API::Internal::ImagesController < API::Internal::ApplicationController
+  # Bulk search is a per-label query loop; the cap keeps it off a table scan.
+  MAX_BULK_LABELS = 100
+
+  # limit_per_label multiplies across every label in a bulk request, so it
+  # gets a tighter cap than the single-label GET endpoint's
+  # Images::LabelSearch::MAX_LIMIT (50): 100 labels * 25 = 2,500 results is
+  # generous; 100 * 50 = 5,000 is not intended.
+  MAX_BULK_LIMIT_PER_LABEL = 25
+
   def create
     label = image_params[:label]
 
@@ -61,7 +70,47 @@ class API::Internal::ImagesController < API::Internal::ApplicationController
     render json: image_status_payload(@image)
   end
 
+  # GET /api/internal/images/search?q=apple
+  def search
+    label = params[:q].to_s.strip
+
+    if label.blank?
+      render json: { error: "q is required" }, status: :unprocessable_content
+      return
+    end
+
+    render json: { query: label, results: label_search.call(label) }
+  end
+
+  # POST /api/internal/images/search { labels: [...] }
+  #
+  # Every requested label gets a key in the response — including misses, as an
+  # empty array — so the caller can spot gaps without diffing its request.
+  def bulk_search
+    labels = Array(params[:labels]).map(&:to_s)
+
+    if labels.empty?
+      render json: { error: "labels is required" }, status: :unprocessable_content
+      return
+    end
+
+    if labels.size > MAX_BULK_LABELS
+      render json: { error: "labels exceeds the maximum of #{MAX_BULK_LABELS}" },
+             status: :unprocessable_content
+      return
+    end
+
+    search = label_search(limit: bulk_limit_per_label, default_limit: 3)
+    render json: { results: labels.index_with { |label| search.call(label) } }
+  end
+
   private
+
+  def bulk_limit_per_label
+    return nil if params[:limit_per_label].blank?
+
+    params[:limit_per_label].to_i.clamp(1, MAX_BULK_LIMIT_PER_LABEL)
+  end
 
   def image_status_payload(image)
     {
@@ -82,5 +131,22 @@ class API::Internal::ImagesController < API::Internal::ApplicationController
       :private,
       :board_id,
     )
+  end
+
+  def label_search(limit: nil, default_limit: nil)
+    Images::LabelSearch.new(
+      match: params[:match],
+      # params[:limit] is "" (truthy in Ruby, but blank) for a present-but-
+      # empty `?limit=` — .presence turns that into nil so it falls through
+      # to default_limit/DEFAULT_LIMIT instead of reaching LabelSearch as a
+      # literal empty string.
+      limit: limit || params[:limit].presence || default_limit || Images::LabelSearch::DEFAULT_LIMIT,
+      commercial_safe: truthy_param?(params[:commercial_safe]),
+      include_share_alike: truthy_param?(params[:include_share_alike]),
+    )
+  end
+
+  def truthy_param?(value)
+    ["true", "1", true].include?(value.is_a?(String) ? value.downcase : value)
   end
 end
