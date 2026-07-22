@@ -69,16 +69,19 @@ module Images
       private
 
       # OpenSymbol docs keep their license on the symbol row, not the doc.
+      # search_string has no uniqueness constraint, so more than one symbol
+      # can match — resolve deterministically rather than trusting whichever
+      # row an unordered query happens to return first.
       # Returns the jsonb hash, a license string, :protected, or nil.
       def resolve_license(doc)
         return doc.license if doc.license.present?
         return nil unless doc.source_type == "OpenSymbol"
 
-        symbol = doc.matching_open_symbols.first
-        return nil unless symbol
-        return :protected if truthy?(symbol.protected_symbol)
+        symbols = doc.matching_open_symbols.order(:id).to_a
+        return nil if symbols.empty?
+        return :protected if symbols.any? { |symbol| truthy?(symbol.protected_symbol) }
 
-        symbol.license
+        symbols.first.license
       end
 
       def safe?(doc:, type:, protected_symbol:, share_alike:, non_commercial:, no_derivatives:, include_share_alike:)

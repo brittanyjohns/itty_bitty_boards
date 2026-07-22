@@ -108,6 +108,40 @@ RSpec.describe Images::CommercialLicense do
 
       expect(described_class.for(doc).commercial_safe?).to be false
     end
+
+    it "rejects a doc when ANY matching OpenSymbol is protected, regardless of row order" do
+      unprotected = OpenSymbol.create!(search_string: "cherry", label: "cherry unprotected",
+                                        image_url: "https://example.com/c1.png",
+                                        license: "CC BY", protected_symbol: "false")
+      OpenSymbol.create!(search_string: "cherry", label: "cherry protected",
+                         image_url: "https://example.com/c2.png",
+                         license: "CC BY", protected_symbol: "true")
+      # Sanity: the unprotected row sorts first by id, so a naive `.first`
+      # (no ordering guarantee aside) would miss the protected duplicate.
+      expect(OpenSymbol.where(search_string: "cherry").order(:id).first).to eq(unprotected)
+
+      doc = Doc.new(raw: "cherry", source_type: "OpenSymbol", license: nil)
+
+      expect(described_class.for(doc).commercial_safe?).to be false
+    end
+
+    it "deterministically resolves the license when duplicates share a search_string but differ in license and none are protected" do
+      # Lower id ("date first", license GPL) must win under an explicit
+      # ORDER BY id — regardless of whatever order Postgres would otherwise
+      # return matching rows in.
+      first = OpenSymbol.create!(search_string: "date", label: "date first",
+                                  image_url: "https://example.com/d1.png",
+                                  license: "GPL", protected_symbol: "false")
+      OpenSymbol.create!(search_string: "date", label: "date second",
+                         image_url: "https://example.com/d2.png",
+                         license: "CC BY", protected_symbol: "false")
+
+      doc = Doc.new(raw: "date", source_type: "OpenSymbol", license: nil)
+
+      result = described_class.for(doc)
+      expect(result.type).to eq(first.license.downcase)
+      expect(result.commercial_safe?).to be false
+    end
   end
 
   describe "the returned license payload" do
