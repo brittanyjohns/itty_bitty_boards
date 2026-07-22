@@ -74,15 +74,25 @@ RSpec.describe Images::LabelSearch do
   end
 
   describe "result shape" do
-    it "returns both the tile URL and the full-resolution original" do
+    it "returns a nil src (but a usable original_url) when the tile variant has not been processed yet" do
       image_with_doc(label: "apple")
       result = described_class.new.call("apple").first
 
-      expect(result[:src]).to be_present
+      expect(result[:src]).to be_nil
       expect(result[:original_url]).to be_present
       expect(result).to include(:id, :label, :match, :content_type, :width, :height,
                                 :source_type, :license, :commercial_safe,
                                 :attribution_required, :share_alike)
+    end
+
+    it "returns a tile URL once the variant has already been processed" do
+      image = image_with_doc(label: "apple")
+      image.docs.last.tile_variant.processed
+
+      result = described_class.new.call("apple").first
+
+      expect(result[:src]).to be_present
+      expect(result[:original_url]).to be_present
     end
 
     it "reports licensing flags from CommercialLicense" do

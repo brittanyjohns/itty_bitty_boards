@@ -62,7 +62,15 @@ module Images
         id: image.id,
         label: image.label,
         match: kind,
-        src: doc.tile_url,
+        # doc.tile_url materializes the ActiveStorage variant synchronously
+        # (download original + libvips transform + upload) on first access.
+        # This endpoint can return up to MAX_LIMIT results in one response,
+        # so calling it unconditionally risks up to MAX_LIMIT inline
+        # transcodes in a single request — a timeout risk. Only surface a
+        # tile URL when the variant is already processed (cheap check, no
+        # transcode); otherwise src is nil so callers can tell "no thumbnail
+        # yet" apart from a real one. Do not fall back to the original here.
+        src: doc.tile_variant_processed? ? doc.tile_url : nil,
         original_url: doc.display_url,
         content_type: blob&.content_type,
         width: blob&.metadata&.dig("width"),
