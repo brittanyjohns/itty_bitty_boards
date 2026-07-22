@@ -305,6 +305,39 @@ INTERNAL_API_KEY=<the generated value>
 
 For Hatchbox, set `INTERNAL_API_KEY` in the app's environment variables panel.
 
+### Endpoint index
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/internal/boards` | Create a board (optionally enqueue generation) |
+| `POST` | `/api/internal/boards/from_vocab_set` | Clone a curated vocab-set board |
+| `GET` | `/api/internal/boards/search` | Search admin boards by tag / name / description |
+| `GET` | `/api/internal/boards/tags` | List admin board tags with counts |
+| `GET` | `/api/internal/boards/:id` | Fetch one board with its tiles |
+| `PATCH` | `/api/internal/boards/:id` | Update a board |
+| `GET` | `/api/internal/boards/:id/export.pdf` | Render a board as a PDF |
+| `POST` | `/api/internal/boards/:id/board_images` | Add a tile to a board |
+| `POST` | `/api/internal/generated_boards` | Create a generated board |
+| `GET` | `/api/internal/images/search` | Find images by label (single) |
+| `POST` | `/api/internal/images/search` | Find images by label (bulk, ≤100) |
+| `POST` | `/api/internal/images` | Create an image record |
+| `POST` | `/api/internal/images/generate` | Generate an image via OpenAI (async) |
+| `GET` | `/api/internal/images/:id` | Poll image generation status |
+| `GET`/`POST` | `/api/internal/profiles/:id` | Read / update a communicator profile |
+| `POST` | `/api/internal/marketing_assets` | Host a marketing PDF at a stable slug |
+| `GET` | `/api/internal/marketing_assets/:slug` | Fetch a hosted marketing PDF URL |
+| `GET` | `/api/internal/marketing_artifacts/*.pdf` | Render generic classroom sheets |
+
+**Two things to get right before building anything printable:**
+
+1. **`original_url` is the print file; `src` can be `null`.** Image search
+   returns both. `original_url` is the full-resolution original and is always
+   present — download it for anything print-bound. `src` is a 288×288 WebP
+   thumbnail that is only populated once that image's tile variant has been
+   generated; until then it's `null` and never falls back to the original.
+2. **Board search returns unpublished boards by default.** Pass
+   `published=true` if you are building something you intend to ship.
+
 ### Endpoints
 
 #### `POST /api/internal/boards`
@@ -448,6 +481,75 @@ Regardless of what you pass in `board[board_type]`, the controller overwrites
 runs. That mirrors the public `POST /api/boards` behavior. So a request with
 `board_creation_type: "scenario"` ends with `board.board_type == "scenario"`.
 
+#### `GET /api/internal/boards/search`
+
+Search admin-owned boards by tag, name, or description. Returns top-level
+boards only — menus, sub-boards and Board Builder children are excluded.
+
+```sh
+curl -G https://<host>/api/internal/boards/search \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  --data-urlencode "q=animals" \
+  --data-urlencode "tags=printable,core" \
+  --data-urlencode "published=true"
+```
+
+Params (all optional — no params returns every admin board, paginated):
+
+- `q` — matches board **name** (prefix) or **description** (substring)
+- `tags` — comma-separated; normalized (case and whitespace insensitive)
+- `tag_match` — `all` (default) or `any`
+- `published` — `true` or `false`. **Omit and you get both.**
+- `limit` (default 25, max 100), `page` (default 1)
+
+Response `200`:
+
+```json
+{
+  "results": [
+    {
+      "id": 5394,
+      "slug": "core-words",
+      "name": "Core Words",
+      "description": "Starter core vocabulary board",
+      "tags": ["printable", "core"],
+      "published": true,
+      "predefined": false,
+      "board_type": "static",
+      "image_count": 60,
+      "preview_image_url": "https://cdn.../preview.webp",
+      "created_at": "2026-05-01T12:00:00Z",
+      "updated_at": "2026-07-01T09:30:00Z"
+    }
+  ],
+  "page": 1,
+  "total_pages": 3,
+  "total_count": 61
+}
+```
+
+Results are ordered by `updated_at` descending. Fetch a board's actual tiles
+with `GET /api/internal/boards/:id`.
+
+> **Unpublished boards are included unless you filter them out.** If you are
+> building something to ship, pass `published=true`.
+
+#### `GET /api/internal/boards/tags`
+
+Every tag in use across admin boards, with counts — so you know what you can
+filter on.
+
+```sh
+curl https://<host>/api/internal/boards/tags \
+  -H "Authorization: Bearer $INTERNAL_API_KEY"
+```
+
+Accepts the same `published` filter. Response `200`:
+
+```json
+{ "tags": [ { "tag": "printable", "count": 12 }, { "tag": "marketing", "count": 4 } ] }
+```
+
 #### `GET /api/internal/boards/:id`
 
 Returns a single board's full API view (same payload shape as `PATCH`'s response).
@@ -584,6 +686,98 @@ Optional params: `name` (defaults to `"<topic> (Age Range: <age_range>)"`),
 
 Response: `201 Created` with `{ id, name, status: "generating" }`. Poll the
 board via the existing board endpoints to see when generation finishes.
+
+#### `GET /api/internal/images/search`
+
+Find images in the public library by label. Exact match first, falling back to
+prefix matching when there is no exact hit.
+
+```sh
+curl -G https://<host>/api/internal/images/search \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  --data-urlencode "q=apple" \
+  --data-urlencode "limit=5"
+```
+
+Params: `q` *(required)*, `match` (`exact` default, or `prefix`), `limit`
+(default 10, max 50), `commercial_safe` (default false),
+`include_share_alike` (default false).
+
+Response `200`:
+
+```json
+{
+  "query": "apple",
+  "results": [
+    {
+      "id": 123,
+      "label": "apple",
+      "match": "exact",
+      "src": "https://cdn.../variants/xyz",
+      "original_url": "https://cdn.../abc123",
+      "content_type": "image/png",
+      "width": 1024,
+      "height": 1024,
+      "source_type": "OpenAI",
+      "license": null,
+      "commercial_safe": true,
+      "attribution_required": false,
+      "share_alike": false
+    }
+  ]
+}
+```
+
+**`original_url` is the full-resolution original** on the public CDN — fetch it
+directly, no signing or proxying needed. It is always present.
+
+**`src` can be `null`.** It's a 288×288 WebP tile meant for on-screen previews,
+not print, and it is only returned once that image's thumbnail variant has
+actually been generated. A cold image (nothing has requested its tile before)
+comes back with `"src": null` — it never falls back to the original URL, so
+you can tell "no thumbnail yet" apart from a real one. Reading a result
+enqueues a background job (`PreprocessDocTileVariantJob`) that warms the
+variant, so a repeat search for the same label will typically come back with
+`src` populated — this is expected, self-healing behavior, not a bug. **Build
+print output off `original_url`, never `src`.**
+
+**Licensing.** Only **35.9%** of the image library is commercial-safe — the
+other roughly two-thirds cannot go in a product you sell. ARASAAC symbols
+(`cc by-nc-sa`, author "Sergio Palao") are the single largest non-commercial
+bucket and cannot be used in a paid product. Pass `commercial_safe=true` to
+filter to images that can be. Share-alike licenses are excluded from that
+filter by default; add `include_share_alike=true` to include them. Images with
+`attribution_required: true` must credit `license.author_name` visibly in the
+product. Run `bundle exec rake images:license_audit` for the current
+library-wide breakdown — these figures drift as the library grows.
+
+#### `POST /api/internal/images/search`
+
+Bulk label lookup — one round trip for a whole sheet. Max 100 labels.
+
+```sh
+curl -X POST https://<host>/api/internal/images/search \
+  -H "Authorization: Bearer $INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "labels": ["apple", "dog", "run"], "limit_per_label": 3, "commercial_safe": true }'
+```
+
+Params: `labels` *(required, array, max 100)*, `limit_per_label` (default 3,
+max 25), `match` (`exact` default, or `prefix`), `commercial_safe` (default
+false), `include_share_alike` (default false).
+
+Response `200` — **every requested label gets a key**, misses included, so you
+can spot gaps without diffing against your request:
+
+```json
+{
+  "results": {
+    "apple": [ { "id": 123, "label": "apple", "...": "..." } ],
+    "dog":   [ { "id": 456, "label": "dog",   "...": "..." } ],
+    "run":   []
+  }
+}
+```
 
 #### `POST /api/internal/images`
 
