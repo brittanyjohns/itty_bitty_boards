@@ -165,17 +165,70 @@ RSpec.describe Images::LabelSearch do
     end
 
     it "does not under-report when safe results exist beyond the SQL LIMIT before filtering" do
-      # Three non-safe images ordered ahead of one safe image. With limit: 1,
-      # a naive `.limit(1)` in SQL followed by Ruby-side filtering would only
-      # ever see the first (unsafe) row and return [] — even though a safe
+      # ts_rank (no normalization configured on this pg_search_scope) grows
+      # strictly with how many times the query term appears in the matched
+      # column, so repeating "ranked" gives these three unsafe images a
+      # deterministically higher rank than the safe image's single
+      # occurrence — this does NOT depend on Postgres's unspecified
+      # tie-break order for equal ranks. With limit: 1, a naive `.limit(1)`
+      # in SQL followed by Ruby-side filtering would therefore always see a
+      # top-ranked (unsafe) row first and return [] — even though a safe
       # image exists for this label.
-      3.times { |i| image_with_doc(label: "ranked", source_type: "ObfImport", license: { "type" => "CC BY-NC" }) }
+      3.times { image_with_doc(label: "ranked ranked", source_type: "ObfImport", license: { "type" => "CC BY-NC" }) }
       safe_image = image_with_doc(label: "ranked", source_type: "OpenAI")
 
       results = described_class.new(limit: 1, commercial_safe: true).call("ranked")
 
       expect(results.size).to eq(1)
       expect(results.first[:id]).to eq(safe_image.id)
+    end
+  end
+
+  describe "query efficiency" do
+    # Doc#tile_variant_processed? runs its own per-image `variant_records`
+    # existence check — a legitimate, unrelated-to-this-fix per-image query.
+    # Stub it so this test isolates the thing it's guarding: library_doc's
+    # resolution of the preloaded `docs` association, which must NOT issue
+    # its own per-image query on top of that.
+    before { allow_any_instance_of(Doc).to receive(:tile_variant_processed?).and_return(false) }
+
+    def query_count(n)
+      label = "flatcount#{n}"
+      n.times { image_with_doc(label: label, source_type: "OpenAI") }
+
+      queries = 0
+      callback = lambda do |_name, _start, _finish, _id, payload|
+        sql = payload[:sql].to_s
+        next if sql.match?(/\A\s*(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)/i)
+
+        queries += 1
+      end
+
+      results = nil
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        results = described_class.new(limit: n, commercial_safe: true).call(label)
+      end
+
+      expect(results.size).to eq(n)
+      queries
+    end
+
+    it "does not issue a fresh query per matching image when resolving library docs" do
+      # library_doc must filter the already-`with_artifacts`-preloaded `docs`
+      # association in Ruby. A `.where` there would issue one query per
+      # matching image (an N+1), which — combined with the commercial-safe
+      # over-fetch multiplier — scales badly with result size. Assert the
+      # query count stays flat as the number of matches grows, rather than
+      # scaling with it.
+      small = query_count(3)
+      large = query_count(12)
+
+      # 3 matches and 12 matches must cost the same number of queries once
+      # per-image DB work is removed. An N+1 would grow this by one query
+      # per additional image (9 more for large vs. small); a preloaded
+      # implementation does not grow at all.
+      expect(large).to eq(small)
+      expect(large).to be < 10
     end
   end
 end

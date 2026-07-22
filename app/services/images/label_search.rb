@@ -111,8 +111,16 @@ module Images
     # keep the same "most recent" preference display_doc uses. Do not change
     # Image#display_doc itself — it drives legitimate per-user doc resolution
     # everywhere else in the app.
+    #
+    # Deliberately filters the already-loaded `docs` association in Ruby
+    # instead of `image.docs.where(...)`. base_scope preloads docs (and their
+    # attachments/blobs) via `with_artifacts`; a `.where` here would issue a
+    # fresh query per image, defeating that preload and reintroducing an N+1.
+    # `docs` carries no default ordering scope, so `max_by(&:id)` is
+    # equivalent to the previous `.order(:id).last` ("most recent" wins).
+    # Do not "optimize" this back into a `.where`.
     def library_doc(image)
-      image.docs.where(user_id: [nil, User::DEFAULT_ADMIN_ID]).order(:id).last
+      image.docs.select { |doc| [nil, User::DEFAULT_ADMIN_ID].include?(doc.user_id) }.max_by(&:id)
     end
 
     # A blank value (omitted keyword arg, nil, or an empty string — the
