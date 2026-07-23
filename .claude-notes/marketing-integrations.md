@@ -151,6 +151,26 @@ grants were already deduped on `stripe_event_id`; this extends idempotency to
 the non-credit handlers (`apply_free_plan` on delete/pause, `past_due` on
 `payment_failed`) so retries/dashboard replays don't pollute the credit ledger.
 
+**Anonymous lead capture → Mailchimp tags.** `POST /api/download_leads`
+(public, no auth) creates a `DownloadLead` from a bare email and enqueues
+`MailchimpUpsertLeadJob`, which upserts the contact via
+`MailchimpService#record_lead` and tags it. The tag comes from
+`MailchimpUpsertLeadJob::SOURCE_TAGS`, keyed on the lead's free-form `source`
+string (`"classroom_kit"` → `ClassroomKitLead`, `"ctg"` → `ctg-2026`); anything
+unlisted falls back to `DEFAULT_LEAD_TAG`. `source` is not validated against a
+whitelist — a new funnel only needs a `SOURCE_TAGS` entry to get its own
+segmentable tag, and a typo'd source degrades to the default tag rather than
+erroring. Campaign UTMs ride along in the lead's `data` jsonb.
+
+**`record_lead` only ever sends `EMAIL` + `FNAME`**, so every required merge
+field on the audience is a silent break: a permanent 4xx marks the lead
+`failed` and is deliberately *not* re-raised (it would fail identically on
+every retry), so a misconfigured audience kills capture without surfacing an
+exception. Before launching a capture funnel, confirm the audience has no
+required merge fields beyond EMAIL — as of the CTG work the production
+audience (`us2`, list `b7456c33f9`) requires none, and `ADDRESS` is present
+but optional.
+
 ## PostHog server-side analytics
 
 `PosthogService` (`app/models/posthog_service.rb`) captures events that must

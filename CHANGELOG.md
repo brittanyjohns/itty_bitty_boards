@@ -5,6 +5,10 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Closing the Gap booth lead attribution
+- Leads captured with `source: "ctg"` now carry the `ctg-2026` Mailchimp tag,
+  so booth signups land in the campaign's existing segment and welcome
+  automation instead of the generic lead tag.
 ### Fixed — Clinician application credential values are normalized
 - `ClinicianApplication#credential_type` is normalized to the canonical
   `CREDENTIAL_TYPES` slugs (`slp`, `ot`, `at_specialist`, `other`) before
