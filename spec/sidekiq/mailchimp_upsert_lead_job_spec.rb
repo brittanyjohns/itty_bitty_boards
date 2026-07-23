@@ -35,6 +35,37 @@ RSpec.describe MailchimpUpsertLeadJob, type: :job do
       expect(classroom_lead.reload.mailchimp_status).to eq("synced")
     end
 
+    it "uses the ctg-2026 tag for a ctg source lead" do
+      ctg_lead = create(:download_lead, email: "booth@example.com", name: "Alex", source: "ctg")
+
+      expect(mailchimp).to receive(:record_lead).with(
+        email: "booth@example.com",
+        name: "Alex",
+        tags: ["ctg-2026"],
+      )
+
+      job.perform(ctg_lead.id)
+
+      expect(ctg_lead.reload.mailchimp_status).to eq("synced")
+    end
+
+    # Booth capture is email-only — no name, no address. record_lead must still
+    # be called (and succeed) with a nil name, since the audience has no
+    # required merge fields a bare-email lead couldn't supply.
+    it "syncs a bare-email lead that has no name" do
+      bare_lead = create(:download_lead, email: "bare@example.com", name: nil, source: "ctg")
+
+      expect(mailchimp).to receive(:record_lead).with(
+        email: "bare@example.com",
+        name: nil,
+        tags: ["ctg-2026"],
+      )
+
+      job.perform(bare_lead.id)
+
+      expect(bare_lead.reload.mailchimp_status).to eq("synced")
+    end
+
     it "marks the lead failed and re-raises on a transient (5xx) Mailchimp API error" do
       allow(mailchimp).to receive(:record_lead)
         .and_raise(MailchimpMarketing::ApiError.new(status: 500, message: "boom"))

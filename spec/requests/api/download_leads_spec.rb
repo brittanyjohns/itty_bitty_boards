@@ -46,6 +46,47 @@ RSpec.describe "API download_leads", type: :request do
       end
     end
 
+    # The CTG booth capture is email-only (no name, no board) and carries the
+    # QR/email UTMs onto the lead's data for campaign attribution.
+    context "with a ctg booth capture (email only)" do
+      let(:params) do
+        {
+          download_lead: {
+            email: "booth@example.com",
+            source: "ctg",
+            data: { utm_campaign: "ctg-2026", utm_source: "qr", utm_content: "booth" },
+          },
+        }
+      end
+
+      it "creates a ctg-sourced lead with no name and enqueues the Mailchimp job" do
+        expect {
+          post "/api/download_leads", params: params
+        }.to change(DownloadLead, :count).by(1)
+
+        expect(response).to have_http_status(:created)
+
+        lead = DownloadLead.last
+        expect(lead.email).to eq("booth@example.com")
+        expect(lead.name).to be_blank
+        expect(lead.board_id).to be_nil
+        expect(lead.source).to eq("ctg")
+        expect(lead.data).to eq(
+          "utm_campaign" => "ctg-2026", "utm_source" => "qr", "utm_content" => "booth"
+        )
+
+        expect(MailchimpUpsertLeadJob.jobs.size).to eq(1)
+        expect(MailchimpUpsertLeadJob.jobs.first["args"]).to eq([lead.id])
+      end
+
+      it "maps the ctg source to the ctg-2026 Mailchimp tag" do
+        post "/api/download_leads", params: params
+
+        expect(MailchimpUpsertLeadJob::SOURCE_TAGS.fetch(DownloadLead.last.source))
+          .to eq("ctg-2026")
+      end
+    end
+
     context "with an invalid / missing email" do
       it "returns 422 with errors and creates no lead (missing email)" do
         expect {

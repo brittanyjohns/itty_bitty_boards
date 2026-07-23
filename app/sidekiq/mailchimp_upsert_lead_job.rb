@@ -10,7 +10,12 @@ class MailchimpUpsertLeadJob
   DEFAULT_LEAD_TAG = "BoardDownloadLead".freeze
   # Source-specific Mailchimp tags so distinct lead funnels can be segmented.
   # Anything not listed here falls back to DEFAULT_LEAD_TAG (existing behavior).
-  SOURCE_TAGS = { "classroom_kit" => "ClassroomKitLead" }.freeze
+  SOURCE_TAGS = {
+    "classroom_kit" => "ClassroomKitLead",
+    # Closing the Gap 2026 booth capture. Matches the tag the ctg-2026 campaign
+    # segment and its welcome automation are already built against.
+    "ctg" => "ctg-2026",
+  }.freeze
 
   def perform(download_lead_id)
     lead = DownloadLead.find_by(id: download_lead_id)

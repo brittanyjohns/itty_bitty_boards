@@ -5,6 +5,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Closing the Gap booth lead attribution
+- Leads captured with `source: "ctg"` now carry the `ctg-2026` Mailchimp tag,
+  so booth signups land in the campaign's existing segment and welcome
+  automation instead of the generic lead tag.
+
 ### Added — Internal API image and board search
 - `GET`/`POST /api/internal/images/search` — find library images by label
   (single or bulk, up to 100 labels per request) and get print-resolution
