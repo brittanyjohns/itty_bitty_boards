@@ -5,6 +5,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Clinician application credential values are normalized
+- `ClinicianApplication#credential_type` is normalized to the canonical
+  `CREDENTIAL_TYPES` slugs (`slp`, `ot`, `at_specialist`, `other`) before
+  validation, and the inclusion rule is now actually enforced. Display labels
+  such as `"SLP"` or `"AT specialist"` were reaching the admin review queue
+  un-normalized, because the constant existed but nothing validated against
+  it. Normalizing *before* validating means an older client still sending a
+  label is corrected rather than newly rejected; anything unrecognized becomes
+  `other`, which an admin reviews by hand anyway. A migration backfills
+  existing rows.
+
 ### Added — Internal API image and board search
 - `GET`/`POST /api/internal/images/search` — find library images by label
   (single or bulk, up to 100 labels per request) and get print-resolution
