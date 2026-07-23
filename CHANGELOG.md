@@ -9,6 +9,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Leads captured with `source: "ctg"` now carry the `ctg-2026` Mailchimp tag,
   so booth signups land in the campaign's existing segment and welcome
   automation instead of the generic lead tag.
+### Fixed — Clinician application credential values are normalized
+- `ClinicianApplication#credential_type` is normalized to the canonical
+  `CREDENTIAL_TYPES` slugs (`slp`, `ot`, `at_specialist`, `other`) before
+  validation, and the inclusion rule is now actually enforced. Display labels
+  such as `"SLP"` or `"AT specialist"` were reaching the admin review queue
+  un-normalized, because the constant existed but nothing validated against
+  it. Normalizing *before* validating means an older client still sending a
+  label is corrected rather than newly rejected; anything unrecognized becomes
+  `other`, which an admin reviews by hand anyway. A migration backfills
+  existing rows.
 
 ### Added — Internal API image and board search
 - `GET`/`POST /api/internal/images/search` — find library images by label
