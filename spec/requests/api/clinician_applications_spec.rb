@@ -50,6 +50,35 @@ RSpec.describe "API::ClinicianApplications", type: :request do
       post "/api/clinician_applications", params: bad, headers: auth_headers(user)
       expect(response).to have_http_status(:unprocessable_content)
     end
+
+    # Older clients (and the web app, before the canonical slugs shipped) send
+    # display labels. Normalization means those submissions are stored
+    # correctly rather than newly rejected by the inclusion validation.
+    it "normalizes a display-label credential_type instead of rejecting it" do
+      allow(ClinicianMailer).to receive(:application_received_email).and_return(double(deliver_later: true))
+
+      post "/api/clinician_applications",
+           params: { clinician_application: valid_params[:clinician_application].merge(credential_type: "AT specialist") },
+           headers: auth_headers(user)
+
+      expect(response).to have_http_status(:created)
+      expect(JSON.parse(response.body)["application"]["credential_type"]).to eq("at_specialist")
+    end
+
+    # The web client sends a flat JSON body; Rails' ParamsWrapper (enabled by
+    # load_defaults 8.0) wraps it under `clinician_application`. Pinned here so
+    # a future initializer that turns wrapping off can't silently 400 the
+    # apply form.
+    it "accepts a flat JSON body via ParamsWrapper" do
+      allow(ClinicianMailer).to receive(:application_received_email).and_return(double(deliver_later: true))
+
+      post "/api/clinician_applications",
+           params: valid_params[:clinician_application].to_json,
+           headers: auth_headers(user).merge("CONTENT_TYPE" => "application/json")
+
+      expect(response).to have_http_status(:created)
+      expect(JSON.parse(response.body)["application"]["full_name"]).to eq("Alex Rivera")
+    end
   end
 
   describe "GET /api/clinician_applications/mine" do
