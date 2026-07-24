@@ -5,6 +5,34 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Admin signup alerts no longer fire on upgrades
+- The "new user signed up" admin email was sent from inside three welcome-email
+  methods. Because `send_plan_welcome_email_once!` routes through
+  `send_welcome_email`, every Stripe trial→active transition, RevenueCat
+  purchase, plan upgrade, and admin-dashboard "Send welcome email" click sent
+  an alert claiming a brand-new signup. It now fires from a single idempotent
+  `User#notify_admin_of_signup!` at the three real account-creation points.
+- The alert also carries real context now: the signup method and platform
+  (captured at signup instead of being discarded), a coarse location from the
+  signup IP, and deep links to the admin dashboard, the Stripe customer, and
+  the Stripe subscription. The legacy `tokens` field was dropped from the body.
+
+### Added — Admin plan-change email
+- Upgrades send their own `AdminMailer#plan_change_email`, naming both plans and
+  the source (Stripe, RevenueCat, or the billing API). Fired from
+  `send_plan_welcome_email_once!`, so it inherits that method's per-plan
+  idempotency: renewals and downgrades do not trigger it.
+
+### Fixed — Welcome-email Mailchimp sync can no longer break a signup
+- `User#send_general_welcome_email` had a bare `begin`/`end` with no `rescue`,
+  unlike its `send_welcome_email` and `send_welcome_receipt_email` siblings, so
+  a Mailchimp outage propagated out of it. It now rescues and logs, matching
+  the "external-service failures fail soft" invariant.
+
+### Fixed — Feedback email header
+- The admin feedback email rendered "SpeakAnyWay has a new user! 🎉" in its
+  header, copy-pasted from the signup email.
+
 ### Added — Closing the Gap booth lead attribution
 - Leads captured with `source: "ctg"` now carry the `ctg-2026` Mailchimp tag,
   so booth signups land in the campaign's existing segment and welcome

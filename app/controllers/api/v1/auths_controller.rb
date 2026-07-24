@@ -34,6 +34,8 @@ module API
           sign_in user
           user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
           user.ensure_minimum_communicator_slot!
+          user.record_signup_context!(platform: platform, method: "standard")
+          user.notify_admin_of_signup!
           if user.role == "partner"
             user.send_partner_welcome_email
           end
@@ -105,6 +107,8 @@ module API
         sign_in user
         user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
         user.ensure_minimum_communicator_slot!
+        user.record_signup_context!(platform: platform, method: "email_only")
+        user.notify_admin_of_signup!
         # email_signup is the paid-intent path: no plan picked yet, so send a
         # plan-neutral receipt now. The real plan welcome ships from the Stripe
         # webhook once trial/active. The Mailchimp `welcome` journey is still

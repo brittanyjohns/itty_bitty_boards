@@ -1,7 +1,7 @@
 <div class="container">
   <%= render "layouts/email_logo" %>
   <div class="header">
-    <p>SpeakAnyWay has a new user! 🎉</p>
+    <p>A SpeakAnyWay user upgraded! 🎉</p>
   </div>
   <div class="content">
     <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
@@ -11,23 +11,22 @@
       <tr><td style="padding:6px;">Name</td><td style="padding:6px;"><%= @user.name.presence || "—" %></td></tr>
       <tr><td style="padding:6px;">Email</td><td style="padding:6px;"><%= @user.email %></td></tr>
       <tr><td style="padding:6px;">User ID</td><td style="padding:6px;"><%= @user.id %></td></tr>
-      <tr><td style="padding:6px;">Role</td><td style="padding:6px;"><%= @user.role.presence || "—" %></td></tr>
 
       <tr style="background:#f4f2ff; text-align:left;">
-        <th colspan="2" style="padding:6px;">How they signed up</th>
+        <th colspan="2" style="padding:6px;">Plan change</th>
       </tr>
-      <tr><td style="padding:6px;">Method</td><td style="padding:6px;"><%= @signup_method %></td></tr>
-      <tr><td style="padding:6px;">Platform</td><td style="padding:6px;"><%= @signup_platform %></td></tr>
-      <tr><td style="padding:6px;">Signed up</td><td style="padding:6px;"><%= @user.created_at&.strftime("%b %d, %Y at %l:%M %p %Z") %></td></tr>
-      <% if @location %>
-        <tr><td style="padding:6px;">Location</td><td style="padding:6px;"><%= @location[:label] %></td></tr>
+      <tr><td style="padding:6px;">From</td><td style="padding:6px;"><%= @from_plan %></td></tr>
+      <tr><td style="padding:6px;">To</td><td style="padding:6px;"><%= @to_plan %></td></tr>
+      <tr><td style="padding:6px;">Status</td><td style="padding:6px;"><%= @user.plan_status %></td></tr>
+      <tr><td style="padding:6px;">Source</td><td style="padding:6px;"><%= @source %></td></tr>
+      <% if @billing_interval.present? %>
+        <tr><td style="padding:6px;">Billing interval</td><td style="padding:6px;"><%= @billing_interval %></td></tr>
       <% end %>
-
-      <tr style="background:#f4f2ff; text-align:left;">
-        <th colspan="2" style="padding:6px;">Plan</th>
-      </tr>
-      <tr><td style="padding:6px;">Plan type</td><td style="padding:6px;"><%= @user.plan_type %></td></tr>
-      <tr><td style="padding:6px;">Plan status</td><td style="padding:6px;"><%= @user.plan_status %></td></tr>
+      <% if @trial_ends_at.present? %>
+        <tr><td style="padding:6px;">Trial ends</td><td style="padding:6px;"><%= @trial_ends_at %></td></tr>
+      <% end %>
+      <tr><td style="padding:6px;">Monthly price</td><td style="padding:6px;"><%= number_to_currency(@user.monthly_price) %></td></tr>
+      <tr><td style="padding:6px;">Yearly price</td><td style="padding:6px;"><%= number_to_currency(@user.yearly_price) %></td></tr>
     </table>
 
     <hr>

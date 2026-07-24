@@ -45,7 +45,7 @@ class API::BillingController < API::ApplicationController
       # Idempotent per plan_type: a retried client call (or a later upgrade that
       # re-hits this endpoint for the same plan) won't re-email. Matches the
       # Stripe webhook path, which also uses send_plan_welcome_email_once!.
-      current_user.send_plan_welcome_email_once!(current_user.plan_type)
+      current_user.send_plan_welcome_email_once!(current_user.plan_type, source: "billing_api")
       render json: { success: true, plan_key: plan_key }
     rescue StandardError => e
       Rails.logger.error "Failed to update subscription for User ID: #{current_user.id}, Plan Key: #{plan_key} - Error: #{e.message}"
