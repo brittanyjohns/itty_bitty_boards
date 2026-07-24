@@ -73,4 +73,58 @@ RSpec.describe "User admin signup notification" do
       }.not_to have_enqueued_mail(AdminMailer, :new_user_email)
     end
   end
+
+  describe "#send_plan_welcome_email_once!" do
+    before { allow_any_instance_of(User).to receive(:update_mailchimp_subscription) }
+
+    let(:paid_user) { FactoryBot.create(:user, plan_type: "pro") }
+
+    it "enqueues the plan change email for a paid plan" do
+      expect {
+        paid_user.send_plan_welcome_email_once!("pro", source: "stripe")
+      }.to have_enqueued_mail(AdminMailer, :plan_change_email)
+    end
+
+    it "derives from_plan from the previously welcomed plan" do
+      paid_user.settings["plan_welcome_sent_for"] = ["basic"]
+      paid_user.save
+      expect {
+        paid_user.send_plan_welcome_email_once!("pro", source: "stripe")
+      }.to have_enqueued_mail(AdminMailer, :plan_change_email)
+        .with(paid_user, from_plan: "basic", to_plan: "pro", source: "stripe")
+    end
+
+    it "falls back to free when nothing was welcomed before" do
+      expect {
+        paid_user.send_plan_welcome_email_once!("pro", source: "revenuecat")
+      }.to have_enqueued_mail(AdminMailer, :plan_change_email)
+        .with(paid_user, from_plan: "free", to_plan: "pro", source: "revenuecat")
+    end
+
+    it "defaults source to unknown when the caller omits it" do
+      expect {
+        paid_user.send_plan_welcome_email_once!("pro")
+      }.to have_enqueued_mail(AdminMailer, :plan_change_email)
+        .with(paid_user, from_plan: "free", to_plan: "pro", source: "unknown")
+    end
+
+    it "does not enqueue a plan change email for a free plan" do
+      expect {
+        FactoryBot.create(:user).send_plan_welcome_email_once!("free")
+      }.not_to have_enqueued_mail(AdminMailer, :plan_change_email)
+    end
+
+    it "does not re-enqueue for a plan already welcomed" do
+      paid_user.send_plan_welcome_email_once!("pro", source: "stripe")
+      expect {
+        paid_user.send_plan_welcome_email_once!("pro", source: "stripe")
+      }.not_to have_enqueued_mail(AdminMailer, :plan_change_email)
+    end
+
+    it "never enqueues the new-user alert" do
+      expect {
+        paid_user.send_plan_welcome_email_once!("pro", source: "stripe")
+      }.not_to have_enqueued_mail(AdminMailer, :new_user_email)
+    end
+  end
 end

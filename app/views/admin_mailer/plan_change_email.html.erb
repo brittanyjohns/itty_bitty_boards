@@ -1,0 +1,43 @@
+<div class="container">
+  <%= render "layouts/email_logo" %>
+  <div class="header">
+    <p>A SpeakAnyWay user upgraded! 🎉</p>
+  </div>
+  <div class="content">
+    <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
+      <tr style="background:#f4f2ff; text-align:left;">
+        <th colspan="2" style="padding:6px;">Who</th>
+      </tr>
+      <tr><td style="padding:6px;">Name</td><td style="padding:6px;"><%= @user.name.presence || "—" %></td></tr>
+      <tr><td style="padding:6px;">Email</td><td style="padding:6px;"><%= @user.email %></td></tr>
+      <tr><td style="padding:6px;">User ID</td><td style="padding:6px;"><%= @user.id %></td></tr>
+
+      <tr style="background:#f4f2ff; text-align:left;">
+        <th colspan="2" style="padding:6px;">Plan change</th>
+      </tr>
+      <tr><td style="padding:6px;">From</td><td style="padding:6px;"><%= @from_plan %></td></tr>
+      <tr><td style="padding:6px;">To</td><td style="padding:6px;"><%= @to_plan %></td></tr>
+      <tr><td style="padding:6px;">Status</td><td style="padding:6px;"><%= @user.plan_status %></td></tr>
+      <tr><td style="padding:6px;">Source</td><td style="padding:6px;"><%= @source %></td></tr>
+      <% if @billing_interval.present? %>
+        <tr><td style="padding:6px;">Billing interval</td><td style="padding:6px;"><%= @billing_interval %></td></tr>
+      <% end %>
+      <% if @trial_ends_at.present? %>
+        <tr><td style="padding:6px;">Trial ends</td><td style="padding:6px;"><%= @trial_ends_at %></td></tr>
+      <% end %>
+      <tr><td style="padding:6px;">Monthly price</td><td style="padding:6px;"><%= number_to_currency(@user.monthly_price) %></td></tr>
+      <tr><td style="padding:6px;">Yearly price</td><td style="padding:6px;"><%= number_to_currency(@user.yearly_price) %></td></tr>
+    </table>
+
+    <hr>
+    <p>
+      <a href="<%= admin_dashboard_user_url(@user) %>">Open in admin dashboard</a>
+      <% if @user.stripe_customer_id.present? %>
+        &middot; <a href="https://dashboard.stripe.com/customers/<%= @user.stripe_customer_id %>">Stripe customer</a>
+      <% end %>
+      <% if @user.stripe_subscription_id.present? %>
+        &middot; <a href="https://dashboard.stripe.com/subscriptions/<%= @user.stripe_subscription_id %>">Stripe subscription</a>
+      <% end %>
+    </p>
+  </div>
+</div>

@@ -44,6 +44,22 @@ class AdminMailer < BaseMailer
     mail(to: to_email, subject: subject, from: "noreply@speakanyway.com")
   end
 
+  # Admin alert for a paid plan change, fired from
+  # User#send_plan_welcome_email_once! — the one choke point the Stripe
+  # webhook, RevenueCat, and the billing API all route through. That method's
+  # per-plan idempotency and its trialing/active transition guard mean this
+  # fires once per real upgrade and never on a renewal or a downgrade.
+  def plan_change_email(user, from_plan:, to_plan:, source:)
+    @user = user
+    @from_plan = from_plan
+    @to_plan = to_plan
+    @source = source
+    @billing_interval = user.settings&.dig("billing_interval")
+    @trial_ends_at = user.settings&.dig("trial_ends_at")
+    subject = admin_subject("Upgrade: #{user.email} #{from_plan} → #{to_plan} (#{source})")
+    mail(to: admin_recipient, subject: subject, from: "noreply@speakanyway.com")
+  end
+
   private
 
   def admin_recipient

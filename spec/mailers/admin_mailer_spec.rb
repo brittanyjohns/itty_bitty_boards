@@ -106,4 +106,36 @@ RSpec.describe AdminMailer, type: :mailer do
       expect(described_class.new_user_email(user).subject).to start_with("[STAGING] ")
     end
   end
+
+  describe "#plan_change_email" do
+    let(:user) do
+      FactoryBot.create(:user, name: "Jane Doe", email: "jane@example.com", plan_type: "pro").tap do |u|
+        u.update_columns(stripe_customer_id: "cus_ABC123", stripe_subscription_id: "sub_XYZ789", monthly_price: 19.99)
+        u.settings["billing_interval"] = "month"
+        u.save
+      end
+    end
+
+    it "names both plans and the source in the subject" do
+      mail = described_class.plan_change_email(user, from_plan: "free", to_plan: "pro", source: "stripe").deliver_now
+      expect(mail.to).to eq([ENV["ADMIN_EMAIL"] || "brittany@speakanyway.com"])
+      expect(mail.subject).to eq("Upgrade: jane@example.com free → pro (stripe)")
+    end
+
+    it "renders the plan transition, billing interval, and Stripe links" do
+      body = described_class.plan_change_email(user, from_plan: "free", to_plan: "pro", source: "stripe")
+        .deliver_now.html_part.body.decoded
+      expect(body).to include("free")
+      expect(body).to include("pro")
+      expect(body).to include("month")
+      expect(body).to include("https://dashboard.stripe.com/subscriptions/sub_XYZ789")
+      expect(body).to include("/admin/users/#{user.id}")
+    end
+
+    it "prefixes the subject on staging" do
+      allow(AppEnv).to receive(:staging?).and_return(true)
+      mail = described_class.plan_change_email(user, from_plan: "free", to_plan: "pro", source: "stripe")
+      expect(mail.subject).to start_with("[STAGING] ")
+    end
+  end
 end

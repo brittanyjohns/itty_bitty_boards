@@ -1376,13 +1376,26 @@ class User < ApplicationRecord
   # the plan-correct welcome at most once per plan_type, so re-fires of
   # subscription.updated don't re-email and a true plan change (basic→pro)
   # still sends. Independent of the email_signup receipt flag.
-  def send_plan_welcome_email_once!(plan_nickname)
+  def send_plan_welcome_email_once!(plan_nickname, source: "unknown")
     return if admin?
     return if plan_nickname.blank?
     plan_key = plan_nickname.to_s
     sent_for = Array(settings["plan_welcome_sent_for"])
     return if sent_for.include?(plan_key)
     send_welcome_email(plan_key)
+    # Admin alert for the upgrade. Guarded to paid tiers so the billing-API
+    # path can't produce a "plan change" alert for a Free account. from_plan is
+    # the last plan we welcomed — an account that upgraded before this shipped
+    # has an empty list and reads "free". Accepted: this is an alert, not a
+    # ledger (see the design doc's known limitation).
+    unless plan_key.include?("free")
+      AdminMailer.plan_change_email(
+        self,
+        from_plan: sent_for.last || "free",
+        to_plan: plan_key,
+        source: source,
+      ).deliver_later
+    end
     self.settings["plan_welcome_sent_for"] = (sent_for + [plan_key]).uniq
     save
   end
