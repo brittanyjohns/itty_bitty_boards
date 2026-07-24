@@ -141,7 +141,7 @@ module RevenueCat
       # request (backgrounded app, crash, network) left a paying user with none.
       # send_plan_welcome_email_once! is idempotent per plan_type, so a RENEWAL is
       # a no-op while a real upgrade (basic→pro) re-welcomes, matching Stripe.
-      user.send_plan_welcome_email_once!(plan_type)
+      user.send_plan_welcome_email_once!(plan_type, source: "revenuecat")
 
       # Analytics. fire_started marks a genuine start (INITIAL/NON_RENEWING) vs a
       # renewal/product-change. On a trial start we fire trial_started (parity
