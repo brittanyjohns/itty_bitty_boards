@@ -98,4 +98,29 @@ RSpec.describe User, type: :model do
       expect(user.reload.editable_board_id).to eq(newest.id)
     end
   end
+
+  # This method had a bare begin/end with no rescue, unlike its siblings
+  # send_welcome_email and send_welcome_receipt_email. A Mailchimp blip would
+  # propagate out of it, which violates the "external-service failures fail
+  # soft" invariant — the CRM sync is not allowed to break a signup.
+  describe "#send_general_welcome_email" do
+    let(:user) { FactoryBot.create(:user) }
+
+    it "does not raise when the Mailchimp sync fails" do
+      allow(user).to receive(:update_mailchimp_subscription).and_raise(StandardError, "mailchimp down")
+      expect(Rails.logger).to receive(:error).with(/Error sending general welcome email/)
+      expect { user.send_general_welcome_email }.not_to raise_error
+    end
+
+    it "still flags the welcome as sent when the Mailchimp sync fails" do
+      allow(user).to receive(:update_mailchimp_subscription).and_raise(StandardError, "mailchimp down")
+      user.send_general_welcome_email
+      expect(user.reload.settings["welcome_email_sent"]).to be(true)
+    end
+
+    it "does not raise when the mailer itself fails" do
+      allow(UserMailer).to receive(:welcome_email).and_raise(StandardError, "smtp down")
+      expect { user.send_general_welcome_email }.not_to raise_error
+    end
+  end
 end

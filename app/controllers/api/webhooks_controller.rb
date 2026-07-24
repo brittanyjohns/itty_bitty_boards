@@ -513,7 +513,7 @@ class API::WebhooksController < API::ApplicationController
     # plan_type via send_plan_welcome_email_once!, so subscription.updated
     # re-fires don't re-email and a real plan change still re-welcomes.
     if %w[trialing active].include?(subscription.status) && previous_status != subscription.status
-      user.send_plan_welcome_email_once!(user.plan_type)
+      user.send_plan_welcome_email_once!(user.plan_type, source: "stripe")
     end
 
     # Fire `subscription_started` on the trial→paid (or any non-active→active)
