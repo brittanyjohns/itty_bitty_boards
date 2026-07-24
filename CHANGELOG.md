@@ -23,6 +23,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   `send_plan_welcome_email_once!`, so it inherits that method's per-plan
   idempotency: renewals and downgrades do not trigger it.
 
+### Fixed — Welcome-email Mailchimp sync can no longer break a signup
+- `User#send_general_welcome_email` had a bare `begin`/`end` with no `rescue`,
+  unlike its `send_welcome_email` and `send_welcome_receipt_email` siblings, so
+  a Mailchimp outage propagated out of it. It now rescues and logs, matching
+  the "external-service failures fail soft" invariant.
+
 ### Fixed — Feedback email header
 - The admin feedback email rendered "SpeakAnyWay has a new user! 🎉" in its
   header, copy-pasted from the signup email.

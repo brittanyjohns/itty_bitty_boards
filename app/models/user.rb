@@ -1046,6 +1046,8 @@ class User < ApplicationRecord
       self.settings["welcome_email_sent"] = true
       self.save
       update_mailchimp_subscription
+    rescue => e
+      Rails.logger.error("Error sending general welcome email: #{e.message}")
     end
   end
 
