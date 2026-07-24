@@ -102,3 +102,37 @@ left unthrottled.
   so it doesn't perturb other request specs; `spec/requests/rack_attack_spec.rb`
   opts in and swaps a `MemoryStore` per example.
 
+
+## Admin notification emails
+
+All go to `ENV["ADMIN_EMAIL"]` (fallback `brittany@speakanyway.com`) from
+`AdminMailer`. Staging is **not** suppressed — subjects are prefixed
+`[STAGING]` via the private `admin_subject` helper, so these stay verifiable
+end-to-end before production. `disk_space_alert` is the exception: its job
+skips staging entirely.
+
+- **`new_user_email`** — fired only by `User#notify_admin_of_signup!`, which is
+  called from `AuthsController#sign_up`, `#email_signup`, and
+  `User.create_from_email`. **Never** call it from a welcome-email method:
+  `send_plan_welcome_email_once!` routes through `send_welcome_email`, so
+  doing that makes every upgrade — and every admin-dashboard "Send welcome
+  email" click — send a "new user signed up" alert. That was the bug.
+  Idempotent on `settings["admin_new_user_notified"]`; rescues and logs.
+  Reports `settings["signup_platform"]` / `["signup_method"]`, written by
+  `User#record_signup_context!` at each creation point (accounts predating it
+  render "unknown"), plus a coarse `IpGeolocation` location and deep links to
+  the admin dashboard and Stripe.
+- **`plan_change_email`** — fired from `User#send_plan_welcome_email_once!`,
+  the single choke point for the Stripe webhook, RevenueCat, and the billing
+  API; each passes a `source:`. Inherits that method's per-plan idempotency
+  and its trialing/active transition guard, so renewals and downgrades never
+  fire it. Skipped for free tiers. `from_plan` is the last entry in
+  `settings["plan_welcome_sent_for"]`, falling back to `"free"` — approximate
+  for accounts that upgraded before it shipped, which is acceptable for an
+  alert.
+- **`partner_pilot_review`** — `PartnerPilotEndingJob` digest.
+- **`disk_space_alert`** — `DiskSpaceAlertJob`; see above.
+
+Team invitees do not trigger `new_user_email` — the call is deliberately
+commented out in `User#send_welcome_invitation_email`. Both templates have
+previews at `/rails/mailers/admin_mailer`.
