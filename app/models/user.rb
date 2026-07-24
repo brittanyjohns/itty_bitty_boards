@@ -446,6 +446,8 @@ class User < ApplicationRecord
         Rails.logger.info("Creating user from invitation with inviting_user_id: #{inviting_user_id}")
         create_from_invitation(email, inviting_user_id)
       else
+        user.record_signup_context!(method: slug ? "myspeak" : "email_import")
+        user.notify_admin_of_signup!
         user.send_welcome_email if user.should_send_welcome_email?
         stripe_customer_id ||= user.stripe_customer_id
         if stripe_customer_id.nil?
@@ -1007,13 +1009,42 @@ class User < ApplicationRecord
     end
   end
 
+  # Records how and where this account was created so the admin signup alert
+  # can report it. Stored in `settings` rather than columns: nothing queries
+  # it, so a jsonb key avoids a migration and a backfill decision. Accounts
+  # created before this shipped have neither key and render as "unknown".
+  def record_signup_context!(platform: nil, method: nil)
+    self.settings ||= {}
+    settings["signup_platform"] = platform.presence || "web"
+    settings["signup_method"] = method
+    save
+  end
+
+  # Single entry point for the admin "new signup" alert. Deliberately NOT
+  # called from the welcome-email methods: `send_plan_welcome_email_once!`
+  # routes through `send_welcome_email`, so an upgrade used to send a "new
+  # user signed up" alert, as did the admin dashboard's resend button.
+  # Idempotent per account and fails soft — an admin notification must never
+  # break a signup request.
+  def notify_admin_of_signup!
+    return if admin?
+    self.settings ||= {}
+    return if settings["admin_new_user_notified"]
+    AdminMailer.new_user_email(self).deliver_later
+    settings["admin_new_user_notified"] = true
+    save
+    nil
+  rescue => e
+    Rails.logger.error("Admin new-user notification failed for user #{id}: #{e.message}")
+    nil
+  end
+
   def send_general_welcome_email
     Rails.logger.info "Preparing to send welcome email to #{email}"
     begin
       UserMailer.welcome_email(self).deliver_later
       self.settings["welcome_email_sent"] = true
       self.save
-      AdminMailer.new_user_email(self).deliver_later
       update_mailchimp_subscription
     end
   end
@@ -1053,7 +1084,6 @@ class User < ApplicationRecord
       end
       self.settings["welcome_email_sent"] = true
       self.save
-      AdminMailer.new_user_email(self).deliver_later
       update_mailchimp_subscription
 
       Rails.logger.info "Welcome email sent to #{email}"
@@ -1335,7 +1365,6 @@ class User < ApplicationRecord
       UserMailer.welcome_email_receipt(self, raw_invitation_token).deliver_later
       self.settings["receipt_email_sent"] = true
       save
-      AdminMailer.new_user_email(self).deliver_later
       update_mailchimp_subscription
       Rails.logger.info "Welcome receipt email sent to #{email}"
     rescue => e
