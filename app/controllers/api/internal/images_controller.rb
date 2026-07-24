@@ -55,10 +55,11 @@ class API::Internal::ImagesController < API::Internal::ApplicationController
     @image.save!
 
     options = {
-      "image_prompt"   => @image.image_prompt,
+      "image_prompt"   => prompt.presence,
       "board_id"       => params[:board_id],
       "screen_size"    => params[:screen_size] || "lg",
-      "transparent_bg" => params[:transparent_background] == "true" || params[:transparent_background] == true,
+      "transparent_bg" => params[:transparent_background].to_s != "false",
+      "style"          => params[:style],
     }
     GenerateImageJob.perform_async(@image.id, current_user.id, options)
 

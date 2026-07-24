@@ -75,7 +75,10 @@ one-off handoff/scratch files stay untracked and local.
   `bin/rails 'mail:test[you@example.com]'`.
 - **TTS/Audio:** AWS Polly
 - **AI:** OpenAI API (`ruby-openai`) — board generation, scenario builder,
-  image generation
+  image generation. Every text-to-image prompt is composed by
+  `Images::PromptBuilder` and **always wraps** user input in the house style
+  envelope; transparency and quality are API params, never prose. Details:
+  `.claude-notes/image-generation.md`.
 - **Serializers:** jsonapi-serializer gem
 - **Hosting:** Hatchbox / EC2
   - Production: `main` branch → `speakanyway.com` (Hatchbox app
@@ -217,6 +220,7 @@ an explicit decision, not a drive-by edit.
 | `.claude-notes/ops.md` | Monitoring/alerting details, AppSignal APM config, full Rack::Attack throttle rules + ENV vars |
 | `.claude-notes/marketing-assets.md` | AAC Classroom Kit hosting: `MarketingAsset`, internal endpoints, marketing print style, QR scannability rule (do not re-add long UTMs to tag QRs) |
 | `.claude-notes/internal-api.md` | Internal `/api/internal/` surface: bearer auth + admin identity, public-CDN download path (`src` vs `original_url`), image + board search endpoints, `Images::CommercialLicense` licensing rule |
+| `.claude-notes/image-generation.md` | AI tile art: `Images::PromptBuilder` (the single prompt source of truth, always-wrap rule), symbol vs illustrated style resolution, part-of-speech homograph disambiguation, transparency/quality API params + model fallback, refusal retry, variations via the edit endpoint, prompt provenance on docs |
 
 Related tracked docs: `docs/rds-migration-runbook.md`, `docs/stripe-setup.md`,
 `docs/credits-handoff.md`, `.claude-notes/artifact-generation-services.md`,

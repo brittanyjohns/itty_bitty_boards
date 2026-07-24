@@ -480,23 +480,27 @@ class API::ImagesController < API::ApplicationController
       return unless check_credits!(feature_key: "image_generation", feature_name: "AI Image Generation")
     end
 
-    if needs_replacement?(label, stripped_prompt)
-      image_prompt = @image.default_image_prompt
-    elsif new_short_prompt?(label, stripped_prompt)
-      image_prompt = @image.default_image_prompt(stripped_prompt)
-    end
-
-    if current_user.admin? && image_prompt.include?("[[REPLACE_LABEL]]")
-      @image.image_prompt = image_prompt
-    end
+    # The prompt the user typed is the *subject*; Images::PromptBuilder always
+    # wraps it in the house style envelope. There used to be a length heuristic
+    # here that let any prompt longer than the label escape styling entirely.
+    # `[[REPLACE_LABEL]]` remains the admin escape hatch for raw prompts.
+    raw_prompt = current_user.admin? && image_prompt.to_s.include?("[[REPLACE_LABEL]]")
+    @image.image_prompt = stripped_prompt.presence
     @image.status = "generating"
     @image.save!
 
     board_id = params[:board_id]
     screen_size = params[:screen_size] || "lg"
-    transparent_background = params[:transparent_background] == "true"
+    transparent_background = params[:transparent_background] != "false"
     @board_image = BoardImage.find_by(board_id: board_id, image_id: @image.id) if board_id
-    options = { "image_prompt" => image_prompt, "board_id" => board_id, "screen_size" => screen_size, "transparent_bg" => transparent_background }
+    options = {
+      "image_prompt" => raw_prompt ? image_prompt : stripped_prompt.presence,
+      "board_id" => board_id,
+      "screen_size" => screen_size,
+      "transparent_bg" => transparent_background,
+      "style" => params[:style],
+      "raw_prompt" => raw_prompt,
+    }
     GenerateImageJob.perform_async(@image.id, @current_user.id, options)
     if @board_image
       @board_image.update(status: "generating")
@@ -777,21 +781,6 @@ class API::ImagesController < API::ApplicationController
     relation.where("images.is_private IS NOT TRUE OR images.user_id = ?", current_user.id).find(id)
   end
 
-  def needs_replacement?(label, image_prompt)
-    normalized_label = label.to_s.strip.downcase
-    normalized_prompt = image_prompt.to_s.strip.downcase
-    return true if normalized_label == normalized_prompt || normalized_prompt.blank?
-    extra_prompt = " with a transparent background"
-    return true if normalized_prompt == "#{normalized_label}#{extra_prompt}"
-    false
-  end
-
-  def new_short_prompt?(label, image_prompt)
-    label_length = label.to_s.strip.downcase.length
-    normalized_prompt = image_prompt.to_s.strip.downcase
-    normalized_prompt.length < (10 + label_length) # if the prompt is less than 10 characters longer than the label, it's probably not descriptive enough
-  end
-
   def check_update_board_image(saved_image_url = nil)
     saved_image_url ||= @doc.tile_url
     if params[:boardId].present?
@@ -813,10 +802,8 @@ class API::ImagesController < API::ApplicationController
     return if current_user.tokens < 1
     @image.update(status: "generating")
     image_prompt = image_params[:image_prompt] || image_params["image_prompt"]
-    if image_prompt.blank? || image_prompt == @image.label
-      image_prompt = @image.default_image_prompt
-    end
-    options = { "image_prompt" => image_prompt, "board_id" => params[:board_id] }
+    image_prompt = nil if image_prompt == @image.label
+    options = { "image_prompt" => image_prompt.presence, "board_id" => params[:board_id], "style" => params[:style] }
     GenerateImageJob.perform_async(@image.id, current_user.id, options)
     current_user.remove_tokens(1)
     @board.add_to_cost(1) if @board

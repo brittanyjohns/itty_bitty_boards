@@ -44,6 +44,41 @@ RSpec.describe GenerateImagesJob, type: :job do
     end
   end
 
+  describe "non-menu prompt handling" do
+    let(:plain_board) { FactoryBot.create(:board, user: user, board_type: "dynamic") }
+
+    before do
+      allow_any_instance_of(Image).to receive(:create_image_doc).and_return(nil)
+      plain_board.add_image(image.id)
+    end
+
+    # This job used to overwrite image_prompt unconditionally on every non-menu
+    # board, silently discarding whatever the user had written.
+    it "preserves a user's custom prompt instead of overwriting it" do
+      image.update!(image_prompt: "a golden retriever wearing a party hat")
+
+      described_class.new.perform([image.id], plain_board.id)
+
+      expect(image.reload.image_prompt).to eq("a golden retriever wearing a party hat")
+    end
+
+    it "sends the composed house prompt while leaving the stored intent alone" do
+      image.update!(image_prompt: "a golden retriever wearing a party hat")
+
+      expect_any_instance_of(Image).to receive(:create_image_doc) do |_img, _user_id, prompt|
+        expect(prompt).to include("a golden retriever wearing a party hat")
+        expect(prompt).to include("Do not include any text")
+        nil
+      end
+
+      described_class.new.perform([image.id], plain_board.id)
+    end
+
+    it "does not blow up when no board is given" do
+      expect { described_class.new.perform([image.id], nil) }.not_to raise_error
+    end
+  end
+
   describe "menu image failure refunds" do
     before do
       allow_any_instance_of(Image).to receive(:create_image_doc).and_return(nil)

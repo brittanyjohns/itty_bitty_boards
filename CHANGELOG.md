@@ -5,6 +5,35 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — AI tile images are consistent, transparent, and disambiguated
+- **One house style.** Every generated tile now goes through a single prompt
+  builder. Six different prompts used to compete ("no stylization" vs
+  "clipart-style" vs "simple cartoon illustration" vs "avoid cartoonish
+  styles"), so tiles on the same board didn't look like a set.
+- **Your prompt is now styled, not passed through.** Typing a longer
+  description used to bypass the house style entirely — no AAC framing, no
+  "no text" rule — which is why detailed prompts often came back as
+  photo-like scenes with letters in them. Your words now describe the subject
+  inside the house style instead of replacing it.
+- **Backgrounds are actually transparent.** Transparency is requested through
+  the image API rather than only asked for in the prompt text, so tiles stop
+  arriving with a white box behind them on colored backgrounds.
+- **Homographs render correctly.** The part of speech already stored for tile
+  coloring now also guides the picture, so "can", "orange", "watch", "left"
+  and "back" show the right meaning.
+- **Symbol or illustrated style.** Tiles can be generated as flat AAC symbols
+  (the new default) or as softer illustrations, settable per user or per board.
+- **Variations match.** "Make a variation" ran on a much older image model and
+  produced art in a visibly different style; it now matches the tile beside it.
+- **Blocked words retry.** A word refused by the content filter (body parts,
+  medical or bathroom vocabulary) is retried once with the standard prompt
+  instead of failing silently.
+
+### Fixed — Image generation reliability
+- Generating an image without a prompt no longer fails outright.
+- Filling a board no longer discards a custom prompt written for a tile.
+- Regenerating an image no longer repoints tiles on other users' boards.
+
 ### Added — Closing the Gap booth lead attribution
 - Leads captured with `source: "ctg"` now carry the `ctg-2026` Mailchimp tag,
   so booth signups land in the campaign's existing segment and welcome
