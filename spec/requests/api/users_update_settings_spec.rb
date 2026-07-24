@@ -37,6 +37,29 @@ RSpec.describe "PUT /api/users/:id/update_settings", type: :request do
       end
     end
 
+    it "persists a valid image style preference" do
+      update(user, { image_style: "illustrated" })
+
+      expect(response).to have_http_status(:ok)
+      expect(user.reload.settings["image_style"]).to eq("illustrated")
+    end
+
+    # Images::PromptBuilder ignores an unrecognized style, but there's no reason
+    # to store junk in the settings blob.
+    it "ignores an unrecognized image style rather than storing it" do
+      update(user, { image_style: "watercolor" })
+
+      expect(response).to have_http_status(:ok)
+      expect(user.reload.settings).not_to have_key("image_style")
+    end
+
+    it "does not clobber an existing image style with an invalid one" do
+      update(user, { image_style: "illustrated" })
+      update(user, { image_style: "bogus" })
+
+      expect(user.reload.settings["image_style"]).to eq("illustrated")
+    end
+
     it "deep-merges the voice block, preserving unspecified voice fields" do
       user.update!(settings: user.settings.merge(
         "voice" => { "name" => "polly:kevin", "language" => "en-US", "speed" => 1.0 }

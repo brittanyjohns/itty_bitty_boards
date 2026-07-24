@@ -154,8 +154,14 @@ class API::UsersController < API::ApplicationController
     show_labels show_tutorial disable_scroll is_caregiver disable_notifications
     snap_to_screen display_follows_preview timezone language
     phrase_board_id opening_board_id startup_board_group_id predictive_board_id
+    image_style
   ].freeze
   USER_SETTABLE_VOICE_KEYS = %w[name speed pitch rate volume language].freeze
+  # Keys that only accept a known set of values. Images::PromptBuilder already
+  # ignores an unrecognized style, but there's no reason to store junk.
+  USER_SETTABLE_ENUM_SETTINGS = {
+    "image_style" => Images::PromptBuilder::STYLE_NAMES,
+  }.freeze
 
   # PATCH/PUT /users/1 or /users/1.json
   def update_settings
@@ -170,7 +176,12 @@ class API::UsersController < API::ApplicationController
     # settings blob intact (the frontend relies on this deep-merge — e.g. the
     # language switcher sends just `{ voice: { language } }`).
     USER_SETTABLE_SETTINGS_KEYS.each do |key|
-      @user.settings[key] = params[key] unless params[key].nil?
+      next if params[key].nil?
+
+      allowed = USER_SETTABLE_ENUM_SETTINGS[key]
+      next if allowed && !allowed.include?(params[key].to_s)
+
+      @user.settings[key] = params[key]
     end
 
     if params[:voice].present?
