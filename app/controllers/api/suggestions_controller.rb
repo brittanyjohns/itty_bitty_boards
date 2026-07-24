@@ -32,7 +32,7 @@ module API
       context = Suggestions::ContextBuilder.build(
         entry,
         subject: subject,
-        inline: params[:inline_context]&.permit!&.to_h || {},
+        inline: permitted_inline_context(entry),
       )
 
       suggestions = fetch_suggestions(entry, context)
@@ -40,6 +40,19 @@ module API
     end
 
     private
+
+    # Permit exactly the inline keys this field's registry entry allows — never
+    # `permit!`. ContextBuilder filters again downstream, but the parameter
+    # boundary should be narrow in its own right.
+    def permitted_inline_context(entry)
+      keys = Array(entry[:inline_context])
+      return {} if keys.empty?
+
+      raw = params[:inline_context]
+      return {} unless raw.respond_to?(:permit)
+
+      raw.permit(*keys).to_h
+    end
 
     # Absent means ON — the toggle is opt-out, and no backfill was run.
     def suggestions_enabled?
