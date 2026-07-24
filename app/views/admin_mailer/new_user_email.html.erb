@@ -1,21 +1,44 @@
-
 <div class="container">
   <%= render "layouts/email_logo" %>
-    <div class="header">
-        <p>SpeakAnyWay has a new user! 🎉</p>
-    </div>
-    <div class="content">
-        <p>Hi <%= @admin.name %>,</p>
-        <p>Just a quick note to let you know that a new user has signed up for SpeakAnyWay:</p>
-        <p>Name: <%= @user.name %></p>
-        <p>Email: <%= @user.email %></p>
-        <p>Role: <%= @user.role %></p>
-        <hr>
-        <p>Plan type: <%= @user.plan_type %></p>
-        <p>Plan status: <%= @user.plan_status %></p>
-        <p>Tokens: <%= @user.tokens %></p>
-        <hr>
+  <div class="header">
+    <p>SpeakAnyWay has a new user! 🎉</p>
+  </div>
+  <div class="content">
+    <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
+      <tr style="background:#f4f2ff; text-align:left;">
+        <th colspan="2" style="padding:6px;">Who</th>
+      </tr>
+      <tr><td style="padding:6px;">Name</td><td style="padding:6px;"><%= @user.name.presence || "—" %></td></tr>
+      <tr><td style="padding:6px;">Email</td><td style="padding:6px;"><%= @user.email %></td></tr>
+      <tr><td style="padding:6px;">User ID</td><td style="padding:6px;"><%= @user.id %></td></tr>
+      <tr><td style="padding:6px;">Role</td><td style="padding:6px;"><%= @user.role.presence || "—" %></td></tr>
 
-        <p>Whoo-hoo! 🎉</p>
-        <p>Best,<br>The SpeakAnyWay Team</p>
+      <tr style="background:#f4f2ff; text-align:left;">
+        <th colspan="2" style="padding:6px;">How they signed up</th>
+      </tr>
+      <tr><td style="padding:6px;">Method</td><td style="padding:6px;"><%= @signup_method %></td></tr>
+      <tr><td style="padding:6px;">Platform</td><td style="padding:6px;"><%= @signup_platform %></td></tr>
+      <tr><td style="padding:6px;">Signed up</td><td style="padding:6px;"><%= @user.created_at&.strftime("%b %d, %Y at %l:%M %p %Z") %></td></tr>
+      <% if @location %>
+        <tr><td style="padding:6px;">Location</td><td style="padding:6px;"><%= @location[:label] %></td></tr>
+      <% end %>
+
+      <tr style="background:#f4f2ff; text-align:left;">
+        <th colspan="2" style="padding:6px;">Plan</th>
+      </tr>
+      <tr><td style="padding:6px;">Plan type</td><td style="padding:6px;"><%= @user.plan_type %></td></tr>
+      <tr><td style="padding:6px;">Plan status</td><td style="padding:6px;"><%= @user.plan_status %></td></tr>
+    </table>
+
+    <hr>
+    <p>
+      <a href="<%= admin_dashboard_user_url(@user) %>">Open in admin dashboard</a>
+      <% if @user.stripe_customer_id.present? %>
+        &middot; <a href="https://dashboard.stripe.com/customers/<%= @user.stripe_customer_id %>">Stripe customer</a>
+      <% end %>
+      <% if @user.stripe_subscription_id.present? %>
+        &middot; <a href="https://dashboard.stripe.com/subscriptions/<%= @user.stripe_subscription_id %>">Stripe subscription</a>
+      <% end %>
+    </p>
+  </div>
 </div>

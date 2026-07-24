@@ -1,20 +1,16 @@
 class AdminMailer < BaseMailer
-  # <p>Hi <%= @admin.name %>,</p>
-  #       <p>Just a quick note to let you know that a new user has signed up for SpeakAnyWay:</p>
-  #       <p>Name: <%= @user.name %></p>
-  #       <p>Email: <%= @user.email %></p>
-  #       <p>Role: <%= @user.role %></p>
-  #       <hr>
-  #       <p>Plan type: <%= @user.plan_type %></p>
-  #       <p>Plan status: <%= @user.plan_status %></p>
-  #       <p>Tokens: <%= @user.tokens %></p>
-  #       <hr>
+  # Admin alert for a genuinely new account. Fired ONLY by
+  # User#notify_admin_of_signup!, never from a welcome-email method — see that
+  # method's comment for why.
   def new_user_email(user)
-    to_email = ENV["ADMIN_EMAIL"] || "brittany@speakanyway.com"
-    subject = "New user signed up for SpeakAnyWay AAC!!"
     @user = user
-    @admin = User.find_by(id: User::DEFAULT_ADMIN_ID)
-    mail(to: to_email, subject: subject, from: "noreply@speakanyway.com")
+    @signup_platform = user.settings&.dig("signup_platform") || "unknown"
+    @signup_method = user.settings&.dig("signup_method") || "unknown"
+    @location = signup_location(user)
+    subject = admin_subject(
+      "New signup: #{user.email} (#{user.plan_type} · #{@signup_platform})",
+    )
+    mail(to: admin_recipient, subject: subject, from: "noreply@speakanyway.com")
   end
 
   def new_feedback_email(feedback_item)
@@ -46,5 +42,28 @@ class AdminMailer < BaseMailer
     prefix = severity == :critical ? "CRITICAL" : "WARNING"
     subject = "[#{prefix}] SpeakAnyWay server disk at #{usage}%"
     mail(to: to_email, subject: subject, from: "noreply@speakanyway.com")
+  end
+
+  private
+
+  def admin_recipient
+    ENV["ADMIN_EMAIL"] || "brittany@speakanyway.com"
+  end
+
+  # Staging runs with RAILS_ENV=production and the same ADMIN_EMAIL, so tag the
+  # subject rather than suppressing the send — that keeps these alerts
+  # verifiable end-to-end on staging without them reading as production signups.
+  def admin_subject(text)
+    AppEnv.staging? ? "[STAGING] #{text}" : text
+  end
+
+  # Coarse city-level location for the signup IP. Runs inside the deliver_later
+  # job, never on the request path. IpGeolocation.coarse is total — it returns
+  # nil for a private/unparseable IP or any provider error — and the template
+  # drops the whole row when this is nil.
+  def signup_location(user)
+    ip = user.current_sign_in_ip.presence || user.last_sign_in_ip.presence
+    return nil if ip.blank?
+    IpGeolocation.coarse(ip)
   end
 end
