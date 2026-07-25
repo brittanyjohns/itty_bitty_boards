@@ -33,6 +33,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Generating an image without a prompt no longer fails outright.
 - Filling a board no longer discards a custom prompt written for a tile.
 - Regenerating an image no longer repoints tiles on other users' boards.
+### Added — Writing suggestions for About Me
+- `POST /api/suggestions` returns three short starter sentences for a
+  communicator's public About Me, built from their name, age range, AAC level,
+  gestalt language stage, and interests. Free — no credits are spent.
+- Emergency and medical details are never sent to OpenAI. The field registry
+  allow-lists what may become prompt context, and a spec fails the build if any
+  `Profile::SAFETY_SENSITIVE_KEYS` entry is ever added to one.
+- Users can turn the feature off account-wide via
+  `settings["ai_writing_suggestions"]`; absent means on.
+
 ### Fixed — Admin signup alerts no longer fire on upgrades
 - The "new user signed up" admin email was sent from inside three welcome-email
   methods. Because `send_plan_welcome_email_once!` routes through
