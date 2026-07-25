@@ -169,11 +169,20 @@ RSpec.describe BuildBoardSetJob, "Core 84 grid integrity", type: :model do
     expect(folder_tiles).to all(satisfy { |bi| bi.data["mute_name"] == true })
     expect(word_tiles).to all(satisfy { |bi| bi.data.to_h["mute_name"] != true })
 
-    # The default applies across the whole built set, not just the home board.
+    # The default applies across the whole built set, not just the home board —
+    # except each page's SELF tile, the one folder tile that speaks its label
+    # (it's the you-are-here anchor and the way home). See Boards::NavRowSync.
     animals = Board.find(root.board_images.find { |bi| bi.label == "Animals" }.predictive_board_id)
     animals.board_images.select(&:is_dynamic?).each do |bi|
+      next if bi.label.to_s.strip.casecmp?(animals.name.to_s.strip)
+
       expect(bi.data["mute_name"]).to be(true)
     end
+
+    self_tile = animals.board_images.find { |bi| bi.label.to_s.casecmp?(animals.name.to_s) }
+    expect(self_tile).to be_present
+    expect(self_tile.predictive_board_id).to eq(root.id)
+    expect(self_tile.data.to_h["mute_name"]).not_to be(true)
   end
 
   # The "86 tiles instead of 84" report (uncontrolled spill of dead/duplicate

@@ -58,14 +58,41 @@ RSpec.describe Boards::NavRowSync do
     expect(nav_cells(food)).to eq(first)
   end
 
-  it "deletes a stale nav folder tile that is no longer in the region" do
-    stale_page = create(:board, user: user, name: "Home")
-    tile(food, "Home", x: 0, y: 1, position: 1, target: stale_page.id)
+  it "deletes the legacy back-to-home tile the nav row replaces" do
+    tile(food, "Home", x: 0, y: 1, position: 1, target: root.id)
 
     result = described_class.call(root)
 
     expect(food.board_images.reload.map(&:label)).not_to include("Home")
     expect(result.folders_deleted).to eq(1)
+  end
+
+  it "deletes a shifted legacy category tile even when it misses a nav cell" do
+    # Pre-sync pages packed the nav row left to fill the gap left by their own
+    # tile, so `Drinks` sits a cell over from where the region wants it.
+    tile(food, "Drinks", x: 0, y: 0, position: 1, target: drinks.id)
+
+    described_class.call(root)
+
+    drinks_tiles = food.board_images.reload.select { |bi| bi.label == "Drinks" }
+    expect(drinks_tiles.size).to eq(1)
+    expect(drinks_tiles.first.data["nav_tile"]).to be(true)
+  end
+
+  it "keeps a page's own content folder tiles" do
+    # The Phrases page links the six gestalt function boards; those are its
+    # content, not a stale nav row.
+    greetings = create(:board, user: user, name: "Greetings", large_screen_columns: 6)
+    phrases   = create(:board, user: user, name: "Phrases", large_screen_columns: 6)
+    tile(root, "Phrases", x: 4, y: 1, position: 14, target: phrases.id)
+    tile(phrases, "Greetings", x: 1, y: 1, position: 1, target: greetings.id)
+
+    described_class.call(root)
+
+    survivor = phrases.board_images.reload.find { |bi| bi.label == "Greetings" }
+    expect(survivor).to be_present
+    expect(survivor.predictive_board_id).to eq(greetings.id)
+    expect(survivor.layout["lg"]["y"]).to be < 1 # relocated out of the nav cell
   end
 
   it "relocates a user's word tile out of a nav cell instead of deleting it" do

@@ -85,25 +85,35 @@ module Boards
       Boards::LayoutRepacker.resync_board_layout!(child)
     end
 
-    # Clear the cells the nav region needs. Stale FOLDER tiles (the pre-sync
-    # `Home` tile, the old shifted categories) are destroyed. A user's WORD
-    # tile is moved into the content area — never dropped.
+    # Make room for the nav region.
+    #
+    # A tile is a LEGACY NAV tile — replaced by this sync, so destroyed wherever
+    # it sits — only when it is a folder tile AND either carries a nav
+    # category's label (the pre-sync copy, often shifted a cell to the left) or
+    # links back to the root (the old `Home` way-home tile). Everything else is
+    # content: a page's own folder tiles are its reason to exist (the Phrases
+    # page links the six gestalt function boards), so a merely-colliding tile is
+    # RELOCATED into the content area — word or folder, never dropped.
     def evict_occupants!(child)
       targets = region.cells.map { |c| [c.x, c.y] }.to_set
+      nav_labels = region.cells.map { |c| c.label.to_s.downcase }.to_set
 
       child.board_images.reload.each do |bi|
+        next if bi.data&.dig(NAV_TILE_KEY) # ours; upsert handles it
+
+        if bi.predictive_board_id.present? &&
+           (nav_labels.include?(bi.label.to_s.downcase) || bi.predictive_board_id == @root.id)
+          bi.destroy!
+          @result.folders_deleted += 1
+          next
+        end
+
         cell = bi.layout.is_a?(Hash) ? bi.layout["lg"] : nil
         next if cell.nil?
         next unless targets.include?([cell["x"].to_i, cell["y"].to_i])
-        next if bi.data&.dig(NAV_TILE_KEY) # ours; upsert handles it
 
-        if bi.predictive_board_id.present?
-          bi.destroy!
-          @result.folders_deleted += 1
-        else
-          relocate!(child, bi)
-          @result.words_relocated += 1
-        end
+        relocate!(child, bi)
+        @result.words_relocated += 1
       end
     end
 
