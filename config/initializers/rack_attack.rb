@@ -116,6 +116,10 @@ class Rack::Attack
 
     return true if path == "/api/generated_boards"
 
+    # Writing suggestions — free (no credit gate), so the frequency ceiling is
+    # the only thing bounding abuse here.
+    return true if path == "/api/suggestions"
+
     AI_GEN_SUFFIXES.any? { |suffix| path.end_with?("/#{suffix}") }
   end
 

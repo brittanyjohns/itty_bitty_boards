@@ -199,7 +199,9 @@ an explicit decision, not a drive-by edit.
   and geolocation errors are rescued and logged — they can never 500 a
   request or a webhook.
 - **Safety-profile emergency info is only served by the gated `safety_view`
-  POST** — never on public page-open.
+  POST** — never on public page-open. It is also never sent to OpenAI: no
+  `Profile::SAFETY_SENSITIVE_KEYS` entry may appear in a
+  `Suggestions::Registry` context allow-list (enforced by spec).
 - **Third-party sends are env-gated to production** (Mailchimp journeys,
   PostHog captures; staging excluded via `AppEnv.staging?`) so non-prod can't
   email or track real users.
@@ -217,6 +219,7 @@ an explicit decision, not a drive-by edit.
 | `.claude-notes/ops.md` | Monitoring/alerting details, AppSignal APM config, full Rack::Attack throttle rules + ENV vars |
 | `.claude-notes/marketing-assets.md` | AAC Classroom Kit hosting: `MarketingAsset`, internal endpoints, marketing print style, QR scannability rule (do not re-add long UTMs to tag QRs) |
 | `.claude-notes/internal-api.md` | Internal `/api/internal/` surface: bearer auth + admin identity, public-CDN download path (`src` vs `original_url`), image + board search endpoints, `Images::CommercialLicense` licensing rule |
+| `.claude-notes/writing-suggestions.md` | Contextual writing suggestions (`POST /api/suggestions`): field registry + context allow-list, the no-safety-keys privacy invariant, OpenAI generator + fixtures, free/no-credit contract, user opt-out toggle |
 
 Related tracked docs: `docs/rds-migration-runbook.md`, `docs/stripe-setup.md`,
 `docs/credits-handoff.md`, `.claude-notes/artifact-generation-services.md`,

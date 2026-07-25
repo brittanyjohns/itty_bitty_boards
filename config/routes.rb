@@ -96,6 +96,8 @@ Rails.application.routes.draw do
   #  API routes
   namespace :api, defaults: { format: :json } do
     get "stats", to: "stats#index"
+    # Contextual writing suggestions (About Me in v1). Free — no credit gate.
+    post "suggestions", to: "suggestions#create"
     namespace :stripe do
       resources :checkout_sessions, only: :create do
         collection do
