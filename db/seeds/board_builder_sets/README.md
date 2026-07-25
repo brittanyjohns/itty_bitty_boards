@@ -163,6 +163,15 @@ Two traps when editing a nav row:
   `more.obf` carries `this`/`that` only in the nav row, and why `food.obf`'s
   `Drinks` link lives in the nav row rather than in the content grid.
 
+**Authoring covers the admin templates; the build enforces the rule.** These
+`.obf` files are seeded as admin-owned boards and browsed on their own, so keep
+authoring the nav row here — `spec/db/seeds/board_builder_sets_spec.rb` still
+guards it. But a *built* set gets its nav row projected at build time by
+`Boards::NavRowSync`, because the final row isn't knowable until the build
+finishes adding pages (prebuilt fringe, AI-generated, My Favorites, Phrases).
+That is also why the standalone `fringe-pages/*.obf` templates carry **no** nav
+row: they're cloned into arbitrary sets and can't know their future root's.
+
 ## Fringe board names are load-bearing
 
 A child's interest words are routed into fringe pages by **board name**. The

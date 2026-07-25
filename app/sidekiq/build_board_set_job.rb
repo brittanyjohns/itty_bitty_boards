@@ -76,6 +76,7 @@ class BuildBoardSetJob
       # This is the single chokepoint after the full set exists, so it catches
       # boards the build services add outside SeededSetCloner/BoardTreeBuilder.
       attach_set_to_group!(root, board_group_id)
+      sync_nav_rows!(root, level_or_template)
       mute_dynamic_tile_names!(root)
       classify_sub_boards!(root)
       reflow_screen_layouts!(root)
@@ -203,6 +204,25 @@ class BuildBoardSetJob
   # the root's cell and linked back to the root. It's the page's you-are-here
   # anchor and its way home, so it speaks its label like any word tile.
   # Identified by label == its own board's name.
+  # Project the root's FINAL nav row onto every page in the set. Authoring it
+  # in the seed .obf files only covers the pages that ship in the seed set —
+  # the pages this build added (prebuilt fringe, AI, My Favorites, Phrases, the
+  # GLP function boards) have none, and adding any of them pushes the root's
+  # grid out of alignment with the seeded pages. Runs BEFORE muting, reflow,
+  # and preview generation so all three see the final grid.
+  #
+  # Robust sets only: the legacy label-only starter trees (home, daily_routine)
+  # have no nav row concept. Reading the job's own argument keeps the guard
+  # unambiguous — a complexity level always clones a robust set.
+  def sync_nav_rows!(root, level_or_template)
+    return unless complexity_level?(level_or_template) ||
+                  Boards::RobustSets.find_root(level_or_template).present?
+
+    Boards::NavRowSync.call(root)
+  rescue => e
+    Rails.logger.error "BuildBoardSetJob #{root.id}: nav row sync failed: #{e.message}"
+  end
+
   def mute_dynamic_tile_names!(root)
     names_by_board_id = Board.where(id: set_board_ids(root)).pluck(:id, :name).to_h
 
@@ -230,8 +250,12 @@ class BuildBoardSetJob
   # with interest tiles, which can overflow the narrower sm/md grids unless we
   # reflow them width-aware (Boards::ScreenReflow). Runs across root + children.
   def reflow_screen_layouts!(root)
+    # Keep the nav region bottom-pinned on tablets/phones instead of letting the
+    # width-aware pack wrap it into the middle of the board.
+    pinned_rows = Boards::NavRegion.for_root(root.reload).row_count
+
     Board.where(id: set_board_ids(root)).find_each do |board|
-      Boards::ScreenReflow.reflow!(board)
+      Boards::ScreenReflow.reflow!(board, pinned_rows: pinned_rows)
     rescue => e
       Rails.logger.error "BuildBoardSetJob #{root.id}: screen reflow failed for board #{board.id}: #{e.message}"
     end

@@ -127,4 +127,42 @@ RSpec.describe Boards::ScreenReflow do
       expect(bi.reload.layout["sm"]).to be_nil
     end
   end
+
+  describe "pinned_rows" do
+    # 3 content tiles on y=0, then a 4-tile nav row on y=1.
+    before do
+      %w[I want go].each_with_index { |l, x| tile(l, x: x, y: 0, position: x + 1) }
+      %w[Food Drinks Play More].each_with_index { |l, x| tile(l, x: x, y: 1, position: x + 10) }
+    end
+
+    def labels_at(screen)
+      board.board_images.reload.map { |bi| [bi.label, bi.layout[screen]] }.to_h
+    end
+
+    it "leaves the default path byte-identical" do
+      described_class.reflow!(board)
+      default = labels_at("sm")
+
+      board.board_images.each { |bi| bi.update_column(:layout, bi.layout.slice("lg")) }
+      described_class.reflow!(board, pinned_rows: 0)
+
+      expect(labels_at("sm")).to eq(default)
+    end
+
+    it "packs the pinned rows below every content tile on sm" do
+      described_class.reflow!(board, pinned_rows: 1)
+
+      cells = labels_at("sm")
+      content_bottom = %w[I want go].map { |l| cells[l]["y"] }.max
+      nav_top = %w[Food Drinks Play More].map { |l| cells[l]["y"] }.min
+
+      expect(nav_top).to be > content_bottom
+    end
+
+    it "keeps every tile and never overlaps at 4 columns" do
+      described_class.reflow!(board, pinned_rows: 1)
+
+      expect_valid_layout("sm", 4, 7)
+    end
+  end
 end

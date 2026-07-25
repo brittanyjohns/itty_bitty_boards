@@ -5,6 +5,23 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Changed — the category row is now the same on every page of a built board set
+- **Same reach, every page.** The row of category folders along the bottom of a
+  built set's home board is now reproduced on every page of that set, in the
+  same cells. A communicator learns *where* Food is once, and it's in that spot
+  no matter which page they're on.
+- **This now covers the pages a build adds.** Previously only the pages that
+  shipped with the Core 60 / Core 84 templates had the row, and adding a page
+  (an interest category, My Favorites, Phrases) knocked even those out of
+  alignment. Every page in a set gets it now, including the gestalt phrase
+  pages.
+- **The page you're on speaks its own name and takes you home.** That tile is
+  the you-are-here anchor, which is why there's no separate Home tile.
+- **Pinned to the bottom on tablets and phones**, not just large screens.
+- **Existing sets** are brought up to date with
+  `rake board_builder:sync_nav_rows` (preview first; `DRY_RUN=false` to apply).
+  Nothing a user added is deleted — a tile in the way is moved, not dropped.
+
 ### Changed — AI tile images are consistent, transparent, and disambiguated
 - **One house style.** Every generated tile now goes through a single prompt
   builder. Six different prompts used to compete ("no stylization" vs

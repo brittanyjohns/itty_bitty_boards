@@ -44,6 +44,45 @@ RSpec.describe BuildBoardSetJob do
     source_root
   end
 
+  describe "nav row sync" do
+    it "gives every page in the set the root's nav row, with a self-tile home" do
+      seed_robust_set!
+      root = precreate_root!(name: "Core 60")
+
+      described_class.new.perform(root.id, communicator.id, "standard", %w[dinosaurs])
+
+      root.reload
+      region = Boards::NavRegion.for_root(root)
+      expect(region).not_to be_empty
+
+      children = Boards::PredictiveLinkSet
+        .collect(root, max_depth: Boards::NavRowSync::MAX_DEPTH,
+                       exclude: ->(b) { b.user_id != root.user_id })
+        .reject { |b| b.id == root.id }
+      expect(children).not_to be_empty
+
+      children.each do |child|
+        nav = child.board_images.reload.select { |bi| bi.data&.dig("nav_tile") }
+        expect(nav.map(&:label)).to match_array(region.cells.map(&:label)),
+                                    "#{child.name} is missing nav tiles"
+
+        self_tile = nav.find { |bi| bi.label.to_s.casecmp?(child.name.to_s) }
+        next if self_tile.nil? # a page with no tile of its own name in the region
+
+        expect(self_tile.predictive_board_id).to eq(root.id)
+        expect(self_tile.data["mute_name"]).to be_falsey
+      end
+    end
+
+    it "does not sync legacy starter templates" do
+      root = precreate_root!(name: "Home")
+
+      expect(Boards::NavRowSync).not_to receive(:call)
+
+      described_class.new.perform(root.id, communicator.id, "home", [])
+    end
+  end
+
   describe "#perform with a starter template" do
     it "builds the full tree under the pre-created root and marks it complete" do
       root = precreate_root!(name: "Home")
@@ -286,12 +325,18 @@ RSpec.describe BuildBoardSetJob do
       expect(phrases_tile&.predictive_board_id).to be_present
 
       phrases_board = Board.find(phrases_tile.predictive_board_id)
-      function_tiles = phrases_board.board_images.select { |bi| bi.predictive_board_id.present? }
+      # Every page in a set now also carries the root's nav row (Boards::NavRowSync),
+      # which is folder tiles too — exclude them to count the function pages.
+      function_tiles = phrases_board.board_images
+        .reject { |bi| bi.data&.dig("nav_tile") }
+        .select { |bi| bi.predictive_board_id.present? }
       expect(function_tiles.size).to eq(6)
 
       greetings = Board.find(function_tiles.find { |bi| bi.label == "Greetings & Social" }.predictive_board_id)
       expect(greetings.board_images.map(&:label)).to include("hi there!", "good morning")
-      expect(greetings.board_images.map { |bi| bi.image.part_of_speech }.uniq).to eq(["phrase"])
+      # Its own gestalt scripts are all phrases; the nav row it also carries is not.
+      scripts = greetings.board_images.reject { |bi| bi.data&.dig("nav_tile") }
+      expect(scripts.map { |bi| bi.image.part_of_speech }.uniq).to eq(["phrase"])
     end
 
     it "wires the new Phrases board as the communicator's and owner's phrase board" do

@@ -193,6 +193,66 @@ namespace :board_builder do
     end
   end
 
+  # Backfill for the nav-row sync. Sets built before it landed carry the old
+  # per-page nav row (a `Home` tile plus categories shifted left to fill the
+  # gap), and built sets are clones — re-seeding the authored templates never
+  # reaches them. This re-projects each root's nav row onto every page of its
+  # set: legacy nav tiles are removed, other content in a nav cell is relocated
+  # rather than deleted.
+  #
+  # Read-only by default. Apply with DRY_RUN=false; scope with USER_ID=N:
+  #   rake board_builder:sync_nav_rows                       # preview all
+  #   DRY_RUN=false rake board_builder:sync_nav_rows         # apply all
+  #   DRY_RUN=false USER_ID=740 rake board_builder:sync_nav_rows
+  desc "Re-project the nav row onto every page of each built set (DRY_RUN=false to apply; USER_ID=N to scope)"
+  task sync_nav_rows: :environment do
+    dry_run = ENV["DRY_RUN"] != "false"
+
+    roots = Board.where("(settings ->> 'builder_root') = 'true'")
+    roots = roots.where(user_id: ENV["USER_ID"]) if ENV["USER_ID"].present?
+
+    sets = 0
+    tiles = 0
+    folders = 0
+    words = 0
+
+    roots.find_each do |root|
+      result = Boards::NavRowSync.call(root, dry_run: dry_run)
+      next if result.boards_synced.zero?
+
+      sets += 1
+      tiles += result.tiles_written
+      folders += result.folders_deleted
+      words += result.words_relocated
+
+      puts "#{dry_run ? '[DRY RUN] ' : ''}set ##{root.id} #{root.name.inspect} (owner #{root.user_id}): " \
+           "#{result.boards_synced} page(s), #{result.tiles_written} nav tile(s), " \
+           "#{result.folders_deleted} legacy nav tile(s) removed, #{result.words_relocated} tile(s) relocated"
+
+      next if dry_run
+
+      # Only the pages the sync touched need a fresh preview. Board#generate_previews
+      # raises an ArgumentError about url_options outside a request in dev/test —
+      # the same non-fatal case BuildBoardSetJob#generate_preview! rescues.
+      Boards::PredictiveLinkSet
+        .collect(root, max_depth: Boards::NavRowSync::MAX_DEPTH,
+                       exclude: ->(b) { b.user_id != root.user_id })
+        .each do |board|
+          board.generate_previews
+        rescue ArgumentError => e
+          raise unless e.message.include?("url_options")
+        end
+    rescue => e
+      puts "  !! set ##{root.id} failed: #{e.message}"
+    end
+
+    if dry_run
+      puts "Dry run only — #{sets} built set(s) to sync (#{tiles} nav tile(s), #{folders} legacy nav tile(s), #{words} relocation(s)). Re-run with DRY_RUN=false to apply."
+    else
+      puts "Synced #{sets} set(s): #{tiles} nav tile(s) written, #{folders} legacy nav tile(s) removed, #{words} tile(s) relocated."
+    end
+  end
+
   # The builder_child boards under a built root: BFS predictive_board_id links
   # (bounded to the cloner's MAX_DEPTH), scoped to the owner so a tile pointing at
   # a shared/admin board can't pull it in. Excludes the root itself.

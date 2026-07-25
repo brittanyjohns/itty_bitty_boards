@@ -25,7 +25,14 @@ module Boards
     # but a caller can narrow it (e.g. to skip a screen the user hand-arranged).
     # Returns the list of screens rewritten (empty when there's nothing to do).
     # Pass dry_run: true to compute without saving.
-    def reflow!(board, screens: DERIVED_SCREENS, dry_run: false)
+    #
+    # `pinned_rows` (Board Builder): the number of rows at the BOTTOM of the lg
+    # grid that form the set's nav region (Boards::NavRegion). Those tiles pack
+    # last so the nav strip stays bottom-pinned on tablets and phones instead of
+    # wrapping into the middle of the board. At a narrow column count the strip
+    # necessarily spans more rows — still bottom-pinned, still identical on
+    # every page of the set. `0` (the default) is the original code path.
+    def reflow!(board, screens: DERIVED_SCREENS, dry_run: false, pinned_rows: 0)
       screens = Array(screens) & DERIVED_SCREENS
       return [] if screens.empty?
 
@@ -34,10 +41,15 @@ module Boards
 
       return screens if dry_run
 
+      pinned_ids = pinned_row_ids(ordered, pinned_rows)
+      content = ordered.reject { |bi| pinned_ids.include?(bi.id) }
+      pinned  = ordered.select { |bi| pinned_ids.include?(bi.id) }
+
       screens.each do |screen|
         columns = board.get_number_of_columns(screen).to_i
         columns = 1 if columns < 1
-        packed = pack(ordered, columns)
+        packed = pack(content, columns)
+        packed += pack_below(pinned, columns, packed) if pinned.any?
 
         apply_screen!(packed, screen)
         SM_MIRRORS.each { |mirror| apply_screen!(packed, mirror) } if screen == "sm"
@@ -49,6 +61,28 @@ module Boards
       Boards::LayoutRepacker.resync_board_layout!(board)
       screens
     end
+
+    # board_image ids occupying the bottom `count` rows of the lg grid.
+    def pinned_row_ids(ordered, count)
+      return [] unless count.to_i.positive?
+
+      rows = ordered.filter_map { |bi| bi.layout.is_a?(Hash) ? bi.layout.dig("lg", "y")&.to_i : nil }
+      return [] if rows.empty?
+
+      cutoff = rows.max - count.to_i + 1
+      ordered.select { |bi| (bi.layout.is_a?(Hash) ? bi.layout.dig("lg", "y")&.to_i : nil).to_i >= cutoff }
+        .map(&:id)
+    end
+    private_class_method :pinned_row_ids
+
+    # Pack the pinned tiles into fresh rows below everything already placed.
+    def pack_below(pinned, columns, placed)
+      offset = placed.map { |e| e[:cell]["y"] + e[:cell]["h"] }.max || 0
+      pack(pinned, columns).each do |entry|
+        entry[:cell]["y"] += offset
+      end
+    end
+    private_class_method :pack_below
 
     # board_images in lg reading order: top-to-bottom, left-to-right by the lg
     # cell, falling back to the authored `position` when a tile has no lg cell.
