@@ -22,20 +22,34 @@ class GenerateImagesJob
           board_image&.update_column(:status, "generating")
 
           user_id = image.user_id
-          if board.board_type == "menu"
+          if board&.board_type == "menu"
             # Fresh menu-item images carry a description-driven prompt set at
             # creation (Menu#create_images_from_description) — keep it. Reused
             # or legacy images fall back to the label-based default.
             unless image.menu? && image.image_prompt.present?
               image.image_prompt = image.default_menu_image_prompt(board.name)
             end
-          else
-            image.image_prompt = image.default_image_prompt
           end
           image.save! if image.changed?
-          Rails.logger.debug "BOARD TYPE: #{board.board_type} - Generating image for Image ID #{image.id} with prompt: #{image.image_prompt}"
 
-          new_doc = image.create_image_doc(user_id, image.image_prompt)
+          # `image_prompt` holds the user's intent; the house envelope is
+          # composed here so it never gets persisted and re-wrapped. This used
+          # to overwrite image_prompt unconditionally on non-menu boards,
+          # silently discarding every custom prompt.
+          composed_prompt = if board&.board_type == "menu"
+              image.image_prompt
+            else
+              Images::PromptBuilder.for_image(
+                image,
+                user_input: image.image_prompt,
+                board: board,
+                user: image.user,
+              )
+            end
+
+          Rails.logger.debug "BOARD TYPE: #{board&.board_type} - Generating image for Image ID #{image.id} with prompt: #{composed_prompt}"
+
+          new_doc = image.create_image_doc(user_id, composed_prompt)
 
           unless new_doc
             Rails.logger.error("Failed to create image doc for image #{image.id}")

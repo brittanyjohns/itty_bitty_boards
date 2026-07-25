@@ -100,13 +100,14 @@ class Scenario < ApplicationRecord
         image = Image.find_by(label: item_name, private: nil) unless image
         new_image = Image.create(label: item_name, image_type: self.class.name) unless image
         image = new_image if new_image
+        # A subject description only — Images::PromptBuilder supplies the style
+        # spec and constraints at generation time.
         image.image_prompt = item_name
-        image.revised_prompt = "Create a high-resolution image of '#{item_name}' in the context of #{name} for a person at the age of #{age_range}. Please make the images are clear, simple & appropriate for a person at the age given."
+        image.revised_prompt = "'#{item_name}' in the context of #{name}, shown clearly and simply for a person aged #{age_range}"
         image.private = false
         image.image_type = self.class.name
         image.display_description = image.image_prompt
         image.save!
-        image.revised_prompt += Image::PROMPT_ADDITION
         board.add_image(image.id)
         images << image
         new_images << new_image if new_image

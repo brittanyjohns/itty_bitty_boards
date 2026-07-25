@@ -70,7 +70,7 @@ module ImageHelper
       end
 
       self.update(status: "finished", src_url: doc.tile_url)
-      update_all_boards_image_belongs_to(doc.tile_url)
+      update_all_boards_image_belongs_to(doc.tile_url, false, user_id)
     rescue => e
       Rails.logger.error "ImageHelper ERROR: #{e.inspect}"
       raise e
@@ -79,12 +79,12 @@ module ImageHelper
     doc
   end
 
-  def create_image(user_id = nil, image_prompt = nil)
+  def create_image(user_id = nil, image_prompt = nil, transparent: true)
     return if Rails.env.test?
 
     user_id ||= self.user_id
 
-    opts = open_ai_opts
+    opts = open_ai_opts.merge(transparent: transparent)
     opts = opts.merge(prompt: image_prompt) if image_prompt.present?
 
     response = OpenAiClient.new(opts).create_image
@@ -104,7 +104,13 @@ module ImageHelper
       revised_prompt,
       edited_prompt,
       "OpenAI",
-      output_format
+      output_format,
+      generation_metadata: {
+        "prompt" => edited_prompt,
+        "model" => response[:model],
+        "quality" => response[:quality],
+        "background" => response[:background],
+      }
     )
   end
 
@@ -114,7 +120,8 @@ module ImageHelper
     revised_prompt = nil,
     edited_prompt = nil,
     source_type = "OpenAI",
-    output_format = "webp"
+    output_format = "webp",
+    generation_metadata: {}
   )
     return if Rails.env.test?
 
@@ -138,16 +145,21 @@ module ImageHelper
 
     decoded_image = Base64.decode64(b64_json)
 
+    # gpt-image models don't return a revised_prompt (DALL-E 3 did), so without
+    # recording the prompt we actually sent there is no way to audit or A/B
+    # image quality after the fact. Keep it on the doc.
+    final_prompt = generation_metadata["prompt"].presence || edited_prompt
+
     doc = self.docs.create!(
       raw: raw_txt,
       user_id: user_id,
-      processed: revised_prompt,
+      processed: revised_prompt.presence || final_prompt,
       source_type: source_type,
       data: {
         b64_json: true,
         output_format: format,
         content_type: content_type,
-      },
+      }.merge(generation_metadata.compact),
     )
 
     doc.image.attach(
@@ -160,7 +172,7 @@ module ImageHelper
     doc.tile_variant.processed
 
     self.update!(status: "finished")
-    update_all_boards_image_belongs_to(doc.tile_url)
+    update_all_boards_image_belongs_to(doc.tile_url, false, user_id)
 
     doc
   rescue => e
@@ -194,7 +206,12 @@ module ImageHelper
 
   def get_image_prompt_suggestion(viewing_user_id = nil)
     return if Rails.env.test?
-    prompt = OpenAiClient.new(open_ai_opts).get_image_prompt_suggestion
+    style = Images::PromptBuilder.resolve_style(user: user)
+    opts = open_ai_opts.merge(
+      prompt: label,
+      style_clause: Images::PromptBuilder::STYLES[style],
+    )
+    prompt = OpenAiClient.new(opts).get_image_prompt_suggestion
     if prompt
       if user_id == viewing_user_id
         self.update(revised_prompt: prompt)
@@ -232,22 +249,6 @@ module ImageHelper
     next_words["next_words"]
   end
 
-  def create_image_variation(image_file = nil, user_id = nil)
-    return if Rails.env.test?
-    success = false
-    Rails.logger.debug "Creating image variation for image ID #{self.id}"
-    user_id ||= self.user_id
-    img_variation_url = OpenAiClient.new(open_ai_opts).create_image_variation(image_file, user_id)
-    if img_variation_url
-      Rails.logger.debug "Generated image variation URL: #{img_variation_url}"
-      save_image(img_variation_url, user_id)
-      success = true
-    else
-      Rails.logger.error "**** ERROR - create_image_variation **** \nDid not receive valid response.\n"
-    end
-    success
-  end
-
   def background_color_for(category)
     key = case category.to_s
       when "adjective" then "blue"
@@ -271,88 +272,4 @@ module ImageHelper
     self.update_column(:part_of_speech, pos)
   end
 
-  def image_types
-    ["Sigma 24mm f/8",
-     "Pixel Art",
-     "Anime",
-     "Digital art",
-     "Photography",
-     "Sculpture",
-     "Printmaking",
-     "Graphic design",
-     "Ceramic pottery",
-     "Glassblowing",
-     "Stained glass",
-     "Metal sculpture",
-     "Street art",
-     "Graffiti art",
-     "Calligraphy",
-     "Pencil drawing",
-     "Ink illustration",
-     "Cartoon art",
-     "Comic book art",
-     "Mosaic art",
-     "Textile art",
-     "Embroidery",
-     "Jewelry making",
-     "Installation art",
-     "Performance art",
-     "Video art",
-     "Animation",
-     "Concept art",
-     "Abstract art",
-     "Realism art",
-     "Impressionism",
-     "Surrealism",
-     "Pop art",
-     "Minimalism",
-     "Cubism",
-     "Renaissance art",
-     "Modern art",
-     "Contemporary art"]
-  end
-
-  def remove_extras_from_prompt(prompt_text)
-    return "" unless prompt_text
-    image_types.each do |item|
-      art_type = item.downcase
-      normalized_prompt_text = prompt_text&.downcase
-      prompt_text = normalized_prompt_text&.gsub(art_type, "")&.strip
-    end
-    prompt_text
-  end
-
-  def ask_ai_for_image_prompt
-    return if Rails.env.test?
-    message = {
-      "role": "user",
-      "content": create_image_prompt_text,
-    }
-    begin
-      ai_client = OpenAiClient.new({ messages: [message] })
-      response = ai_client.create_chat
-    rescue => e
-      puts "**** ERROR - ask_ai_for_image_prompt **** \n#{e.message}\n"
-    end
-    if response && response[:role]
-      role = response[:role] || "assistant"
-      response_content = response[:content]
-      self.revised_prompt = response_content
-    else
-      Rails.logger.debug "*** ERROR - ask_ai_for_image_prompt *** \nDid not receive valid response. Response: #{response}\n"
-    end
-    response_content
-  end
-
-  def create_image_prompt_text
-    "Can you create a text prompt for me that I can use with DALL-E to generate an image of 
-    a cartoon character expressing a certain emotion or doing a specific action. 
-    Or if the word is an object, write a prompt to generate an image of that object in a clear and simple way. 
-    Use as much detail as possible in order to generate an image that a child could easily recognize that the image represents this word/phrase: '#{self.label}'.
-     Respond with the prompt only, not the image or any other text.  It should be very clear that the word/phrase is '#{self.label}'."
-  end
-
-  def gpt_prompt
-    ask_ai_for_image_prompt || "Create an image of a cartoon-style individual with medium-length hair, wearing a comfortable shirt. This person should have a facial expression and body language that adapt to the concept of '#{self.label}'. If the word is an object like 'pizza', they could be holding or interacting with it. If it's a place like 'outside', they could be standing with a backdrop that suggests the setting, and if it's an action or emotion, they should be performing a gesture that conveys that action or feeling. The background should be minimalist, using a soft, solid color to keep the main focus on the individual and the concept they are depicting."
-  end
 end

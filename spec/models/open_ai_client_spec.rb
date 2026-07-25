@@ -22,50 +22,98 @@ RSpec.describe OpenAiClient do
     context "when not staging" do
       before { allow(AppEnv).to receive(:staging?).and_return(false) }
 
-      it "calls the OpenAI image generation API" do
-        images = double("images")
-        openai = instance_double(OpenAI::Client, images: images)
-        allow(client).to receive(:openai_client).and_return(openai)
+      let(:images) { double("images") }
+      let(:openai) { instance_double(OpenAI::Client, images: images) }
+      let(:success) { { "data" => [{ "b64_json" => "abc123", "revised_prompt" => "a dog" }] } }
 
-        expect(images).to receive(:generate).and_return(
-          { "data" => [{ "b64_json" => "abc123", "revised_prompt" => "a dog" }] }
-        )
+      before { allow(client).to receive(:openai_client).and_return(openai) }
+
+      it "calls the OpenAI image generation API" do
+        expect(images).to receive(:generate).and_return(success)
 
         result = client.create_image
         expect(result[:b64_json]).to eq("abc123")
       end
-    end
-  end
 
-  describe "#create_image_variation" do
-    subject(:client) { described_class.new(prompt: "dog") }
+      it "sends an explicit quality tier rather than relying on the API default" do
+        expect(images).to receive(:generate) do |parameters:|
+          expect(parameters[:quality]).to eq(described_class::DEFAULT_IMAGE_QUALITY)
+          success
+        end
 
-    context "when staging" do
-      before { allow(AppEnv).to receive(:staging?).and_return(true) }
-
-      it "returns the placeholder image URL without calling OpenAI" do
-        expect(OpenAI::Client).not_to receive(:new)
-
-        url = client.create_image_variation("ignored")
-
-        expect(url).to start_with("https://")
-        expect(url).to end_with("/placeholder.jpeg")
+        client.create_image
       end
-    end
 
-    context "when not staging" do
-      before { allow(AppEnv).to receive(:staging?).and_return(false) }
+      # Asking for transparency in prose (which is all we used to do) reliably
+      # yields a white box; the API param is what actually produces alpha.
+      it "passes background: transparent when transparency is requested" do
+        transparent_client = described_class.new(prompt: "dog", transparent: true)
+        allow(transparent_client).to receive(:openai_client).and_return(openai)
 
-      it "calls the OpenAI image variations API" do
-        images = double("images")
-        openai = instance_double(OpenAI::Client, images: images)
-        allow(client).to receive(:openai_client).and_return(openai)
+        expect(images).to receive(:generate) do |parameters:|
+          expect(parameters[:background]).to eq("transparent")
+          success
+        end
 
-        expect(images).to receive(:variations).and_return(
-          { "data" => [{ "url" => "https://example.com/variation.png" }] }
-        )
+        transparent_client.create_image
+      end
 
-        expect(client.create_image_variation("ignored")).to eq("https://example.com/variation.png")
+      it "omits background when transparency is not requested" do
+        expect(images).to receive(:generate) do |parameters:|
+          expect(parameters).not_to have_key(:background)
+          success
+        end
+
+        client.create_image
+      end
+
+      it "does not request transparency for a format without an alpha channel" do
+        transparent_client = described_class.new(prompt: "dog", transparent: true, output_format: "jpeg")
+        allow(transparent_client).to receive(:openai_client).and_return(openai)
+
+        expect(images).to receive(:generate) do |parameters:|
+          expect(parameters).not_to have_key(:background)
+          success
+        end
+
+        transparent_client.create_image
+      end
+
+      # gpt-image-2 rejects background: transparent outright, so swapping
+      # OPENAI_IMAGE_MODEL must not take image generation down.
+      it "retries without background when the model rejects it" do
+        transparent_client = described_class.new(prompt: "dog", transparent: true)
+        allow(transparent_client).to receive(:openai_client).and_return(openai)
+
+        call_count = 0
+        allow(images).to receive(:generate) do |parameters:|
+          call_count += 1
+          raise "Unknown parameter: 'background'." if parameters.key?(:background)
+
+          success
+        end
+
+        result = transparent_client.create_image
+
+        expect(call_count).to eq(2)
+        expect(result[:b64_json]).to eq("abc123")
+        expect(result[:background]).to be_nil
+      end
+
+      it "does not swallow unrelated errors" do
+        allow(images).to receive(:generate).and_raise("insufficient_quota")
+
+        expect { client.create_image }.to raise_error(/insufficient_quota/)
+      end
+
+      it "reports the prompt and settings it actually used" do
+        expect(images).to receive(:generate).and_return(success)
+
+        result = client.create_image
+
+        expect(result[:edited_prompt]).to eq("dog")
+        expect(result[:quality]).to eq(described_class::DEFAULT_IMAGE_QUALITY)
+        expect(result[:model]).to eq(described_class::IMAGE_MODEL)
       end
     end
   end

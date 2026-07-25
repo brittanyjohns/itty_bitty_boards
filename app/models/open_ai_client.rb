@@ -8,6 +8,12 @@ class OpenAiClient
   TTS_MODEL = ENV.fetch("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
   DEFAULT_IMAGE_SIZE = "1024x1024".freeze
   DEFAULT_IMAGE_OUTPUT_FORMAT = "webp".freeze
+  # Tiles render at 288px (ApplicationRecord::TILE_VARIANT_TRANSFORMATIONS) and
+  # are re-encoded to webp q65, so "high" buys nothing visible and costs real
+  # money. Explicit + ENV-tunable so the tier is a decision, not a default.
+  DEFAULT_IMAGE_QUALITY = ENV.fetch("OPENAI_IMAGE_QUALITY", "medium").freeze
+  # `background: "transparent"` needs an output format with an alpha channel.
+  TRANSPARENCY_CAPABLE_FORMATS = %w[png webp].freeze
 
   def initialize(opts)
     @opts = opts.deep_symbolize_keys
@@ -36,30 +42,25 @@ class OpenAiClient
     )
   end
 
-  def specific_image_prompt(img_prompt)
-    "Can you create a text prompt for me that I can use with DALL-E to generate an image that is clear and simple, similar to AAC and other accessibility signs?
-    The image should represent the word/phrase '#{img_prompt}' in a way that a child could easily recognize. Avoid cartoonish styles.
-    Use as much detail as possible to ensure clarity and simplicity. Respond with the prompt only, not the image or any other text. Respond in JSON format."
-  end
-
-  def static_image_prompt
-    "Create a simple, clear, and colorful clipart-style image representing the concept of '{userInput}'. 
-    The image should be easily recognizable at a glance and suitable for use on AAC communication boards. 
-    Use a minimalistic design with bold, high-contrast colors. Avoid backgrounds, unnecessary details, or text in the image. 
-    Ensure the visual meaning is obvious and aligns with how the word is commonly represented in communication aids.".gsub("{userInput}", @prompt)
-  end
-
-  def image_style
-    "simple, clear, and colorful clipart-style image"
-  end
-
+  # Suggests a *subject description* for the user to edit, not a full prompt:
+  # Images::PromptBuilder owns the style spec and constraints, and wraps whatever
+  # the user ends up submitting. Handing back a full prompt here would produce a
+  # doubled, self-contradicting envelope.
   def get_image_prompt_suggestion
     @model = GTP_MODEL
+    style_clause = @opts[:style_clause].presence ||
+                   Images::PromptBuilder::STYLES[Images::PromptBuilder::DEFAULT_STYLE]
+
     base_prompt = <<~PROMPT
-      Generate a descriptive and concise prompt to instruct #{IMAGE_MODEL} to create a #{image_style} representing the word/phrase "#{@prompt}".
-      If the word is an object, the image should clearly depict that object in a simple and recognizable way.
-      If the word is an action or emotion, descriibe a happy person performing that action or expressing that emotion.
-      No text or letters should be included in the image.
+      Write a short, concrete visual description of what an AAC communication tile
+      for the word or phrase "#{@prompt}" should show.
+
+      Describe only the subject: what is pictured, who is doing what, and any detail
+      needed so a child recognizes the word at a glance. One or two sentences.
+      Do not mention art style, colors, backgrounds, or the absence of text — those
+      are applied separately. Respond with the description only.
+
+      For context, the image will be rendered in this style: #{style_clause}
     PROMPT
 
     @messages = [{
@@ -68,9 +69,7 @@ class OpenAiClient
     }]
 
     response = create_chat(false)
-    prompt = response.with_indifferent_access.dig("content")
-
-    prompt
+    response.with_indifferent_access.dig("content")
   end
 
   def create_image
@@ -78,21 +77,29 @@ class OpenAiClient
 
     client = openai_client
 
+    output_format = normalize_output_format(@opts[:output_format] || DEFAULT_IMAGE_OUTPUT_FORMAT)
+
     params = {
       model: @opts[:model] || IMAGE_MODEL,
       prompt: @prompt,
       size: DEFAULT_IMAGE_SIZE,
-      output_format: normalize_output_format(@opts[:output_format] || DEFAULT_IMAGE_OUTPUT_FORMAT),
+      output_format: output_format,
+      quality: @opts[:quality].presence || DEFAULT_IMAGE_QUALITY,
     }
 
+    # AAC tiles sit on colored part-of-speech backgrounds, so real alpha matters.
+    # Asking for it in prose alone (which is all we used to do) reliably yields a
+    # white box instead.
+    if transparent_background_requested? && TRANSPARENCY_CAPABLE_FORMATS.include?(output_format)
+      params[:background] = "transparent"
+    end
+
     # optional GPT image params
-    params[:quality] = @opts[:quality] if @opts[:quality].present?
-    params[:background] = @opts[:background] if @opts[:background].present?
     params[:moderation] = @opts[:moderation] if @opts[:moderation].present?
     params[:n] = @opts[:n] if @opts[:n].present?
     params[:output_compression] = @opts[:output_compression] if @opts[:output_compression].present?
 
-    response = client.images.generate(parameters: params)
+    response = generate_with_background_fallback(client, params)
 
     first_image = extract_first_image(response)
     raise "OpenAI image generation returned no image data" if first_image.blank?
@@ -101,17 +108,47 @@ class OpenAiClient
       b64_json: first_image[:b64_json],
       img_url: first_image[:url], # likely nil for gpt-image models, but harmless to expose
       revised_prompt: first_image[:revised_prompt],
-      edited_prompt: @opts[:prompt],
+      edited_prompt: @prompt,
       output_format: params[:output_format],
       content_type: content_type_for(params[:output_format]),
       model: params[:model],
       size: params[:size],
+      quality: params[:quality],
+      background: params[:background],
       raw_response: response,
     }
   rescue => e
     Rails.logger.error("OpenAiClient#create_image failed: #{e.class} - #{e.message}")
     Rails.logger.error(e.backtrace.first(10).join("\n")) if e.backtrace
     raise
+  end
+
+  # Not every image model accepts `background` — gpt-image-2, for one, rejects
+  # `transparent` outright. Rather than pin ourselves to a model, drop the param
+  # and retry once so swapping OPENAI_IMAGE_MODEL can't take generation down.
+  def generate_with_background_fallback(client, params)
+    client.images.generate(parameters: params)
+  rescue => e
+    raise unless params[:background].present? && background_unsupported_error?(e)
+
+    Rails.logger.warn(
+      "OpenAiClient#create_image: model #{params[:model]} rejected background=" \
+      "#{params[:background]}; retrying opaque. (#{e.message})"
+    )
+    params.delete(:background)
+    client.images.generate(parameters: params)
+  end
+
+  def background_unsupported_error?(error)
+    error.message.to_s.downcase.include?("background")
+  end
+
+  # Accepts either the explicit opt or the legacy string value ("transparent").
+  def transparent_background_requested?
+    value = @opts.key?(:transparent) ? @opts[:transparent] : @opts[:background]
+    return false if value.nil?
+
+    value.to_s.downcase.in?(%w[true transparent 1])
   end
 
   def create_audio_from_text(text, voice = "polly:kevin", language = "en", instructions = "")
@@ -183,22 +220,6 @@ class OpenAiClient
       Rails.logger.error e.backtrace.join("\n")
       nil
     end
-  end
-
-  def create_image_prompt
-    new_prompt = specific_image_prompt(@prompt)
-    response = openai_client.chat(parameters: { model: GTP_MODEL, messages: [{ role: "user", content: [{ type: "text", text: new_prompt }] }] })
-    Rails.logger.debug "*** ERROR *** Invaild Image Prompt Response: #{response}" unless response
-    Rails.logger.debug "Response: #{response.inspect}" if response
-    image_prompt_content = nil
-    if response
-      image_prompt_content = response.dig("choices", 0, "message", "content")
-    else
-      Rails.logger.debug "**** ERROR **** \nDid not receive valid response.\n"
-    end
-    Rails.logger.debug "Image Prompt Content: #{image_prompt_content}"
-    @prompt = image_prompt_content
-    image_prompt_content
   end
 
   def generate_formatted_board(name, num_of_columns, words = [], max_num_of_rows = 4, maintain_existing = false)
@@ -614,15 +635,6 @@ class OpenAiClient
     File.open("response.json", "w") { |f| f.write(response) }
   end
 
-  def create_image_variation(img, num_of_images = 1)
-    return placeholder_image_url if AppEnv.staging?
-
-    response = openai_client.images.variations(parameters: { image: img, n: 1 })
-    img_variation_url = response.dig("data", 0, "url")
-    Rails.logger.debug "*** ERROR *** Invaild Image Variation Response: #{response}" unless img_variation_url
-    img_variation_url
-  end
-
   def create_chat(format_json = true)
     @model ||= GTP_MODEL
     Rails.logger.debug "**** ERROR **** \nNo messages provided.\n" unless @messages
@@ -737,13 +749,10 @@ class OpenAiClient
       content_type: "image/jpeg",
       model: "staging-placeholder",
       size: DEFAULT_IMAGE_SIZE,
+      quality: nil,
+      background: nil,
       raw_response: nil,
     }
-  end
-
-  def placeholder_image_url
-    host = Rails.application.routes.default_url_options[:host]
-    "https://#{host}/placeholder.jpeg"
   end
 
   def placeholder_image_path

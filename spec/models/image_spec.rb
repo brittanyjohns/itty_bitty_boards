@@ -220,4 +220,64 @@ RSpec.describe Image, type: :model do
       expect(board_image.display_image_url).to eq("https://cdn.example.com/user_custom_doc.webp")
     end
   end
+
+  describe "#update_all_boards_image_belongs_to" do
+    # Images are shared library records, so an unscoped sweep would let one
+    # user's regeneration repoint tiles on another user's boards.
+    let(:owner) { FactoryBot.create(:user) }
+    let(:stranger) { FactoryBot.create(:user) }
+    let(:image) { FactoryBot.create(:image, user: owner, label: "apple") }
+    let(:owner_board) { FactoryBot.create(:board, user: owner) }
+    let(:stranger_board) { FactoryBot.create(:board, user: stranger) }
+    let(:new_url) { "https://cdn.example.com/fresh.webp" }
+
+    before do
+      owner_board.add_image(image.id)
+      stranger_board.add_image(image.id)
+      image.board_images.each { |bi| bi.update_column(:display_image_url, nil) }
+      image.board_images.reset
+    end
+
+    def tile_for(board)
+      image.board_images.find_by(board_id: board.id)
+    end
+
+    it "repoints the generating user's own empty tiles" do
+      image.update_all_boards_image_belongs_to(new_url, false, owner.id)
+
+      expect(tile_for(owner_board).reload.display_image_url).to eq(new_url)
+    end
+
+    it "leaves another user's tiles alone" do
+      image.update_all_boards_image_belongs_to(new_url, false, owner.id)
+
+      expect(tile_for(stranger_board).reload.display_image_url).to be_nil
+    end
+
+    it "still fills admin-owned tiles so the shared library stays populated" do
+      admin = User.find_by(id: User::DEFAULT_ADMIN_ID) ||
+              FactoryBot.create(:admin_user, id: User::DEFAULT_ADMIN_ID)
+      admin_board = FactoryBot.create(:board, user: admin)
+      admin_board.add_image(image.id)
+      image.board_images.reset
+      tile_for(admin_board).update_column(:display_image_url, nil)
+
+      image.update_all_boards_image_belongs_to(new_url, false, owner.id)
+
+      expect(tile_for(admin_board).reload.display_image_url).to eq(new_url)
+    end
+
+    it "does nothing when there is no URL to point at" do
+      expect(image.update_all_boards_image_belongs_to(nil, false, owner.id)).to eq([])
+      expect(tile_for(owner_board).reload.display_image_url).to be_nil
+    end
+
+    # The freshly minted URL is known-good, so it must not cost a network
+    # round trip per tile to confirm it.
+    it "does not validate the URL it was just handed" do
+      expect(image).not_to receive(:authorized_to_view_url?).with(new_url)
+
+      image.update_all_boards_image_belongs_to(new_url, false, owner.id)
+    end
+  end
 end

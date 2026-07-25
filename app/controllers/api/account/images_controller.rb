@@ -49,10 +49,8 @@ class API::Account::ImagesController < API::Account::ApplicationController
   def run_generate
     @image.update(status: "generating")
     image_prompt = image_params[:image_prompt] || image_params["image_prompt"]
-    if image_prompt.blank? || image_prompt == @image.label
-      image_prompt = @image.default_image_prompt
-    end
-    options = { "image_prompt" => image_prompt, "board_id" => image_params[:board_id] }
+    image_prompt = nil if image_prompt == @image.label
+    options = { "image_prompt" => image_prompt.presence, "board_id" => image_params[:board_id] }
     GenerateImageJob.perform_async(@image.id, @user.id, options)
   end
 

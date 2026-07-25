@@ -52,8 +52,6 @@ class Image < ApplicationRecord
 
   accepts_nested_attributes_for :docs
 
-  PROMPT_ADDITION = " Styled as a simple cartoon illustration."
-
   SOURCE_TYPE_NAMES = ["CommuniKate", "Core 24 - ", "Core 24", "Sequoia 15 - ", "Sequoia 15", "starter, "].freeze
 
   validates :label, presence: true
@@ -118,11 +116,21 @@ class Image < ApplicationRecord
     image_type == "menu" || image_type == "SampleVoice" || skip_categorize
   end
 
-  def default_image_prompt(user_prompt = nil)
-    label_to_use = user_prompt.present? ? user_prompt : label
-    "Create a simple, clear AAC-style illustration showing '#{label_to_use}' in a literal, easy-to-understand way, with a transparent background and no stylization. NO TEXT."
+  # Every text-to-image prompt is composed by Images::PromptBuilder — see that
+  # class for why. `user_prompt` describes the subject; it never replaces the
+  # house style envelope.
+  def default_image_prompt(user_prompt = nil, style: nil, transparent: true, board: nil)
+    Images::PromptBuilder.new(
+      label: label,
+      user_input: user_prompt,
+      part_of_speech: part_of_speech,
+      style: style || Images::PromptBuilder.resolve_style(board: board, user: user),
+      transparent: transparent,
+    ).call
   end
 
+  # Menu items keep their own envelope: a dish should look like appetizing food
+  # photography, not a flat AAC symbol.
   def default_menu_image_prompt(board_name = nil)
     label_to_use = label + (board_name ? " from #{board_name}" : "")
     "#{label_to_use} without any text or prices with a transparent background."
@@ -176,34 +184,50 @@ class Image < ApplicationRecord
     self.text_color ||= ColorHelper.text_hex_for(bg_color)
   end
 
+  # HEAD, not GET: this runs once per BoardImage inside the generation path, and
+  # a popular label ("more", "help") has hundreds of placements. GET downloaded
+  # the full image body every time.
   def authorized_to_view_url?(url)
-    begin
-      uri = URI.parse(url)
-      response = Net::HTTP.get_response(uri)
+    return false if url.blank?
 
-      # Allowable status codes (you can customize this)
-      return response.code.to_i == 200
-    rescue SocketError, URI::InvalidURIError, Timeout::Error, Errno::ECONNREFUSED => e
-      Rails.logger.error("URL validation error for #{url}: #{e.message}")
-      return false
+    uri = URI.parse(url)
+    return false unless uri.is_a?(URI::HTTP) || uri.is_a?(URI::HTTPS)
+
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https",
+                                                   open_timeout: 5, read_timeout: 5) do |http|
+      http.request(Net::HTTP::Head.new(uri))
     end
+
+    response.code.to_i == 200
+  rescue SocketError, URI::InvalidURIError, Timeout::Error, Errno::ECONNREFUSED,
+         Net::OpenTimeout, Net::ReadTimeout, OpenSSL::SSL::SSLError => e
+    Rails.logger.error("URL validation error for #{url}: #{e.message}")
+    false
   end
 
+  # Repoints tiles that are pointing at nothing (or at a dead URL) onto a freshly
+  # generated doc.
+  #
+  # `current_user_id` scopes the sweep to the generating user's boards plus admin
+  # boards. Callers in the generation path always pass it: one user regenerating
+  # their own art must not reach into another user's boards, and Images are
+  # shared library records so without the scope it would.
   def update_all_boards_image_belongs_to(url = nil, override_existing = false, current_user_id = nil)
     updated_ids = []
+    # The URL was just minted by us, so it's known-good — no need to pay for a
+    # network round trip per board_image to confirm it.
+    return updated_ids if url.blank?
+
     board_images.includes(:board).find_each do |bi|
-      if current_user_id && (bi.board.user_id != current_user_id) && bi.board.user_id != User::DEFAULT_ADMIN_ID
+      if current_user_id && (bi.board&.user_id != current_user_id) && bi.board&.user_id != User::DEFAULT_ADMIN_ID
         next
       end
-      original_url = bi.display_image_url
 
       if bi.display_image_url.present? && !override_existing
-        is_current_url_valid = authorized_to_view_url?(bi.display_image_url)
-        if is_current_url_valid
-          next
-        end
+        next if authorized_to_view_url?(bi.display_image_url)
       end
-      bi.update_column(:display_image_url, url) if authorized_to_view_url?(url)
+
+      bi.update_column(:display_image_url, url)
 
       if bi.valid?
         updated_ids << bi.id
@@ -366,11 +390,15 @@ class Image < ApplicationRecord
     color || "bg-#{image.bg_class}-400" || "bg-white"
   end
 
-  def create_image_doc(user_id = nil, prompt_to_use = nil)
+  # `image_prompt` stores the user's *intent* (a subject description), never the
+  # composed prompt — otherwise each regeneration would wrap the previous
+  # envelope inside a new one. The full prompt is composed here, at call time,
+  # and recorded on the resulting doc.
+  def create_image_doc(user_id = nil, prompt_to_use = nil, transparent: true)
     user_id ||= self.user_id
-    self.image_prompt = default_image_prompt if image_prompt.blank?
+    prompt = prompt_to_use.presence || default_image_prompt(image_prompt, transparent: transparent)
 
-    response = create_image(user_id, prompt_to_use || image_prompt)
+    response = create_image(user_id, prompt, transparent: transparent)
     Rails.logger.error "No response for image creation" unless response
     if response
       doc = response
@@ -1229,15 +1257,6 @@ class Image < ApplicationRecord
     label
   end
 
-  def prompt_addition
-    if image_type == "menu"
-      image_prompt.include?(Menu::PROMPT_ADDITION) ? "" : Menu::PROMPT_ADDITION
-    else
-      # image_prompt.include?(PROMPT_ADDITION) ? "" : PROMPT_ADDITION
-      ""
-    end
-  end
-
   def public_audio_url(viewing_user = nil)
     base_url = ENV["FRONT_END_URL"] || "localhost:8100"
     if user_id == User::DEFAULT_ADMIN_ID || user_id.blank?
@@ -1465,9 +1484,7 @@ class Image < ApplicationRecord
       Rails.logger.error "No URL provided for image edit"
       return nil
     end
-    if prompt.blank?
-      prompt = "Redraw this icon in a new style, not identical to the original. Make it more visually appealing with clear lines and a transparent background."
-    end
+    prompt = variation_prompt(user_id_to_set) if prompt.blank?
 
     url = nil
     result = ImageEditService.new.edit_image_from_url(
@@ -1488,25 +1505,32 @@ class Image < ApplicationRecord
     url
   end
 
+  # Variations run through the image *edit* endpoint, not /images/variations.
+  # That endpoint only ever supported dall-e-2, so every "make a variation"
+  # produced art in a visibly different style from the gpt-image tiles beside it.
+  # Editing from the source image keeps the subject and the house style, and
+  # varies the composition.
   def generate_image_variation(url, user_id_to_set = nil)
     if url.blank?
       Rails.logger.error "No URL provided for image variation generation"
       return nil
     end
-    begin
-      image_service = ImageVariationService.new
-      variation_url = image_service.create_variation_from_url(url)
-      if variation_url
-        save_from_url(variation_url, "Variation of #{label}", "Generated variation of image #{label}", user_id_to_set)
-      else
-        Rails.logger.error "Failed to generate image variation for URL: #{url}"
-        nil
-      end
-      variation_url
-    rescue => e
-      Rails.logger.error "Error generating image variation: #{e.message}\n\n#{e.backtrace.join("\n")}"
-      nil
-    end
+
+    generate_image_edit(url, user_id_to_set, variation_prompt(user_id_to_set))
+  rescue => e
+    Rails.logger.error "Error generating image variation: #{e.message}\n\n#{e.backtrace.join("\n")}"
+    nil
+  end
+
+  def variation_prompt(user_id_to_set = nil)
+    variation_user = User.find_by(id: user_id_to_set) || user
+    style = Images::PromptBuilder.resolve_style(user: variation_user)
+
+    "Redraw this image as a fresh alternative version of the same subject, '#{label}'. " \
+    "Keep the meaning identical and immediately recognizable, but change the composition, " \
+    "pose, and color choices so it reads as a different picture. " \
+    "#{Images::PromptBuilder::STYLES[style]} #{Images::PromptBuilder::BASE_CONSTRAINTS} " \
+    "#{Images::PromptBuilder::TRANSPARENT_CONSTRAINT}"
   end
 
   def self.searchable_images_for(user, only_user_images = false)
