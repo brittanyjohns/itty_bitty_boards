@@ -666,14 +666,46 @@ still works for backward compat.
   traps (button-id stability, `TileDeduper` label collisions), and the enforcing
   spec (`spec/db/seeds/board_builder_sets_spec.rb`) are documented in
   `db/seeds/board_builder_sets/README.md`.
-  - The **self tile is the one folder tile that speaks** — `mute_dynamic_tile_names!`
-    exempts a dynamic tile whose label matches its own board's name.
-  - Alignment holds on the **lg** layout only. `Boards::ScreenReflow` repacks
-    md/sm from the lg reading order and compacts gaps, so the nav row does not
-    stay pinned to the bottom row on phones/tablets.
+  - **`Boards::NavRowSync` is the enforcement mechanism; authoring is a
+    convenience.** Authoring the row in the seed `.obf` files only covers the
+    pages that ship *in* the seed set, and a build that adds a page (prebuilt
+    fringe, AI-generated, My Favorites, Phrases) grows the **root's** grid alone
+    — which is what pushed the seeded pages out of alignment. `BuildBoardSetJob`
+    calls `Boards::NavRowSync` at the end-of-build chokepoint (before muting,
+    reflow, and previews, so all three see the final grid) to project the root's
+    **final** row onto every page, walking `PredictiveLinkSet` to depth 2 so the
+    GLP function boards are covered. Idempotent: tiles it owns carry
+    `data["nav_tile"] = true`.
+  - **`Boards::NavRegion`** derives the region: the bottom row, plus at most
+    **one** row above it whose occupied cells are *all* folder tiles (the
+    build's added pages). A content row holding a lone folder tile — Core 84's
+    `More` — is **not** a nav row; that tile is pinned at its own cell instead.
+    `NavRegion.align` first rotates the authored nav row back to the bottom,
+    since `Board#add_image` appends growth *below* it.
+  - **Only a legacy nav tile is replaced.** A folder tile is destroyed only when
+    it carries a nav category's label (the pre-sync copy, often shifted a cell
+    left) or links back to the root (the old `Home` way-home tile). A page's own
+    folder tiles are its content — the Phrases page links the six gestalt
+    function boards — so anything else merely colliding with a nav cell is
+    **relocated** into the content area, never dropped.
+  - **Robust sets only.** The legacy label-only starter trees (`home`,
+    `daily_routine`) have no nav row concept and are skipped; the guard reads the
+    job's own `level_or_template` argument.
+  - The **self tile is the one folder tile that speaks** — `NavRowSync` leaves
+    `mute_name` off it, and `mute_dynamic_tile_names!` independently exempts a
+    dynamic tile whose label matches its own board's name.
+  - **Bottom-pinned on every screen.** `Boards::ScreenReflow.reflow!` takes
+    `pinned_rows:` (default `0` — the original path, byte-identical for every
+    non-builder caller); the job passes the region's row count so content packs
+    first and the nav strip stays at the bottom on md/sm/xs. At a narrow column
+    count the strip spans more rows — still bottom-pinned, still identical on
+    every page of the set.
+  - **Backfill:** `rake board_builder:sync_nav_rows` re-projects the row across
+    every existing `builder_root` set (dry-run by default; `DRY_RUN=false` to
+    apply, `USER_ID=N` to scope).
   - Built sets are **clones taken at build time**, so reseeding an aligned
-    template only affects **new** builds; already-built sets keep the layout they
-    were cloned with.
+    template only affects **new** builds — the rake task is what heals sets
+    already in the wild.
 - **Built roots register as `in_use`.** The set's root lives **directly** on the
   communicator (the `ChildBoard` has `board_id = root.id`, `original_board_id =
   nil` — unlike the clone-source `assign_boards`/`assign_accounts` path). So
