@@ -4,7 +4,11 @@ require "rails_helper"
 # and return 402 insufficient_credits when the balance is too low. Each AI
 # endpoint is covered, plus the shape of the 402 body and admin bypass.
 RSpec.describe "Credit enforcement on AI endpoints", type: :request do
-  let(:user) { FactoryBot.create(:user) }
+  # confirmed_at set: image_generation now requires a verified email (even on
+  # its free first-fill path — see images_email_verification_spec.rb), and
+  # this file's `/api/images/generate` examples are about credit gating, not
+  # verification, so the fixture stays verified by default.
+  let(:user) { FactoryBot.create(:user, confirmed_at: Time.current) }
 
   # Most tests below dictate exact balances; clear the after_create grant
   # so we're not fighting it. The grant_plan! calls in inner `before`

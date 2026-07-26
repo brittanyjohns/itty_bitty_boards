@@ -48,6 +48,15 @@ topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
   image library. Charging only applies when they're replacing/customizing an existing
   image. `regenerate_images`, `create_image_edit`, and `create_image_variation` act on
   images that already have a picture, so they keep charging unconditionally.
+  Because this path never calls `check_credits!`, it needed its own gate:
+  `#generate` requires a verified email (`require_verified_email!`, checked
+  after the `accessible_image` IDOR lookup so a non-owner's private image
+  still 404s first) — renders 403 `email_verification_required` for an
+  unverified caller, admins bypass. Without it an unverified account (zero
+  tokens, zero AI credits) could still drive free-tier OpenAI generation on
+  empty tiles at no cost to them. Board reads, board-load, and audio
+  playback are untouched by this gate — see the cross-cutting "usage must
+  never break" invariant in `CLAUDE.md`.
 - **`MonthlyFeatureLimiter` was removed** (along with `User#ai_limit_reached?`,
   `#reset_ai_limits!`, and the dead `ai_monthly_limit` plan-limit key). AI is
   gated solely by the credit ledger now; the old monthly action-counter was
