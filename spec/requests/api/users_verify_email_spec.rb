@@ -68,3 +68,61 @@ RSpec.describe "GET /api/verify_email", type: :request do
     expect(user.reload.tokens).to eq(10)
   end
 end
+
+RSpec.describe "POST /api/resend_email_verification", type: :request do
+  let(:user) { FactoryBot.create(:user, confirmed_at: nil) }
+
+  def resend(as_user: user)
+    post "/api/resend_email_verification", headers: auth_headers(as_user), as: :json
+  end
+
+  it "sends a fresh verification email and rotates the token" do
+    original = user.generate_email_verification_token!
+    user.update!(email_verification_sent_at: 6.minutes.ago)
+
+    expect { resend }.to have_enqueued_mail(UserMailer, :verify_email)
+
+    expect(response).to have_http_status(:ok)
+    expect(user.reload.email_verification_token).not_to eq(original)
+  end
+
+  it "sends when nothing has been sent yet" do
+    expect { resend }.to have_enqueued_mail(UserMailer, :verify_email)
+    expect(response).to have_http_status(:ok)
+  end
+
+  it "throttles a second request inside the cooldown" do
+    user.generate_email_verification_token!
+
+    expect { resend }.not_to have_enqueued_mail(UserMailer, :verify_email)
+
+    expect(response).to have_http_status(:too_many_requests)
+    expect(JSON.parse(response.body)["retry_after"]).to be > 0
+  end
+
+  it "refuses when the account is already verified" do
+    user.update!(confirmed_at: Time.current)
+
+    expect { resend }.not_to have_enqueued_mail(UserMailer, :verify_email)
+    expect(response).to have_http_status(:unprocessable_content)
+  end
+
+  it "requires authentication" do
+    post "/api/resend_email_verification", as: :json
+    expect(response).to have_http_status(:unauthorized)
+  end
+
+  it "responds honestly when the mailer enqueue fails, without rotating the token or starting the cooldown" do
+    original_token = user.email_verification_token
+    original_sent_at = user.email_verification_sent_at
+
+    allow(UserMailer).to receive(:verify_email).and_raise(Redis::BaseConnectionError, "connection refused")
+
+    resend
+
+    expect(response).to have_http_status(:service_unavailable)
+    expect(JSON.parse(response.body)["error"]).to be_present
+    expect(user.reload.email_verification_token).to eq(original_token)
+    expect(user.reload.email_verification_sent_at).to eq(original_sent_at)
+  end
+end

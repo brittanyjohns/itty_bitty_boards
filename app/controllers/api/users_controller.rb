@@ -153,6 +153,45 @@ class API::UsersController < API::ApplicationController
            }, status: :ok
   end
 
+  # Resends the signup verification email. Throttled in the model layer via
+  # email_verification_sent_at so the cooldown survives across app instances
+  # (rack-attack's per-IP counters would not help a user on a shared IP).
+  def resend_email_verification
+    if current_user.email_verified?
+      return render json: { error: "Your email is already confirmed." },
+                    status: :unprocessable_content
+    end
+
+    unless current_user.can_resend_email_verification?
+      retry_after = (current_user.email_verification_sent_at +
+                     User::EMAIL_VERIFICATION_RESEND_INTERVAL - Time.current).ceil
+      return render json: {
+                      error: "We just sent one — check your inbox, then try again in a moment.",
+                      retry_after: retry_after,
+                    }, status: :too_many_requests
+    end
+
+    # The whole point of this request is sending an email, so an enqueue
+    # failure here can't be reported as success — that would be a lie the
+    # user discovers when nothing arrives. Wrapped in a transaction so a
+    # Redis blip on deliver_later (queue_adapter is :sidekiq, so this pushes
+    # synchronously) rolls back the token/timestamp rotation too — otherwise
+    # the cooldown would start on a send that never happened, and the user's
+    # very next retry would get throttled instead of a real second attempt.
+    begin
+      ActiveRecord::Base.transaction do
+        current_user.generate_email_verification_token!
+        UserMailer.verify_email(current_user).deliver_later
+      end
+    rescue => e
+      Rails.logger.error "resend_email_verification: mailer enqueue failed for #{current_user.email}: #{e.class}: #{e.message}"
+      return render json: { error: "Couldn't send the verification email. Please try again in a moment." },
+                    status: :service_unavailable
+    end
+
+    render json: { message: "Confirmation email sent to #{current_user.email}." }, status: :ok
+  end
+
   def resend_email_confirmation
     pending_email = current_user.unconfirmed_email
 
