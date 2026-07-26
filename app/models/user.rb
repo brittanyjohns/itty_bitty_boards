@@ -175,7 +175,6 @@ class User < ApplicationRecord
 
   # Callbacks
   before_save :set_default_settings, unless: :settings?
-  after_create :add_welcome_tokens
   before_validation :set_uuid, on: :create
   before_save :ensure_settings, unless: :has_all_settings?
 
@@ -836,6 +835,32 @@ class User < ApplicationRecord
 
   def email_verified?
     confirmed_at.present?
+  end
+
+  # The ONE place an account becomes verified. Idempotent, so every path that
+  # proves inbox ownership (verification link, invitation accept, temp login)
+  # can call it freely without risking a double token grant.
+  #
+  # Welcome tokens are granted here rather than on create: an unverified
+  # account holds a zero balance, so there is no separate "can this user spend"
+  # gate to forget in a future AI code path. images_controller's existing
+  # `tokens > 0` check does the right thing unmodified.
+  #
+  # Returns true if this call newly verified the account, false if it was
+  # already verified.
+  def mark_email_verified!
+    return false if email_verified?
+
+    transaction do
+      # The verification token is deliberately NOT cleared here — see
+      # verify_email in API::UsersController. Email security scanners prefetch
+      # links and users double-click; keeping the token lets a replay resolve
+      # to this user and get "already confirmed" instead of "invalid link". It
+      # grants nothing once confirmed_at is set, and expires after 7 days.
+      update!(confirmed_at: Time.current)
+      add_welcome_tokens
+    end
+    true
   end
 
   # Token management
