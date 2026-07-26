@@ -312,6 +312,20 @@ class User < ApplicationRecord
   # (never read on the enforcement path) and was removed — do not re-add it here.
   # Board limits match the canonical pricing table (marketing/pricing-structure.md):
   # Free 1 / Basic 100 / Pro 300.
+  # --- Email verification ---------------------------------------------------
+  #
+  # `confirmed_at` is the single source of truth for "the address currently on
+  # this account is proven reachable". It is set by three paths: the signup
+  # verification link, accepting an invitation, and temp-login — all three
+  # require the user to click something delivered to that inbox.
+  #
+  # Deliberately NOT devise's :confirmable — this is a JSON API on JWT, and
+  # confirmable would contend with the hand-rolled email-change flow for
+  # `confirmation_token`/`confirmed_at`. See
+  # drafts/2026-07-26-email-verification-design.md.
+  EMAIL_VERIFICATION_VALIDITY = 7.days
+  EMAIL_VERIFICATION_RESEND_INTERVAL = 5.minutes
+
   FREE_PLAN_LIMITS = {
     "plan_type" => "free",
     "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 1).to_i,
@@ -818,6 +832,10 @@ class User < ApplicationRecord
 
   def shared_with_me_boards
     Board.with_artifacts.where(id: team_boards.select(:board_id))
+  end
+
+  def email_verified?
+    confirmed_at.present?
   end
 
   # Token management
@@ -1894,6 +1912,9 @@ class User < ApplicationRecord
       # on invite!, but valid_password? is nil until the invitation is
       # accepted, so a pending invite is effectively passwordless.
       needs_password: invited_to_sign_up?,
+      # Drives the "verify your email" banner. Unverified accounts hold no
+      # welcome tokens until they click the link — see mark_email_verified!.
+      email_verified: email_verified?,
       profile: profile&.user_api_view,
       delete_account_token: delete_account_token,
       public_page_url: public_page_url,
