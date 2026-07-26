@@ -36,6 +36,11 @@ module API
           user.ensure_minimum_communicator_slot!
           user.record_signup_context!(platform: platform, method: "standard")
           user.notify_admin_of_signup!
+          # Verification email. The user is already signed in — verification
+          # gates the welcome tokens, never app access. See
+          # drafts/2026-07-26-email-verification-design.md.
+          user.generate_email_verification_token!
+          UserMailer.verify_email(user).deliver_later
           if user.role == "partner"
             user.send_partner_welcome_email
           end
