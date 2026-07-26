@@ -39,8 +39,20 @@ module API
           # Verification email. The user is already signed in — verification
           # gates the welcome tokens, never app access. See
           # drafts/2026-07-26-email-verification-design.md.
-          user.generate_email_verification_token!
-          UserMailer.verify_email(user).deliver_later
+          # Best-effort: the user is already persisted (and signed in above),
+          # so a hiccup here must not 500 the request and strand a created
+          # account. queue_adapter is :sidekiq, so deliver_later enqueues to
+          # Redis synchronously in this request — a Redis blip would otherwise
+          # raise here with nothing rescuing it. A user left without a token
+          # can recover via the resend-verification endpoint (later task),
+          # which re-generates the token — a missing token is recoverable, a
+          # 500 response is not.
+          begin
+            user.generate_email_verification_token!
+            UserMailer.verify_email(user).deliver_later
+          rescue => e
+            Rails.logger.error "sign_up: email verification setup failed for #{user.email}: #{e.class}: #{e.message} — continuing; user can request a new verification email"
+          end
           if user.role == "partner"
             user.send_partner_welcome_email
           end

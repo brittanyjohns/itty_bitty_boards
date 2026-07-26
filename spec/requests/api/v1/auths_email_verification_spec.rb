@@ -33,6 +33,22 @@ RSpec.describe "signup email verification", type: :request do
 
       expect(User.find_by(email: "new@example.com").email_verification_token).to be_present
     end
+
+    it "still succeeds and returns a token when the verification mail enqueue raises (e.g. Redis is down)" do
+      allow(UserMailer).to receive(:verify_email).and_raise(Redis::CannotConnectError, "Error connecting to Redis")
+
+      sign_up
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["token"]).to be_present
+
+      user = User.find_by(email: "new@example.com")
+      expect(user).to be_present
+      # Token generation runs before the mailer call, so it still lands even
+      # though the enqueue itself blew up.
+      expect(user.email_verification_token).to be_present
+    end
   end
 
   describe "POST /api/v1/users/email_signup (paid-intent signup)" do
