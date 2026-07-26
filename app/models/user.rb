@@ -834,6 +834,25 @@ class User < ApplicationRecord
     confirmed_at.present?
   end
 
+  # Issues a fresh verification token and stamps the send time. The stamp
+  # drives both expiry (EMAIL_VERIFICATION_VALIDITY) and resend cooldown
+  # (EMAIL_VERIFICATION_RESEND_INTERVAL). Returns the raw token.
+  def generate_email_verification_token!
+    token = SecureRandom.hex(16)
+    update!(email_verification_token: token, email_verification_sent_at: Time.current)
+    token
+  end
+
+  def email_verification_token_valid?
+    email_verification_sent_at.present? &&
+      email_verification_sent_at > EMAIL_VERIFICATION_VALIDITY.ago
+  end
+
+  def can_resend_email_verification?
+    email_verification_sent_at.blank? ||
+      email_verification_sent_at < EMAIL_VERIFICATION_RESEND_INTERVAL.ago
+  end
+
   # The ONE place an account becomes verified. Idempotent, so every path that
   # proves inbox ownership (verification link, invitation accept, temp login)
   # can call it freely without risking a double token grant.

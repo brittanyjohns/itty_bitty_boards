@@ -107,4 +107,39 @@ RSpec.describe User, "email verification state" do
       expect(CreditService.balance(user.reload)[:total]).to eq(25)
     end
   end
+
+  describe "verification tokens" do
+    it "generates a token and stamps the send time" do
+      user = FactoryBot.create(:user, confirmed_at: nil)
+
+      token = user.generate_email_verification_token!
+
+      expect(token).to be_present
+      expect(user.reload.email_verification_token).to eq(token)
+      expect(user.email_verification_sent_at).to be_within(5.seconds).of(Time.current)
+    end
+
+    it "treats a fresh token as valid and a 8-day-old one as expired" do
+      user = FactoryBot.create(:user, confirmed_at: nil)
+      user.generate_email_verification_token!
+      expect(user.email_verification_token_valid?).to be(true)
+
+      user.update!(email_verification_sent_at: 8.days.ago)
+      expect(user.email_verification_token_valid?).to be(false)
+    end
+
+    it "blocks a resend inside the cooldown and allows one after" do
+      user = FactoryBot.create(:user, confirmed_at: nil)
+      user.generate_email_verification_token!
+      expect(user.can_resend_email_verification?).to be(false)
+
+      user.update!(email_verification_sent_at: 6.minutes.ago)
+      expect(user.can_resend_email_verification?).to be(true)
+    end
+
+    it "allows a resend when nothing has ever been sent" do
+      user = FactoryBot.create(:user, confirmed_at: nil, email_verification_sent_at: nil)
+      expect(user.can_resend_email_verification?).to be(true)
+    end
+  end
 end

@@ -312,4 +312,34 @@ RSpec.describe UserMailer, type: :mailer do
       expect(mail.html_part.body.decoded).to include("Ver mensaje")
     end
   end
+
+  describe ".verify_email" do
+    let(:user) { FactoryBot.create(:user, confirmed_at: nil, name: "Sam") }
+
+    before { user.generate_email_verification_token! }
+
+    it "sends to the address being verified" do
+      mail = described_class.verify_email(user)
+      expect(mail.to).to eq([user.email])
+    end
+
+    it "links to the frontend confirm-email page with the verification token" do
+      mail = described_class.verify_email(user)
+      # .decoded, not .encoded: the intro copy's em dash forces this
+      # single-part message to quoted-printable transfer encoding, which
+      # hard-wraps lines at 76 octets and lands a soft break inside the
+      # token when checked against the raw encoded body. Matches the same
+      # (mail.html_part || mail).body.decoded convention used above for
+      # #confirm_update_email.
+      expect((mail.html_part || mail).body.decoded).to include(
+        "/confirm-email?verification_token=#{user.reload.email_verification_token}"
+      )
+    end
+
+    it "does not send when there is no token to send" do
+      user.update!(email_verification_token: nil)
+      mail = described_class.verify_email(user)
+      expect(mail.message).to be_a(ActionMailer::Base::NullMail)
+    end
+  end
 end

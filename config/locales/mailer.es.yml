@@ -236,6 +236,18 @@ es:
       thanks: "Gracias,"
       signature: "El equipo de SpeakAnyWay"
 
+    verify_email:
+      subject: "Confirma tu correo electrónico para terminar de configurar SpeakAnyWay"
+      greeting: "¡Hola %{name}!"
+      greeting_no_name: "¡Hola!"
+      intro: "Gracias por unirte a SpeakAnyWay. Confirma esta dirección de correo electrónico para que sepamos que podemos contactarte — es la dirección que usaremos para restablecer tu contraseña y enviarte novedades de tu cuenta."
+      tokens_note: "Al confirmar también desbloqueas los 10 créditos de imagen gratuitos que te esperan en tu cuenta."
+      cta: "Confirmar mi correo electrónico"
+      expiry_note: "Este enlace funciona durante 7 días. Si caduca, puedes enviarte uno nuevo desde tu panel."
+      ignore: "Si no creaste una cuenta de SpeakAnyWay, puedes ignorar este mensaje."
+      thanks: "Gracias,"
+      signature: "El equipo de SpeakAnyWay"
+
     temporary_login_email:
       subject: "Tu enlace de inicio de sesión temporal para SpeakAnyWay AAC"
       title: "Inicio de sesión temporal en SpeakAnyWay"

@@ -1,0 +1,15 @@
+  <%= render "layouts/email_logo" %>
+<p><%= @user_name.present? ? t("user_mailer.verify_email.greeting", name: @user_name) : t("user_mailer.verify_email.greeting_no_name") %></p>
+<p><%= t("user_mailer.verify_email.intro") %></p>
+<p><%= t("user_mailer.verify_email.tokens_note") %></p>
+<p>
+  <%= link_to t("user_mailer.verify_email.cta"),
+              @verification_url %>
+</p>
+
+<p><%= t("user_mailer.verify_email.expiry_note") %></p>
+<p><%= t("user_mailer.verify_email.ignore") %></p>
+
+<p><%= t("user_mailer.verify_email.thanks") %></p>
+<p><%= t("user_mailer.verify_email.signature") %></p>
+<p><a href="mailto:support@speakanyway.com">support@speakanyway.com</a></p>

@@ -52,6 +52,28 @@ class UserMailer < BaseMailer
     end
   end
 
+  # Signup email verification. Distinct from confirm_update_email: that one
+  # confirms a *change* to an existing account's address and carries
+  # `confirmation_token`; this one proves the address given at signup and
+  # carries `verification_token`. They use separate DB columns so a pending
+  # change and a pending signup verification can never clobber each other.
+  def verify_email(user)
+    user.reload
+    @user = user
+    @token = @user.email_verification_token
+    if @token.nil?
+      Rails.logger.error "No email verification token found for user #{@user.id}"
+      return
+    end
+    @user_name = @user.name
+    @FRONT_END_URL = ENV["FRONT_END_URL"] || "http://localhost:8100"
+    @verification_url = @FRONT_END_URL + "/confirm-email?verification_token=#{@token}"
+
+    with_user_locale(@user) do
+      mail(to: @user.email, subject: I18n.t("user_mailer.verify_email.subject"))
+    end
+  end
+
   # Plan-neutral "your account is ready" receipt for paid-intent signups
   # (email_signup): the user hasn't reached Stripe checkout yet, so we don't
   # know which plan to welcome them onto. The real plan welcome is sent later
