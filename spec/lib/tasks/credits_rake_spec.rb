@@ -60,8 +60,13 @@ RSpec.describe "credits rake tasks", type: :task do
     end
 
     it "skips users who already have a plan_grant row" do
-      user = FactoryBot.create(:user, plan_type: "pro")
-      # ensure_initial_grant! already created a plan_grant on after_create
+      user = reset_user_credits!(FactoryBot.create(:user, plan_type: "pro"))
+      CreditService.grant_plan!(
+        user,
+        amount: 1500,
+        period_end: 30.days.from_now,
+        metadata: { reason: "pre_existing_grant" },
+      )
       expect(user.credit_transactions.where(kind: "plan_grant").count).to eq(1)
       grant_before = user.credit_transactions.find_by(kind: "plan_grant")
 

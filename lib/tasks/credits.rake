@@ -1,5 +1,10 @@
 namespace :credits do
   desc "Backfill an initial plan credit grant for every user based on their plan_type"
+  # HAZARD: this task grants to every user lacking a plan_grant row, with no
+  # email-verification check. Since Task 2b, initial credits are gated on
+  # confirmed_at (see User#mark_email_verified!) — running this task as-is
+  # would hand credits to every unverified account and undo that gate. Do not
+  # change this behavior without an explicit decision to do so.
   task backfill: :environment do
     granted = 0
     skipped = 0

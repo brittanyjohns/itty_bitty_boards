@@ -465,8 +465,13 @@ RSpec.describe User, type: :model do
 
     it "reflects topup credits in the total" do
       user = FactoryBot.create(:user, plan_type: "free", created_at: 30.days.ago)
+      # Give the user a non-zero plan balance too, so this actually proves the
+      # two buckets are summed rather than degenerating to `25 == 0 + 25`.
+      CreditService.grant_plan!(user, amount: 25, period_end: 1.month.from_now,
+                                       metadata: { source: "spec" })
       CreditService.grant_topup!(user, amount: 25)
       credits = user.reload.admin_api_view["ai_credits"]
+      expect(credits[:plan]).to eq(25)
       expect(credits[:topup]).to eq(25)
       expect(credits[:total]).to eq(credits[:plan] + 25)
     end

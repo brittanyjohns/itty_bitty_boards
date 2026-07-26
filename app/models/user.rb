@@ -845,6 +845,11 @@ class User < ApplicationRecord
   #
   # Returns true if this call newly verified the account, false if it was
   # already verified.
+  # `with_lock` wraps the block in `lock!` + a transaction, and `lock!`
+  # raises ActiveRecord::RecordNotSaved-ish dirty-attribute errors if the
+  # record already has unsaved changes — unlike the old
+  # `transaction do ... update! ... end` this replaced, which tolerated a
+  # dirty object. Callers must pass a clean (unmutated) user in.
   def mark_email_verified!
     return false if email_verified?
 
@@ -862,15 +867,24 @@ class User < ApplicationRecord
       # grants nothing once confirmed_at is set, and expires after 7 days.
       update!(confirmed_at: Time.current)
 
-      # Both currencies are granted here, not on create: an unverified account
-      # must hold nothing spendable. `tokens` is the legacy field (still spent
-      # by images_controller#find_or_create); AI credits are what the modern
-      # endpoints bill. Both are idempotent — add_welcome_tokens is reached
-      # only once thanks to the guard above, and ensure_initial_grant! no-ops
-      # when a plan_grant already exists.
+      # `tokens` is the legacy field (still spent by
+      # images_controller#find_or_create) — granted here, not on create, so an
+      # unverified account holds nothing spendable. Idempotent: reached only
+      # once thanks to the guard above.
       add_welcome_tokens
-      grant_initial_plan_credits
     end
+
+    # AI credits are granted OUTSIDE the lock/transaction, deliberately.
+    # ensure_initial_grant! rescues its own errors and returns nil, but
+    # grant_plan! runs inside a nested ActiveRecord transaction that would
+    # join this one if called above — a DB error there marks the outer
+    # transaction aborted, the rescue swallows it, and the COMMIT silently
+    # becomes a ROLLBACK, undoing confirmed_at and the token grant too.
+    # Sitting here, a credit-grant failure can never take verification down
+    # with it. Safe to call unconditionally: ensure_initial_grant! is
+    # idempotent (no-ops once a plan_grant exists), and the guard above
+    # already guarantees only one caller reaches this line per account.
+    grant_initial_plan_credits
     true
   end
 

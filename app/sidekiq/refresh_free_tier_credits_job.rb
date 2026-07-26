@@ -18,8 +18,12 @@
 #   - plan_type is in REFRESHABLE_PLAN_TYPES
 #   - plan_credits_reset_at IS NULL (never granted) OR has passed
 #   - stripe_subscription_id is blank (no Stripe-driven renewal incoming)
-#   - Email is verified (confirmed_at present) — an unverified account must
-#     not collect credits it was denied at signup
+#   - Email is verified (confirmed_at present) — but ONLY for the free
+#     allowance (plan_type free/basic_trial). Paid tiers with no Stripe
+#     subscription (5-year licenses, clinician, RevenueCat/App Store,
+#     partner_pro) rely on THIS job for their monthly re-grant; they've
+#     already paid, so an unclicked verification email must never zero
+#     their balance.
 #   - Skip admins
 #
 # Idempotent in practice: grant_plan! expires leftovers and sets
@@ -83,9 +87,11 @@ class RefreshFreeTierCreditsJob
         "stripe_subscription_id IS NULL OR stripe_subscription_id = '' " \
         "OR settings->>'billing_interval' = 'yearly'",
       )
-      # An unverified account was deliberately denied its initial grant at
-      # signup (see User#mark_email_verified!) — the monthly cron must not
-      # silently hand it credits before that gate is cleared.
-      .where.not(confirmed_at: nil)
+      # Verification gates the FREE allowance only. Paid tiers without a Stripe
+      # subscription (5-year licenses, clinician, RevenueCat/App Store,
+      # partner_pro) rely on this job for their monthly re-grant — they've paid,
+      # so an unclicked verification email must never zero their balance.
+      # See .claude-notes/credits.md ("No-subscription paid plans ride the refresh job").
+      .where("confirmed_at IS NOT NULL OR plan_type NOT IN ('free', 'basic_trial')")
   end
 end
