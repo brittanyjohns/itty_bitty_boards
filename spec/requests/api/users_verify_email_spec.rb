@@ -1,0 +1,70 @@
+require "rails_helper"
+
+RSpec.describe "GET /api/verify_email", type: :request do
+  let(:user) { FactoryBot.create(:user, confirmed_at: nil) }
+
+  def verify(token)
+    get "/api/verify_email", params: { token: token }
+  end
+
+  it "verifies the account and grants the welcome tokens" do
+    token = user.generate_email_verification_token!
+
+    verify(token)
+
+    expect(response).to have_http_status(:ok)
+    expect(JSON.parse(response.body)["email_verified"]).to be(true)
+    expect(user.reload.email_verified?).to be(true)
+    expect(user.tokens).to eq(10)
+  end
+
+  it "works without authentication — the link is clicked from an inbox" do
+    token = user.generate_email_verification_token!
+    verify(token) # no auth_headers
+    expect(response).to have_http_status(:ok)
+  end
+
+  it "rejects an unknown token" do
+    verify("not-a-real-token")
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(JSON.parse(response.body)["error"]).to be_present
+  end
+
+  it "rejects an expired token without verifying the account" do
+    token = user.generate_email_verification_token!
+    user.update!(email_verification_sent_at: 8.days.ago)
+
+    verify(token)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(user.reload.email_verified?).to be(false)
+    expect(user.tokens).to eq(0)
+  end
+
+  # Double-clicks and email security scanners (Outlook Safe Links, Mimecast)
+  # that prefetch links must not produce an error on an account that verified
+  # fine — schools and clinics run exactly those scanners.
+  it "reports success on a replayed link without double-granting" do
+    token = user.generate_email_verification_token!
+    verify(token)
+    expect(user.reload.tokens).to eq(10)
+
+    verify(token)
+
+    expect(response).to have_http_status(:ok)
+    expect(JSON.parse(response.body)["email_verified"]).to be(true)
+    expect(user.reload.tokens).to eq(10)
+  end
+
+  it "still reports success for an already-verified user past the expiry window" do
+    token = user.generate_email_verification_token!
+    verify(token)
+    user.update!(email_verification_sent_at: 8.days.ago)
+
+    verify(token)
+
+    expect(response).to have_http_status(:ok)
+    expect(user.reload.tokens).to eq(10)
+  end
+end

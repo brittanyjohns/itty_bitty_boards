@@ -126,6 +126,7 @@ Rails.application.routes.draw do
     post "resend_email_confirmation", to: "users#resend_email_confirmation"
     post "cancel_email_change", to: "users#cancel_email_change"
     get "confirm_email_change", to: "users#confirm_email_change"
+    get "verify_email", to: "users#verify_email"
     resources :feedback, only: [:create]
 
     get "audio/play", to: "audio#play"

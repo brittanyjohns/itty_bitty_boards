@@ -1,4 +1,7 @@
 class API::UsersController < API::ApplicationController
+  # Clicked from an email client, which carries no bearer token.
+  skip_before_action :authenticate_token!, only: %i[verify_email]
+
   before_action :set_user, only: %i[ show update_settings destroy update ]
 
   # GET /users or /users.json
@@ -112,6 +115,42 @@ class API::UsersController < API::ApplicationController
     else
       render json: { errors: user.errors.full_messages }, status: :unprocessable_content
     end
+  end
+
+  # Signup email verification. Unauthenticated — the link arrives in an inbox.
+  # Distinct from confirm_email_change, which promotes a pending *change* to an
+  # existing account's address.
+  def verify_email
+    token = params[:token].to_s
+    user = token.present? ? User.find_by(email_verification_token: token) : nil
+
+    if user.nil?
+      return render json: { error: "That confirmation link is no longer valid. Send yourself a new one from your dashboard." },
+                    status: :unprocessable_content
+    end
+
+    # Already verified — a double-click, or an email security scanner that
+    # prefetched the link before the user got to it. Report success: the
+    # account is fine, and an error would alarm someone who did nothing wrong.
+    # Checked BEFORE expiry so a verified account never sees an error here.
+    if user.email_verified?
+      return render json: {
+                      message: "Your email is already confirmed. Your free image credits are ready to use.",
+                      email_verified: true,
+                    }, status: :ok
+    end
+
+    unless user.email_verification_token_valid?
+      return render json: { error: "That confirmation link has expired. Send yourself a new one from your dashboard." },
+                    status: :unprocessable_content
+    end
+
+    user.mark_email_verified!
+
+    render json: {
+             message: "Your email is confirmed. Your free image credits are ready to use.",
+             email_verified: true,
+           }, status: :ok
   end
 
   def resend_email_confirmation
