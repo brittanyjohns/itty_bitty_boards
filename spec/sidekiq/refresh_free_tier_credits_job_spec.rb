@@ -113,6 +113,11 @@ RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
       user.update_columns(plan_credits_balance: 0, plan_credits_reset_at: 2.days.ago, topup_credits_balance: 50, stripe_subscription_id: nil)
 
       described_class.new.perform
+      # Assert the user was actually processed (plan credits refreshed), not
+      # just excluded from the run — an excluded user would also leave
+      # topup_credits_balance untouched, which would let this example pass
+      # vacuously.
+      expect(user.reload.plan_credits_balance).to eq(25)
       expect(user.reload.topup_credits_balance).to eq(50)
     end
   end

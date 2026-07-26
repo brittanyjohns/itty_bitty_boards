@@ -16,6 +16,13 @@ class DowngradeSoftTrialJob
       # ~now) to free (25 credits/month). grant_plan! expires whatever's
       # left of the trial allowance and grants a fresh free-tier amount,
       # so the user doesn't see balance=0 the moment they're downgraded.
+      # HAZARD: this grants the free allowance with no email-verification
+      # check — same hazard class as `credits:backfill` (see
+      # lib/tasks/credits.rake). Since Task 2b, initial free-tier credits are
+      # gated on confirmed_at (see User#mark_email_verified!); this job
+      # bypasses that gate for basic_trial users expiring out of their soft
+      # trial. Do not change this behavior without an explicit decision to
+      # do so.
       CreditService.grant_plan!(
         user,
         amount: CreditService.monthly_credits_for("free"),

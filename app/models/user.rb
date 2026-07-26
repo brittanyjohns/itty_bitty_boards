@@ -845,9 +845,9 @@ class User < ApplicationRecord
   #
   # Returns true if this call newly verified the account, false if it was
   # already verified.
-  # `with_lock` wraps the block in `lock!` + a transaction, and `lock!`
-  # raises ActiveRecord::RecordNotSaved-ish dirty-attribute errors if the
-  # record already has unsaved changes — unlike the old
+  # `with_lock` wraps the block in `lock!` + a transaction, and `lock!` raises
+  # a plain `RuntimeError` ("Locking a record with unpersisted changes is not
+  # supported") if the record already has unsaved changes — unlike the old
   # `transaction do ... update! ... end` this replaced, which tolerated a
   # dirty object. Callers must pass a clean (unmutated) user in.
   def mark_email_verified!

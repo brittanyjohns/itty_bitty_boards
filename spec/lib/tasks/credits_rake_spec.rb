@@ -114,13 +114,45 @@ RSpec.describe "credits rake tasks", type: :task do
     end
 
     it "does not re-grant users with a healthy non-zero plan balance" do
-      user = FactoryBot.create(:user, plan_type: "pro")
-      # User has a fresh plan_grant from after_create and a positive balance — skip them.
+      # The task's query is `User.where(id: affected_user_ids, plan_credits_balance: 0)`
+      # (lib/tasks/credits.rake:41) — so a user must both (a) show up in
+      # affected_user_ids (a "expire"/"period_ended" row, matching the stale-backfill
+      # shape) and (b) currently hold a healthy non-zero balance, to actually prove the
+      # balance filter — not just the "no plan_grant row" skip — is what excludes them.
+      user = reset_user_credits!(FactoryBot.create(:user, plan_type: "pro"))
+      CreditTransaction.create!(
+        user: user,
+        amount: 1500,
+        kind: "plan_grant",
+        source: "plan",
+        expires_at: 2.months.ago,
+        metadata: { reason: "phase1_backfill", plan_type: "pro" },
+      )
+      CreditTransaction.create!(
+        user: user,
+        amount: -1500,
+        kind: "expire",
+        source: "plan",
+        metadata: { reason: "period_ended" },
+      )
+      # Give the user a healthy, non-zero balance via an explicit grant — this
+      # is the row state (plan_credits_balance != 0) the rake task's query
+      # filters on, so this user must be excluded even though they otherwise
+      # match the affected_user_ids shape.
+      CreditService.grant_plan!(
+        user,
+        amount: 1500,
+        period_end: 30.days.from_now,
+        metadata: { reason: "healthy_balance" },
+      )
+      expect(user.reload.plan_credits_balance).to eq(1500)
       grants_before = user.credit_transactions.where(kind: "plan_grant").count
+      expect(grants_before).to eq(2)
 
       task.invoke
 
       expect(user.credit_transactions.where(kind: "plan_grant").count).to eq(grants_before)
+      expect(user.reload.plan_credits_balance).to eq(1500)
     end
 
     it "does not re-grant users zeroed out for unrelated reasons (no period_ended expire row)" do
