@@ -474,8 +474,13 @@ class API::ImagesController < API::ApplicationController
     end
 
     # image_generation is free for first-time fills (no `check_credits!` call
-    # below in that case) — so email verification is the only gate standing
-    # between an unverified account and free OpenAI spend. Checked after the
+    # below in that case) — so on THIS route email verification is the only
+    # gate standing between an unverified account and free OpenAI spend. Note
+    # the communicator-side twin, API::Account::ImagesController#run_generate,
+    # has no token/credit/verification guard at all; it is only weakly
+    # reachable (a Free user's self-created communicator is forced to SANDBOX,
+    # which has no passcode and so no child token). Tracked separately.
+    # Checked after the
     # accessible_image lookup so a non-owner's private image still 404s before
     # this, same precedence as check_board_editable!'s resource-then-permission
     # ordering.

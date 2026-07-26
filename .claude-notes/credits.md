@@ -68,8 +68,9 @@ Plan-credit lifecycle:
 
 - **Email verification:** the account's initial grant is no longer made on
   signup. `User#mark_email_verified!` — the single idempotent place an
-  account becomes verified (called from the verification-link, invitation-accept,
-  and temp-login paths) — grants legacy welcome `tokens` inside a `with_lock`,
+  account becomes verified (intended callers: the verification-link,
+  invitation-accept, and temp-login paths — **not yet wired**, they land in a
+  later task of this branch) — grants legacy welcome `tokens` inside a `with_lock`,
   then calls `User#grant_initial_plan_credits` (→
   `CreditService.ensure_initial_grant!`) **outside** that lock/transaction, so
   a credit-grant failure can never roll back the verification itself. An
