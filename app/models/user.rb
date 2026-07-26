@@ -185,9 +185,9 @@ class User < ApplicationRecord
   # removed (drafts/drop-basic-trial-option-a.md). The `plan_type` column
   # already defaults to "free"; this callback just applies the Free-tier
   # limits in-memory on create so the account has a board slot, a communicator
-  # slot, and the AI monthly limit set from the start. The 5-credit initial
-  # grant is handled by after_create :grant_initial_plan_credits, which reads
-  # the user's plan_type ("free").
+  # slot, and the AI monthly limit set from the start. The initial AI credit
+  # grant (25 on Free) is deferred to email verification — see
+  # User#mark_email_verified!.
   before_create :setup_new_user_free_plan
   before_save :setup_limits, if: :plan_type_changed?
   before_save :update_vendor, if: :plan_type_changed?
@@ -205,11 +205,6 @@ class User < ApplicationRecord
   # already in `settings`) on every plan change. See
   # reconcile_paid_sandbox_promotions!.
   after_save :reconcile_paid_sandbox_promotions!, if: :saved_change_to_plan_type?
-
-  # Grant the user's tier's monthly AI credit allowance on signup so the
-  # very first AI call doesn't 402. Idempotent in CreditService — safe to
-  # call again if a callback runs twice.
-  after_create :grant_initial_plan_credits
 
   def grant_initial_plan_credits
     CreditService.ensure_initial_grant!(self)
@@ -600,10 +595,12 @@ class User < ApplicationRecord
     user.ensure_partner_pro_trial_subscription!(trial_end: trial_end)
 
     # Grant the Partner Pro (Pro-equivalent) credit allowance IMMEDIATELY.
-    # The after_create :grant_initial_plan_credits hook already ran while the
-    # account was still `free` (granting the free allowance), and
-    # ensure_initial_grant! is a no-op once any plan_grant exists — so without
-    # this a partner would sit on the free allowance until a cron re-grant.
+    # The initial free-tier grant is now deferred to email verification (see
+    # User#mark_email_verified!), so unlike before, ensure_initial_grant!
+    # hasn't necessarily run yet at this point. Either way, this explicit call
+    # is what actually provisions a partner right away — without it a partner
+    # would otherwise wait on email verification (or a free allowance, if
+    # already verified) instead of getting the partner_pro amount now.
     # grant_plan! resets the plan balance to the partner_pro monthly amount now.
     begin
       CreditService.grant_plan!(
@@ -851,14 +848,28 @@ class User < ApplicationRecord
   def mark_email_verified!
     return false if email_verified?
 
-    transaction do
+    with_lock do
+      # Re-check under the row lock: a scanner prefetch racing the user's own
+      # click can put two requests past the guard above. The balance is safe
+      # either way, but callers branch on the return value to pick user-facing
+      # copy, so only one call may report true.
+      return false if email_verified?
+
       # The verification token is deliberately NOT cleared here — see
       # verify_email in API::UsersController. Email security scanners prefetch
       # links and users double-click; keeping the token lets a replay resolve
       # to this user and get "already confirmed" instead of "invalid link". It
       # grants nothing once confirmed_at is set, and expires after 7 days.
       update!(confirmed_at: Time.current)
+
+      # Both currencies are granted here, not on create: an unverified account
+      # must hold nothing spendable. `tokens` is the legacy field (still spent
+      # by images_controller#find_or_create); AI credits are what the modern
+      # endpoints bill. Both are idempotent — add_welcome_tokens is reached
+      # only once thanks to the guard above, and ensure_initial_grant! no-ops
+      # when a plan_grant already exists.
       add_welcome_tokens
+      grant_initial_plan_credits
     end
     true
   end

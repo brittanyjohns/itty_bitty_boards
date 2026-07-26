@@ -271,42 +271,69 @@ RSpec.describe User, type: :model do
     end
   end
 
-  context "initial plan-credit grant on signup" do
-    it "grants the free allowance (25) by default since new users land on free" do
+  # The initial grant used to fire on signup; it's now deferred to email
+  # verification (see User#mark_email_verified! / task-2b) so an unverified
+  # account holds zero spendable credits. These specs cover the per-plan
+  # amounts and reset window at the new trigger point.
+  context "initial plan-credit grant on verification" do
+    it "does NOT grant plan credits on account creation" do
       user = FactoryBot.create(:user)
       expect(user.plan_type).to eq("free")
-      expect(user.plan_credits_balance).to eq(25)
+      expect(user.plan_credits_balance).to eq(0)
+      expect(user.credit_transactions.where(kind: "plan_grant")).to be_empty
+    end
+
+    it "grants the free allowance (25) by default since new users land on free" do
+      user = FactoryBot.create(:user, confirmed_at: nil)
+
+      user.mark_email_verified!
+
+      expect(user.reload.plan_credits_balance).to eq(25)
       expect(user.credit_transactions.where(kind: "plan_grant").count).to eq(1)
     end
 
     it "grants the basic allowance (400) when plan_type is explicitly basic" do
-      user = FactoryBot.create(:user, plan_type: "basic")
-      expect(user.plan_credits_balance).to eq(400)
+      user = FactoryBot.create(:user, plan_type: "basic", confirmed_at: nil)
+
+      user.mark_email_verified!
+
+      expect(user.reload.plan_credits_balance).to eq(400)
     end
 
     it "grants the pro allowance (1500) when plan_type is explicitly pro" do
-      user = FactoryBot.create(:user, plan_type: "pro")
-      expect(user.plan_credits_balance).to eq(1500)
+      user = FactoryBot.create(:user, plan_type: "pro", confirmed_at: nil)
+
+      user.mark_email_verified!
+
+      expect(user.reload.plan_credits_balance).to eq(1500)
     end
 
     it "sets plan_credits_reset_at = 30 days from now for free users (default)" do
-      user = FactoryBot.create(:user)
-      expect(user.plan_credits_reset_at).to be_within(5.seconds).of(30.days.from_now)
+      user = FactoryBot.create(:user, confirmed_at: nil)
+
+      user.mark_email_verified!
+
+      expect(user.reload.plan_credits_reset_at).to be_within(5.seconds).of(30.days.from_now)
     end
 
     it "does not grant credits to admins" do
-      admin = FactoryBot.create(:admin_user)
-      expect(admin.plan_credits_balance).to eq(0)
+      admin = FactoryBot.create(:admin_user, confirmed_at: nil)
+
+      admin.mark_email_verified!
+
+      expect(admin.reload.plan_credits_balance).to eq(0)
       expect(admin.credit_transactions.where(kind: "plan_grant")).to be_empty
     end
   end
 
   # Regression guard for drafts/drop-basic-trial-option-a.md: the no-CC
   # basic_trial soft trial was removed, so every brand-new signup must land on
-  # Free with Free limits and the 25-credit initial grant — no 400-credit trial.
+  # Free with Free limits — no 400-credit trial. The 25-credit grant itself
+  # is deferred to email verification (task-2b), so it's exercised here via
+  # an explicit mark_email_verified! rather than being present at create.
   context "fresh signup (no-CC soft trial removed)" do
-    it "lands on free with Free limits, a communicator slot, and a 25-credit grant" do
-      user = FactoryBot.create(:user)
+    it "lands on free with Free limits, a communicator slot, and a 25-credit grant on verification" do
+      user = FactoryBot.create(:user, confirmed_at: nil)
 
       expect(user.plan_type).to eq("free")
       expect(user.settings["board_limit"]).to eq(User::FREE_PLAN_LIMITS["board_limit"])
@@ -316,7 +343,12 @@ RSpec.describe User, type: :model do
         .to eq(User::FREE_PLAN_LIMITS["paid_communicator_limit"])
       expect(user.settings["paid_communicator_limit"].to_i).to be >= 1
 
-      expect(user.plan_credits_balance).to eq(25)
+      # Not yet granted before verification.
+      expect(user.plan_credits_balance).to eq(0)
+
+      user.mark_email_verified!
+
+      expect(user.reload.plan_credits_balance).to eq(25)
       expect(user.credit_transactions.where(kind: "plan_grant").count).to eq(1)
     end
   end
@@ -413,7 +445,12 @@ RSpec.describe User, type: :model do
   context "admin views expose ai_credits" do
     it "includes the credit balance in admin_api_view" do
       user = FactoryBot.create(:user, plan_type: "pro")
-      credits = user.admin_api_view["ai_credits"]
+      # The initial grant is deferred to email verification (task-2b) — grant
+      # explicitly here since this spec is about admin-view formatting, not
+      # the grant path itself.
+      CreditService.grant_plan!(user, amount: 1500, period_end: 1.month.from_now,
+                                       metadata: { source: "spec" })
+      credits = user.reload.admin_api_view["ai_credits"]
       expect(credits[:total]).to eq(1500)
       expect(credits[:plan]).to eq(1500)
       expect(credits[:topup]).to eq(0)
@@ -421,7 +458,9 @@ RSpec.describe User, type: :model do
 
     it "includes the credit balance in admin_index_view" do
       user = FactoryBot.create(:user, plan_type: "pro")
-      expect(user.admin_index_view["ai_credits"][:total]).to eq(1500)
+      CreditService.grant_plan!(user, amount: 1500, period_end: 1.month.from_now,
+                                       metadata: { source: "spec" })
+      expect(user.reload.admin_index_view["ai_credits"][:total]).to eq(1500)
     end
 
     it "reflects topup credits in the total" do

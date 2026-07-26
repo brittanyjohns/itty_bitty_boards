@@ -69,4 +69,42 @@ RSpec.describe User, "email verification state" do
       expect(user.reload.tokens).to eq(3)
     end
   end
+
+  describe "AI credit grant" do
+    it "does NOT grant plan credits on account creation" do
+      user = FactoryBot.create(:user)
+      expect(user.credit_transactions.where(kind: "plan_grant")).to be_empty
+      expect(CreditService.balance(user)[:total]).to eq(0)
+    end
+
+    it "grants the free-tier credit allowance on verification" do
+      user = FactoryBot.create(:user, confirmed_at: nil)
+
+      user.mark_email_verified!
+
+      expect(CreditService.balance(user.reload)[:total]).to eq(
+        CreditService.monthly_credits_for("free")
+      )
+    end
+
+    it "grants both currencies in one call" do
+      user = FactoryBot.create(:user, confirmed_at: nil)
+
+      user.mark_email_verified!
+
+      expect(user.reload.tokens).to eq(10)
+      expect(CreditService.balance(user)[:total]).to eq(25)
+    end
+
+    it "does not double-grant credits when called twice" do
+      user = FactoryBot.create(:user, confirmed_at: nil)
+      user.mark_email_verified!
+      user.reload
+
+      user.mark_email_verified!
+
+      expect(user.credit_transactions.where(kind: "plan_grant").count).to eq(1)
+      expect(CreditService.balance(user.reload)[:total]).to eq(25)
+    end
+  end
 end

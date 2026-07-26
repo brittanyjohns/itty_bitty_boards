@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
   describe "#perform" do
     it "refreshes a free user whose plan_credits_reset_at has passed" do
-      user = FactoryBot.create(:user, plan_type: "free", created_at: 30.days.ago)
+      user = FactoryBot.create(:user, plan_type: "free", created_at: 30.days.ago, confirmed_at: 30.days.ago)
       user.update_columns(plan_credits_balance: 0, plan_credits_reset_at: 2.days.ago, stripe_subscription_id: nil)
 
       expect {
@@ -13,7 +13,7 @@ RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
     end
 
     it "refreshes a basic_trial user whose reset_at has passed" do
-      user = FactoryBot.create(:user, plan_type: "basic_trial") # legacy fallback tier
+      user = FactoryBot.create(:user, plan_type: "basic_trial", confirmed_at: Time.current) # legacy fallback tier
       user.update_columns(plan_credits_balance: 0, plan_credits_reset_at: 1.minute.ago, stripe_subscription_id: nil)
 
       described_class.new.perform
@@ -28,7 +28,7 @@ RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
     end
 
     it "refreshes a non-Stripe Pro user (App Store / RevenueCat / admin-set) with the Pro allowance" do
-      user = FactoryBot.create(:user, plan_type: "pro")
+      user = FactoryBot.create(:user, plan_type: "pro", confirmed_at: Time.current)
       user.update_columns(
         plan_credits_balance: 0,
         plan_credits_reset_at: 2.days.ago,
@@ -41,7 +41,7 @@ RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
     end
 
     it "refreshes a non-Stripe Basic user with the Basic allowance" do
-      user = FactoryBot.create(:user, plan_type: "basic")
+      user = FactoryBot.create(:user, plan_type: "basic", confirmed_at: Time.current)
       user.update_columns(plan_credits_balance: 0, plan_credits_reset_at: 2.days.ago, stripe_subscription_id: nil)
 
       described_class.new.perform
@@ -60,7 +60,7 @@ RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
     end
 
     it "refreshes a YEARLY Stripe subscriber (their invoice only fires once a year)" do
-      user = FactoryBot.create(:user, plan_type: "pro")
+      user = FactoryBot.create(:user, plan_type: "pro", confirmed_at: Time.current)
       user.update!(settings: user.settings.merge("billing_interval" => "yearly"))
       user.update_columns(
         plan_credits_balance: 0,
@@ -81,7 +81,7 @@ RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
     end
 
     it "expires leftover credits before granting (no rollover for plan credits)" do
-      user = FactoryBot.create(:user, plan_type: "free", created_at: 30.days.ago)
+      user = FactoryBot.create(:user, plan_type: "free", created_at: 30.days.ago, confirmed_at: 30.days.ago)
       user.update_columns(plan_credits_balance: 7, plan_credits_reset_at: 2.days.ago, stripe_subscription_id: nil)
 
       described_class.new.perform
@@ -96,6 +96,26 @@ RSpec.describe RefreshFreeTierCreditsJob, type: :sidekiq do
 
       described_class.new.perform
       expect(user.reload.topup_credits_balance).to eq(50)
+    end
+  end
+
+  describe "email verification gating" do
+    it "refreshes credits for a verified free user" do
+      user = FactoryBot.create(:user, confirmed_at: Time.current)
+
+      described_class.new.perform
+
+      expect(CreditService.balance(user.reload)[:total]).to be > 0
+    end
+
+    # Without this the monthly cron would hand 25 credits to every unverified
+    # account, silently undoing the signup gate a month later.
+    it "skips an unverified user" do
+      user = FactoryBot.create(:user, confirmed_at: nil)
+
+      described_class.new.perform
+
+      expect(CreditService.balance(user.reload)[:total]).to eq(0)
     end
   end
 end

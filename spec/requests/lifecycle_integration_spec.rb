@@ -49,10 +49,13 @@ RSpec.describe "Subscription lifecycle (end-to-end)", type: :request do
     # ----- Step 1: legacy basic_trial account -----
     # New signups now land on free (the no-CC soft trial was removed,
     # drafts/drop-basic-trial-option-a.md), but basic_trial remains a valid
-    # fallback state we must keep handling. Construct one explicitly: it gets
-    # the 400-credit grant (User#after_create → CreditService.ensure_initial_grant!)
-    # and no Stripe customer yet.
+    # fallback state we must keep handling. Construct one explicitly, then
+    # verify: the 400-credit grant is deferred to email verification
+    # (User#mark_email_verified! → CreditService.ensure_initial_grant!,
+    # task-2b) rather than firing on create.
     user = FactoryBot.create(:user, stripe_customer_id: "cus_lifecycle", plan_type: "basic_trial")
+    user.mark_email_verified!
+    user.reload
     expect(user.plan_type).to eq("basic_trial")
     expect(user.plan_credits_balance).to eq(400)
     expect(user.paid_plan?).to be true # basic_trial.include?("basic") → true
@@ -154,8 +157,9 @@ RSpec.describe "Subscription lifecycle (end-to-end)", type: :request do
       stripe_customer_id: "cus_soft_only",
       plan_type: "basic_trial",
       paid_plan_type: nil)
+    user.mark_email_verified! # initial grant is deferred to verification (task-2b)
     user.update_column(:created_at, 20.days.ago)
-    expect(user.plan_credits_balance).to eq(400) # initial grant
+    expect(user.reload.plan_credits_balance).to eq(400) # initial grant
     user.update_columns(plan_credits_balance: 12, plan_credits_reset_at: 1.day.ago)
 
     DowngradeSoftTrialJob.new.perform

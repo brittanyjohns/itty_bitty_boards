@@ -18,6 +18,8 @@
 #   - plan_type is in REFRESHABLE_PLAN_TYPES
 #   - plan_credits_reset_at IS NULL (never granted) OR has passed
 #   - stripe_subscription_id is blank (no Stripe-driven renewal incoming)
+#   - Email is verified (confirmed_at present) — an unverified account must
+#     not collect credits it was denied at signup
 #   - Skip admins
 #
 # Idempotent in practice: grant_plan! expires leftovers and sets
@@ -81,5 +83,9 @@ class RefreshFreeTierCreditsJob
         "stripe_subscription_id IS NULL OR stripe_subscription_id = '' " \
         "OR settings->>'billing_interval' = 'yearly'",
       )
+      # An unverified account was deliberately denied its initial grant at
+      # signup (see User#mark_email_verified!) — the monthly cron must not
+      # silently hand it credits before that gate is cleared.
+      .where.not(confirmed_at: nil)
   end
 end
