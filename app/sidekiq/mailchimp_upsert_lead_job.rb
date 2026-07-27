@@ -15,11 +15,22 @@ class MailchimpUpsertLeadJob
     # Closing the Gap 2026 booth capture. Matches the tag the ctg-2026 campaign
     # segment and its welcome automation are already built against.
     "ctg" => "ctg-2026",
+    # Words Within Reach playground nominations, so opted-in nominators are a
+    # segment of their own rather than mixed into the download list.
+    "playground_nomination" => "PlaygroundNomination",
   }.freeze
 
   def perform(download_lead_id)
     lead = DownloadLead.find_by(id: download_lead_id)
     return unless lead
+
+    # The controller already gates this, but a lead can also be re-enqueued by
+    # hand or by a backfill task. Consent is checked at the point of sending so
+    # there is exactly one answer to "does this email belong in Mailchimp".
+    unless lead.sync_to_mailchimp?
+      lead.update(mailchimp_status: DownloadLead::MAILCHIMP_SKIPPED)
+      return
+    end
 
     MailchimpService.new.record_lead(
       email: lead.email,
