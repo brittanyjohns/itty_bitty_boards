@@ -70,6 +70,8 @@ class API::WebhooksController < API::ApplicationController
       handle_subscription_deleted(event.data.object)
     when "customer.subscription.paused"
       handle_subscription_paused(event.data.object)
+    when "payment_method.attached"
+      handle_payment_method_attached(event.data.object)
     when "invoice.payment_succeeded"
       handle_invoice_payment_succeeded(event.data.object, event.id)
     when "invoice.payment_failed"
@@ -875,6 +877,26 @@ class API::WebhooksController < API::ApplicationController
     Rails.logger.info "[StripeWebhook] subscription paused: user=#{user.id} status=paused"
   rescue => e
     Rails.logger.error "[StripeWebhook] handle_subscription_paused error: #{e.class} - #{e.message}"
+  end
+
+  # A card added through the Customer Portal attaches to the customer and may
+  # never touch the subscription, so handle_subscription_upsert can miss it.
+  # Flip the flag here so the "add a payment method" nudge stops immediately
+  # rather than waiting for the next subscription event.
+  def handle_payment_method_attached(payment_method)
+    raw_customer = payment_method.customer
+    customer_id = raw_customer.respond_to?(:id) ? raw_customer.id : raw_customer
+    user = User.find_by(stripe_customer_id: customer_id)
+    unless user
+      Rails.logger.info "[StripeWebhook] payment_method.attached: no user for customer #{customer_id}"
+      return
+    end
+
+    user.settings["has_payment_method"] = true
+    user.save!
+    Rails.logger.info "[StripeWebhook] payment_method.attached: user=#{user.id}"
+  rescue => e
+    Rails.logger.error "[StripeWebhook] payment_method.attached failed: #{e.class} - #{e.message}"
   end
 
   # ========== Helper methods ==========

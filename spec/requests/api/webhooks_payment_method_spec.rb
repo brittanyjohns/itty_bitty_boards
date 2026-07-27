@@ -114,4 +114,28 @@ RSpec.describe "POST /api/webhooks (has_payment_method)", type: :request do
     expect(response).to have_http_status(:ok)
     expect(user.reload.settings["has_payment_method"]).to eq(true)
   end
+
+  describe "payment_method.attached" do
+    def build_payment_method(customer: user.stripe_customer_id)
+      OpenStruct.new(id: "pm_#{SecureRandom.hex(3)}", customer: customer)
+    end
+
+    it "flips has_payment_method to true for the matching user" do
+      user.update!(settings: user.settings.merge("has_payment_method" => false))
+      stub_event(build_payment_method, type: "payment_method.attached")
+
+      post_webhook("{}", header_with_signature)
+
+      expect(response).to have_http_status(:ok)
+      expect(user.reload.settings["has_payment_method"]).to eq(true)
+    end
+
+    it "is a no-op for an unknown customer and still returns 200" do
+      stub_event(build_payment_method(customer: "cus_nobody"), type: "payment_method.attached")
+
+      post_webhook("{}", header_with_signature)
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
 end
