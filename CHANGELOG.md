@@ -5,6 +5,34 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Email verification for new signups
+- Both signup paths (standard signup and email-only/passwordless signup) now
+  send a confirmation email. The free welcome tokens and the initial AI credit
+  allowance are granted when the address is confirmed rather than at account
+  creation. Existing accounts are backfilled as verified and are unaffected.
+- Unverified accounts can still sign in and use the app — verification never
+  gates authentication — but hold zero welcome tokens and zero AI credits
+  until confirmed.
+- `POST /api/resend_email_verification` resends the confirmation link,
+  throttled per-account (5-minute interval).
+- Signup rate limiting (20/hour per IP on `POST /api/v1/users` and
+  `/api/v1/users/email_signup`) and rejection of disposable email domains at
+  signup.
+
+### Changed — AI image generation now requires a confirmed email address
+- Includes the previously-free first-time-fill path
+  (`POST /api/images/generate` on an image with no picture yet), which never
+  went through the credit ledger and so had no other gate. Unverified callers
+  get a generic **403 `email_verification_required`**; admins bypass.
+
+### Fixed — email-change confirmation tokens now expire
+- They previously never expired (`confirmation_sent_at` was stored but never
+  checked). Same 7-day window as signup verification.
+- Confirming an email change now grants verification (and the pending welcome
+  tokens and AI credits) to an account that had not yet been verified —
+  confirming a pending change is proof of inbox access on the new address,
+  the same as clicking the dedicated verification link.
+
 ### Changed — the category row is now the same on every page of a built board set
 - **Same reach, every page.** The row of category folders along the bottom of a
   built set's home board is now reproduced on every page of that set, in the

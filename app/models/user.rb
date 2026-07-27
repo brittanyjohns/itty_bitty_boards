@@ -311,10 +311,10 @@ class User < ApplicationRecord
   # `email_verified_at` is the single source of truth for "the address
   # currently on this account is proven reachable". It is set ONLY by paths
   # where the user clicked a link that was delivered to their inbox: the
-  # signup verification link and temp-login. `set_password` /
-  # invitation-accept does NOT verify — email_signup hands out that session
-  # with no email opened, so reaching set_password proves nothing about inbox
-  # ownership. See the task-7r brief.
+  # signup verification link, temp-login, and confirming a pending
+  # email-change link. `set_password` / invitation-accept does NOT verify —
+  # email_signup hands out that session with no email opened, so reaching
+  # set_password proves nothing about inbox ownership. See the task-7r brief.
   #
   # Deliberately NOT `confirmed_at` and NOT devise's :confirmable — this is a
   # JSON API on JWT, and confirmable would contend with the hand-rolled
