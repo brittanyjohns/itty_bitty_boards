@@ -869,8 +869,11 @@ class User < ApplicationRecord
   end
 
   # The ONE place an account becomes verified. Idempotent, so every path that
-  # proves inbox ownership (verification link, invitation accept, temp login)
-  # can call it freely without risking a double token grant.
+  # proves inbox ownership — the signup verification link
+  # (GET /api/verify_email), temp-login, and confirm_email_change (confirming
+  # a pending email-change link) — can call it freely without risking a
+  # double token grant. `set_password` / invitation-accept must NOT call this:
+  # see the in-body note below for why.
   #
   # Welcome tokens are granted here rather than on create: an unverified
   # account holds a zero balance, so there is no separate "can this user spend"

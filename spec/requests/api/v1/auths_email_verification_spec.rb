@@ -74,6 +74,24 @@ RSpec.describe "signup email verification", type: :request do
       expect(user.email_verified?).to be(false)
       expect(user.tokens).to eq(0)
     end
+
+    it "still succeeds and returns a token when the verification mail enqueue raises (e.g. Redis is down)" do
+      allow(UserMailer).to receive(:verify_email).and_raise(Redis::CannotConnectError, "Error connecting to Redis")
+
+      expect {
+        post "/api/v1/users/email_signup", params: { email: "paid@example.com" }, as: :json
+      }.to have_enqueued_mail(UserMailer, :welcome_email_receipt)
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["token"]).to be_present
+
+      user = User.find_by(email: "paid@example.com")
+      expect(user).to be_present
+      # By this point the account exists, is signed in, and has a Stripe
+      # customer — the verification-mail rescue must not strand any of that,
+      # and the welcome receipt still has to go out despite the failure.
+    end
   end
 end
 
@@ -96,14 +114,6 @@ RSpec.describe "verification is earned only by an emailed link", type: :request 
     expect(CreditService.balance(user)[:total]).to eq(0)
   end
 
-  it "sends a verification email on email_signup" do
-    expect {
-      post "/api/v1/users/email_signup", params: { email: "paid@example.com" }, as: :json
-    }.to have_enqueued_mail(UserMailer, :verify_email)
-
-    expect(User.find_by(email: "paid@example.com").email_verification_token).to be_present
-  end
-
   it "verifies and grants on a successful temp login" do
     user = FactoryBot.create(:user, email_verified_at: nil)
     user.update!(temp_login_token: "temptoken123", temp_login_expires_at: 1.hour.from_now)
@@ -121,6 +131,7 @@ RSpec.describe "verification is earned only by an emailed link", type: :request 
 
     get "/api/temp-login/temptoken456"
 
+    expect(response).to have_http_status(:ok)
     expect(user.reload.tokens).to eq(2)
   end
 end

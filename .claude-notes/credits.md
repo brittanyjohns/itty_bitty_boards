@@ -72,8 +72,9 @@ Plan-credit lifecycle:
   nothing else writes (NOT `confirmed_at`, which `devise_invitable` stamps on
   `accept_invitation!` regardless of proven inbox access, and which the
   hand-rolled email-change flow also writes). Callers: the verification-link
-  (`GET /api/verify_email`) and temp-login (`GET /api/temp-login/:token`) —
-  both paths where the user clicked a link delivered to their inbox.
+  (`GET /api/verify_email`), temp-login (`GET /api/temp-login/:token`), and
+  `confirm_email_change` (confirming a pending email-change link) — all three
+  are paths where the user clicked a link delivered to their inbox.
   `set_password` / invitation-accept does **not** call it — reaching
   `set_password` only requires the session `email_signup` already handed out,
   with no email opened, so it is not proof of inbox ownership (see the

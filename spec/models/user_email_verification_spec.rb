@@ -30,7 +30,7 @@ RSpec.describe User, "email verification state" do
     end
 
     it "grants tokens when the address is verified" do
-      user = FactoryBot.create(:user, confirmed_at: nil)
+      user = FactoryBot.create(:user)
 
       expect(user.mark_email_verified!).to be(true)
 
@@ -44,9 +44,9 @@ RSpec.describe User, "email verification state" do
     # confirmed" instead of a scary "invalid link". It grants nothing once
     # email_verified_at is set, and expires on its own after 7 days.
     it "retains the verification token so a replayed link can still be resolved" do
-      user = FactoryBot.create(:user, confirmed_at: nil,
-                                      email_verification_token: "abc123",
-                                      email_verification_sent_at: Time.current)
+      user = FactoryBot.create(:user,
+                                email_verification_token: "abc123",
+                                email_verification_sent_at: Time.current)
 
       user.mark_email_verified!
 
@@ -54,7 +54,7 @@ RSpec.describe User, "email verification state" do
     end
 
     it "is idempotent — a second call never double-grants" do
-      user = FactoryBot.create(:user, confirmed_at: nil)
+      user = FactoryBot.create(:user)
       user.mark_email_verified!
 
       expect(user.mark_email_verified!).to be(false)
@@ -78,7 +78,7 @@ RSpec.describe User, "email verification state" do
     end
 
     it "grants the free-tier credit allowance on verification" do
-      user = FactoryBot.create(:user, confirmed_at: nil)
+      user = FactoryBot.create(:user)
 
       user.mark_email_verified!
 
@@ -88,7 +88,7 @@ RSpec.describe User, "email verification state" do
     end
 
     it "grants both currencies in one call" do
-      user = FactoryBot.create(:user, confirmed_at: nil)
+      user = FactoryBot.create(:user)
 
       user.mark_email_verified!
 
@@ -97,7 +97,7 @@ RSpec.describe User, "email verification state" do
     end
 
     it "does not double-grant credits when called twice" do
-      user = FactoryBot.create(:user, confirmed_at: nil)
+      user = FactoryBot.create(:user)
       user.mark_email_verified!
       user.reload
 
@@ -110,7 +110,7 @@ RSpec.describe User, "email verification state" do
 
   describe "verification tokens" do
     it "generates a token and stamps the send time" do
-      user = FactoryBot.create(:user, confirmed_at: nil)
+      user = FactoryBot.create(:user)
 
       token = user.generate_email_verification_token!
 
@@ -120,7 +120,7 @@ RSpec.describe User, "email verification state" do
     end
 
     it "treats a fresh token as valid and a 8-day-old one as expired" do
-      user = FactoryBot.create(:user, confirmed_at: nil)
+      user = FactoryBot.create(:user)
       user.generate_email_verification_token!
       expect(user.email_verification_token_valid?).to be(true)
 
@@ -129,7 +129,7 @@ RSpec.describe User, "email verification state" do
     end
 
     it "blocks a resend inside the cooldown and allows one after" do
-      user = FactoryBot.create(:user, confirmed_at: nil)
+      user = FactoryBot.create(:user)
       user.generate_email_verification_token!
       expect(user.can_resend_email_verification?).to be(false)
 
@@ -138,7 +138,7 @@ RSpec.describe User, "email verification state" do
     end
 
     it "allows a resend when nothing has ever been sent" do
-      user = FactoryBot.create(:user, confirmed_at: nil, email_verification_sent_at: nil)
+      user = FactoryBot.create(:user, email_verification_sent_at: nil)
       expect(user.can_resend_email_verification?).to be(true)
     end
   end
