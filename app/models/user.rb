@@ -79,7 +79,6 @@ class User < ApplicationRecord
   has_many :images, dependent: :destroy
   has_many :docs, dependent: :destroy
   has_many :user_docs, dependent: :destroy
-  has_many :orders, dependent: :destroy
   has_many :openai_prompts, dependent: :destroy
   has_many :team_users, dependent: :destroy
   belongs_to :current_team, class_name: "Team", optional: true
@@ -244,25 +243,12 @@ class User < ApplicationRecord
     setup_free_limits if plan_type == "free"
   end
 
-  # DEPRECATED / DEAD: the no-CC soft trial was removed
-  # (drafts/drop-basic-trial-option-a.md). Nothing calls this — no callback,
-  # controller, job, or spec — so it can be deleted now; an existing
-  # basic_trial cohort is not a reason to keep it, since the method only ever
-  # *entered* the trial and no caller remains to do that.
-  #
-  # The cohort does still gate the rest of the basic_trial machinery, which is
-  # separate and must outlive this method: DowngradeSoftTrialJob,
+  # NOTE: `set_soft_trial_plan` was deleted here — the no-CC soft trial was
+  # removed (drafts/drop-basic-trial-option-a.md) and nothing called the method
+  # any more. It was the only way to *enter* basic_trial. The rest of the
+  # basic_trial machinery stays until the cohort ages out: DowngradeSoftTrialJob,
   # RefreshFreeTierCreditsJob, the basic_trial branches in setup_limits /
   # paid_plan?, and CreditService::PLAN_MONTHLY_CREDITS["basic_trial"].
-  def set_soft_trial_plan
-    # A non-blank paid_plan_type means the user has previously been on a paid
-    # plan (set by apply_free_plan on cancel/pause and by the soft-trial
-    # downgrade job). Don't bounce them back into basic_trial mid-trial-window.
-    return if paid_plan_type.present?
-    self.plan_type = "basic_trial" if plan_type.blank? || plan_type == "free"
-    setup_limits
-  end
-
   def setup_limits
     case plan_type
     when "free"

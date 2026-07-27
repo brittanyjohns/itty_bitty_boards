@@ -38,7 +38,7 @@ class CreditService
   # Default monthly grant by plan_type. Stripe Price metadata overrides at grant time.
   PLAN_MONTHLY_CREDITS = {
     "free" => 25,
-    "basic_trial" => 400, # Soft 14-day Basic trial set by User#set_soft_trial_plan
+    "basic_trial" => 400, # Retired soft 14-day Basic trial; kept for the existing cohort
     "basic" => 400,
     "basic_5yr" => 400,   # 5-Year Basic license — Basic-equivalent monthly credits
     "pro" => 1500,

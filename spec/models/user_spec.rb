@@ -653,4 +653,37 @@ RSpec.describe User, type: :model do
       expect(user.free_trial?).to be(false)
     end
   end
+
+  describe "#destroy" do
+    # Regression: `has_many :orders, dependent: :destroy` outlived the Order
+    # model (deleted in #25). Rails resolves the class name when the dependent
+    # callback runs, so EVERY User#destroy raised
+    # "NameError: Missing model class Order for the User#orders association",
+    # regardless of whether the user had any orders rows. Account deletion was
+    # broken for all users. Guard against re-adding an association whose model
+    # doesn't exist.
+    it "destroys a user without raising" do
+      user = FactoryBot.create(:user)
+
+      expect { user.destroy! }.not_to raise_error
+      expect(User.exists?(user.id)).to be(false)
+    end
+
+    it "has no association pointing at a missing model class" do
+      # Polymorphic associations resolve their class per-row, so there is no
+      # single klass to check — skip them rather than treating them as missing.
+      resolvable = User.reflect_on_all_associations.reject(&:polymorphic?)
+
+      missing = resolvable.reject do |assoc|
+        begin
+          assoc.klass
+          true
+        rescue NameError
+          false
+        end
+      end
+
+      expect(missing.map(&:name)).to be_empty
+    end
+  end
 end
