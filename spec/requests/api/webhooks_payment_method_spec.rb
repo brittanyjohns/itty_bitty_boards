@@ -48,9 +48,12 @@ RSpec.describe "POST /api/webhooks (has_payment_method)", type: :request do
     )
   end
 
-  def stub_customer(default_payment_method:)
+  def stub_customer(default_payment_method:, default_source: nil)
     allow(Stripe::Customer).to receive(:retrieve).and_return(
-      OpenStruct.new(invoice_settings: OpenStruct.new(default_payment_method: default_payment_method)),
+      OpenStruct.new(
+        invoice_settings: OpenStruct.new(default_payment_method: default_payment_method),
+        default_source: default_source,
+      ),
     )
   end
 
@@ -85,6 +88,26 @@ RSpec.describe "POST /api/webhooks (has_payment_method)", type: :request do
     user.update!(settings: user.settings.merge("has_payment_method" => true))
     allow(Stripe::Customer).to receive(:retrieve).and_raise(Stripe::APIError.new("boom"))
     stub_event(build_subscription, type: "customer.subscription.updated")
+
+    post_webhook("{}", header_with_signature)
+
+    expect(response).to have_http_status(:ok)
+    expect(user.reload.settings["has_payment_method"]).to eq(true)
+  end
+
+  it "records true for a customer whose only card is a legacy default_source" do
+    stub_customer(default_payment_method: nil, default_source: "card_legacy")
+    stub_event(build_subscription, type: "customer.subscription.updated")
+
+    post_webhook("{}", header_with_signature)
+
+    expect(user.reload.settings["has_payment_method"]).to eq(true)
+  end
+
+  it "does not call Stripe::Customer.retrieve and leaves has_payment_method unchanged for a non-trialing upsert" do
+    user.update!(settings: user.settings.merge("has_payment_method" => true))
+    expect(Stripe::Customer).not_to receive(:retrieve)
+    stub_event(build_subscription(status: "active"), type: "customer.subscription.updated")
 
     post_webhook("{}", header_with_signature)
 

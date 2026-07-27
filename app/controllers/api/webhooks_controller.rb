@@ -497,9 +497,16 @@ class API::WebhooksController < API::ApplicationController
 
     # Does Stripe have a card it can actually charge? Drives the trial banner's
     # "add a payment method" CTA — the no-card reverse trial (#264) cancels to
-    # Free at trial end when this stays false.
-    user.settings["has_payment_method"] =
-      payment_method_on_file?(subscription, user.settings["has_payment_method"])
+    # Free at trial end when this stays false. Only ever read for trialists
+    # (see `payment_method_on_file?`'s consumer), so only compute it while
+    # trialing — every other status (routine active-subscription updates like
+    # extra-communicator quantity changes) would otherwise pay for a synchronous
+    # `Stripe::Customer.retrieve` on a value nobody reads. Leave the existing
+    # value untouched for non-trialing statuses.
+    if subscription.status == "trialing"
+      user.settings["has_payment_method"] =
+        payment_method_on_file?(subscription, user.settings["has_payment_method"])
+    end
 
     user.setup_limits
 
@@ -910,23 +917,19 @@ class API::WebhooksController < API::ApplicationController
     (plan_item || items.first).price
   end
 
-  # True when Stripe has a chargeable card for this subscription. The
-  # subscription's own default_payment_method wins; the Customer Portal writes
-  # the card onto the *customer* instead, so fall back to that.
+  # True when Stripe has a chargeable card for this subscription. Delegates the
+  # actual lookup (subscription default -> customer invoice_settings default ->
+  # legacy default_source) to the shared Billing::PaymentMethods, also used by
+  # SubscriptionsController#customer_has_payment_method?.
   #
   # Fail-soft per the cross-cutting invariant: a Stripe error returns the value
   # we already had rather than raising — an external blip must never 500 a
   # webhook. Stale-false is a soft failure (we nudge someone who has a card);
-  # the next subscription event corrects it.
+  # the next subscription event corrects it. This rescue is deliberately kept
+  # local rather than folded into the shared lookup — see that module's
+  # comment for why the two callers' fallbacks must stay independent.
   def payment_method_on_file?(subscription, previous = false)
-    return true if subscription.try(:default_payment_method).present?
-
-    raw_customer = subscription.customer
-    customer_id = raw_customer.respond_to?(:id) ? raw_customer.id : raw_customer
-    return !!previous if customer_id.blank?
-
-    customer = Stripe::Customer.retrieve(customer_id)
-    customer.try(:invoice_settings).try(:default_payment_method).present?
+    Billing::PaymentMethods.on_file?(subscription.customer, subscription: subscription)
   rescue => e
     Rails.logger.error "[StripeWebhook] payment_method_on_file? failed for sub=#{subscription.try(:id)}: #{e.class} - #{e.message}"
     !!previous
