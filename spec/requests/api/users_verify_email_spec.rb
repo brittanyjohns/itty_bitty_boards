@@ -116,7 +116,12 @@ RSpec.describe "POST /api/resend_email_verification", type: :request do
     original_token = user.email_verification_token
     original_sent_at = user.email_verification_sent_at
 
-    allow(UserMailer).to receive(:verify_email).and_raise(Redis::BaseConnectionError, "connection refused")
+    # Stub deliver_later itself (not UserMailer.verify_email) so the failure
+    # happens exactly where it would in production — the Redis push inside
+    # deliver_later — rather than before the mailer is ever touched.
+    delivery = instance_double(ActionMailer::MessageDelivery)
+    allow(UserMailer).to receive(:verify_email).and_return(delivery)
+    allow(delivery).to receive(:deliver_later).and_raise(Redis::BaseConnectionError, "connection refused")
 
     resend
 

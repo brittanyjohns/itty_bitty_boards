@@ -859,6 +859,15 @@ class User < ApplicationRecord
       email_verification_sent_at < EMAIL_VERIFICATION_RESEND_INTERVAL.ago
   end
 
+  # Persists a token value the caller already handed to the mailer (see
+  # API::UsersController#resend_email_verification), rather than minting one
+  # itself like generate_email_verification_token! does. Used so the resend
+  # flow can enqueue the email with a token before committing anything, and
+  # only start the resend cooldown once the enqueue has actually succeeded.
+  def persist_email_verification_token!(token)
+    update!(email_verification_token: token, email_verification_sent_at: Time.current)
+  end
+
   # The ONE place an account becomes verified. Idempotent, so every path that
   # proves inbox ownership (verification link, invitation accept, temp login)
   # can call it freely without risking a double token grant.

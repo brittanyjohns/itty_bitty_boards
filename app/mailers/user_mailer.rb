@@ -57,10 +57,17 @@ class UserMailer < BaseMailer
   # `confirmation_token`; this one proves the address given at signup and
   # carries `verification_token`. They use separate DB columns so a pending
   # change and a pending signup verification can never clobber each other.
-  def verify_email(user)
+  #
+  # `token` lets a caller (resend_email_verification) hand over the exact
+  # value it wants delivered *before* persisting it to the user row — this
+  # job may run on Sidekiq before that write commits, so reading the token
+  # back off `user` here would risk rendering a stale/pre-rotation value.
+  # Falls back to the persisted column for callers (sign_up, email_signup)
+  # that write the token first and mail second.
+  def verify_email(user, token = nil)
     user.reload
     @user = user
-    @token = @user.email_verification_token
+    @token = token || @user.email_verification_token
     if @token.nil?
       Rails.logger.error "No email verification token found for user #{@user.id}"
       return

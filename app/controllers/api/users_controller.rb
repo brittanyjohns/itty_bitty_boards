@@ -173,18 +173,41 @@ class API::UsersController < API::ApplicationController
 
     # The whole point of this request is sending an email, so an enqueue
     # failure here can't be reported as success — that would be a lie the
-    # user discovers when nothing arrives. Wrapped in a transaction so a
-    # Redis blip on deliver_later (queue_adapter is :sidekiq, so this pushes
-    # synchronously) rolls back the token/timestamp rotation too — otherwise
-    # the cooldown would start on a send that never happened, and the user's
-    # very next retry would get throttled instead of a real second attempt.
+    # user discovers when nothing arrives, and it's why this endpoint
+    # deliberately diverges from sign_up/email_signup's best-effort verification
+    # email (those succeed regardless — account creation is the primary
+    # purpose and a missing token is recoverable from here).
+    #
+    # A DB transaction can't give this atomicity: queue_adapter is :sidekiq,
+    # so deliver_later pushes to Redis immediately, and Redis isn't a
+    # participant in any Postgres transaction wrapped around it. Wrapping one
+    # around the token write used to create two hazards instead of removing
+    # one — a worker could dequeue and render the mailer against the
+    # not-yet-committed (stale) token before commit, or the push could
+    # succeed and then the commit fail, leaving a queued job for a token that
+    # was never persisted.
+    #
+    # So: sequence instead of rolling back. Mint the token value, hand it
+    # directly to the mailer (which delivers it as-is rather than reading it
+    # back off the user — see UserMailer#verify_email), and only persist the
+    # token + email_verification_sent_at — which starts the cooldown — after
+    # the enqueue call itself has returned without raising.
+    token = SecureRandom.hex(16)
     begin
-      ActiveRecord::Base.transaction do
-        current_user.generate_email_verification_token!
-        UserMailer.verify_email(current_user).deliver_later
-      end
+      UserMailer.verify_email(current_user, token).deliver_later
     rescue => e
       Rails.logger.error "resend_email_verification: mailer enqueue failed for #{current_user.email}: #{e.class}: #{e.message}"
+      return render json: { error: "Couldn't send the verification email. Please try again in a moment." },
+                    status: :service_unavailable
+    end
+
+    begin
+      current_user.persist_email_verification_token!(token)
+    rescue => e
+      # Rare: the email is already out (with `token` embedded in its link),
+      # but we failed to save that same token to the user row, so the link
+      # would 404. Still the honest response — nothing usable was persisted.
+      Rails.logger.error "resend_email_verification: token persist failed after enqueue for #{current_user.email}: #{e.class}: #{e.message}"
       return render json: { error: "Couldn't send the verification email. Please try again in a moment." },
                     status: :service_unavailable
     end
