@@ -253,7 +253,6 @@ en:
       greeting: "Hi %{name}!"
       greeting_no_name: "Hi there!"
       intro: "Thanks for joining SpeakAnyWay. Confirm this email address so we know we can reach you — it's the address we'll use for password resets and account updates."
-      tokens_note: "Confirming also unlocks the 10 free image credits waiting on your account."
       cta: "Confirm my email"
       expiry_note: "This link works for 7 days. If it expires, you can send yourself a new one from your dashboard."
       ignore: "If you didn't create a SpeakAnyWay account, you can safely ignore this email."
