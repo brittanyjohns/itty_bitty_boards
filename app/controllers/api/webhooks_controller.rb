@@ -495,6 +495,12 @@ class API::WebhooksController < API::ApplicationController
       user.settings.delete("trial_ends_at")
     end
 
+    # Does Stripe have a card it can actually charge? Drives the trial banner's
+    # "add a payment method" CTA — the no-card reverse trial (#264) cancels to
+    # Free at trial end when this stays false.
+    user.settings["has_payment_method"] =
+      payment_method_on_file?(subscription, user.settings["has_payment_method"])
+
     user.setup_limits
 
     user.save!
@@ -902,6 +908,28 @@ class API::WebhooksController < API::ApplicationController
     end
     plan_item ||= items.find { |item| !Billing::ExtraCommunicators.extra_comm_item?(item) }
     (plan_item || items.first).price
+  end
+
+  # True when Stripe has a chargeable card for this subscription. The
+  # subscription's own default_payment_method wins; the Customer Portal writes
+  # the card onto the *customer* instead, so fall back to that.
+  #
+  # Fail-soft per the cross-cutting invariant: a Stripe error returns the value
+  # we already had rather than raising — an external blip must never 500 a
+  # webhook. Stale-false is a soft failure (we nudge someone who has a card);
+  # the next subscription event corrects it.
+  def payment_method_on_file?(subscription, previous = false)
+    return true if subscription.try(:default_payment_method).present?
+
+    raw_customer = subscription.customer
+    customer_id = raw_customer.respond_to?(:id) ? raw_customer.id : raw_customer
+    return !!previous if customer_id.blank?
+
+    customer = Stripe::Customer.retrieve(customer_id)
+    customer.try(:invoice_settings).try(:default_payment_method).present?
+  rescue => e
+    Rails.logger.error "[StripeWebhook] payment_method_on_file? failed for sub=#{subscription.try(:id)}: #{e.class} - #{e.message}"
+    !!previous
   end
 
   # Map a Stripe Price's recurring interval to the frontend's billing_interval
