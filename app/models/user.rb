@@ -186,8 +186,10 @@ class User < ApplicationRecord
   # already defaults to "free"; this callback just applies the Free-tier
   # limits in-memory on create so the account has a board slot, a communicator
   # slot, and the AI monthly limit set from the start. The initial AI credit
-  # grant (25 on Free) is deferred to email verification — see
-  # User#mark_email_verified!.
+  # grant is deferred to email verification — see User#mark_email_verified!.
+  # Its size is the plan's monthly allowance, read from
+  # CreditService::PLAN_MONTHLY_CREDITS for the user's plan_type; don't
+  # restate the number here, it drifts.
   before_create :setup_new_user_free_plan
   before_save :setup_limits, if: :plan_type_changed?
   before_save :update_vendor, if: :plan_type_changed?
@@ -242,10 +244,16 @@ class User < ApplicationRecord
     setup_free_limits if plan_type == "free"
   end
 
-  # DEPRECATED: the no-CC soft trial was removed
-  # (drafts/drop-basic-trial-option-a.md). No longer wired to any callback or
-  # controller — kept defined as harmless fallback during the cutover. Safe to
-  # delete once the basic_trial cohort is confirmed empty.
+  # DEPRECATED / DEAD: the no-CC soft trial was removed
+  # (drafts/drop-basic-trial-option-a.md). Nothing calls this — no callback,
+  # controller, job, or spec — so it can be deleted now; an existing
+  # basic_trial cohort is not a reason to keep it, since the method only ever
+  # *entered* the trial and no caller remains to do that.
+  #
+  # The cohort does still gate the rest of the basic_trial machinery, which is
+  # separate and must outlive this method: DowngradeSoftTrialJob,
+  # RefreshFreeTierCreditsJob, the basic_trial branches in setup_limits /
+  # paid_plan?, and CreditService::PLAN_MONTHLY_CREDITS["basic_trial"].
   def set_soft_trial_plan
     # A non-blank paid_plan_type means the user has previously been on a paid
     # plan (set by apply_free_plan on cancel/pause and by the soft-trial
