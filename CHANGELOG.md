@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Payment-method prompt for no-card reverse trials
+- `api_view` now returns a computed `trial` block (`active`, `status`,
+  `ends_at`, `provider`, `needs_payment_method`, `plan_label`) so the app can
+  ask card-less trialists for a payment method instead of a plan they already
+  chose.
+- `settings["has_payment_method"]` tracks whether Stripe has a chargeable card,
+  updated on subscription upsert and on `payment_method.attached`.
+- `POST /api/subscriptions/billing_portal` accepts `flow=payment_method_update`
+  to open Stripe's focused "add a card" flow.
+
 ### Added — Email verification for new signups
 - Both signup paths (standard signup and email-only/passwordless signup) now
   send a confirmation email. The free welcome tokens and the initial AI credit

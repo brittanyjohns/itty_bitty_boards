@@ -138,6 +138,34 @@ The `trial_started` AnalyticsEvent is likewise gated on `apply_trial`, so promo
 conversions don't pollute the trial→paid metric. Non-promo checkouts are
 unchanged (full no-card reverse trial).
 
+**Client-facing trial state.** `User#api_view` carries a computed `trial`
+block — `{ active, status, ends_at, provider, needs_payment_method,
+plan_label }` — so the frontend never re-derives billing rules. `provider` is
+`"stripe"` when `stripe_subscription_id` is present, else `"revenuecat"`.
+`active` is false for `partner_pro` (the 3-month pilot trial is managed
+outside the app, so no countdown UI). `needs_payment_method` is true only for
+a Stripe trial with no card on file — that is the reverse-trial cohort that
+drops to Free at trial end.
+
+The card-on-file signal is `settings["has_payment_method"]`, written by
+`handle_subscription_upsert` (subscription default payment method, falling
+back to the customer's `invoice_settings.default_payment_method`, which is
+where the Customer Portal writes it) and by a `payment_method.attached`
+handler so a portal-added card registers mid-trial. Both fail soft: a Stripe
+error keeps the previous value rather than raising. Both webhook paths and
+`SubscriptionsController#customer_has_payment_method?` share the same lookup,
+`Billing::PaymentMethods.on_file?` (`app/services/billing/payment_methods.rb`).
+
+**Payment-method portal CTA.** `POST /api/subscriptions/billing_portal`
+accepts an optional `flow` param; `flow=payment_method_update` adds
+`flow_data: { type: "payment_method_update" }` to the Stripe session so the
+portal opens directly on "add a card" instead of its home screen — the
+destination for the trial banner's payment-method CTA. Allowed flow values
+are allow-listed (`API::SubscriptionsController::PORTAL_FLOWS`) rather than
+passed through, so a client can never drive an arbitrary Stripe portal flow;
+an unrecognized value is silently ignored and the portal opens on its normal
+home screen.
+
 ### Partner Program (`partner_pro`)
 
 The `/sign-up/partner` flow (frontend `viewType="partner"`) posts to the normal

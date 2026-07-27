@@ -87,4 +87,50 @@ RSpec.describe "POST /api/subscriptions/billing_portal", type: :request do
       expect(captured[:configuration]).to eq("bpc_test_config")
     end
   end
+
+  context "when a focused payment-method flow is requested" do
+    let(:user) { FactoryBot.create(:user, stripe_customer_id: "cus_existing") }
+
+    it "passes flow_data so the portal opens on 'add a card'" do
+      captured = nil
+      expect(Stripe::BillingPortal::Session).to receive(:create) do |params|
+        captured = params
+        portal_session
+      end
+
+      post "/api/subscriptions/billing_portal",
+           params: { flow: "payment_method_update" },
+           headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      expect(captured[:flow_data]).to eq(type: "payment_method_update")
+    end
+
+    it "omits flow_data for a plain portal request" do
+      captured = nil
+      expect(Stripe::BillingPortal::Session).to receive(:create) do |params|
+        captured = params
+        portal_session
+      end
+
+      post "/api/subscriptions/billing_portal", headers: auth_headers(user)
+
+      expect(response).to have_http_status(:ok)
+      expect(captured).not_to have_key(:flow_data)
+    end
+
+    it "ignores an unrecognized flow value" do
+      captured = nil
+      expect(Stripe::BillingPortal::Session).to receive(:create) do |params|
+        captured = params
+        portal_session
+      end
+
+      post "/api/subscriptions/billing_portal",
+           params: { flow: "something_else" },
+           headers: auth_headers(user)
+
+      expect(captured).not_to have_key(:flow_data)
+    end
+  end
 end

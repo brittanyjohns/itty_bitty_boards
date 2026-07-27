@@ -100,6 +100,7 @@ There's already a Stripe webhook configured at `/api/webhooks` that uses
 - `customer.subscription.paused`
 - `customer.created`
 - `invoice.payment_succeeded` *(triggers plan-credit grants on first paid period and every renewal — Phase 4)*
+- `payment_method.attached` *(flips `settings["has_payment_method"]` on mid-trial so a card added via the Customer Portal registers immediately, instead of waiting for the next subscription-upsert webhook)*
 
 ## 4. Redirect URLs (success_url / cancel_url)
 

@@ -13,6 +13,10 @@ class API::SubscriptionsController < API::ApplicationController
     render json: { error: "Failed to load subscriptions" }, status: :bad_request
   end
 
+  # Flows the client may request. Allow-listed rather than passed through so a
+  # client can't drive arbitrary Stripe portal flows.
+  PORTAL_FLOWS = %w[payment_method_update].freeze
+
   def billing_portal
     # Free accounts (mobile signups, legacy users) may not have a Stripe
     # customer yet — create one lazily so the portal works for everyone.
@@ -21,6 +25,12 @@ class API::SubscriptionsController < API::ApplicationController
       customer: customer_id,
       return_url: "#{DOMAIN}/dashboard",
     }
+    # Focused "add a card" flow for the trial banner's payment-method CTA.
+    # Without it the portal opens on its home screen and a trialist with no
+    # card has to hunt for the payment-method section.
+    if PORTAL_FLOWS.include?(params[:flow].to_s)
+      portal_params[:flow_data] = { type: params[:flow].to_s }
+    end
     portal_params[:configuration] = ENV["STRIPE_PORTAL_CONFIG_ID"] if ENV["STRIPE_PORTAL_CONFIG_ID"].present?
     session = Stripe::BillingPortal::Session.create(portal_params)
     render json: { url: session&.url }, status: 200
