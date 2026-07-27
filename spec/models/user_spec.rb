@@ -74,8 +74,8 @@ RSpec.describe User, type: :model do
       expect(partner.partner_pro?).to be(true)
     end
 
-    it "gets the Pro supporter limit (5, not 2)" do
-      expect(partner.supporter_limit).to eq(5)
+    it "has no supporter limit" do
+      expect(partner).not_to respond_to(:supporter_limit)
     end
 
     it "gets Pro board/communicator/board-set limits" do

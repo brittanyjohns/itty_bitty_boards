@@ -185,7 +185,7 @@ RSpec.describe "API::V1::Auth", type: :request do
       expect(user.plan_credits_balance).to eq(CreditService.monthly_credits_for("partner_pro"))
       expect(user.pro?).to be(true)
       expect(user.paid_plan?).to be(true)
-      expect(user.supporter_limit).to eq(5)
+      expect(user.board_limit).to eq(User::PRO_PLAN_LIMITS["board_limit"])
     end
 
     it "skips the welcome email when should_send_welcome_email? is false" do

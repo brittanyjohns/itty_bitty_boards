@@ -101,6 +101,15 @@ RSpec.describe UserMailer, type: :mailer do
       expect(mail.html_part.body.decoded).to include("Abre tu Panel")
       expect(mail.html_part.body.decoded).to include("Hola Pat")
     end
+
+    it "does not promise a supporter cap" do
+      use_locale(user, "en-US")
+      body = described_class.welcome_basic_email(user).deliver_now.html_part.body.decoded
+
+      expect(body).to include("Invite <strong>Supporters</strong>")
+      expect(body).not_to match(/Invite up to <strong>\d+<\/strong> Supporter/)
+      expect(body).to include("Unlimited")
+    end
   end
 
   describe "#welcome_pro_email" do

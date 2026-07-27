@@ -246,7 +246,7 @@ webhook's `send_plan_welcome_email_once!` is a no-op (partners get
 **Partner Pro is Pro-equivalent everywhere — `User#pro?` returns true for it.**
 `pro?` is `%w[pro pro_yearly partner_pro].include?(plan_type)`, so a partner is
 treated as Pro by `paid_plan?`, `partner_pro?` (`pro? && role == "partner"`),
-`supporter_limit` (5), the lending gate (`require_pro_for_lending!`), and the
+the lending gate (`require_pro_for_lending!`), and the
 api_view `pro` flag. Before this, `pro?` was the exact string `"pro"`, so
 partners silently fell through to Free-level treatment on those checks (and
 `partner_pro?` was always false). Limits already came from `setup_partner_pro_plan`
