@@ -19,6 +19,72 @@ RSpec.describe AdminMailer, type: :mailer do
     end
   end
 
+  describe "#new_nomination_email" do
+    # There is no admin UI for nominations yet, so this email is the only place
+    # the details show up — every field has to survive into the body.
+    def nomination(data = {})
+      FactoryBot.create(
+        :download_lead,
+        email: "nominator@example.com",
+        name: "Jane Doe",
+        source: DownloadLead::NOMINATION_SOURCE,
+        data: {
+          "park" => "LaGrange Community Park",
+          "city" => "LaGrange, OH",
+          "role" => "Parent / caregiver",
+          "why" => "Our son swings here every day and there are no words on the swings.",
+          "sponsor_interest" => "No",
+        }.merge(data),
+      )
+    end
+
+    def body_of(mail)
+      (mail.html_part || mail).body.decoded
+    end
+
+    it "addresses the admin, names the park in the subject, and renders the details" do
+      mail = described_class.new_nomination_email(nomination).deliver_now
+
+      expect(mail.to).to eq([ENV["ADMIN_EMAIL"] || "brittany@speakanyway.com"])
+      expect(mail.subject).to eq("Playground nomination: LaGrange Community Park (LaGrange, OH)")
+
+      body = body_of(mail)
+      expect(body).to include("LaGrange Community Park")
+      expect(body).to include("nominator@example.com")
+      expect(body).to include("Jane Doe")
+      expect(body).to include("Parent / caregiver")
+      expect(body).to include("there are no words on the swings")
+    end
+
+    it "calls out a nominator who is interested in sponsoring" do
+      mail = described_class.new_nomination_email(nomination("sponsor_interest" => "Yes")).deliver_now
+      expect(body_of(mail)).to include("interested in sponsoring")
+    end
+
+    it "does not call out sponsorship when they said no" do
+      mail = described_class.new_nomination_email(nomination).deliver_now
+      expect(body_of(mail)).not_to include("interested in sponsoring")
+    end
+
+    it "states plainly whether the nominator opted into marketing" do
+      opted_out = body_of(described_class.new_nomination_email(nomination).deliver_now)
+      expect(opted_out).to include("not added to any list")
+
+      opted_in = body_of(
+        described_class.new_nomination_email(nomination("marketing_opt_in" => true)).deliver_now,
+      )
+      expect(opted_in).to include("added to Mailchimp")
+    end
+
+    it "renders a sparse nomination without blowing up" do
+      lead = FactoryBot.create(:download_lead, source: DownloadLead::NOMINATION_SOURCE, data: {})
+      mail = described_class.new_nomination_email(lead).deliver_now
+
+      expect(mail.subject).to eq("Playground nomination: Unnamed playground")
+      expect(body_of(mail)).to include(lead.email)
+    end
+  end
+
   describe "#partner_pilot_review" do
     it "addresses the admin, summarizes counts, and lists both groups" do
       expiring = FactoryBot.create(:user, name: "Soon", email: "soon@example.com", plan_type: "partner_pro")

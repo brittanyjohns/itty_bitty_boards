@@ -8,7 +8,31 @@ class AdminMailerPreview < ActionMailer::Preview
     AdminMailer.plan_change_email(preview_user, from_plan: "free", to_plan: "pro", source: "stripe")
   end
 
+  def new_nomination_email
+    AdminMailer.new_nomination_email(preview_nomination)
+  end
+
   private
+
+  # Uses a real nomination when one exists, otherwise an unsaved stand-in so the
+  # preview renders on a fresh database.
+  def preview_nomination
+    DownloadLead.nominations.order(created_at: :desc).first || DownloadLead.new(
+      id: 0,
+      email: "nominator@example.com",
+      name: "Jane Doe",
+      source: DownloadLead::NOMINATION_SOURCE,
+      created_at: Time.current,
+      data: {
+        "park" => "LaGrange Community Park",
+        "city" => "LaGrange, OH",
+        "role" => "Parent / caregiver",
+        "why" => "Our son swings here every day and there are no words on the swings.",
+        "sponsor_interest" => "Yes",
+        "marketing_opt_in" => true,
+      },
+    )
+  end
 
   def preview_user
     User.non_admin.order(created_at: :desc).first || User.first
