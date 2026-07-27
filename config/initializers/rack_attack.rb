@@ -34,6 +34,14 @@ class Rack::Attack
   PASSWORD_RESET_LIMIT  = env_int("RACK_ATTACK_PASSWORD_RESET_LIMIT", 5)
   PASSWORD_RESET_PERIOD = env_int("RACK_ATTACK_PASSWORD_RESET_PERIOD", 3600)
 
+  # Signup (per IP) — stops scripted account farming for the free welcome
+  # tokens. Set generously on purpose: schools, clinics, and libraries NAT many
+  # users behind one address, and an SLP running a group training session must
+  # not trip it. This is a backstop; email verification and the token gate
+  # carry the real load.
+  SIGNUP_LIMIT          = env_int("RACK_ATTACK_SIGNUP_LIMIT", 20)
+  SIGNUP_PERIOD         = env_int("RACK_ATTACK_SIGNUP_PERIOD", 3600)
+
   # Token-access lookups (per IP) — temp-login / communicator-claim links.
   TOKEN_LIMIT           = env_int("RACK_ATTACK_TOKEN_LIMIT", 20)
   TOKEN_PERIOD          = env_int("RACK_ATTACK_TOKEN_PERIOD", 60)
@@ -56,10 +64,18 @@ class Rack::Attack
   # POST password-reset surfaces.
   PASSWORD_RESET_PATHS = %r{\A/api/v1/(forgot_password|reset_password|reset_password_invite)(\.\w+)?\z}
 
+  # POST account-creation surfaces: standard signup and email-only signup.
+  SIGNUP_PATHS = %r{\A/api/v1/users(/email_signup)?(\.\w+)?\z}
+
   # Access-granting token lookups (enumeration-sensitive). Deliberately does
   # NOT include `GET /api/generated_boards/:token` — the frontend polls that
   # while a board renders, and throttling it could break generation.
-  TOKEN_ACCESS_PATHS = %r{\A/api/(temp-login|communicator_claims)/}
+  #
+  # temp-login/communicator_claims take their token as a path segment, hence
+  # the trailing slash; verify_email takes its token as a query param
+  # (`/api/verify_email?token=...`), so it's matched as an exact path with no
+  # trailing slash instead.
+  TOKEN_ACCESS_PATHS = %r{\A/api/(temp-login|communicator_claims)/|\A/api/verify_email\z}
 
   # AI-generation path suffixes (the issue's `/generate*` + audio generation).
   AI_GEN_SUFFIXES = %w[generate generate_audio generate_preview_image regenerate_images].freeze
@@ -142,6 +158,10 @@ class Rack::Attack
 
   throttle("password_reset/ip", limit: PASSWORD_RESET_LIMIT, period: PASSWORD_RESET_PERIOD) do |req|
     req.ip if req.post? && req.path.match?(PASSWORD_RESET_PATHS)
+  end
+
+  throttle("signup/ip", limit: SIGNUP_LIMIT, period: SIGNUP_PERIOD) do |req|
+    req.ip if req.post? && req.path.match?(SIGNUP_PATHS)
   end
 
   # --- Throttles: token-access lookups -------------------------------------
