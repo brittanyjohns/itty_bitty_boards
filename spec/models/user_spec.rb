@@ -490,6 +490,81 @@ RSpec.describe User, type: :model do
     end
   end
 
+  describe "#api_view trial block" do
+    it "describes a card-less Stripe trial as needing a payment method" do
+      user = FactoryBot.create(:user,
+        plan_type: "basic",
+        plan_status: "trialing",
+        stripe_subscription_id: "sub_123")
+      user.settings["trial_ends_at"] = "2026-08-10T12:00:00Z"
+      user.settings["has_payment_method"] = false
+      user.save!
+
+      expect(user.api_view[:trial]).to include(
+        active: true,
+        provider: "stripe",
+        needs_payment_method: true,
+        plan_label: "Basic",
+        ends_at: "2026-08-10T12:00:00Z",
+      )
+    end
+
+    it "does not ask a Stripe trialist who already has a card" do
+      user = FactoryBot.create(:user,
+        plan_type: "pro",
+        plan_status: "trialing",
+        stripe_subscription_id: "sub_456")
+      user.settings["has_payment_method"] = true
+      user.save!
+
+      expect(user.api_view[:trial]).to include(
+        active: true,
+        provider: "stripe",
+        needs_payment_method: false,
+        plan_label: "Pro",
+      )
+    end
+
+    it "never asks a RevenueCat trialist for a card" do
+      user = FactoryBot.create(:user,
+        plan_type: "pro",
+        plan_status: "trialing",
+        stripe_subscription_id: nil)
+      user.settings["trial_ends_at"] = "2026-08-10T12:00:00Z"
+      user.save!
+
+      expect(user.api_view[:trial]).to include(
+        active: true,
+        provider: "revenuecat",
+        needs_payment_method: false,
+      )
+    end
+
+    it "suppresses trial UI for partner_pro pilots" do
+      user = FactoryBot.create(:user,
+        plan_type: "partner_pro",
+        plan_status: "trialing",
+        stripe_subscription_id: "sub_partner")
+      user.settings["trial_ends_at"] = "2026-10-10T12:00:00Z"
+      user.save!
+
+      expect(user.api_view[:trial]).to include(
+        active: false,
+        needs_payment_method: false,
+      )
+    end
+
+    it "is inactive for a user who is not on a provider trial" do
+      user = FactoryBot.create(:user, plan_type: "free", plan_status: nil)
+
+      expect(user.api_view[:trial]).to include(
+        active: false,
+        provider: nil,
+        needs_payment_method: false,
+      )
+    end
+  end
+
   describe "#api_view has_boards flag" do
     it "is false when the user has no boards" do
       user = FactoryBot.create(:free_user)
