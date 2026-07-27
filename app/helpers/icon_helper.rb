@@ -1,8 +1,4 @@
 module IconHelper
-    def shopping_cart_nav(tooltip_text = "View Cart")
-        "<i class='fa-solid fa-cart-shopping fa-lg' data-tippy-content='#{tooltip_text}' }></i>".html_safe
-    end
-
     def contact_nav(tooltip_text = "Contact Us")
         "<i class='fa-solid fa-envelope fa-lg' data-tippy-content='#{tooltip_text}' }></i>".html_safe
     end

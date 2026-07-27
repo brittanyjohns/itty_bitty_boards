@@ -79,7 +79,6 @@ class User < ApplicationRecord
   has_many :images, dependent: :destroy
   has_many :docs, dependent: :destroy
   has_many :user_docs, dependent: :destroy
-  has_many :orders, dependent: :destroy
   has_many :openai_prompts, dependent: :destroy
   has_many :team_users, dependent: :destroy
   belongs_to :current_team, class_name: "Team", optional: true
@@ -186,8 +185,10 @@ class User < ApplicationRecord
   # already defaults to "free"; this callback just applies the Free-tier
   # limits in-memory on create so the account has a board slot, a communicator
   # slot, and the AI monthly limit set from the start. The initial AI credit
-  # grant (25 on Free) is deferred to email verification — see
-  # User#mark_email_verified!.
+  # grant is deferred to email verification — see User#mark_email_verified!.
+  # Its size is the plan's monthly allowance, read from
+  # CreditService::PLAN_MONTHLY_CREDITS for the user's plan_type; don't
+  # restate the number here, it drifts.
   before_create :setup_new_user_free_plan
   before_save :setup_limits, if: :plan_type_changed?
   before_save :update_vendor, if: :plan_type_changed?
@@ -242,19 +243,12 @@ class User < ApplicationRecord
     setup_free_limits if plan_type == "free"
   end
 
-  # DEPRECATED: the no-CC soft trial was removed
-  # (drafts/drop-basic-trial-option-a.md). No longer wired to any callback or
-  # controller — kept defined as harmless fallback during the cutover. Safe to
-  # delete once the basic_trial cohort is confirmed empty.
-  def set_soft_trial_plan
-    # A non-blank paid_plan_type means the user has previously been on a paid
-    # plan (set by apply_free_plan on cancel/pause and by the soft-trial
-    # downgrade job). Don't bounce them back into basic_trial mid-trial-window.
-    return if paid_plan_type.present?
-    self.plan_type = "basic_trial" if plan_type.blank? || plan_type == "free"
-    setup_limits
-  end
-
+  # NOTE: `set_soft_trial_plan` was deleted here — the no-CC soft trial was
+  # removed (drafts/drop-basic-trial-option-a.md) and nothing called the method
+  # any more. It was the only way to *enter* basic_trial. The rest of the
+  # basic_trial machinery stays until the cohort ages out: DowngradeSoftTrialJob,
+  # RefreshFreeTierCreditsJob, the basic_trial branches in setup_limits /
+  # paid_plan?, and CreditService::PLAN_MONTHLY_CREDITS["basic_trial"].
   def setup_limits
     case plan_type
     when "free"
