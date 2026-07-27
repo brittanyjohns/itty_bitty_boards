@@ -147,15 +147,29 @@ outside the app, so no countdown UI). `needs_payment_method` is true only for
 a Stripe trial with no card on file — that is the reverse-trial cohort that
 drops to Free at trial end.
 
-The card-on-file signal is `settings["has_payment_method"]`, written by
-`handle_subscription_upsert` (subscription default payment method, falling
-back to the customer's `invoice_settings.default_payment_method`, which is
-where the Customer Portal writes it) and by a `payment_method.attached`
-handler so a portal-added card registers mid-trial. Both fail soft: a Stripe
-error keeps the previous value rather than raising. `handle_subscription_upsert`'s
-lookup and `SubscriptionsController#customer_has_payment_method?` share
-`Billing::PaymentMethods.on_file?`; the `payment_method.attached` handler sets
-the flag directly from the webhook event without re-querying Stripe.
+The card-on-file signal is `settings["has_payment_method"]`, written by two
+webhook paths.
+
+`handle_subscription_upsert` computes it **only when
+`subscription.status == "trialing"`** — the flag is read nowhere else, so
+non-trial upserts skip the lookup entirely rather than spend a Stripe call on
+every routine subscription event. It shares `Billing::PaymentMethods.on_file?`
+with `SubscriptionsController#customer_has_payment_method?`; that lookup checks
+the subscription's `default_payment_method`, then the customer's
+`invoice_settings.default_payment_method` (where the Customer Portal writes
+it), then the legacy `default_source`. The shared lookup deliberately does
+**not** rescue — each caller keeps its own fallback, because they want opposite
+answers on an inconclusive lookup: the webhook keeps the previous value (don't
+flip the flag on a blip), while `customer_has_payment_method?` assumes `true`
+(never block a plan change).
+
+The `payment_method.attached` handler sets the flag directly from the event
+without re-querying Stripe, so a portal-added card registers mid-trial rather
+than waiting for the next subscription event. **That event must be enabled on
+the Stripe webhook endpoint** (see `docs/stripe-setup.md` §3) or the handler
+never fires. There is no `payment_method.detached` counterpart: a card removed
+mid-trial leaves the flag stale-true until the next `trialing` upsert
+recomputes it.
 
 **Payment-method portal CTA.** `POST /api/subscriptions/billing_portal`
 accepts an optional `flow` param; `flow=payment_method_update` adds
