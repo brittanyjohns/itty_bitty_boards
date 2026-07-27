@@ -106,11 +106,28 @@ class API::UsersController < API::ApplicationController
     if user.nil? || user.confirmation_token != token
       return render json: { error: "Invalid or expired token" }, status: :unprocessable_content
     end
+
+    # Previously unchecked: confirmation_sent_at was stored but never read, so
+    # email-change tokens never expired. Same 7-day window as signup verification.
+    if user.confirmation_sent_at.blank? ||
+       user.confirmation_sent_at < User::EMAIL_VERIFICATION_VALIDITY.ago
+      return render json: { error: "Invalid or expired token" }, status: :unprocessable_content
+    end
+
     user.email = user.unconfirmed_email
     user.unconfirmed_email = nil
     user.confirmation_token = nil
     user.confirmed_at = Time.current
     if user.save
+      # Confirming a pending email change is proof of inbox access on the new
+      # address, same as clicking the dedicated verification link. Route it
+      # through mark_email_verified! so an unverified user isn't left
+      # permanently unverified after proving ownership here. Idempotent, so an
+      # already-verified user is a no-op. Must run after save: the address
+      # needs to be persisted first, and mark_email_verified!'s with_lock ->
+      # lock! raises on a dirty record, so `user` must be clean at this point
+      # (save already reset user.changed? to false; no reload needed).
+      user.mark_email_verified!
       render json: { message: "Email change confirmed", email: user.email }, status: :ok
     else
       render json: { errors: user.errors.full_messages }, status: :unprocessable_content
