@@ -285,15 +285,6 @@ class User < ApplicationRecord
     self.settings["timezone"] || "America/New_York"
   end
 
-  # NOTE: there is deliberately no `supporter_limit`. Team membership
-  # (TeamUser) is uncapped on every plan — `Api::TeamsController#invite`
-  # performs no count check, and inviting a supporter is how an AAC user's
-  # circle of care gets access. A supporter cap would be a pricing decision,
-  # not a code cleanup: it needs a grandfathering rule for existing
-  # over-limit teams and an update to marketing/pricing-structure.md first.
-  # A dead `supporter_limit` (pro? ? 5 : 2) once lived here and was read only
-  # by welcome-email copy, which promised a limit the app never enforced.
-
   # Communicator slot math:
   #
   #   paid_communicator_limit — total owned `loaner` + `active` slots.
