@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>New playground nomination</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f7f7fb; font-family: Arial, Helvetica, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7f7fb; padding:20px;">
+      <tr>
+        <td align="center">
+          <table width="640" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:8px; padding:24px;">
+            <tr>
+              <td><%= render "layouts/email_logo" %></td>
+            </tr>
+            <tr>
+              <td style="color:#333333; font-size:15px; line-height:1.5;">
+                <h2 style="margin-top:0;">New playground nomination</h2>
+                <p style="color:#666666; margin-top:0;">Words Within Reach — A SpeakAnyWay Community Initiative</p>
+
+                <% if @lead.nomination_field(:sponsor_interest).to_s.casecmp("yes").zero? %>
+                  <p style="background:#f0fbf6; border-left:4px solid #56B58C; padding:10px 12px; margin:16px 0; font-weight:bold;">
+                    This nominator said they're interested in sponsoring or helping fund it.
+                  </p>
+                <% end %>
+
+                <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666; width:150px;">Playground</td>
+                    <td style="padding:6px;"><%= @lead.nomination_field(:park) || "—" %></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666;">City / state</td>
+                    <td style="padding:6px;"><%= @lead.nomination_field(:city) || "—" %></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666;">Nominated by</td>
+                    <td style="padding:6px;"><%= @lead.name.presence || "—" %></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666;">Email</td>
+                    <td style="padding:6px;"><a href="mailto:<%= @lead.email %>" style="color:#6a4cf0;"><%= @lead.email %></a></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666;">Their role</td>
+                    <td style="padding:6px;"><%= @lead.nomination_field(:role) || "—" %></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666;">Sponsor interest</td>
+                    <td style="padding:6px;"><%= @lead.nomination_field(:sponsor_interest) || "No" %></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666;">Marketing opt-in</td>
+                    <td style="padding:6px;"><%= @lead.marketing_opt_in? ? "Yes — added to Mailchimp" : "No — not added to any list" %></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eeeeee;">
+                    <td style="padding:6px; color:#666666;">Submitted</td>
+                    <td style="padding:6px;"><%= @lead.created_at&.strftime("%b %d, %Y at %l:%M %p %Z") %></td>
+                  </tr>
+                </table>
+
+                <% if @lead.nomination_field(:why).present? %>
+                  <h3 style="margin-bottom:6px;">Why this playground</h3>
+                  <p style="background:#faf9ff; border-radius:6px; padding:12px; margin-top:0; white-space:pre-wrap;"><%= @lead.nomination_field(:why) %></p>
+                <% end %>
+
+                <hr style="border:none; border-top:1px solid #eeeeee; margin:24px 0;" />
+                <p style="color:#666666; font-size:13px;">
+                  Reply straight to <a href="mailto:<%= @lead.email %>" style="color:#6a4cf0;"><%= @lead.email %></a> to follow up.
+                  Lead #<%= @lead.id %>, source <code><%= @lead.source %></code>.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
