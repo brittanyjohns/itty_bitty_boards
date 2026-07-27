@@ -1,6 +1,9 @@
 # app/controllers/api/temp_logins_controller.rb
 class API::TempLoginsController < API::ApplicationController
-  skip_before_action :authenticate_user!
+  # No `skip_before_action :authenticate_user!` here: no ancestor registers that
+  # callback, so skipping it raises "callback has not been defined" under eager
+  # loading. `authenticate_token!` IS registered (API::ApplicationController), so
+  # that skip stays — it's what makes this endpoint reachable without a token.
   skip_before_action :authenticate_token!
 
   def show

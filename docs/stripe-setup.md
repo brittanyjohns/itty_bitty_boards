@@ -100,6 +100,7 @@ There's already a Stripe webhook configured at `/api/webhooks` that uses
 - `customer.subscription.paused`
 - `customer.created`
 - `invoice.payment_succeeded` *(triggers plan-credit grants on first paid period and every renewal — Phase 4)*
+- `payment_method.attached` *(flips `settings["has_payment_method"]` on mid-trial so a card added via the Customer Portal registers immediately, instead of waiting for the next subscription-upsert webhook)*
 
 ## 4. Redirect URLs (success_url / cancel_url)
 
@@ -137,7 +138,11 @@ Checklist (Settings → Billing → Customer portal, each mode):
 
 - Invoice history: **ON** (receipts are the main value for free users)
 - Customer information update: **ON**
-- Payment method update: **ON**
+- Payment method update: **ON** — required for the trial banner's
+  `flow=payment_method_update` CTA (§3 `payment_method.attached`, and see
+  `.claude-notes/billing-and-plans.md` → "Payment-method portal CTA"): with
+  this off, the portal session Stripe returns for that flow errors instead of
+  opening on "add a card".
 - Don't regress paid users' cancel/update-subscription settings — the
   portal config is shared by free and paid customers.
 

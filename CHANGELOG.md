@@ -14,6 +14,29 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   every plan, in English and Spanish.
 - Removed the unused `User#supporter_limit`, which was read only by that email
   copy and never by an enforcement path.
+### Added — Payment-method prompt for no-card reverse trials
+- `api_view` now returns a computed `trial` block (`active`, `status`,
+  `ends_at`, `provider`, `needs_payment_method`, `plan_label`) so the app can
+  ask card-less trialists for a payment method instead of a plan they already
+  chose.
+- `settings["has_payment_method"]` tracks whether Stripe has a chargeable card,
+  updated on subscription upsert and on `payment_method.attached`.
+- `POST /api/subscriptions/billing_portal` accepts `flow=payment_method_update`
+  to open Stripe's focused "add a card" flow.
+
+### Fixed — stale `has_payment_method` flag during a quiet trial
+- Stripe fires no subscription event between trial start and the trial-ending
+  reminder, so `has_payment_method` could sit wrong (or entirely unset) for a
+  trial's full 14 days — missing the "add a payment method" nudge for anyone
+  whose card was removed mid-trial, or wrongly nudging a card-required trialist
+  who already had one on file. `customer.subscription.trial_will_end` now
+  recomputes the flag authoritatively right before the frontend CTA turns on.
+- `payment_method.attached` now only writes the flag for a `trialing` user —
+  a payment method attached for an unrelated purchase (e.g. a credit top-up)
+  no longer masks a trialist's missing card.
+- `trial_provider` now honors the same partner_pro trial-UI suppression as
+  `show_trial_ui?` / `trial_plan_label`.
+- Downgrading to Free now clears `has_payment_method` alongside `trial_ends_at`.
 
 ### Added — Email verification for new signups
 - Both signup paths (standard signup and email-only/passwordless signup) now

@@ -490,6 +490,82 @@ RSpec.describe User, type: :model do
     end
   end
 
+  describe "#api_view trial block" do
+    it "describes a card-less Stripe trial as needing a payment method" do
+      user = FactoryBot.create(:user,
+        plan_type: "basic",
+        plan_status: "trialing",
+        stripe_subscription_id: "sub_123")
+      user.settings["trial_ends_at"] = "2026-08-10T12:00:00Z"
+      user.settings["has_payment_method"] = false
+      user.save!
+
+      expect(user.api_view[:trial]).to include(
+        active: true,
+        provider: "stripe",
+        needs_payment_method: true,
+        plan_label: "Basic",
+        ends_at: "2026-08-10T12:00:00Z",
+      )
+    end
+
+    it "does not ask a Stripe trialist who already has a card" do
+      user = FactoryBot.create(:user,
+        plan_type: "pro",
+        plan_status: "trialing",
+        stripe_subscription_id: "sub_456")
+      user.settings["has_payment_method"] = true
+      user.save!
+
+      expect(user.api_view[:trial]).to include(
+        active: true,
+        provider: "stripe",
+        needs_payment_method: false,
+        plan_label: "Pro",
+      )
+    end
+
+    it "never asks a RevenueCat trialist for a card" do
+      user = FactoryBot.create(:user,
+        plan_type: "pro",
+        plan_status: "trialing",
+        stripe_subscription_id: nil)
+      user.settings["trial_ends_at"] = "2026-08-10T12:00:00Z"
+      user.save!
+
+      expect(user.api_view[:trial]).to include(
+        active: true,
+        provider: "revenuecat",
+        needs_payment_method: false,
+      )
+    end
+
+    it "suppresses trial UI for partner_pro pilots" do
+      user = FactoryBot.create(:user,
+        plan_type: "partner_pro",
+        plan_status: "trialing",
+        stripe_subscription_id: "sub_partner")
+      user.settings["trial_ends_at"] = "2026-10-10T12:00:00Z"
+      user.save!
+
+      expect(user.api_view[:trial]).to include(
+        active: false,
+        provider: nil,
+        needs_payment_method: false,
+      )
+    end
+
+    it "is inactive for a user who is not on a provider trial" do
+      user = FactoryBot.create(:user, plan_type: "free", plan_status: nil)
+
+      expect(user.api_view[:trial]).to include(
+        active: false,
+        provider: nil,
+        needs_payment_method: false,
+      )
+    end
+  end
+
   describe "#api_view has_boards flag" do
     it "is false when the user has no boards" do
       user = FactoryBot.create(:free_user)
@@ -651,6 +727,39 @@ RSpec.describe User, type: :model do
       user = FactoryBot.build(:user, plan_type: "basic_trial", created_at: 5.days.ago)
       expect(user.paid_plan?).to be(true)
       expect(user.free_trial?).to be(false)
+    end
+  end
+
+  describe "#destroy" do
+    # Regression: `has_many :orders, dependent: :destroy` outlived the Order
+    # model (deleted in #25). Rails resolves the class name when the dependent
+    # callback runs, so EVERY User#destroy raised
+    # "NameError: Missing model class Order for the User#orders association",
+    # regardless of whether the user had any orders rows. Account deletion was
+    # broken for all users. Guard against re-adding an association whose model
+    # doesn't exist.
+    it "destroys a user without raising" do
+      user = FactoryBot.create(:user)
+
+      expect { user.destroy! }.not_to raise_error
+      expect(User.exists?(user.id)).to be(false)
+    end
+
+    it "has no association pointing at a missing model class" do
+      # Polymorphic associations resolve their class per-row, so there is no
+      # single klass to check — skip them rather than treating them as missing.
+      resolvable = User.reflect_on_all_associations.reject(&:polymorphic?)
+
+      missing = resolvable.reject do |assoc|
+        begin
+          assoc.klass
+          true
+        rescue NameError
+          false
+        end
+      end
+
+      expect(missing.map(&:name)).to be_empty
     end
   end
 end

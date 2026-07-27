@@ -4,28 +4,8 @@ class ApplicationController < ActionController::Base
   skip_before_action :verify_authenticity_token
 
   before_action :configure_permitted_parameters, if: :devise_controller?
-  helper_method :current_order
-
-  before_action :authenticate_user!, only: [:current_order]
 
   rescue_from Pundit::NotAuthorizedError, with: :user_not_authorized
-
-  def current_order
-    return nil if current_user.nil?
-    if user_session["order_id"].nil?
-      order = current_user.orders.in_progress.last || current_user.orders.create!
-    else
-      begin
-        order = current_user.orders.in_progress.find(user_session["order_id"])
-      rescue ActiveRecord::RecordNotFound => e
-        order = current_user.orders.create!
-      rescue => e
-        puts "\n\n****Error: #{e.inspect}\n\n"
-      end
-    end
-    user_session["order_id"] = order.id unless order.nil?
-    order
-  end
 
   def token
     @open_symbol_id_token = OpenSymbol.get_token

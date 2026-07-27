@@ -79,7 +79,6 @@ class User < ApplicationRecord
   has_many :images, dependent: :destroy
   has_many :docs, dependent: :destroy
   has_many :user_docs, dependent: :destroy
-  has_many :orders, dependent: :destroy
   has_many :openai_prompts, dependent: :destroy
   has_many :team_users, dependent: :destroy
   belongs_to :current_team, class_name: "Team", optional: true
@@ -186,8 +185,10 @@ class User < ApplicationRecord
   # already defaults to "free"; this callback just applies the Free-tier
   # limits in-memory on create so the account has a board slot, a communicator
   # slot, and the AI monthly limit set from the start. The initial AI credit
-  # grant (25 on Free) is deferred to email verification — see
-  # User#mark_email_verified!.
+  # grant is deferred to email verification — see User#mark_email_verified!.
+  # Its size is the plan's monthly allowance, read from
+  # CreditService::PLAN_MONTHLY_CREDITS for the user's plan_type; don't
+  # restate the number here, it drifts.
   before_create :setup_new_user_free_plan
   before_save :setup_limits, if: :plan_type_changed?
   before_save :update_vendor, if: :plan_type_changed?
@@ -242,19 +243,12 @@ class User < ApplicationRecord
     setup_free_limits if plan_type == "free"
   end
 
-  # DEPRECATED: the no-CC soft trial was removed
-  # (drafts/drop-basic-trial-option-a.md). No longer wired to any callback or
-  # controller — kept defined as harmless fallback during the cutover. Safe to
-  # delete once the basic_trial cohort is confirmed empty.
-  def set_soft_trial_plan
-    # A non-blank paid_plan_type means the user has previously been on a paid
-    # plan (set by apply_free_plan on cancel/pause and by the soft-trial
-    # downgrade job). Don't bounce them back into basic_trial mid-trial-window.
-    return if paid_plan_type.present?
-    self.plan_type = "basic_trial" if plan_type.blank? || plan_type == "free"
-    setup_limits
-  end
-
+  # NOTE: `set_soft_trial_plan` was deleted here — the no-CC soft trial was
+  # removed (drafts/drop-basic-trial-option-a.md) and nothing called the method
+  # any more. It was the only way to *enter* basic_trial. The rest of the
+  # basic_trial machinery stays until the cohort ages out: DowngradeSoftTrialJob,
+  # RefreshFreeTierCreditsJob, the basic_trial branches in setup_limits /
+  # paid_plan?, and CreditService::PLAN_MONTHLY_CREDITS["basic_trial"].
   def setup_limits
     case plan_type
     when "free"
@@ -1545,6 +1539,59 @@ class User < ApplicationRecord
     (trial_expired_at - Time.now).to_i / 1.day
   end
 
+  # --- Provider-trial surface for the client -----------------------------
+  # The client must not re-derive billing rules; the server owns them. See
+  # drafts/2026-07-27-trial-banner-payment-method-design.md.
+  #
+  # Deliberately separate from free_trial? / trial_days_left, which describe
+  # the 14-day-from-signup window for Free accounts. That window is unrelated
+  # to a provider trial and keeps its own client behavior.
+
+  # Which provider runs the current trial. Stripe trials always carry a
+  # stripe_subscription_id; RevenueCat (IAP) trials never do.
+  def trial_provider
+    return nil unless show_trial_ui?
+
+    stripe_subscription_id.present? ? "stripe" : "revenuecat"
+  end
+
+  # Should the client show trial UI at all? partner_pro pilots ride a 3-month
+  # no-card trial managed outside the app, so a persistent 90-day countdown
+  # strip is noise for them.
+  def show_trial_ui?
+    plan_status == "trialing" && plan_type != "partner_pro"
+  end
+
+  # True only when adding a card is the action that keeps the user's plan: a
+  # Stripe reverse trial (#264) with nothing on file. RevenueCat trialists
+  # already pay through Apple/Google and cannot add a card here at all.
+  def trial_needs_payment_method?
+    show_trial_ui? &&
+      trial_provider == "stripe" &&
+      !(settings || {})["has_payment_method"]
+  end
+
+  # Display name of the plan being trialed, for banner copy. nil for tiers
+  # without a consumer-facing label — the client falls back to generic copy.
+  def trial_plan_label
+    return nil unless show_trial_ui?
+    return "Pro" if pro?
+    return "Basic" if basic?
+
+    nil
+  end
+
+  def trial_api_view
+    {
+      active: show_trial_ui?,
+      status: plan_status,
+      ends_at: (settings || {})["trial_ends_at"],
+      provider: trial_provider,
+      needs_payment_method: trial_needs_payment_method?,
+      plan_label: trial_plan_label,
+    }
+  end
+
   def startup_board_group
     startup_board_group_id = settings["startup_board_group_id"]
     board_group = BoardGroup.includes(board_group_boards: :board).find_by(id: startup_board_group_id) if startup_board_group_id
@@ -2056,6 +2103,7 @@ class User < ApplicationRecord
       free_trial: free_trial?,
       trial_expired: trial_expired?,
       trial_days_left: trial_days_left,
+      trial: trial_api_view,
       comm_account_limit_reached: comm_account_limit_reached,
 
       # Communicators (REAL)

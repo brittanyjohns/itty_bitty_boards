@@ -70,6 +70,8 @@ class API::WebhooksController < API::ApplicationController
       handle_subscription_deleted(event.data.object)
     when "customer.subscription.paused"
       handle_subscription_paused(event.data.object)
+    when "payment_method.attached"
+      handle_payment_method_attached(event.data.object)
     when "invoice.payment_succeeded"
       handle_invoice_payment_succeeded(event.data.object, event.id)
     when "invoice.payment_failed"
@@ -126,6 +128,27 @@ class API::WebhooksController < API::ApplicationController
     unless user
       Rails.logger.error "[StripeWebhook] trial_will_end: no user for customer #{subscription.customer}"
       return
+    end
+
+    # Authoritative has_payment_method recompute — this is the ONE quiet-trial
+    # correction point. Stripe fires nothing between customer.subscription.created
+    # and this event (~3 days before trial end), so the flag written at trial
+    # start is otherwise stale for the entire 14 days: a trial already in flight
+    # when this feature deployed has no key at all (`!nil` -> needs_payment_method
+    # true, wrong for anyone who already has a card), and a card removed mid-trial
+    # via the portal leaves the flag stale-true (never nudged, cancels silently).
+    # trial_will_end fires exactly when the frontend CTA turns on, so recomputing
+    # here corrects both cohorts before the banner is ever shown. Wrapped in its
+    # own begin/rescue so a Stripe hiccup can never skip the analytics event or
+    # the Mailchimp enqueue below (external-service failures fail soft).
+    if user.plan_status == "trialing"
+      begin
+        user.settings["has_payment_method"] =
+          payment_method_on_file?(subscription, user.settings["has_payment_method"])
+        user.save!
+      rescue => e
+        Rails.logger.error "[StripeWebhook] trial_will_end: has_payment_method recompute failed for user=#{user.id}: #{e.class} - #{e.message}"
+      end
     end
 
     trial_end = subscription.respond_to?(:trial_end) ? subscription.trial_end : nil
@@ -493,6 +516,19 @@ class API::WebhooksController < API::ApplicationController
       user.settings["trial_ends_at"] = Time.at(subscription.trial_end).iso8601
     else
       user.settings.delete("trial_ends_at")
+    end
+
+    # Does Stripe have a card it can actually charge? Drives the trial banner's
+    # "add a payment method" CTA — the no-card reverse trial (#264) cancels to
+    # Free at trial end when this stays false. Only ever read for trialists
+    # (see `payment_method_on_file?`'s consumer), so only compute it while
+    # trialing — every other status (routine active-subscription updates like
+    # extra-communicator quantity changes) would otherwise pay for a synchronous
+    # `Stripe::Customer.retrieve` on a value nobody reads. Leave the existing
+    # value untouched for non-trialing statuses.
+    if subscription.status == "trialing"
+      user.settings["has_payment_method"] =
+        payment_method_on_file?(subscription, user.settings["has_payment_method"])
     end
 
     user.setup_limits
@@ -864,6 +900,49 @@ class API::WebhooksController < API::ApplicationController
     Rails.logger.error "[StripeWebhook] handle_subscription_paused error: #{e.class} - #{e.message}"
   end
 
+  # A card added through the Customer Portal attaches to the customer and may
+  # never touch the subscription, so handle_subscription_upsert can miss it.
+  # Flip the flag here so the "add a payment method" nudge stops immediately
+  # rather than waiting for the next subscription event.
+  def handle_payment_method_attached(payment_method)
+    raw_customer = payment_method.customer
+    customer_id = raw_customer.respond_to?(:id) ? raw_customer.id : raw_customer
+    if customer_id.blank?
+      Rails.logger.info "[StripeWebhook] payment_method.attached: blank customer id; skipping"
+      return
+    end
+
+    user = User.find_by(stripe_customer_id: customer_id)
+    unless user
+      Rails.logger.info "[StripeWebhook] payment_method.attached: no user for customer #{customer_id}"
+      return
+    end
+
+    # The flag only means anything for a trialist (it drives the trial banner's
+    # CTA) — gate the write so a non-trial attach (e.g. a credit top-up
+    # purchase's PM) writes nothing at all.
+    unless user.plan_status == "trialing"
+      Rails.logger.info "[StripeWebhook] payment_method.attached: user=#{user.id} not trialing; skipping"
+      return
+    end
+
+    # Deliberately optimistic: write `true` for ANY attach rather than calling
+    # Billing::PaymentMethods.on_file? (the narrower "is this actually a
+    # default somewhere" definition). This event can arrive before Stripe has
+    # updated customer.invoice_settings, so an authoritative lookup here could
+    # read stale state and write `false` — strictly worse than doing nothing.
+    # A PM attached-but-never-defaulted (e.g. a credit top-up purchase) is
+    # exactly the gap this optimistic write can't close; that's fine, because
+    # handle_trial_will_end (Fix A) is the authoritative recompute ~3 days
+    # before trial end, before the CTA is ever shown. Design: optimistic at
+    # attach, authoritative at trial_will_end.
+    user.settings["has_payment_method"] = true
+    user.save!
+    Rails.logger.info "[StripeWebhook] payment_method.attached: user=#{user.id}"
+  rescue => e
+    Rails.logger.error "[StripeWebhook] payment_method.attached failed: #{e.class} - #{e.message}"
+  end
+
   # ========== Helper methods ==========
 
   def find_user_for_subscription(subscription)
@@ -902,6 +981,24 @@ class API::WebhooksController < API::ApplicationController
     end
     plan_item ||= items.find { |item| !Billing::ExtraCommunicators.extra_comm_item?(item) }
     (plan_item || items.first).price
+  end
+
+  # True when Stripe has a chargeable card for this subscription. Delegates the
+  # actual lookup (subscription default -> customer invoice_settings default ->
+  # legacy default_source) to the shared Billing::PaymentMethods, also used by
+  # SubscriptionsController#customer_has_payment_method?.
+  #
+  # Fail-soft per the cross-cutting invariant: a Stripe error returns the value
+  # we already had rather than raising — an external blip must never 500 a
+  # webhook. Stale-false is a soft failure (we nudge someone who has a card);
+  # the next subscription event corrects it. This rescue is deliberately kept
+  # local rather than folded into the shared lookup — see that module's
+  # comment for why the two callers' fallbacks must stay independent.
+  def payment_method_on_file?(subscription, previous = false)
+    Billing::PaymentMethods.on_file?(subscription.customer, subscription: subscription)
+  rescue => e
+    Rails.logger.error "[StripeWebhook] payment_method_on_file? failed for sub=#{subscription.try(:id)}: #{e.class} - #{e.message}"
+    !!previous
   end
 
   # Map a Stripe Price's recurring interval to the frontend's billing_interval
