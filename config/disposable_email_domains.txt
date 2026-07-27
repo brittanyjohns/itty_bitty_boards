@@ -1,0 +1,28 @@
+# Disposable / throwaway email domains rejected at signup.
+#
+# Static list on purpose: no network call in the signup hot path, no new
+# vendor, and no signup outage if a third-party API goes down. The tradeoff is
+# staleness — this is a speed bump layered behind email verification and the
+# per-IP signup throttle, not the primary defense. Refresh occasionally.
+#
+# One domain per line, lowercase. Blank lines and #-comments ignored.
+mailinator.com
+10minutemail.com
+guerrillamail.com
+guerrillamail.net
+sharklasers.com
+temp-mail.org
+tempmail.com
+throwawaymail.com
+yopmail.com
+getnada.com
+trashmail.com
+maildrop.cc
+dispostable.com
+fakeinbox.com
+mintemail.com
+mohmal.com
+emailondeck.com
+spamgourmet.com
+tempinbox.com
+mailnesia.com

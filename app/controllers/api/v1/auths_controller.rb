@@ -13,6 +13,7 @@ module API
           render json: { error: "Email, password, and password confirmation are required" }, status: :unprocessable_content
           return
         end
+        return if reject_disposable_email(email)
 
         user = User.new(email: email, password: password, password_confirmation: password_confirmation, name: name)
         if user.save
@@ -86,6 +87,7 @@ module API
           render json: { error: "A valid email is required" }, status: :unprocessable_content
           return
         end
+        return if reject_disposable_email(email)
 
         if User.exists?(email: email)
           render json: { error: "Email has already been taken", error_code: "email_taken" }, status: :unprocessable_content
@@ -290,6 +292,17 @@ module API
 
       def sign_up_params
         params.require(:user).permit(:email, :password, :password_confirmation, first_name: "", last_name: "")
+      end
+
+      # Renders the rejection and returns true when the address is disposable,
+      # so callers can `return if reject_disposable_email(email)`. Shared by
+      # both signup actions — one message, one place to change it.
+      def reject_disposable_email(email)
+        return false unless DisposableEmailDomains.disposable?(email)
+
+        render json: { error: "Please use a permanent email address — we need to be able to reach you about your account." },
+               status: :unprocessable_content
+        true
       end
     end
   end
