@@ -137,5 +137,27 @@ RSpec.describe "POST /api/webhooks (has_payment_method)", type: :request do
 
       expect(response).to have_http_status(:ok)
     end
+
+    it "resolves the customer id from an expanded customer object" do
+      user.update!(settings: user.settings.merge("has_payment_method" => false))
+      expanded_customer = OpenStruct.new(id: user.stripe_customer_id)
+      stub_event(build_payment_method(customer: expanded_customer), type: "payment_method.attached")
+
+      post_webhook("{}", header_with_signature)
+
+      expect(response).to have_http_status(:ok)
+      expect(user.reload.settings["has_payment_method"]).to eq(true)
+    end
+
+    it "is a no-op and does not flip an unrelated user's flag when the customer id is blank" do
+      stranger = FactoryBot.create(:user, stripe_customer_id: nil)
+      stranger.update!(settings: stranger.settings.merge("has_payment_method" => false))
+      stub_event(build_payment_method(customer: nil), type: "payment_method.attached")
+
+      post_webhook("{}", header_with_signature)
+
+      expect(response).to have_http_status(:ok)
+      expect(stranger.reload.settings["has_payment_method"]).to eq(false)
+    end
   end
 end

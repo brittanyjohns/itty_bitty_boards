@@ -886,6 +886,11 @@ class API::WebhooksController < API::ApplicationController
   def handle_payment_method_attached(payment_method)
     raw_customer = payment_method.customer
     customer_id = raw_customer.respond_to?(:id) ? raw_customer.id : raw_customer
+    if customer_id.blank?
+      Rails.logger.info "[StripeWebhook] payment_method.attached: blank customer id; skipping"
+      return
+    end
+
     user = User.find_by(stripe_customer_id: customer_id)
     unless user
       Rails.logger.info "[StripeWebhook] payment_method.attached: no user for customer #{customer_id}"
