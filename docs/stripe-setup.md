@@ -138,7 +138,11 @@ Checklist (Settings → Billing → Customer portal, each mode):
 
 - Invoice history: **ON** (receipts are the main value for free users)
 - Customer information update: **ON**
-- Payment method update: **ON**
+- Payment method update: **ON** — required for the trial banner's
+  `flow=payment_method_update` CTA (§3 `payment_method.attached`, and see
+  `.claude-notes/billing-and-plans.md` → "Payment-method portal CTA"): with
+  this off, the portal session Stripe returns for that flow errors instead of
+  opening on "add a card".
 - Don't regress paid users' cancel/update-subscription settings — the
   portal config is shared by free and paid customers.
 
