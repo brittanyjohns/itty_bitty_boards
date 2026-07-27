@@ -68,9 +68,16 @@ Plan-credit lifecycle:
 
 - **Email verification:** the account's initial grant is no longer made on
   signup. `User#mark_email_verified!` — the single idempotent place an
-  account becomes verified (intended callers: the verification-link,
-  invitation-accept, and temp-login paths — **not yet wired**, they land in a
-  later task of this branch) — grants legacy welcome `tokens` inside a `with_lock`,
+  account becomes verified — writes `email_verified_at`, a dedicated column
+  nothing else writes (NOT `confirmed_at`, which `devise_invitable` stamps on
+  `accept_invitation!` regardless of proven inbox access, and which the
+  hand-rolled email-change flow also writes). Callers: the verification-link
+  (`GET /api/verify_email`) and temp-login (`GET /api/temp-login/:token`) —
+  both paths where the user clicked a link delivered to their inbox.
+  `set_password` / invitation-accept does **not** call it — reaching
+  `set_password` only requires the session `email_signup` already handed out,
+  with no email opened, so it is not proof of inbox ownership (see the
+  task-7r brief). It grants legacy welcome `tokens` inside a `with_lock`,
   then calls `User#grant_initial_plan_credits` (→
   `CreditService.ensure_initial_grant!`) **outside** that lock/transaction, so
   a credit-grant failure can never roll back the verification itself. An
@@ -102,7 +109,7 @@ Plan-credit lifecycle:
   user's actual plan_type allowance (e.g. Pro = 1500). **Monthly** Stripe
   payers refresh through `invoice.payment_succeeded` instead, so they're
   excluded. Class name kept for cron stability; scope is broader than the
-  name suggests. It also requires email verification (`confirmed_at`
+  name suggests. It also requires email verification (`email_verified_at`
   present) — but **only** for the free allowance (`plan_type` in
   `free`/`basic_trial`). Paid tiers with no Stripe subscription (5-year
   licenses, `clinician`, RevenueCat/App Store, `partner_pro`) bypass the

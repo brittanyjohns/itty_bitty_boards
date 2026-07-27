@@ -18,7 +18,7 @@
 #   - plan_type is in REFRESHABLE_PLAN_TYPES
 #   - plan_credits_reset_at IS NULL (never granted) OR has passed
 #   - stripe_subscription_id is blank (no Stripe-driven renewal incoming)
-#   - Email is verified (confirmed_at present) — but ONLY for the free
+#   - Email is verified (email_verified_at present) — but ONLY for the free
 #     allowance (plan_type free/basic_trial). Tiers with no Stripe
 #     subscription rely on THIS job for their monthly re-grant regardless of
 #     verification: 5-year licenses, RevenueCat/App Store, and partner_pro
@@ -102,6 +102,6 @@ class RefreshFreeTierCreditsJob
       # tier (not a self-serve signup, so it isn't an abuse vector) — either
       # way, an unclicked verification email must never zero their balance.
       # See .claude-notes/credits.md ("No-subscription paid plans ride the refresh job").
-      .where("confirmed_at IS NOT NULL OR plan_type NOT IN (?)", VERIFICATION_GATED_PLAN_TYPES)
+      .where("email_verified_at IS NOT NULL OR plan_type NOT IN (?)", VERIFICATION_GATED_PLAN_TYPES)
   end
 end

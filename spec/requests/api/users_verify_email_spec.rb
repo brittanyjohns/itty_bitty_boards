@@ -101,7 +101,7 @@ RSpec.describe "POST /api/resend_email_verification", type: :request do
   end
 
   it "refuses when the account is already verified" do
-    user.update!(confirmed_at: Time.current)
+    user.update!(email_verified_at: Time.current)
 
     expect { resend }.not_to have_enqueued_mail(UserMailer, :verify_email)
     expect(response).to have_http_status(:unprocessable_content)

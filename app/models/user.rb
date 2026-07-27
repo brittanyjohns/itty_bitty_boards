@@ -308,15 +308,21 @@ class User < ApplicationRecord
   # Free 1 / Basic 100 / Pro 300.
   # --- Email verification ---------------------------------------------------
   #
-  # `confirmed_at` is the single source of truth for "the address currently on
-  # this account is proven reachable". It is set by three paths: the signup
-  # verification link, accepting an invitation, and temp-login — all three
-  # require the user to click something delivered to that inbox.
+  # `email_verified_at` is the single source of truth for "the address
+  # currently on this account is proven reachable". It is set ONLY by paths
+  # where the user clicked a link that was delivered to their inbox: the
+  # signup verification link and temp-login. `set_password` /
+  # invitation-accept does NOT verify — email_signup hands out that session
+  # with no email opened, so reaching set_password proves nothing about inbox
+  # ownership. See the task-7r brief.
   #
-  # Deliberately NOT devise's :confirmable — this is a JSON API on JWT, and
-  # confirmable would contend with the hand-rolled email-change flow for
-  # `confirmation_token`/`confirmed_at`. See
-  # drafts/2026-07-26-email-verification-design.md.
+  # Deliberately NOT `confirmed_at` and NOT devise's :confirmable — this is a
+  # JSON API on JWT, and confirmable would contend with the hand-rolled
+  # email-change flow for `confirmation_token`/`confirmed_at`.
+  # `devise_invitable` also stamps `confirmed_at` on `accept_invitation!` for
+  # any model carrying that column, whether or not :confirmable is enabled,
+  # which is exactly the shared-column bypass `email_verified_at` exists to
+  # avoid. See drafts/2026-07-26-email-verification-design.md.
   EMAIL_VERIFICATION_VALIDITY = 7.days
   EMAIL_VERIFICATION_RESEND_INTERVAL = 5.minutes
 
@@ -831,7 +837,7 @@ class User < ApplicationRecord
   end
 
   def email_verified?
-    confirmed_at.present?
+    email_verified_at.present?
   end
 
   # Issues a fresh verification token and stamps the send time. The stamp
@@ -883,8 +889,16 @@ class User < ApplicationRecord
       # verify_email in API::UsersController. Email security scanners prefetch
       # links and users double-click; keeping the token lets a replay resolve
       # to this user and get "already confirmed" instead of "invalid link". It
-      # grants nothing once confirmed_at is set, and expires after 7 days.
-      update!(confirmed_at: Time.current)
+      # grants nothing once email_verified_at is set, and expires after 7 days.
+      #
+      # Writes email_verified_at, NOT confirmed_at, deliberately.
+      # devise_invitable stamps confirmed_at on accept_invitation! for any
+      # model carrying that column (devise_invitable/models.rb:98) — a bare
+      # set_password call (no inbox access, just the session email_signup
+      # already handed out) would otherwise confer verified status with zero
+      # proof of inbox ownership. See the task-7r brief. A future reader must
+      # NOT "simplify" this back onto confirmed_at.
+      update!(email_verified_at: Time.current)
 
       # `tokens` is the legacy field (still spent by
       # images_controller#find_or_create) — granted here, not on create, so an
@@ -898,7 +912,7 @@ class User < ApplicationRecord
     # grant_plan! runs inside a nested ActiveRecord transaction that would
     # join this one if called above — a DB error there marks the outer
     # transaction aborted, the rescue swallows it, and the COMMIT silently
-    # becomes a ROLLBACK, undoing confirmed_at and the token grant too.
+    # becomes a ROLLBACK, undoing email_verified_at and the token grant too.
     # Sitting here, a credit-grant failure can never take verification down
     # with it. Safe to call unconditionally: ensure_initial_grant! is
     # idempotent (no-ops once a plan_grant exists), and the guard above

@@ -126,6 +126,23 @@ module API
         user.ensure_minimum_communicator_slot!
         user.record_signup_context!(platform: platform, method: "email_only")
         user.notify_admin_of_signup!
+        # Verification email. The user is already signed in — verification
+        # gates the welcome tokens, never app access. See
+        # drafts/2026-07-26-email-verification-design.md.
+        # Best-effort: the user is already persisted (and signed in above),
+        # so a hiccup here must not 500 the request and strand a created
+        # account. queue_adapter is :sidekiq, so deliver_later enqueues to
+        # Redis synchronously in this request — a Redis blip would otherwise
+        # raise here with nothing rescuing it. A user left without a token
+        # can recover via the resend-verification endpoint, which
+        # re-generates the token — a missing token is recoverable, a 500
+        # response is not.
+        begin
+          user.generate_email_verification_token!
+          UserMailer.verify_email(user).deliver_later
+        rescue => e
+          Rails.logger.error "email_signup: email verification setup failed for #{user.email}: #{e.class}: #{e.message} — continuing; user can request a new verification email"
+        end
         # email_signup is the paid-intent path: no plan picked yet, so send a
         # plan-neutral receipt now. The real plan welcome ships from the Stripe
         # webhook once trial/active. The Mailchimp `welcome` journey is still

@@ -2,23 +2,23 @@ require "rails_helper"
 
 RSpec.describe User, "email verification state" do
   describe "#email_verified?" do
-    it "is false for an account with no confirmed_at" do
-      user = FactoryBot.create(:user, confirmed_at: nil)
+    it "is false for an account with no email_verified_at" do
+      user = FactoryBot.create(:user, email_verified_at: nil)
       expect(user.email_verified?).to be(false)
     end
 
-    it "is true once confirmed_at is set" do
-      user = FactoryBot.create(:user, confirmed_at: Time.current)
+    it "is true once email_verified_at is set" do
+      user = FactoryBot.create(:user, email_verified_at: Time.current)
       expect(user.email_verified?).to be(true)
     end
   end
 
   describe "#api_view" do
     it "exposes email_verified so the frontend can render the banner" do
-      user = FactoryBot.create(:user, confirmed_at: nil)
+      user = FactoryBot.create(:user, email_verified_at: nil)
       expect(user.api_view[:email_verified]).to be(false)
 
-      user.update!(confirmed_at: Time.current)
+      user.update!(email_verified_at: Time.current)
       expect(user.api_view[:email_verified]).to be(true)
     end
   end
@@ -42,7 +42,7 @@ RSpec.describe User, "email verification state" do
     # Mimecast) prefetch links, and users double-click. Keeping the token lets
     # a replay still resolve to this user so the endpoint can answer "already
     # confirmed" instead of a scary "invalid link". It grants nothing once
-    # confirmed_at is set, and expires on its own after 7 days.
+    # email_verified_at is set, and expires on its own after 7 days.
     it "retains the verification token so a replayed link can still be resolved" do
       user = FactoryBot.create(:user, confirmed_at: nil,
                                       email_verification_token: "abc123",
@@ -62,7 +62,7 @@ RSpec.describe User, "email verification state" do
     end
 
     it "leaves an already-verified user's balance untouched" do
-      user = FactoryBot.create(:user, confirmed_at: 1.day.ago)
+      user = FactoryBot.create(:user, email_verified_at: 1.day.ago)
       user.update!(tokens: 3)
 
       expect(user.mark_email_verified!).to be(false)
@@ -140,6 +140,22 @@ RSpec.describe User, "email verification state" do
     it "allows a resend when nothing has ever been sent" do
       user = FactoryBot.create(:user, confirmed_at: nil, email_verification_sent_at: nil)
       expect(user.can_resend_email_verification?).to be(true)
+    end
+  end
+
+  describe "email_verified_at ownership" do
+    # Regression guard. devise_invitable stamps confirmed_at on accept_invitation!
+    # for any model with that column, so confirmed_at can never be our source of
+    # truth — see the task-7r brief.
+    it "is not verified merely because confirmed_at is set" do
+      user = FactoryBot.create(:user, confirmed_at: Time.current, email_verified_at: nil)
+      expect(user.email_verified?).to be(false)
+    end
+
+    it "reads email_verified_at, not confirmed_at" do
+      user = FactoryBot.create(:user, email_verified_at: nil)
+      user.mark_email_verified!
+      expect(user.reload.email_verified_at).to be_present
     end
   end
 end

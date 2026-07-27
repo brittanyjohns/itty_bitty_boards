@@ -13,7 +13,7 @@ RSpec.describe "API::Images#generate email verification gate", type: :request do
   end
 
   describe "unverified user" do
-    let(:user) { FactoryBot.create(:user, confirmed_at: nil) }
+    let(:user) { FactoryBot.create(:user, email_verified_at: nil) }
 
     it "gets 403 with the email_verification_required error code on the free first-fill path" do
       expect {
@@ -45,7 +45,7 @@ RSpec.describe "API::Images#generate email verification gate", type: :request do
   end
 
   describe "verified user" do
-    let(:user) { FactoryBot.create(:user, confirmed_at: Time.current) }
+    let(:user) { FactoryBot.create(:user, email_verified_at: Time.current) }
 
     before { reset_user_credits!(user) }
 

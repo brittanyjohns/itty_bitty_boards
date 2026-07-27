@@ -19,7 +19,7 @@ class DowngradeSoftTrialJob
       # HAZARD: this grants the free allowance with no email-verification
       # check — same hazard class as `credits:backfill` (see
       # lib/tasks/credits.rake). Since Task 2b, initial free-tier credits are
-      # gated on confirmed_at (see User#mark_email_verified!); this job
+      # gated on email_verified_at (see User#mark_email_verified!); this job
       # bypasses that gate for basic_trial users expiring out of their soft
       # trial. Do not change this behavior without an explicit decision to
       # do so.

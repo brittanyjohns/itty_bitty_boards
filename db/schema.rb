@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_07_26_161949) do
+ActiveRecord::Schema[8.0].define(version: 2026_07_27_121729) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "fuzzystrmatch"
   enable_extension "pg_catalog.plpgsql"
@@ -1009,6 +1009,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_26_161949) do
     t.datetime "editable_board_id_set_at"
     t.string "email_verification_token"
     t.datetime "email_verification_sent_at"
+    t.datetime "email_verified_at"
     t.index ["authentication_token"], name: "index_users_on_authentication_token", unique: true
     t.index ["child_lookup_key"], name: "index_users_on_child_lookup_key", unique: true
     t.index ["confirmation_token"], name: "index_users_on_confirmation_token", unique: true
