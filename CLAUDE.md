@@ -208,13 +208,24 @@ an explicit decision, not a drive-by edit.
 - **Third-party sends are env-gated to production** (Mailchimp journeys,
   PostHog captures; staging excluded via `AppEnv.staging?`) so non-prod can't
   email or track real users.
+- **Email verification is keyed on `email_verified_at`, never `confirmed_at`.**
+  `User#mark_email_verified!` is the only writer. Verified status may be
+  conferred ONLY by a path where the user clicked a link delivered to their
+  inbox: the verification link (`GET /api/verify_email`), temp-login, and
+  email-change confirmation. `set_password` / invitation-accept must never
+  confer it — `email_signup` signs the user in before any email is opened, and
+  `devise_invitable` stamps `confirmed_at` on `accept_invitation!` for any model
+  carrying that column, so `confirmed_at` cannot be a verification signal.
+  Unverified accounts hold zero welcome tokens and zero AI credits and are
+  refused image generation (403 `email_verification_required`); they can still
+  sign in and use the app — **verification never gates authentication**.
 
 ## Subsystem map (read the spoke before working in the area)
 
 | Spoke | Covers |
 |---|---|
 | `.claude-notes/billing-and-plans.md` | Stripe + RevenueCat subscription paths, webhooks + idempotency, no-card reverse trial, soft trial, Partner Program (`partner_pro`), email-only (passwordless) signup, plan-switch endpoints + error contract, `paid_plan?` details, MySpeak ID limit, downgrade rules (board read-only lock + `make_editable` cooldown, communicator fallback + `keep_signable`, sandbox→active promotion), Mission Control revenue metrics |
-| `.claude-notes/credits.md` | AI credit ledger: `CreditService`, feature costs, `check_credits!` / 402 contract, grant lifecycle + refresh/expiry cron jobs, menu image budget + refunds, free first-fill image generation, credits rake tasks, beta entitlement audit |
+| `.claude-notes/credits.md` | AI credit ledger: `CreditService`, feature costs, `check_credits!` / 402 contract, grant lifecycle + refresh/expiry cron jobs, menu image budget + refunds, free first-fill image generation, credits rake tasks, beta entitlement audit, email verification's welcome-token/credit grant |
 | `.claude-notes/marketing-integrations.md` | Mailchimp CRM sync + Customer Journeys (all journey keys + ENV wiring), dual-welcome design, plan-welcome idempotency, PostHog server-side events + `distinct_id` contract |
 | `.claude-notes/safety-profiles.md` | MySpeak safety pages: gated emergency-info reveal, view logging + parent alerts + throttling, coarse IP geolocation, random slugs + legacy-slug fallback |
 | `.claude-notes/boards-and-teams.md` | Team permissions / owner-pinning, SLP→family hand-off, board assignment deep clone (`AssignmentCloner`), non-destructive board removal, board deletion warn+confirm (409), Board Sets (BoardGroup) CRUD + limits, responsive layouts (sm/md derived from lg), OBF/OBZ import copyright policy, Make a Board From Screenshot |

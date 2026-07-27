@@ -175,7 +175,6 @@ class User < ApplicationRecord
 
   # Callbacks
   before_save :set_default_settings, unless: :settings?
-  after_create :add_welcome_tokens
   before_validation :set_uuid, on: :create
   before_save :ensure_settings, unless: :has_all_settings?
 
@@ -186,9 +185,9 @@ class User < ApplicationRecord
   # removed (drafts/drop-basic-trial-option-a.md). The `plan_type` column
   # already defaults to "free"; this callback just applies the Free-tier
   # limits in-memory on create so the account has a board slot, a communicator
-  # slot, and the AI monthly limit set from the start. The 5-credit initial
-  # grant is handled by after_create :grant_initial_plan_credits, which reads
-  # the user's plan_type ("free").
+  # slot, and the AI monthly limit set from the start. The initial AI credit
+  # grant (25 on Free) is deferred to email verification — see
+  # User#mark_email_verified!.
   before_create :setup_new_user_free_plan
   before_save :setup_limits, if: :plan_type_changed?
   before_save :update_vendor, if: :plan_type_changed?
@@ -206,11 +205,6 @@ class User < ApplicationRecord
   # already in `settings`) on every plan change. See
   # reconcile_paid_sandbox_promotions!.
   after_save :reconcile_paid_sandbox_promotions!, if: :saved_change_to_plan_type?
-
-  # Grant the user's tier's monthly AI credit allowance on signup so the
-  # very first AI call doesn't 402. Idempotent in CreditService — safe to
-  # call again if a callback runs twice.
-  after_create :grant_initial_plan_credits
 
   def grant_initial_plan_credits
     CreditService.ensure_initial_grant!(self)
@@ -312,6 +306,26 @@ class User < ApplicationRecord
   # (never read on the enforcement path) and was removed — do not re-add it here.
   # Board limits match the canonical pricing table (marketing/pricing-structure.md):
   # Free 1 / Basic 100 / Pro 300.
+  # --- Email verification ---------------------------------------------------
+  #
+  # `email_verified_at` is the single source of truth for "the address
+  # currently on this account is proven reachable". It is set ONLY by paths
+  # where the user clicked a link that was delivered to their inbox: the
+  # signup verification link, temp-login, and confirming a pending
+  # email-change link. `set_password` / invitation-accept does NOT verify —
+  # email_signup hands out that session with no email opened, so reaching
+  # set_password proves nothing about inbox ownership. See the task-7r brief.
+  #
+  # Deliberately NOT `confirmed_at` and NOT devise's :confirmable — this is a
+  # JSON API on JWT, and confirmable would contend with the hand-rolled
+  # email-change flow for `confirmation_token`/`confirmed_at`.
+  # `devise_invitable` also stamps `confirmed_at` on `accept_invitation!` for
+  # any model carrying that column, whether or not :confirmable is enabled,
+  # which is exactly the shared-column bypass `email_verified_at` exists to
+  # avoid. See drafts/2026-07-26-email-verification-design.md.
+  EMAIL_VERIFICATION_VALIDITY = 7.days
+  EMAIL_VERIFICATION_RESEND_INTERVAL = 5.minutes
+
   FREE_PLAN_LIMITS = {
     "plan_type" => "free",
     "board_limit" => ENV.fetch("FREE_BOARD_LIMIT", 1).to_i,
@@ -587,10 +601,12 @@ class User < ApplicationRecord
     user.ensure_partner_pro_trial_subscription!(trial_end: trial_end)
 
     # Grant the Partner Pro (Pro-equivalent) credit allowance IMMEDIATELY.
-    # The after_create :grant_initial_plan_credits hook already ran while the
-    # account was still `free` (granting the free allowance), and
-    # ensure_initial_grant! is a no-op once any plan_grant exists — so without
-    # this a partner would sit on the free allowance until a cron re-grant.
+    # The initial free-tier grant is now deferred to email verification (see
+    # User#mark_email_verified!), so unlike before, ensure_initial_grant!
+    # hasn't necessarily run yet at this point. Either way, this explicit call
+    # is what actually provisions a partner right away — without it a partner
+    # would otherwise wait on email verification (or a free allowance, if
+    # already verified) instead of getting the partner_pro amount now.
     # grant_plan! resets the plan balance to the partner_pro monthly amount now.
     begin
       CreditService.grant_plan!(
@@ -818,6 +834,103 @@ class User < ApplicationRecord
 
   def shared_with_me_boards
     Board.with_artifacts.where(id: team_boards.select(:board_id))
+  end
+
+  def email_verified?
+    email_verified_at.present?
+  end
+
+  # Issues a fresh verification token and stamps the send time. The stamp
+  # drives both expiry (EMAIL_VERIFICATION_VALIDITY) and resend cooldown
+  # (EMAIL_VERIFICATION_RESEND_INTERVAL). Returns the raw token.
+  def generate_email_verification_token!
+    token = SecureRandom.hex(16)
+    update!(email_verification_token: token, email_verification_sent_at: Time.current)
+    token
+  end
+
+  def email_verification_token_valid?
+    email_verification_sent_at.present? &&
+      email_verification_sent_at > EMAIL_VERIFICATION_VALIDITY.ago
+  end
+
+  def can_resend_email_verification?
+    email_verification_sent_at.blank? ||
+      email_verification_sent_at < EMAIL_VERIFICATION_RESEND_INTERVAL.ago
+  end
+
+  # Persists a token value the caller already handed to the mailer (see
+  # API::UsersController#resend_email_verification), rather than minting one
+  # itself like generate_email_verification_token! does. Used so the resend
+  # flow can enqueue the email with a token before committing anything, and
+  # only start the resend cooldown once the enqueue has actually succeeded.
+  def persist_email_verification_token!(token)
+    update!(email_verification_token: token, email_verification_sent_at: Time.current)
+  end
+
+  # The ONE place an account becomes verified. Idempotent, so every path that
+  # proves inbox ownership — the signup verification link
+  # (GET /api/verify_email), temp-login, and confirm_email_change (confirming
+  # a pending email-change link) — can call it freely without risking a
+  # double token grant. `set_password` / invitation-accept must NOT call this:
+  # see the in-body note below for why.
+  #
+  # Welcome tokens are granted here rather than on create: an unverified
+  # account holds a zero balance, so there is no separate "can this user spend"
+  # gate to forget in a future AI code path. images_controller's existing
+  # `tokens > 0` check does the right thing unmodified.
+  #
+  # Returns true if this call newly verified the account, false if it was
+  # already verified.
+  # `with_lock` wraps the block in `lock!` + a transaction, and `lock!` raises
+  # a plain `RuntimeError` ("Locking a record with unpersisted changes is not
+  # supported") if the record already has unsaved changes — unlike the old
+  # `transaction do ... update! ... end` this replaced, which tolerated a
+  # dirty object. Callers must pass a clean (unmutated) user in.
+  def mark_email_verified!
+    return false if email_verified?
+
+    with_lock do
+      # Re-check under the row lock: a scanner prefetch racing the user's own
+      # click can put two requests past the guard above. The balance is safe
+      # either way, but callers branch on the return value to pick user-facing
+      # copy, so only one call may report true.
+      return false if email_verified?
+
+      # The verification token is deliberately NOT cleared here — see
+      # verify_email in API::UsersController. Email security scanners prefetch
+      # links and users double-click; keeping the token lets a replay resolve
+      # to this user and get "already confirmed" instead of "invalid link". It
+      # grants nothing once email_verified_at is set, and expires after 7 days.
+      #
+      # Writes email_verified_at, NOT confirmed_at, deliberately.
+      # devise_invitable stamps confirmed_at on accept_invitation! for any
+      # model carrying that column (devise_invitable/models.rb:98) — a bare
+      # set_password call (no inbox access, just the session email_signup
+      # already handed out) would otherwise confer verified status with zero
+      # proof of inbox ownership. See the task-7r brief. A future reader must
+      # NOT "simplify" this back onto confirmed_at.
+      update!(email_verified_at: Time.current)
+
+      # `tokens` is the legacy field (still spent by
+      # images_controller#find_or_create) — granted here, not on create, so an
+      # unverified account holds nothing spendable. Idempotent: reached only
+      # once thanks to the guard above.
+      add_welcome_tokens
+    end
+
+    # AI credits are granted OUTSIDE the lock/transaction, deliberately.
+    # ensure_initial_grant! rescues its own errors and returns nil, but
+    # grant_plan! runs inside a nested ActiveRecord transaction that would
+    # join this one if called above — a DB error there marks the outer
+    # transaction aborted, the rescue swallows it, and the COMMIT silently
+    # becomes a ROLLBACK, undoing email_verified_at and the token grant too.
+    # Sitting here, a credit-grant failure can never take verification down
+    # with it. Safe to call unconditionally: ensure_initial_grant! is
+    # idempotent (no-ops once a plan_grant exists), and the guard above
+    # already guarantees only one caller reaches this line per account.
+    grant_initial_plan_credits
+    true
   end
 
   # Token management
@@ -1894,6 +2007,9 @@ class User < ApplicationRecord
       # on invite!, but valid_password? is nil until the invitation is
       # accepted, so a pending invite is effectively passwordless.
       needs_password: invited_to_sign_up?,
+      # Drives the "verify your email" banner. Unverified accounts hold no
+      # welcome tokens until they click the link — see mark_email_verified!.
+      email_verified: email_verified?,
       profile: profile&.user_api_view,
       delete_account_token: delete_account_token,
       public_page_url: public_page_url,

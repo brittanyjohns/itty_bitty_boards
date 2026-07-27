@@ -97,6 +97,74 @@ RSpec.describe "Rack::Attack rate limiting", type: :request do
       get "/api/temp-login/deadbeef"
       expect(response).to have_http_status(:too_many_requests)
     end
+
+    # verify_email takes its token as a query param, not a path segment, so
+    # the path has no trailing slash — unlike temp-login/communicator_claims.
+    # A regex that forgot this would silently never match and leave the
+    # endpoint unprotected while looking protected.
+    it "throttles GET /api/verify_email (query-string token, no trailing slash) past the limit" do
+      limit = Rack::Attack::TOKEN_LIMIT
+
+      limit.times { get "/api/verify_email", params: { token: "deadbeef" } }
+      expect(response).not_to have_http_status(:too_many_requests)
+
+      get "/api/verify_email", params: { token: "deadbeef" }
+      expect(response).to have_http_status(:too_many_requests)
+    end
+  end
+
+  describe "TOKEN_ACCESS_PATHS regex" do
+    it "matches /api/verify_email even though it has no trailing slash" do
+      expect(Rack::Attack::TOKEN_ACCESS_PATHS).to match("/api/verify_email")
+    end
+
+    it "still matches the path-segment token endpoints" do
+      expect(Rack::Attack::TOKEN_ACCESS_PATHS).to match("/api/temp-login/abc123")
+      expect(Rack::Attack::TOKEN_ACCESS_PATHS).to match("/api/communicator_claims/abc123")
+    end
+
+    it "does not match unrelated or lookalike paths" do
+      expect(Rack::Attack::TOKEN_ACCESS_PATHS).not_to match("/api/verify_emailxxx")
+      expect(Rack::Attack::TOKEN_ACCESS_PATHS).not_to match("/api/verify_email/")
+      expect(Rack::Attack::TOKEN_ACCESS_PATHS).not_to match("/api/resend_email_verification")
+    end
+  end
+
+  describe "signup throttle (per IP)" do
+    let(:limit) { Rack::Attack::SIGNUP_LIMIT }
+
+    # The Stripe gem raises Stripe::AuthenticationError client-side when no API
+    # key is configured, before any request is made — so the WebMock stub for
+    # api.stripe.com never sees it. CI has no key. Same stub as auth_spec.rb.
+    before { allow(User).to receive(:create_stripe_customer).and_return("cus_test") }
+
+    # Distinct emails so failures come from the throttle, not uniqueness.
+    def signup(n)
+      post "/api/v1/users",
+        params: { email: "signup#{n}@example.com", password: "password123",
+                  password_confirmation: "password123" },
+        as: :json
+    end
+
+    it "lets a normal signup rate through" do
+      3.times { |i| signup(i) }
+      expect(response).not_to have_http_status(:too_many_requests)
+    end
+
+    it "returns 429 once the burst passes the limit" do
+      limit.times { |i| signup(i) }
+      expect(response).not_to have_http_status(:too_many_requests)
+
+      signup(limit) # one over
+      expect(response).to have_http_status(:too_many_requests)
+    end
+
+    it "throttles the email-only signup path on the same counter" do
+      limit.times { |i| signup(i) }
+
+      post "/api/v1/users/email_signup", params: { email: "over@example.com" }, as: :json
+      expect(response).to have_http_status(:too_many_requests)
+    end
   end
 
   describe "AI / audio generation throttle" do

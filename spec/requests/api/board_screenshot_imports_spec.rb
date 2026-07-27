@@ -14,6 +14,15 @@ RSpec.describe "API::BoardScreenshotImports", type: :request do
   end
 
   describe "POST /api/board_screenshot_imports (create)" do
+    # The initial credit grant is deferred to email verification (task-2b),
+    # so a bare `create(:user)` now starts at 0 credits. Grant explicitly —
+    # these specs are about the screenshot-import spend flow, not the grant
+    # path itself. The "out of credits" spec below overrides this back to 0.
+    before do
+      CreditService.grant_plan!(user, amount: 100, period_end: 1.month.from_now,
+                                       metadata: { source: "spec" })
+    end
+
     it "rejects anonymous callers with 401" do
       post "/api/board_screenshot_imports", params: { cropped_image: data_url }
       expect(response).to have_http_status(:unauthorized)

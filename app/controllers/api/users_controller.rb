@@ -1,4 +1,7 @@
 class API::UsersController < API::ApplicationController
+  # Clicked from an email client, which carries no bearer token.
+  skip_before_action :authenticate_token!, only: %i[verify_email]
+
   before_action :set_user, only: %i[ show update_settings destroy update ]
 
   # GET /users or /users.json
@@ -103,15 +106,130 @@ class API::UsersController < API::ApplicationController
     if user.nil? || user.confirmation_token != token
       return render json: { error: "Invalid or expired token" }, status: :unprocessable_content
     end
+
+    # Previously unchecked: confirmation_sent_at was stored but never read, so
+    # email-change tokens never expired. Same 7-day window as signup verification.
+    if user.confirmation_sent_at.blank? ||
+       user.confirmation_sent_at < User::EMAIL_VERIFICATION_VALIDITY.ago
+      return render json: { error: "Invalid or expired token" }, status: :unprocessable_content
+    end
+
     user.email = user.unconfirmed_email
     user.unconfirmed_email = nil
     user.confirmation_token = nil
     user.confirmed_at = Time.current
     if user.save
+      # Confirming a pending email change is proof of inbox access on the new
+      # address, same as clicking the dedicated verification link. Route it
+      # through mark_email_verified! so an unverified user isn't left
+      # permanently unverified after proving ownership here. Idempotent, so an
+      # already-verified user is a no-op. Must run after save: the address
+      # needs to be persisted first, and mark_email_verified!'s with_lock ->
+      # lock! raises on a dirty record, so `user` must be clean at this point
+      # (save already reset user.changed? to false; no reload needed).
+      user.mark_email_verified!
       render json: { message: "Email change confirmed", email: user.email }, status: :ok
     else
       render json: { errors: user.errors.full_messages }, status: :unprocessable_content
     end
+  end
+
+  # Signup email verification. Unauthenticated — the link arrives in an inbox.
+  # Distinct from confirm_email_change, which promotes a pending *change* to an
+  # existing account's address.
+  def verify_email
+    token = params[:token].to_s
+    user = token.present? ? User.find_by(email_verification_token: token) : nil
+
+    if user.nil?
+      return render json: { error: "That confirmation link is no longer valid. Send yourself a new one from your dashboard." },
+                    status: :unprocessable_content
+    end
+
+    # Already verified — a double-click, or an email security scanner that
+    # prefetched the link before the user got to it. Report success: the
+    # account is fine, and an error would alarm someone who did nothing wrong.
+    # Checked BEFORE expiry so a verified account never sees an error here.
+    if user.email_verified?
+      return render json: {
+                      message: "Your email is already confirmed. Your free image credits are ready to use.",
+                      email_verified: true,
+                    }, status: :ok
+    end
+
+    unless user.email_verification_token_valid?
+      return render json: { error: "That confirmation link has expired. Send yourself a new one from your dashboard." },
+                    status: :unprocessable_content
+    end
+
+    user.mark_email_verified!
+
+    render json: {
+             message: "Your email is confirmed. Your free image credits are ready to use.",
+             email_verified: true,
+           }, status: :ok
+  end
+
+  # Resends the signup verification email. Throttled in the model layer via
+  # email_verification_sent_at so the cooldown survives across app instances
+  # (rack-attack's per-IP counters would not help a user on a shared IP).
+  def resend_email_verification
+    if current_user.email_verified?
+      return render json: { error: "Your email is already confirmed." },
+                    status: :unprocessable_content
+    end
+
+    unless current_user.can_resend_email_verification?
+      retry_after = (current_user.email_verification_sent_at +
+                     User::EMAIL_VERIFICATION_RESEND_INTERVAL - Time.current).ceil
+      return render json: {
+                      error: "We just sent one — check your inbox, then try again in a moment.",
+                      retry_after: retry_after,
+                    }, status: :too_many_requests
+    end
+
+    # The whole point of this request is sending an email, so an enqueue
+    # failure here can't be reported as success — that would be a lie the
+    # user discovers when nothing arrives, and it's why this endpoint
+    # deliberately diverges from sign_up/email_signup's best-effort verification
+    # email (those succeed regardless — account creation is the primary
+    # purpose and a missing token is recoverable from here).
+    #
+    # A DB transaction can't give this atomicity: queue_adapter is :sidekiq,
+    # so deliver_later pushes to Redis immediately, and Redis isn't a
+    # participant in any Postgres transaction wrapped around it. Wrapping one
+    # around the token write used to create two hazards instead of removing
+    # one — a worker could dequeue and render the mailer against the
+    # not-yet-committed (stale) token before commit, or the push could
+    # succeed and then the commit fail, leaving a queued job for a token that
+    # was never persisted.
+    #
+    # So: sequence instead of rolling back. Mint the token value, hand it
+    # directly to the mailer (which delivers it as-is rather than reading it
+    # back off the user — see UserMailer#verify_email), and only persist the
+    # token + email_verification_sent_at — which starts the cooldown — after
+    # the enqueue call itself has returned without raising.
+    token = SecureRandom.hex(16)
+    begin
+      UserMailer.verify_email(current_user, token).deliver_later
+    rescue => e
+      Rails.logger.error "resend_email_verification: mailer enqueue failed for #{current_user.email}: #{e.class}: #{e.message}"
+      return render json: { error: "Couldn't send the verification email. Please try again in a moment." },
+                    status: :service_unavailable
+    end
+
+    begin
+      current_user.persist_email_verification_token!(token)
+    rescue => e
+      # Rare: the email is already out (with `token` embedded in its link),
+      # but we failed to save that same token to the user row, so the link
+      # would 404. Still the honest response — nothing usable was persisted.
+      Rails.logger.error "resend_email_verification: token persist failed after enqueue for #{current_user.email}: #{e.class}: #{e.message}"
+      return render json: { error: "Couldn't send the verification email. Please try again in a moment." },
+                    status: :service_unavailable
+    end
+
+    render json: { message: "Confirmation email sent to #{current_user.email}." }, status: :ok
   end
 
   def resend_email_confirmation

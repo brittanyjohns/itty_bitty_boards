@@ -56,6 +56,11 @@ RSpec.describe BoardScreenshotImportJob, type: :job do
     before { allow(vision).to receive(:parse_board).and_raise(StandardError, "vision boom") }
 
     it "marks the import failed and refunds the exact source split, idempotently" do
+      # The initial credit grant is deferred to email verification (task-2b),
+      # so a bare `create(:user)` starts at 0 credits — grant explicitly so
+      # there's a balance to spend from and later refund.
+      CreditService.grant_plan!(user, amount: 100, period_end: 1.month.from_now,
+                                       metadata: { source: "spec" })
       spend = CreditService.spend!(user, feature_key: "screenshot_import")
       import.update!(metadata: { "credit_txn_id" => spend.id })
       balance_after_spend = user.reload.plan_credits_balance

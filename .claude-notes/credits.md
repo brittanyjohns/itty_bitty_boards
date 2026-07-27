@@ -48,6 +48,15 @@ topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
   image library. Charging only applies when they're replacing/customizing an existing
   image. `regenerate_images`, `create_image_edit`, and `create_image_variation` act on
   images that already have a picture, so they keep charging unconditionally.
+  Because this path never calls `check_credits!`, it needed its own gate:
+  `#generate` requires a verified email (`require_verified_email!`, checked
+  after the `accessible_image` IDOR lookup so a non-owner's private image
+  still 404s first) — renders 403 `email_verification_required` for an
+  unverified caller, admins bypass. Without it an unverified account (zero
+  tokens, zero AI credits) could still drive free-tier OpenAI generation on
+  empty tiles at no cost to them. Board reads, board-load, and audio
+  playback are untouched by this gate — see the cross-cutting "usage must
+  never break" invariant in `CLAUDE.md`.
 - **`MonthlyFeatureLimiter` was removed** (along with `User#ai_limit_reached?`,
   `#reset_ai_limits!`, and the dead `ai_monthly_limit` plan-limit key). AI is
   gated solely by the credit ledger now; the old monthly action-counter was
@@ -57,11 +66,26 @@ topup_credits, reset_at, topup_url }`. Admins (`current_user.admin?`) bypass.
 
 Plan-credit lifecycle:
 
-- **Signup:** `User#after_create` calls `CreditService.ensure_initial_grant!`
-  to grant the tier's monthly allowance immediately. Soft-trial users
-  (`plan_type = "basic_trial"`, set by `User#set_soft_trial_plan`) get the
-  Basic-equivalent allowance with `expires_at = 14.days.from_now`. Other
-  tiers get a 30-day expiry. Idempotent — safe to call again.
+- **Email verification:** the account's initial grant is no longer made on
+  signup. `User#mark_email_verified!` — the single idempotent place an
+  account becomes verified — writes `email_verified_at`, a dedicated column
+  nothing else writes (NOT `confirmed_at`, which `devise_invitable` stamps on
+  `accept_invitation!` regardless of proven inbox access, and which the
+  hand-rolled email-change flow also writes). Callers: the verification-link
+  (`GET /api/verify_email`), temp-login (`GET /api/temp-login/:token`), and
+  `confirm_email_change` (confirming a pending email-change link) — all three
+  are paths where the user clicked a link delivered to their inbox.
+  `set_password` / invitation-accept does **not** call it — reaching
+  `set_password` only requires the session `email_signup` already handed out,
+  with no email opened, so it is not proof of inbox ownership (see the
+  task-7r brief). It grants legacy welcome `tokens` inside a `with_lock`,
+  then calls `User#grant_initial_plan_credits` (→
+  `CreditService.ensure_initial_grant!`) **outside** that lock/transaction, so
+  a credit-grant failure can never roll back the verification itself. An
+  unverified account holds zero tokens and zero AI credits. Soft-trial users
+  (`plan_type = "basic_trial"`) get the Basic-equivalent allowance with
+  `expires_at = 14.days.from_now`. Other tiers get a 30-day expiry.
+  Idempotent — safe to call again (no-ops once a `plan_grant` row exists).
 - **First paid period + every renewal:** `invoice.payment_succeeded` webhook
   → `CreditService.grant_plan!` with `period_end = subscription.current_period_end`.
   Reads `monthly_credits` from the subscription line's Stripe Price metadata
@@ -86,7 +110,13 @@ Plan-credit lifecycle:
   user's actual plan_type allowance (e.g. Pro = 1500). **Monthly** Stripe
   payers refresh through `invoice.payment_succeeded` instead, so they're
   excluded. Class name kept for cron stability; scope is broader than the
-  name suggests.
+  name suggests. It also requires email verification (`email_verified_at`
+  present) — but **only** for the free allowance (`plan_type` in
+  `free`/`basic_trial`). Paid tiers with no Stripe subscription (5-year
+  licenses, `clinician`, RevenueCat/App Store, `partner_pro`) bypass the
+  verification check and refresh regardless, since they've already paid and
+  this job is their only monthly re-grant path (see "No-subscription paid
+  plans ride the refresh job" below).
 - **Monthly bucket, any billing cadence:** plan credits are a monthly
   allowance, so `grant_plan!` caps `period_end` at
   `MAX_GRANT_WINDOW` (35 days). Without this, a **yearly** subscriber's
@@ -106,8 +136,8 @@ Plan-credit lifecycle:
   logs a `Rails.logger.warn` when it does. Prevents the
   "granted and expired same day" failure mode regardless of caller.
 - **Free tier allowance:** 25 credits/month
-  (`CreditService::PLAN_MONTHLY_CREDITS["free"]`). Applied on signup,
-  refresh, and post-cancellation.
+  (`CreditService::PLAN_MONTHLY_CREDITS["free"]`). Applied on email
+  verification, refresh, and post-cancellation.
 - **No-subscription paid plans ride the refresh job.** 5-Year licenses
   (`basic_5yr` 400 / `pro_5yr` 1500) and `clinician` (400) have no Stripe
   subscription, so their monthly re-grant comes from `RefreshFreeTierCreditsJob`

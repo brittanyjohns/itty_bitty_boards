@@ -26,6 +26,16 @@ class API::TempLoginsController < API::ApplicationController
       temp_login_expires_at: nil,
     )
 
+    # The temp-login link was delivered to their inbox, so reaching here proves
+    # they control that address. Idempotent — a repeat login grants nothing new.
+    # Verification must never break login: this is a login path, so a failure
+    # here is logged and swallowed rather than raised.
+    begin
+      user.mark_email_verified!
+    rescue => e
+      Rails.logger.error "temp_logins#show: mark_email_verified! failed for #{user.email}: #{e.class}: #{e.message} — continuing, sign-in must not be blocked"
+    end
+
     render json: {
       success: true,
       force_password_reset: user.force_password_reset,

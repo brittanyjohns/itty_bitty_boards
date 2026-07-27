@@ -13,6 +13,7 @@ module API
           render json: { error: "Email, password, and password confirmation are required" }, status: :unprocessable_content
           return
         end
+        return if reject_disposable_email(email)
 
         user = User.new(email: email, password: password, password_confirmation: password_confirmation, name: name)
         if user.save
@@ -36,6 +37,23 @@ module API
           user.ensure_minimum_communicator_slot!
           user.record_signup_context!(platform: platform, method: "standard")
           user.notify_admin_of_signup!
+          # Verification email. The user is already signed in — verification
+          # gates the welcome tokens, never app access. See
+          # drafts/2026-07-26-email-verification-design.md.
+          # Best-effort: the user is already persisted (and signed in above),
+          # so a hiccup here must not 500 the request and strand a created
+          # account. queue_adapter is :sidekiq, so deliver_later enqueues to
+          # Redis synchronously in this request — a Redis blip would otherwise
+          # raise here with nothing rescuing it. A user left without a token
+          # can recover via the resend-verification endpoint (later task),
+          # which re-generates the token — a missing token is recoverable, a
+          # 500 response is not.
+          begin
+            user.generate_email_verification_token!
+            UserMailer.verify_email(user).deliver_later
+          rescue => e
+            Rails.logger.error "sign_up: email verification setup failed for #{user.email}: #{e.class}: #{e.message} — continuing; user can request a new verification email"
+          end
           if user.role == "partner"
             user.send_partner_welcome_email
           end
@@ -69,6 +87,7 @@ module API
           render json: { error: "A valid email is required" }, status: :unprocessable_content
           return
         end
+        return if reject_disposable_email(email)
 
         if User.exists?(email: email)
           render json: { error: "Email has already been taken", error_code: "email_taken" }, status: :unprocessable_content
@@ -109,6 +128,23 @@ module API
         user.ensure_minimum_communicator_slot!
         user.record_signup_context!(platform: platform, method: "email_only")
         user.notify_admin_of_signup!
+        # Verification email. The user is already signed in — verification
+        # gates the welcome tokens, never app access. See
+        # drafts/2026-07-26-email-verification-design.md.
+        # Best-effort: the user is already persisted (and signed in above),
+        # so a hiccup here must not 500 the request and strand a created
+        # account. queue_adapter is :sidekiq, so deliver_later enqueues to
+        # Redis synchronously in this request — a Redis blip would otherwise
+        # raise here with nothing rescuing it. A user left without a token
+        # can recover via the resend-verification endpoint, which
+        # re-generates the token — a missing token is recoverable, a 500
+        # response is not.
+        begin
+          user.generate_email_verification_token!
+          UserMailer.verify_email(user).deliver_later
+        rescue => e
+          Rails.logger.error "email_signup: email verification setup failed for #{user.email}: #{e.class}: #{e.message} — continuing; user can request a new verification email"
+        end
         # email_signup is the paid-intent path: no plan picked yet, so send a
         # plan-neutral receipt now. The real plan welcome ships from the Stripe
         # webhook once trial/active. The Mailchimp `welcome` journey is still
@@ -256,6 +292,17 @@ module API
 
       def sign_up_params
         params.require(:user).permit(:email, :password, :password_confirmation, first_name: "", last_name: "")
+      end
+
+      # Renders the rejection and returns true when the address is disposable,
+      # so callers can `return if reject_disposable_email(email)`. Shared by
+      # both signup actions — one message, one place to change it.
+      def reject_disposable_email(email)
+        return false unless DisposableEmailDomains.disposable?(email)
+
+        render json: { error: "Please use a permanent email address — we need to be able to reach you about your account." },
+               status: :unprocessable_content
+        true
       end
     end
   end
