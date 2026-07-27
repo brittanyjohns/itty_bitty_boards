@@ -152,9 +152,10 @@ The card-on-file signal is `settings["has_payment_method"]`, written by
 back to the customer's `invoice_settings.default_payment_method`, which is
 where the Customer Portal writes it) and by a `payment_method.attached`
 handler so a portal-added card registers mid-trial. Both fail soft: a Stripe
-error keeps the previous value rather than raising. Both webhook paths and
-`SubscriptionsController#customer_has_payment_method?` share the same lookup,
-`Billing::PaymentMethods.on_file?` (`app/services/billing/payment_methods.rb`).
+error keeps the previous value rather than raising. `handle_subscription_upsert`'s
+lookup and `SubscriptionsController#customer_has_payment_method?` share
+`Billing::PaymentMethods.on_file?`; the `payment_method.attached` handler sets
+the flag directly from the webhook event without re-querying Stripe.
 
 **Payment-method portal CTA.** `POST /api/subscriptions/billing_portal`
 accepts an optional `flow` param; `flow=payment_method_update` adds
