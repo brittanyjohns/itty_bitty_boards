@@ -1543,6 +1543,59 @@ class User < ApplicationRecord
     (trial_expired_at - Time.now).to_i / 1.day
   end
 
+  # --- Provider-trial surface for the client -----------------------------
+  # The client must not re-derive billing rules; the server owns them. See
+  # drafts/2026-07-27-trial-banner-payment-method-design.md.
+  #
+  # Deliberately separate from free_trial? / trial_days_left, which describe
+  # the 14-day-from-signup window for Free accounts. That window is unrelated
+  # to a provider trial and keeps its own client behavior.
+
+  # Which provider runs the current trial. Stripe trials always carry a
+  # stripe_subscription_id; RevenueCat (IAP) trials never do.
+  def trial_provider
+    return nil unless show_trial_ui?
+
+    stripe_subscription_id.present? ? "stripe" : "revenuecat"
+  end
+
+  # Should the client show trial UI at all? partner_pro pilots ride a 3-month
+  # no-card trial managed outside the app, so a persistent 90-day countdown
+  # strip is noise for them.
+  def show_trial_ui?
+    plan_status == "trialing" && plan_type != "partner_pro"
+  end
+
+  # True only when adding a card is the action that keeps the user's plan: a
+  # Stripe reverse trial (#264) with nothing on file. RevenueCat trialists
+  # already pay through Apple/Google and cannot add a card here at all.
+  def trial_needs_payment_method?
+    show_trial_ui? &&
+      trial_provider == "stripe" &&
+      !(settings || {})["has_payment_method"]
+  end
+
+  # Display name of the plan being trialed, for banner copy. nil for tiers
+  # without a consumer-facing label — the client falls back to generic copy.
+  def trial_plan_label
+    return nil unless show_trial_ui?
+    return "Pro" if pro?
+    return "Basic" if basic?
+
+    nil
+  end
+
+  def trial_api_view
+    {
+      active: show_trial_ui?,
+      status: plan_status,
+      ends_at: (settings || {})["trial_ends_at"],
+      provider: trial_provider,
+      needs_payment_method: trial_needs_payment_method?,
+      plan_label: trial_plan_label,
+    }
+  end
+
   def startup_board_group
     startup_board_group_id = settings["startup_board_group_id"]
     board_group = BoardGroup.includes(board_group_boards: :board).find_by(id: startup_board_group_id) if startup_board_group_id
@@ -2054,6 +2107,7 @@ class User < ApplicationRecord
       free_trial: free_trial?,
       trial_expired: trial_expired?,
       trial_days_left: trial_days_left,
+      trial: trial_api_view,
       comm_account_limit_reached: comm_account_limit_reached,
 
       # Communicators (REAL)

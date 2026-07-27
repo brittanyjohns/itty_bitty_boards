@@ -13,6 +13,10 @@ class API::SubscriptionsController < API::ApplicationController
     render json: { error: "Failed to load subscriptions" }, status: :bad_request
   end
 
+  # Flows the client may request. Allow-listed rather than passed through so a
+  # client can't drive arbitrary Stripe portal flows.
+  PORTAL_FLOWS = %w[payment_method_update].freeze
+
   def billing_portal
     # Free accounts (mobile signups, legacy users) may not have a Stripe
     # customer yet — create one lazily so the portal works for everyone.
@@ -21,6 +25,12 @@ class API::SubscriptionsController < API::ApplicationController
       customer: customer_id,
       return_url: "#{DOMAIN}/dashboard",
     }
+    # Focused "add a card" flow for the trial banner's payment-method CTA.
+    # Without it the portal opens on its home screen and a trialist with no
+    # card has to hunt for the payment-method section.
+    if PORTAL_FLOWS.include?(params[:flow].to_s)
+      portal_params[:flow_data] = { type: params[:flow].to_s }
+    end
     portal_params[:configuration] = ENV["STRIPE_PORTAL_CONFIG_ID"] if ENV["STRIPE_PORTAL_CONFIG_ID"].present?
     session = Stripe::BillingPortal::Session.create(portal_params)
     render json: { url: session&.url }, status: 200
@@ -383,15 +393,17 @@ class API::SubscriptionsController < API::ApplicationController
   end
 
   # Does the customer have a usable payment method for an immediate charge?
-  # Checks the subscription's own default first, then the customer's default
-  # payment method / legacy default source. On any Stripe error we assume "yes"
-  # so we never block a plan change on an inconclusive lookup — the actual
-  # change attempt surfaces the real error reactively.
+  # Delegates the actual lookup (subscription default -> customer
+  # invoice_settings default -> legacy default_source) to the shared
+  # Billing::PaymentMethods, also used by
+  # WebhooksController#payment_method_on_file?. On any Stripe error we assume
+  # "yes" so we never block a plan change on an inconclusive lookup — the
+  # actual change attempt surfaces the real error reactively. This rescue is
+  # deliberately kept local rather than folded into the shared lookup — see
+  # that module's comment for why the two callers' fallbacks must stay
+  # independent.
   def customer_has_payment_method?(customer_id, subscription = nil)
-    return true if subscription.respond_to?(:default_payment_method) && subscription.default_payment_method.present?
-
-    customer = Stripe::Customer.retrieve(customer_id)
-    customer.invoice_settings&.default_payment_method.present? || customer.default_source.present?
+    Billing::PaymentMethods.on_file?(customer_id, subscription: subscription)
   rescue Stripe::StripeError => e
     Rails.logger.warn "customer_has_payment_method? lookup failed: #{e.message} (user #{current_user.id})"
     true

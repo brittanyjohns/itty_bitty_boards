@@ -23,6 +23,7 @@ module Billing
       user.setup_free_limits
       user.stripe_subscription_id = nil
       user.settings.delete("trial_ends_at")
+      user.settings.delete("has_payment_method")
       # Pro-only extra-communicator add-on slots don't survive a downgrade: a
       # cancelled subscription or an expired license takes its extras with it.
       # (Over-limit communicators are retained in fallback by the reconciler.)

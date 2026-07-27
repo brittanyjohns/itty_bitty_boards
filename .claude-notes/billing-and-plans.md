@@ -138,6 +138,78 @@ The `trial_started` AnalyticsEvent is likewise gated on `apply_trial`, so promo
 conversions don't pollute the trial→paid metric. Non-promo checkouts are
 unchanged (full no-card reverse trial).
 
+**Client-facing trial state.** `User#api_view` carries a computed `trial`
+block — `{ active, status, ends_at, provider, needs_payment_method,
+plan_label }` — so the frontend never re-derives billing rules. `provider` is
+`nil` when the user isn't on a suppressed-or-active trial (`show_trial_ui?`
+false — the value most users produce, including a plain non-trialing account
+or a `partner_pro` pilot); otherwise `"stripe"` when `stripe_subscription_id`
+is present, else `"revenuecat"`. A strict TypeScript consumer must handle the
+`nil` case. `active` is false for `partner_pro` regardless of whether a Stripe
+trial exists — `show_trial_ui?` suppresses the countdown UI for the pilot
+outright. The 3-month pilot length itself is `plan_expires_at`, set by
+`handle_new_partner_pro_subscription` (`now + PARTNER_PILOT_TRIAL_MONTHS.months`),
+**not** a Stripe trial: Partner checkout auto-applies the `PARTNERPILOT26`
+promo code, and `apply_trial = promo.blank?`, so partners normally get **no**
+Stripe trial period from checkout at all — see "Partner Program" below for the
+separate `/sign-up/partner` path that does create a real no-card Stripe trial
+subscription. `needs_payment_method` is true only for a Stripe trial with no
+card on file — that is the reverse-trial cohort that drops to Free at trial
+end.
+
+The card-on-file signal is `settings["has_payment_method"]`, written by two
+webhook paths.
+
+`handle_subscription_upsert` computes it **only when
+`subscription.status == "trialing"`** — the flag is read nowhere else, so
+non-trial upserts skip the lookup entirely rather than spend a Stripe call on
+every routine subscription event. It shares `Billing::PaymentMethods.on_file?`
+with `SubscriptionsController#customer_has_payment_method?`; that lookup checks
+the subscription's `default_payment_method`, then the customer's
+`invoice_settings.default_payment_method` (where the Customer Portal writes
+it), then the legacy `default_source`. The shared lookup deliberately does
+**not** rescue — each caller keeps its own fallback, because they want opposite
+answers on an inconclusive lookup: the webhook keeps the previous value (don't
+flip the flag on a blip), while `customer_has_payment_method?` assumes `true`
+(never block a plan change).
+
+The `payment_method.attached` handler sets the flag directly from the event
+without re-querying Stripe, so a portal-added card registers mid-trial rather
+than waiting for the next subscription event. **That event must be enabled on
+the Stripe webhook endpoint** (see `docs/stripe-setup.md` §3) or the handler
+never fires. It only writes for a `trialing` user — the flag means nothing
+for anyone else, and gating it stops an unrelated attach (e.g. a credit
+top-up purchase's payment method, which is never a subscription/customer
+default anywhere) from masking a trialist's missing card.
+
+**Optimistic at attach, authoritative at `trial_will_end` — the split is
+deliberate.** `payment_method.attached` always writes `true` for any attach
+without an authoritative `Billing::PaymentMethods.on_file?` check, because the
+event can arrive before Stripe has updated `customer.invoice_settings` — an
+authoritative lookup right then could read stale state and write `false`,
+strictly worse than the optimistic write. There is no `payment_method.detached`
+counterpart, so between trial start and the next signal the flag can only be
+corrected in one direction from this handler. Stripe fires nothing else during
+a quiet trial (no card added, no card removed, no plan change) between
+`customer.subscription.created` and the terminal event, so a card removed
+mid-trial via the portal would otherwise stay stale-true for the whole
+14-day window — `handle_trial_will_end` (fired ~3 days before trial end, the
+same moment the frontend CTA turns on) is what authoritatively recomputes the
+flag via `payment_method_on_file?` before the banner is ever shown, correcting
+both a stale-true removed card and a trial already in flight at deploy time
+with no flag set at all. There is no quiet-trial upsert to "self-heal" on —
+`trial_will_end` is the only correction point.
+
+**Payment-method portal CTA.** `POST /api/subscriptions/billing_portal`
+accepts an optional `flow` param; `flow=payment_method_update` adds
+`flow_data: { type: "payment_method_update" }` to the Stripe session so the
+portal opens directly on "add a card" instead of its home screen — the
+destination for the trial banner's payment-method CTA. Allowed flow values
+are allow-listed (`API::SubscriptionsController::PORTAL_FLOWS`) rather than
+passed through, so a client can never drive an arbitrary Stripe portal flow;
+an unrecognized value is silently ignored and the portal opens on its normal
+home screen.
+
 ### Partner Program (`partner_pro`)
 
 The `/sign-up/partner` flow (frontend `viewType="partner"`) posts to the normal
