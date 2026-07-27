@@ -8,6 +8,11 @@ require "rails_helper"
 # inbox ownership — see the task-7r brief), so email_signup's welcome receipt
 # alone can no longer be relied on to verify the address.
 RSpec.describe "signup email verification", type: :request do
+  # The Stripe gem raises Stripe::AuthenticationError client-side when no API
+  # key is configured, before any request is made — so the WebMock stub for
+  # api.stripe.com never sees it. CI has no key. Same stub as auth_spec.rb.
+  before { allow(User).to receive(:create_stripe_customer).and_return("cus_test") }
+
   describe "POST /api/v1/users (standard signup)" do
     def sign_up(email: "new@example.com")
       post "/api/v1/users",
@@ -96,6 +101,8 @@ RSpec.describe "signup email verification", type: :request do
 end
 
 RSpec.describe "verification is earned only by an emailed link", type: :request do
+  before { allow(User).to receive(:create_stripe_customer).and_return("cus_test") }
+
   # THE security regression test for this task. Reaching set_password requires
   # only the session email_signup already handed out — no inbox access — so it
   # must not confer verified status, even though devise_invitable's

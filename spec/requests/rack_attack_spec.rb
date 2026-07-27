@@ -133,6 +133,11 @@ RSpec.describe "Rack::Attack rate limiting", type: :request do
   describe "signup throttle (per IP)" do
     let(:limit) { Rack::Attack::SIGNUP_LIMIT }
 
+    # The Stripe gem raises Stripe::AuthenticationError client-side when no API
+    # key is configured, before any request is made — so the WebMock stub for
+    # api.stripe.com never sees it. CI has no key. Same stub as auth_spec.rb.
+    before { allow(User).to receive(:create_stripe_customer).and_return("cus_test") }
+
     # Distinct emails so failures come from the throttle, not uniqueness.
     def signup(n)
       post "/api/v1/users",
