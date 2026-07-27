@@ -21,6 +21,18 @@ class AdminMailer < BaseMailer
     mail(to: to_email, subject: subject, from: "noreply@speakanyway.com")
   end
 
+  # Words Within Reach playground nomination, fired by
+  # DownloadLead#notify_admin_of_nomination. There is no admin UI for
+  # nominations yet, so this email IS the inbox for the campaign — it has to
+  # carry every field somebody would need to follow up without opening a console.
+  def new_nomination_email(lead)
+    @lead = lead
+    park = lead.nomination_field(:park) || "Unnamed playground"
+    city = lead.nomination_field(:city)
+    subject = admin_subject("Playground nomination: #{park}#{" (#{city})" if city}")
+    mail(to: admin_recipient, subject: subject, from: "noreply@speakanyway.com")
+  end
+
   # Partner-pilot review digest, sent by PartnerPilotEndingJob when there are
   # partners ending soon and/or newly past their 3-month window. Gives Brittany
   # a single actionable list — nobody is auto-downgraded, so this is the signal
