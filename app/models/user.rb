@@ -1560,7 +1560,7 @@ class User < ApplicationRecord
   # Which provider runs the current trial. Stripe trials always carry a
   # stripe_subscription_id; RevenueCat (IAP) trials never do.
   def trial_provider
-    return nil unless plan_status == "trialing"
+    return nil unless show_trial_ui?
 
     stripe_subscription_id.present? ? "stripe" : "revenuecat"
   end

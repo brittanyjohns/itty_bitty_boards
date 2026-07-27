@@ -113,7 +113,7 @@ RSpec.describe "POST /api/subscriptions/billing_portal", type: :request do
         portal_session
       end
 
-      post "/api/subscriptions/billing_portal", headers: auth_headers(user)
+      do_post(user)
 
       expect(response).to have_http_status(:ok)
       expect(captured).not_to have_key(:flow_data)

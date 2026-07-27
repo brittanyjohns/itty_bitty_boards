@@ -130,6 +130,27 @@ class API::WebhooksController < API::ApplicationController
       return
     end
 
+    # Authoritative has_payment_method recompute — this is the ONE quiet-trial
+    # correction point. Stripe fires nothing between customer.subscription.created
+    # and this event (~3 days before trial end), so the flag written at trial
+    # start is otherwise stale for the entire 14 days: a trial already in flight
+    # when this feature deployed has no key at all (`!nil` -> needs_payment_method
+    # true, wrong for anyone who already has a card), and a card removed mid-trial
+    # via the portal leaves the flag stale-true (never nudged, cancels silently).
+    # trial_will_end fires exactly when the frontend CTA turns on, so recomputing
+    # here corrects both cohorts before the banner is ever shown. Wrapped in its
+    # own begin/rescue so a Stripe hiccup can never skip the analytics event or
+    # the Mailchimp enqueue below (external-service failures fail soft).
+    if user.plan_status == "trialing"
+      begin
+        user.settings["has_payment_method"] =
+          payment_method_on_file?(subscription, user.settings["has_payment_method"])
+        user.save!
+      rescue => e
+        Rails.logger.error "[StripeWebhook] trial_will_end: has_payment_method recompute failed for user=#{user.id}: #{e.class} - #{e.message}"
+      end
+    end
+
     trial_end = subscription.respond_to?(:trial_end) ? subscription.trial_end : nil
     AnalyticsEvent.track(
       "trial_will_end",
@@ -897,6 +918,24 @@ class API::WebhooksController < API::ApplicationController
       return
     end
 
+    # The flag only means anything for a trialist (it drives the trial banner's
+    # CTA) — gate the write so a non-trial attach (e.g. a credit top-up
+    # purchase's PM) writes nothing at all.
+    unless user.plan_status == "trialing"
+      Rails.logger.info "[StripeWebhook] payment_method.attached: user=#{user.id} not trialing; skipping"
+      return
+    end
+
+    # Deliberately optimistic: write `true` for ANY attach rather than calling
+    # Billing::PaymentMethods.on_file? (the narrower "is this actually a
+    # default somewhere" definition). This event can arrive before Stripe has
+    # updated customer.invoice_settings, so an authoritative lookup here could
+    # read stale state and write `false` — strictly worse than doing nothing.
+    # A PM attached-but-never-defaulted (e.g. a credit top-up purchase) is
+    # exactly the gap this optimistic write can't close; that's fine, because
+    # handle_trial_will_end (Fix A) is the authoritative recompute ~3 days
+    # before trial end, before the CTA is ever shown. Design: optimistic at
+    # attach, authoritative at trial_will_end.
     user.settings["has_payment_method"] = true
     user.save!
     Rails.logger.info "[StripeWebhook] payment_method.attached: user=#{user.id}"

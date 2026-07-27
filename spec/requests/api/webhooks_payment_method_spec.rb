@@ -93,6 +93,13 @@ RSpec.describe "POST /api/webhooks (has_payment_method)", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(user.reload.settings["has_payment_method"]).to eq(true)
+    # Pins that the Stripe error was swallowed by payment_method_on_file?'s own
+    # local rescue, not by handle_subscription_upsert's outer rescue. If the
+    # local rescue were removed, the error would propagate to the outer rescue,
+    # user.save! would never run, and this would fail (trial_ends_at would be
+    # nil) even though has_payment_method and the 200 response above would
+    # still look correct.
+    expect(user.reload.settings["trial_ends_at"]).to be_present
   end
 
   it "records true for a customer whose only card is a legacy default_source" do
@@ -158,6 +165,25 @@ RSpec.describe "POST /api/webhooks (has_payment_method)", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(stranger.reload.settings["has_payment_method"]).to eq(false)
+    end
+
+    # Fix B: the flag is only meaningful for a trialist (it drives the trial
+    # banner's CTA), so a non-trial attach — e.g. a credit top-up purchase's
+    # payment method, which is never a subscription/customer default anywhere
+    # — must write nothing. Writing `true` here would silently disable the
+    # nudge for the exact reverse-trial cohort this feature exists to catch.
+    it "does not write has_payment_method for a non-trialing user" do
+      non_trialist = FactoryBot.create(:user,
+        stripe_customer_id: "cus_pm_non_trial",
+        plan_type: "basic",
+        plan_status: "active")
+      non_trialist.update!(settings: non_trialist.settings.merge("has_payment_method" => false))
+      stub_event(build_payment_method(customer: "cus_pm_non_trial"), type: "payment_method.attached")
+
+      post_webhook("{}", header_with_signature)
+
+      expect(response).to have_http_status(:ok)
+      expect(non_trialist.reload.settings["has_payment_method"]).to eq(false)
     end
   end
 end

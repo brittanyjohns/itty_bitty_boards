@@ -550,6 +550,7 @@ RSpec.describe User, type: :model do
 
       expect(user.api_view[:trial]).to include(
         active: false,
+        provider: nil,
         needs_payment_method: false,
       )
     end

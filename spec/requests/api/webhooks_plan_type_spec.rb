@@ -294,6 +294,16 @@ RSpec.describe "POST /api/webhooks (plan_type)", type: :request do
 
       expect(user.reload.settings["trial_ends_at"]).to be_nil
     end
+
+    it "clears has_payment_method alongside trial_ends_at on cancellation" do
+      user.update!(plan_type: "pro", settings: { "trial_ends_at" => 7.days.from_now.iso8601, "has_payment_method" => true })
+      sub = build_subscription
+      stub_event(sub, type: "customer.subscription.deleted")
+
+      post_webhook("{}", header_with_signature)
+
+      expect(user.reload.settings["has_payment_method"]).to be_nil
+    end
   end
 
   describe "customer.subscription.paused" do
