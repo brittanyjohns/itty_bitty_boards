@@ -42,8 +42,8 @@
   </style>
 </head>
 <body>
-  <%# --- Dynamic limits (safe defaults) --- %>
-  <% basic_supporter_limit = (@basic_supporter_limit || 2) %>
+  <%# Supporters are NOT capped on any plan — no invite limit is enforced
+      anywhere in the app. Do not reintroduce a count here. %>
 
   <!-- Preheader -->
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
@@ -164,7 +164,7 @@
           </td>
           <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;color:#bbb;">—</td>
           <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;color:#333;">
-            <%= t("user_mailer.welcome_with_claim_link_email.compare_value_supporters", count: basic_supporter_limit) %>
+            <%= t("user_mailer.welcome_with_claim_link_email.compare_value_supporters") %>
           </td>
         </tr>
       </table>

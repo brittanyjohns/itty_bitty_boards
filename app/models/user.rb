@@ -285,9 +285,14 @@ class User < ApplicationRecord
     self.settings["timezone"] || "America/New_York"
   end
 
-  def supporter_limit
-    pro? ? 5 : 2
-  end
+  # NOTE: there is deliberately no `supporter_limit`. Team membership
+  # (TeamUser) is uncapped on every plan — `Api::TeamsController#invite`
+  # performs no count check, and inviting a supporter is how an AAC user's
+  # circle of care gets access. A supporter cap would be a pricing decision,
+  # not a code cleanup: it needs a grandfathering rule for existing
+  # over-limit teams and an update to marketing/pricing-structure.md first.
+  # A dead `supporter_limit` (pro? ? 5 : 2) once lived here and was read only
+  # by welcome-email copy, which promised a limit the app never enforced.
 
   # Communicator slot math:
   #
@@ -1362,7 +1367,7 @@ class User < ApplicationRecord
   # Partner Pro is a Pro-equivalent tier: partners get the same permissions and
   # limits as paying Pro users (setup_partner_pro_plan mirrors PRO_PLAN_LIMITS),
   # so pro? must treat it as Pro. This single predicate feeds paid_plan?,
-  # partner_pro?, supporter_limit, the lending gate, and the api_view `pro`
+  # partner_pro?, the lending gate, and the api_view `pro`
   # flag — so a partner is Pro everywhere those are checked. pro_yearly is
   # included for parity with the setup_limits / board_group_limit case bodies.
   def pro?

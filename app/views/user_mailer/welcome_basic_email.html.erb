@@ -62,8 +62,8 @@
   <% basic_board_limit = (@basic_board_limit || @user&.board_limit || 0) %>
   <% pro_board_limit   = (@pro_board_limit   || "More") %>
 
-  <% basic_supporter_limit = (@basic_supporter_limit || @user&.supporter_limit || 0) %>
-  <% pro_supporter_limit   = (@pro_supporter_limit   || "More") %>
+  <%# Supporters are NOT capped on any plan — no invite limit is enforced
+      anywhere in the app. Do not reintroduce a count here. %>
 
   <% basic_comm_limit = (@basic_comm_limit || @user&.comm_account_limit || 0) %>
   <% pro_comm_limit   = (@pro_comm_limit   || 3) %>
@@ -105,7 +105,7 @@
 
         <li><%= t("user_mailer.welcome_basic_email.do_now_boards_html", count: basic_board_limit.to_i).html_safe %></li>
 
-        <li><%= t("user_mailer.welcome_basic_email.do_now_supporters_html", count: basic_supporter_limit.to_i).html_safe %></li>
+        <li><%= t("user_mailer.welcome_basic_email.do_now_supporters_html").html_safe %></li>
 
         <li><%= t("user_mailer.welcome_basic_email.do_now_pdf_html").html_safe %></li>
 
@@ -154,8 +154,8 @@
 
           <tr>
             <td style="padding:12px 14px;font-size:14px;line-height:1.4;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;"><%= t("user_mailer.welcome_basic_email.compare_feature_supporters") %></td>
-            <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;"><%= basic_supporter_limit %></td>
-            <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;"><%= pro_supporter_limit %></td>
+            <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;border-right:1px solid #e9e9e9;"><%= t("user_mailer.welcome_basic_email.compare_value_unlimited") %></td>
+            <td align="center" style="padding:12px 14px;font-size:14px;border-top:1px solid #e9e9e9;"><%= t("user_mailer.welcome_basic_email.compare_value_unlimited") %></td>
           </tr>
 
           <tr>

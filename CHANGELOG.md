@@ -5,6 +5,16 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Welcome emails no longer promise a Supporter limit
+- The Basic welcome email said "Invite up to 2 Supporter accounts" and the
+  MySpeak claim-link email said "2 included". No such limit exists: the invite
+  path (`POST /api/teams/:id/invite`) performs no count check on any plan, and
+  the Pro welcome email and the pricing page both already say Supporters are
+  unlimited. The copy now matches the product — Supporters are uncapped on
+  every plan, in English and Spanish.
+- Removed the unused `User#supporter_limit`, which was read only by that email
+  copy and never by an enforcement path.
+
 ### Added — Email verification for new signups
 - Both signup paths (standard signup and email-only/passwordless signup) now
   send a confirmation email. The free welcome tokens and the initial AI credit
