@@ -62,9 +62,6 @@
   <% basic_board_limit = (@basic_board_limit || @user&.board_limit || 0) %>
   <% pro_board_limit   = (@pro_board_limit   || "More") %>
 
-  <%# Supporters are NOT capped on any plan — no invite limit is enforced
-      anywhere in the app. Do not reintroduce a count here. %>
-
   <% basic_comm_limit = (@basic_comm_limit || @user&.comm_account_limit || 0) %>
   <% pro_comm_limit   = (@pro_comm_limit   || 3) %>
 

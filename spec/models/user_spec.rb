@@ -74,7 +74,7 @@ RSpec.describe User, type: :model do
       expect(partner.partner_pro?).to be(true)
     end
 
-    it "has no supporter limit (team membership is uncapped on every plan)" do
+    it "has no supporter limit" do
       expect(partner).not_to respond_to(:supporter_limit)
     end
 
