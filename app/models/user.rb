@@ -1116,11 +1116,27 @@ class User < ApplicationRecord
   # can report it. Stored in `settings` rather than columns: nothing queries
   # it, so a jsonb key avoids a migration and a backfill decision. Accounts
   # created before this shipped have neither key and render as "unknown".
-  def record_signup_context!(platform: nil, method: nil)
+  # `ref` is the creator/partner attribution from the signup link's `?ref=`
+  # query param. Written only when it survives sanitizing, so an absent ref
+  # leaves no key at all — "no attribution" and "attributed to blank" must not
+  # be indistinguishable in the admin view.
+  def record_signup_context!(platform: nil, method: nil, ref: nil)
     self.settings ||= {}
     settings["signup_platform"] = platform.presence || "web"
     settings["signup_method"] = method
+    sanitized_ref = self.class.sanitize_signup_ref(ref)
+    settings["signup_ref"] = sanitized_ref if sanitized_ref
     save
+  end
+
+  SIGNUP_REF_MAX_LENGTH = 64
+
+  # Attribution refs come straight off a public query param, so they are
+  # normalized (a link shared as `?ref=EmilyDiaz` must match `?ref=emilydiaz`)
+  # and length-capped. Returns nil for anything blank so callers can decide
+  # not to write the key.
+  def self.sanitize_signup_ref(value)
+    value.to_s.strip.downcase.first(SIGNUP_REF_MAX_LENGTH).presence
   end
 
   # Single entry point for the admin "new signup" alert. Deliberately NOT
@@ -1665,6 +1681,7 @@ class User < ApplicationRecord
     view["can_create_boards"] = can_create_boards
     view["settings"] = settings
     view["settings"]["plan_type"] = plan_type
+    view["signup_ref"] = settings["signup_ref"]
     view["partner_pro"] = partner_pro?
     view["plan_status"] = plan_status
     view["paid_plan_type"] = paid_plan_type

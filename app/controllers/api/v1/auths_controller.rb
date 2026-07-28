@@ -35,7 +35,7 @@ module API
           sign_in user
           user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
           user.ensure_minimum_communicator_slot!
-          user.record_signup_context!(platform: platform, method: "standard")
+          user.record_signup_context!(platform: platform, method: "standard", ref: params[:ref])
           user.notify_admin_of_signup!
           # Verification email. The user is already signed in — verification
           # gates the welcome tokens, never app access. See
@@ -66,6 +66,7 @@ module API
             signup_method: "standard",
             plan_type: user.plan_type,
             platform: platform.presence || "web",
+            signup_ref: user.settings&.dig("signup_ref"),
           })
           render json: { token: user.authentication_token, user: user.api_view }
         else
@@ -126,7 +127,7 @@ module API
         sign_in user
         user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
         user.ensure_minimum_communicator_slot!
-        user.record_signup_context!(platform: platform, method: "email_only")
+        user.record_signup_context!(platform: platform, method: "email_only", ref: params[:ref])
         user.notify_admin_of_signup!
         # Verification email. The user is already signed in — verification
         # gates the welcome tokens, never app access. See
@@ -158,6 +159,7 @@ module API
           signup_method: "email_only",
           plan_type: user.plan_type,
           platform: platform.presence || "web",
+          signup_ref: user.settings&.dig("signup_ref"),
         })
         render json: { token: user.authentication_token, user: user.api_view }
       end

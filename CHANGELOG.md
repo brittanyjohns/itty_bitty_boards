@@ -5,6 +5,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Referral attribution on signup links
+- Signup now captures a `ref` query param (e.g. `/sign-up/partner?ref=emilydiaz`)
+  into `settings["signup_ref"]`, sanitized (trimmed, lowercased, capped at 64
+  characters) and only written when non-blank. Applies to both the standard and
+  email-only signup paths.
+- The ref rides the `user_signed_up` PostHog event and is shown on the admin
+  user page, so it's clear which creator referred a partner without opening the
+  console.
+
 ### Fixed — Welcome emails no longer promise a Supporter limit
 - The Basic welcome email said "Invite up to 2 Supporter accounts" and the
   MySpeak claim-link email said "2 included". No such limit exists: the invite

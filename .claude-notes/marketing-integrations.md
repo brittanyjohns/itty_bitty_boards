@@ -181,11 +181,12 @@ PostHog events; the backend ensures the full funnel is always captured
 
 **Auth events** — fired from `API::V1::AuthsController`:
 
-- **`user_signed_up`** `{ signup_method, plan_type, platform }` — on successful
-  `sign_up` (`signup_method: "standard"`) or `email_signup`
+- **`user_signed_up`** `{ signup_method, plan_type, platform, signup_ref }` — on
+  successful `sign_up` (`signup_method: "standard"`) or `email_signup`
   (`signup_method: "email_only"`). `platform` is `"web"`, `"ios"`, or
-  `"android"`. Ensures signups are tracked even when the frontend PostHog JS is
-  blocked by ad blockers.
+  `"android"`. `signup_ref` is the sanitized `?ref=` attribution and is `nil`
+  for unattributed signups. Ensures signups are tracked even when the frontend
+  PostHog JS is blocked by ad blockers.
 - **`user_signed_in`** `{ plan_type }` — on successful password login
   (`#create`). Same ad-blocker-resilience rationale.
 

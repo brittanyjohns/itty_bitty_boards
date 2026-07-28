@@ -221,6 +221,16 @@ only if nil), tags Mailchimp, and sends `PartnerMailer.welcome_email` (the free
 welcome + welcome journey are skipped). Entitlements equal Pro
 (`setup_partner_pro_plan` → 300 boards / 5 communicators / 1500 credits).
 
+**Attribution:** `/sign-up/partner` is deliberately ungated (no invite codes, no
+approval step), so who referred a partner is tracked by a `?ref=` query param
+alone. `sign_up` and `email_signup` pass `params[:ref]` into
+`User#record_signup_context!`, which sanitizes it via `User.sanitize_signup_ref`
+(strip, downcase, cap at `SIGNUP_REF_MAX_LENGTH`) and writes
+`settings["signup_ref"]` **only when it survives** — an absent ref leaves no key,
+so "unattributed" and "attributed to blank" stay distinguishable. It also rides
+the `user_signed_up` PostHog event and surfaces on `admin_api_view` plus the
+admin user show page.
+
 **A real no-card Stripe trial backs the pilot (Phase 2, built).**
 `handle_new_partner_pro_subscription` calls
 `user.ensure_partner_pro_trial_subscription!(trial_end:)`, which creates a

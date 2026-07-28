@@ -21,6 +21,42 @@ RSpec.describe "User admin signup notification" do
       user.record_signup_context!(platform: "android", method: "standard")
       expect(User.find(user.id).settings["signup_platform"]).to eq("android")
     end
+
+    it "stores a sanitized signup ref when one is given" do
+      user.record_signup_context!(platform: "web", method: "standard", ref: "  EmilyDiaz ")
+      expect(user.reload.settings["signup_ref"]).to eq("emilydiaz")
+    end
+
+    it "leaves the key absent when no ref is given" do
+      user.record_signup_context!(platform: "web", method: "standard")
+      expect(user.reload.settings).not_to have_key("signup_ref")
+    end
+
+    it "leaves the key absent for a whitespace-only ref" do
+      user.record_signup_context!(platform: "web", method: "standard", ref: "   ")
+      expect(user.reload.settings).not_to have_key("signup_ref")
+    end
+
+    it "truncates an overlong ref" do
+      user.record_signup_context!(platform: "web", method: "standard", ref: "a" * 200)
+      expect(user.reload.settings["signup_ref"]).to eq("a" * User::SIGNUP_REF_MAX_LENGTH)
+    end
+  end
+
+  describe ".sanitize_signup_ref" do
+    it "strips and downcases" do
+      expect(User.sanitize_signup_ref(" EmilyDiaz\n")).to eq("emilydiaz")
+    end
+
+    it "caps the length at SIGNUP_REF_MAX_LENGTH" do
+      expect(User.sanitize_signup_ref("z" * 100).length).to eq(User::SIGNUP_REF_MAX_LENGTH)
+    end
+
+    it "returns nil for blank input" do
+      expect(User.sanitize_signup_ref(nil)).to be_nil
+      expect(User.sanitize_signup_ref("")).to be_nil
+      expect(User.sanitize_signup_ref("  ")).to be_nil
+    end
   end
 
   describe "#notify_admin_of_signup!" do
