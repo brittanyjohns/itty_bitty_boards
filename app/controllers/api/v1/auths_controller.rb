@@ -1,7 +1,7 @@
 module API
   module V1
     class AuthsController < ApplicationController
-      skip_before_action :authenticate_token!, only: [:create, :sign_up, :email_signup, :current, :destroy, :forgot_password, :reset_password, :reset_password_invite]
+      skip_before_action :authenticate_token!, only: [:create, :sign_up, :email_signup, :google, :current, :destroy, :forgot_password, :reset_password, :reset_password_invite]
 
       def sign_up
         name = params["name"] || (params["user"] && params["user"]["name"]) || ""
@@ -218,6 +218,85 @@ module API
           Rails.logger.warn "Failed sign in attempt for email: #{params[:email]} at #{Time.now}"
           render json: { error: error_message }, status: :unauthorized
         end
+      end
+
+      # Google sign-in (Phase 1 of social sign-in). The frontend obtains a
+      # Google ID token client-side and posts it here for server-side
+      # verification — this endpoint never sees a Google client secret.
+      def google
+        id_token = params[:id_token] || (params[:auth] && params[:auth][:id_token])
+        platform = params["platform"] || ""
+
+        result = GoogleIdTokenVerifier.verify(id_token)
+        unless result
+          render json: { error: "Invalid or expired Google sign-in token" }, status: :unauthorized
+          return
+        end
+
+        user = User.find_by(provider: "google", uid: result.sub)
+        is_new_user = false
+
+        if user.nil?
+          user = User.find_by(email: result.email)
+          if user
+            # Auto-link by email — mirrors the self-healing email-match
+            # pattern used for the Stripe customer.created webhook. No
+            # confirmation step: a Google-verified email is sufficient proof.
+            user.update!(provider: "google", uid: result.sub)
+          else
+            is_new_user = true
+            user = User.invite!(email: result.email, provider: "google", uid: result.sub, skip_invitation: true)
+            unless user.persisted?
+              render json: { error: user.errors.full_messages.join(", ") }, status: :unprocessable_content
+              return
+            end
+          end
+        end
+
+        if user.locked?
+          render json: { error: "Your account is locked. Please contact support." }, status: :unauthorized
+          return
+        end
+
+        # Google's own verification counts as sufficient proof — no separate
+        # verification email needed, unlike password signups.
+        user.mark_email_verified!
+        user.reconcile_stranded_plan!
+
+        if is_new_user && platform != "ios" && platform != "android"
+          begin
+            user.update(stripe_customer_id: User.create_stripe_customer(user.email))
+          rescue => e
+            Rails.logger.error "auths#google: Stripe customer creation failed for #{user.email}: #{e.message} — continuing; customer will be ensured at checkout"
+          end
+        end
+
+        sign_in user
+        user.update(last_sign_in_at: Time.now, last_sign_in_ip: request.remote_ip)
+        user.ensure_minimum_communicator_slot!
+
+        if is_new_user
+          user.record_signup_context!(platform: platform, method: "google", ref: params[:ref])
+          user.notify_admin_of_signup!
+          if user.should_send_welcome_email?
+            user.send_welcome_email("free")
+            MailchimpEventJob.perform_async(user.id, "journey", { "journey_key" => "welcome" })
+          end
+          MailchimpEventJob.perform_async(user.id, "sign_up")
+          PosthogService.capture_for_user(user, "user_signed_up", properties: {
+            signup_method: "google",
+            plan_type: user.plan_type,
+            platform: platform.presence || "web",
+            signup_ref: user.settings&.dig("signup_ref"),
+          })
+        else
+          MailchimpEventJob.perform_async(user.id, "sign_in")
+          PosthogService.capture_for_user(user, "user_signed_in", properties: {
+            plan_type: user.plan_type,
+          })
+        end
+
+        render json: { token: user.authentication_token, user: user.api_view }
       end
 
       def forgot_password

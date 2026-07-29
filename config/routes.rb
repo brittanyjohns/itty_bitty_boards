@@ -487,6 +487,7 @@ Rails.application.routes.draw do
       post "users/email_signup", to: "auths#email_signup"
       post "users/set_password", to: "auths#set_password"
       post "users/sign_in", to: "auths#create"
+      post "auths/google", to: "auths#google"
       post "users/sign_out", to: "auths#destroy"
       post "login", to: "auths#create"
       post "forgot_password", to: "auths#forgot_password"

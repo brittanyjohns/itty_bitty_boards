@@ -5,6 +5,13 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added — Google sign-in, backend (Phase 1 of social sign-in)
+- New `POST /api/v1/auths/google` endpoint verifies a Google ID token and
+  signs in (auto-linking by email to an existing account, or creating a new
+  passwordless one) — backend-only, ships independently of the frontend
+  Google sign-in button, which is a separate PR against `itty-bitty-frontend`.
+  Requires `GOOGLE_OAUTH_CLIENT_ID` set in the target environment.
+
 ### Fixed — An unrecognized checkout plan_key no longer downgrades the user to Free
 - `POST /api/stripe/checkout_sessions` treated *any* plan_key it didn't
   recognize (a typo, plan-key drift between frontend and backend, a missing

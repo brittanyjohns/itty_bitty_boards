@@ -392,6 +392,42 @@ demo/myspeak signups keep using `sign_up`. Key invariants:
   → 400 generic message. Requires a saved Customer-portal default config in
   the Stripe dashboard (test + live) — see `docs/stripe-setup.md` §4b.
   Optional `STRIPE_PORTAL_CONFIG_ID` pins a dedicated config.
+
+### Social sign-in — Google (Phase 1)
+
+`POST /api/v1/auths/google`, parent `User` model only — `ChildAccount` is
+untouched. The frontend obtains a Google ID token client-side and posts it
+here; `GoogleIdTokenVerifier` verifies it server-side via Google's
+`tokeninfo` endpoint (checks `aud` against `GOOGLE_OAUTH_CLIENT_ID` and
+`email_verified`) — not through the `omniauth-google-oauth2` gem's
+strategy, which is wired into the full OmniAuth request/callback middleware
+this app's bearer-token API auth doesn't use. `provider`/`uid` on `users` are
+generic (not Google-specific column names) so Phase 2 (Apple) and Phase 3
+(Facebook) reuse the same schema.
+
+- **Email collision auto-links, no confirmation step:** if no
+  `provider`+`uid` match is found, a `User` is looked up by email; if found,
+  `provider`/`uid` are attached to that row and sign-in proceeds — mirrors
+  the self-healing email-match pattern used for the `customer.created`
+  webhook above.
+- **A Google-verified email auto-marks `email_verified_at`** via the same
+  `mark_email_verified!` writer email verification always uses (see the
+  root CLAUDE.md invariant) — Google's own verification is treated as
+  sufficient proof; no separate verification email is sent for this path.
+- **New-account creation goes through `User.invite!(skip_invitation: true)`**,
+  the same passwordless-account mechanism `email_signup` uses — see "Email-only
+  (passwordless) signup" above for why that's safe with a blank
+  `encrypted_password` and how `needs_password`/`accept_invitation!` behave for
+  these accounts.
+- Signup-only side effects (Stripe customer creation, Mailchimp/PostHog
+  `sign_up` events, admin notification, welcome email) run only when a new
+  `User` is created — an auto-link or a straight `provider`+`uid` login only
+  updates `last_sign_in_at` and fires the `sign_in` tracking events, matching
+  `auths#create`'s repeat-login behavior.
+- `GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET` must be set in the
+  target environment before the frontend can be tested end-to-end (see
+  README.md's Environment Variables section).
+
 - **Promo-aware plan switch for existing subscribers (#308):**
   `POST /api/subscriptions/change_plan_portal_session` (`plan_key` required,
   `promo_code` optional) lets a current subscriber switch plans with a promo
