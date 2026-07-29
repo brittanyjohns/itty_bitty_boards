@@ -96,6 +96,17 @@ RSpec.describe "POST /api/stripe/checkout_sessions (subscription)", type: :reque
       expect(user.plan_status).to eq("active")
     end
 
+    it "rejects an unrecognized plan_key with a 400 instead of downgrading the user to free" do
+      user.update!(plan_type: "pro", plan_status: "active")
+      expect(Stripe::Checkout::Session).not_to receive(:create)
+
+      do_post.call({ plan_key: "basic_5yr" })
+
+      expect(response).to have_http_status(:bad_request)
+      expect(user.reload.plan_type).to eq("pro")
+      expect(user.plan_status).to eq("active")
+    end
+
     it "auto-applies the partner pilot promo code for plan_key=partner_pro" do
       user.update!(stripe_customer_id: "cus_partner")
       promo = OpenStruct.new(id: "promo_partner_id")

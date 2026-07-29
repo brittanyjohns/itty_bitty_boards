@@ -5,6 +5,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — An unrecognized checkout plan_key no longer downgrades the user to Free
+- `POST /api/stripe/checkout_sessions` treated *any* plan_key it didn't
+  recognize (a typo, plan-key drift between frontend and backend, a missing
+  `STRIPE_PRICE_*` env var) the same as an explicit `plan_key=free` request:
+  it silently reset the user's `plan_type` to `"free"` and redirected to
+  `/home` with no Stripe session and no error. That's how a paired frontend
+  bug (5-Year License buttons posting an unhandled plan_key here) was able
+  to bounce users to the dashboard.
+- Unrecognized/misconfigured plan keys now get a 400 `Unknown or
+  unconfigured plan_key` response and never touch the user's plan record.
+  Only an explicit `plan_key=free` still short-circuits to the free plan.
+
 ### Fixed — Promo codes are redeemable on annual plans at Stripe Checkout
 - Picking a yearly plan from /pricing and typing a promotion code into Stripe's
   own code box failed with "does not meet the minimum amount requirement". The
