@@ -65,9 +65,17 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     # `source` the (best-effort) client event does; defaulted so it's never nil.
     source = params[:source].to_s.strip.presence || "web_checkout"
 
-    if plan_key == "free" || price_id.blank?
+    if plan_key == "free"
       current_user.update!(plan_type: "free", plan_status: "active")
       render json: { url: "#{frontend_base_url}/home" } and return
+    end
+
+    # An unrecognized/misconfigured plan_key (frontend/backend plan-key
+    # drift, a missing STRIPE_PRICE_* env var) must never silently downgrade
+    # an existing plan — it used to fall into the free short-circuit above,
+    # resetting plan_type to "free" with no Stripe session and no error.
+    if price_id.blank?
+      render json: { error: "Unknown or unconfigured plan_key" }, status: :bad_request and return
     end
     is_partner = plan_key == "partner_pro"
 
