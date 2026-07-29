@@ -5,6 +5,18 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — Promo codes are redeemable on annual plans at Stripe Checkout
+- Picking a yearly plan from /pricing and typing a promotion code into Stripe's
+  own code box failed with "does not meet the minimum amount requirement". The
+  14-day no-card trial set the amount due today to $0, and a minimum-restricted
+  coupon (the FOUNDING code's $50 floor, which is what limits it to annual
+  plans) is validated against that amount. Only the campaign link
+  (`/pricing?promo=FOUNDING`) worked, because that path already skipped the
+  trial.
+- Yearly checkouts now skip the trial whether or not a promo code was passed in,
+  so the annual price is due at checkout and the code validates. Monthly
+  checkouts are unchanged and keep the full no-card reverse trial.
+
 ### Added — Referral attribution on signup links
 - Signup now captures a `ref` query param (e.g. `/sign-up/partner?ref=emilydiaz`)
   into `settings["signup_ref"]`, sanitized (trimmed, lowercased, capped at 64

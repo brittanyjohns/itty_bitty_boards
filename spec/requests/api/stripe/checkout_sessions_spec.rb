@@ -177,14 +177,43 @@ RSpec.describe "POST /api/stripe/checkout_sessions (subscription)", type: :reque
       do_post.call({ plan_key: "basic_yearly", promo_code: "FOUNDING" })
     end
 
-    it "keeps the 14-day no-card trial when no promo is applied" do
-      do_post.call({ plan_key: "basic_yearly" })
+    it "keeps the 14-day no-card trial on a monthly plan when no promo is applied" do
+      do_post.call({ plan_key: "basic" })
 
       expect(captured[:subscription_data][:trial_period_days]).to eq(14)
       expect(captured[:subscription_data][:trial_settings]).to eq(
         end_behavior: { missing_payment_method: "cancel" },
       )
       expect(captured[:allow_promotion_codes]).to eq(true)
+    end
+
+    # Second half of the same bug: a buyer who picks an annual plan from
+    # /pricing WITHOUT the campaign link gets Stripe's own promo-code box
+    # (allow_promotion_codes), and a trialing session's $0 amount-due makes
+    # that box reject FOUNDING for not meeting the $50 minimum. Yearly
+    # checkouts therefore skip the trial entirely.
+    %w[basic_yearly pro_yearly].each do |plan_key|
+      it "omits the trial for #{plan_key} even without a promo, so Stripe's promo box works" do
+        do_post.call({ plan_key: plan_key })
+
+        expect(response).to have_http_status(:ok)
+        expect(captured).not_to have_key(:subscription_data)
+        # Stripe's code box stays on — with the real annual price due today,
+        # a minimum-restricted coupon now validates.
+        expect(captured[:allow_promotion_codes]).to eq(true)
+      end
+    end
+
+    it "does not record trial_started for a yearly checkout (no trial began)" do
+      expect {
+        do_post.call({ plan_key: "pro_yearly" })
+      }.not_to change { AnalyticsEvent.for_event("trial_started").count }
+    end
+
+    it "still records trial_started for a monthly checkout" do
+      expect {
+        do_post.call({ plan_key: "basic" })
+      }.to change { AnalyticsEvent.for_event("trial_started").count }.by(1)
     end
   end
 

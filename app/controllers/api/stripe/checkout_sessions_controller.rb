@@ -150,7 +150,15 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
     # requirement" (prod 400s, 2026-07-07). Without the trial the checkout
     # carries the plan's real price (yearly $80/$200 ≥ $50), the minimum is
     # satisfied, and the discount applies to the subscription.
-    apply_trial = promo.blank?
+    #
+    # Yearly plans skip the trial for the same reason even WITHOUT a promo
+    # param: `allow_promotion_codes` renders Stripe's own code box on the
+    # Checkout page, and a trialing session's $0 amount-due makes that box
+    # reject any minimum-restricted code. Someone who picks an annual plan from
+    # /pricing and types FOUNDING into Stripe is otherwise guaranteed a
+    # "minimum amount" error. Charging the annual price up front keeps that box
+    # working; monthly keeps the reverse trial.
+    apply_trial = promo.blank? && !yearly_plan?(plan_key)
     if apply_trial
       session_params[:subscription_data] = {
         trial_period_days: trial_days,
@@ -475,7 +483,13 @@ class API::Stripe::CheckoutSessionsController < API::ApplicationController
   # `billing_interval_from_price` in the webhook, but derived from the plan_key
   # we already have at session-create time (no Stripe round-trip).
   def billing_interval_for(plan_key)
-    plan_key.to_s.end_with?("_yearly") ? "yearly" : "monthly"
+    yearly_plan?(plan_key) ? "yearly" : "monthly"
+  end
+
+  # Annual self-serve plans (`basic_yearly` / `pro_yearly`). These never carry
+  # the no-card reverse trial — see the `apply_trial` note in #create.
+  def yearly_plan?(plan_key)
+    plan_key.to_s.end_with?("_yearly")
   end
 
   # Prefer the request's Origin (then Referer) when it points at a trusted
