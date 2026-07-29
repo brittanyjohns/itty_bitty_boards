@@ -26,7 +26,7 @@ RSpec.describe CommunicationAccountMailer, type: :mailer do
 
       expect(mail.subject).to eq("Welcome to SpeakAnyWay AAC!")
       expect(mail.to).to eq(["sam@example.com"])
-      body = mail.html_part.body.decoded
+      body = (mail.html_part || mail).body.decoded
       expect(body).to include("You have a new account on SpeakAnyWay!")
       expect(body).to include("Hi Sam Carter")
       expect(body).to include("Alex Reed")
@@ -39,7 +39,7 @@ RSpec.describe CommunicationAccountMailer, type: :mailer do
       mail = described_class.setup_email(account, owner).deliver_now
 
       expect(mail.subject).to eq("¡Te damos la bienvenida a SpeakAnyWay AAC!")
-      body = mail.html_part.body.decoded
+      body = (mail.html_part || mail).body.decoded
       expect(body).to include("¡Tienes una nueva cuenta en SpeakAnyWay!")
       expect(body).to include("Hola Sam Carter")
       expect(body).to include("Configurar cuenta")
@@ -71,7 +71,7 @@ RSpec.describe CommunicationAccountMailer, type: :mailer do
 
       expect(mail.subject).to eq("Alex Reed sent you a SpeakAnyWay communicator")
       expect(mail.to).to eq(["parent@example.com"])
-      body = mail.html_part.body.decoded
+      body = (mail.html_part || mail).body.decoded
       expect(body).to include("Alex Reed")
       expect(body).to include("Sam Carter")
       expect(body).to include("Claim the communicator")
@@ -82,7 +82,7 @@ RSpec.describe CommunicationAccountMailer, type: :mailer do
       mail = described_class.claim_link_email(account, "parent@example.com", owner).deliver_now
 
       expect(mail.subject).to eq("Alex Reed te envió un comunicador de SpeakAnyWay")
-      body = mail.html_part.body.decoded
+      body = (mail.html_part || mail).body.decoded
       expect(body).to include("Haz tuyo el comunicador de Sam Carter")
       expect(body).to include("Reclamar el comunicador")
     end

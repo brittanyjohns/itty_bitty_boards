@@ -1,7 +1,7 @@
-<%# Inline SpeakAnyWay logo header for transactional emails. Renders the logo
-   that ApplicationMailer attaches as an inline (cid) image so mail clients show
-   it in the body instead of listing it as a downloadable attachment. Guarded so
-   templates without @logo (e.g. Devise mailers) simply render nothing. %>
+<%# SpeakAnyWay logo header for transactional emails. Loads the logo over HTTPS
+   from the URL ApplicationMailer resolves — never an inline (cid) attachment,
+   which mail clients list in the attachment strip even when the HTML references
+   it. Guarded so templates without @logo (e.g. Devise mailers) render nothing. %>
 <% if @logo %>
   <div style="text-align:center; padding:4px 0 20px 0;">
     <a href="https://app.speakanyway.com" target="_blank" rel="noopener" style="text-decoration:none; border:0;">
