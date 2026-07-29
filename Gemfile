@@ -83,6 +83,8 @@ end
 gem "devise"
 
 gem "devise-jwt"
+gem "omniauth-google-oauth2"
+gem "omniauth-rails_csrf_protection"
 gem "jsonapi-serializer"
 
 # Icons

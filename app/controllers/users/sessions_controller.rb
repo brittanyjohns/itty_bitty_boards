@@ -11,7 +11,6 @@ class Users::SessionsController < Devise::SessionsController
 
   # POST /resource/sign_in
   def create
-    puts "CREATE SESSIONS CONTROLLER"
     super
   end
 
