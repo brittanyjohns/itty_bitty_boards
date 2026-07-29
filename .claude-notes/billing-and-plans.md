@@ -135,8 +135,18 @@ purchase does not meet the minimum amount requirement"* (prod 400s on the beta-
 end Founding Family launch, 2026-07-07). Without the trial the checkout carries
 the plan's real price (yearly `$80`/`$200` ≥ `$50`) and the discount applies.
 The `trial_started` AnalyticsEvent is likewise gated on `apply_trial`, so promo
-conversions don't pollute the trial→paid metric. Non-promo checkouts are
-unchanged (full no-card reverse trial).
+conversions don't pollute the trial→paid metric.
+
+**Yearly checkouts skip the trial too, promo or not
+(`apply_trial = promo.blank? && !yearly_plan?(plan_key)`).** A checkout created
+without a `promo_code` sets `allow_promotion_codes`, which renders Stripe's own
+code box on the Checkout page — and that box validates against the same $0
+amount-due, so a buyer who reached an annual plan through /pricing rather than
+the campaign link could never redeem FOUNDING there. Charging the annual price
+up front keeps the box usable. **Monthly is unchanged** (full no-card reverse
+trial), and monthly still can't redeem a $50-minimum code — which is the
+restriction doing its job, not a bug. The durable fix for the confusing Stripe
+error on monthly is a promo field we own, pre-checkout; not built yet.
 
 **Client-facing trial state.** `User#api_view` carries a computed `trial`
 block — `{ active, status, ends_at, provider, needs_payment_method,
