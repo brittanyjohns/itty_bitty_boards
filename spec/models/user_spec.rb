@@ -761,5 +761,18 @@ RSpec.describe User, type: :model do
 
       expect(missing.map(&:name)).to be_empty
     end
+
+    # Regression: `add_foreign_key "board_exports", "users"` was added with no
+    # ON DELETE clause and no matching `has_many` on User, so destroying any
+    # user who had ever created a BoardExport raised
+    # ActiveRecord::InvalidForeignKey. Guard the association stays declared.
+    it "destroys a user with a board export without raising, and removes the board export" do
+      user = FactoryBot.create(:user)
+      board = FactoryBot.create(:board, user: user)
+      board_export = BoardExport.create!(user: user, exportable: board)
+
+      expect { user.destroy! }.not_to raise_error
+      expect(BoardExport.exists?(board_export.id)).to be(false)
+    end
   end
 end

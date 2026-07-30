@@ -116,4 +116,29 @@ RSpec.describe Boards::ObzPackager do
     expect(files).to have_key("README.txt")
     expect(files["README.txt"]).to include("could not be included")
   end
+
+  # write_assets dedupes by asset.path, which is derived from doc.id — so the
+  # same Doc backing tiles on two different boards must only be written to
+  # the zip once. Independently traced as correct by two prior reviewers but
+  # had zero test coverage.
+  it "writes a shared asset's bytes only once when two boards' tiles reference the same doc" do
+    image = create(:image, label: "shared tile", user: user)
+    doc = create(:doc, documentable: image, user: user, source_type: Doc::SOURCE_TYPE_USER, current: true)
+    doc.image.attach(io: File.open(Rails.root.join("public", "logo_bubble.png")),
+                      filename: "tile.png", content_type: "image/png")
+
+    board_a = create(:board, user: user, name: "A")
+    board_a.board_images.create!(image_id: image.id, position: 0, skip_create_voice_audio: true)
+    board_a.reload
+
+    board_b = create(:board, user: user, name: "B")
+    board_b.board_images.create!(image_id: image.id, position: 0, skip_create_voice_audio: true)
+    board_b.reload
+
+    scope = Boards::ExportScope::Result.new([board_a, board_b], board_a, [])
+    files = entries_in(described_class.new(scope, exporting_user: user).call.bytes)
+
+    image_entries = files.keys.select { |k| k.start_with?("images/") }
+    expect(image_entries).to eq(["images/#{doc.id}.png"])
+  end
 end

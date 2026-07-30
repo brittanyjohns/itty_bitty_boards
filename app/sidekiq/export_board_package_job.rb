@@ -13,6 +13,11 @@ class ExportBoardPackageJob
       else Boards::ExportScope.for_board(record.exportable, exporting_user: record.user)
       end
 
+    if scope.boards.empty?
+      record.mark_failed!("Nothing to export")
+      return
+    end
+
     result = Boards::ObzPackager.new(scope, exporting_user: record.user).call
 
     record.file.attach(

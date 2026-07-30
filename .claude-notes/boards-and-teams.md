@@ -237,7 +237,8 @@ image pool:
 `POST /api/boards/:id/export_package` (a board plus its predictive-link
 reachable set) and `POST /api/board_groups/:id/export_package` (an explicit
 Board Set) create a `BoardExport` and run `ExportBoardPackageJob` async;
-`GET/POST /api/board_exports/:id` (`show`/`download`) serve the result.
+`GET /api/board_exports/:id` (`show`) and `GET /api/board_exports/:id/download`
+(`download`) serve the result.
 
 - **Bundling and the declared license are independent decisions**, and both
   live in `Boards::ObfExporter`. `Images::RedistributionLicense.for` decides,

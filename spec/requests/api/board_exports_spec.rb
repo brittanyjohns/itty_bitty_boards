@@ -98,6 +98,16 @@ RSpec.describe "API::BoardExports", type: :request do
       expect(record.status).to eq("failed")
       expect(record.error_message).to eq("too big")
     end
+
+    it "fails cleanly instead of packaging a structurally empty export scope" do
+      empty_group = create(:board_group, user: user)
+      empty_record = BoardExport.create!(user: user, exportable: empty_group)
+
+      expect { ExportBoardPackageJob.new.perform(empty_record.id) }.not_to raise_error
+      empty_record.reload
+      expect(empty_record.status).to eq("failed")
+      expect(empty_record.error_message).to be_present
+    end
   end
 
   describe "GET /api/board_exports/:id/download" do
