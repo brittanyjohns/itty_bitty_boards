@@ -56,6 +56,19 @@ RSpec.describe Boards::ExportScope do
       expect(result.boards.size).to eq(2)
       expect(result.skipped_boards).not_to be_empty
     end
+
+    it "records a skipped board only once even when linked from two different tiles" do
+      root   = create(:board, user: user, name: "Root")
+      hidden = create(:board, user: stranger, name: "Hidden", published: false)
+      link(root, hidden)
+      link(root, hidden)
+
+      result = described_class.for_board(root.reload, exporting_user: user)
+
+      expect(result.boards).not_to include(hidden)
+      matching = result.skipped_boards.select { |s| s[:board_id] == hidden.id }
+      expect(matching.size).to eq(1)
+    end
   end
 
   describe ".for_group" do

@@ -30,6 +30,7 @@ module Boards
 
         capped, overflow = cap(collected)
         overflow.each { |b| skipped << { board_id: b.id, reason: "package board limit reached" } }
+        skipped.uniq! { |s| s[:board_id] }
 
         Result.new(capped, board, skipped)
       end
@@ -53,6 +54,7 @@ module Boards
         ordered = readable.sort_by { |b| b.id == root&.id ? 0 : 1 }
         capped, overflow = cap(ordered)
         overflow.each { |b| skipped << { board_id: b.id, reason: "package board limit reached" } }
+        skipped.uniq! { |s| s[:board_id] }
 
         Result.new(capped, root, skipped)
       end
