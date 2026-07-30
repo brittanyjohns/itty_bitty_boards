@@ -134,6 +134,24 @@ RSpec.describe Boards::ObzPackager do
     expect(files["README.txt"]).to include("not readable")
   end
 
+  it "surfaces attribution-required assets in the summary and README" do
+    OpenSymbol.create!(search_string: "sun", license: "CC BY 4.0")
+    image = create(:image, label: "sun", user: user)
+    create(:doc, documentable: image, user: user, source_type: "OpenSymbol", raw: "sun", current: true)
+    board = create(:board, user: user, name: "Attributed")
+    board.board_images.create!(image_id: image.id, position: 0, skip_create_voice_audio: true)
+    board.reload
+
+    scope = Boards::ExportScope::Result.new([board], board, [])
+    result = described_class.new(scope, exporting_user: user).call
+    files = entries_in(result.bytes)
+
+    expect(result.summary["attribution"].size).to eq(1)
+    expect(result.summary["attribution"].first[:label]).to eq("sun")
+    expect(files["README.txt"]).to include("attribution")
+    expect(files["README.txt"]).to include("sun")
+  end
+
   # doc.image.attached? (checked by ObfExporter#attach_asset) is a DB-level
   # check — it can be true while the underlying S3 object is missing,
   # corrupted, or transiently unreachable. The actual byte read happens later,

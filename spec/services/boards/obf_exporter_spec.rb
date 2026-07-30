@@ -61,6 +61,25 @@ RSpec.describe Boards::ObfExporter do
       expect(result.assets.first.path).to match(%r{\Aimages/\d+\.png\z})
     end
 
+    it "records an attribution entry for a bundled CC BY asset" do
+      OpenSymbol.create!(search_string: "sun", license: "CC BY 4.0")
+      image = create(:image, label: "sun", user: user)
+      create(:doc, documentable: image, user: user, source_type: "OpenSymbol", raw: "sun", current: true)
+      board.board_images.create!(image_id: image.id, position: 0, skip_create_voice_audio: true)
+
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+
+      expect(result.attribution.size).to eq(1)
+      expect(result.attribution.first).to include(label: "sun", license_type: a_string_matching(/cc by/i))
+    end
+
+    it "does not record attribution for the user's own content" do
+      add_tile("grandma")
+      result = described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+
+      expect(result.attribution).to be_empty
+    end
+
     it "skips a proprietary asset but still exports the board" do
       OpenSymbol.create!(search_string: "cup", license: "CC BY", protected_symbol: "true")
       image = create(:image, label: "cup", user: user)

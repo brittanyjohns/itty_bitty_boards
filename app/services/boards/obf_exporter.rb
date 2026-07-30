@@ -35,7 +35,7 @@ module Boards
     }.freeze
 
     Asset  = Struct.new(:kind, :id, :path, :doc)
-    Result = Struct.new(:obf, :assets, :skipped_assets)
+    Result = Struct.new(:obf, :assets, :skipped_assets, :attribution)
 
     def initialize(board, exporting_user:, asset_mode: :url, board_paths: {})
       @board = board
@@ -44,6 +44,7 @@ module Boards
       @board_paths = board_paths || {}
       @assets = []
       @skipped_assets = []
+      @attribution = []
       @owned_by_user = false
       @license_types = []
       @evaluated_bundlable = false
@@ -73,12 +74,12 @@ module Boards
         "buttons" => buttons,
       }
 
-      Result.new(obf, assets, skipped_assets)
+      Result.new(obf, assets, skipped_assets, attribution)
     end
 
     private
 
-    attr_reader :board, :exporting_user, :asset_mode, :board_paths, :assets, :skipped_assets
+    attr_reader :board, :exporting_user, :asset_mode, :board_paths, :assets, :skipped_assets, :attribution
 
     def button_entry(tile)
       tile.to_obf_button_format(load_board_path: board_paths[tile.predictive_board_id])
@@ -96,7 +97,7 @@ module Boards
         return tile.to_obf_image_format(exporting_user)
       end
 
-      record_license(verdict)
+      record_license(verdict, tile)
       attach_asset(tile, doc)
     end
 
@@ -140,10 +141,13 @@ module Boards
       EXTENSIONS_BY_CONTENT_TYPE.fetch(doc.image.content_type, "png")
     end
 
-    def record_license(verdict)
+    def record_license(verdict, tile)
       @evaluated_bundlable = true
       @owned_by_user ||= verdict.owned_by_user?
       @license_types << verdict.type if verdict.type.present?
+      if verdict.attribution_required?
+        @attribution << { board_image_id: tile.id, label: tile.label, license_type: verdict.type }
+      end
     end
 
     # Any content the user owns makes the board theirs, not ours to license.

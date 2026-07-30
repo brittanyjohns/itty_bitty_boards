@@ -139,6 +139,7 @@ module Boards
         "skipped_assets" => exports.flat_map { |_b, r| r.skipped_assets },
         "skipped_boards" => scope.skipped_boards,
         "packaging_failures" => packaging_failures,
+        "attribution" => exports.flat_map { |_b, r| r.attribution },
         "licenses" => exports.map { |_b, r| r.obf["license"]["type"] }.uniq,
         "exported_by_user_id" => exporting_user&.id,
         "exported_at" => Time.current.iso8601,
@@ -147,7 +148,9 @@ module Boards
 
     def readme_text(exports)
       skipped_assets = exports.flat_map { |_b, r| r.skipped_assets }
-      return nil if skipped_assets.empty? && scope.skipped_boards.empty? && packaging_failures.empty?
+      attribution = exports.flat_map { |_b, r| r.attribution }
+      return nil if skipped_assets.empty? && scope.skipped_boards.empty? &&
+                    packaging_failures.empty? && attribution.empty?
 
       lines = ["This package was exported from SpeakAnyWay (https://speakanyway.com).", ""]
 
@@ -166,6 +169,12 @@ module Boards
       if scope.skipped_boards.any?
         lines << "Some linked boards were not included:"
         scope.skipped_boards.each { |b| lines << "  - board #{b[:board_id]}: #{b[:reason]}" }
+        lines << ""
+      end
+
+      if attribution.any?
+        lines << "The following images require attribution under their license and are bundled in this package:"
+        attribution.each { |a| lines << "  - #{a[:label]} (#{a[:license_type]})" }
         lines << ""
       end
 
