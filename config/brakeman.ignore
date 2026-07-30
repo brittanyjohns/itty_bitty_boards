@@ -68,6 +68,29 @@
         915
       ],
       "user_note": "False positive: Admin::UsersController is gated by require_admin! (admins only), and :role is validated against the EDITABLE_ROLES allowlist (%w[user admin partner vendor]) before assignment \u2014 a non-listed role is ignored."
+    },
+    {
+      "warning_type": "Redirect",
+      "warning_code": 18,
+      "fingerprint": "3cd355279bb9290c80fa163656a9f402f4cc2d2d006640c595543657fabe3ad5",
+      "check_name": "Redirect",
+      "message": "Possible unprotected redirect",
+      "file": "app/controllers/api/board_exports_controller.rb",
+      "line": 16,
+      "link": "https://brakemanscanner.org/docs/warning_types/redirect/",
+      "code": "redirect_to(BoardExport.find_by(:id => params[:id], :user_id => current_user.id).file.url(:disposition => \"attachment\", :filename => BoardExport.find_by(:id => params[:id], :user_id => current_user.id).file.filename.to_s), :allow_other_host => true)",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "API::BoardExportsController",
+        "method": "download"
+      },
+      "user_input": "BoardExport.find_by(:id => params[:id], :user_id => current_user.id).file.url(:disposition => \"attachment\", :filename => BoardExport.find_by(:id => params[:id], :user_id => current_user.id).file.filename.to_s)",
+      "confidence": "Weak",
+      "cwe_id": [
+        601
+      ],
+      "user_note": "False positive: allow_other_host is required here because the redirect target is our own Active Storage attachment's URL (S3/CDN), not user-supplied. set_board_export already scopes the lookup to user_id: current_user&.id (a stranger's export 404s before this line runs), and BoardExport#file uses a private, presigned S3 service in production (see BoardExport#file_service_name) \u2014 the target host is always our own storage service, never attacker-controlled."
     }
   ]
 }

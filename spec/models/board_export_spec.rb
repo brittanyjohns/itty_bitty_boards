@@ -32,49 +32,25 @@ RSpec.describe BoardExport do
   # service is not). This proves BoardExport routes to the private service in
   # production without needing real AWS credentials.
   #
-  # `has_one_attached :file, service: <ternary>` evaluates that ternary once,
-  # when the class body runs — not per-call — so `Rails.env` is fixed for the
-  # life of the process (fine in real deployments, since RAILS_ENV never
-  # changes mid-process). To exercise the production branch here we stub
-  # Rails.env and re-declare the association with the model's exact
-  # production-selection expression, then restore the original declaration
-  # so later examples (and other spec files needing Disk in test) aren't
-  # affected.
-  #
-  # The restore MUST use a value captured before any stubbing, not
-  # re-evaluate `Rails.env.production? ? ... : ...` at restore time: RSpec's
-  # own mock-teardown (which un-stubs Rails.env) is itself an `after` hook,
-  # and hook execution order between it and a hook defined here isn't
-  # something to depend on — re-evaluating the ternary in a bare `after` risks
-  # running while the `allow(Rails.env)...` stub from the example above is
-  # still active, permanently leaking :amazon_private as the "default" for
-  # every later spec file in the run.
+  # `has_one_attached :file, service: file_service_name` evaluates the method
+  # once, when the class body runs — not per-call — so `Rails.env` is fixed
+  # for the life of the process (fine in real deployments, since RAILS_ENV
+  # never changes mid-process). These specs assert on `file_service_name`
+  # directly rather than re-invoking `has_one_attached` with a stubbed
+  # Rails.env: re-declaring the association eagerly constructs a real S3
+  # client (to resolve the named service), which attempts AWS
+  # credential-resolution network calls that WebMock blocks in CI — the
+  # method-extraction avoids that entirely, no mocking or restore-ordering
+  # needed.
   describe "file attachment service selection" do
-    original_service_name = nil
-
-    before do
-      original_service_name = described_class.reflect_on_attachment(:file).options[:service_name]
-    end
-
-    after do
-      described_class.has_one_attached(:file, service: original_service_name)
-    end
-
     it "uses the app's normal configured default service outside production (dev/test stays on Disk)" do
       expect(Rails.env.production?).to be false
-
-      service_name = described_class.reflect_on_attachment(:file).options[:service_name]
-      expect(service_name).to eq(Rails.application.config.active_storage.service)
+      expect(described_class.file_service_name).to eq(Rails.application.config.active_storage.service)
     end
 
     it "selects the private S3 service when Rails.env.production? is true" do
       allow(Rails.env).to receive(:production?).and_return(true)
-      described_class.has_one_attached(
-        :file, service: Rails.env.production? ? :amazon_private : Rails.application.config.active_storage.service
-      )
-
-      service_name = described_class.reflect_on_attachment(:file).options[:service_name]
-      expect(service_name).to eq(:amazon_private)
+      expect(described_class.file_service_name).to eq(:amazon_private)
     end
   end
 

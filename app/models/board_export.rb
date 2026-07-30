@@ -16,7 +16,17 @@ class BoardExport < ApplicationRecord
   # configured as the app default (Disk in dev/test) completely unaffected —
   # `Rails.application.config.active_storage.service` is evaluated fresh
   # each time, so this doesn't hardcode dev/test's service name.
-  has_one_attached :file, service: Rails.env.production? ? :amazon_private : Rails.application.config.active_storage.service
+  #
+  # Extracted to a named method (rather than inlining the ternary in
+  # has_one_attached) so specs can assert on the selection logic directly —
+  # re-invoking has_one_attached to test it eagerly constructs an S3 client
+  # and attempts AWS credential-resolution network calls, which WebMock
+  # blocks in CI.
+  def self.file_service_name
+    Rails.env.production? ? :amazon_private : Rails.application.config.active_storage.service
+  end
+
+  has_one_attached :file, service: file_service_name
 
   validates :status, inclusion: { in: STATUSES }
 
