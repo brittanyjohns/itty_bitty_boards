@@ -320,16 +320,37 @@ class BoardImage < ApplicationRecord
     x + (y * board.number_of_columns) + 1
   end
 
-  def to_obf_image_format(viewing_user = nil)
+  # `mode` selects how the bytes are referenced:
+  #   :url     — remote URL (default; what a bare .obf download used to do)
+  #   :inline  — base64 in `data`, for a standalone .obf with no package
+  #   :package — zip-relative `path`, for .obz
+  # Falls back to :url when the caller could not supply a path/data, so a
+  # single unreadable asset degrades instead of breaking the export.
+  def to_obf_image_format(viewing_user = nil, mode: :url, path: nil, data: nil)
     viewing_user ||= user
-    {
+    base = {
       id: id.to_s,
-      url: tile_image_url(viewing_user),
       content_type: image.content_type,
       ext_saw_label: label,
       ext_saw_voice: voice,
       ext_board_type: board.board_type,
-    }.compact
+    }
+
+    case mode
+    when :package
+      return base.merge(path: path).compact if path.present?
+    when :inline
+      return base.merge(data: data).compact if data.present?
+    end
+
+    base.merge(url: tile_image_url(viewing_user)).compact
+  end
+
+  # The doc whose bytes back this tile. Licensing and packaging both key on
+  # this, so they must agree on which doc was used.
+  def export_doc(viewing_user = nil)
+    viewing_user ||= user
+    image&.display_doc(viewing_user)
   end
 
   # Returns nil when there's no audio file to point at — caller compacts these.
@@ -347,7 +368,7 @@ class BoardImage < ApplicationRecord
     }
   end
 
-  def to_obf_button_format
+  def to_obf_button_format(load_board_path: nil)
     btn = {
       id: id.to_s,
       label: label,
@@ -370,6 +391,9 @@ class BoardImage < ApplicationRecord
           id: (target.obf_id.presence || target.id.to_s),
           name: target.name,
         }
+        # Per the OBF spec load_board may resolve by id or by path. Most apps
+        # use path inside a .obz, so emit both when packaging.
+        btn[:load_board][:path] = load_board_path if load_board_path.present?
       end
     end
     btn
