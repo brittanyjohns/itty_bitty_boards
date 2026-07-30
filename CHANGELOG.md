@@ -5,6 +5,17 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed — `POST /api/docs` returns the created doc instead of a 500
+- The JSON branch rendered `render :show, location: @doc`. `location: @doc`
+  resolves to `doc_url`, but the route is declared inside `namespace :api`, so
+  the helper is `api_doc_url` — and there is no `app/views/api/docs/show`
+  template for `render :show` to find either. Both faults fired *after* the
+  Doc was saved, so the record was created and the caller still got a 500.
+- The endpoint now responds `201` with the doc's `api_view` (the same shape
+  `PATCH /api/docs/:id` returns) and a `Location` header built from
+  `api_doc_url`. The same `doc_url` typo in `#update`'s HTML redirect is fixed
+  too. No frontend change: the app only calls `docs/:id/mark_as_current`.
+
 ### Fixed — The SpeakAnyWay logo no longer shows up as an email attachment
 - Every transactional email attached the logo as an inline (`cid`) image.
   Referencing an inline part from the HTML is legal MIME, but mail clients
