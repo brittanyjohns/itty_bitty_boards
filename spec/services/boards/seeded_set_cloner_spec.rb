@@ -334,7 +334,7 @@ RSpec.describe Boards::SeededSetCloner do
     before_all do
       register_openai_webmock_stub!
       register_external_webmock_stubs!
-      @seed_admin = create(:admin_user, id: User::DEFAULT_ADMIN_ID)
+      @seed_admin = User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)
       VocabSets.seed_slug!("core-60")
       VocabSets.seed_slug!("core-84")
     end
