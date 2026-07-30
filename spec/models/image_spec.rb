@@ -91,6 +91,37 @@ RSpec.describe Image, type: :model do
     end
   end
 
+  describe "#display_doc" do
+    let(:user) { create(:user) }
+
+    it "returns the same doc whether or not preloaded_user_docs is supplied" do
+      image = create(:image, label: "cup", user: user)
+      doc = create(:doc, documentable: image, user: user, source_type: Doc::SOURCE_TYPE_USER, current: true)
+
+      without_preload = image.display_doc(user)
+      preloaded = user.user_docs.includes(:doc).where(image_id: image.id).group_by(&:image_id)
+      with_preload = image.display_doc(user, preloaded_user_docs: preloaded)
+
+      expect(with_preload).to eq(without_preload)
+      expect(with_preload).to eq(doc)
+    end
+
+    it "falls back to the existing per-image query when preloaded_user_docs has no entry for this image" do
+      image = create(:image, label: "cup", user: user)
+      doc = create(:doc, documentable: image, user: user, source_type: Doc::SOURCE_TYPE_USER, current: true)
+
+      expect(image.display_doc(user, preloaded_user_docs: {})).to eq(doc)
+    end
+
+    it "does not change resolution for the DEFAULT_ADMIN_ID special case" do
+      admin = User.find_by(id: User::DEFAULT_ADMIN_ID) || create(:admin_user, id: User::DEFAULT_ADMIN_ID)
+      image = create(:image, label: "cup", user: admin)
+      doc = create(:doc, documentable: image, user: admin, source_type: Doc::SOURCE_TYPE_USER, current: true)
+
+      expect(image.display_doc(admin, preloaded_user_docs: { image.id => [] })).to eq(doc)
+    end
+  end
+
   describe "#with_display_doc" do
     let(:user) { FactoryBot.create(:user) }
     let(:admin_user) { FactoryBot.create(:user, role: "admin", id: User::DEFAULT_ADMIN_ID) }

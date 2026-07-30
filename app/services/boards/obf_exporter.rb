@@ -60,6 +60,13 @@ module Boards
       predictive_ids = tiles.filter_map(&:predictive_board_id).uniq
       boards_by_id = Board.where(id: predictive_ids).index_by(&:id)
 
+      image_ids = tiles.filter_map(&:image_id).uniq
+      @preloaded_user_docs = if exporting_user
+          exporting_user.user_docs.includes(:doc).where(image_id: image_ids).group_by(&:image_id)
+        else
+          {}
+        end
+
       images = tiles.map { |tile| image_entry(tile) }
       buttons = tiles.map { |tile| button_entry(tile, boards_by_id) }
 
@@ -91,13 +98,14 @@ module Boards
     def image_entry(tile)
       return tile.to_obf_image_format(exporting_user) if asset_mode == :url
 
-      doc = tile.export_doc(exporting_user)
+      doc = tile.export_doc(exporting_user, preloaded_user_docs: @preloaded_user_docs)
       verdict = doc && Images::RedistributionLicense.for(doc, exporting_user: exporting_user)
 
       unless verdict&.bundlable?
         skipped_assets << { board_image_id: tile.id, label: tile.label,
                             reason: verdict&.reason || "no image on record" }
-        return tile.to_obf_image_format(exporting_user)
+        content_type = doc.image.content_type if doc&.image&.attached?
+        return tile.to_obf_image_format(exporting_user, content_type: content_type)
       end
 
       record_license(verdict, tile)
@@ -120,11 +128,11 @@ module Boards
         end
 
         data = Base64.strict_encode64(bytes)
-        return tile.to_obf_image_format(exporting_user, mode: :inline, data: data)
+        return tile.to_obf_image_format(exporting_user, mode: :inline, data: data, content_type: doc.image.content_type)
       end
 
       assets << Asset.new(:image, doc.id.to_s, path, doc)
-      tile.to_obf_image_format(exporting_user, mode: :package, path: path)
+      tile.to_obf_image_format(exporting_user, mode: :package, path: path, content_type: doc.image.content_type)
     rescue TooLarge
       raise
     rescue StandardError => e

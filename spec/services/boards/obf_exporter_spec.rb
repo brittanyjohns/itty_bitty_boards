@@ -195,6 +195,23 @@ RSpec.describe Boards::ObfExporter do
     expect(result.obf["buttons"].map { |b| b[:load_board][:name] }).to contain_exactly("Drinks", "Snacks")
   end
 
+  it "does not run one user_docs query per tile" do
+    add_tile("apple")
+    add_tile("banana")
+    add_tile("cherry")
+
+    user_docs_query_count = 0
+    counter = ->(_name, _start, _finish, _id, payload) {
+      user_docs_query_count += 1 if payload[:sql].match?(/FROM "user_docs"/)
+    }
+
+    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+      described_class.new(board.reload, exporting_user: user, asset_mode: :package).call
+    end
+
+    expect(user_docs_query_count).to eq(1)
+  end
+
   describe "sound bundling (asset_mode: :package)" do
     # Deliberately attaches audio_files (has_many_attached, on Image) BEFORE
     # doc.image (has_one_attached, on Doc) rather than reusing add_tile as-is

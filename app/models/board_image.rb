@@ -326,11 +326,20 @@ class BoardImage < ApplicationRecord
   #   :package — zip-relative `path`, for .obz
   # Falls back to :url when the caller could not supply a path/data, so a
   # single unreadable asset degrades instead of breaking the export.
-  def to_obf_image_format(viewing_user = nil, mode: :url, path: nil, data: nil)
+  #
+  # `content_type:` mirrors the same parameter on #to_obf_sound_format (see
+  # that method's comment): when ObfExporter#image_entry / #attach_asset has
+  # already resolved this tile's doc (via #export_doc, which honors
+  # preloaded_user_docs), it passes that doc's real blob content_type in
+  # explicitly. Without it, this method falls back to `image.content_type`,
+  # which calls Image#display_doc with NO viewing_user/preload — a second,
+  # unbatched route into the same per-image user_docs query Task 8 batches.
+  # Every existing caller omits it and gets the exact prior behavior.
+  def to_obf_image_format(viewing_user = nil, mode: :url, path: nil, data: nil, content_type: nil)
     viewing_user ||= user
     base = {
       id: id.to_s,
-      content_type: image.content_type,
+      content_type: content_type.presence || image.content_type,
       ext_saw_label: label,
       ext_saw_voice: voice,
       ext_board_type: board.board_type,
@@ -348,9 +357,9 @@ class BoardImage < ApplicationRecord
 
   # The doc whose bytes back this tile. Licensing and packaging both key on
   # this, so they must agree on which doc was used.
-  def export_doc(viewing_user = nil)
+  def export_doc(viewing_user = nil, preloaded_user_docs: nil)
     viewing_user ||= user
-    image&.display_doc(viewing_user)
+    image&.display_doc(viewing_user, preloaded_user_docs: preloaded_user_docs)
   end
 
   # Returns nil when there's no audio file to point at — caller compacts these.
