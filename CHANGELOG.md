@@ -18,10 +18,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   pointing at the async `.obz` export (`export_package`) instead. The async
   path's own 200MB package-size cap (`ObzPackager::MAX_BYTES`) is now
   checked incrementally as the zip is built, not after the fact.
-- `POST /api/boards/:id/export_package` and
-  `POST /api/board_groups/:id/export_package` are now rate-limited
-  (`RACK_ATTACK_EXPORT_LIMIT`, default 10/hour) and refuse a second
-  in-flight export per user (409 `export_in_progress`).
+- `POST /api/boards/:id/export_package`, `POST
+  /api/board_groups/:id/export_package`, and `GET
+  /api/boards/:id/download_obf` are now rate-limited together under one
+  per-user bucket (`RACK_ATTACK_EXPORT_LIMIT`, default 10/hour) and the two
+  `export_package` endpoints refuse a second in-flight export per user (409
+  `export_in_progress`).
 
 ### Fixed — export authorization and performance
 - `board_groups#export_package` now returns a generic 404 for an
@@ -33,6 +35,26 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
   actually lives.
 - `GET /api/board_exports/:id/download` now redirects to the file's storage
   URL instead of buffering the whole `.obz` through the app server.
+
+### Fixed — cross-task interactions from the export hardening pass
+- `GET /api/boards/:id/download_obf` could bypass the `export/user`
+  Rack::Attack throttle entirely (it never created a `BoardExport`, so it
+  never tripped the in-flight guard either) — it now shares the same
+  throttle bucket as the two `export_package` endpoints.
+- The in-flight export guard (`current_user.board_exports...exists?`) used
+  to match any `queued`/`processing` `BoardExport` forever, so a job that
+  died without reaching its rescue block (OOM, hard kill) permanently
+  409-locked that user out of exporting. It now goes through
+  `BoardExport.in_flight`, which adds a 30-minute staleness bound
+  (`IN_FLIGHT_STALENESS`) — a stale `queued`/`processing` record stops
+  gating new exports after 30 minutes, though it doesn't cancel or affect
+  an already-running job.
+- `BoardExport#file` now attaches to a new private `amazon_private` Active
+  Storage service in production (`config/storage.yml`) instead of the
+  default `amazon` service, which is `public: true`. Exported `.obz`/`.obf`
+  files can bundle a family's own audio recordings, so `file.url` now
+  resolves to a signed, expiring URL rather than a permanent unauthenticated
+  one.
 
 ### Fixed — selecting the Free plan can no longer downgrade a paying subscriber
 - `POST /api/stripe/checkout_sessions` with `plan_key: "free"` applied

@@ -434,17 +434,37 @@ Board Set) create a `BoardExport` and run `ExportBoardPackageJob` async;
     library image, the declared `content_type` now matches the bytes
     actually bundled, rather than the shared `Image`'s default doc's type.
 - **Export endpoints are rate-limited and refuse a second in-flight
-  export.** Rack::Attack throttles `POST /api/boards/:id/export_package` and
-  `POST /api/board_groups/:id/export_package` together under `export/user` —
-  `RACK_ATTACK_EXPORT_LIMIT` (default 10) per `RACK_ATTACK_EXPORT_PERIOD`
-  (default 3600s), ENV-tunable like the app's other throttles. Independently,
-  both controllers check `current_user.board_exports.where(status: %w[queued
-  processing]).exists?` before creating a new `BoardExport`, returning
-  **409 `export_in_progress`** if one is already outstanding. **Known,
-  accepted gap:** that guard is check-then-create with no DB-level lock (no
-  unique index, no `SELECT ... FOR UPDATE`), so two genuinely simultaneous
-  requests could both pass the check and both create a `BoardExport` — a
-  rare, low-consequence race (worst case: two exports run instead of one),
+  export.** Rack::Attack's `export/user` throttle
+  (`RACK_ATTACK_EXPORT_LIMIT`, default 10, per `RACK_ATTACK_EXPORT_PERIOD`,
+  default 3600s, ENV-tunable like the app's other throttles) now covers
+  **three** endpoints sharing one per-user bucket: `POST
+  /api/boards/:id/export_package`, `POST
+  /api/board_groups/:id/export_package`, and — as of the cross-task-review
+  fix — `GET /api/boards/:id/download_obf` (the synchronous inline path;
+  see `EXPORT_DOWNLOAD_PATHS` in `config/initializers/rack_attack.rb`).
+  Without it, `download_obf` was the one export surface that could be
+  hammered without ever creating a `BoardExport` to trip the in-flight
+  guard below. Independently, both `export_package` controllers check
+  `current_user.board_exports.in_flight.exists?` before creating a new
+  `BoardExport`, returning **409 `export_in_progress`** if one is already
+  outstanding. `BoardExport.in_flight` (`app/models/board_export.rb`) is
+  `where(status: IN_FLIGHT_STATUSES).where(created_at:
+  IN_FLIGHT_STALENESS.ago..)` — `IN_FLIGHT_STATUSES` is `%w[queued
+  processing]` and `IN_FLIGHT_STALENESS` is a hardcoded **30 minutes**, so a
+  `queued`/`processing` record older than that no longer counts as
+  in-flight. This closes a permanent-lockout gap: a `BoardExport` that never
+  reaches `ExportBoardPackageJob`'s rescue blocks (OOM, hard kill) used to
+  stay `processing` forever and 409-lock that user out of exporting with no
+  recovery route. The 30-minute bound only affects the **gate on a new
+  export request** — it does not cancel, time out, or otherwise touch an
+  already-running `ExportBoardPackageJob`; a legitimately slow job past 30
+  minutes keeps running (and can complete and flip the record to
+  `completed`/`failed` normally) while a second export request is now
+  allowed to start alongside it. **Known, accepted gap:** the guard is
+  still check-then-create with no DB-level lock (no unique index, no
+  `SELECT ... FOR UPDATE`), so two genuinely simultaneous requests could
+  both pass the check and both create a `BoardExport` — a rare,
+  low-consequence race (worst case: two exports run instead of one),
   bounded by the rate limit above and accepted rather than fixed.
 - **`GET /api/board_exports/:id/download` redirects instead of buffering.**
   It now `redirect_to`s the attachment's storage URL
@@ -452,6 +472,21 @@ Board Set) create a `BoardExport` and run `ExportBoardPackageJob` async;
   `allow_other_host: true`) rather than streaming the whole `.obz` (up to
   `ObzPackager::MAX_BYTES`, 200MB) through the Puma worker via `send_data`.
   `#show` and the 404-for-unowned-or-missing-export behavior are unchanged.
+- **`BoardExport#file` uses a dedicated private storage service in
+  production.** `has_one_attached :file, service: Rails.env.production? ?
+  :amazon_private : Rails.application.config.active_storage.service`. The
+  app's default `amazon` service (`config/storage.yml`) sets `public: true`,
+  which makes `file.url` a permanent, unauthenticated bucket URL — fine for
+  most Active Storage uses but wrong for exported `.obz`/`.obf` archives,
+  which since Task 6 can bundle a family's own audio recordings alongside
+  images. `amazon_private` is the same bucket/credentials as `amazon` minus
+  `public: true`, so `file.url` resolves through S3's presigned/expiring
+  path instead. The check is `Rails.env.production?` (Rails environment),
+  not `AppEnv.staging?` — and staging runs with `RAILS_ENV=production` too,
+  so staging exports also get `amazon_private`. Only dev/test (anything
+  that isn't literally `RAILS_ENV=production`) fall through to whatever the
+  app-wide `active_storage.service` default already is (Disk locally),
+  evaluated fresh each time rather than hardcoded.
 - **Known limitation: a cropped image's `source_type` does not reflect the
   crop's actual provenance.** When a user crops an image whose source was a
   proprietary symbol set (e.g. SymbolStix), the resulting crop gets
